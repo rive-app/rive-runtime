@@ -311,24 +311,31 @@ half from_fixed(uint x)
 // Also update the PLS clip value if called for.
 half4 resolve_path_color(half coverageCount,
                          uint2 paintData,
-                         uint pathID FRAGMENT_CONTEXT_DECL PLS_CONTEXT_DECL)
+                         uint pathID FRAGMENT_CONTEXT_DECL PLS_CONTEXT_DECL,
+                         OUT(uint) clipData,
+                         bool needsClipData)
 {
+    clipData = 0u;
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
     if ((paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
         coverage = 1. - abs(fract(coverage * .5) * 2. + -1.);
-#endif                                      // ENABLE_EVEN_ODD
-    coverage = min(coverage, make_half(1)); // This also caps stroke coverage, which can be >1.
+#endif                                       // ENABLE_EVEN_ODD
+    coverage = min(coverage, make_half(1.)); // This also caps stroke coverage, which can be >1.
 #ifdef @ENABLE_CLIPPING
     uint clipID = paintData.x >> 16u;
+    if (clipID != 0u || needsClipData)
+    {
+        clipData = PLS_LOADUI(clipBuffer);
+    }
     if (clipID != 0u)
     {
-        uint clipData = PLS_LOADUI(clipBuffer);
+        clipData = PLS_LOADUI(clipBuffer);
         half clipCoverage = clipID == (clipData >> 16u) ? unpackHalf2x16(clipData).r : .0;
         coverage = min(coverage, clipCoverage);
     }
 #endif // ENABLE_CLIPPING
-    half4 color = make_half4(0, 0, 0, 0);
+    half4 color = make_half4(.0, .0, .0, .0);
     uint paintType = paintData.x & 0xfu;
     switch (paintType)
     {
@@ -375,7 +382,8 @@ half4 resolve_path_color(half coverageCount,
         }
 #ifdef @ENABLE_CLIPPING
         case CLIP_UPDATE_PAINT_TYPE:
-            PLS_STOREUI(clipBuffer, paintData.y | packHalf2x16(make_half2(coverage, 0)));
+            clipData = paintData.y | packHalf2x16(make_half2(coverage, .0));
+            PLS_STOREUI(clipBuffer, clipData);
             break;
 #endif // ENABLE_CLIPPING
     }
@@ -458,10 +466,10 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_pathID, ushort);
 
 #ifndef @ENABLE_ADVANCED_BLEND
-    _fragColor = make_half4(0, 0, 0, 0);
+    _fragColor = make_half4(.0, .0, .0, .0);
 #endif
 
-    half coverage = min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), make_half(1));
+    half coverage = min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), make_half(1.));
 
     // Since v_pathID increases monotonically with every draw, and since it lives in the most
     // significant bits of the coverage data, an atomic max() function will serve 3 purposes:
@@ -481,9 +489,12 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
         // coverage.
         half coverageCount = from_fixed(lastCoverageData & 0xffffu);
         uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
+        uint clipData;
         half4 color = resolve_path_color(coverageCount,
                                          paintData,
-                                         lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
+                                         lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK,
+                                         clipData,
+                                         /*needsClipData=*/false);
 #ifdef @ENABLE_ADVANCED_BLEND
         write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
 #else
@@ -519,7 +530,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_pathID, ushort);
 
 #ifndef @ENABLE_ADVANCED_BLEND
-    _fragColor = make_half4(0, 0, 0, 0);
+    _fragColor = make_half4(.0, .0, .0, .0);
 #endif
 
     half coverage = v_windingWeight;
@@ -532,9 +543,12 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
         // We crossed into a new path! Resolve the previous path now that we know its exact
         // coverage.
         uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
+        uint clipData;
         half4 color = resolve_path_color(lastCoverageCount,
                                          paintData,
-                                         lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
+                                         lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK,
+                                         clipData,
+                                         /*needsClipData=*/false);
 #ifdef @ENABLE_ADVANCED_BLEND
         write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
 #else
@@ -581,7 +595,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #endif
 #ifdef @ENABLE_CLIP_RECT
     half clipRectCoverage = min_value(make_half4(v_clipRect));
-    meshCoverage = clamp(clipRectCoverage, make_half(0), meshCoverage);
+    meshCoverage = clamp(clipRectCoverage, make_half(.0), meshCoverage);
 #endif
 
 #ifdef @DRAW_IMAGE_MESH
@@ -596,16 +610,17 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
     uint2 lastPaintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
+    uint clipData;
     half4 lastColor = resolve_path_color(coverageCount,
                                          lastPaintData,
-                                         lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
+                                         lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK,
+                                         clipData,
+                                         /*needsClipData=*/true);
 
     // Clip the image after resolving the previous path, since that can affect the clip buffer.
 #ifdef @ENABLE_CLIPPING // TODO! ENABLE_IMAGE_CLIPPING in addition to ENABLE_CLIPPING?
     if (imageDrawUniforms.clipID != 0u)
     {
-        PLS_MEMORY_BARRIER(clipBuffer); // (Because resolve_path_color() may have modified it.)
-        uint clipData = PLS_LOADUI(clipBuffer);
         uint clipID = clipData >> 16;
         half clipCoverage = clipID == imageDrawUniforms.clipID ? unpackHalf2x16(clipData).r : .0;
         meshCoverage = min(meshCoverage, clipCoverage);
@@ -656,7 +671,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
 #ifndef @ENABLE_ADVANCED_BLEND
-    _fragColor = make_half4(0, 0, 0, 0);
+    _fragColor = make_half4(.0, .0, .0, .0);
 #endif
 #ifdef @STORE_COLOR_CLEAR
     PLS_STORE4F(colorBuffer, unpackUnorm4x8(uniforms.colorClearValue));
@@ -686,9 +701,12 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
     ushort lastPathID = make_ushort(lastCoverageData >> 16);
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
+    uint clipData;
     half4 color = resolve_path_color(coverageCount,
                                      paintData,
-                                     lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
+                                     lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK,
+                                     clipData,
+                                     false);
 #ifdef @COALESCED_PLS_RESOLVE_AND_TRANSFER
     _fragColor = do_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
     EMIT_PLS_AND_FRAG_COLOR

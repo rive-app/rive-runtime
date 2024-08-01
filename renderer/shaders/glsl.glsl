@@ -22,10 +22,7 @@
 #define half2 mediump vec2
 #define half3 mediump vec3
 #define half4 mediump vec4
-#define make_half float
-#define make_half2 vec2
-#define make_half3 vec3
-#define make_half4 vec4
+#define half3x4 mediump mat3x4
 
 #define int2 ivec2
 #define int3 ivec3
@@ -35,10 +32,6 @@
 #define short2 mediump ivec2
 #define short3 mediump ivec3
 #define short4 mediump ivec4
-#define make_short ivec
-#define make_short2 ivec2
-#define make_short3 ivec3
-#define make_short4 ivec4
 
 #define uint2 uvec2
 #define uint3 uvec3
@@ -48,13 +41,8 @@
 #define ushort2 mediump uvec2
 #define ushort3 mediump uvec3
 #define ushort4 mediump uvec4
-#define make_ushort uint
-#define make_ushort2 uvec2
-#define make_ushort3 uvec3
-#define make_ushort4 uvec4
 
 #define float2x2 mat2
-#define make_half3x4 mat3x4
 
 #define INLINE
 #define OUT(ARG_TYPE) out ARG_TYPE
@@ -345,9 +333,6 @@
 
 #ifdef @PLS_IMPL_SUBPASS_LOAD
 
-// TODO: This is temporary hack to draw something deterministic until we implement atomic mode.
-layout($constant_id = 0) const bool kHasRasterOrdering = false;
-
 #define PLS_BLOCK_BEGIN
 #define PLS_DECL4F(IDX, NAME)                                                                      \
     layout(input_attachment_index = IDX, binding = IDX, set = PLS_TEXTURE_BINDINGS_SET)            \
@@ -359,15 +344,13 @@ layout($constant_id = 0) const bool kHasRasterOrdering = false;
     layout(location = IDX) out highp uvec4 NAME
 #define PLS_BLOCK_END
 
-#define PLS_LOAD4F(PLANE) (kHasRasterOrdering ? subpassLoad(_in_##PLANE) : vec4(0))
-#define PLS_LOADUI(PLANE) (kHasRasterOrdering ? subpassLoad(_in_##PLANE).r : 0u)
+#define PLS_LOAD4F(PLANE) subpassLoad(_in_##PLANE)
+#define PLS_LOADUI(PLANE) subpassLoad(_in_##PLANE).r
 #define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
 #define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
 
-#define PLS_PRESERVE_4F(PLANE)                                                                     \
-    PLS_STORE4F(PLANE, kHasRasterOrdering ? subpassLoad(_in_##PLANE) : vec4(1, 0, 1, 1))
-#define PLS_PRESERVE_UI(PLANE)                                                                     \
-    PLS_STOREUI(PLANE, kHasRasterOrdering ? subpassLoad(_in_##PLANE).r : 0u)
+#define PLS_PRESERVE_4F(PLANE) PLS_STORE4F(PLANE, subpassLoad(_in_##PLANE))
+#define PLS_PRESERVE_UI(PLANE) PLS_STOREUI(PLANE, subpassLoad(_in_##PLANE).r)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -393,8 +376,6 @@ layout($constant_id = 0) const bool kHasRasterOrdering = false;
 #define PLS_INTERLOCK_END
 
 #endif
-
-#define PLS_MEMORY_BARRIER(PLANE)
 
 #ifdef @TARGET_VULKAN
 #define gl_VertexID gl_VertexIndex
@@ -511,3 +492,23 @@ INLINE half4 unpackUnorm4x8(uint u)
 
 precision highp float;
 precision highp int;
+
+// Define these constructors as actual functions instead of macros, in order to
+// make precision transitions explicit.
+half make_half(half x) { return x; }
+half2 make_half2(half2 xy) { return xy; }
+half2 make_half2(half x, half y) { return vec2(x, y); }
+half3 make_half3(half x, half y, half z) { return vec3(x, y, z); }
+half4 make_half4(half x) { return vec4(x); }
+half4 make_half4(half x, half y, half z, half w) { return vec4(x, y, z, w); }
+half4 make_half4(half3 xyz, half w) { return vec4(xyz, w); }
+half4 make_half4(half4 xyzw) { return xyzw; }
+half make_half(uint x) { return float(x); }
+half4 make_half4(uint4 xyzw) { return vec4(xyzw); }
+half make_half(int x) { return float(x); }
+ushort make_ushort(float x) { return uint(x); }
+ushort make_ushort(ushort x) { return x; }
+half3x4 make_half3x4(half3 a, half b, half3 c, half d, half3 e, half f)
+{
+    return mat3x4(a, b, c, d, e, f);
+}

@@ -16,8 +16,10 @@ namespace rive::pls
 class PLSTextureVulkanImpl;
 
 // Tells the PLS context which device extensions are enabled and available to use.
-struct VulkanDeviceExtensions
+struct VulkanCapabilities
 {
+    bool fillModeNonSolid = false;
+    bool fragmentStoresAndAtomics = false;
     // Flagging this extension implies that the GPU *also* supports rasterOrdered
     // access to color attachments. (Otherwise it must be turned off.)
     bool EXT_rasterization_order_attachment_access = false;
@@ -39,25 +41,27 @@ private:
     {}
 
     // Called during flush(). Ensures the required offscreen views are all initialized.
-    void synchronize(vkutil::Allocator*, VkCommandBuffer);
+    void synchronize(vkutil::Allocator*, VkCommandBuffer, pls::InterlockMode);
 
     const VkFormat m_framebufferFormat;
     rcp<vkutil::TextureView> m_targetTextureView;
 
-    rcp<vkutil::Texture> m_coverageTexture;
+    rcp<vkutil::Texture> m_coverageTexture; // pls::InterlockMode::rasterOrdering.
     rcp<vkutil::Texture> m_clipTexture;
     rcp<vkutil::Texture> m_scratchColorTexture;
+    rcp<vkutil::Texture> m_coverageAtomicTexture; // pls::InterlockMode::atomics.
 
     rcp<vkutil::TextureView> m_coverageTextureView;
     rcp<vkutil::TextureView> m_clipTextureView;
     rcp<vkutil::TextureView> m_scratchColorTextureView;
+    rcp<vkutil::TextureView> m_coverageAtomicTextureView;
 };
 
 class PLSRenderContextVulkanImpl : public PLSRenderContextImpl
 {
 public:
     static std::unique_ptr<PLSRenderContext> MakeContext(rcp<vkutil::Allocator>,
-                                                         VulkanDeviceExtensions);
+                                                         VulkanCapabilities);
 
     ~PLSRenderContextVulkanImpl();
 
@@ -83,7 +87,7 @@ public:
     }
 
 private:
-    PLSRenderContextVulkanImpl(rcp<vkutil::Allocator>, VulkanDeviceExtensions);
+    PLSRenderContextVulkanImpl(rcp<vkutil::Allocator>, VulkanCapabilities);
 
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
@@ -161,7 +165,7 @@ private:
 
     const rcp<vkutil::Allocator> m_allocator;
     const VkDevice m_device;
-    const VulkanDeviceExtensions m_extensions;
+    const VulkanCapabilities m_capabilities;
 
     // PLS buffers.
     vkutil::BufferRing m_flushUniformBufferRing;
@@ -191,20 +195,19 @@ private:
     rcp<vkutil::TextureView> m_tessVertexTextureView;
     rcp<vkutil::Framebuffer> m_tessTextureFramebuffer;
 
-    // Draw paths and image meshes using the gradient and tessellation textures.
+    // One for pls::InterlockMode::rasterOrdering and one for pls::InterlockMode::atomics.
+    class DrawPipelineLayout;
+    std::array<std::unique_ptr<DrawPipelineLayout>, 2> m_drawPipelineLayouts;
+
     class DrawShader;
-    class DrawPipeline;
     std::map<uint32_t, DrawShader> m_drawShaders;
+
+    class DrawPipeline;
     std::map<uint32_t, DrawPipeline> m_drawPipelines;
-    VkRenderPass m_drawRenderPasses[4 /*DrawPipeline::kRenderPassVariantCount*/];
-    VkDescriptorSetLayout m_drawDescriptorSetLayouts[4 /*BINDINGS_SET_COUNT*/];
+
     rcp<PLSTextureVulkanImpl> m_nullImageTexture; // Bound when there is not an image paint.
     VkSampler m_linearSampler;
     VkSampler m_mipmapSampler;
-    VkDescriptorPool m_staticDescriptorPool; // For descriptorSets that never change between frames.
-    VkDescriptorSet m_nullImageDescriptorSet;
-    VkDescriptorSet m_samplerDescriptorSet;
-    VkPipelineLayout m_drawPipelineLayout;
     rcp<vkutil::Buffer> m_pathPatchVertexBuffer;
     rcp<vkutil::Buffer> m_pathPatchIndexBuffer;
     rcp<vkutil::Buffer> m_imageRectVertexBuffer;

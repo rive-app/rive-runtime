@@ -1,6 +1,8 @@
 #extension GL_EXT_samplerless_texture_functions : require
 #define TARGET_VULKAN
-#define PLS_IMPL_STORAGE_TEXTURE
+#define ENABLE_INSTANCE_INDEX
+#define PLS_IMPL_SUBPASS_LOAD
+#define USING_PLS_STORAGE_TEXTURES
 #define OPTIONALLY_FLAT flat
 #define ENABLE_CLIPPING
 #define ENABLE_CLIP_RECT

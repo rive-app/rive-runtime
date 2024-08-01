@@ -247,7 +247,6 @@
     $atomic_store_explicit(&_pls.PLANE[_plsIdx], VALUE, $memory_order::$memory_order_relaxed)
 #define PLS_PRESERVE_4F(PLANE)
 #define PLS_PRESERVE_UI(PLANE)
-#define PLS_MEMORY_BARRIER(PLANE)
 
 #define PLS_ATOMIC_MAX(PLANE, X)                                                                   \
     $atomic_fetch_max_explicit(&_pls.PLANE[_plsIdx], X, $memory_order::$memory_order_relaxed)
@@ -325,7 +324,6 @@
 #define PLS_STOREUI_ATOMIC(PLANE) PLS_STOREUI
 #define PLS_PRESERVE_4F(PLANE) _pls.PLANE = _inpls.PLANE
 #define PLS_PRESERVE_UI(PLANE) _pls.PLANE = _inpls.PLANE
-#define PLS_MEMORY_BARRIER(PLANE) _inpls.PLANE = _pls.PLANE
 
 INLINE uint pls_atomic_max($thread uint& dst, uint x)
 {

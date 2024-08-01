@@ -107,6 +107,41 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     return VK_FALSE;
 }
 
+static void blit_full_image(VkCommandBuffer commandBuffer,
+                            VkImage src,
+                            VkImage dst,
+                            int32_t width,
+                            int32_t height)
+{
+    VkImageBlit imageBlit = {
+        .srcSubresource =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .layerCount = 1,
+            },
+        .dstSubresource =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .layerCount = 1,
+            },
+    };
+
+    imageBlit.srcOffsets[0] = {0, 0, 0};
+    imageBlit.srcOffsets[1] = {width, height, 1};
+
+    imageBlit.dstOffsets[0] = {0, 0, 0};
+    imageBlit.dstOffsets[1] = {width, height, 1};
+
+    vkCmdBlitImage(commandBuffer,
+                   src,
+                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   dst,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                   1,
+                   &imageBlit,
+                   VK_FILTER_NEAREST);
+}
+
 class FiddleContextVulkanPLS : public FiddleContext
 {
 public:
@@ -327,7 +362,7 @@ public:
 
         std::vector<const char*> deviceEnabledExtensions;
 
-        VulkanDeviceExtensions extensions;
+        VulkanCapabilities capabilities;
         bool KHR_swapchain = false;
         for (const VkExtensionProperties& ext : deviceAvailableExtensions)
         {
@@ -341,8 +376,8 @@ public:
             if (instanceExtensions.KHR_portability_enumeration &&
                 strcmp(ext.extensionName, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME) == 0)
             {
-                // Enable KHR_portability_subset for KHR_portability_enumeration, which is needed by
-                // MoltenVK.
+                // Enable KHR_portability_subset for KHR_portability_enumeration,
+                // which is needed by MoltenVK.
                 deviceEnabledExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
                 continue;
             }
@@ -351,7 +386,7 @@ public:
                         VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME) == 0 ||
                  strcmp(ext.extensionName, "VK_AMD_rasterization_order_attachment_access") == 0))
             {
-                extensions.EXT_rasterization_order_attachment_access = true;
+                capabilities.EXT_rasterization_order_attachment_access = true;
                 availableRasterOrderFeatures.pNext = availablePhysicalDeviceFeatures2.pNext;
                 availablePhysicalDeviceFeatures2.pNext = &availableRasterOrderFeatures;
                 continue;
@@ -374,7 +409,7 @@ public:
 
         // Only enable EXT_rasterization_order_attachment_access if we have
         // rasterOrdered access to color attachments.
-        if (extensions.EXT_rasterization_order_attachment_access)
+        if (capabilities.EXT_rasterization_order_attachment_access)
         {
             // availableRasterOrderFeatures gets filled out by
             // vkGetPhysicalDeviceFeatures2().
@@ -389,7 +424,7 @@ public:
             {
                 // Un-flag EXT_rasterization_order_attachment_access since it
                 // doesn't support rasterOrdered color attachment access.
-                extensions.EXT_rasterization_order_attachment_access = false;
+                capabilities.EXT_rasterization_order_attachment_access = false;
             }
         }
 
@@ -404,6 +439,16 @@ public:
         VkPhysicalDeviceFeatures2 physicalDeviceFeatures2 = {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
         };
+        if (availablePhysicalDeviceFeatures2.features.fillModeNonSolid)
+        {
+            physicalDeviceFeatures2.features.fillModeNonSolid = true;
+            capabilities.fillModeNonSolid = true;
+        }
+        if (availablePhysicalDeviceFeatures2.features.fragmentStoresAndAtomics)
+        {
+            physicalDeviceFeatures2.features.fragmentStoresAndAtomics = true;
+            capabilities.fragmentStoresAndAtomics = true;
+        }
 
         VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT rasterOrderFeatures{
             .sType =
@@ -411,7 +456,7 @@ public:
             .rasterizationOrderColorAttachmentAccess = VK_TRUE,
         };
 
-        if (extensions.EXT_rasterization_order_attachment_access)
+        if (capabilities.EXT_rasterization_order_attachment_access)
         {
             rasterOrderFeatures.pNext = physicalDeviceFeatures2.pNext;
             physicalDeviceFeatures2.pNext = &rasterOrderFeatures;
@@ -453,7 +498,7 @@ public:
 
         m_allocator =
             make_rcp<vkutil::Allocator>(m_instance, m_physicalDevice, m_device, VK_API_VERSION_1_0);
-        m_plsContext = PLSRenderContextVulkanImpl::MakeContext(m_allocator, extensions);
+        m_plsContext = PLSRenderContextVulkanImpl::MakeContext(m_allocator, capabilities);
 
         VkSemaphoreCreateInfo semaphoreCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -598,6 +643,8 @@ public:
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
+        m_headlessRenderTexture = nullptr;
+
         if (m_options.allowHeadlessRendering)
         {
             m_swapchainSupportsShaderFetch = true;
@@ -834,15 +881,31 @@ public:
                 m_headlessRenderTextureView = m_allocator->makeTextureView(m_headlessRenderTexture);
             }
             m_renderTarget->setTargetTextureView(m_headlessRenderTextureView);
+
+            if (frameDescriptor.loadAction == pls::LoadAction::preserveRenderTarget)
+            {
+                // Blit the swapchain texture texture onto the offscreen texture.
+                insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+                vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
+                                                    *m_headlessRenderTexture,
+                                                    VK_IMAGE_LAYOUT_GENERAL,
+                                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+                blit_full_image(m_commandBuffers[m_resourcePoolIdx],
+                                m_swapchainImages[m_swapchainImageIndex],
+                                *m_headlessRenderTexture,
+                                m_renderTarget->width(),
+                                m_renderTarget->height());
+
+                vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
+                                                    *m_headlessRenderTexture,
+                                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                                    VK_IMAGE_LAYOUT_GENERAL);
+            }
         }
 
-        // TODO: consider using GENERAL only in atomic case.
-        vkutil::insert_image_memory_barrier(commandBuffer,
-                                            m_swapchainImages[m_swapchainImageIndex],
-                                            m_swapchainImageLayouts[m_swapchainImageIndex],
-                                            VK_IMAGE_LAYOUT_GENERAL);
-
-        m_swapchainImageLayouts[m_swapchainImageIndex] = VK_IMAGE_LAYOUT_GENERAL;
+        insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_GENERAL);
 
         m_frameFence = m_fencePool->makeFence();
     }
@@ -868,47 +931,13 @@ public:
                                                 VK_IMAGE_LAYOUT_GENERAL,
                                                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
-            VkImageBlit imageBlit = {
-                .srcSubresource =
-                    {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .layerCount = 1,
-                    },
-                .dstSubresource =
-                    {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .layerCount = 1,
-                    },
-            };
+            insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
-            imageBlit.srcOffsets[0] = {0, 0, 0};
-            imageBlit.srcOffsets[1] = {
-                static_cast<int32_t>(m_renderTarget->width()),
-                static_cast<int32_t>(m_renderTarget->height()),
-                1,
-            };
-
-            imageBlit.dstOffsets[0] = {0, 0, 0};
-            imageBlit.dstOffsets[1] = {
-                static_cast<int32_t>(m_renderTarget->width()),
-                static_cast<int32_t>(m_renderTarget->height()),
-                1,
-            };
-
-            vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
-                                                m_swapchainImages[m_swapchainImageIndex],
-                                                m_swapchainImageLayouts[m_swapchainImageIndex],
-                                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-            m_swapchainImageLayouts[m_swapchainImageIndex] = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL;
-
-            vkCmdBlitImage(m_commandBuffers[m_resourcePoolIdx],
-                           *m_headlessRenderTexture,
-                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                           m_swapchainImages[m_swapchainImageIndex],
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                           1,
-                           &imageBlit,
-                           VK_FILTER_NEAREST);
+            blit_full_image(m_commandBuffers[m_resourcePoolIdx],
+                            *m_headlessRenderTexture,
+                            m_swapchainImages[m_swapchainImageIndex],
+                            m_renderTarget->width(),
+                            m_renderTarget->height());
 
             vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
                                                 *m_headlessRenderTexture,
@@ -945,12 +974,7 @@ public:
                 .imageExtent = {w, h, 1},
             };
 
-            vkutil::insert_image_memory_barrier(commandBuffer,
-                                                m_swapchainImages[m_swapchainImageIndex],
-                                                m_swapchainImageLayouts[m_swapchainImageIndex],
-                                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-            m_swapchainImageLayouts[m_swapchainImageIndex] = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL;
+            insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
 
             vkCmdCopyImageToBuffer(commandBuffer,
                                    m_swapchainImages[m_swapchainImageIndex],
@@ -967,12 +991,7 @@ public:
 
         if (!m_options.allowHeadlessRendering)
         {
-            vkutil::insert_image_memory_barrier(commandBuffer,
-                                                m_swapchainImages[m_swapchainImageIndex],
-                                                m_swapchainImageLayouts[m_swapchainImageIndex],
-                                                VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
-
-            m_swapchainImageLayouts[m_swapchainImageIndex] = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+            insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
         }
 
         VK_CHECK(vkEndCommandBuffer(commandBuffer));
@@ -1005,8 +1024,17 @@ public:
             assert(m_pixelReadBuffer->info().size == h * w * 4);
             for (uint32_t y = 0; y < h; ++y)
             {
-                auto row = static_cast<const char*>(m_pixelReadBuffer->contents()) + w * 4 * y;
-                memcpy(pixelData->data() + (h - y - 1) * w * 4, row, w * 4);
+                auto src = static_cast<const uint8_t*>(m_pixelReadBuffer->contents()) + w * 4 * y;
+                uint8_t* dst = pixelData->data() + (h - y - 1) * w * 4;
+                memcpy(dst, src, w * 4);
+                if (m_swapchainFormat == VK_FORMAT_B8G8R8A8_UNORM)
+                {
+                    // Reverse bgr -> rgb.
+                    for (uint32_t x = 0; x < w * 4; x += 4)
+                    {
+                        std::swap(dst[x], dst[x + 2]);
+                    }
+                }
             }
         }
 
@@ -1030,6 +1058,15 @@ private:
     PLSRenderContextVulkanImpl* plsImplVulkan() const
     {
         return m_plsContext->static_impl_cast<PLSRenderContextVulkanImpl>();
+    }
+
+    void insertSwapchainImageBarrier(VkImageLayout newLayout)
+    {
+        vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
+                                            m_swapchainImages[m_swapchainImageIndex],
+                                            m_swapchainImageLayouts[m_swapchainImageIndex],
+                                            newLayout);
+        m_swapchainImageLayouts[m_swapchainImageIndex] = newLayout;
     }
 
     const FiddleContextOptions m_options;

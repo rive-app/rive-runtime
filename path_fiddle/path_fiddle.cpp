@@ -304,6 +304,10 @@ int main(int argc, const char** argv)
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 
+#ifdef DEBUG
+    s_options.enableVulkanValidationLayers = true;
+#endif
+
 #ifdef __EMSCRIPTEN__
     emscripten_set_main_loop(riveMainLoop, 0, false);
 
@@ -336,9 +340,19 @@ int main(int argc, const char** argv)
         {
             api = API::gl;
         }
+        else if (!strcmp(argv[i], "--glatomic"))
+        {
+            api = API::gl;
+            s_forceAtomicMode = true;
+        }
         else if (!strcmp(argv[i], "--metal"))
         {
             api = API::metal;
+        }
+        else if (!strcmp(argv[i], "--metalatomic"))
+        {
+            api = API::metal;
+            s_forceAtomicMode = true;
         }
         else if (!strcmp(argv[i], "--dawn"))
         {
@@ -348,9 +362,19 @@ int main(int argc, const char** argv)
         {
             api = API::d3d;
         }
+        else if (!strcmp(argv[i], "--d3datomic"))
+        {
+            api = API::d3d;
+            s_forceAtomicMode = true;
+        }
         else if (!strcmp(argv[i], "--vulkan") || !strcmp(argv[i], "--vk"))
         {
             api = API::vulkan;
+        }
+        else if (!strcmp(argv[i], "--vulkanatomic") || !strcmp(argv[i], "--vkatomic"))
+        {
+            api = API::vulkan;
+            s_forceAtomicMode = true;
         }
         else if (!strcmp(argv[i], "--skia"))
         {

@@ -1570,7 +1570,7 @@ wgpu::RenderPipeline PLSRenderContextWebGPUImpl::makePLSDrawPipeline(
                 .topology = wgpu::PrimitiveTopology::TriangleList,
                 .frontFace = m_frontFaceForOnScreenDraws,
                 .cullMode =
-                    drawType != DrawType::imageMesh ? wgpu::CullMode::Back : wgpu::CullMode::None,
+                    DrawTypeIsImageDraw(drawType) ? wgpu::CullMode::None : wgpu::CullMode::Back,
             },
         .fragment = &fragmentState,
     };

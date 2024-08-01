@@ -26,5 +26,5 @@ VERTEX_MAIN(@stencilVertexMain, Attrs, attrs, _vertexID, _instanceID)
 FRAG_TEXTURE_BLOCK_BEGIN
 FRAG_TEXTURE_BLOCK_END
 
-FRAG_DATA_MAIN(half4, @blitFragmentMain) { EMIT_FRAG_DATA(make_half4(0)); }
+FRAG_DATA_MAIN(half4, @blitFragmentMain) { EMIT_FRAG_DATA(make_half4(.0)); }
 #endif // FRAGMENT

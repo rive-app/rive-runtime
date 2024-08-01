@@ -385,7 +385,7 @@ PLS_MAIN(@drawFragmentMain)
                 // Stash outerClipCoverage before overwriting clipBuffer, in case we hit this pixel
                 // again and need it. (Not necessary when drawing interior triangles because they
                 // always go last and don't overlap.)
-                PLS_STORE4F(scratchColorBuffer, make_half4(outerClipCoverage, 0, 0, 0));
+                PLS_STORE4F(scratchColorBuffer, make_half4(outerClipCoverage, .0, .0, .0));
 #endif
             }
             else
@@ -421,7 +421,7 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 #ifdef @ENABLE_CLIP_RECT
         half clipRectCoverage = min_value(make_half4(v_clipRect));
-        coverage = clamp(clipRectCoverage, make_half(0), coverage);
+        coverage = clamp(clipRectCoverage, make_half(.0), coverage);
 #endif
 
         half4 color = find_paint_color(v_paint

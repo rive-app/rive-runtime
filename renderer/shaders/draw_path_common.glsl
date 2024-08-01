@@ -267,7 +267,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 
 #ifndef @USING_DEPTH_STENCIL
         // "o_edgeDistance.y < 0" indicates to the fragment shader that this is a fill.
-        o_edgeDistance = make_half2(fillCoverage, -1);
+        o_edgeDistance = make_half2(fillCoverage, -1.);
 #endif
 
         // If we're actually just drawing a triangle, throw away the entire patch except a single

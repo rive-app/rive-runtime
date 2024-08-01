@@ -7,16 +7,31 @@
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
+namespace spirv
+{
 #include "generated/shaders/spirv/color_ramp.vert.h"
 #include "generated/shaders/spirv/color_ramp.frag.h"
 #include "generated/shaders/spirv/tessellate.vert.h"
 #include "generated/shaders/spirv/tessellate.frag.h"
+
 #include "generated/shaders/spirv/draw_path.vert.h"
 #include "generated/shaders/spirv/draw_path.frag.h"
 #include "generated/shaders/spirv/draw_interior_triangles.vert.h"
 #include "generated/shaders/spirv/draw_interior_triangles.frag.h"
 #include "generated/shaders/spirv/draw_image_mesh.vert.h"
 #include "generated/shaders/spirv/draw_image_mesh.frag.h"
+
+#include "generated/shaders/spirv/atomic_draw_path.vert.h"
+#include "generated/shaders/spirv/atomic_draw_path.frag.h"
+#include "generated/shaders/spirv/atomic_draw_interior_triangles.vert.h"
+#include "generated/shaders/spirv/atomic_draw_interior_triangles.frag.h"
+#include "generated/shaders/spirv/atomic_draw_image_rect.vert.h"
+#include "generated/shaders/spirv/atomic_draw_image_rect.frag.h"
+#include "generated/shaders/spirv/atomic_draw_image_mesh.vert.h"
+#include "generated/shaders/spirv/atomic_draw_image_mesh.frag.h"
+#include "generated/shaders/spirv/atomic_resolve_pls.vert.h"
+#include "generated/shaders/spirv/atomic_resolve_pls.frag.h"
+}; // namespace spirv
 
 #ifdef RIVE_DECODERS
 #include "rive/decoders/bitmap_decoder.hpp"
@@ -281,8 +296,8 @@ public:
 
         VkShaderModuleCreateInfo shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = std::size(color_ramp_vert) * sizeof(uint32_t),
-            .pCode = color_ramp_vert,
+            .codeSize = sizeof(spirv::color_ramp_vert),
+            .pCode = spirv::color_ramp_vert,
         };
 
         VkShaderModule vertexShader;
@@ -290,8 +305,8 @@ public:
 
         shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = std::size(color_ramp_frag) * sizeof(uint32_t),
-            .pCode = color_ramp_frag,
+            .codeSize = sizeof(spirv::color_ramp_frag),
+            .pCode = spirv::color_ramp_frag,
         };
 
         VkShaderModule fragmentShader;
@@ -437,9 +452,9 @@ public:
     }
 
     const VkDescriptorSetLayout& descriptorSetLayout() const { return m_descriptorSetLayout; }
-    const VkPipelineLayout& pipelineLayout() const { return m_pipelineLayout; }
-    const VkRenderPass& renderPass() const { return m_renderPass; }
-    const VkPipeline& renderPipeline() const { return m_renderPipeline; }
+    VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
+    VkRenderPass renderPass() const { return m_renderPass; }
+    VkPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
     VkDescriptorSetLayout m_descriptorSetLayout;
@@ -477,7 +492,7 @@ public:
         };
         VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = 3,
+            .bindingCount = std::size(descriptorSetLayoutBindings),
             .pBindings = descriptorSetLayoutBindings,
         };
 
@@ -499,8 +514,8 @@ public:
 
         VkShaderModuleCreateInfo shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = std::size(tessellate_vert) * sizeof(uint32_t),
-            .pCode = tessellate_vert,
+            .codeSize = sizeof(spirv::tessellate_vert),
+            .pCode = spirv::tessellate_vert,
         };
 
         VkShaderModule vertexShader;
@@ -508,8 +523,8 @@ public:
 
         shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = std::size(tessellate_frag) * sizeof(uint32_t),
-            .pCode = tessellate_frag,
+            .codeSize = sizeof(spirv::tessellate_frag),
+            .pCode = spirv::tessellate_frag,
         };
 
         VkShaderModule fragmentShader;
@@ -676,9 +691,9 @@ public:
     }
 
     const VkDescriptorSetLayout& descriptorSetLayout() const { return m_descriptorSetLayout; }
-    const VkPipelineLayout& pipelineLayout() const { return m_pipelineLayout; }
-    const VkRenderPass& renderPass() const { return m_renderPass; }
-    const VkPipeline& renderPipeline() const { return m_renderPipeline; }
+    VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
+    VkRenderPass renderPass() const { return m_renderPass; }
+    VkPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
     VkDescriptorSetLayout m_descriptorSetLayout;
@@ -688,6 +703,466 @@ private:
     VkDevice m_device;
 };
 
+class PLSRenderContextVulkanImpl::DrawPipelineLayout
+{
+public:
+    // Number of render pass variants that can be used with a single DrawPipeline
+    // (framebufferFormat x loadOp).
+    constexpr static int kRenderPassVariantCount = 6;
+
+    static int RenderPassVariantIdx(VkFormat framebufferFormat, pls::LoadAction loadAction)
+    {
+        int loadActionIdx = static_cast<int>(loadAction);
+        assert(0 <= loadActionIdx && loadActionIdx < 3);
+        assert(framebufferFormat == VK_FORMAT_B8G8R8A8_UNORM ||
+               framebufferFormat == VK_FORMAT_R8G8B8A8_UNORM);
+        int idx = (loadActionIdx << 1) | (framebufferFormat == VK_FORMAT_B8G8R8A8_UNORM ? 1 : 0);
+        assert(0 <= idx && idx < kRenderPassVariantCount);
+        return idx;
+    }
+
+    constexpr static VkFormat FormatFromRenderPassVariant(int idx)
+    {
+        return (idx & 1) ? VK_FORMAT_B8G8R8A8_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
+    }
+
+    constexpr static VkAttachmentLoadOp LoadOpFromRenderPassVariant(int idx)
+    {
+        auto loadAction = static_cast<pls::LoadAction>(idx >> 1);
+        switch (loadAction)
+        {
+            case pls::LoadAction::preserveRenderTarget:
+                return VK_ATTACHMENT_LOAD_OP_LOAD;
+            case pls::LoadAction::clear:
+                return VK_ATTACHMENT_LOAD_OP_CLEAR;
+            case pls::LoadAction::dontCare:
+                return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        }
+        RIVE_UNREACHABLE();
+    }
+
+    constexpr static uint32_t PLSAttachmentCount(pls::InterlockMode interlockMode)
+    {
+        return interlockMode == pls::InterlockMode::atomics ? 3 : 4;
+    }
+
+    DrawPipelineLayout(PLSRenderContextVulkanImpl* plsImplVulkan,
+                       pls::InterlockMode interlockMode) :
+        m_device(plsImplVulkan->m_device), m_interlockMode(interlockMode)
+    {
+        assert(interlockMode != pls::InterlockMode::rasterOrdering ||
+               plsImplVulkan->m_capabilities.EXT_rasterization_order_attachment_access);
+
+        // Most bindings only need to be set once per flush.
+        VkDescriptorSetLayoutBinding perFlushLayoutBindings[] = {
+            {
+                .binding = TESS_VERTEX_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+            },
+            {
+                .binding = GRAD_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            {
+                .binding = PATH_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+            },
+            {
+                .binding = PAINT_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = static_cast<VkShaderStageFlags>(
+                    m_interlockMode == pls::InterlockMode::atomics ? VK_SHADER_STAGE_FRAGMENT_BIT
+                                                                   : VK_SHADER_STAGE_VERTEX_BIT),
+            },
+            {
+                .binding = PAINT_AUX_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = static_cast<VkShaderStageFlags>(
+                    m_interlockMode == pls::InterlockMode::atomics ? VK_SHADER_STAGE_FRAGMENT_BIT
+                                                                   : VK_SHADER_STAGE_VERTEX_BIT),
+            },
+            {
+                .binding = CONTOUR_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+            },
+            {
+                .binding = FLUSH_UNIFORM_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+            },
+            {
+                .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+        };
+
+        VkDescriptorSetLayoutCreateInfo perFlushLayoutInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = std::size(perFlushLayoutBindings),
+            .pBindings = perFlushLayoutBindings,
+        };
+
+        VK_CHECK(vkCreateDescriptorSetLayout(m_device,
+                                             &perFlushLayoutInfo,
+                                             nullptr,
+                                             m_descriptorSetLayouts + PER_FLUSH_BINDINGS_SET));
+
+        // The imageTexture gets updated with every draw that uses it.
+        VkDescriptorSetLayoutBinding perDrawLayoutBindings[] = {
+            {
+                .binding = IMAGE_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+        };
+
+        VkDescriptorSetLayoutCreateInfo perDrawLayoutInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = std::size(perDrawLayoutBindings),
+            .pBindings = perDrawLayoutBindings,
+        };
+
+        VK_CHECK(vkCreateDescriptorSetLayout(m_device,
+                                             &perDrawLayoutInfo,
+                                             nullptr,
+                                             m_descriptorSetLayouts + PER_DRAW_BINDINGS_SET));
+
+        // Samplers get bound once per lifetime.
+        VkDescriptorSetLayoutBinding samplerLayoutBindings[] = {
+            {
+                .binding = GRAD_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            {
+                .binding = IMAGE_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+        };
+
+        VkDescriptorSetLayoutCreateInfo samplerLayoutInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = std::size(samplerLayoutBindings),
+            .pBindings = samplerLayoutBindings,
+        };
+
+        VK_CHECK(vkCreateDescriptorSetLayout(m_device,
+                                             &samplerLayoutInfo,
+                                             nullptr,
+                                             m_descriptorSetLayouts + SAMPLER_BINDINGS_SET));
+
+        // PLS planes get bound per flush as input attachments or storage textures.
+        VkDescriptorSetLayoutBinding plsLayoutBindings[] = {
+            {
+                .binding = COLOR_PLANE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            {
+                .binding = COVERAGE_PLANE_IDX,
+                .descriptorType = m_interlockMode == pls::InterlockMode::atomics
+                                      ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                                      : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            {
+                .binding = CLIP_PLANE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            {
+                .binding = SCRATCH_COLOR_PLANE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+        };
+        static_assert(COLOR_PLANE_IDX == 0);
+        static_assert(COVERAGE_PLANE_IDX == 1);
+        static_assert(CLIP_PLANE_IDX == 2);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+
+        VkDescriptorSetLayoutCreateInfo plsLayoutInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = std::size(plsLayoutBindings),
+            .pBindings = plsLayoutBindings,
+        };
+
+        VK_CHECK(vkCreateDescriptorSetLayout(m_device,
+                                             &plsLayoutInfo,
+                                             nullptr,
+                                             m_descriptorSetLayouts + PLS_TEXTURE_BINDINGS_SET));
+
+        VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            .setLayoutCount = BINDINGS_SET_COUNT,
+            .pSetLayouts = m_descriptorSetLayouts,
+        };
+
+        VK_CHECK(vkCreatePipelineLayout(m_device,
+                                        &pipelineLayoutCreateInfo,
+                                        nullptr,
+                                        &m_pipelineLayout));
+
+        // Create static descriptor sets.
+        VkDescriptorPoolSize staticDescriptorPoolSizes[] = {
+            {
+                .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                .descriptorCount = 1, // m_nullImageTexture
+            },
+            {
+                .type = VK_DESCRIPTOR_TYPE_SAMPLER,
+                .descriptorCount = 2, // m_linearSampler, m_mipmapSampler
+            },
+        };
+        VkDescriptorPoolCreateInfo staticDescriptorPoolCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+            .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+            .maxSets = 2,
+            .poolSizeCount = std::size(staticDescriptorPoolSizes),
+            .pPoolSizes = staticDescriptorPoolSizes,
+        };
+
+        VK_CHECK(vkCreateDescriptorPool(m_device,
+                                        &staticDescriptorPoolCreateInfo,
+                                        nullptr,
+                                        &m_staticDescriptorPool));
+
+        VkDescriptorSetAllocateInfo nullImageDescriptorSetInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = m_staticDescriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = m_descriptorSetLayouts + PER_DRAW_BINDINGS_SET,
+        };
+
+        VK_CHECK(vkAllocateDescriptorSets(m_device,
+                                          &nullImageDescriptorSetInfo,
+                                          &m_nullImageDescriptorSet));
+
+        vkutil::update_image_descriptor_sets(
+            m_device,
+            m_nullImageDescriptorSet,
+            {
+                .dstBinding = IMAGE_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            },
+            {{
+                .imageView = *plsImplVulkan->m_nullImageTexture->m_textureView,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            }});
+
+        VkDescriptorSetAllocateInfo samplerDescriptorSetInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+            .descriptorPool = m_staticDescriptorPool,
+            .descriptorSetCount = 1,
+            .pSetLayouts = m_descriptorSetLayouts + SAMPLER_BINDINGS_SET,
+        };
+
+        VK_CHECK(
+            vkAllocateDescriptorSets(m_device, &samplerDescriptorSetInfo, &m_samplerDescriptorSet));
+
+        vkutil::update_image_descriptor_sets(m_device,
+                                             m_samplerDescriptorSet,
+                                             {
+                                                 .dstBinding = GRAD_TEXTURE_IDX,
+                                                 .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                                             },
+                                             {
+                                                 {.sampler = plsImplVulkan->m_linearSampler},
+                                                 {.sampler = plsImplVulkan->m_mipmapSampler},
+                                             });
+        static_assert(IMAGE_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+    }
+
+    VkRenderPass renderPassAt(int renderPassVariantIdx)
+    {
+        if (m_renderPasses[renderPassVariantIdx] == VK_NULL_HANDLE)
+        {
+            // Create the render pass.
+            VkAttachmentDescription attachmentDescriptions[] = {
+                {
+                    .format = FormatFromRenderPassVariant(renderPassVariantIdx),
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = LoadOpFromRenderPassVariant(renderPassVariantIdx),
+                    .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                    // TODO: VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR once we start
+                    // using capabilities!
+                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                },
+                {
+                    .format = VK_FORMAT_R32_UINT,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                },
+                {
+                    .format = VK_FORMAT_R32_UINT,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                },
+                {
+                    .format = VK_FORMAT_R8G8B8A8_UNORM,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                },
+            };
+            static_assert(COLOR_PLANE_IDX == 0);
+            static_assert(COVERAGE_PLANE_IDX == 1);
+            static_assert(CLIP_PLANE_IDX == 2);
+            static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+
+            VkAttachmentReference attachmentReferences[] = {
+                {
+                    .attachment = COLOR_PLANE_IDX,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
+                },
+                {
+                    .attachment = m_interlockMode == pls::InterlockMode::atomics
+                                      ? VK_ATTACHMENT_UNUSED
+                                      : COVERAGE_PLANE_IDX,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
+                },
+                {
+                    .attachment = CLIP_PLANE_IDX,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
+                },
+                {
+                    .attachment = SCRATCH_COLOR_PLANE_IDX,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
+                },
+            };
+            static_assert(COLOR_PLANE_IDX == 0);
+            static_assert(COVERAGE_PLANE_IDX == 1);
+            static_assert(CLIP_PLANE_IDX == 2);
+            static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+
+            VkSubpassDescription subpassDescription = {
+                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                .inputAttachmentCount = PLSAttachmentCount(m_interlockMode),
+                .pInputAttachments = attachmentReferences,
+                .colorAttachmentCount = PLSAttachmentCount(m_interlockMode),
+                .pColorAttachments = attachmentReferences,
+            };
+
+            if (m_interlockMode == pls::InterlockMode::rasterOrdering)
+            {
+                // With EXT_rasterization_order_attachment_access, we just need
+                // this flag and all "subpassLoad" dependencies are implicit.
+                subpassDescription.flags |=
+                    VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT;
+            }
+
+            VkRenderPassCreateInfo renderPassCreateInfo = {
+                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+                .attachmentCount = PLSAttachmentCount(m_interlockMode),
+                .pAttachments = attachmentDescriptions,
+                .subpassCount = 1,
+                .pSubpasses = &subpassDescription,
+            };
+
+            if (m_interlockMode == pls::InterlockMode::atomics)
+            {
+                // Without EXT_rasterization_order_attachment_access (aka atomic
+                // mode), "subpassLoad" dependencies require explicit dependencies
+                // and barriers.
+                VkSubpassDependency subpassLoadDependency = {
+                    .srcSubpass = 0,
+                    .dstSubpass = 0,
+                    .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                    .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+                    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                };
+
+                renderPassCreateInfo.dependencyCount = 1;
+                renderPassCreateInfo.pDependencies = &subpassLoadDependency;
+            }
+
+            VK_CHECK(vkCreateRenderPass(m_device,
+                                        &renderPassCreateInfo,
+                                        nullptr,
+                                        &m_renderPasses[renderPassVariantIdx]));
+        }
+        return m_renderPasses[renderPassVariantIdx];
+    }
+
+    ~DrawPipelineLayout()
+    {
+        for (VkDescriptorSetLayout layout : m_descriptorSetLayouts)
+        {
+            vkDestroyDescriptorSetLayout(m_device, layout, nullptr);
+        }
+        vkDestroyPipelineLayout(m_device, m_pipelineLayout, nullptr);
+        vkDestroyDescriptorPool(m_device, m_staticDescriptorPool, nullptr);
+        for (VkRenderPass renderPass : m_renderPasses)
+        {
+            vkDestroyRenderPass(m_device, renderPass, nullptr);
+        }
+    }
+
+    VkDescriptorSetLayout perFlushLayout() const
+    {
+        return m_descriptorSetLayouts[PER_FLUSH_BINDINGS_SET];
+    }
+    VkDescriptorSetLayout perDrawLayout() const
+    {
+        return m_descriptorSetLayouts[PER_DRAW_BINDINGS_SET];
+    }
+    VkDescriptorSetLayout samplerLayout() const
+    {
+        return m_descriptorSetLayouts[SAMPLER_BINDINGS_SET];
+    }
+    VkDescriptorSetLayout plsLayout() const
+    {
+        return m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET];
+    }
+    VkPipelineLayout vkPipelineLayout() const { return m_pipelineLayout; }
+    VkDescriptorSet nullImageDescriptorSet() const { return m_nullImageDescriptorSet; }
+    VkDescriptorSet samplerDescriptorSet() const { return m_samplerDescriptorSet; }
+
+private:
+    const VkDevice m_device;
+    const pls::InterlockMode m_interlockMode;
+
+    VkDescriptorSetLayout m_descriptorSetLayouts[BINDINGS_SET_COUNT];
+    VkPipelineLayout m_pipelineLayout;
+    VkDescriptorPool m_staticDescriptorPool; // For descriptorSets that never
+                                             // change between frames.
+    VkDescriptorSet m_nullImageDescriptorSet;
+    VkDescriptorSet m_samplerDescriptorSet;
+    std::array<VkRenderPass, kRenderPassVariantCount> m_renderPasses = {};
+};
+
 // Wraps vertex and fragment shader modules for a specific combination of DrawType,
 // InterlockMode, and ShaderFeatures.
 class PLSRenderContextVulkanImpl::DrawShader
@@ -695,67 +1170,79 @@ class PLSRenderContextVulkanImpl::DrawShader
 public:
     DrawShader(VkDevice device,
                pls::DrawType drawType,
-               pls::InterlockMode,
+               pls::InterlockMode interlockMode,
                pls::ShaderFeatures shaderFeatures) :
         m_device(device)
     {
-        VkShaderModuleCreateInfo vertexShaderModuleCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        };
+        VkShaderModuleCreateInfo vsInfo = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+        VkShaderModuleCreateInfo fsInfo = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
 
-        VkShaderModuleCreateInfo fragmentShaderModuleCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-        };
-
-        switch (drawType)
+        if (interlockMode == pls::InterlockMode::rasterOrdering)
         {
-            case DrawType::midpointFanPatches:
-            case DrawType::outerCurvePatches:
-                vertexShaderModuleCreateInfo.codeSize =
-                    std::size(draw_path_vert) * sizeof(uint32_t);
-                vertexShaderModuleCreateInfo.pCode = draw_path_vert;
-                fragmentShaderModuleCreateInfo.codeSize =
-                    std::size(draw_path_frag) * sizeof(uint32_t);
-                fragmentShaderModuleCreateInfo.pCode = draw_path_frag;
-                break;
+            switch (drawType)
+            {
+                case DrawType::midpointFanPatches:
+                case DrawType::outerCurvePatches:
+                    vkutil::set_shader_code(vsInfo, spirv::draw_path_vert);
+                    vkutil::set_shader_code(fsInfo, spirv::draw_path_frag);
+                    break;
 
-            case DrawType::interiorTriangulation:
-                vertexShaderModuleCreateInfo.codeSize =
-                    std::size(draw_interior_triangles_vert) * sizeof(uint32_t);
-                vertexShaderModuleCreateInfo.pCode = draw_interior_triangles_vert;
-                fragmentShaderModuleCreateInfo.codeSize =
-                    std::size(draw_interior_triangles_frag) * sizeof(uint32_t);
-                fragmentShaderModuleCreateInfo.pCode = draw_interior_triangles_frag;
-                break;
+                case DrawType::interiorTriangulation:
+                    vkutil::set_shader_code(vsInfo, spirv::draw_interior_triangles_vert);
+                    vkutil::set_shader_code(fsInfo, spirv::draw_interior_triangles_frag);
+                    break;
 
-            case DrawType::imageRect:
-                break;
+                case DrawType::imageMesh:
+                    vkutil::set_shader_code(vsInfo, spirv::draw_image_mesh_vert);
+                    vkutil::set_shader_code(fsInfo, spirv::draw_image_mesh_frag);
+                    break;
 
-            case DrawType::imageMesh:
-                vertexShaderModuleCreateInfo.codeSize =
-                    std::size(draw_image_mesh_vert) * sizeof(uint32_t);
-                vertexShaderModuleCreateInfo.pCode = draw_image_mesh_vert;
+                case DrawType::imageRect:
+                case DrawType::plsAtomicResolve:
+                case DrawType::plsAtomicInitialize:
+                case DrawType::stencilClipReset:
+                    RIVE_UNREACHABLE();
+            }
+        }
+        else
+        {
+            assert(interlockMode == pls::InterlockMode::atomics);
+            switch (drawType)
+            {
+                case DrawType::midpointFanPatches:
+                case DrawType::outerCurvePatches:
+                    vkutil::set_shader_code(vsInfo, spirv::atomic_draw_path_vert);
+                    vkutil::set_shader_code(fsInfo, spirv::atomic_draw_path_frag);
+                    break;
 
-                fragmentShaderModuleCreateInfo.codeSize =
-                    std::size(draw_image_mesh_frag) * sizeof(uint32_t);
-                fragmentShaderModuleCreateInfo.pCode = draw_image_mesh_frag;
-                break;
+                case DrawType::interiorTriangulation:
+                    vkutil::set_shader_code(vsInfo, spirv::atomic_draw_interior_triangles_vert);
+                    vkutil::set_shader_code(fsInfo, spirv::atomic_draw_interior_triangles_frag);
+                    break;
 
-            case DrawType::plsAtomicResolve:
-            case DrawType::plsAtomicInitialize:
-            case DrawType::stencilClipReset:
-                RIVE_UNREACHABLE();
+                case DrawType::imageRect:
+                    vkutil::set_shader_code(vsInfo, spirv::atomic_draw_image_rect_vert);
+                    vkutil::set_shader_code(fsInfo, spirv::atomic_draw_image_rect_frag);
+                    break;
+
+                case DrawType::imageMesh:
+                    vkutil::set_shader_code(vsInfo, spirv::atomic_draw_image_mesh_vert);
+                    vkutil::set_shader_code(fsInfo, spirv::atomic_draw_image_mesh_frag);
+                    break;
+
+                case DrawType::plsAtomicResolve:
+                    vkutil::set_shader_code(vsInfo, spirv::atomic_resolve_pls_vert);
+                    vkutil::set_shader_code(fsInfo, spirv::atomic_resolve_pls_frag);
+                    break;
+
+                case DrawType::plsAtomicInitialize:
+                case DrawType::stencilClipReset:
+                    RIVE_UNREACHABLE();
+            }
         }
 
-        VK_CHECK(vkCreateShaderModule(m_device,
-                                      &vertexShaderModuleCreateInfo,
-                                      nullptr,
-                                      &m_vertexModule));
-
-        VK_CHECK(vkCreateShaderModule(m_device,
-                                      &fragmentShaderModuleCreateInfo,
-                                      nullptr,
-                                      &m_fragmentModule));
+        VK_CHECK(vkCreateShaderModule(m_device, &vsInfo, nullptr, &m_vertexModule));
+        VK_CHECK(vkCreateShaderModule(m_device, &fsInfo, nullptr, &m_fragmentModule));
     }
 
     ~DrawShader()
@@ -785,140 +1272,13 @@ RIVE_MAKE_ENUM_BITSET(DrawPipelineOptions);
 class PLSRenderContextVulkanImpl::DrawPipeline
 {
 public:
-    // Number of render pass variants that can be used with a single DrawPipeline
-    // (framebufferFormat x loadOp).
-    constexpr static int kRenderPassVariantCount = 4;
-
-    static int RenderPassVariantIdx(VkFormat framebufferFormat, pls::LoadAction loadAction)
-    {
-        assert(loadAction == pls::LoadAction::preserveRenderTarget ||
-               loadAction == pls::LoadAction::clear);
-        assert(framebufferFormat == VK_FORMAT_B8G8R8A8_UNORM ||
-               framebufferFormat == VK_FORMAT_R8G8B8A8_UNORM);
-        int idx = (loadAction == pls::LoadAction::preserveRenderTarget ? 0x1 : 0) |
-                  (framebufferFormat == VK_FORMAT_B8G8R8A8_UNORM ? 0x2 : 0);
-        assert(0 <= idx && idx < kRenderPassVariantCount);
-        return idx;
-    }
-
-    constexpr static VkFormat FormatFromRenderPassVariant(int idx)
-    {
-        return (idx & 0x2) ? VK_FORMAT_B8G8R8A8_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
-    }
-
-    constexpr static VkAttachmentLoadOp LoadOpFromRenderPassVariant(int idx)
-    {
-        return (idx & 0x1) ? VK_ATTACHMENT_LOAD_OP_LOAD : VK_ATTACHMENT_LOAD_OP_CLEAR;
-    }
-
-    // Creates a render pass that can be used with the DrawPipeline at matching
-    // renderPassVariantIdx.
-    static VkRenderPass CreateVkRenderPass(VkDevice device,
-                                           const VulkanDeviceExtensions& extensions,
-                                           int renderPassVariantIdx)
-    {
-        VkAttachmentDescription attachmentDescriptions[] = {
-            {
-                .format = FormatFromRenderPassVariant(renderPassVariantIdx),
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = LoadOpFromRenderPassVariant(renderPassVariantIdx),
-                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                // TODO: VK_IMAGE_LAYOUT_ATTACHMENT_OPTIMAL_KHR once we start using
-                // extensions!
-                .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
-                .format = VK_FORMAT_R32_UINT,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
-                .format = VK_FORMAT_R32_UINT,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
-                .format = VK_FORMAT_R8G8B8A8_UNORM,
-                .samples = VK_SAMPLE_COUNT_1_BIT,
-                .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
-                .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-        };
-        VkAttachmentReference attachmentReferences[] = {
-            {
-                .attachment = COLOR_PLANE_IDX,
-                .layout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
-                .attachment = COVERAGE_PLANE_IDX,
-                .layout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
-                .attachment = CLIP_PLANE_IDX,
-                .layout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
-                .attachment = SCRATCH_COLOR_PLANE_IDX,
-                .layout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-        };
-        static_assert(COLOR_PLANE_IDX == 0);
-        static_assert(COVERAGE_PLANE_IDX == 1);
-        static_assert(CLIP_PLANE_IDX == 2);
-        static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
-
-        VkSubpassDescription subpassDescription = {
-            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .inputAttachmentCount = std::size(attachmentReferences),
-            .pInputAttachments = attachmentReferences,
-            .colorAttachmentCount = std::size(attachmentReferences),
-            .pColorAttachments = attachmentReferences,
-        };
-        if (extensions.EXT_rasterization_order_attachment_access)
-        {
-            // TODO: never set this flag on atomic render passes.
-            subpassDescription.flags |=
-                VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT;
-        }
-        VkSubpassDependency subpassDependency = {
-            .srcSubpass = 0,
-            .dstSubpass = 0,
-            .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            .srcAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
-            .dstAccessMask = VK_ACCESS_MEMORY_READ_BIT | VK_ACCESS_MEMORY_WRITE_BIT,
-            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-        };
-        VkRenderPassCreateInfo renderPassCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-            .attachmentCount = 4,
-            .pAttachments = attachmentDescriptions,
-            .subpassCount = 1,
-            .pSubpasses = &subpassDescription,
-            .dependencyCount = 1,
-            .pDependencies = &subpassDependency,
-        };
-
-        VkRenderPass renderPass;
-        VK_CHECK(vkCreateRenderPass(device, &renderPassCreateInfo, nullptr, &renderPass));
-
-        return renderPass;
-    }
-
     DrawPipeline(PLSRenderContextVulkanImpl* plsImplVulkan,
                  pls::DrawType drawType,
                  pls::InterlockMode interlockMode,
                  pls::ShaderFeatures shaderFeatures,
-                 DrawPipelineOptions drawPipelineOptions) :
+                 DrawPipelineOptions drawPipelineOptions,
+                 VkPipelineLayout vkPipelineLayout,
+                 VkRenderPass vkRenderPass) :
         m_device(plsImplVulkan->m_device)
     {
         uint32_t shaderKey = pls::ShaderUniqueKey(drawType,
@@ -930,12 +1290,11 @@ public:
                 .try_emplace(shaderKey, m_device, drawType, interlockMode, shaderFeatures)
                 .first->second;
 
+#if 0
         // TODO: This is where we will configure permutations based on
         // ShaderFeatures. For now, we just set the temporary "kHasRasterOrdering"
         // value.
-        VkBool32 shaderPermutationFlags[1] = {
-            plsImplVulkan->m_extensions.EXT_rasterization_order_attachment_access,
-        };
+        VkBool32 shaderPermutationFlags[] = {};
 
         VkSpecializationMapEntry permutationMapEntries[std::size(shaderPermutationFlags)];
         for (uint32_t i = 0; i < std::size(permutationMapEntries); ++i)
@@ -953,6 +1312,9 @@ public:
             .dataSize = sizeof(shaderPermutationFlags),
             .pData = &shaderPermutationFlags,
         };
+#else
+        VkSpecializationInfo specializationInfo = {};
+#endif
 
         VkPipelineShaderStageCreateInfo stages[] = {
             {
@@ -960,6 +1322,7 @@ public:
                 .stage = VK_SHADER_STAGE_VERTEX_BIT,
                 .module = drawShader.vertexModule(),
                 .pName = "main",
+                .pSpecializationInfo = &specializationInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
@@ -978,6 +1341,11 @@ public:
             .pVertexBindingDescriptions = vertexInputBindingDescriptions.data(),
             .vertexAttributeDescriptionCount = 0,
             .pVertexAttributeDescriptions = vertexAttributeDescriptions.data(),
+        };
+
+        VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
         };
 
         switch (drawType)
@@ -1004,10 +1372,8 @@ public:
                         .offset = 4 * sizeof(float),
                     },
                 }};
-
                 pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
                 pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 2;
-
                 break;
             }
 
@@ -1026,15 +1392,30 @@ public:
                         .offset = 0,
                     },
                 }};
-
                 pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
                 pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
-
                 break;
             }
 
             case DrawType::imageRect:
-                RIVE_UNREACHABLE();
+            {
+                vertexInputBindingDescriptions = {{{
+                    .binding = 0,
+                    .stride = sizeof(pls::ImageRectVertex),
+                    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+                }}};
+                vertexAttributeDescriptions = {{
+                    {
+                        .location = 0,
+                        .binding = 0,
+                        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+                        .offset = 0,
+                    },
+                }};
+                pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
+                pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
+                break;
+            }
 
             case DrawType::imageMesh:
             {
@@ -1071,16 +1452,19 @@ public:
                 break;
             }
 
-            case DrawType::plsAtomicInitialize:
             case DrawType::plsAtomicResolve:
+            {
+                pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
+                pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+                pipelineInputAssemblyStateCreateInfo.topology =
+                    VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
+                break;
+            }
+
+            case DrawType::plsAtomicInitialize:
             case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }
-
-        VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        };
 
         VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
@@ -1094,7 +1478,7 @@ public:
                                ? VK_POLYGON_MODE_LINE
                                : VK_POLYGON_MODE_FILL,
             .cullMode = static_cast<VkCullModeFlags>(
-                drawType != DrawType::imageMesh ? VK_CULL_MODE_BACK_BIT : VK_CULL_MODE_NONE),
+                DrawTypeIsImageDraw(drawType) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT),
             .frontFace = VK_FRONT_FACE_CLOCKWISE,
             .lineWidth = 1.0,
         };
@@ -1104,7 +1488,7 @@ public:
             .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
         };
 
-        VkPipelineColorBlendAttachmentState blendColorAttachments[4] = {
+        VkPipelineColorBlendAttachmentState blendColorAttachments[] = {
             {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
             {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
             {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
@@ -1112,11 +1496,11 @@ public:
         };
         VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-            .attachmentCount = 4,
+            .attachmentCount = DrawPipelineLayout::PLSAttachmentCount(interlockMode),
             .pAttachments = blendColorAttachments,
         };
-        if (plsImplVulkan->m_extensions.EXT_rasterization_order_attachment_access &&
-            interlockMode == pls::InterlockMode::rasterOrdering)
+        if (interlockMode == pls::InterlockMode::rasterOrdering &&
+            plsImplVulkan->m_capabilities.EXT_rasterization_order_attachment_access)
         {
             pipelineColorBlendStateCreateInfo.flags |=
                 VK_PIPELINE_COLOR_BLEND_STATE_CREATE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_BIT_EXT;
@@ -1143,45 +1527,32 @@ public:
             .pMultisampleState = &pipelineMultisampleStateCreateInfo,
             .pColorBlendState = &pipelineColorBlendStateCreateInfo,
             .pDynamicState = &pipelineDynamicStateCreateInfo,
-            .layout = plsImplVulkan->m_drawPipelineLayout,
+            .layout = vkPipelineLayout,
+            .renderPass = vkRenderPass,
         };
 
-        for (int i = 0; i < kRenderPassVariantCount; ++i)
-        {
-            graphicsPipelineCreateInfo.renderPass = plsImplVulkan->m_drawRenderPasses[i];
-
-            VK_CHECK(vkCreateGraphicsPipelines(m_device,
-                                               VK_NULL_HANDLE,
-                                               1,
-                                               &graphicsPipelineCreateInfo,
-                                               nullptr,
-                                               &m_vkPipelines[i]));
-        }
+        VK_CHECK(vkCreateGraphicsPipelines(m_device,
+                                           VK_NULL_HANDLE,
+                                           1,
+                                           &graphicsPipelineCreateInfo,
+                                           nullptr,
+                                           &m_vkPipeline));
     }
 
-    ~DrawPipeline()
-    {
-        for (VkPipeline vkPipeline : m_vkPipelines)
-        {
-            vkDestroyPipeline(m_device, vkPipeline, nullptr);
-        }
-    }
+    ~DrawPipeline() { vkDestroyPipeline(m_device, m_vkPipeline, nullptr); }
 
-    const VkPipeline vkPipelineAt(int renderPassVariantIdx) const
-    {
-        return m_vkPipelines[renderPassVariantIdx];
-    }
+    const VkPipeline vkPipeline() const { return m_vkPipeline; }
 
 private:
     const VkDevice m_device;
-    VkPipeline m_vkPipelines[kRenderPassVariantCount];
+    VkPipeline m_vkPipeline;
 };
 
 PLSRenderContextVulkanImpl::PLSRenderContextVulkanImpl(rcp<vkutil::Allocator> allocator,
-                                                       VulkanDeviceExtensions extensions) :
+                                                       VulkanCapabilities capabilities) :
     m_allocator(std::move(allocator)),
     m_device(m_allocator->device()),
-    m_extensions(extensions),
+    m_capabilities(capabilities),
     m_flushUniformBufferRing(m_allocator,
                              VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                              vkutil::Mappability::writeOnly),
@@ -1215,159 +1586,16 @@ PLSRenderContextVulkanImpl::PLSRenderContextVulkanImpl(rcp<vkutil::Allocator> al
     m_colorRampPipeline(std::make_unique<ColorRampPipeline>(m_device)),
     m_tessellatePipeline(std::make_unique<TessellatePipeline>(m_device))
 {
-    static_assert(sizeof(m_drawDescriptorSetLayouts) ==
-                  BINDINGS_SET_COUNT * sizeof(VkDescriptorSetLayout));
     m_allocator->setPLSContextImpl(this);
+    m_platformFeatures.supportsPixelLocalStorage = m_capabilities.fragmentStoresAndAtomics;
+    m_platformFeatures.supportsRasterOrdering =
+        m_capabilities.EXT_rasterization_order_attachment_access;
     m_platformFeatures.invertOffscreenY = false;
     m_platformFeatures.uninvertOnScreenY = true;
 }
 
 void PLSRenderContextVulkanImpl::initGPUObjects()
 {
-    VkDescriptorSetLayoutBinding perFlushDescriptorSetLayoutBindings[] = {
-        {
-            .binding = TESS_VERTEX_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-        },
-        {
-            .binding = GRAD_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            .binding = PATH_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-        },
-        {
-            .binding = PAINT_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-        },
-        {
-            .binding = PAINT_AUX_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-        },
-        {
-            .binding = CONTOUR_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-        },
-        {
-            .binding = FLUSH_UNIFORM_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-        },
-        {
-            .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-    };
-    VkDescriptorSetLayoutCreateInfo perFlushDescriptorSetLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = std::size(perFlushDescriptorSetLayoutBindings),
-        .pBindings = perFlushDescriptorSetLayoutBindings,
-    };
-    VK_CHECK(vkCreateDescriptorSetLayout(m_device,
-                                         &perFlushDescriptorSetLayoutCreateInfo,
-                                         nullptr,
-                                         &m_drawDescriptorSetLayouts[PER_FLUSH_BINDINGS_SET]));
-
-    VkDescriptorSetLayoutBinding perDrawDescriptorSetLayoutBindings[] = {
-        {
-            .binding = IMAGE_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-    };
-    VkDescriptorSetLayoutCreateInfo perDrawDescriptorSetLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = std::size(perDrawDescriptorSetLayoutBindings),
-        .pBindings = perDrawDescriptorSetLayoutBindings,
-    };
-    VK_CHECK(vkCreateDescriptorSetLayout(m_device,
-                                         &perDrawDescriptorSetLayoutCreateInfo,
-                                         nullptr,
-                                         &m_drawDescriptorSetLayouts[PER_DRAW_BINDINGS_SET]));
-
-    VkDescriptorSetLayoutBinding samplerDescriptorSetLayoutBindings[] = {
-        {
-            .binding = GRAD_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            .binding = IMAGE_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-    };
-    VkDescriptorSetLayoutCreateInfo samplerDescriptorSetLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = 2,
-        .pBindings = samplerDescriptorSetLayoutBindings,
-    };
-    VK_CHECK(vkCreateDescriptorSetLayout(m_device,
-                                         &samplerDescriptorSetLayoutCreateInfo,
-                                         nullptr,
-                                         &m_drawDescriptorSetLayouts[SAMPLER_BINDINGS_SET]));
-
-    VkDescriptorSetLayoutBinding plsInputAttachmentBindings[] = {
-        {
-            .binding = COLOR_PLANE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            .binding = COVERAGE_PLANE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            .binding = CLIP_PLANE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
-            .binding = SCRATCH_COLOR_PLANE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-    };
-    static_assert(COLOR_PLANE_IDX == 0);
-    static_assert(COVERAGE_PLANE_IDX == 1);
-    static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
-
-    VkDescriptorSetLayoutCreateInfo plsInputAttachmentLayout = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-        .bindingCount = std::size(plsInputAttachmentBindings),
-        .pBindings = plsInputAttachmentBindings,
-    };
-
-    VK_CHECK(vkCreateDescriptorSetLayout(m_device,
-                                         &plsInputAttachmentLayout,
-                                         nullptr,
-                                         &m_drawDescriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET]));
-
     constexpr static uint8_t black[] = {0, 0, 0, 1};
     m_nullImageTexture = make_rcp<PLSTextureVulkanImpl>(m_allocator, 1, 1, 1, black);
 
@@ -1396,86 +1624,6 @@ void PLSRenderContextVulkanImpl::initGPUObjects()
     };
 
     VK_CHECK(vkCreateSampler(m_device, &mipmapSamplerCreateInfo, nullptr, &m_mipmapSampler));
-
-    VkDescriptorPoolSize staticDescriptorPoolSizes[] = {
-        {
-            .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            .descriptorCount = 1, // m_nullImageTexture
-        },
-        {
-            .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 2, // m_linearSampler, m_mipmapSampler
-        },
-    };
-    VkDescriptorPoolCreateInfo staticDescriptorPoolCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-        .maxSets = 2,
-        .poolSizeCount = std::size(staticDescriptorPoolSizes),
-        .pPoolSizes = staticDescriptorPoolSizes,
-    };
-
-    VK_CHECK(vkCreateDescriptorPool(m_device,
-                                    &staticDescriptorPoolCreateInfo,
-                                    nullptr,
-                                    &m_staticDescriptorPool));
-
-    VkDescriptorSetAllocateInfo nullImageDescriptorSetInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = m_staticDescriptorPool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = &m_drawDescriptorSetLayouts[PER_DRAW_BINDINGS_SET],
-    };
-
-    VK_CHECK(
-        vkAllocateDescriptorSets(m_device, &nullImageDescriptorSetInfo, &m_nullImageDescriptorSet));
-
-    vkutil::update_image_descriptor_sets(
-        m_device,
-        m_nullImageDescriptorSet,
-        {
-            .dstBinding = IMAGE_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        },
-        {{
-            .imageView = *m_nullImageTexture->m_textureView,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }});
-
-    m_nullImageTexture->m_descriptorSetFrameIdx = m_currentFrameIdx;
-
-    VkDescriptorSetAllocateInfo samplerDescriptorSetInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-        .descriptorPool = m_staticDescriptorPool,
-        .descriptorSetCount = 1,
-        .pSetLayouts = &m_drawDescriptorSetLayouts[SAMPLER_BINDINGS_SET],
-    };
-
-    VK_CHECK(
-        vkAllocateDescriptorSets(m_device, &samplerDescriptorSetInfo, &m_samplerDescriptorSet));
-
-    vkutil::update_image_descriptor_sets(m_device,
-                                         m_samplerDescriptorSet,
-                                         {
-                                             .dstBinding = GRAD_TEXTURE_IDX,
-                                             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-                                         },
-                                         {
-                                             {.sampler = m_linearSampler},
-                                             {.sampler = m_mipmapSampler},
-                                         });
-    static_assert(IMAGE_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
-
-    VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-        .setLayoutCount = BINDINGS_SET_COUNT,
-        .pSetLayouts = m_drawDescriptorSetLayouts,
-    };
-
-    VK_CHECK(vkCreatePipelineLayout(m_device,
-                                    &pipelineLayoutCreateInfo,
-                                    nullptr,
-                                    &m_drawPipelineLayout));
 
     m_tessSpanIndexBuffer = m_allocator->makeBuffer(
         {
@@ -1509,25 +1657,18 @@ void PLSRenderContextVulkanImpl::initGPUObjects()
             .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         },
         vkutil::Mappability::writeOnly);
+    memcpy(vkutil::ScopedBufferFlush(*m_imageRectVertexBuffer),
+           pls::kImageRectVertices,
+           sizeof(pls::kImageRectVertices));
     m_imageRectIndexBuffer = m_allocator->makeBuffer(
         {
             .size = sizeof(pls::kImageRectIndices),
             .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         },
         vkutil::Mappability::writeOnly);
-    memcpy(vkutil::ScopedBufferFlush(*m_imageRectVertexBuffer),
-           pls::kImageRectVertices,
-           sizeof(pls::kImageRectVertices));
     memcpy(vkutil::ScopedBufferFlush(*m_imageRectIndexBuffer),
            pls::kImageRectIndices,
            sizeof(pls::kImageRectIndices));
-
-    static_assert(sizeof(m_drawRenderPasses) ==
-                  DrawPipeline::kRenderPassVariantCount * sizeof(VkRenderPass));
-    for (int i = 0; i < DrawPipeline::kRenderPassVariantCount; ++i)
-    {
-        m_drawRenderPasses[i] = DrawPipeline::CreateVkRenderPass(m_device, m_extensions, i);
-    }
 }
 
 PLSRenderContextVulkanImpl::~PLSRenderContextVulkanImpl()
@@ -1547,19 +1688,6 @@ PLSRenderContextVulkanImpl::~PLSRenderContextVulkanImpl()
 
     vkDestroySampler(m_device, m_linearSampler, nullptr);
     vkDestroySampler(m_device, m_mipmapSampler, nullptr);
-    vkDestroyDescriptorPool(m_device, m_staticDescriptorPool, nullptr);
-
-    for (auto& layout : m_drawDescriptorSetLayouts)
-    {
-        vkDestroyDescriptorSetLayout(m_device, layout, nullptr);
-    }
-
-    vkDestroyPipelineLayout(m_device, m_drawPipelineLayout, nullptr);
-
-    for (auto& renderPass : m_drawRenderPasses)
-    {
-        vkDestroyRenderPass(m_device, renderPass, nullptr);
-    }
 }
 
 void PLSRenderContextVulkanImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -1682,13 +1810,11 @@ PLSRenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(PLSRenderContex
             .type = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount = 4,
         },
-#if 0
-          // For atomic mode
-          {
-              .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
-              .descriptorCount = 1,
-          },
-#endif
+        {
+            // For the coverageAtomicTexture in atomic mode.
+            .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
+            .descriptorCount = 1,
+        },
     };
 
     VkDescriptorPoolCreateInfo descriptorPoolCreateInfo = {
@@ -1768,9 +1894,11 @@ rcp<PLSRenderContextVulkanImpl::DescriptorSetPool> PLSRenderContextVulkanImpl::
     return pool;
 }
 
-void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator, VkCommandBuffer commandBuffer)
+void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator,
+                                        VkCommandBuffer commandBuffer,
+                                        pls::InterlockMode interlockMode)
 {
-    if (m_coverageTexture == nullptr)
+    if (interlockMode == pls::InterlockMode::rasterOrdering && m_coverageTexture == nullptr)
     {
         m_coverageTexture = allocator->makeTexture({
             .format = VK_FORMAT_R32_UINT,
@@ -1804,7 +1932,7 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator, VkCommandB
         m_clipTextureView = allocator->makeTextureView(m_clipTexture);
     }
 
-    if (m_scratchColorTexture == nullptr)
+    if (interlockMode == pls::InterlockMode::rasterOrdering && m_scratchColorTexture == nullptr)
     {
         m_scratchColorTexture = allocator->makeTexture({
             .format = VK_FORMAT_R8G8B8A8_UNORM,
@@ -1820,17 +1948,39 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator, VkCommandB
 
         m_scratchColorTextureView = allocator->makeTextureView(m_scratchColorTexture);
     }
+
+    if (interlockMode == pls::InterlockMode::atomics && m_coverageAtomicTexture == nullptr)
+    {
+        m_coverageAtomicTexture = allocator->makeTexture({
+            .format = VK_FORMAT_R32_UINT,
+            .extent = {width(), height(), 1},
+            .usage = VK_IMAGE_USAGE_STORAGE_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_DST_BIT, // For vkCmdClearColorImage
+        });
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            *m_coverageAtomicTexture,
+                                            VK_IMAGE_LAYOUT_UNDEFINED,
+                                            VK_IMAGE_LAYOUT_GENERAL);
+
+        m_coverageAtomicTextureView = allocator->makeTextureView(m_coverageAtomicTexture);
+    }
 }
 
 void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 {
-    auto vkCommandBuffer = reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
+    if (desc.interlockMode == pls::InterlockMode::depthStencil)
+    {
+        return; // TODO: support MSAA.
+    }
+
+    auto commandBuffer = reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
     rcp<DescriptorSetPool> descriptorSetPool = makeDescriptorSetPool();
 
     constexpr static VkDeviceSize zeroOffset[1] = {0};
     constexpr static uint32_t zeroOffset32[1] = {0};
 
-    vkutil::insert_image_memory_barrier(vkCommandBuffer,
+    vkutil::insert_image_memory_barrier(commandBuffer,
                                         *m_gradientTexture,
                                         VK_IMAGE_LAYOUT_UNDEFINED,
                                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -1850,18 +2000,18 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .renderArea = renderArea,
         };
 
-        vkCmdBeginRenderPass(vkCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(vkCommandBuffer,
+        vkCmdBindPipeline(commandBuffer,
                           VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_colorRampPipeline->renderPipeline());
 
-        vkCmdSetViewport(vkCommandBuffer, 0, 1, vkutil::ViewportFromRect2D(renderArea));
+        vkCmdSetViewport(commandBuffer, 0, 1, vkutil::ViewportFromRect2D(renderArea));
 
-        vkCmdSetScissor(vkCommandBuffer, 0, 1, &renderArea);
+        vkCmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
         VkBuffer buffer = m_gradSpanBufferRing.vkBufferAt(m_bufferRingIdx);
-        vkCmdBindVertexBuffers(vkCommandBuffer, 0, 1, &buffer, zeroOffset);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, zeroOffset);
 
         VkDescriptorSet descriptorSet =
             descriptorSetPool->allocateDescriptorSet(m_colorRampPipeline->descriptorSetLayout());
@@ -1879,7 +2029,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .range = sizeof(pls::FlushUniforms),
             }});
 
-        vkCmdBindDescriptorSets(vkCommandBuffer,
+        vkCmdBindDescriptorSets(commandBuffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 m_colorRampPipeline->pipelineLayout(),
                                 PER_FLUSH_BINDINGS_SET,
@@ -1888,12 +2038,12 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                 0,
                                 nullptr);
 
-        vkCmdDraw(vkCommandBuffer, 4, desc.complexGradSpanCount, 0, desc.firstComplexGradSpan);
+        vkCmdDraw(commandBuffer, 4, desc.complexGradSpanCount, 0, desc.firstComplexGradSpan);
 
-        vkCmdEndRenderPass(vkCommandBuffer);
+        vkCmdEndRenderPass(commandBuffer);
     }
 
-    vkutil::insert_image_memory_barrier(vkCommandBuffer,
+    vkutil::insert_image_memory_barrier(commandBuffer,
                                         *m_gradientTexture,
                                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
@@ -1917,7 +2067,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 },
         };
 
-        vkCmdCopyBufferToImage(vkCommandBuffer,
+        vkCmdCopyBufferToImage(commandBuffer,
                                m_simpleColorRampsBufferRing.vkBufferAt(m_bufferRingIdx),
                                *m_gradientTexture,
                                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -1925,12 +2075,12 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                &bufferImageCopy);
     }
 
-    vkutil::insert_image_memory_barrier(vkCommandBuffer,
+    vkutil::insert_image_memory_barrier(commandBuffer,
                                         *m_gradientTexture,
                                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
 
-    vkutil::insert_image_memory_barrier(vkCommandBuffer,
+    vkutil::insert_image_memory_barrier(commandBuffer,
                                         *m_tessVertexTexture,
                                         VK_IMAGE_LAYOUT_UNDEFINED,
                                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
@@ -1949,20 +2099,20 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .renderArea = renderArea,
         };
 
-        vkCmdBeginRenderPass(vkCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-        vkCmdBindPipeline(vkCommandBuffer,
+        vkCmdBindPipeline(commandBuffer,
                           VK_PIPELINE_BIND_POINT_GRAPHICS,
                           m_tessellatePipeline->renderPipeline());
 
-        vkCmdSetViewport(vkCommandBuffer, 0, 1, vkutil::ViewportFromRect2D(renderArea));
+        vkCmdSetViewport(commandBuffer, 0, 1, vkutil::ViewportFromRect2D(renderArea));
 
-        vkCmdSetScissor(vkCommandBuffer, 0, 1, &renderArea);
+        vkCmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
         VkBuffer buffer = m_tessSpanBufferRing.vkBufferAt(m_bufferRingIdx);
-        vkCmdBindVertexBuffers(vkCommandBuffer, 0, 1, &buffer, zeroOffset);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, zeroOffset);
 
-        vkCmdBindIndexBuffer(vkCommandBuffer, *m_tessSpanIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        vkCmdBindIndexBuffer(commandBuffer, *m_tessSpanIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
         VkDescriptorSet descriptorSet =
             descriptorSetPool->allocateDescriptorSet(m_tessellatePipeline->descriptorSetLayout());
@@ -2006,7 +2156,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .range = VK_WHOLE_SIZE,
             }});
 
-        vkCmdBindDescriptorSets(vkCommandBuffer,
+        vkCmdBindDescriptorSets(commandBuffer,
                                 VK_PIPELINE_BIND_POINT_GRAPHICS,
                                 m_tessellatePipeline->pipelineLayout(),
                                 PER_FLUSH_BINDINGS_SET,
@@ -2015,17 +2165,17 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                 0,
                                 nullptr);
 
-        vkCmdDrawIndexed(vkCommandBuffer,
+        vkCmdDrawIndexed(commandBuffer,
                          std::size(pls::kTessSpanIndices),
                          desc.tessVertexSpanCount,
                          0,
                          0,
                          desc.firstTessVertexSpan);
 
-        vkCmdEndRenderPass(vkCommandBuffer);
+        vkCmdEndRenderPass(commandBuffer);
     }
 
-    vkutil::insert_image_memory_barrier(vkCommandBuffer,
+    vkutil::insert_image_memory_barrier(commandBuffer,
                                         *m_tessVertexTexture,
                                         VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                                         VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
@@ -2033,7 +2183,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // Apply pending texture updates.
     if (m_nullImageTexture->hasUpdates())
     {
-        m_nullImageTexture->synchronize(vkCommandBuffer, this);
+        m_nullImageTexture->synchronize(commandBuffer, this);
     }
     for (const DrawBatch& batch : *desc.drawList)
     {
@@ -2041,34 +2191,42 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         {
             if (imageTextureVulkan->hasUpdates())
             {
-                imageTextureVulkan->synchronize(vkCommandBuffer, this);
+                imageTextureVulkan->synchronize(commandBuffer, this);
             }
         }
     }
 
-    VkClearColorValue clearColor{};
-    if (desc.colorLoadAction == pls::LoadAction::clear)
-    {
-        UnpackColorToRGBA32F(desc.clearColor, clearColor.float32);
-    }
-
     auto* renderTarget = static_cast<PLSRenderTargetVulkan*>(desc.renderTarget);
-    renderTarget->synchronize(m_allocator.get(), vkCommandBuffer);
+    renderTarget->synchronize(m_allocator.get(), commandBuffer, desc.interlockMode);
 
+    int interlockIdx = static_cast<int>(desc.interlockMode);
+    assert(interlockIdx < m_drawPipelineLayouts.size());
     int renderPassVariantIdx =
-        DrawPipeline::RenderPassVariantIdx(renderTarget->m_framebufferFormat, desc.colorLoadAction);
-    VkRenderPass drawRenderPass = m_drawRenderPasses[renderPassVariantIdx];
+        DrawPipelineLayout::RenderPassVariantIdx(renderTarget->m_framebufferFormat,
+                                                 desc.colorLoadAction);
+    if (m_drawPipelineLayouts[interlockIdx] == nullptr)
+    {
+        m_drawPipelineLayouts[interlockIdx] =
+            std::make_unique<DrawPipelineLayout>(this, desc.interlockMode);
+    }
+    DrawPipelineLayout& layout = *m_drawPipelineLayouts[interlockIdx];
+    VkRenderPass drawRenderPass = layout.renderPassAt(renderPassVariantIdx);
 
     VkImageView imageViews[] = {
         *renderTarget->m_targetTextureView,
-        *renderTarget->m_coverageTextureView,
+        desc.interlockMode == pls::InterlockMode::atomics
+            // Just use m_clipTextureView to have something. TODO: cleanup.
+            ? renderTarget->m_clipTextureView->vkImageView()
+            : renderTarget->m_coverageTextureView->vkImageView(),
         *renderTarget->m_clipTextureView,
-        *renderTarget->m_scratchColorTextureView,
+        desc.interlockMode == pls::InterlockMode::atomics
+            ? VK_NULL_HANDLE
+            : renderTarget->m_scratchColorTextureView->vkImageView(),
     };
 
     rcp<vkutil::Framebuffer> framebuffer = m_allocator->makeFramebuffer({
         .renderPass = drawRenderPass,
-        .attachmentCount = 4,
+        .attachmentCount = DrawPipelineLayout::PLSAttachmentCount(desc.interlockMode),
         .pAttachments = imageViews,
         .width = static_cast<uint32_t>(renderTarget->width()),
         .height = static_cast<uint32_t>(renderTarget->height()),
@@ -2080,11 +2238,54 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                    static_cast<uint32_t>(renderTarget->height())},
     };
 
-    VkClearValue clearValues[] = {
-        {.color = clearColor},
-        {},
+    VkClearValue clearValues[3] = {
+        {.color = vkutil::color_clear_rgba32f(desc.clearColor)},
+        {.color = vkutil::color_clear_r32ui(desc.coverageClearValue)},
         {},
     };
+    static_assert(COLOR_PLANE_IDX == 0);
+    static_assert(COVERAGE_PLANE_IDX == 1);
+    static_assert(CLIP_PLANE_IDX == 2);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 3); // Never cleared.
+
+    bool needsBarrierBeforeNextDraw = false;
+    if (desc.interlockMode == pls::InterlockMode::atomics)
+    {
+        // If the color attachment will be cleared, make sure we get a barrier on
+        // it before shaders access it via subpassLoad().
+        needsBarrierBeforeNextDraw =
+#if 0
+            // TODO: If we end up using HW blend when not using advanced blend, we
+            // don't need a barrier after the clear.
+            desc.combinedShaderFeatures &
+                pls::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
+#endif
+            desc.colorLoadAction == pls::LoadAction::clear;
+
+        // Clear the coverage texture, which is not an attachment.
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            *renderTarget->m_coverageAtomicTexture,
+                                            VK_IMAGE_LAYOUT_GENERAL,
+                                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        VkImageSubresourceRange clearRange = {
+            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+            .levelCount = 1,
+            .layerCount = 1,
+        };
+
+        vkCmdClearColorImage(commandBuffer,
+                             *renderTarget->m_coverageAtomicTexture,
+                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                             &clearValues[COVERAGE_PLANE_IDX].color,
+                             1,
+                             &clearRange);
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            *renderTarget->m_coverageAtomicTexture,
+                                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                            VK_IMAGE_LAYOUT_GENERAL);
+    }
 
     VkRenderPassBeginInfo renderPassBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
@@ -2095,15 +2296,15 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         .pClearValues = clearValues,
     };
 
-    vkCmdBeginRenderPass(vkCommandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
 
-    vkCmdSetViewport(vkCommandBuffer, 0, 1, vkutil::ViewportFromRect2D(renderArea));
+    vkCmdSetViewport(commandBuffer, 0, 1, vkutil::ViewportFromRect2D(renderArea));
 
-    vkCmdSetScissor(vkCommandBuffer, 0, 1, &renderArea);
+    vkCmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
     // Update the per-flush descriptor sets.
-    VkDescriptorSet perFlushDescriptorSet = descriptorSetPool->allocateDescriptorSet(
-        m_drawDescriptorSetLayouts[PER_FLUSH_BINDINGS_SET]);
+    VkDescriptorSet perFlushDescriptorSet =
+        descriptorSetPool->allocateDescriptorSet(layout.perFlushLayout());
 
     vkutil::update_image_descriptor_sets(
         m_device,
@@ -2136,12 +2337,20 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .dstBinding = PATH_BUFFER_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         },
+        {{
+            .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = desc.firstPath * sizeof(pls::PathData),
+            .range = VK_WHOLE_SIZE,
+        }});
+
+    vkutil::update_buffer_descriptor_sets(
+        m_device,
+        perFlushDescriptorSet,
         {
-            {
-                .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
-                .offset = desc.firstPath * sizeof(pls::PathData),
-                .range = VK_WHOLE_SIZE,
-            },
+            .dstBinding = PAINT_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {
             {
                 .buffer = m_paintBufferRing.vkBufferAt(m_bufferRingIdx),
                 .offset = desc.firstPaint * sizeof(pls::PaintData),
@@ -2152,15 +2361,21 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .offset = desc.firstPaintAux * sizeof(pls::PaintAuxData),
                 .range = VK_WHOLE_SIZE,
             },
-            {
-                .buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx),
-                .offset = desc.firstContour * sizeof(pls::ContourData),
-                .range = VK_WHOLE_SIZE,
-            },
         });
-    static_assert(PAINT_BUFFER_IDX == PATH_BUFFER_IDX + 1);
     static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
-    static_assert(CONTOUR_BUFFER_IDX == PAINT_AUX_BUFFER_IDX + 1);
+
+    vkutil::update_buffer_descriptor_sets(
+        m_device,
+        perFlushDescriptorSet,
+        {
+            .dstBinding = CONTOUR_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {{
+            .buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = desc.firstContour * sizeof(pls::ContourData),
+            .range = VK_WHOLE_SIZE,
+        }});
 
     vkutil::update_buffer_descriptor_sets(
         m_device,
@@ -2189,55 +2404,80 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }});
 
     // Update the PLS input attachment descriptor sets.
-    VkDescriptorSet inputAttachmentDescriptorSet = descriptorSetPool->allocateDescriptorSet(
-        m_drawDescriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET]);
+    VkDescriptorSet inputAttachmentDescriptorSet =
+        descriptorSetPool->allocateDescriptorSet(layout.plsLayout());
+
+    vkutil::update_image_descriptor_sets(m_device,
+                                         inputAttachmentDescriptorSet,
+                                         {
+                                             .dstBinding = COLOR_PLANE_IDX,
+                                             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                                         },
+                                         {{
+                                             .imageView = *renderTarget->m_targetTextureView,
+                                             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                                         }});
 
     vkutil::update_image_descriptor_sets(
         m_device,
         inputAttachmentDescriptorSet,
         {
-            .dstBinding = COLOR_PLANE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            .dstBinding = COVERAGE_PLANE_IDX,
+            .descriptorType = desc.interlockMode == pls::InterlockMode::atomics
+                                  ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                                  : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
         },
-        {
+        {{
+            .imageView = desc.interlockMode == pls::InterlockMode::atomics
+                             ? renderTarget->m_coverageAtomicTextureView->vkImageView()
+                             : renderTarget->m_coverageTextureView->vkImageView(),
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        }});
+
+    vkutil::update_image_descriptor_sets(m_device,
+                                         inputAttachmentDescriptorSet,
+                                         {
+                                             .dstBinding = CLIP_PLANE_IDX,
+                                             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                                         },
+                                         {{
+                                             .imageView = *renderTarget->m_clipTextureView,
+                                             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                                         }});
+
+    if (desc.interlockMode == pls::InterlockMode::rasterOrdering)
+    {
+        vkutil::update_image_descriptor_sets(
+            m_device,
+            inputAttachmentDescriptorSet,
             {
-                .imageView = *renderTarget->m_targetTextureView,
-                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .dstBinding = SCRATCH_COLOR_PLANE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             },
-            {
-                .imageView = *renderTarget->m_coverageTextureView,
-                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
-                .imageView = *renderTarget->m_clipTextureView,
-                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-            {
+            {{
                 .imageView = *renderTarget->m_scratchColorTextureView,
                 .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-            },
-        });
-    static_assert(COVERAGE_PLANE_IDX == COLOR_PLANE_IDX + 1);
-    static_assert(CLIP_PLANE_IDX == COVERAGE_PLANE_IDX + 1);
-    static_assert(SCRATCH_COLOR_PLANE_IDX == CLIP_PLANE_IDX + 1);
+            }});
+    }
 
     // Bind the descriptor sets for this draw pass.
     // (The imageTexture and imageDraw dynamic uniform offsets might have to update
     // between draws, but this is otherwise all we need to bind!)
     VkDescriptorSet drawDescriptorSets[] = {
         perFlushDescriptorSet,
-        m_nullImageDescriptorSet,
-        m_samplerDescriptorSet,
+        layout.nullImageDescriptorSet(),
+        layout.samplerDescriptorSet(),
         inputAttachmentDescriptorSet,
     };
     static_assert(PER_FLUSH_BINDINGS_SET == 0);
     static_assert(PER_DRAW_BINDINGS_SET == 1);
     static_assert(SAMPLER_BINDINGS_SET == 2);
     static_assert(PLS_TEXTURE_BINDINGS_SET == 3);
+    static_assert(BINDINGS_SET_COUNT == 4);
 
-    vkCmdBindDescriptorSets(vkCommandBuffer,
+    vkCmdBindDescriptorSets(commandBuffer,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            m_drawPipelineLayout,
+                            layout.vkPipelineLayout(),
                             PER_FLUSH_BINDINGS_SET,
                             std::size(drawDescriptorSets),
                             drawDescriptorSets,
@@ -2273,8 +2513,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 }
 
                 imageTexture->m_imageTextureDescriptorSet =
-                    descriptorSetPool->allocateDescriptorSet(
-                        m_drawDescriptorSetLayouts[PER_DRAW_BINDINGS_SET]);
+                    descriptorSetPool->allocateDescriptorSet(layout.perDrawLayout());
 
                 vkutil::update_image_descriptor_sets(
                     m_device,
@@ -2298,9 +2537,9 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             };
             static_assert(PER_DRAW_BINDINGS_SET == PER_FLUSH_BINDINGS_SET + 1);
 
-            vkCmdBindDescriptorSets(vkCommandBuffer,
+            vkCmdBindDescriptorSets(commandBuffer,
                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    m_drawPipelineLayout,
+                                    layout.vkPipelineLayout(),
                                     PER_FLUSH_BINDINGS_SET,
                                     std::size(imageDescriptorSets),
                                     imageDescriptorSets,
@@ -2308,35 +2547,69 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     &batch.imageDrawDataOffset);
         }
 
+#if 0
         // Setup the pipeline for this specific drawType and shaderFeatures.
-        pls::ShaderFeatures shaderFeatures = batch.shaderFeatures;
-        // For now we don't specialize any shaders. Just take the most general
-        // one.
-        shaderFeatures = pls::ShaderFeaturesMaskFor(drawType, desc.interlockMode);
+        pls::ShaderFeatures shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
+                                                 ? desc.combinedShaderFeatures
+                                                 : batch.shaderFeatures;
+#else
+        // TODO: For now we don't specialize any shaders. Just take the most
+        // general one.
+        pls::ShaderFeatures shaderFeatures =
+            pls::ShaderFeaturesMaskFor(drawType, desc.interlockMode);
+#endif
         uint32_t pipelineKey = pls::ShaderUniqueKey(drawType,
                                                     shaderFeatures,
                                                     desc.interlockMode,
                                                     pls::ShaderMiscFlags::none);
         auto drawPipelineOptions = DrawPipelineOptions::none;
-        if (desc.wireframe)
+        if (m_capabilities.fillModeNonSolid && desc.wireframe)
         {
             drawPipelineOptions |= DrawPipelineOptions::wireframe;
         }
         assert(pipelineKey << kDrawPipelineOptionCount >> kDrawPipelineOptionCount == pipelineKey);
         pipelineKey =
             (pipelineKey << kDrawPipelineOptionCount) | static_cast<uint32_t>(drawPipelineOptions);
+        assert(pipelineKey * DrawPipelineLayout::kRenderPassVariantCount /
+                   DrawPipelineLayout::kRenderPassVariantCount ==
+               pipelineKey);
+        pipelineKey =
+            (pipelineKey * DrawPipelineLayout::kRenderPassVariantCount) + renderPassVariantIdx;
         const DrawPipeline& drawPipeline = m_drawPipelines
                                                .try_emplace(pipelineKey,
                                                             this,
                                                             drawType,
                                                             desc.interlockMode,
                                                             shaderFeatures,
-                                                            drawPipelineOptions)
+                                                            drawPipelineOptions,
+                                                            layout.vkPipelineLayout(),
+                                                            drawRenderPass)
                                                .first->second;
-
-        vkCmdBindPipeline(vkCommandBuffer,
+        vkCmdBindPipeline(commandBuffer,
                           VK_PIPELINE_BIND_POINT_GRAPHICS,
-                          drawPipeline.vkPipelineAt(renderPassVariantIdx));
+                          drawPipeline.vkPipeline());
+
+        if (needsBarrierBeforeNextDraw)
+        {
+            assert(desc.interlockMode == pls::InterlockMode::atomics);
+
+            VkMemoryBarrier memoryBarrier = {
+                .sType = VkStructureType::VK_STRUCTURE_TYPE_MEMORY_BARRIER,
+                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+            };
+
+            vkCmdPipelineBarrier(commandBuffer,
+                                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 VK_DEPENDENCY_BY_REGION_BIT,
+                                 1,
+                                 &memoryBarrier,
+                                 0,
+                                 nullptr,
+                                 0,
+                                 nullptr);
+        }
 
         switch (drawType)
         {
@@ -2344,18 +2617,16 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.
-                vkCmdBindVertexBuffers(vkCommandBuffer,
+                vkCmdBindVertexBuffers(commandBuffer,
                                        0,
                                        1,
                                        m_pathPatchVertexBuffer->vkBufferAddressOf(),
                                        zeroOffset);
-
-                vkCmdBindIndexBuffer(vkCommandBuffer,
+                vkCmdBindIndexBuffer(commandBuffer,
                                      *m_pathPatchIndexBuffer,
                                      0,
                                      VK_INDEX_TYPE_UINT16);
-
-                vkCmdDrawIndexed(vkCommandBuffer,
+                vkCmdDrawIndexed(commandBuffer,
                                  pls::PatchIndexCount(drawType),
                                  batch.elementCount,
                                  pls::PatchBaseIndex(drawType),
@@ -2367,23 +2638,24 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::interiorTriangulation:
             {
                 VkBuffer buffer = m_triangleBufferRing.vkBufferAt(m_bufferRingIdx);
-                vkCmdBindVertexBuffers(vkCommandBuffer, 0, 1, &buffer, zeroOffset);
-
-                vkCmdDraw(vkCommandBuffer, batch.elementCount, 1, batch.baseElement, 0);
+                vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, zeroOffset);
+                vkCmdDraw(commandBuffer, batch.elementCount, 1, batch.baseElement, 0);
                 break;
             }
 
             case DrawType::imageRect:
             {
                 assert(desc.interlockMode == pls::InterlockMode::atomics);
-
-                vkCmdBindVertexBuffers(vkCommandBuffer,
+                vkCmdBindVertexBuffers(commandBuffer,
                                        0,
                                        1,
                                        m_imageRectVertexBuffer->vkBufferAddressOf(),
                                        zeroOffset);
-
-                vkCmdDrawIndexed(vkCommandBuffer,
+                vkCmdBindIndexBuffer(commandBuffer,
+                                     *m_imageRectIndexBuffer,
+                                     0,
+                                     VK_INDEX_TYPE_UINT16);
+                vkCmdDrawIndexed(commandBuffer,
                                  std::size(pls::kImageRectIndices),
                                  1,
                                  batch.baseElement,
@@ -2397,36 +2669,41 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 auto vertexBuffer = static_cast<const RenderBufferVulkanImpl*>(batch.vertexBuffer);
                 auto uvBuffer = static_cast<const RenderBufferVulkanImpl*>(batch.uvBuffer);
                 auto indexBuffer = static_cast<const RenderBufferVulkanImpl*>(batch.indexBuffer);
-
-                vkCmdBindVertexBuffers(vkCommandBuffer,
+                vkCmdBindVertexBuffers(commandBuffer,
                                        0,
                                        1,
                                        vertexBuffer->frontVkBufferAddressOf(),
                                        zeroOffset);
-
-                vkCmdBindVertexBuffers(vkCommandBuffer,
+                vkCmdBindVertexBuffers(commandBuffer,
                                        1,
                                        1,
                                        uvBuffer->frontVkBufferAddressOf(),
                                        zeroOffset);
-
-                vkCmdBindIndexBuffer(vkCommandBuffer,
+                vkCmdBindIndexBuffer(commandBuffer,
                                      indexBuffer->frontVkBuffer(),
                                      0,
                                      VK_INDEX_TYPE_UINT16);
+                vkCmdDrawIndexed(commandBuffer, batch.elementCount, 1, batch.baseElement, 0, 0);
+                break;
+            }
 
-                vkCmdDrawIndexed(vkCommandBuffer, batch.elementCount, 1, batch.baseElement, 0, 0);
+            case DrawType::plsAtomicResolve:
+            {
+                assert(desc.interlockMode == pls::InterlockMode::atomics);
+                vkCmdDraw(commandBuffer, 4, 1, 0, 0);
                 break;
             }
 
             case DrawType::plsAtomicInitialize:
-            case DrawType::plsAtomicResolve:
             case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }
+
+        needsBarrierBeforeNextDraw =
+            desc.interlockMode == pls::InterlockMode::atomics && batch.needsBarrier;
     }
 
-    vkCmdEndRenderPass(vkCommandBuffer);
+    vkCmdEndRenderPass(commandBuffer);
 
     if (desc.isFinalFlushOfFrame)
     {
@@ -2436,10 +2713,14 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
 std::unique_ptr<PLSRenderContext> PLSRenderContextVulkanImpl::MakeContext(
     rcp<vkutil::Allocator> allocator,
-    VulkanDeviceExtensions extensions)
+    VulkanCapabilities capabilities)
 {
     std::unique_ptr<PLSRenderContextVulkanImpl> impl(
-        new PLSRenderContextVulkanImpl(std::move(allocator), extensions));
+        new PLSRenderContextVulkanImpl(std::move(allocator), capabilities));
+    if (!impl->platformFeatures().supportsPixelLocalStorage)
+    {
+        return nullptr; // TODO: implement MSAA.
+    }
     impl->initGPUObjects();
     return std::make_unique<PLSRenderContext>(std::move(impl));
 }

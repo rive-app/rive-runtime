@@ -461,6 +461,23 @@ enum class DrawType : uint8_t
     stencilClipReset,    // Clear or intersect (based on DrawContents) the stencil clip bit.
 };
 
+constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+            return true;
+        case DrawType::midpointFanPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::plsAtomicInitialize:
+        case DrawType::plsAtomicResolve:
+        case DrawType::stencilClipReset:
+            return false;
+    }
+}
+
 constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
 {
     switch (drawType)

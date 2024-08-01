@@ -199,13 +199,17 @@ public:
 
     void setTargetSize(size_t size)
     {
+        // Buffers always get bound, even if unused, so make sure they aren't empty
+        // and we get a valid Vulkan handle.
         if (m_buffers[0]->info().usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
         {
-            // Uniform buffers always get bound, even if unused, so make sure they
-            // aren't empty and we get a valid Vulkan handle.
             size = std::max<size_t>(size, 256);
             // Uniform blocks must be multiples of 256 bytes in size.
             assert(size % 256 == 0);
+        }
+        else
+        {
+            size = std::max<size_t>(size, 1);
         }
         m_targetSize = size;
     }
@@ -270,6 +274,7 @@ public:
 
     const VkImageViewCreateInfo& info() { return m_info; }
     operator VkImageView() const { return m_vkImageView; }
+    VkImageView vkImageView() const { return m_vkImageView; }
     const VkImageView* vkImageViewAddressOf() const { return &m_vkImageView; }
 
 private:
@@ -319,6 +324,27 @@ public:
 private:
     VkViewport m_viewport;
 };
+
+template <size_t Size>
+void set_shader_code(VkShaderModuleCreateInfo& info, const uint32_t (&code)[Size])
+{
+    info.codeSize = sizeof(code);
+    info.pCode = code;
+}
+
+inline VkClearColorValue color_clear_rgba32f(ColorInt riveColor)
+{
+    VkClearColorValue ret;
+    UnpackColorToRGBA32F(riveColor, ret.float32);
+    return ret;
+}
+
+inline VkClearColorValue color_clear_r32ui(uint32_t value)
+{
+    VkClearColorValue ret;
+    ret.uint32[0] = value;
+    return ret;
+}
 
 void update_image_descriptor_sets(VkDevice,
                                   VkDescriptorSet,

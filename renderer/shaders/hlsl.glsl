@@ -205,7 +205,6 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define PLS_PRESERVE_4F(PLANE)
 #define PLS_PRESERVE_UI(PLANE)
-#define PLS_MEMORY_BARRIER(clipBuffer)
 
 #define VERTEX_CONTEXT_DECL
 #define VERTEX_CONTEXT_UNPACK
