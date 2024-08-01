@@ -137,6 +137,7 @@ public:
     const EventReport reportedEventAt(std::size_t index) const;
     bool playsAudio() override { return true; }
     BindableProperty* bindablePropertyInstance(BindableProperty* bindableProperty);
+    DataBind* bindableDataBind(BindableProperty* bindableProperty);
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };
     HitComponent* hitComponent(size_t index)
@@ -164,6 +165,7 @@ private:
     NestedArtboard* m_parentNestedArtboard = nullptr;
     std::vector<DataBind*> m_dataBinds;
     std::unordered_map<BindableProperty*, BindableProperty*> m_bindablePropertyInstances;
+    std::unordered_map<BindableProperty*, DataBind*> m_bindableDataBinds;
 
 #ifdef WITH_RIVE_TOOLS
 public:

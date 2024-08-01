@@ -39,6 +39,7 @@
 #include "rive/animation/listener_input_change.hpp"
 #include "rive/animation/listener_number_change.hpp"
 #include "rive/animation/listener_trigger_change.hpp"
+#include "rive/animation/listener_viewmodel_change.hpp"
 #include "rive/animation/nested_bool.hpp"
 #include "rive/animation/nested_input.hpp"
 #include "rive/animation/nested_linear_animation.hpp"
@@ -353,6 +354,8 @@ public:
                 return new ListenerTriggerChange();
             case BlendStateDirectBase::typeKey:
                 return new BlendStateDirect();
+            case ListenerViewModelChangeBase::typeKey:
+                return new ListenerViewModelChange();
             case TransitionValueNumberComparatorBase::typeKey:
                 return new TransitionValueNumberComparator();
             case NestedStateMachineBase::typeKey:

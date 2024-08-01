@@ -896,9 +896,11 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                 bindablePropertyClone = bindablePropertyInstance->second;
             }
             dataBindClone->target(bindablePropertyClone);
+            // We are only storing in this unordered map data binds that are targetting the source.
+            // For now, this is only the case for listener actions.
             if (static_cast<DataBindFlags>(dataBindClone->flags()) == DataBindFlags::ToSource)
             {
-                bindablePropertyClone->dataBind(dataBindClone);
+                m_bindableDataBinds[bindablePropertyClone] = dataBindClone;
             }
         }
     }
@@ -1264,4 +1266,14 @@ BindableProperty* StateMachineInstance::bindablePropertyInstance(BindablePropert
         return nullptr;
     }
     return bindablePropertyInstance->second;
+}
+
+DataBind* StateMachineInstance::bindableDataBind(BindableProperty* bindableProperty)
+{
+    auto dataBind = m_bindableDataBinds.find(bindableProperty);
+    if (dataBind == m_bindableDataBinds.end())
+    {
+        return nullptr;
+    }
+    return dataBind->second;
 }

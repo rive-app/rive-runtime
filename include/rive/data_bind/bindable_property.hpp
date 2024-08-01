@@ -6,14 +6,7 @@
 namespace rive
 {
 class BindableProperty : public BindablePropertyBase
-{
-public:
-    void dataBind(DataBind* value) { m_dataBind = value; };
-    DataBind* dataBind() { return m_dataBind; };
-
-private:
-    DataBind* m_dataBind;
-};
+{};
 } // namespace rive
 
 #endif
