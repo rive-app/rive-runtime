@@ -5,12 +5,10 @@
 #define TARGET_VULKAN
 #define ENABLE_INSTANCE_INDEX
 #define OPTIONALLY_FLAT flat
-#define ENABLE_CLIPPING
-#define ENABLE_CLIP_RECT
-#define ENABLE_ADVANCED_BLEND
 #define DRAW_PATH
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
+#include "specialization.minified.glsl"
 #include "common.minified.glsl"
 #include "draw_path_common.minified.glsl"
 #include "draw_path.minified.glsl"

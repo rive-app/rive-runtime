@@ -55,22 +55,24 @@
 //    is no correlation between the source and destination coverage.
 //
 
+#ifdef @FRAGMENT
+
 #ifdef @ENABLE_KHR_BLEND
 layout(
 #ifdef @ENABLE_HSL_BLEND_MODES
-    $blend_support_all_equations
+    blend_support_all_equations
 #else
-    $blend_support_multiply,
-    $blend_support_screen,
-    $blend_support_overlay,
-    $blend_support_darken,
-    $blend_support_lighten,
-    $blend_support_colordodge,
-    $blend_support_colorburn,
-    $blend_support_hardlight,
-    $blend_support_softlight,
-    $blend_support_difference,
-    $blend_support_exclusion
+    blend_support_multiply,
+    blend_support_screen,
+    blend_support_overlay,
+    blend_support_darken,
+    blend_support_lighten,
+    blend_support_colordodge,
+    blend_support_colorburn,
+    blend_support_hardlight,
+    blend_support_softlight,
+    blend_support_difference,
+    blend_support_exclusion
 #endif
     ) out;
 #endif // ENABLE_KHR_BLEND
@@ -133,13 +135,9 @@ half3 set_lum_sat(half3 cbase, half3 csat, half3 clum)
     }
     return set_lum(color, clum);
 }
-#endif
+#endif // ENABLE_HSL_BLEND_MODES
 
-#ifdef @ENABLE_HSL_BLEND_MODES
-half4 advanced_hsl_blend(half4 src, half4 dst, ushort mode)
-#else
 half4 advanced_blend(half4 src, half4 dst, ushort mode)
-#endif
 {
     // The function f() operates on un-multiplied rgb values and dictates the look of the advanced
     // blend equations.
@@ -218,20 +216,32 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
         // The HSL blend equations are only well defined when the values of the input color
         // components are in the range [0..1].
         case BLEND_MODE_HUE:
-            src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
-            f = set_lum_sat(src.rgb, dst.rgb, dst.rgb);
+            if (@ENABLE_HSL_BLEND_MODES)
+            {
+                src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
+                f = set_lum_sat(src.rgb, dst.rgb, dst.rgb);
+            }
             break;
         case BLEND_MODE_SATURATION:
-            src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
-            f = set_lum_sat(dst.rgb, src.rgb, dst.rgb);
+            if (@ENABLE_HSL_BLEND_MODES)
+            {
+                src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
+                f = set_lum_sat(dst.rgb, src.rgb, dst.rgb);
+            }
             break;
         case BLEND_MODE_COLOR:
-            src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
-            f = set_lum(src.rgb, dst.rgb);
+            if (@ENABLE_HSL_BLEND_MODES)
+            {
+                src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
+                f = set_lum(src.rgb, dst.rgb);
+            }
             break;
         case BLEND_MODE_LUMINOSITY:
-            src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
-            f = set_lum(dst.rgb, src.rgb);
+            if (@ENABLE_HSL_BLEND_MODES)
+            {
+                src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
+                f = set_lum(dst.rgb, src.rgb);
+            }
             break;
 #endif
     }
@@ -256,3 +266,5 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
     return MUL(make_half3x4(f, 1., src.rgb, 1., dst.rgb, 1.), p);
 }
 #endif // ENABLE_ADVANCED_BLEND
+
+#endif // FRAGMENT

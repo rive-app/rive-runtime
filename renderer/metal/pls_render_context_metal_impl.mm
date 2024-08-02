@@ -164,7 +164,7 @@ public:
                 case pls::InterlockMode::atomics:
                     // In atomic mode, the PLS planes are accessed as device buffers. We only use
                     // the "framebuffer" attachment configured above.
-                    if (pls::ShadersEmitColorToRasterPipeline(interlockMode, shaderFeatures))
+                    if (!(shaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND))
                     {
                         // The shader expectes a "src-over" blend function in order to to implement
                         // antialiasing and opacity.
@@ -793,8 +793,7 @@ id<MTLRenderCommandEncoder> PLSRenderContextMetalImpl::makeRenderPassForDraws(
         // In atomic mode, the PLS planes are buffers that we need to bind separately.
         // Since the PLS plane indices collide with other buffer bindings, offset the binding
         // indices of these buffers by DEFAULT_BINDINGS_SET_SIZE.
-        if (!pls::ShadersEmitColorToRasterPipeline(flushDesc.interlockMode,
-                                                   flushDesc.combinedShaderFeatures))
+        if (flushDesc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND)
         {
             [encoder setFragmentBuffer:renderTarget->colorAtomicBuffer()
                                 offset:0
@@ -976,7 +975,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     {
         assert(desc.interlockMode == pls::InterlockMode::atomics);
         usesOffscreenColorBuffer =
-            !pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures);
+            desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND;
         if (usesOffscreenColorBuffer &&
             desc.colorLoadAction == pls::LoadAction::preserveRenderTarget)
         {

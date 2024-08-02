@@ -104,14 +104,20 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     uint paintType = paintData.x & 0xfu;
 #ifdef @ENABLE_CLIPPING
-    uint clipIDBits = (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >> 16;
-    v_clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
-    // Negative clipID means to update the clip buffer instead of the color buffer.
-    if (paintType == CLIP_UPDATE_PAINT_TYPE)
-        v_clipID = -v_clipID;
+    if (@ENABLE_CLIPPING)
+    {
+        uint clipIDBits = (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >> 16;
+        v_clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
+        // Negative clipID means to update the clip buffer instead of the color buffer.
+        if (paintType == CLIP_UPDATE_PAINT_TYPE)
+            v_clipID = -v_clipID;
+    }
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
-    v_blendMode = float((paintData.x >> 4) & 0xfu);
+    if (@ENABLE_ADVANCED_BLEND)
+    {
+        v_blendMode = float((paintData.x >> 4) & 0xfu);
+    }
 #endif
 
     // Paint matrices operate on the fragment shader's "_fragCoord", which is bottom-up in GL.
@@ -121,18 +127,23 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
 #ifdef @ENABLE_CLIP_RECT
-    // clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
-    // normalized rectangle: [-1, -1, 1, 1].
-    float2x2 clipRectInverseMatrix =
-        make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
-    float4 clipRectInverseTranslate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
+    if (@ENABLE_CLIP_RECT)
+    {
+        // clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is
+        // the normalized rectangle: [-1, -1, 1, 1].
+        float2x2 clipRectInverseMatrix =
+            make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
+        float4 clipRectInverseTranslate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
 #ifndef @USING_DEPTH_STENCIL
-    v_clipRect = find_clip_rect_coverage_distances(clipRectInverseMatrix,
-                                                   clipRectInverseTranslate.xy,
-                                                   fragCoord);
+        v_clipRect = find_clip_rect_coverage_distances(clipRectInverseMatrix,
+                                                       clipRectInverseTranslate.xy,
+                                                       fragCoord);
 #else  // USING_DEPTH_STENCIL
-    set_clip_rect_plane_distances(clipRectInverseMatrix, clipRectInverseTranslate.xy, fragCoord);
+        set_clip_rect_plane_distances(clipRectInverseMatrix,
+                                      clipRectInverseTranslate.xy,
+                                      fragCoord);
 #endif // USING_DEPTH_STENCIL
+    }
 #endif // ENABLE_CLIP_RECT
 
     // Unpack the paint once we have a position.
@@ -142,7 +153,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         v_paint = float4(color);
     }
 #ifdef @ENABLE_CLIPPING
-    else if (paintType == CLIP_UPDATE_PAINT_TYPE)
+    else if (@ENABLE_CLIPPING && paintType == CLIP_UPDATE_PAINT_TYPE)
     {
         half outerClipID = id_bits_to_f16(paintData.x >> 16, uniforms.pathIDGranularity);
         v_paint = float4(outerClipID, 0, 0, 0);
@@ -359,45 +370,51 @@ PLS_MAIN(@drawFragmentMain)
     // Convert coverageCount to coverage.
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
-    if (v_pathID < .0 /*even-odd*/)
+    if (@ENABLE_EVEN_ODD && v_pathID < .0 /*even-odd*/)
+    {
         coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
+    }
 #endif
     coverage = min(coverage, make_half(1)); // This also caps stroke coverage, which can be >1.
 
 #ifdef @ENABLE_CLIPPING
-    if (v_clipID < .0) // Update the clip buffer.
+    if (@ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.
     {
         half clipID = -v_clipID;
 #ifdef @ENABLE_NESTED_CLIPPING
-        half outerClipID = v_paint.r;
-        if (outerClipID != .0)
+        if (@ENABLE_NESTED_CLIPPING)
         {
-            // This is a nested clip. Intersect coverage with the enclosing clip (outerClipID).
-            half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
-            half clipContentID = clipData.g;
-            half outerClipCoverage;
-            if (clipContentID != clipID)
+            half outerClipID = v_paint.r;
+            if (outerClipID != .0)
             {
-                // First hit: either clipBuffer contains outerClipCoverage, or this pixel is not
-                // inside the outer clip and outerClipCoverage is zero.
-                outerClipCoverage = clipContentID == outerClipID ? clipData.r : .0;
+                // This is a nested clip. Intersect coverage with the enclosing clip (outerClipID).
+                half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
+                half clipContentID = clipData.g;
+                half outerClipCoverage;
+                if (clipContentID != clipID)
+                {
+                    // First hit: either clipBuffer contains outerClipCoverage, or this pixel is not
+                    // inside the outer clip and outerClipCoverage is zero.
+                    outerClipCoverage = clipContentID == outerClipID ? clipData.r : .0;
 #ifndef @DRAW_INTERIOR_TRIANGLES
-                // Stash outerClipCoverage before overwriting clipBuffer, in case we hit this pixel
-                // again and need it. (Not necessary when drawing interior triangles because they
-                // always go last and don't overlap.)
-                PLS_STORE4F(scratchColorBuffer, make_half4(outerClipCoverage, .0, .0, .0));
+                    // Stash outerClipCoverage before overwriting clipBuffer, in case we hit this
+                    // pixel again and need it. (Not necessary when drawing interior triangles
+                    // because they always go last and don't overlap.)
+                    PLS_STORE4F(scratchColorBuffer, make_half4(outerClipCoverage, .0, .0, .0));
 #endif
-            }
-            else
-            {
-                // Subsequent hit: outerClipCoverage is stashed in scratchColorBuffer.
-                outerClipCoverage = PLS_LOAD4F(scratchColorBuffer).r;
+                }
+                else
+                {
+                    // Subsequent hit: outerClipCoverage is stashed in scratchColorBuffer.
+                    outerClipCoverage = PLS_LOAD4F(scratchColorBuffer).r;
 #ifndef @DRAW_INTERIOR_TRIANGLES
-                // Since interior triangles are always last, there's no need to preserve this value.
-                PLS_PRESERVE_4F(scratchColorBuffer);
+                    // Since interior triangles are always last, there's no need to preserve this
+                    // value.
+                    PLS_PRESERVE_4F(scratchColorBuffer);
 #endif
+                }
+                coverage = min(coverage, outerClipCoverage);
             }
-            coverage = min(coverage, outerClipCoverage);
         }
 #endif // @ENABLE_NESTED_CLIPPING
         PLS_STOREUI(clipBuffer, packHalf2x16(make_half2(coverage, clipID)));
@@ -407,22 +424,28 @@ PLS_MAIN(@drawFragmentMain)
 #endif   // @ENABLE_CLIPPING
     {
 #ifdef @ENABLE_CLIPPING
-        // Apply the clip.
-        if (v_clipID != .0)
+        if (@ENABLE_CLIPPING)
         {
-            // Clip IDs are not necessarily drawn in monotonically increasing order, so always check
-            // exact equality of the clipID.
-            half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
-            half clipContentID = clipData.g;
-            half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(0);
-            coverage = min(coverage, clipCoverage);
+            // Apply the clip.
+            if (v_clipID != .0)
+            {
+                // Clip IDs are not necessarily drawn in monotonically increasing order, so always
+                // check exact equality of the clipID.
+                half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
+                half clipContentID = clipData.g;
+                half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(0);
+                coverage = min(coverage, clipCoverage);
+            }
+            PLS_PRESERVE_UI(clipBuffer);
         }
-        PLS_PRESERVE_UI(clipBuffer);
 #endif
 #ifdef @ENABLE_CLIP_RECT
-        half clipRectCoverage = min_value(make_half4(v_clipRect));
-        coverage = clamp(clipRectCoverage, make_half(.0), coverage);
-#endif
+        if (@ENABLE_CLIP_RECT)
+        {
+            half clipRectCoverage = min_value(make_half4(v_clipRect));
+            coverage = clamp(clipRectCoverage, make_half(.0), coverage);
+        }
+#endif // ENABLE_CLIP_RECT
 
         half4 color = find_paint_color(v_paint
 #ifdef @TARGET_VULKAN
@@ -455,16 +478,9 @@ PLS_MAIN(@drawFragmentMain)
 
         // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
-        if (v_blendMode != make_half(BLEND_SRC_OVER))
+        if (@ENABLE_ADVANCED_BLEND && v_blendMode != make_half(BLEND_SRC_OVER))
         {
-#ifdef @ENABLE_HSL_BLEND_MODES
-            color = advanced_hsl_blend(
-#else
-            color = advanced_blend(
-#endif
-                color,
-                unmultiply(dstColor),
-                make_ushort(v_blendMode));
+            color = advanced_blend(color, unmultiply(dstColor), make_ushort(v_blendMode));
         }
         else
 #endif
@@ -496,19 +512,16 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     half4 color = find_paint_color(v_paint);
 
 #ifdef @ENABLE_ADVANCED_BLEND
-    half4 dstColor = TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
-#ifdef @ENABLE_HSL_BLEND_MODES
-    color = advanced_hsl_blend(
-#else
-    color = advanced_blend(
-#endif
-        color,
-        unmultiply(dstColor),
-        make_ushort(v_blendMode));
-#else // !ENABLE_ADVANCED_BLEND
-    color = premultiply(color);
-#endif
-
+    if (@ENABLE_ADVANCED_BLEND)
+    {
+        half4 dstColor = TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
+        color = advanced_blend(color, unmultiply(dstColor), make_ushort(v_blendMode));
+    }
+    else
+#endif // !ENABLE_ADVANCED_BLEND
+    {
+        color = premultiply(color);
+    }
     EMIT_FRAG_DATA(color);
 }
 

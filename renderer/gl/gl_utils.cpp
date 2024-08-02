@@ -85,7 +85,7 @@ GLuint CompileShader(GLuint type,
     }
     for (size_t i = 0; i < numDefines; ++i)
     {
-        shaderSource << "#define " << defines[i] << "\n";
+        shaderSource << "#define " << defines[i] << " true\n";
     }
     shaderSource << rive::pls::glsl::glsl << "\n";
     for (size_t i = 0; i < numInputSources; ++i)

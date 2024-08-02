@@ -288,7 +288,12 @@ glsl_reserved = {
     "__pixel_local_inEXT", "__pixel_local_outEXT", "set", "texture2D", "utexture2D", "sampler",
     "subpassInput", "usubpassInput", "input_attachment_index", "readonly", "buffer",
     "unpackUnorm4x8", "defined", "elif", "extension", "enable", "require", "endif", "pragma",
-    "__VERSION__",
+    "__VERSION__", "constant_id", "blend_support_all_equations",
+    "blend_support_multiply", "blend_support_screen", "blend_support_overlay",
+    "blend_support_darken", "blend_support_lighten", "blend_support_colordodge",
+    "blend_support_colorburn", "blend_support_hardlight",
+    "blend_support_softlight", "blend_support_difference",
+    "blend_support_exclusion",
 }
 
 # rgba and stpq get rewritten to xyzw, so we only need to check xyzw here. This way we can keep

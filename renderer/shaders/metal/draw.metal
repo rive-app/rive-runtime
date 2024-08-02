@@ -18,12 +18,8 @@
 #undef DRAW_PATH
 #undef VERTEX
 
-#define ENABLE_ADVANCED_BLEND
-#include "advanced_blend.minified.glsl"
-#undef ENABLE_ADVANCED_BLEND
-
-#define ENABLE_ADVANCED_BLEND
-#define ENABLE_HSL_BLEND_MODES
+#define ENABLE_ADVANCED_BLEND 1
+#define ENABLE_HSL_BLEND_MODES 1
 #include "advanced_blend.minified.glsl"
 #undef ENABLE_HSL_BLEND_MODES
 #undef ENABLE_ADVANCED_BLEND

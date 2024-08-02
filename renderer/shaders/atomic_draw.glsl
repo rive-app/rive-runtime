@@ -159,10 +159,13 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
 #ifdef @ENABLE_CLIP_RECT
-    v_clipRect =
-        find_clip_rect_coverage_distances(make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
-                                          imageDrawUniforms.clipRectInverseTranslate,
-                                          vertexPosition);
+    if (@ENABLE_CLIP_RECT)
+    {
+        v_clipRect = find_clip_rect_coverage_distances(
+            make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
+            imageDrawUniforms.clipRectInverseTranslate,
+            vertexPosition);
+    }
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -210,10 +213,13 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _ver
     v_texCoord = @a_texCoord;
 
 #ifdef @ENABLE_CLIP_RECT
-    v_clipRect =
-        find_clip_rect_coverage_distances(make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
-                                          imageDrawUniforms.clipRectInverseTranslate,
-                                          vertexPosition);
+    if (@ENABLE_CLIP_RECT)
+    {
+        v_clipRect = find_clip_rect_coverage_distances(
+            make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
+            imageDrawUniforms.clipRectInverseTranslate,
+            vertexPosition);
+    }
 #endif
 
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -280,7 +286,7 @@ SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 PLS_BLOCK_BEGIN
 // We only write the framebuffer as a storage texture when there are blend modes. Otherwise, we
 // render to it as a normal color attachment.
-#ifdef @ENABLE_ADVANCED_BLEND
+#ifndef @FIXED_FUNCTION_COLOR_BLEND
 #ifdef @COLOR_PLANE_IDX_OVERRIDE
 // D3D11 doesn't let us bind the framebuffer UAV to slot 0 when there is a color output.
 PLS_DECL4F(@COLOR_PLANE_IDX_OVERRIDE, colorBuffer);
@@ -318,21 +324,26 @@ half4 resolve_path_color(half coverageCount,
     clipData = 0u;
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
-    if ((paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
+    if (@ENABLE_EVEN_ODD && (paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
+    {
         coverage = 1. - abs(fract(coverage * .5) * 2. + -1.);
+    }
 #endif                                       // ENABLE_EVEN_ODD
     coverage = min(coverage, make_half(1.)); // This also caps stroke coverage, which can be >1.
 #ifdef @ENABLE_CLIPPING
-    uint clipID = paintData.x >> 16u;
-    if (clipID != 0u || needsClipData)
+    if (@ENABLE_CLIPPING)
     {
-        clipData = PLS_LOADUI(clipBuffer);
-    }
-    if (clipID != 0u)
-    {
-        clipData = PLS_LOADUI(clipBuffer);
-        half clipCoverage = clipID == (clipData >> 16u) ? unpackHalf2x16(clipData).r : .0;
-        coverage = min(coverage, clipCoverage);
+        uint clipID = paintData.x >> 16u;
+        if (clipID != 0u || needsClipData)
+        {
+            clipData = PLS_LOADUI(clipBuffer);
+        }
+        if (clipID != 0u)
+        {
+            clipData = PLS_LOADUI(clipBuffer);
+            half clipCoverage = clipID == (clipData >> 16u) ? unpackHalf2x16(clipData).r : .0;
+            coverage = min(coverage, clipCoverage);
+        }
     }
 #endif // ENABLE_CLIPPING
     half4 color = make_half4(.0, .0, .0, .0);
@@ -342,7 +353,10 @@ half4 resolve_path_color(half coverageCount,
         case SOLID_COLOR_PAINT_TYPE:
             color = unpackUnorm4x8(paintData.y);
 #ifdef @ENABLE_CLIPPING
-            PLS_PRESERVE_UI(clipBuffer);
+            if (@ENABLE_CLIPPING)
+            {
+                PLS_PRESERVE_UI(clipBuffer);
+            }
 #endif
             break;
         case LINEAR_GRADIENT_PAINT_TYPE:
@@ -376,19 +390,25 @@ half4 resolve_path_color(half coverageCount,
                 color = make_half4(TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, y), .0));
             }
 #ifdef @ENABLE_CLIPPING
-            PLS_PRESERVE_UI(clipBuffer);
+            if (@ENABLE_CLIPPING)
+            {
+                PLS_PRESERVE_UI(clipBuffer);
+            }
 #endif
             break;
         }
 #ifdef @ENABLE_CLIPPING
         case CLIP_UPDATE_PAINT_TYPE:
-            clipData = paintData.y | packHalf2x16(make_half2(coverage, .0));
-            PLS_STOREUI(clipBuffer, clipData);
+            if (@ENABLE_CLIPPING)
+            {
+                clipData = paintData.y | packHalf2x16(make_half2(coverage, .0));
+                PLS_STOREUI(clipBuffer, clipData);
+            }
             break;
 #endif // ENABLE_CLIPPING
     }
 #ifdef @ENABLE_CLIP_RECT
-    if ((paintData.x & PAINT_FLAG_HAS_CLIP_RECT) != 0u)
+    if (@ENABLE_CLIP_RECT && (paintData.x & PAINT_FLAG_HAS_CLIP_RECT) != 0u)
     {
         float2x2 M = make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
         float4 translate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
@@ -403,28 +423,23 @@ half4 resolve_path_color(half coverageCount,
     return color;
 }
 
-half4 do_src_over_blend(half4 srcColorPremul, half4 dstColorPremul)
+half4 blend_src_over(half4 srcColorPremul, half4 dstColorPremul)
 {
     return srcColorPremul + dstColorPremul * (1. - srcColorPremul.a);
 }
 
-#ifdef @ENABLE_ADVANCED_BLEND
-half4 do_advanced_blend(half4 srcColorUnmul, half4 dstColorPremul, ushort blendMode)
+#ifndef @FIXED_FUNCTION_COLOR_BLEND
+half4 blend(half4 srcColorUnmul, half4 dstColorPremul, ushort blendMode)
 {
-    if (blendMode != BLEND_SRC_OVER)
+#ifdef @ENABLE_ADVANCED_BLEND
+    if (@ENABLE_ADVANCED_BLEND && blendMode != BLEND_SRC_OVER)
     {
-#ifdef @ENABLE_HSL_BLEND_MODES
-        return advanced_hsl_blend(
-#else
-        return advanced_blend(
-#endif
-            srcColorUnmul,
-            unmultiply(dstColorPremul),
-            blendMode);
+        return advanced_blend(srcColorUnmul, unmultiply(dstColorPremul), blendMode);
     }
     else
+#endif // ENABLE_ADVANCED_BLEND
     {
-        return do_src_over_blend(premultiply(srcColorUnmul), dstColorPremul);
+        return blend_src_over(premultiply(srcColorUnmul), dstColorPremul);
     }
 }
 
@@ -432,7 +447,7 @@ half4 do_pls_blend(half4 color, uint2 paintData PLS_CONTEXT_DECL)
 {
     half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
     ushort blendMode = make_ushort((paintData.x >> 4) & 0xfu);
-    return do_advanced_blend(color, dstColorPremul, blendMode);
+    return blend(color, dstColorPremul, blendMode);
 }
 
 void write_pls_blend(half4 color, uint2 paintData PLS_CONTEXT_DECL)
@@ -447,16 +462,16 @@ void write_pls_blend(half4 color, uint2 paintData PLS_CONTEXT_DECL)
         PLS_PRESERVE_4F(colorBuffer);
     }
 }
-#endif // ENABLE_ADVANCED_BLEND
+#endif // !FIXED_FUNCTION_COLOR_BLEND
 
-#ifdef @ENABLE_ADVANCED_BLEND
-#define ATOMIC_PLS_MAIN PLS_MAIN
-#define ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS PLS_MAIN_WITH_IMAGE_UNIFORMS
-#define EMIT_ATOMIC_PLS EMIT_PLS
-#else // !ENABLE_ADVANCED_BLEND
+#ifdef @FIXED_FUNCTION_COLOR_BLEND
 #define ATOMIC_PLS_MAIN PLS_FRAG_COLOR_MAIN
 #define ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS
 #define EMIT_ATOMIC_PLS EMIT_PLS_AND_FRAG_COLOR
+#else // !FIXED_FUNCTION_COLOR_BLEND
+#define ATOMIC_PLS_MAIN PLS_MAIN
+#define ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS PLS_MAIN_WITH_IMAGE_UNIFORMS
+#define EMIT_ATOMIC_PLS EMIT_PLS
 #endif
 
 #ifdef @DRAW_PATH
@@ -465,7 +480,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_edgeDistance, half2);
     VARYING_UNPACK(v_pathID, ushort);
 
-#ifndef @ENABLE_ADVANCED_BLEND
+#ifdef @FIXED_FUNCTION_COLOR_BLEND
     _fragColor = make_half4(.0, .0, .0, .0);
 #endif
 
@@ -495,10 +510,10 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
                                          lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK,
                                          clipData,
                                          /*needsClipData=*/false);
-#ifdef @ENABLE_ADVANCED_BLEND
-        write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
-#else
+#ifdef @FIXED_FUNCTION_COLOR_BLEND
         _fragColor = premultiply(color);
+#else
+        write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
 #endif
     }
     else
@@ -529,7 +544,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_windingWeight, half);
     VARYING_UNPACK(v_pathID, ushort);
 
-#ifndef @ENABLE_ADVANCED_BLEND
+#ifdef @FIXED_FUNCTION_COLOR_BLEND
     _fragColor = make_half4(.0, .0, .0, .0);
 #endif
 
@@ -549,10 +564,10 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
                                          lastPathID FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK,
                                          clipData,
                                          /*needsClipData=*/false);
-#ifdef @ENABLE_ADVANCED_BLEND
-        write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
-#else
+#ifdef @FIXED_FUNCTION_COLOR_BLEND
         _fragColor = premultiply(color);
+#else
+        write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
 #endif
     }
     else
@@ -594,8 +609,11 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     meshCoverage = min(v_edgeCoverage, meshCoverage);
 #endif
 #ifdef @ENABLE_CLIP_RECT
-    half clipRectCoverage = min_value(make_half4(v_clipRect));
-    meshCoverage = clamp(clipRectCoverage, make_half(.0), meshCoverage);
+    if (@ENABLE_CLIP_RECT)
+    {
+        half clipRectCoverage = min_value(make_half4(v_clipRect));
+        meshCoverage = clamp(clipRectCoverage, make_half(.0), meshCoverage);
+    }
 #endif
 
 #ifdef @DRAW_IMAGE_MESH
@@ -619,7 +637,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 
     // Clip the image after resolving the previous path, since that can affect the clip buffer.
 #ifdef @ENABLE_CLIPPING // TODO! ENABLE_IMAGE_CLIPPING in addition to ENABLE_CLIPPING?
-    if (imageDrawUniforms.clipID != 0u)
+    if (@ENABLE_CLIPPING && imageDrawUniforms.clipID != 0u)
     {
         uint clipID = clipData >> 16;
         half clipCoverage = clipID == imageDrawUniforms.clipID ? unpackHalf2x16(clipData).r : .0;
@@ -628,7 +646,11 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #endif // ENABLE_CLIPPING
     imageColor.a *= meshCoverage * make_half(imageDrawUniforms.opacity);
 
-#ifdef @ENABLE_ADVANCED_BLEND
+#ifdef @FIXED_FUNCTION_COLOR_BLEND
+    // Leverage the property that premultiplied src-over blending is associative and blend the
+    // imageColor and lastColor before passing them on to the blending pipeline.
+    _fragColor = blend_src_over(premultiply(imageColor), premultiply(lastColor));
+#else
     if (lastColor.a != .0 || imageColor.a != .0)
     {
         // Blend the previous path and image both in a single operation.
@@ -638,18 +660,14 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
         half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
         ushort lastBlendMode = make_ushort((lastPaintData.x >> 4) & 0xfu);
         ushort imageBlendMode = make_ushort(imageDrawUniforms.blendMode);
-        dstColorPremul = do_advanced_blend(lastColor, dstColorPremul, lastBlendMode);
-        imageColor = do_advanced_blend(imageColor, dstColorPremul, imageBlendMode);
+        dstColorPremul = blend(lastColor, dstColorPremul, lastBlendMode);
+        imageColor = blend(imageColor, dstColorPremul, imageBlendMode);
         PLS_STORE4F(colorBuffer, imageColor);
     }
     else
     {
         PLS_PRESERVE_4F(colorBuffer);
     }
-#else
-    // Leverage the property that premultiplied src-over blending is associative and blend the
-    // imageColor and lastColor before passing them on to the blending pipeline.
-    _fragColor = do_src_over_blend(premultiply(imageColor), premultiply(lastColor));
 #endif
 
     // Write out a coverage value of "zero at pathID=0" so a future resolve attempt doesn't affect
@@ -670,7 +688,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
-#ifndef @ENABLE_ADVANCED_BLEND
+#ifdef @FIXED_FUNCTION_COLOR_BLEND
     _fragColor = make_half4(.0, .0, .0, .0);
 #endif
 #ifdef @STORE_COLOR_CLEAR
@@ -682,7 +700,10 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 #endif
     PLS_STOREUI_ATOMIC(coverageCountBuffer, uniforms.coverageClearValue);
 #ifdef @ENABLE_CLIPPING
-    PLS_STOREUI(clipBuffer, 0u);
+    if (@ENABLE_CLIPPING)
+    {
+        PLS_STOREUI(clipBuffer, 0u);
+    }
 #endif
     EMIT_ATOMIC_PLS
 }
@@ -711,10 +732,10 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     _fragColor = do_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
     EMIT_PLS_AND_FRAG_COLOR
 #else
-#ifdef @ENABLE_ADVANCED_BLEND
-    write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
-#else
+#ifdef @FIXED_FUNCTION_COLOR_BLEND
     _fragColor = premultiply(color);
+#else
+    write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
 #endif
     EMIT_ATOMIC_PLS
 #endif

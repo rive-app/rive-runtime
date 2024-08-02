@@ -634,6 +634,11 @@ PLSRenderContextGLImpl::DrawShader::DrawShader(PLSRenderContextGLImpl* plsContex
         // Atomics are currently always done on storage textures.
         defines.push_back(GLSL_USING_PLS_STORAGE_TEXTURES);
     }
+    if (interlockMode == pls::InterlockMode::atomics &&
+        !(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
+    {
+        defines.push_back(GLSL_FIXED_FUNCTION_COLOR_BLEND);
+    }
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
         ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);

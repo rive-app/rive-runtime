@@ -137,11 +137,18 @@
 #define FIXED_COVERAGE_ZERO float(1 << 15)
 #define FIXED_COVERAGE_ONE (FIXED_COVERAGE_FACTOR + FIXED_COVERAGE_ZERO)
 
-// Binding points for the experimental atomic mode storage buffers.
+// Binding points for storage buffers.
 #define PAINT_STORAGE_BUFFER_IDX 8
 #define PAINT_MATRIX_STORAGE_BUFFER_IDX 9
 #define PAINT_TRANSLATE_STORAGE_BUFFER_IDX 10
 #define CLIPRECT_MATRIX_STORAGE_BUFFER_IDX 11
 #define CLIPRECT_TRANSLATE_STORAGE_BUFFER_IDX 12
 
-// Flags for the experimental atomic mode.
+// Indices for SPIRV specialization constants (used in lieu of #defines in Vulkan.)
+#define CLIPPING_SPECIALIZATION_IDX 0
+#define CLIP_RECT_SPECIALIZATION_IDX 1
+#define ADVANCED_BLEND_SPECIALIZATION_IDX 2
+#define EVEN_ODD_SPECIALIZATION_IDX 3
+#define NESTED_CLIPPING_SPECIALIZATION_IDX 4
+#define HSL_BLEND_MODES_SPECIALIZATION_IDX 5
+#define SPECIALIZATION_COUNT 6

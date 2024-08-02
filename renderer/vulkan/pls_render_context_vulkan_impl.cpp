@@ -1290,14 +1290,24 @@ public:
                 .try_emplace(shaderKey, m_device, drawType, interlockMode, shaderFeatures)
                 .first->second;
 
-#if 0
-        // TODO: This is where we will configure permutations based on
-        // ShaderFeatures. For now, we just set the temporary "kHasRasterOrdering"
-        // value.
-        VkBool32 shaderPermutationFlags[] = {};
+        VkBool32 shaderPermutationFlags[SPECIALIZATION_COUNT] = {
+            shaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING,
+            shaderFeatures & pls::ShaderFeatures::ENABLE_CLIP_RECT,
+            shaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND,
+            shaderFeatures & pls::ShaderFeatures::ENABLE_EVEN_ODD,
+            shaderFeatures & pls::ShaderFeatures::ENABLE_NESTED_CLIPPING,
+            shaderFeatures & pls::ShaderFeatures::ENABLE_HSL_BLEND_MODES,
+        };
+        static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
+        static_assert(CLIP_RECT_SPECIALIZATION_IDX == 1);
+        static_assert(ADVANCED_BLEND_SPECIALIZATION_IDX == 2);
+        static_assert(EVEN_ODD_SPECIALIZATION_IDX == 3);
+        static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 4);
+        static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 5);
+        static_assert(SPECIALIZATION_COUNT == 6);
 
-        VkSpecializationMapEntry permutationMapEntries[std::size(shaderPermutationFlags)];
-        for (uint32_t i = 0; i < std::size(permutationMapEntries); ++i)
+        VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
+        for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)
         {
             permutationMapEntries[i] = {
                 .constantID = i,
@@ -1307,14 +1317,11 @@ public:
         }
 
         VkSpecializationInfo specializationInfo = {
-            .mapEntryCount = std::size(permutationMapEntries),
+            .mapEntryCount = SPECIALIZATION_COUNT,
             .pMapEntries = permutationMapEntries,
             .dataSize = sizeof(shaderPermutationFlags),
             .pData = &shaderPermutationFlags,
         };
-#else
-        VkSpecializationInfo specializationInfo = {};
-#endif
 
         VkPipelineShaderStageCreateInfo stages[] = {
             {
@@ -2547,17 +2554,10 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     &batch.imageDrawDataOffset);
         }
 
-#if 0
         // Setup the pipeline for this specific drawType and shaderFeatures.
         pls::ShaderFeatures shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
                                                  ? desc.combinedShaderFeatures
                                                  : batch.shaderFeatures;
-#else
-        // TODO: For now we don't specialize any shaders. Just take the most
-        // general one.
-        pls::ShaderFeatures shaderFeatures =
-            pls::ShaderFeaturesMaskFor(drawType, desc.interlockMode);
-#endif
         uint32_t pipelineKey = pls::ShaderUniqueKey(drawType,
                                                     shaderFeatures,
                                                     desc.interlockMode,

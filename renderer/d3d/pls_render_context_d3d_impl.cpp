@@ -960,7 +960,7 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
             ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
             if (shaderFeatures & feature)
             {
-                s << "#define " << GetShaderFeatureGLSLName(feature) << '\n';
+                s << "#define " << GetShaderFeatureGLSLName(feature) << " 1\n";
             }
         }
         if (m_d3dCapabilities.supportsRasterizerOrderedViews)
@@ -979,6 +979,11 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         if (m_d3dCapabilities.supportsMin16Precision)
         {
             s << "#define " << GLSL_ENABLE_MIN_16_PRECISION << '\n';
+        }
+        if (interlockMode == pls::InterlockMode::atomics &&
+            !(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
+        {
+            s << "#define " << GLSL_FIXED_FUNCTION_COLOR_BLEND << '\n';
         }
         if (pixelShaderMiscFlags & pls::ShaderMiscFlags::coalescedResolveAndTransfer)
         {
@@ -1337,7 +1342,8 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     // Setup and clear the PLS textures.
     bool renderDirectToRasterPipeline =
-        pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures);
+        desc.interlockMode == InterlockMode::atomics &&
+        !(desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
     switch (desc.colorLoadAction)
     {
         case pls::LoadAction::clear:

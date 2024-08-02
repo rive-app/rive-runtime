@@ -95,7 +95,7 @@ void BackgroundShaderCompiler::threadMain()
             if (shaderFeatures & feature)
             {
                 const char* macro = pls::GetShaderFeatureGLSLName(feature);
-                defines[[NSString stringWithUTF8String:macro]] = @"";
+                defines[[NSString stringWithUTF8String:macro]] = @"1";
             }
         }
         if (interlockMode == pls::InterlockMode::atomics)
@@ -105,6 +105,10 @@ void BackgroundShaderCompiler::threadMain()
             if (m_metalFeatures.atomicBarrierType == AtomicBarrierType::rasterOrderGroup)
             {
                 defines[@GLSL_PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED] = @"";
+            }
+            if (!(shaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND))
+            {
+                defines[@GLSL_FIXED_FUNCTION_COLOR_BLEND] = @"";
             }
         }
 

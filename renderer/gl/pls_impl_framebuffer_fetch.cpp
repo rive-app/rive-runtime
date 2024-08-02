@@ -95,7 +95,8 @@ public:
             glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
         }
 
-        if (pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures))
+        if (desc.interlockMode == pls::InterlockMode::atomics &&
+            !(desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIP_RECT))
         {
             plsContextImpl->state()->setBlendEquation(BlendMode::srcOver);
         }

@@ -12,6 +12,10 @@
 #include <vector>
 #include <sstream>
 
+#ifdef _WIN32
+#include <windows.h>
+#endif
+
 #define GLFW_INCLUDE_NONE
 #include "GLFW/glfw3.h"
 
@@ -23,6 +27,18 @@
 
 using namespace rive;
 
+constexpr static char kMoltenVKICD[] =
+    "dependencies/MoltenVK/Package/Release/MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json";
+
+constexpr static char kSwiftShaderICD[] = "dependencies/SwiftShader/build/"
+#ifdef __APPLE__
+                                          "Darwin"
+#elif defined(_WIN32)
+                                          "Windows"
+#else
+                                          "Linux"
+#endif
+                                          "/vk_swiftshader_icd.json";
 static FiddleContextOptions s_options;
 static GLFWwindow* s_window = nullptr;
 static int s_msaa = 0;
@@ -271,6 +287,23 @@ static void glfw_error_callback(int code, const char* message)
     printf("GLFW error: %i - %s\n", code, message);
 }
 
+static void set_environment_variable(const char* name, const char* value)
+{
+    if (const char* existingValue = getenv(name))
+    {
+        printf("warning: %s=%s already set. Overriding with %s=%s\n",
+               name,
+               existingValue,
+               name,
+               value);
+    }
+#ifdef _WIN32
+    SetEnvironmentVariableA(name, value);
+#else
+    setenv(name, value, /*overwrite=*/true);
+#endif
+}
+
 bool skia = false;
 
 enum class API
@@ -352,6 +385,30 @@ int main(int argc, const char** argv)
         else if (!strcmp(argv[i], "--metalatomic"))
         {
             api = API::metal;
+            s_forceAtomicMode = true;
+        }
+        else if (!strcmp(argv[i], "--mvk") || !strcmp(argv[i], "--moltenvk"))
+        {
+            set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
+            api = API::vulkan;
+        }
+        else if (!strcmp(argv[i], "--mvkatomic") || !strcmp(argv[i], "--moltenvkatomic"))
+        {
+            set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
+            api = API::vulkan;
+            s_forceAtomicMode = true;
+        }
+        else if (!strcmp(argv[i], "--sw") || !strcmp(argv[i], "--swiftshader"))
+        {
+            // Use the swiftshader built by packages/pls/make_swiftshader.sh
+            set_environment_variable("VK_ICD_FILENAMES", kSwiftShaderICD);
+            api = API::vulkan;
+        }
+        else if (!strcmp(argv[i], "--swatomic") || !strcmp(argv[i], "--swiftshaderatomic"))
+        {
+            // Use the swiftshader built by packages/pls/make_swiftshader.sh
+            set_environment_variable("VK_ICD_FILENAMES", kSwiftShaderICD);
+            api = API::vulkan;
             s_forceAtomicMode = true;
         }
         else if (!strcmp(argv[i], "--dawn"))

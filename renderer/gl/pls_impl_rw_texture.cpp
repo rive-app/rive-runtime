@@ -36,7 +36,8 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
         bool renderDirectToRasterPipeline =
-            pls::ShadersEmitColorToRasterPipeline(desc.interlockMode, desc.combinedShaderFeatures);
+            desc.interlockMode == InterlockMode::atomics &&
+            !(desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
         if (renderDirectToRasterPipeline)
         {
             plsContextImpl->state()->setBlendEquation(BlendMode::srcOver);

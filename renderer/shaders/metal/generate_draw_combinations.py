@@ -70,7 +70,7 @@ def emit_shader(out, shader_type, draw_type, feature_set):
     for feature in feature_set:
         namespace_id[feature.index] = '1'
     for feature in feature_set:
-        out.write('#define %s\n' % feature.name)
+        out.write('#define %s 1\n' % feature.name)
     if draw_type == DrawType.PATH:
         out.write('namespace p%s\n' % ''.join(namespace_id))
         out.write('{\n')

@@ -803,18 +803,6 @@ struct FlushDescriptor
     bool isFinalFlushOfFrame = false;
 };
 
-// Returns true if the PLS shaders emit color directly to the raster pipeline, instead of rendering
-// via pixel local storage. In this case, the shaders will expect hardware blending to be enabled
-// and configured for premultiplied "src-over". It is the backend's responsibility to check this
-// method and configure the hardware blend state as needed.
-constexpr RIVE_ALWAYS_INLINE bool ShadersEmitColorToRasterPipeline(
-    InterlockMode interlockMode,
-    ShaderFeatures combinedShaderFeatures)
-{
-    return interlockMode == InterlockMode::atomics &&
-           !(combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
-}
-
 // Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
 template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)
 {
