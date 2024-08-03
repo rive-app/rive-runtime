@@ -5,6 +5,8 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/data_context.hpp"
+#include "rive/data_bind/converters/data_converter.hpp"
+#include "rive/data_bind/data_values/data_type.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -21,12 +23,16 @@ public:
     ComponentDirt dirt() { return m_Dirt; };
     void dirt(ComponentDirt value) { m_Dirt = value; };
     bool addDirt(ComponentDirt value, bool recurse);
+    DataConverter* converter() const { return m_dataConverter; };
+    void converter(DataConverter* value) { m_dataConverter = value; };
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;
     Core* m_target;
     ViewModelInstanceValue* m_Source;
     std::unique_ptr<DataBindContextValue> m_ContextValue;
+    DataConverter* m_dataConverter;
+    DataType outputType();
 };
 } // namespace rive
 

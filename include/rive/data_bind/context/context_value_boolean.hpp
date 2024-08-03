@@ -7,12 +7,9 @@ class DataBindContextValueBoolean : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueBoolean(ViewModelInstanceValue* value);
-    void apply(Core* component, uint32_t propertyKey) override;
-    virtual void applyToSource(Core* component, uint32_t propertyKey) override;
-
-private:
-    bool m_Value;
+    DataBindContextValueBoolean(ViewModelInstanceValue* source, DataConverter* converter);
+    void apply(Core* component, uint32_t propertyKey, bool isMainDirection) override;
+    DataValue* getTargetValue(Core* target, uint32_t propertyKey) override;
 };
 } // namespace rive
 

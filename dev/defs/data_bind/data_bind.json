@@ -31,6 +31,17 @@
         "int": 587,
         "string": "flags"
       }
+    },
+    "converterId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 660,
+        "string": "converterid"
+      },
+      "description": "Identifier used to link to a data converter."
     }
   }
 }

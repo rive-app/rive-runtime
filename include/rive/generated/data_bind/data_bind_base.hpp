@@ -29,10 +29,12 @@ public:
 
     static const uint16_t propertyKeyPropertyKey = 586;
     static const uint16_t flagsPropertyKey = 587;
+    static const uint16_t converterIdPropertyKey = 660;
 
 private:
     uint32_t m_PropertyKey = Core::invalidPropertyKey;
     uint32_t m_Flags = 0;
+    uint32_t m_ConverterId = -1;
 
 public:
     inline uint32_t propertyKey() const { return m_PropertyKey; }
@@ -57,11 +59,23 @@ public:
         flagsChanged();
     }
 
+    inline uint32_t converterId() const { return m_ConverterId; }
+    void converterId(uint32_t value)
+    {
+        if (m_ConverterId == value)
+        {
+            return;
+        }
+        m_ConverterId = value;
+        converterIdChanged();
+    }
+
     Core* clone() const override;
     void copy(const DataBindBase& object)
     {
         m_PropertyKey = object.m_PropertyKey;
         m_Flags = object.m_Flags;
+        m_ConverterId = object.m_ConverterId;
     }
 
     bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
@@ -74,6 +88,9 @@ public:
             case flagsPropertyKey:
                 m_Flags = CoreUintType::deserialize(reader);
                 return true;
+            case converterIdPropertyKey:
+                m_ConverterId = CoreUintType::deserialize(reader);
+                return true;
         }
         return false;
     }
@@ -81,6 +98,7 @@ public:
 protected:
     virtual void propertyKeyChanged() {}
     virtual void flagsChanged() {}
+    virtual void converterIdChanged() {}
 };
 } // namespace rive
 

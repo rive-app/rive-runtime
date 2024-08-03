@@ -11,10 +11,12 @@ class DataBindContextValueList : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueList(ViewModelInstanceValue* value);
-    void apply(Core* component, uint32_t propertyKey) override;
+    DataBindContextValueList(ViewModelInstanceValue* source, DataConverter* converter);
+    void apply(Core* component, uint32_t propertyKey, bool isMainDirection) override;
     void update(Core* target) override;
-    virtual void applyToSource(Core* component, uint32_t propertyKey) override;
+    virtual void applyToSource(Core* component,
+                               uint32_t propertyKey,
+                               bool isMainDirection) override;
 
 private:
     std::vector<std::unique_ptr<DataBindContextValueListItem>> m_ListItemsCache;

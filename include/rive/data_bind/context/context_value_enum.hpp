@@ -7,12 +7,9 @@ class DataBindContextValueEnum : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueEnum(ViewModelInstanceValue* value);
-    void apply(Core* component, uint32_t propertyKey) override;
-    virtual void applyToSource(Core* component, uint32_t propertyKey) override;
-
-private:
-    int m_Value;
+    DataBindContextValueEnum(ViewModelInstanceValue* source, DataConverter* converter);
+    void apply(Core* component, uint32_t propertyKey, bool isMainDirection) override;
+    DataValue* getTargetValue(Core* target, uint32_t propertyKey) override;
 };
 } // namespace rive
 

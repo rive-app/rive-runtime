@@ -118,6 +118,7 @@
 #include "rive/data_bind/bindable_property_enum.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
+#include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/draw_rules.hpp"
@@ -994,6 +995,9 @@ public:
             case DataBindBase::flagsPropertyKey:
                 object->as<DataBindBase>()->flags(value);
                 break;
+            case DataBindBase::converterIdPropertyKey:
+                object->as<DataBindBase>()->converterId(value);
+                break;
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 object->as<BindablePropertyEnumBase>()->propertyValue(value);
                 break;
@@ -1131,6 +1135,9 @@ public:
                 break;
             case OpenUrlEventBase::urlPropertyKey:
                 object->as<OpenUrlEventBase>()->url(value);
+                break;
+            case DataConverterBase::namePropertyKey:
+                object->as<DataConverterBase>()->name(value);
                 break;
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 object->as<BindablePropertyStringBase>()->propertyValue(value);
@@ -1999,6 +2006,8 @@ public:
                 return object->as<DataBindBase>()->propertyKey();
             case DataBindBase::flagsPropertyKey:
                 return object->as<DataBindBase>()->flags();
+            case DataBindBase::converterIdPropertyKey:
+                return object->as<DataBindBase>()->converterId();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyEnumBase>()->propertyValue();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -2097,6 +2106,8 @@ public:
                 return object->as<TransitionValueStringComparatorBase>()->value();
             case OpenUrlEventBase::urlPropertyKey:
                 return object->as<OpenUrlEventBase>()->url();
+            case DataConverterBase::namePropertyKey:
+                return object->as<DataConverterBase>()->name();
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyStringBase>()->propertyValue();
             case TextValueRunBase::textPropertyKey:
@@ -2617,6 +2628,7 @@ public:
             case OpenUrlEventBase::targetValuePropertyKey:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
+            case DataBindBase::converterIdPropertyKey:
             case BindablePropertyEnumBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::fitPropertyKey:
             case WeightBase::valuesPropertyKey:
@@ -2661,6 +2673,7 @@ public:
             case KeyFrameStringBase::valuePropertyKey:
             case TransitionValueStringComparatorBase::valuePropertyKey:
             case OpenUrlEventBase::urlPropertyKey:
+            case DataConverterBase::namePropertyKey:
             case BindablePropertyStringBase::propertyValuePropertyKey:
             case TextValueRunBase::textPropertyKey:
             case CustomPropertyStringBase::propertyValuePropertyKey:
@@ -3180,6 +3193,8 @@ public:
                 return object->is<DataBindBase>();
             case DataBindBase::flagsPropertyKey:
                 return object->is<DataBindBase>();
+            case DataBindBase::converterIdPropertyKey:
+                return object->is<DataBindBase>();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyEnumBase>();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -3264,6 +3279,8 @@ public:
                 return object->is<TransitionValueStringComparatorBase>();
             case OpenUrlEventBase::urlPropertyKey:
                 return object->is<OpenUrlEventBase>();
+            case DataConverterBase::namePropertyKey:
+                return object->is<DataConverterBase>();
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyStringBase>();
             case TextValueRunBase::textPropertyKey:

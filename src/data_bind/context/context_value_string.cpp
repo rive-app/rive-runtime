@@ -1,27 +1,23 @@
 #include "rive/data_bind/context/context_value_string.hpp"
+#include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;
 
-DataBindContextValueString::DataBindContextValueString(ViewModelInstanceValue* value)
+DataBindContextValueString::DataBindContextValueString(ViewModelInstanceValue* source,
+                                                       DataConverter* converter) :
+    DataBindContextValue(source, converter)
+{}
+
+void DataBindContextValueString::apply(Core* target, uint32_t propertyKey, bool isMainDirection)
 {
-    m_Source = value;
-    m_Value = m_Source->as<ViewModelInstanceString>()->propertyValue();
+    updateSourceValue();
+    auto value = calculateValue<DataValueString, std::string>(m_dataValue, isMainDirection);
+    CoreRegistry::setString(target, propertyKey, value);
 }
 
-void DataBindContextValueString::apply(Core* target, uint32_t propertyKey)
-{
-    CoreRegistry::setString(target,
-                            propertyKey,
-                            m_Source->as<ViewModelInstanceString>()->propertyValue());
-}
-
-void DataBindContextValueString::applyToSource(Core* target, uint32_t propertyKey)
+DataValue* DataBindContextValueString::getTargetValue(Core* target, uint32_t propertyKey)
 {
     auto value = CoreRegistry::getString(target, propertyKey);
-    if (m_Value != value)
-    {
-        m_Value = value;
-        m_Source->as<ViewModelInstanceString>()->propertyValue(value);
-    }
+    return new DataValueString(value);
 }

@@ -1,27 +1,23 @@
 #include "rive/data_bind/context/context_value_number.hpp"
+#include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;
 
-DataBindContextValueNumber::DataBindContextValueNumber(ViewModelInstanceValue* value)
+DataBindContextValueNumber::DataBindContextValueNumber(ViewModelInstanceValue* source,
+                                                       DataConverter* converter) :
+    DataBindContextValue(source, converter)
+{}
+
+void DataBindContextValueNumber::apply(Core* target, uint32_t propertyKey, bool isMainDirection)
 {
-    m_Source = value;
-    m_Value = m_Source->as<ViewModelInstanceNumber>()->propertyValue();
+    updateSourceValue();
+    auto value = calculateValue<DataValueNumber, float>(m_dataValue, isMainDirection);
+    CoreRegistry::setDouble(target, propertyKey, value);
 }
 
-void DataBindContextValueNumber::apply(Core* target, uint32_t propertyKey)
-{
-    CoreRegistry::setDouble(target,
-                            propertyKey,
-                            m_Source->as<ViewModelInstanceNumber>()->propertyValue());
-}
-
-void DataBindContextValueNumber::applyToSource(Core* target, uint32_t propertyKey)
+DataValue* DataBindContextValueNumber::getTargetValue(Core* target, uint32_t propertyKey)
 {
     auto value = CoreRegistry::getDouble(target, propertyKey);
-    if (m_Value != value)
-    {
-        m_Value = value;
-        m_Source->as<ViewModelInstanceNumber>()->propertyValue(value);
-    }
+    return new DataValueNumber(value);
 }

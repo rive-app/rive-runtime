@@ -1,0 +1,30 @@
+{
+  "name": "DataConverter",
+  "key": {
+    "int": 488,
+    "string": "dataconverter"
+  },
+  "abstract": true,
+  "properties": {
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 661,
+        "string": "order"
+      },
+      "description": "Order value for sorting data converters",
+      "runtime": false
+    },
+    "name": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 662,
+        "string": "name"
+      },
+      "description": "Non-unique identifier, used to give friendly names to data converters."
+    }
+  }
+}

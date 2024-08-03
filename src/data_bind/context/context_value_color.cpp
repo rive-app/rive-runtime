@@ -1,27 +1,23 @@
 #include "rive/data_bind/context/context_value_color.hpp"
+#include "rive/data_bind/data_values/data_value_color.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;
 
-DataBindContextValueColor::DataBindContextValueColor(ViewModelInstanceValue* value)
+DataBindContextValueColor::DataBindContextValueColor(ViewModelInstanceValue* source,
+                                                     DataConverter* converter) :
+    DataBindContextValue(source, converter)
+{}
+
+void DataBindContextValueColor::apply(Core* target, uint32_t propertyKey, bool isMainDirection)
 {
-    m_Source = value;
-    m_Value = m_Source->as<ViewModelInstanceColor>()->propertyValue();
+    updateSourceValue();
+    auto value = calculateValue<DataValueColor, int>(m_dataValue, isMainDirection);
+    CoreRegistry::setColor(target, propertyKey, value);
 }
 
-void DataBindContextValueColor::apply(Core* target, uint32_t propertyKey)
-{
-    CoreRegistry::setColor(target,
-                           propertyKey,
-                           m_Source->as<ViewModelInstanceColor>()->propertyValue());
-}
-
-void DataBindContextValueColor::applyToSource(Core* target, uint32_t propertyKey)
+DataValue* DataBindContextValueColor::getTargetValue(Core* target, uint32_t propertyKey)
 {
     auto value = CoreRegistry::getColor(target, propertyKey);
-    if (m_Value != value)
-    {
-        m_Value = value;
-        m_Source->as<ViewModelInstanceColor>()->propertyValue(value);
-    }
+    return new DataValueColor(value);
 }

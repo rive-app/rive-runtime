@@ -12,6 +12,8 @@ class NestedArtboard;
 class Backboard;
 class FileAsset;
 class FileAssetReferencer;
+class DataConverter;
+class DataBind;
 class BackboardImporter : public ImportStackObject
 {
 private:
@@ -20,6 +22,8 @@ private:
     std::vector<NestedArtboard*> m_NestedArtboards;
     std::vector<FileAsset*> m_FileAssets;
     std::vector<FileAssetReferencer*> m_FileAssetReferencers;
+    std::vector<DataConverter*> m_DataConverters;
+    std::vector<DataBind*> m_DataConverterReferencers;
     int m_NextArtboardId;
 
 public:
@@ -29,6 +33,8 @@ public:
     void addNestedArtboard(NestedArtboard* artboard);
     void addFileAsset(FileAsset* asset);
     void addFileAssetReferencer(FileAssetReferencer* referencer);
+    void addDataConverterReferencer(DataBind* referencer);
+    void addDataConverter(DataConverter* converter);
 
     StatusCode resolve() override;
     const Backboard* backboard() const { return m_Backboard; }

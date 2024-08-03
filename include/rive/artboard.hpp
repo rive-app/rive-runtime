@@ -295,6 +295,7 @@ public:
                     {
                         auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
                         dataBindClone->target(cloneObjects.back());
+                        dataBindClone->converter(dataBind->converter());
                         artboardClone->m_DataBinds.push_back(dataBindClone);
                     }
                 }

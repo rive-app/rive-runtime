@@ -5,10 +5,10 @@
 
 using namespace rive;
 
-DataBindContextValueList::DataBindContextValueList(ViewModelInstanceValue* value)
-{
-    m_Source = value;
-}
+DataBindContextValueList::DataBindContextValueList(ViewModelInstanceValue* source,
+                                                   DataConverter* converter) :
+    DataBindContextValue(source, converter)
+{}
 
 std::unique_ptr<ArtboardInstance> DataBindContextValueList::createArtboard(
     Component* target,
@@ -72,7 +72,7 @@ void DataBindContextValueList::update(Core* target)
 {
     if (target != nullptr)
     {
-        auto sourceList = m_Source->as<ViewModelInstanceList>();
+        auto sourceList = m_source->as<ViewModelInstanceList>();
         auto listItems = sourceList->listItems();
 
         int listIndex = 0;
@@ -125,9 +125,11 @@ void DataBindContextValueList::update(Core* target)
     }
 }
 
-void DataBindContextValueList::apply(Core* target, uint32_t propertyKey) {}
+void DataBindContextValueList::apply(Core* target, uint32_t propertyKey, bool isMainDirection) {}
 
-void DataBindContextValueList::applyToSource(Core* target, uint32_t propertyKey)
+void DataBindContextValueList::applyToSource(Core* target,
+                                             uint32_t propertyKey,
+                                             bool isMainDirection)
 {
     // TODO: @hernan does applyToSource make sense? Should we block it somehow?
 }
