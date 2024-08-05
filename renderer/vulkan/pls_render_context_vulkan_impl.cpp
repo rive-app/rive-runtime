@@ -23,14 +23,19 @@ namespace spirv
 
 #include "generated/shaders/spirv/atomic_draw_path.vert.h"
 #include "generated/shaders/spirv/atomic_draw_path.frag.h"
+#include "generated/shaders/spirv/atomic_draw_path.fixedblend_frag.h"
 #include "generated/shaders/spirv/atomic_draw_interior_triangles.vert.h"
 #include "generated/shaders/spirv/atomic_draw_interior_triangles.frag.h"
+#include "generated/shaders/spirv/atomic_draw_interior_triangles.fixedblend_frag.h"
 #include "generated/shaders/spirv/atomic_draw_image_rect.vert.h"
 #include "generated/shaders/spirv/atomic_draw_image_rect.frag.h"
+#include "generated/shaders/spirv/atomic_draw_image_rect.fixedblend_frag.h"
 #include "generated/shaders/spirv/atomic_draw_image_mesh.vert.h"
 #include "generated/shaders/spirv/atomic_draw_image_mesh.frag.h"
+#include "generated/shaders/spirv/atomic_draw_image_mesh.fixedblend_frag.h"
 #include "generated/shaders/spirv/atomic_resolve_pls.vert.h"
 #include "generated/shaders/spirv/atomic_resolve_pls.frag.h"
+#include "generated/shaders/spirv/atomic_resolve_pls.fixedblend_frag.h"
 }; // namespace spirv
 
 #ifdef RIVE_DECODERS
@@ -703,9 +708,18 @@ private:
     VkDevice m_device;
 };
 
+enum class DrawPipelineLayoutOptions
+{
+    none = 0,
+    fixedFunctionColorBlend = 1 << 0, // COLOR is not an input attachment.
+};
+RIVE_MAKE_ENUM_BITSET(DrawPipelineLayoutOptions);
+
 class PLSRenderContextVulkanImpl::DrawPipelineLayout
 {
 public:
+    static_assert(kDrawPipelineLayoutOptionCount == 1);
+
     // Number of render pass variants that can be used with a single DrawPipeline
     // (framebufferFormat x loadOp).
     constexpr static int kRenderPassVariantCount = 6;
@@ -746,9 +760,13 @@ public:
         return interlockMode == pls::InterlockMode::atomics ? 3 : 4;
     }
 
-    DrawPipelineLayout(PLSRenderContextVulkanImpl* impl, pls::InterlockMode interlockMode) :
-        m_impl(impl), m_interlockMode(interlockMode)
+    DrawPipelineLayout(PLSRenderContextVulkanImpl* impl,
+                       pls::InterlockMode interlockMode,
+                       DrawPipelineLayoutOptions options) :
+        m_impl(impl), m_interlockMode(interlockMode), m_options(options)
     {
+        assert(interlockMode != pls::InterlockMode::depthStencil); // TODO: msaa.
+
         // Most bindings only need to be set once per flush.
         VkDescriptorSetLayoutBinding perFlushLayoutBindings[] = {
             {
@@ -814,7 +832,7 @@ public:
         VK_CHECK(vkCreateDescriptorSetLayout(m_impl->m_device,
                                              &perFlushLayoutInfo,
                                              nullptr,
-                                             m_descriptorSetLayouts + PER_FLUSH_BINDINGS_SET));
+                                             &m_descriptorSetLayouts[PER_FLUSH_BINDINGS_SET]));
 
         // The imageTexture gets updated with every draw that uses it.
         VkDescriptorSetLayoutBinding perDrawLayoutBindings[] = {
@@ -835,7 +853,7 @@ public:
         VK_CHECK(vkCreateDescriptorSetLayout(m_impl->m_device,
                                              &perDrawLayoutInfo,
                                              nullptr,
-                                             m_descriptorSetLayouts + PER_DRAW_BINDINGS_SET));
+                                             &m_descriptorSetLayouts[PER_DRAW_BINDINGS_SET]));
 
         // Samplers get bound once per lifetime.
         VkDescriptorSetLayoutBinding samplerLayoutBindings[] = {
@@ -862,7 +880,7 @@ public:
         VK_CHECK(vkCreateDescriptorSetLayout(m_impl->m_device,
                                              &samplerLayoutInfo,
                                              nullptr,
-                                             m_descriptorSetLayouts + SAMPLER_BINDINGS_SET));
+                                             &m_descriptorSetLayouts[SAMPLER_BINDINGS_SET]));
 
         // PLS planes get bound per flush as input attachments or storage textures.
         VkDescriptorSetLayoutBinding plsLayoutBindings[] = {
@@ -900,14 +918,24 @@ public:
 
         VkDescriptorSetLayoutCreateInfo plsLayoutInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = std::size(plsLayoutBindings),
-            .pBindings = plsLayoutBindings,
         };
+        if (m_options & DrawPipelineLayoutOptions::fixedFunctionColorBlend)
+        {
+            // Drop the COLOR input attachment when using fixedFunctionColorBlend.
+            assert(plsLayoutBindings[0].binding == COLOR_PLANE_IDX);
+            plsLayoutInfo.bindingCount = std::size(plsLayoutBindings) - 1;
+            plsLayoutInfo.pBindings = plsLayoutBindings + 1;
+        }
+        else
+        {
+            plsLayoutInfo.bindingCount = std::size(plsLayoutBindings);
+            plsLayoutInfo.pBindings = plsLayoutBindings;
+        }
 
         VK_CHECK(vkCreateDescriptorSetLayout(m_impl->m_device,
                                              &plsLayoutInfo,
                                              nullptr,
-                                             m_descriptorSetLayouts + PLS_TEXTURE_BINDINGS_SET));
+                                             &m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET]));
 
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -948,7 +976,7 @@ public:
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
             .descriptorPool = m_staticDescriptorPool,
             .descriptorSetCount = 1,
-            .pSetLayouts = m_descriptorSetLayouts + PER_DRAW_BINDINGS_SET,
+            .pSetLayouts = &m_descriptorSetLayouts[PER_DRAW_BINDINGS_SET],
         };
 
         VK_CHECK(vkAllocateDescriptorSets(m_impl->m_device,
@@ -1060,10 +1088,22 @@ public:
             static_assert(CLIP_PLANE_IDX == 2);
             static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
 
+            VkAttachmentReference inputAttachmentReferences[] = {
+                // COLOR is not an input attachment if we're using fixed
+                // function blending.
+                (m_options & DrawPipelineLayoutOptions::fixedFunctionColorBlend)
+                    ? VkAttachmentReference{.attachment = VK_ATTACHMENT_UNUSED}
+                    : attachmentReferences[0],
+                attachmentReferences[1],
+                attachmentReferences[2],
+                attachmentReferences[3],
+            };
+            static_assert(sizeof(inputAttachmentReferences) == sizeof(attachmentReferences));
+
             VkSubpassDescription subpassDescription = {
                 .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
                 .inputAttachmentCount = PLSAttachmentCount(m_interlockMode),
-                .pInputAttachments = attachmentReferences,
+                .pInputAttachments = inputAttachmentReferences,
                 .colorAttachmentCount = PLSAttachmentCount(m_interlockMode),
                 .pColorAttachments = attachmentReferences,
             };
@@ -1087,10 +1127,9 @@ public:
 
             if (m_interlockMode == pls::InterlockMode::atomics)
             {
-                // Without EXT_rasterization_order_attachment_access (aka atomic
-                // mode), "subpassLoad" dependencies require explicit dependencies
-                // and barriers.
-                VkSubpassDependency subpassLoadDependency = {
+                // Without EXT_rasterization_order_attachment_access (aka atomic mode),
+                // "subpassLoad" calls require explicit dependencies and barriers.
+                constexpr static VkSubpassDependency kSubpassLoadDependency = {
                     .srcSubpass = 0,
                     .dstSubpass = 0,
                     .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -1101,7 +1140,7 @@ public:
                 };
 
                 renderPassCreateInfo.dependencyCount = 1;
-                renderPassCreateInfo.pDependencies = &subpassLoadDependency;
+                renderPassCreateInfo.pDependencies = &kSubpassLoadDependency;
             }
 
             VK_CHECK(vkCreateRenderPass(m_impl->m_device,
@@ -1126,6 +1165,9 @@ public:
         }
     }
 
+    pls::InterlockMode interlockMode() const { return m_interlockMode; }
+    DrawPipelineLayoutOptions options() const { return m_options; }
+
     VkDescriptorSetLayout perFlushLayout() const
     {
         return m_descriptorSetLayouts[PER_FLUSH_BINDINGS_SET];
@@ -1142,13 +1184,16 @@ public:
     {
         return m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET];
     }
-    VkPipelineLayout vkPipelineLayout() const { return m_pipelineLayout; }
     VkDescriptorSet nullImageDescriptorSet() const { return m_nullImageDescriptorSet; }
     VkDescriptorSet samplerDescriptorSet() const { return m_samplerDescriptorSet; }
+
+    VkPipelineLayout operator*() const { return m_pipelineLayout; }
+    VkPipelineLayout vkPipelineLayout() const { return m_pipelineLayout; }
 
 private:
     const PLSRenderContextVulkanImpl* const m_impl;
     const pls::InterlockMode m_interlockMode;
+    const DrawPipelineLayoutOptions m_options;
 
     VkDescriptorSetLayout m_descriptorSetLayouts[BINDINGS_SET_COUNT];
     VkPipelineLayout m_pipelineLayout;
@@ -1167,7 +1212,8 @@ public:
     DrawShader(VkDevice device,
                pls::DrawType drawType,
                pls::InterlockMode interlockMode,
-               pls::ShaderFeatures shaderFeatures) :
+               pls::ShaderFeatures shaderFeatures,
+               pls::ShaderMiscFlags shaderMiscFlags) :
         m_device(device)
     {
         VkShaderModuleCreateInfo vsInfo = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
@@ -1203,32 +1249,52 @@ public:
         else
         {
             assert(interlockMode == pls::InterlockMode::atomics);
+            bool fixedFunctionColorBlend =
+                shaderMiscFlags & pls::ShaderMiscFlags::fixedFunctionColorBlend;
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
                 case DrawType::outerCurvePatches:
                     vkutil::set_shader_code(vsInfo, spirv::atomic_draw_path_vert);
-                    vkutil::set_shader_code(fsInfo, spirv::atomic_draw_path_frag);
+                    vkutil::set_shader_code_if_then_else(fsInfo,
+                                                         fixedFunctionColorBlend,
+                                                         spirv::atomic_draw_path_fixedblend_frag,
+                                                         spirv::atomic_draw_path_frag);
                     break;
 
                 case DrawType::interiorTriangulation:
                     vkutil::set_shader_code(vsInfo, spirv::atomic_draw_interior_triangles_vert);
-                    vkutil::set_shader_code(fsInfo, spirv::atomic_draw_interior_triangles_frag);
+                    vkutil::set_shader_code_if_then_else(
+                        fsInfo,
+                        fixedFunctionColorBlend,
+                        spirv::atomic_draw_interior_triangles_fixedblend_frag,
+                        spirv::atomic_draw_interior_triangles_frag);
                     break;
 
                 case DrawType::imageRect:
                     vkutil::set_shader_code(vsInfo, spirv::atomic_draw_image_rect_vert);
-                    vkutil::set_shader_code(fsInfo, spirv::atomic_draw_image_rect_frag);
+                    vkutil::set_shader_code_if_then_else(
+                        fsInfo,
+                        fixedFunctionColorBlend,
+                        spirv::atomic_draw_image_rect_fixedblend_frag,
+                        spirv::atomic_draw_image_rect_frag);
                     break;
 
                 case DrawType::imageMesh:
                     vkutil::set_shader_code(vsInfo, spirv::atomic_draw_image_mesh_vert);
-                    vkutil::set_shader_code(fsInfo, spirv::atomic_draw_image_mesh_frag);
+                    vkutil::set_shader_code_if_then_else(
+                        fsInfo,
+                        fixedFunctionColorBlend,
+                        spirv::atomic_draw_image_mesh_fixedblend_frag,
+                        spirv::atomic_draw_image_mesh_frag);
                     break;
 
                 case DrawType::plsAtomicResolve:
                     vkutil::set_shader_code(vsInfo, spirv::atomic_resolve_pls_vert);
-                    vkutil::set_shader_code(fsInfo, spirv::atomic_resolve_pls_frag);
+                    vkutil::set_shader_code_if_then_else(fsInfo,
+                                                         fixedFunctionColorBlend,
+                                                         spirv::atomic_resolve_pls_fixedblend_frag,
+                                                         spirv::atomic_resolve_pls_frag);
                     break;
 
                 case DrawType::plsAtomicInitialize:
@@ -1270,21 +1336,28 @@ class PLSRenderContextVulkanImpl::DrawPipeline
 public:
     DrawPipeline(PLSRenderContextVulkanImpl* plsImplVulkan,
                  pls::DrawType drawType,
-                 pls::InterlockMode interlockMode,
+                 const DrawPipelineLayout& pipelineLayout,
                  pls::ShaderFeatures shaderFeatures,
                  DrawPipelineOptions drawPipelineOptions,
-                 VkPipelineLayout vkPipelineLayout,
                  VkRenderPass vkRenderPass) :
         m_impl(plsImplVulkan)
     {
-        uint32_t shaderKey = pls::ShaderUniqueKey(drawType,
-                                                  shaderFeatures,
-                                                  interlockMode,
-                                                  pls::ShaderMiscFlags::none);
-        const DrawShader& drawShader =
-            m_impl->m_drawShaders
-                .try_emplace(shaderKey, m_impl->m_device, drawType, interlockMode, shaderFeatures)
-                .first->second;
+        pls::InterlockMode interlockMode = pipelineLayout.interlockMode();
+        auto shaderMiscFlags = pls::ShaderMiscFlags::none;
+        if (pipelineLayout.options() & DrawPipelineLayoutOptions::fixedFunctionColorBlend)
+        {
+            shaderMiscFlags |= pls::ShaderMiscFlags::fixedFunctionColorBlend;
+        }
+        uint32_t shaderKey =
+            pls::ShaderUniqueKey(drawType, shaderFeatures, interlockMode, shaderMiscFlags);
+        const DrawShader& drawShader = plsImplVulkan->m_drawShaders
+                                           .try_emplace(shaderKey,
+                                                        m_impl->m_device,
+                                                        drawType,
+                                                        interlockMode,
+                                                        shaderFeatures,
+                                                        shaderMiscFlags)
+                                           .first->second;
 
         VkBool32 shaderPermutationFlags[SPECIALIZATION_COUNT] = {
             shaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING,
@@ -1492,11 +1565,28 @@ public:
         };
 
         VkPipelineColorBlendAttachmentState blendColorAttachments[] = {
-            {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
+            (pipelineLayout.options() & DrawPipelineLayoutOptions::fixedFunctionColorBlend)
+                ? VkPipelineColorBlendAttachmentState{
+                    .blendEnable = VK_TRUE,
+                    .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                    .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .colorBlendOp = VK_BLEND_OP_ADD,
+                    .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
+                    .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
+                    .alphaBlendOp = VK_BLEND_OP_ADD,
+                    .colorWriteMask = vkutil::ColorWriteMaskRGBA,
+                }
+                : VkPipelineColorBlendAttachmentState{
+                    .colorWriteMask = vkutil::ColorWriteMaskRGBA,
+                },
             {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
             {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
             {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
         };
+        static_assert(COLOR_PLANE_IDX == 0);
+        static_assert(COVERAGE_PLANE_IDX == 1);
+        static_assert(CLIP_PLANE_IDX == 2);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 3); // Never cleared.
 
         VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -1532,7 +1622,7 @@ public:
             .pMultisampleState = &pipelineMultisampleStateCreateInfo,
             .pColorBlendState = &pipelineColorBlendStateCreateInfo,
             .pDynamicState = &pipelineDynamicStateCreateInfo,
-            .layout = vkPipelineLayout,
+            .layout = *pipelineLayout,
             .renderPass = vkRenderPass,
         };
 
@@ -2203,18 +2293,28 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     auto* renderTarget = static_cast<PLSRenderTargetVulkan*>(desc.renderTarget);
     renderTarget->synchronize(m_allocator.get(), commandBuffer, desc.interlockMode);
 
-    int interlockIdx = static_cast<int>(desc.interlockMode);
-    assert(interlockIdx < m_drawPipelineLayouts.size());
+    auto pipelineLayoutOptions = DrawPipelineLayoutOptions::none;
+    if (m_features.independentBlend && desc.interlockMode == pls::InterlockMode::atomics &&
+        !(desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND))
+    {
+        pipelineLayoutOptions |= DrawPipelineLayoutOptions::fixedFunctionColorBlend;
+    }
+
+    int pipelineLayoutIdx =
+        ((desc.interlockMode == pls::InterlockMode::atomics) << kDrawPipelineLayoutOptionCount) |
+        static_cast<int>(pipelineLayoutOptions);
+    assert(pipelineLayoutIdx < m_drawPipelineLayouts.size());
+    if (m_drawPipelineLayouts[pipelineLayoutIdx] == nullptr)
+    {
+        m_drawPipelineLayouts[pipelineLayoutIdx] =
+            std::make_unique<DrawPipelineLayout>(this, desc.interlockMode, pipelineLayoutOptions);
+    }
+    DrawPipelineLayout& pipelineLayout = *m_drawPipelineLayouts[pipelineLayoutIdx];
+
     int renderPassVariantIdx =
         DrawPipelineLayout::RenderPassVariantIdx(renderTarget->m_framebufferFormat,
                                                  desc.colorLoadAction);
-    if (m_drawPipelineLayouts[interlockIdx] == nullptr)
-    {
-        m_drawPipelineLayouts[interlockIdx] =
-            std::make_unique<DrawPipelineLayout>(this, desc.interlockMode);
-    }
-    DrawPipelineLayout& layout = *m_drawPipelineLayouts[interlockIdx];
-    VkRenderPass drawRenderPass = layout.renderPassAt(renderPassVariantIdx);
+    VkRenderPass vkRenderPass = pipelineLayout.renderPassAt(renderPassVariantIdx);
 
     VkImageView imageViews[] = {
         *renderTarget->m_targetTextureView,
@@ -2229,7 +2329,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     };
 
     rcp<vkutil::Framebuffer> framebuffer = m_allocator->makeFramebuffer({
-        .renderPass = drawRenderPass,
+        .renderPass = vkRenderPass,
         .attachmentCount = DrawPipelineLayout::PLSAttachmentCount(desc.interlockMode),
         .pAttachments = imageViews,
         .width = static_cast<uint32_t>(renderTarget->width()),
@@ -2293,7 +2393,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     VkRenderPassBeginInfo renderPassBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = drawRenderPass,
+        .renderPass = vkRenderPass,
         .framebuffer = *framebuffer,
         .renderArea = renderArea,
         .clearValueCount = std::size(clearValues),
@@ -2308,7 +2408,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     // Update the per-flush descriptor sets.
     VkDescriptorSet perFlushDescriptorSet =
-        descriptorSetPool->allocateDescriptorSet(layout.perFlushLayout());
+        descriptorSetPool->allocateDescriptorSet(pipelineLayout.perFlushLayout());
 
     vkutil::update_image_descriptor_sets(
         m_device,
@@ -2409,18 +2509,22 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     // Update the PLS input attachment descriptor sets.
     VkDescriptorSet inputAttachmentDescriptorSet =
-        descriptorSetPool->allocateDescriptorSet(layout.plsLayout());
+        descriptorSetPool->allocateDescriptorSet(pipelineLayout.plsLayout());
 
-    vkutil::update_image_descriptor_sets(m_device,
-                                         inputAttachmentDescriptorSet,
-                                         {
-                                             .dstBinding = COLOR_PLANE_IDX,
-                                             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                         },
-                                         {{
-                                             .imageView = *renderTarget->m_targetTextureView,
-                                             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                         }});
+    if (!(pipelineLayoutOptions & DrawPipelineLayoutOptions::fixedFunctionColorBlend))
+    {
+        vkutil::update_image_descriptor_sets(
+            m_device,
+            inputAttachmentDescriptorSet,
+            {
+                .dstBinding = COLOR_PLANE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            },
+            {{
+                .imageView = renderTarget->m_targetTextureView->vkImageView(),
+                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            }});
+    }
 
     vkutil::update_image_descriptor_sets(
         m_device,
@@ -2469,8 +2573,8 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // between draws, but this is otherwise all we need to bind!)
     VkDescriptorSet drawDescriptorSets[] = {
         perFlushDescriptorSet,
-        layout.nullImageDescriptorSet(),
-        layout.samplerDescriptorSet(),
+        pipelineLayout.nullImageDescriptorSet(),
+        pipelineLayout.samplerDescriptorSet(),
         inputAttachmentDescriptorSet,
     };
     static_assert(PER_FLUSH_BINDINGS_SET == 0);
@@ -2481,7 +2585,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     vkCmdBindDescriptorSets(commandBuffer,
                             VK_PIPELINE_BIND_POINT_GRAPHICS,
-                            layout.vkPipelineLayout(),
+                            *pipelineLayout,
                             PER_FLUSH_BINDINGS_SET,
                             std::size(drawDescriptorSets),
                             drawDescriptorSets,
@@ -2517,7 +2621,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 }
 
                 imageTexture->m_imageTextureDescriptorSet =
-                    descriptorSetPool->allocateDescriptorSet(layout.perDrawLayout());
+                    descriptorSetPool->allocateDescriptorSet(pipelineLayout.perDrawLayout());
 
                 vkutil::update_image_descriptor_sets(
                     m_device,
@@ -2543,7 +2647,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
             vkCmdBindDescriptorSets(commandBuffer,
                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
-                                    layout.vkPipelineLayout(),
+                                    *pipelineLayout,
                                     PER_FLUSH_BINDINGS_SET,
                                     std::size(imageDescriptorSets),
                                     imageDescriptorSets,
@@ -2576,11 +2680,10 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                                .try_emplace(pipelineKey,
                                                             this,
                                                             drawType,
-                                                            desc.interlockMode,
+                                                            pipelineLayout,
                                                             shaderFeatures,
                                                             drawPipelineOptions,
-                                                            layout.vkPipelineLayout(),
-                                                            drawRenderPass)
+                                                            vkRenderPass)
                                                .first->second;
         vkCmdBindPipeline(commandBuffer,
                           VK_PIPELINE_BIND_POINT_GRAPHICS,

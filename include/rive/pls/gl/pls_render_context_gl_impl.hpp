@@ -74,7 +74,8 @@ private:
                                                  const FlushDescriptor&) = 0;
 
         // Depending on how we handle PLS atomic resolves, the PLSImpl may require certain flags.
-        virtual pls::ShaderMiscFlags atomicResolveShaderMiscFlags(const pls::FlushDescriptor&) const
+        virtual pls::ShaderMiscFlags shaderMiscFlags(const pls::FlushDescriptor&,
+                                                     pls::DrawType) const
         {
             return pls::ShaderMiscFlags::none;
         }

@@ -141,7 +141,8 @@ public:
                  NSString* fragmentFunctionName,
                  pls::DrawType drawType,
                  pls::InterlockMode interlockMode,
-                 pls::ShaderFeatures shaderFeatures)
+                 pls::ShaderFeatures shaderFeatures,
+                 pls::ShaderMiscFlags shaderMiscFlags)
     {
         auto makePipelineState = [=](id<MTLFunction> vertexMain,
                                      id<MTLFunction> fragmentMain,
@@ -164,7 +165,7 @@ public:
                 case pls::InterlockMode::atomics:
                     // In atomic mode, the PLS planes are accessed as device buffers. We only use
                     // the "framebuffer" attachment configured above.
-                    if (!(shaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND))
+                    if (shaderMiscFlags & pls::ShaderMiscFlags::fixedFunctionColorBlend)
                     {
                         // The shader expectes a "src-over" blend function in order to to implement
                         // antialiasing and opacity.
@@ -399,7 +400,8 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
                     drawType, allShaderFeatures, m_plsPrecompiledLibrary, GLSL_drawFragmentMain),
                 drawType,
                 pls::InterlockMode::rasterOrdering,
-                allShaderFeatures);
+                allShaderFeatures,
+                pls::ShaderMiscFlags::none);
         }
     }
 
@@ -697,7 +699,8 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
                                                                  @GLSL_drawFragmentMain,
                                                                  job.drawType,
                                                                  job.interlockMode,
-                                                                 job.shaderFeatures);
+                                                                 job.shaderFeatures,
+                                                                 job.shaderMiscFlags);
         if (jobKey == pipelineKey)
         {
             // The shader we wanted was actually done compiling and pending being built into a
@@ -742,7 +745,8 @@ static MTLViewport make_viewport(uint32_t x, uint32_t y, uint32_t width, uint32_
 id<MTLRenderCommandEncoder> PLSRenderContextMetalImpl::makeRenderPassForDraws(
     const pls::FlushDescriptor& flushDesc,
     MTLRenderPassDescriptor* passDesc,
-    id<MTLCommandBuffer> commandBuffer)
+    id<MTLCommandBuffer> commandBuffer,
+    pls::ShaderMiscFlags baselineShaderMiscFlags)
 {
     auto* renderTarget = static_cast<PLSRenderTargetMetal*>(flushDesc.renderTarget);
 
@@ -793,7 +797,7 @@ id<MTLRenderCommandEncoder> PLSRenderContextMetalImpl::makeRenderPassForDraws(
         // In atomic mode, the PLS planes are buffers that we need to bind separately.
         // Since the PLS plane indices collide with other buffer bindings, offset the binding
         // indices of these buffers by DEFAULT_BINDINGS_SET_SIZE.
-        if (flushDesc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND)
+        if (!(baselineShaderMiscFlags & pls::ShaderMiscFlags::fixedFunctionColorBlend))
         {
             [encoder setFragmentBuffer:renderTarget->colorAtomicBuffer()
                                 offset:0
@@ -818,6 +822,8 @@ id<MTLRenderCommandEncoder> PLSRenderContextMetalImpl::makeRenderPassForDraws(
 
 void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
 {
+    assert(desc.interlockMode != pls::InterlockMode::depthStencil); // TODO: msaa.
+
     auto* renderTarget = static_cast<PLSRenderTargetMetal*>(desc.renderTarget);
     id<MTLCommandBuffer> commandBuffer = (__bridge id<MTLCommandBuffer>)desc.externalCommandBuffer;
 
@@ -942,10 +948,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     }
     pass.colorAttachments[COLOR_PLANE_IDX].storeAction = MTLStoreActionStore;
 
-    // In atomic mode, advanced blends have to render through an offscreen color buffer in order to
-    // read destination color. This offscreen color buffer gets transferred to the main framebuffer
-    // during the final "plsAtomicResolve" operation.
-    bool usesOffscreenColorBuffer = false;
+    auto baselineShaderMiscFlags = pls::ShaderMiscFlags::none;
 
     if (desc.interlockMode == pls::InterlockMode::rasterOrdering)
     {
@@ -971,39 +974,38 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
         pass.colorAttachments[SCRATCH_COLOR_PLANE_IDX].loadAction = MTLLoadActionDontCare;
         pass.colorAttachments[SCRATCH_COLOR_PLANE_IDX].storeAction = MTLStoreActionDontCare;
     }
-    else
+    else if (!(desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND))
     {
         assert(desc.interlockMode == pls::InterlockMode::atomics);
-        usesOffscreenColorBuffer =
-            desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND;
-        if (usesOffscreenColorBuffer &&
-            desc.colorLoadAction == pls::LoadAction::preserveRenderTarget)
-        {
-            // Since we need to preserve the renderTarget during load, and since we're rendering
-            // to an offscreen color buffer, we have to literally copy the renderTarget into the
-            // color buffer.
-            id<MTLBlitCommandEncoder> copyEncoder = [commandBuffer blitCommandEncoder];
-            auto updateOrigin = MTLOriginMake(
-                desc.renderTargetUpdateBounds.left, desc.renderTargetUpdateBounds.top, 0);
-            auto updateSize = MTLSizeMake(
-                desc.renderTargetUpdateBounds.width(), desc.renderTargetUpdateBounds.height(), 1);
-            [copyEncoder copyFromTexture:renderTarget->targetTexture()
-                             sourceSlice:0
-                             sourceLevel:0
-                            sourceOrigin:updateOrigin
-                              sourceSize:updateSize
-                                toBuffer:renderTarget->colorAtomicBuffer()
-                       destinationOffset:(updateOrigin.y * renderTarget->width() + updateOrigin.x) *
-                                         sizeof(uint32_t)
-                  destinationBytesPerRow:renderTarget->width() * sizeof(uint32_t)
-                destinationBytesPerImage:renderTarget->height() * renderTarget->width() *
-                                         sizeof(uint32_t)];
-            [copyEncoder endEncoding];
-        }
+        baselineShaderMiscFlags |= pls::ShaderMiscFlags::fixedFunctionColorBlend;
+    }
+    else if (desc.colorLoadAction == pls::LoadAction::preserveRenderTarget)
+    {
+        // Since we need to preserve the renderTarget during load, and since we're rendering to an
+        // offscreen color buffer, we have to literally copy the renderTarget into the color buffer.
+        assert(desc.interlockMode == pls::InterlockMode::atomics);
+        id<MTLBlitCommandEncoder> copyEncoder = [commandBuffer blitCommandEncoder];
+        auto updateOrigin =
+            MTLOriginMake(desc.renderTargetUpdateBounds.left, desc.renderTargetUpdateBounds.top, 0);
+        auto updateSize = MTLSizeMake(
+            desc.renderTargetUpdateBounds.width(), desc.renderTargetUpdateBounds.height(), 1);
+        [copyEncoder copyFromTexture:renderTarget->targetTexture()
+                         sourceSlice:0
+                         sourceLevel:0
+                        sourceOrigin:updateOrigin
+                          sourceSize:updateSize
+                            toBuffer:renderTarget->colorAtomicBuffer()
+                   destinationOffset:(updateOrigin.y * renderTarget->width() + updateOrigin.x) *
+                                     sizeof(uint32_t)
+              destinationBytesPerRow:renderTarget->width() * sizeof(uint32_t)
+            destinationBytesPerImage:renderTarget->height() * renderTarget->width() *
+                                     sizeof(uint32_t)];
+        [copyEncoder endEncoding];
     }
 
     // Execute the DrawList.
-    id<MTLRenderCommandEncoder> encoder = makeRenderPassForDraws(desc, pass, commandBuffer);
+    id<MTLRenderCommandEncoder> encoder =
+        makeRenderPassForDraws(desc, pass, commandBuffer, baselineShaderMiscFlags);
     for (const DrawBatch& batch : *desc.drawList)
     {
         if (batch.elementCount == 0)
@@ -1015,33 +1017,33 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
         pls::ShaderFeatures shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
                                                  ? desc.combinedShaderFeatures
                                                  : batch.shaderFeatures;
-        pls::ShaderMiscFlags shaderMiscFlags = pls::ShaderMiscFlags::none;
-        if (usesOffscreenColorBuffer)
+        pls::ShaderMiscFlags batchMiscFlags = baselineShaderMiscFlags;
+        if (!(batchMiscFlags & pls::ShaderMiscFlags::fixedFunctionColorBlend))
         {
             if (batch.drawType == pls::DrawType::plsAtomicResolve)
             {
-                // Atomic mode can always do a coalesced resolve when rendering to its offscreen
+                // Atomic mode can always do a coalesced resolve when rendering to an offscreen
                 // color buffer.
-                shaderMiscFlags |= pls::ShaderMiscFlags::coalescedResolveAndTransfer;
+                batchMiscFlags |= pls::ShaderMiscFlags::coalescedResolveAndTransfer;
             }
             else if (batch.drawType == pls::DrawType::plsAtomicInitialize)
             {
                 if (desc.colorLoadAction == pls::LoadAction::clear)
                 {
-                    shaderMiscFlags |= pls::ShaderMiscFlags::storeColorClear;
+                    batchMiscFlags |= pls::ShaderMiscFlags::storeColorClear;
                 }
                 else if (desc.colorLoadAction == pls::LoadAction::preserveRenderTarget &&
                          renderTarget->pixelFormat() == MTLPixelFormatBGRA8Unorm)
                 {
                     // We already copied the renderTarget to our color buffer, but since the target
                     // is BGRA, we also need to swizzle it to RGBA before it's ready for PLS.
-                    shaderMiscFlags |= pls::ShaderMiscFlags::swizzleColorBGRAToRGBA;
+                    batchMiscFlags |= pls::ShaderMiscFlags::swizzleColorBGRAToRGBA;
                 }
             }
         }
         id<MTLRenderPipelineState> drawPipelineState =
             findCompatibleDrawPipeline(
-                batch.drawType, shaderFeatures, desc.interlockMode, shaderMiscFlags)
+                batch.drawType, shaderFeatures, desc.interlockMode, batchMiscFlags)
                 ->pipelineState(renderTarget->pixelFormat());
 
         // Bind the appropriate image texture, if any.
@@ -1161,7 +1163,8 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                     // TODO: Is there a lighter way to achieve this?
                     [encoder endEncoding];
                     pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionLoad;
-                    encoder = makeRenderPassForDraws(desc, pass, commandBuffer);
+                    encoder =
+                        makeRenderPassForDraws(desc, pass, commandBuffer, baselineShaderMiscFlags);
                     break;
             }
         }

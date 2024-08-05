@@ -14,8 +14,15 @@ namespace rive::pls
 {
 using DrawBufferMask = PLSRenderTargetGL::DrawBufferMask;
 
+static bool needs_atomic_fixed_function_color_blend(const pls::FlushDescriptor& desc)
+{
+    assert(desc.interlockMode == pls::InterlockMode::atomics);
+    return !(desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND);
+}
+
 static bool needs_coalesced_atomic_resolve_and_transfer(const pls::FlushDescriptor& desc)
 {
+    assert(desc.interlockMode == pls::InterlockMode::atomics);
     return (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
            lite_rtti_cast<FramebufferRenderTargetGL*>(
                static_cast<PLSRenderTargetGL*>(desc.renderTarget)) != nullptr;
@@ -35,10 +42,8 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
-        bool renderDirectToRasterPipeline =
-            desc.interlockMode == InterlockMode::atomics &&
-            !(desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
-        if (renderDirectToRasterPipeline)
+        if (desc.interlockMode == pls::InterlockMode::atomics &&
+            needs_atomic_fixed_function_color_blend(desc))
         {
             plsContextImpl->state()->setBlendEquation(BlendMode::srcOver);
         }
@@ -126,13 +131,23 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         glMemoryBarrierByRegion(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT);
     }
 
-    pls::ShaderMiscFlags atomicResolveShaderMiscFlags(
-        const pls::FlushDescriptor& desc) const override
+    pls::ShaderMiscFlags shaderMiscFlags(const pls::FlushDescriptor& desc,
+                                         pls::DrawType drawType) const final
     {
-        assert(desc.interlockMode == pls::InterlockMode::atomics);
-        return needs_coalesced_atomic_resolve_and_transfer(desc)
-                   ? pls::ShaderMiscFlags::coalescedResolveAndTransfer
-                   : pls::ShaderMiscFlags::none;
+        auto flags = pls::ShaderMiscFlags::none;
+        if (desc.interlockMode == pls::InterlockMode::atomics)
+        {
+            if (needs_atomic_fixed_function_color_blend(desc))
+            {
+                flags |= pls::ShaderMiscFlags::fixedFunctionColorBlend;
+            }
+            if (drawType == pls::DrawType::plsAtomicResolve &&
+                needs_coalesced_atomic_resolve_and_transfer(desc))
+            {
+                flags |= pls::ShaderMiscFlags::coalescedResolveAndTransfer;
+            }
+        }
+        return flags;
     }
 
     void setupAtomicResolve(PLSRenderContextGLImpl* plsContextImpl,

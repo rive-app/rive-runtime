@@ -332,6 +332,22 @@ void set_shader_code(VkShaderModuleCreateInfo& info, const uint32_t (&code)[Size
     info.pCode = code;
 }
 
+template <size_t SizeIf, size_t SizeElse>
+void set_shader_code_if_then_else(VkShaderModuleCreateInfo& info,
+                                  bool _if,
+                                  const uint32_t (&codeIf)[SizeIf],
+                                  const uint32_t (&codeElse)[SizeElse])
+{
+    if (_if)
+    {
+        set_shader_code(info, codeIf);
+    }
+    else
+    {
+        set_shader_code(info, codeElse);
+    }
+}
+
 inline VkClearColorValue color_clear_rgba32f(ColorInt riveColor)
 {
     VkClearColorValue ret;

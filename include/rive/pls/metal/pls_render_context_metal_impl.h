@@ -162,7 +162,8 @@ private:
     // Creates a MTLRenderCommandEncoder and sets the common state for PLS draws.
     id<MTLRenderCommandEncoder> makeRenderPassForDraws(const pls::FlushDescriptor&,
                                                        MTLRenderPassDescriptor*,
-                                                       id<MTLCommandBuffer>);
+                                                       id<MTLCommandBuffer>,
+                                                       pls::ShaderMiscFlags baselineMiscFlags);
 
     // Returns the specific DrawPipeline for the given feature set, if it has been compiled. If it
     // has not finished compiling yet, this method may return a (potentially slower) DrawPipeline

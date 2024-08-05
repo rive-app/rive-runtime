@@ -638,20 +638,25 @@ enum class ShaderMiscFlags : uint32_t
 {
     none = 0,
 
+    // InterlockMode::atomics only. Render color to a standard attachment instead of PLS. The
+    // backend implementation is responsible to turn on src-over blending. In atomic mode, we don't
+    // need to read the color buffer when advanced blend is not used.
+    fixedFunctionColorBlend = 1 << 0,
+
     // DrawType::plsAtomicInitialize only. Also store the color clear value to PLS when drawing a
     // clear, in addition to clearing the other PLS planes.
-    storeColorClear = 1 << 0,
+    storeColorClear = 1 << 1,
 
     // DrawType::plsAtomicInitialize only. Swizzle the existing framebuffer contents from BGRA to
     // RGBA. (For when this data had to get copied from a BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 1,
+    swizzleColorBGRAToRGBA = 1 << 2,
 
     // DrawType::plsAtomicResolve only. Optimization for when rendering to an offscreen texture.
     //
     // It renders the final "resolve" operation directly to the renderTarget in a single pass,
     // instead of (1) resolving the offscreen texture, and then (2) copying the offscreen texture to
     // back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 2,
+    coalescedResolveAndTransfer = 1 << 3,
 };
 RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
 

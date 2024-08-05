@@ -1,5 +1,4 @@
 #extension GL_EXT_samplerless_texture_functions : require
-#define TARGET_VULKAN
 #define ENABLE_INSTANCE_INDEX
 #define PLS_IMPL_SUBPASS_LOAD
 #define USING_PLS_STORAGE_TEXTURES

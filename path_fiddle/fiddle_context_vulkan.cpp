@@ -467,6 +467,11 @@ public:
             .sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_FEATURES_EXT,
         };
+        if (physicalDeviceAvailable2.features.independentBlend)
+        {
+            physicalDeviceFeatures2.features.independentBlend = VK_TRUE;
+            plsContextFeatures.independentBlend = true;
+        }
         if (physicalDeviceAvailable2.features.fillModeNonSolid)
         {
             physicalDeviceFeatures2.features.fillModeNonSolid = VK_TRUE;
@@ -500,6 +505,10 @@ public:
         VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
 
         printf("PLS Vulkan features: [");
+        if (plsContextFeatures.independentBlend)
+        {
+            printf(" independentBlend");
+        }
         if (plsContextFeatures.fillModeNonSolid)
         {
             printf(" fillModeNonSolid");

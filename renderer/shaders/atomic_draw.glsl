@@ -480,10 +480,6 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_edgeDistance, half2);
     VARYING_UNPACK(v_pathID, ushort);
 
-#ifdef @FIXED_FUNCTION_COLOR_BLEND
-    _fragColor = make_half4(.0);
-#endif
-
     half coverage = min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), make_half(1.));
 
     // Since v_pathID increases monotonically with every draw, and since it lives in the most
@@ -514,7 +510,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
         _fragColor = premultiply(color);
 #else
         write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
-#endif
+#endif // FIXED_FUNCTION_COLOR_BLEND
     }
     else
     {
@@ -544,10 +540,6 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_windingWeight, half);
     VARYING_UNPACK(v_pathID, ushort);
 
-#ifdef @FIXED_FUNCTION_COLOR_BLEND
-    _fragColor = make_half4(.0);
-#endif
-
     half coverage = v_windingWeight;
 
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageCountBuffer);
@@ -568,7 +560,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
         _fragColor = premultiply(color);
 #else
         write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
-#endif
+#endif // FIXED_FUNCTION_COLOR_BLEND
     }
     else
     {
@@ -668,7 +660,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     {
         PLS_PRESERVE_4F(colorBuffer);
     }
-#endif
+#endif // FIXED_FUNCTION_COLOR_BLEND
 
     // Write out a coverage value of "zero at pathID=0" so a future resolve attempt doesn't affect
     // this pixel.
@@ -688,9 +680,6 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
-#ifdef @FIXED_FUNCTION_COLOR_BLEND
-    _fragColor = make_half4(.0);
-#endif
 #ifdef @STORE_COLOR_CLEAR
     PLS_STORE4F(colorBuffer, unpackUnorm4x8(uniforms.colorClearValue));
 #endif
@@ -704,6 +693,9 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     {
         PLS_STOREUI(clipBuffer, 0u);
     }
+#endif
+#ifdef @FIXED_FUNCTION_COLOR_BLEND
+    discard;
 #endif
     EMIT_ATOMIC_PLS
 }
@@ -736,9 +728,9 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     _fragColor = premultiply(color);
 #else
     write_pls_blend(color, paintData PLS_CONTEXT_UNPACK);
-#endif
+#endif // FIXED_FUNCTION_COLOR_BLEND
     EMIT_ATOMIC_PLS
-#endif
+#endif // COALESCED_PLS_RESOLVE_AND_TRANSFER
 }
 #endif // RESOLVE_PLS
 #endif // FRAGMENT

@@ -20,6 +20,7 @@ class PLSTextureVulkanImpl;
 struct VulkanFeatures
 {
     // VkPhysicalDeviceFeatures.
+    bool independentBlend = false;
     bool fillModeNonSolid = false;
     bool fragmentStoresAndAtomics = false;
 
@@ -196,9 +197,12 @@ private:
     rcp<vkutil::TextureView> m_tessVertexTextureView;
     rcp<vkutil::Framebuffer> m_tessTextureFramebuffer;
 
-    // One for pls::InterlockMode::rasterOrdering and one for pls::InterlockMode::atomics.
+    // A pipeline for each
+    // [rasterOrdering, atomics] x [all DrawPipelineLayoutOptions permutations].
     class DrawPipelineLayout;
-    std::array<std::unique_ptr<DrawPipelineLayout>, 2> m_drawPipelineLayouts;
+    constexpr static int kDrawPipelineLayoutOptionCount = 1;
+    std::array<std::unique_ptr<DrawPipelineLayout>, 2 * (1 << kDrawPipelineLayoutOptionCount)>
+        m_drawPipelineLayouts;
 
     class DrawShader;
     std::map<uint32_t, DrawShader> m_drawShaders;

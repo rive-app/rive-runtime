@@ -9,6 +9,10 @@
 // unrolling these loops is exactly what we want.
 #pragma $warning($disable : 3550)
 
+// Don't warn about uninitialized variables. If we leave one uninitialized it's because we know what
+// we're doing and don't want to pay the cost of initializing it.
+#pragma $warning($disable : 4000)
+
 // #define native hlsl types if their names are being rewritten.
 #define _ARE_TOKEN_NAMES_PRESERVED
 #ifndef $_ARE_TOKEN_NAMES_PRESERVED

@@ -634,8 +634,7 @@ PLSRenderContextGLImpl::DrawShader::DrawShader(PLSRenderContextGLImpl* plsContex
         // Atomics are currently always done on storage textures.
         defines.push_back(GLSL_USING_PLS_STORAGE_TEXTURES);
     }
-    if (interlockMode == pls::InterlockMode::atomics &&
-        !(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
+    if (shaderMiscFlags & pls::ShaderMiscFlags::fixedFunctionColorBlend)
     {
         defines.push_back(GLSL_FIXED_FUNCTION_COLOR_BLEND);
     }
@@ -1083,8 +1082,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         auto shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve
-                                           ? m_plsImpl->atomicResolveShaderMiscFlags(desc)
+        auto fragmentShaderMiscFlags = m_plsImpl != nullptr
+                                           ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
                                            : pls::ShaderMiscFlags::none;
         uint32_t fragmentShaderKey = pls::ShaderUniqueKey(batch.drawType,
                                                           shaderFeatures,
@@ -1191,8 +1190,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         auto shaderFeatures = desc.interlockMode == pls::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        auto fragmentShaderMiscFlags = batch.drawType == pls::DrawType::plsAtomicResolve
-                                           ? m_plsImpl->atomicResolveShaderMiscFlags(desc)
+        auto fragmentShaderMiscFlags = m_plsImpl != nullptr
+                                           ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
                                            : pls::ShaderMiscFlags::none;
         uint32_t fragmentShaderKey = pls::ShaderUniqueKey(batch.drawType,
                                                           shaderFeatures,

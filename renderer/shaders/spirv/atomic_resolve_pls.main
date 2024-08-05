@@ -1,6 +1,5 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
-#define FRAGMENT
-#define DRAW_IMAGE
-#define DRAW_IMAGE_RECT
+#define DRAW_RENDER_TARGET_UPDATE_BOUNDS
+#define RESOLVE_PLS
 #include "atomic_base.glsl"

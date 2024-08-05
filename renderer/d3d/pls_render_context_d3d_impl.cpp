@@ -980,8 +980,7 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         {
             s << "#define " << GLSL_ENABLE_MIN_16_PRECISION << '\n';
         }
-        if (interlockMode == pls::InterlockMode::atomics &&
-            !(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND))
+        if (pixelShaderMiscFlags & pls::ShaderMiscFlags::fixedFunctionColorBlend)
         {
             s << "#define " << GLSL_FIXED_FUNCTION_COLOR_BLEND << '\n';
         }
@@ -1473,6 +1472,10 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
             drawType == pls::DrawType::plsAtomicResolve && renderPassHasCoalescedResolveAndTransfer
                 ? pls::ShaderMiscFlags::coalescedResolveAndTransfer
                 : pls::ShaderMiscFlags::none;
+        if (renderDirectToRasterPipeline)
+        {
+            pixelShaderMiscFlags |= pls::ShaderMiscFlags::fixedFunctionColorBlend;
+        }
         setPipelineLayoutAndShaders(drawType,
                                     shaderFeatures,
                                     desc.interlockMode,

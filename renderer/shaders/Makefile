@@ -87,13 +87,30 @@ $(OUT)/rive_pls_ios_simulator.metallib.c: $(OUT)/ios/rive_pls_ios_simulator.meta
 
 
 ## SPIRV compilation.
-SPIRV_INPUTS := $(wildcard spirv/*.vert) $(wildcard spirv/*.frag)
-SPIRV_OUTPUTS := $(addprefix $(OUT)/, \
-				 $(patsubst %.vert, %.vert.h, $(patsubst %.frag, %.frag.h, $(SPIRV_INPUTS))))
+SPIRV_INPUTS := $(wildcard spirv/*.main)
+SPIRV_OUTPUTS := \
+    $(addprefix $(OUT)/, $(patsubst %.main, %.vert.h, $(SPIRV_INPUTS))) \
+    $(addprefix $(OUT)/, $(patsubst %.main, %.frag.h, $(SPIRV_INPUTS))) \
+    $(OUT)/spirv/atomic_draw_image_mesh.fixedblend_frag.h \
+    $(OUT)/spirv/atomic_draw_image_rect.fixedblend_frag.h \
+    $(OUT)/spirv/atomic_draw_interior_triangles.fixedblend_frag.h \
+    $(OUT)/spirv/atomic_draw_path.fixedblend_frag.h \
+    $(OUT)/spirv/atomic_resolve_pls.fixedblend_frag.h \
 
-$(OUT)/spirv/%.h: spirv/% $(MINIFY_STAMP)
+## Compile *.main into vertex shaders.
+$(OUT)/spirv/%.vert.h: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslangValidator -I$(OUT) -V --vn $(subst .,_,$(notdir $<)) -o $@ $<
+	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -I$(OUT) -V --vn $(subst .main,_vert,$(notdir $<)) -o $@ $<
+
+## Compile *.main again into fragment shaders.
+$(OUT)/spirv/%.frag.h: spirv/%.main $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V --vn $(subst .main,_frag,$(notdir $<)) -o $@ $<
+
+## Compile atomic fragment shaders again with FIXED_FUNCTION_COLOR_BLEND defined.
+$(OUT)/spirv/%.fixedblend_frag.h: spirv/%.main $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DFIXED_FUNCTION_COLOR_BLEND -I$(OUT) -V --vn $(subst .main,_fixedblend_frag,$(notdir $<)) -o $@ $<
 
 spirv: $(SPIRV_OUTPUTS)
 
