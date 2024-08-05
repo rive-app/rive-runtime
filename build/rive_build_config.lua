@@ -396,7 +396,14 @@ filter({})
 
 if os.host() == 'macosx' then
     iphoneos_sysroot = os.outputof('xcrun --sdk iphoneos --show-sdk-path')
+    if iphoneos_sysroot == nil then
+        error('Unable to locate iphoneos sdk. Please ensure Xcode Command Line Tools are installed.')
+    end
+
     iphonesimulator_sysroot = os.outputof('xcrun --sdk iphonesimulator --show-sdk-path')
+    if iphonesimulator_sysroot == nil then
+        error('Unable to locate iphonesimulator sdk. Please ensure Xcode Command Line Tools are installed.')
+    end
 
     filter('system:ios')
     do
