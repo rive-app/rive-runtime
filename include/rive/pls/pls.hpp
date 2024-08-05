@@ -189,7 +189,7 @@ struct TessVertexSpan
                                 uint32_t joinSegmentCount,
                                 uint32_t contourIDWithFlags_)
     {
-#ifdef DEBUG
+#ifndef NDEBUG
         // Write to an intermediate local object in debug mode, so we can check its values.
         // (Otherwise we can't read it because mapped memory is write-only.)
         TessVertexSpan localCopy;
@@ -217,7 +217,7 @@ struct TessVertexSpan
         assert(((localCopy.segmentCounts >> 10) & 0x3ff) == polarSegmentCount);
         assert(localCopy.segmentCounts >> 20 == joinSegmentCount);
 
-#ifdef DEBUG
+#ifndef NDEBUG
         memcpy(this, &localCopy, sizeof(*this));
 #endif
     }
