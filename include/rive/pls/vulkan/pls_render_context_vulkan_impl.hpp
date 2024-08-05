@@ -15,14 +15,16 @@ namespace rive::pls
 {
 class PLSTextureVulkanImpl;
 
-// Tells the PLS context which device extensions are enabled and available to use.
-struct VulkanCapabilities
+// Specific Vulkan features that PLS uses (if available). The client should ensure
+// these get enabled on the Vulkan context when supported.
+struct VulkanFeatures
 {
+    // VkPhysicalDeviceFeatures.
     bool fillModeNonSolid = false;
     bool fragmentStoresAndAtomics = false;
-    // Flagging this extension implies that the GPU *also* supports rasterOrdered
-    // access to color attachments. (Otherwise it must be turned off.)
-    bool EXT_rasterization_order_attachment_access = false;
+
+    // EXT_rasterization_order_attachment_access.
+    bool rasterizationOrderColorAttachmentAccess = false;
 };
 
 class PLSRenderTargetVulkan : public PLSRenderTarget
@@ -60,8 +62,7 @@ private:
 class PLSRenderContextVulkanImpl : public PLSRenderContextImpl
 {
 public:
-    static std::unique_ptr<PLSRenderContext> MakeContext(rcp<vkutil::Allocator>,
-                                                         VulkanCapabilities);
+    static std::unique_ptr<PLSRenderContext> MakeContext(rcp<vkutil::Allocator>, VulkanFeatures);
 
     ~PLSRenderContextVulkanImpl();
 
@@ -87,7 +88,7 @@ public:
     }
 
 private:
-    PLSRenderContextVulkanImpl(rcp<vkutil::Allocator>, VulkanCapabilities);
+    PLSRenderContextVulkanImpl(rcp<vkutil::Allocator>, VulkanFeatures);
 
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
@@ -165,7 +166,7 @@ private:
 
     const rcp<vkutil::Allocator> m_allocator;
     const VkDevice m_device;
-    const VulkanCapabilities m_capabilities;
+    const VulkanFeatures m_features;
 
     // PLS buffers.
     vkutil::BufferRing m_flushUniformBufferRing;

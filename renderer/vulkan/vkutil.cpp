@@ -289,7 +289,7 @@ static VkAccessFlags access_flags_for_layout(VkImageLayout layout)
             return VK_ACCESS_NONE;
         default:
             fprintf(stderr,
-                    "vkutil::insert_image_memory_barrier: layout %u is not "
+                    "vkutil::insert_image_memory_barrier: layout 0x%x is not "
                     "supported\n",
                     layout);
     }
@@ -316,7 +316,7 @@ static VkAccessFlags pipeline_stage_for_layout(VkImageLayout layout)
             return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
         default:
             fprintf(stderr,
-                    "vkutil::insert_image_memory_barrier: layout %u is not "
+                    "vkutil::insert_image_memory_barrier: layout 0x%x is not "
                     "supported\n",
                     layout);
     }

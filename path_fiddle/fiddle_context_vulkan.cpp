@@ -163,7 +163,14 @@ public:
         }
 #endif
 
-        std::vector<const char*> instanceEnabledExtensions;
+        std::vector<const char*> instanceEnabledExtensionNames;
+
+        struct
+        {
+            bool EXT_debug_utils = false;
+            bool KHR_portability_enumeration = false;
+            bool KHR_get_physical_device_properties2 = false;
+        } instanceEnabledExtensions;
 
         if (!m_options.allowHeadlessRendering)
         {
@@ -171,45 +178,53 @@ public:
             const char** glfwExtensions;
 
             glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
-            instanceEnabledExtensions.insert(instanceEnabledExtensions.end(),
-                                             glfwExtensions,
-                                             glfwExtensions + glfwExtensionCount);
+            instanceEnabledExtensionNames.insert(instanceEnabledExtensionNames.end(),
+                                                 glfwExtensions,
+                                                 glfwExtensions + glfwExtensionCount);
+            for (const char* glfwExtensionName : instanceEnabledExtensionNames)
+            {
+                if (strcmp(glfwExtensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0)
+                {
+                    instanceEnabledExtensions.EXT_debug_utils = true;
+                }
+                else if (strcmp(glfwExtensionName, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) ==
+                         0)
+                {
+                    instanceEnabledExtensions.KHR_portability_enumeration = true;
+                }
+                else if (strcmp(glfwExtensionName,
+                                VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) == 0)
+                {
+                    instanceEnabledExtensions.KHR_get_physical_device_properties2 = true;
+                }
+            }
         }
-
-        struct
-        {
-            bool EXT_debug_utils = false;
-            bool KHR_portability_enumeration = false;
-            bool KHR_get_physical_device_properties2 = false;
-        } instanceExtensions;
 
         for (const VkExtensionProperties& ext : instanceAvailableExtensions)
         {
-            if (strcmp(ext.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0)
+            if (!instanceEnabledExtensions.EXT_debug_utils &&
+                strcmp(ext.extensionName, VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == 0)
             {
-                // Did glfw already add this extension?
-                if (std::find(instanceEnabledExtensions.begin(),
-                              instanceEnabledExtensions.end(),
-                              VK_EXT_DEBUG_UTILS_EXTENSION_NAME) == instanceEnabledExtensions.end())
-                {
-                    instanceEnabledExtensions.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
-                }
-                instanceExtensions.EXT_debug_utils = true;
+                instanceEnabledExtensionNames.push_back(VK_EXT_DEBUG_UTILS_EXTENSION_NAME);
+                instanceEnabledExtensions.EXT_debug_utils = true;
                 continue;
             }
-            if (strcmp(ext.extensionName, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == 0)
+            if (!instanceEnabledExtensions.KHR_portability_enumeration &&
+                strcmp(ext.extensionName, VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME) == 0)
             {
                 // MoltenVK needs KHR_portability_enumeration.
-                instanceEnabledExtensions.push_back(VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
-                instanceExtensions.KHR_portability_enumeration = true;
+                instanceEnabledExtensionNames.push_back(
+                    VK_KHR_PORTABILITY_ENUMERATION_EXTENSION_NAME);
+                instanceEnabledExtensions.KHR_portability_enumeration = true;
                 continue;
             }
-            if (strcmp(ext.extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) ==
-                0)
+            if (!instanceEnabledExtensions.KHR_get_physical_device_properties2 &&
+                strcmp(ext.extensionName, VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME) ==
+                    0)
             {
-                instanceEnabledExtensions.push_back(
+                instanceEnabledExtensionNames.push_back(
                     VK_KHR_GET_PHYSICAL_DEVICE_PROPERTIES_2_EXTENSION_NAME);
-                instanceExtensions.KHR_get_physical_device_properties2 = true;
+                instanceEnabledExtensions.KHR_get_physical_device_properties2 = true;
                 continue;
             }
         }
@@ -230,7 +245,7 @@ public:
 
         if (options.enableVulkanValidationLayers)
         {
-            if (!instanceExtensions.EXT_debug_utils)
+            if (!instanceEnabledExtensions.EXT_debug_utils)
             {
                 fprintf(stderr,
                         "Validation layers requested but EXT_debug_utils is not "
@@ -280,13 +295,13 @@ public:
             }
         }
 
-        if (instanceExtensions.KHR_portability_enumeration)
+        if (instanceEnabledExtensions.KHR_portability_enumeration)
         {
             instanceCreateInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
         }
 
-        instanceCreateInfo.enabledExtensionCount = instanceEnabledExtensions.size();
-        instanceCreateInfo.ppEnabledExtensionNames = instanceEnabledExtensions.data();
+        instanceCreateInfo.enabledExtensionCount = instanceEnabledExtensionNames.size();
+        instanceCreateInfo.ppEnabledExtensionNames = instanceEnabledExtensionNames.data();
 
         VK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));
 
@@ -343,11 +358,11 @@ public:
                                              &deviceAvailableExtensionCount,
                                              deviceAvailableExtensions.data());
 
-        VkPhysicalDeviceFeatures2 availablePhysicalDeviceFeatures2 = {
+        VkPhysicalDeviceFeatures2 physicalDeviceAvailable2 = {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
         };
 
-        VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT availableRasterOrderFeatures{
+        VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT rasterOrderAvailable = {
             .sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_FEATURES_EXT,
         };
@@ -360,40 +375,59 @@ public:
         }
 #endif
 
-        std::vector<const char*> deviceEnabledExtensions;
+        std::vector<const char*> deviceEnabledExtensionNames;
 
-        VulkanCapabilities capabilities;
-        bool KHR_swapchain = false;
+        struct
+        {
+            bool KHR_swapchain = false;
+            bool KHR_portability_subset = false;
+            bool EXT_rasterization_order_attachment_access = false;
+            bool AMD_rasterization_order_attachment_access = false;
+        } deviceEnabledExtensions;
+
+        VulkanFeatures plsContextFeatures;
+
         for (const VkExtensionProperties& ext : deviceAvailableExtensions)
         {
-            if (!options.allowHeadlessRendering &&
+            if (!options.allowHeadlessRendering && !deviceEnabledExtensions.KHR_swapchain &&
                 strcmp(ext.extensionName, VK_KHR_SWAPCHAIN_EXTENSION_NAME) == 0)
             {
-                deviceEnabledExtensions.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
-                KHR_swapchain = true;
+                deviceEnabledExtensionNames.push_back(VK_KHR_SWAPCHAIN_EXTENSION_NAME);
+                deviceEnabledExtensions.KHR_swapchain = true;
                 continue;
             }
-            if (instanceExtensions.KHR_portability_enumeration &&
+            if (instanceEnabledExtensions.KHR_portability_enumeration &&
+                !deviceEnabledExtensions.KHR_portability_subset &&
                 strcmp(ext.extensionName, VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME) == 0)
             {
                 // Enable KHR_portability_subset for KHR_portability_enumeration,
                 // which is needed by MoltenVK.
-                deviceEnabledExtensions.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+                deviceEnabledExtensionNames.push_back(VK_KHR_PORTABILITY_SUBSET_EXTENSION_NAME);
+                deviceEnabledExtensions.KHR_portability_subset = true;
                 continue;
             }
             if (!m_options.disableRasterOrdering &&
-                (strcmp(ext.extensionName,
-                        VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME) == 0 ||
-                 strcmp(ext.extensionName, "VK_AMD_rasterization_order_attachment_access") == 0))
+                !deviceEnabledExtensions.EXT_rasterization_order_attachment_access &&
+                strcmp(ext.extensionName,
+                       VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME) == 0)
             {
-                capabilities.EXT_rasterization_order_attachment_access = true;
-                availableRasterOrderFeatures.pNext = availablePhysicalDeviceFeatures2.pNext;
-                availablePhysicalDeviceFeatures2.pNext = &availableRasterOrderFeatures;
+                deviceEnabledExtensionNames.push_back(
+                    VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME);
+                deviceEnabledExtensions.EXT_rasterization_order_attachment_access = true;
+                continue;
+            }
+            if (!m_options.disableRasterOrdering &&
+                !deviceEnabledExtensions.AMD_rasterization_order_attachment_access &&
+                strcmp(ext.extensionName, "VK_AMD_rasterization_order_attachment_access") == 0)
+            {
+                deviceEnabledExtensionNames.push_back(
+                    "VK_AMD_rasterization_order_attachment_access");
+                deviceEnabledExtensions.AMD_rasterization_order_attachment_access = true;
                 continue;
             }
         }
 
-        if (!options.allowHeadlessRendering && !KHR_swapchain)
+        if (!options.allowHeadlessRendering && !deviceEnabledExtensions.KHR_swapchain)
         {
             fprintf(stderr,
                     "extension %s, required for GLFW windowed rendering, is not "
@@ -402,68 +436,60 @@ public:
             exit(-1);
         }
 
-        if (instanceExtensions.KHR_get_physical_device_properties2)
+        if (deviceEnabledExtensions.EXT_rasterization_order_attachment_access ||
+            deviceEnabledExtensions.AMD_rasterization_order_attachment_access)
         {
-            vkGetPhysicalDeviceFeatures2(m_physicalDevice, &availablePhysicalDeviceFeatures2);
+            rasterOrderAvailable.pNext = physicalDeviceAvailable2.pNext;
+            physicalDeviceAvailable2.pNext = &rasterOrderAvailable;
         }
 
-        // Only enable EXT_rasterization_order_attachment_access if we have
-        // rasterOrdered access to color attachments.
-        if (capabilities.EXT_rasterization_order_attachment_access)
+        if (instanceEnabledExtensions.KHR_get_physical_device_properties2)
         {
-            // availableRasterOrderFeatures gets filled out by
-            // vkGetPhysicalDeviceFeatures2().
-            if (availableRasterOrderFeatures.rasterizationOrderColorAttachmentAccess)
-            {
-                // We have rasterOrdered color attachment access. Turn on the
-                // extension!
-                deviceEnabledExtensions.push_back(
-                    VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME);
-            }
-            else
-            {
-                // Un-flag EXT_rasterization_order_attachment_access since it
-                // doesn't support rasterOrdered color attachment access.
-                capabilities.EXT_rasterization_order_attachment_access = false;
-            }
+            vkGetPhysicalDeviceFeatures2(m_physicalDevice, &physicalDeviceAvailable2);
+        }
+        else
+        {
+            vkGetPhysicalDeviceFeatures(m_physicalDevice, &physicalDeviceAvailable2.features);
         }
 
         VkDeviceCreateInfo deviceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO,
             .queueCreateInfoCount = 1,
             .pQueueCreateInfos = &deviceQueueCreateInfo,
-            .enabledExtensionCount = static_cast<uint32_t>(deviceEnabledExtensions.size()),
-            .ppEnabledExtensionNames = deviceEnabledExtensions.data(),
+            .enabledExtensionCount = static_cast<uint32_t>(deviceEnabledExtensionNames.size()),
+            .ppEnabledExtensionNames = deviceEnabledExtensionNames.data(),
         };
 
         VkPhysicalDeviceFeatures2 physicalDeviceFeatures2 = {
             .sType = VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_FEATURES_2_KHR,
         };
-        if (availablePhysicalDeviceFeatures2.features.fillModeNonSolid)
-        {
-            physicalDeviceFeatures2.features.fillModeNonSolid = true;
-            capabilities.fillModeNonSolid = true;
-        }
-        if (availablePhysicalDeviceFeatures2.features.fragmentStoresAndAtomics)
-        {
-            physicalDeviceFeatures2.features.fragmentStoresAndAtomics = true;
-            capabilities.fragmentStoresAndAtomics = true;
-        }
-
-        VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT rasterOrderFeatures{
+        VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT rasterOrderFeatures = {
             .sType =
                 VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_FEATURES_EXT,
-            .rasterizationOrderColorAttachmentAccess = VK_TRUE,
         };
-
-        if (capabilities.EXT_rasterization_order_attachment_access)
+        if (physicalDeviceAvailable2.features.fillModeNonSolid)
         {
-            rasterOrderFeatures.pNext = physicalDeviceFeatures2.pNext;
-            physicalDeviceFeatures2.pNext = &rasterOrderFeatures;
+            physicalDeviceFeatures2.features.fillModeNonSolid = VK_TRUE;
+            plsContextFeatures.fillModeNonSolid = true;
         }
-
-        if (instanceExtensions.KHR_get_physical_device_properties2)
+        if (physicalDeviceAvailable2.features.fragmentStoresAndAtomics)
         {
+            physicalDeviceFeatures2.features.fragmentStoresAndAtomics = VK_TRUE;
+            plsContextFeatures.fragmentStoresAndAtomics = true;
+        }
+        if (instanceEnabledExtensions.KHR_get_physical_device_properties2)
+        {
+            if (deviceEnabledExtensions.EXT_rasterization_order_attachment_access ||
+                deviceEnabledExtensions.AMD_rasterization_order_attachment_access)
+            {
+                if (rasterOrderAvailable.rasterizationOrderColorAttachmentAccess)
+                {
+                    rasterOrderFeatures.rasterizationOrderColorAttachmentAccess = VK_TRUE;
+                    plsContextFeatures.rasterizationOrderColorAttachmentAccess = true;
+                }
+                rasterOrderFeatures.pNext = physicalDeviceFeatures2.pNext;
+                physicalDeviceFeatures2.pNext = &rasterOrderFeatures;
+            }
             deviceCreateInfo.pNext = &physicalDeviceFeatures2;
         }
         else
@@ -472,6 +498,21 @@ public:
         }
 
         VK_CHECK(vkCreateDevice(m_physicalDevice, &deviceCreateInfo, nullptr, &m_device));
+
+        printf("PLS Vulkan features: [");
+        if (plsContextFeatures.fillModeNonSolid)
+        {
+            printf(" fillModeNonSolid");
+        }
+        if (plsContextFeatures.fragmentStoresAndAtomics)
+        {
+            printf(" fragmentStoresAndAtomics");
+        }
+        if (plsContextFeatures.rasterizationOrderColorAttachmentAccess)
+        {
+            printf(" rasterizationOrderColorAttachmentAccess");
+        }
+        printf(" ]\n");
 
         vkGetDeviceQueue(m_device, queueFamilyIndex, 0, &m_queue);
 
@@ -498,7 +539,7 @@ public:
 
         m_allocator =
             make_rcp<vkutil::Allocator>(m_instance, m_physicalDevice, m_device, VK_API_VERSION_1_0);
-        m_plsContext = PLSRenderContextVulkanImpl::MakeContext(m_allocator, capabilities);
+        m_plsContext = PLSRenderContextVulkanImpl::MakeContext(m_allocator, plsContextFeatures);
 
         VkSemaphoreCreateInfo semaphoreCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
