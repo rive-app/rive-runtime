@@ -110,7 +110,7 @@ half3 set_lum(half3 cbase, half3 clum)
     half lbase = lumv3(cbase);
     half llum = lumv3(clum);
     half ldiff = llum - lbase;
-    half3 color = cbase + make_half3(ldiff, ldiff, ldiff);
+    half3 color = cbase + make_half3(ldiff);
     return clip_color(color);
 }
 
@@ -131,7 +131,7 @@ half3 set_lum_sat(half3 cbase, half3 csat, half3 clum)
     }
     else
     {
-        color = make_half3(.0, .0, .0);
+        color = make_half3(.0);
     }
     return set_lum(color, clum);
 }
@@ -141,7 +141,7 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
 {
     // The function f() operates on un-multiplied rgb values and dictates the look of the advanced
     // blend equations.
-    half3 f = make_half3(.0, .0, .0);
+    half3 f = make_half3(.0);
     switch (mode)
     {
         case BLEND_MODE_MULTIPLY:
@@ -170,16 +170,16 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
         case BLEND_MODE_COLORDODGE:
             // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0 results in the
             // appropriately signed IEEE Inf.
-            f = mix(min(dst.rgb / (1. - src.rgb), make_half3(1., 1., 1.)),
-                    make_half3(.0, .0, .0),
-                    lessThanEqual(dst.rgb, make_half3(.0, .0, .0)));
+            f = mix(min(dst.rgb / (1. - src.rgb), make_half3(1.)),
+                    make_half3(.0),
+                    lessThanEqual(dst.rgb, make_half3(.0)));
             break;
         case BLEND_MODE_COLORBURN:
             // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0 results in the
             // appropriately signed IEEE Inf.
             f = mix(1. - min((1. - dst.rgb) / src.rgb, 1.),
                     make_half3(1., 1., 1.),
-                    greaterThanEqual(dst.rgb, make_half3(1., 1., 1.)));
+                    greaterThanEqual(dst.rgb, make_half3(1.)));
             break;
         case BLEND_MODE_HARDLIGHT:
         {
@@ -218,28 +218,28 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
         case BLEND_MODE_HUE:
             if (@ENABLE_HSL_BLEND_MODES)
             {
-                src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
+                src.rgb = clamp(src.rgb, make_half3(.0), make_half3(1.));
                 f = set_lum_sat(src.rgb, dst.rgb, dst.rgb);
             }
             break;
         case BLEND_MODE_SATURATION:
             if (@ENABLE_HSL_BLEND_MODES)
             {
-                src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
+                src.rgb = clamp(src.rgb, make_half3(.0), make_half3(1.));
                 f = set_lum_sat(dst.rgb, src.rgb, dst.rgb);
             }
             break;
         case BLEND_MODE_COLOR:
             if (@ENABLE_HSL_BLEND_MODES)
             {
-                src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
+                src.rgb = clamp(src.rgb, make_half3(.0), make_half3(1.));
                 f = set_lum(src.rgb, dst.rgb);
             }
             break;
         case BLEND_MODE_LUMINOSITY:
             if (@ENABLE_HSL_BLEND_MODES)
             {
-                src.rgb = clamp(src.rgb, make_half3(.0, .0, .0), make_half3(1., 1., 1.));
+                src.rgb = clamp(src.rgb, make_half3(.0), make_half3(1.));
                 f = set_lum(dst.rgb, src.rgb);
             }
             break;

@@ -24,7 +24,8 @@ VERTEX_STORAGE_BUFFER_BLOCK_END
 
 half4 unpackColorInt(uint color)
 {
-    return make_half4((uint4(color, color, color, color) >> uint4(16, 8, 0, 24)) & 0xffu) / 255.;
+    return cast_uint4_to_half4((uint4(color, color, color, color) >> uint4(16, 8, 0, 24)) & 0xffu) /
+           255.;
 }
 
 VERTEX_MAIN(@colorRampVertexMain, Attrs, attrs, _vertexID, _instanceID)

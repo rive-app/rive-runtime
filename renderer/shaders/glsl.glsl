@@ -59,15 +59,13 @@
 #extension GL_KHR_blend_equation_advanced : require
 #endif
 
-#ifdef @USING_DEPTH_STENCIL
-#ifdef @ENABLE_CLIP_RECT
+#if defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT)
 #ifdef GL_EXT_clip_cull_distance
 #extension GL_EXT_clip_cull_distance : require
 #elif defined(GL_ANGLE_clip_cull_distance)
 #extension GL_ANGLE_clip_cull_distance : require
 #endif
-#endif // ENABLE_CLIP_RECT
-#endif // USING_DEPTH_STENCIL
+#endif // USING_DEPTH_STENCIL && ENABLE_CLIP_RECT
 
 #if @GLSL_VERSION >= 310
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
@@ -477,6 +475,13 @@
 
 #define MUL(A, B) ((A) * (B))
 
+#ifndef @TARGET_VULKAN
+#define FRAG_COORD_BOTTOM_UP
+#endif
+
+precision highp float;
+precision highp int;
+
 #if @GLSL_VERSION < 310
 // Polyfill ES 3.1+ methods.
 INLINE half4 unpackUnorm4x8(uint u)
@@ -485,30 +490,3 @@ INLINE half4 unpackUnorm4x8(uint u)
     return float4(vals) * (1. / 255.);
 }
 #endif
-
-#ifndef @TARGET_VULKAN
-#define FRAG_COORD_BOTTOM_UP
-#endif
-
-precision highp float;
-precision highp int;
-
-// Define these constructors as actual functions instead of macros, in order to
-// make precision transitions explicit.
-half make_half(half x) { return x; }
-half2 make_half2(half2 xy) { return xy; }
-half2 make_half2(half x, half y) { return vec2(x, y); }
-half3 make_half3(half x, half y, half z) { return vec3(x, y, z); }
-half4 make_half4(half x) { return vec4(x); }
-half4 make_half4(half x, half y, half z, half w) { return vec4(x, y, z, w); }
-half4 make_half4(half3 xyz, half w) { return vec4(xyz, w); }
-half4 make_half4(half4 xyzw) { return xyzw; }
-half make_half(uint x) { return float(x); }
-half4 make_half4(uint4 xyzw) { return vec4(xyzw); }
-half make_half(int x) { return float(x); }
-ushort make_ushort(float x) { return uint(x); }
-ushort make_ushort(ushort x) { return x; }
-half3x4 make_half3x4(half3 a, half b, half3 c, half d, half3 e, half f)
-{
-    return mat3x4(a, b, c, d, e, f);
-}

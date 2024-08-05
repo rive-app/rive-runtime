@@ -42,6 +42,7 @@ args = parser.parse_args()
 tokens = [
     "DEFINE",
     "IFDEF",
+    "DEFINED_ID",
     "TOKEN_PASTE",
     "DIRECTIVE",
     "LINE_COMMENT",
@@ -55,8 +56,9 @@ tokens = [
     "UNKNOWN",
 ]
 
-# tracks which identifiers are declared via a #define macro
-defines = set()
+# tracks which exported identifiers (identifiers whose @name begins with '@') are used as switches
+# inside an #ifdef, #if defined(), etc.
+exported_switches = set()
 
 # counts the number of times each ID is seen, to prioritize which IDs get the shortest names
 all_id_counts = defaultdict(int);
@@ -77,7 +79,6 @@ def t_DEFINE(tok):
     tok.define_arglist = Minifier(arglist, "", tok.lexer.exports) if arglist else None
     val = re.match(t_DEFINE.__doc__, tok.value)['val']
     tok.define_val = Minifier(val, "", tok.lexer.exports) if val else None
-    defines.add(tok.define_id)
     parse_id(tok.define_id, tok.lexer.exports, is_reference=False)
     tok.lexer.lineno += tok.value.count('\n')
     return tok
@@ -86,7 +87,17 @@ def t_IFDEF(tok):
     r"\#[ \t]*(?P<tag>ifn?def)[ \t]+(?P<id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)"
     tok.ifdef_tag = re.match(t_IFDEF.__doc__, tok.value)['tag']
     tok.ifdef_id = re.match(t_IFDEF.__doc__, tok.value)['id']
+    if tok.ifdef_id[0] == '@':
+        exported_switches.add(tok.ifdef_id)
     parse_id(tok.ifdef_id, tok.lexer.exports, is_reference=True)
+    return tok
+
+def t_DEFINED_ID(tok):
+    r"defined\((?P<defined_id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)\)"
+    tok.defined_id = re.match(t_DEFINED_ID.__doc__, tok.value)['defined_id']
+    if tok.defined_id[0] == '@':
+        exported_switches.add(tok.defined_id)
+    parse_id(tok.defined_id, tok.lexer.exports, is_reference=True)
     return tok
 
 def t_TOKEN_PASTE(tok):
@@ -428,7 +439,7 @@ class Minifier:
 
 
     # generates rewritten glsl from our tokens.
-    def emit_tokens_to_rewritten_glsl(self, out, *, rename_exported_defines):
+    def emit_tokens_to_rewritten_glsl(self, out, *, preserve_exported_switches):
         # stand-in for a null token.
         lasttoken = lambda : None
         lasttoken.type = ""
@@ -446,7 +457,7 @@ class Minifier:
                 continue
 
             is_directive = tok.type in ["DEFINE", "IFDEF", "DIRECTIVE"]
-            needs_whitespace = tok.type in ["FLOAT", "INT", "HEX", "ID"]
+            needs_whitespace = tok.type in ["FLOAT", "INT", "HEX", "ID", "DEFINED_ID"]
             if is_directive and not is_newline:
                 out.write('\n')
             elif needs_whitespace and lasttoken_needs_whitespace:
@@ -462,41 +473,40 @@ class Minifier:
                     and lasttoken.value == "."):
                     # convert rgba and stpq to xyzw.
                     out.write(''.join([rgba_stpq_remap[ch] for ch in tok.value]))
-                elif not rename_exported_defines and tok.value in defines and tok.value[0] == '@':
-                    out.write(tok.value[1:])
                 else:
-                    out.write(new_names[tok.value])
+                    self.write_identifier(out, tok.value, preserve_exported_switches)
 
             elif tok.type == "DEFINE":
                 out.write("#define ")
-                out.write(new_names[tok.define_id]
-                          if rename_exported_defines or tok.define_id[0] != '@'
-                          else tok.define_id[1:])
+                self.write_identifier(out, tok.define_id, preserve_exported_switches)
                 if tok.define_arglist != None:
                     is_newline = tok.define_arglist.emit_tokens_to_rewritten_glsl(\
                         out,\
-                        rename_exported_defines=rename_exported_defines)
+                        preserve_exported_switches=preserve_exported_switches)
                     assert(not is_newline)
                 if tok.define_val != None:
                     out.write(' ')
                     is_newline = tok.define_val.emit_tokens_to_rewritten_glsl(\
                         out,\
-                        rename_exported_defines=rename_exported_defines)
+                        preserve_exported_switches=preserve_exported_switches)
 
             elif tok.type == "IFDEF":
                 out.write('#')
                 out.write(tok.ifdef_tag)
                 out.write(' ')
-                out.write(new_names[tok.ifdef_id]
-                          if rename_exported_defines or tok.ifdef_id[0] != '@'
-                          else tok.ifdef_id[1:])
+                self.write_identifier(out, tok.ifdef_id, preserve_exported_switches)
+
+            elif tok.type == "DEFINED_ID":
+                out.write('defined(')
+                self.write_identifier(out, tok.defined_id, preserve_exported_switches)
+                out.write(')')
 
             elif tok.type == "DIRECTIVE":
                 out.write("#")
                 if tok.directive_val != None:
                     is_newline = tok.directive_val.emit_tokens_to_rewritten_glsl(\
                         out,\
-                        rename_exported_defines=rename_exported_defines)
+                        preserve_exported_switches=preserve_exported_switches)
 
             else:
                 out.write(tok.value)
@@ -512,6 +522,14 @@ class Minifier:
             lasttoken_needs_whitespace = needs_whitespace
 
         return is_newline
+
+
+    def write_identifier(self, out, identifier, preserve_exported_switches):
+        if preserve_exported_switches and identifier in exported_switches:
+            assert(identifier[0] == '@')
+            out.write(identifier[1:])
+        else:
+            out.write(new_names[identifier])
 
 
     def write_exports(self, outdir):
@@ -538,7 +556,7 @@ class Minifier:
         out.write("namespace glsl {\n")
         out.write('const char %s[] = R"===(' % os.path.splitext(self.basename)[0])
 
-        is_newline = self.emit_tokens_to_rewritten_glsl(out, rename_exported_defines=True)
+        is_newline = self.emit_tokens_to_rewritten_glsl(out, preserve_exported_switches=False)
         if not is_newline:
             out.write('\n')
 
@@ -553,7 +571,7 @@ class Minifier:
         output_path = os.path.join(outdir, os.path.splitext(self.basename)[0] + ".minified.glsl")
         print("Minifying %s <- %s" % (output_path, self.basename))
         out = open(output_path, "w", newline='\n')
-        self.emit_tokens_to_rewritten_glsl(out, rename_exported_defines=False)
+        self.emit_tokens_to_rewritten_glsl(out, preserve_exported_switches=True)
         out.close()
 
 

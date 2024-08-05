@@ -119,8 +119,8 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #ifdef @ENABLE_CLIP_RECT
     if (@ENABLE_CLIP_RECT)
     {
-        half clipRectCoverage = min_value(make_half4(v_clipRect));
-        coverage = clamp(clipRectCoverage, make_half(0), coverage);
+        half clipRectCoverage = min_value(cast_float4_to_half4(v_clipRect));
+        coverage = clamp(clipRectCoverage, make_half(.0), coverage);
     }
 #endif
 
@@ -131,7 +131,7 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     {
         half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
         half clipContentID = clipData.g;
-        half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(0);
+        half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(.0);
         coverage = min(coverage, clipCoverage);
     }
 #endif
@@ -142,8 +142,9 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND && imageDrawUniforms.blendMode != BLEND_SRC_OVER)
     {
-        color =
-            advanced_blend(color, unmultiply(dstColor), make_ushort(imageDrawUniforms.blendMode));
+        color = advanced_blend(color,
+                               unmultiply(dstColor),
+                               cast_uint_to_ushort(imageDrawUniforms.blendMode));
     }
     else
 #endif

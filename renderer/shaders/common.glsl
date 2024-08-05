@@ -12,6 +12,90 @@
 #define AA_RADIUS float(.0)
 #endif
 
+#ifdef GLSL
+// GLSL has different semantics around precision. Normalize type conversions across
+// languages with "cast_*_to_*()" methods.
+INLINE half cast_float_to_half(float x) { return x; }
+INLINE half cast_uint_to_half(uint x) { return float(x); }
+INLINE half cast_ushort_to_half(ushort x) { return float(x); }
+INLINE half cast_int_to_half(int x) { return float(x); }
+INLINE half4 cast_float4_to_half4(float4 xyzw) { return xyzw; }
+INLINE half2 cast_float2_to_half2(float2 xy) { return xy; }
+INLINE half4 cast_uint4_to_half4(uint4 xyzw) { return vec4(xyzw); }
+INLINE ushort cast_half_to_ushort(half x) { return uint(x); }
+INLINE ushort cast_uint_to_ushort(uint x) { return x; }
+#else
+INLINE half cast_float_to_half(float x) { return (half)x; }
+INLINE half cast_uint_to_half(uint x) { return (half)x; }
+INLINE half cast_ushort_to_half(ushort x) { return (half)x; }
+INLINE half cast_int_to_half(int x) { return (half)x; }
+INLINE half4 cast_float4_to_half4(float4 xyzw) { return (half4)xyzw; }
+INLINE half2 cast_float2_to_half2(float2 xy) { return (half2)xy; }
+INLINE half4 cast_uint4_to_half4(uint4 xyzw) { return (half4)xyzw; }
+INLINE ushort cast_half_to_ushort(half x) { return (ushort)x; }
+INLINE ushort cast_uint_to_ushort(uint x) { return (ushort)x; }
+#endif
+
+INLINE half make_half(half x) { return x; }
+
+INLINE half2 make_half2(half2 xy) { return xy; }
+
+INLINE half2 make_half2(half x, half y)
+{
+    half2 ret;
+    ret.x = x, ret.y = y;
+    return ret;
+}
+
+INLINE half3 make_half3(half x, half y, half z)
+{
+    half3 ret;
+    ret.x = x, ret.y = y, ret.z = z;
+    return ret;
+}
+
+INLINE half3 make_half3(half x)
+{
+    half3 ret;
+    ret.x = x, ret.y = x, ret.z = x;
+    return ret;
+}
+
+INLINE half4 make_half4(half x, half y, half z, half w)
+{
+    half4 ret;
+    ret.x = x, ret.y = y, ret.z = z, ret.w = w;
+    return ret;
+}
+
+INLINE half4 make_half4(half3 xyz, half w)
+{
+    half4 ret;
+    ret.xyz = xyz;
+    ret.w = w;
+    return ret;
+}
+
+INLINE half4 make_half4(half x)
+{
+    half4 ret;
+    ret.x = x, ret.y = x, ret.z = x, ret.w = x;
+    return ret;
+}
+
+INLINE half3x4 make_half3x4(half3 a, half b, half3 c, half d, half3 e, half f)
+{
+    half3x4 ret;
+    ret[0] = make_half4(a, b);
+    ret[1] = make_half4(c, d);
+    ret[2] = make_half4(e, f);
+    return ret;
+}
+
+INLINE float2x2 make_float2x2(float4 x) { return float2x2(x.xy, x.zw); }
+
+INLINE uint make_uint(ushort x) { return x; }
+
 INLINE uint contour_data_idx(uint contourIDWithFlags)
 {
     return (contourIDWithFlags & CONTOUR_ID_MASK) - 1u;
@@ -43,9 +127,6 @@ INLINE half4 unmultiply(half4 color)
         color.rgb *= 1.0 / color.a;
     return color;
 }
-
-INLINE float2x2 make_float2x2(float4 x) { return float2x2(x.xy, x.zw); }
-INLINE uint make_uint(ushort x) { return x; }
 
 INLINE half min_value(half4 min4)
 {

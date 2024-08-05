@@ -7,7 +7,7 @@
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"
 #include "specialization.minified.glsl"
-#include "advanced_blend.minified.glsl"
 #include "common.minified.glsl"
+#include "advanced_blend.minified.glsl"
 #include "draw_path_common.minified.glsl"
 #include "atomic_draw.minified.glsl"

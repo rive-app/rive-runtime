@@ -61,7 +61,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     // Fetch and unpack the contour referenced by the tessellation vertex.
     uint4 contourData = STORAGE_BUFFER_LOAD4(@contourBuffer, contour_data_idx(contourIDWithFlags));
     float2 midpoint = uintBitsToFloat(contourData.xy);
-    o_pathID = make_ushort(contourData.z & 0xffffu);
+    o_pathID = cast_uint_to_ushort(contourData.z & 0xffffu);
     uint vertexIndex0 = contourData.w;
 
     // Fetch and unpack the path.
@@ -71,7 +71,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 
     float strokeRadius = uintBitsToFloat(pathData.z);
 #ifdef @USING_DEPTH_STENCIL
-    o_pathZIndex = make_ushort(pathData.w);
+    o_pathZIndex = cast_uint_to_ushort(pathData.w);
 #endif
 
     // Fix the tessellation vertex if we fetched the wrong one in order to guarantee we got the
@@ -136,7 +136,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         {
             // The stroke is narrower than the AA ramp. Instead of emitting subpixel geometry, make
             // the stroke as wide as the AA ramp and apply a global coverage multiplier.
-            globalCoverage = make_half(strokeRadius) / make_half(aaRadius);
+            globalCoverage = cast_float_to_half(strokeRadius) / cast_float_to_half(aaRadius);
             strokeRadius = aaRadius;
         }
 
@@ -147,7 +147,8 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // Calculate the AA distance to both the outset and inset edges of the stroke. The fragment
         // shader will use whichever is lesser.
         float x = outset * (strokeRadius + aaRadius);
-        o_edgeDistance = make_half2((1. / (aaRadius * 2.)) * (float2(x, -x) + strokeRadius) + .5);
+        o_edgeDistance =
+            cast_float2_to_half2((1. / (aaRadius * 2.)) * (float2(x, -x) + strokeRadius) + .5);
 #endif
 
         uint joinType = contourIDWithFlags & JOIN_TYPE_MASK;
@@ -233,9 +234,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                 (clipAARadius - dot(pt, bisector)) / (bisectPixelWidth * (AA_RADIUS * 2.));
 #ifndef @USING_DEPTH_STENCIL
             if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
-                o_edgeDistance.y = make_half(clipDistance);
+                o_edgeDistance.y = cast_float_to_half(clipDistance);
             else
-                o_edgeDistance.x = make_half(clipDistance);
+                o_edgeDistance.x = cast_float_to_half(clipDistance);
 #endif
         }
 
@@ -287,11 +288,12 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
                                               OUT(ushort) o_pathID,
                                               OUT(half) o_windingWeight VERTEX_CONTEXT_DECL)
 {
-    o_pathID = make_ushort(floatBitsToUint(triangleVertex.z) & 0xffffu);
+    o_pathID = cast_uint_to_ushort(floatBitsToUint(triangleVertex.z) & 0xffffu);
     float2x2 M = make_float2x2(uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u)));
     uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u + 1u);
     float2 translate = uintBitsToFloat(pathData.xy);
-    o_windingWeight = make_half(floatBitsToInt(triangleVertex.z) >> 16) * sign(determinant(M));
+    o_windingWeight =
+        cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16) * sign(determinant(M));
     return MUL(M, triangleVertex.xy) + translate;
 }
 #endif // @DRAW_INTERIOR_TRIANGLES

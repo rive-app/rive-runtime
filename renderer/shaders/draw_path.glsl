@@ -271,7 +271,7 @@ INLINE half4 find_paint_color(float4 paint
 {
     if (paint.a >= .0) // Is the paint a solid color?
     {
-        return make_half4(paint);
+        return cast_float4_to_half4(paint);
     }
     else if (paint.a > -1.) // Is paint is a gradient (linear or radial)?
     {
@@ -284,7 +284,7 @@ INLINE half4 find_paint_color(float4 paint
         float row = -paint.a;
         // Our gradient texture is not mipmapped. Issue a texture-sample that explicitly does not
         // find derivatives for LOD computation (by specifying derivatives directly).
-        return make_half4(TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, row), .0));
+        return TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, row), .0);
     }
     else // The paint is an image.
     {
@@ -353,7 +353,7 @@ PLS_MAIN(@drawFragmentMain)
 
     half2 coverageData = unpackHalf2x16(PLS_LOADUI(coverageCountBuffer));
     half coverageBufferID = coverageData.g;
-    half coverageCount = coverageBufferID == v_pathID ? coverageData.r : make_half(0);
+    half coverageCount = coverageBufferID == v_pathID ? coverageData.r : make_half(.0);
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
     coverageCount += v_windingWeight;
@@ -375,7 +375,7 @@ PLS_MAIN(@drawFragmentMain)
         coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
     }
 #endif
-    coverage = min(coverage, make_half(1)); // This also caps stroke coverage, which can be >1.
+    coverage = min(coverage, make_half(1.)); // This also caps stroke coverage, which can be >1.
 
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.
@@ -433,7 +433,7 @@ PLS_MAIN(@drawFragmentMain)
                 // check exact equality of the clipID.
                 half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
                 half clipContentID = clipData.g;
-                half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(0);
+                half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(.0);
                 coverage = min(coverage, clipCoverage);
             }
             PLS_PRESERVE_UI(clipBuffer);
@@ -442,7 +442,7 @@ PLS_MAIN(@drawFragmentMain)
 #ifdef @ENABLE_CLIP_RECT
         if (@ENABLE_CLIP_RECT)
         {
-            half clipRectCoverage = min_value(make_half4(v_clipRect));
+            half clipRectCoverage = min_value(cast_float4_to_half4(v_clipRect));
             coverage = clamp(clipRectCoverage, make_half(.0), coverage);
         }
 #endif // ENABLE_CLIP_RECT
@@ -478,9 +478,9 @@ PLS_MAIN(@drawFragmentMain)
 
         // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
-        if (@ENABLE_ADVANCED_BLEND && v_blendMode != make_half(BLEND_SRC_OVER))
+        if (@ENABLE_ADVANCED_BLEND && v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
         {
-            color = advanced_blend(color, unmultiply(dstColor), make_ushort(v_blendMode));
+            color = advanced_blend(color, unmultiply(dstColor), cast_half_to_ushort(v_blendMode));
         }
         else
 #endif
@@ -515,7 +515,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     if (@ENABLE_ADVANCED_BLEND)
     {
         half4 dstColor = TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
-        color = advanced_blend(color, unmultiply(dstColor), make_ushort(v_blendMode));
+        color = advanced_blend(color, unmultiply(dstColor), cast_half_to_ushort(v_blendMode));
     }
     else
 #endif // !ENABLE_ADVANCED_BLEND

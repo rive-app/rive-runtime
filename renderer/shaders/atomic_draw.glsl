@@ -12,7 +12,7 @@ ATTR_BLOCK_END
 
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, half2, v_edgeDistance);
-@OPTIONALLY_FLAT VARYING(1, ushort, v_pathID);
+FLAT VARYING(1, ushort, v_pathID);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
@@ -59,7 +59,7 @@ ATTR_BLOCK_END
 
 VARYING_BLOCK_BEGIN
 @OPTIONALLY_FLAT VARYING(0, half, v_windingWeight);
-@OPTIONALLY_FLAT VARYING(1, ushort, v_pathID);
+FLAT VARYING(1, ushort, v_pathID);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
@@ -129,7 +129,7 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         if (aaRadiusX >= .5)
         {
             vertexPosition.x = .5;
-            v_edgeCoverage *= make_half(.5 / aaRadiusX);
+            v_edgeCoverage *= cast_float_to_half(.5 / aaRadiusX);
         }
         else
         {
@@ -139,7 +139,7 @@ IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         if (aaRadiusY >= .5)
         {
             vertexPosition.y = .5;
-            v_edgeCoverage *= make_half(.5 / aaRadiusY);
+            v_edgeCoverage *= cast_float_to_half(.5 / aaRadiusY);
         }
         else
         {
@@ -309,8 +309,8 @@ uint to_fixed(float x) { return uint(x * FIXED_COVERAGE_FACTOR + FIXED_COVERAGE_
 
 half from_fixed(uint x)
 {
-    return make_half(float(x) * FIXED_COVERAGE_INVERSE_FACTOR +
-                     (-FIXED_COVERAGE_ZERO * FIXED_COVERAGE_INVERSE_FACTOR));
+    return cast_float_to_half(float(x) * FIXED_COVERAGE_INVERSE_FACTOR +
+                              (-FIXED_COVERAGE_ZERO * FIXED_COVERAGE_INVERSE_FACTOR));
 }
 
 // Return the color of the path at index 'pathID' at location '_fragCoord'.
@@ -346,7 +346,7 @@ half4 resolve_path_color(half coverageCount,
         }
     }
 #endif // ENABLE_CLIPPING
-    half4 color = make_half4(.0, .0, .0, .0);
+    half4 color = make_half4(.0);
     uint paintType = paintData.x & 0xfu;
     switch (paintType)
     {
@@ -387,7 +387,7 @@ half4 resolve_path_color(half coverageCount,
                 t = clamp(t, .0, 1.);
                 float x = t * translate.z + translate.w;
                 float y = uintBitsToFloat(paintData.y);
-                color = make_half4(TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, y), .0));
+                color = TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, y), .0);
             }
 #ifdef @ENABLE_CLIPPING
             if (@ENABLE_CLIPPING)
@@ -414,7 +414,7 @@ half4 resolve_path_color(half coverageCount,
         float4 translate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
         float2 clipCoord = MUL(M, _fragCoord) + translate.xy;
         // translate.zw contains -1 / fwidth(clipCoord), which we use to calculate antialiasing.
-        half2 distXY = make_half2(abs(clipCoord) * translate.zw - translate.zw);
+        half2 distXY = cast_float2_to_half2(abs(clipCoord) * translate.zw - translate.zw);
         half clipRectCoverage = clamp(min(distXY.x, distXY.y) + .5, .0, 1.);
         coverage = min(coverage, clipRectCoverage);
     }
@@ -446,7 +446,7 @@ half4 blend(half4 srcColorUnmul, half4 dstColorPremul, ushort blendMode)
 half4 do_pls_blend(half4 color, uint2 paintData PLS_CONTEXT_DECL)
 {
     half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
-    ushort blendMode = make_ushort((paintData.x >> 4) & 0xfu);
+    ushort blendMode = cast_uint_to_ushort((paintData.x >> 4) & 0xfu);
     return blend(color, dstColorPremul, blendMode);
 }
 
@@ -481,7 +481,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_pathID, ushort);
 
 #ifdef @FIXED_FUNCTION_COLOR_BLEND
-    _fragColor = make_half4(.0, .0, .0, .0);
+    _fragColor = make_half4(.0);
 #endif
 
     half coverage = min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), make_half(1.));
@@ -497,7 +497,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     uint fixedCoverage = to_fixed(coverage);
     uint minCoverageData = (make_uint(v_pathID) << 16) | fixedCoverage;
     uint lastCoverageData = PLS_ATOMIC_MAX(coverageCountBuffer, minCoverageData);
-    ushort lastPathID = make_ushort(lastCoverageData >> 16);
+    ushort lastPathID = cast_uint_to_ushort(lastCoverageData >> 16);
     if (lastPathID != v_pathID)
     {
         // We crossed into a new path! Resolve the previous path now that we know its exact
@@ -545,13 +545,13 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_pathID, ushort);
 
 #ifdef @FIXED_FUNCTION_COLOR_BLEND
-    _fragColor = make_half4(.0, .0, .0, .0);
+    _fragColor = make_half4(.0);
 #endif
 
     half coverage = v_windingWeight;
 
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageCountBuffer);
-    ushort lastPathID = make_ushort(lastCoverageData >> 16);
+    ushort lastPathID = cast_uint_to_ushort(lastCoverageData >> 16);
     half lastCoverageCount = from_fixed(lastCoverageData & 0xffffu);
     if (lastPathID != v_pathID)
     {
@@ -603,7 +603,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     // get resolved later like other draws because the @imageTexture binding is liable to change,
     // and furthermore in the case of imageMeshes, we can't calculate UV coordinates based on
     // fragment position.
-    half4 imageColor = make_half4(TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord));
+    half4 imageColor = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
     half meshCoverage = 1.;
 #ifdef @DRAW_IMAGE_RECT
     meshCoverage = min(v_edgeCoverage, meshCoverage);
@@ -611,7 +611,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #ifdef @ENABLE_CLIP_RECT
     if (@ENABLE_CLIP_RECT)
     {
-        half clipRectCoverage = min_value(make_half4(v_clipRect));
+        half clipRectCoverage = min_value(cast_float4_to_half4(v_clipRect));
         meshCoverage = clamp(clipRectCoverage, make_half(.0), meshCoverage);
     }
 #endif
@@ -626,7 +626,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     // TODO: skip this step if no clipping AND srcOver AND imageColor is solid.
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageCountBuffer);
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
-    ushort lastPathID = make_ushort(lastCoverageData >> 16);
+    ushort lastPathID = cast_uint_to_ushort(lastCoverageData >> 16);
     uint2 lastPaintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
     uint clipData;
     half4 lastColor = resolve_path_color(coverageCount,
@@ -644,7 +644,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
         meshCoverage = min(meshCoverage, clipCoverage);
     }
 #endif // ENABLE_CLIPPING
-    imageColor.a *= meshCoverage * make_half(imageDrawUniforms.opacity);
+    imageColor.a *= meshCoverage * cast_float_to_half(imageDrawUniforms.opacity);
 
 #ifdef @FIXED_FUNCTION_COLOR_BLEND
     // Leverage the property that premultiplied src-over blending is associative and blend the
@@ -658,8 +658,8 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
         // lastColor and imageColor first, and potentially avoid a framebuffer load if it ends up
         // opaque.
         half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
-        ushort lastBlendMode = make_ushort((lastPaintData.x >> 4) & 0xfu);
-        ushort imageBlendMode = make_ushort(imageDrawUniforms.blendMode);
+        ushort lastBlendMode = cast_uint_to_ushort((lastPaintData.x >> 4) & 0xfu);
+        ushort imageBlendMode = cast_uint_to_ushort(imageDrawUniforms.blendMode);
         dstColorPremul = blend(lastColor, dstColorPremul, lastBlendMode);
         imageColor = blend(imageColor, dstColorPremul, imageBlendMode);
         PLS_STORE4F(colorBuffer, imageColor);
@@ -689,7 +689,7 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
 #ifdef @FIXED_FUNCTION_COLOR_BLEND
-    _fragColor = make_half4(.0, .0, .0, .0);
+    _fragColor = make_half4(.0);
 #endif
 #ifdef @STORE_COLOR_CLEAR
     PLS_STORE4F(colorBuffer, unpackUnorm4x8(uniforms.colorClearValue));
@@ -720,7 +720,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageCountBuffer);
     half coverageCount = from_fixed(lastCoverageData & 0xffffu);
-    ushort lastPathID = make_ushort(lastCoverageData >> 16);
+    ushort lastPathID = cast_uint_to_ushort(lastCoverageData >> 16);
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, lastPathID);
     uint clipData;
     half4 color = resolve_path_color(coverageCount,

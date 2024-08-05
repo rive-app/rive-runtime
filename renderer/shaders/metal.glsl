@@ -41,13 +41,6 @@
 #define half3x4 $half3x4
 #endif
 
-#define make_half4 half4
-#define make_half3 half3
-#define make_half2 half2
-#define make_half half
-
-#define make_ushort ushort
-
 #define INLINE $inline
 #define OUT(ARG_TYPE) $thread ARG_TYPE&
 
@@ -80,10 +73,13 @@
 #define VARYING(IDX, TYPE, NAME) TYPE NAME
 #define FLAT [[flat]]
 #define NO_PERSPECTIVE [[$center_no_perspective]]
-// No-persective interpolation appears to break the guarantee that a varying == "x" when all
-// barycentric values also == "x". Using default (perspective-correct) interpolation is also faster
-// than flat on M1.
+#ifndef @OPTIONALLY_FLAT
+// Don't use no-perspective interpolation for varyings that need to be flat. No-persective
+// interpolation appears to break the guarantee that a varying == "x" when all barycentric values
+// also == "x". Default (perspective-correct) interpolation does preserve this guarantee, and seems
+// to be faster faster than flat on Apple Silicon.
 #define @OPTIONALLY_FLAT
+#endif
 #define VARYING_BLOCK_END                                                                          \
     float4 _pos [[$position]] [[$invariant]];                                                      \
     }                                                                                              \
@@ -448,9 +444,4 @@ INLINE half3 mix(half3 a, half3 b, bool3 c)
     for (int i = 0; i < 3; ++i)
         result[i] = c[i] ? b[i] : a[i];
     return result;
-}
-
-INLINE half3x4 make_half3x4(half3 a, half b, half3 c, half d, half3 e, half f)
-{
-    return half3x4(a.x, a.y, a.z, b, c.x, c.y, c.z, d, e.x, e.y, e.z, f);
 }
