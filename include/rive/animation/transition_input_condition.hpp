@@ -7,8 +7,6 @@ namespace rive
 class TransitionInputCondition : public TransitionInputConditionBase
 {
 public:
-    virtual bool evaluate(const SMIInput* inputInstance) const { return true; }
-
     StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive

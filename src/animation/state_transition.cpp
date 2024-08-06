@@ -150,26 +150,10 @@ AllowTransition StateTransition::allowed(StateInstance* stateFrom,
 
     for (auto condition : m_Conditions)
     {
-        if (condition->is<TransitionInputCondition>())
+        if ((ignoreTriggers && condition->is<TransitionTriggerCondition>()) ||
+            !condition->evaluate(stateMachineInstance))
         {
-            auto inputCondition = condition->as<TransitionInputCondition>();
-            // N.B. state machine instance sanitizes these for us...
-            auto input = stateMachineInstance->input(inputCondition->inputId());
-
-            if ((ignoreTriggers && inputCondition->is<TransitionTriggerCondition>()) ||
-                !inputCondition->evaluate(input))
-            {
-                return AllowTransition::no;
-            }
-        }
-        else if (condition->is<TransitionViewModelCondition>())
-        {
-            auto transitionViewModelCondition = condition->as<TransitionViewModelCondition>();
-
-            if (!transitionViewModelCondition->evaluateCondition(stateMachineInstance))
-            {
-                return AllowTransition::no;
-            }
+            return AllowTransition::no;
         }
     }
 

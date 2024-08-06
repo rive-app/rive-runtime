@@ -115,7 +115,7 @@ public:
 
     /// Allow anything referencing a concrete StateMachineInstace access to
     /// the backing artboard (explicitly not allowed on Scenes).
-    Artboard* artboard() { return m_artboardInstance; }
+    Artboard* artboard() const { return m_artboardInstance; }
 
     void setParentStateMachineInstance(StateMachineInstance* instance)
     {
@@ -136,7 +136,7 @@ public:
     /// Gets a reported event at an index < reportedEventCount().
     const EventReport reportedEventAt(std::size_t index) const;
     bool playsAudio() override { return true; }
-    BindableProperty* bindablePropertyInstance(BindableProperty* bindableProperty);
+    BindableProperty* bindablePropertyInstance(BindableProperty* bindableProperty) const;
     DataBind* bindableDataBind(BindableProperty* bindableProperty);
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };

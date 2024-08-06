@@ -14,7 +14,7 @@ public:
     StatusCode import(ImportStack& importStack) override;
     virtual bool compare(TransitionComparator* comparand,
                          TransitionConditionOp operation,
-                         StateMachineInstance* stateMachineInstance);
+                         const StateMachineInstance* stateMachineInstance);
 
 protected:
     bool compareNumbers(float left, float right, TransitionConditionOp op);

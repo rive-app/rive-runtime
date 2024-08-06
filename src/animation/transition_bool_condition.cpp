@@ -13,8 +13,9 @@ bool TransitionBoolCondition::validateInputType(const StateMachineInput* input) 
     return input == nullptr || input->is<StateMachineBool>();
 }
 
-bool TransitionBoolCondition::evaluate(const SMIInput* inputInstance) const
+bool TransitionBoolCondition::evaluate(const StateMachineInstance* stateMachineInstance) const
 {
+    auto inputInstance = stateMachineInstance->input(inputId());
     if (inputInstance == nullptr)
     {
         return true;

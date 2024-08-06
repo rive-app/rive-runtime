@@ -7,7 +7,7 @@ namespace rive
 class TransitionTriggerCondition : public TransitionTriggerConditionBase
 {
 public:
-    bool evaluate(const SMIInput* inputInstance) const override;
+    bool evaluate(const StateMachineInstance* stateMachineInstance) const override;
 
 protected:
     bool validateInputType(const StateMachineInput* input) const override;

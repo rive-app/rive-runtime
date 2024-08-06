@@ -9,7 +9,7 @@ class TransitionValueBooleanComparator : public TransitionValueBooleanComparator
 public:
     bool compare(TransitionComparator* comparand,
                  TransitionConditionOp operation,
-                 StateMachineInstance* stateMachineInstance) override;
+                 const StateMachineInstance* stateMachineInstance) override;
 };
 } // namespace rive
 

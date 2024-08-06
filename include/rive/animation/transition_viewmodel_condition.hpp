@@ -14,9 +14,9 @@ protected:
     TransitionComparator* m_rightComparator;
 
 public:
-    bool evaluateCondition(StateMachineInstance* stateMachineInstance);
-    TransitionComparator* leftComparator() { return m_leftComparator; };
-    TransitionComparator* rightComparator() { return m_rightComparator; };
+    bool evaluate(const StateMachineInstance* stateMachineInstance) const override;
+    TransitionComparator* leftComparator() const { return m_leftComparator; };
+    TransitionComparator* rightComparator() const { return m_rightComparator; };
     void comparator(TransitionComparator* value)
     {
         if (m_leftComparator == nullptr)

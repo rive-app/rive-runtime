@@ -4,7 +4,7 @@ using namespace rive;
 
 bool TransitionValueColorComparator::compare(TransitionComparator* comparand,
                                              TransitionConditionOp operation,
-                                             StateMachineInstance* stateMachineInstance)
+                                             const StateMachineInstance* stateMachineInstance)
 {
     if (comparand->is<TransitionValueColorComparator>())
     {

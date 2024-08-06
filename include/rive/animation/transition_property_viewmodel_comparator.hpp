@@ -2,6 +2,7 @@
 #define _RIVE_TRANSITION_PROPERTY_VIEW_MODEL_COMPARATOR_HPP_
 #include "rive/generated/animation/transition_property_viewmodel_comparator_base.hpp"
 #include "rive/data_bind/bindable_property.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -11,12 +12,18 @@ public:
     StatusCode import(ImportStack& importStack) override;
     bool compare(TransitionComparator* comparand,
                  TransitionConditionOp operation,
-                 StateMachineInstance* stateMachineInstance) override;
-    float propertyValueNumber(StateMachineInstance* stateMachineInstance);
-    std::string propertyValueString(StateMachineInstance* stateMachineInstance);
-    int propertyValueColor(StateMachineInstance* stateMachineInstance);
-    bool propertyValueBoolean(StateMachineInstance* stateMachineInstance);
-    uint16_t propertyValueEnum(StateMachineInstance* stateMachineInstance);
+                 const StateMachineInstance* stateMachineInstance) override;
+    template <typename T = BindableProperty, typename U>
+    U value(const StateMachineInstance* stateMachineInstance)
+    {
+        if (m_bindableProperty->is<T>())
+        {
+            auto bindableInstance =
+                stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
+            return bindableInstance->as<T>()->propertyValue();
+        }
+        return (new T())->propertyValue();
+    };
 
 protected:
     BindableProperty* m_bindableProperty;

@@ -1258,7 +1258,8 @@ void StateMachineInstance::notifyEventListeners(const std::vector<EventReport>& 
     }
 }
 
-BindableProperty* StateMachineInstance::bindablePropertyInstance(BindableProperty* bindableProperty)
+BindableProperty* StateMachineInstance::bindablePropertyInstance(
+    BindableProperty* bindableProperty) const
 {
     auto bindablePropertyInstance = m_bindablePropertyInstances.find(bindableProperty);
     if (bindablePropertyInstance == m_bindablePropertyInstances.end())

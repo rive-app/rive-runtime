@@ -95,7 +95,7 @@ bool TransitionComparator::compareColors(int left, int right, TransitionConditio
 
 bool TransitionComparator::compare(TransitionComparator* comparand,
                                    TransitionConditionOp operation,
-                                   StateMachineInstance* stateMachineInstance)
+                                   const StateMachineInstance* stateMachineInstance)
 {
     return false;
 }

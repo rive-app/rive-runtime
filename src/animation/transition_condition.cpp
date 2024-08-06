@@ -1,4 +1,4 @@
-#include "rive/animation/transition_bool_condition.hpp"
+#include "rive/animation/transition_condition.hpp"
 #include "rive/animation/state_transition.hpp"
 #include "rive/importers/state_transition_importer.hpp"
 
@@ -10,7 +10,6 @@ StatusCode TransitionCondition::onAddedClean(CoreContext* context) { return Stat
 
 StatusCode TransitionCondition::import(ImportStack& importStack)
 {
-
     auto transitionImporter = importStack.latest<StateTransitionImporter>(StateTransition::typeKey);
     if (transitionImporter == nullptr)
     {

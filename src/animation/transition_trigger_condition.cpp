@@ -13,8 +13,9 @@ bool TransitionTriggerCondition::validateInputType(const StateMachineInput* inpu
     return input == nullptr || input->is<StateMachineTrigger>();
 }
 
-bool TransitionTriggerCondition::evaluate(const SMIInput* inputInstance) const
+bool TransitionTriggerCondition::evaluate(const StateMachineInstance* stateMachineInstance) const
 {
+    auto inputInstance = stateMachineInstance->input(inputId());
     if (inputInstance == nullptr)
     {
         return true;

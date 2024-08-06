@@ -8,7 +8,7 @@
 
 using namespace rive;
 
-bool TransitionViewModelCondition::evaluateCondition(StateMachineInstance* stateMachineInstance)
+bool TransitionViewModelCondition::evaluate(const StateMachineInstance* stateMachineInstance) const
 {
     if (leftComparator() != nullptr && rightComparator() != nullptr)
     {
