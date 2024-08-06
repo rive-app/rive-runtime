@@ -87,14 +87,14 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
             glClearBufferfv(GL_COLOR, COLOR_PLANE_IDX, clearColor4f);
         }
-        {
-            GLuint coverageClear[4]{desc.coverageClearValue};
-            glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, coverageClear);
-        }
         if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
         {
             constexpr static GLuint kZeroClear[4]{};
             glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZeroClear);
+        }
+        {
+            GLuint coverageClear[4]{desc.coverageClearValue};
+            glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, coverageClear);
         }
 
         switch (desc.interlockMode)

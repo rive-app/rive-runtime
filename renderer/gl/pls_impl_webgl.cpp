@@ -201,13 +201,13 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
                                     ? GL_LOAD_OP_ZERO_ANGLE
                                     : GL_DONT_CARE;
         GLenum loadOps[4] = {webgl_load_op(desc.colorLoadAction),
-                             GL_LOAD_OP_ZERO_ANGLE,
                              clipLoadAction,
-                             GL_DONT_CARE};
+                             GL_DONT_CARE,
+                             GL_LOAD_OP_ZERO_ANGLE};
         static_assert(COLOR_PLANE_IDX == 0);
-        static_assert(COVERAGE_PLANE_IDX == 1);
-        static_assert(CLIP_PLANE_IDX == 2);
-        static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+        static_assert(CLIP_PLANE_IDX == 1);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+        static_assert(COVERAGE_PLANE_IDX == 3);
         glBeginPixelLocalStorageANGLE(4, loadOps);
     }
 
@@ -218,9 +218,9 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
                                                 GL_DONT_CARE,
                                                 GL_DONT_CARE};
         static_assert(COLOR_PLANE_IDX == 0);
-        static_assert(COVERAGE_PLANE_IDX == 1);
-        static_assert(CLIP_PLANE_IDX == 2);
-        static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+        static_assert(CLIP_PLANE_IDX == 1);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+        static_assert(COVERAGE_PLANE_IDX == 3);
         glEndPixelLocalStorageANGLE(4, kStoreOps);
 
         if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(

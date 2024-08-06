@@ -33,9 +33,9 @@ public:
     // otherwise returns a UAV of offscreenTexture().
     ID3D11UnorderedAccessView* targetUAV();
 
-    ID3D11UnorderedAccessView* coverageUAV();
     ID3D11UnorderedAccessView* clipUAV();
     ID3D11UnorderedAccessView* scratchColorUAV();
+    ID3D11UnorderedAccessView* coverageUAV();
 
 private:
     const ComPtr<ID3D11Device> m_gpu;

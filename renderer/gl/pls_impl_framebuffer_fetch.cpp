@@ -52,6 +52,10 @@ public:
 
         GLuint coverageClear[4]{desc.coverageClearValue};
         auto fbFetchBuffers = DrawBufferMask::color;
+        if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
+        {
+            fbFetchBuffers |= DrawBufferMask::clip;
+        }
         if (desc.interlockMode == pls::InterlockMode::rasterOrdering)
         {
             fbFetchBuffers |= DrawBufferMask::coverage | DrawBufferMask::scratchColor;
@@ -62,10 +66,6 @@ public:
             renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, DrawBufferMask::coverage);
             glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, coverageClear);
             renderTarget->bindAsImageTextures(DrawBufferMask::coverage);
-        }
-        if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
-        {
-            fbFetchBuffers |= DrawBufferMask::clip;
         }
         renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, fbFetchBuffers);
 
@@ -85,14 +85,14 @@ public:
             UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
             glClearBufferfv(GL_COLOR, COLOR_PLANE_IDX, clearColor4f);
         }
-        if (fbFetchBuffers & DrawBufferMask::coverage)
-        {
-            glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, coverageClear);
-        }
         if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
         {
             constexpr static uint32_t kZero[4]{};
             glClearBufferuiv(GL_COLOR, CLIP_PLANE_IDX, kZero);
+        }
+        if (fbFetchBuffers & DrawBufferMask::coverage)
+        {
+            glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, coverageClear);
         }
 
         if (desc.interlockMode == pls::InterlockMode::atomics &&

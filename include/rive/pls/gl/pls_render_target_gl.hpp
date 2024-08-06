@@ -31,9 +31,9 @@ public:
     enum class DrawBufferMask
     {
         color = 1 << 0,
-        coverage = 1 << 1,
-        clip = 1 << 2,
-        scratchColor = 1 << 3,
+        clip = 1 << 1,
+        scratchColor = 1 << 2,
+        coverage = 1 << 3,
 
         rasterOrderingBuffers = color | coverage | clip | scratchColor,
         atomicBuffers = color | coverage | clip,

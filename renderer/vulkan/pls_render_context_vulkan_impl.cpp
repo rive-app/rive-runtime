@@ -757,7 +757,7 @@ public:
 
     constexpr static uint32_t PLSAttachmentCount(pls::InterlockMode interlockMode)
     {
-        return interlockMode == pls::InterlockMode::atomics ? 3 : 4;
+        return interlockMode == pls::InterlockMode::atomics ? 2 : 4;
     }
 
     DrawPipelineLayout(PLSRenderContextVulkanImpl* impl,
@@ -891,14 +891,6 @@ public:
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
             },
             {
-                .binding = COVERAGE_PLANE_IDX,
-                .descriptorType = m_interlockMode == pls::InterlockMode::atomics
-                                      ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
-                                      : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-            {
                 .binding = CLIP_PLANE_IDX,
                 .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                 .descriptorCount = 1,
@@ -910,11 +902,19 @@ public:
                 .descriptorCount = 1,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
             },
+            {
+                .binding = COVERAGE_PLANE_IDX,
+                .descriptorType = m_interlockMode == pls::InterlockMode::atomics
+                                      ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                                      : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
         };
         static_assert(COLOR_PLANE_IDX == 0);
-        static_assert(COVERAGE_PLANE_IDX == 1);
-        static_assert(CLIP_PLANE_IDX == 2);
-        static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+        static_assert(CLIP_PLANE_IDX == 1);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+        static_assert(COVERAGE_PLANE_IDX == 3);
 
         VkDescriptorSetLayoutCreateInfo plsLayoutInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
@@ -1042,14 +1042,6 @@ public:
                     .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
                 },
                 {
-                    .format = VK_FORMAT_R32_UINT,
-                    .samples = VK_SAMPLE_COUNT_1_BIT,
-                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
-                    .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-                {
                     .format = VK_FORMAT_R8G8B8A8_UNORM,
                     .samples = VK_SAMPLE_COUNT_1_BIT,
                     .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
@@ -1057,21 +1049,23 @@ public:
                     .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
                     .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
                 },
+                {
+                    .format = VK_FORMAT_R32_UINT,
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                },
             };
             static_assert(COLOR_PLANE_IDX == 0);
-            static_assert(COVERAGE_PLANE_IDX == 1);
-            static_assert(CLIP_PLANE_IDX == 2);
-            static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+            static_assert(CLIP_PLANE_IDX == 1);
+            static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+            static_assert(COVERAGE_PLANE_IDX == 3);
 
             VkAttachmentReference attachmentReferences[] = {
                 {
                     .attachment = COLOR_PLANE_IDX,
-                    .layout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-                {
-                    .attachment = m_interlockMode == pls::InterlockMode::atomics
-                                      ? VK_ATTACHMENT_UNUSED
-                                      : COVERAGE_PLANE_IDX,
                     .layout = VK_IMAGE_LAYOUT_GENERAL,
                 },
                 {
@@ -1082,11 +1076,15 @@ public:
                     .attachment = SCRATCH_COLOR_PLANE_IDX,
                     .layout = VK_IMAGE_LAYOUT_GENERAL,
                 },
+                {
+                    .attachment = COVERAGE_PLANE_IDX,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
+                },
             };
             static_assert(COLOR_PLANE_IDX == 0);
-            static_assert(COVERAGE_PLANE_IDX == 1);
-            static_assert(CLIP_PLANE_IDX == 2);
-            static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+            static_assert(CLIP_PLANE_IDX == 1);
+            static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+            static_assert(COVERAGE_PLANE_IDX == 3);
 
             VkAttachmentReference inputAttachmentReferences[] = {
                 // COLOR is not an input attachment if we're using fixed
@@ -1584,9 +1582,9 @@ public:
             {.colorWriteMask = vkutil::ColorWriteMaskRGBA},
         };
         static_assert(COLOR_PLANE_IDX == 0);
-        static_assert(COVERAGE_PLANE_IDX == 1);
-        static_assert(CLIP_PLANE_IDX == 2);
-        static_assert(SCRATCH_COLOR_PLANE_IDX == 3); // Never cleared.
+        static_assert(CLIP_PLANE_IDX == 1);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+        static_assert(COVERAGE_PLANE_IDX == 3);
 
         VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
@@ -1992,23 +1990,6 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator,
                                         VkCommandBuffer commandBuffer,
                                         pls::InterlockMode interlockMode)
 {
-    if (interlockMode == pls::InterlockMode::rasterOrdering && m_coverageTexture == nullptr)
-    {
-        m_coverageTexture = allocator->makeTexture({
-            .format = VK_FORMAT_R32_UINT,
-            .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-        });
-
-        vkutil::insert_image_memory_barrier(commandBuffer,
-                                            *m_coverageTexture,
-                                            VK_IMAGE_LAYOUT_UNDEFINED,
-                                            VK_IMAGE_LAYOUT_GENERAL);
-
-        m_coverageTextureView = allocator->makeTextureView(m_coverageTexture);
-    }
-
     if (m_clipTexture == nullptr)
     {
         m_clipTexture = allocator->makeTexture({
@@ -2041,6 +2022,23 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator,
                                             VK_IMAGE_LAYOUT_GENERAL);
 
         m_scratchColorTextureView = allocator->makeTextureView(m_scratchColorTexture);
+    }
+
+    if (interlockMode == pls::InterlockMode::rasterOrdering && m_coverageTexture == nullptr)
+    {
+        m_coverageTexture = allocator->makeTexture({
+            .format = VK_FORMAT_R32_UINT,
+            .extent = {width(), height(), 1},
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+        });
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            *m_coverageTexture,
+                                            VK_IMAGE_LAYOUT_UNDEFINED,
+                                            VK_IMAGE_LAYOUT_GENERAL);
+
+        m_coverageTextureView = allocator->makeTextureView(m_coverageTexture);
     }
 
     if (interlockMode == pls::InterlockMode::atomics && m_coverageAtomicTexture == nullptr)
@@ -2318,15 +2316,18 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     VkImageView imageViews[] = {
         *renderTarget->m_targetTextureView,
-        desc.interlockMode == pls::InterlockMode::atomics
-            // Just use m_clipTextureView to have something. TODO: cleanup.
-            ? renderTarget->m_clipTextureView->vkImageView()
-            : renderTarget->m_coverageTextureView->vkImageView(),
         *renderTarget->m_clipTextureView,
         desc.interlockMode == pls::InterlockMode::atomics
             ? VK_NULL_HANDLE
             : renderTarget->m_scratchColorTextureView->vkImageView(),
+        desc.interlockMode == pls::InterlockMode::atomics
+            ? VK_NULL_HANDLE
+            : renderTarget->m_coverageTextureView->vkImageView(),
     };
+    static_assert(COLOR_PLANE_IDX == 0);
+    static_assert(CLIP_PLANE_IDX == 1);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+    static_assert(COVERAGE_PLANE_IDX == 3);
 
     rcp<vkutil::Framebuffer> framebuffer = m_allocator->makeFramebuffer({
         .renderPass = vkRenderPass,
@@ -2342,15 +2343,16 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                    static_cast<uint32_t>(renderTarget->height())},
     };
 
-    VkClearValue clearValues[3] = {
+    VkClearValue clearValues[] = {
         {.color = vkutil::color_clear_rgba32f(desc.clearColor)},
-        {.color = vkutil::color_clear_r32ui(desc.coverageClearValue)},
         {},
+        {},
+        {.color = vkutil::color_clear_r32ui(desc.coverageClearValue)},
     };
     static_assert(COLOR_PLANE_IDX == 0);
-    static_assert(COVERAGE_PLANE_IDX == 1);
-    static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(SCRATCH_COLOR_PLANE_IDX == 3); // Never cleared.
+    static_assert(CLIP_PLANE_IDX == 1);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+    static_assert(COVERAGE_PLANE_IDX == 3);
 
     bool needsBarrierBeforeNextDraw = false;
     if (desc.interlockMode == pls::InterlockMode::atomics)
@@ -2526,22 +2528,6 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             }});
     }
 
-    vkutil::update_image_descriptor_sets(
-        m_device,
-        inputAttachmentDescriptorSet,
-        {
-            .dstBinding = COVERAGE_PLANE_IDX,
-            .descriptorType = desc.interlockMode == pls::InterlockMode::atomics
-                                  ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
-                                  : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-        },
-        {{
-            .imageView = desc.interlockMode == pls::InterlockMode::atomics
-                             ? renderTarget->m_coverageAtomicTextureView->vkImageView()
-                             : renderTarget->m_coverageTextureView->vkImageView(),
-            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-        }});
-
     vkutil::update_image_descriptor_sets(m_device,
                                          inputAttachmentDescriptorSet,
                                          {
@@ -2567,6 +2553,22 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
             }});
     }
+
+    vkutil::update_image_descriptor_sets(
+        m_device,
+        inputAttachmentDescriptorSet,
+        {
+            .dstBinding = COVERAGE_PLANE_IDX,
+            .descriptorType = desc.interlockMode == pls::InterlockMode::atomics
+                                  ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
+                                  : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+        },
+        {{
+            .imageView = desc.interlockMode == pls::InterlockMode::atomics
+                             ? renderTarget->m_coverageAtomicTextureView->vkImageView()
+                             : renderTarget->m_coverageTextureView->vkImageView(),
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        }});
 
     // Bind the descriptor sets for this draw pass.
     // (The imageTexture and imageDraw dynamic uniform offsets might have to update

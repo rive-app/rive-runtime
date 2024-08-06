@@ -1539,13 +1539,13 @@ wgpu::RenderPipeline PLSRenderContextWebGPUImpl::makePLSDrawPipeline(
     wgpu::ColorTargetState colorTargets[] = {
         {.format = framebufferFormat},
         {.format = wgpu::TextureFormat::R32Uint},
-        {.format = wgpu::TextureFormat::R32Uint},
         {.format = framebufferFormat},
+        {.format = wgpu::TextureFormat::R32Uint},
     };
     static_assert(COLOR_PLANE_IDX == 0);
-    static_assert(COVERAGE_PLANE_IDX == 1);
-    static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+    static_assert(CLIP_PLANE_IDX == 1);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+    static_assert(COVERAGE_PLANE_IDX == 3);
 
     wgpu::FragmentState fragmentState = {
         .module = fragmentShader,
@@ -1594,13 +1594,6 @@ wgpu::RenderPassEncoder PLSRenderContextWebGPUImpl::makePLSRenderPass(
             .clearValue = clearColor,
         },
         {
-            // coverage
-            .view = renderTarget->m_coverageTextureView,
-            .loadOp = wgpu::LoadOp::Clear,
-            .storeOp = wgpu::StoreOp::Discard,
-            .clearValue = {},
-        },
-        {
             // clip
             .view = renderTarget->m_clipTextureView,
             .loadOp = wgpu::LoadOp::Clear,
@@ -1614,11 +1607,18 @@ wgpu::RenderPassEncoder PLSRenderContextWebGPUImpl::makePLSRenderPass(
             .storeOp = wgpu::StoreOp::Discard,
             .clearValue = {},
         },
+        {
+            // coverage
+            .view = renderTarget->m_coverageTextureView,
+            .loadOp = wgpu::LoadOp::Clear,
+            .storeOp = wgpu::StoreOp::Discard,
+            .clearValue = {},
+        },
     };
     static_assert(COLOR_PLANE_IDX == 0);
-    static_assert(COVERAGE_PLANE_IDX == 1);
-    static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
+    static_assert(CLIP_PLANE_IDX == 1);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+    static_assert(COVERAGE_PLANE_IDX == 3);
 
     wgpu::RenderPassDescriptor passDesc = {
         .colorAttachmentCount = static_cast<size_t>(
@@ -1852,16 +1852,16 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 .textureView = renderTarget->m_targetTextureView,
             },
             {
-                .binding = COVERAGE_PLANE_IDX,
-                .textureView = renderTarget->m_coverageTextureView,
-            },
-            {
                 .binding = CLIP_PLANE_IDX,
                 .textureView = renderTarget->m_clipTextureView,
             },
             {
                 .binding = SCRATCH_COLOR_PLANE_IDX,
                 .textureView = renderTarget->m_scratchColorTextureView,
+            },
+            {
+                .binding = COVERAGE_PLANE_IDX,
+                .textureView = renderTarget->m_coverageTextureView,
             },
         };
 

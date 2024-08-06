@@ -812,25 +812,6 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::targetUAV()
     return m_targetUAV.Get();
 }
 
-ID3D11UnorderedAccessView* PLSRenderTargetD3D::coverageUAV()
-{
-    if (m_coverageTexture == nullptr)
-    {
-        m_coverageTexture = make_simple_2d_texture(m_gpu.Get(),
-                                                   DXGI_FORMAT_R32_UINT,
-                                                   width(),
-                                                   height(),
-                                                   1,
-                                                   D3D11_BIND_UNORDERED_ACCESS);
-    }
-    if (m_coverageUAV == nullptr)
-    {
-        m_coverageUAV =
-            make_simple_2d_uav(m_gpu.Get(), m_coverageTexture.Get(), DXGI_FORMAT_R32_UINT);
-    }
-    return m_coverageUAV.Get();
-}
-
 ID3D11UnorderedAccessView* PLSRenderTargetD3D::clipUAV()
 {
     if (m_clipTexture == nullptr)
@@ -868,6 +849,25 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::scratchColorUAV()
             m_gpuSupportsTypedUAVLoadStore ? DXGI_FORMAT_R8G8B8A8_UNORM : DXGI_FORMAT_R32_UINT);
     }
     return m_scratchColorUAV.Get();
+}
+
+ID3D11UnorderedAccessView* PLSRenderTargetD3D::coverageUAV()
+{
+    if (m_coverageTexture == nullptr)
+    {
+        m_coverageTexture = make_simple_2d_texture(m_gpu.Get(),
+                                                   DXGI_FORMAT_R32_UINT,
+                                                   width(),
+                                                   height(),
+                                                   1,
+                                                   D3D11_BIND_UNORDERED_ACCESS);
+    }
+    if (m_coverageUAV == nullptr)
+    {
+        m_coverageUAV =
+            make_simple_2d_uav(m_gpu.Get(), m_coverageTexture.Get(), DXGI_FORMAT_R32_UINT);
+    }
+    return m_coverageUAV.Get();
 }
 
 void PLSRenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -1379,14 +1379,14 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         case pls::LoadAction::dontCare:
             break;
     }
-    {
-        UINT coverageClear[4]{desc.coverageClearValue};
-        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), coverageClear);
-    }
     if (desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
     {
         constexpr static UINT kZero[4]{};
         m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->clipUAV(), kZero);
+    }
+    {
+        UINT coverageClear[4]{desc.coverageClearValue};
+        m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->coverageUAV(), coverageClear);
     }
 
     // Execute the DrawList.
@@ -1419,24 +1419,22 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
         renderDirectToRasterPipeline ? renderTarget->targetRTV() : NULL;
     ID3D11UnorderedAccessView* plsUAVs[] = {
         renderDirectToRasterPipeline ? NULL : renderTarget->targetUAV(),
-        renderTarget->coverageUAV(),
         renderTarget->clipUAV(),
         desc.interlockMode == pls::InterlockMode::rasterOrdering
             ? renderTarget->scratchColorUAV()
             : NULL, // Atomic mode doesn't use the scratchColor.
+        renderTarget->coverageUAV(),
     };
     static_assert(COLOR_PLANE_IDX == 0);
-    static_assert(COVERAGE_PLANE_IDX == 1);
-    static_assert(CLIP_PLANE_IDX == 2);
-    static_assert(SCRATCH_COLOR_PLANE_IDX == 3);
-    UINT numUsedUAVs =
-        plsUAVs[SCRATCH_COLOR_PLANE_IDX] != nullptr ? std::size(plsUAVs) : std::size(plsUAVs) - 1;
+    static_assert(CLIP_PLANE_IDX == 1);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+    static_assert(COVERAGE_PLANE_IDX == 3);
     m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
         renderDirectToRasterPipeline ? 1 : 0,
         &targetRTV,
         NULL,
         renderDirectToRasterPipeline ? 1 : 0,
-        renderDirectToRasterPipeline ? numUsedUAVs - 1 : numUsedUAVs,
+        renderDirectToRasterPipeline ? std::size(plsUAVs) - 1 : std::size(plsUAVs),
         renderDirectToRasterPipeline ? plsUAVs + 1 : plsUAVs,
         NULL);
 
@@ -1569,16 +1567,16 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                     assert(!renderTarget->targetTextureSupportsUAV());
                     ID3D11RenderTargetView* resolveRTV = renderTarget->targetRTV();
                     ID3D11UnorderedAccessView* resolveUAVs[] = {
-                        renderTarget->coverageUAV(),
                         renderTarget->clipUAV(),
                         renderTarget->targetUAV(), // Bind the target UAV (for reading) to a
                                                    // different slot for the resolve because D3D
                                                    // doesn't let us use slot 0 when there's a
                                                    // render target.
+                        renderTarget->coverageUAV(),
                     };
-                    static_assert(COVERAGE_PLANE_IDX == 1);
-                    static_assert(CLIP_PLANE_IDX == 2);
-                    static_assert(COALESCED_OFFSCREEN_COLOR_PLANE_IDX == 3);
+                    static_assert(CLIP_PLANE_IDX == 1);
+                    static_assert(COALESCED_OFFSCREEN_COLOR_PLANE_IDX == 2);
+                    static_assert(COVERAGE_PLANE_IDX == 3);
                     m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(1,
                                                                             &resolveRTV,
                                                                             NULL,

@@ -158,9 +158,9 @@ public:
             {
                 case pls::InterlockMode::rasterOrdering:
                     // In rasterOrdering mode, the PLS planes are accessed as color attachments.
-                    desc.colorAttachments[COVERAGE_PLANE_IDX].pixelFormat = MTLPixelFormatR32Uint;
                     desc.colorAttachments[CLIP_PLANE_IDX].pixelFormat = MTLPixelFormatR32Uint;
                     desc.colorAttachments[SCRATCH_COLOR_PLANE_IDX].pixelFormat = pixelFormat;
+                    desc.colorAttachments[COVERAGE_PLANE_IDX].pixelFormat = MTLPixelFormatR32Uint;
                     break;
                 case pls::InterlockMode::atomics:
                     // In atomic mode, the PLS planes are accessed as device buffers. We only use
@@ -803,15 +803,15 @@ id<MTLRenderCommandEncoder> PLSRenderContextMetalImpl::makeRenderPassForDraws(
                                 offset:0
                                atIndex:COLOR_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE];
         }
-        [encoder setFragmentBuffer:renderTarget->coverageAtomicBuffer()
-                            offset:0
-                           atIndex:COVERAGE_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE];
         if (flushDesc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_CLIPPING)
         {
             [encoder setFragmentBuffer:renderTarget->clipAtomicBuffer()
                                 offset:0
                                atIndex:CLIP_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE];
         }
+        [encoder setFragmentBuffer:renderTarget->coverageAtomicBuffer()
+                            offset:0
+                           atIndex:COVERAGE_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE];
     }
     if (flushDesc.wireframe)
     {
@@ -953,15 +953,6 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     if (desc.interlockMode == pls::InterlockMode::rasterOrdering)
     {
         // In rasterOrdering mode, the PLS planes are accessed as color attachments.
-        pass.colorAttachments[COVERAGE_PLANE_IDX].texture =
-            renderTarget->m_coverageMemorylessTexture;
-        pass.colorAttachments[COVERAGE_PLANE_IDX].loadAction = MTLLoadActionClear;
-        pass.colorAttachments[COVERAGE_PLANE_IDX].clearColor =
-            MTLClearColorMake(desc.coverageClearValue, 0, 0, 0);
-        pass.colorAttachments[COVERAGE_PLANE_IDX].storeAction =
-            desc.interlockMode == pls::InterlockMode::atomics ? MTLStoreActionStore
-                                                              : MTLStoreActionDontCare;
-
         pass.colorAttachments[CLIP_PLANE_IDX].texture = renderTarget->m_clipMemorylessTexture;
         pass.colorAttachments[CLIP_PLANE_IDX].loadAction = MTLLoadActionClear;
         pass.colorAttachments[CLIP_PLANE_IDX].clearColor = MTLClearColorMake(0, 0, 0, 0);
@@ -973,6 +964,15 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
             renderTarget->m_scratchColorMemorylessTexture;
         pass.colorAttachments[SCRATCH_COLOR_PLANE_IDX].loadAction = MTLLoadActionDontCare;
         pass.colorAttachments[SCRATCH_COLOR_PLANE_IDX].storeAction = MTLStoreActionDontCare;
+
+        pass.colorAttachments[COVERAGE_PLANE_IDX].texture =
+            renderTarget->m_coverageMemorylessTexture;
+        pass.colorAttachments[COVERAGE_PLANE_IDX].loadAction = MTLLoadActionClear;
+        pass.colorAttachments[COVERAGE_PLANE_IDX].clearColor =
+            MTLClearColorMake(desc.coverageClearValue, 0, 0, 0);
+        pass.colorAttachments[COVERAGE_PLANE_IDX].storeAction =
+            desc.interlockMode == pls::InterlockMode::atomics ? MTLStoreActionStore
+                                                              : MTLStoreActionDontCare;
     }
     else if (!(desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND))
     {

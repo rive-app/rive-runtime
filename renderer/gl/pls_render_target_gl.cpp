@@ -60,9 +60,9 @@ void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, DrawBufferMas
                                     ? GL_COLOR_ATTACHMENT0 + i
                                     : GL_NONE;
             static_assert((int)DrawBufferMask::color == 1 << COLOR_PLANE_IDX);
-            static_assert((int)DrawBufferMask::coverage == 1 << COVERAGE_PLANE_IDX);
             static_assert((int)DrawBufferMask::clip == 1 << CLIP_PLANE_IDX);
             static_assert((int)DrawBufferMask::scratchColor == 1 << SCRATCH_COLOR_PLANE_IDX);
+            static_assert((int)DrawBufferMask::coverage == 1 << COVERAGE_PLANE_IDX);
         }
         glDrawBuffers(4, drawBufferList);
         m_internalDrawBufferMask = drawBufferMask;
@@ -81,11 +81,6 @@ void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, DrawBufferMas
     if (m_framebufferInternalAttachmentsDirty)
     {
         glFramebufferTexture2D(target,
-                               GL_COLOR_ATTACHMENT0 + COVERAGE_PLANE_IDX,
-                               GL_TEXTURE_2D,
-                               m_coverageTexture,
-                               0);
-        glFramebufferTexture2D(target,
                                GL_COLOR_ATTACHMENT0 + CLIP_PLANE_IDX,
                                GL_TEXTURE_2D,
                                m_clipTexture,
@@ -94,6 +89,11 @@ void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, DrawBufferMas
                                GL_COLOR_ATTACHMENT0 + SCRATCH_COLOR_PLANE_IDX,
                                GL_TEXTURE_2D,
                                m_scratchColorTexture,
+                               0);
+        glFramebufferTexture2D(target,
+                               GL_COLOR_ATTACHMENT0 + COVERAGE_PLANE_IDX,
+                               GL_TEXTURE_2D,
+                               m_coverageTexture,
                                0);
         m_framebufferInternalAttachmentsDirty = false;
     }
@@ -130,12 +130,12 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabi
 
         if (m_framebufferInternalPLSBindingsDirty)
         {
-            glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX, m_coverageTexture, 0, 0);
             glFramebufferTexturePixelLocalStorageANGLE(CLIP_PLANE_IDX, m_clipTexture, 0, 0);
             glFramebufferTexturePixelLocalStorageANGLE(SCRATCH_COLOR_PLANE_IDX,
                                                        m_scratchColorTexture,
                                                        0,
                                                        0);
+            glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX, m_coverageTexture, 0, 0);
             m_framebufferInternalPLSBindingsDirty = false;
         }
     }
@@ -156,17 +156,6 @@ void TextureRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMask)
                            GL_READ_WRITE,
                            GL_RGBA8);
     }
-    if (drawBufferMask & DrawBufferMask::coverage)
-    {
-        assert(m_coverageTexture != 0);
-        glBindImageTexture(COVERAGE_PLANE_IDX,
-                           m_coverageTexture,
-                           0,
-                           GL_FALSE,
-                           0,
-                           GL_READ_WRITE,
-                           GL_R32UI);
-    }
     if (drawBufferMask & DrawBufferMask::clip)
     {
         assert(m_clipTexture != 0);
@@ -182,6 +171,17 @@ void TextureRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMask)
                            0,
                            GL_READ_WRITE,
                            GL_RGBA8);
+    }
+    if (drawBufferMask & DrawBufferMask::coverage)
+    {
+        assert(m_coverageTexture != 0);
+        glBindImageTexture(COVERAGE_PLANE_IDX,
+                           m_coverageTexture,
+                           0,
+                           GL_FALSE,
+                           0,
+                           GL_READ_WRITE,
+                           GL_R32UI);
     }
 #endif
 }
