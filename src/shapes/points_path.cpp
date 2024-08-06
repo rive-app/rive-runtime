@@ -37,7 +37,7 @@ void PointsPath::update(ComponentDirt value)
     Super::update(value);
 }
 
-void PointsPath::markPathDirty()
+void PointsPath::markPathDirty(bool sendToLayout)
 {
     if (skin() != nullptr)
     {

@@ -58,7 +58,7 @@ public:
     bool canDeferPathUpdate();
     void addVertex(PathVertex* vertex);
 
-    virtual void markPathDirty();
+    virtual void markPathDirty(bool sendToLayout = true);
     virtual bool isPathClosed() const { return true; }
     void onDirty(ComponentDirt dirt) override;
     inline bool isHidden() const { return (pathFlags() & 0x1) == 0x1; }

@@ -228,7 +228,7 @@ void Path::buildPath(RawPath& rawPath) const
     }
 }
 
-void Path::markPathDirty()
+void Path::markPathDirty(bool sendToLayout)
 {
     addDirt(ComponentDirt::Path);
     if (m_Shape != nullptr)

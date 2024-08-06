@@ -10,7 +10,7 @@ public:
     bool isPathClosed() const override { return isClosed(); }
     void buildDependencies() override;
     void update(ComponentDirt value) override;
-    void markPathDirty() override;
+    void markPathDirty(bool sendToLayout = true) override;
     void markSkinDirty() override;
     const Mat2D& pathTransform() const override;
 };

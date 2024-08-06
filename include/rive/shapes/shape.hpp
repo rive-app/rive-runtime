@@ -69,6 +69,10 @@ public:
 
     AABB computeWorldBounds(const Mat2D* xform = nullptr) const;
     AABB computeLocalBounds() const;
+    Vec2D measureLayout(float width,
+                        LayoutMeasureMode widthMode,
+                        float height,
+                        LayoutMeasureMode heightMode) override;
 };
 } // namespace rive
 

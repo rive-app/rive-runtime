@@ -303,3 +303,17 @@ AABB Shape::computeLocalBounds() const
     Mat2D inverseWorld = world.invertOrIdentity();
     return computeWorldBounds(&inverseWorld);
 }
+
+Vec2D Shape::measureLayout(float width,
+                           LayoutMeasureMode widthMode,
+                           float height,
+                           LayoutMeasureMode heightMode)
+{
+    Vec2D size = Vec2D();
+    for (auto path : m_Paths)
+    {
+        Vec2D measured = path->measureLayout(width, widthMode, height, heightMode);
+        size = Vec2D(std::max(size.x, measured.x), std::max(size.y, measured.y));
+    }
+    return size;
+}
