@@ -138,6 +138,7 @@ public:
 
     void* takeLayoutNode();
     bool syncStyleChanges();
+    bool canHaveOverrides() override { return true; }
 
     bool advance(double elapsedSeconds, bool nested = true);
     bool advanceInternal(double elapsedSeconds, bool isRoot, bool nested = true);

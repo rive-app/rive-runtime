@@ -13,6 +13,22 @@ public:
     Core* clone() const override;
     void markNestedLayoutDirty();
     void update(ComponentDirt value) override;
+    StatusCode onAddedClean(CoreContext* context) override;
+
+    float actualInstanceWidth();
+    float actualInstanceHeight();
+
+protected:
+    void instanceWidthChanged() override;
+    void instanceHeightChanged() override;
+    void instanceWidthUnitsValueChanged() override;
+    void instanceHeightUnitsValueChanged() override;
+    void instanceWidthScaleTypeChanged() override;
+    void instanceHeightScaleTypeChanged() override;
+
+private:
+    void updateWidthOverride();
+    void updateHeightOverride();
 };
 } // namespace rive
 

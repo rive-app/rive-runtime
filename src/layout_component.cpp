@@ -131,6 +131,22 @@ void LayoutComponent::update(ComponentDirt value)
     }
 }
 
+void LayoutComponent::widthOverride(float width, int unitValue, bool isRow)
+{
+    m_widthOverride = width;
+    m_widthUnitValueOverride = unitValue;
+    m_parentIsRow = isRow;
+    markLayoutNodeDirty();
+}
+
+void LayoutComponent::heightOverride(float height, int unitValue, bool isRow)
+{
+    m_heightOverride = height;
+    m_heightUnitValueOverride = unitValue;
+    m_parentIsRow = isRow;
+    markLayoutNodeDirty();
+}
+
 #ifdef WITH_RIVE_LAYOUT
 StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
 {
@@ -207,6 +223,18 @@ Vec2D LayoutComponent::measureLayout(float width,
     return size;
 }
 
+bool LayoutComponent::mainAxisIsRow()
+{
+    return style()->flexDirection() == YGFlexDirectionRow ||
+           style()->flexDirection() == YGFlexDirectionRowReverse;
+}
+
+bool LayoutComponent::mainAxisIsColumn()
+{
+    return style()->flexDirection() == YGFlexDirectionColumn ||
+           style()->flexDirection() == YGFlexDirectionColumnReverse;
+}
+
 void LayoutComponent::syncStyle()
 {
     if (m_style == nullptr)
@@ -224,94 +252,131 @@ void LayoutComponent::syncStyle()
     {
         ygNode.setMeasureFunc(nullptr);
     }
-    if (m_style->widthUnits() != YGUnitAuto)
-    {
-        ygStyle.dimensions()[YGDimensionWidth] = YGValue{width(), m_style->widthUnits()};
-    }
-    else
-    {
-        ygStyle.dimensions()[YGDimensionWidth] = YGValueAuto;
-    }
-    if (m_style->heightUnits() != YGUnitAuto)
-    {
-        ygStyle.dimensions()[YGDimensionHeight] = YGValue{height(), m_style->heightUnits()};
-    }
-    else
-    {
-        ygStyle.dimensions()[YGDimensionHeight] = YGValueAuto;
-    }
 
-    if (layoutParent() != nullptr)
+    auto realWidth = width();
+    auto realWidthUnits = m_style->widthUnits();
+    auto realWidthScaleType = m_style->widthScaleType();
+    auto realHeight = height();
+    auto realHeightUnits = m_style->heightUnits();
+    auto realHeightScaleType = m_style->heightScaleType();
+    auto parentIsRow = layoutParent() != nullptr ? layoutParent()->mainAxisIsRow() : true;
+
+    // If we have override width/height values, use those.
+    // Currently we only use these for Artboards that are part of a NestedArtboardLayout
+    // but perhaps there will be other use cases for overriding in the future?
+    if (canHaveOverrides())
     {
-        bool isRow = layoutParent()->style()->flexDirection() == YGFlexDirectionRow ||
-                     layoutParent()->style()->flexDirection() == YGFlexDirectionRowReverse;
-        switch (m_style->widthScaleType())
+        if (!std::isnan(m_widthOverride))
         {
-            case LayoutScaleType::fixed:
-                if (isRow)
-                {
-                    ygStyle.flexGrow() = YGFloatOptional(0);
-                }
-                break;
-            case LayoutScaleType::fill:
-                if (isRow)
-                {
-                    ygStyle.flexGrow() = YGFloatOptional(1);
-                }
-                else
-                {
-                    ygStyle.alignSelf() = YGAlignStretch;
-                }
-                break;
-            case LayoutScaleType::hug:
-                if (isRow)
-                {
-                    ygStyle.flexGrow() = YGFloatOptional(0);
-                }
-                else
-                {
-                    ygStyle.alignSelf() = YGAlignAuto;
-                }
-                break;
-            default:
-                break;
+            realWidth = m_widthOverride;
         }
-        bool isColumn = !isRow;
-        switch (m_style->heightScaleType())
+        if (!std::isnan(m_heightOverride))
         {
-            case LayoutScaleType::fixed:
-                if (isColumn)
-                {
-                    ygStyle.flexGrow() = YGFloatOptional(0);
-                }
-                break;
-            case LayoutScaleType::fill:
-                if (isColumn)
-                {
-                    ygStyle.flexGrow() = YGFloatOptional(1);
-                }
-                else
-                {
-                    ygStyle.alignSelf() = YGAlignStretch;
-                }
-                break;
-            case LayoutScaleType::hug:
-                if (isColumn)
-                {
-                    ygStyle.flexGrow() = YGFloatOptional(0);
-                }
-                else
-                {
-                    ygStyle.alignSelf() = YGAlignAuto;
-                }
-                break;
-            default:
-                break;
+            realHeight = m_heightOverride;
+        }
+        parentIsRow = m_parentIsRow;
+
+        if (m_widthUnitValueOverride != -1)
+        {
+            realWidthUnits = YGUnit(m_widthUnitValueOverride);
+            switch (realWidthUnits)
+            {
+                case YGUnitPoint:
+                case YGUnitPercent:
+                    realWidthScaleType = LayoutScaleType::fixed;
+                    break;
+                case YGUnitAuto:
+                    realWidthScaleType = LayoutScaleType::fill;
+                    break;
+                default:
+                    break;
+            }
+        }
+        if (m_heightUnitValueOverride != -1)
+        {
+            realHeightUnits = YGUnit(m_heightUnitValueOverride);
+            switch (realHeightUnits)
+            {
+                case YGUnitPoint:
+                case YGUnitPercent:
+                    realHeightScaleType = LayoutScaleType::fixed;
+                    break;
+                case YGUnitAuto:
+                    realHeightScaleType = LayoutScaleType::fill;
+                    break;
+                default:
+                    break;
+            }
         }
     }
+    ygStyle.dimensions()[YGDimensionWidth] = YGValue{realWidth, realWidthUnits};
+    ygStyle.dimensions()[YGDimensionHeight] = YGValue{realHeight, realHeightUnits};
 
-    bool isRowForAlignment = m_style->flexDirection() == YGFlexDirectionRow ||
-                             m_style->flexDirection() == YGFlexDirectionRowReverse;
+    switch (realWidthScaleType)
+    {
+        case LayoutScaleType::fixed:
+            if (parentIsRow)
+            {
+                ygStyle.flexGrow() = YGFloatOptional(0);
+            }
+            break;
+        case LayoutScaleType::fill:
+            if (parentIsRow)
+            {
+                ygStyle.flexGrow() = YGFloatOptional(1);
+            }
+            else
+            {
+                ygStyle.alignSelf() = YGAlignStretch;
+            }
+            break;
+        case LayoutScaleType::hug:
+            if (parentIsRow)
+            {
+                ygStyle.flexGrow() = YGFloatOptional(0);
+            }
+            else
+            {
+                ygStyle.alignSelf() = YGAlignAuto;
+            }
+            break;
+        default:
+            break;
+    }
+
+    switch (realHeightScaleType)
+    {
+        case LayoutScaleType::fixed:
+            if (!parentIsRow)
+            {
+                ygStyle.flexGrow() = YGFloatOptional(0);
+            }
+            break;
+        case LayoutScaleType::fill:
+            if (!parentIsRow)
+            {
+                ygStyle.flexGrow() = YGFloatOptional(1);
+            }
+            else
+            {
+                ygStyle.alignSelf() = YGAlignStretch;
+            }
+            break;
+        case LayoutScaleType::hug:
+            if (!parentIsRow)
+            {
+                ygStyle.flexGrow() = YGFloatOptional(0);
+            }
+            else
+            {
+                ygStyle.alignSelf() = YGAlignAuto;
+            }
+            break;
+        default:
+            break;
+    }
+
+    bool isRowForAlignment = mainAxisIsRow();
     switch (m_style->alignmentType())
     {
         case LayoutAlignmentType::topLeft:
@@ -801,6 +866,9 @@ Vec2D LayoutComponent::measureLayout(float width,
 void LayoutComponent::markLayoutNodeDirty() {}
 void LayoutComponent::markLayoutStyleDirty() {}
 void LayoutComponent::onDirty(ComponentDirt value) {}
+bool LayoutComponent::mainAxisIsRow() { return true; }
+
+bool LayoutComponent::mainAxisIsColumn() { return false; }
 #endif
 
 void LayoutComponent::clipChanged() { markLayoutNodeDirty(); }

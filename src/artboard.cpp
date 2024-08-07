@@ -689,7 +689,10 @@ void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
     m_dirtyLayout.insert(layoutComponent);
     if (sharesLayoutWithHost())
     {
-        m_host->as<NestedArtboardLayout>()->markNestedLayoutDirty();
+        // TODO: Follow up with Luigi
+        // This only gets called when the NestedArtboardLayout is in the runtime
+        // but seems to cause an infinite loop in certain cases
+        // m_host->as<NestedArtboardLayout>()->markNestedLayoutDirty();
     }
 }
 

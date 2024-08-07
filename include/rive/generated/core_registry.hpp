@@ -683,6 +683,18 @@ public:
             case SoloBase::activeComponentIdPropertyKey:
                 object->as<SoloBase>()->activeComponentId(value);
                 break;
+            case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
+                object->as<NestedArtboardLayoutBase>()->instanceWidthUnitsValue(value);
+                break;
+            case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
+                object->as<NestedArtboardLayoutBase>()->instanceHeightUnitsValue(value);
+                break;
+            case NestedArtboardLayoutBase::instanceWidthScaleTypePropertyKey:
+                object->as<NestedArtboardLayoutBase>()->instanceWidthScaleType(value);
+                break;
+            case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
+                object->as<NestedArtboardLayoutBase>()->instanceHeightScaleType(value);
+                break;
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
                 object->as<LayoutComponentStyleBase>()->layoutWidthScaleType(value);
                 break;
@@ -1218,6 +1230,12 @@ public:
             case NodeBase::yPropertyKey:
             case NodeBase::yArtboardPropertyKey:
                 object->as<NodeBase>()->y(value);
+                break;
+            case NestedArtboardLayoutBase::instanceWidthPropertyKey:
+                object->as<NestedArtboardLayoutBase>()->instanceWidth(value);
+                break;
+            case NestedArtboardLayoutBase::instanceHeightPropertyKey:
+                object->as<NestedArtboardLayoutBase>()->instanceHeight(value);
                 break;
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 object->as<LayoutComponentStyleBase>()->gapHorizontal(value);
@@ -1798,6 +1816,14 @@ public:
                 return object->as<NestedAnimationBase>()->animationId();
             case SoloBase::activeComponentIdPropertyKey:
                 return object->as<SoloBase>()->activeComponentId();
+            case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
+                return object->as<NestedArtboardLayoutBase>()->instanceWidthUnitsValue();
+            case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
+                return object->as<NestedArtboardLayoutBase>()->instanceHeightUnitsValue();
+            case NestedArtboardLayoutBase::instanceWidthScaleTypePropertyKey:
+                return object->as<NestedArtboardLayoutBase>()->instanceWidthScaleType();
+            case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
+                return object->as<NestedArtboardLayoutBase>()->instanceHeightScaleType();
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->layoutWidthScaleType();
             case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
@@ -2165,6 +2191,10 @@ public:
             case NodeBase::yPropertyKey:
             case NodeBase::yArtboardPropertyKey:
                 return object->as<NodeBase>()->y();
+            case NestedArtboardLayoutBase::instanceWidthPropertyKey:
+                return object->as<NestedArtboardLayoutBase>()->instanceWidth();
+            case NestedArtboardLayoutBase::instanceHeightPropertyKey:
+                return object->as<NestedArtboardLayoutBase>()->instanceHeight();
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->gapHorizontal();
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
@@ -2524,6 +2554,10 @@ public:
             case NestedArtboardBase::artboardIdPropertyKey:
             case NestedAnimationBase::animationIdPropertyKey:
             case SoloBase::activeComponentIdPropertyKey:
+            case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
+            case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
+            case NestedArtboardLayoutBase::instanceWidthScaleTypePropertyKey:
+            case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
@@ -2701,6 +2735,8 @@ public:
             case NodeBase::xArtboardPropertyKey:
             case NodeBase::yPropertyKey:
             case NodeBase::yArtboardPropertyKey:
+            case NestedArtboardLayoutBase::instanceWidthPropertyKey:
+            case NestedArtboardLayoutBase::instanceHeightPropertyKey:
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
             case LayoutComponentStyleBase::maxWidthPropertyKey:
@@ -2985,6 +3021,14 @@ public:
                 return object->is<NestedAnimationBase>();
             case SoloBase::activeComponentIdPropertyKey:
                 return object->is<SoloBase>();
+            case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
+                return object->is<NestedArtboardLayoutBase>();
+            case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
+                return object->is<NestedArtboardLayoutBase>();
+            case NestedArtboardLayoutBase::instanceWidthScaleTypePropertyKey:
+                return object->is<NestedArtboardLayoutBase>();
+            case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
+                return object->is<NestedArtboardLayoutBase>();
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
@@ -3331,6 +3375,10 @@ public:
             case NodeBase::yPropertyKey:
             case NodeBase::yArtboardPropertyKey:
                 return object->is<NodeBase>();
+            case NestedArtboardLayoutBase::instanceWidthPropertyKey:
+                return object->is<NestedArtboardLayoutBase>();
+            case NestedArtboardLayoutBase::instanceHeightPropertyKey:
+                return object->is<NestedArtboardLayoutBase>();
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::gapVerticalPropertyKey:

@@ -71,6 +71,12 @@ protected:
     }
 
 private:
+    float m_widthOverride = NAN;
+    int m_widthUnitValueOverride = -1;
+    float m_heightOverride = NAN;
+    int m_heightUnitValueOverride = -1;
+    bool m_parentIsRow = true;
+
 #ifdef WITH_RIVE_LAYOUT
 protected:
     YGNode& layoutNode() { return m_layoutData->node; }
@@ -105,6 +111,14 @@ public:
     {
         return AABB::fromLTWH(0.0f, 0.0f, m_layoutSizeWidth, m_layoutSizeHeight);
     }
+
+    // We provide a way for nested artboards (or other objects) to override this layout's
+    // width/height and unit values.
+    void widthOverride(float width, int unitValue = 1, bool isRow = true);
+    void heightOverride(float height, int unitValue = 1, bool isRow = true);
+    virtual bool canHaveOverrides() { return false; }
+    bool mainAxisIsRow();
+    bool mainAxisIsColumn();
 
 #ifdef WITH_RIVE_LAYOUT
     LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())), m_proxy(this)
