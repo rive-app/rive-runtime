@@ -271,10 +271,12 @@ private:
     // LogicalFlush::ResourceCounters and LogicalFlush::LayoutCounters.
     struct ResourceAllocationCounts
     {
-        using VecType = simd::gvec<size_t, 12>;
+        constexpr static int kNumElements = 12;
+        using VecType = simd::gvec<size_t, kNumElements>;
 
         RIVE_ALWAYS_INLINE VecType toVec() const
         {
+            static_assert(sizeof(*this) == sizeof(size_t) * kNumElements);
             static_assert(sizeof(VecType) >= sizeof(*this));
             VecType vec;
             RIVE_INLINE_MEMCPY(&vec, this, sizeof(*this));
@@ -283,6 +285,7 @@ private:
 
         RIVE_ALWAYS_INLINE ResourceAllocationCounts(const VecType& vec)
         {
+            static_assert(sizeof(*this) == sizeof(size_t) * kNumElements);
             static_assert(sizeof(VecType) >= sizeof(*this));
             RIVE_INLINE_MEMCPY(this, &vec, sizeof(*this));
         }
