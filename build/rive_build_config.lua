@@ -158,6 +158,7 @@ newoption({
         { 'static', 'Use static runtime' },
         { 'dynamic', 'Use dynamic runtime' },
         { 'dynamic_debug', 'Use dynamic runtime force debug' },
+        { 'dynamic_release', 'Use dynamic runtime force release' },
     },
     default = 'default',
 })
@@ -194,6 +195,12 @@ filter({ 'system:windows', 'options:windows_runtime=dynamic_debug' })
 do
     staticruntime('off')
     runtime('Debug')
+end
+
+filter({ 'system:windows', 'options:windows_runtime=dynamic_release' })
+do
+    staticruntime('off')
+    runtime('Release')
 end
 
 filter('system:windows')
@@ -283,6 +290,11 @@ do
         '5264', -- 'rive::math::PI': 'const' variable is not used
         '4647', -- behavior change: __is_pod(rive::Vec2D) has different value in previous versions
     })
+end
+
+filter({ 'action:vs2022' })
+do
+    flags({ 'MultiProcessorCompile' })
 end
 
 filter({})

@@ -286,8 +286,8 @@ case "$RIVE_BUILD_SYSTEM" in
         for TARGET in $@; do
             MSVC_TARGETS="$MSVC_TARGETS -t:$TARGET"
         done
-        echo msbuild.exe "./$RIVE_OUT/rive.sln" -p:UseMultiToolTask=true -m:$NUM_CORES $MSVC_TARGETS
-        msbuild.exe "./$RIVE_OUT/rive.sln" -p:UseMultiToolTask=true -m:$NUM_CORES $MSVC_TARGETS
+        echo msbuild.exe "./$RIVE_OUT/rive.sln" $MSVC_TARGETS
+        msbuild.exe "./$RIVE_OUT/rive.sln" $MSVC_TARGETS
         ;;
     *)
         echo "Unsupported buildsystem $RIVE_BUILD_SYSTEM"
