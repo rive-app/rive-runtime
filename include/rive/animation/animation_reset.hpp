@@ -3,7 +3,7 @@
 
 #include <string>
 #include "rive/artboard.hpp"
-#include <rive/animation/animation_reset.hpp>
+#include "rive/animation/animation_reset.hpp"
 #include "rive/core/binary_writer.hpp"
 #include "rive/core/vector_binary_writer.hpp"
 #include "rive/core/binary_data_reader.hpp"

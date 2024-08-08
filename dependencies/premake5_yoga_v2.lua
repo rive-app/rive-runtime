@@ -17,6 +17,14 @@ do
 
     includedirs({ yoga })
 
+    filter('action:xcode4')
+    do
+        -- xcode doesnt like angle brackets except for -isystem
+        -- should use externalincludedirs but GitHub runners dont have latest premake5 binaries
+        buildoptions({ '-isystem' .. yoga })
+    end
+    filter({})
+
     files({
         yoga .. '/yoga/Utils.cpp',
         yoga .. '/yoga/YGConfig.cpp',

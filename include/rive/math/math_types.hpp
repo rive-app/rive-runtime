@@ -61,6 +61,14 @@ template <typename Dst, typename Src> Dst bit_cast(const Src& src)
     return dst;
 }
 
+// Lossless cast function that asserts on overflow
+template <typename T, typename U> T lossless_numeric_cast(U u)
+{
+    T t = static_cast<T>(u);
+    assert(static_cast<U>(t) == u);
+    return t;
+}
+
 // Attempt to generate a "clz" assembly instruction.
 RIVE_ALWAYS_INLINE static int clz32(uint32_t x)
 {

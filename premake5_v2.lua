@@ -46,6 +46,14 @@ do
         yoga,
     })
 
+    filter('action:xcode4')
+    do
+        -- xcode doesnt like angle brackets except for -isystem
+        -- should use externalincludedirs but GitHub runners dont have latest premake5 binaries
+        buildoptions({ '-isystem' .. yoga })
+    end
+    filter({})
+
     defines({ 'YOGA_EXPORT=' })
 
     files({ 'src/**.cpp' })

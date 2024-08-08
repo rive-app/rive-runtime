@@ -2,6 +2,7 @@ dofile('rive_build_config.lua')
 
 local dependency = require('dependency')
 sheenbidi = dependency.github('Tehreer/SheenBidi', 'v2.6')
+Headers = sheenbidi .. '/Headers'
 
 project('rive_sheenbidi')
 do
@@ -9,7 +10,15 @@ do
     language('C')
     warnings('Off')
 
-    includedirs({ sheenbidi .. '/Headers' })
+    includedirs({ Headers })
+
+    filter('action:xcode4')
+    do
+        -- xcode doesnt like angle brackets except for -isystem
+        -- should use externalincludedirs but GitHub runners dont have latest premake5 binaries
+        buildoptions({ '-isystem' .. Headers })
+    end
+    filter({})
 
     buildoptions({ '-Wall', '-ansi', '-pedantic' })
 
