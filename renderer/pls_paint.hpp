@@ -78,7 +78,7 @@ public:
     const float* coeffs() const { return m_coeffs.data(); }
     const ColorInt* colors() const { return m_colors.get(); }
     const float* stops() const { return m_stops.get(); }
-    int count() const { return m_count; }
+    size_t count() const { return m_count; }
     bool isOpaque() const;
 
 private:

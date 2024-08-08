@@ -483,7 +483,7 @@ void PLSPathDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
         flush->pushPath(this,
                         m_type == Type::midpointFanPath ? PatchType::midpointFan
                                                         : PatchType::outerCurves,
-                        tessVertexCount);
+                        math::lossless_numeric_cast<uint32_t>(tessVertexCount));
 
         onPushToRenderContext(flush);
     }
@@ -827,7 +827,8 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     {
         ContourInfo* contour = &m_contours[i];
         size_t contourLineCount = contour->endLineIdx - contourFirstLineIdx;
-        uint32_t contourVertexCount = contourLineCount * 2; // Each line tessellates to 2 vertices.
+        uint32_t contourVertexCount = math::lossless_numeric_cast<uint32_t>(
+            contourLineCount * 2); // Each line tessellates to 2 vertices.
         uint4 mergedTessVertexSums4 = 0;
 
         // Finish calculating and counting parametric segments for each curve.
@@ -1440,7 +1441,7 @@ void InteriorTriangulationDraw::processPath(PathOp op,
                 RIVE_UNREACHABLE();
             case PathVerb::cubic:
             {
-                size_t numSubdivisions = FindSubdivisionCount(pts, vectorXform);
+                uint32_t numSubdivisions = FindSubdivisionCount(pts, vectorXform);
                 if (numSubdivisions == 1)
                 {
                     if (op == PathOp::countDataAndTriangulate)

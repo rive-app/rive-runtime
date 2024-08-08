@@ -20,7 +20,7 @@ constexpr size_t kDefaultSimpleGradientCapacity = 512;
 constexpr size_t kDefaultComplexGradientCapacity = 1024;
 constexpr size_t kDefaultDrawCapacity = 2048;
 
-constexpr size_t kMaxTextureHeight = 2048; // TODO: Move this variable to PlatformFeatures.
+constexpr uint32_t kMaxTextureHeight = 2048; // TODO: Move this variable to PlatformFeatures.
 constexpr size_t kMaxTessellationVertexCount = kMaxTextureHeight * kTessTextureWidth;
 constexpr size_t kMaxTessellationPaddingVertexCount =
     pls::kMidpointFanPatchSegmentSpan +      // Padding at the beginning of the tess texture
@@ -285,7 +285,7 @@ uint32_t PLSRenderContext::LogicalFlush::generateClipID(const IAABB& contentBoun
     {
         m_clips.emplace_back(contentBounds);
         assert(m_ctx->m_clipContentID != m_clips.size());
-        return m_clips.size();
+        return math::lossless_numeric_cast<uint32_t>(m_clips.size());
     }
     return 0; // There are no available clip IDs. The caller should flush and try again.
 }
@@ -394,7 +394,7 @@ bool PLSRenderContext::LogicalFlush::allocateGradient(const PLSGradient* gradien
                 // We ran out of rows in the gradient texture. Caller has to flush and try again.
                 return false;
             }
-            rampTexelsIdx = m_simpleGradients.size() * 2;
+            rampTexelsIdx = math::lossless_numeric_cast<uint32_t>(m_simpleGradients.size() * 2);
             m_simpleGradients.insert({simpleKey, rampTexelsIdx});
             m_pendingSimpleGradientWrites.emplace_back().set(gradient->colors());
         }
@@ -615,7 +615,8 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
         constexpr uint32_t kPrePadding = pls::kMidpointFanPatchSegmentSpan;
         m_midpointFanTessVertexIdx = kPrePadding;
         m_midpointFanTessEndLocation =
-            m_midpointFanTessVertexIdx + m_resourceCounts.midpointFanTessVertexCount;
+            m_midpointFanTessVertexIdx +
+            math::lossless_numeric_cast<uint32_t>(m_resourceCounts.midpointFanTessVertexCount);
 
         // outerCubic tessellation vertices reside after the midpointFan vertices, aligned on a
         // multiple of the outerCubic patch size.
@@ -623,7 +624,8 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
             PaddingToAlignUp<pls::kOuterCurvePatchSegmentSpan>(m_midpointFanTessEndLocation);
         m_outerCubicTessVertexIdx = m_midpointFanTessEndLocation + interiorPadding;
         m_outerCubicTessEndLocation =
-            m_outerCubicTessVertexIdx + m_resourceCounts.outerCubicTessVertexCount;
+            m_outerCubicTessVertexIdx +
+            math::lossless_numeric_cast<uint32_t>(m_resourceCounts.outerCubicTessVertexCount);
 
         // We need one more padding vertex after all the tessellation vertices.
         constexpr uint32_t kPostPadding = 1;
@@ -633,8 +635,8 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
         assert(totalTessVertexCountWithPadding <= kMaxTessellationVertexCount);
     }
 
-    uint32_t tessDataHeight =
-        resource_texture_height<kTessTextureWidth>(totalTessVertexCountWithPadding);
+    uint32_t tessDataHeight = math::lossless_numeric_cast<uint32_t>(
+        resource_texture_height<kTessTextureWidth>(totalTessVertexCountWithPadding));
     if (m_resourceCounts.maxTessellatedSegmentCount != 0)
     {
         // Conservatively account for line breaks and padding in the tessellation span count.
@@ -735,13 +737,16 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
     m_flushDesc.firstComplexGradSpan = runningFrameResourceCounts->complexGradientSpanCount +
                                        runningFrameLayoutCounts->gradSpanPaddingCount;
     m_flushDesc.simpleGradTexelsWidth =
-        std::min<uint32_t>(m_simpleGradients.size(), pls::kGradTextureWidthInSimpleRamps) * 2;
-    m_flushDesc.simpleGradTexelsHeight =
-        resource_texture_height<pls::kGradTextureWidthInSimpleRamps>(m_simpleGradients.size());
+        std::min<uint32_t>(math::lossless_numeric_cast<uint32_t>(m_simpleGradients.size()),
+                           pls::kGradTextureWidthInSimpleRamps) *
+        2;
+    m_flushDesc.simpleGradTexelsHeight = static_cast<uint32_t>(
+        resource_texture_height<pls::kGradTextureWidthInSimpleRamps>(m_simpleGradients.size()));
     m_flushDesc.simpleGradDataOffsetInBytes =
         runningFrameLayoutCounts->simpleGradCount * sizeof(pls::TwoTexelRamp);
     m_flushDesc.complexGradRowsTop = m_flushDesc.simpleGradTexelsHeight;
-    m_flushDesc.complexGradRowsHeight = m_complexGradients.size();
+    m_flushDesc.complexGradRowsHeight =
+        math::lossless_numeric_cast<uint32_t>(m_complexGradients.size());
     m_flushDesc.tessDataHeight = tessDataHeight;
 
     m_flushDesc.externalCommandBuffer = flushResources.externalCommandBuffer;
@@ -1028,7 +1033,8 @@ void PLSRenderContext::LogicalFlush::writeResources()
             }
             // We negate drawGroupIdx on opaque paths in order to draw them first and in reverse
             // order, but their z index should still remain positive.
-            m_currentZIndex = abs(key >> kDrawGroupShift);
+            m_currentZIndex = math::lossless_numeric_cast<uint32_t>(
+                abs(key >> static_cast<int64_t>(kDrawGroupShift)));
             m_plsDraws[key & kDrawIndexMask]->pushToRenderContext(this);
             priorKey = key;
         }
@@ -1214,18 +1220,22 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool fo
                                            sizeof(pls::TriangleVertex));
     }
 
-    allocs.gradTextureHeight = std::min(allocs.gradTextureHeight, kMaxTextureHeight);
+    allocs.gradTextureHeight = std::min<size_t>(allocs.gradTextureHeight, kMaxTextureHeight);
     LOG_TEXTURE_HEIGHT(gradTextureHeight, pls::kGradTextureWidth * 4);
     if (allocs.gradTextureHeight != m_currentResourceAllocations.gradTextureHeight || forceRealloc)
     {
-        m_impl->resizeGradientTexture(pls::kGradTextureWidth, allocs.gradTextureHeight);
+        m_impl->resizeGradientTexture(
+            pls::kGradTextureWidth,
+            math::lossless_numeric_cast<uint32_t>(allocs.gradTextureHeight));
     }
 
-    allocs.tessTextureHeight = std::min(allocs.tessTextureHeight, kMaxTextureHeight);
+    allocs.tessTextureHeight = std::min<size_t>(allocs.tessTextureHeight, kMaxTextureHeight);
     LOG_TEXTURE_HEIGHT(tessTextureHeight, pls::kTessTextureWidth * 4 * 4);
     if (allocs.tessTextureHeight != m_currentResourceAllocations.tessTextureHeight || forceRealloc)
     {
-        m_impl->resizeTessellationTexture(pls::kTessTextureWidth, allocs.tessTextureHeight);
+        m_impl->resizeTessellationTexture(
+            pls::kTessTextureWidth,
+            math::lossless_numeric_cast<uint32_t>(allocs.tessTextureHeight));
     }
 
     m_currentResourceAllocations = allocs;
@@ -1423,7 +1433,7 @@ void PLSRenderContext::LogicalFlush::pushPath(PLSPathDraw* draw,
            m_ctx->m_paintAuxData.elementsWritten());
 
     pls::DrawType drawType;
-    size_t tessLocation;
+    uint32_t tessLocation;
     if (patchType == PatchType::midpointFan)
     {
         drawType = DrawType::midpointFanPatches;
@@ -1442,7 +1452,7 @@ void PLSRenderContext::LogicalFlush::pushPath(PLSPathDraw* draw,
     assert(m_expectedPathTessLocationAtEndOfPath <= kMaxTessellationVertexCount);
 
     uint32_t patchSize = PatchSegmentSpan(drawType);
-    uint32_t baseInstance = tessLocation / patchSize;
+    uint32_t baseInstance = math::lossless_numeric_cast<uint32_t>(tessLocation / patchSize);
     assert(baseInstance * patchSize == tessLocation); // flush() is responsible for alignment.
 
     if (m_currentPathContourDirections == pls::ContourDirections::reverseAndForward)
@@ -1699,12 +1709,15 @@ void PLSRenderContext::LogicalFlush::pushInteriorTriangulation(InteriorTriangula
     assert(m_hasDoneLayout);
 
     assert(m_ctx->m_triangleVertexData.hasRoomFor(draw->triangulator()->maxVertexCount()));
-    uint32_t baseVertex = m_ctx->m_triangleVertexData.elementsWritten();
+    uint32_t baseVertex =
+        math::lossless_numeric_cast<uint32_t>(m_ctx->m_triangleVertexData.elementsWritten());
     size_t actualVertexCount =
         draw->triangulator()->polysToTriangles(&m_ctx->m_triangleVertexData, m_currentPathID);
     assert(actualVertexCount <= draw->triangulator()->maxVertexCount());
-    DrawBatch& batch =
-        pushPathDraw(draw, DrawType::interiorTriangulation, actualVertexCount, baseVertex);
+    DrawBatch& batch = pushPathDraw(draw,
+                                    DrawType::interiorTriangulation,
+                                    math::lossless_numeric_cast<uint32_t>(actualVertexCount),
+                                    baseVertex);
     // Interior triangulations are allowed to disable raster ordering since they are guaranteed to
     // not overlap.
     batch.needsBarrier = true;
@@ -1727,7 +1740,7 @@ void PLSRenderContext::LogicalFlush::pushImageRect(ImageRectDraw* draw)
                                                m_currentZIndex);
 
     DrawBatch& batch = pushDraw(draw, DrawType::imageRect, PaintType::image, 1, 0);
-    batch.imageDrawDataOffset = imageDrawDataOffset;
+    batch.imageDrawDataOffset = math::lossless_numeric_cast<uint32_t>(imageDrawDataOffset);
 }
 
 void PLSRenderContext::LogicalFlush::pushImageMesh(ImageMeshDraw* draw)
@@ -1747,14 +1760,15 @@ void PLSRenderContext::LogicalFlush::pushImageMesh(ImageMeshDraw* draw)
     batch.vertexBuffer = draw->vertexBuffer();
     batch.uvBuffer = draw->uvBuffer();
     batch.indexBuffer = draw->indexBuffer();
-    batch.imageDrawDataOffset = imageDrawDataOffset;
+    batch.imageDrawDataOffset = math::lossless_numeric_cast<uint32_t>(imageDrawDataOffset);
 }
 
 void PLSRenderContext::LogicalFlush::pushStencilClipReset(StencilClipReset* draw)
 {
     assert(m_hasDoneLayout);
 
-    uint32_t baseVertex = m_ctx->m_triangleVertexData.elementsWritten();
+    uint32_t baseVertex =
+        math::lossless_numeric_cast<uint32_t>(m_ctx->m_triangleVertexData.elementsWritten());
     auto [L, T, R, B] = AABB(getClipInfo(draw->previousClipID()).contentBounds);
     uint32_t Z = m_currentZIndex;
     assert(AABB(L, T, R, B).round() == draw->pixelBounds());

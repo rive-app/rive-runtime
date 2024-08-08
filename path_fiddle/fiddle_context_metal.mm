@@ -10,7 +10,7 @@
 #define GLFW_INCLUDE_NONE
 #define GLFW_EXPOSE_NATIVE_COCOA
 #include "GLFW/glfw3.h"
-#include <GLFW/glfw3native.h>
+#include "GLFW/glfw3native.h"
 
 using namespace rive;
 using namespace rive::pls;

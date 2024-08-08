@@ -87,8 +87,8 @@ static_assert(1 << kTessTextureWidthLog2 == kTessTextureWidth);
 
 // Gradients are implemented by sampling a horizontal ramp of pixels allocated in a global gradient
 // texture.
-constexpr static size_t kGradTextureWidth = 512;
-constexpr static size_t kGradTextureWidthInSimpleRamps = kGradTextureWidth / 2;
+constexpr static uint32_t kGradTextureWidth = 512;
+constexpr static uint32_t kGradTextureWidthInSimpleRamps = kGradTextureWidth / 2;
 
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
@@ -522,7 +522,7 @@ constexpr static uint32_t PatchFanIndexCount(DrawType drawType)
     return PatchIndexCount(drawType) - PatchBorderIndexCount(drawType);
 }
 
-constexpr static uintptr_t PatchBaseIndex(DrawType drawType)
+constexpr static uint32_t PatchBaseIndex(DrawType drawType)
 {
     switch (drawType)
     {
@@ -535,7 +535,7 @@ constexpr static uintptr_t PatchBaseIndex(DrawType drawType)
     }
 }
 
-constexpr static uintptr_t PatchFanBaseIndex(DrawType drawType)
+constexpr static uint32_t PatchFanBaseIndex(DrawType drawType)
 {
     return PatchBaseIndex(drawType) + PatchBorderIndexCount(drawType);
 }
@@ -809,10 +809,10 @@ struct FlushDescriptor
 };
 
 // Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
-template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(uint32_t value)
+template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(size_t value)
 {
-    constexpr uint32_t maxMultipleOfAlignment =
-        std::numeric_limits<uint32_t>::max() / Alignment * Alignment;
+    constexpr size_t maxMultipleOfAlignment =
+        std::numeric_limits<size_t>::max() / Alignment * Alignment;
     uint32_t padding = (maxMultipleOfAlignment - value) % Alignment;
     assert((value + padding) % Alignment == 0);
     return padding;

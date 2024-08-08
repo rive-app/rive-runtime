@@ -19,7 +19,17 @@ do
         'glad',
         'include',
         RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
+        yoga,
     })
+
+    filter('action:xcode4')
+    do
+        -- xcode doesnt like angle brackets except for -isystem
+        -- should use externalincludedirs but GitHub runners dont have latest premake5 binaries
+        buildoptions({ '-isystem' .. yoga })
+    end
+    filter({})
+
     flags({ 'FatalWarnings' })
 
     defines({ 'YOGA_EXPORT=' })

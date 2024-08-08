@@ -106,9 +106,9 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     // AA border vertices. "Inner tessellation curves" have one more segment without a fan triangle
     // whose purpose is to be a bowtie join.
     size_t vertexCount = 0;
-    size_t patchSegmentSpan = patchType == PatchType::midpointFan ? kMidpointFanPatchSegmentSpan
-                                                                  : kOuterCurvePatchSegmentSpan;
-    for (int i = 0; i < patchSegmentSpan; ++i)
+    int32_t patchSegmentSpan = patchType == PatchType::midpointFan ? kMidpointFanPatchSegmentSpan
+                                                                   : kOuterCurvePatchSegmentSpan;
+    for (int32_t i = 0; i < patchSegmentSpan; ++i)
     {
         float params = pack_params(patchSegmentSpan, STROKE_VERTEX);
         float l = static_cast<float>(i);
@@ -478,7 +478,7 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
             if (paintType == PaintType::image)
             {
                 uint64_t bindlessTextureHandle = imageTexture->bindlessTextureHandle();
-                m_bindlessTextureHandle[0] = bindlessTextureHandle;
+                m_bindlessTextureHandle[0] = static_cast<uint32_t>(bindlessTextureHandle);
                 m_bindlessTextureHandle[1] = bindlessTextureHandle >> 32;
             }
             else
@@ -562,7 +562,8 @@ std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes,
                                                   StorageBufferStructure bufferStructure)
 {
     assert(bufferSizeInBytes % pls::StorageBufferElementSizeInBytes(bufferStructure) == 0);
-    size_t elementCount = bufferSizeInBytes / pls::StorageBufferElementSizeInBytes(bufferStructure);
+    uint32_t elementCount = math::lossless_numeric_cast<uint32_t>(bufferSizeInBytes) /
+                            pls::StorageBufferElementSizeInBytes(bufferStructure);
     uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
     // PLSRenderContext is responsible for breaking up a flush before any storage buffer grows
     // larger than can be supported by a GL texture of width "STORAGE_TEXTURE_WIDTH".

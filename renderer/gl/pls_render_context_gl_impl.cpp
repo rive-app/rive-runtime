@@ -1006,7 +1006,10 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         m_state->bindProgram(m_colorRampProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.complexGradSpanCount);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP,
+                              0,
+                              4,
+                              math::lossless_numeric_cast<GLsizei>(desc.complexGradSpanCount));
     }
 
     // Copy the simple color ramps to the gradient texture.
@@ -1047,7 +1050,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         m_state->bindVAO(m_tessellateVAO);
         m_state->setCullFace(GL_BACK);
         size_t tessSpanOffsetInBytes = desc.firstTessVertexSpan * sizeof(pls::TessVertexSpan);
-        for (uintptr_t i = 0; i < 3; ++i)
+        for (GLuint i = 0; i < 3; ++i)
         {
             glVertexAttribPointer(i,
                                   4,
@@ -1071,7 +1074,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
                                 std::size(pls::kTessSpanIndices),
                                 GL_UNSIGNED_SHORT,
                                 0,
-                                desc.tessVertexSpanCount);
+                                math::lossless_numeric_cast<GLsizei>(desc.tessVertexSpanCount));
     }
 
     // Compile the draw programs before activating pixel local storage.

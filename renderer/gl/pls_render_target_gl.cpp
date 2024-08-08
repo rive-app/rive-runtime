@@ -54,7 +54,7 @@ void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, DrawBufferMas
     if (target != GL_READ_FRAMEBUFFER && m_internalDrawBufferMask != drawBufferMask)
     {
         GLenum drawBufferList[4];
-        for (size_t i = 0; i < 4; ++i)
+        for (int i = 0; i < 4; ++i)
         {
             drawBufferList[i] = (drawBufferMask & static_cast<DrawBufferMask>(1 << i))
                                     ? GL_COLOR_ATTACHMENT0 + i
