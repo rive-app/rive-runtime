@@ -380,7 +380,7 @@ ComPtr<ID3D11Buffer> PLSRenderContextD3DImpl::makeSimpleImmutableBuffer(size_t s
                                                                         const void* data)
 {
     D3D11_BUFFER_DESC desc{};
-    desc.ByteWidth = sizeInBytes;
+    desc.ByteWidth = math::lossless_numeric_cast<UINT>(sizeInBytes);
     desc.Usage = D3D11_USAGE_IMMUTABLE;
     desc.BindFlags = bindFlags;
     desc.StructureByteStride = sizeof(PatchVertex);
@@ -449,7 +449,7 @@ public:
         m_gpu(std::move(gpu)),
         m_gpuContext(std::move(gpuContext))
     {
-        m_desc.ByteWidth = sizeInBytes;
+        m_desc.ByteWidth = math::lossless_numeric_cast<UINT>(sizeInBytes);
         m_desc.BindFlags =
             type() == RenderBufferType::vertex ? D3D11_BIND_VERTEX_BUFFER : D3D11_BIND_INDEX_BUFFER;
         if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
@@ -586,7 +586,7 @@ protected:
         BufferRing(capacityInBytes), m_gpuContext(plsImpl->gpuContext())
     {
         D3D11_BUFFER_DESC desc{};
-        desc.ByteWidth = capacityInBytes;
+        desc.ByteWidth = math::lossless_numeric_cast<UINT>(capacityInBytes);
         desc.Usage = D3D11_USAGE_DEFAULT;
         desc.BindFlags = bindFlags;
         desc.CPUAccessFlags = 0;
@@ -620,7 +620,7 @@ protected:
         {
             D3D11_BOX box;
             box.left = 0;
-            box.right = mapSizeInBytes;
+            box.right = math::lossless_numeric_cast<UINT>(mapSizeInBytes);
             box.top = 0;
             box.bottom = 1;
             box.front = 0;
@@ -1066,7 +1066,7 @@ void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
             ComPtr<ID3DBlob> blob =
                 compileSourceToBlob(GLSL_VERTEX, shader.c_str(), GLSL_drawVertexMain, "vs_5_0");
             D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
-            size_t vertexAttribCount;
+            uint32_t vertexAttribCount;
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
@@ -1216,21 +1216,25 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     // All programs use the same storage buffers.
     ID3D11ShaderResourceView* storageBufferBufferSRVs[] = {
-        desc.pathCount > 0 ? replaceStructuredBufferSRV<pls::PathData>(pathBufferRing(),
-                                                                       desc.pathCount,
-                                                                       desc.firstPath)
+        desc.pathCount > 0 ? replaceStructuredBufferSRV<pls::PathData>(
+                                 pathBufferRing(),
+                                 desc.pathCount,
+                                 math::lossless_numeric_cast<UINT>(desc.firstPath))
                            : nullptr,
-        desc.pathCount > 0 ? replaceStructuredBufferSRV<pls::PaintData>(paintBufferRing(),
-                                                                        desc.pathCount,
-                                                                        desc.firstPaint)
+        desc.pathCount > 0 ? replaceStructuredBufferSRV<pls::PaintData>(
+                                 paintBufferRing(),
+                                 desc.pathCount,
+                                 math::lossless_numeric_cast<UINT>(desc.firstPaint))
                            : nullptr,
-        desc.pathCount > 0 ? replaceStructuredBufferSRV<pls::PaintAuxData>(paintAuxBufferRing(),
-                                                                           desc.pathCount,
-                                                                           desc.firstPaintAux)
+        desc.pathCount > 0 ? replaceStructuredBufferSRV<pls::PaintAuxData>(
+                                 paintAuxBufferRing(),
+                                 desc.pathCount,
+                                 math::lossless_numeric_cast<UINT>(desc.firstPaintAux))
                            : nullptr,
-        desc.contourCount > 0 ? replaceStructuredBufferSRV<pls::ContourData>(contourBufferRing(),
-                                                                             desc.contourCount,
-                                                                             desc.firstContour)
+        desc.contourCount > 0 ? replaceStructuredBufferSRV<pls::ContourData>(
+                                    contourBufferRing(),
+                                    desc.contourCount,
+                                    math::lossless_numeric_cast<UINT>(desc.firstContour))
                               : nullptr,
     };
     static_assert(PAINT_BUFFER_IDX == PATH_BUFFER_IDX + 1);
@@ -1273,7 +1277,10 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         m_gpuContext->OMSetRenderTargets(1, m_gradTextureRTV.GetAddressOf(), NULL);
 
-        m_gpuContext->DrawInstanced(4, desc.complexGradSpanCount, 0, desc.firstComplexGradSpan);
+        m_gpuContext->DrawInstanced(4,
+                                    desc.complexGradSpanCount,
+                                    0,
+                                    math::lossless_numeric_cast<UINT>(desc.firstComplexGradSpan));
     }
 
     // Copy the simple color ramps to the gradient texture.
@@ -1326,11 +1333,12 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         m_gpuContext->OMSetRenderTargets(1, m_tessTextureRTV.GetAddressOf(), NULL);
 
-        m_gpuContext->DrawIndexedInstanced(std::size(pls::kTessSpanIndices),
-                                           desc.tessVertexSpanCount,
-                                           0,
-                                           0,
-                                           desc.firstTessVertexSpan);
+        m_gpuContext->DrawIndexedInstanced(
+            std::size(pls::kTessSpanIndices),
+            desc.tessVertexSpanCount,
+            0,
+            0,
+            math::lossless_numeric_cast<UINT>(desc.firstTessVertexSpan));
 
         if (m_d3dCapabilities.isIntel)
         {

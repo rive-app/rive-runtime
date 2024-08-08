@@ -43,7 +43,7 @@ public:
 
     FillRule fillRule() const { return fFillRule; }
 
-    uint64_t maxVertexCount() const { return m_maxVertexCount; }
+    size_t maxVertexCount() const { return m_maxVertexCount; }
 
     size_t polysToTriangles(pls::WriteOnlyMappedMemory<pls::TriangleVertex>* bufferRing,
                             uint16_t pathID) const
@@ -67,7 +67,7 @@ private:
     // clockwise triangles.
     bool m_shouldReverseTriangles;
     Poly* m_polys = nullptr;
-    uint64_t m_maxVertexCount = 0;
+    size_t m_maxVertexCount = 0;
 };
 } // namespace rive
 

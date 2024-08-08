@@ -476,6 +476,7 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::stencilClipReset:
             return false;
     }
+    RIVE_UNREACHABLE();
 }
 
 constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
@@ -775,15 +776,15 @@ struct FlushDescriptor
                                     // LoadAction::clear.
 
     size_t flushUniformDataOffsetInBytes = 0;
-    size_t pathCount = 0;
+    uint32_t pathCount = 0;
     size_t firstPath = 0;
     size_t firstPaint = 0;
     size_t firstPaintAux = 0;
-    size_t contourCount = 0;
+    uint32_t contourCount = 0;
     size_t firstContour = 0;
-    size_t complexGradSpanCount = 0;
+    uint32_t complexGradSpanCount = 0;
     size_t firstComplexGradSpan = 0;
-    size_t tessVertexSpanCount = 0;
+    uint32_t tessVertexSpanCount = 0;
     size_t firstTessVertexSpan = 0;
     uint32_t simpleGradTexelsWidth = 0;
     uint32_t simpleGradTexelsHeight = 0;

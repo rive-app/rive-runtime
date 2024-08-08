@@ -48,6 +48,11 @@ do
         'rive_yoga',
     })
 
+    filter({ 'toolset:not msc' })
+    do
+        buildoptions({ '-Wshorten-64-to-32' })
+    end
+
     filter('options:with-skia')
     do
         includedirs({
@@ -82,6 +87,13 @@ do
             'IOKit.framework',
         })
         libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
+    end
+
+    filter({ 'options:with_vulkan', 'action:xcode4' })
+    do
+        -- Xcode doesn't search /usr/local/lib for shared libraries, which is where MoltenVK gets
+        -- installed.
+        libdirs({ '/usr/local/lib' })
     end
 
     filter('system:linux')

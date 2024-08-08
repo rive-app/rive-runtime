@@ -155,7 +155,7 @@ public:
     pls::ContourDirections m_contourDirections;
 
     // Used to guarantee m_pathRef doesn't change for the entire time we hold it.
-    RIVE_DEBUG_CODE(size_t m_rawPathMutationID;)
+    RIVE_DEBUG_CODE(uint64_t m_rawPathMutationID;)
 };
 
 // Draws a path by fanning tessellation patches around the midpoint of each contour.

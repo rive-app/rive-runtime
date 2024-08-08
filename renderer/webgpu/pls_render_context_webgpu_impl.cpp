@@ -4,7 +4,6 @@
 
 #include "rive/pls/webgpu/pls_render_context_webgpu_impl.hpp"
 
-#include "pls_render_context_webgpu_vulkan.hpp"
 #include "rive/pls/pls_image.hpp"
 #include "shaders/constants.glsl"
 
@@ -68,6 +67,7 @@ static void write_buffer(wgpu::Queue queue, wgpu::Buffer buffer, const void* dat
 #endif
 
 #ifdef RIVE_WEBGPU
+#include "pls_render_context_webgpu_vulkan.hpp"
 #include <webgpu/webgpu_cpp.h>
 #include <emscripten.h>
 #include <emscripten/html5_webgpu.h>
@@ -1726,9 +1726,11 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                              0.0,
                              1.0);
         gradPass.SetPipeline(m_colorRampPipeline->renderPipeline());
-        gradPass.SetVertexBuffer(0, webgpu_buffer(gradSpanBufferRing()));
+        gradPass.SetVertexBuffer(0,
+                                 webgpu_buffer(gradSpanBufferRing()),
+                                 desc.firstComplexGradSpan * sizeof(pls::GradientSpan));
         gradPass.SetBindGroup(0, bindings);
-        gradPass.Draw(4, desc.complexGradSpanCount, 0, desc.firstComplexGradSpan);
+        gradPass.Draw(4, desc.complexGradSpanCount, 0, 0);
         gradPass.End();
     }
 
@@ -1813,14 +1815,12 @@ void PLSRenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                              0.0,
                              1.0);
         tessPass.SetPipeline(m_tessellatePipeline->renderPipeline());
-        tessPass.SetVertexBuffer(0, webgpu_buffer(tessSpanBufferRing()));
+        tessPass.SetVertexBuffer(0,
+                                 webgpu_buffer(tessSpanBufferRing()),
+                                 desc.firstTessVertexSpan * sizeof(pls::TessVertexSpan));
         tessPass.SetIndexBuffer(m_tessSpanIndexBuffer, wgpu::IndexFormat::Uint16);
         tessPass.SetBindGroup(0, bindings);
-        tessPass.DrawIndexed(std::size(pls::kTessSpanIndices),
-                             desc.tessVertexSpanCount,
-                             0,
-                             0,
-                             desc.firstTessVertexSpan);
+        tessPass.DrawIndexed(std::size(pls::kTessSpanIndices), desc.tessVertexSpanCount, 0, 0, 0);
         tessPass.End();
     }
 

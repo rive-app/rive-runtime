@@ -722,18 +722,18 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
     }
 
     m_flushDesc.flushUniformDataOffsetInBytes = logicalFlushIdx * sizeof(pls::FlushUniforms);
-    m_flushDesc.pathCount = m_resourceCounts.pathCount;
-    m_flushDesc.pathCount = m_resourceCounts.pathCount;
+    m_flushDesc.pathCount = math::lossless_numeric_cast<uint32_t>(m_resourceCounts.pathCount);
     m_flushDesc.firstPath =
         runningFrameResourceCounts->pathCount + runningFrameLayoutCounts->pathPaddingCount;
     m_flushDesc.firstPaint =
         runningFrameResourceCounts->pathCount + runningFrameLayoutCounts->paintPaddingCount;
     m_flushDesc.firstPaintAux =
         runningFrameResourceCounts->pathCount + runningFrameLayoutCounts->paintAuxPaddingCount;
-    m_flushDesc.contourCount = m_resourceCounts.contourCount;
+    m_flushDesc.contourCount = math::lossless_numeric_cast<uint32_t>(m_resourceCounts.contourCount);
     m_flushDesc.firstContour =
         runningFrameResourceCounts->contourCount + runningFrameLayoutCounts->contourPaddingCount;
-    m_flushDesc.complexGradSpanCount = m_resourceCounts.complexGradientSpanCount;
+    m_flushDesc.complexGradSpanCount =
+        math::lossless_numeric_cast<uint32_t>(m_resourceCounts.complexGradientSpanCount);
     m_flushDesc.firstComplexGradSpan = runningFrameResourceCounts->complexGradientSpanCount +
                                        runningFrameLayoutCounts->gradSpanPaddingCount;
     m_flushDesc.simpleGradTexelsWidth =
@@ -1077,8 +1077,8 @@ void PLSRenderContext::LogicalFlush::writeResources()
     assert(m_outerCubicTessVertexIdx == m_outerCubicTessEndLocation);
 
     // Update the flush descriptor's data counts that aren't known until it's written out.
-    m_flushDesc.tessVertexSpanCount =
-        m_ctx->m_tessSpanData.elementsWritten() - m_flushDesc.firstTessVertexSpan;
+    m_flushDesc.tessVertexSpanCount = math::lossless_numeric_cast<uint32_t>(
+        m_ctx->m_tessSpanData.elementsWritten() - m_flushDesc.firstTessVertexSpan);
     m_flushDesc.hasTriangleVertices =
         m_ctx->m_triangleVertexData.bytesWritten() != initialTriangleVertexDataSize;
 

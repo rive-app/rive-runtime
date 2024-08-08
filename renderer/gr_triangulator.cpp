@@ -2364,7 +2364,7 @@ int64_t GrTriangulator::CountPoints(Poly* polys, FillRule overrideFillType)
 
 size_t GrTriangulator::countMaxTriangleVertices(Poly* polys) const
 {
-    return CountPoints(polys, fFillRule);
+    return math::lossless_numeric_cast<size_t>(CountPoints(polys, fFillRule));
 }
 
 size_t GrTriangulator::polysToTriangles(

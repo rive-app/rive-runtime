@@ -2102,8 +2102,9 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         vkCmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
-        VkBuffer buffer = m_gradSpanBufferRing.vkBufferAt(m_bufferRingIdx);
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, zeroOffset);
+        VkBuffer gradSpanBuffer = m_gradSpanBufferRing.vkBufferAt(m_bufferRingIdx);
+        VkDeviceSize gradSpanOffset = desc.firstComplexGradSpan * sizeof(pls::GradientSpan);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &gradSpanBuffer, &gradSpanOffset);
 
         VkDescriptorSet descriptorSet =
             descriptorSetPool->allocateDescriptorSet(m_colorRampPipeline->descriptorSetLayout());
@@ -2130,7 +2131,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                 0,
                                 nullptr);
 
-        vkCmdDraw(commandBuffer, 4, desc.complexGradSpanCount, 0, desc.firstComplexGradSpan);
+        vkCmdDraw(commandBuffer, 4, desc.complexGradSpanCount, 0, 0);
 
         vkCmdEndRenderPass(commandBuffer);
     }
@@ -2201,8 +2202,9 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         vkCmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
-        VkBuffer buffer = m_tessSpanBufferRing.vkBufferAt(m_bufferRingIdx);
-        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, zeroOffset);
+        VkBuffer tessBuffer = m_tessSpanBufferRing.vkBufferAt(m_bufferRingIdx);
+        VkDeviceSize tessOffset = desc.firstTessVertexSpan * sizeof(pls::TessVertexSpan);
+        vkCmdBindVertexBuffers(commandBuffer, 0, 1, &tessBuffer, &tessOffset);
 
         vkCmdBindIndexBuffer(commandBuffer, *m_tessSpanIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
 
@@ -2262,7 +2264,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                          desc.tessVertexSpanCount,
                          0,
                          0,
-                         desc.firstTessVertexSpan);
+                         0);
 
         vkCmdEndRenderPass(commandBuffer);
     }

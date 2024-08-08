@@ -300,7 +300,8 @@ public:
             instanceCreateInfo.flags |= VK_INSTANCE_CREATE_ENUMERATE_PORTABILITY_BIT_KHR;
         }
 
-        instanceCreateInfo.enabledExtensionCount = instanceEnabledExtensionNames.size();
+        instanceCreateInfo.enabledExtensionCount =
+            math::lossless_numeric_cast<uint32_t>(instanceEnabledExtensionNames.size());
         instanceCreateInfo.ppEnabledExtensionNames = instanceEnabledExtensionNames.data();
 
         VK_CHECK(vkCreateInstance(&instanceCreateInfo, nullptr, &m_instance));

@@ -175,6 +175,11 @@ do
 
     files({ 'renderer/*.cpp', 'renderer/decoding/*.cpp' })
 
+    filter({ 'toolset:not msc' })
+    do
+        buildoptions({ '-Wshorten-64-to-32' })
+    end
+
     filter({
         'system:windows',
         'options:toolset=msc',
