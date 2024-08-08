@@ -13,6 +13,7 @@
 #   build_rive.sh                      # debug build
 #   build_rive.sh release              # release build
 #   build_rive.sh release clean        # clean, followed by a release build
+#   build_rive.sh xcode                # generate and build an xcode workspace
 #   build_rive.sh ninja                # use ninja (experimental) for a debug build
 #   build_rive.sh ninja release        # use ninja (experimental) for a release build
 #   build_rive.sh ninja --with_vulkan  # extra parameters get forwarded to premake
@@ -140,6 +141,7 @@ else
             "universal") RIVE_ARCH="${RIVE_ARCH:-universal}" ;;
             "wasm") RIVE_ARCH="${RIVE_ARCH:-wasm}" ;;
             "ninja") RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-ninja}" ;;
+            "xcode") RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-xcode4}" ;;
             "clean") RIVE_CLEAN="${RIVE_CLEAN:-true}" ;;
             "compdb")
                 RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-export-compile-commands}"
@@ -267,15 +269,28 @@ case "$RIVE_BUILD_SYSTEM" in
         echo ninja -C $RIVE_OUT $@
         ninja -C $RIVE_OUT $@
         ;;
+    xcode4)
+        if [[ $# = 0 ]]; then
+            echo 'No targets specified for xcode: Attempting to grok them from "xcodebuild -list".'
+            XCODE_SCHEMES=$(for f in $(xcodebuild -list -workspace $RIVE_OUT/rive.xcworkspace | grep '^        '); do printf " $f"; done)
+            echo "  -> groked:$XCODE_SCHEMES"
+        else
+            XCODE_SCHEMES="$@"
+        fi
+        for SCHEME in $XCODE_SCHEMES; do
+            echo xcodebuild -workspace $RIVE_OUT/rive.xcworkspace -scheme $SCHEME
+            xcodebuild -workspace $RIVE_OUT/rive.xcworkspace -scheme $SCHEME
+        done
+        ;;
     vs2022)
         for TARGET in $@; do
-            RIVE_MSVC_TARGETS="$RIVE_MSVC_TARGETS -t:$TARGET"
+            MSVC_TARGETS="$MSVC_TARGETS -t:$TARGET"
         done
-        echo msbuild.exe "./$RIVE_OUT/rive.sln" -p:UseMultiToolTask=true -m:$NUM_CORES $RIVE_MSVC_TARGETS
-        msbuild.exe "./$RIVE_OUT/rive.sln" -p:UseMultiToolTask=true -m:$NUM_CORES $RIVE_MSVC_TARGETS
+        echo msbuild.exe "./$RIVE_OUT/rive.sln" -p:UseMultiToolTask=true -m:$NUM_CORES $MSVC_TARGETS
+        msbuild.exe "./$RIVE_OUT/rive.sln" -p:UseMultiToolTask=true -m:$NUM_CORES $MSVC_TARGETS
         ;;
     *)
-        print "Unsupported buildsystem $RIVE_BUILD_SYSTEM"
+        echo "Unsupported buildsystem $RIVE_BUILD_SYSTEM"
         exit -1
         ;;
 esac

@@ -12,6 +12,7 @@
 #include "include/core/SkPathTypes.h"
 #include "include/core/SkTileMode.h"
 
+#include "rive/math/math_types.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/math/vec2d.hpp"
@@ -89,7 +90,7 @@ public:
             const auto pts = rp.points();
             const auto vbs = rp.verbsU8();
             return SkPath::Make((const SkPoint*)pts.data(), pts.size(),
-                                vbs.data(), vbs.size(),
+                                vbs.data(), math::lossless_numeric_cast<int>(vbs.size()),
                                 nullptr, 0, SkPathFillType::kWinding);
         }
         // clang-format off
