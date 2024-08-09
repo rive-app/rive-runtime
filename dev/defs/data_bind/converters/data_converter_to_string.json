@@ -1,0 +1,8 @@
+{
+  "name": "DataConverterToString",
+  "key": {
+    "int": 490,
+    "string": "dataconvertertostring"
+  },
+  "extends": "data_bind/converters/data_converter.json"
+}

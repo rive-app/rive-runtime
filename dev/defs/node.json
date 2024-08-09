@@ -21,7 +21,8 @@
             "string": "xArtboard"
           }
         ]
-      }
+      },
+      "bindable": true
     },
     "y": {
       "type": "double",
@@ -38,7 +39,8 @@
             "string": "yArtboard"
           }
         ]
-      }
+      },
+      "bindable": true
     },
     "styleValue": {
       "type": "uint",

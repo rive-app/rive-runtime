@@ -119,6 +119,8 @@
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
+#include "rive/data_bind/converters/data_converter_rounder.hpp"
+#include "rive/data_bind/converters/data_converter_to_string.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/draw_rules.hpp"
@@ -451,6 +453,10 @@ public:
                 return new BindablePropertyBoolean();
             case DataBindBase::typeKey:
                 return new DataBind();
+            case DataConverterRounderBase::typeKey:
+                return new DataConverterRounder();
+            case DataConverterToStringBase::typeKey:
+                return new DataConverterToString();
             case DataBindContextBase::typeKey:
                 return new DataBindContext();
             case BindablePropertyStringBase::typeKey:
@@ -1009,6 +1015,9 @@ public:
                 break;
             case DataBindBase::converterIdPropertyKey:
                 object->as<DataBindBase>()->converterId(value);
+                break;
+            case DataConverterRounderBase::decimalsPropertyKey:
+                object->as<DataConverterRounderBase>()->decimals(value);
                 break;
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 object->as<BindablePropertyEnumBase>()->propertyValue(value);
@@ -2034,6 +2043,8 @@ public:
                 return object->as<DataBindBase>()->flags();
             case DataBindBase::converterIdPropertyKey:
                 return object->as<DataBindBase>()->converterId();
+            case DataConverterRounderBase::decimalsPropertyKey:
+                return object->as<DataConverterRounderBase>()->decimals();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyEnumBase>()->propertyValue();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -2663,6 +2674,7 @@ public:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
             case DataBindBase::converterIdPropertyKey:
+            case DataConverterRounderBase::decimalsPropertyKey:
             case BindablePropertyEnumBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::fitPropertyKey:
             case WeightBase::valuesPropertyKey:
@@ -3239,6 +3251,8 @@ public:
                 return object->is<DataBindBase>();
             case DataBindBase::converterIdPropertyKey:
                 return object->is<DataBindBase>();
+            case DataConverterRounderBase::decimalsPropertyKey:
+                return object->is<DataConverterRounderBase>();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyEnumBase>();
             case NestedArtboardLeafBase::fitPropertyKey:
