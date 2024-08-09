@@ -77,7 +77,7 @@ case "$(uname -s)" in
         fi
         NUM_CORES=$(($(sysctl -n hw.physicalcpu) + 1))
         ;;
-    MINGW*)
+    MINGW*|MSYS*)
         HOST_MACHINE="windows"
         NUM_CORES=$NUMBER_OF_PROCESSORS
         # Try to find MSBuild.exe
