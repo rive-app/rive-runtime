@@ -83,7 +83,8 @@ public:
     rcp<Texture> makeTexture(const VkImageCreateInfo&);
 
     rcp<TextureView> makeTextureView(rcp<Texture>);
-    rcp<TextureView> makeTextureView(rcp<Texture> textureRefOrNull, const VkImageViewCreateInfo&);
+    rcp<TextureView> makeTextureView(rcp<Texture> texture, const VkImageViewCreateInfo&);
+    rcp<TextureView> makeExternalTextureView(const VkImageUsageFlags, const VkImageViewCreateInfo&);
 
     rcp<Framebuffer> makeFramebuffer(const VkFramebufferCreateInfo&);
 
@@ -273,6 +274,7 @@ public:
     ~TextureView() override;
 
     const VkImageViewCreateInfo& info() { return m_info; }
+    const VkImageUsageFlags usageFlags() { return m_usageFlags; }
     operator VkImageView() const { return m_vkImageView; }
     VkImageView vkImageView() const { return m_vkImageView; }
     const VkImageView* vkImageViewAddressOf() const { return &m_vkImageView; }
@@ -280,9 +282,13 @@ public:
 private:
     friend class Allocator;
 
-    TextureView(rcp<Allocator>, rcp<Texture> textureRefOrNull, const VkImageViewCreateInfo&);
+    TextureView(rcp<Allocator>,
+                rcp<Texture> textureRef,
+                VkImageUsageFlags,
+                const VkImageViewCreateInfo&);
 
     const rcp<Texture> m_textureRefOrNull;
+    VkImageUsageFlags m_usageFlags;
     VkImageViewCreateInfo m_info;
     VkImageView m_vkImageView;
 };
@@ -385,4 +391,6 @@ void insert_buffer_memory_barrier(VkCommandBuffer,
                                   VkBuffer,
                                   VkDeviceSize offset = 0,
                                   VkDeviceSize size = VK_WHOLE_SIZE);
+
+void blit_sub_rect(VkCommandBuffer commandBuffer, VkImage src, VkImage dst, const IAABB&);
 } // namespace rive::pls::vkutil

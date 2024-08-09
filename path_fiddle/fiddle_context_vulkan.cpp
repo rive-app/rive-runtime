@@ -107,41 +107,6 @@ debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     return VK_FALSE;
 }
 
-static void blit_full_image(VkCommandBuffer commandBuffer,
-                            VkImage src,
-                            VkImage dst,
-                            int32_t width,
-                            int32_t height)
-{
-    VkImageBlit imageBlit = {
-        .srcSubresource =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .layerCount = 1,
-            },
-        .dstSubresource =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .layerCount = 1,
-            },
-    };
-
-    imageBlit.srcOffsets[0] = {0, 0, 0};
-    imageBlit.srcOffsets[1] = {width, height, 1};
-
-    imageBlit.dstOffsets[0] = {0, 0, 0};
-    imageBlit.dstOffsets[1] = {width, height, 1};
-
-    vkCmdBlitImage(commandBuffer,
-                   src,
-                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                   dst,
-                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                   1,
-                   &imageBlit,
-                   VK_FILTER_NEAREST);
-}
-
 class FiddleContextVulkanPLS : public FiddleContext
 {
 public:
@@ -695,17 +660,19 @@ public:
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
         m_headlessRenderTexture = nullptr;
+        VkImageUsageFlags swapChainUsageFlags;
 
         if (m_options.allowHeadlessRendering)
         {
-            m_swapchainSupportsShaderFetch = true;
+            swapChainUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                  VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+                                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
             m_swapchainFormat = VK_FORMAT_R8G8B8A8_UNORM;
             m_swapchainImages.resize(1);
             m_headlessRenderTexture = m_allocator->makeTexture({
                 .format = m_swapchainFormat,
                 .extent = {static_cast<uint32_t>(width), static_cast<uint32_t>(height), 1},
-                .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
-                         VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
+                .usage = swapChainUsageFlags,
             });
             assert(m_options.enableReadPixels);
             m_swapchainImages = {*m_headlessRenderTexture};
@@ -818,9 +785,7 @@ public:
                 swapchainCreateInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
             }
 
-            m_swapchainSupportsShaderFetch =
-                surfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
-            if (m_swapchainSupportsShaderFetch)
+            if (surfaceCapabilitiesKHR.supportedUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
             {
                 swapchainCreateInfo.imageUsage |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
             }
@@ -840,6 +805,8 @@ public:
                 swapchainCreateInfo.imageUsage |= VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             }
 
+            swapChainUsageFlags = swapchainCreateInfo.imageUsage;
+
             VK_CHECK(vkCreateSwapchainKHR(m_device, &swapchainCreateInfo, nullptr, &m_swapchain));
 
             m_swapchainFormat = formats[formatIndex].format;
@@ -855,19 +822,19 @@ public:
         m_swapchainImageViews.reserve(m_swapchainImages.size());
         for (VkImage image : m_swapchainImages)
         {
-            m_swapchainImageViews.push_back(
-                m_allocator->makeTextureView(nullptr,
-                                             {
-                                                 .image = image,
-                                                 .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                                                 .format = m_swapchainFormat,
-                                                 .subresourceRange =
-                                                     {
-                                                         .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                         .levelCount = 1,
-                                                         .layerCount = 1,
-                                                     },
-                                             }));
+            m_swapchainImageViews.push_back(m_allocator->makeExternalTextureView(
+                swapChainUsageFlags,
+                {
+                    .image = image,
+                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                    .format = m_swapchainFormat,
+                    .subresourceRange =
+                        {
+                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .levelCount = 1,
+                            .layerCount = 1,
+                        },
+                }));
         }
 
         m_swapchainImageLayouts = std::vector(m_swapchainImages.size(), VK_IMAGE_LAYOUT_UNDEFINED);
@@ -909,52 +876,7 @@ public:
 
         vkBeginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
 
-        if (m_swapchainSupportsShaderFetch)
-        {
-            m_renderTarget->setTargetTextureView(m_swapchainImageViews[m_swapchainImageIndex]);
-        }
-        else
-        {
-            if (!m_headlessRenderTexture)
-            {
-                m_headlessRenderTexture = m_allocator->makeTexture({
-                    .format = m_swapchainFormat,
-                    .extent = {static_cast<uint32_t>(m_renderTarget->width()),
-                               static_cast<uint32_t>(m_renderTarget->height()),
-                               1},
-                    .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                });
-                vkutil::insert_image_memory_barrier(commandBuffer,
-                                                    *m_headlessRenderTexture,
-                                                    VK_IMAGE_LAYOUT_UNDEFINED,
-                                                    VK_IMAGE_LAYOUT_GENERAL);
-                m_headlessRenderTextureView = m_allocator->makeTextureView(m_headlessRenderTexture);
-            }
-            m_renderTarget->setTargetTextureView(m_headlessRenderTextureView);
-
-            if (frameDescriptor.loadAction == pls::LoadAction::preserveRenderTarget)
-            {
-                // Blit the swapchain texture texture onto the offscreen texture.
-                insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-                vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
-                                                    *m_headlessRenderTexture,
-                                                    VK_IMAGE_LAYOUT_GENERAL,
-                                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-                blit_full_image(m_commandBuffers[m_resourcePoolIdx],
-                                m_swapchainImages[m_swapchainImageIndex],
-                                *m_headlessRenderTexture,
-                                m_renderTarget->width(),
-                                m_renderTarget->height());
-
-                vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
-                                                    *m_headlessRenderTexture,
-                                                    VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                                    VK_IMAGE_LAYOUT_GENERAL);
-            }
-        }
+        m_renderTarget->setTargetTextureView(m_swapchainImageViews[m_swapchainImageIndex]);
 
         insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_GENERAL);
 
@@ -973,28 +895,6 @@ public:
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
         flushPLSContext();
-
-        if (!m_swapchainSupportsShaderFetch)
-        {
-            // Blit the offscreen texture onto the swapchain texture.
-            vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
-                                                *m_headlessRenderTexture,
-                                                VK_IMAGE_LAYOUT_GENERAL,
-                                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-            insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-            blit_full_image(m_commandBuffers[m_resourcePoolIdx],
-                            *m_headlessRenderTexture,
-                            m_swapchainImages[m_swapchainImageIndex],
-                            m_renderTarget->width(),
-                            m_renderTarget->height());
-
-            vkutil::insert_image_memory_barrier(m_commandBuffers[m_resourcePoolIdx],
-                                                *m_headlessRenderTexture,
-                                                VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                                VK_IMAGE_LAYOUT_GENERAL);
-        }
 
         VkCommandBuffer commandBuffer = m_commandBuffers[m_resourcePoolIdx];
         uint32_t w = m_renderTarget->width();
@@ -1127,7 +1027,6 @@ private:
     VkDevice m_device;
     VkQueue m_queue;
 
-    bool m_swapchainSupportsShaderFetch = false;
     VkFormat m_swapchainFormat = VK_FORMAT_UNDEFINED;
     VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
     VkSwapchainKHR m_swapchain = VK_NULL_HANDLE;

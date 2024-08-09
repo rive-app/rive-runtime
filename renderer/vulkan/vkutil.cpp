@@ -83,10 +83,17 @@ rcp<TextureView> Allocator::makeTextureView(rcp<Texture> texture)
         });
 }
 
-rcp<TextureView> Allocator::makeTextureView(rcp<Texture> textureRefOrNull,
-                                            const VkImageViewCreateInfo& info)
+rcp<TextureView> Allocator::makeTextureView(rcp<Texture> texture, const VkImageViewCreateInfo& info)
 {
-    return rcp(new TextureView(ref_rcp(this), std::move(textureRefOrNull), info));
+    assert(texture);
+    auto usage = texture->info().usage;
+    return rcp(new TextureView(ref_rcp(this), std::move(texture), usage, info));
+}
+
+rcp<TextureView> Allocator::makeExternalTextureView(const VkImageUsageFlags flags,
+                                                    const VkImageViewCreateInfo& info)
+{
+    return rcp<TextureView>(new TextureView(ref_rcp(this), nullptr, flags, info));
 }
 
 void RenderingResource::onRefCntReachedZero() const
@@ -248,10 +255,12 @@ Texture::~Texture()
 }
 
 TextureView::TextureView(rcp<Allocator> allocator,
-                         rcp<Texture> textureRefOrNull,
+                         rcp<Texture> textureRef,
+                         VkImageUsageFlags flags,
                          const VkImageViewCreateInfo& info) :
     RenderingResource(std::move(allocator)),
-    m_textureRefOrNull(std::move(textureRefOrNull)),
+    m_textureRefOrNull(std::move(textureRef)),
+    m_usageFlags(flags),
     m_info(info)
 {
     m_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
@@ -430,4 +439,36 @@ void insert_buffer_memory_barrier(VkCommandBuffer commandBuffer,
                          0,
                          nullptr);
 }
+
+void blit_sub_rect(VkCommandBuffer commandBuffer, VkImage src, VkImage dst, const IAABB& blitBounds)
+{
+    VkImageBlit imageBlit = {
+        .srcSubresource =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .layerCount = 1,
+            },
+        .dstSubresource =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .layerCount = 1,
+            },
+    };
+
+    imageBlit.srcOffsets[0] = {blitBounds.left, blitBounds.top, 0};
+    imageBlit.srcOffsets[1] = {blitBounds.right, blitBounds.bottom, 1};
+
+    imageBlit.dstOffsets[0] = {blitBounds.left, blitBounds.top, 0};
+    imageBlit.dstOffsets[1] = {blitBounds.right, blitBounds.bottom, 1};
+
+    vkCmdBlitImage(commandBuffer,
+                   src,
+                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                   dst,
+                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                   1,
+                   &imageBlit,
+                   VK_FILTER_NEAREST);
+}
+
 } // namespace rive::pls::vkutil

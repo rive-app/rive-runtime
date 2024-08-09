@@ -36,24 +36,53 @@ public:
         m_targetTextureView = std::move(view);
     }
 
-private:
-    friend class PLSRenderContextVulkanImpl;
+    bool targetViewContainsUsageFlag(VkImageUsageFlagBits bit) const
+    {
+        return m_targetTextureView ? static_cast<bool>(m_targetTextureView->usageFlags() & bit)
+                                   : false;
+    }
+
+    const VkFormat framebufferFormat() const { return m_framebufferFormat; }
+
+    VkImage targetTexture() const { return m_targetTextureView->info().image; }
+
+    VkImageView targetTextureView() const { return *m_targetTextureView; }
+
+    VkImageView offscreenColorTextureView() const
+    {
+        return m_offscreenColorTextureView ? *m_offscreenColorTextureView : nullptr;
+    }
+
+    VkImage offscreenColorTexture() const { return *m_offscreenColorTexture; }
+    VkImage coverageTexture() const { return *m_coverageTexture; }
+    VkImage clipTexture() const { return *m_clipTexture; }
+    VkImage scratchColorTexture() const { return *m_scratchColorTexture; }
+    VkImage coverageAtomicTexture() const { return *m_coverageAtomicTexture; }
+
+    // getters that lazy load if needed.
+
+    VkImageView ensureOffscreenColorTextureView(vkutil::Allocator*, VkCommandBuffer);
+    VkImageView ensureCoverageTextureView(vkutil::Allocator*, VkCommandBuffer);
+    VkImageView ensureClipTextureView(vkutil::Allocator*, VkCommandBuffer);
+    VkImageView ensureScratchColorTextureView(vkutil::Allocator*, VkCommandBuffer);
+    VkImageView ensureCoverageAtomicTextureView(vkutil::Allocator*, VkCommandBuffer);
 
     PLSRenderTargetVulkan(uint32_t width, uint32_t height, VkFormat framebufferFormat) :
         PLSRenderTarget(width, height), m_framebufferFormat(framebufferFormat)
     {}
 
-    // Called during flush(). Ensures the required offscreen views are all initialized.
-    void synchronize(vkutil::Allocator*, VkCommandBuffer, pls::InterlockMode);
-
+private:
     const VkFormat m_framebufferFormat;
     rcp<vkutil::TextureView> m_targetTextureView;
 
-    rcp<vkutil::Texture> m_coverageTexture; // pls::InterlockMode::rasterOrdering.
+    rcp<vkutil::Texture> m_offscreenColorTexture; // Used when m_targetTextureView does not have
+                                                  // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
+    rcp<vkutil::Texture> m_coverageTexture;       // pls::InterlockMode::rasterOrdering.
     rcp<vkutil::Texture> m_clipTexture;
     rcp<vkutil::Texture> m_scratchColorTexture;
     rcp<vkutil::Texture> m_coverageAtomicTexture; // pls::InterlockMode::atomics.
 
+    rcp<vkutil::TextureView> m_offscreenColorTextureView;
     rcp<vkutil::TextureView> m_coverageTextureView;
     rcp<vkutil::TextureView> m_clipTextureView;
     rcp<vkutil::TextureView> m_scratchColorTextureView;

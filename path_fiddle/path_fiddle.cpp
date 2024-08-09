@@ -460,15 +460,25 @@ int main(int argc, const char** argv)
         }
 #endif
         else if (sscanf(argv[i], "-a%i", &s_animation))
-        {}
+        {
+            // Already updated s_animation.
+        }
         else if (sscanf(argv[i], "-s%i", &s_stateMachine))
-        {}
+        {
+            // Already updated s_stateMachine.
+        }
         else if (sscanf(argv[i], "-h%i", &s_horzRepeat))
-        {}
+        {
+            // Already updated s_horzRepeat.
+        }
         else if (sscanf(argv[i], "-j%i", &s_downRepeat))
-        {}
+        {
+            // Already updated s_downRepeat.
+        }
         else if (sscanf(argv[i], "-k%i", &s_upRepeat))
-        {}
+        {
+            // Already updated s_upRepeat.
+        }
         else if (!strcmp(argv[i], "-p"))
         {
             s_paused = true;

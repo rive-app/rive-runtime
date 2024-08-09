@@ -1986,11 +1986,54 @@ rcp<PLSRenderContextVulkanImpl::DescriptorSetPool> PLSRenderContextVulkanImpl::
     return pool;
 }
 
-void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator,
-                                        VkCommandBuffer commandBuffer,
-                                        pls::InterlockMode interlockMode)
+VkImageView PLSRenderTargetVulkan::ensureOffscreenColorTextureView(vkutil::Allocator* allocator,
+                                                                   VkCommandBuffer commandBuffer)
 {
-    if (m_clipTexture == nullptr)
+    if (m_offscreenColorTextureView == nullptr)
+    {
+        m_offscreenColorTexture = allocator->makeTexture({
+            .format = VK_FORMAT_B8G8R8A8_UNORM,
+            .extent = {width(), height(), 1},
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        });
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            *m_offscreenColorTexture,
+                                            VK_IMAGE_LAYOUT_UNDEFINED,
+                                            VK_IMAGE_LAYOUT_GENERAL);
+        m_offscreenColorTextureView = allocator->makeTextureView(m_offscreenColorTexture);
+    }
+
+    return *m_offscreenColorTextureView;
+}
+
+VkImageView PLSRenderTargetVulkan::ensureCoverageTextureView(vkutil::Allocator* allocator,
+                                                             VkCommandBuffer commandBuffer)
+{
+    if (m_coverageTextureView == nullptr)
+    {
+        m_coverageTexture = allocator->makeTexture({
+            .format = VK_FORMAT_R32_UINT,
+            .extent = {width(), height(), 1},
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+        });
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            *m_coverageTexture,
+                                            VK_IMAGE_LAYOUT_UNDEFINED,
+                                            VK_IMAGE_LAYOUT_GENERAL);
+        m_coverageTextureView = allocator->makeTextureView(m_coverageTexture);
+    }
+
+    return *m_coverageTextureView;
+}
+
+VkImageView PLSRenderTargetVulkan::ensureClipTextureView(vkutil::Allocator* allocator,
+                                                         VkCommandBuffer commandBuffer)
+{
+    if (m_clipTextureView == nullptr)
     {
         m_clipTexture = allocator->makeTexture({
             .format = VK_FORMAT_R32_UINT,
@@ -2003,11 +2046,16 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator,
                                             *m_clipTexture,
                                             VK_IMAGE_LAYOUT_UNDEFINED,
                                             VK_IMAGE_LAYOUT_GENERAL);
-
         m_clipTextureView = allocator->makeTextureView(m_clipTexture);
     }
 
-    if (interlockMode == pls::InterlockMode::rasterOrdering && m_scratchColorTexture == nullptr)
+    return *m_clipTextureView;
+}
+
+VkImageView PLSRenderTargetVulkan::ensureScratchColorTextureView(vkutil::Allocator* allocator,
+                                                                 VkCommandBuffer commandBuffer)
+{
+    if (m_scratchColorTextureView == nullptr)
     {
         m_scratchColorTexture = allocator->makeTexture({
             .format = VK_FORMAT_R8G8B8A8_UNORM,
@@ -2024,24 +2072,13 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator,
         m_scratchColorTextureView = allocator->makeTextureView(m_scratchColorTexture);
     }
 
-    if (interlockMode == pls::InterlockMode::rasterOrdering && m_coverageTexture == nullptr)
-    {
-        m_coverageTexture = allocator->makeTexture({
-            .format = VK_FORMAT_R32_UINT,
-            .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-        });
+    return *m_scratchColorTextureView;
+}
 
-        vkutil::insert_image_memory_barrier(commandBuffer,
-                                            *m_coverageTexture,
-                                            VK_IMAGE_LAYOUT_UNDEFINED,
-                                            VK_IMAGE_LAYOUT_GENERAL);
-
-        m_coverageTextureView = allocator->makeTextureView(m_coverageTexture);
-    }
-
-    if (interlockMode == pls::InterlockMode::atomics && m_coverageAtomicTexture == nullptr)
+VkImageView PLSRenderTargetVulkan::ensureCoverageAtomicTextureView(vkutil::Allocator* allocator,
+                                                                   VkCommandBuffer commandBuffer)
+{
+    if (m_coverageAtomicTextureView == nullptr)
     {
         m_coverageAtomicTexture = allocator->makeTexture({
             .format = VK_FORMAT_R32_UINT,
@@ -2057,6 +2094,8 @@ void PLSRenderTargetVulkan::synchronize(vkutil::Allocator* allocator,
 
         m_coverageAtomicTextureView = allocator->makeTextureView(m_coverageAtomicTexture);
     }
+
+    return *m_coverageAtomicTextureView;
 }
 
 void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
@@ -2290,9 +2329,6 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
     }
 
-    auto* renderTarget = static_cast<PLSRenderTargetVulkan*>(desc.renderTarget);
-    renderTarget->synchronize(m_allocator.get(), commandBuffer, desc.interlockMode);
-
     auto pipelineLayoutOptions = DrawPipelineLayoutOptions::none;
     if (m_features.independentBlend && desc.interlockMode == pls::InterlockMode::atomics &&
         !(desc.combinedShaderFeatures & pls::ShaderFeatures::ENABLE_ADVANCED_BLEND))
@@ -2311,21 +2347,70 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
     DrawPipelineLayout& pipelineLayout = *m_drawPipelineLayouts[pipelineLayoutIdx];
 
+    auto* renderTarget = static_cast<PLSRenderTargetVulkan*>(desc.renderTarget);
+
+    auto targetView =
+        renderTarget->targetViewContainsUsageFlag(VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
+                (pipelineLayout.options() & DrawPipelineLayoutOptions::fixedFunctionColorBlend)
+            ? renderTarget->targetTextureView()
+            : renderTarget->ensureOffscreenColorTextureView(m_allocator.get(), commandBuffer);
+    auto clipView = renderTarget->ensureClipTextureView(m_allocator.get(), commandBuffer);
+    auto scratchColorTextureView =
+        desc.interlockMode == pls::InterlockMode::atomics
+            ? VK_NULL_HANDLE
+            : renderTarget->ensureScratchColorTextureView(m_allocator.get(), commandBuffer);
+    auto coverageTextureView =
+        desc.interlockMode == pls::InterlockMode::atomics
+            ? renderTarget->ensureCoverageAtomicTextureView(m_allocator.get(), commandBuffer)
+            : renderTarget->ensureCoverageTextureView(m_allocator.get(), commandBuffer);
+
+    if (desc.colorLoadAction == pls::LoadAction::preserveRenderTarget &&
+        targetView == renderTarget->offscreenColorTextureView())
+    {
+        // Copy the target into our offscreen color texture before rendering.
+
+        auto targetTexture = renderTarget->targetTexture();
+        // we know the offscreenColorTexture exists because of the if condition
+        auto offScreenTexture = renderTarget->offscreenColorTexture();
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            targetTexture,
+                                            VK_IMAGE_LAYOUT_GENERAL,
+                                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            offScreenTexture,
+                                            VK_IMAGE_LAYOUT_GENERAL,
+                                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        vkutil::blit_sub_rect(commandBuffer,
+                              targetTexture,
+                              offScreenTexture,
+                              desc.renderTargetUpdateBounds);
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            targetTexture,
+                                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                            VK_IMAGE_LAYOUT_GENERAL);
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            offScreenTexture,
+                                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                            VK_IMAGE_LAYOUT_GENERAL);
+    }
+
     int renderPassVariantIdx =
-        DrawPipelineLayout::RenderPassVariantIdx(renderTarget->m_framebufferFormat,
+        DrawPipelineLayout::RenderPassVariantIdx(renderTarget->framebufferFormat(),
                                                  desc.colorLoadAction);
     VkRenderPass vkRenderPass = pipelineLayout.renderPassAt(renderPassVariantIdx);
 
     VkImageView imageViews[] = {
-        *renderTarget->m_targetTextureView,
-        *renderTarget->m_clipTextureView,
-        desc.interlockMode == pls::InterlockMode::atomics
-            ? VK_NULL_HANDLE
-            : renderTarget->m_scratchColorTextureView->vkImageView(),
-        desc.interlockMode == pls::InterlockMode::atomics
-            ? VK_NULL_HANDLE
-            : renderTarget->m_coverageTextureView->vkImageView(),
+        targetView,
+        clipView,
+        scratchColorTextureView,
+        desc.interlockMode == pls::InterlockMode::atomics ? VK_NULL_HANDLE : coverageTextureView,
     };
+
     static_assert(COLOR_PLANE_IDX == 0);
     static_assert(CLIP_PLANE_IDX == 1);
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
@@ -2372,7 +2457,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         // Clear the coverage texture, which is not an attachment.
         vkutil::insert_image_memory_barrier(commandBuffer,
-                                            *renderTarget->m_coverageAtomicTexture,
+                                            renderTarget->coverageAtomicTexture(),
                                             VK_IMAGE_LAYOUT_GENERAL,
                                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
 
@@ -2383,14 +2468,14 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         };
 
         vkCmdClearColorImage(commandBuffer,
-                             *renderTarget->m_coverageAtomicTexture,
+                             renderTarget->coverageAtomicTexture(),
                              VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                              &clearValues[COVERAGE_PLANE_IDX].color,
                              1,
                              &clearRange);
 
         vkutil::insert_image_memory_barrier(commandBuffer,
-                                            *renderTarget->m_coverageAtomicTexture,
+                                            renderTarget->coverageAtomicTexture(),
                                             VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                             VK_IMAGE_LAYOUT_GENERAL);
     }
@@ -2525,7 +2610,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             },
             {{
-                .imageView = renderTarget->m_targetTextureView->vkImageView(),
+                .imageView = targetView,
                 .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
             }});
     }
@@ -2537,7 +2622,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                              .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                                          },
                                          {{
-                                             .imageView = *renderTarget->m_clipTextureView,
+                                             .imageView = clipView,
                                              .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                                          }});
 
@@ -2551,7 +2636,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             },
             {{
-                .imageView = *renderTarget->m_scratchColorTextureView,
+                .imageView = scratchColorTextureView,
                 .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
             }});
     }
@@ -2566,9 +2651,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                   : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
         },
         {{
-            .imageView = desc.interlockMode == pls::InterlockMode::atomics
-                             ? renderTarget->m_coverageAtomicTextureView->vkImageView()
-                             : renderTarget->m_coverageTextureView->vkImageView(),
+            .imageView = coverageTextureView,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         }});
 
@@ -2808,6 +2891,40 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
 
     vkCmdEndRenderPass(commandBuffer);
+
+    if (targetView == renderTarget->offscreenColorTextureView())
+    {
+        // Copy our offscreen color texture back to the render target now that we've finished
+        // rendering.
+        auto dstImage = renderTarget->targetTexture();
+        // we know the offscreenColorTexture exists because of the if condition
+        auto offScreenTexture = renderTarget->offscreenColorTexture();
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            offScreenTexture,
+                                            VK_IMAGE_LAYOUT_GENERAL,
+                                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            dstImage,
+                                            VK_IMAGE_LAYOUT_GENERAL,
+                                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+
+        vkutil::blit_sub_rect(commandBuffer,
+                              offScreenTexture,
+                              dstImage,
+                              desc.renderTargetUpdateBounds);
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            dstImage,
+                                            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                            VK_IMAGE_LAYOUT_GENERAL);
+
+        vkutil::insert_image_memory_barrier(commandBuffer,
+                                            offScreenTexture,
+                                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                            VK_IMAGE_LAYOUT_GENERAL);
+    }
 
     if (desc.isFinalFlushOfFrame)
     {
