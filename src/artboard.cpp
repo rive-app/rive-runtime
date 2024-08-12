@@ -1359,6 +1359,28 @@ SMITrigger* ArtboardInstance::getTrigger(const std::string& name, const std::str
     return getNamedInput<SMITrigger>(name, path);
 }
 
+TextValueRun* ArtboardInstance::getTextRun(const std::string& name, const std::string& path)
+{
+    if (path.empty())
+    {
+        return nullptr;
+    }
+
+    auto nestedArtboard = nestedArtboardAtPath(path);
+    if (nestedArtboard == nullptr)
+    {
+        return nullptr;
+    }
+
+    auto artboardInstance = nestedArtboard->artboardInstance();
+    if (artboardInstance == nullptr)
+    {
+        return nullptr;
+    }
+
+    return artboardInstance->find<TextValueRun>(name);
+}
+
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
 rcp<AudioEngine> Artboard::audioEngine() const { return m_audioEngine; }
 void Artboard::audioEngine(rcp<AudioEngine> audioEngine)

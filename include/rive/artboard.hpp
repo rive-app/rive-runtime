@@ -408,6 +408,7 @@ public:
     SMIBool* getBool(const std::string& name, const std::string& path);
     SMINumber* getNumber(const std::string& name, const std::string& path);
     SMITrigger* getTrigger(const std::string& name, const std::string& path);
+    TextValueRun* getTextRun(const std::string& name, const std::string& path);
 };
 } // namespace rive
 
