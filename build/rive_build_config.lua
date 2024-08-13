@@ -1,9 +1,9 @@
 if _ACTION == 'ninja' then
-    require "ninja"
+    require('ninja')
 end
 
 if _ACTION == 'export-compile-commands' then
-    require "export-compile-commands"
+    require('export-compile-commands')
 end
 
 workspace('rive')
@@ -409,12 +409,16 @@ filter({})
 if os.host() == 'macosx' then
     iphoneos_sysroot = os.outputof('xcrun --sdk iphoneos --show-sdk-path')
     if iphoneos_sysroot == nil then
-        error('Unable to locate iphoneos sdk. Please ensure Xcode Command Line Tools are installed.')
+        error(
+            'Unable to locate iphoneos sdk. Please ensure Xcode Command Line Tools are installed.'
+        )
     end
 
     iphonesimulator_sysroot = os.outputof('xcrun --sdk iphonesimulator --show-sdk-path')
     if iphonesimulator_sysroot == nil then
-        error('Unable to locate iphonesimulator sdk. Please ensure Xcode Command Line Tools are installed.')
+        error(
+            'Unable to locate iphonesimulator sdk. Please ensure Xcode Command Line Tools are installed.'
+        )
     end
 
     filter('system:ios')
@@ -443,6 +447,21 @@ if os.host() == 'macosx' then
     filter('system:macosx or system:ios')
     do
         buildoptions({ '-fobjc-arc' })
+    end
+
+    filter({ 'system:macosx' })
+    do
+        buildoptions({
+            '-mmacosx-version-min=11.0',
+        })
+    end
+
+    filter({ 'system:macosx', 'options:arch=host', 'action:xcode4' })
+    do
+        -- xcode tries to specify a target...
+        buildoptions({
+            '--target=' .. os.outputof('uname -m') .. '-apple-macos11.0',
+        })
     end
 
     filter({ 'system:macosx', 'options:arch=arm64 or arch=universal' })
