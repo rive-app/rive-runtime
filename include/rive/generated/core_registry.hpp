@@ -128,7 +128,12 @@
 #include "rive/drawable.hpp"
 #include "rive/event.hpp"
 #include "rive/joystick.hpp"
+#include "rive/layout/axis.hpp"
+#include "rive/layout/axis_x.hpp"
+#include "rive/layout/axis_y.hpp"
 #include "rive/layout/layout_component_style.hpp"
+#include "rive/layout/n_slicer.hpp"
+#include "rive/layout/n_slicer_tile_mode.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
@@ -277,8 +282,16 @@ public:
                 return new Solo();
             case NestedArtboardLayoutBase::typeKey:
                 return new NestedArtboardLayout();
+            case NSlicerTileModeBase::typeKey:
+                return new NSlicerTileMode();
+            case AxisYBase::typeKey:
+                return new AxisY();
             case LayoutComponentStyleBase::typeKey:
                 return new LayoutComponentStyle();
+            case AxisXBase::typeKey:
+                return new AxisX();
+            case NSlicerBase::typeKey:
+                return new NSlicer();
             case ListenerFireEventBase::typeKey:
                 return new ListenerFireEvent();
             case KeyFrameUintBase::typeKey:
@@ -554,6 +567,9 @@ public:
             case FollowPathConstraintBase::offsetPropertyKey:
                 object->as<FollowPathConstraintBase>()->offset(value);
                 break;
+            case AxisBase::normalizedPropertyKey:
+                object->as<AxisBase>()->normalized(value);
+                break;
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
                 object->as<LayoutComponentStyleBase>()->intrinsicallySizedValue(value);
                 break;
@@ -700,6 +716,12 @@ public:
                 break;
             case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
                 object->as<NestedArtboardLayoutBase>()->instanceHeightScaleType(value);
+                break;
+            case NSlicerTileModeBase::patchIndexPropertyKey:
+                object->as<NSlicerTileModeBase>()->patchIndex(value);
+                break;
+            case NSlicerTileModeBase::stylePropertyKey:
+                object->as<NSlicerTileModeBase>()->style(value);
                 break;
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
                 object->as<LayoutComponentStyleBase>()->layoutWidthScaleType(value);
@@ -1246,6 +1268,9 @@ public:
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
                 object->as<NestedArtboardLayoutBase>()->instanceHeight(value);
                 break;
+            case AxisBase::offsetPropertyKey:
+                object->as<AxisBase>()->offset(value);
+                break;
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 object->as<LayoutComponentStyleBase>()->gapHorizontal(value);
                 break;
@@ -1732,6 +1757,8 @@ public:
                 return object->as<FollowPathConstraintBase>()->orient();
             case FollowPathConstraintBase::offsetPropertyKey:
                 return object->as<FollowPathConstraintBase>()->offset();
+            case AxisBase::normalizedPropertyKey:
+                return object->as<AxisBase>()->normalized();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->intrinsicallySizedValue();
             case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
@@ -1833,6 +1860,10 @@ public:
                 return object->as<NestedArtboardLayoutBase>()->instanceWidthScaleType();
             case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
                 return object->as<NestedArtboardLayoutBase>()->instanceHeightScaleType();
+            case NSlicerTileModeBase::patchIndexPropertyKey:
+                return object->as<NSlicerTileModeBase>()->patchIndex();
+            case NSlicerTileModeBase::stylePropertyKey:
+                return object->as<NSlicerTileModeBase>()->style();
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
                 return object->as<LayoutComponentStyleBase>()->layoutWidthScaleType();
             case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
@@ -2206,6 +2237,8 @@ public:
                 return object->as<NestedArtboardLayoutBase>()->instanceWidth();
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
                 return object->as<NestedArtboardLayoutBase>()->instanceHeight();
+            case AxisBase::offsetPropertyKey:
+                return object->as<AxisBase>()->offset();
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->gapHorizontal();
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
@@ -2521,6 +2554,7 @@ public:
             case IKConstraintBase::invertDirectionPropertyKey:
             case FollowPathConstraintBase::orientPropertyKey:
             case FollowPathConstraintBase::offsetPropertyKey:
+            case AxisBase::normalizedPropertyKey:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
             case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
             case NestedSimpleAnimationBase::isPlayingPropertyKey:
@@ -2569,6 +2603,8 @@ public:
             case NestedArtboardLayoutBase::instanceHeightUnitsValuePropertyKey:
             case NestedArtboardLayoutBase::instanceWidthScaleTypePropertyKey:
             case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
+            case NSlicerTileModeBase::patchIndexPropertyKey:
+            case NSlicerTileModeBase::stylePropertyKey:
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
@@ -2749,6 +2785,7 @@ public:
             case NodeBase::yArtboardPropertyKey:
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
+            case AxisBase::offsetPropertyKey:
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
             case LayoutComponentStyleBase::maxWidthPropertyKey:
@@ -2947,6 +2984,8 @@ public:
                 return object->is<FollowPathConstraintBase>();
             case FollowPathConstraintBase::offsetPropertyKey:
                 return object->is<FollowPathConstraintBase>();
+            case AxisBase::normalizedPropertyKey:
+                return object->is<AxisBase>();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
@@ -3041,6 +3080,10 @@ public:
                 return object->is<NestedArtboardLayoutBase>();
             case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
                 return object->is<NestedArtboardLayoutBase>();
+            case NSlicerTileModeBase::patchIndexPropertyKey:
+                return object->is<NSlicerTileModeBase>();
+            case NSlicerTileModeBase::stylePropertyKey:
+                return object->is<NSlicerTileModeBase>();
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
@@ -3393,6 +3436,8 @@ public:
                 return object->is<NestedArtboardLayoutBase>();
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
                 return object->is<NestedArtboardLayoutBase>();
+            case AxisBase::offsetPropertyKey:
+                return object->is<AxisBase>();
             case LayoutComponentStyleBase::gapHorizontalPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::gapVerticalPropertyKey:
