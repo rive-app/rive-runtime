@@ -80,9 +80,6 @@ case "$(uname -s)" in
     MINGW*|MSYS*)
         HOST_MACHINE="windows"
         NUM_CORES=$NUMBER_OF_PROCESSORS
-        # Try to find MSBuild.exe
-        export PATH="$PATH:$PROGRAMFILES/Microsoft Visual Studio/2022/Enterprise/Msbuild/Current/Bin"
-        export PATH="$PATH:$PROGRAMFILES/Microsoft Visual Studio/2022/Community/Msbuild/Current/Bin"
         ;;
     Linux*)
         HOST_MACHINE="linux"
