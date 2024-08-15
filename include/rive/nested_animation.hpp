@@ -47,7 +47,7 @@ public:
     }
 
 private:
-    NestedArtboard* m_nestedArtboard;
+    NestedArtboard* m_nestedArtboard = nullptr;
     std::vector<NestedEventListener*> m_nestedEventListeners;
 };
 
