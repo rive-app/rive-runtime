@@ -375,6 +375,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackType = ViewModelInstanceList::typeKey;
                 break;
             case TransitionViewModelCondition::typeKey:
+            case TransitionArtboardCondition::typeKey:
                 stackObject = rivestd::make_unique<TransitionViewModelConditionImporter>(
                     object->as<TransitionViewModelCondition>());
                 stackType = TransitionViewModelCondition::typeKey;

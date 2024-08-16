@@ -59,11 +59,13 @@
 #include "rive/animation/state_machine_number.hpp"
 #include "rive/animation/state_machine_trigger.hpp"
 #include "rive/animation/state_transition.hpp"
+#include "rive/animation/transition_artboard_condition.hpp"
 #include "rive/animation/transition_bool_condition.hpp"
 #include "rive/animation/transition_comparator.hpp"
 #include "rive/animation/transition_condition.hpp"
 #include "rive/animation/transition_input_condition.hpp"
 #include "rive/animation/transition_number_condition.hpp"
+#include "rive/animation/transition_property_artboard_comparator.hpp"
 #include "rive/animation/transition_property_comparator.hpp"
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/animation/transition_trigger_condition.hpp"
@@ -318,6 +320,8 @@ public:
                 return new KeyedProperty();
             case StateMachineListenerBase::typeKey:
                 return new StateMachineListener();
+            case TransitionPropertyArtboardComparatorBase::typeKey:
+                return new TransitionPropertyArtboardComparator();
             case TransitionPropertyViewModelComparatorBase::typeKey:
                 return new TransitionPropertyViewModelComparator();
             case KeyFrameIdBase::typeKey:
@@ -332,6 +336,10 @@ public:
                 return new TransitionNumberCondition();
             case TransitionValueBooleanComparatorBase::typeKey:
                 return new TransitionValueBooleanComparator();
+            case TransitionViewModelConditionBase::typeKey:
+                return new TransitionViewModelCondition();
+            case TransitionArtboardConditionBase::typeKey:
+                return new TransitionArtboardCondition();
             case AnyStateBase::typeKey:
                 return new AnyState();
             case CubicInterpolatorComponentBase::typeKey:
@@ -342,8 +350,6 @@ public:
                 return new KeyFrameString();
             case ListenerNumberChangeBase::typeKey:
                 return new ListenerNumberChange();
-            case TransitionViewModelConditionBase::typeKey:
-                return new TransitionViewModelCondition();
             case CubicEaseInterpolatorBase::typeKey:
                 return new CubicEaseInterpolator();
             case StateTransitionBase::typeKey:
@@ -899,6 +905,9 @@ public:
                 break;
             case StateMachineListenerBase::eventIdPropertyKey:
                 object->as<StateMachineListenerBase>()->eventId(value);
+                break;
+            case TransitionPropertyArtboardComparatorBase::propertyTypePropertyKey:
+                object->as<TransitionPropertyArtboardComparatorBase>()->propertyType(value);
                 break;
             case KeyFrameIdBase::valuePropertyKey:
                 object->as<KeyFrameIdBase>()->value(value);
@@ -1982,6 +1991,8 @@ public:
                 return object->as<StateMachineListenerBase>()->listenerTypeValue();
             case StateMachineListenerBase::eventIdPropertyKey:
                 return object->as<StateMachineListenerBase>()->eventId();
+            case TransitionPropertyArtboardComparatorBase::propertyTypePropertyKey:
+                return object->as<TransitionPropertyArtboardComparatorBase>()->propertyType();
             case KeyFrameIdBase::valuePropertyKey:
                 return object->as<KeyFrameIdBase>()->value();
             case ListenerBoolChangeBase::valuePropertyKey:
@@ -2664,6 +2675,7 @@ public:
             case StateMachineListenerBase::targetIdPropertyKey:
             case StateMachineListenerBase::listenerTypeValuePropertyKey:
             case StateMachineListenerBase::eventIdPropertyKey:
+            case TransitionPropertyArtboardComparatorBase::propertyTypePropertyKey:
             case KeyFrameIdBase::valuePropertyKey:
             case ListenerBoolChangeBase::valuePropertyKey:
             case ListenerAlignTargetBase::targetIdPropertyKey:
@@ -3202,6 +3214,8 @@ public:
                 return object->is<StateMachineListenerBase>();
             case StateMachineListenerBase::eventIdPropertyKey:
                 return object->is<StateMachineListenerBase>();
+            case TransitionPropertyArtboardComparatorBase::propertyTypePropertyKey:
+                return object->is<TransitionPropertyArtboardComparatorBase>();
             case KeyFrameIdBase::valuePropertyKey:
                 return object->is<KeyFrameIdBase>();
             case ListenerBoolChangeBase::valuePropertyKey:
