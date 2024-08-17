@@ -1,5 +1,6 @@
 #include "rive/drawable.hpp"
 #include "rive/artboard.hpp"
+#include "rive/layout_component.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/path_composer.hpp"
 #include "rive/shapes/shape.hpp"
@@ -70,4 +71,16 @@ ClipResult Drawable::applyClip(Renderer* renderer) const
         }
     }
     return ClipResult::clip;
+}
+
+bool Drawable::isChildOfLayout(LayoutComponent* layout)
+{
+    for (ContainerComponent* parent = this; parent != nullptr; parent = parent->parent())
+    {
+        if (parent->is<LayoutComponent>() && parent->as<LayoutComponent>() == layout)
+        {
+            return true;
+        }
+    }
+    return false;
 }

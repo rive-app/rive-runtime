@@ -247,20 +247,12 @@ StatusCode Artboard::initialize()
     for (int i = 0; i < m_Drawables.size(); i++)
     {
         auto drawable = m_Drawables[i];
-        LayoutComponent* currentLayout;
+        LayoutComponent* currentLayout = nullptr;
         bool isInCurrentLayout = true;
         if (!layouts.empty())
         {
             currentLayout = layouts.back();
-            isInCurrentLayout = false;
-        }
-        for (ContainerComponent* parent = drawable; parent != nullptr; parent = parent->parent())
-        {
-            if (parent == currentLayout)
-            {
-                isInCurrentLayout = true;
-                break;
-            }
+            isInCurrentLayout = drawable->isChildOfLayout(currentLayout);
         }
         // We inject a DrawableProxy after all of the children of a LayoutComponent
         // so that we can draw a stroke above and background below the children
@@ -269,9 +261,16 @@ StatusCode Artboard::initialize()
         {
             // This is the first item in the list of drawables that isn't a child
             // of the layout, so we insert a proxy before it
-            m_Drawables.insert(m_Drawables.begin() + i, currentLayout->proxy());
-            layouts.pop_back();
-            i += 1;
+            do
+            {
+                m_Drawables.insert(m_Drawables.begin() + i, currentLayout->proxy());
+                layouts.pop_back();
+                if (!layouts.empty())
+                {
+                    currentLayout = layouts.back();
+                }
+                i += 1;
+            } while (!layouts.empty() && !drawable->isChildOfLayout(currentLayout));
         }
         if (drawable->is<LayoutComponent>())
         {

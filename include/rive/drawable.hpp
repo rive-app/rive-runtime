@@ -12,6 +12,7 @@ namespace rive
 class ClippingShape;
 class Artboard;
 class DrawRules;
+class LayoutComponent;
 
 class Drawable : public DrawableBase
 {
@@ -46,6 +47,8 @@ public:
         return (static_cast<DrawableFlag>(drawableFlags()) & DrawableFlag::Opaque) ==
                DrawableFlag::Opaque;
     }
+
+    bool isChildOfLayout(LayoutComponent* layout);
 
     StatusCode onAddedDirty(CoreContext* context) override;
 };
