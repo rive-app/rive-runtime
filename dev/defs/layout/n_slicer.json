@@ -4,5 +4,5 @@
     "int": 493,
     "string": "nslicer"
   },
-  "extends": "component.json"
+  "extends": "container_component.json"
 }

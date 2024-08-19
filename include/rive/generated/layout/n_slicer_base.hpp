@@ -1,12 +1,12 @@
 #ifndef _RIVE_N_SLICER_BASE_HPP_
 #define _RIVE_N_SLICER_BASE_HPP_
-#include "rive/component.hpp"
+#include "rive/container_component.hpp"
 namespace rive
 {
-class NSlicerBase : public Component
+class NSlicerBase : public ContainerComponent
 {
 protected:
-    typedef Component Super;
+    typedef ContainerComponent Super;
 
 public:
     static const uint16_t typeKey = 493;
@@ -18,6 +18,7 @@ public:
         switch (typeKey)
         {
             case NSlicerBase::typeKey:
+            case ContainerComponentBase::typeKey:
             case ComponentBase::typeKey:
                 return true;
             default:
