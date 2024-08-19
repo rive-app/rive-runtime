@@ -9,6 +9,7 @@
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/importers/bindable_property_importer.hpp"
+#include "rive/importers/data_converter_group_importer.hpp"
 #include "rive/importers/enum_importer.hpp"
 #include "rive/importers/file_asset_importer.hpp"
 #include "rive/importers/import_stack.hpp"
@@ -39,6 +40,7 @@
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
+#include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
@@ -388,6 +390,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackObject =
                     rivestd::make_unique<BindablePropertyImporter>(object->as<BindableProperty>());
                 stackType = BindablePropertyBase::typeKey;
+                break;
+            case DataConverterGroupBase::typeKey:
+                stackObject = rivestd::make_unique<DataConverterGroupImporter>(
+                    object->as<DataConverterGroup>());
+                stackType = DataConverterGroupBase::typeKey;
                 break;
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) != StatusCode::Ok)
