@@ -17,7 +17,7 @@ do
 
     includedirs({ yoga })
 
-    files({ 
+    files({
         yoga .. '/yoga/Utils.cpp',
         yoga .. '/yoga/YGConfig.cpp',
         yoga .. '/yoga/YGLayout.cpp',

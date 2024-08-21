@@ -352,7 +352,7 @@ do
 
     filter('system:macosx or system:ios')
     do
-        defines({'HAVE_CORETEXT'})
-        files({harfbuzz .. '/src/hb-coretext.cc'})
+        defines({ 'HAVE_CORETEXT' })
+        files({ harfbuzz .. '/src/hb-coretext.cc' })
     end
 end

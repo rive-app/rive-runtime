@@ -13,7 +13,7 @@ do
 
     includedirs({ 'include', '../include', libpng, libjpeg })
 
-    files({ 'src/**.cpp' })
+    files({ 'src/bitmap_decoder.cpp' })
 
     filter({ 'options:not no-libjpeg-renames' })
     do
@@ -21,5 +21,19 @@ do
             rive .. '/dependencies',
         })
         forceincludes({ 'rive_libjpeg_renames.h' })
+    end
+
+    filter({ 'system:macosx or system:ios' })
+    do
+        files({ 'src/**.mm' })
+    end
+
+    filter({ 'system:not macosx', 'system:not ios' })
+    do
+        files({
+            'src/bitmap_decoder_thirdparty.cpp',
+            'src/decode_jpeg.cpp',
+            'src/decode_png.cpp',
+        })
     end
 end
