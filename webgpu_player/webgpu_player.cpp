@@ -456,7 +456,7 @@ int main(int argc, const char** argv)
     if (preferredAdapter == adapters.end())
     {
         fprintf(stderr, "Failed to find an adapter! Please try another adapter type.\n");
-        exit(-1);
+        abort();
     }
 
     std::vector<const char*> enableToggleNames = {

@@ -18,7 +18,7 @@ T vkb_check(vkb::Result<T> result, const char* code, int line, const char* file)
                 line,
                 code,
                 result.error().message().c_str());
-        exit(-1);
+        abort();
     }
     return *result;
 }

@@ -232,7 +232,7 @@ void BackgroundShaderCompiler::threadMain()
             }
             fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
             fprintf(stderr, "Failed to compile shader.\n\n");
-            exit(-1);
+            abort();
         }
 
         lock.lock();

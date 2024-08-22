@@ -427,12 +427,12 @@ ComPtr<ID3DBlob> PLSRenderContextD3DImpl::compileSourceToBlob(const char* shader
             fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
         }
         fprintf(stderr, "%s\n", reinterpret_cast<char*>(errors->GetBufferPointer()));
-        exit(-1);
+        abort();
     }
     if (FAILED(hr))
     {
         fprintf(stderr, "Failed to compile shader.\n");
-        exit(-1);
+        abort();
     }
     return blob;
 }

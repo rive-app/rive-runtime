@@ -616,7 +616,7 @@ int main(int argc, const char** argv)
     if (!s_fiddleContext)
     {
         fprintf(stderr, "Failed to create a fiddle context.\n");
-        exit(-1);
+        abort();
     }
     Factory* factory = s_fiddleContext->factory();
 

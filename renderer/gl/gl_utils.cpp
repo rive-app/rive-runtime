@@ -130,7 +130,7 @@ GLuint CompileShader(GLuint type,
         fprintf(stderr, "%s\n", &infoLog[0]);
         fflush(stderr);
         glDeleteShader(shader);
-        exit(-1);
+        abort();
     }
 #endif
     return shader;
@@ -150,7 +150,7 @@ void LinkProgram(GLuint program)
         glGetProgramInfoLog(program, maxLength, &maxLength, &infoLog[0]);
         fprintf(stderr, "Failed to link program %s\n", &infoLog[0]);
         fflush(stderr);
-        exit(-1);
+        abort();
     }
 #endif
 }

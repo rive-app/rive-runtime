@@ -35,8 +35,7 @@ static id<MTLRenderPipelineState> make_pipeline_state(id<MTLDevice> gpu,
     if (!state)
     {
         fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
-        assert(0);
-        exit(-1);
+        abort();
     }
     return state;
 }
@@ -365,7 +364,7 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
     {
         fprintf(stderr, "Failed to load pls metallib.\n");
         fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
-        exit(-1);
+        abort();
     }
 
     m_colorRampPipeline = std::make_unique<ColorRampPipeline>(m_gpu, m_plsPrecompiledLibrary);

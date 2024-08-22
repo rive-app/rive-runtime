@@ -73,7 +73,7 @@ public:
         if (!gladLoadCustomLoader((GLADloadproc)glfwGetProcAddress))
         {
             fprintf(stderr, "Failed to initialize glad.\n");
-            exit(-1);
+            abort();
         }
 #endif
 
@@ -205,7 +205,7 @@ public:
         if (!m_plsContext)
         {
             fprintf(stderr, "Failed to create a PLS renderer.\n");
-            exit(-1);
+            abort();
         }
     }
 
@@ -282,7 +282,7 @@ public:
         if (!m_grContext)
         {
             fprintf(stderr, "GrDirectContext::MakeGL failed.\n");
-            exit(-1);
+            abort();
         }
     }
 
@@ -311,7 +311,7 @@ public:
         if (!m_skSurface)
         {
             fprintf(stderr, "SkSurface::MakeFromBackendRenderTarget failed.\n");
-            exit(-1);
+            abort();
         }
         return std::make_unique<SkiaRenderer>(m_skSurface->getCanvas());
     }

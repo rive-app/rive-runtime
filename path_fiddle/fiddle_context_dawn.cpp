@@ -282,7 +282,7 @@ public:
                     if (status != WGPUBufferMapAsyncStatus_Success)
                     {
                         fprintf(stderr, "failed to map m_pixelReadBuff\n");
-                        exit(-1);
+                        abort();
                     }
                     *reinterpret_cast<bool*>(mapped) = true;
                 },

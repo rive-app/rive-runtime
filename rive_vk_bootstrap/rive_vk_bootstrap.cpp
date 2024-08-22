@@ -136,7 +136,7 @@ std::tuple<vkb::PhysicalDevice, rive::pls::VulkanFeatures> select_physical_devic
                 fprintf(stderr, "  %s\n", name.c_str());
             }
             fprintf(stderr, "\nPlease update the $RIVE_GPU environment variable\n");
-            exit(-1);
+            abort();
         }
         selector.set_name(matches[0]);
     }

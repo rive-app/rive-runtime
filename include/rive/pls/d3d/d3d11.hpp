@@ -19,6 +19,6 @@ using Microsoft::WRL::ComPtr;
                     static_cast<int>(__LINE__),                                                    \
                     hr,                                                                            \
                     #CODE);                                                                        \
-            exit(-1);                                                                              \
+            abort();                                                                               \
         }                                                                                          \
     }
