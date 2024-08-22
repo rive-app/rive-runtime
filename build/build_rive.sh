@@ -270,7 +270,7 @@ case "$RIVE_BUILD_SYSTEM" in
         if [[ $# = 0 ]]; then
             echo 'No targets specified for xcode: Attempting to grok them from "xcodebuild -list".'
             XCODE_SCHEMES=$(for f in $(xcodebuild -list -workspace $RIVE_OUT/rive.xcworkspace | grep '^        '); do printf " $f"; done)
-            echo "  -> groked:$XCODE_SCHEMES"
+            echo "  -> grokked:$XCODE_SCHEMES"
         else
             XCODE_SCHEMES="$@"
         fi
