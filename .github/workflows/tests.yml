@@ -15,8 +15,8 @@ jobs:
       - uses: actions/checkout@v2
       - name: Install
         run: |
-          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-linux.tar.gz
-          tar -xvf premake-5.0.0-alpha16-linux.tar.gz
+          wget -q https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-linux.tar.gz
+          tar -xf premake-5.0.0-alpha16-linux.tar.gz
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
 
