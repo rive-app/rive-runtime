@@ -36,6 +36,7 @@ do
         'libpng',
         'zlib',
         'libjpeg',
+        'libwebp',
     })
 
     files({

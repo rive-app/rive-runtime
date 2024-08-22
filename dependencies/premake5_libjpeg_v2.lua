@@ -1,9 +1,5 @@
 dofile('rive_build_config.lua')
 
-if _OPTIONS['no-rive-decoders'] then
-    return
-end
-
 local dependency = require('dependency')
 libjpeg = dependency.github('rive-app/libjpeg', 'v9f')
 

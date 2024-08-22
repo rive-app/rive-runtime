@@ -1,17 +1,22 @@
 dofile('rive_build_config.lua')
 
+if _OPTIONS['no-rive-decoders'] then
+    return
+end
+
 rive = path.getabsolute('../')
 
 dofile(rive .. '/dependencies/premake5_libpng_v2.lua')
 dofile(rive .. '/dependencies/premake5_libjpeg_v2.lua')
+dofile(rive .. '/dependencies/premake5_libwebp_v2.lua')
 
 project('rive_decoders')
 do
-    dependson('libpng', 'zlib', 'libjpeg')
+    dependson('libpng', 'zlib', 'libjpeg', 'libwebp')
     kind('StaticLib')
     flags({ 'FatalWarnings' })
 
-    includedirs({ 'include', '../include', libpng, libjpeg })
+    includedirs({ 'include', '../include', libpng, libjpeg, libwebp .. '/src' })
 
     files({ 'src/bitmap_decoder.cpp' })
 
@@ -32,6 +37,7 @@ do
     do
         files({
             'src/bitmap_decoder_thirdparty.cpp',
+            'src/decode_webp.cpp',
             'src/decode_jpeg.cpp',
             'src/decode_png.cpp',
         })

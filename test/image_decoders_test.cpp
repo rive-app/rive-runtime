@@ -64,3 +64,16 @@ TEST_CASE("bad png file doesn't cause an overflow", "[image-decoder]")
     REQUIRE(bitmap == nullptr);
 #endif
 }
+
+TEST_CASE("webp file decodes correctly", "[image-decoder]")
+{
+    auto file = ReadFile("../../test/assets/1.webp");
+    REQUIRE(file.size() == 30320);
+
+    auto bitmap = Bitmap::decode(file.data(), file.size());
+
+    REQUIRE(bitmap != nullptr);
+
+    REQUIRE(bitmap->width() == 550);
+    REQUIRE(bitmap->height() == 368);
+}

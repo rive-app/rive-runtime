@@ -10,7 +10,7 @@
 
 std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount);
 std::unique_ptr<Bitmap> DecodeJpeg(const uint8_t bytes[], size_t byteCount);
-std::unique_ptr<Bitmap> DecodeWebP(const uint8_t bytes[], size_t byteCount) { return nullptr; }
+std::unique_ptr<Bitmap> DecodeWebP(const uint8_t bytes[], size_t byteCount);
 
 using BitmapDecoder = std::unique_ptr<Bitmap> (*)(const uint8_t bytes[], size_t byteCount);
 struct ImageFormat
