@@ -649,6 +649,7 @@ int main(int argc, const char** argv)
             glfwWaitEvents();
         }
     }
+    s_fiddleContext = nullptr;
     glfwTerminate();
 #endif
 

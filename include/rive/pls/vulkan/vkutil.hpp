@@ -10,17 +10,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vulkan/vulkan.h>
-
-struct VmaAllocator_T;
-using VmaAllocator = VmaAllocator_T*;
-
-struct VmaAllocation_T;
-using VmaAllocation = VmaAllocation_T*;
+#include <vk_mem_alloc.h>
 
 namespace rive::pls
 {
-class PLSRenderContextVulkanImpl;
-}
+class VulkanContext;
+} // namespace rive::pls
 
 namespace rive::pls::vkutil
 {
@@ -35,12 +30,7 @@ inline static void vk_check(VkResult res, const char* file, int line)
 
 #define VK_CHECK(x) ::rive::pls::vkutil::vk_check(x, __FILE__, __LINE__)
 
-class Buffer;
-class Texture;
-class TextureView;
-class Framebuffer;
-
-constexpr static VkColorComponentFlags ColorWriteMaskRGBA =
+constexpr static VkColorComponentFlags kColorWriteMaskRGBA =
     VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
     VK_COLOR_COMPONENT_A_BIT;
 
@@ -51,50 +41,6 @@ enum class Mappability
     readWrite,
 };
 
-class Allocator : public RefCnt<Allocator>
-{
-public:
-    Allocator(VkInstance, VkPhysicalDevice, VkDevice, uint32_t vulkanApiVersion);
-    ~Allocator();
-
-    VkDevice device() const { return m_device; }
-
-    void setPLSContextImpl(PLSRenderContextVulkanImpl* plsImplVulkan)
-    {
-        assert(m_plsImplVulkan == nullptr);
-        assert(plsImplVulkan != nullptr);
-        m_plsImplVulkan = plsImplVulkan;
-    }
-
-    void didDestroyPLSContext()
-    {
-        assert(m_plsImplVulkan != nullptr);
-        m_plsImplVulkan = nullptr;
-    }
-
-    // Weak pointer (not-thread-safe) back to the PLS context. Becomes null once
-    // the context is destroyed.
-    PLSRenderContextVulkanImpl* plsImplVulkan() const { return m_plsImplVulkan; }
-
-    VmaAllocator vmaAllocator() const { return m_vmaAllocator; }
-
-    rcp<Buffer> makeBuffer(const VkBufferCreateInfo&, Mappability);
-
-    rcp<Texture> makeTexture(const VkImageCreateInfo&);
-
-    rcp<TextureView> makeTextureView(rcp<Texture>);
-    rcp<TextureView> makeTextureView(rcp<Texture> texture, const VkImageViewCreateInfo&);
-    rcp<TextureView> makeExternalTextureView(const VkImageUsageFlags, const VkImageViewCreateInfo&);
-
-    rcp<Framebuffer> makeFramebuffer(const VkFramebufferCreateInfo&);
-
-private:
-    VkDevice m_device;
-    VmaAllocator m_vmaAllocator;
-    // Weak pointer back to the PLS context.
-    PLSRenderContextVulkanImpl* m_plsImplVulkan = nullptr;
-};
-
 // Base class for a GPU resource that needs to be kept alive until any in-flight
 // command buffers that reference it have completed.
 class RenderingResource : public RefCnt<RenderingResource>
@@ -102,16 +48,12 @@ class RenderingResource : public RefCnt<RenderingResource>
 public:
     virtual ~RenderingResource() {}
 
+    const VulkanContext* vulkanContext() const { return m_vk.get(); }
+
 protected:
-    RenderingResource(rcp<Allocator> allocator) : m_allocator(std::move(allocator)) {}
+    RenderingResource(rcp<VulkanContext> vk) : m_vk(std::move(vk)) {}
 
-    VkDevice device() const { return m_allocator->device(); }
-
-    // Weak pointer (not-thread-safe) back to the PLS context. Becomes null once
-    // the context is destroyed.
-    PLSRenderContextVulkanImpl* plsImplVulkan() const { return m_allocator->plsImplVulkan(); }
-
-    const rcp<Allocator> m_allocator;
+    const rcp<VulkanContext> m_vk;
 
 private:
     friend class RefCnt<RenderingResource>;
@@ -120,6 +62,21 @@ private:
     // zero; wait until any in-flight command buffers are done referencing their
     // underlying Vulkan objects.
     void onRefCntReachedZero() const;
+};
+
+// A RenderingResource that has been fully released, but whose underlying Vulkan
+// object may still be referenced by an in-flight command buffer.
+template <typename T> struct ZombieResource
+{
+    ZombieResource(T* resource_, uint64_t lastFrameUsed) :
+        resource(resource_), expirationFrameIdx(lastFrameUsed + pls::kBufferRingSize)
+    {
+        assert(resource_->debugging_refcnt() == 0);
+    }
+    std::unique_ptr<T> resource;
+    // Frame index at which the underlying Vulkan resource is no longer is use
+    // by an in-flight command buffer.
+    const uint64_t expirationFrameIdx;
 };
 
 class Buffer : public RenderingResource
@@ -145,9 +102,9 @@ public:
     void flushMappedContents(size_t updatedSizeInBytes);
 
 private:
-    friend class Allocator;
+    friend class ::rive::pls::VulkanContext;
 
-    Buffer(rcp<Allocator>, const VkBufferCreateInfo&, Mappability);
+    Buffer(rcp<VulkanContext>, const VkBufferCreateInfo&, Mappability);
 
     void init();
 
@@ -180,61 +137,9 @@ private:
 class BufferRing
 {
 public:
-    BufferRing(rcp<vkutil::Allocator> allocator,
-               VkBufferUsageFlags usage,
-               Mappability mappability,
-               size_t size = 0) :
-        m_targetSize(size)
-    {
-        VkBufferCreateInfo bufferCreateInfo = {
-            .size = size,
-            .usage = usage,
-        };
-        for (int i = 0; i < pls::kBufferRingSize; ++i)
-        {
-            m_buffers[i] = allocator->makeBuffer(bufferCreateInfo, mappability);
-        }
-    }
+    BufferRing(rcp<VulkanContext>, VkBufferUsageFlags, Mappability, size_t = 0);
 
     size_t size() const { return m_targetSize; }
-
-    void setTargetSize(size_t size)
-    {
-        // Buffers always get bound, even if unused, so make sure they aren't empty
-        // and we get a valid Vulkan handle.
-        if (m_buffers[0]->info().usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
-        {
-            size = std::max<size_t>(size, 256);
-            // Uniform blocks must be multiples of 256 bytes in size.
-            assert(size % 256 == 0);
-        }
-        else
-        {
-            size = std::max<size_t>(size, 1);
-        }
-        m_targetSize = size;
-    }
-
-    void synchronizeSizeAt(int bufferRingIdx)
-    {
-        if (m_buffers[bufferRingIdx]->info().size != m_targetSize)
-        {
-            m_buffers[bufferRingIdx]->resizeImmediately(m_targetSize);
-        }
-    }
-
-    void* contentsAt(int bufferRingIdx, size_t dirtySize = VK_WHOLE_SIZE)
-    {
-        m_pendingFlushSize = dirtySize;
-        return m_buffers[bufferRingIdx]->contents();
-    }
-
-    void flushMappedContentsAt(int bufferRingIdx)
-    {
-        assert(m_pendingFlushSize > 0);
-        m_buffers[bufferRingIdx]->flushMappedContents(m_pendingFlushSize);
-        m_pendingFlushSize = 0;
-    }
 
     VkBuffer vkBufferAt(int bufferRingIdx) const { return *m_buffers[bufferRingIdx]; }
 
@@ -242,6 +147,11 @@ public:
     {
         return m_buffers[bufferRingIdx]->vkBufferAddressOf();
     }
+
+    void setTargetSize(size_t size);
+    void synchronizeSizeAt(int bufferRingIdx);
+    void* contentsAt(int bufferRingIdx, size_t dirtySize = VK_WHOLE_SIZE);
+    void flushMappedContentsAt(int bufferRingIdx);
 
 private:
     size_t m_targetSize;
@@ -259,9 +169,9 @@ public:
     const VkImage* vkImageAddressOf() const { return &m_vkImage; }
 
 private:
-    friend class Allocator;
+    friend class ::rive::pls::VulkanContext;
 
-    Texture(rcp<Allocator>, const VkImageCreateInfo&);
+    Texture(rcp<VulkanContext>, const VkImageCreateInfo&);
 
     VkImageCreateInfo m_info;
     VmaAllocation m_vmaAllocation;
@@ -280,9 +190,9 @@ public:
     const VkImageView* vkImageViewAddressOf() const { return &m_vkImageView; }
 
 private:
-    friend class Allocator;
+    friend class ::rive::pls::VulkanContext;
 
-    TextureView(rcp<Allocator>,
+    TextureView(rcp<VulkanContext>,
                 rcp<Texture> textureRef,
                 VkImageUsageFlags,
                 const VkImageViewCreateInfo&);
@@ -302,9 +212,9 @@ public:
     operator VkFramebuffer() const { return m_vkFramebuffer; }
 
 private:
-    friend class Allocator;
+    friend class ::rive::pls::VulkanContext;
 
-    Framebuffer(rcp<Allocator>, const VkFramebufferCreateInfo&);
+    Framebuffer(rcp<VulkanContext>, const VkFramebufferCreateInfo&);
 
     VkFramebufferCreateInfo m_info;
     VkFramebuffer m_vkFramebuffer;
@@ -367,30 +277,4 @@ inline VkClearColorValue color_clear_r32ui(uint32_t value)
     ret.uint32[0] = value;
     return ret;
 }
-
-void update_image_descriptor_sets(VkDevice,
-                                  VkDescriptorSet,
-                                  VkWriteDescriptorSet,
-                                  std::initializer_list<VkDescriptorImageInfo>);
-
-void update_buffer_descriptor_sets(VkDevice,
-                                   VkDescriptorSet,
-                                   VkWriteDescriptorSet,
-                                   std::initializer_list<VkDescriptorBufferInfo>);
-
-void insert_image_memory_barrier(VkCommandBuffer,
-                                 VkImage,
-                                 VkImageLayout oldLayout,
-                                 VkImageLayout newLayout,
-                                 uint32_t mipLevel = 0,
-                                 uint32_t levelCount = 1);
-
-void insert_buffer_memory_barrier(VkCommandBuffer,
-                                  VkAccessFlags srcAccessMask,
-                                  VkAccessFlags dstAccessMask,
-                                  VkBuffer,
-                                  VkDeviceSize offset = 0,
-                                  VkDeviceSize size = VK_WHOLE_SIZE);
-
-void blit_sub_rect(VkCommandBuffer commandBuffer, VkImage src, VkImage dst, const IAABB&);
 } // namespace rive::pls::vkutil

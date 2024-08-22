@@ -12,6 +12,28 @@ else
     RIVE_RUNTIME_DIR = path.getabsolute('../runtime')
 end
 
+newoption({
+    trigger = 'with_vulkan',
+    description = 'compile with support for vulkan',
+})
+-- Guard this in an "if" (instead of filter()) so we don't download these repos when not building
+-- for Vulkan.
+if _OPTIONS['with_vulkan'] then
+    local dependency = require('dependency')
+    -- Standardize on the same set of Vulkan headers on all platforms.
+    vulkan_headers = dependency.github('KhronosGroup/Vulkan-Headers', 'vulkan-sdk-1.3.283')
+    vulkan_memory_allocator = dependency.github(
+        'GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator',
+        '7942b798289f752dc23b0a79516fd8545febd718'
+    )
+    defines({
+        'RIVE_VULKAN',
+        'VK_NO_PROTOTYPES',
+        'VMA_STATIC_VULKAN_FUNCTIONS=0',
+        'VMA_DYNAMIC_VULKAN_FUNCTIONS=1',
+    })
+end
+
 filter('system:windows or macosx or linux')
 do
     -- Define RIVE_DESKTOP_GL outside of a project so that it also gets defined for consumers. It is
@@ -33,31 +55,6 @@ end
 filter({ 'system:ios', 'options:variant=system' })
 do
     defines({ 'RIVE_IOS' })
-end
-
-newoption({
-    trigger = 'with_vulkan',
-    description = 'compile with support for vulkan',
-})
-filter({ 'options:with_vulkan' })
-do
-    defines({ 'RIVE_VULKAN' })
-    -- Guard this inside an "if" so we don't download these repos if not building for Vulkan.
-    if _OPTIONS['with_vulkan'] then
-        local dependency = require('dependency')
-        -- Standardize on the same set of Vulkan headers on all platforms.
-        vulkan_headers = dependency.github('KhronosGroup/Vulkan-Headers', 'vulkan-sdk-1.3.283')
-        vulkan_memory_allocator = dependency.github(
-            'GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator',
-            '7942b798289f752dc23b0a79516fd8545febd718'
-        )
-        if _TARGET_OS == 'windows' then
-            vulkan_windows_sdk = os.getenv('VULKAN_SDK')
-            if not vulkan_windows_sdk or vulkan_windows_sdk == '' then
-                error('$VULKAN_SDK environment variable not defined')
-            end
-        end
-    end
 end
 
 newoption({
@@ -175,6 +172,14 @@ do
 
     files({ 'renderer/*.cpp', 'renderer/decoding/*.cpp' })
 
+    if _OPTIONS['with_vulkan'] then
+        externalincludedirs({
+            vulkan_headers .. '/include',
+            vulkan_memory_allocator .. '/include',
+        })
+        files({ 'renderer/vulkan/*.cpp' })
+    end
+
     filter({ 'toolset:not msc' })
     do
         buildoptions({ '-Wshorten-64-to-32' })
@@ -240,17 +245,6 @@ do
     do
         files({ 'renderer/metal/*.mm' })
         buildoptions({ '-fobjc-arc' })
-    end
-
-    filter('options:with_vulkan')
-    do
-        if vulkan_headers then
-            externalincludedirs({ vulkan_headers .. '/include' })
-        end
-        if vulkan_memory_allocator then
-            externalincludedirs({ vulkan_memory_allocator .. '/include' })
-        end
-        files({ 'renderer/vulkan/*.cpp' })
     end
 
     filter({ 'options:with-dawn' })

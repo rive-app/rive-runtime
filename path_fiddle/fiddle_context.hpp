@@ -9,7 +9,6 @@ struct GLFWwindow;
 struct FiddleContextOptions
 {
     bool retinaDisplay = true;
-    bool readableFramebuffer = true;
     bool synchronousShaderCompilations = false;
     bool enableReadPixels = false;
     bool disableRasterOrdering = false;

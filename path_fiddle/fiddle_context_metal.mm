@@ -58,7 +58,7 @@ public:
         m_swapchain = [CAMetalLayer layer];
         m_swapchain.device = m_gpu;
         m_swapchain.opaque = YES;
-        m_swapchain.framebufferOnly = !m_fiddleOptions.readableFramebuffer;
+        m_swapchain.framebufferOnly = !m_fiddleOptions.enableReadPixels;
         m_swapchain.pixelFormat = MTLPixelFormatBGRA8Unorm;
         m_swapchain.contentsScale = dpiScale(window);
         m_swapchain.displaySyncEnabled = NO;

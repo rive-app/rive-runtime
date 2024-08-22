@@ -16,19 +16,13 @@ do
     includedirs({
         'include',
         RIVE_RUNTIME_DIR .. '/include',
-        'glad',
         'include',
+    })
+    externalincludedirs({
+        'glad',
         RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
         yoga,
     })
-
-    filter('action:xcode4')
-    do
-        -- xcode doesnt like angle brackets except for -isystem
-        -- should use externalincludedirs but GitHub runners dont have latest premake5 binaries
-        buildoptions({ '-isystem' .. yoga })
-    end
-    filter({})
 
     flags({ 'FatalWarnings' })
 
@@ -48,6 +42,17 @@ do
         'rive_sheenbidi',
         'rive_yoga',
     })
+
+    if _OPTIONS['with_vulkan'] then
+        dofile('rive_vk_bootstrap/bootstrap_project.lua')
+    end
+
+    filter('action:xcode4')
+    do
+        -- xcode doesnt like angle brackets except for -isystem
+        -- should use externalincludedirs but GitHub runners dont have latest premake5 binaries
+        buildoptions({ '-isystem' .. yoga })
+    end
 
     filter({ 'toolset:not msc' })
     do
@@ -90,40 +95,10 @@ do
         libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
     end
 
-    filter({ 'options:with_vulkan', 'action:xcode4' })
-    do
-        -- Xcode doesn't search /usr/local/lib for shared libraries, which is where MoltenVK gets
-        -- installed.
-        libdirs({ '/usr/local/lib' })
-    end
-
     filter('system:linux')
     do
         links({ 'glfw3' })
         libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
-    end
-
-    filter('options:with_vulkan')
-    do
-        if vulkan_headers then
-            externalincludedirs({ vulkan_headers .. '/include' })
-        end
-        if vulkan_memory_allocator then
-            externalincludedirs({ vulkan_memory_allocator .. '/include' })
-        end
-    end
-
-    filter({ 'options:with_vulkan', 'system:windows' })
-    do
-        if vulkan_windows_sdk then
-            libdirs({ vulkan_windows_sdk .. '/Lib' })
-        end
-        links({ 'vulkan-1' })
-    end
-
-    filter({ 'options:with_vulkan', 'system:not windows' })
-    do
-        links({ 'vulkan' })
     end
 
     filter('options:with-dawn')
