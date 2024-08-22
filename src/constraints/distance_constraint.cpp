@@ -55,3 +55,7 @@ void DistanceConstraint::constrain(TransformComponent* component)
     world[4] = position.x;
     world[5] = position.y;
 }
+
+void DistanceConstraint::distanceChanged() { markConstraintDirty(); }
+
+void DistanceConstraint::modeValueChanged() { markConstraintDirty(); }
