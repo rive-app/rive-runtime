@@ -1,16 +1,6 @@
 dofile('rive_build_config.lua')
 
--- Are we in the "rive-renderer" or "rive" repository?
-local handle = io.popen('git remote -v')
-local git_remote = handle:read('*a')
-handle:close()
-if string.find(git_remote, 'rive%-renderer') or string.find(git_remote, 'rive%-pls') then
-    -- In rive-renderer. Rive runtime is a submodule.
-    RIVE_RUNTIME_DIR = path.getabsolute('submodules/rive-cpp')
-else
-    -- In rive. Rive runtime is further up the tree.
-    RIVE_RUNTIME_DIR = path.getabsolute('../runtime')
-end
+RIVE_RUNTIME_DIR = path.getabsolute('..')
 
 newoption({
     trigger = 'with_vulkan',
@@ -165,7 +155,7 @@ do
         'include',
         'glad',
         'renderer',
-        RIVE_RUNTIME_DIR .. '/include',
+        '../include',
         pls_generated_headers,
     })
     flags({ 'FatalWarnings' })
@@ -271,7 +261,7 @@ do
 
     filter({ 'options:not no-rive-decoders' })
     do
-        includedirs({ RIVE_RUNTIME_DIR .. '/decoders/include' })
+        includedirs({ '../decoders/include' })
         defines({ 'RIVE_DECODERS' })
     end
 
