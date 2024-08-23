@@ -2,21 +2,21 @@
 
 The Rive Renderer is a vector and raster graphics renderer custom-built for Rive content, for animation, and for runtime.
 
-This repository contains the renderer code and an example for how to interface with it directly. The code within this repository does not contain a Rive runtime. It contains the best in class concrete implementation of Rive's rendering abstraction layer, which we call the Rive Renderer.
+This folder contains the renderer code and an example for how to interface with it directly. It contains the best in class concrete implementation of Rive's rendering abstraction layer, which we call the Rive Renderer.
 
-## Clone this repo
-
-Make sure to clone this repo with submodules!
+## Clone the rive-runtime repo
 
 ```
-git clone --recurse-submodules git@github.com:rive-app/rive-renderer.git
+git clone https://github.com/rive-app/rive-runtime.git
+cd rive-runtime/pls
 ```
 
 ## Build GLFW
 
 ```
-cd submodules/rive-cpp/skia/dependencies
+pushd ../skia/dependencies
 ./make_glfw.sh
+popd
 ```
 
 ## Install Python PLY
@@ -28,7 +28,7 @@ python3 -m pip install ply
 ## Add build_rive.sh to $PATH
 
 ```
-export PATH="$PATH:$(pwd)/submodules/rive-cpp/build"
+export PATH="$PATH:$(realpath ../build)"
 ```
 
 ## Build & run
