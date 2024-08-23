@@ -97,7 +97,7 @@ Core* Mesh::clone() const
     return clone;
 }
 
-void Mesh::initializeSharedBuffers(RenderImage* renderImage)
+void Mesh::onAssetLoaded(RenderImage* renderImage)
 {
     Mat2D uvTransform = renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
 

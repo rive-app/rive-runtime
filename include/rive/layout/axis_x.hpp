@@ -7,6 +7,7 @@ namespace rive
 class AxisX : public AxisXBase
 {
 public:
+    StatusCode onAddedDirty(CoreContext* context) override;
 };
 } // namespace rive
 

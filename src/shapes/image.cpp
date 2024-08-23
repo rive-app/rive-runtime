@@ -4,7 +4,7 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/image_asset.hpp"
-#include "rive/shapes/mesh.hpp"
+#include "rive/shapes/mesh_drawable.hpp"
 #include "rive/artboard.hpp"
 #include "rive/clip_result.hpp"
 
@@ -104,7 +104,7 @@ void Image::setAsset(FileAsset* asset)
         // the mesh buffers.
         if (m_Mesh != nullptr && !artboard()->isInstance())
         {
-            m_Mesh->initializeSharedBuffers(imageAsset()->renderImage());
+            m_Mesh->onAssetLoaded(imageAsset()->renderImage());
         }
     }
 }
@@ -119,8 +119,7 @@ Core* Image::clone() const
     return twin;
 }
 
-void Image::setMesh(Mesh* mesh) { m_Mesh = mesh; }
-Mesh* Image::mesh() const { return m_Mesh; }
+void Image::setMesh(MeshDrawable* mesh) { m_Mesh = mesh; }
 
 float Image::width() const
 {
@@ -199,3 +198,8 @@ void Image::controlSize(Vec2D size)
         addDirt(ComponentDirt::WorldTransform, false);
     }
 }
+
+#ifdef TESTING
+#include "rive/shapes/mesh.hpp"
+Mesh* Image::mesh() const { return static_cast<Mesh*>(m_Mesh); };
+#endif

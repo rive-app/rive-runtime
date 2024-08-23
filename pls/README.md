@@ -2,7 +2,7 @@
 
 The Rive Renderer is a vector and raster graphics renderer custom-built for Rive content, for animation, and for runtime.
 
-This directory contains the renderer code and an example for how to interface with it directly. It contains the best in class concrete implementation of Rive's rendering abstraction layer, which we call the Rive Renderer.
+This folder contains the renderer code and an example for how to interface with it directly. It contains the best in class concrete implementation of Rive's rendering abstraction layer, which we call the Rive Renderer.
 
 ## Clone the rive-runtime repo
 
