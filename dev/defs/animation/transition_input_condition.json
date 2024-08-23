@@ -1,0 +1,22 @@
+{
+  "name": "TransitionInputCondition",
+  "key": {
+    "int": 67,
+    "string": "transitioninputcondition"
+  },
+  "abstract": true,
+  "extends": "animation/transition_condition.json",
+  "properties": {
+    "inputId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 155,
+        "string": "inputid"
+      },
+      "description": "Id of the StateMachineInput referenced."
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "BindablePropertyString",
+  "key": {
+    "int": 471,
+    "string": "bindablepropertystring"
+  },
+  "extends": "data_bind/bindable_property.json",
+  "properties": {
+    "propertyValue": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 635,
+        "string": "propertyvalue"
+      },
+      "description": "A property of type String that can be used for data binding."
+    }
+  }
+}

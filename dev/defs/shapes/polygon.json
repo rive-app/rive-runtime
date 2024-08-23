@@ -1,0 +1,28 @@
+{
+  "name": "Polygon",
+  "key": {
+    "int": 51,
+    "string": "polygon"
+  },
+  "extends": "shapes/parametric_path.json",
+  "properties": {
+    "points": {
+      "type": "uint",
+      "initialValue": "5",
+      "key": {
+        "int": 125,
+        "string": "points"
+      },
+      "description": "The number of points for the polygon."
+    },
+    "cornerRadius": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 126,
+        "string": "cornerradius"
+      },
+      "description": "The corner radius."
+    }
+  }
+}

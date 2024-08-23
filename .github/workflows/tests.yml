@@ -1,0 +1,77 @@
+name: Tests
+
+on:
+  push:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        platform: [linux]
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Install
+        run: |
+          wget -q https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-linux.tar.gz
+          tar -xf premake-5.0.0-alpha16-linux.tar.gz
+          sudo chmod a+x premake5
+          sudo mv premake5 /usr/local/bin
+
+      - name: Build
+        run: |
+          ./build.sh clean
+          ./build.sh
+          ./build.sh release
+
+      - name: Tests
+        run: |
+          cd dev
+          ./test.sh
+
+  build-windows:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v2
+      - name: Tests
+        run: |
+          cd dev
+          ./test.sh
+
+  build-macos:
+    runs-on: macOS-latest
+
+    strategy:
+      matrix:
+        platform: [macOS]
+
+    steps:
+      - uses: actions/checkout@v2
+
+      - name: Install
+        run: |
+          wget https://github.com/premake/premake-core/releases/download/v5.0.0-alpha16/premake-5.0.0-alpha16-macosx.tar.gz
+          tar -xvf premake-5.0.0-alpha16-macosx.tar.gz
+          sudo chmod a+x premake5
+          sudo mv premake5 /usr/local/bin
+
+      - name: Build
+        run: |
+          ./build.sh
+          ./build.sh release
+
+      - name: Tests
+        if: matrix.platform == 'macOS'
+        run: |
+          echo Testing for ${{matrix.platform}}
+          cd dev
+          ./test.sh
+
+      - name: Tess Tests
+        if: matrix.platform == 'macOS'
+        run: |
+          echo Testing for ${{matrix.platform}}
+          cd tess/build/macosx
+          ./build_tess.sh test

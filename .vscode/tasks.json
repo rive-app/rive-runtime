@@ -1,0 +1,36 @@
+{
+    // See https://go.microsoft.com/fwlink/?LinkId=733558
+    // for the documentation about the tasks.json format
+    "version": "2.0.0",
+    "tasks": [{
+            "label": "run tests",
+            "type": "shell",
+            "command": "cd dev && ./test.sh",
+            "group": "test",
+            "presentation": {
+                "reveal": "always",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "gen assembly",
+            "type": "shell",
+            "command": "mkdir -p ${workspaceFolder}/build/bin/assembly/${fileDirname}/ && clang++ -O3 -g -std=c++17 -o ${workspaceFolder}/build/bin/assembly/${fileDirname}/${fileBasenameNoExtension}.S -Wall -fno-exceptions -fno-rtti -I${workspaceFolder}/include -S ${file}",
+            "group": "test",
+            "presentation": {
+                "reveal": "silent",
+                "panel": "new"
+            }
+        },
+        {
+            "label": "disassemble",
+            "command": "${command:disasexpl.show}",
+            "dependsOn": ["gen assembly"],
+            "problemMatcher": [],
+            "presentation": {
+                "reveal": "silent",
+                "panel": "new"
+            }
+        }
+    ]
+}

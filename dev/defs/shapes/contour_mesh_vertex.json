@@ -1,0 +1,8 @@
+{
+  "name": "ContourMeshVertex",
+  "key": {
+    "int": 111,
+    "string": "contourmeshvertex"
+  },
+  "extends": "shapes/mesh_vertex.json"
+}

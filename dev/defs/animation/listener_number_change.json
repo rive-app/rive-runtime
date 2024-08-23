@@ -1,0 +1,19 @@
+{
+  "name": "ListenerNumberChange",
+  "key": {
+    "int": 118,
+    "string": "listener_number_change"
+  },
+  "extends": "animation/listener_input_change.json",
+  "properties": {
+    "value": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 229,
+        "string": "value"
+      },
+      "description": "Value to set the input to when the listener occurs."
+    }
+  }
+}

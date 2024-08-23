@@ -1,0 +1,9 @@
+{
+  "name": "CubicEaseInterpolator",
+  "key": {
+    "int": 28,
+    "string": "cubicEase"
+  },
+  "exportsWithContext": true,
+  "extends": "animation/cubic_interpolator.json"
+}

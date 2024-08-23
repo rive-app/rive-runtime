@@ -1,0 +1,83 @@
+{
+  "name": "TransformComponentConstraint",
+  "key": {
+    "int": 85,
+    "string": "transformcomponentconstraint"
+  },
+  "abstract": true,
+  "extends": "constraints/transform_space_constraint.json",
+  "properties": {
+    "minMaxSpaceValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 195,
+        "string": "minmaxspacevalue"
+      },
+      "description": "The min/max transform space."
+    },
+    "copyFactor": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 182,
+        "string": "copyfactor"
+      },
+      "description": "Copy factor."
+    },
+    "minValue": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 183,
+        "string": "minvalue"
+      },
+      "description": "Minimum value."
+    },
+    "maxValue": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 184,
+        "string": "maxvalue"
+      },
+      "description": "Maximum value."
+    },
+    "offset": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 188,
+        "string": "offset"
+      },
+      "description": "True when the original component (rotation/scale/translation) is used to offset the copied one."
+    },
+    "doesCopy": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 189,
+        "string": "doescopy"
+      },
+      "description": "Whether the component is copied."
+    },
+    "min": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 190,
+        "string": "min"
+      },
+      "description": "Whether min is used."
+    },
+    "max": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 191,
+        "string": "max"
+      },
+      "description": "Whether max is used."
+    }
+  }
+}

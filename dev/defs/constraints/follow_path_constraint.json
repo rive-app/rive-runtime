@@ -1,0 +1,39 @@
+{
+  "name": "FollowPathConstraint",
+  "key": {
+    "int": 165,
+    "string": "followpathconstraint"
+  },
+  "extends": "constraints/transform_space_constraint.json",
+  "properties": {
+    "distance": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 363,
+        "string": "distance"
+      },
+      "description": "Distance along the path to follow."
+    },
+    "orient": {
+      "type": "bool",
+      "initialValue": "true",
+      "animates": true,
+      "key": {
+        "int": 364,
+        "string": "orient"
+      },
+      "description": "True when the orientation from the path is copied to the constrained transform."
+    },
+    "offset": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 365,
+        "string": "offset"
+      },
+      "description": "True when the local translation is used to offset the transformed one."
+    }
+  }
+}

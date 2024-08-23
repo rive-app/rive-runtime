@@ -1,0 +1,38 @@
+{
+  "name": "ListenerViewModelChange",
+  "key": {
+    "int": 487,
+    "string": "listenerviewmodelchange"
+  },
+  "extends": "animation/listener_action.json",
+  "properties": {
+    "bindablePropertyId": {
+      "type": "Id",
+      "key": {
+        "int": 657,
+        "string": "bindablepropertyid"
+      },
+      "description": "Id of the bindable property",
+      "runtime": false
+    },
+    "fromViewModelProperty": {
+      "type": "bool",
+      "key": {
+        "int": 658,
+        "string": "fromviewmodelproperty"
+      },
+      "description": "Whether it is using another view model property as the value",
+      "runtime": false
+    },
+    "fromDataBindId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 659,
+        "string": "fromdatabindid"
+      },
+      "description": "Id of the data bind used if the value is taken from another view model property (only needed if fromViewModelProperty is true)",
+      "runtime": false
+    }
+  }
+}

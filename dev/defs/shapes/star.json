@@ -1,0 +1,20 @@
+{
+  "name": "Star",
+  "key": {
+    "int": 52,
+    "string": "star"
+  },
+  "extends": "shapes/polygon.json",
+  "properties": {
+    "innerRadius": {
+      "type": "double",
+      "initialValue": "0.5",
+      "animates": true,
+      "key": {
+        "int": 127,
+        "string": "inner_radius"
+      },
+      "description": "Percentage of width/height to project inner points of the star."
+    }
+  }
+}

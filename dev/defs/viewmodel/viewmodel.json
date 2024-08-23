@@ -1,0 +1,32 @@
+{
+  "name": "ViewModel",
+  "key": {
+    "int": 435,
+    "string": "viewmodel"
+  },
+  "extends": "viewmodel/viewmodel_component.json",
+  "properties": {
+    "viewModelOrder": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 563,
+        "string": "viewmodelorder"
+      },
+      "description": "Order value for sorting View Models.",
+      "runtime": false
+    },
+    "defaultInstanceId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 564,
+        "string": "defaultinstanceid"
+      },
+      "description": "The default instance attached to the view model."
+    }
+  }
+}

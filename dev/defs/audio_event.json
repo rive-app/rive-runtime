@@ -1,0 +1,21 @@
+{
+    "name": "AudioEvent",
+    "key": {
+        "int": 407,
+        "string": "audioevent"
+    },
+    "extends": "event.json",
+    "properties": {
+        "assetId": {
+            "type": "Id",
+            "typeRuntime": "uint",
+            "initialValue": "Core.missingId",
+            "initialValueRuntime": "-1",
+            "key": {
+                "int": 408,
+                "string": "assetid"
+            },
+            "description": "Audio asset to play when event fires"
+        }
+    }
+}

@@ -1,0 +1,92 @@
+# Prerequisites
+*.d
+
+# Compiled Object files
+*.slo
+*.lo
+*.o
+*.obj
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Compiled Dynamic libraries
+*.so
+*.dylib
+*.dll
+
+# Fortran module files
+*.mod
+*.smod
+
+# Compiled Static libraries
+*.lai
+*.la
+*.a
+*.lib
+
+# Executables
+*.exe
+*.out
+*.app
+
+# aot snapshots
+dev/bin/*
+
+# Generated make files
+Makefile
+*.make
+
+# Dart stuff
+pubspec.lock
+.packages
+.dart_tool
+
+# OSX stuff
+*.DS_Store
+
+# Generated docs
+docs
+
+# Analysis results
+dev/analysis_report
+
+# Build directories
+build/bin
+dev/test/build/bin
+rivinfo/build/macosx
+
+# Skia dependencies
+skia/dependencies/skia_recorder
+skia/dependencies/skia
+skia/dependencies/skia_full
+skia/dependencies/glfw_build
+skia/dependencies/FFmpeg
+skia/dependencies/x264
+skia/renderer/build/bin
+skia/renderer/build/obj
+skia/renderer/build/macosx
+skia/renderer/build/android
+skia/**/build/bin
+skia/**/build/macosx
+skia/**/build/android
+/skia/dependencies/glfw
+/skia/dependencies/gl3w
+/skia/dependencies/imgui
+/skia/dependencies/libzip
+/skia/dependencies/libzip_build
+/skia/viewer/imgui.ini
+/skia/viewer/build/macosx
+/skia/thumbnail_generator/build/macosx
+/skia/thumbnail_generator/build/dependencies
+/viewer/build/macosx
+/build/macosx
+/build/android
+/skia/dependencies/skia_rive_optimized
+/skia/dependencies/skia_debug
+/skia/dependencies/skia-experimental
+dependencies/windows/cache
+
+# Local development setup
+compile_commands.json

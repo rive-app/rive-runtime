@@ -1,0 +1,19 @@
+{
+  "name": "BindablePropertyColor",
+  "key": {
+    "int": 475,
+    "string": "bindablepropertycolor"
+  },
+  "extends": "data_bind/bindable_property.json",
+  "properties": {
+    "propertyValue": {
+      "type": "Color",
+      "initialValue": "0xFF1D1D1D",
+      "key": {
+        "int": 638,
+        "string": "propertyvalue"
+      },
+      "description": "A property of type int that can be used for data binding."
+    }
+  }
+}

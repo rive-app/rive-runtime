@@ -1,0 +1,30 @@
+{
+  "name": "FileAssetContents",
+  "key": {
+    "int": 106,
+    "string": "file_asset_contents"
+  },
+  "properties": {
+    "assetId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 213,
+        "string": "assetid"
+      },
+      "description": "The id of the asset these bytes belong to.",
+      "runtime": false,
+      "coop": false
+    },
+    "bytes": {
+      "type": "Bytes",
+      "encoded": true,
+      "key": {
+        "int": 212,
+        "string": "bytes"
+      },
+      "description": "Byte data of the file.",
+      "coop": false
+    }
+  }
+}

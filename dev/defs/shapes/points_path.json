@@ -1,0 +1,30 @@
+{
+  "name": "PointsPath",
+  "key": {
+    "int": 16,
+    "string": "pointspath"
+  },
+  "extends": "shapes/path.json",
+  "properties": {
+    "isClosed": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 32,
+        "string": "isclosed"
+      },
+      "description": "If the path should close back on its first vertex."
+    },
+    "editingModeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 74,
+        "string": "editingmode"
+      },
+      "description": "We use this to track the edit-time state of the PointsPath for the VertexEditor.",
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "StraightVertex",
+  "key": {
+    "int": 5,
+    "string": "straightvertex"
+  },
+  "extends": "shapes/path_vertex.json",
+  "generic": "bones/weight.json",
+  "properties": {
+    "radius": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 26,
+        "string": "radius"
+      },
+      "description": "Radius of the vertex"
+    }
+  }
+}

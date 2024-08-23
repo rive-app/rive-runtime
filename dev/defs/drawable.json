@@ -1,0 +1,28 @@
+{
+  "name": "Drawable",
+  "key": {
+    "int": 13,
+    "string": "drawable"
+  },
+  "abstract": true,
+  "extends": "node.json",
+  "properties": {
+    "blendModeValue": {
+      "type": "uint",
+      "initialValue": "3",
+      "key": {
+        "int": 23,
+        "string": "blendModeValue"
+      }
+    },
+    "drawableFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 129,
+        "string": "drawableflags"
+      },
+      "coop": false
+    }
+  }
+}

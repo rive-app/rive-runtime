@@ -1,0 +1,20 @@
+{
+  "name": "NestedNumber",
+  "key": {
+    "int": 124,
+    "string": "nestedNumber"
+  },
+  "extends": "animation/nested_input.json",
+  "properties": {
+    "nestedValue": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "pureVirtual": true,
+      "key": {
+        "int": 239,
+        "string": "nestedValue"
+      }
+    }
+  }
+}

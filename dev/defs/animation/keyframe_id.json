@@ -1,0 +1,20 @@
+{
+  "name": "KeyFrameId",
+  "key": {
+    "int": 50,
+    "string": "keyframeid"
+  },
+  "extends": "animation/interpolating_keyframe.json",
+  "properties": {
+    "value": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 122,
+        "string": "value"
+      }
+    }
+  }
+}

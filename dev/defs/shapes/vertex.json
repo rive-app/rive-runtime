@@ -1,0 +1,33 @@
+{
+  "name": "Vertex",
+  "key": {
+    "int": 107,
+    "string": "vertex"
+  },
+  "abstract": true,
+  "extends": "container_component.json",
+  "properties": {
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 24,
+        "string": "x"
+      },
+      "description": "X value for the translation of the vertex."
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 25,
+        "string": "y"
+      },
+      "description": "Y value for the translation of the vertex."
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "EntryState",
+  "key": {
+    "int": 63,
+    "string": "entrystate"
+  },
+  "extends": "animation/layer_state.json"
+}

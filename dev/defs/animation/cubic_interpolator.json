@@ -1,0 +1,44 @@
+{
+  "name": "CubicInterpolator",
+  "key": {
+    "int": 139,
+    "string": "cubicinterpolator"
+  },
+  "abstract": true,
+  "exportsWithContext": true,
+  "extends": "animation/keyframe_interpolator.json",
+  "properties": {
+    "x1": {
+      "type": "double",
+      "initialValue": "0.42",
+      "key": {
+        "int": 63,
+        "string": "x1"
+      }
+    },
+    "y1": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 64,
+        "string": "y1"
+      }
+    },
+    "x2": {
+      "type": "double",
+      "initialValue": "0.58",
+      "key": {
+        "int": 65,
+        "string": "x2"
+      }
+    },
+    "y2": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 66,
+        "string": "y2"
+      }
+    }
+  }
+}

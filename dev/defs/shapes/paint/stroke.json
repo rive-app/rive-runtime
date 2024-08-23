@@ -1,0 +1,43 @@
+{
+  "name": "Stroke",
+  "key": {
+    "int": 24,
+    "string": "stroke"
+  },
+  "extends": "shapes/paint/shape_paint.json",
+  "properties": {
+    "thickness": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 47,
+        "string": "thickness"
+      }
+    },
+    "cap": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 48,
+        "string": "cap"
+      }
+    },
+    "join": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 49,
+        "string": "join"
+      }
+    },
+    "transformAffectsStroke": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 50,
+        "string": "transformaffectsstroke"
+      }
+    }
+  }
+}

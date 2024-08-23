@@ -1,0 +1,104 @@
+{
+  "name": "Text",
+  "key": {
+    "int": 134,
+    "string": "text"
+  },
+  "extends": "drawable.json",
+  "properties": {
+    "alignValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 281,
+        "string": "alignvalue"
+      }
+    },
+    "sizingValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 284,
+        "string": "sizingvalue"
+      }
+    },
+    "overflowValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 287,
+        "string": "overflowvalue"
+      },
+      "description": "One of visible, hidden, clipped, ellipsis."
+    },
+    "width": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 285,
+        "string": "width"
+      },
+      "description": "Width of the text object."
+    },
+    "height": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 286,
+        "string": "height"
+      },
+      "description": "Height of the text object."
+    },
+    "highlightTextRuns": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 310,
+        "string": "highlighttextruns"
+      },
+      "description": "Whether to draw colored underlines to identify runs.",
+      "runtime": false,
+      "coop": false
+    },
+    "originX": {
+      "type": "double",
+      "initialValue": "0.0",
+      "animates": true,
+      "key": {
+        "int": 366,
+        "string": "originx"
+      },
+      "description": "Origin x in normalized coordinates (0.5 = center, 0 = left, 1 = right)."
+    },
+    "originY": {
+      "type": "double",
+      "initialValue": "0.0",
+      "animates": true,
+      "key": {
+        "int": 367,
+        "string": "originy"
+      },
+      "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
+    },
+    "paragraphSpacing": {
+      "type": "double",
+      "initialValue": "0.0",
+      "animates": true,
+      "key": {
+        "int": 371,
+        "string": "paragraphspacing"
+      }
+    },
+    "originValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 377,
+        "string": "originValue"
+      },
+      "description": "Logical starting location of origin."
+    }
+  }
+}

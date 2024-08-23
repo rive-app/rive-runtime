@@ -1,0 +1,19 @@
+{
+  "name": "KeyFrameBool",
+  "key": {
+    "int": 84,
+    "string": "keyframebool"
+  },
+  "extends": "animation/interpolating_keyframe.json",
+  "properties": {
+    "value": {
+      "type": "bool",
+      "typeRuntime": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 181,
+        "string": "value"
+      }
+    }
+  }
+}

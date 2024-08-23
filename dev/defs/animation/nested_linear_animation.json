@@ -1,0 +1,22 @@
+{
+  "name": "NestedLinearAnimation",
+  "key": {
+    "int": 97,
+    "string": "nestedlinearanimation"
+  },
+  "abstract": true,
+  "extends": "nested_animation.json",
+  "generic": "animation/linear_animation.json",
+  "properties": {
+    "mix": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 200,
+        "string": "mix"
+      },
+      "description": "Value to mix the animation in."
+    }
+  }
+}

@@ -1,0 +1,28 @@
+{
+  "name": "OpenUrlEvent",
+  "key": {
+    "int": 131,
+    "string": "openurlevent"
+  },
+  "extends": "event.json",
+  "properties": {
+    "url": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 248,
+        "string": "url"
+      },
+      "description": "URL to open."
+    },
+    "targetValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 249,
+        "string": "targetvalue"
+      },
+      "description": "Backing value for the target enum."
+    }
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "name": "ClippingShape",
+  "key": {
+    "int": 42,
+    "string": "clippingshape"
+  },
+  "extends": "component.json",
+  "properties": {
+    "sourceId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 92,
+        "string": "sourceid"
+      },
+      "description": "Identifier used to track the node to use as a clipping source."
+    },
+    "fillRule": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 93,
+        "string": "fillrule"
+      },
+      "description": "Backing enum value for the clipping fill rule (nonZero or evenOdd)."
+    },
+    "isVisible": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 94,
+        "string": "isvisible"
+      }
+    }
+  }
+}

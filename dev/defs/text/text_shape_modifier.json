@@ -1,0 +1,9 @@
+{
+  "name": "TextShapeModifier",
+  "key": {
+    "int": 161,
+    "string": "textshapemodifier"
+  },
+  "abstract": true,
+  "extends": "text/text_modifier.json"
+}

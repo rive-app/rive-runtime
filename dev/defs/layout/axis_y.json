@@ -1,0 +1,8 @@
+{
+  "name": "AxisY",
+  "key": {
+    "int": 494,
+    "string": "axisy"
+  },
+  "extends": "layout/axis.json"
+}

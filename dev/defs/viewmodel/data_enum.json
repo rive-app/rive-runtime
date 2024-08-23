@@ -1,0 +1,40 @@
+{
+  "name": "DataEnum",
+  "key": {
+    "int": 438,
+    "string": "dataenum"
+  },
+  "properties": {
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 570,
+        "string": "order"
+      },
+      "description": "Order value for sorting data enums.",
+      "runtime": false
+    },
+    "splitKeyValues": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 571,
+        "string": "splitkeyvalues"
+      },
+      "description": "Whether the user can edit keys and values separately.",
+      "runtime": false
+    },
+    "name": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 572,
+        "string": "name"
+      },
+      "description": "Non-unique identifier, used to give friendly names to enums.",
+      "runtime": false
+    }
+  }
+}

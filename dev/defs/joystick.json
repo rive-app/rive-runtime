@@ -1,0 +1,132 @@
+{
+  "name": "Joystick",
+  "key": {
+    "int": 148,
+    "string": "joystick"
+  },
+  "extends": "component.json",
+  "properties": {
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 299,
+        "string": "x"
+      }
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 300,
+        "string": "y"
+      }
+    },
+    "posX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 303,
+        "string": "posx"
+      }
+    },
+    "posY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 304,
+        "string": "posy"
+      }
+    },
+    "originX": {
+      "type": "double",
+      "initialValue": "0.5",
+      "key": {
+        "int": 307,
+        "string": "originx"
+      },
+      "description": "Origin x in normalized coordinates (0.5 = center, 0 = left, 1 = right)."
+    },
+    "originY": {
+      "type": "double",
+      "initialValue": "0.5",
+      "key": {
+        "int": 308,
+        "string": "originy"
+      },
+      "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
+    },
+    "width": {
+      "type": "double",
+      "initialValue": "100",
+      "key": {
+        "int": 305,
+        "string": "width"
+      }
+    },
+    "height": {
+      "type": "double",
+      "initialValue": "100",
+      "key": {
+        "int": 306,
+        "string": "height"
+      }
+    },
+    "xId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 301,
+        "string": "x_id"
+      },
+      "description": "Identifier used to track the animation used for the x axis of the joystick."
+    },
+    "yId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 302,
+        "string": "y_id"
+      },
+      "description": "Identifier used to track the animation used for the y axis of the joystick."
+    },
+    "joystickFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 312,
+        "string": "joystickflags"
+      }
+    },
+    "joystickOrder": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 314,
+        "string": "joystickorder"
+      },
+      "runtime": false,
+      "coop": false,
+      "journal": false
+    },
+    "handleSourceId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 313,
+        "string": "handlesourceid"
+      },
+      "description": "Identifier used to track the custom handle source of the joystick."
+    }
+  }
+}

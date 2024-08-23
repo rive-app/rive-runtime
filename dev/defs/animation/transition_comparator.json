@@ -1,0 +1,8 @@
+{
+  "name": "TransitionComparator",
+  "key": {
+    "int": 477,
+    "string": "transitioncomparator"
+  },
+  "abstract": true
+}

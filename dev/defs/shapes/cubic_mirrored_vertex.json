@@ -1,0 +1,30 @@
+{
+  "name": "CubicMirroredVertex",
+  "key": {
+    "int": 35,
+    "string": "cubicmirroredvertex"
+  },
+  "extends": "shapes/cubic_vertex.json",
+  "properties": {
+    "rotation": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 82,
+        "string": "rotation"
+      },
+      "description": "The control points' angle."
+    },
+    "distance": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 83,
+        "string": "distance"
+      },
+      "description": "The control points' distance from the translation of the point."
+    }
+  }
+}

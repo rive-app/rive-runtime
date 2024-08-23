@@ -1,0 +1,21 @@
+{
+  "name": "TransitionValueEnumComparator",
+  "key": {
+    "int": 485,
+    "string": "transitionvalueenumcomparator"
+  },
+  "extends": "animation/transition_value_comparator.json",
+  "properties": {
+    "value": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 653,
+        "string": "value"
+      },
+      "description": "The id of the enum to compare the condition to"
+    }
+  }
+}

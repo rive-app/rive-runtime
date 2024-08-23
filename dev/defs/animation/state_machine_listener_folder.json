@@ -1,0 +1,9 @@
+{
+  "name": "StateMachineListenerFolder",
+  "key": {
+    "int": 150,
+    "string": "statemachinelistenerfolder"
+  },
+  "extends": "animation/state_machine_component_folder.json",
+  "runtime": false
+}

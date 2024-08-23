@@ -1,0 +1,21 @@
+{
+  "name": "Constraint",
+  "key": {
+    "int": 79,
+    "string": "constraint"
+  },
+  "abstract": true,
+  "extends": "component.json",
+  "properties": {
+    "strength": {
+      "type": "double",
+      "initialValue": "1.0",
+      "animates": true,
+      "key": {
+        "int": 172,
+        "string": "strength"
+      },
+      "description": "Strength of the constraint. 0 means off. 1 means fully constraining."
+    }
+  }
+}

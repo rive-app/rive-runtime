@@ -1,0 +1,59 @@
+{
+  "name": "Rectangle",
+  "key": {
+    "int": 7,
+    "string": "rectangle"
+  },
+  "extends": "shapes/parametric_path.json",
+  "properties": {
+    "linkCornerRadius": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 164,
+        "string": "linkcornerradius"
+      },
+      "description": "Whether the TL corner radius defines all the radiuses"
+    },
+    "cornerRadiusTL": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 31,
+        "string": "cornerRadiusTL"
+      },
+      "description": "Top left radius of the corners of this rectangle"
+    },
+    "cornerRadiusTR": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 161,
+        "string": "cornerRadiusTR"
+      },
+      "description": "Top right radius of the corners of this rectangle"
+    },
+    "cornerRadiusBL": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 162,
+        "string": "cornerRadiusBL"
+      },
+      "description": "Bottom left radius of the corners of this rectangle"
+    },
+    "cornerRadiusBR": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 163,
+        "string": "cornerRadiusBR"
+      },
+      "description": "Bottom right radius of the corners of this rectangle"
+    }
+  }
+}

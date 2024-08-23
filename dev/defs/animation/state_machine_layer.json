@@ -1,0 +1,43 @@
+{
+  "name": "StateMachineLayer",
+  "key": {
+    "int": 57,
+    "string": "statemachinelayer"
+  },
+  "extends": "animation/state_machine_component.json",
+  "properties": {
+    "stageZoom": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 143,
+        "string": "stagezoom"
+      },
+      "description": "Zoom value of the stage in the editor. Initial value is 0 to indicate it is not set.",
+      "runtime": false,
+      "coop": false
+    },
+    "stageX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 144,
+        "string": "stagex"
+      },
+      "description": "X translation value of the stage in the editor.",
+      "runtime": false,
+      "coop": false
+    },
+    "stageY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 145,
+        "string": "stagey"
+      },
+      "description": "Y translation value of the stage in the editor.",
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

@@ -1,0 +1,30 @@
+{
+  "name": "KeyFrame",
+  "key": {
+    "int": 29,
+    "string": "keyframe"
+  },
+  "abstract": true,
+  "properties": {
+    "keyedPropertyId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 72,
+        "string": "keyedpropertyid"
+      },
+      "description": "The id of the KeyedProperty this KeyFrame belongs to.",
+      "runtime": false
+    },
+    "frame": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 67,
+        "string": "frame"
+      },
+      "description": "Timecode as frame number can be converted to time by dividing by animation fps."
+    }
+  }
+}

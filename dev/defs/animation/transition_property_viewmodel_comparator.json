@@ -1,0 +1,19 @@
+{
+  "name": "TransitionPropertyViewModelComparator",
+  "key": {
+    "int": 479,
+    "string": "transitionpropertyviewmodelcomparator"
+  },
+  "extends": "animation/transition_property_comparator.json",
+  "properties": {
+    "bindablePropertyId": {
+      "type": "Id",
+      "key": {
+        "int": 646,
+        "string": "bindablepropertyid"
+      },
+      "description": "Id of the bindable property used as comparator",
+      "runtime": false
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "TransitionPropertyArtboardComparator",
+  "key": {
+    "int": 496,
+    "string": "transitionpropertyartboardcomparator"
+  },
+  "extends": "animation/transition_property_comparator.json",
+  "properties": {
+    "propertyType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 677,
+        "string": "propertytype"
+      },
+      "description": "Integer representation of the artboard's property used for condition"
+    }
+  }
+}

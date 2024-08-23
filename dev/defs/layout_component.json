@@ -1,0 +1,50 @@
+{
+  "name": "LayoutComponent",
+  "key": {
+    "int": 409,
+    "string": "layoutcomponent"
+  },
+  "extends": "drawable.json",
+  "properties": {
+    "clip": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 196,
+        "string": "clip"
+      },
+      "description": "True when the layout component bounds clip its contents."
+    },
+    "width": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 7,
+        "string": "w"
+      },
+      "description": "Initial width of the item."
+    },
+    "height": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 8,
+        "string": "h"
+      },
+      "description": "Initial height of the item."
+    },
+    "styleId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 494,
+        "string": "styleid"
+      },
+      "description": "LayoutStyle that defines the styling for this LayoutComponent"
+    }
+  }
+}

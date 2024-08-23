@@ -1,0 +1,51 @@
+{
+  "name": "ParametricPath",
+  "key": {
+    "int": 15,
+    "string": "parametricpath"
+  },
+  "abstract": true,
+  "extends": "shapes/path.json",
+  "properties": {
+    "width": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 20,
+        "string": "width"
+      },
+      "description": "Width of the parametric path."
+    },
+    "height": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 21,
+        "string": "height"
+      },
+      "description": "Height of the parametric path."
+    },
+    "originX": {
+      "type": "double",
+      "initialValue": "0.5",
+      "animates": true,
+      "key": {
+        "int": 123,
+        "string": "originx"
+      },
+      "description": "Origin x in normalized coordinates (0.5 = center, 0 = left, 1 = right)."
+    },
+    "originY": {
+      "type": "double",
+      "initialValue": "0.5",
+      "animates": true,
+      "key": {
+        "int": 124,
+        "string": "originy"
+      },
+      "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
+    }
+  }
+}

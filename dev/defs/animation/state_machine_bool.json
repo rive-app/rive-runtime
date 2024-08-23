@@ -1,0 +1,28 @@
+{
+  "name": "StateMachineBool",
+  "key": {
+    "int": 59,
+    "string": "statemachinebool"
+  },
+  "extends": "animation/state_machine_input.json",
+  "properties": {
+    "value": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 141,
+        "string": "value"
+      }
+    },
+    "playbackValue": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 232,
+        "string": "playbackvalue"
+      },
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

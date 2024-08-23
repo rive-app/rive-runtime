@@ -1,0 +1,19 @@
+{
+  "name": "SolidColor",
+  "key": {
+    "int": 18,
+    "string": "solidcolor"
+  },
+  "extends": "component.json",
+  "properties": {
+    "colorValue": {
+      "type": "Color",
+      "initialValue": "0xFF747474",
+      "animates": true,
+      "key": {
+        "int": 37,
+        "string": "color"
+      }
+    }
+  }
+}

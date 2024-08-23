@@ -1,0 +1,317 @@
+{
+  "name": "Backboard",
+  "key": {
+    "int": 23,
+    "string": "backboard"
+  },
+  "properties": {
+    "activeArtboardId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 43,
+        "string": "activeArtboardId"
+      },
+      "description": "Identifier used to track the last active artboard.",
+      "runtime": false,
+      "coop": false
+    },
+    "mainArtboardId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 44,
+        "string": "mainArtboardId"
+      },
+      "description": "Identifier used to track the main artboard (this is the default one that shows up in runtimes unless specified).",
+      "runtime": false
+    },
+    "colorValue": {
+      "type": "Color",
+      "initialValue": "0xFF1D1D1D",
+      "key": {
+        "int": 45,
+        "string": "colorValue"
+      },
+      "description": "The background color.",
+      "runtime": false
+    },
+    "animateColorValue": {
+      "type": "Color",
+      "initialValue": "0xFF1D1D1D",
+      "key": {
+        "int": 354,
+        "string": "animatecolorvalue"
+      },
+      "description": "The background color while in Animate mode",
+      "runtime": false,
+      "coop": false
+    },
+    "editorMode": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 135,
+        "string": "editormode"
+      },
+      "description": "Edit time mode.",
+      "runtime": false,
+      "coop": false
+    },
+    "treeMode": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 247,
+        "string": "treemode"
+      },
+      "description": "Edit time hierarchy/assets/events mode.",
+      "runtime": false,
+      "coop": false
+    },
+    "animationPanelSize": {
+      "type": "double",
+      "initialValue": "300.0",
+      "key": {
+        "int": 258,
+        "string": "animationpanelsize"
+      },
+      "description": "Size of the animation panel",
+      "runtime": false,
+      "coop": false
+    },
+    "hierarchyPanelSize": {
+      "type": "double",
+      "initialValue": "300.0",
+      "key": {
+        "int": 259,
+        "string": "hierarchypanelsize"
+      },
+      "description": "Size of the Hierarchy panel",
+      "runtime": false,
+      "coop": false
+    },
+    "stageX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 260,
+        "string": "stagex"
+      },
+      "description": "X translation value of the stage in the editor.",
+      "runtime": false,
+      "coop": false
+    },
+    "stageY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 261,
+        "string": "stagey"
+      },
+      "description": "Y translation value of the stage in the editor.",
+      "runtime": false,
+      "coop": false
+    },
+    "stageZoom": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 262,
+        "string": "stagezoom"
+      },
+      "description": "Zoom value of the stage in the editor. Initial value is 0 to indicate it is not set.",
+      "runtime": false,
+      "coop": false
+    },
+    "rulersEnabled": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 263,
+        "string": "rulersenabled"
+      },
+      "description": "If rulers are enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "snappingEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 264,
+        "string": "snappingenabled"
+      },
+      "description": "If snapping are enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "bonesEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 265,
+        "string": "bonesenabled"
+      },
+      "description": "If bones are enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "targetsEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 379,
+        "string": "targetsenabled"
+      },
+      "description": "If targets and empty groups are enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "motionPathsEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 351,
+        "string": "motionpathsenabled"
+      },
+      "description": "If motion paths are enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "showFinalPlaybackEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 355,
+        "string": "showfinalplaybackenabled"
+      },
+      "description": "If final playback (hiding gizmos during playback) are enabled for this file",
+      "runtime": false,
+      "coop": false
+    },
+    "showModifierRange": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 374,
+        "string": "showmodifierrange"
+      },
+      "description": "Whether text modifier ranges show on the stage",
+      "runtime": false,
+      "coop": false
+    },
+    "showModifierRangeValues": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 375,
+        "string": "showmodifierrangevalues"
+      },
+      "description": "Whether text modifier range values show on the stage",
+      "runtime": false,
+      "coop": false
+    },
+    "toolbarOutputAction": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 290,
+        "string": "toolbaroutputaction"
+      },
+      "description": "Primary output action in the toolbar (share, publish, download)",
+      "runtime": false,
+      "coop": false
+    },
+    "assetsPanelState": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 315,
+        "string": "assetspanelstate"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "defaultFontFamily": {
+      "type": "String",
+      "initialValue": "'Inter'",
+      "key": {
+        "int": 343,
+        "string": "defaultfontfamily"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "isDefaultFontFamilyCustom": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 352,
+        "string": "isdefaultfontfamilycustom"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "defaultFontStyle": {
+      "type": "String",
+      "initialValue": "'Regular'",
+      "key": {
+        "int": 344,
+        "string": "defaultfontstyle"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "defaultFontSize": {
+      "type": "double",
+      "initialValue": "20.0",
+      "key": {
+        "int": 345,
+        "string": "defaultfontsize"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "defaultTextAlign": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 346,
+        "string": "defaulttextalign"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "defaultTextOverflow": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 347,
+        "string": "defaulttextoverflow"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "defaultTextHighlightTextRuns": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 348,
+        "string": "defaulttexthighlighttextruns"
+      },
+      "runtime": false,
+      "coop": false
+    },
+    "defaultCollapseTags": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 387,
+        "string": "defaultcollapsetags"
+      },
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

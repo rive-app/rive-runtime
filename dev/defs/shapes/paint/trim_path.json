@@ -1,0 +1,45 @@
+{
+  "name": "TrimPath",
+  "key": {
+    "int": 47,
+    "string": "trimpath"
+  },
+  "extends": "component.json",
+  "properties": {
+    "start": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 114,
+        "string": "trimStart"
+      }
+    },
+    "end": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 115,
+        "string": "trimEnd"
+      }
+    },
+    "offset": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 116,
+        "string": "trimOffset"
+      }
+    },
+    "modeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 117,
+        "string": "modevalue"
+      }
+    }
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "name": "NSlicerTileMode",
+  "key": {
+    "int": 491,
+    "string": "nslicertilemode"
+  },
+  "extends": "component.json",
+  "properties": {
+    "patchX": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 670,
+        "string": "patchx"
+      },
+      "description": "the x index of the patch to style",
+      "runtime": false
+    },
+    "patchY": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 671,
+        "string": "patchy"
+      },
+      "description": "the y index of the patch to style",
+      "runtime": false
+    },
+    "patchIndex": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 672,
+        "string": "patchindex"
+      },
+      "description": "the index of the patch to style, non-negative"
+    },
+    "style": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 673,
+        "string": "style"
+      },
+      "description": "represents stretch, repeat, hidden, etc."
+    }
+  }
+}

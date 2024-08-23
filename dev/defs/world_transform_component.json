@@ -1,0 +1,20 @@
+{
+  "name": "WorldTransformComponent",
+  "key": {
+    "int": 91,
+    "string": "worldtransformcomponent"
+  },
+  "abstract": true,
+  "extends": "container_component.json",
+  "properties": {
+    "opacity": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 18,
+        "string": "opacity"
+      }
+    }
+  }
+}

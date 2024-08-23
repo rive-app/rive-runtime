@@ -1,0 +1,9 @@
+{
+  "name": "SVGAsset",
+  "key": {
+    "int": 132,
+    "string": "svgasset"
+  },
+  "extends": "assets/drawable_asset.json",
+  "runtime": false
+}

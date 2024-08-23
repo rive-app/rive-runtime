@@ -1,0 +1,40 @@
+{
+  "name": "FontAsset",
+  "key": {
+    "int": 141,
+    "string": "fontasset"
+  },
+  "extends": "assets/file_asset.json",
+  "properties": {
+    "isCustom": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 309,
+        "string": "iscustom"
+      },
+      "description": "True if the font is a custom font, i.e the user has uploaded it",
+      "runtime": false
+    },
+    "includeTypeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 360,
+        "string": "includetypevalue"
+      },
+      "description": "Which characters of the font to include for export: all, used or custom.",
+      "runtime": false
+    },
+    "includedUnicodes": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 361,
+        "string": "includedunicodes"
+      },
+      "description": "Included unicodes when exporting, in U+0040-0080, format.",
+      "runtime": false
+    }
+  }
+}

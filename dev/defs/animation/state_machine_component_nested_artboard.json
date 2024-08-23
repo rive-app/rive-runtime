@@ -1,0 +1,23 @@
+{
+  "name": "StateMachineComponentNestedArtboard",
+  "key": {
+    "int": 172,
+    "string": "statemachinecomponentnestedartboard"
+  },
+  "extends": "animation/state_machine_component_folder.json",
+  "runtime": false,
+  "properties": {
+    "nestedArtboardId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 404,
+        "string": "nestedartboardid"
+      },
+      "description": "Id of the Artboard represented by this component.",
+      "runtime": false
+    }
+  }
+}

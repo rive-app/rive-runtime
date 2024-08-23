@@ -1,0 +1,19 @@
+{
+  "name": "Bone",
+  "key": {
+    "int": 40,
+    "string": "bone"
+  },
+  "extends": "bones/skeletal_component.json",
+  "properties": {
+    "length": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 89,
+        "string": "length"
+      }
+    }
+  }
+}

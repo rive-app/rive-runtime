@@ -1,0 +1,49 @@
+{
+  "name": "StateMachineComponent",
+  "key": {
+    "int": 54,
+    "string": "statemachinecomponent"
+  },
+  "abstract": true,
+  "properties": {
+    "machineId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 137,
+        "string": "machineid"
+      },
+      "description": "Id of the state machine this component belongs to.",
+      "runtime": false
+    },
+    "name": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 138,
+        "string": "name"
+      },
+      "description": "Non-unique identifier, used to give friendly names to state machine components (like layers or inputs)."
+    },
+    "machineOrder": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "key": {
+        "int": 139,
+        "string": "machineorder"
+      },
+      "description": "Order of this component in the state machine. Exported in order for runtime",
+      "runtime": false
+    },
+    "folderId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 311,
+        "string": "folderid"
+      },
+      "description": "Id of the folder this state machine component belongs to",
+      "runtime": false
+    }
+  }
+}

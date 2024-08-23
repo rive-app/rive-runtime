@@ -1,0 +1,64 @@
+{
+  "name": "Skin",
+  "key": {
+    "int": 43,
+    "string": "skin"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "xx": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 104,
+        "string": "xx"
+      },
+      "description": "x component of x unit vector in the bind transform"
+    },
+    "yx": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 105,
+        "string": "yx"
+      },
+      "description": "y component of x unit vector in the bind transform"
+    },
+    "xy": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 106,
+        "string": "xy"
+      },
+      "description": "x component of y unit vector in the bind transform"
+    },
+    "yy": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 107,
+        "string": "yy"
+      },
+      "description": "y component of y unit vector in the bind transform"
+    },
+    "tx": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 108,
+        "string": "tx"
+      },
+      "description": "x position component of the bind transform"
+    },
+    "ty": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 109,
+        "string": "ty"
+      },
+      "description": "y position component of the bind transform"
+    }
+  }
+}

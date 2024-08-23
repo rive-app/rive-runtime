@@ -1,0 +1,29 @@
+{
+  "name": "Axis",
+  "key": {
+    "int": 492,
+    "string": "axis"
+  },
+  "abstract": true,
+  "extends": "component.json",
+  "properties": {
+    "offset": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 675,
+        "string": "offset"
+      }
+    },
+    "normalized": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 676,
+        "string": "normalized"
+      },
+      "description": "true means offset indicates a percentage"
+    }
+  }
+}

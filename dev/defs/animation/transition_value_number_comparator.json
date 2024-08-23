@@ -1,0 +1,18 @@
+{
+  "name": "TransitionValueNumberComparator",
+  "key": {
+    "int": 484,
+    "string": "transitionvaluenumbercomparator"
+  },
+  "extends": "animation/transition_value_comparator.json",
+  "properties": {
+    "value": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 652,
+        "string": "value"
+      }
+    }
+  }
+}

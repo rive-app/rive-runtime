@@ -1,0 +1,18 @@
+{
+  "name": "TransitionValueBooleanComparator",
+  "key": {
+    "int": 481,
+    "string": "transitionvaluebooleancomparator"
+  },
+  "extends": "animation/transition_value_comparator.json",
+  "properties": {
+    "value": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 647,
+        "string": "value"
+      }
+    }
+  }
+}

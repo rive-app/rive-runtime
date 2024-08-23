@@ -1,0 +1,159 @@
+{
+  "name": "LinearAnimation",
+  "key": {
+    "int": 31,
+    "string": "linearanimation"
+  },
+  "extends": "animation/animation.json",
+  "properties": {
+    "fps": {
+      "type": "uint",
+      "initialValue": "60",
+      "key": {
+        "int": 56,
+        "string": "fps"
+      },
+      "description": "Frames per second used to quantize keyframe times to discrete values that match this rate."
+    },
+    "duration": {
+      "type": "uint",
+      "initialValue": "60",
+      "key": {
+        "int": 57,
+        "string": "duration"
+      },
+      "description": "Duration expressed in number of frames."
+    },
+    "speed": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 58,
+        "string": "speed"
+      },
+      "description": "Playback speed multiplier."
+    },
+    "loopValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 59,
+        "string": "loop"
+      },
+      "description": "Loop value option matches Loop enumeration."
+    },
+    "workStart": {
+      "type": "uint",
+      "initialValue": "-1",
+      "key": {
+        "int": 60,
+        "string": "workstart"
+      },
+      "description": "Start of the work area in frames."
+    },
+    "workEnd": {
+      "type": "uint",
+      "initialValue": "-1",
+      "key": {
+        "int": 61,
+        "string": "workend"
+      },
+      "description": "End of the work area in frames."
+    },
+    "enableWorkArea": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 62,
+        "string": "enableworkarea"
+      },
+      "description": "Whether or not the work area is enabled."
+    },
+    "playhead": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 132,
+        "string": "playhead"
+      },
+      "description": "Playhead position in frames.",
+      "runtime": false,
+      "coop": false
+    },
+    "viewStart": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 133,
+        "string": "viewstart"
+      },
+      "description": "Viewport start in frames.",
+      "runtime": false,
+      "coop": false
+    },
+    "viewEnd": {
+      "type": "uint",
+      "initialValue": "2147483648",
+      "key": {
+        "int": 134,
+        "string": "viewend"
+      },
+      "description": "Viewport end in frames.",
+      "runtime": false,
+      "coop": false
+    },
+    "scrollOffset": {
+      "type": "double",
+      "initialValue": "0.0",
+      "key": {
+        "int": 256,
+        "string": "scrolloffset"
+      },
+      "description": "Scroll offset of the key frame view",
+      "runtime": false,
+      "coop": false
+    },
+    "expandedComponents": {
+      "type": "List<Id>",
+      "initialValue": "[]",
+      "key": {
+        "int": 266,
+        "string": "expandedcomponents"
+      },
+      "description": "List of components that are expanded on the timeline view",
+      "runtime": false,
+      "coop": false
+    },
+    "timelineMode": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 275,
+        "string": "timelinemode"
+      },
+      "description": "Edit time timeline mode",
+      "runtime": false,
+      "coop": false
+    },
+    "showSelected": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 278,
+        "string": "showselected"
+      },
+      "description": "Whether to only show selected components on the timeline hierarchy",
+      "runtime": false,
+      "coop": false
+    },
+    "quantize": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 376,
+        "string": "quantize"
+      },
+      "description": "Whether frames are quantized to desired frame rate or floating based on runtime speed."
+    }
+  }
+}

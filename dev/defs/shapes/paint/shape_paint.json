@@ -1,0 +1,20 @@
+{
+  "name": "ShapePaint",
+  "key": {
+    "int": 21,
+    "string": "shapePaint"
+  },
+  "abstract": true,
+  "extends": "container_component.json",
+  "properties": {
+    "isVisible": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 41,
+        "string": "isVisible"
+      },
+      "virtual": true
+    }
+  }
+}

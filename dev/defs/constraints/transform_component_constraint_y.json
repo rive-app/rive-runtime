@@ -1,0 +1,65 @@
+{
+  "name": "TransformComponentConstraintY",
+  "key": {
+    "int": 86,
+    "string": "transformcomponentconstrainty"
+  },
+  "abstract": true,
+  "extends": "constraints/transform_component_constraint.json",
+  "properties": {
+    "copyFactorY": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 185,
+        "string": "copyfactory"
+      },
+      "description": "Copy factor."
+    },
+    "minValueY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 186,
+        "string": "minvaluey"
+      },
+      "description": "Minimum value."
+    },
+    "maxValueY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 187,
+        "string": "maxvaluey"
+      },
+      "description": "Maximum value."
+    },
+    "doesCopyY": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 192,
+        "string": "doescopyy"
+      },
+      "description": "Whether the Y component is copied."
+    },
+    "minY": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 193,
+        "string": "miny"
+      },
+      "description": "Whether min Y is used."
+    },
+    "maxY": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 194,
+        "string": "maxx"
+      },
+      "description": "Whether max Y is used."
+    }
+  }
+}

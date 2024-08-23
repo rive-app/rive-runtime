@@ -1,0 +1,28 @@
+{
+  "name": "StateMachineNumber",
+  "key": {
+    "int": 56,
+    "string": "statemachinenumber"
+  },
+  "extends": "animation/state_machine_input.json",
+  "properties": {
+    "value": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 140,
+        "string": "value"
+      }
+    },
+    "playbackValue": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 231,
+        "string": "playbackvalue"
+      },
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

@@ -1,0 +1,29 @@
+{
+  "name": "DistanceConstraint",
+  "key": {
+    "int": 82,
+    "string": "distanceconstraint"
+  },
+  "extends": "constraints/targeted_constraint.json",
+  "properties": {
+    "distance": {
+      "type": "double",
+      "initialValue": "100.0",
+      "animates": true,
+      "key": {
+        "int": 177,
+        "string": "distance"
+      },
+      "description": "The unit distance the constraint will move the constrained object relative to the target."
+    },
+    "modeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 178,
+        "string": "modevalue"
+      },
+      "description": "Backing value for the mode enum."
+    }
+  }
+}

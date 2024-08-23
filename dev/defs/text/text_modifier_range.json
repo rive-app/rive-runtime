@@ -1,0 +1,107 @@
+{
+  "name": "TextModifierRange",
+  "key": {
+    "int": 158,
+    "string": "textmodifierrange"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "modifyFrom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 327,
+        "string": "modifyfrom"
+      }
+    },
+    "modifyTo": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 336,
+        "string": "modifyto"
+      }
+    },
+    "strength": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 334,
+        "string": "strength"
+      }
+    },
+    "unitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 316,
+        "string": "unitsvalue"
+      }
+    },
+    "typeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 325,
+        "string": "typevalue"
+      }
+    },
+    "modeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 326,
+        "string": "modevalue"
+      }
+    },
+    "clamp": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 333,
+        "string": "clamp"
+      }
+    },
+    "falloffFrom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 317,
+        "string": "fallofffrom"
+      }
+    },
+    "falloffTo": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 318,
+        "string": "falloffto"
+      }
+    },
+    "offset": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 319,
+        "string": "offset"
+      }
+    },
+    "runId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 378,
+        "string": "runid"
+      },
+      "description": "Identifier used to which run should be targeted."
+    }
+  }
+}

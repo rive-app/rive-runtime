@@ -1,0 +1,39 @@
+{
+  "name": "Asset",
+  "key": {
+    "int": 99,
+    "string": "asset"
+  },
+  "abstract": true,
+  "properties": {
+    "name": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 203,
+        "string": "name"
+      },
+      "description": "Name of the asset"
+    },
+    "parentId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 209,
+        "string": "parentid"
+      },
+      "description": "Id of the parent asset",
+      "runtime": false
+    },
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "key": {
+        "int": 205,
+        "string": "order"
+      },
+      "description": "Order this asset shows up in the assets panel",
+      "runtime": false
+    }
+  }
+}

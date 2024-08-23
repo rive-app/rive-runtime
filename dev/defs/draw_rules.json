@@ -1,0 +1,22 @@
+{
+  "name": "DrawRules",
+  "key": {
+    "int": 49,
+    "string": "drawrules"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "drawTargetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "animates": true,
+      "key": {
+        "int": 121,
+        "string": "drawtargetid"
+      },
+      "description": "Id of the DrawTarget that is currently active for this set of rules."
+    }
+  }
+}

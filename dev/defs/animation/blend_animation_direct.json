@@ -1,0 +1,39 @@
+{
+  "name": "BlendAnimationDirect",
+  "key": {
+    "int": 77,
+    "string": "blendanimationdirect"
+  },
+  "extends": "animation/blend_animation.json",
+  "properties": {
+    "inputId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 168,
+        "string": "inputid"
+      },
+      "description": "Id of the input that drives the direct mix value for this animation."
+    },
+    "mixValue": {
+      "type": "double",
+      "initialValue": "100",
+      "key": {
+        "int": 297,
+        "string": "mixvalue"
+      },
+      "description": "Direct mix value for this animation."
+    },
+    "blendSource": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 298,
+        "string": "blendsource"
+      },
+      "description": "Source to use when establishing the mix value for the animation. 0 means look at the input, 1 look at the mixValue."
+    }
+  }
+}

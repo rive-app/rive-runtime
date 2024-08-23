@@ -1,0 +1,19 @@
+{
+  "name": "KeyFrameString",
+  "key": {
+    "int": 142,
+    "string": "keyframestring"
+  },
+  "extends": "animation/interpolating_keyframe.json",
+  "properties": {
+    "value": {
+      "type": "String",
+      "typeRuntime": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 280,
+        "string": "value"
+      }
+    }
+  }
+}

@@ -1,0 +1,779 @@
+{
+  "name": "LayoutComponentStyle",
+  "key": {
+    "int": 420,
+    "string": "layoutcomponentstyle"
+  },
+  "extends": "component.json",
+  "properties": {
+    "gapHorizontal": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutgap",
+      "key": {
+        "int": 498,
+        "string": "gaphorizontal"
+      },
+      "description": "Horizontal gap between children in layout component"
+    },
+    "gapVertical": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutgap",
+      "key": {
+        "int": 499,
+        "string": "gapvertical"
+      },
+      "description": "Vertical gap between children in layout component"
+    },
+    "maxWidth": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutmax",
+      "key": {
+        "int": 500,
+        "string": "maxwidth"
+      },
+      "description": "Max width of the item."
+    },
+    "maxHeight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutmax",
+      "key": {
+        "int": 501,
+        "string": "maxheight"
+      },
+      "description": "Max height of the item."
+    },
+    "minWidth": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutmin",
+      "key": {
+        "int": 502,
+        "string": "minwidth"
+      },
+      "description": "Min width of the item."
+    },
+    "minHeight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutmin",
+      "key": {
+        "int": 503,
+        "string": "minheight"
+      },
+      "description": "Min height of the item."
+    },
+    "borderLeft": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutborder",
+      "key": {
+        "int": 504,
+        "string": "borderleft"
+      },
+      "description": "Left border value."
+    },
+    "borderRight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutborder",
+      "key": {
+        "int": 505,
+        "string": "borderright"
+      },
+      "description": "Right border value."
+    },
+    "borderTop": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutborder",
+      "key": {
+        "int": 506,
+        "string": "bordertop"
+      },
+      "description": "Top border value."
+    },
+    "borderBottom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutborder",
+      "key": {
+        "int": 507,
+        "string": "borderbottom"
+      },
+      "description": "Bottom border value."
+    },
+    "marginLeft": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutmargin",
+      "key": {
+        "int": 508,
+        "string": "marginleft"
+      },
+      "description": "Left margin value."
+    },
+    "marginRight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutmargin",
+      "key": {
+        "int": 509,
+        "string": "marginright"
+      },
+      "description": "Right margin value."
+    },
+    "marginTop": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutmargin",
+      "key": {
+        "int": 510,
+        "string": "margintop"
+      },
+      "description": "Top margin value."
+    },
+    "marginBottom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutmargin",
+      "key": {
+        "int": 511,
+        "string": "marginbottom"
+      },
+      "description": "Bottom margin value."
+    },
+    "paddingLeft": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutpadding",
+      "key": {
+        "int": 512,
+        "string": "paddingleft"
+      },
+      "description": "Left padding value."
+    },
+    "paddingRight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutpadding",
+      "key": {
+        "int": 513,
+        "string": "paddingright"
+      },
+      "description": "Right padding value."
+    },
+    "paddingTop": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutpadding",
+      "key": {
+        "int": 514,
+        "string": "paddingtop"
+      },
+      "description": "Top padding value."
+    },
+    "paddingBottom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutpadding",
+      "key": {
+        "int": 515,
+        "string": "paddingbottom"
+      },
+      "description": "Bottom padding value."
+    },
+    "positionLeft": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutposition",
+      "key": {
+        "int": 516,
+        "string": "positionleft"
+      },
+      "description": "Left position value."
+    },
+    "positionRight": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutposition",
+      "key": {
+        "int": 517,
+        "string": "positionright"
+      },
+      "description": "Right position value."
+    },
+    "positionTop": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutposition",
+      "key": {
+        "int": 518,
+        "string": "positiontop"
+      },
+      "description": "Top position value."
+    },
+    "positionBottom": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "layoutposition",
+      "key": {
+        "int": 519,
+        "string": "positionbottom"
+      },
+      "description": "Bottom position value."
+    },
+    "flex": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 520,
+        "string": "flex"
+      },
+      "description": "Flex value."
+    },
+    "flexGrow": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 521,
+        "string": "flexgrow"
+      },
+      "description": "Flex grow value."
+    },
+    "flexShrink": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 522,
+        "string": "flexshrink"
+      },
+      "description": "Flex shrink value."
+    },
+    "flexBasis": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 523,
+        "string": "flexbasis"
+      },
+      "description": "Flex basis value."
+    },
+    "aspectRatio": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 524,
+        "string": "aspectratio"
+      },
+      "description": "Aspect ratio value."
+    },
+    "showUnitToggle": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 542,
+        "string": "showunittoggle"
+      },
+      "description": "Show layout unit toggle in inspector position widget. Editor only.",
+      "runtime": false
+    },
+    "edgeConstraints": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 545,
+        "string": "edgeconstraints"
+      },
+      "runtime": false
+    },
+    "layoutWidthScaleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 655,
+        "string": "layoutwidthscaletype"
+      }
+    },
+    "layoutHeightScaleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 656,
+        "string": "layoutheightscaletype"
+      }
+    },
+    "layoutAlignmentType": {
+      "type": "uint",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 632,
+        "string": "layoutalignmenttype"
+      }
+    },
+    "animationStyleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 589,
+        "string": "animationstyletype"
+      },
+      "description": "The type of animation none|custom|inherit applied to this layout."
+    },
+    "interpolationType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 590,
+        "string": "interpolationtype"
+      },
+      "description": "The type of interpolation index in KeyframeInterpolation applied to this layout."
+    },
+    "interpolatorId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 591,
+        "string": "interpolatorid"
+      },
+      "description": "The id of the custom interpolator used when interpolation is Cubic."
+    },
+    "interpolationTime": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 592,
+        "string": "interpolationtime"
+      },
+      "description": "The time over which the interpolator applies."
+    },
+    "displayValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 596,
+        "string": "displayvalue"
+      },
+      "description": ""
+    },
+    "positionTypeValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 597,
+        "string": "positiontypevalue"
+      },
+      "description": ""
+    },
+    "flexDirectionValue": {
+      "type": "uint",
+      "initialValue": "2",
+      "animates": true,
+      "key": {
+        "int": 598,
+        "string": "flexdirectionvalue"
+      },
+      "description": "Flex dir"
+    },
+    "directionValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 599,
+        "string": "directionvalue"
+      },
+      "description": ""
+    },
+    "alignContentValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 600,
+        "string": "aligncontentvalue"
+      },
+      "description": ""
+    },
+    "alignItemsValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 601,
+        "string": "alignitemsvalue"
+      },
+      "description": ""
+    },
+    "alignSelfValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 602,
+        "string": "alignselfvalue"
+      },
+      "description": ""
+    },
+    "justifyContentValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 603,
+        "string": "justifycontentvalue"
+      },
+      "description": ""
+    },
+    "flexWrapValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 604,
+        "string": "flexwrapvalue"
+      },
+      "description": ""
+    },
+    "overflowValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 605,
+        "string": "overflowvalue"
+      },
+      "description": ""
+    },
+    "intrinsicallySizedValue": {
+      "type": "bool",
+      "initialValue": "false",
+      "animates": true,
+      "key": {
+        "int": 606,
+        "string": "intrinsicallysizedvalue"
+      },
+      "description": ""
+    },
+    "widthUnitsValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 607,
+        "string": "widthunitsvalue"
+      },
+      "description": ""
+    },
+    "heightUnitsValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 608,
+        "string": "heightunitsvalue"
+      },
+      "description": ""
+    },
+    "borderLeftUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutborder",
+      "key": {
+        "int": 609,
+        "string": "borderleftunitsvalue"
+      },
+      "description": ""
+    },
+    "borderRightUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutborder",
+      "key": {
+        "int": 610,
+        "string": "borderrightunitsvalue"
+      },
+      "description": ""
+    },
+    "borderTopUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutborder",
+      "key": {
+        "int": 611,
+        "string": "bordertopunitsvalue"
+      },
+      "description": ""
+    },
+    "borderBottomUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutborder",
+      "key": {
+        "int": 612,
+        "string": "borderbottomunitsvalue"
+      },
+      "description": ""
+    },
+    "marginLeftUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutmargin",
+      "key": {
+        "int": 613,
+        "string": "marginleftunitsvalue"
+      },
+      "description": ""
+    },
+    "marginRightUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutmargin",
+      "key": {
+        "int": 614,
+        "string": "marginrightunitsvalue"
+      },
+      "description": ""
+    },
+    "marginTopUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutmargin",
+      "key": {
+        "int": 615,
+        "string": "margintopunitsvalue"
+      },
+      "description": ""
+    },
+    "marginBottomUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutmargin",
+      "key": {
+        "int": 616,
+        "string": "marginbottomunitsvalue"
+      },
+      "description": ""
+    },
+    "paddingLeftUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutpadding",
+      "key": {
+        "int": 617,
+        "string": "paddingleftunitsvalue"
+      },
+      "description": ""
+    },
+    "paddingRightUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutpadding",
+      "key": {
+        "int": 618,
+        "string": "paddingrightunitsvalue"
+      },
+      "description": ""
+    },
+    "paddingTopUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutpadding",
+      "key": {
+        "int": 619,
+        "string": "paddingtopunitsvalue"
+      },
+      "description": ""
+    },
+    "paddingBottomUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutpadding",
+      "key": {
+        "int": 620,
+        "string": "paddingbottomunitsvalue"
+      },
+      "description": ""
+    },
+    "positionLeftUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutposition",
+      "key": {
+        "int": 621,
+        "string": "positionleftunitsvalue"
+      },
+      "description": ""
+    },
+    "positionRightUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutposition",
+      "key": {
+        "int": 622,
+        "string": "positionrightunitsvalue"
+      },
+      "description": ""
+    },
+    "positionTopUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutposition",
+      "key": {
+        "int": 623,
+        "string": "positiontopunitsvalue"
+      },
+      "description": ""
+    },
+    "positionBottomUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutposition",
+      "key": {
+        "int": 624,
+        "string": "positionbottomunitsvalue"
+      },
+      "description": ""
+    },
+    "gapHorizontalUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutgap",
+      "key": {
+        "int": 625,
+        "string": "gaphorizontalunitsvalue"
+      },
+      "description": ""
+    },
+    "gapVerticalUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutgap",
+      "key": {
+        "int": 626,
+        "string": "gapverticalunitsvalue"
+      },
+      "description": ""
+    },
+    "minWidthUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutmin",
+      "key": {
+        "int": 627,
+        "string": "minwidthunitsvalue"
+      },
+      "description": ""
+    },
+    "minHeightUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutmin",
+      "key": {
+        "int": 628,
+        "string": "minheightunitsvalue"
+      },
+      "description": ""
+    },
+    "maxWidthUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutmax",
+      "key": {
+        "int": 629,
+        "string": "maxwidthunitsvalue"
+      },
+      "description": ""
+    },
+    "maxHeightUnitsValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "group": "layoutmax",
+      "key": {
+        "int": 630,
+        "string": "maxheightunitsvalue"
+      },
+      "description": ""
+    },
+    "linkCornerRadius": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 639,
+        "string": "linkcornerradius"
+      },
+      "description": "Whether the TL corner radius defines all the radiuses"
+    },
+    "cornerRadiusTL": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 640,
+        "string": "cornerradiustl"
+      },
+      "description": "Top left radius of the corners of this layout"
+    },
+    "cornerRadiusTR": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 641,
+        "string": "cornerradiustr"
+      },
+      "description": "Top right radius of the corners of this layout"
+    },
+    "cornerRadiusBL": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 642,
+        "string": "cornerradiusbl"
+      },
+      "description": "Bottom left radius of the corners of this layout"
+    },
+    "cornerRadiusBR": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 643,
+        "string": "cornerradiusbr"
+      },
+      "description": "Bottom right radius of the corners of this layout"
+    }
+  }
+}

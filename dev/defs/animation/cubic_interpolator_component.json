@@ -1,0 +1,46 @@
+{
+  "name": "CubicInterpolatorComponent",
+  "key": {
+    "int": 163,
+    "string": "cubicinterpolatorcomponent"
+  },
+  "extends": "component.json",
+  "properties": {
+    "x1": {
+      "type": "double",
+      "initialValue": "0.42",
+      "animates": true,
+      "key": {
+        "int": 337,
+        "string": "x1"
+      }
+    },
+    "y1": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 338,
+        "string": "y1"
+      }
+    },
+    "x2": {
+      "type": "double",
+      "initialValue": "0.58",
+      "animates": true,
+      "key": {
+        "int": 339,
+        "string": "x2"
+      }
+    },
+    "y2": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 340,
+        "string": "y2"
+      }
+    }
+  }
+}

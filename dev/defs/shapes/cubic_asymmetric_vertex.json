@@ -1,0 +1,40 @@
+{
+  "name": "CubicAsymmetricVertex",
+  "key": {
+    "int": 34,
+    "string": "cubicasymmetricvertex"
+  },
+  "extends": "shapes/cubic_vertex.json",
+  "properties": {
+    "rotation": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 79,
+        "string": "rotation"
+      },
+      "description": "The control points' angle."
+    },
+    "inDistance": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 80,
+        "string": "indistance"
+      },
+      "description": "The in point's distance from the translation of the point."
+    },
+    "outDistance": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 81,
+        "string": "outdistance"
+      },
+      "description": "The out point's distance from the translation of the point."
+    }
+  }
+}

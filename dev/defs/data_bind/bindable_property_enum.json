@@ -1,0 +1,21 @@
+{
+  "name": "BindablePropertyEnum",
+  "key": {
+    "int": 474,
+    "string": "bindablepropertyenum"
+  },
+  "extends": "data_bind/bindable_property.json",
+  "properties": {
+    "propertyValue": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 637,
+        "string": "propertyvalue"
+      },
+      "description": "The id of the enum that can be used for data binding."
+    }
+  }
+}

@@ -1,0 +1,49 @@
+{
+  "name": "StateMachineFireEvent",
+  "key": {
+    "int": 169,
+    "string": "statemachinefireevent"
+  },
+  "properties": {
+    "layerComponentId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 391,
+        "string": "layercomponentid"
+      },
+      "description": "Id of the transition or layer this belongs to.",
+      "runtime": false
+    },
+    "eventId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 392,
+        "string": "eventid"
+      },
+      "description": "Id of the Event referenced."
+    },
+    "occursValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 393,
+        "string": "occursvalue"
+      },
+      "description": "When the event fires."
+    },
+    "fireOrder": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "key": {
+        "int": 394,
+        "string": "fireorder"
+      },
+      "description": "Order value for sorting transitions in states.",
+      "runtime": false
+    }
+  }
+}

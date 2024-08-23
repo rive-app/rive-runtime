@@ -1,0 +1,20 @@
+{
+  "name": "DataConverterRounder",
+  "key": {
+    "int": 489,
+    "string": "dataconverterrounder"
+  },
+  "extends": "data_bind/converters/data_converter.json",
+  "properties": {
+    "decimals": {
+      "type": "uint",
+      "typeRuntime": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 669,
+        "string": "decimals"
+      },
+      "description": "Number of decimals to round to"
+    }
+  }
+}

@@ -1,0 +1,19 @@
+{
+  "name": "ListenerBoolChange",
+  "key": {
+    "int": 117,
+    "string": "listener_bool_change"
+  },
+  "extends": "animation/listener_input_change.json",
+  "properties": {
+    "value": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 228,
+        "string": "value"
+      },
+      "description": "Value to set the input to when the listener occurs."
+    }
+  }
+}

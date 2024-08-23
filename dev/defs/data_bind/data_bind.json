@@ -1,0 +1,47 @@
+{
+  "name": "DataBind",
+  "key": {
+    "int": 446,
+    "string": "databind"
+  },
+  "properties": {
+    "targetId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 585,
+        "string": "targetid"
+      },
+      "description": "Identifier used to track the object that is targetted.",
+      "runtime": false
+    },
+    "propertyKey": {
+      "type": "uint",
+      "initialValue": "CoreContext.invalidPropertyKey",
+      "key": {
+        "int": 586,
+        "string": "propertykey"
+      },
+      "description": "The property that is targeted."
+    },
+    "flags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 587,
+        "string": "flags"
+      }
+    },
+    "converterId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 660,
+        "string": "converterid"
+      },
+      "description": "Identifier used to link to a data converter."
+    }
+  }
+}

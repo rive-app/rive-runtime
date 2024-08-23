@@ -1,0 +1,29 @@
+{
+  "name": "IKConstraint",
+  "key": {
+    "int": 81,
+    "string": "ikconstraint"
+  },
+  "extends": "constraints/targeted_constraint.json",
+  "properties": {
+    "invertDirection": {
+      "type": "bool",
+      "initialValue": "false",
+      "animates": true,
+      "key": {
+        "int": 174,
+        "string": "invert_direction"
+      },
+      "description": "True when the direction taken towards the target should be inverted from the default."
+    },
+    "parentBoneCount": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 175,
+        "string": "parentbonecount"
+      },
+      "description": "The number of bones above this one that are influenced by this IK constraint."
+    }
+  }
+}

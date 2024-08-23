@@ -1,0 +1,18 @@
+{
+  "name": "BlendAnimation1D",
+  "key": {
+    "int": 75,
+    "string": "blendanimation1d"
+  },
+  "extends": "animation/blend_animation.json",
+  "properties": {
+    "value": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 166,
+        "string": "value"
+      }
+    }
+  }
+}

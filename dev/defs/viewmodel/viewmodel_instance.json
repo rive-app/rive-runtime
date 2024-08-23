@@ -1,0 +1,50 @@
+{
+  "name": "ViewModelInstance",
+  "key": {
+    "int": 437,
+    "string": "viewmodelinstance"
+  },
+  "extends": "component.json",
+  "properties": {
+    "viewModelId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 566,
+        "string": "viewmodelid"
+      }
+    },
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 567,
+        "string": "x"
+      },
+      "description": "The x coordinate of the stage representation.",
+      "runtime": false
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 568,
+        "string": "y"
+      },
+      "description": "The y coordinate of the stage representation.",
+      "runtime": false
+    },
+    "onStage": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 569,
+        "string": "onstage"
+      },
+      "description": "Whether it is visible on stage or not.",
+      "runtime": false
+    }
+  }
+}

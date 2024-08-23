@@ -1,0 +1,9 @@
+{
+  "name": "BlendState",
+  "key": {
+    "int": 72,
+    "string": "blendstate"
+  },
+  "abstract": true,
+  "extends": "animation/layer_state.json"
+}

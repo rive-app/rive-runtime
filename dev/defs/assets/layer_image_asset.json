@@ -1,0 +1,41 @@
+{
+  "name": "LayerImageAsset",
+  "key": {
+    "int": 120,
+    "string": "layerimageasset"
+  },
+  "extends": "assets/image_asset.json",
+  "runtime": false,
+  "properties": {
+    "layer": {
+      "type": "uint",
+      "initialValue": "-1",
+      "key": {
+        "int": 233,
+        "string": "layer"
+      },
+      "description": "Layer ID as it is analysed by the backend",
+      "runtime": false
+    },
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 234,
+        "string": "x"
+      },
+      "description": "x offset for this layer",
+      "runtime": false
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 235,
+        "string": "y"
+      },
+      "description": "y offset for this layer",
+      "runtime": false
+    }
+  }
+}

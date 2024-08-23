@@ -1,0 +1,29 @@
+{
+  "name": "TransformSpaceConstraint",
+  "key": {
+    "int": 90,
+    "string": "transformspaceconstraint"
+  },
+  "abstract": true,
+  "extends": "constraints/targeted_constraint.json",
+  "properties": {
+    "sourceSpaceValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 179,
+        "string": "sourcespacevalue"
+      },
+      "description": "The source transform space."
+    },
+    "destSpaceValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 180,
+        "string": "destspacevalue"
+      },
+      "description": "The destination transform space."
+    }
+  }
+}

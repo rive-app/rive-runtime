@@ -1,0 +1,87 @@
+{
+  "name": "StateMachine",
+  "key": {
+    "int": 53,
+    "string": "statemachine"
+  },
+  "extends": "animation/animation.json",
+  "properties": {
+    "editingLayerId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 142,
+        "string": "editinglayer"
+      },
+      "description": "Id of the currently editing layer.",
+      "runtime": false,
+      "coop": false
+    },
+    "isListenersPanelOpen": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 250,
+        "string": "islistenerspanelopen"
+      },
+      "description": "Toggle determining whether the listeners panel is open",
+      "runtime": false,
+      "coop": false
+    },
+    "isInputsPanelOpen": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 251,
+        "string": "isinputspanelopen"
+      },
+      "description": "Toggle determining whether the inputs panel is open",
+      "runtime": false,
+      "coop": false
+    },
+    "isConsolePanelOpen": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 252,
+        "string": "isconsolepanelopen"
+      },
+      "description": "Toggle determining whether the console panel is open",
+      "runtime": false,
+      "coop": false
+    },
+    "listenersPanelSize": {
+      "type": "double",
+      "initialValue": "200",
+      "key": {
+        "int": 253,
+        "string": "listenerspanelsize"
+      },
+      "description": "Size of the listeners panel",
+      "runtime": false,
+      "coop": false
+    },
+    "inputsPanelSize": {
+      "type": "double",
+      "initialValue": "200",
+      "key": {
+        "int": 254,
+        "string": "inputspanelsize"
+      },
+      "description": "Size of the inputs panel",
+      "runtime": false,
+      "coop": false
+    },
+    "consolePanelSize": {
+      "type": "double",
+      "initialValue": "200",
+      "key": {
+        "int": 255,
+        "string": "consolepanelsize"
+      },
+      "description": "Size of the inputs panel",
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

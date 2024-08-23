@@ -1,0 +1,60 @@
+{
+  "name": "FileAsset",
+  "key": {
+    "int": 103,
+    "string": "fileasset"
+  },
+  "abstract": true,
+  "extends": "assets/asset.json",
+  "properties": {
+    "assetId": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 204,
+        "string": "assetid"
+      },
+      "description": "Id of the asset as stored on the backend"
+    },
+    "size": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 211,
+        "string": "size"
+      },
+      "description": "Size of the asset in bytes",
+      "runtime": false
+    },
+    "exportTypeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 358,
+        "string": "exporttypevalue"
+      },
+      "description": "How to export the asset: embedded, referenced or cdn",
+      "runtime": false
+    },
+    "cdnUuid": {
+      "type": "Bytes",
+      "encoded": true,
+      "key": {
+        "int": 359,
+        "string": "cdnuuid"
+      },
+      "description": "The cdn uuid if it exists",
+      "coop": false
+    },
+    "cdnBaseUrl": {
+      "type": "String",
+      "initialValue": "'https://public.rive.app/cdn/uuid'",
+      "key": {
+        "int": 362,
+        "string": "cdnbaseurl"
+      },
+      "description": "Set the base url of our cdn.",
+      "coop": false
+    }
+  }
+}

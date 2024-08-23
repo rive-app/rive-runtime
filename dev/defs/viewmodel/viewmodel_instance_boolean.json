@@ -1,0 +1,29 @@
+{
+  "name": "ViewModelInstanceBoolean",
+  "key": {
+    "int": 449,
+    "string": "viewmodelinstanceboolean"
+  },
+  "extends": "viewmodel/viewmodel_instance_value.json",
+  "properties": {
+    "propertyValue": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 593,
+        "string": "propertyvalue"
+      },
+      "description": "The boolean value."
+    },
+    "playbackValue": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 594,
+        "string": "playbackvalue"
+      },
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

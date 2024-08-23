@@ -1,0 +1,31 @@
+{
+  "name": "InterpolatingKeyFrame",
+  "key": {
+    "int": 170,
+    "string": "interpolatingkeyframe"
+  },
+  "abstract": true,
+  "extends": "animation/keyframe.json",
+  "properties": {
+    "interpolationType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 68,
+        "string": "interpolation"
+      },
+      "description": "The type of interpolation index in KeyframeInterpolation applied to this keyframe."
+    },
+    "interpolatorId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 69,
+        "string": "interpolatorid"
+      },
+      "description": "The id of the custom interpolator used when interpolation is Cubic."
+    }
+  }
+}

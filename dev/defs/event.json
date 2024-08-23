@@ -1,0 +1,36 @@
+{
+  "name": "Event",
+  "key": {
+    "int": 128,
+    "string": "event"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 396,
+        "string": "x"
+      },
+      "runtime": false
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 397,
+        "string": "y"
+      },
+      "runtime": false
+    },
+    "trigger": {
+      "type": "callback",
+      "animates": true,
+      "key": {
+        "int": 395,
+        "string": "trigger"
+      }
+    }
+  }
+}

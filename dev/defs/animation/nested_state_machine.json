@@ -1,0 +1,9 @@
+{
+  "name": "NestedStateMachine",
+  "key": {
+    "int": 95,
+    "string": "nestedStateMachine"
+  },
+  "extends": "nested_animation.json",
+  "generic": "animation/state_machine.json"
+}

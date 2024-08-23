@@ -1,0 +1,19 @@
+{
+  "name": "CustomPropertyBoolean",
+  "key": {
+    "int": 129,
+    "string": "custompropertyboolean"
+  },
+  "extends": "custom_property.json",
+  "properties": {
+    "propertyValue": {
+      "type": "bool",
+      "initialValue": "false",
+      "animates": true,
+      "key": {
+        "int": 245,
+        "string": "value"
+      }
+    }
+  }
+}

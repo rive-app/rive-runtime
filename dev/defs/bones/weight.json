@@ -1,0 +1,26 @@
+{
+  "name": "Weight",
+  "key": {
+    "int": 45,
+    "string": "weight"
+  },
+  "extends": "component.json",
+  "properties": {
+    "values": {
+      "type": "uint",
+      "initialValue": "255",
+      "key": {
+        "int": 102,
+        "string": "values"
+      }
+    },
+    "indices": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 103,
+        "string": "indices"
+      }
+    }
+  }
+}

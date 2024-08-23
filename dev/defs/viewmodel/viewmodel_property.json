@@ -1,0 +1,33 @@
+{
+  "name": "ViewModelProperty",
+  "key": {
+    "int": 430,
+    "string": "viewmodelproperty"
+  },
+  "extends": "viewmodel/viewmodel_component.json",
+  "properties": {
+    "viewModelId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 558,
+        "string": "viewmodelid"
+      },
+      "description": "Identifier used to track parent View Model.",
+      "runtime": false
+    },
+    "propertyOrder": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 559,
+        "string": "propertyorder"
+      },
+      "description": "Order value for sorting child elements in View Model.",
+      "runtime": false
+    }
+  }
+}

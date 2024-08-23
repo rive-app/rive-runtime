@@ -1,0 +1,22 @@
+{
+  "name": "NestedInput",
+  "key": {
+    "int": 121,
+    "string": "nestedinput"
+  },
+  "abstract": true,
+  "extends": "component.json",
+  "properties": {
+    "inputId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 237,
+        "string": "inputid"
+      },
+      "description": "Identifier used to track the actual backing state machine input."
+    }
+  }
+}

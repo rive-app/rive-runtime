@@ -1,0 +1,40 @@
+{
+  "name": "ClipboardHeader",
+  "key": {
+    "int": 146,
+    "string": "clipboardheader"
+  },
+  "runtime": false,
+  "properties": {
+    "fileId": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 293,
+        "string": "fileid"
+      },
+      "description": "File clipboard contents has come from.",
+      "runtime": false
+    },
+    "projectId": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 294,
+        "string": "projectid"
+      },
+      "description": "Project clipboard contents has come from.",
+      "runtime": false
+    },
+    "clipboardTypeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 295,
+        "string": "clipboardtypevalue"
+      },
+      "description": "Type of clipboard used to read these bytes",
+      "runtime": false
+    }
+  }
+}

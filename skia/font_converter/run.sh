@@ -1,0 +1,1 @@
+./build/macosx/bin/debug/font_converter

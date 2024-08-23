@@ -1,0 +1,8 @@
+{
+  "name": "ViewModelPropertyColor",
+  "key": {
+    "int": 440,
+    "string": "viewmodelpropertycolor"
+  },
+  "extends": "viewmodel/viewmodel_property.json"
+}

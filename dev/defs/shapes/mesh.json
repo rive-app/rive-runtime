@@ -1,0 +1,40 @@
+{
+  "name": "Mesh",
+  "key": {
+    "int": 109,
+    "string": "mesh"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "isClosed": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 217,
+        "string": "isclosed"
+      },
+      "description": "Whether the contour is closed.",
+      "runtime": false
+    },
+    "editingModeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 214,
+        "string": "editing_mode_value"
+      },
+      "description": "We use this to track the edit-time state of the Mesh for the VertexEditor.",
+      "runtime": false,
+      "coop": false
+    },
+    "triangleIndexBytes": {
+      "type": "Bytes",
+      "encoded": true,
+      "key": {
+        "int": 223,
+        "string": "triangleindexbytes"
+      },
+      "description": "Byte data for the triangle indices."
+    }
+  }
+}

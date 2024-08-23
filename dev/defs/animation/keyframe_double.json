@@ -1,0 +1,18 @@
+{
+  "name": "KeyFrameDouble",
+  "key": {
+    "int": 30,
+    "string": "keyframedouble"
+  },
+  "extends": "animation/interpolating_keyframe.json",
+  "properties": {
+    "value": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 70,
+        "string": "value"
+      }
+    }
+  }
+}

@@ -1,0 +1,74 @@
+{
+  "name": "TextStyle",
+  "key": {
+    "int": 137,
+    "string": "textstyle"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "fontSize": {
+      "type": "double",
+      "initialValue": "12",
+      "animates": true,
+      "key": {
+        "int": 274,
+        "string": "fontsize"
+      }
+    },
+    "lineHeight": {
+      "type": "double",
+      "initialValue": "-1.0",
+      "animates": true,
+      "key": {
+        "int": 370,
+        "string": "lineheight"
+      }
+    },
+    "letterSpacing": {
+      "type": "double",
+      "initialValue": "0.0",
+      "animates": true,
+      "key": {
+        "int": 390,
+        "string": "letterspacing"
+      }
+    },
+    "fontAssetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 279,
+        "string": "fontassetid"
+      }
+    },
+    "familyName": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 341,
+        "string": "familyname"
+      },
+      "runtime": false
+    },
+    "styleName": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 342,
+        "string": "stylename"
+      },
+      "runtime": false
+    },
+    "isCustomFont": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 353,
+        "string": "iscustomfont"
+      },
+      "runtime": false
+    }
+  }
+}

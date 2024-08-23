@@ -1,0 +1,19 @@
+{
+  "name": "CustomPropertyString",
+  "key": {
+    "int": 130,
+    "string": "custompropertystring"
+  },
+  "extends": "custom_property.json",
+  "properties": {
+    "propertyValue": {
+      "type": "String",
+      "initialValue": "''",
+      "animates": true,
+      "key": {
+        "int": 246,
+        "string": "value"
+      }
+    }
+  }
+}
