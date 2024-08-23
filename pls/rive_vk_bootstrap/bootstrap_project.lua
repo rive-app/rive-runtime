@@ -4,7 +4,7 @@ if not _OPTIONS['with_vulkan'] then
 end
 
 if not vulkan_headers or not vulkan_memory_allocator then
-    error('Please `dofile` packages/pls/premake5_pls_renderer.lua first.')
+    error('Please `dofile` packages/runtime/pls/premake5_pls_renderer.lua first.')
 end
 
 local dependency = require('dependency')

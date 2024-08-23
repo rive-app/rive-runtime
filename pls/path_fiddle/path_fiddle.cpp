@@ -400,13 +400,13 @@ int main(int argc, const char** argv)
         }
         else if (!strcmp(argv[i], "--sw") || !strcmp(argv[i], "--swiftshader"))
         {
-            // Use the swiftshader built by packages/pls/make_swiftshader.sh
+            // Use the swiftshader built by packages/runtime/pls/make_swiftshader.sh
             set_environment_variable("VK_ICD_FILENAMES", kSwiftShaderICD);
             api = API::vulkan;
         }
         else if (!strcmp(argv[i], "--swatomic") || !strcmp(argv[i], "--swiftshaderatomic"))
         {
-            // Use the swiftshader built by packages/pls/make_swiftshader.sh
+            // Use the swiftshader built by packages/runtime/pls/make_swiftshader.sh
             set_environment_variable("VK_ICD_FILENAMES", kSwiftShaderICD);
             api = API::vulkan;
             s_forceAtomicMode = true;
