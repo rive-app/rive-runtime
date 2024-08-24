@@ -748,7 +748,7 @@ ID3D11RenderTargetView* PLSRenderTargetD3D::targetRTV()
             case DXGI_FORMAT_R8G8B8A8_UNORM:
             case DXGI_FORMAT_B8G8R8A8_UNORM:
                 desc.Format = m_targetFormat;
-
+                break;
             case DXGI_FORMAT_R8G8B8A8_TYPELESS:
                 desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
                 break;
