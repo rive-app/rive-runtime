@@ -87,6 +87,16 @@ do
     buildoptions({ '-Wall', '-fno-exceptions', '-fno-rtti', '-Werror=format' })
     defines({ 'TESTING', 'YOGA_EXPORT=' })
 
+    filter({ 'system:macosx' })
+    do
+        links({
+            'Cocoa.framework',
+            'IOKit.framework',
+            'CoreVideo.framework',
+            'OpenGL.framework',
+        })
+    end
+
     filter('configurations:debug')
     do
         buildoptions({ '-g' })

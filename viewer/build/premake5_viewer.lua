@@ -8,7 +8,7 @@ rive_skia = '../../skia'
 skia = dependencies .. '/skia'
 
 if _OPTIONS.renderer == 'tess' then
-    dofile(rive .. '/decoders/build/premake5.lua')
+    dofile(rive .. '/decoders/premake5_v2.lua')
     dofile(path.join(path.getabsolute(rive_tess) .. '/build', 'premake5_tess.lua'))
 else
     -- tess renderer includes this
