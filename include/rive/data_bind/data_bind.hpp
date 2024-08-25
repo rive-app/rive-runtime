@@ -10,6 +10,11 @@
 #include <stdio.h>
 namespace rive
 {
+
+#ifdef WITH_RIVE_TOOLS
+class DataBind;
+typedef void (*DataBindChanged)();
+#endif
 class DataBind : public DataBindBase
 {
 public:

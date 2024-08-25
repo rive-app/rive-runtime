@@ -100,6 +100,9 @@ public:
     /// @returns a view model instance of the viewModel by name and instance name.
     ViewModelInstance* createViewModelInstance(std::string name, std::string instanceName);
 
+    /// @returns a view model instance of the viewModel by their indexes.
+    ViewModelInstance* createViewModelInstance(size_t index, size_t instanceIndex);
+
     ViewModel* viewModel(std::string name);
     ViewModelInstanceListItem* viewModelInstanceListItem(ViewModelInstance* viewModelInstance);
     ViewModelInstanceListItem* viewModelInstanceListItem(ViewModelInstance* viewModelInstance,

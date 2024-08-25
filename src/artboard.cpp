@@ -61,6 +61,11 @@ Artboard::~Artboard()
         delete object;
     }
 
+    for (auto dataBind : m_DataBinds)
+    {
+        delete dataBind;
+    }
+
     // Instances reference back to the original artboard's animations and state
     // machines, so don't delete them here, they'll get cleaned up when the
     // source is deleted.
@@ -1191,9 +1196,7 @@ void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool
     }
     if (isRoot)
     {
-        std::vector<DataBind*> dataBinds;
-        populateDataBinds(&dataBinds);
-        sortDataBinds(dataBinds);
+        collectDataBinds();
     }
 }
 
@@ -1234,6 +1237,14 @@ void Artboard::populateDataBinds(std::vector<DataBind*>* dataBinds)
             nestedArtboard->artboardInstance()->populateDataBinds(dataBinds);
         }
     }
+}
+
+void Artboard::collectDataBinds()
+{
+    m_AllDataBinds.clear();
+    std::vector<DataBind*> dataBinds;
+    populateDataBinds(&dataBinds);
+    sortDataBinds(dataBinds);
 }
 
 void Artboard::addDataBind(DataBind* dataBind) { m_DataBinds.push_back(dataBind); }

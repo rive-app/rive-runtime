@@ -163,6 +163,7 @@ public:
     const std::vector<Core*>& objects() const { return m_Objects; }
     const std::vector<NestedArtboard*> nestedArtboards() const { return m_NestedArtboards; }
     const std::vector<DataBind*> dataBinds() const { return m_DataBinds; }
+    const std::vector<DataBind*> allDataBinds() const { return m_AllDataBinds; }
     DataContext* dataContext() { return m_DataContext; }
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
@@ -190,6 +191,8 @@ public:
     void addDataBind(DataBind* dataBind);
     void populateDataBinds(std::vector<DataBind*>* dataBinds);
     void sortDataBinds(std::vector<DataBind*> dataBinds);
+    void collectDataBinds();
+
     bool hasAudio() const;
 
     template <typename T = Component> T* find(const std::string& name)

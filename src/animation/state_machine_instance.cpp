@@ -991,7 +991,17 @@ StateMachineInstance::~StateMachineInstance()
     {
         delete inst;
     }
+    for (auto databind : m_dataBinds)
+    {
+        delete databind;
+    }
     delete[] m_layers;
+    for (auto pair : m_bindablePropertyInstances)
+    {
+        delete pair.second;
+        pair.second = nullptr;
+    }
+    m_bindablePropertyInstances.clear();
 }
 
 void StateMachineInstance::sortHitComponents()

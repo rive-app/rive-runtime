@@ -551,6 +551,20 @@ ViewModelInstance* File::createViewModelInstance(std::string name, std::string i
     return nullptr;
 }
 
+ViewModelInstance* File::createViewModelInstance(size_t index, size_t instanceIndex)
+{
+    if (index < m_ViewModels.size())
+    {
+        auto viewModel = m_ViewModels[index];
+        auto instance = viewModel->instance(instanceIndex);
+        if (instance != nullptr)
+        {
+            return copyViewModelInstance(instance);
+        }
+    }
+    return nullptr;
+}
+
 ViewModelInstance* File::createViewModelInstance(ViewModel* viewModel)
 {
     if (viewModel != nullptr)
