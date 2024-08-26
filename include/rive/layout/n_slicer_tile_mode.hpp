@@ -4,6 +4,13 @@
 #include <stdio.h>
 namespace rive
 {
+enum class NSlicerTileModeType : int
+{
+    STRETCH = 0,
+    REPEAT = 1,
+    HIDDEN = 2,
+};
+
 class NSlicerTileMode : public NSlicerTileModeBase
 {
 public:

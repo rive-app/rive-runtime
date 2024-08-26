@@ -3,6 +3,7 @@
 #include "rive/factory.hpp"
 #include "rive/layout/axis.hpp"
 #include "rive/layout/n_slicer.hpp"
+#include "rive/layout/n_slicer_tile_mode.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/shapes/image.hpp"
 #include "rive/shapes/slice_mesh.hpp"
@@ -180,6 +181,93 @@ std::vector<float> SliceMesh::vertexStops(const std::vector<float>& normalizedSt
     return result;
 }
 
+uint16_t SliceMesh::tileRepeat(std::vector<SliceMeshVertex>& vertices,
+                               std::vector<uint16_t>& indices,
+                               const std::vector<SliceMeshVertex>& box,
+                               uint16_t start)
+{
+    assert(box.size() == 4);
+
+    const float startX = box[0].vertex.x;
+    const float startY = box[0].vertex.y;
+    const float endX = box[2].vertex.x;
+    const float endY = box[2].vertex.y;
+
+    const float startU = box[0].uv.x;
+    const float startV = box[0].uv.y;
+    const float endU = box[2].uv.x;
+    const float endV = box[2].uv.y;
+
+    // The size of each repeated tile in image space
+    Image* image = m_nslicer->image();
+    const float sizeX = image->width() * (endU - startU) / std::abs(image->scaleX());
+    const float sizeY = image->height() * (endV - startV) / std::abs(image->scaleY());
+
+    float curX = startX;
+    float curY = startY;
+    int curV = start;
+
+    int escape = 1000000; // a million
+    while (curY < endY && escape > 0)
+    {
+        escape--;
+        float fracY = (curY + sizeY) > endY ? (endY - curY) / sizeY : 1;
+        curX = startX;
+        while (curX < endX && escape > 0)
+        {
+            escape--;
+            int v0 = curV;
+            float fracX = (curX + sizeX) > endX ? (endX - curX) / sizeX : 1;
+
+            std::vector<SliceMeshVertex> curTile;
+            float endU1 = startU + (endU - startU) * fracX;
+            float endV1 = startV + (endV - startV) * fracY;
+            float endX1 = curX + sizeX * fracX;
+            float endY1 = curY + sizeY * fracY;
+
+            // top left
+            SliceMeshVertex v = SliceMeshVertex();
+            v.id = curV++;
+            v.uv = Vec2D(startU, startV);
+            v.vertex = Vec2D(curX, curY);
+            curTile.emplace_back(v);
+
+            // top right
+            v = SliceMeshVertex();
+            v.id = curV++;
+            v.uv = Vec2D(endU1, startV);
+            v.vertex = Vec2D(endX1, curY);
+            curTile.emplace_back(v);
+
+            // bottom right
+            v = SliceMeshVertex();
+            v.id = curV++;
+            v.uv = Vec2D(endU1, endV1);
+            v.vertex = Vec2D(endX1, endY1);
+            curTile.emplace_back(v);
+
+            // bottom left
+            v = SliceMeshVertex();
+            v.id = curV++;
+            v.uv = Vec2D(startU, endV1);
+            v.vertex = Vec2D(curX, endY1);
+            curTile.emplace_back(v);
+
+            // Commit the four vertices, and the triangulation
+            vertices.insert(vertices.end(), curTile.begin(), curTile.end());
+            for (uint16_t t : triangulation)
+            {
+                indices.emplace_back(v0 + t);
+            }
+
+            curX += sizeX;
+        }
+        curY += sizeY;
+    }
+    assert(escape > 0);
+    return curV - start;
+}
+
 void SliceMesh::calc()
 {
     m_vertices = {};
@@ -190,6 +278,7 @@ void SliceMesh::calc()
     std::vector<float> vs = uvStops(AxisType::Y);
     std::vector<float> xs = vertexStops(us, AxisType::X);
     std::vector<float> ys = vertexStops(vs, AxisType::Y);
+    const auto& tileModes = m_nslicer->tileModes();
 
     std::vector<SliceMeshVertex> vertices;
     uint16_t vertexIndex = 0;
@@ -197,6 +286,16 @@ void SliceMesh::calc()
     {
         for (int patchX = 0; patchX < us.size() - 1; patchX++)
         {
+            auto tileModeIt = tileModes.find(m_nslicer->patchIndex(patchX, patchY));
+            auto tileMode =
+                tileModeIt == tileModes.end() ? NSlicerTileModeType::STRETCH : tileModeIt->second;
+
+            // Do nothing if hidden
+            if (tileMode == NSlicerTileModeType::HIDDEN)
+            {
+                continue;
+            }
+
             const uint16_t v0 = vertexIndex;
             std::vector<SliceMeshVertex> patchVertices;
             for (const Corner& corner : patchCorners)
@@ -205,16 +304,27 @@ void SliceMesh::calc()
                 int yIndex = patchY + corner.y;
 
                 SliceMeshVertex v;
-                v.id = vertexIndex++;
+                if (tileMode != NSlicerTileModeType::REPEAT)
+                {
+                    v.id = vertexIndex++;
+                }
                 v.uv = Vec2D(us[xIndex], vs[yIndex]);
                 v.vertex = Vec2D(xs[xIndex], ys[yIndex]);
 
                 patchVertices.emplace_back(v);
             }
-            vertices.insert(vertices.end(), patchVertices.begin(), patchVertices.end());
-            for (uint16_t t : triangulation)
+
+            if (tileMode == NSlicerTileModeType::REPEAT)
             {
-                m_indices.emplace_back(v0 + t);
+                vertexIndex += tileRepeat(vertices, m_indices, patchVertices, v0);
+            }
+            else
+            {
+                vertices.insert(vertices.end(), patchVertices.begin(), patchVertices.end());
+                for (uint16_t t : triangulation)
+                {
+                    m_indices.emplace_back(v0 + t);
+                }
             }
         }
     }

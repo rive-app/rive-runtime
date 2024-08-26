@@ -15,6 +15,6 @@ StatusCode NSlicerTileMode::onAddedDirty(CoreContext* context)
     {
         return StatusCode::MissingObject;
     }
-    parent()->as<NSlicer>()->addTileMode(this);
+    parent()->as<NSlicer>()->addTileMode(patchIndex(), NSlicerTileModeType(style()));
     return StatusCode::Ok;
 }

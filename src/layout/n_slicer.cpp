@@ -15,7 +15,12 @@ Image* NSlicer::image()
         return parent()->as<Image>();
     }
     return nullptr;
-};
+}
+
+int NSlicer::patchIndex(int patchX, int patchY)
+{
+    return patchY * (static_cast<int>(m_xs.size()) + 1) + patchX;
+}
 
 StatusCode NSlicer::onAddedDirty(CoreContext* context)
 {
@@ -46,7 +51,10 @@ void NSlicer::addAxisY(Axis* axis) { m_ys.push_back(axis); }
 
 void NSlicer::axisChanged() { addDirt(ComponentDirt::Path); }
 
-void NSlicer::addTileMode(NSlicerTileMode* tileMode) { m_tileModes.push_back(tileMode); }
+void NSlicer::addTileMode(int patchIndex, NSlicerTileModeType style)
+{
+    m_tileModes[patchIndex] = style;
+}
 
 void NSlicer::update(ComponentDirt value)
 {

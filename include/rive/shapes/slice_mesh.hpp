@@ -35,6 +35,11 @@ private:
     std::vector<float> uvStops(AxisType forAxis);
     std::vector<float> vertexStops(const std::vector<float>& normalizedStops, AxisType forAxis);
 
+    uint16_t tileRepeat(std::vector<SliceMeshVertex>& vertices,
+                        std::vector<uint16_t>& indices,
+                        const std::vector<SliceMeshVertex>& box,
+                        uint16_t start);
+
     // Update the member (non-render) buffers.
     void calc();
 
