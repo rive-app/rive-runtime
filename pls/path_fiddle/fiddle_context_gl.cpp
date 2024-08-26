@@ -1,6 +1,6 @@
 #include "fiddle_context.hpp"
 
-#ifndef RIVE_DESKTOP_GL
+#ifdef RIVE_TOOLS_NO_GLFW
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS() { return nullptr; }
 
@@ -109,7 +109,7 @@ public:
 
     float dpiScale(GLFWwindow*) const override
     {
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(RIVE_WEBGL)
         return 2;
 #else
         return 1;
