@@ -2,6 +2,7 @@
 #include "rive/artboard.hpp"
 #include "rive/drawable.hpp"
 #include "rive/factory.hpp"
+#include "rive/intrinsically_sizeable.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/node.hpp"
 #include "rive/math/aabb.hpp"
@@ -211,12 +212,10 @@ Vec2D LayoutComponent::measureLayout(float width,
         {
             continue;
         }
-        //  && child->is<TransformComponent>()->canMeasure() for nested artboard layout
-        if (child->is<TransformComponent>())
+        auto sizeableChild = IntrinsicallySizeable::from(child);
+        if (sizeableChild != nullptr)
         {
-            auto transformComponent = child->as<TransformComponent>();
-            Vec2D measured =
-                transformComponent->measureLayout(width, widthMode, height, heightMode);
+            Vec2D measured = sizeableChild->measureLayout(width, widthMode, height, heightMode);
             size = Vec2D(std::max(size.x, measured.x), std::max(size.y, measured.y));
         }
     }
@@ -548,10 +547,10 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
         {
             continue;
         }
-        if (child->is<TransformComponent>())
+        auto sizeableChild = IntrinsicallySizeable::from(child);
+        if (sizeableChild != nullptr)
         {
-            auto sizableChild = child->as<TransformComponent>();
-            sizableChild->controlSize(Vec2D(m_layoutSizeWidth, m_layoutSizeHeight));
+            sizeableChild->controlSize(Vec2D(m_layoutSizeWidth, m_layoutSizeHeight));
         }
         if (child->is<ContainerComponent>())
         {

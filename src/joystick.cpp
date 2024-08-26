@@ -92,3 +92,23 @@ void Joystick::apply(Artboard* artboard) const
                                 2.0f * m_yAnimation->durationSeconds());
     }
 }
+
+Vec2D Joystick::measureLayout(float width,
+                              LayoutMeasureMode widthMode,
+                              float height,
+                              LayoutMeasureMode heightMode)
+{
+    return Vec2D(
+        std::min(
+            (widthMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max() : width),
+            Joystick::width()),
+        std::min((heightMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max()
+                                                             : height),
+                 Joystick::height()));
+}
+
+void Joystick::controlSize(Vec2D size)
+{
+    width(size.x);
+    height(size.y);
+}
