@@ -99,7 +99,12 @@ void ClippingShape::update(ComponentDirt value)
         {
             if (!shape->isEmpty())
             {
-                m_RenderPath->addPath(shape->pathComposer()->worldPath(), identity);
+                auto path = shape->pathComposer()->worldPath();
+                if (path == nullptr)
+                {
+                    continue;
+                }
+                m_RenderPath->addPath(path, identity);
                 m_ClipRenderPath = m_RenderPath.get();
             }
         }
