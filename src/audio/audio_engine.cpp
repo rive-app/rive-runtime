@@ -173,7 +173,15 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
     // need. This should automatically set available backends in priority order based on the target
     // it's built for, which in the case of Apple is Core Audio first.
     ma_context_config contextConfig = ma_context_config_init();
-    contextConfig.coreaudio.sessionCategoryOptions = ma_ios_session_category_option_mix_with_others;
+
+    // By setting the core audio session to none, miniaudio will not
+    // - set a (new) category on the shared audio session
+    // - set any (new) options when setting a new category
+    // This means that the shared AVAudioSession instance will be respected
+    // when audio is played; the developer will have to set up the shared
+    // AVAudioSession instance explicitly for their own set up.
+    // This does not touch whether the session is made (in)active.
+    contextConfig.coreaudio.sessionCategory = ma_ios_session_category_none;
 
     // We only need to initialize space for the context if we're targeting Apple platforms
     ma_context* context = (ma_context*)malloc(sizeof(ma_context));
