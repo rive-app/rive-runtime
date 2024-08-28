@@ -12,26 +12,27 @@
 
 namespace rive::gpu
 {
-using DrawBufferMask = PLSRenderTargetGL::DrawBufferMask;
+using DrawBufferMask = RenderTargetGL::DrawBufferMask;
 
 constexpr static GLenum kPLSDrawBuffers[4] = {GL_COLOR_ATTACHMENT0,
                                               GL_COLOR_ATTACHMENT1,
                                               GL_COLOR_ATTACHMENT2,
                                               GL_COLOR_ATTACHMENT3};
 
-class PLSRenderContextGLImpl::PLSImplFramebufferFetch : public PLSRenderContextGLImpl::PLSImpl
+class RenderContextGLImpl::PLSImplFramebufferFetch
+    : public RenderContextGLImpl::PixelLocalStorageImpl
 {
 public:
     PLSImplFramebufferFetch(const GLCapabilities& extensions) : m_capabilities(extensions) {}
 
     bool supportsRasterOrdering(const GLCapabilities&) const override { return true; }
 
-    void activatePixelLocalStorage(PLSRenderContextGLImpl* plsContextImpl,
+    void activatePixelLocalStorage(RenderContextGLImpl* plsContextImpl,
                                    const FlushDescriptor& desc) override
     {
         assert(plsContextImpl->m_capabilities.EXT_shader_framebuffer_fetch);
 
-        auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
+        auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
         if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
@@ -107,7 +108,7 @@ public:
         }
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
+    void deactivatePixelLocalStorage(RenderContextGLImpl*, const FlushDescriptor& desc) override
     {
         if (desc.interlockMode == gpu::InterlockMode::atomics)
         {
@@ -120,7 +121,7 @@ public:
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 3, kPLSDrawBuffers + 1);
 
         if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
-                static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
+                static_cast<RenderTargetGL*>(desc.renderTarget)))
         {
             // We rendered to an offscreen texture. Copy back to the external framebuffer.
             framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER,
@@ -173,7 +174,7 @@ private:
     const GLCapabilities m_capabilities;
 };
 
-std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::
+std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl> RenderContextGLImpl::
     MakePLSImplFramebufferFetch(const GLCapabilities& extensions)
 {
     return std::make_unique<PLSImplFramebufferFetch>(extensions);

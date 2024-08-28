@@ -32,10 +32,10 @@
 
 using namespace rive;
 using namespace rive::gpu;
-using PixelLocalStorageType = PLSRenderContextWebGPUImpl::PixelLocalStorageType;
+using PixelLocalStorageType = RenderContextWebGPUImpl::PixelLocalStorageType;
 
-static std::unique_ptr<PLSRenderContext> s_plsContext;
-static rcp<PLSRenderTargetWebGPU> s_renderTarget;
+static std::unique_ptr<RenderContext> s_plsContext;
+static rcp<RenderTargetWebGPU> s_renderTarget;
 static std::unique_ptr<Renderer> s_renderer;
 
 void riveInitPlayer(int w,
@@ -46,13 +46,13 @@ void riveInitPlayer(int w,
                     PixelLocalStorageType plsType,
                     int maxVertexStorageBlocks)
 {
-    PLSRenderContextWebGPUImpl::ContextOptions contextOptions = {
+    RenderContextWebGPUImpl::ContextOptions contextOptions = {
         .plsType = plsType,
         .disableStorageBuffers = maxVertexStorageBlocks < gpu::kMaxStorageBuffers,
     };
     s_plsContext =
-        PLSRenderContextWebGPUImpl::MakeContext(gpu, queue, contextOptions, platformFeatures);
-    s_renderTarget = s_plsContext->static_impl_cast<PLSRenderContextWebGPUImpl>()->makeRenderTarget(
+        RenderContextWebGPUImpl::MakeContext(gpu, queue, contextOptions, platformFeatures);
+    s_renderTarget = s_plsContext->static_impl_cast<RenderContextWebGPUImpl>()->makeRenderTarget(
         wgpu::TextureFormat::BGRA8Unorm,
         w,
         h);

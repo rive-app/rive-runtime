@@ -20,7 +20,7 @@ class FiddleContextMetalPLS : public FiddleContext
 public:
     FiddleContextMetalPLS(FiddleContextOptions fiddleOptions) : m_fiddleOptions(fiddleOptions)
     {
-        PLSRenderContextMetalImpl::ContextOptions metalOptions;
+        RenderContextMetalImpl::ContextOptions metalOptions;
         if (m_fiddleOptions.synchronousShaderCompilations)
         {
             // Turn on synchronous shader compilations to ensure deterministic rendering and to make
@@ -33,7 +33,7 @@ public:
             // sure we test every unique shader.
             metalOptions.disableFramebufferReads = true;
         }
-        m_plsContext = PLSRenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
+        m_plsContext = RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
         printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
     }
 
@@ -45,9 +45,9 @@ public:
 
     Factory* factory() override { return m_plsContext.get(); }
 
-    rive::gpu::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+    rive::gpu::RenderContext* plsContextOrNull() override { return m_plsContext.get(); }
 
-    rive::gpu::PLSRenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
@@ -64,7 +64,7 @@ public:
         m_swapchain.displaySyncEnabled = NO;
         view.layer = m_swapchain;
 
-        auto plsContextImpl = m_plsContext->static_impl_cast<PLSRenderContextMetalImpl>();
+        auto plsContextImpl = m_plsContext->static_impl_cast<RenderContextMetalImpl>();
         m_renderTarget = plsContextImpl->makeRenderTarget(MTLPixelFormatBGRA8Unorm, width, height);
         m_pixelReadBuff = nil;
     }
@@ -76,7 +76,7 @@ public:
         return std::make_unique<RiveRenderer>(m_plsContext.get());
     }
 
-    void begin(const PLSRenderContext::FrameDescriptor& frameDescriptor) override
+    void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
     {
         m_plsContext->beginFrame(frameDescriptor);
     }
@@ -165,9 +165,9 @@ private:
     const FiddleContextOptions m_fiddleOptions;
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();
     id<MTLCommandQueue> m_queue = [m_gpu newCommandQueue];
-    std::unique_ptr<PLSRenderContext> m_plsContext;
+    std::unique_ptr<RenderContext> m_plsContext;
     CAMetalLayer* m_swapchain;
-    rcp<PLSRenderTargetMetal> m_renderTarget;
+    rcp<RenderTargetMetal> m_renderTarget;
     id<MTLBuffer> m_pixelReadBuff;
     id<CAMetalDrawable> m_currentFrameSurface = nil;
 };

@@ -8,23 +8,23 @@
 
 namespace rive::gpu
 {
-PLSRenderBufferGLImpl::PLSRenderBufferGLImpl(RenderBufferType type,
-                                             RenderBufferFlags flags,
-                                             size_t sizeInBytes) :
+RenderBufferGLImpl::RenderBufferGLImpl(RenderBufferType type,
+                                       RenderBufferFlags flags,
+                                       size_t sizeInBytes) :
     lite_rtti_override(type, flags, sizeInBytes),
     m_target(type == RenderBufferType::vertex ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER)
 {}
 
-PLSRenderBufferGLImpl::PLSRenderBufferGLImpl(RenderBufferType RenderBufferType,
-                                             RenderBufferFlags renderBufferFlags,
-                                             size_t sizeInBytes,
-                                             rcp<GLState> state) :
-    PLSRenderBufferGLImpl(RenderBufferType, renderBufferFlags, sizeInBytes)
+RenderBufferGLImpl::RenderBufferGLImpl(RenderBufferType RenderBufferType,
+                                       RenderBufferFlags renderBufferFlags,
+                                       size_t sizeInBytes,
+                                       rcp<GLState> state) :
+    RenderBufferGLImpl(RenderBufferType, renderBufferFlags, sizeInBytes)
 {
     init(std::move(state));
 }
 
-PLSRenderBufferGLImpl::~PLSRenderBufferGLImpl()
+RenderBufferGLImpl::~RenderBufferGLImpl()
 {
     for (GLuint bufferID : m_bufferIDs)
     {
@@ -35,7 +35,7 @@ PLSRenderBufferGLImpl::~PLSRenderBufferGLImpl()
     }
 }
 
-void PLSRenderBufferGLImpl::init(rcp<GLState> state)
+void RenderBufferGLImpl::init(rcp<GLState> state)
 {
     assert(!m_state);
     assert(!m_bufferIDs[0]);
@@ -55,14 +55,14 @@ void PLSRenderBufferGLImpl::init(rcp<GLState> state)
     }
 }
 
-std::array<GLuint, gpu::kBufferRingSize> PLSRenderBufferGLImpl::detachBuffers()
+std::array<GLuint, gpu::kBufferRingSize> RenderBufferGLImpl::detachBuffers()
 {
     auto detachedBuffers = m_bufferIDs;
     m_bufferIDs.fill(0);
     return detachedBuffers;
 }
 
-void* PLSRenderBufferGLImpl::onMap()
+void* RenderBufferGLImpl::onMap()
 {
     m_submittedBufferIdx = (m_submittedBufferIdx + 1) % gpu::kBufferRingSize;
     if (!canMapBuffer())
@@ -90,7 +90,7 @@ void* PLSRenderBufferGLImpl::onMap()
     }
 }
 
-void PLSRenderBufferGLImpl::onUnmap()
+void RenderBufferGLImpl::onUnmap()
 {
     m_state->bindVAO(0);
     m_state->bindBuffer(m_target, m_bufferIDs[m_submittedBufferIdx]);
@@ -113,7 +113,7 @@ void PLSRenderBufferGLImpl::onUnmap()
     }
 }
 
-bool PLSRenderBufferGLImpl::canMapBuffer() const
+bool RenderBufferGLImpl::canMapBuffer() const
 {
 #ifdef RIVE_WEBGL
     // WebGL doesn't support buffer mapping.

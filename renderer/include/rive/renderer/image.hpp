@@ -10,11 +10,11 @@
 
 namespace rive::gpu
 {
-class PLSTexture : public RefCnt<PLSTexture>
+class Texture : public RefCnt<Texture>
 {
 public:
-    PLSTexture(uint32_t width, uint32_t height);
-    virtual ~PLSTexture() {}
+    Texture(uint32_t width, uint32_t height);
+    virtual ~Texture() {}
 
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
@@ -33,25 +33,25 @@ protected:
     uint64_t m_bindlessTextureHandle = 0;
 };
 
-class PLSImage : public lite_rtti_override<RenderImage, PLSImage>
+class Image : public lite_rtti_override<RenderImage, Image>
 {
 public:
-    PLSImage(rcp<PLSTexture> texture) : PLSImage(texture->width(), texture->height())
+    Image(rcp<Texture> texture) : Image(texture->width(), texture->height())
     {
         resetTexture(std::move(texture));
     }
 
-    rcp<PLSTexture> refTexture() const { return m_texture; }
-    const PLSTexture* getTexture() const { return m_texture.get(); }
+    rcp<Texture> refTexture() const { return m_texture; }
+    const Texture* getTexture() const { return m_texture.get(); }
 
 protected:
-    PLSImage(int width, int height)
+    Image(int width, int height)
     {
         m_Width = width;
         m_Height = height;
     }
 
-    void resetTexture(rcp<PLSTexture> texture = nullptr)
+    void resetTexture(rcp<Texture> texture = nullptr)
     {
         assert(texture == nullptr || texture->width() == m_Width);
         assert(texture == nullptr || texture->height() == m_Height);
@@ -59,9 +59,9 @@ protected:
     }
 
     // Used by the android runtime to send m_texture off to the worker thread to be deleted.
-    PLSTexture* releaseTexture() { return m_texture.release(); }
+    Texture* releaseTexture() { return m_texture.release(); }
 
 private:
-    rcp<PLSTexture> m_texture;
+    rcp<Texture> m_texture;
 };
 } // namespace rive::gpu

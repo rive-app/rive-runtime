@@ -26,20 +26,20 @@ public:
     FiddleContextD3DPLS(ComPtr<IDXGIFactory2> d3dFactory,
                         ComPtr<ID3D11Device> gpu,
                         ComPtr<ID3D11DeviceContext> gpuContext,
-                        const PLSRenderContextD3DImpl::ContextOptions& contextOptions) :
+                        const RenderContextD3DImpl::ContextOptions& contextOptions) :
         m_d3dFactory(std::move(d3dFactory)),
         m_gpu(std::move(gpu)),
         m_gpuContext(std::move(gpuContext)),
-        m_plsContext(PLSRenderContextD3DImpl::MakeContext(m_gpu, m_gpuContext, contextOptions))
+        m_plsContext(RenderContextD3DImpl::MakeContext(m_gpu, m_gpuContext, contextOptions))
     {}
 
     float dpiScale(GLFWwindow*) const override { return 1; }
 
     rive::Factory* factory() override { return m_plsContext.get(); }
 
-    rive::gpu::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+    rive::gpu::RenderContext* plsContextOrNull() override { return m_plsContext.get(); }
 
-    rive::gpu::PLSRenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
@@ -60,7 +60,7 @@ public:
                                                        NULL,
                                                        m_swapchain.ReleaseAndGetAddressOf()));
 
-        auto plsContextImpl = m_plsContext->static_impl_cast<PLSRenderContextD3DImpl>();
+        auto plsContextImpl = m_plsContext->static_impl_cast<RenderContextD3DImpl>();
         m_renderTarget = plsContextImpl->makeRenderTarget(width, height);
         m_readbackTexture = nullptr;
     }
@@ -72,7 +72,7 @@ public:
         return std::make_unique<RiveRenderer>(m_plsContext.get());
     }
 
-    void begin(const rive::gpu::PLSRenderContext::FrameDescriptor& frameDescriptor) override
+    void begin(const rive::gpu::RenderContext::FrameDescriptor& frameDescriptor) override
     {
         m_plsContext->beginFrame(frameDescriptor);
     }
@@ -138,8 +138,8 @@ private:
     ComPtr<ID3D11DeviceContext> m_gpuContext;
     ComPtr<IDXGISwapChain1> m_swapchain;
     ComPtr<ID3D11Texture2D> m_readbackTexture;
-    std::unique_ptr<PLSRenderContext> m_plsContext;
-    rcp<PLSRenderTargetD3D> m_renderTarget;
+    std::unique_ptr<RenderContext> m_plsContext;
+    rcp<RenderTargetD3D> m_renderTarget;
 };
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions fiddleOptions)
@@ -151,7 +151,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions fi
 
     ComPtr<IDXGIAdapter> adapter;
     DXGI_ADAPTER_DESC adapterDesc{};
-    PLSRenderContextD3DImpl::ContextOptions contextOptions;
+    RenderContextD3DImpl::ContextOptions contextOptions;
     if (fiddleOptions.disableRasterOrdering)
     {
         contextOptions.disableRasterizerOrderedViews = true;

@@ -14,7 +14,7 @@ namespace rive::gpu
 // Calling mapBuffer() maps the next buffer in the ring.
 //
 // Calling unmapAndSubmitBuffer() submits the currently-mapped buffer for GPU rendering, in whatever
-// way that is meaningful for the PLSRenderContext implementation.
+// way that is meaningful for the RenderContext implementation.
 //
 // This class is meant to only be used through BufferRing<>.
 class BufferRing
@@ -38,7 +38,7 @@ public:
     }
 
     // Submits the currently-mapped buffer for GPU rendering, in whatever way that is meaningful for
-    // the PLSRenderContext implementation.
+    // the RenderContext implementation.
     void unmapAndSubmitBuffer()
     {
         assert(isMapped());

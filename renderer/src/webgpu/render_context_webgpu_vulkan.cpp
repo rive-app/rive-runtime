@@ -45,7 +45,7 @@ EM_JS(int, make_pls_input_attachment_texture_bind_group, (int device), {
     return JsValStore.add(plsBindBroupLayout);
 });
 
-wgpu::BindGroupLayout PLSRenderContextWebGPUVulkan::initPLSTextureBindGroup()
+wgpu::BindGroupLayout RenderContextWebGPUVulkan::initTextureBindGroup()
 {
     m_plsTextureBindGroupJSHandle = EmJsHandle(make_pls_input_attachment_texture_bind_group(
         emscripten_webgpu_export_device(device().Get())));
@@ -58,12 +58,12 @@ EM_JS(int, texture_usage_transient_input_attachment, (), {
     return GPUTextureUsage.TRANSIENT_ATTACHMENT | GPUTextureUsage.INPUT_ATTACHMENT;
 });
 
-rcp<PLSRenderTargetWebGPU> PLSRenderContextWebGPUVulkan::makeRenderTarget(
+rcp<RenderTargetWebGPU> RenderContextWebGPUVulkan::makeRenderTarget(
     wgpu::TextureFormat framebufferFormat,
     uint32_t width,
     uint32_t height)
 {
-    return rcp(new PLSRenderTargetWebGPU(
+    return rcp(new RenderTargetWebGPU(
         device(),
         framebufferFormat,
         width,
@@ -210,7 +210,7 @@ EM_JS(int,
           return JsValStore.add(pipeline);
       });
 
-wgpu::RenderPipeline PLSRenderContextWebGPUVulkan::makePLSDrawPipeline(
+wgpu::RenderPipeline RenderContextWebGPUVulkan::makeDrawPipeline(
     rive::gpu::DrawType drawType,
     wgpu::TextureFormat framebufferFormat,
     wgpu::ShaderModule vertexShader,
@@ -300,9 +300,9 @@ EM_JS(int,
           return JsValStore.add(renderPass);
       });
 
-wgpu::RenderPassEncoder PLSRenderContextWebGPUVulkan::makePLSRenderPass(
+wgpu::RenderPassEncoder RenderContextWebGPUVulkan::makePLSRenderPass(
     wgpu::CommandEncoder encoder,
-    const PLSRenderTargetWebGPU* renderTarget,
+    const RenderTargetWebGPU* renderTarget,
     wgpu::LoadOp loadOp,
     const wgpu::Color& clearColor,
     EmJsHandle* renderPassJSHandleIfNeeded)

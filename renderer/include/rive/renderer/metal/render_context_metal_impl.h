@@ -16,11 +16,11 @@ namespace rive::gpu
 {
 class BackgroundShaderCompiler;
 
-// Metal backend implementation of PLSRenderTarget.
-class PLSRenderTargetMetal : public PLSRenderTarget
+// Metal backend implementation of RenderTarget.
+class RenderTargetMetal : public RenderTarget
 {
 public:
-    ~PLSRenderTargetMetal() override {}
+    ~RenderTargetMetal() override {}
 
     MTLPixelFormat pixelFormat() const { return m_pixelFormat; }
 
@@ -35,9 +35,9 @@ public:
     id<MTLTexture> targetTexture() const { return m_targetTexture; }
 
 private:
-    friend class PLSRenderContextMetalImpl;
+    friend class RenderContextMetalImpl;
 
-    PLSRenderTargetMetal(
+    RenderTargetMetal(
         id<MTLDevice>, MTLPixelFormat, uint32_t width, uint32_t height, const PlatformFeatures&);
 
     // Lazily-allocated buffers for atomic mode. Unlike the memoryless textures, these buffers have
@@ -77,8 +77,8 @@ private:
     id<MTLBuffer> m_clipAtomicBuffer = nil;
 };
 
-// Metal backend implementation of PLSRenderContextImpl.
-class PLSRenderContextMetalImpl : public PLSRenderContextHelperImpl
+// Metal backend implementation of RenderContextImpl.
+class RenderContextMetalImpl : public RenderContextHelperImpl
 {
 public:
     struct ContextOptions
@@ -92,25 +92,25 @@ public:
         bool disableFramebufferReads = false;
     };
 
-    static std::unique_ptr<PLSRenderContext> MakeContext(id<MTLDevice>, const ContextOptions&);
+    static std::unique_ptr<RenderContext> MakeContext(id<MTLDevice>, const ContextOptions&);
 
-    static std::unique_ptr<PLSRenderContext> MakeContext(id<MTLDevice> gpu)
+    static std::unique_ptr<RenderContext> MakeContext(id<MTLDevice> gpu)
     {
         return MakeContext(gpu, ContextOptions());
     }
 
-    ~PLSRenderContextMetalImpl() override;
+    ~RenderContextMetalImpl() override;
 
     id<MTLDevice> gpu() const { return m_gpu; }
 
-    rcp<PLSRenderTargetMetal> makeRenderTarget(MTLPixelFormat, uint32_t width, uint32_t height);
+    rcp<RenderTargetMetal> makeRenderTarget(MTLPixelFormat, uint32_t width, uint32_t height);
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
-    rcp<PLSTexture> makeImageTexture(uint32_t width,
-                                     uint32_t height,
-                                     uint32_t mipLevelCount,
-                                     const uint8_t imageDataRGBA[]) override;
+    rcp<Texture> makeImageTexture(uint32_t width,
+                                  uint32_t height,
+                                  uint32_t mipLevelCount,
+                                  const uint8_t imageDataRGBA[]) override;
 
     // Atomic mode requires a barrier between overlapping draws. We have to implement this barrier
     // in various different ways, depending on which hardware we're on.
@@ -139,7 +139,7 @@ public:
     const MetalFeatures& metalFeatures() const { return m_metalFeatures; }
 
 protected:
-    PLSRenderContextMetalImpl(id<MTLDevice>, const ContextOptions&);
+    RenderContextMetalImpl(id<MTLDevice>, const ContextOptions&);
 
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,

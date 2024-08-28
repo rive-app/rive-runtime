@@ -72,7 +72,7 @@ static ComPtr<ID3D11UnorderedAccessView> make_simple_2d_uav(ID3D11Device* gpu,
     return uav;
 }
 
-std::unique_ptr<PLSRenderContext> PLSRenderContextD3DImpl::MakeContext(
+std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
     ComPtr<ID3D11Device> gpu,
     ComPtr<ID3D11DeviceContext> gpuContext,
     const ContextOptions& contextOptions)
@@ -132,14 +132,14 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextD3DImpl::MakeContext(
 
     d3dCapabilities.isIntel = contextOptions.isIntel;
 
-    auto plsContextImpl = std::unique_ptr<PLSRenderContextD3DImpl>(
-        new PLSRenderContextD3DImpl(std::move(gpu), std::move(gpuContext), d3dCapabilities));
-    return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
+    auto plsContextImpl = std::unique_ptr<RenderContextD3DImpl>(
+        new RenderContextD3DImpl(std::move(gpu), std::move(gpuContext), d3dCapabilities));
+    return std::make_unique<RenderContext>(std::move(plsContextImpl));
 }
 
-PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
-                                                 ComPtr<ID3D11DeviceContext> gpuContext,
-                                                 const D3DCapabilities& d3dCapabilities) :
+RenderContextD3DImpl::RenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
+                                           ComPtr<ID3D11DeviceContext> gpuContext,
+                                           const D3DCapabilities& d3dCapabilities) :
     m_d3dCapabilities(d3dCapabilities), m_gpu(std::move(gpu)), m_gpuContext(std::move(gpuContext))
 {
     m_platformFeatures.invertOffscreenY = true;
@@ -353,12 +353,12 @@ PLSRenderContextD3DImpl::PLSRenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
     VERIFY_OK(m_gpu->CreateBlendState(&srcOverDesc, m_srcOverBlendState.ReleaseAndGetAddressOf()));
 }
 
-ComPtr<ID3D11Texture2D> PLSRenderContextD3DImpl::makeSimple2DTexture(DXGI_FORMAT format,
-                                                                     UINT width,
-                                                                     UINT height,
-                                                                     UINT mipLevelCount,
-                                                                     UINT bindFlags,
-                                                                     UINT miscFlags)
+ComPtr<ID3D11Texture2D> RenderContextD3DImpl::makeSimple2DTexture(DXGI_FORMAT format,
+                                                                  UINT width,
+                                                                  UINT height,
+                                                                  UINT mipLevelCount,
+                                                                  UINT bindFlags,
+                                                                  UINT miscFlags)
 {
     return make_simple_2d_texture(m_gpu.Get(),
                                   format,
@@ -369,15 +369,15 @@ ComPtr<ID3D11Texture2D> PLSRenderContextD3DImpl::makeSimple2DTexture(DXGI_FORMAT
                                   miscFlags);
 }
 
-ComPtr<ID3D11UnorderedAccessView> PLSRenderContextD3DImpl::makeSimple2DUAV(ID3D11Texture2D* tex,
-                                                                           DXGI_FORMAT format)
+ComPtr<ID3D11UnorderedAccessView> RenderContextD3DImpl::makeSimple2DUAV(ID3D11Texture2D* tex,
+                                                                        DXGI_FORMAT format)
 {
     return make_simple_2d_uav(m_gpu.Get(), tex, format);
 }
 
-ComPtr<ID3D11Buffer> PLSRenderContextD3DImpl::makeSimpleImmutableBuffer(size_t sizeInBytes,
-                                                                        UINT bindFlags,
-                                                                        const void* data)
+ComPtr<ID3D11Buffer> RenderContextD3DImpl::makeSimpleImmutableBuffer(size_t sizeInBytes,
+                                                                     UINT bindFlags,
+                                                                     const void* data)
 {
     D3D11_BUFFER_DESC desc{};
     desc.ByteWidth = math::lossless_numeric_cast<UINT>(sizeInBytes);
@@ -393,10 +393,10 @@ ComPtr<ID3D11Buffer> PLSRenderContextD3DImpl::makeSimpleImmutableBuffer(size_t s
     return buffer;
 }
 
-ComPtr<ID3DBlob> PLSRenderContextD3DImpl::compileSourceToBlob(const char* shaderTypeDefineName,
-                                                              const std::string& commonSource,
-                                                              const char* entrypoint,
-                                                              const char* target)
+ComPtr<ID3DBlob> RenderContextD3DImpl::compileSourceToBlob(const char* shaderTypeDefineName,
+                                                           const std::string& commonSource,
+                                                           const char* entrypoint,
+                                                           const char* target)
 {
     std::ostringstream source;
     source << "#define " << shaderTypeDefineName << '\n';
@@ -509,22 +509,22 @@ private:
     std::unique_ptr<char[]> m_mappedMemoryForImmutableBuffer;
 };
 
-rcp<RenderBuffer> PLSRenderContextD3DImpl::makeRenderBuffer(RenderBufferType type,
-                                                            RenderBufferFlags flags,
-                                                            size_t sizeInBytes)
+rcp<RenderBuffer> RenderContextD3DImpl::makeRenderBuffer(RenderBufferType type,
+                                                         RenderBufferFlags flags,
+                                                         size_t sizeInBytes)
 {
     return make_rcp<RenderBufferD3DImpl>(type, flags, sizeInBytes, m_gpu, m_gpuContext);
 }
 
-class PLSTextureD3DImpl : public PLSTexture
+class TextureD3DImpl : public Texture
 {
 public:
-    PLSTextureD3DImpl(PLSRenderContextD3DImpl* plsImpl,
-                      UINT width,
-                      UINT height,
-                      UINT mipLevelCount,
-                      const uint8_t imageDataRGBA[]) :
-        PLSTexture(width, height)
+    TextureD3DImpl(RenderContextD3DImpl* plsImpl,
+                   UINT width,
+                   UINT height,
+                   UINT mipLevelCount,
+                   const uint8_t imageDataRGBA[]) :
+        Texture(width, height)
     {
         m_texture =
             plsImpl->makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
@@ -560,25 +560,25 @@ private:
     ComPtr<ID3D11ShaderResourceView> m_srv;
 };
 
-rcp<PLSTexture> PLSRenderContextD3DImpl::makeImageTexture(uint32_t width,
-                                                          uint32_t height,
-                                                          uint32_t mipLevelCount,
-                                                          const uint8_t imageDataRGBA[])
+rcp<Texture> RenderContextD3DImpl::makeImageTexture(uint32_t width,
+                                                    uint32_t height,
+                                                    uint32_t mipLevelCount,
+                                                    const uint8_t imageDataRGBA[])
 {
-    return make_rcp<PLSTextureD3DImpl>(this, width, height, mipLevelCount, imageDataRGBA);
+    return make_rcp<TextureD3DImpl>(this, width, height, mipLevelCount, imageDataRGBA);
 }
 
 class BufferRingD3D : public BufferRing
 {
 public:
-    BufferRingD3D(PLSRenderContextD3DImpl* plsImpl, size_t capacityInBytes, UINT bindFlags) :
+    BufferRingD3D(RenderContextD3DImpl* plsImpl, size_t capacityInBytes, UINT bindFlags) :
         BufferRingD3D(plsImpl, capacityInBytes, bindFlags, 0, 0)
     {}
 
     ID3D11Buffer* submittedBuffer() const { return m_buffers[submittedBufferIdx()].Get(); }
 
 protected:
-    BufferRingD3D(PLSRenderContextD3DImpl* plsImpl,
+    BufferRingD3D(RenderContextD3DImpl* plsImpl,
                   size_t capacityInBytes,
                   UINT bindFlags,
                   UINT elementSizeInBytes,
@@ -637,7 +637,7 @@ protected:
 class StructuredBufferRingD3D : public BufferRingD3D
 {
 public:
-    StructuredBufferRingD3D(PLSRenderContextD3DImpl* plsImpl,
+    StructuredBufferRingD3D(RenderContextD3DImpl* plsImpl,
                             size_t capacityInBytes,
                             UINT elementSizeInBytes) :
         BufferRingD3D(plsImpl,
@@ -669,13 +669,13 @@ protected:
     mutable ComPtr<ID3D11ShaderResourceView> m_currentSRV;
 };
 
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeUniformBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> RenderContextD3DImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
     // In D3D we update uniform data inline with commands, rather than filling a buffer up front.
     return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeStorageBufferRing(
+std::unique_ptr<BufferRing> RenderContextD3DImpl::makeStorageBufferRing(
     size_t capacityInBytes,
     gpu::StorageBufferStructure bufferStructure)
 {
@@ -686,14 +686,14 @@ std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeStorageBufferRing(
                                 : nullptr;
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeVertexBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> RenderContextD3DImpl::makeVertexBufferRing(size_t capacityInBytes)
 {
     return capacityInBytes != 0
                ? std::make_unique<BufferRingD3D>(this, capacityInBytes, D3D11_BIND_VERTEX_BUFFER)
                : nullptr;
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeTextureTransferBufferRing(
+std::unique_ptr<BufferRing> RenderContextD3DImpl::makeTextureTransferBufferRing(
     size_t capacityInBytes)
 {
     // It appears impossible to update a D3D texture from a GPU buffer; store this data on the heap
@@ -701,15 +701,13 @@ std::unique_ptr<BufferRing> PLSRenderContextD3DImpl::makeTextureTransferBufferRi
     return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
-PLSRenderTargetD3D::PLSRenderTargetD3D(PLSRenderContextD3DImpl* plsImpl,
-                                       uint32_t width,
-                                       uint32_t height) :
-    PLSRenderTarget(width, height),
+RenderTargetD3D::RenderTargetD3D(RenderContextD3DImpl* plsImpl, uint32_t width, uint32_t height) :
+    RenderTarget(width, height),
     m_gpu(plsImpl->gpu()),
     m_gpuSupportsTypedUAVLoadStore(plsImpl->d3dCapabilities().supportsTypedUAVLoadStore)
 {}
 
-void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
+void RenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
 {
     if (tex != nullptr)
     {
@@ -736,7 +734,7 @@ void PLSRenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
     m_targetUAV = nullptr;
 }
 
-ID3D11RenderTargetView* PLSRenderTargetD3D::targetRTV()
+ID3D11RenderTargetView* RenderTargetD3D::targetRTV()
 {
     if (m_targetRTV == nullptr && m_targetTexture != nullptr)
     {
@@ -764,7 +762,7 @@ ID3D11RenderTargetView* PLSRenderTargetD3D::targetRTV()
     return m_targetRTV.Get();
 }
 
-ID3D11Texture2D* PLSRenderTargetD3D::offscreenTexture()
+ID3D11Texture2D* RenderTargetD3D::offscreenTexture()
 {
     assert(!m_targetTextureSupportsUAV);
     if (m_offscreenTexture == nullptr)
@@ -779,7 +777,7 @@ ID3D11Texture2D* PLSRenderTargetD3D::offscreenTexture()
     return m_offscreenTexture.Get();
 }
 
-ID3D11UnorderedAccessView* PLSRenderTargetD3D::targetUAV()
+ID3D11UnorderedAccessView* RenderTargetD3D::targetUAV()
 {
     if (m_targetUAV == nullptr)
     {
@@ -812,7 +810,7 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::targetUAV()
     return m_targetUAV.Get();
 }
 
-ID3D11UnorderedAccessView* PLSRenderTargetD3D::clipUAV()
+ID3D11UnorderedAccessView* RenderTargetD3D::clipUAV()
 {
     if (m_clipTexture == nullptr)
     {
@@ -830,7 +828,7 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::clipUAV()
     return m_clipUAV.Get();
 }
 
-ID3D11UnorderedAccessView* PLSRenderTargetD3D::scratchColorUAV()
+ID3D11UnorderedAccessView* RenderTargetD3D::scratchColorUAV()
 {
     if (m_scratchColorTexture == nullptr)
     {
@@ -851,7 +849,7 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::scratchColorUAV()
     return m_scratchColorUAV.Get();
 }
 
-ID3D11UnorderedAccessView* PLSRenderTargetD3D::coverageUAV()
+ID3D11UnorderedAccessView* RenderTargetD3D::coverageUAV()
 {
     if (m_coverageTexture == nullptr)
     {
@@ -870,7 +868,7 @@ ID3D11UnorderedAccessView* PLSRenderTargetD3D::coverageUAV()
     return m_coverageUAV.Get();
 }
 
-void PLSRenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t height)
+void RenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
     if (width == 0 || height == 0)
     {
@@ -894,7 +892,7 @@ void PLSRenderContextD3DImpl::resizeGradientTexture(uint32_t width, uint32_t hei
     }
 }
 
-void PLSRenderContextD3DImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
+void RenderContextD3DImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
     if (width == 0 || height == 0)
     {
@@ -919,7 +917,7 @@ void PLSRenderContextD3DImpl::resizeTessellationTexture(uint32_t width, uint32_t
 }
 
 template <typename HighLevelStruct>
-ID3D11ShaderResourceView* PLSRenderContextD3DImpl::replaceStructuredBufferSRV(
+ID3D11ShaderResourceView* RenderContextD3DImpl::replaceStructuredBufferSRV(
     const BufferRing* bufferRing,
     UINT highLevelStructCount,
     UINT firstHighLevelStruct)
@@ -937,10 +935,10 @@ ID3D11ShaderResourceView* PLSRenderContextD3DImpl::replaceStructuredBufferSRV(
                      firstHighLevelStruct * kStructIndexMultiplier);
 }
 
-void PLSRenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
-                                                          gpu::ShaderFeatures shaderFeatures,
-                                                          gpu::InterlockMode interlockMode,
-                                                          gpu::ShaderMiscFlags pixelShaderMiscFlags)
+void RenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
+                                                       gpu::ShaderFeatures shaderFeatures,
+                                                       gpu::InterlockMode interlockMode,
+                                                       gpu::ShaderMiscFlags pixelShaderMiscFlags)
 {
     uint32_t vertexShaderKey = gpu::ShaderUniqueKey(drawType,
                                                     shaderFeatures & kVertexShaderFeaturesMask,
@@ -1190,9 +1188,9 @@ static void blit_sub_rect(ID3D11DeviceContext* gpuContext,
     gpuContext->CopySubresourceRegion(dst, 0, updateBox.left, updateBox.top, 0, src, 0, &updateBox);
 }
 
-void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
+void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
-    auto renderTarget = static_cast<PLSRenderTargetD3D*>(desc.renderTarget);
+    auto renderTarget = static_cast<RenderTargetD3D*>(desc.renderTarget);
 
     m_gpuContext->ClearState();
 
@@ -1487,7 +1485,7 @@ void PLSRenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                     desc.interlockMode,
                                     pixelShaderMiscFlags);
 
-        if (auto imageTextureD3D = static_cast<const PLSTextureD3DImpl*>(batch.imageTexture))
+        if (auto imageTextureD3D = static_cast<const TextureD3DImpl*>(batch.imageTexture))
         {
             m_gpuContext->PSSetShaderResources(IMAGE_TEXTURE_IDX,
                                                1,

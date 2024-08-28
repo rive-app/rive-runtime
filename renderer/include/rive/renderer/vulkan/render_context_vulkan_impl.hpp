@@ -13,9 +13,9 @@
 
 namespace rive::gpu
 {
-class PLSTextureVulkanImpl;
+class TextureVulkanImpl;
 
-class PLSRenderTargetVulkan : public PLSRenderTarget
+class RenderTargetVulkan : public RenderTarget
 {
 public:
     void setTargetTextureView(rcp<vkutil::TextureView> view)
@@ -55,13 +55,13 @@ public:
     VkImageView ensureCoverageAtomicTextureView(VkCommandBuffer);
 
 private:
-    friend class PLSRenderContextVulkanImpl;
+    friend class RenderContextVulkanImpl;
 
-    PLSRenderTargetVulkan(rcp<VulkanContext> vk,
-                          uint32_t width,
-                          uint32_t height,
-                          VkFormat framebufferFormat) :
-        PLSRenderTarget(width, height), m_vk(std::move(vk)), m_framebufferFormat(framebufferFormat)
+    RenderTargetVulkan(rcp<VulkanContext> vk,
+                       uint32_t width,
+                       uint32_t height,
+                       VkFormat framebufferFormat) :
+        RenderTarget(width, height), m_vk(std::move(vk)), m_framebufferFormat(framebufferFormat)
     {}
 
     const rcp<VulkanContext> m_vk;
@@ -82,37 +82,37 @@ private:
     rcp<vkutil::TextureView> m_coverageAtomicTextureView;
 };
 
-class PLSRenderContextVulkanImpl : public PLSRenderContextImpl
+class RenderContextVulkanImpl : public RenderContextImpl
 {
 public:
-    static std::unique_ptr<PLSRenderContext> MakeContext(VkInstance,
-                                                         VkPhysicalDevice,
-                                                         VkDevice,
-                                                         const VulkanFeatures&,
-                                                         PFN_vkGetInstanceProcAddr,
-                                                         PFN_vkGetDeviceProcAddr);
-    ~PLSRenderContextVulkanImpl();
+    static std::unique_ptr<RenderContext> MakeContext(VkInstance,
+                                                      VkPhysicalDevice,
+                                                      VkDevice,
+                                                      const VulkanFeatures&,
+                                                      PFN_vkGetInstanceProcAddr,
+                                                      PFN_vkGetDeviceProcAddr);
+    ~RenderContextVulkanImpl();
 
     VulkanContext* vulkanContext() const { return m_vk.get(); }
 
-    rcp<PLSRenderTargetVulkan> makeRenderTarget(uint32_t width,
-                                                uint32_t height,
-                                                VkFormat framebufferFormat)
+    rcp<RenderTargetVulkan> makeRenderTarget(uint32_t width,
+                                             uint32_t height,
+                                             VkFormat framebufferFormat)
     {
-        return rcp(new PLSRenderTargetVulkan(m_vk, width, height, framebufferFormat));
+        return rcp(new RenderTargetVulkan(m_vk, width, height, framebufferFormat));
     }
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
-    rcp<PLSTexture> decodeImageTexture(Span<const uint8_t> encodedBytes) override;
+    rcp<Texture> decodeImageTexture(Span<const uint8_t> encodedBytes) override;
 
 private:
-    PLSRenderContextVulkanImpl(VkInstance instance,
-                               VkPhysicalDevice physicalDevice,
-                               VkDevice device,
-                               const VulkanFeatures& features,
-                               PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
-                               PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr);
+    RenderContextVulkanImpl(VkInstance instance,
+                            VkPhysicalDevice physicalDevice,
+                            VkDevice device,
+                            const VulkanFeatures& features,
+                            PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
+                            PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr);
 
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
@@ -163,7 +163,7 @@ private:
     class DescriptorSetPool final : public vkutil::RenderingResource
     {
     public:
-        DescriptorSetPool(PLSRenderContextVulkanImpl*);
+        DescriptorSetPool(RenderContextVulkanImpl*);
         ~DescriptorSetPool() final;
 
         VkDescriptorSet allocateDescriptorSet(VkDescriptorSetLayout);
@@ -174,7 +174,7 @@ private:
         // the plsContext still exists.
         void onRefCntReachedZero() const;
 
-        PLSRenderContextVulkanImpl* const m_plsImplVulkan;
+        RenderContextVulkanImpl* const m_plsImplVulkan;
         VkDescriptorPool m_vkDescriptorPool;
         std::vector<VkDescriptorSet> m_descriptorSets;
     };
@@ -232,7 +232,7 @@ private:
     class DrawPipeline;
     std::map<uint32_t, DrawPipeline> m_drawPipelines;
 
-    rcp<PLSTextureVulkanImpl> m_nullImageTexture; // Bound when there is not an image paint.
+    rcp<TextureVulkanImpl> m_nullImageTexture; // Bound when there is not an image paint.
     VkSampler m_linearSampler;
     VkSampler m_mipmapSampler;
     rcp<vkutil::Buffer> m_pathPatchVertexBuffer;

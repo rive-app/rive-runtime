@@ -97,22 +97,22 @@ private:
     int m_bufferRingIdx = -1;
 };
 
-rcp<RenderBuffer> PLSRenderContextVulkanImpl::makeRenderBuffer(RenderBufferType type,
-                                                               RenderBufferFlags flags,
-                                                               size_t sizeInBytes)
+rcp<RenderBuffer> RenderContextVulkanImpl::makeRenderBuffer(RenderBufferType type,
+                                                            RenderBufferFlags flags,
+                                                            size_t sizeInBytes)
 {
     return make_rcp<RenderBufferVulkanImpl>(m_vk, type, flags, sizeInBytes);
 }
 
-class PLSTextureVulkanImpl : public PLSTexture
+class TextureVulkanImpl : public Texture
 {
 public:
-    PLSTextureVulkanImpl(rcp<VulkanContext> vk,
-                         uint32_t width,
-                         uint32_t height,
-                         uint32_t mipLevelCount,
-                         const uint8_t imageDataRGBA[]) :
-        PLSTexture(width, height),
+    TextureVulkanImpl(rcp<VulkanContext> vk,
+                      uint32_t width,
+                      uint32_t height,
+                      uint32_t mipLevelCount,
+                      const uint8_t imageDataRGBA[]) :
+        Texture(width, height),
         m_vk(std::move(vk)),
         m_texture(m_vk->makeTexture({
             .format = VK_FORMAT_R8G8B8A8_UNORM,
@@ -229,7 +229,7 @@ public:
     }
 
 private:
-    friend class PLSRenderContextVulkanImpl;
+    friend class RenderContextVulkanImpl;
 
     rcp<VulkanContext> m_vk;
     rcp<vkutil::Texture> m_texture;
@@ -237,19 +237,19 @@ private:
 
     mutable rcp<vkutil::Buffer> m_imageUploadBuffer;
 
-    // Location for PLSRenderContextVulkanImpl to store a descriptor set for the
+    // Location for RenderContextVulkanImpl to store a descriptor set for the
     // current flush that binds this image texture.
     mutable VkDescriptorSet m_imageTextureDescriptorSet = VK_NULL_HANDLE;
     mutable uint64_t m_descriptorSetFrameIdx = std::numeric_limits<size_t>::max();
 };
 
-rcp<PLSTexture> PLSRenderContextVulkanImpl::decodeImageTexture(Span<const uint8_t> encodedBytes)
+rcp<Texture> RenderContextVulkanImpl::decodeImageTexture(Span<const uint8_t> encodedBytes)
 {
 #ifdef RIVE_DECODERS
     auto bitmap = Bitmap::decode(encodedBytes.data(), encodedBytes.size());
     if (bitmap)
     {
-        // For now, PLSRenderContextImpl::makeImageTexture() only accepts RGBA.
+        // For now, RenderContextImpl::makeImageTexture() only accepts RGBA.
         if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBA)
         {
             bitmap->pixelFormat(Bitmap::PixelFormat::RGBA);
@@ -257,14 +257,14 @@ rcp<PLSTexture> PLSRenderContextVulkanImpl::decodeImageTexture(Span<const uint8_
         uint32_t width = bitmap->width();
         uint32_t height = bitmap->height();
         uint32_t mipLevelCount = math::msb(height | width);
-        return make_rcp<PLSTextureVulkanImpl>(m_vk, width, height, mipLevelCount, bitmap->bytes());
+        return make_rcp<TextureVulkanImpl>(m_vk, width, height, mipLevelCount, bitmap->bytes());
     }
 #endif
     return nullptr;
 }
 
 // Renders color ramps to the gradient texture.
-class PLSRenderContextVulkanImpl::ColorRampPipeline
+class RenderContextVulkanImpl::ColorRampPipeline
 {
 public:
     ColorRampPipeline(rcp<VulkanContext> vk) : m_vk(std::move(vk))
@@ -475,7 +475,7 @@ private:
 };
 
 // Renders tessellated vertices to the tessellation texture.
-class PLSRenderContextVulkanImpl::TessellatePipeline
+class RenderContextVulkanImpl::TessellatePipeline
 {
 public:
     TessellatePipeline(rcp<VulkanContext> vk) : m_vk(std::move(vk))
@@ -727,7 +727,7 @@ enum class DrawPipelineLayoutOptions
 };
 RIVE_MAKE_ENUM_BITSET(DrawPipelineLayoutOptions);
 
-class PLSRenderContextVulkanImpl::DrawPipelineLayout
+class RenderContextVulkanImpl::DrawPipelineLayout
 {
 public:
     static_assert(kDrawPipelineLayoutOptionCount == 1);
@@ -772,7 +772,7 @@ public:
         return interlockMode == gpu::InterlockMode::atomics ? 2 : 4;
     }
 
-    DrawPipelineLayout(PLSRenderContextVulkanImpl* impl,
+    DrawPipelineLayout(RenderContextVulkanImpl* impl,
                        gpu::InterlockMode interlockMode,
                        DrawPipelineLayoutOptions options) :
         m_vk(ref_rcp(impl->vulkanContext())), m_interlockMode(interlockMode), m_options(options)
@@ -1214,7 +1214,7 @@ private:
 
 // Wraps vertex and fragment shader modules for a specific combination of DrawType,
 // InterlockMode, and ShaderFeatures.
-class PLSRenderContextVulkanImpl::DrawShader
+class RenderContextVulkanImpl::DrawShader
 {
 public:
     DrawShader(VulkanContext* vk,
@@ -1339,10 +1339,10 @@ enum class DrawPipelineOptions
 constexpr static int kDrawPipelineOptionCount = 1;
 RIVE_MAKE_ENUM_BITSET(DrawPipelineOptions);
 
-class PLSRenderContextVulkanImpl::DrawPipeline
+class RenderContextVulkanImpl::DrawPipeline
 {
 public:
-    DrawPipeline(PLSRenderContextVulkanImpl* impl,
+    DrawPipeline(RenderContextVulkanImpl* impl,
                  gpu::DrawType drawType,
                  const DrawPipelineLayout& pipelineLayout,
                  gpu::ShaderFeatures shaderFeatures,
@@ -1651,13 +1651,12 @@ private:
     VkPipeline m_vkPipeline;
 };
 
-PLSRenderContextVulkanImpl::PLSRenderContextVulkanImpl(
-    VkInstance instance,
-    VkPhysicalDevice physicalDevice,
-    VkDevice device,
-    const VulkanFeatures& features,
-    PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
-    PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr) :
+RenderContextVulkanImpl::RenderContextVulkanImpl(VkInstance instance,
+                                                 VkPhysicalDevice physicalDevice,
+                                                 VkDevice device,
+                                                 const VulkanFeatures& features,
+                                                 PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
+                                                 PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr) :
     m_vk(make_rcp<VulkanContext>(instance,
                                  physicalDevice,
                                  device,
@@ -1689,10 +1688,10 @@ PLSRenderContextVulkanImpl::PLSRenderContextVulkanImpl(
     m_platformFeatures.uninvertOnScreenY = true;
 }
 
-void PLSRenderContextVulkanImpl::initGPUObjects()
+void RenderContextVulkanImpl::initGPUObjects()
 {
     constexpr static uint8_t black[] = {0, 0, 0, 1};
-    m_nullImageTexture = make_rcp<PLSTextureVulkanImpl>(m_vk, 1, 1, 1, black);
+    m_nullImageTexture = make_rcp<TextureVulkanImpl>(m_vk, 1, 1, 1, black);
 
     VkSamplerCreateInfo linearSamplerCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -1768,7 +1767,7 @@ void PLSRenderContextVulkanImpl::initGPUObjects()
            sizeof(gpu::kImageRectIndices));
 }
 
-PLSRenderContextVulkanImpl::~PLSRenderContextVulkanImpl()
+RenderContextVulkanImpl::~RenderContextVulkanImpl()
 {
     // Wait for all fences before cleaning up.
     for (const rcp<gpu::CommandBufferCompletionFence>& fence : m_frameCompletionFences)
@@ -1788,7 +1787,7 @@ PLSRenderContextVulkanImpl::~PLSRenderContextVulkanImpl()
     m_vk->DestroySampler(m_vk->device, m_mipmapSampler, nullptr);
 }
 
-void PLSRenderContextVulkanImpl::resizeGradientTexture(uint32_t width, uint32_t height)
+void RenderContextVulkanImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
@@ -1815,7 +1814,7 @@ void PLSRenderContextVulkanImpl::resizeGradientTexture(uint32_t width, uint32_t 
     }
 }
 
-void PLSRenderContextVulkanImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
+void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
@@ -1841,7 +1840,7 @@ void PLSRenderContextVulkanImpl::resizeTessellationTexture(uint32_t width, uint3
     }
 }
 
-void PLSRenderContextVulkanImpl::prepareToMapBuffers()
+void RenderContextVulkanImpl::prepareToMapBuffers()
 {
     m_bufferRingIdx = (m_bufferRingIdx + 1) % gpu::kBufferRingSize;
 
@@ -1879,8 +1878,8 @@ constexpr static uint32_t kMaxStorageBufferUpdates = 6;
 constexpr static uint32_t kMaxDescriptorSets = 3 + kMaxImageTextureUpdates;
 } // namespace descriptor_pool_limits
 
-PLSRenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
-    PLSRenderContextVulkanImpl* plsImplVulkan) :
+RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
+    RenderContextVulkanImpl* plsImplVulkan) :
     RenderingResource(plsImplVulkan->m_vk), m_plsImplVulkan(plsImplVulkan)
 {
     VkDescriptorPoolSize descriptorPoolSizes[] = {
@@ -1925,13 +1924,13 @@ PLSRenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
                                         &m_vkDescriptorPool));
 }
 
-PLSRenderContextVulkanImpl::DescriptorSetPool::~DescriptorSetPool()
+RenderContextVulkanImpl::DescriptorSetPool::~DescriptorSetPool()
 {
     freeDescriptorSets();
     m_vk->DestroyDescriptorPool(m_vk->device, m_vkDescriptorPool, nullptr);
 }
 
-VkDescriptorSet PLSRenderContextVulkanImpl::DescriptorSetPool::allocateDescriptorSet(
+VkDescriptorSet RenderContextVulkanImpl::DescriptorSetPool::allocateDescriptorSet(
     VkDescriptorSetLayout layout)
 {
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
@@ -1948,12 +1947,12 @@ VkDescriptorSet PLSRenderContextVulkanImpl::DescriptorSetPool::allocateDescripto
     return m_descriptorSets.back();
 }
 
-void PLSRenderContextVulkanImpl::DescriptorSetPool::freeDescriptorSets()
+void RenderContextVulkanImpl::DescriptorSetPool::freeDescriptorSets()
 {
     m_vk->ResetDescriptorPool(m_vk->device, m_vkDescriptorPool, 0);
 }
 
-void PLSRenderContextVulkanImpl::DescriptorSetPool::onRefCntReachedZero() const
+void RenderContextVulkanImpl::DescriptorSetPool::onRefCntReachedZero() const
 {
     constexpr static uint32_t kMaxDescriptorSetPoolsInPool = 64;
 
@@ -1970,8 +1969,7 @@ void PLSRenderContextVulkanImpl::DescriptorSetPool::onRefCntReachedZero() const
     }
 }
 
-rcp<PLSRenderContextVulkanImpl::DescriptorSetPool> PLSRenderContextVulkanImpl::
-    makeDescriptorSetPool()
+rcp<RenderContextVulkanImpl::DescriptorSetPool> RenderContextVulkanImpl::makeDescriptorSetPool()
 {
     rcp<DescriptorSetPool> pool;
     if (!m_descriptorSetPoolPool.empty() &&
@@ -1989,7 +1987,7 @@ rcp<PLSRenderContextVulkanImpl::DescriptorSetPool> PLSRenderContextVulkanImpl::
     return pool;
 }
 
-VkImageView PLSRenderTargetVulkan::ensureOffscreenColorTextureView(VkCommandBuffer commandBuffer)
+VkImageView RenderTargetVulkan::ensureOffscreenColorTextureView(VkCommandBuffer commandBuffer)
 {
     if (m_offscreenColorTextureView == nullptr)
     {
@@ -2010,7 +2008,7 @@ VkImageView PLSRenderTargetVulkan::ensureOffscreenColorTextureView(VkCommandBuff
     return *m_offscreenColorTextureView;
 }
 
-VkImageView PLSRenderTargetVulkan::ensureCoverageTextureView(VkCommandBuffer commandBuffer)
+VkImageView RenderTargetVulkan::ensureCoverageTextureView(VkCommandBuffer commandBuffer)
 {
     if (m_coverageTextureView == nullptr)
     {
@@ -2031,7 +2029,7 @@ VkImageView PLSRenderTargetVulkan::ensureCoverageTextureView(VkCommandBuffer com
     return *m_coverageTextureView;
 }
 
-VkImageView PLSRenderTargetVulkan::ensureClipTextureView(VkCommandBuffer commandBuffer)
+VkImageView RenderTargetVulkan::ensureClipTextureView(VkCommandBuffer commandBuffer)
 {
     if (m_clipTextureView == nullptr)
     {
@@ -2052,7 +2050,7 @@ VkImageView PLSRenderTargetVulkan::ensureClipTextureView(VkCommandBuffer command
     return *m_clipTextureView;
 }
 
-VkImageView PLSRenderTargetVulkan::ensureScratchColorTextureView(VkCommandBuffer commandBuffer)
+VkImageView RenderTargetVulkan::ensureScratchColorTextureView(VkCommandBuffer commandBuffer)
 {
     if (m_scratchColorTextureView == nullptr)
     {
@@ -2074,7 +2072,7 @@ VkImageView PLSRenderTargetVulkan::ensureScratchColorTextureView(VkCommandBuffer
     return *m_scratchColorTextureView;
 }
 
-VkImageView PLSRenderTargetVulkan::ensureCoverageAtomicTextureView(VkCommandBuffer commandBuffer)
+VkImageView RenderTargetVulkan::ensureCoverageAtomicTextureView(VkCommandBuffer commandBuffer)
 {
     if (m_coverageAtomicTextureView == nullptr)
     {
@@ -2096,7 +2094,7 @@ VkImageView PLSRenderTargetVulkan::ensureCoverageAtomicTextureView(VkCommandBuff
     return *m_coverageAtomicTextureView;
 }
 
-void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
+void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 {
     if (desc.interlockMode == gpu::InterlockMode::depthStencil)
     {
@@ -2313,7 +2311,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
     for (const DrawBatch& batch : *desc.drawList)
     {
-        if (auto imageTextureVulkan = static_cast<const PLSTextureVulkanImpl*>(batch.imageTexture))
+        if (auto imageTextureVulkan = static_cast<const TextureVulkanImpl*>(batch.imageTexture))
         {
             if (imageTextureVulkan->hasUpdates())
             {
@@ -2340,7 +2338,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
     DrawPipelineLayout& pipelineLayout = *m_drawPipelineLayouts[pipelineLayoutIdx];
 
-    auto* renderTarget = static_cast<PLSRenderTargetVulkan*>(desc.renderTarget);
+    auto* renderTarget = static_cast<RenderTargetVulkan*>(desc.renderTarget);
 
     auto targetView =
         renderTarget->targetViewContainsUsageFlag(VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
@@ -2668,7 +2666,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         {
             // Update the imageTexture binding and the dynamic offset into the
             // imageDraw uniform buffer.
-            auto imageTexture = static_cast<const PLSTextureVulkanImpl*>(batch.imageTexture);
+            auto imageTexture = static_cast<const TextureVulkanImpl*>(batch.imageTexture);
             if (imageTexture->m_descriptorSetFrameIdx != m_vk->currentFrameIdx())
             {
                 // Update the image's "texture binding" descriptor set. (These
@@ -2902,7 +2900,7 @@ void PLSRenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
 }
 
-std::unique_ptr<PLSRenderContext> PLSRenderContextVulkanImpl::MakeContext(
+std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     VkInstance instance,
     VkPhysicalDevice physicalDevice,
     VkDevice device,
@@ -2910,18 +2908,18 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextVulkanImpl::MakeContext(
     PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
     PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr)
 {
-    std::unique_ptr<PLSRenderContextVulkanImpl> impl(
-        new PLSRenderContextVulkanImpl(instance,
-                                       physicalDevice,
-                                       device,
-                                       features,
-                                       fp_vkGetInstanceProcAddr,
-                                       fp_vkGetDeviceProcAddr));
+    std::unique_ptr<RenderContextVulkanImpl> impl(
+        new RenderContextVulkanImpl(instance,
+                                    physicalDevice,
+                                    device,
+                                    features,
+                                    fp_vkGetInstanceProcAddr,
+                                    fp_vkGetDeviceProcAddr));
     if (!impl->platformFeatures().supportsPixelLocalStorage)
     {
         return nullptr; // TODO: implement MSAA.
     }
     impl->initGPUObjects();
-    return std::make_unique<PLSRenderContext>(std::move(impl));
+    return std::make_unique<RenderContext>(std::move(impl));
 }
 } // namespace rive::gpu

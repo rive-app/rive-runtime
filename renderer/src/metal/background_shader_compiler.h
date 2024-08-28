@@ -30,8 +30,8 @@ struct BackgroundCompileJob
 class BackgroundShaderCompiler
 {
 public:
-    using AtomicBarrierType = PLSRenderContextMetalImpl::AtomicBarrierType;
-    using MetalFeatures = PLSRenderContextMetalImpl::MetalFeatures;
+    using AtomicBarrierType = RenderContextMetalImpl::AtomicBarrierType;
+    using MetalFeatures = RenderContextMetalImpl::MetalFeatures;
 
     BackgroundShaderCompiler(id<MTLDevice> gpu, MetalFeatures metalFeatures) :
         m_gpu(gpu), m_metalFeatures(metalFeatures)

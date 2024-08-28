@@ -12,9 +12,9 @@
 
 namespace rive::gpu
 {
-class PLSRenderContextWebGPUVulkan;
+class RenderContextWebGPUVulkan;
 
-class PLSRenderTargetWebGPU : public PLSRenderTarget
+class RenderTargetWebGPU : public RenderTarget
 {
 public:
     wgpu::TextureFormat framebufferFormat() const { return m_framebufferFormat; }
@@ -22,14 +22,14 @@ public:
     void setTargetTextureView(wgpu::TextureView);
 
 private:
-    friend class PLSRenderContextWebGPUImpl;
-    friend class PLSRenderContextWebGPUVulkan;
+    friend class RenderContextWebGPUImpl;
+    friend class RenderContextWebGPUVulkan;
 
-    PLSRenderTargetWebGPU(wgpu::Device device,
-                          wgpu::TextureFormat framebufferFormat,
-                          uint32_t width,
-                          uint32_t height,
-                          wgpu::TextureUsage additionalTextureFlags);
+    RenderTargetWebGPU(wgpu::Device device,
+                       wgpu::TextureFormat framebufferFormat,
+                       uint32_t width,
+                       uint32_t height,
+                       wgpu::TextureUsage additionalTextureFlags);
 
     const wgpu::TextureFormat m_framebufferFormat;
 
@@ -43,7 +43,7 @@ private:
     wgpu::TextureView m_scratchColorTextureView;
 };
 
-class PLSRenderContextWebGPUImpl : public PLSRenderContextHelperImpl
+class RenderContextWebGPUImpl : public RenderContextHelperImpl
 {
 public:
     enum class PixelLocalStorageType
@@ -66,49 +66,49 @@ public:
         bool disableStorageBuffers = false;
     };
 
-    static std::unique_ptr<PLSRenderContext> MakeContext(
+    static std::unique_ptr<RenderContext> MakeContext(
         wgpu::Device,
         wgpu::Queue,
         const ContextOptions&,
         const gpu::PlatformFeatures& baselinePlatformFeatures = {});
 
-    virtual ~PLSRenderContextWebGPUImpl();
+    virtual ~RenderContextWebGPUImpl();
 
-    virtual rcp<PLSRenderTargetWebGPU> makeRenderTarget(wgpu::TextureFormat,
-                                                        uint32_t width,
-                                                        uint32_t height);
+    virtual rcp<RenderTargetWebGPU> makeRenderTarget(wgpu::TextureFormat,
+                                                     uint32_t width,
+                                                     uint32_t height);
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
-    rcp<PLSTexture> makeImageTexture(uint32_t width,
-                                     uint32_t height,
-                                     uint32_t mipLevelCount,
-                                     const uint8_t imageDataRGBA[]) override;
+    rcp<Texture> makeImageTexture(uint32_t width,
+                                  uint32_t height,
+                                  uint32_t mipLevelCount,
+                                  const uint8_t imageDataRGBA[]) override;
 
 protected:
-    PLSRenderContextWebGPUImpl(wgpu::Device device,
-                               wgpu::Queue queue,
-                               const ContextOptions&,
-                               const gpu::PlatformFeatures& baselinePlatformFeatures);
+    RenderContextWebGPUImpl(wgpu::Device device,
+                            wgpu::Queue queue,
+                            const ContextOptions&,
+                            const gpu::PlatformFeatures& baselinePlatformFeatures);
 
     // Create the BindGroupLayout that binds the PLS attachments as textures. This is not necessary
     // on all implementations.
-    virtual wgpu::BindGroupLayout initPLSTextureBindGroup()
+    virtual wgpu::BindGroupLayout initTextureBindGroup()
     {
-        // Only supported by PLSRenderContextWebGPUVulkan for now.
+        // Only supported by RenderContextWebGPUVulkan for now.
         RIVE_UNREACHABLE();
     }
 
     // Create a standard PLS "draw" pipeline for the current implementation.
-    virtual wgpu::RenderPipeline makePLSDrawPipeline(rive::gpu::DrawType drawType,
-                                                     wgpu::TextureFormat framebufferFormat,
-                                                     wgpu::ShaderModule vertexShader,
-                                                     wgpu::ShaderModule fragmentShader,
-                                                     EmJsHandle* pipelineJSHandleIfNeeded);
+    virtual wgpu::RenderPipeline makeDrawPipeline(rive::gpu::DrawType drawType,
+                                                  wgpu::TextureFormat framebufferFormat,
+                                                  wgpu::ShaderModule vertexShader,
+                                                  wgpu::ShaderModule fragmentShader,
+                                                  EmJsHandle* pipelineJSHandleIfNeeded);
 
     // Create a standard PLS "draw" render pass for the current implementation.
     virtual wgpu::RenderPassEncoder makePLSRenderPass(wgpu::CommandEncoder,
-                                                      const PLSRenderTargetWebGPU*,
+                                                      const RenderTargetWebGPU*,
                                                       wgpu::LoadOp,
                                                       const wgpu::Color& clearColor,
                                                       EmJsHandle* renderPassJSHandleIfNeeded);

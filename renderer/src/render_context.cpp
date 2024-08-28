@@ -48,7 +48,7 @@ constexpr static size_t gradient_data_height(size_t simpleRampCount, size_t comp
            complexRampCount;
 }
 
-inline GradientContentKey::GradientContentKey(rcp<const PLSGradient> gradient) :
+inline GradientContentKey::GradientContentKey(rcp<const Gradient> gradient) :
     m_gradient(std::move(gradient))
 {}
 
@@ -76,7 +76,7 @@ bool GradientContentKey::operator==(const GradientContentKey& other) const
 
 size_t DeepHashGradient::operator()(const GradientContentKey& key) const
 {
-    const PLSGradient* grad = key.gradient();
+    const Gradient* grad = key.gradient();
     std::hash<std::string_view> hash;
     size_t x = hash(std::string_view(reinterpret_cast<const char*>(grad->stops()),
                                      grad->count() * sizeof(float)));
@@ -85,7 +85,7 @@ size_t DeepHashGradient::operator()(const GradientContentKey& key) const
     return x ^ y;
 }
 
-PLSRenderContext::PLSRenderContext(std::unique_ptr<PLSRenderContextImpl> impl) :
+RenderContext::RenderContext(std::unique_ptr<RenderContextImpl> impl) :
     m_impl(std::move(impl)),
     // -1 from m_maxPathID so we reserve a path record for the clearColor paint (for atomic mode).
     // This also allows us to index the storage buffers directly by pathID.
@@ -95,7 +95,7 @@ PLSRenderContext::PLSRenderContext(std::unique_ptr<PLSRenderContextImpl> impl) :
     releaseResources();
 }
 
-PLSRenderContext::~PLSRenderContext()
+RenderContext::~RenderContext()
 {
     // Always call flush() to avoid deadlock.
     assert(!m_didBeginFrame);
@@ -103,25 +103,25 @@ PLSRenderContext::~PLSRenderContext()
     m_logicalFlushes.clear();
 }
 
-const gpu::PlatformFeatures& PLSRenderContext::platformFeatures() const
+const gpu::PlatformFeatures& RenderContext::platformFeatures() const
 {
     return m_impl->platformFeatures();
 }
 
-rcp<RenderBuffer> PLSRenderContext::makeRenderBuffer(RenderBufferType type,
-                                                     RenderBufferFlags flags,
-                                                     size_t sizeInBytes)
+rcp<RenderBuffer> RenderContext::makeRenderBuffer(RenderBufferType type,
+                                                  RenderBufferFlags flags,
+                                                  size_t sizeInBytes)
 {
     return m_impl->makeRenderBuffer(type, flags, sizeInBytes);
 }
 
-rcp<RenderImage> PLSRenderContext::decodeImage(Span<const uint8_t> encodedBytes)
+rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
 {
-    rcp<PLSTexture> texture = m_impl->decodeImageTexture(encodedBytes);
-    return texture != nullptr ? make_rcp<PLSImage>(std::move(texture)) : nullptr;
+    rcp<Texture> texture = m_impl->decodeImageTexture(encodedBytes);
+    return texture != nullptr ? make_rcp<Image>(std::move(texture)) : nullptr;
 }
 
-void PLSRenderContext::releaseResources()
+void RenderContext::releaseResources()
 {
     assert(!m_didBeginFrame);
     resetContainers();
@@ -130,7 +130,7 @@ void PLSRenderContext::releaseResources()
     m_lastResourceTrimTimeInSeconds = m_impl->secondsNow();
 }
 
-void PLSRenderContext::resetContainers()
+void RenderContext::resetContainers()
 {
     assert(!m_didBeginFrame);
 
@@ -147,11 +147,11 @@ void PLSRenderContext::resetContainers()
     m_intersectionBoard = nullptr;
 }
 
-PLSRenderContext::LogicalFlush::LogicalFlush(PLSRenderContext* parent) : m_ctx(parent) { rewind(); }
+RenderContext::LogicalFlush::LogicalFlush(RenderContext* parent) : m_ctx(parent) { rewind(); }
 
-void PLSRenderContext::LogicalFlush::rewind()
+void RenderContext::LogicalFlush::rewind()
 {
-    m_resourceCounts = PLSDraw::ResourceCounters();
+    m_resourceCounts = Draw::ResourceCounters();
     m_simpleGradients.clear();
     m_pendingSimpleGradientWrites.clear();
     m_complexGradients.clear();
@@ -194,7 +194,7 @@ void PLSRenderContext::LogicalFlush::rewind()
     RIVE_DEBUG_CODE(m_hasDoneLayout = false;)
 }
 
-void PLSRenderContext::LogicalFlush::resetContainers()
+void RenderContext::LogicalFlush::resetContainers()
 {
     m_clips.clear();
     m_clips.shrink_to_fit();
@@ -217,7 +217,7 @@ void PLSRenderContext::LogicalFlush::resetContainers()
     m_pendingComplexColorRampDraws.reserve(kDefaultComplexGradientCapacity);
 }
 
-void PLSRenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
+void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
 {
     assert(!m_didBeginFrame);
     assert(frameDescriptor.renderTargetWidth > 0);
@@ -249,7 +249,7 @@ void PLSRenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     RIVE_DEBUG_CODE(m_didBeginFrame = true);
 }
 
-bool PLSRenderContext::isOutsideCurrentFrame(const IAABB& pixelBounds)
+bool RenderContext::isOutsideCurrentFrame(const IAABB& pixelBounds)
 {
     assert(m_didBeginFrame);
     int4 bounds = simd::load4i(&pixelBounds);
@@ -258,28 +258,28 @@ bool PLSRenderContext::isOutsideCurrentFrame(const IAABB& pixelBounds)
     return simd::any(bounds.xy >= renderTargetSize || bounds.zw <= 0 || bounds.xy >= bounds.zw);
 }
 
-bool PLSRenderContext::frameSupportsClipRects() const
+bool RenderContext::frameSupportsClipRects() const
 {
     assert(m_didBeginFrame);
     return m_frameInterlockMode != gpu::InterlockMode::depthStencil ||
            platformFeatures().supportsClipPlanes;
 }
 
-bool PLSRenderContext::frameSupportsImagePaintForPaths() const
+bool RenderContext::frameSupportsImagePaintForPaths() const
 {
     assert(m_didBeginFrame);
     return m_frameInterlockMode != gpu::InterlockMode::atomics ||
            platformFeatures().supportsBindlessTextures;
 }
 
-uint32_t PLSRenderContext::generateClipID(const IAABB& contentBounds)
+uint32_t RenderContext::generateClipID(const IAABB& contentBounds)
 {
     assert(m_didBeginFrame);
     assert(!m_logicalFlushes.empty());
     return m_logicalFlushes.back()->generateClipID(contentBounds);
 }
 
-uint32_t PLSRenderContext::LogicalFlush::generateClipID(const IAABB& contentBounds)
+uint32_t RenderContext::LogicalFlush::generateClipID(const IAABB& contentBounds)
 {
     if (m_clips.size() < m_ctx->m_maxPathID) // maxClipID == maxPathID.
     {
@@ -290,7 +290,7 @@ uint32_t PLSRenderContext::LogicalFlush::generateClipID(const IAABB& contentBoun
     return 0; // There are no available clip IDs. The caller should flush and try again.
 }
 
-PLSRenderContext::LogicalFlush::ClipInfo& PLSRenderContext::LogicalFlush::getWritableClipInfo(
+RenderContext::LogicalFlush::ClipInfo& RenderContext::LogicalFlush::getWritableClipInfo(
     uint32_t clipID)
 {
     assert(clipID > 0);
@@ -298,7 +298,7 @@ PLSRenderContext::LogicalFlush::ClipInfo& PLSRenderContext::LogicalFlush::getWri
     return m_clips[clipID - 1];
 }
 
-void PLSRenderContext::LogicalFlush::addClipReadBounds(uint32_t clipID, const IAABB& bounds)
+void RenderContext::LogicalFlush::addClipReadBounds(uint32_t clipID, const IAABB& bounds)
 {
     assert(clipID > 0);
     assert(clipID <= m_clips.size());
@@ -306,14 +306,14 @@ void PLSRenderContext::LogicalFlush::addClipReadBounds(uint32_t clipID, const IA
     clipInfo.readBounds = clipInfo.readBounds.join(bounds);
 }
 
-bool PLSRenderContext::pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount)
+bool RenderContext::pushDrawBatch(DrawUniquePtr draws[], size_t drawCount)
 {
     assert(m_didBeginFrame);
     assert(!m_logicalFlushes.empty());
     return m_logicalFlushes.back()->pushDrawBatch(draws, drawCount);
 }
 
-bool PLSRenderContext::LogicalFlush::pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount)
+bool RenderContext::LogicalFlush::pushDrawBatch(DrawUniquePtr draws[], size_t drawCount)
 {
     assert(!m_hasDoneLayout);
 
@@ -332,7 +332,7 @@ bool PLSRenderContext::LogicalFlush::pushDrawBatch(PLSDrawUniquePtr draws[], siz
         assert(m_ctx->frameSupportsClipRects() || draws[i]->clipRectInverseMatrix() == nullptr);
         countsVector += draws[i]->resourceCounts().toVec();
     }
-    PLSDraw::ResourceCounters countsWithNewBatch = countsVector;
+    Draw::ResourceCounters countsWithNewBatch = countsVector;
 
     // Textures have hard size limits. If new batch doesn't fit in one of the textures, the caller
     // needs to flush and try again.
@@ -365,9 +365,9 @@ bool PLSRenderContext::LogicalFlush::pushDrawBatch(PLSDrawUniquePtr draws[], siz
     return true;
 }
 
-bool PLSRenderContext::LogicalFlush::allocateGradient(const PLSGradient* gradient,
-                                                      PLSDraw::ResourceCounters* counters,
-                                                      gpu::ColorRampLocation* colorRampLocation)
+bool RenderContext::LogicalFlush::allocateGradient(const Gradient* gradient,
+                                                   Draw::ResourceCounters* counters,
+                                                   gpu::ColorRampLocation* colorRampLocation)
 {
     assert(!m_hasDoneLayout);
 
@@ -433,7 +433,7 @@ bool PLSRenderContext::LogicalFlush::allocateGradient(const PLSGradient* gradien
     return true;
 }
 
-void PLSRenderContext::logicalFlush()
+void RenderContext::logicalFlush()
 {
     assert(m_didBeginFrame);
 
@@ -446,7 +446,7 @@ void PLSRenderContext::logicalFlush()
     m_logicalFlushes.emplace_back(new LogicalFlush(this));
 }
 
-void PLSRenderContext::flush(const FlushResources& flushResources)
+void RenderContext::flush(const FlushResources& flushResources)
 {
     assert(m_didBeginFrame);
     assert(flushResources.renderTarget->width() == m_frameDescriptor.renderTargetWidth);
@@ -578,11 +578,11 @@ void PLSRenderContext::flush(const FlushResources& flushResources)
     }
 }
 
-void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flushResources,
-                                                     size_t logicalFlushIdx,
-                                                     bool isFinalFlushOfFrame,
-                                                     ResourceCounters* runningFrameResourceCounts,
-                                                     LayoutCounters* runningFrameLayoutCounts)
+void RenderContext::LogicalFlush::layoutResources(const FlushResources& flushResources,
+                                                  size_t logicalFlushIdx,
+                                                  bool isFinalFlushOfFrame,
+                                                  ResourceCounters* runningFrameResourceCounts,
+                                                  LayoutCounters* runningFrameLayoutCounts)
 {
     assert(!m_hasDoneLayout);
 
@@ -779,7 +779,7 @@ void PLSRenderContext::LogicalFlush::layoutResources(const FlushResources& flush
     RIVE_DEBUG_CODE(m_hasDoneLayout = true;)
 }
 
-void PLSRenderContext::LogicalFlush::writeResources()
+void RenderContext::LogicalFlush::writeResources()
 {
     const gpu::PlatformFeatures& platformFeatures = m_ctx->platformFeatures();
     assert(m_hasDoneLayout);
@@ -822,7 +822,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
         // The viewport will start at simpleGradDataHeight when rendering color ramps.
         for (uint32_t y = 0; y < m_pendingComplexColorRampDraws.size(); ++y)
         {
-            const PLSGradient* gradient = m_pendingComplexColorRampDraws[y];
+            const Gradient* gradient = m_pendingComplexColorRampDraws[y];
             const ColorInt* colors = gradient->colors();
             const float* stops = gradient->stops();
             size_t stopCount = gradient->count();
@@ -883,7 +883,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
     // Write out all the data for our high level draws, and build up a low-level draw list.
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering)
     {
-        for (const PLSDrawUniquePtr& draw : m_plsDraws)
+        for (const DrawUniquePtr& draw : m_plsDraws)
         {
             draw->pushToRenderContext(this);
         }
@@ -918,7 +918,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
         constexpr static int64_t kDrawIndexMask = 0xffff;
         for (size_t i = 0; i < m_plsDraws.size(); ++i)
         {
-            PLSDraw* draw = m_plsDraws[i].get();
+            Draw* draw = m_plsDraws[i].get();
 
             int4 drawBounds = simd::load4i(&m_plsDraws[i]->pixelBounds());
 
@@ -976,7 +976,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
             assert(drawContents <= kDrawContentsMask >> kDrawContentsShift);
             key |= drawContents << kDrawContentsShift;
 
-            // Draw index goes at the bottom of the key so we know which PLSDraw it corresponds to.
+            // Draw index goes at the bottom of the key so we know which Draw it corresponds to.
             assert(i <= kDrawIndexMask);
             key |= i;
 
@@ -1086,7 +1086,7 @@ void PLSRenderContext::LogicalFlush::writeResources()
     m_flushDesc.combinedShaderFeatures = m_combinedShaderFeatures;
 }
 
-void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool forceRealloc)
+void RenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool forceRealloc)
 {
 #if 0
     class Logger
@@ -1101,7 +1101,7 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool fo
             }
             if (!m_hasChanged)
             {
-                printf("PLSRenderContext::setResourceSizes():\n");
+                printf("RenderContext::setResourceSizes():\n");
                 m_hasChanged = true;
             }
             printf("  resize %s: %zu -> %zu (%zu KiB)\n",
@@ -1241,14 +1241,14 @@ void PLSRenderContext::setResourceSizes(ResourceAllocationCounts allocs, bool fo
     m_currentResourceAllocations = allocs;
 }
 
-void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCounts)
+void RenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCounts)
 {
     m_impl->prepareToMapBuffers();
 
     if (mapCounts.flushUniformBufferCount > 0)
     {
         m_flushUniformData.mapElements(m_impl.get(),
-                                       &PLSRenderContextImpl::mapFlushUniformBuffer,
+                                       &RenderContextImpl::mapFlushUniformBuffer,
                                        mapCounts.flushUniformBufferCount);
     }
     assert(m_flushUniformData.hasRoomFor(mapCounts.flushUniformBufferCount));
@@ -1256,7 +1256,7 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     if (mapCounts.imageDrawUniformBufferCount > 0)
     {
         m_imageDrawUniformData.mapElements(m_impl.get(),
-                                           &PLSRenderContextImpl::mapImageDrawUniformBuffer,
+                                           &RenderContextImpl::mapImageDrawUniformBuffer,
                                            mapCounts.imageDrawUniformBufferCount);
     }
     assert(m_imageDrawUniformData.hasRoomFor(mapCounts.imageDrawUniformBufferCount > 0));
@@ -1264,7 +1264,7 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     if (mapCounts.pathBufferCount > 0)
     {
         m_pathData.mapElements(m_impl.get(),
-                               &PLSRenderContextImpl::mapPathBuffer,
+                               &RenderContextImpl::mapPathBuffer,
                                mapCounts.pathBufferCount);
     }
     assert(m_pathData.hasRoomFor(mapCounts.pathBufferCount));
@@ -1272,7 +1272,7 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     if (mapCounts.paintBufferCount > 0)
     {
         m_paintData.mapElements(m_impl.get(),
-                                &PLSRenderContextImpl::mapPaintBuffer,
+                                &RenderContextImpl::mapPaintBuffer,
                                 mapCounts.paintBufferCount);
     }
     assert(m_paintData.hasRoomFor(mapCounts.paintBufferCount));
@@ -1280,7 +1280,7 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     if (mapCounts.paintAuxBufferCount > 0)
     {
         m_paintAuxData.mapElements(m_impl.get(),
-                                   &PLSRenderContextImpl::mapPaintAuxBuffer,
+                                   &RenderContextImpl::mapPaintAuxBuffer,
                                    mapCounts.paintAuxBufferCount);
     }
     assert(m_paintAuxData.hasRoomFor(mapCounts.paintAuxBufferCount));
@@ -1288,7 +1288,7 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     if (mapCounts.contourBufferCount > 0)
     {
         m_contourData.mapElements(m_impl.get(),
-                                  &PLSRenderContextImpl::mapContourBuffer,
+                                  &RenderContextImpl::mapContourBuffer,
                                   mapCounts.contourBufferCount);
     }
     assert(m_contourData.hasRoomFor(mapCounts.contourBufferCount));
@@ -1296,7 +1296,7 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     if (mapCounts.simpleGradientBufferCount > 0)
     {
         m_simpleColorRampsData.mapElements(m_impl.get(),
-                                           &PLSRenderContextImpl::mapSimpleColorRampsBuffer,
+                                           &RenderContextImpl::mapSimpleColorRampsBuffer,
                                            mapCounts.simpleGradientBufferCount);
     }
     assert(m_simpleColorRampsData.hasRoomFor(mapCounts.simpleGradientBufferCount));
@@ -1304,7 +1304,7 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     if (mapCounts.complexGradSpanBufferCount > 0)
     {
         m_gradSpanData.mapElements(m_impl.get(),
-                                   &PLSRenderContextImpl::mapGradSpanBuffer,
+                                   &RenderContextImpl::mapGradSpanBuffer,
                                    mapCounts.complexGradSpanBufferCount);
     }
     assert(m_gradSpanData.hasRoomFor(mapCounts.complexGradSpanBufferCount));
@@ -1312,7 +1312,7 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     if (mapCounts.tessSpanBufferCount > 0)
     {
         m_tessSpanData.mapElements(m_impl.get(),
-                                   &PLSRenderContextImpl::mapTessVertexSpanBuffer,
+                                   &RenderContextImpl::mapTessVertexSpanBuffer,
                                    mapCounts.tessSpanBufferCount);
     }
     assert(m_tessSpanData.hasRoomFor(mapCounts.tessSpanBufferCount));
@@ -1320,13 +1320,13 @@ void PLSRenderContext::mapResourceBuffers(const ResourceAllocationCounts& mapCou
     if (mapCounts.triangleVertexBufferCount > 0)
     {
         m_triangleVertexData.mapElements(m_impl.get(),
-                                         &PLSRenderContextImpl::mapTriangleVertexBuffer,
+                                         &RenderContextImpl::mapTriangleVertexBuffer,
                                          mapCounts.triangleVertexBufferCount);
     }
     assert(m_triangleVertexData.hasRoomFor(mapCounts.triangleVertexBufferCount));
 }
 
-void PLSRenderContext::unmapResourceBuffers()
+void RenderContext::unmapResourceBuffers()
 {
     if (m_flushUniformData)
     {
@@ -1380,7 +1380,7 @@ void PLSRenderContext::unmapResourceBuffers()
     }
 }
 
-void PLSRenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation, uint32_t count)
+void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation, uint32_t count)
 {
     assert(m_hasDoneLayout);
     assert(count > 0);
@@ -1397,9 +1397,9 @@ void PLSRenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation, 
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
 }
 
-void PLSRenderContext::LogicalFlush::pushPath(RiveRenderPathDraw* draw,
-                                              gpu::PatchType patchType,
-                                              uint32_t tessVertexCount)
+void RenderContext::LogicalFlush::pushPath(RiveRenderPathDraw* draw,
+                                           gpu::PatchType patchType,
+                                           uint32_t tessVertexCount)
 {
     assert(m_hasDoneLayout);
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
@@ -1475,9 +1475,9 @@ void PLSRenderContext::LogicalFlush::pushPath(RiveRenderPathDraw* draw,
     pushPathDraw(draw, drawType, instanceCount, baseInstance);
 }
 
-void PLSRenderContext::LogicalFlush::pushContour(Vec2D midpoint,
-                                                 bool closed,
-                                                 uint32_t paddingVertexCount)
+void RenderContext::LogicalFlush::pushContour(Vec2D midpoint,
+                                              bool closed,
+                                              uint32_t paddingVertexCount)
 {
     assert(m_hasDoneLayout);
     assert(m_ctx->m_pathData.bytesWritten() > 0);
@@ -1503,12 +1503,12 @@ void PLSRenderContext::LogicalFlush::pushContour(Vec2D midpoint,
     m_currentContourPaddingVertexCount = paddingVertexCount;
 }
 
-void PLSRenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
-                                               Vec2D joinTangent,
-                                               uint32_t additionalContourFlags,
-                                               uint32_t parametricSegmentCount,
-                                               uint32_t polarSegmentCount,
-                                               uint32_t joinSegmentCount)
+void RenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
+                                            Vec2D joinTangent,
+                                            uint32_t additionalContourFlags,
+                                            uint32_t parametricSegmentCount,
+                                            uint32_t polarSegmentCount,
+                                            uint32_t joinSegmentCount)
 {
     assert(m_hasDoneLayout);
     assert(0 <= parametricSegmentCount && parametricSegmentCount <= kMaxParametricSegments);
@@ -1561,7 +1561,7 @@ void PLSRenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
     RIVE_DEBUG_CODE(++m_pathCurveCount;)
 }
 
-RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushTessellationSpans(
+RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::pushTessellationSpans(
     const Vec2D pts[4],
     Vec2D joinTangent,
     uint32_t totalVertexCount,
@@ -1605,7 +1605,7 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushTessellationSpans(
     assert(m_pathTessLocation <= m_expectedPathTessLocationAtEndOfPath);
 }
 
-RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredTessellationSpans(
+RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::pushMirroredTessellationSpans(
     const Vec2D pts[4],
     Vec2D joinTangent,
     uint32_t totalVertexCount,
@@ -1646,7 +1646,7 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredTessellation
     assert(m_pathMirroredTessLocation >= m_expectedPathMirroredTessLocationAtEndOfPath);
 }
 
-RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredAndForwardTessellationSpans(
+RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::pushMirroredAndForwardTessellationSpans(
     const Vec2D pts[4],
     Vec2D joinTangent,
     uint32_t totalVertexCount,
@@ -1704,7 +1704,7 @@ RIVE_ALWAYS_INLINE void PLSRenderContext::LogicalFlush::pushMirroredAndForwardTe
     assert(m_pathMirroredTessLocation >= m_expectedPathMirroredTessLocationAtEndOfPath);
 }
 
-void PLSRenderContext::LogicalFlush::pushInteriorTriangulation(InteriorTriangulationDraw* draw)
+void RenderContext::LogicalFlush::pushInteriorTriangulation(InteriorTriangulationDraw* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -1723,7 +1723,7 @@ void PLSRenderContext::LogicalFlush::pushInteriorTriangulation(InteriorTriangula
     batch.needsBarrier = true;
 }
 
-void PLSRenderContext::LogicalFlush::pushImageRect(ImageRectDraw* draw)
+void RenderContext::LogicalFlush::pushImageRect(ImageRectDraw* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -1743,7 +1743,7 @@ void PLSRenderContext::LogicalFlush::pushImageRect(ImageRectDraw* draw)
     batch.imageDrawDataOffset = math::lossless_numeric_cast<uint32_t>(imageDrawDataOffset);
 }
 
-void PLSRenderContext::LogicalFlush::pushImageMesh(ImageMeshDraw* draw)
+void RenderContext::LogicalFlush::pushImageMesh(ImageMeshDraw* draw)
 {
 
     assert(m_hasDoneLayout);
@@ -1763,7 +1763,7 @@ void PLSRenderContext::LogicalFlush::pushImageMesh(ImageMeshDraw* draw)
     batch.imageDrawDataOffset = math::lossless_numeric_cast<uint32_t>(imageDrawDataOffset);
 }
 
-void PLSRenderContext::LogicalFlush::pushStencilClipReset(StencilClipReset* draw)
+void RenderContext::LogicalFlush::pushStencilClipReset(StencilClipReset* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -1783,7 +1783,7 @@ void PLSRenderContext::LogicalFlush::pushStencilClipReset(StencilClipReset* draw
     pushDraw(draw, DrawType::stencilClipReset, PaintType::clipUpdate, 6, baseVertex);
 }
 
-void PLSRenderContext::LogicalFlush::pushBarrier()
+void RenderContext::LogicalFlush::pushBarrier()
 {
     assert(m_hasDoneLayout);
     assert(m_flushDesc.interlockMode != gpu::InterlockMode::rasterOrdering);
@@ -1794,10 +1794,10 @@ void PLSRenderContext::LogicalFlush::pushBarrier()
     }
 }
 
-gpu::DrawBatch& PLSRenderContext::LogicalFlush::pushPathDraw(RiveRenderPathDraw* draw,
-                                                             DrawType drawType,
-                                                             uint32_t vertexCount,
-                                                             uint32_t baseVertex)
+gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(RiveRenderPathDraw* draw,
+                                                          DrawType drawType,
+                                                          uint32_t vertexCount,
+                                                          uint32_t baseVertex)
 {
     assert(m_hasDoneLayout);
 
@@ -1819,8 +1819,8 @@ gpu::DrawBatch& PLSRenderContext::LogicalFlush::pushPathDraw(RiveRenderPathDraw*
     return batch;
 }
 
-RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* currentDrawTexture,
-                                                       const PLSTexture* nextDrawTexture)
+RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const Texture* currentDrawTexture,
+                                                       const Texture* nextDrawTexture)
 {
     if (currentDrawTexture == nullptr || nextDrawTexture == nullptr)
     {
@@ -1832,11 +1832,11 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_images(const PLSTexture* current
     return currentDrawTexture == nextDrawTexture;
 }
 
-gpu::DrawBatch& PLSRenderContext::LogicalFlush::pushDraw(PLSDraw* draw,
-                                                         DrawType drawType,
-                                                         gpu::PaintType paintType,
-                                                         uint32_t elementCount,
-                                                         uint32_t baseElement)
+gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(Draw* draw,
+                                                      DrawType drawType,
+                                                      gpu::PaintType paintType,
+                                                      uint32_t elementCount,
+                                                      uint32_t baseElement)
 {
     assert(m_hasDoneLayout);
 

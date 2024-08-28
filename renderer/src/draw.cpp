@@ -275,11 +275,11 @@ RIVE_ALWAYS_INLINE uint32_t join_type_flags(StrokeJoin join)
 }
 } // namespace
 
-PLSDraw::PLSDraw(IAABB pixelBounds,
-                 const Mat2D& matrix,
-                 BlendMode blendMode,
-                 rcp<const PLSTexture> imageTexture,
-                 Type type) :
+Draw::Draw(IAABB pixelBounds,
+           const Mat2D& matrix,
+           BlendMode blendMode,
+           rcp<const Texture> imageTexture,
+           Type type) :
     m_imageTextureRef(imageTexture.release()),
     m_pixelBounds(pixelBounds),
     m_matrix(matrix),
@@ -292,7 +292,7 @@ PLSDraw::PLSDraw(IAABB pixelBounds,
     }
 }
 
-void PLSDraw::setClipID(uint32_t clipID)
+void Draw::setClipID(uint32_t clipID)
 {
     m_clipID = clipID;
 
@@ -311,25 +311,24 @@ void PLSDraw::setClipID(uint32_t clipID)
     }
 }
 
-bool PLSDraw::allocateGradientIfNeeded(PLSRenderContext::LogicalFlush* flush,
-                                       ResourceCounters* counters)
+bool Draw::allocateGradientIfNeeded(RenderContext::LogicalFlush* flush, ResourceCounters* counters)
 {
     return m_gradientRef == nullptr ||
            flush->allocateGradient(m_gradientRef, counters, &m_simplePaintValue.colorRampLocation);
 }
 
-void PLSDraw::releaseRefs()
+void Draw::releaseRefs()
 {
     safe_unref(m_imageTextureRef);
     safe_unref(m_gradientRef);
 }
 
-PLSDrawUniquePtr RiveRenderPathDraw::Make(PLSRenderContext* context,
-                                          const Mat2D& matrix,
-                                          rcp<const RiveRenderPath> path,
-                                          FillRule fillRule,
-                                          const RiveRenderPaint* paint,
-                                          RawPath* scratchPath)
+DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
+                                       const Mat2D& matrix,
+                                       rcp<const RiveRenderPath> path,
+                                       FillRule fillRule,
+                                       const RiveRenderPaint* paint,
+                                       RawPath* scratchPath)
 {
     assert(path != nullptr);
     assert(paint != nullptr);
@@ -373,7 +372,7 @@ PLSDrawUniquePtr RiveRenderPathDraw::Make(PLSRenderContext* context,
             path->getRawPath().verbs().count() < 1000 &&
             gpu::FindTransformedArea(localBounds, matrix) > 512 * 512)
         {
-            return PLSDrawUniquePtr(context->make<InteriorTriangulationDraw>(
+            return DrawUniquePtr(context->make<InteriorTriangulationDraw>(
                 context,
                 pixelBounds,
                 matrix,
@@ -386,12 +385,12 @@ PLSDrawUniquePtr RiveRenderPathDraw::Make(PLSRenderContext* context,
                     : InteriorTriangulationDraw::TriangulatorAxis::vertical));
         }
     }
-    return PLSDrawUniquePtr(context->make<MidpointFanPathDraw>(context,
-                                                               pixelBounds,
-                                                               matrix,
-                                                               std::move(path),
-                                                               fillRule,
-                                                               paint));
+    return DrawUniquePtr(context->make<MidpointFanPathDraw>(context,
+                                                            pixelBounds,
+                                                            matrix,
+                                                            std::move(path),
+                                                            fillRule,
+                                                            paint));
 }
 
 RiveRenderPathDraw::RiveRenderPathDraw(IAABB pixelBounds,
@@ -401,7 +400,7 @@ RiveRenderPathDraw::RiveRenderPathDraw(IAABB pixelBounds,
                                        const RiveRenderPaint* paint,
                                        Type type,
                                        gpu::InterlockMode frameInterlockMode) :
-    PLSDraw(pixelBounds, matrix, paint->getBlendMode(), ref_rcp(paint->getImageTexture()), type),
+    Draw(pixelBounds, matrix, paint->getBlendMode(), ref_rcp(paint->getImageTexture()), type),
     m_pathRef(path.release()),
     m_fillRule(paint->getIsStroked() ? FillRule::nonZero : fillRule),
     m_paintType(paint->getType())
@@ -468,7 +467,7 @@ RiveRenderPathDraw::RiveRenderPathDraw(IAABB pixelBounds,
     assert(isStroked() == (strokeRadius() > 0));
 }
 
-void RiveRenderPathDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
+void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush)
 {
     // Make sure the rawPath in our path reference hasn't changed since we began holding!
     assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
@@ -491,12 +490,12 @@ void RiveRenderPathDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flu
 
 void RiveRenderPathDraw::releaseRefs()
 {
-    PLSDraw::releaseRefs();
+    Draw::releaseRefs();
     RIVE_DEBUG_CODE(m_pathRef->unlockRawPathMutations();)
     m_pathRef->unref();
 }
 
-MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
+MidpointFanPathDraw::MidpointFanPathDraw(RenderContext* context,
                                          IAABB pixelBounds,
                                          const Mat2D& matrix,
                                          rcp<const RiveRenderPath> path,
@@ -1008,7 +1007,7 @@ MidpointFanPathDraw::MidpointFanPathDraw(PLSRenderContext* context,
     }
 }
 
-void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* flush)
+void MidpointFanPathDraw::onPushToRenderContext(RenderContext::LogicalFlush* flush)
 {
     const RawPath& rawPath = m_pathRef->getRawPath();
     RawPath::Iter startOfContour = rawPath.begin();
@@ -1319,11 +1318,10 @@ void MidpointFanPathDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* 
     assert(m_pendingEmptyStrokeCountForCaps == 0);
 }
 
-void MidpointFanPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
-    PLSRenderContext::LogicalFlush* flush,
-    const Vec2D cubic[],
-    uint32_t emulatedCapAsJoinFlags,
-    uint32_t strokeCapSegmentCount)
+void MidpointFanPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(RenderContext::LogicalFlush* flush,
+                                                                 const Vec2D cubic[],
+                                                                 uint32_t emulatedCapAsJoinFlags,
+                                                                 uint32_t strokeCapSegmentCount)
 {
     // Reverse the cubic and push it with zero parametric and polar segments, and a 180-degree join
     // tangent. This results in a solitary join, positioned immediately before the provided cubic,
@@ -1339,7 +1337,7 @@ void MidpointFanPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     RIVE_DEBUG_CODE(--m_pendingEmptyStrokeCountForCaps;)
 }
 
-InteriorTriangulationDraw::InteriorTriangulationDraw(PLSRenderContext* context,
+InteriorTriangulationDraw::InteriorTriangulationDraw(RenderContext* context,
                                                      IAABB pixelBounds,
                                                      const Mat2D& matrix,
                                                      rcp<const RiveRenderPath> path,
@@ -1364,7 +1362,7 @@ InteriorTriangulationDraw::InteriorTriangulationDraw(PLSRenderContext* context,
                 nullptr);
 }
 
-void InteriorTriangulationDraw::onPushToRenderContext(PLSRenderContext::LogicalFlush* flush)
+void InteriorTriangulationDraw::onPushToRenderContext(RenderContext::LogicalFlush* flush)
 {
     processPath(PathOp::submitOuterCubics, nullptr, nullptr, TriangulatorAxis::dontCare, flush);
     if (flush->desc().interlockMode == gpu::InterlockMode::atomics)
@@ -1379,7 +1377,7 @@ void InteriorTriangulationDraw::processPath(PathOp op,
                                             TrivialBlockAllocator* allocator,
                                             RawPath* scratchPath,
                                             TriangulatorAxis triangulatorAxis,
-                                            PLSRenderContext::LogicalFlush* flush)
+                                            RenderContext::LogicalFlush* flush)
 {
     Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
     const RawPath& rawPath = m_pathRef->getRawPath();
@@ -1560,13 +1558,13 @@ void InteriorTriangulationDraw::processPath(PathOp op,
     }
 }
 
-ImageRectDraw::ImageRectDraw(PLSRenderContext* context,
+ImageRectDraw::ImageRectDraw(RenderContext* context,
                              IAABB pixelBounds,
                              const Mat2D& matrix,
                              BlendMode blendMode,
-                             rcp<const PLSTexture> imageTexture,
+                             rcp<const Texture> imageTexture,
                              float opacity) :
-    PLSDraw(pixelBounds, matrix, blendMode, std::move(imageTexture), Type::imageRect),
+    Draw(pixelBounds, matrix, blendMode, std::move(imageTexture), Type::imageRect),
     m_opacity(opacity)
 {
     // If we support image paints for paths, the client should draw a rectangular path with an
@@ -1575,7 +1573,7 @@ ImageRectDraw::ImageRectDraw(PLSRenderContext* context,
     m_resourceCounts.imageDrawCount = 1;
 }
 
-void ImageRectDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
+void ImageRectDraw::pushToRenderContext(RenderContext::LogicalFlush* flush)
 {
     flush->pushImageRect(this);
 }
@@ -1583,13 +1581,13 @@ void ImageRectDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
 ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
                              const Mat2D& matrix,
                              BlendMode blendMode,
-                             rcp<const PLSTexture> imageTexture,
+                             rcp<const Texture> imageTexture,
                              rcp<const RenderBuffer> vertexBuffer,
                              rcp<const RenderBuffer> uvBuffer,
                              rcp<const RenderBuffer> indexBuffer,
                              uint32_t indexCount,
                              float opacity) :
-    PLSDraw(pixelBounds, matrix, blendMode, std::move(imageTexture), Type::imageMesh),
+    Draw(pixelBounds, matrix, blendMode, std::move(imageTexture), Type::imageMesh),
     m_vertexBufferRef(vertexBuffer.release()),
     m_uvBufferRef(uvBuffer.release()),
     m_indexBufferRef(indexBuffer.release()),
@@ -1602,27 +1600,27 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
     m_resourceCounts.imageDrawCount = 1;
 }
 
-void ImageMeshDraw::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
+void ImageMeshDraw::pushToRenderContext(RenderContext::LogicalFlush* flush)
 {
     flush->pushImageMesh(this);
 }
 
 void ImageMeshDraw::releaseRefs()
 {
-    PLSDraw::releaseRefs();
+    Draw::releaseRefs();
     m_vertexBufferRef->unref();
     m_uvBufferRef->unref();
     m_indexBufferRef->unref();
 }
 
-StencilClipReset::StencilClipReset(PLSRenderContext* context,
+StencilClipReset::StencilClipReset(RenderContext* context,
                                    uint32_t previousClipID,
                                    ResetAction resetAction) :
-    PLSDraw(context->getClipContentBounds(previousClipID),
-            Mat2D(),
-            BlendMode::srcOver,
-            nullptr,
-            Type::stencilClipReset),
+    Draw(context->getClipContentBounds(previousClipID),
+         Mat2D(),
+         BlendMode::srcOver,
+         nullptr,
+         Type::stencilClipReset),
     m_previousClipID(previousClipID)
 {
     switch (resetAction)
@@ -1637,7 +1635,7 @@ StencilClipReset::StencilClipReset(PLSRenderContext* context,
     m_resourceCounts.maxTriangleVertexCount = 6;
 }
 
-void StencilClipReset::pushToRenderContext(PLSRenderContext::LogicalFlush* flush)
+void StencilClipReset::pushToRenderContext(RenderContext::LogicalFlush* flush)
 {
     flush->pushStencilClipReset(this);
 }

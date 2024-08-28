@@ -20,13 +20,13 @@ namespace rive::gpu
 {
 class RiveRenderPath;
 class RiveRenderPaint;
-class PLSRenderContext;
+class RenderContext;
 
 // Renderer implementation for Rive's pixel local storage renderer.
 class RiveRenderer : public Renderer
 {
 public:
-    RiveRenderer(PLSRenderContext*);
+    RiveRenderer(RenderContext*);
     ~RiveRenderer() override;
 
     void save() override;
@@ -59,13 +59,13 @@ private:
 
     // Clips and pushes the given draw to m_context. If the clipped draw is too complex to be
     // supported by the GPU buffers, even after a logical flush, then nothing is drawn.
-    void clipAndPushDraw(PLSDrawUniquePtr);
+    void clipAndPushDraw(DrawUniquePtr);
 
-    // Pushes any necessary clip updates to m_internalDrawBatch and sets the PLSDraw's clipID and
+    // Pushes any necessary clip updates to m_internalDrawBatch and sets the Draw's clipID and
     // clipRectInverseMatrix, if any.
     // Returns false if the operation failed, at which point the caller should issue a logical flush
     // and try again.
-    [[nodiscard]] bool applyClip(PLSDraw*);
+    [[nodiscard]] bool applyClip(Draw*);
 
     struct RenderState
     {
@@ -97,9 +97,9 @@ private:
     };
     std::vector<ClipElement> m_clipStack;
 
-    PLSRenderContext* const m_context;
+    RenderContext* const m_context;
 
-    std::vector<PLSDrawUniquePtr> m_internalDrawBatch;
+    std::vector<DrawUniquePtr> m_internalDrawBatch;
 
     // Path of the rectangle [0, 0, 1, 1]. Used to draw images.
     rcp<RiveRenderPath> m_unitRectPath;

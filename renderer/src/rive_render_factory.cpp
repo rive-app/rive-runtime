@@ -19,7 +19,7 @@ rcp<RenderShader> RiveRenderFactory::makeLinearGradient(float sx,
                                                         size_t count)
 {
 
-    return PLSGradient::MakeLinear(sx, sy, ex, ey, colors, stops, count);
+    return Gradient::MakeLinear(sx, sy, ex, ey, colors, stops, count);
 }
 
 rcp<RenderShader> RiveRenderFactory::makeRadialGradient(float cx,
@@ -30,7 +30,7 @@ rcp<RenderShader> RiveRenderFactory::makeRadialGradient(float cx,
                                                         size_t count)
 {
 
-    return PLSGradient::MakeRadial(cx, cy, radius, colors, stops, count);
+    return Gradient::MakeRadial(cx, cy, radius, colors, stops, count);
 }
 
 rcp<RenderPath> RiveRenderFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule)

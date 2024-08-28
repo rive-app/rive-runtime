@@ -15,16 +15,16 @@
 
 namespace rive::gpu
 {
-class PLSDraw;
+class Draw;
 class RiveRenderPath;
 class RiveRenderPaint;
-class PLSRenderContext;
-class PLSGradient;
+class RenderContext;
+class Gradient;
 
 // High level abstraction of a single object to be drawn (path, imageRect, or imageMesh). These get
 // built up for an entire frame in order to count GPU resource allocation sizes, and then sorted,
 // batched, and drawn.
-class PLSDraw
+class Draw
 {
 public:
     // Use a "fullscreen" bounding box that is reasonably larger than any screen, but not so big
@@ -40,9 +40,9 @@ public:
         stencilClipReset,
     };
 
-    PLSDraw(IAABB pixelBounds, const Mat2D&, BlendMode, rcp<const PLSTexture> imageTexture, Type);
+    Draw(IAABB pixelBounds, const Mat2D&, BlendMode, rcp<const Texture> imageTexture, Type);
 
-    const PLSTexture* imageTexture() const { return m_imageTextureRef; }
+    const Texture* imageTexture() const { return m_imageTextureRef; }
     const IAABB& pixelBounds() const { return m_pixelBounds; }
     const Mat2D& matrix() const { return m_matrix; }
     BlendMode blendMode() const { return m_blendMode; }
@@ -58,39 +58,39 @@ public:
         return m_clipRectInverseMatrix;
     }
     gpu::SimplePaintValue simplePaintValue() const { return m_simplePaintValue; }
-    const PLSGradient* gradient() const { return m_gradientRef; }
+    const Gradient* gradient() const { return m_gradientRef; }
 
     // Clipping setup.
     void setClipID(uint32_t clipID);
     void setClipRect(const gpu::ClipRectInverseMatrix* m) { m_clipRectInverseMatrix = m; }
 
     // Used to allocate GPU resources for a collection of draws.
-    using ResourceCounters = PLSRenderContext::LogicalFlush::ResourceCounters;
+    using ResourceCounters = RenderContext::LogicalFlush::ResourceCounters;
     const ResourceCounters& resourceCounts() const { return m_resourceCounts; }
 
-    // Linked list of all PLSDraws within a gpu::DrawBatch.
-    void setBatchInternalNeighbor(const PLSDraw* neighbor)
+    // Linked list of all Draws within a gpu::DrawBatch.
+    void setBatchInternalNeighbor(const Draw* neighbor)
     {
         assert(m_batchInternalNeighbor == nullptr);
         m_batchInternalNeighbor = neighbor;
     };
-    const PLSDraw* batchInternalNeighbor() const { return m_batchInternalNeighbor; }
+    const Draw* batchInternalNeighbor() const { return m_batchInternalNeighbor; }
 
     // Adds the gradient (if any) for this draw to the render context's gradient texture.
     // Returns false if this draw needed a gradient but there wasn't room for it in the texture, at
     // which point the gradient texture will need to be re-rendered mid flight.
-    bool allocateGradientIfNeeded(PLSRenderContext::LogicalFlush*, ResourceCounters*);
+    bool allocateGradientIfNeeded(RenderContext::LogicalFlush*, ResourceCounters*);
 
     // Pushes the data for this draw to the render context. Called once the GPU buffers have been
     // counted and allocated, and the draws have been sorted.
-    virtual void pushToRenderContext(PLSRenderContext::LogicalFlush*) = 0;
+    virtual void pushToRenderContext(RenderContext::LogicalFlush*) = 0;
 
     // We can't have a destructor because we're block-allocated. Instead, the client calls this
     // method before clearing the drawList to release all our held references.
     virtual void releaseRefs();
 
 protected:
-    const PLSTexture* const m_imageTextureRef;
+    const Texture* const m_imageTextureRef;
     const IAABB m_pixelBounds;
     const Mat2D m_matrix;
     const BlendMode m_blendMode;
@@ -106,34 +106,34 @@ protected:
 
     // Gradient data used by some draws. Stored in the base class so allocateGradientIfNeeded()
     // doesn't have to be virtual.
-    const PLSGradient* m_gradientRef = nullptr;
+    const Gradient* m_gradientRef = nullptr;
     gpu::SimplePaintValue m_simplePaintValue;
 
-    // Linked list of all PLSDraws within a gpu::DrawBatch.
-    const PLSDraw* m_batchInternalNeighbor = nullptr;
+    // Linked list of all Draws within a gpu::DrawBatch.
+    const Draw* m_batchInternalNeighbor = nullptr;
 };
 
-// Implement PLSDrawReleaseRefs (defined in pls_render_context.hpp) now that PLSDraw is defined.
-inline void PLSDrawReleaseRefs::operator()(PLSDraw* draw) { draw->releaseRefs(); }
+// Implement DrawReleaseRefs (defined in pls_render_context.hpp) now that Draw is defined.
+inline void DrawReleaseRefs::operator()(Draw* draw) { draw->releaseRefs(); }
 
 // High level abstraction of a single path to be drawn (midpoint fan or interior triangulation).
-class RiveRenderPathDraw : public PLSDraw
+class RiveRenderPathDraw : public Draw
 {
 public:
     // Creates either a normal path draw or an interior triangulation if the path is large enough.
-    static PLSDrawUniquePtr Make(PLSRenderContext*,
-                                 const Mat2D&,
-                                 rcp<const RiveRenderPath>,
-                                 FillRule,
-                                 const RiveRenderPaint*,
-                                 RawPath* scratchPath);
+    static DrawUniquePtr Make(RenderContext*,
+                              const Mat2D&,
+                              rcp<const RiveRenderPath>,
+                              FillRule,
+                              const RiveRenderPaint*,
+                              RawPath* scratchPath);
 
     FillRule fillRule() const { return m_fillRule; }
     gpu::PaintType paintType() const { return m_paintType; }
     float strokeRadius() const { return m_strokeRadius; }
     gpu::ContourDirections contourDirections() const { return m_contourDirections; }
 
-    void pushToRenderContext(PLSRenderContext::LogicalFlush*) final;
+    void pushToRenderContext(RenderContext::LogicalFlush*) final;
 
     void releaseRefs() override;
 
@@ -146,7 +146,7 @@ public:
                        Type,
                        gpu::InterlockMode);
 
-    virtual void onPushToRenderContext(PLSRenderContext::LogicalFlush*) = 0;
+    virtual void onPushToRenderContext(RenderContext::LogicalFlush*) = 0;
 
     const RiveRenderPath* const m_pathRef;
     const FillRule
@@ -163,7 +163,7 @@ public:
 class MidpointFanPathDraw : public RiveRenderPathDraw
 {
 public:
-    MidpointFanPathDraw(PLSRenderContext*,
+    MidpointFanPathDraw(RenderContext*,
                         IAABB pixelBounds,
                         const Mat2D&,
                         rcp<const RiveRenderPath>,
@@ -171,12 +171,12 @@ public:
                         const RiveRenderPaint*);
 
 protected:
-    void onPushToRenderContext(PLSRenderContext::LogicalFlush*) override;
+    void onPushToRenderContext(RenderContext::LogicalFlush*) override;
 
     // Emulates a stroke cap before the given cubic by pushing a copy of the cubic, reversed, with 0
     // tessellation segments leading up to the join section, and a 180-degree join that looks like
     // the desired stroke cap.
-    void pushEmulatedStrokeCapAsJoinBeforeCubic(PLSRenderContext::LogicalFlush*,
+    void pushEmulatedStrokeCapAsJoinBeforeCubic(RenderContext::LogicalFlush*,
                                                 const Vec2D cubic[],
                                                 uint32_t emulatedCapAsJoinFlags,
                                                 uint32_t strokeCapSegmentCount);
@@ -230,7 +230,7 @@ public:
         dontCare,
     };
 
-    InteriorTriangulationDraw(PLSRenderContext*,
+    InteriorTriangulationDraw(RenderContext*,
                               IAABB pixelBounds,
                               const Mat2D&,
                               rcp<const RiveRenderPath>,
@@ -242,7 +242,7 @@ public:
     GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
 
 protected:
-    void onPushToRenderContext(PLSRenderContext::LogicalFlush*) override;
+    void onPushToRenderContext(RenderContext::LogicalFlush*) override;
 
     // The final segment in an outerCurve patch is a bowtie join.
     constexpr static size_t kJoinSegmentCount = 1;
@@ -276,7 +276,7 @@ protected:
                      TrivialBlockAllocator*,
                      RawPath* scratchPath,
                      TriangulatorAxis,
-                     PLSRenderContext::LogicalFlush*);
+                     RenderContext::LogicalFlush*);
 
     GrInnerFanTriangulator* m_triangulator = nullptr;
 };
@@ -284,32 +284,32 @@ protected:
 // Pushes an imageRect to the render context.
 // This should only be used when we don't have bindless textures in atomic mode. Otherwise, images
 // should be drawn as rectangular paths with an image paint.
-class ImageRectDraw : public PLSDraw
+class ImageRectDraw : public Draw
 {
 public:
-    ImageRectDraw(PLSRenderContext*,
+    ImageRectDraw(RenderContext*,
                   IAABB pixelBounds,
                   const Mat2D&,
                   BlendMode,
-                  rcp<const PLSTexture>,
+                  rcp<const Texture>,
                   float opacity);
 
     float opacity() const { return m_opacity; }
 
-    void pushToRenderContext(PLSRenderContext::LogicalFlush*) override;
+    void pushToRenderContext(RenderContext::LogicalFlush*) override;
 
 protected:
     const float m_opacity;
 };
 
 // Pushes an imageMesh to the render context.
-class ImageMeshDraw : public PLSDraw
+class ImageMeshDraw : public Draw
 {
 public:
     ImageMeshDraw(IAABB pixelBounds,
                   const Mat2D&,
                   BlendMode,
-                  rcp<const PLSTexture>,
+                  rcp<const Texture>,
                   rcp<const RenderBuffer> vertexBuffer,
                   rcp<const RenderBuffer> uvBuffer,
                   rcp<const RenderBuffer> indexBuffer,
@@ -322,7 +322,7 @@ public:
     uint32_t indexCount() const { return m_indexCount; }
     float opacity() const { return m_opacity; }
 
-    void pushToRenderContext(PLSRenderContext::LogicalFlush*) override;
+    void pushToRenderContext(RenderContext::LogicalFlush*) override;
 
     void releaseRefs() override;
 
@@ -336,7 +336,7 @@ protected:
 
 // Resets the stencil clip by either entirely erasing the existing clip, or intersecting it with a
 // nested clip (i.e., erasing the region outside the nested clip).
-class StencilClipReset : public PLSDraw
+class StencilClipReset : public Draw
 {
 public:
     enum class ResetAction
@@ -345,11 +345,11 @@ public:
         intersectPreviousClip,
     };
 
-    StencilClipReset(PLSRenderContext*, uint32_t previousClipID, ResetAction);
+    StencilClipReset(RenderContext*, uint32_t previousClipID, ResetAction);
 
     uint32_t previousClipID() const { return m_previousClipID; }
 
-    void pushToRenderContext(PLSRenderContext::LogicalFlush*) override;
+    void pushToRenderContext(RenderContext::LogicalFlush*) override;
 
 protected:
     const uint32_t m_previousClipID;

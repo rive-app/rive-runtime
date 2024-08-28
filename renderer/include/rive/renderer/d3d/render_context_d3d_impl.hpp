@@ -11,14 +11,14 @@
 
 namespace rive::gpu
 {
-class PLSRenderContextD3DImpl;
+class RenderContextD3DImpl;
 
-// D3D backend implementation of PLSRenderTarget.
-class PLSRenderTargetD3D : public PLSRenderTarget
+// D3D backend implementation of RenderTarget.
+class RenderTargetD3D : public RenderTarget
 {
 public:
-    PLSRenderTargetD3D(PLSRenderContextD3DImpl*, uint32_t width, uint32_t height);
-    ~PLSRenderTargetD3D() override {}
+    RenderTargetD3D(RenderContextD3DImpl*, uint32_t width, uint32_t height);
+    ~RenderTargetD3D() override {}
 
     void setTargetTexture(ComPtr<ID3D11Texture2D> tex);
 
@@ -57,8 +57,8 @@ private:
     ComPtr<ID3D11UnorderedAccessView> m_scratchColorUAV;
 };
 
-// D3D backend implementation of PLSRenderContextImpl.
-class PLSRenderContextD3DImpl : public PLSRenderContextHelperImpl
+// D3D backend implementation of RenderContextImpl.
+class RenderContextD3DImpl : public RenderContextHelperImpl
 {
 public:
     struct ContextOptions
@@ -68,13 +68,13 @@ public:
         bool isIntel = false;
     };
 
-    static std::unique_ptr<PLSRenderContext> MakeContext(ComPtr<ID3D11Device>,
-                                                         ComPtr<ID3D11DeviceContext>,
-                                                         const ContextOptions&);
+    static std::unique_ptr<RenderContext> MakeContext(ComPtr<ID3D11Device>,
+                                                      ComPtr<ID3D11DeviceContext>,
+                                                      const ContextOptions&);
 
-    rcp<PLSRenderTargetD3D> makeRenderTarget(uint32_t width, uint32_t height)
+    rcp<RenderTargetD3D> makeRenderTarget(uint32_t width, uint32_t height)
     {
-        return make_rcp<PLSRenderTargetD3D>(this, width, height);
+        return make_rcp<RenderTargetD3D>(this, width, height);
     }
 
     struct D3DCapabilities
@@ -106,16 +106,14 @@ public:
                                          const char* target);
 
 private:
-    PLSRenderContextD3DImpl(ComPtr<ID3D11Device>,
-                            ComPtr<ID3D11DeviceContext>,
-                            const D3DCapabilities&);
+    RenderContextD3DImpl(ComPtr<ID3D11Device>, ComPtr<ID3D11DeviceContext>, const D3DCapabilities&);
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
-    rcp<PLSTexture> makeImageTexture(uint32_t width,
-                                     uint32_t height,
-                                     uint32_t mipLevelCount,
-                                     const uint8_t imageDataRGBA[]) override;
+    rcp<Texture> makeImageTexture(uint32_t width,
+                                  uint32_t height,
+                                  uint32_t mipLevelCount,
+                                  const uint8_t imageDataRGBA[]) override;
 
     std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
     std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,

@@ -12,7 +12,7 @@
 
 namespace rive::gpu
 {
-using DrawBufferMask = PLSRenderTargetGL::DrawBufferMask;
+using DrawBufferMask = RenderTargetGL::DrawBufferMask;
 
 static bool needs_atomic_fixed_function_color_blend(const gpu::FlushDescriptor& desc)
 {
@@ -25,10 +25,10 @@ static bool needs_coalesced_atomic_resolve_and_transfer(const gpu::FlushDescript
     assert(desc.interlockMode == gpu::InterlockMode::atomics);
     return (desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
            lite_rtti_cast<FramebufferRenderTargetGL*>(
-               static_cast<PLSRenderTargetGL*>(desc.renderTarget)) != nullptr;
+               static_cast<RenderTargetGL*>(desc.renderTarget)) != nullptr;
 }
 
-class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::PLSImpl
+class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelLocalStorageImpl
 {
     bool supportsRasterOrdering(const GLCapabilities& capabilities) const override
     {
@@ -36,10 +36,10 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
                capabilities.INTEL_fragment_shader_ordering;
     }
 
-    void activatePixelLocalStorage(PLSRenderContextGLImpl* plsContextImpl,
+    void activatePixelLocalStorage(RenderContextGLImpl* plsContextImpl,
                                    const FlushDescriptor& desc) override
     {
-        auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
+        auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
         if (desc.interlockMode == gpu::InterlockMode::atomics &&
@@ -150,7 +150,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         return flags;
     }
 
-    void setupAtomicResolve(PLSRenderContextGLImpl* plsContextImpl,
+    void setupAtomicResolve(RenderContextGLImpl* plsContextImpl,
                             const gpu::FlushDescriptor& desc) override
     {
         assert(desc.interlockMode == gpu::InterlockMode::atomics);
@@ -161,7 +161,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         }
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
+    void deactivatePixelLocalStorage(RenderContextGLImpl*, const FlushDescriptor& desc) override
     {
         glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
 
@@ -170,7 +170,7 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
         {
             if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
-                    static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
+                    static_cast<RenderTargetGL*>(desc.renderTarget)))
             {
                 // We rendered to an offscreen texture. Copy back to the external target
                 // framebuffer.
@@ -195,7 +195,8 @@ class PLSRenderContextGLImpl::PLSImplRWTexture : public PLSRenderContextGLImpl::
     }
 };
 
-std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplRWTexture()
+std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl> RenderContextGLImpl::
+    MakePLSImplRWTexture()
 {
     return std::make_unique<PLSImplRWTexture>();
 }

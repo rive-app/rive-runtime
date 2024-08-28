@@ -13,10 +13,10 @@ namespace rive::gpu
 {
 class RiveRenderPath;
 class RiveRenderPaint;
-class PLSRenderTargetGL;
+class RenderTargetGL;
 
-// OpenGL backend implementation of PLSRenderContextImpl.
-class PLSRenderContextGLImpl : public PLSRenderContextHelperImpl
+// OpenGL backend implementation of RenderContextImpl.
+class RenderContextGLImpl : public RenderContextHelperImpl
 {
 public:
     struct ContextOptions
@@ -25,22 +25,22 @@ public:
         bool disableFragmentShaderInterlock = false;
     };
 
-    static std::unique_ptr<PLSRenderContext> MakeContext(const ContextOptions&);
-    static std::unique_ptr<PLSRenderContext> MakeContext() { return MakeContext(ContextOptions()); }
+    static std::unique_ptr<RenderContext> MakeContext(const ContextOptions&);
+    static std::unique_ptr<RenderContext> MakeContext() { return MakeContext(ContextOptions()); }
 
-    ~PLSRenderContextGLImpl() override;
+    ~RenderContextGLImpl() override;
 
     const GLCapabilities& capabilities() const { return m_capabilities; }
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
 
-    rcp<PLSTexture> makeImageTexture(uint32_t width,
-                                     uint32_t height,
-                                     uint32_t mipLevelCount,
-                                     const uint8_t imageDataRGBA[]) override;
+    rcp<Texture> makeImageTexture(uint32_t width,
+                                  uint32_t height,
+                                  uint32_t mipLevelCount,
+                                  const uint8_t imageDataRGBA[]) override;
 
     // Takes ownership of textureID and responsibility for deleting it.
-    rcp<PLSTexture> adoptImageTexture(uint32_t width, uint32_t height, GLuint textureID);
+    rcp<Texture> adoptImageTexture(uint32_t width, uint32_t height, GLuint textureID);
 
     // Called *after* the GL context has been modified externally.
     // Re-binds Rive internal resources and invalidates the internal cache of GL state.
@@ -62,32 +62,32 @@ private:
     class DrawProgram;
 
     // Manages how we implement pixel local storage in shaders.
-    class PLSImpl
+    class PixelLocalStorageImpl
     {
     public:
         virtual void init(rcp<GLState>) {}
 
         virtual bool supportsRasterOrdering(const GLCapabilities&) const = 0;
 
-        virtual void activatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor&) = 0;
-        virtual void deactivatePixelLocalStorage(PLSRenderContextGLImpl*,
-                                                 const FlushDescriptor&) = 0;
+        virtual void activatePixelLocalStorage(RenderContextGLImpl*, const FlushDescriptor&) = 0;
+        virtual void deactivatePixelLocalStorage(RenderContextGLImpl*, const FlushDescriptor&) = 0;
 
-        // Depending on how we handle PLS atomic resolves, the PLSImpl may require certain flags.
+        // Depending on how we handle PLS atomic resolves, the PixelLocalStorageImpl may require
+        // certain flags.
         virtual gpu::ShaderMiscFlags shaderMiscFlags(const gpu::FlushDescriptor&,
                                                      gpu::DrawType) const
         {
             return gpu::ShaderMiscFlags::none;
         }
 
-        // Called before issuing a plsAtomicResolve draw, so the PLSImpl can make any necessary GL
-        // state changes.
-        virtual void setupAtomicResolve(PLSRenderContextGLImpl*, const gpu::FlushDescriptor&) {}
+        // Called before issuing a plsAtomicResolve draw, so the PixelLocalStorageImpl can make any
+        // necessary GL state changes.
+        virtual void setupAtomicResolve(RenderContextGLImpl*, const gpu::FlushDescriptor&) {}
 
         virtual void pushShaderDefines(gpu::InterlockMode,
                                        std::vector<const char*>* defines) const = 0;
 
-        void ensureRasterOrderingEnabled(PLSRenderContextGLImpl*,
+        void ensureRasterOrderingEnabled(RenderContextGLImpl*,
                                          const gpu::FlushDescriptor&,
                                          bool enabled);
 
@@ -97,7 +97,7 @@ private:
             onBarrier(desc);
         }
 
-        virtual ~PLSImpl() {}
+        virtual ~PixelLocalStorageImpl() {}
 
     private:
         virtual void onEnableRasterOrdering(bool enabled) {}
@@ -111,16 +111,19 @@ private:
     class PLSImplWebGL;
     class PLSImplRWTexture;
 
-    static std::unique_ptr<PLSImpl> MakePLSImplEXTNative(const GLCapabilities&);
-    static std::unique_ptr<PLSImpl> MakePLSImplFramebufferFetch(const GLCapabilities&);
-    static std::unique_ptr<PLSImpl> MakePLSImplWebGL();
-    static std::unique_ptr<PLSImpl> MakePLSImplRWTexture();
+    static std::unique_ptr<PixelLocalStorageImpl> MakePLSImplEXTNative(const GLCapabilities&);
+    static std::unique_ptr<PixelLocalStorageImpl> MakePLSImplFramebufferFetch(
+        const GLCapabilities&);
+    static std::unique_ptr<PixelLocalStorageImpl> MakePLSImplWebGL();
+    static std::unique_ptr<PixelLocalStorageImpl> MakePLSImplRWTexture();
 
-    static std::unique_ptr<PLSRenderContext> MakeContext(const char* rendererString,
-                                                         GLCapabilities,
-                                                         std::unique_ptr<PLSImpl>);
+    static std::unique_ptr<RenderContext> MakeContext(const char* rendererString,
+                                                      GLCapabilities,
+                                                      std::unique_ptr<PixelLocalStorageImpl>);
 
-    PLSRenderContextGLImpl(const char* rendererString, GLCapabilities, std::unique_ptr<PLSImpl>);
+    RenderContextGLImpl(const char* rendererString,
+                        GLCapabilities,
+                        std::unique_ptr<PixelLocalStorageImpl>);
 
     // Wraps a compiled GL shader of draw_path.glsl or draw_image_mesh.glsl, either vertex or
     // fragment, with a specific set of features enabled via #define. The set of features to enable
@@ -131,7 +134,7 @@ private:
         DrawShader(const DrawShader&) = delete;
         DrawShader& operator=(const DrawShader&) = delete;
 
-        DrawShader(PLSRenderContextGLImpl* plsContextImpl,
+        DrawShader(RenderContextGLImpl* plsContextImpl,
                    GLenum shaderType,
                    gpu::DrawType drawType,
                    ShaderFeatures shaderFeatures,
@@ -154,7 +157,7 @@ private:
     public:
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
-        DrawProgram(PLSRenderContextGLImpl*,
+        DrawProgram(RenderContextGLImpl*,
                     gpu::DrawType,
                     gpu::ShaderFeatures,
                     gpu::InterlockMode,
@@ -184,7 +187,7 @@ private:
 
     GLCapabilities m_capabilities;
 
-    std::unique_ptr<PLSImpl> m_plsImpl;
+    std::unique_ptr<PixelLocalStorageImpl> m_plsImpl;
 
     // Gradient texture rendering.
     glutils::Program m_colorRampProgram;

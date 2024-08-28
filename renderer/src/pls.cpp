@@ -452,10 +452,10 @@ void PaintData::set(FillRule fillRule,
 void PaintAuxData::set(const Mat2D& viewMatrix,
                        PaintType paintType,
                        SimplePaintValue simplePaintValue,
-                       const PLSGradient* gradient,
-                       const PLSTexture* imageTexture,
+                       const Gradient* gradient,
+                       const Texture* imageTexture,
                        const ClipRectInverseMatrix* clipRectInverseMatrix,
-                       const PLSRenderTarget* renderTarget,
+                       const RenderTarget* renderTarget,
                        const gpu::PlatformFeatures& platformFeatures)
 {
     switch (paintType)
@@ -565,7 +565,7 @@ std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes,
     uint32_t elementCount = math::lossless_numeric_cast<uint32_t>(bufferSizeInBytes) /
                             gpu::StorageBufferElementSizeInBytes(bufferStructure);
     uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
-    // PLSRenderContext is responsible for breaking up a flush before any storage buffer grows
+    // RenderContext is responsible for breaking up a flush before any storage buffer grows
     // larger than can be supported by a GL texture of width "STORAGE_TEXTURE_WIDTH".
     // (2048 is the min required value for GL_MAX_TEXTURE_SIZE.)
     constexpr int kMaxRequredTextureHeight RIVE_MAYBE_UNUSED = 2048;

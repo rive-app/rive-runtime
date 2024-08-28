@@ -81,12 +81,12 @@ public:
                 m_vkDispatch.allocateCommandBuffers(&commandBufferAllocateInfo, &commandBuffer));
         }
 
-        m_plsContext = PLSRenderContextVulkanImpl::MakeContext(m_instance,
-                                                               m_physicalDevice,
-                                                               m_device,
-                                                               vulkanFeatures,
-                                                               m_instance.fp_vkGetInstanceProcAddr,
-                                                               m_instance.fp_vkGetDeviceProcAddr);
+        m_plsContext = RenderContextVulkanImpl::MakeContext(m_instance,
+                                                            m_physicalDevice,
+                                                            m_device,
+                                                            vulkanFeatures,
+                                                            m_instance.fp_vkGetInstanceProcAddr,
+                                                            m_instance.fp_vkGetDeviceProcAddr);
 
         VkSemaphoreCreateInfo semaphoreCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
@@ -144,9 +144,9 @@ public:
 
     Factory* factory() override { return m_plsContext.get(); }
 
-    rive::gpu::PLSRenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+    rive::gpu::RenderContext* plsContextOrNull() override { return m_plsContext.get(); }
 
-    rive::gpu::PLSRenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
@@ -235,7 +235,7 @@ public:
         return std::make_unique<RiveRenderer>(m_plsContext.get());
     }
 
-    void begin(const PLSRenderContext::FrameDescriptor& frameDescriptor) override
+    void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
     {
         m_vkDispatch.acquireNextImageKHR(m_swapchain,
                                          UINT64_MAX,
@@ -375,9 +375,9 @@ public:
     }
 
 private:
-    PLSRenderContextVulkanImpl* impl() const
+    RenderContextVulkanImpl* impl() const
     {
-        return m_plsContext->static_impl_cast<PLSRenderContextVulkanImpl>();
+        return m_plsContext->static_impl_cast<RenderContextVulkanImpl>();
     }
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
@@ -413,8 +413,8 @@ private:
     rcp<VulkanFencePool> m_fencePool;
     rcp<VulkanFence> m_frameFence;
 
-    std::unique_ptr<PLSRenderContext> m_plsContext;
-    rcp<PLSRenderTargetVulkan> m_renderTarget;
+    std::unique_ptr<RenderContext> m_plsContext;
+    rcp<RenderTargetVulkan> m_renderTarget;
     rcp<vkutil::Buffer> m_pixelReadBuffer;
 
     int m_resourcePoolIdx = 0;

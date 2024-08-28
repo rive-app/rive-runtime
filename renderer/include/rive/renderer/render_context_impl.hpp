@@ -8,13 +8,13 @@
 
 namespace rive::gpu
 {
-class PLSTexture;
+class Texture;
 
-// This class manages GPU buffers and isues the actual rendering commands from PLSRenderContext.
-class PLSRenderContextImpl
+// This class manages GPU buffers and isues the actual rendering commands from RenderContext.
+class RenderContextImpl
 {
 public:
-    virtual ~PLSRenderContextImpl() {}
+    virtual ~RenderContextImpl() {}
 
     const PlatformFeatures& platformFeatures() const { return m_platformFeatures; }
 
@@ -22,11 +22,11 @@ public:
 
     // Decodes the image bytes and creates a texture that can be bound to the draw shader for an
     // image paint.
-    virtual rcp<PLSTexture> decodeImageTexture(Span<const uint8_t> encodedBytes) = 0;
+    virtual rcp<Texture> decodeImageTexture(Span<const uint8_t> encodedBytes) = 0;
 
     // Resize GPU buffers. These methods cannot fail, and must allocate the exact size requested.
     //
-    // PLSRenderContext takes care to minimize how often these methods are called, while also
+    // RenderContext takes care to minimize how often these methods are called, while also
     // growing and shrinking the memory footprint to fit current usage.
     //
     // 'elementSizeInBytes' represents the size of one array element when the shader accesses this
@@ -43,12 +43,12 @@ public:
     virtual void resizeTriangleVertexBuffer(size_t sizeInBytes) = 0;
 
     // Perform any synchronization or other tasks that need to run immediately before
-    // PLSRenderContext begins mapping buffers for the next flush.
+    // RenderContext begins mapping buffers for the next flush.
     virtual void prepareToMapBuffers() {}
 
     // Map GPU buffers. (The implementation may wish to allocate the mappable buffers in rings, in
     // order to avoid expensive synchronization with the GPU pipeline. See
-    // PLSRenderContextBufferRingImpl.)
+    // RenderContextBufferRingImpl.)
     virtual void* mapFlushUniformBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapImageDrawUniformBuffer(size_t mapSizeInBytes) = 0;
     virtual void* mapPathBuffer(size_t mapSizeInBytes) = 0;

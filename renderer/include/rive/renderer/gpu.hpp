@@ -33,11 +33,11 @@ class RenderBuffer;
 // https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit
 namespace rive::gpu
 {
-class PLSDraw;
-class PLSGradient;
-class PLSRenderContextImpl;
-class PLSRenderTarget;
-class PLSTexture;
+class Draw;
+class Gradient;
+class RenderContextImpl;
+class RenderTarget;
+class Texture;
 
 // Tessellate in parametric space until each segment is within 1/4 pixel of the true curve.
 constexpr static int kParametricPrecision = 4;
@@ -292,7 +292,7 @@ struct ColorRampLocation
 };
 
 // Most of a paint's information can be described in a single value. Gradients and images reference
-// an additional PLSGradient* and PLSTexture* respectively.
+// an additional Gradient* and Texture* respectively.
 union SimplePaintValue
 {
     ColorInt color = 0xff000000;         // PaintType::solidColor
@@ -693,7 +693,7 @@ constexpr static gpu::DrawContents kNestedClipUpdateMask =
 struct DrawBatch
 {
     DrawBatch(DrawType drawType_,
-              const PLSDraw* internalDrawList_,
+              const Draw* internalDrawList_,
               uint32_t elementCount_,
               uint32_t baseElement_) :
         drawType(drawType_),
@@ -703,7 +703,7 @@ struct DrawBatch
     {}
 
     const DrawType drawType;
-    const PLSDraw* internalDrawList;
+    const Draw* internalDrawList;
     uint32_t elementCount; // Vertex, index, or instance count.
     uint32_t baseElement;  // Base vertex, index, or instance.
     DrawContents drawContents = DrawContents::none;
@@ -712,7 +712,7 @@ struct DrawBatch
 
     // DrawType::imageRect and DrawType::imageMesh.
     uint32_t imageDrawDataOffset = 0;
-    const PLSTexture* imageTexture = nullptr;
+    const Texture* imageTexture = nullptr;
 
     // DrawType::imageMesh.
     const RenderBuffer* vertexBuffer;
@@ -746,7 +746,7 @@ public:
     virtual ~CommandBufferCompletionFence() {}
 };
 
-// Detailed description of exactly how a PLSRenderContextImpl should bind its buffers and draw a
+// Detailed description of exactly how a RenderContextImpl should bind its buffers and draw a
 // flush. A typical flush is done in 4 steps:
 //
 //  1. Render the complex gradients from the gradSpanBuffer to the gradient texture
@@ -763,7 +763,7 @@ public:
 //
 struct FlushDescriptor
 {
-    PLSRenderTarget* renderTarget = nullptr;
+    RenderTarget* renderTarget = nullptr;
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdering;
     int msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
@@ -968,10 +968,10 @@ public:
     void set(const Mat2D& viewMatrix,
              PaintType,
              SimplePaintValue,
-             const PLSGradient*,
-             const PLSTexture*,
+             const Gradient*,
+             const Texture*,
              const ClipRectInverseMatrix*,
-             const PLSRenderTarget*,
+             const RenderTarget*,
              const gpu::PlatformFeatures&);
 
 private:
@@ -1096,8 +1096,8 @@ public:
         m_mappingEnd = ptr + elementCount;
     }
 
-    using MapResourceBufferFn = void* (PLSRenderContextImpl::*)(size_t mapSizeInBytes);
-    void mapElements(PLSRenderContextImpl* impl, MapResourceBufferFn mapFn, size_t elementCount)
+    using MapResourceBufferFn = void* (RenderContextImpl::*)(size_t mapSizeInBytes);
+    void mapElements(RenderContextImpl* impl, MapResourceBufferFn mapFn, size_t elementCount)
     {
         void* ptr = (impl->*mapFn)(elementCount * sizeof(T));
         reset(reinterpret_cast<T*>(ptr), elementCount);

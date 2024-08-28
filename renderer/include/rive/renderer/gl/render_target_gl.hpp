@@ -12,9 +12,9 @@
 
 namespace rive::gpu
 {
-class PLSRenderContextGLImpl;
+class RenderContextGLImpl;
 
-class PLSRenderTargetGL : public PLSRenderTarget, public enable_lite_rtti<PLSRenderTargetGL>
+class RenderTargetGL : public RenderTarget, public enable_lite_rtti<RenderTargetGL>
 {
 public:
     // Bind a framebuffer whose color attachment is the final rendering destination.
@@ -69,7 +69,7 @@ public:
     //
     // If the msaa framebuffer is offscreen, returns MSAAResolveAction::framebufferBlit, indicating
     // that the caller must resolve it when done.
-    virtual MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
+    virtual MSAAResolveAction bindMSAAFramebuffer(RenderContextGLImpl*,
                                                   int sampleCount,
                                                   const IAABB* preserveBounds = nullptr,
                                                   bool* isFBO0 = nullptr) = 0;
@@ -79,15 +79,15 @@ public:
     virtual void bindInternalDstTexture(GLenum activeTexture) = 0;
 
 protected:
-    PLSRenderTargetGL(uint32_t width, uint32_t height) : PLSRenderTarget(width, height) {}
+    RenderTargetGL(uint32_t width, uint32_t height) : RenderTarget(width, height) {}
 };
 
-RIVE_MAKE_ENUM_BITSET(PLSRenderTargetGL::DrawBufferMask);
+RIVE_MAKE_ENUM_BITSET(RenderTargetGL::DrawBufferMask);
 
 // GL render target that draws to an external texture provided by the client.
 //
 // Client must call setTargetTexture() before using this render target.
-class TextureRenderTargetGL : public lite_rtti_override<PLSRenderTargetGL, TextureRenderTargetGL>
+class TextureRenderTargetGL : public lite_rtti_override<RenderTargetGL, TextureRenderTargetGL>
 {
 public:
     TextureRenderTargetGL(uint32_t width, uint32_t height) : lite_rtti_override(width, height) {}
@@ -112,7 +112,7 @@ public:
     void bindInternalFramebuffer(GLenum target, DrawBufferMask) final;
     void bindHeadlessFramebuffer(const GLCapabilities&) final;
     void bindAsImageTextures(DrawBufferMask) final;
-    MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
+    MSAAResolveAction bindMSAAFramebuffer(RenderContextGLImpl*,
                                           int sampleCount,
                                           const IAABB* preserveBounds,
                                           bool* isFBO0) final;
@@ -149,7 +149,7 @@ private:
 // external FBO is immutable and usually not readable either, it is almost always better to use
 // TextureRenderTargetGL if possible.
 class FramebufferRenderTargetGL
-    : public lite_rtti_override<PLSRenderTargetGL, FramebufferRenderTargetGL>
+    : public lite_rtti_override<RenderTargetGL, FramebufferRenderTargetGL>
 {
 public:
     FramebufferRenderTargetGL(uint32_t width,
@@ -176,7 +176,7 @@ public:
     void bindInternalFramebuffer(GLenum target, DrawBufferMask) final;
     void bindHeadlessFramebuffer(const GLCapabilities&) final;
     void bindAsImageTextures(DrawBufferMask) final;
-    MSAAResolveAction bindMSAAFramebuffer(PLSRenderContextGLImpl*,
+    MSAAResolveAction bindMSAAFramebuffer(RenderContextGLImpl*,
                                           int sampleCount,
                                           const IAABB* preserveBounds,
                                           bool* isFBO0) final;

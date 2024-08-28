@@ -14,7 +14,7 @@
 #include <unordered_map>
 
 class PushRetrofittedTrianglesGMDraw;
-class PLSRenderContextTest;
+class RenderContextTest;
 
 namespace rive
 {
@@ -30,24 +30,24 @@ class ImageRectDraw;
 class InteriorTriangulationDraw;
 class MidpointFanPathDraw;
 class StencilClipReset;
-class PLSDraw;
-class PLSGradient;
+class Draw;
+class Gradient;
 class RiveRenderPaint;
 class RiveRenderPath;
 class RiveRenderPathDraw;
-class PLSRenderContextImpl;
+class RenderContextImpl;
 
 // Used as a key for complex gradients.
 class GradientContentKey
 {
 public:
-    inline GradientContentKey(rcp<const PLSGradient> gradient);
+    inline GradientContentKey(rcp<const Gradient> gradient);
     inline GradientContentKey(GradientContentKey&& other);
     bool operator==(const GradientContentKey&) const;
-    const PLSGradient* gradient() const { return m_gradient.get(); }
+    const Gradient* gradient() const { return m_gradient.get(); }
 
 private:
-    rcp<const PLSGradient> m_gradient;
+    rcp<const Gradient> m_gradient;
 };
 
 // Hashes all stops and all colors in a complex gradient.
@@ -57,14 +57,14 @@ public:
     size_t operator()(const GradientContentKey&) const;
 };
 
-// Even though PLSDraw is block-allocated, we still need to call releaseRefs() on each individual
+// Even though Draw is block-allocated, we still need to call releaseRefs() on each individual
 // instance before releasing the block. This smart pointer guarantees we always call releaseRefs()
 // (implementation in pls_draw.hpp).
-struct PLSDrawReleaseRefs
+struct DrawReleaseRefs
 {
-    void operator()(PLSDraw* draw);
+    void operator()(Draw* draw);
 };
-using PLSDrawUniquePtr = std::unique_ptr<PLSDraw, PLSDrawReleaseRefs>;
+using DrawUniquePtr = std::unique_ptr<Draw, DrawReleaseRefs>;
 
 // Top-level, API agnostic rendering context for RiveRenderer. This class manages all the GPU
 // buffers, context state, and other resources required for Rive's pixel local storage path
@@ -86,13 +86,13 @@ using PLSDrawUniquePtr = std::unique_ptr<PLSDraw, PLSDrawReleaseRefs>;
 //       }
 //   }
 //   context->flush();
-class PLSRenderContext : public RiveRenderFactory
+class RenderContext : public RiveRenderFactory
 {
 public:
-    PLSRenderContext(std::unique_ptr<PLSRenderContextImpl>);
-    ~PLSRenderContext();
+    RenderContext(std::unique_ptr<RenderContextImpl>);
+    ~RenderContext();
 
-    PLSRenderContextImpl* impl() { return m_impl.get(); }
+    RenderContextImpl* impl() { return m_impl.get(); }
     template <typename T> T* static_impl_cast() { return static_cast<T*>(m_impl.get()); }
 
     const gpu::PlatformFeatures& platformFeatures() const;
@@ -185,10 +185,10 @@ public:
         return m_clipContentID;
     }
 
-    // Appends a list of high-level PLSDraws to the current frame.
+    // Appends a list of high-level Draws to the current frame.
     // Returns false if the draws don't fit within the current resource constraints, at which point
     // the caller must issue a logical flush and try again.
-    [[nodiscard]] bool pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount);
+    [[nodiscard]] bool pushDrawBatch(DrawUniquePtr draws[], size_t drawCount);
 
     // Records a "logical" flush, in that it builds up commands to break up the render pass and
     // re-render the resource textures, but it won't submit any command buffers or
@@ -198,7 +198,7 @@ public:
     // GPU resources required to execute the GPU commands for a frame.
     struct FlushResources
     {
-        PLSRenderTarget* renderTarget = nullptr;
+        RenderTarget* renderTarget = nullptr;
 
         // Command buffer that rendering commands will be added to.
         //  - VkCommandBuffer on Vulkan.
@@ -254,7 +254,7 @@ public:
     rcp<RenderImage> decodeImage(Span<const uint8_t>) override;
 
 private:
-    friend class PLSDraw;
+    friend class Draw;
     friend class RiveRenderPathDraw;
     friend class MidpointFanPathDraw;
     friend class InteriorTriangulationDraw;
@@ -262,7 +262,7 @@ private:
     friend class ImageMeshDraw;
     friend class StencilClipReset;
     friend class ::PushRetrofittedTrianglesGMDraw; // For testing.
-    friend class ::PLSRenderContextTest;           // For testing.
+    friend class ::RenderContextTest;              // For testing.
 
     // Resets the CPU-side STL containers so they don't have unbounded growth.
     void resetContainers();
@@ -313,7 +313,7 @@ private:
     void mapResourceBuffers(const ResourceAllocationCounts&);
     void unmapResourceBuffers();
 
-    const std::unique_ptr<PLSRenderContextImpl> m_impl;
+    const std::unique_ptr<RenderContextImpl> m_impl;
     const size_t m_maxPathID;
 
     ResourceAllocationCounts m_currentResourceAllocations;
@@ -365,7 +365,7 @@ private:
     TrivialArrayAllocator<uint32_t, alignof(float4)> m_parametricSegmentCountsAllocator{
         kIntermediateDataInitialFillCurves}; // 4 bytes per fill curve.
 
-    // Manages a list of high-level PLSDraws and their required resources.
+    // Manages a list of high-level Draws and their required resources.
     //
     // Since textures have hard size limits, we can't always fit an entire frame into one flush.
     // It's rare for us to require more than one flush in a single frame, but for the times that we
@@ -374,7 +374,7 @@ private:
     class LogicalFlush
     {
     public:
-        LogicalFlush(PLSRenderContext* parent);
+        LogicalFlush(RenderContext* parent);
 
         // Rewinds this flush object back to an empty state without shrinking any internal
         // allocations held by CPU-side STL containers.
@@ -420,12 +420,12 @@ private:
         // Mark the given clip as being read from within a screen-space bounding box.
         void addClipReadBounds(uint32_t clipID, const IAABB& bounds);
 
-        // Appends a list of high-level PLSDraws to the flush.
+        // Appends a list of high-level Draws to the flush.
         // Returns false if the draws don't fit within the current resource constraints, at which
         // point the context must append a new logical flush and try again.
-        [[nodiscard]] bool pushDrawBatch(PLSDrawUniquePtr draws[], size_t drawCount);
+        [[nodiscard]] bool pushDrawBatch(DrawUniquePtr draws[], size_t drawCount);
 
-        // Running counts of data records required by PLSDraws that need to be allocated in the
+        // Running counts of data records required by Draws that need to be allocated in the
         // render context's various GPU buffers.
         struct ResourceCounters
         {
@@ -477,7 +477,7 @@ private:
         //
         // Returns false if the gradient texture is out of space, at which point the caller must
         // issue a logical flush and try again.
-        [[nodiscard]] bool allocateGradient(const PLSGradient*,
+        [[nodiscard]] bool allocateGradient(const Gradient*,
                                             ResourceCounters*,
                                             gpu::ColorRampLocation*);
 
@@ -587,14 +587,14 @@ private:
                                 DrawType,
                                 uint32_t vertexCount,
                                 uint32_t baseVertex);
-        DrawBatch& pushDraw(PLSDraw*,
+        DrawBatch& pushDraw(Draw*,
                             DrawType,
                             gpu::PaintType,
                             uint32_t elementCount,
                             uint32_t baseElement);
 
         // Instance pointer to the outer parent class.
-        PLSRenderContext* const m_ctx;
+        RenderContext* const m_ctx;
 
         // Running counts of GPU data records that need to be allocated for draws.
         ResourceCounters m_resourceCounts;
@@ -609,13 +609,13 @@ private:
         // them to the entire gradient texture width.
         std::unordered_map<GradientContentKey, uint16_t, DeepHashGradient>
             m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
-        std::vector<const PLSGradient*> m_pendingComplexColorRampDraws;
+        std::vector<const Gradient*> m_pendingComplexColorRampDraws;
 
         std::vector<ClipInfo> m_clips;
 
         // High-level draw list. These get built into a low-level list of gpu::DrawBatch objects
         // during writeResources().
-        std::vector<PLSDrawUniquePtr> m_plsDraws;
+        std::vector<DrawUniquePtr> m_plsDraws;
         IAABB m_combinedDrawBounds;
 
         // Layout state.

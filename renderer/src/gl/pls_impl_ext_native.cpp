@@ -61,7 +61,7 @@ private:
     const rcp<GLState> m_state;
 };
 
-class PLSRenderContextGLImpl::PLSImplEXTNative : public PLSRenderContextGLImpl::PLSImpl
+class RenderContextGLImpl::PLSImplEXTNative : public RenderContextGLImpl::PixelLocalStorageImpl
 {
 public:
     PLSImplEXTNative(const GLCapabilities& capabilities) : m_capabilities(capabilities) {}
@@ -82,14 +82,13 @@ public:
 
     bool supportsRasterOrdering(const GLCapabilities&) const override { return true; }
 
-    void activatePixelLocalStorage(PLSRenderContextGLImpl* impl,
-                                   const FlushDescriptor& desc) override
+    void activatePixelLocalStorage(RenderContextGLImpl* impl, const FlushDescriptor& desc) override
     {
         assert(impl->m_capabilities.EXT_shader_pixel_local_storage);
         assert(impl->m_capabilities.EXT_shader_framebuffer_fetch ||
                impl->m_capabilities.ARM_shader_framebuffer_fetch);
 
-        auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
+        auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
         glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 
@@ -118,7 +117,7 @@ public:
         }
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGLImpl* impl,
+    void deactivatePixelLocalStorage(RenderContextGLImpl* impl,
                                      const FlushDescriptor& desc) override
     {
         // Issue a fullscreen draw that transfers the color information in pixel local storage to
@@ -175,8 +174,8 @@ private:
     rcp<GLState> m_state;
 };
 
-std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplEXTNative(
-    const GLCapabilities& capabilities)
+std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl> RenderContextGLImpl::
+    MakePLSImplEXTNative(const GLCapabilities& capabilities)
 {
     return std::make_unique<PLSImplEXTNative>(capabilities);
 }

@@ -186,8 +186,8 @@ void TextureRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMask)
 #endif
 }
 
-PLSRenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
-    PLSRenderContextGLImpl* plsContextGL,
+RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
+    RenderContextGLImpl* plsContextGL,
     int sampleCount,
     const IAABB* preserveBounds,
     bool* isFBO0)
@@ -322,8 +322,8 @@ void FramebufferRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMas
     m_textureRenderTarget.bindAsImageTextures(drawBufferMask);
 }
 
-PLSRenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::bindMSAAFramebuffer(
-    PLSRenderContextGLImpl* plsContextGL,
+RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::bindMSAAFramebuffer(
+    RenderContextGLImpl* plsContextGL,
     int sampleCount,
     const IAABB* preserveBounds,
     bool* isFBO0)

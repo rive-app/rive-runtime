@@ -41,13 +41,13 @@ static bool validate_gradient_stops(const ColorInt colors[], // [count]
     return true;
 }
 
-rcp<PLSGradient> PLSGradient::MakeLinear(float sx,
-                                         float sy,
-                                         float ex,
-                                         float ey,
-                                         const ColorInt colors[], // [count]
-                                         const float stops[],     // [count]
-                                         size_t count)
+rcp<Gradient> Gradient::MakeLinear(float sx,
+                                   float sy,
+                                   float ex,
+                                   float ey,
+                                   const ColorInt colors[], // [count]
+                                   const float stops[],     // [count]
+                                   size_t count)
 {
     if (!validate_gradient_stops(colors, stops, count))
     {
@@ -56,8 +56,8 @@ rcp<PLSGradient> PLSGradient::MakeLinear(float sx,
 
     float2 start = {sx, sy};
     float2 end = {ex, ey};
-    PLSGradDataArray<ColorInt> newColors(colors, count);
-    PLSGradDataArray<float> newStops(stops, count);
+    GradDataArray<ColorInt> newColors(colors, count);
+    GradDataArray<float> newStops(stops, count);
 
     // If the stops don't begin and end on 0 and 1, transform the gradient so they do. This allows
     // us to take full advantage of the gradient's range of pixels in the texture.
@@ -99,29 +99,29 @@ rcp<PLSGradient> PLSGradient::MakeLinear(float sx,
 
     float2 v = end - start;
     v *= 1.f / simd::dot(v, v); // dot(v, end - start) == 1
-    return rcp(new PLSGradient(PaintType::linearGradient,
-                               std::move(newColors),
-                               std::move(newStops),
-                               count,
-                               v.x,
-                               v.y,
-                               -simd::dot(v, start)));
+    return rcp(new Gradient(PaintType::linearGradient,
+                            std::move(newColors),
+                            std::move(newStops),
+                            count,
+                            v.x,
+                            v.y,
+                            -simd::dot(v, start)));
 }
 
-rcp<PLSGradient> PLSGradient::MakeRadial(float cx,
-                                         float cy,
-                                         float radius,
-                                         const ColorInt colors[], // [count]
-                                         const float stops[],     // [count]
-                                         size_t count)
+rcp<Gradient> Gradient::MakeRadial(float cx,
+                                   float cy,
+                                   float radius,
+                                   const ColorInt colors[], // [count]
+                                   const float stops[],     // [count]
+                                   size_t count)
 {
     if (!validate_gradient_stops(colors, stops, count))
     {
         return nullptr;
     }
 
-    PLSGradDataArray<ColorInt> newColors(colors, count);
-    PLSGradDataArray<float> newStops(stops, count);
+    GradDataArray<ColorInt> newColors(colors, count);
+    GradDataArray<float> newStops(stops, count);
 
     // If the stops don't end on 1, scale the gradient so they do. This allows us to take better
     // advantage of the gradient's full range of pixels in the texture.
@@ -162,16 +162,16 @@ rcp<PLSGradient> PLSGradient::MakeRadial(float cx,
         assert(validate_gradient_stops(newColors.get(), newStops.get(), count));
     }
 
-    return rcp(new PLSGradient(PaintType::radialGradient,
-                               std::move(newColors),
-                               std::move(newStops),
-                               count,
-                               cx,
-                               cy,
-                               radius));
+    return rcp(new Gradient(PaintType::radialGradient,
+                            std::move(newColors),
+                            std::move(newStops),
+                            count,
+                            cx,
+                            cy,
+                            radius));
 }
 
-bool PLSGradient::isOpaque() const
+bool Gradient::isOpaque() const
 {
     if (m_isOpaque == gpu::TriState::unknown)
     {
@@ -195,7 +195,7 @@ void RiveRenderPaint::color(ColorInt color)
 
 void RiveRenderPaint::shader(rcp<RenderShader> shader)
 {
-    m_gradient = static_rcp_cast<PLSGradient>(std::move(shader));
+    m_gradient = static_rcp_cast<Gradient>(std::move(shader));
     m_paintType = m_gradient ? m_gradient->paintType() : PaintType::solidColor;
     // m_simpleValue.colorRampLocation is unused at this level. A new location for a this gradient's
     // color ramp will decided by the render context every frame.
@@ -203,7 +203,7 @@ void RiveRenderPaint::shader(rcp<RenderShader> shader)
     m_imageTexture.reset();
 }
 
-void RiveRenderPaint::image(rcp<const PLSTexture> imageTexture, float opacity)
+void RiveRenderPaint::image(rcp<const Texture> imageTexture, float opacity)
 {
     m_paintType = PaintType::image;
     m_simpleValue.imageOpacity = opacity;

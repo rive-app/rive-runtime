@@ -144,7 +144,7 @@ void glProvokingVertexANGLE(GLenum provokeMode)
 
 namespace rive::gpu
 {
-using DrawBufferMask = PLSRenderTargetGL::DrawBufferMask;
+using DrawBufferMask = RenderTargetGL::DrawBufferMask;
 
 static GLenum webgl_load_op(gpu::LoadAction loadAction)
 {
@@ -160,17 +160,17 @@ static GLenum webgl_load_op(gpu::LoadAction loadAction)
     RIVE_UNREACHABLE();
 }
 
-class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSImpl
+class RenderContextGLImpl::PLSImplWebGL : public RenderContextGLImpl::PixelLocalStorageImpl
 {
     bool supportsRasterOrdering(const GLCapabilities& capabilities) const override
     {
         return capabilities.ANGLE_shader_pixel_local_storage_coherent;
     }
 
-    void activatePixelLocalStorage(PLSRenderContextGLImpl* plsContextImpl,
+    void activatePixelLocalStorage(RenderContextGLImpl* plsContextImpl,
                                    const FlushDescriptor& desc) override
     {
-        auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
+        auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
         auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget);
@@ -211,7 +211,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
         glBeginPixelLocalStorageANGLE(4, loadOps);
     }
 
-    void deactivatePixelLocalStorage(PLSRenderContextGLImpl*, const FlushDescriptor& desc) override
+    void deactivatePixelLocalStorage(RenderContextGLImpl*, const FlushDescriptor& desc) override
     {
         constexpr static GLenum kStoreOps[4] = {GL_STORE_OP_STORE_ANGLE,
                                                 GL_DONT_CARE,
@@ -224,7 +224,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
         glEndPixelLocalStorageANGLE(4, kStoreOps);
 
         if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
-                static_cast<PLSRenderTargetGL*>(desc.renderTarget)))
+                static_cast<RenderTargetGL*>(desc.renderTarget)))
         {
             // We rendered to an offscreen texture. Copy back to the external target FBO.
             framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER,
@@ -241,7 +241,7 @@ class PLSRenderContextGLImpl::PLSImplWebGL : public PLSRenderContextGLImpl::PLSI
     }
 };
 
-std::unique_ptr<PLSRenderContextGLImpl::PLSImpl> PLSRenderContextGLImpl::MakePLSImplWebGL()
+std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl> RenderContextGLImpl::MakePLSImplWebGL()
 {
     return std::make_unique<PLSImplWebGL>();
 }

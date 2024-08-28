@@ -41,7 +41,7 @@ static id<MTLRenderPipelineState> make_pipeline_state(id<MTLDevice> gpu,
 }
 
 // Renders color ramps to the gradient texture.
-class PLSRenderContextMetalImpl::ColorRampPipeline
+class RenderContextMetalImpl::ColorRampPipeline
 {
 public:
     ColorRampPipeline(id<MTLDevice> gpu, id<MTLLibrary> plsLibrary)
@@ -60,7 +60,7 @@ private:
 };
 
 // Renders tessellated vertices to the tessellation texture.
-class PLSRenderContextMetalImpl::TessellatePipeline
+class RenderContextMetalImpl::TessellatePipeline
 {
 public:
     TessellatePipeline(id<MTLDevice> gpu, id<MTLLibrary> plsLibrary)
@@ -79,7 +79,7 @@ private:
 };
 
 // Renders paths to the main render target.
-class PLSRenderContextMetalImpl::DrawPipeline
+class RenderContextMetalImpl::DrawPipeline
 {
 public:
     // Precompiled functions are embedded in namespaces. Return the fully qualified name of the
@@ -272,16 +272,16 @@ private:
     id<MTLBuffer> m_buffers[kBufferRingSize];
 };
 
-std::unique_ptr<PLSRenderContext> PLSRenderContextMetalImpl::MakeContext(
+std::unique_ptr<RenderContext> RenderContextMetalImpl::MakeContext(
     id<MTLDevice> gpu, const ContextOptions& contextOptions)
 {
-    auto plsContextImpl = std::unique_ptr<PLSRenderContextMetalImpl>(
-        new PLSRenderContextMetalImpl(gpu, contextOptions));
-    return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
+    auto plsContextImpl =
+        std::unique_ptr<RenderContextMetalImpl>(new RenderContextMetalImpl(gpu, contextOptions));
+    return std::make_unique<RenderContext>(std::move(plsContextImpl));
 }
 
-PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
-                                                     const ContextOptions& contextOptions) :
+RenderContextMetalImpl::RenderContextMetalImpl(id<MTLDevice> gpu,
+                                               const ContextOptions& contextOptions) :
     m_contextOptions(contextOptions), m_gpu(gpu)
 {
     // It appears, so far, that we don't need to use flat interpolation for path IDs on any Apple
@@ -422,7 +422,7 @@ PLSRenderContextMetalImpl::PLSRenderContextMetalImpl(id<MTLDevice> gpu,
                                                options:MTLResourceStorageModeShared];
 }
 
-PLSRenderContextMetalImpl::~PLSRenderContextMetalImpl() {}
+RenderContextMetalImpl::~RenderContextMetalImpl() {}
 
 // If the GPU supports framebuffer reads (called "programmable blending" in the feature tables), PLS
 // planes besides the main framebuffer can exist in ephemeral "memoryless" storage. This means their
@@ -443,12 +443,12 @@ static id<MTLTexture> make_pls_memoryless_texture(id<MTLDevice> gpu,
     return [gpu newTextureWithDescriptor:desc];
 }
 
-PLSRenderTargetMetal::PLSRenderTargetMetal(id<MTLDevice> gpu,
-                                           MTLPixelFormat pixelFormat,
-                                           uint32_t width,
-                                           uint32_t height,
-                                           const PlatformFeatures& platformFeatures) :
-    PLSRenderTarget(width, height), m_gpu(gpu), m_pixelFormat(pixelFormat)
+RenderTargetMetal::RenderTargetMetal(id<MTLDevice> gpu,
+                                     MTLPixelFormat pixelFormat,
+                                     uint32_t width,
+                                     uint32_t height,
+                                     const PlatformFeatures& platformFeatures) :
+    RenderTarget(width, height), m_gpu(gpu), m_pixelFormat(pixelFormat)
 {
     m_targetTexture = nil; // Will be configured later by setTargetTexture().
     if (platformFeatures.supportsRasterOrdering)
@@ -462,17 +462,17 @@ PLSRenderTargetMetal::PLSRenderTargetMetal(id<MTLDevice> gpu,
     }
 }
 
-void PLSRenderTargetMetal::setTargetTexture(id<MTLTexture> texture)
+void RenderTargetMetal::setTargetTexture(id<MTLTexture> texture)
 {
     assert(!texture || compatibleWith(texture));
     m_targetTexture = texture;
 }
 
-rcp<PLSRenderTargetMetal> PLSRenderContextMetalImpl::makeRenderTarget(MTLPixelFormat pixelFormat,
-                                                                      uint32_t width,
-                                                                      uint32_t height)
+rcp<RenderTargetMetal> RenderContextMetalImpl::makeRenderTarget(MTLPixelFormat pixelFormat,
+                                                                uint32_t width,
+                                                                uint32_t height)
 {
-    return rcp(new PLSRenderTargetMetal(m_gpu, pixelFormat, width, height, m_platformFeatures));
+    return rcp(new RenderTargetMetal(m_gpu, pixelFormat, width, height, m_platformFeatures));
 }
 
 class RenderBufferMetalImpl : public lite_rtti_override<RenderBuffer, RenderBufferMetalImpl>
@@ -511,22 +511,22 @@ private:
     int m_submittedBufferIdx = -1;
 };
 
-rcp<RenderBuffer> PLSRenderContextMetalImpl::makeRenderBuffer(RenderBufferType type,
-                                                              RenderBufferFlags flags,
-                                                              size_t sizeInBytes)
+rcp<RenderBuffer> RenderContextMetalImpl::makeRenderBuffer(RenderBufferType type,
+                                                           RenderBufferFlags flags,
+                                                           size_t sizeInBytes)
 {
     return make_rcp<RenderBufferMetalImpl>(type, flags, sizeInBytes, m_gpu);
 }
 
-class PLSTextureMetalImpl : public PLSTexture
+class TextureMetalImpl : public Texture
 {
 public:
-    PLSTextureMetalImpl(id<MTLDevice> gpu,
-                        uint32_t width,
-                        uint32_t height,
-                        uint32_t mipLevelCount,
-                        const uint8_t imageDataRGBA[]) :
-        PLSTexture(width, height)
+    TextureMetalImpl(id<MTLDevice> gpu,
+                     uint32_t width,
+                     uint32_t height,
+                     uint32_t mipLevelCount,
+                     const uint8_t imageDataRGBA[]) :
+        Texture(width, height)
     {
         // Create the texture.
         MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
@@ -566,37 +566,37 @@ private:
     mutable bool m_mipsDirty = true;
 };
 
-rcp<PLSTexture> PLSRenderContextMetalImpl::makeImageTexture(uint32_t width,
-                                                            uint32_t height,
-                                                            uint32_t mipLevelCount,
-                                                            const uint8_t imageDataRGBA[])
+rcp<Texture> RenderContextMetalImpl::makeImageTexture(uint32_t width,
+                                                      uint32_t height,
+                                                      uint32_t mipLevelCount,
+                                                      const uint8_t imageDataRGBA[])
 {
-    return make_rcp<PLSTextureMetalImpl>(m_gpu, width, height, mipLevelCount, imageDataRGBA);
+    return make_rcp<TextureMetalImpl>(m_gpu, width, height, mipLevelCount, imageDataRGBA);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeUniformBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> RenderContextMetalImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeStorageBufferRing(
+std::unique_ptr<BufferRing> RenderContextMetalImpl::makeStorageBufferRing(
     size_t capacityInBytes, gpu::StorageBufferStructure)
 {
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeVertexBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> RenderContextMetalImpl::makeVertexBufferRing(size_t capacityInBytes)
 {
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextMetalImpl::makeTextureTransferBufferRing(
+std::unique_ptr<BufferRing> RenderContextMetalImpl::makeTextureTransferBufferRing(
     size_t capacityInBytes)
 {
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-void PLSRenderContextMetalImpl::resizeGradientTexture(uint32_t width, uint32_t height)
+void RenderContextMetalImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
     if (width == 0 || height == 0)
     {
@@ -614,7 +614,7 @@ void PLSRenderContextMetalImpl::resizeGradientTexture(uint32_t width, uint32_t h
     m_gradientTexture = [m_gpu newTextureWithDescriptor:desc];
 }
 
-void PLSRenderContextMetalImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
+void RenderContextMetalImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
     if (width == 0 || height == 0)
     {
@@ -632,11 +632,11 @@ void PLSRenderContextMetalImpl::resizeTessellationTexture(uint32_t width, uint32
     m_tessVertexTexture = [m_gpu newTextureWithDescriptor:desc];
 }
 
-const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
-    findCompatibleDrawPipeline(gpu::DrawType drawType,
-                               gpu::ShaderFeatures shaderFeatures,
-                               gpu::InterlockMode interlockMode,
-                               gpu::ShaderMiscFlags shaderMiscFlags)
+const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::findCompatibleDrawPipeline(
+    gpu::DrawType drawType,
+    gpu::ShaderFeatures shaderFeatures,
+    gpu::InterlockMode interlockMode,
+    gpu::ShaderMiscFlags shaderMiscFlags)
 {
     uint32_t pipelineKey =
         gpu::ShaderUniqueKey(drawType, shaderFeatures, interlockMode, shaderMiscFlags);
@@ -715,7 +715,7 @@ const PLSRenderContextMetalImpl::DrawPipeline* PLSRenderContextMetalImpl::
         drawType, fullyFeaturedPipelineFeatures, interlockMode, shaderMiscFlags);
 }
 
-void PLSRenderContextMetalImpl::prepareToMapBuffers()
+void RenderContextMetalImpl::prepareToMapBuffers()
 {
     // Wait until the GPU finishes rendering flush "N + 1 - kBufferRingSize". This ensures it
     // is safe for the CPU to begin modifying the next buffers in our rings.
@@ -741,13 +741,13 @@ static MTLViewport make_viewport(uint32_t x, uint32_t y, uint32_t width, uint32_
     };
 }
 
-id<MTLRenderCommandEncoder> PLSRenderContextMetalImpl::makeRenderPassForDraws(
+id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
     const gpu::FlushDescriptor& flushDesc,
     MTLRenderPassDescriptor* passDesc,
     id<MTLCommandBuffer> commandBuffer,
     gpu::ShaderMiscFlags baselineShaderMiscFlags)
 {
-    auto* renderTarget = static_cast<PLSRenderTargetMetal*>(flushDesc.renderTarget);
+    auto* renderTarget = static_cast<RenderTargetMetal*>(flushDesc.renderTarget);
 
     id<MTLRenderCommandEncoder> encoder =
         [commandBuffer renderCommandEncoderWithDescriptor:passDesc];
@@ -819,11 +819,11 @@ id<MTLRenderCommandEncoder> PLSRenderContextMetalImpl::makeRenderPassForDraws(
     return encoder;
 }
 
-void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
+void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 {
     assert(desc.interlockMode != gpu::InterlockMode::depthStencil); // TODO: msaa.
 
-    auto* renderTarget = static_cast<PLSRenderTargetMetal*>(desc.renderTarget);
+    auto* renderTarget = static_cast<RenderTargetMetal*>(desc.renderTarget);
     id<MTLCommandBuffer> commandBuffer = (__bridge id<MTLCommandBuffer>)desc.externalCommandBuffer;
 
     // Render the complex color ramps to the gradient texture.
@@ -916,7 +916,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
     // Generate mipmaps if needed.
     for (const DrawBatch& batch : *desc.drawList)
     {
-        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(batch.imageTexture))
+        if (auto imageTextureMetal = static_cast<const TextureMetalImpl*>(batch.imageTexture))
         {
             imageTextureMetal->ensureMipmaps(commandBuffer);
         }
@@ -1046,7 +1046,7 @@ void PLSRenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 ->pipelineState(renderTarget->pixelFormat());
 
         // Bind the appropriate image texture, if any.
-        if (auto imageTextureMetal = static_cast<const PLSTextureMetalImpl*>(batch.imageTexture))
+        if (auto imageTextureMetal = static_cast<const TextureMetalImpl*>(batch.imageTexture))
         {
             [encoder setFragmentTexture:imageTextureMetal->texture() atIndex:IMAGE_TEXTURE_IDX];
         }

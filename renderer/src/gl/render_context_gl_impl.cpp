@@ -63,9 +63,9 @@ constexpr static int kPLSTexIdxOffset = 1;
 
 namespace rive::gpu
 {
-PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
-                                               GLCapabilities capabilities,
-                                               std::unique_ptr<PLSImpl> plsImpl) :
+RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
+                                         GLCapabilities capabilities,
+                                         std::unique_ptr<PixelLocalStorageImpl> plsImpl) :
     m_capabilities(capabilities),
     m_plsImpl(std::move(plsImpl)),
     m_state(make_rcp<GLState>(m_capabilities))
@@ -222,7 +222,7 @@ PLSRenderContextGLImpl::PLSRenderContextGLImpl(const char* rendererString,
     }
 }
 
-PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
+RenderContextGLImpl::~RenderContextGLImpl()
 {
     glDeleteTextures(1, &m_gradientTexture);
     glDeleteTextures(1, &m_tessVertexTexture);
@@ -231,7 +231,7 @@ PLSRenderContextGLImpl::~PLSRenderContextGLImpl()
     m_state->invalidate();
 }
 
-void PLSRenderContextGLImpl::invalidateGLState()
+void RenderContextGLImpl::invalidateGLState()
 {
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
@@ -242,7 +242,7 @@ void PLSRenderContextGLImpl::invalidateGLState()
     m_state->invalidate();
 }
 
-void PLSRenderContextGLImpl::unbindGLInternalResources()
+void RenderContextGLImpl::unbindGLInternalResources()
 {
     m_state->bindVAO(0);
     m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
@@ -257,21 +257,21 @@ void PLSRenderContextGLImpl::unbindGLInternalResources()
     }
 }
 
-rcp<RenderBuffer> PLSRenderContextGLImpl::makeRenderBuffer(RenderBufferType type,
-                                                           RenderBufferFlags flags,
-                                                           size_t sizeInBytes)
+rcp<RenderBuffer> RenderContextGLImpl::makeRenderBuffer(RenderBufferType type,
+                                                        RenderBufferFlags flags,
+                                                        size_t sizeInBytes)
 {
-    return make_rcp<PLSRenderBufferGLImpl>(type, flags, sizeInBytes, m_state);
+    return make_rcp<RenderBufferGLImpl>(type, flags, sizeInBytes, m_state);
 }
 
-class PLSTextureGLImpl : public PLSTexture
+class TextureGLImpl : public Texture
 {
 public:
-    PLSTextureGLImpl(uint32_t width,
-                     uint32_t height,
-                     GLuint textureID,
-                     const GLCapabilities& capabilities) :
-        PLSTexture(width, height), m_textureID(textureID)
+    TextureGLImpl(uint32_t width,
+                  uint32_t height,
+                  GLuint textureID,
+                  const GLCapabilities& capabilities) :
+        Texture(width, height), m_textureID(textureID)
     {
 #ifdef RIVE_DESKTOP_GL
         if (capabilities.ARB_bindless_texture)
@@ -282,7 +282,7 @@ public:
 #endif
     }
 
-    ~PLSTextureGLImpl() override
+    ~TextureGLImpl() override
     {
 #ifdef RIVE_DESKTOP_GL
         if (m_bindlessTextureHandle != 0)
@@ -300,10 +300,10 @@ private:
     GLuint m_textureID = 0;
 };
 
-rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
-                                                         uint32_t height,
-                                                         uint32_t mipLevelCount,
-                                                         const uint8_t imageDataRGBA[])
+rcp<Texture> RenderContextGLImpl::makeImageTexture(uint32_t width,
+                                                   uint32_t height,
+                                                   uint32_t mipLevelCount,
+                                                   const uint8_t imageDataRGBA[])
 {
     GLuint textureID;
     glGenTextures(1, &textureID);
@@ -325,11 +325,11 @@ rcp<PLSTexture> PLSRenderContextGLImpl::makeImageTexture(uint32_t width,
     return adoptImageTexture(width, height, textureID);
 }
 
-rcp<PLSTexture> PLSRenderContextGLImpl::adoptImageTexture(uint32_t width,
-                                                          uint32_t height,
-                                                          GLuint textureID)
+rcp<Texture> RenderContextGLImpl::adoptImageTexture(uint32_t width,
+                                                    uint32_t height,
+                                                    GLuint textureID)
 {
-    return make_rcp<PLSTextureGLImpl>(width, height, textureID, m_capabilities);
+    return make_rcp<TextureGLImpl>(width, height, textureID, m_capabilities);
 }
 
 // BufferRingImpl in GL on a given buffer target. In order to support WebGL2, we don't do hardware
@@ -529,12 +529,12 @@ protected:
     GLuint m_textures[gpu::kBufferRingSize];
 };
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeUniformBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> RenderContextGLImpl::makeUniformBufferRing(size_t capacityInBytes)
 {
     return BufferRingGLImpl::Make(capacityInBytes, GL_UNIFORM_BUFFER, m_state);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeStorageBufferRing(
+std::unique_ptr<BufferRing> RenderContextGLImpl::makeStorageBufferRing(
     size_t capacityInBytes,
     gpu::StorageBufferStructure bufferStructure)
 {
@@ -552,18 +552,18 @@ std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeStorageBufferRing(
     }
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeVertexBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> RenderContextGLImpl::makeVertexBufferRing(size_t capacityInBytes)
 {
     return BufferRingGLImpl::Make(capacityInBytes, GL_ARRAY_BUFFER, m_state);
 }
 
-std::unique_ptr<BufferRing> PLSRenderContextGLImpl::makeTextureTransferBufferRing(
+std::unique_ptr<BufferRing> RenderContextGLImpl::makeTextureTransferBufferRing(
     size_t capacityInBytes)
 {
     return BufferRingGLImpl::Make(capacityInBytes, GL_PIXEL_UNPACK_BUFFER, m_state);
 }
 
-void PLSRenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
+void RenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
     glDeleteTextures(1, &m_gradientTexture);
     if (width == 0 || height == 0)
@@ -586,7 +586,7 @@ void PLSRenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t heig
                            0);
 }
 
-void PLSRenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
+void RenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
 {
     glDeleteTextures(1, &m_tessVertexTexture);
     if (width == 0 || height == 0)
@@ -609,12 +609,12 @@ void PLSRenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t 
                            0);
 }
 
-PLSRenderContextGLImpl::DrawShader::DrawShader(PLSRenderContextGLImpl* plsContextImpl,
-                                               GLenum shaderType,
-                                               gpu::DrawType drawType,
-                                               ShaderFeatures shaderFeatures,
-                                               gpu::InterlockMode interlockMode,
-                                               gpu::ShaderMiscFlags shaderMiscFlags)
+RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* plsContextImpl,
+                                            GLenum shaderType,
+                                            gpu::DrawType drawType,
+                                            ShaderFeatures shaderFeatures,
+                                            gpu::InterlockMode interlockMode,
+                                            gpu::ShaderMiscFlags shaderMiscFlags)
 {
 #ifdef DISABLE_PLS_ATOMICS
     if (interlockMode == gpu::InterlockMode::atomics)
@@ -749,11 +749,11 @@ PLSRenderContextGLImpl::DrawShader::DrawShader(PLSRenderContextGLImpl* plsContex
                                   plsContextImpl->m_capabilities);
 }
 
-PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsContextImpl,
-                                                 gpu::DrawType drawType,
-                                                 gpu::ShaderFeatures shaderFeatures,
-                                                 gpu::InterlockMode interlockMode,
-                                                 gpu::ShaderMiscFlags fragmentShaderMiscFlags) :
+RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* plsContextImpl,
+                                              gpu::DrawType drawType,
+                                              gpu::ShaderFeatures shaderFeatures,
+                                              gpu::InterlockMode interlockMode,
+                                              gpu::ShaderMiscFlags fragmentShaderMiscFlags) :
     m_fragmentShader(plsContextImpl,
                      GL_FRAGMENT_SHADER,
                      drawType,
@@ -826,7 +826,7 @@ PLSRenderContextGLImpl::DrawProgram::DrawProgram(PLSRenderContextGLImpl* plsCont
     }
 }
 
-PLSRenderContextGLImpl::DrawProgram::~DrawProgram() { m_state->deleteProgram(m_id); }
+RenderContextGLImpl::DrawProgram::~DrawProgram() { m_state->deleteProgram(m_id); }
 
 static GLuint gl_buffer_id(const BufferRing* bufferRing)
 {
@@ -853,8 +853,8 @@ static void bind_storage_buffer(const GLCapabilities& capabilities,
     }
 }
 
-void PLSRenderContextGLImpl::PLSImpl::ensureRasterOrderingEnabled(
-    PLSRenderContextGLImpl* plsContextImpl,
+void RenderContextGLImpl::PixelLocalStorageImpl::ensureRasterOrderingEnabled(
+    RenderContextGLImpl* plsContextImpl,
     const gpu::FlushDescriptor& desc,
     bool enabled)
 {
@@ -944,9 +944,9 @@ private:
     const void* m_indexOffset = nullptr;
 };
 
-void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
+void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 {
-    auto renderTarget = static_cast<PLSRenderTargetGL*>(desc.renderTarget);
+    auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
 
     m_state->setWriteMasks(true, true, 0xff);
     m_state->disableBlending();
@@ -1115,7 +1115,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
 #endif
 
-    auto msaaResolveAction = PLSRenderTargetGL::MSAAResolveAction::automatic;
+    auto msaaResolveAction = RenderTargetGL::MSAAResolveAction::automatic;
     std::array<GLenum, 3> msaaDepthStencilColor;
     if (desc.interlockMode != gpu::InterlockMode::depthStencil)
     {
@@ -1205,7 +1205,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
         m_state->bindProgram(drawProgram.id());
 
-        if (auto imageTextureGL = static_cast<const PLSTextureGLImpl*>(batch.imageTexture))
+        if (auto imageTextureGL = static_cast<const TextureGLImpl*>(batch.imageTexture))
         {
             glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
             glBindTexture(GL_TEXTURE_2D, imageTextureGL->textureID());
@@ -1233,8 +1233,8 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             {
                 // Read back the framebuffer where we need a dstColor for blending.
                 renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
-                                                      PLSRenderTargetGL::DrawBufferMask::color);
-                for (const PLSDraw* draw = batch.internalDrawList; draw != nullptr;
+                                                      RenderTargetGL::DrawBufferMask::color);
+                for (const Draw* draw = batch.internalDrawList; draw != nullptr;
                      draw = draw->batchInternalNeighbor())
                 {
                     assert(draw->blendMode() != BlendMode::srcOver);
@@ -1434,12 +1434,10 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
             case gpu::DrawType::imageMesh:
             {
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
-                                        const PLSRenderBufferGLImpl*,
+                                        const RenderBufferGLImpl*,
                                         batch.vertexBuffer);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const PLSRenderBufferGLImpl*, batch.uvBuffer);
-                LITE_RTTI_CAST_OR_BREAK(indexBuffer,
-                                        const PLSRenderBufferGLImpl*,
-                                        batch.indexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferGLImpl*, batch.uvBuffer);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer, const RenderBufferGLImpl*, batch.indexBuffer);
                 m_state->bindVAO(m_imageMeshVAO);
                 m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->submittedBufferID());
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
@@ -1512,7 +1510,7 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_STENCIL_TEST);
-        if (msaaResolveAction == PLSRenderTargetGL::MSAAResolveAction::framebufferBlit)
+        if (msaaResolveAction == RenderTargetGL::MSAAResolveAction::framebufferBlit)
         {
             renderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
@@ -1536,9 +1534,9 @@ void PLSRenderContextGLImpl::flush(const FlushDescriptor& desc)
 #endif
 }
 
-void PLSRenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
-                                                            const IAABB& bounds,
-                                                            uint32_t renderTargetHeight)
+void RenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
+                                                         const IAABB& bounds,
+                                                         uint32_t renderTargetHeight)
 {
     if (m_blitAsDrawProgram == 0)
     {
@@ -1574,7 +1572,7 @@ void PLSRenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
     glDisable(GL_SCISSOR_TEST);
 }
 
-std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
+std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     const ContextOptions& contextOptions)
 {
     GLCapabilities capabilities{};
@@ -1871,13 +1869,13 @@ std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
     return MakeContext(rendererString, capabilities, nullptr);
 }
 
-std::unique_ptr<PLSRenderContext> PLSRenderContextGLImpl::MakeContext(
+std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     const char* rendererString,
     GLCapabilities capabilities,
-    std::unique_ptr<PLSImpl> plsImpl)
+    std::unique_ptr<PixelLocalStorageImpl> plsImpl)
 {
-    auto plsContextImpl = std::unique_ptr<PLSRenderContextGLImpl>(
-        new PLSRenderContextGLImpl(rendererString, capabilities, std::move(plsImpl)));
-    return std::make_unique<PLSRenderContext>(std::move(plsContextImpl));
+    auto plsContextImpl = std::unique_ptr<RenderContextGLImpl>(
+        new RenderContextGLImpl(rendererString, capabilities, std::move(plsImpl)));
+    return std::make_unique<RenderContext>(std::move(plsContextImpl));
 }
 } // namespace rive::gpu

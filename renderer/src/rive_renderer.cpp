@@ -77,7 +77,7 @@ bool RiveRenderer::ClipElement::isEquivalent(const Mat2D& matrix_,
            path_->getFillRule() == fillRule;
 }
 
-RiveRenderer::RiveRenderer(PLSRenderContext* context) : m_context(context) {}
+RiveRenderer::RiveRenderer(RenderContext* context) : m_context(context) {}
 
 RiveRenderer::~RiveRenderer() {}
 
@@ -259,7 +259,7 @@ void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
 
 void RiveRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode, float opacity)
 {
-    LITE_RTTI_CAST_OR_RETURN(image, const PLSImage*, renderImage);
+    LITE_RTTI_CAST_OR_RETURN(image, const Image*, renderImage);
 
     // Scale the view matrix so we can draw this image as the rect [0, 0, 1, 1].
     save();
@@ -270,8 +270,8 @@ void RiveRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode
         // Fall back on ImageRectDraw if the current frame doesn't support drawing paths with image
         // paints.
         const Mat2D& m = m_stack.back().matrix;
-        auto plsImage = static_cast<const PLSImage*>(renderImage);
-        clipAndPushDraw(PLSDrawUniquePtr(
+        auto plsImage = static_cast<const Image*>(renderImage);
+        clipAndPushDraw(DrawUniquePtr(
             m_context->make<ImageRectDraw>(m_context,
                                            m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
                                            m,
@@ -308,25 +308,25 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
                                  BlendMode blendMode,
                                  float opacity)
 {
-    LITE_RTTI_CAST_OR_RETURN(image, const PLSImage*, renderImage);
-    const PLSTexture* plsTexture = image->getTexture();
+    LITE_RTTI_CAST_OR_RETURN(image, const Image*, renderImage);
+    const Texture* plsTexture = image->getTexture();
 
     assert(vertices_f32);
     assert(uvCoords_f32);
     assert(indices_u16);
 
-    clipAndPushDraw(PLSDrawUniquePtr(m_context->make<ImageMeshDraw>(PLSDraw::kFullscreenPixelBounds,
-                                                                    m_stack.back().matrix,
-                                                                    blendMode,
-                                                                    ref_rcp(plsTexture),
-                                                                    std::move(vertices_f32),
-                                                                    std::move(uvCoords_f32),
-                                                                    std::move(indices_u16),
-                                                                    indexCount,
-                                                                    opacity)));
+    clipAndPushDraw(DrawUniquePtr(m_context->make<ImageMeshDraw>(Draw::kFullscreenPixelBounds,
+                                                                 m_stack.back().matrix,
+                                                                 blendMode,
+                                                                 ref_rcp(plsTexture),
+                                                                 std::move(vertices_f32),
+                                                                 std::move(uvCoords_f32),
+                                                                 std::move(indices_u16),
+                                                                 indexCount,
+                                                                 opacity)));
 }
 
-void RiveRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
+void RiveRenderer::clipAndPushDraw(DrawUniquePtr draw)
 {
     if (m_stack.back().clipIsEmpty)
     {
@@ -385,7 +385,7 @@ void RiveRenderer::clipAndPushDraw(PLSDrawUniquePtr draw)
             "RiveRenderer::clipAndPushDraw failed. The draw and/or clip stack are too complex.\n");
 }
 
-bool RiveRenderer::applyClip(PLSDraw* draw)
+bool RiveRenderer::applyClip(Draw* draw)
 {
     draw->setClipRect(m_stack.back().clipRectInverseMatrix);
 
@@ -421,7 +421,7 @@ bool RiveRenderer::applyClip(PLSDraw* draw)
         {
             // Time for a new stencil clip! Erase the clip currently in the stencil buffer before we
             // draw the new one.
-            auto stencilClipClear = PLSDrawUniquePtr(m_context->make<StencilClipReset>(
+            auto stencilClipClear = DrawUniquePtr(m_context->make<StencilClipReset>(
                 m_context,
                 m_context->getClipContentID(),
                 StencilClipReset::ResetAction::clearPreviousClip));
@@ -471,7 +471,7 @@ bool RiveRenderer::applyClip(PLSDraw* draw)
                 // When drawing nested stencil clips, we need to intersect them, which involves
                 // erasing the region of the current clip in the stencil buffer that is outside the
                 // the one we just drew.
-                auto stencilClipIntersect = PLSDrawUniquePtr(m_context->make<StencilClipReset>(
+                auto stencilClipIntersect = DrawUniquePtr(m_context->make<StencilClipReset>(
                     m_context,
                     lastClipID,
                     StencilClipReset::ResetAction::intersectPreviousClip));
