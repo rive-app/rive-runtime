@@ -189,7 +189,6 @@ Texture::Texture(rcp<VulkanContext> vk, const VkImageCreateInfo& info) :
                            &m_vmaAllocation,
                            nullptr) == VK_SUCCESS)
         {
-            printf("SUCCESS AT TRANSIENT LAZY!\n");
             return;
         }
     }

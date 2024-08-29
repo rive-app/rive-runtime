@@ -223,9 +223,11 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     assert(frameDescriptor.renderTargetWidth > 0);
     assert(frameDescriptor.renderTargetHeight > 0);
     m_frameDescriptor = frameDescriptor;
-    if (!platformFeatures().supportsPixelLocalStorage)
+    if (!platformFeatures().supportsRasterOrdering &&
+        !platformFeatures().supportsFragmentShaderAtomics)
     {
-        // Use 4x MSAA if we don't have pixel local storage and MSAA wasn't specified.
+        // We don't have pixel local storage in any form. Use 4x MSAA if
+        // msaaSampleCount wasn't already specified.
         m_frameDescriptor.msaaSampleCount =
             m_frameDescriptor.msaaSampleCount > 0 ? m_frameDescriptor.msaaSampleCount : 4;
     }
@@ -233,12 +235,15 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     {
         m_frameInterlockMode = gpu::InterlockMode::depthStencil;
     }
-    else if (m_frameDescriptor.disableRasterOrdering || !platformFeatures().supportsRasterOrdering)
+    else if ((!platformFeatures().supportsRasterOrdering ||
+              m_frameDescriptor.disableRasterOrdering) &&
+             platformFeatures().supportsFragmentShaderAtomics)
     {
         m_frameInterlockMode = gpu::InterlockMode::atomics;
     }
     else
     {
+        assert(platformFeatures().supportsRasterOrdering);
         m_frameInterlockMode = gpu::InterlockMode::rasterOrdering;
     }
     m_frameShaderFeaturesMask = gpu::ShaderFeaturesMaskFor(m_frameInterlockMode);

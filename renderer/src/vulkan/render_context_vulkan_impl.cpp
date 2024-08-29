@@ -1682,10 +1682,21 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(VkInstance instance,
     m_colorRampPipeline(std::make_unique<ColorRampPipeline>(m_vk)),
     m_tessellatePipeline(std::make_unique<TessellatePipeline>(m_vk))
 {
-    m_platformFeatures.supportsPixelLocalStorage = features.fragmentStoresAndAtomics;
     m_platformFeatures.supportsRasterOrdering = features.rasterizationOrderColorAttachmentAccess;
+    m_platformFeatures.supportsFragmentShaderAtomics = features.fragmentStoresAndAtomics;
     m_platformFeatures.invertOffscreenY = false;
     m_platformFeatures.uninvertOnScreenY = true;
+
+    VkPhysicalDeviceProperties physicalDeviceProperties;
+    m_vk->GetPhysicalDeviceProperties(m_vk->physicalDevice, &physicalDeviceProperties);
+    if (physicalDeviceProperties.vendorID == vkutil::kVendorQualcomm)
+    {
+        // Qualcomm advertises EXT_rasterization_order_attachment_access, but it's
+        // slow. Use atomics instead on this platform.
+        m_platformFeatures.supportsRasterOrdering = false;
+        // Pixel4 struggles with fine-grained fp16 path IDs.
+        m_platformFeatures.pathIDGranularity = 2;
+    }
 }
 
 void RenderContextVulkanImpl::initGPUObjects()
@@ -2098,7 +2109,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 {
     if (desc.interlockMode == gpu::InterlockMode::depthStencil)
     {
-        return; // TODO: support MSAA.
+        return;
     }
 
     auto commandBuffer = reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
@@ -2915,7 +2926,8 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
                                     features,
                                     fp_vkGetInstanceProcAddr,
                                     fp_vkGetDeviceProcAddr));
-    if (!impl->platformFeatures().supportsPixelLocalStorage)
+    if (!impl->platformFeatures().supportsRasterOrdering &&
+        !impl->platformFeatures().supportsFragmentShaderAtomics)
     {
         return nullptr; // TODO: implement MSAA.
     }

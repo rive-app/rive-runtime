@@ -81,6 +81,10 @@ public:
     void init(rcp<GLState> state) override { m_state = std::move(state); }
 
     bool supportsRasterOrdering(const GLCapabilities&) const override { return true; }
+    bool supportsFragmentShaderAtomics(const GLCapabilities& capabilities) const override
+    {
+        return false;
+    }
 
     void activatePixelLocalStorage(RenderContextGLImpl* impl, const FlushDescriptor& desc) override
     {

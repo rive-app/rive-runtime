@@ -30,6 +30,13 @@ inline static void vk_check(VkResult res, const char* file, int line)
 
 #define VK_CHECK(x) ::rive::gpu::vkutil::vk_check(x, __FILE__, __LINE__)
 
+constexpr static uint32_t kVendorAMD = 0x1002;
+constexpr static uint32_t kVendorImgTec = 0x1010;
+constexpr static uint32_t kVendorNVIDIA = 0x10DE;
+constexpr static uint32_t kVendorARM = 0x13B5;
+constexpr static uint32_t kVendorQualcomm = 0x5143;
+constexpr static uint32_t kVendorINTEL = 0x8086;
+
 constexpr static VkColorComponentFlags kColorWriteMaskRGBA =
     VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
     VK_COLOR_COMPONENT_A_BIT;

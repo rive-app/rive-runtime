@@ -340,7 +340,6 @@ half4 resolve_path_color(half coverageCount,
         }
         if (clipID != 0u)
         {
-            clipData = PLS_LOADUI(clipBuffer);
             half clipCoverage = clipID == (clipData >> 16u) ? unpackHalf2x16(clipData).r : .0;
             coverage = min(coverage, clipCoverage);
         }

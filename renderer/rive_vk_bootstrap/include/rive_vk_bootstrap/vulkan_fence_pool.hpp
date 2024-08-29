@@ -44,7 +44,10 @@ public:
 
     void wait() override
     {
-        m_vk->WaitForFences(m_vk->device, 1, &m_vkFence, VK_TRUE, VK_WHOLE_SIZE);
+        while (m_vk->WaitForFences(m_vk->device, 1, &m_vkFence, VK_TRUE, 1000) == VK_TIMEOUT)
+        {
+            // Keep waiting.
+        }
     }
 
 private:

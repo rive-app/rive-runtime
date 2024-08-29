@@ -338,7 +338,7 @@
     layout(location = IDX) out lowp vec4 NAME
 #define PLS_DECLUI(IDX, NAME)                                                                      \
     layout(input_attachment_index = IDX, binding = IDX, set = PLS_TEXTURE_BINDINGS_SET)            \
-        uniform lowp usubpassInput _in_##NAME;                                                     \
+        uniform highp usubpassInput _in_##NAME;                                                    \
     layout(location = IDX) out highp uvec4 NAME
 #define PLS_BLOCK_END
 

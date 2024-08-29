@@ -27,6 +27,13 @@ public:
 
     bool supportsRasterOrdering(const GLCapabilities&) const override { return true; }
 
+    bool supportsFragmentShaderAtomics(const GLCapabilities& capabilities) const override
+    {
+        // It only makes sense to use atomic mode if the driver allows us to turn
+        // raster ordering OFF with framebuffer fetches.
+        return capabilities.QCOM_shader_framebuffer_fetch_noncoherent;
+    }
+
     void activatePixelLocalStorage(RenderContextGLImpl* plsContextImpl,
                                    const FlushDescriptor& desc) override
     {

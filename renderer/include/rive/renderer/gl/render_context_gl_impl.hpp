@@ -68,6 +68,7 @@ private:
         virtual void init(rcp<GLState>) {}
 
         virtual bool supportsRasterOrdering(const GLCapabilities&) const = 0;
+        virtual bool supportsFragmentShaderAtomics(const GLCapabilities&) const = 0;
 
         virtual void activatePixelLocalStorage(RenderContextGLImpl*, const FlushDescriptor&) = 0;
         virtual void deactivatePixelLocalStorage(RenderContextGLImpl*, const FlushDescriptor&) = 0;

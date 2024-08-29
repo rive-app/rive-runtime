@@ -36,6 +36,11 @@ class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelL
                capabilities.INTEL_fragment_shader_ordering;
     }
 
+    bool supportsFragmentShaderAtomics(const GLCapabilities& capabilities) const override
+    {
+        return true;
+    }
+
     void activatePixelLocalStorage(RenderContextGLImpl* plsContextImpl,
                                    const FlushDescriptor& desc) override
     {

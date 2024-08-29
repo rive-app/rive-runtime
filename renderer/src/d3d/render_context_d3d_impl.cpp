@@ -144,6 +144,7 @@ RenderContextD3DImpl::RenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
 {
     m_platformFeatures.invertOffscreenY = true;
     m_platformFeatures.supportsRasterOrdering = d3dCapabilities.supportsRasterizerOrderedViews;
+    m_platformFeatures.supportsFragmentShaderAtomics = true;
 
     // Create a default raster state for path and offscreen draws.
     D3D11_RASTERIZER_DESC rasterDesc;

@@ -290,6 +290,7 @@ RenderContextMetalImpl::RenderContextMetalImpl(id<MTLDevice> gpu,
     m_platformFeatures.invertOffscreenY = true;
 #ifdef RIVE_IOS
     m_platformFeatures.supportsRasterOrdering = true;
+    m_platformFeatures.supportsFragmentShaderAtomics = false;
     if (!is_apple_ios_silicon(m_gpu))
     {
         // The PowerVR GPU, at least on A10, has fp16 precision issues. We can't use the the bottom
@@ -299,9 +300,11 @@ RenderContextMetalImpl::RenderContextMetalImpl(id<MTLDevice> gpu,
 #elif defined(RIVE_IOS_SIMULATOR)
     // The simulator does not support framebuffer reads. Fall back on atomic mode.
     m_platformFeatures.supportsRasterOrdering = false;
+    m_platformFeatures.supportsFragmentShaderAtomics = true;
 #else
     m_platformFeatures.supportsRasterOrdering =
         [m_gpu supportsFamily:MTLGPUFamilyApple1] && !contextOptions.disableFramebufferReads;
+    m_platformFeatures.supportsFragmentShaderAtomics = true;
 #endif
     m_platformFeatures.atomicPLSMustBeInitializedAsDraw = true;
 

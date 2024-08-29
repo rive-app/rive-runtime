@@ -167,6 +167,11 @@ class RenderContextGLImpl::PLSImplWebGL : public RenderContextGLImpl::PixelLocal
         return capabilities.ANGLE_shader_pixel_local_storage_coherent;
     }
 
+    bool supportsFragmentShaderAtomics(const GLCapabilities& capabilities) const override
+    {
+        return false;
+    }
+
     void activatePixelLocalStorage(RenderContextGLImpl* plsContextImpl,
                                    const FlushDescriptor& desc) override
     {

@@ -71,9 +71,13 @@ RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
     m_state(make_rcp<GLState>(m_capabilities))
 
 {
-    m_platformFeatures.supportsPixelLocalStorage = m_plsImpl != nullptr;
-    m_platformFeatures.supportsRasterOrdering = m_platformFeatures.supportsPixelLocalStorage &&
-                                                m_plsImpl->supportsRasterOrdering(m_capabilities);
+    if (m_plsImpl != nullptr)
+    {
+        m_platformFeatures.supportsRasterOrdering =
+            m_plsImpl->supportsRasterOrdering(m_capabilities);
+        m_platformFeatures.supportsFragmentShaderAtomics =
+            m_plsImpl->supportsFragmentShaderAtomics(m_capabilities);
+    }
     if (m_capabilities.KHR_blend_equation_advanced_coherent)
     {
         m_platformFeatures.supportsKHRBlendEquations = true;

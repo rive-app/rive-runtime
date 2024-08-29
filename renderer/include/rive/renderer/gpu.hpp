@@ -93,8 +93,8 @@ constexpr static uint32_t kGradTextureWidthInSimpleRamps = kGradTextureWidth / 2
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
 {
-    bool supportsPixelLocalStorage = true;
-    bool supportsRasterOrdering = true;     // Can pixel local storage accesses be raster ordered?
+    bool supportsRasterOrdering = false;        // InterlockMode::rasterOrdering.
+    bool supportsFragmentShaderAtomics = false; // InterlockMode::atomics.
     bool supportsKHRBlendEquations = false; // Use KHR_blend_equation_advanced in depthStencil mode?
     bool supportsClipPlanes = false;        // Required for @ENABLE_CLIP_RECT in depthStencil mode.
     bool supportsBindlessTextures = false;
