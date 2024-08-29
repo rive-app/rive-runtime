@@ -8,7 +8,7 @@
 #include "intersection_board.hpp"
 #include "rive_render_paint.hpp"
 #include "rive/renderer/draw.hpp"
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/render_context_impl.hpp"
 #include "shaders/constants.glsl"
 
@@ -118,7 +118,7 @@ rcp<RenderBuffer> RenderContext::makeRenderBuffer(RenderBufferType type,
 rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
 {
     rcp<Texture> texture = m_impl->decodeImageTexture(encodedBytes);
-    return texture != nullptr ? make_rcp<Image>(std::move(texture)) : nullptr;
+    return texture != nullptr ? make_rcp<RiveRenderImage>(std::move(texture)) : nullptr;
 }
 
 void RenderContext::releaseResources()
@@ -157,7 +157,7 @@ void RenderContext::LogicalFlush::rewind()
     m_complexGradients.clear();
     m_pendingComplexColorRampDraws.clear();
     m_clips.clear();
-    m_plsDraws.clear();
+    m_draws.clear();
     m_combinedDrawBounds = {std::numeric_limits<int32_t>::max(),
                             std::numeric_limits<int32_t>::max(),
                             std::numeric_limits<int32_t>::min(),
@@ -198,9 +198,9 @@ void RenderContext::LogicalFlush::resetContainers()
 {
     m_clips.clear();
     m_clips.shrink_to_fit();
-    m_plsDraws.clear();
-    m_plsDraws.shrink_to_fit();
-    m_plsDraws.reserve(kDefaultDrawCapacity);
+    m_draws.clear();
+    m_draws.shrink_to_fit();
+    m_draws.reserve(kDefaultDrawCapacity);
 
     m_simpleGradients.rehash(0);
     m_simpleGradients.reserve(kDefaultSimpleGradientCapacity);
@@ -362,8 +362,8 @@ bool RenderContext::LogicalFlush::pushDrawBatch(DrawUniquePtr draws[], size_t dr
 
     for (size_t i = 0; i < drawCount; ++i)
     {
-        m_plsDraws.push_back(std::move(draws[i]));
-        m_combinedDrawBounds = m_combinedDrawBounds.join(m_plsDraws.back()->pixelBounds());
+        m_draws.push_back(std::move(draws[i]));
+        m_combinedDrawBounds = m_combinedDrawBounds.join(m_draws.back()->pixelBounds());
     }
 
     m_resourceCounts = countsWithNewBatch;
@@ -888,18 +888,18 @@ void RenderContext::LogicalFlush::writeResources()
     // Write out all the data for our high level draws, and build up a low-level draw list.
     if (m_ctx->frameInterlockMode() == gpu::InterlockMode::rasterOrdering)
     {
-        for (const DrawUniquePtr& draw : m_plsDraws)
+        for (const DrawUniquePtr& draw : m_draws)
         {
             draw->pushToRenderContext(this);
         }
     }
     else
     {
-        assert(m_plsDraws.size() <= kMaxReorderedDrawCount);
+        assert(m_draws.size() <= kMaxReorderedDrawCount);
 
         // Sort the draw list to optimize batching, since we can only batch non-overlapping draws.
         std::vector<int64_t>& indirectDrawList = m_ctx->m_indirectDrawList;
-        indirectDrawList.resize(m_plsDraws.size());
+        indirectDrawList.resize(m_draws.size());
 
         if (m_ctx->m_intersectionBoard == nullptr)
         {
@@ -921,11 +921,11 @@ void RenderContext::LogicalFlush::writeResources()
         constexpr static int kDrawContentsShift = 16;
         constexpr static int64_t kDrawContentsMask = 0x3fllu << kDrawContentsShift;
         constexpr static int64_t kDrawIndexMask = 0xffff;
-        for (size_t i = 0; i < m_plsDraws.size(); ++i)
+        for (size_t i = 0; i < m_draws.size(); ++i)
         {
-            Draw* draw = m_plsDraws[i].get();
+            Draw* draw = m_draws[i].get();
 
-            int4 drawBounds = simd::load4i(&m_plsDraws[i]->pixelBounds());
+            int4 drawBounds = simd::load4i(&m_draws[i]->pixelBounds());
 
             // Add one extra pixel of padding to the draw bounds to make absolutely certain we get
             // no overlapping pixels, which destroy the atomic shader.
@@ -1040,7 +1040,7 @@ void RenderContext::LogicalFlush::writeResources()
             // order, but their z index should still remain positive.
             m_currentZIndex = math::lossless_numeric_cast<uint32_t>(
                 abs(key >> static_cast<int64_t>(kDrawGroupShift)));
-            m_plsDraws[key & kDrawIndexMask]->pushToRenderContext(this);
+            m_draws[key & kDrawIndexMask]->pushToRenderContext(this);
             priorKey = key;
         }
 

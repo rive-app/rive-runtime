@@ -74,8 +74,8 @@ void RiveRenderPath::close()
 void RiveRenderPath::addRenderPath(RenderPath* path, const Mat2D& matrix)
 {
     assert(m_rawPathMutationLockCount == 0);
-    RiveRenderPath* plsPath = static_cast<RiveRenderPath*>(path);
-    RawPath::Iter transformedPathIter = m_rawPath.addPath(plsPath->m_rawPath, &matrix);
+    RiveRenderPath* riveRenderPath = static_cast<RiveRenderPath*>(path);
+    RawPath::Iter transformedPathIter = m_rawPath.addPath(riveRenderPath->m_rawPath, &matrix);
     if (matrix != Mat2D())
     {
         // Prune any segments that became empty after the transform.

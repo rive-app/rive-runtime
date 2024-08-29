@@ -30,16 +30,16 @@ public:
         m_d3dFactory(std::move(d3dFactory)),
         m_gpu(std::move(gpu)),
         m_gpuContext(std::move(gpuContext)),
-        m_plsContext(RenderContextD3DImpl::MakeContext(m_gpu, m_gpuContext, contextOptions))
+        m_renderContext(RenderContextD3DImpl::MakeContext(m_gpu, m_gpuContext, contextOptions))
     {}
 
     float dpiScale(GLFWwindow*) const override { return 1; }
 
-    rive::Factory* factory() override { return m_plsContext.get(); }
+    rive::Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+    rive::gpu::RenderContext* renderContextOrNull() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* renderTargetOrNull() override { return m_renderTarget.get(); }
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
@@ -60,8 +60,8 @@ public:
                                                        NULL,
                                                        m_swapchain.ReleaseAndGetAddressOf()));
 
-        auto plsContextImpl = m_plsContext->static_impl_cast<RenderContextD3DImpl>();
-        m_renderTarget = plsContextImpl->makeRenderTarget(width, height);
+        auto renderContextImpl = m_renderContext->static_impl_cast<RenderContextD3DImpl>();
+        m_renderTarget = renderContextImpl->makeRenderTarget(width, height);
         m_readbackTexture = nullptr;
     }
 
@@ -69,12 +69,12 @@ public:
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {
-        return std::make_unique<RiveRenderer>(m_plsContext.get());
+        return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
     void begin(const rive::gpu::RenderContext::FrameDescriptor& frameDescriptor) override
     {
-        m_plsContext->beginFrame(frameDescriptor);
+        m_renderContext->beginFrame(frameDescriptor);
     }
 
     void flushPLSContext() final
@@ -88,7 +88,7 @@ public:
                 reinterpret_cast<void**>(backbuffer.ReleaseAndGetAddressOf())));
             m_renderTarget->setTargetTexture(backbuffer);
         }
-        m_plsContext->flush({.renderTarget = m_renderTarget.get()});
+        m_renderContext->flush({.renderTarget = m_renderTarget.get()});
     }
 
     void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) override
@@ -138,7 +138,7 @@ private:
     ComPtr<ID3D11DeviceContext> m_gpuContext;
     ComPtr<IDXGISwapChain1> m_swapchain;
     ComPtr<ID3D11Texture2D> m_readbackTexture;
-    std::unique_ptr<RenderContext> m_plsContext;
+    std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetD3D> m_renderTarget;
 };
 

@@ -8,7 +8,7 @@
 #include "rive_render_path.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/math/simd.hpp"
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
 namespace rive::gpu
@@ -259,7 +259,7 @@ void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
 
 void RiveRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode, float opacity)
 {
-    LITE_RTTI_CAST_OR_RETURN(image, const Image*, renderImage);
+    LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
 
     // Scale the view matrix so we can draw this image as the rect [0, 0, 1, 1].
     save();
@@ -270,13 +270,13 @@ void RiveRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode
         // Fall back on ImageRectDraw if the current frame doesn't support drawing paths with image
         // paints.
         const Mat2D& m = m_stack.back().matrix;
-        auto plsImage = static_cast<const Image*>(renderImage);
+        auto riveRenderImage = static_cast<const RiveRenderImage*>(renderImage);
         clipAndPushDraw(DrawUniquePtr(
             m_context->make<ImageRectDraw>(m_context,
                                            m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
                                            m,
                                            blendMode,
-                                           plsImage->refTexture(),
+                                           riveRenderImage->refTexture(),
                                            opacity)));
     }
     else
@@ -308,8 +308,8 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
                                  BlendMode blendMode,
                                  float opacity)
 {
-    LITE_RTTI_CAST_OR_RETURN(image, const Image*, renderImage);
-    const Texture* plsTexture = image->getTexture();
+    LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
+    const Texture* texture = image->getTexture();
 
     assert(vertices_f32);
     assert(uvCoords_f32);
@@ -318,7 +318,7 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
     clipAndPushDraw(DrawUniquePtr(m_context->make<ImageMeshDraw>(Draw::kFullscreenPixelBounds,
                                                                  m_stack.back().matrix,
                                                                  blendMode,
-                                                                 ref_rcp(plsTexture),
+                                                                 ref_rcp(texture),
                                                                  std::move(vertices_f32),
                                                                  std::move(uvCoords_f32),
                                                                  std::move(indices_u16),

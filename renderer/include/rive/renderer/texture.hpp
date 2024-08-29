@@ -33,35 +33,4 @@ protected:
     uint64_t m_bindlessTextureHandle = 0;
 };
 
-class Image : public lite_rtti_override<RenderImage, Image>
-{
-public:
-    Image(rcp<Texture> texture) : Image(texture->width(), texture->height())
-    {
-        resetTexture(std::move(texture));
-    }
-
-    rcp<Texture> refTexture() const { return m_texture; }
-    const Texture* getTexture() const { return m_texture.get(); }
-
-protected:
-    Image(int width, int height)
-    {
-        m_Width = width;
-        m_Height = height;
-    }
-
-    void resetTexture(rcp<Texture> texture = nullptr)
-    {
-        assert(texture == nullptr || texture->width() == m_Width);
-        assert(texture == nullptr || texture->height() == m_Height);
-        m_texture = std::move(texture);
-    }
-
-    // Used by the android runtime to send m_texture off to the worker thread to be deleted.
-    Texture* releaseTexture() { return m_texture.release(); }
-
-private:
-    rcp<Texture> m_texture;
-};
 } // namespace rive::gpu

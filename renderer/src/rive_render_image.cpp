@@ -2,7 +2,7 @@
  * Copyright 2022 Rive
  */
 
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 
 namespace rive::gpu
 {

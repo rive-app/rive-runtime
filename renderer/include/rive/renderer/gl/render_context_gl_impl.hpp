@@ -135,7 +135,7 @@ private:
         DrawShader(const DrawShader&) = delete;
         DrawShader& operator=(const DrawShader&) = delete;
 
-        DrawShader(RenderContextGLImpl* plsContextImpl,
+        DrawShader(RenderContextGLImpl* renderContextImpl,
                    GLenum shaderType,
                    gpu::DrawType drawType,
                    ShaderFeatures shaderFeatures,

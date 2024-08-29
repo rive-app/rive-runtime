@@ -187,7 +187,7 @@ void TextureRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMask)
 }
 
 RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
-    RenderContextGLImpl* plsContextGL,
+    RenderContextGLImpl* renderContextImpl,
     int sampleCount,
     const IAABB* preserveBounds,
     bool* isFBO0)
@@ -211,7 +211,7 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
 
         glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebuffer);
 #ifndef RIVE_WEBGL
-        if (plsContextGL->capabilities().EXT_multisampled_render_to_texture)
+        if (renderContextImpl->capabilities().EXT_multisampled_render_to_texture)
         {
             glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER,
                                                 sampleCount,
@@ -259,7 +259,7 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebuffer);
 
-    if (plsContextGL->capabilities().EXT_multisampled_render_to_texture)
+    if (renderContextImpl->capabilities().EXT_multisampled_render_to_texture)
     {
         return MSAAResolveAction::automatic; // MSAA render-to-texture resolves automatically.
     }
@@ -269,9 +269,9 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
         {
             // The MSAA render target is offscreen. In order to preserve, we need to draw the target
             // texture into the MSAA buffer. (glBlitFramebuffer() doesn't support texture -> MSAA.)
-            plsContextGL->blitTextureToFramebufferAsDraw(m_externalTextureID,
-                                                         *preserveBounds,
-                                                         height());
+            renderContextImpl->blitTextureToFramebufferAsDraw(m_externalTextureID,
+                                                              *preserveBounds,
+                                                              height());
         }
 
         return MSAAResolveAction::framebufferBlit; // Caller must resolve this framebuffer.
@@ -323,7 +323,7 @@ void FramebufferRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMas
 }
 
 RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::bindMSAAFramebuffer(
-    RenderContextGLImpl* plsContextGL,
+    RenderContextGLImpl* renderContextImpl,
     int sampleCount,
     const IAABB* preserveBounds,
     bool* isFBO0)
@@ -357,13 +357,13 @@ RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::bindMSAAFramebuffer
             glutils::BlitFramebuffer(*preserveBounds, height()); // Step 1.
                                                                  // Step 2 will happen when we bind.
         }
-        else if (plsContextGL->capabilities().EXT_multisampled_render_to_texture)
+        else if (renderContextImpl->capabilities().EXT_multisampled_render_to_texture)
         {
             // When we have EXT_multisampled_render_to_texture, the "msaa buffer" is just the target
             // texture.
             allocateOffscreenTargetTexture();
         }
-        m_textureRenderTarget.bindMSAAFramebuffer(plsContextGL,
+        m_textureRenderTarget.bindMSAAFramebuffer(renderContextImpl,
                                                   sampleCount,
                                                   preserveBounds,
                                                   isFBO0);

@@ -25,8 +25,8 @@ public:
     virtual ~FiddleContext() {}
     virtual float dpiScale(GLFWwindow*) const = 0;
     virtual rive::Factory* factory() = 0;
-    virtual rive::gpu::RenderContext* plsContextOrNull() = 0;
-    virtual rive::gpu::RenderTarget* plsRenderTargetOrNull() = 0;
+    virtual rive::gpu::RenderContext* renderContextOrNull() = 0;
+    virtual rive::gpu::RenderTarget* renderTargetOrNull() = 0;
     virtual void onSizeChanged(GLFWwindow*, int width, int height, uint32_t sampleCount) {}
     virtual void toggleZoomWindow() = 0;
     virtual std::unique_ptr<rive::Renderer> makeRenderer(int width, int height) = 0;

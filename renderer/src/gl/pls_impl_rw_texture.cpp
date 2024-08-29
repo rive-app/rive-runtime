@@ -41,7 +41,7 @@ class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelL
         return true;
     }
 
-    void activatePixelLocalStorage(RenderContextGLImpl* plsContextImpl,
+    void activatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,
                                    const FlushDescriptor& desc) override
     {
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
@@ -50,7 +50,7 @@ class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelL
         if (desc.interlockMode == gpu::InterlockMode::atomics &&
             needs_atomic_fixed_function_color_blend(desc))
         {
-            plsContextImpl->state()->setBlendEquation(BlendMode::srcOver);
+            renderContextImpl->state()->setBlendEquation(BlendMode::srcOver);
         }
         else if (auto framebufferRenderTarget =
                      lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
@@ -107,7 +107,7 @@ class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelL
             case gpu::InterlockMode::rasterOrdering:
                 // rasterOrdering mode renders by storing to an image texture. Bind a framebuffer
                 // with no color attachments.
-                renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
+                renderTarget->bindHeadlessFramebuffer(renderContextImpl->m_capabilities);
                 break;
             case gpu::InterlockMode::atomics:
                 renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
@@ -124,7 +124,7 @@ class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelL
                 {
                     // When rendering to an offscreen atomic texture, still bind the target
                     // framebuffer, but disable color writes until it's time to resolve.
-                    plsContextImpl->state()->setWriteMasks(false, true, 0xff);
+                    renderContextImpl->state()->setWriteMasks(false, true, 0xff);
                 }
                 break;
             default:
@@ -155,14 +155,14 @@ class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelL
         return flags;
     }
 
-    void setupAtomicResolve(RenderContextGLImpl* plsContextImpl,
+    void setupAtomicResolve(RenderContextGLImpl* renderContextImpl,
                             const gpu::FlushDescriptor& desc) override
     {
         assert(desc.interlockMode == gpu::InterlockMode::atomics);
         if (needs_coalesced_atomic_resolve_and_transfer(desc))
         {
             // Turn the color mask back on now that we're about to resolve.
-            plsContextImpl->state()->setWriteMasks(true, true, 0xff);
+            renderContextImpl->state()->setWriteMasks(true, true, 0xff);
         }
     }
 

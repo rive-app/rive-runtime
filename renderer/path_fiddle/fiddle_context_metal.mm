@@ -33,7 +33,7 @@ public:
             // sure we test every unique shader.
             metalOptions.disableFramebufferReads = true;
         }
-        m_plsContext = RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
+        m_renderContext = RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
         printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
     }
 
@@ -43,11 +43,11 @@ public:
         return m_fiddleOptions.retinaDisplay ? nsWindow.backingScaleFactor : 1;
     }
 
-    Factory* factory() override { return m_plsContext.get(); }
+    Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+    rive::gpu::RenderContext* renderContextOrNull() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* renderTargetOrNull() override { return m_renderTarget.get(); }
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
@@ -64,8 +64,9 @@ public:
         m_swapchain.displaySyncEnabled = NO;
         view.layer = m_swapchain;
 
-        auto plsContextImpl = m_plsContext->static_impl_cast<RenderContextMetalImpl>();
-        m_renderTarget = plsContextImpl->makeRenderTarget(MTLPixelFormatBGRA8Unorm, width, height);
+        auto renderContextImpl = m_renderContext->static_impl_cast<RenderContextMetalImpl>();
+        m_renderTarget =
+            renderContextImpl->makeRenderTarget(MTLPixelFormatBGRA8Unorm, width, height);
         m_pixelReadBuff = nil;
     }
 
@@ -73,12 +74,12 @@ public:
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {
-        return std::make_unique<RiveRenderer>(m_plsContext.get());
+        return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
     void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
     {
-        m_plsContext->beginFrame(frameDescriptor);
+        m_renderContext->beginFrame(frameDescriptor);
     }
 
     void flushPLSContext() final
@@ -92,8 +93,8 @@ public:
         }
 
         id<MTLCommandBuffer> flushCommandBuffer = [m_queue commandBuffer];
-        m_plsContext->flush({.renderTarget = m_renderTarget.get(),
-                             .externalCommandBuffer = (__bridge void*)flushCommandBuffer});
+        m_renderContext->flush({.renderTarget = m_renderTarget.get(),
+                                .externalCommandBuffer = (__bridge void*)flushCommandBuffer});
         [flushCommandBuffer commit];
     }
 
@@ -165,7 +166,7 @@ private:
     const FiddleContextOptions m_fiddleOptions;
     id<MTLDevice> m_gpu = MTLCreateSystemDefaultDevice();
     id<MTLCommandQueue> m_queue = [m_gpu newCommandQueue];
-    std::unique_ptr<RenderContext> m_plsContext;
+    std::unique_ptr<RenderContext> m_renderContext;
     CAMetalLayer* m_swapchain;
     rcp<RenderTargetMetal> m_renderTarget;
     id<MTLBuffer> m_pixelReadBuff;

@@ -159,7 +159,7 @@ private:
     // its allocated descriptor sets.
     // The vkutil::RenderingResource base ensures this class stays alive until its
     // command buffer finishes, at which point we free the allocated descriptor
-    // sets and return the VkDescriptor to the plsContext.
+    // sets and return the VkDescriptor to the renderContext.
     class DescriptorSetPool final : public vkutil::RenderingResource
     {
     public:
@@ -170,11 +170,11 @@ private:
         void freeDescriptorSets();
 
     private:
-        // Recycles this instance in the plsContext's m_descriptorSetPoolPool, if
-        // the plsContext still exists.
+        // Recycles this instance in the renderContext's m_descriptorSetPoolPool, if
+        // the renderContext still exists.
         void onRefCntReachedZero() const;
 
-        RenderContextVulkanImpl* const m_plsImplVulkan;
+        RenderContextVulkanImpl* const m_renderContextImpl;
         VkDescriptorPool m_vkDescriptorPool;
         std::vector<VkDescriptorSet> m_descriptorSets;
     };

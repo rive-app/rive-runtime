@@ -4,7 +4,7 @@
 
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
 namespace spirv
@@ -1890,8 +1890,8 @@ constexpr static uint32_t kMaxDescriptorSets = 3 + kMaxImageTextureUpdates;
 } // namespace descriptor_pool_limits
 
 RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
-    RenderContextVulkanImpl* plsImplVulkan) :
-    RenderingResource(plsImplVulkan->m_vk), m_plsImplVulkan(plsImplVulkan)
+    RenderContextVulkanImpl* renderContextImpl) :
+    RenderingResource(renderContextImpl->m_vk), m_renderContextImpl(renderContextImpl)
 {
     VkDescriptorPoolSize descriptorPoolSizes[] = {
         {
@@ -1967,12 +1967,13 @@ void RenderContextVulkanImpl::DescriptorSetPool::onRefCntReachedZero() const
 {
     constexpr static uint32_t kMaxDescriptorSetPoolsInPool = 64;
 
-    if (m_plsImplVulkan->m_descriptorSetPoolPool.size() < kMaxDescriptorSetPoolsInPool)
+    if (m_renderContextImpl->m_descriptorSetPoolPool.size() < kMaxDescriptorSetPoolsInPool)
     {
-        // Hang out in the plsContext's m_descriptorSetPoolPool until in-flight
+        // Hang out in the renderContext's m_descriptorSetPoolPool until in-flight
         // command buffers have finished using our descriptors.
-        m_plsImplVulkan->m_descriptorSetPoolPool.emplace_back(const_cast<DescriptorSetPool*>(this),
-                                                              m_vk->currentFrameIdx());
+        m_renderContextImpl->m_descriptorSetPoolPool.emplace_back(
+            const_cast<DescriptorSetPool*>(this),
+            m_vk->currentFrameIdx());
     }
     else
     {

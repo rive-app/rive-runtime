@@ -615,7 +615,7 @@ private:
 
         // High-level draw list. These get built into a low-level list of gpu::DrawBatch objects
         // during writeResources().
-        std::vector<DrawUniquePtr> m_plsDraws;
+        std::vector<DrawUniquePtr> m_draws;
         IAABB m_combinedDrawBounds;
 
         // Layout state.

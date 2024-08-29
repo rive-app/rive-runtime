@@ -7,7 +7,7 @@
 #include "rive/renderer/gl/render_buffer_gl_impl.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include "rive/renderer/draw.hpp"
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
 #include "generated/shaders/advanced_blend.glsl.hpp"
@@ -613,7 +613,7 @@ void RenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t hei
                            0);
 }
 
-RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* plsContextImpl,
+RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextImpl,
                                             GLenum shaderType,
                                             gpu::DrawType drawType,
                                             ShaderFeatures shaderFeatures,
@@ -629,9 +629,9 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* plsContextImpl,
 #endif
 
     std::vector<const char*> defines;
-    if (plsContextImpl->m_plsImpl != nullptr)
+    if (renderContextImpl->m_plsImpl != nullptr)
     {
-        plsContextImpl->m_plsImpl->pushShaderDefines(interlockMode, &defines);
+        renderContextImpl->m_plsImpl->pushShaderDefines(interlockMode, &defines);
     }
     if (interlockMode == gpu::InterlockMode::atomics)
     {
@@ -650,7 +650,7 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* plsContextImpl,
             assert((kVertexShaderFeaturesMask & feature) || shaderType == GL_FRAGMENT_SHADER);
             if (interlockMode == gpu::InterlockMode::depthStencil &&
                 feature == gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
-                plsContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
+                renderContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
             {
                 defines.push_back(GLSL_ENABLE_KHR_BLEND);
             }
@@ -673,7 +673,7 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* plsContextImpl,
     {
         sources.push_back(glsl::advanced_blend);
     }
-    if (plsContextImpl->platformFeatures().avoidFlatVaryings)
+    if (renderContextImpl->platformFeatures().avoidFlatVaryings)
     {
         sources.push_back("#define " GLSL_OPTIONALLY_FLAT "\n");
     }
@@ -688,7 +688,8 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* plsContextImpl,
             if (shaderType == GL_VERTEX_SHADER)
             {
                 defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
-                if (!plsContextImpl->m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+                if (!renderContextImpl->m_capabilities
+                         .ANGLE_base_vertex_base_instance_shader_builtin)
                 {
                     defines.push_back(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
                 }
@@ -736,11 +737,11 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* plsContextImpl,
             assert(interlockMode == gpu::InterlockMode::atomics);
             RIVE_UNREACHABLE();
     }
-    if (plsContextImpl->m_capabilities.ARB_bindless_texture)
+    if (renderContextImpl->m_capabilities.ARB_bindless_texture)
     {
         defines.push_back(GLSL_ENABLE_BINDLESS_TEXTURES);
     }
-    if (!plsContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
+    if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
     {
         defines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
     }
@@ -750,21 +751,21 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* plsContextImpl,
                                   defines.size(),
                                   sources.data(),
                                   sources.size(),
-                                  plsContextImpl->m_capabilities);
+                                  renderContextImpl->m_capabilities);
 }
 
-RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* plsContextImpl,
+RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* renderContextImpl,
                                               gpu::DrawType drawType,
                                               gpu::ShaderFeatures shaderFeatures,
                                               gpu::InterlockMode interlockMode,
                                               gpu::ShaderMiscFlags fragmentShaderMiscFlags) :
-    m_fragmentShader(plsContextImpl,
+    m_fragmentShader(renderContextImpl,
                      GL_FRAGMENT_SHADER,
                      drawType,
                      shaderFeatures,
                      interlockMode,
                      fragmentShaderMiscFlags),
-    m_state(plsContextImpl->m_state)
+    m_state(renderContextImpl->m_state)
 {
     // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
     // possible.
@@ -773,9 +774,9 @@ RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* plsContextImp
                                                     vertexShaderFeatures,
                                                     interlockMode,
                                                     gpu::ShaderMiscFlags::none);
-    const DrawShader& vertexShader = plsContextImpl->m_vertexShaders
+    const DrawShader& vertexShader = renderContextImpl->m_vertexShaders
                                          .try_emplace(vertexShaderKey,
-                                                      plsContextImpl,
+                                                      renderContextImpl,
                                                       GL_VERTEX_SHADER,
                                                       drawType,
                                                       vertexShaderFeatures,
@@ -800,7 +801,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* plsContextImp
     }
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
                 kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
-    if (!plsContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
+    if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
     {
         // Our GL driver doesn't support storage buffers. We polyfill these buffers as textures.
         glUniform1i(glGetUniformLocation(m_id, GLSL_pathBuffer),
@@ -817,12 +818,12 @@ RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* plsContextImp
                 kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
     if (interlockMode == gpu::InterlockMode::depthStencil &&
         (shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
-        !plsContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
+        !renderContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
     {
         glUniform1i(glGetUniformLocation(m_id, GLSL_dstColorTexture),
                     kPLSTexIdxOffset + DST_COLOR_TEXTURE_IDX);
     }
-    if (!plsContextImpl->m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+    if (!renderContextImpl->m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
     {
         // This uniform is specifically named "SPIRV_Cross_BaseInstance" for compatibility with
         // SPIRV-Cross sytems.
@@ -858,11 +859,11 @@ static void bind_storage_buffer(const GLCapabilities& capabilities,
 }
 
 void RenderContextGLImpl::PixelLocalStorageImpl::ensureRasterOrderingEnabled(
-    RenderContextGLImpl* plsContextImpl,
+    RenderContextGLImpl* renderContextImpl,
     const gpu::FlushDescriptor& desc,
     bool enabled)
 {
-    assert(!enabled || supportsRasterOrdering(plsContextImpl->m_capabilities));
+    assert(!enabled || supportsRasterOrdering(renderContextImpl->m_capabilities));
     auto rasterOrderState = enabled ? gpu::TriState::yes : gpu::TriState::no;
     if (m_rasterOrderingEnabled != rasterOrderState)
     {
@@ -1878,8 +1879,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     GLCapabilities capabilities,
     std::unique_ptr<PixelLocalStorageImpl> plsImpl)
 {
-    auto plsContextImpl = std::unique_ptr<RenderContextGLImpl>(
+    auto renderContextImpl = std::unique_ptr<RenderContextGLImpl>(
         new RenderContextGLImpl(rendererString, capabilities, std::move(plsImpl)));
-    return std::make_unique<RenderContext>(std::move(plsContextImpl));
+    return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 } // namespace rive::gpu

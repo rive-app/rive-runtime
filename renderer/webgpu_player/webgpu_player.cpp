@@ -34,7 +34,7 @@ using namespace rive;
 using namespace rive::gpu;
 using PixelLocalStorageType = RenderContextWebGPUImpl::PixelLocalStorageType;
 
-static std::unique_ptr<RenderContext> s_plsContext;
+static std::unique_ptr<RenderContext> s_renderContext;
 static rcp<RenderTargetWebGPU> s_renderTarget;
 static std::unique_ptr<Renderer> s_renderer;
 
@@ -50,13 +50,13 @@ void riveInitPlayer(int w,
         .plsType = plsType,
         .disableStorageBuffers = maxVertexStorageBlocks < gpu::kMaxStorageBuffers,
     };
-    s_plsContext =
+    s_renderContext =
         RenderContextWebGPUImpl::MakeContext(gpu, queue, contextOptions, platformFeatures);
-    s_renderTarget = s_plsContext->static_impl_cast<RenderContextWebGPUImpl>()->makeRenderTarget(
+    s_renderTarget = s_renderContext->static_impl_cast<RenderContextWebGPUImpl>()->makeRenderTarget(
         wgpu::TextureFormat::BGRA8Unorm,
         w,
         h);
-    s_renderer = std::make_unique<RiveRenderer>(s_plsContext.get());
+    s_renderer = std::make_unique<RiveRenderer>(s_renderContext.get());
 }
 
 #ifdef RIVE_WEBGPU
@@ -100,7 +100,7 @@ extern "C"
             emscripten_webgpu_import_texture_view(s_textureViewHandle.get()));
         s_renderTarget->setTargetTextureView(targetTextureView);
 
-        s_plsContext->beginFrame({
+        s_renderContext->beginFrame({
             .renderTargetWidth = s_renderTarget->width(),
             .renderTargetHeight = s_renderTarget->height(),
             .loadAction = static_cast<gpu::LoadAction>(loadAction),
@@ -114,14 +114,14 @@ extern "C"
     void EMSCRIPTEN_KEEPALIVE RiveFlushRendering()
     {
         s_renderer->restore();
-        s_plsContext->flush({.renderTarget = s_renderTarget.get()});
+        s_renderContext->flush({.renderTarget = s_renderTarget.get()});
         s_textureViewHandle = EmJsHandle();
     }
 
     intptr_t EMSCRIPTEN_KEEPALIVE RiveLoadFile(intptr_t wasmBytesPtr, size_t length)
     {
         const uint8_t* bytes = reinterpret_cast<const uint8_t*>(wasmBytesPtr);
-        std::unique_ptr<File> file = File::import({bytes, length}, s_plsContext.get());
+        std::unique_ptr<File> file = File::import({bytes, length}, s_renderContext.get());
         return reinterpret_cast<intptr_t>(file.release());
     }
 
@@ -525,7 +525,7 @@ int main(int argc, const char** argv)
 
     std::ifstream rivStream("../../../gold/rivs/Santa_Claus.riv", std::ios::binary);
     std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream), {});
-    std::unique_ptr<File> rivFile = File::import(rivBytes, s_plsContext.get());
+    std::unique_ptr<File> rivFile = File::import(rivBytes, s_renderContext.get());
     std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
     std::unique_ptr<Scene> scene = artboard->defaultScene();
     scene->advanceAndApply(0);
@@ -537,7 +537,7 @@ int main(int argc, const char** argv)
         double timestamp = glfwGetTime();
         s_renderTarget->setTargetTextureView(s_swapchain.GetCurrentTextureView());
 
-        s_plsContext->beginFrame({
+        s_renderContext->beginFrame({
             .renderTargetWidth = s_renderTarget->width(),
             .renderTargetHeight = s_renderTarget->height(),
             .clearColor = 0xff8030ff,
@@ -551,7 +551,7 @@ int main(int argc, const char** argv)
         scene->draw(s_renderer.get());
         s_renderer->restore();
 
-        s_plsContext->flush({.renderTarget = s_renderTarget.get()});
+        s_renderContext->flush({.renderTarget = s_renderTarget.get()});
         s_swapchain.Present();
         device.Tick();
         glfwPollEvents();

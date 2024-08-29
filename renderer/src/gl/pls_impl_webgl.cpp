@@ -172,7 +172,7 @@ class RenderContextGLImpl::PLSImplWebGL : public RenderContextGLImpl::PixelLocal
         return false;
     }
 
-    void activatePixelLocalStorage(RenderContextGLImpl* plsContextImpl,
+    void activatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,
                                    const FlushDescriptor& desc) override
     {
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
@@ -195,7 +195,7 @@ class RenderContextGLImpl::PLSImplWebGL : public RenderContextGLImpl::PixelLocal
         }
 
         // Begin pixel local storage.
-        renderTarget->bindHeadlessFramebuffer(plsContextImpl->m_capabilities);
+        renderTarget->bindHeadlessFramebuffer(renderContextImpl->m_capabilities);
         if (desc.colorLoadAction == LoadAction::clear)
         {
             float clearColor4f[4];

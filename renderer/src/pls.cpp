@@ -6,7 +6,7 @@
 
 #include "rive/renderer/render_target.hpp"
 #include "shaders/constants.glsl"
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "rive_render_paint.hpp"
 
 #include "generated/shaders/draw_path.exports.h"

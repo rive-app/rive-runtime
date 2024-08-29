@@ -4,7 +4,7 @@
 
 #include "rive/renderer/d3d/render_context_d3d_impl.hpp"
 
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
 #include <D3DCompiler.h>
@@ -132,9 +132,9 @@ std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
 
     d3dCapabilities.isIntel = contextOptions.isIntel;
 
-    auto plsContextImpl = std::unique_ptr<RenderContextD3DImpl>(
+    auto renderContextImpl = std::unique_ptr<RenderContextD3DImpl>(
         new RenderContextD3DImpl(std::move(gpu), std::move(gpuContext), d3dCapabilities));
-    return std::make_unique<RenderContext>(std::move(plsContextImpl));
+    return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 
 RenderContextD3DImpl::RenderContextD3DImpl(ComPtr<ID3D11Device> gpu,
@@ -520,20 +520,20 @@ rcp<RenderBuffer> RenderContextD3DImpl::makeRenderBuffer(RenderBufferType type,
 class TextureD3DImpl : public Texture
 {
 public:
-    TextureD3DImpl(RenderContextD3DImpl* plsImpl,
+    TextureD3DImpl(RenderContextD3DImpl* renderContextImpl,
                    UINT width,
                    UINT height,
                    UINT mipLevelCount,
                    const uint8_t imageDataRGBA[]) :
         Texture(width, height)
     {
-        m_texture =
-            plsImpl->makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
-                                         width,
-                                         height,
-                                         mipLevelCount,
-                                         D3D11_BIND_SHADER_RESOURCE | D3D11_BIND_RENDER_TARGET,
-                                         D3D11_RESOURCE_MISC_GENERATE_MIPS);
+        m_texture = renderContextImpl->makeSimple2DTexture(DXGI_FORMAT_R8G8B8A8_UNORM,
+                                                           width,
+                                                           height,
+                                                           mipLevelCount,
+                                                           D3D11_BIND_SHADER_RESOURCE |
+                                                               D3D11_BIND_RENDER_TARGET,
+                                                           D3D11_RESOURCE_MISC_GENERATE_MIPS);
 
         // Specify the top-level image in the mipmap chain.
         D3D11_BOX box;
@@ -543,14 +543,15 @@ public:
         box.bottom = height;
         box.front = 0;
         box.back = 1;
-        plsImpl->gpuContext()
+        renderContextImpl->gpuContext()
             ->UpdateSubresource(m_texture.Get(), 0, &box, imageDataRGBA, width * 4, 0);
 
         // Create a view and generate mipmaps.
-        VERIFY_OK(plsImpl->gpu()->CreateShaderResourceView(m_texture.Get(),
-                                                           NULL,
-                                                           m_srv.ReleaseAndGetAddressOf()));
-        plsImpl->gpuContext()->GenerateMips(m_srv.Get());
+        VERIFY_OK(
+            renderContextImpl->gpu()->CreateShaderResourceView(m_texture.Get(),
+                                                               NULL,
+                                                               m_srv.ReleaseAndGetAddressOf()));
+        renderContextImpl->gpuContext()->GenerateMips(m_srv.Get());
     }
 
     ID3D11ShaderResourceView* srv() const { return m_srv.Get(); }
@@ -572,19 +573,19 @@ rcp<Texture> RenderContextD3DImpl::makeImageTexture(uint32_t width,
 class BufferRingD3D : public BufferRing
 {
 public:
-    BufferRingD3D(RenderContextD3DImpl* plsImpl, size_t capacityInBytes, UINT bindFlags) :
-        BufferRingD3D(plsImpl, capacityInBytes, bindFlags, 0, 0)
+    BufferRingD3D(RenderContextD3DImpl* renderContextImpl, size_t capacityInBytes, UINT bindFlags) :
+        BufferRingD3D(renderContextImpl, capacityInBytes, bindFlags, 0, 0)
     {}
 
     ID3D11Buffer* submittedBuffer() const { return m_buffers[submittedBufferIdx()].Get(); }
 
 protected:
-    BufferRingD3D(RenderContextD3DImpl* plsImpl,
+    BufferRingD3D(RenderContextD3DImpl* renderContextImpl,
                   size_t capacityInBytes,
                   UINT bindFlags,
                   UINT elementSizeInBytes,
                   UINT miscFlags) :
-        BufferRing(capacityInBytes), m_gpuContext(plsImpl->gpuContext())
+        BufferRing(capacityInBytes), m_gpuContext(renderContextImpl->gpuContext())
     {
         D3D11_BUFFER_DESC desc{};
         desc.ByteWidth = math::lossless_numeric_cast<UINT>(capacityInBytes);
@@ -596,9 +597,8 @@ protected:
 
         for (size_t i = 0; i < kBufferRingSize; ++i)
         {
-            VERIFY_OK(plsImpl->gpu()->CreateBuffer(&desc,
-                                                   nullptr,
-                                                   m_buffers[i].ReleaseAndGetAddressOf()));
+            VERIFY_OK(renderContextImpl->gpu()
+                          ->CreateBuffer(&desc, nullptr, m_buffers[i].ReleaseAndGetAddressOf()));
         }
     }
 
@@ -638,10 +638,10 @@ protected:
 class StructuredBufferRingD3D : public BufferRingD3D
 {
 public:
-    StructuredBufferRingD3D(RenderContextD3DImpl* plsImpl,
+    StructuredBufferRingD3D(RenderContextD3DImpl* renderContextImpl,
                             size_t capacityInBytes,
                             UINT elementSizeInBytes) :
-        BufferRingD3D(plsImpl,
+        BufferRingD3D(renderContextImpl,
                       capacityInBytes,
                       D3D11_BIND_SHADER_RESOURCE,
                       elementSizeInBytes,
@@ -702,10 +702,12 @@ std::unique_ptr<BufferRing> RenderContextD3DImpl::makeTextureTransferBufferRing(
     return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
-RenderTargetD3D::RenderTargetD3D(RenderContextD3DImpl* plsImpl, uint32_t width, uint32_t height) :
+RenderTargetD3D::RenderTargetD3D(RenderContextD3DImpl* renderContextImpl,
+                                 uint32_t width,
+                                 uint32_t height) :
     RenderTarget(width, height),
-    m_gpu(plsImpl->gpu()),
-    m_gpuSupportsTypedUAVLoadStore(plsImpl->d3dCapabilities().supportsTypedUAVLoadStore)
+    m_gpu(renderContextImpl->gpu()),
+    m_gpuSupportsTypedUAVLoadStore(renderContextImpl->d3dCapabilities().supportsTypedUAVLoadStore)
 {}
 
 void RenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)

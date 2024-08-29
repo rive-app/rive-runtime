@@ -6,7 +6,7 @@
 
 #include "background_shader_compiler.h"
 #include "rive/renderer/buffer_ring.hpp"
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 #include <sstream>
 
@@ -275,9 +275,9 @@ private:
 std::unique_ptr<RenderContext> RenderContextMetalImpl::MakeContext(
     id<MTLDevice> gpu, const ContextOptions& contextOptions)
 {
-    auto plsContextImpl =
+    auto renderContextImpl =
         std::unique_ptr<RenderContextMetalImpl>(new RenderContextMetalImpl(gpu, contextOptions));
-    return std::make_unique<RenderContext>(std::move(plsContextImpl));
+    return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 
 RenderContextMetalImpl::RenderContextMetalImpl(id<MTLDevice> gpu,

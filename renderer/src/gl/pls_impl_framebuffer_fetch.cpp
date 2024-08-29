@@ -34,10 +34,10 @@ public:
         return capabilities.QCOM_shader_framebuffer_fetch_noncoherent;
     }
 
-    void activatePixelLocalStorage(RenderContextGLImpl* plsContextImpl,
+    void activatePixelLocalStorage(RenderContextGLImpl* renderContextImpl,
                                    const FlushDescriptor& desc) override
     {
-        assert(plsContextImpl->m_capabilities.EXT_shader_framebuffer_fetch);
+        assert(renderContextImpl->m_capabilities.EXT_shader_framebuffer_fetch);
 
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
@@ -106,7 +106,7 @@ public:
         if (desc.interlockMode == gpu::InterlockMode::atomics &&
             !(desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT))
         {
-            plsContextImpl->state()->setBlendEquation(BlendMode::srcOver);
+            renderContextImpl->state()->setBlendEquation(BlendMode::srcOver);
         }
 
         if (desc.interlockMode == gpu::InterlockMode::atomics)

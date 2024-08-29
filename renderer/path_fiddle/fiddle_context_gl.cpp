@@ -202,18 +202,18 @@ class FiddleContextGLPLS : public FiddleContextGL
 public:
     FiddleContextGLPLS()
     {
-        if (!m_plsContext)
+        if (!m_renderContext)
         {
             fprintf(stderr, "Failed to create a PLS renderer.\n");
             abort();
         }
     }
 
-    rive::Factory* factory() override { return m_plsContext.get(); }
+    rive::Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+    rive::gpu::RenderContext* renderContextOrNull() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* renderTargetOrNull() override { return m_renderTarget.get(); }
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
@@ -222,25 +222,28 @@ public:
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {
-        return std::make_unique<RiveRenderer>(m_plsContext.get());
+        return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
     void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
     {
-        m_plsContext->static_impl_cast<RenderContextGLImpl>()->invalidateGLState();
-        m_plsContext->beginFrame(frameDescriptor);
+        m_renderContext->static_impl_cast<RenderContextGLImpl>()->invalidateGLState();
+        m_renderContext->beginFrame(frameDescriptor);
     }
 
     void onEnd() override
     {
         flushPLSContext();
-        m_plsContext->static_impl_cast<RenderContextGLImpl>()->unbindGLInternalResources();
+        m_renderContext->static_impl_cast<RenderContextGLImpl>()->unbindGLInternalResources();
     }
 
-    void flushPLSContext() override { m_plsContext->flush({.renderTarget = m_renderTarget.get()}); }
+    void flushPLSContext() override
+    {
+        m_renderContext->flush({.renderTarget = m_renderTarget.get()});
+    }
 
 private:
-    std::unique_ptr<RenderContext> m_plsContext =
+    std::unique_ptr<RenderContext> m_renderContext =
         RenderContextGLImpl::MakeContext(RenderContextGLImpl::ContextOptions());
     rcp<RenderTargetGL> m_renderTarget;
 };
@@ -288,9 +291,9 @@ public:
 
     rive::Factory* factory() override { return &m_factory; }
 
-    rive::gpu::RenderContext* plsContextOrNull() override { return nullptr; }
+    rive::gpu::RenderContext* renderContextOrNull() override { return nullptr; }
 
-    rive::gpu::RenderTarget* plsRenderTargetOrNull() override { return nullptr; }
+    rive::gpu::RenderTarget* renderTargetOrNull() override { return nullptr; }
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {

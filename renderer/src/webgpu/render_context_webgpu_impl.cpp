@@ -4,7 +4,7 @@
 
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
 #include "generated/shaders/spirv/color_ramp.vert.h"

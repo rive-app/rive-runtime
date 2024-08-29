@@ -4,7 +4,7 @@
 
 #include "rive/renderer/render_context_helper_impl.hpp"
 
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
 #ifdef RIVE_DECODERS

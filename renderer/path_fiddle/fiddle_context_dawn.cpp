@@ -160,7 +160,7 @@ public:
         backendProcs.deviceSetLoggingCallback(m_backendDevice, device_log_callback, nullptr);
         m_device = wgpu::Device::Acquire(m_backendDevice);
         m_queue = m_device.GetQueue();
-        m_plsContext =
+        m_renderContext =
             RenderContextWebGPUImpl::MakeContext(m_device,
                                                  m_queue,
                                                  RenderContextWebGPUImpl::ContextOptions());
@@ -171,11 +171,11 @@ public:
         return GetDawnWindowBackingScaleFactor(window, m_options.retinaDisplay);
     }
 
-    Factory* factory() override { return m_plsContext.get(); }
+    Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* plsContextOrNull() override { return m_plsContext.get(); }
+    rive::gpu::RenderContext* renderContextOrNull() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderTarget* plsRenderTargetOrNull() override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* renderTargetOrNull() override { return m_renderTarget.get(); }
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
@@ -205,7 +205,7 @@ public:
             backendProcs.deviceCreateSwapChain(m_backendDevice, surface, &swapChainDesc);
         m_swapchain = wgpu::SwapChain::Acquire(backendSwapChain);
 
-        m_renderTarget = m_plsContext->static_impl_cast<RenderContextWebGPUImpl>()
+        m_renderTarget = m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
                              ->makeRenderTarget(wgpu::TextureFormat::BGRA8Unorm, width, height);
         m_pixelReadBuff = {};
     }
@@ -214,7 +214,7 @@ public:
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {
-        return std::make_unique<RiveRenderer>(m_plsContext.get());
+        return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
     void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
@@ -222,10 +222,10 @@ public:
         assert(m_swapchain.GetCurrentTexture().GetWidth() == m_renderTarget->width());
         assert(m_swapchain.GetCurrentTexture().GetHeight() == m_renderTarget->height());
         m_renderTarget->setTargetTextureView(m_swapchain.GetCurrentTextureView());
-        m_plsContext->beginFrame(std::move(frameDescriptor));
+        m_renderContext->beginFrame(std::move(frameDescriptor));
     }
 
-    void flushPLSContext() final { m_plsContext->flush({.renderTarget = m_renderTarget.get()}); }
+    void flushPLSContext() final { m_renderContext->flush({.renderTarget = m_renderTarget.get()}); }
 
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
@@ -327,7 +327,7 @@ private:
     wgpu::Queue m_queue = {};
     wgpu::SwapChain m_swapchain = {};
     std::unique_ptr<dawn::native::Instance> m_instance;
-    std::unique_ptr<RenderContext> m_plsContext;
+    std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetWebGPU> m_renderTarget;
     wgpu::Buffer m_pixelReadBuff;
 };

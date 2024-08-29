@@ -9,7 +9,7 @@
 #include "rive_render_path.hpp"
 #include "rive_render_paint.hpp"
 #include "rive/math/wangs_formula.hpp"
-#include "rive/renderer/image.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
 namespace rive::gpu
