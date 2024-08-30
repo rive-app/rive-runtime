@@ -43,21 +43,21 @@ default_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                 break;
             }
             fprintf(stderr,
-                    "PLS Vulkan error: %i: %s: %s\n",
+                    "Rive Vulkan error: %i: %s: %s\n",
                     pCallbackData->messageIdNumber,
                     pCallbackData->pMessageIdName,
                     pCallbackData->pMessage);
             abort();
         case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
             fprintf(stderr,
-                    "PLS Vulkan Validation error: %i: %s: %s\n",
+                    "Rive Vulkan Validation error: %i: %s: %s\n",
                     pCallbackData->messageIdNumber,
                     pCallbackData->pMessageIdName,
                     pCallbackData->pMessage);
             abort();
         case VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT:
             fprintf(stderr,
-                    "PLS Vulkan Performance warning: %i: %s: %s\n",
+                    "Rive Vulkan Performance warning: %i: %s: %s\n",
                     pCallbackData->messageIdNumber,
                     pCallbackData->pMessageIdName,
                     pCallbackData->pMessage);
@@ -149,32 +149,38 @@ std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_devic
     }
     auto physicalDevice = VKB_CHECK(selectResult);
 
-    printf("==== Vulkan GPU (%s): %s ====\n",
-           rive_vkb::physical_device_type_name(physicalDevice.properties.deviceType),
-           physicalDevice.properties.deviceName);
-
-    rive::gpu::VulkanFeatures plsVulkanFeatures;
     physicalDevice.enable_features_if_present({
         .independentBlend = VK_TRUE,
         .fillModeNonSolid = VK_TRUE,
         .fragmentStoresAndAtomics = VK_TRUE,
     });
-    printf("PLS Vulkan features: [");
-    if (physicalDevice.features.independentBlend)
+
+    rive::gpu::VulkanFeatures riveVulkanFeatures;
+    riveVulkanFeatures.independentBlend = physicalDevice.features.independentBlend;
+    riveVulkanFeatures.fillModeNonSolid = physicalDevice.features.fillModeNonSolid;
+    riveVulkanFeatures.fragmentStoresAndAtomics = physicalDevice.features.fragmentStoresAndAtomics;
+
     {
-        plsVulkanFeatures.independentBlend = true;
-        printf(" independentBlend");
+        printf("==== Vulkan GPU (%s): %s [",
+               physical_device_type_name(physicalDevice.properties.deviceType),
+               physicalDevice.properties.deviceName);
+        const char* prefix = "";
+        if (riveVulkanFeatures.independentBlend)
+            printf("%sindependentBlend", std::exchange(prefix, ", "));
+        if (riveVulkanFeatures.fillModeNonSolid)
+            printf("%sfillModeNonSolid", std::exchange(prefix, ", "));
+        if (riveVulkanFeatures.fragmentStoresAndAtomics)
+            printf("%sfragmentStoresAndAtomics", std::exchange(prefix, ", "));
+        printf("] ====\n");
     }
-    if (physicalDevice.features.fillModeNonSolid)
+
+#if 0
+    printf("Extensions:\n");
+    for (const auto& ext : physicalDevice.get_available_extensions())
     {
-        plsVulkanFeatures.fillModeNonSolid = true;
-        printf(" fillModeNonSolid");
+        printf("  %s\n", ext.c_str());
     }
-    if (physicalDevice.features.fragmentStoresAndAtomics)
-    {
-        plsVulkanFeatures.fragmentStoresAndAtomics = true;
-        printf(" fragmentStoresAndAtomics");
-    }
+#endif
     if (physicalDevice.enable_extension_if_present(
             VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME) ||
         physicalDevice.enable_extension_if_present("VK_AMD_rasterization_order_attachment_access"))
@@ -187,12 +193,11 @@ std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_devic
             };
         if (physicalDevice.enable_extension_features_if_present(rasterOrderFeatures))
         {
-            plsVulkanFeatures.rasterizationOrderColorAttachmentAccess = true;
+            riveVulkanFeatures.rasterizationOrderColorAttachmentAccess = true;
             printf(" rasterizationOrderColorAttachmentAccess");
         }
     }
-    printf(" ]\n");
 
-    return {physicalDevice, plsVulkanFeatures};
+    return {physicalDevice, riveVulkanFeatures};
 }
 } // namespace rive_vkb

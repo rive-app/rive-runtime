@@ -304,8 +304,6 @@ static void set_environment_variable(const char* name, const char* value)
 #endif
 }
 
-bool skia = false;
-
 enum class API
 {
     gl,
@@ -432,10 +430,6 @@ int main(int argc, const char** argv)
         {
             api = API::vulkan;
             s_forceAtomicMode = true;
-        }
-        else if (!strcmp(argv[i], "--skia"))
-        {
-            skia = true;
         }
 #ifdef RIVE_DESKTOP_GL
         else if (!strcmp(argv[i], "--angle_gl"))
@@ -573,43 +567,18 @@ int main(int argc, const char** argv)
     switch (api)
     {
         case API::metal:
-            if (skia)
-            {
-                fprintf(stderr, "Skia not supported on Metal yet.\n");
-                break;
-            }
             s_fiddleContext = FiddleContext::MakeMetalPLS(s_options);
             break;
         case API::d3d:
-            if (skia)
-            {
-                fprintf(stderr, "Skia not supported on d3d yet.\n");
-                break;
-            }
             s_fiddleContext = FiddleContext::MakeD3DPLS(s_options);
             break;
         case API::dawn:
-            if (skia)
-            {
-                fprintf(stderr, "Skia not supported on dawn yet.\n");
-                break;
-            }
             s_fiddleContext = FiddleContext::MakeDawnPLS(s_options);
             break;
         case API::vulkan:
-            if (skia)
-            {
-                fprintf(stderr, "Skia not supported on Vulkan yet.\n");
-                break;
-            }
             s_fiddleContext = FiddleContext::MakeVulkanPLS(s_options);
             break;
         case API::gl:
-            if (skia)
-            {
-                s_fiddleContext = FiddleContext::MakeGLSkia();
-                break;
-            }
             s_fiddleContext = FiddleContext::MakeGLPLS();
             break;
     }
@@ -667,7 +636,7 @@ static void update_window_title(double fps, int instances, int width, int height
     {
         title << " (x" << instances << " instances)";
     }
-    title << " | " << (skia ? "Skia" : "Rive") << " Renderer";
+    title << " | Rive Renderer";
     if (s_msaa)
     {
         title << " (msaa" << s_msaa << ')';

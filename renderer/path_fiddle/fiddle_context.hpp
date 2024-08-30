@@ -35,8 +35,7 @@ public:
     virtual void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) = 0;
     virtual void tick(){};
 
-    static std::unique_ptr<FiddleContext> MakeGLSkia();
-    static std::unique_ptr<FiddleContext> MakeGLPLS();
+    static std::unique_ptr<FiddleContext> MakeGLPLS(FiddleContextOptions = {});
 #ifdef RIVE_MACOSX
     static std::unique_ptr<FiddleContext> MakeMetalPLS(FiddleContextOptions = {});
 #else

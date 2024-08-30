@@ -304,7 +304,7 @@ filter({})
 if _OPTIONS['os'] == 'android' then
     pic('on') -- Position-independent code is required for NDK libraries.
 
-    local ndk = os.getenv('NDK_PATH') or os.getenv('ANDROID_NDK')
+    ndk = os.getenv('NDK_PATH') or os.getenv('ANDROID_NDK')
     if not ndk then
         error('export $NDK_PATH or $ANDROID_NDK')
     end

@@ -46,8 +46,8 @@ public:
                                    .set_engine_name("Rive Renderer")
 #ifdef DEBUG
                                    .set_debug_callback(rive_vkb::default_debug_callback)
-#endif
                                    .enable_validation_layers(m_options.enableVulkanValidationLayers)
+#endif
                                    .enable_extensions(glfwExtensionCount, glfwExtensions)
                                    .build());
         m_instanceDispatch = m_instance.make_table();

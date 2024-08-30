@@ -433,9 +433,14 @@
 
 #ifdef @USING_PLS_STORAGE_TEXTURES
 
+#ifdef @TARGET_VULKAN
 #define PLS_DECLUI_ATOMIC(IDX, NAME)                                                               \
     layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)                                   \
         uniform highp coherent uimage2D NAME
+#else
+#define PLS_DECLUI_ATOMIC(IDX, NAME)                                                               \
+    layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
+#endif
 #define PLS_LOADUI_ATOMIC(PLANE) imageLoad(PLANE, _plsCoord).r
 #define PLS_STOREUI_ATOMIC(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
 #define PLS_ATOMIC_MAX(PLANE, X) imageAtomicMax(PLANE, _plsCoord, X)

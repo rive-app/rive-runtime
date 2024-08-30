@@ -2,12 +2,11 @@
 
 #ifdef RIVE_TOOLS_NO_GLFW
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS() { return nullptr; }
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS(FiddleContextOptions) { return nullptr; }
 
 #else
 
 #include "path_fiddle.hpp"
-#include "rive/renderer/gl/gles3.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/gl/render_context_gl_impl.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
@@ -173,7 +172,7 @@ public:
                       0,
                       kZoomWindowWidth * kZoomWindowScale + 2,
                       kZoomWindowHeight * kZoomWindowScale + 2);
-            glClearColor(.6, .6, .6, 1);
+            glClearColor(.6f, .6f, .6f, 1);
             glClear(GL_COLOR_BUFFER_BIT);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, m_zoomWindowFBO);
             glBlitFramebuffer(0,
@@ -200,7 +199,10 @@ private:
 class FiddleContextGLPLS : public FiddleContextGL
 {
 public:
-    FiddleContextGLPLS()
+    FiddleContextGLPLS(FiddleContextOptions options) :
+        m_renderContext(RenderContextGLImpl::MakeContext({
+            .disableFragmentShaderInterlock = options.disableRasterOrdering,
+        }))
     {
         if (!m_renderContext)
         {
@@ -218,6 +220,7 @@ public:
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
         m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
+        glViewport(0, 0, width, height);
     }
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
@@ -243,106 +246,13 @@ public:
     }
 
 private:
-    std::unique_ptr<RenderContext> m_renderContext =
-        RenderContextGLImpl::MakeContext(RenderContextGLImpl::ContextOptions());
+    const std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetGL> m_renderTarget;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS()
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS(FiddleContextOptions options)
 {
-    return std::make_unique<FiddleContextGLPLS>();
-}
-
-#endif
-
-#ifndef RIVE_SKIA
-
-std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia() { return nullptr; }
-
-#else
-
-#include "skia_factory.hpp"
-#include "skia_renderer.hpp"
-#include "skia/include/core/SkCanvas.h"
-#include "skia/include/core/SkSurface.h"
-#include "skia/include/gpu/GrDirectContext.h"
-#include "skia/include/gpu/gl/GrGLAssembleInterface.h"
-#include "skia/include/gpu/gl/GrGLInterface.h"
-#include "include/effects/SkImageFilters.h"
-
-static GrGLFuncPtr get_skia_gl_proc_address(void* ctx, const char name[])
-{
-    return glfwGetProcAddress(name);
-}
-
-class FiddleContextGLSkia : public FiddleContextGL
-{
-public:
-    FiddleContextGLSkia() :
-        m_grContext(
-            GrDirectContext::MakeGL(GrGLMakeAssembledInterface(nullptr, get_skia_gl_proc_address)))
-    {
-        if (!m_grContext)
-        {
-            fprintf(stderr, "GrDirectContext::MakeGL failed.\n");
-            abort();
-        }
-    }
-
-    rive::Factory* factory() override { return &m_factory; }
-
-    rive::gpu::RenderContext* renderContextOrNull() override { return nullptr; }
-
-    rive::gpu::RenderTarget* renderTargetOrNull() override { return nullptr; }
-
-    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
-    {
-        GrBackendRenderTarget backendRT(width,
-                                        height,
-                                        1 /*samples*/,
-                                        0 /*stencilBits*/,
-                                        {0 /*fbo 0*/, GL_RGBA8});
-
-        SkSurfaceProps surfProps(0, kUnknown_SkPixelGeometry);
-
-        m_skSurface = SkSurface::MakeFromBackendRenderTarget(m_grContext.get(),
-                                                             backendRT,
-                                                             kBottomLeft_GrSurfaceOrigin,
-                                                             kRGBA_8888_SkColorType,
-                                                             nullptr,
-                                                             &surfProps);
-        if (!m_skSurface)
-        {
-            fprintf(stderr, "SkSurface::MakeFromBackendRenderTarget failed.\n");
-            abort();
-        }
-        return std::make_unique<SkiaRenderer>(m_skSurface->getCanvas());
-    }
-
-    void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
-    {
-        m_skSurface->getCanvas()->clear(frameDescriptor.clearColor);
-        m_grContext->resetContext();
-        m_skSurface->getCanvas()->save();
-    }
-
-    void onEnd() override
-    {
-        m_skSurface->getCanvas()->restore();
-        m_skSurface->flush();
-    }
-
-    void flushPLSContext() override {}
-
-private:
-    SkiaFactory m_factory;
-    const sk_sp<GrDirectContext> m_grContext;
-    sk_sp<SkSurface> m_skSurface;
-};
-
-std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia()
-{
-    return std::make_unique<FiddleContextGLSkia>();
+    return std::make_unique<FiddleContextGLPLS>(options);
 }
 
 #endif
