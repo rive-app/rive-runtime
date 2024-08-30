@@ -4,7 +4,7 @@
 
 #include "rive/renderer/d3d/render_context_d3d_impl.hpp"
 
-#include "rive/renderer/rive_render_image.hpp"
+#include "rive/renderer/texture.hpp"
 #include "shaders/constants.glsl"
 
 #include <D3DCompiler.h>
@@ -90,19 +90,24 @@ std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
             if (d3d11Options2.TypedUAVLoadAdditionalFormats)
             {
                 // TypedUAVLoadAdditionalFormats is true. Now check if we can both load and
-                // store all formats used by Rive (currently only RGBA8):
+                // store all formats used by Rive (currently only RGBA8 and BGRA8):
                 // https://learn.microsoft.com/en-us/windows/win32/direct3d11/typed-unordered-access-view-loads.
-                D3D11_FEATURE_DATA_FORMAT_SUPPORT2 d3d11Format2{};
-                d3d11Format2.InFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-                if (SUCCEEDED(gpu->CheckFeatureSupport(D3D11_FEATURE_FORMAT_SUPPORT2,
-                                                       &d3d11Format2,
-                                                       sizeof(d3d11Format2))))
-                {
-                    constexpr UINT loadStoreFlags = D3D11_FORMAT_SUPPORT2_UAV_TYPED_LOAD |
-                                                    D3D11_FORMAT_SUPPORT2_UAV_TYPED_STORE;
-                    d3dCapabilities.supportsTypedUAVLoadStore =
-                        (d3d11Format2.OutFormatSupport2 & loadStoreFlags) == loadStoreFlags;
-                }
+                auto check_typed_uav_load = [gpu](DXGI_FORMAT format) {
+                    D3D11_FEATURE_DATA_FORMAT_SUPPORT2 d3d11Format2{};
+                    d3d11Format2.InFormat = format;
+                    if (SUCCEEDED(gpu->CheckFeatureSupport(D3D11_FEATURE_FORMAT_SUPPORT2,
+                                                           &d3d11Format2,
+                                                           sizeof(d3d11Format2))))
+                    {
+                        constexpr UINT loadStoreFlags = D3D11_FORMAT_SUPPORT2_UAV_TYPED_LOAD |
+                                                        D3D11_FORMAT_SUPPORT2_UAV_TYPED_STORE;
+                        return (d3d11Format2.OutFormatSupport2 & loadStoreFlags) == loadStoreFlags;
+                    }
+                    return false;
+                };
+                d3dCapabilities.supportsTypedUAVLoadStore =
+                    check_typed_uav_load(DXGI_FORMAT_R8G8B8A8_UNORM) &&
+                    check_typed_uav_load(DXGI_FORMAT_B8G8R8A8_UNORM);
             }
         }
 
@@ -721,11 +726,11 @@ void RenderTargetD3D::setTargetTexture(ComPtr<ID3D11Texture2D> tex)
         assert(desc.Height == height());
         assert(desc.Format == DXGI_FORMAT_R8G8B8A8_UNORM ||
                desc.Format == DXGI_FORMAT_B8G8R8A8_UNORM ||
-               desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
+               desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS ||
+               desc.Format == DXGI_FORMAT_B8G8R8A8_TYPELESS);
 #endif
         m_targetTextureSupportsUAV =
-            (desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) &&
-            (m_gpuSupportsTypedUAVLoadStore || desc.Format == DXGI_FORMAT_R8G8B8A8_TYPELESS);
+            (desc.BindFlags & D3D11_BIND_UNORDERED_ACCESS) && m_gpuSupportsTypedUAVLoadStore;
         m_targetFormat = desc.Format;
     }
     else
@@ -747,11 +752,12 @@ ID3D11RenderTargetView* RenderTargetD3D::targetRTV()
         switch (m_targetFormat)
         {
             case DXGI_FORMAT_R8G8B8A8_UNORM:
-            case DXGI_FORMAT_B8G8R8A8_UNORM:
-                desc.Format = m_targetFormat;
-                break;
             case DXGI_FORMAT_R8G8B8A8_TYPELESS:
                 desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+                break;
+            case DXGI_FORMAT_B8G8R8A8_UNORM:
+            case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+                desc.Format = DXGI_FORMAT_B8G8R8A8_UNORM;
                 break;
 
             default:
@@ -788,24 +794,20 @@ ID3D11UnorderedAccessView* RenderTargetD3D::targetUAV()
                 m_targetTextureSupportsUAV ? m_targetTexture.Get() : offscreenTexture())
         {
             DXGI_FORMAT targetUavFormat;
-            if (m_gpuSupportsTypedUAVLoadStore)
+            switch (m_targetFormat)
             {
-                switch (m_targetFormat)
-                {
-                    case DXGI_FORMAT_R8G8B8A8_UNORM:
-                    case DXGI_FORMAT_B8G8R8A8_UNORM:
-                        targetUavFormat = m_targetFormat;
-                        break;
-                    case DXGI_FORMAT_R8G8B8A8_TYPELESS:
-                        targetUavFormat = DXGI_FORMAT_R8G8B8A8_UNORM;
-                        break;
-                    default:
-                        RIVE_UNREACHABLE();
-                }
-            }
-            else
-            {
-                targetUavFormat = DXGI_FORMAT_R32_UINT;
+                case DXGI_FORMAT_R8G8B8A8_UNORM:
+                case DXGI_FORMAT_R8G8B8A8_TYPELESS:
+                    targetUavFormat = m_gpuSupportsTypedUAVLoadStore ? DXGI_FORMAT_R8G8B8A8_UNORM
+                                                                     : DXGI_FORMAT_R32_UINT;
+                    break;
+                case DXGI_FORMAT_B8G8R8A8_UNORM:
+                case DXGI_FORMAT_B8G8R8A8_TYPELESS:
+                    targetUavFormat = m_gpuSupportsTypedUAVLoadStore ? DXGI_FORMAT_B8G8R8A8_UNORM
+                                                                     : DXGI_FORMAT_R32_UINT;
+                    break;
+                default:
+                    RIVE_UNREACHABLE();
             }
             m_targetUAV = make_simple_2d_uav(m_gpu.Get(), uavTexture, targetUavFormat);
         }

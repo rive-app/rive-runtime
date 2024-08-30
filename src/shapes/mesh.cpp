@@ -122,14 +122,18 @@ void Mesh::onAssetLoaded(RenderImage* renderImage)
         m_UVRenderBuffer->unmap();
     }
 
-    m_IndexRenderBuffer = factory->makeRenderBuffer(RenderBufferType::index,
-                                                    RenderBufferFlags::mappedOnceAtInitialization,
-                                                    m_IndexBuffer->size() * sizeof(uint16_t));
-    if (m_IndexRenderBuffer)
+    if (m_IndexBuffer != nullptr)
     {
-        void* indexData = m_IndexRenderBuffer->map();
-        memcpy(indexData, m_IndexBuffer->data(), m_IndexRenderBuffer->sizeInBytes());
-        m_IndexRenderBuffer->unmap();
+        m_IndexRenderBuffer =
+            factory->makeRenderBuffer(RenderBufferType::index,
+                                      RenderBufferFlags::mappedOnceAtInitialization,
+                                      m_IndexBuffer->size() * sizeof(uint16_t));
+        if (m_IndexRenderBuffer)
+        {
+            void* indexData = m_IndexRenderBuffer->map();
+            memcpy(indexData, m_IndexBuffer->data(), m_IndexRenderBuffer->sizeInBytes());
+            m_IndexRenderBuffer->unmap();
+        }
     }
 }
 
