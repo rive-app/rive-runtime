@@ -78,10 +78,24 @@ end
 filter({})
 
 -- Minify and compile PLS shaders offline.
+local nproc
+if os.host() == 'windows' then
+    nproc = os.getenv('NUMBER_OF_PROCESSORS')
+elseif os.host() == 'macosx' then
+    local handle = io.popen('sysctl -n hw.physicalcpu')
+    nproc = handle:read('*a')
+    handle:close()
+else
+    local handle = io.popen('grep -c processor /proc/cpuinfo')
+    nproc = handle:read('*a')
+    handle:close()
+end
+nproc = nproc:gsub("%s+", "") -- remove whitespace
 local pls_generated_headers = RIVE_BUILD_OUT .. '/include'
 local pls_shaders_absolute_dir = path.getabsolute(pls_generated_headers .. '/generated/shaders')
 local makecommand = 'make -C '
     .. path.getabsolute('src/shaders')
+    .. ' -j' .. nproc
     .. ' OUT='
     .. pls_shaders_absolute_dir
 
@@ -108,6 +122,7 @@ if _OPTIONS['with_vulkan'] or _OPTIONS['with-dawn'] or _OPTIONS['with-webgpu'] t
 end
 
 function execute_and_check(cmd)
+    print(cmd)
     if not os.execute(cmd) then
         error('\nError executing command:\n  ' .. cmd)
     end
