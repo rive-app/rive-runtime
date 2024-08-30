@@ -13,11 +13,15 @@
 #include "rive/shapes/paint/stroke_join.hpp"
 #include "rive/refcnt.hpp"
 
+namespace rive
+{
+class RiveRenderPath;
+class RiveRenderPaint;
+} // namespace rive
+
 namespace rive::gpu
 {
 class Draw;
-class RiveRenderPath;
-class RiveRenderPaint;
 class RenderContext;
 class Gradient;
 

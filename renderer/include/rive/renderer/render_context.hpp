@@ -19,6 +19,8 @@ class RenderContextTest;
 namespace rive
 {
 class RawPath;
+class RiveRenderPaint;
+class RiveRenderPath;
 } // namespace rive
 
 namespace rive::gpu
@@ -32,10 +34,8 @@ class MidpointFanPathDraw;
 class StencilClipReset;
 class Draw;
 class Gradient;
-class RiveRenderPaint;
-class RiveRenderPath;
-class RiveRenderPathDraw;
 class RenderContextImpl;
+class RiveRenderPathDraw;
 
 // Used as a key for complex gradients.
 class GradientContentKey

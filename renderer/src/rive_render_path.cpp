@@ -8,7 +8,7 @@
 #include "rive/math/simd.hpp"
 #include "rive/math/wangs_formula.hpp"
 
-namespace rive::gpu
+namespace rive
 {
 RiveRenderPath::RiveRenderPath(FillRule fillRule, RawPath& rawPath)
 {
@@ -125,7 +125,7 @@ float RiveRenderPath::getCoarseArea() const
                         n = std::min(n, 64.f);
                         float4 t = float4{1, 1, 2, 2} * (1 / n);
                         float4 dt = t.w;
-                        EvalCubic evalCubic(pts);
+                        gpu::EvalCubic evalCubic(pts);
                         for (; t.x < 1; t += dt)
                         {
                             float4 p = evalCubic.at(t);
@@ -163,4 +163,4 @@ uint64_t RiveRenderPath::getRawPathMutationID() const
     }
     return m_rawPathMutationID;
 }
-} // namespace rive::gpu
+} // namespace rive

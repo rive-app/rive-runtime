@@ -8,6 +8,7 @@
 #include "shaders/constants.glsl"
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive_render_paint.hpp"
+#include "gradient.hpp"
 
 #include "generated/shaders/draw_path.exports.h"
 

@@ -3,12 +3,12 @@
  */
 
 #include "rive/renderer/rive_render_factory.hpp"
-
+#include "gradient.hpp"
 #include "rive_render_paint.hpp"
 #include "rive_render_path.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 
-namespace rive::gpu
+namespace rive
 {
 rcp<RenderShader> RiveRenderFactory::makeLinearGradient(float sx,
                                                         float sy,
@@ -19,7 +19,7 @@ rcp<RenderShader> RiveRenderFactory::makeLinearGradient(float sx,
                                                         size_t count)
 {
 
-    return Gradient::MakeLinear(sx, sy, ex, ey, colors, stops, count);
+    return gpu::Gradient::MakeLinear(sx, sy, ex, ey, colors, stops, count);
 }
 
 rcp<RenderShader> RiveRenderFactory::makeRadialGradient(float cx,
@@ -30,7 +30,7 @@ rcp<RenderShader> RiveRenderFactory::makeRadialGradient(float cx,
                                                         size_t count)
 {
 
-    return Gradient::MakeRadial(cx, cy, radius, colors, stops, count);
+    return gpu::Gradient::MakeRadial(cx, cy, radius, colors, stops, count);
 }
 
 rcp<RenderPath> RiveRenderFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule)
@@ -41,4 +41,4 @@ rcp<RenderPath> RiveRenderFactory::makeRenderPath(RawPath& rawPath, FillRule fil
 rcp<RenderPath> RiveRenderFactory::makeEmptyRenderPath() { return make_rcp<RiveRenderPath>(); }
 
 rcp<RenderPaint> RiveRenderFactory::makeRenderPaint() { return make_rcp<RiveRenderPaint>(); }
-} // namespace rive::gpu
+} // namespace rive

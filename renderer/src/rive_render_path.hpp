@@ -7,7 +7,7 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/renderer.hpp"
 
-namespace rive::gpu
+namespace rive
 {
 // RenderPath implementation for Rive's pixel local storage renderer.
 class RiveRenderPath : public lite_rtti_override<RenderPath, RiveRenderPath>
@@ -65,4 +65,4 @@ private:
     mutable uint32_t m_dirt = kAllDirt;
     RIVE_DEBUG_CODE(mutable int m_rawPathMutationLockCount = 0;)
 };
-} // namespace rive::gpu
+} // namespace rive

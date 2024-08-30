@@ -11,7 +11,7 @@
 #include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
-namespace rive::gpu
+namespace rive
 {
 bool RiveRenderer::IsAABB(const RawPath& path, AABB* result)
 {
@@ -77,7 +77,7 @@ bool RiveRenderer::ClipElement::isEquivalent(const Mat2D& matrix_,
            path_->getFillRule() == fillRule;
 }
 
-RiveRenderer::RiveRenderer(RenderContext* context) : m_context(context) {}
+RiveRenderer::RiveRenderer(gpu::RenderContext* context) : m_context(context) {}
 
 RiveRenderer::~RiveRenderer() {}
 
@@ -125,12 +125,12 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
         return;
     }
 
-    clipAndPushDraw(RiveRenderPathDraw::Make(m_context,
-                                             m_stack.back().matrix,
-                                             ref_rcp(path),
-                                             path->getFillRule(),
-                                             paint,
-                                             &m_scratchPath));
+    clipAndPushDraw(gpu::RiveRenderPathDraw::Make(m_context,
+                                                  m_stack.back().matrix,
+                                                  ref_rcp(path),
+                                                  path->getFillRule(),
+                                                  paint,
+                                                  &m_scratchPath));
 }
 
 void RiveRenderer::clipPath(RenderPath* renderPath)
@@ -271,13 +271,13 @@ void RiveRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode
         // paints.
         const Mat2D& m = m_stack.back().matrix;
         auto riveRenderImage = static_cast<const RiveRenderImage*>(renderImage);
-        clipAndPushDraw(DrawUniquePtr(
-            m_context->make<ImageRectDraw>(m_context,
-                                           m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
-                                           m,
-                                           blendMode,
-                                           riveRenderImage->refTexture(),
-                                           opacity)));
+        clipAndPushDraw(gpu::DrawUniquePtr(
+            m_context->make<gpu::ImageRectDraw>(m_context,
+                                                m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
+                                                m,
+                                                blendMode,
+                                                riveRenderImage->refTexture(),
+                                                opacity)));
     }
     else
     {
@@ -309,24 +309,25 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
                                  float opacity)
 {
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
-    const Texture* texture = image->getTexture();
+    const gpu::Texture* texture = image->getTexture();
 
     assert(vertices_f32);
     assert(uvCoords_f32);
     assert(indices_u16);
 
-    clipAndPushDraw(DrawUniquePtr(m_context->make<ImageMeshDraw>(Draw::kFullscreenPixelBounds,
-                                                                 m_stack.back().matrix,
-                                                                 blendMode,
-                                                                 ref_rcp(texture),
-                                                                 std::move(vertices_f32),
-                                                                 std::move(uvCoords_f32),
-                                                                 std::move(indices_u16),
-                                                                 indexCount,
-                                                                 opacity)));
+    clipAndPushDraw(
+        gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshDraw>(gpu::Draw::kFullscreenPixelBounds,
+                                                               m_stack.back().matrix,
+                                                               blendMode,
+                                                               ref_rcp(texture),
+                                                               std::move(vertices_f32),
+                                                               std::move(uvCoords_f32),
+                                                               std::move(indices_u16),
+                                                               indexCount,
+                                                               opacity)));
 }
 
-void RiveRenderer::clipAndPushDraw(DrawUniquePtr draw)
+void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 {
     if (m_stack.back().clipIsEmpty)
     {
@@ -385,7 +386,7 @@ void RiveRenderer::clipAndPushDraw(DrawUniquePtr draw)
             "RiveRenderer::clipAndPushDraw failed. The draw and/or clip stack are too complex.\n");
 }
 
-bool RiveRenderer::applyClip(Draw* draw)
+bool RiveRenderer::applyClip(gpu::Draw* draw)
 {
     draw->setClipRect(m_stack.back().clipRectInverseMatrix);
 
@@ -421,10 +422,10 @@ bool RiveRenderer::applyClip(Draw* draw)
         {
             // Time for a new stencil clip! Erase the clip currently in the stencil buffer before we
             // draw the new one.
-            auto stencilClipClear = DrawUniquePtr(m_context->make<StencilClipReset>(
+            auto stencilClipClear = gpu::DrawUniquePtr(m_context->make<gpu::StencilClipReset>(
                 m_context,
                 m_context->getClipContentID(),
-                StencilClipReset::ResetAction::clearPreviousClip));
+                gpu::StencilClipReset::ResetAction::clearPreviousClip));
             if (!m_context->isOutsideCurrentFrame(stencilClipClear->pixelBounds()))
             {
                 m_internalDrawBatch.push_back(std::move(stencilClipClear));
@@ -441,12 +442,12 @@ bool RiveRenderer::applyClip(Draw* draw)
         {
             RiveRenderPaint clipUpdatePaint;
             clipUpdatePaint.clipUpdate(/*clip THIS clipDraw against:*/ lastClipID);
-            auto clipDraw = RiveRenderPathDraw::Make(m_context,
-                                                     clip.matrix,
-                                                     clip.path,
-                                                     clip.fillRule,
-                                                     &clipUpdatePaint,
-                                                     &m_scratchPath);
+            auto clipDraw = gpu::RiveRenderPathDraw::Make(m_context,
+                                                          clip.matrix,
+                                                          clip.path,
+                                                          clip.fillRule,
+                                                          &clipUpdatePaint,
+                                                          &m_scratchPath);
             clipDrawBounds = clipDraw->pixelBounds();
             // Generate a new clipID every time we (re-)render an element to the clip buffer.
             // (Each embodiment of the element needs its own separate readBounds.)
@@ -471,10 +472,11 @@ bool RiveRenderer::applyClip(Draw* draw)
                 // When drawing nested stencil clips, we need to intersect them, which involves
                 // erasing the region of the current clip in the stencil buffer that is outside the
                 // the one we just drew.
-                auto stencilClipIntersect = DrawUniquePtr(m_context->make<StencilClipReset>(
-                    m_context,
-                    lastClipID,
-                    StencilClipReset::ResetAction::intersectPreviousClip));
+                auto stencilClipIntersect =
+                    gpu::DrawUniquePtr(m_context->make<gpu::StencilClipReset>(
+                        m_context,
+                        lastClipID,
+                        gpu::StencilClipReset::ResetAction::intersectPreviousClip));
                 if (!m_context->isOutsideCurrentFrame(stencilClipIntersect->pixelBounds()))
                 {
                     m_internalDrawBatch.push_back(std::move(stencilClipIntersect));
@@ -490,4 +492,4 @@ bool RiveRenderer::applyClip(Draw* draw)
     m_context->setClipContentID(lastClipID);
     return true;
 }
-} // namespace rive::gpu
+} // namespace rive

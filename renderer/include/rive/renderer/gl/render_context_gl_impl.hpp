@@ -9,10 +9,14 @@
 #include "rive/renderer/render_context_helper_impl.hpp"
 #include <map>
 
-namespace rive::gpu
+namespace rive
 {
 class RiveRenderPath;
 class RiveRenderPaint;
+} // namespace rive
+
+namespace rive::gpu
+{
 class RenderTargetGL;
 
 // OpenGL backend implementation of RenderContextImpl.

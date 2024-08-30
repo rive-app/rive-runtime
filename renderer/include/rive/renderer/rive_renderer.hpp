@@ -11,22 +11,22 @@
 #include "rive/renderer/render_context.hpp"
 #include <vector>
 
+namespace rive::gpu
+{
+class RenderContext;
+} // namespace rive::gpu
+
 namespace rive
 {
 class GrInnerFanTriangulator;
-};
-
-namespace rive::gpu
-{
 class RiveRenderPath;
 class RiveRenderPaint;
-class RenderContext;
 
 // Renderer implementation for Rive's pixel local storage renderer.
 class RiveRenderer : public Renderer
 {
 public:
-    RiveRenderer(RenderContext*);
+    RiveRenderer(gpu::RenderContext*);
     ~RiveRenderer() override;
 
     void save() override;
@@ -59,13 +59,13 @@ private:
 
     // Clips and pushes the given draw to m_context. If the clipped draw is too complex to be
     // supported by the GPU buffers, even after a logical flush, then nothing is drawn.
-    void clipAndPushDraw(DrawUniquePtr);
+    void clipAndPushDraw(gpu::DrawUniquePtr);
 
     // Pushes any necessary clip updates to m_internalDrawBatch and sets the Draw's clipID and
     // clipRectInverseMatrix, if any.
     // Returns false if the operation failed, at which point the caller should issue a logical flush
     // and try again.
-    [[nodiscard]] bool applyClip(Draw*);
+    [[nodiscard]] bool applyClip(gpu::Draw*);
 
     struct RenderState
     {
@@ -97,9 +97,9 @@ private:
     };
     std::vector<ClipElement> m_clipStack;
 
-    RenderContext* const m_context;
+    gpu::RenderContext* const m_context;
 
-    std::vector<DrawUniquePtr> m_internalDrawBatch;
+    std::vector<gpu::DrawUniquePtr> m_internalDrawBatch;
 
     // Path of the rectangle [0, 0, 1, 1]. Used to draw images.
     rcp<RiveRenderPath> m_unitRectPath;
@@ -107,4 +107,4 @@ private:
     // Used to build coarse path interiors for the "interior triangulation" algorithm.
     RawPath m_scratchPath;
 };
-} // namespace rive::gpu
+} // namespace rive
