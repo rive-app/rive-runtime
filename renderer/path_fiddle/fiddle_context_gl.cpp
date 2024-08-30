@@ -65,7 +65,7 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
 class FiddleContextGL : public FiddleContext
 {
 public:
-    FiddleContextGL()
+    FiddleContextGL(FiddleContextOptions options)
     {
 #ifdef RIVE_DESKTOP_GL
         // Load the OpenGL API using glad.
@@ -102,6 +102,15 @@ public:
         }
 #endif
 #endif
+
+        m_renderContext = RenderContextGLImpl::MakeContext({
+            .disableFragmentShaderInterlock = options.disableRasterOrdering,
+        });
+        if (!m_renderContext)
+        {
+            fprintf(stderr, "Failed to create a RiveRenderContext for GL.\n");
+            abort();
+        }
     }
 
     ~FiddleContextGL() { glDeleteFramebuffers(1, &m_zoomWindowFBO); }
@@ -139,11 +148,48 @@ public:
         }
     }
 
+    rive::Factory* factory() override { return m_renderContext.get(); }
+
+    rive::gpu::RenderContext* renderContextOrNull() override { return m_renderContext.get(); }
+
+    rive::gpu::RenderTarget* renderTargetOrNull() override { return m_renderTarget.get(); }
+
+    void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
+    {
+        m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
+        glViewport(0, 0, width, height);
+    }
+
+    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
+    {
+        return std::make_unique<RiveRenderer>(m_renderContext.get());
+    }
+
+    void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
+    {
+        m_renderContext->static_impl_cast<RenderContextGLImpl>()->invalidateGLState();
+        m_renderContext->beginFrame(frameDescriptor);
+    }
+
+    void flushPLSContext() final { m_renderContext->flush({.renderTarget = m_renderTarget.get()}); }
+
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
-        assert(pixelData == nullptr); // Not implemented yet.
-        onEnd();
+        flushPLSContext();
+        m_renderContext->static_impl_cast<RenderContextGLImpl>()->unbindGLInternalResources();
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
+        if (pixelData)
+        {
+            pixelData->resize(m_renderTarget->height() * m_renderTarget->width() * 4);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
+            glReadPixels(0,
+                         0,
+                         m_renderTarget->width(),
+                         m_renderTarget->height(),
+                         GL_RGBA,
+                         GL_UNSIGNED_BYTE,
+                         pixelData->data());
+        }
         if (m_zoomWindowFBO)
         {
             // Blit the zoom window.
@@ -189,70 +235,15 @@ public:
         }
     }
 
-protected:
-    virtual void onEnd() = 0;
-
 private:
     GLuint m_zoomWindowFBO = 0;
-};
-
-class FiddleContextGLPLS : public FiddleContextGL
-{
-public:
-    FiddleContextGLPLS(FiddleContextOptions options) :
-        m_renderContext(RenderContextGLImpl::MakeContext({
-            .disableFragmentShaderInterlock = options.disableRasterOrdering,
-        }))
-    {
-        if (!m_renderContext)
-        {
-            fprintf(stderr, "Failed to create a PLS renderer.\n");
-            abort();
-        }
-    }
-
-    rive::Factory* factory() override { return m_renderContext.get(); }
-
-    rive::gpu::RenderContext* renderContextOrNull() override { return m_renderContext.get(); }
-
-    rive::gpu::RenderTarget* renderTargetOrNull() override { return m_renderTarget.get(); }
-
-    void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
-    {
-        m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
-        glViewport(0, 0, width, height);
-    }
-
-    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
-    {
-        return std::make_unique<RiveRenderer>(m_renderContext.get());
-    }
-
-    void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
-    {
-        m_renderContext->static_impl_cast<RenderContextGLImpl>()->invalidateGLState();
-        m_renderContext->beginFrame(frameDescriptor);
-    }
-
-    void onEnd() override
-    {
-        flushPLSContext();
-        m_renderContext->static_impl_cast<RenderContextGLImpl>()->unbindGLInternalResources();
-    }
-
-    void flushPLSContext() override
-    {
-        m_renderContext->flush({.renderTarget = m_renderTarget.get()});
-    }
-
-private:
-    const std::unique_ptr<RenderContext> m_renderContext;
+    std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetGL> m_renderTarget;
 };
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS(FiddleContextOptions options)
 {
-    return std::make_unique<FiddleContextGLPLS>(options);
+    return std::make_unique<FiddleContextGL>(options);
 }
 
 #endif

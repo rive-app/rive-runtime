@@ -86,7 +86,7 @@ elseif os.host() == 'macosx' then
     nproc = handle:read('*a')
     handle:close()
 else
-    local handle = io.popen('grep -c processor /proc/cpuinfo')
+    local handle = io.popen('nproc')
     nproc = handle:read('*a')
     handle:close()
 end
