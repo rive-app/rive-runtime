@@ -5,7 +5,7 @@ using namespace rive;
 
 Dash::Dash() : m_value(0.0f), m_percentage(false) {}
 Dash::Dash(float value, bool percentage) : m_value(value), m_percentage(percentage) {}
-float Dash::value() const { return m_value; }
+float Dash::value() const { return m_value < 0.0 ? 0.0f : m_value; }
 bool Dash::percentage() const { return m_percentage; }
 
 void PathDasher::invalidateSourcePath()
@@ -36,21 +36,36 @@ RenderPath* PathDasher::dash(const RawPath& source,
         }
     }
 
-    int dashIndex = 0;
-    for (const rcp<ContourMeasure>& contour : m_contours)
+    // Make sure dashes have some length.
+    bool hasValidDash = false;
+    for (auto dash : dashes)
     {
-        float distance = offset.percentage() ? offset.value() * contour->length() : offset.value();
-        bool draw = true;
-        while (distance < contour->length())
+        if (dash.value() > 0.0f)
         {
-            const Dash& dash = dashes[dashIndex];
-            float dashLength = dash.percentage() ? dash.value() * contour->length() : dash.value();
-            if (draw)
+            hasValidDash = true;
+            break;
+        }
+    }
+    if (hasValidDash)
+    {
+        int dashIndex = 0;
+        for (const rcp<ContourMeasure>& contour : m_contours)
+        {
+            float distance =
+                offset.percentage() ? offset.value() * contour->length() : offset.value();
+            bool draw = true;
+            while (distance < contour->length())
             {
-                contour->getSegment(distance, distance + dashLength, &m_rawPath, true);
+                const Dash& dash = dashes[dashIndex++ % dashes.size()];
+                float dashLength =
+                    dash.percentage() ? dash.value() * contour->length() : dash.value();
+                if (draw)
+                {
+                    contour->getSegment(distance, distance + dashLength, &m_rawPath, true);
+                }
+                distance += dashLength;
+                draw = !draw;
             }
-            distance += dashLength;
-            draw = !draw;
         }
     }
 
