@@ -1134,6 +1134,9 @@ public:
             case TextBase::originValuePropertyKey:
                 object->as<TextBase>()->originValue(value);
                 break;
+            case TextBase::wrapValuePropertyKey:
+                object->as<TextBase>()->wrapValue(value);
+                break;
             case TextValueRunBase::styleIdPropertyKey:
                 object->as<TextValueRunBase>()->styleId(value);
                 break;
@@ -2155,6 +2158,8 @@ public:
                 return object->as<TextBase>()->overflowValue();
             case TextBase::originValuePropertyKey:
                 return object->as<TextBase>()->originValue();
+            case TextBase::wrapValuePropertyKey:
+                return object->as<TextBase>()->wrapValue();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->as<TextValueRunBase>()->styleId();
             case FileAssetBase::assetIdPropertyKey:
@@ -2772,6 +2777,7 @@ public:
             case TextBase::sizingValuePropertyKey:
             case TextBase::overflowValuePropertyKey:
             case TextBase::originValuePropertyKey:
+            case TextBase::wrapValuePropertyKey:
             case TextValueRunBase::styleIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
             case AudioEventBase::assetIdPropertyKey:
@@ -3386,6 +3392,8 @@ public:
             case TextBase::overflowValuePropertyKey:
                 return object->is<TextBase>();
             case TextBase::originValuePropertyKey:
+                return object->is<TextBase>();
+            case TextBase::wrapValuePropertyKey:
                 return object->is<TextBase>();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->is<TextValueRunBase>();

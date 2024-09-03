@@ -22,13 +22,20 @@ enum class TextOverflow : uint8_t
     visible,
     hidden,
     clipped,
-    ellipsis
+    ellipsis,
+    fit,
 };
 
 enum class TextOrigin : uint8_t
 {
     top,
     baseline
+};
+
+enum class TextWrap : uint8_t
+{
+    wrap,
+    noWrap
 };
 
 class OrderedLine;
@@ -175,6 +182,7 @@ public:
     void modifierShapeDirty();
     void markPaintDirty();
     void update(ComponentDirt value) override;
+    Mat2D m_fitScale;
 
     TextSizing sizing() const { return (TextSizing)sizingValue(); }
     TextSizing effectiveSizing() const
@@ -183,6 +191,7 @@ public:
     }
     TextOverflow overflow() const { return (TextOverflow)overflowValue(); }
     TextOrigin textOrigin() const { return (TextOrigin)originValue(); }
+    TextWrap wrap() const { return (TextWrap)wrapValue(); }
     void overflow(TextOverflow value) { return overflowValue((uint32_t)value); }
     void buildRenderStyles();
     const TextStyle* styleFromShaperId(uint16_t id) const;

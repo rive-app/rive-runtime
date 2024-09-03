@@ -43,6 +43,7 @@ public:
     static const uint16_t originYPropertyKey = 367;
     static const uint16_t paragraphSpacingPropertyKey = 371;
     static const uint16_t originValuePropertyKey = 377;
+    static const uint16_t wrapValuePropertyKey = 683;
 
 private:
     uint32_t m_AlignValue = 0;
@@ -54,6 +55,7 @@ private:
     float m_OriginY = 0.0f;
     float m_ParagraphSpacing = 0.0f;
     uint32_t m_OriginValue = 0;
+    uint32_t m_WrapValue = 0;
 
 public:
     inline uint32_t alignValue() const { return m_AlignValue; }
@@ -155,6 +157,17 @@ public:
         originValueChanged();
     }
 
+    inline uint32_t wrapValue() const { return m_WrapValue; }
+    void wrapValue(uint32_t value)
+    {
+        if (m_WrapValue == value)
+        {
+            return;
+        }
+        m_WrapValue = value;
+        wrapValueChanged();
+    }
+
     Core* clone() const override;
     void copy(const TextBase& object)
     {
@@ -167,6 +180,7 @@ public:
         m_OriginY = object.m_OriginY;
         m_ParagraphSpacing = object.m_ParagraphSpacing;
         m_OriginValue = object.m_OriginValue;
+        m_WrapValue = object.m_WrapValue;
         Drawable::copy(object);
     }
 
@@ -201,6 +215,9 @@ public:
             case originValuePropertyKey:
                 m_OriginValue = CoreUintType::deserialize(reader);
                 return true;
+            case wrapValuePropertyKey:
+                m_WrapValue = CoreUintType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -215,6 +232,7 @@ protected:
     virtual void originYChanged() {}
     virtual void paragraphSpacingChanged() {}
     virtual void originValueChanged() {}
+    virtual void wrapValueChanged() {}
 };
 } // namespace rive
 

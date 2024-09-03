@@ -99,6 +99,15 @@
         "string": "originValue"
       },
       "description": "Logical starting location of origin."
+    },
+    "wrapValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 683,
+        "string": "wrapvalue"
+      },
+      "description": "One of wrap, noWrap"
     }
   }
 }

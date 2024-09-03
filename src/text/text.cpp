@@ -498,6 +498,38 @@ void Text::buildRenderStyles()
         }
         y += paragraphSpace;
     }
+    if (overflow() == TextOverflow::fit)
+    {
+        auto xScale = (effectiveSizing() != TextSizing::autoWidth && maxWidth > m_bounds.width())
+                          ? m_bounds.width() / maxWidth
+                          : 1;
+        auto baseline = m_lines[0][0].baseline;
+        auto yScale = (effectiveSizing() == TextSizing::fixed && y > m_bounds.height())
+                          ? (m_bounds.height() - baseline) / (y - baseline)
+                          : 1;
+        if (xScale != 1 || yScale != 1)
+        {
+            auto scale = std::max(0.0f, xScale > yScale ? yScale : xScale);
+            auto yOffset = baseline * (1 - scale);
+            auto xOffset = 0.0f;
+            switch ((TextAlign)alignValue())
+            {
+                case TextAlign::center:
+                    xOffset = (m_bounds.width() - maxWidth * scale) / 2;
+                    break;
+                case TextAlign::right:
+                    xOffset = (m_bounds.width() - maxWidth * scale);
+                    break;
+                default:
+                    break;
+            }
+            m_fitScale = Mat2D::fromScaleAndTranslation(scale, scale, xOffset, yOffset);
+        }
+        else
+        {
+            m_fitScale = Mat2D();
+        }
+    }
 }
 
 const TextStyle* Text::styleFromShaperId(uint16_t id) const
@@ -517,7 +549,7 @@ void Text::draw(Renderer* renderer)
     }
     if (clipResult != ClipResult::emptyClip)
     {
-        renderer->transform(m_WorldTransform);
+        renderer->transform(m_WorldTransform * m_fitScale);
         if (overflow() == TextOverflow::clipped && m_clipRenderPath)
         {
             renderer->clipPath(m_clipRenderPath.get());
@@ -704,10 +736,12 @@ void Text::update(ComponentDirt value)
             makeStyled(m_modifierStyledText, false);
             auto runs = m_modifierStyledText.runs();
             m_modifierShape = runs[0].font->shapeText(m_modifierStyledText.unichars(), runs);
-            m_modifierLines =
-                BreakLines(m_modifierShape,
-                           effectiveSizing() == TextSizing::autoWidth ? -1.0f : effectiveWidth(),
-                           (TextAlign)alignValue());
+            m_modifierLines = BreakLines(
+                m_modifierShape,
+                (effectiveSizing() == TextSizing::autoWidth || wrap() == TextWrap::noWrap)
+                    ? -1.0f
+                    : effectiveWidth(),
+                (TextAlign)alignValue());
             m_glyphLookup.compute(m_modifierStyledText.unichars(), m_modifierShape);
             uint32_t textSize = (uint32_t)m_modifierStyledText.unichars().size();
             for (TextModifierGroup* group : m_modifierGroups)
@@ -723,10 +757,12 @@ void Text::update(ComponentDirt value)
         {
             auto runs = m_styledText.runs();
             m_shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
-            m_lines =
-                BreakLines(m_shape,
-                           effectiveSizing() == TextSizing::autoWidth ? -1.0f : effectiveWidth(),
-                           (TextAlign)alignValue());
+            m_lines = BreakLines(
+                m_shape,
+                (effectiveSizing() == TextSizing::autoWidth || wrap() == TextWrap::noWrap)
+                    ? -1.0f
+                    : effectiveWidth(),
+                (TextAlign)alignValue());
             if (!precomputeModifierCoverage && haveModifiers())
             {
                 m_glyphLookup.compute(m_styledText.unichars(), m_shape);
@@ -775,12 +811,13 @@ Vec2D Text::measure(Vec2D maxSize)
         const float paragraphSpace = paragraphSpacing();
         auto runs = m_styledText.runs();
         auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
-        auto lines = BreakLines(shape,
-                                std::min(maxSize.x,
-                                         sizing() == TextSizing::autoWidth
-                                             ? std::numeric_limits<float>::max()
-                                             : width()),
-                                (TextAlign)alignValue());
+        auto lines =
+            BreakLines(shape,
+                       std::min(maxSize.x,
+                                (sizing() == TextSizing::autoWidth || wrap() == TextWrap::noWrap)
+                                    ? std::numeric_limits<float>::max()
+                                    : width()),
+                       (TextAlign)alignValue());
         float y = 0;
         float computedHeight = 0.0f;
         float minY = 0;
