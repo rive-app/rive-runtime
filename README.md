@@ -40,13 +40,13 @@ To build viewer (plus you'll needed CMake installed)
 Uses the [Catch2](https://github.com/catchorg/Catch2) testing framework.
 
 ```
-cd dev
+cd tests/unit_tests
 ./test.sh
 ```
 
-In the ```dev``` directory, run ```test.sh``` to compile and execute the tests.
+In the ```tests/unit_tests``` directory, run ```test.sh``` to compile and execute the tests.
 
-(if you've installed `premake5` in `rive-cpp/build`, you can run it with `PATH=../../build:$PATH ./test.sh`)
+(if you've installed `premake5` in `rive-runtime/build`, you can run it with `PATH=../../build:$PATH ./test.sh`)
 
 The tests live in ```rive/test```. To add new tests, create a new ```xxx_test.cpp``` file here. The test harness will automatically pick up the new file.
 

@@ -74,8 +74,7 @@ do
     targetdir('%{cfg.system}/bin/%{cfg.buildcfg}')
     objdir('%{cfg.system}/obj/%{cfg.buildcfg}')
     includedirs({
-        rive .. 'dev/test/include', -- for catch.hpp
-        rive .. 'test', -- for things like rive_file_reader.hpp
+        rive .. 'tests/include', -- for catch.hpp and for things rive_file_reader.hpp
         '../include',
         rive .. '/include',
         dependencies .. '/sokol',

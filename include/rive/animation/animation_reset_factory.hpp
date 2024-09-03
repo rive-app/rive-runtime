@@ -32,7 +32,7 @@ public:
     static void release(std::unique_ptr<AnimationReset> value);
 #ifdef TESTING
     // Used in testing to check pooled resources;
-    static int resourcesCount() { return m_resources.size(); };
+    static int resourcesCount() { return static_cast<int>(m_resources.size()); };
     static void releaseResources() { m_resources.clear(); };
 #endif
 };

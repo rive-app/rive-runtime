@@ -28,7 +28,7 @@ jobs:
 
       - name: Tests
         run: |
-          cd dev
+          cd tests/unit_tests
           ./test.sh
 
   build-windows:
@@ -37,7 +37,7 @@ jobs:
       - uses: actions/checkout@v2
       - name: Tests
         run: |
-          cd dev
+          cd tests/unit_tests
           ./test.sh
 
   build-macos:
@@ -66,7 +66,7 @@ jobs:
         if: matrix.platform == 'macOS'
         run: |
           echo Testing for ${{matrix.platform}}
-          cd dev
+          cd tests/unit_tests
           ./test.sh
 
       - name: Tess Tests
