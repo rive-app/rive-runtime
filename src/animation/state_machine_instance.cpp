@@ -1004,6 +1004,16 @@ StateMachineInstance::~StateMachineInstance()
     m_bindablePropertyInstances.clear();
 }
 
+#ifdef WITH_RIVE_TOOLS
+void StateMachineInstance::onDataBindChanged(DataBindChanged callback)
+{
+    for (auto databind : m_dataBinds)
+    {
+        databind->onChanged(callback);
+    }
+}
+#endif
+
 void StateMachineInstance::sortHitComponents()
 {
     Drawable* last = m_artboardInstance->firstDrawable();

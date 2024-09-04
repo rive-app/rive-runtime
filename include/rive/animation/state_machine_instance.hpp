@@ -170,6 +170,7 @@ private:
 #ifdef WITH_RIVE_TOOLS
 public:
     void onInputChanged(InputChanged callback) { m_inputChangedCallback = callback; }
+    void onDataBindChanged(DataBindChanged callback);
     InputChanged m_inputChangedCallback = nullptr;
 #endif
 };

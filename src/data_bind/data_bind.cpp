@@ -187,5 +187,11 @@ bool DataBind::addDirt(ComponentDirt value, bool recurse)
     }
 
     m_Dirt |= value;
+#ifdef WITH_RIVE_TOOLS
+    if (m_changedCallback != nullptr)
+    {
+        m_changedCallback();
+    }
+#endif
     return true;
 }
