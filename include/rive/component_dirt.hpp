@@ -56,14 +56,14 @@ enum class ComponentDirt : unsigned short
     /// Used by the gradients track when the stops need to be re-ordered.
     Stops = 1 << 10,
 
-    /// Used by data binds to track  the value has changed.
-    Bindings = 1 << 11,
-
     /// Blend modes need to be updated
     // TODO: do we need this?
     // BlendMode = 1 << 9,
 
     LayoutStyle = 1 << 11,
+
+    /// Used by data binds to track the value has changed.
+    Bindings = 1 << 12,
 
     /// All dirty. Every flag (apart from Collapsed) is set.
     Filthy = 0xFFFE
