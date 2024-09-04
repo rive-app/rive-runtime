@@ -44,7 +44,7 @@ class SMINumber;
 class SMITrigger;
 
 #ifdef WITH_RIVE_TOOLS
-typedef void (*ArtboardCallback)(Artboard*);
+typedef void (*ArtboardCallback)(void*);
 #endif
 
 class Artboard : public ArtboardBase, public CoreContext
@@ -376,6 +376,7 @@ private:
     ArtboardCallback m_layoutDirtyCallback = nullptr;
 
 public:
+    void* callbackUserData;
     void onLayoutChanged(ArtboardCallback callback) { m_layoutChangedCallback = callback; }
     void onLayoutDirty(ArtboardCallback callback) { m_layoutDirtyCallback = callback; }
 #endif

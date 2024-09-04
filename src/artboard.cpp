@@ -35,7 +35,12 @@
 
 using namespace rive;
 
-Artboard::Artboard() {}
+Artboard::Artboard()
+{
+#ifdef WITH_RIVE_TOOLS
+    callbackUserData = this;
+#endif
+}
 
 Artboard::~Artboard()
 {
@@ -511,7 +516,7 @@ void Artboard::propagateSize()
 #ifdef WITH_RIVE_TOOLS
     if (m_layoutChangedCallback != nullptr)
     {
-        m_layoutChangedCallback(this);
+        m_layoutChangedCallback(callbackUserData);
     }
 #endif
 }
@@ -687,7 +692,7 @@ void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
 #ifdef WITH_RIVE_TOOLS
     if (m_dirtyLayout.empty() && m_layoutDirtyCallback != nullptr)
     {
-        m_layoutDirtyCallback(this);
+        m_layoutDirtyCallback(callbackUserData);
     }
 #endif
     m_dirtyLayout.insert(layoutComponent);
