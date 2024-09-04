@@ -58,10 +58,23 @@ protected:
     virtual void* onMap() = 0;
     virtual void onUnmap() = 0;
 
+    // Unset the dirty flag, and return whether it had been set.
+    bool checkAndResetDirty()
+    {
+        assert(m_mapCount == m_unmapCount); // Don't call this while mapped.
+        if (m_dirty)
+        {
+            m_dirty = false;
+            return true;
+        }
+        return false;
+    }
+
 private:
     const RenderBufferType m_type;
     const RenderBufferFlags m_flags;
     const size_t m_sizeInBytes;
+    bool m_dirty = false;
     RIVE_DEBUG_CODE(size_t m_mapCount = 0;)
     RIVE_DEBUG_CODE(size_t m_unmapCount = 0;)
 };

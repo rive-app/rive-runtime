@@ -4,7 +4,8 @@
 
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 
-#include "rive/renderer/rive_render_image.hpp"
+#include "rive/renderer/texture.hpp"
+#include "rive/renderer/rive_render_buffer.hpp"
 #include "shaders/constants.glsl"
 
 namespace spirv
@@ -56,45 +57,38 @@ static VkBufferUsageFlagBits render_buffer_usage_flags(RenderBufferType renderBu
     RIVE_UNREACHABLE();
 }
 
-class RenderBufferVulkanImpl : public RenderBuffer
+class RenderBufferVulkanImpl : public lite_rtti_override<RiveRenderBuffer, RenderBufferVulkanImpl>
 {
 public:
     RenderBufferVulkanImpl(rcp<VulkanContext> vk,
                            RenderBufferType renderBufferType,
                            RenderBufferFlags renderBufferFlags,
                            size_t sizeInBytes) :
-        RenderBuffer(renderBufferType, renderBufferFlags, sizeInBytes),
+        lite_rtti_override(renderBufferType, renderBufferFlags, sizeInBytes),
         m_bufferRing(std::move(vk),
                      render_buffer_usage_flags(renderBufferType),
                      vkutil::Mappability::writeOnly,
                      sizeInBytes)
     {}
 
-    VkBuffer frontVkBuffer() const
-    {
-        assert(m_bufferRingIdx >= 0); // Call map() first.
-        return m_bufferRing.vkBufferAt(m_bufferRingIdx);
-    }
+    VkBuffer frontVkBuffer() { return m_bufferRing.vkBufferAt(frontBufferIdx()); }
 
-    const VkBuffer* frontVkBufferAddressOf() const
+    const VkBuffer* frontVkBufferAddressOf()
     {
-        assert(m_bufferRingIdx >= 0); // Call map() first.
-        return m_bufferRing.vkBufferAtAddressOf(m_bufferRingIdx);
+        return m_bufferRing.vkBufferAtAddressOf(frontBufferIdx());
     }
 
 protected:
     void* onMap() override
     {
-        m_bufferRingIdx = (m_bufferRingIdx + 1) % gpu::kBufferRingSize;
-        m_bufferRing.synchronizeSizeAt(m_bufferRingIdx);
-        return m_bufferRing.contentsAt(m_bufferRingIdx);
+        m_bufferRing.synchronizeSizeAt(backBufferIdx());
+        return m_bufferRing.contentsAt(backBufferIdx());
     }
 
-    void onUnmap() override { m_bufferRing.flushMappedContentsAt(m_bufferRingIdx); }
+    void onUnmap() override { m_bufferRing.flushMappedContentsAt(backBufferIdx()); }
 
 private:
     vkutil::BufferRing m_bufferRing;
-    int m_bufferRingIdx = -1;
 };
 
 rcp<RenderBuffer> RenderContextVulkanImpl::makeRenderBuffer(RenderBufferType type,
@@ -2836,9 +2830,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
             case DrawType::imageMesh:
             {
-                auto vertexBuffer = static_cast<const RenderBufferVulkanImpl*>(batch.vertexBuffer);
-                auto uvBuffer = static_cast<const RenderBufferVulkanImpl*>(batch.uvBuffer);
-                auto indexBuffer = static_cast<const RenderBufferVulkanImpl*>(batch.indexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(vertexBuffer, RenderBufferVulkanImpl*, batch.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, RenderBufferVulkanImpl*, batch.uvBuffer);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer, RenderBufferVulkanImpl*, batch.indexBuffer);
                 m_vk->CmdBindVertexBuffers(commandBuffer,
                                            0,
                                            1,

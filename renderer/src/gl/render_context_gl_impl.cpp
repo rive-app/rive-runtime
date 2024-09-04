@@ -7,7 +7,7 @@
 #include "rive/renderer/gl/render_buffer_gl_impl.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include "rive/renderer/draw.hpp"
-#include "rive/renderer/rive_render_image.hpp"
+#include "rive/renderer/texture.hpp"
 #include "shaders/constants.glsl"
 
 #include "generated/shaders/advanced_blend.glsl.hpp"
@@ -1438,17 +1438,15 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case gpu::DrawType::imageMesh:
             {
-                LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
-                                        const RenderBufferGLImpl*,
-                                        batch.vertexBuffer);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferGLImpl*, batch.uvBuffer);
-                LITE_RTTI_CAST_OR_BREAK(indexBuffer, const RenderBufferGLImpl*, batch.indexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(vertexBuffer, RenderBufferGLImpl*, batch.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, RenderBufferGLImpl*, batch.uvBuffer);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer, RenderBufferGLImpl*, batch.indexBuffer);
                 m_state->bindVAO(m_imageMeshVAO);
-                m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->submittedBufferID());
+                m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->frontBufferID());
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-                m_state->bindBuffer(GL_ARRAY_BUFFER, uvBuffer->submittedBufferID());
+                m_state->bindBuffer(GL_ARRAY_BUFFER, uvBuffer->frontBufferID());
                 glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-                m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer->submittedBufferID());
+                m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer->frontBufferID());
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                                   gl_buffer_id(imageDrawUniformBufferRing()),

@@ -6,7 +6,8 @@
 
 #include "background_shader_compiler.h"
 #include "rive/renderer/buffer_ring.hpp"
-#include "rive/renderer/rive_render_image.hpp"
+#include "rive/renderer/texture.hpp"
+#include "rive/renderer/rive_render_buffer.hpp"
 #include "shaders/constants.glsl"
 #include <sstream>
 
@@ -478,7 +479,7 @@ rcp<RenderTargetMetal> RenderContextMetalImpl::makeRenderTarget(MTLPixelFormat p
     return rcp(new RenderTargetMetal(m_gpu, pixelFormat, width, height, m_platformFeatures));
 }
 
-class RenderBufferMetalImpl : public lite_rtti_override<RenderBuffer, RenderBufferMetalImpl>
+class RenderBufferMetalImpl : public lite_rtti_override<RiveRenderBuffer, RenderBufferMetalImpl>
 {
 public:
     RenderBufferMetalImpl(RenderBufferType renderBufferType,
@@ -496,14 +497,13 @@ public:
         }
     }
 
-    id<MTLBuffer> submittedBuffer() const { return m_buffers[m_submittedBufferIdx]; }
+    id<MTLBuffer> submittedBuffer() { return m_buffers[frontBufferIdx()]; }
 
 protected:
     void* onMap() override
     {
-        m_submittedBufferIdx = (m_submittedBufferIdx + 1) % gpu::kBufferRingSize;
-        assert(m_buffers[m_submittedBufferIdx] != nil);
-        return m_buffers[m_submittedBufferIdx].contents;
+        assert(m_buffers[backBufferIdx()] != nil);
+        return m_buffers[backBufferIdx()].contents;
     }
 
     void onUnmap() override {}
@@ -1111,10 +1111,9 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 else
                 {
                     LITE_RTTI_CAST_OR_BREAK(
-                        vertexBuffer, const RenderBufferMetalImpl*, batch.vertexBuffer);
-                    LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferMetalImpl*, batch.uvBuffer);
-                    LITE_RTTI_CAST_OR_BREAK(
-                        indexBuffer, const RenderBufferMetalImpl*, batch.indexBuffer);
+                        vertexBuffer, RenderBufferMetalImpl*, batch.vertexBuffer);
+                    LITE_RTTI_CAST_OR_BREAK(uvBuffer, RenderBufferMetalImpl*, batch.uvBuffer);
+                    LITE_RTTI_CAST_OR_BREAK(indexBuffer, RenderBufferMetalImpl*, batch.indexBuffer);
                     [encoder setVertexBuffer:vertexBuffer->submittedBuffer() offset:0 atIndex:0];
                     [encoder setVertexBuffer:uvBuffer->submittedBuffer() offset:0 atIndex:1];
                     [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle

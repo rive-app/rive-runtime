@@ -314,15 +314,15 @@ public:
                   const Mat2D&,
                   BlendMode,
                   rcp<const Texture>,
-                  rcp<const RenderBuffer> vertexBuffer,
-                  rcp<const RenderBuffer> uvBuffer,
-                  rcp<const RenderBuffer> indexBuffer,
+                  rcp<RenderBuffer> vertexBuffer,
+                  rcp<RenderBuffer> uvBuffer,
+                  rcp<RenderBuffer> indexBuffer,
                   uint32_t indexCount,
                   float opacity);
 
-    const RenderBuffer* vertexBuffer() const { return m_vertexBufferRef; }
-    const RenderBuffer* uvBuffer() const { return m_uvBufferRef; }
-    const RenderBuffer* indexBuffer() const { return m_indexBufferRef; }
+    RenderBuffer* vertexBuffer() const { return m_vertexBufferRef; }
+    RenderBuffer* uvBuffer() const { return m_uvBufferRef; }
+    RenderBuffer* indexBuffer() const { return m_indexBufferRef; }
     uint32_t indexCount() const { return m_indexCount; }
     float opacity() const { return m_opacity; }
 
@@ -331,9 +331,9 @@ public:
     void releaseRefs() override;
 
 protected:
-    const RenderBuffer* const m_vertexBufferRef;
-    const RenderBuffer* const m_uvBufferRef;
-    const RenderBuffer* const m_indexBufferRef;
+    RenderBuffer* const m_vertexBufferRef;
+    RenderBuffer* const m_uvBufferRef;
+    RenderBuffer* const m_indexBufferRef;
     const uint32_t m_indexCount;
     const float m_opacity;
 };

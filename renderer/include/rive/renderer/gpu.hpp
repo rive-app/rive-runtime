@@ -715,9 +715,9 @@ struct DrawBatch
     const Texture* imageTexture = nullptr;
 
     // DrawType::imageMesh.
-    const RenderBuffer* vertexBuffer;
-    const RenderBuffer* uvBuffer;
-    const RenderBuffer* indexBuffer;
+    RenderBuffer* vertexBuffer;
+    RenderBuffer* uvBuffer;
+    RenderBuffer* indexBuffer;
 };
 
 // Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU

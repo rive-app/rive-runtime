@@ -1537,11 +1537,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 break;
             case DrawType::imageMesh:
             {
-                LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
-                                        const RenderBufferD3DImpl*,
-                                        batch.vertexBuffer);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, const RenderBufferD3DImpl*, batch.uvBuffer);
-                LITE_RTTI_CAST_OR_BREAK(indexBuffer, const RenderBufferD3DImpl*, batch.indexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(vertexBuffer, RenderBufferD3DImpl*, batch.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer, RenderBufferD3DImpl*, batch.uvBuffer);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer, RenderBufferD3DImpl*, batch.indexBuffer);
                 ID3D11Buffer* imageMeshBuffers[] = {vertexBuffer->buffer(), uvBuffer->buffer()};
                 UINT imageMeshStrides[] = {sizeof(Vec2D), sizeof(Vec2D)};
                 UINT imageMeshOffsets[] = {0, 0};

@@ -64,7 +64,6 @@ std::array<GLuint, gpu::kBufferRingSize> RenderBufferGLImpl::detachBuffers()
 
 void* RenderBufferGLImpl::onMap()
 {
-    m_submittedBufferIdx = (m_submittedBufferIdx + 1) % gpu::kBufferRingSize;
     if (!canMapBuffer())
     {
         if (!m_fallbackMappedMemory)
@@ -77,7 +76,7 @@ void* RenderBufferGLImpl::onMap()
     {
 #ifndef RIVE_WEBGL
         m_state->bindVAO(0);
-        m_state->bindBuffer(m_target, m_bufferIDs[m_submittedBufferIdx]);
+        m_state->bindBuffer(m_target, m_bufferIDs[backBufferIdx()]);
         return glMapBufferRange(m_target,
                                 0,
                                 sizeInBytes(),
@@ -93,7 +92,7 @@ void* RenderBufferGLImpl::onMap()
 void RenderBufferGLImpl::onUnmap()
 {
     m_state->bindVAO(0);
-    m_state->bindBuffer(m_target, m_bufferIDs[m_submittedBufferIdx]);
+    m_state->bindBuffer(m_target, m_bufferIDs[backBufferIdx()]);
     if (!canMapBuffer())
     {
         glBufferSubData(m_target, 0, sizeInBytes(), m_fallbackMappedMemory.get());

@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "rive/renderer.hpp"
+#include "rive/renderer/rive_render_buffer.hpp"
 #include "rive/renderer/gl/gles3.hpp"
 #include "rive/renderer/gpu.hpp"
 #include <array>
@@ -14,13 +14,14 @@ namespace rive::gpu
 class GLState;
 
 // OpenGL backend implementation of rive::RenderBuffer.
-class RenderBufferGLImpl : public lite_rtti_override<RenderBuffer, RenderBufferGLImpl>
+class RenderBufferGLImpl : public lite_rtti_override<RiveRenderBuffer, RenderBufferGLImpl>
 {
 public:
     RenderBufferGLImpl(RenderBufferType, RenderBufferFlags, size_t, rcp<GLState>);
     ~RenderBufferGLImpl();
 
-    GLuint submittedBufferID() const { return m_bufferIDs[m_submittedBufferIdx]; }
+    // Returns the buffer to submit to GL draw calls, updating it if dirty.
+    GLuint frontBufferID() { return m_bufferIDs[frontBufferIdx()]; }
 
 protected:
     RenderBufferGLImpl(RenderBufferType type, RenderBufferFlags flags, size_t sizeInBytes);
@@ -42,7 +43,6 @@ private:
 
     const GLenum m_target;
     std::array<GLuint, gpu::kBufferRingSize> m_bufferIDs{};
-    int m_submittedBufferIdx = -1;
     std::unique_ptr<uint8_t[]> m_fallbackMappedMemory; // Used when canMapBuffer() is false.
     rcp<GLState> m_state;
 };

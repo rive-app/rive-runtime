@@ -9,7 +9,7 @@
 #include "rive_render_path.hpp"
 #include "rive_render_paint.hpp"
 #include "rive/math/wangs_formula.hpp"
-#include "rive/renderer/rive_render_image.hpp"
+#include "rive/renderer/texture.hpp"
 #include "gradient.hpp"
 #include "shaders/constants.glsl"
 
@@ -1583,9 +1583,9 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
                              const Mat2D& matrix,
                              BlendMode blendMode,
                              rcp<const Texture> imageTexture,
-                             rcp<const RenderBuffer> vertexBuffer,
-                             rcp<const RenderBuffer> uvBuffer,
-                             rcp<const RenderBuffer> indexBuffer,
+                             rcp<RenderBuffer> vertexBuffer,
+                             rcp<RenderBuffer> uvBuffer,
+                             rcp<RenderBuffer> indexBuffer,
                              uint32_t indexCount,
                              float opacity) :
     Draw(pixelBounds, matrix, blendMode, std::move(imageTexture), Type::imageMesh),
