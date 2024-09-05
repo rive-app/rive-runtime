@@ -186,7 +186,16 @@ int main(int argc, const char* argv[])
                                             : TestingWindow::Visibility::window;
         TestingWindow::Init(backend, visibility, gpuNameFilter);
 
-        TestHarness::Instance().init(s_args.output().c_str(), "goldens", s_args.pngThreads());
+        if (!s_args.testHarness().empty())
+        {
+            TestHarness::Instance().init(TCPClient::Connect(s_args.testHarness().c_str()),
+                                         s_args.pngThreads());
+        }
+        else
+        {
+            TestHarness::Instance().init(std::filesystem::path(s_args.output().c_str()),
+                                         s_args.pngThreads());
+        }
         TestHarness::Instance().setPNGCompression(s_args.fastPNG() ? PNGCompression::fast_rle
                                                                    : PNGCompression::compact);
 
@@ -196,32 +205,17 @@ int main(int argc, const char* argv[])
         TestingWindow::Get()->resize(windowWidth, windowHeight);
 
         // First check if the --src argument is a TCP server instead of a file.
-        if (auto rivClient = TCPClient::Connect(s_args.src().c_str()))
+        if (TestHarness::Instance().hasTCPConnection())
         {
             // Loop until the server is done sending .rivs.
-            for (;;)
+            std::string rivName;
+            std::vector<uint8_t> rivBytes;
+            while (TestHarness::Instance().fetchRivFile(rivName, rivBytes))
             {
-                // Read the file's name.
-                uint32_t rivNameLen = rivClient->recv4();
-                if (rivNameLen == TCPClient::SHUTDOWN_TOKEN)
-                {
-                    break;
-                }
-                std::vector<char> rivName(rivNameLen + 1);
-                rivClient->recvall(rivName.data(), rivNameLen);
-                rivName[rivNameLen] = 0;
-
-                // Read the file's bytes.
-                uint32_t fileSize = rivClient->recv4();
-                std::vector<uint8_t> rivBytes(fileSize);
-                rivClient->recvall(rivBytes.data(), fileSize);
                 RIVLoader riv(rivBytes,
                               nullptr /*default artboard*/,
                               nullptr /*default state machine*/);
-                render_and_dump_png(cellSize, rivName.data(), riv.stateMachine());
-
-                // Tell the server we've finished rendering the .riv and are ready for another.
-                rivClient->send4(TCPClient::HANDSHAKE_TOKEN);
+                render_and_dump_png(cellSize, rivName.c_str(), riv.stateMachine());
             }
         }
         else
@@ -260,7 +254,7 @@ int main(int argc, const char* argv[])
         return -1;
     }
 
-    delete TestingWindow::Get(); // Exercise our PLS teardown process now that we're done.
+    TestingWindow::Destroy(); // Exercise our PLS teardown process now that we're done.
     TestHarness::Instance().shutdown();
     return 0;
 }

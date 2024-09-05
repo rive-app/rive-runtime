@@ -130,18 +130,21 @@ int main(int argc, const char* argv[])
     const char* match = "";
     bool bench = false;
     bool interactive = false;
-    bool no_output = false;
     auto backend = TestingWindow::Backend::gl;
     std::string gpuNameFilter;
     auto visibility = TestingWindow::Visibility::window;
-    const char* output = nullptr;
     int pngThreads = 2;
 
     for (int i = 1; i < argc; ++i)
     {
+        if (strcmp(argv[i], "--test_harness") == 0)
+        {
+            TestHarness::Instance().init(TCPClient::Connect(argv[++i]), pngThreads);
+            continue;
+        }
         if (is_arg(argv[i], "--output", "-o"))
         {
-            output = argv[++i];
+            TestHarness::Instance().init(std::filesystem::path(argv[++i]), pngThreads);
             continue;
         }
         if (is_arg(argv[i], "--match", "-m"))
@@ -162,11 +165,6 @@ int main(int argc, const char* argv[])
         if (is_arg(argv[i], "--interactive", "-i"))
         {
             interactive = true;
-            continue;
-        }
-        if (is_arg(argv[i], "--no-output", "-n"))
-        {
-            no_output = true;
             continue;
         }
         if (is_arg(argv[i], "--backend", "-b"))
@@ -193,21 +191,10 @@ int main(int argc, const char* argv[])
         return 1;
     }
 
-    if (!no_output && output == nullptr && !bench && !interactive)
-    {
-        printf("Missing --output <dir> specifier\n");
-        return 1;
-    }
-
-    if (output != nullptr)
-    {
-        TestHarness::Instance().init(output, "gms", pngThreads);
-    }
-
     TestingWindow::Init(backend, visibility, gpuNameFilter);
     dumpGMs(std::string(match), bench, interactive);
 
-    delete TestingWindow::Get(); // Exercise our PLS teardown process now that we're done.
+    TestingWindow::Destroy(); // Exercise our PLS teardown process now that we're done.
     TestHarness::Instance().shutdown();
     return 0;
 }

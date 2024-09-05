@@ -8,6 +8,7 @@ import platform
 import queue
 import re
 import shutil
+import signal
 import socket
 import socketserver
 import subprocess
@@ -82,7 +83,7 @@ parser.add_argument("-r", "--remote",
                     help="target is remote; serve from host IP instead of localhost")
 parser.add_argument("--no-rebuild", action='store_true',
                     help="don't rebuild the native tools in builddir")
-parser.add_argument("--no-install", action='store_true',
+parser.add_argument("-n", "--no-install", action='store_true',
                     help="don't package & reinstall the mobile app prior to launch")
 parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose output")
 
@@ -91,6 +92,42 @@ skipped_golden_tests = set()
 target_info = {} # dictionary for info about the target (ios_version, etc.)
 rivsqueue = queue.Queue()
 
+# Global pump on stdin.
+input_lock = None
+input_received_cond = None
+input_chars = bytearray()
+input_cancelled = False
+def pump_input_thread():
+    global input_chars
+    while not input_cancelled:
+        try:
+            chars = sys.stdin.readline().encode("ascii")
+            with input_lock:
+                input_chars += chars
+                input_received_cond.notify()
+        except EOFError:
+            return
+
+def get_input():
+    global input_lock, input_received_cond, input_chars
+    if not input_lock:
+        input_lock = threading.Lock()
+        input_received_cond = threading.Condition(input_lock)
+        threading.Thread(target=pump_input_thread, daemon=True).start()
+    with input_lock:
+        while not input_cancelled and len(input_chars) < 1:
+            input_received_cond.wait()
+        chars = input_chars
+        input_chars = bytearray()
+    return chars
+
+def cancel_input():
+    global input_cancelled
+    with input_lock:
+        input_cancelled = True
+        input_received_cond.notify_all()
+
+
 # Launch a process in a separate thread and crash if it fails.
 class CheckProcess(threading.Thread):
     def __init__(self, cmd):
@@ -98,14 +135,17 @@ class CheckProcess(threading.Thread):
         self.cmd = cmd
         if args.server_only:
             self.cmd = ["echo", "\n    <command> "] + ['"%s"' % arg for arg in self.cmd]
-
-    def run(self):
         if args.verbose:
             print(' '.join(self.cmd), flush=True)
-        proc = subprocess.Popen(self.cmd)
-        proc.wait()
-        if proc.returncode != 0:
-            os._exit(proc.returncode)
+        self.proc = subprocess.Popen(self.cmd)
+
+    def run(self):
+        self.proc.wait()
+        if self.proc.returncode != 0:
+            os._exit(self.proc.returncode)
+
+    def terminate(self):
+        self.proc.terminate()
 
 def get_local_ip():
     s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
@@ -144,7 +184,8 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         #   * 1 primary TestHarness server connection.
         #   * `png_threads` encoder connections.
         #   * 1 stdio-forwarding connection.
-        threads_per_process = 1 + args.png_threads + 1
+        #   * 1 input pump connection.
+        threads_per_process = 1 + args.png_threads + 1 + 1
         self.socket.listen(num_processes * threads_per_process)
 
     def serve_forever_async(self):
@@ -157,14 +198,24 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
                              stdout=subprocess.DEVNULL)
 
     # Simple utility to wait until a TCP client tells the server it has finished.
-    def wait_for_shutdown_event(self):
-        if not self.shutdown_event.wait(timeout=5*60):
-            print("error: 5 minute timeout waiting for the tool to finish! "
-                  "Something is probably hung.", flush=True)
+    def wait_for_shutdown_event(self, timeout=threading.TIMEOUT_MAX):
+        if not self.shutdown_event:
+            return True
+        if timeout == threading.TIMEOUT_MAX:
+            while not self.shutdown_event.wait(timeout=1):
+                # Poll every second or Python doesn't receive ^C on windows.
+                pass
+        elif not self.shutdown_event.wait(timeout=timeout):
+            return False
         self.shutdown_event = None
+        return True
 
     def reset_shutdown_event(self):
         self.shutdown_event = threading.Event()
+
+    def synthesize_shutdown_event(self):
+        if self.shutdown_event:
+            self.shutdown_event.set()
 
     # Only returns True the on the first request for a given name.
     # Prevents gms from running more than once in a multi-process execution.
@@ -175,8 +226,18 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
                 return True
         return False
 
-# RequestHandler with a "recvall" methd.
-class ToolRequestHandler(socketserver.BaseRequestHandler):
+
+# RequestHandler with services for Rive tools.
+class TestHarnessRequestHandler(socketserver.BaseRequestHandler):
+    REQUEST_TYPE_IMAGE_UPLOAD = 0
+    REQUEST_TYPE_CLAIM_GM_TEST = 1
+    REQUEST_TYPE_FETCH_RIV_FILE = 2
+    REQUEST_TYPE_GET_INPUT = 3
+    REQUEST_TYPE_CANCEL_INPUT = 4
+    REQUEST_TYPE_PRINT_MESSAGE = 5
+    REQUEST_TYPE_DISCONNECT = 6
+    REQUEST_TYPE_APPLICATION_CRASH = 7
+
     def recvall(self, byte_count):
         data = bytearray()
         while len(data) < byte_count:
@@ -187,14 +248,6 @@ class ToolRequestHandler(socketserver.BaseRequestHandler):
     def recv_string(self):
         length = int.from_bytes(self.recvall(4), byteorder="big")
         return self.recvall(length).decode("ascii")
-
-# RequestHandler with services for Rive tools.
-class TestHarnessRequestHandler(ToolRequestHandler):
-    REQUEST_TYPE_IMAGE_UPLOAD = 0
-    REQUEST_TYPE_CLAIM_GM_TEST = 1
-    REQUEST_TYPE_CONSOLE_MESSAGE = 2
-    REQUEST_TYPE_DISCONNECT = 3
-    REQUEST_TYPE_APPLICATION_CRASH = 4
 
     def handle(self):
         try:
@@ -227,7 +280,48 @@ class TestHarnessRequestHandler(ToolRequestHandler):
                     shouldrun = self.server.claim_gm_test(self.recv_string())
                     self.request.sendall(shouldrun.to_bytes(4, byteorder="big"))
 
-                elif requesttype == TestHarnessRequestHandler.REQUEST_TYPE_CONSOLE_MESSAGE:
+                elif requesttype == TestHarnessRequestHandler.REQUEST_TYPE_FETCH_RIV_FILE:
+                    remaining = rivsqueue.qsize()
+                    if not args.verbose and remaining % 7 == 0:
+                        print("[%3u] rivs remaining...\r" % remaining,
+                              end='\r' if not args.verbose else '', flush=True)
+
+                    try:
+                        while True:
+                            riv = rivsqueue.get_nowait()
+                            riv_basename = os.path.basename(riv)
+                            if not riv_basename in skipped_golden_tests:
+                                break
+                        if args.verbose:
+                            print("[server] Sending %s..." % riv, end='\r', flush=True)
+                        filename_ascii = riv_basename.encode("ascii")
+                        self.request.sendall(len(filename_ascii).to_bytes(4, byteorder="big"))
+                        self.request.sendall(filename_ascii)
+                        with open(riv, "rb") as rivfile:
+                            rivbytes = rivfile.read()
+                            self.request.sendall(len(rivbytes).to_bytes(4, byteorder="big"))
+                            self.request.sendall(rivbytes)
+
+                    except queue.Empty:
+                        # .rivs are finished. Tell the client to shutdown.
+                        self.request.sendall(SHUTDOWN_TOKEN.to_bytes(4, byteorder="big"))
+
+                elif requesttype == TestHarnessRequestHandler.REQUEST_TYPE_GET_INPUT:
+                    chars = get_input()
+                    if input_cancelled:
+                        if args.verbose:
+                            print("[server] shutting down input pump", flush=True)
+                        self.request.sendall(SHUTDOWN_TOKEN.to_bytes(4, byteorder="big"))
+                    else:
+                        if args.verbose:
+                            print("[server] sending ", chars, flush=True)
+                        self.request.sendall(len(chars).to_bytes(4, byteorder="big"))
+                        self.request.sendall(chars)
+
+                elif requesttype == TestHarnessRequestHandler.REQUEST_TYPE_CANCEL_INPUT:
+                    cancel_input()
+
+                elif requesttype == TestHarnessRequestHandler.REQUEST_TYPE_PRINT_MESSAGE:
                     print(self.recv_string(), end="", flush=True)
 
                 elif requesttype == TestHarnessRequestHandler.REQUEST_TYPE_APPLICATION_CRASH:
@@ -238,49 +332,6 @@ class TestHarnessRequestHandler(ToolRequestHandler):
             print("TestHarness connection reset by client tool", flush=True)
             os._exit(-1)
 
-# Sends a new .riv file to a ready client.
-class RIVRequestHandler(ToolRequestHandler):
-    def handle(self):
-        try:
-            while True:
-                remaining = rivsqueue.qsize()
-                if not args.verbose and remaining % 7 == 0:
-                    print("[%3u] rivs remaining...\r" % remaining,
-                          end='\r' if not args.verbose else '', flush=True)
-
-                riv = rivsqueue.get_nowait()
-                riv_basename = os.path.basename(riv)
-                if riv_basename in skipped_golden_tests:
-                    continue
-
-                if args.verbose:
-                    print("[server] Sending %s..." % riv, end='\r', flush=True)
-
-                # Send the next riv to the client.
-                riv_ascii = riv_basename.encode("ascii")
-                self.request.sendall(len(riv_ascii).to_bytes(4, byteorder="big"))
-                self.request.sendall(riv_ascii)
-                host_filename = riv
-                with open(host_filename, "rb") as rivfile:
-                    rivbytes = rivfile.read()
-                    self.request.sendall(len(rivbytes).to_bytes(4, byteorder="big"))
-                    self.request.sendall(rivbytes)
-
-                # Wait for the client to tell us it has finished before sending the next .riv.
-                handshake = int.from_bytes(self.recvall(4), byteorder="big")
-                if handshake != HANDSHAKE_TOKEN:
-                    print("Bad handshake", flush=True)
-                    os._exit(-1)
-
-            self.request.sendall(HANDSHAKE_TOKEN.to_bytes(4, byteorder="big"))
-
-        except queue.Empty:
-            # .rivs are finished. Tell the client to shutdown.
-            self.request.sendall(SHUTDOWN_TOKEN.to_bytes(4, byteorder="big"))
-
-        except ConnectionResetError:
-            print("RIV server connection reset by tool", flush=True)
-            os._exit(-1)
 
 # If we aren't deploying to the host, update the given command to deploy on its intended target.
 def update_cmd_to_deploy_on_target(cmd):
@@ -324,7 +375,7 @@ def update_cmd_to_deploy_on_target(cmd):
 def launch_gms(test_harness_server):
     cmd = [os.path.join(args.builddir, "gms"),
            "--backend", args.backend,
-           "--output", "%s:%u" % test_harness_server.server_address,
+           "--test_harness", "%s:%u" % test_harness_server.server_address,
            "--headless",
            "-p%i" % args.png_threads]
     if args.match:
@@ -340,7 +391,7 @@ def launch_gms(test_harness_server):
     return procs
 
 
-def launch_goldens(test_harness_server, riv_server):
+def launch_goldens(test_harness_server):
     tool = os.path.join(args.builddir, "goldens")
     if args.verbose:
         print("[server] Using '" + tool + "'", flush=True)
@@ -356,8 +407,7 @@ def launch_goldens(test_harness_server, riv_server):
         rivsqueue.put(riv)
 
     cmd = [tool,
-           "--output", "%s:%u" % test_harness_server.server_address,
-           "--src", "%s:%u" % riv_server.server_address,
+           "--test_harness", "%s:%u" % test_harness_server.server_address,
            "--backend", args.backend,
            "--rows", str(args.rows),
            "--cols", str(args.cols),
@@ -373,15 +423,14 @@ def launch_goldens(test_harness_server, riv_server):
 
     return procs
 
-def launch_player(test_harness_server, riv_server):
+def launch_player(test_harness_server):
     if not os.path.exists(args.src):
         print("Can't find riv path " + args.src, flush=True)
         return -1;
 
     rivsqueue.put(args.src)
     cmd = [os.path.join(args.builddir, "player"),
-           "--output", "%s:%u" % test_harness_server.server_address,
-           "--src", "%s:%u" % riv_server.server_address,
+           "--test_harness", "%s:%u" % test_harness_server.server_address,
            "--backend", args.backend]
     if args.options:
         cmd += ["--options", args.options]
@@ -541,52 +590,58 @@ def main():
     if args.target == "android":
         atexit.register(force_stop_android_tests_apk)
 
-    with (ToolServer(TestHarnessRequestHandler) as test_harness_server,
-          ToolServer(RIVRequestHandler) as riv_server):
+    with (ToolServer(TestHarnessRequestHandler) as test_harness_server):
         test_harness_server.serve_forever_async()
         print("TestHarness server running on %s:%u" % test_harness_server.server_address,
               flush=True)
 
-        riv_server.serve_forever_async()
-        print("RIV server running on %s:%u" % riv_server.server_address, flush=True)
-
         # On mobile we can't launch >1 instance of the app at a time.
         serial_deploy = not args.server_only and ("ios" in args.target or args.target == "android")
-        parallel_procs = []
+        procs = []
+
+        def keyboard_interrupt_handler(signal, frame):
+            if os.name == "nt":
+                print("^C", end="", flush=True)
+            cancel_input()
+            for proc in procs:
+                proc.terminate()
+            if not test_harness_server.wait_for_shutdown_event(1.5):
+                test_harness_server.synthesize_shutdown_event()
+        signal.signal(signal.SIGINT, keyboard_interrupt_handler)
 
         if "gms" in args.tools:
             os.makedirs(args.outdir, exist_ok=True)
             if serial_deploy:
                 test_harness_server.reset_shutdown_event()
-                gms = launch_gms(test_harness_server)
-                assert(len(gms) == 1)
+                procs = launch_gms(test_harness_server)
+                assert(len(procs) == 1)
                 test_harness_server.wait_for_shutdown_event()
-                gms[0].join()
+                procs[0].join()
+                procs = []
             else:
-                parallel_procs += launch_gms(test_harness_server)
+                procs += launch_gms(test_harness_server)
 
         if "goldens" in args.tools:
             os.makedirs(args.outdir, exist_ok=True)
             if serial_deploy:
                 test_harness_server.reset_shutdown_event()
-                goldens = launch_goldens(test_harness_server, riv_server)
-                assert(len(goldens) == 1)
+                procs = launch_goldens(test_harness_server)
+                assert(len(procs) == 1)
                 test_harness_server.wait_for_shutdown_event()
-                goldens[0].join()
+                procs[0].join()
+                procs = []
             else:
-                parallel_procs += launch_goldens(test_harness_server, riv_server)
+                procs += launch_goldens(test_harness_server)
 
         if "player" in args.tools:
-            if serial_deploy:
-                test_harness_server.reset_shutdown_event()
-                player = launch_player(test_harness_server, riv_server)
-                test_harness_server.wait_for_shutdown_event()
-                player.join()
-            else:
-                parallel_procs += [launch_player(test_harness_server, riv_server)]
+            test_harness_server.reset_shutdown_event()
+            procs = [launch_player(test_harness_server)]
+            test_harness_server.wait_for_shutdown_event()
+            procs[0].join()
+            procs = []
 
-        # Wait for the parallel processes to finish (if not in serial_deploy mode).
-        for proc in parallel_procs:
+        # Wait for the processes to finish (if not in serial_deploy mode).
+        for proc in procs:
             proc.join()
 
         if args.server_only:
@@ -595,7 +650,6 @@ def main():
 
         print("done                          ", flush=True)
 
-        riv_server.shutdown()
         test_harness_server.shutdown()
 
     return 0

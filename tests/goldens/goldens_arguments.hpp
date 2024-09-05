@@ -22,18 +22,23 @@ public:
         args::Group required(*m_parser, "required arguments:", args::Group::Validators::All);
         args::Group optional(*m_parser, "optional arguments:", args::Group::Validators::DontCare);
 
-        args::ValueFlag<std::string> src(required,
-                                         "path",
-                                         "source src filename, or '-' to read files from stdin",
+        args::ValueFlag<std::string> testHarness(optional,
+                                                 "test_harness",
+                                                 "TCP server address of python test harness",
+                                                 {"test_harness"},
+                                                 "/dev/null");
+        args::ValueFlag<std::string> src(optional,
+                                         "src",
+                                         "source src filename (ignored if --test_harness)",
                                          {'s', "src"});
         args::ValueFlag<std::string> output(optional,
-                                            "path",
-                                            "output png directory, or TCP server address",
+                                            "output",
+                                            "output png directory (ignored if --test_harness)",
                                             {'o', "output"},
                                             "/dev/null");
 
         args::ValueFlag<std::string> artboard(optional,
-                                              "name",
+                                              "artboard",
                                               "artboard to draw from (only when src != '-')",
                                               {'t', "artboard"});
         args::ValueFlag<std::string> stateMachine(
@@ -42,23 +47,23 @@ public:
             "state machine to be played (only when src != '-')",
             {'S', "stateMachine"});
         args::ValueFlag<std::string> backend(optional,
-                                             "type",
+                                             "backend",
                                              "backend type: [gl, metal, angle_gl, angle_d3d, "
                                              "angle_vk, angle_mtl, coregraphics, skia_raster]",
                                              {'b', "backend"});
         args::Flag headless(optional,
-                            "bool",
+                            "headless",
                             "perform rendering in an offscreen context",
                             {'d', "headless"});
         args::Flag fastPNG(optional,
-                           "bool",
+                           "fastPNG",
                            "favor speed over space when compressing pngs",
                            {'f', "fast-png"});
         args::Flag interactive(optional,
-                               "bool",
+                               "interactive",
                                "leave the window open for user interaction",
                                {'i', "interactive"});
-        args::Flag verbose(optional, "bool", "verbose output", {'v', "verbose"});
+        args::Flag verbose(optional, "verbose", "verbose output", {'v', "verbose"});
 
         args::ValueFlag<int> rows(optional, "int", "number of rows in the grid", {'r', "rows"});
         args::ValueFlag<int> cols(optional, "int", "number of columns in the grid", {'c', "cols"});
@@ -101,8 +106,9 @@ public:
             throw;
         }
 
-        m_output = args::get(output);
+        m_testHarness = args::get(testHarness);
         m_src = args::get(src);
+        m_output = args::get(output);
         m_artboard = args::get(artboard);
         m_stateMachine = args::get(stateMachine);
         m_backend = args::get(backend);
@@ -115,6 +121,7 @@ public:
         m_pngThreads = std::max(args::get(pngThreads), 1);
     }
 
+    const std::string& testHarness() const { return m_testHarness; }
     const std::string& src() const { return m_src; }
     const std::string& output() const { return m_output; }
     const std::string& artboard() const { return m_artboard; }
@@ -131,6 +138,7 @@ public:
 private:
     std::unique_ptr<args::ArgumentParser> m_parser;
 
+    std::string m_testHarness;
     std::string m_src;
     std::string m_output;
     std::string m_artboard;

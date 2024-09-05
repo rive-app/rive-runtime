@@ -220,6 +220,7 @@ public:
                                const std::string& gpuNameFilter,
                                void* platformWindow = nullptr);
     static TestingWindow* Get();
+    static void Destroy();
 
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
@@ -243,7 +244,8 @@ public:
     virtual void flushPLSContext() {}
 
     // Blocks until a key is pressed.
-    virtual char getKey() const;
+    virtual bool peekKey(char& key) { return false; }
+    virtual char getKey();
     virtual bool shouldQuit() const { return false; }
 
     virtual ~TestingWindow() {}

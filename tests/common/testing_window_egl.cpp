@@ -141,6 +141,7 @@ static void init_egl()
     GET_EGL_PROC(eglGetProcAddress);
 }
 
+#ifdef DEBUG
 static void GL_APIENTRY err_msg_callback(GLenum source,
                                          GLenum type,
                                          GLuint id,
@@ -166,6 +167,7 @@ static void GL_APIENTRY err_msg_callback(GLenum source,
         printf("GL PERF: %s\n", message);
     }
 }
+#endif
 
 // Use an offscreen, platform independent window.
 class EGLWindow
@@ -389,6 +391,7 @@ public:
 
         int extensionCount;
         glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
+#ifdef DEBUG
         for (int i = 0; i < extensionCount; ++i)
         {
             auto* ext = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
@@ -416,6 +419,7 @@ public:
                 continue;
             }
         }
+#endif
 
         m_renderer->init(reinterpret_cast<void*>(eglGetProcAddress));
     }

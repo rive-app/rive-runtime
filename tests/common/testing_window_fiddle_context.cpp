@@ -34,9 +34,37 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
 {
     if (action == GLFW_PRESS)
     {
+        if (key >= GLFW_KEY_A && key <= GLFW_KEY_Z)
+        {
+            if (!(mods & GLFW_MOD_SHIFT))
+            {
+                key += 'a' - 'A';
+            }
+        }
+        else if (key >= GLFW_KEY_0 && key <= GLFW_KEY_9)
+        {
+            if (mods & GLFW_MOD_SHIFT)
+            {
+                switch (key)
+                {
+                    // clang-format off
+                    case GLFW_KEY_1: key = '!'; break;
+                    case GLFW_KEY_2: key = '@'; break;
+                    case GLFW_KEY_3: key = '#'; break;
+                    case GLFW_KEY_4: key = '$'; break;
+                    case GLFW_KEY_5: key = '%'; break;
+                    case GLFW_KEY_6: key = '^'; break;
+                    case GLFW_KEY_7: key = '&'; break;
+                    case GLFW_KEY_8: key = '*'; break;
+                    case GLFW_KEY_9: key = '('; break;
+                    case GLFW_KEY_0: key = ')'; break;
+                        // clang-format on
+                }
+            }
+        }
         if (key < 128)
         {
-            s_keys.push_back(static_cast<uint8_t>(key));
+            s_keys.push_back(static_cast<char>(key));
             return;
         }
         switch (key)
@@ -265,10 +293,21 @@ public:
 
     void flushPLSContext() override { m_fiddleContext->flushPLSContext(); }
 
-    char getKey() const override
+    bool peekKey(char& key) override
     {
-        assert(m_glfwWindow != nullptr);
-        while (s_keys.empty())
+        if (s_keys.empty())
+        {
+            return false;
+        }
+        key = s_keys.front();
+        s_keys.pop_front();
+        return true;
+    }
+
+    char getKey() override
+    {
+        char key;
+        while (!peekKey(key))
         {
             glfwWaitEvents();
             if (glfwWindowShouldClose(m_glfwWindow))
@@ -277,8 +316,6 @@ public:
                 exit(0);
             }
         }
-        char key = s_keys.front();
-        s_keys.pop_front();
         return key;
     }
 

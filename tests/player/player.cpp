@@ -55,6 +55,108 @@ int rive_android_main(int argc, const char* const* argv, android_app* app)
 }
 #endif
 
+static void update_parameter(int& val, int multiplier, char key, bool seenBang)
+{
+    if (seenBang)
+        val = multiplier;
+    else if (key >= 'a')
+        val += multiplier;
+    else
+        val -= multiplier;
+}
+
+static int copiesLeft = 0;
+static int copiesAbove = 0;
+static int copiesRight = 0;
+static int copiesBelow = 0;
+static int rotations90 = 0;
+static int zoomLevel = 0;
+static int spacing = 0;
+static int monitorIdx = 0;
+static bool paused = false;
+static bool quit = false;
+static void key_pressed(char key)
+{
+    static int multiplier = 0;
+    static bool seenDigit = false;
+    static bool seenBang = false;
+    if (key >= '0' && key <= '9')
+    {
+        multiplier = multiplier * 10 + (key - '0');
+        seenDigit = true;
+        return;
+    }
+    if (key == '!')
+    {
+        seenBang = true;
+        return;
+    }
+    if (!seenDigit)
+    {
+        multiplier = seenBang ? 0 : 1;
+    }
+    switch (key)
+    {
+        case 'h':
+        case 'H':
+            update_parameter(copiesLeft, multiplier, key, seenBang);
+            break;
+        case 'k':
+        case 'K':
+            update_parameter(copiesAbove, multiplier, key, seenBang);
+            break;
+        case 'l':
+        case 'L':
+            update_parameter(copiesRight, multiplier, key, seenBang);
+            break;
+        case 'j':
+        case 'J':
+            update_parameter(copiesBelow, multiplier, key, seenBang);
+            break;
+        case 'w':
+        case 'W':
+            update_parameter(copiesLeft, multiplier, key, seenBang);
+            update_parameter(copiesRight, multiplier, key, seenBang);
+            break;
+        case 'e':
+        case 'E':
+            update_parameter(copiesAbove, multiplier, key, seenBang);
+            update_parameter(copiesBelow, multiplier, key, seenBang);
+            break;
+        case 'r':
+        case 'R':
+            update_parameter(rotations90, multiplier, key, seenBang);
+            break;
+        case 'z':
+        case 'Z':
+            update_parameter(zoomLevel, multiplier, key, seenBang);
+            break;
+        case 's':
+        case 'S':
+            update_parameter(spacing, multiplier, key, seenBang);
+            break;
+        case 'm':
+            monitorIdx += multiplier;
+            break;
+        case 'p':
+            paused = !paused;
+            break;
+        case 'q':
+        case '\x03': // ^C
+            quit = true;
+            break;
+        case '\x1b': // Esc
+            break;
+        default:
+            // fprintf(stderr, "invalid option: %c\n", key);
+            // abort();
+            break;
+    }
+    multiplier = 0;
+    seenDigit = false;
+    seenBang = false;
+}
+
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int player_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
@@ -69,38 +171,12 @@ int main(int argc, const char* argv[])
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
     auto backend = TestingWindow::Backend::gl;
-    std::string rivName;
     std::string gpuNameFilter;
-    std::vector<uint8_t> rivBytes;
-    int copiesLeft = 0;
-    int copiesAbove = 0;
-    int copiesRight = 0;
-    int copiesBelow = 0;
-    float spacing = 150;
-    bool pause = false;
-    int rotations90 = 0;
-    int monitorIdx = 0;
-    int zoomLevel = 0;
     for (int i = 0; i < argc; ++i)
     {
-        if (strcmp(argv[i], "--output") == 0)
+        if (strcmp(argv[i], "--test_harness") == 0)
         {
-            TestHarness::Instance().init(argv[++i], "play", 0);
-        }
-        else if (strcmp(argv[i], "--src") == 0)
-        {
-            auto rivClient = TCPClient::Connect(argv[++i]);
-
-            // Receive the .riv.
-            rivName = rivClient->recvString();
-            uint32_t fileSize = rivClient->recv4();
-            rivBytes.resize(fileSize);
-            rivClient->recvall(rivBytes.data(), fileSize);
-
-            // Close the connection.
-            rivClient->send4(TCPClient::HANDSHAKE_TOKEN);
-            uint32_t shutdown RIVE_MAYBE_UNUSED = rivClient->recv4();
-            assert(shutdown == TCPClient::SHUTDOWN_TOKEN);
+            TestHarness::Instance().init(TCPClient::Connect(argv[++i]), 0);
         }
         else if (strcmp(argv[i], "--backend") == 0)
         {
@@ -110,59 +186,7 @@ int main(int argc, const char* argv[])
         {
             for (const char* k = argv[++i]; *k; ++k)
             {
-                int multiplier = 1, multiplierBytesRead = 0;
-                sscanf(k, "%d%n", &multiplier, &multiplierBytesRead);
-                k += multiplierBytesRead;
-                switch (*k)
-                {
-                    case 'h':
-                        copiesLeft += multiplier;
-                        break;
-                    case 'l':
-                        copiesRight += multiplier;
-                        break;
-                    case 'H':
-                    case 'L':
-                        copiesLeft += multiplier;
-                        copiesRight += multiplier;
-                        break;
-                    case 'j':
-                        copiesBelow += multiplier;
-                        break;
-                    case 'k':
-                        copiesAbove += multiplier;
-                        break;
-                    case 'J':
-                    case 'K':
-                        copiesAbove += multiplier;
-                        copiesBelow += multiplier;
-                        break;
-                    case 's':
-                        spacing = multiplier;
-                        break;
-                    case 'p':
-                        pause = true;
-                        break;
-                    case 'r':
-                        rotations90 += multiplier / 90;
-                        break;
-                    case 'R':
-                        rotations90 -= multiplier / 90;
-                        break;
-                    case 'm':
-                        monitorIdx = multiplier;
-                        break;
-                    case 'Z':
-                        zoomLevel += multiplier;
-                        break;
-                    case 'z':
-                        zoomLevel -= multiplier;
-                        break;
-                    default:
-                        fprintf(stderr, "invalid option: %c\n", *k);
-                        abort();
-                        break;
-                }
+                key_pressed(*k);
             }
         }
     }
@@ -177,7 +201,14 @@ int main(int argc, const char* argv[])
 #endif
     );
 
-    // Load the file.
+    // Load the riv file.
+    std::string rivName;
+    std::vector<uint8_t> rivBytes;
+    if (!TestHarness::Instance().fetchRivFile(rivName, rivBytes))
+    {
+        fprintf(stderr, "failed to fetch a riv file.");
+        abort();
+    }
     auto file = rive::File::import(rivBytes, TestingWindow::Get()->factory());
     assert(file);
     auto artboard = file->artboardDefault();
@@ -189,12 +220,8 @@ int main(int argc, const char* argv[])
     }
     assert(scene);
 
-    printf("Drawing %i copies of %s%s at %u x %u\n",
-           (copiesLeft + 1 + copiesRight) * (copiesAbove + 1 + copiesBelow),
-           rivName.c_str(),
-           pause ? " (paused)" : "",
-           TestingWindow::Get()->width(),
-           TestingWindow::Get()->height());
+    int lastReportedCopyCount = 0;
+    bool lastReportedPauseState = paused;
 
     // Setup FPS.
     auto roboto = HBFont::Decode(assets::roboto_flex_ttf());
@@ -208,9 +235,26 @@ int main(int argc, const char* argv[])
     int fpsFrames = 0;
     std::chrono::time_point fpsLastTime = std::chrono::high_resolution_clock::now();
 
-    while (!TestingWindow::Get()->shouldQuit())
+    while (!quit && !TestingWindow::Get()->shouldQuit())
     {
-        scene->advanceAndApply(pause ? 0 : 1.0 / 120);
+        scene->advanceAndApply(paused ? 0 : 1.0 / 120);
+
+        copiesLeft = std::max(copiesLeft, 0);
+        copiesAbove = std::max(copiesAbove, 0);
+        copiesRight = std::max(copiesRight, 0);
+        copiesBelow = std::max(copiesBelow, 0);
+        int copyCount = (copiesLeft + 1 + copiesRight) * (copiesAbove + 1 + copiesBelow);
+        if (copyCount != lastReportedCopyCount || paused != lastReportedPauseState)
+        {
+            printf("Drawing %i copies of %s%s at %u x %u\n",
+                   copyCount,
+                   rivName.c_str(),
+                   paused ? " (paused)" : "",
+                   TestingWindow::Get()->width(),
+                   TestingWindow::Get()->height());
+            lastReportedCopyCount = copyCount;
+            lastReportedPauseState = paused;
+        }
 
         auto renderer = TestingWindow::Get()->beginFrame(0xff303030);
         renderer->save();
@@ -224,7 +268,7 @@ int main(int argc, const char* argv[])
         }
         if (zoomLevel != 0)
         {
-            float scale = powf(1.5f, zoomLevel);
+            float scale = powf(1.25f, zoomLevel);
             renderer->translate(width / 2.f, height / 2.f);
             renderer->scale(scale, scale);
             renderer->translate(width / -2.f, height / -2.f);
@@ -236,17 +280,18 @@ int main(int argc, const char* argv[])
                         rive::Alignment::center,
                         rive::AABB(0, 0, width, height),
                         artboard->bounds());
-        renderer->translate(-spacing * copiesLeft, -spacing * copiesAbove);
+        float spacingPx = spacing * 5 + 150;
+        renderer->translate(-spacingPx * copiesLeft, -spacingPx * copiesAbove);
         for (int y = -copiesAbove; y <= copiesBelow; ++y)
         {
             renderer->save();
             for (int x = -copiesLeft; x <= copiesRight; ++x)
             {
                 artboard->draw(renderer.get());
-                renderer->translate(spacing, 0);
+                renderer->translate(spacingPx, 0);
             }
             renderer->restore();
-            renderer->translate(0, spacing);
+            renderer->translate(0, spacingPx);
         }
         renderer->restore();
 
@@ -289,6 +334,12 @@ int main(int argc, const char* argv[])
             fpsLastTime = now;
         }
 
+        char key;
+        while (TestingWindow::Get()->peekKey(key) || TestHarness::Instance().peekChar(key))
+        {
+            key_pressed(key);
+        }
+
 #ifdef RIVE_ANDROID
         android_poll_source* source = nullptr;
         ALooper_pollOnce(0, nullptr, nullptr, reinterpret_cast<void**>(&source));
@@ -303,6 +354,8 @@ int main(int argc, const char* argv[])
 #endif
     }
 
+    printf("\nShutting down\n");
+    TestingWindow::Destroy(); // Exercise our PLS teardown process now that we're done.
     TestHarness::Instance().shutdown();
     return 0;
 }

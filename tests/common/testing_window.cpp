@@ -14,7 +14,7 @@
 
 // Don't explicitly delete this object. Calling eglDestroyContext during app teardown causes a crash
 // on Pixel 4. The OS will clean this up for us automatically when we exit.
-static TestingWindow* s_TestingWindow = nullptr;
+std::unique_ptr<TestingWindow> s_TestingWindow = nullptr;
 
 const char* TestingWindow::BackendName(Backend backend)
 {
@@ -155,13 +155,12 @@ TestingWindow* TestingWindow::Init(Backend backend,
                 s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
                                                                    visibility,
                                                                    gpuNameFilter,
-                                                                   platformWindow)
-                                      .release();
+                                                                   platformWindow);
             }
             else
 #endif
             {
-                s_TestingWindow = MakeEGL(backend, platformWindow).release();
+                s_TestingWindow = MakeEGL(backend, platformWindow);
             }
             break;
         case Backend::vulkan:
@@ -197,40 +196,40 @@ TestingWindow* TestingWindow::Init(Backend backend,
 #ifdef RIVE_ANDROID
             if (platformWindow != nullptr)
             {
-                s_TestingWindow = TestingWindow::MakeAndroidVulkan(platformWindow).release();
+                s_TestingWindow = TestingWindow::MakeAndroidVulkan(platformWindow);
                 break;
             }
 #endif
             if (visibility == Visibility::headless)
             {
-                s_TestingWindow = TestingWindow::MakeVulkanTexture(gpuNameFilter).release();
+                s_TestingWindow = TestingWindow::MakeVulkanTexture(gpuNameFilter);
             }
             else
             {
                 s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
                                                                    visibility,
                                                                    gpuNameFilter,
-                                                                   platformWindow)
-                                      .release();
+                                                                   platformWindow);
             }
             break;
         case Backend::metal:
         case Backend::metalatomic:
 #if defined(__APPLE__) && defined(RIVE_TOOLS_NO_GLFW)
-            s_TestingWindow = TestingWindow::MakeMetalTexture().release();
+            s_TestingWindow = TestingWindow::MakeMetalTexture();
             break;
 #endif
             [[fallthrough]];
         case Backend::d3d:
         case Backend::d3datomic:
         case Backend::dawn:
-            s_TestingWindow =
-                TestingWindow::MakeFiddleContext(backend, visibility, gpuNameFilter, platformWindow)
-                    .release();
+            s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
+                                                               visibility,
+                                                               gpuNameFilter,
+                                                               platformWindow);
             break;
         case Backend::coregraphics:
 #ifdef RIVE_MACOSX
-            s_TestingWindow = MakeCoreGraphics().release();
+            s_TestingWindow = MakeCoreGraphics();
 #endif
             break;
     }
@@ -239,16 +238,22 @@ TestingWindow* TestingWindow::Init(Backend backend,
         fprintf(stderr, "Failed to create testing window for Backend::%s\n", BackendName(backend));
         abort();
     }
-    return s_TestingWindow;
+    return s_TestingWindow.get();
 }
 
 TestingWindow* TestingWindow::Get()
 {
     assert(s_TestingWindow); // Call Init() first!
-    return s_TestingWindow;
+    return s_TestingWindow.get();
 }
 
-char TestingWindow::getKey() const
+void TestingWindow::Destroy()
+{
+    assert(s_TestingWindow);
+    s_TestingWindow = nullptr;
+}
+
+char TestingWindow::getKey()
 {
     fprintf(stderr, "TestingWindow::getKey not implemented.");
     abort();

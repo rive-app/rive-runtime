@@ -33,7 +33,10 @@ public:
     ~TestHarness() { shutdown(); }
 
     bool initialized() const { return m_initialized; }
-    void init(const char* output, const char* toolName, size_t pngThreadCount);
+    void init(std::unique_ptr<TCPClient>, size_t pngThreadCount);
+    void init(std::filesystem::path, size_t pngThreadCount);
+
+    bool hasTCPConnection() const { return m_primaryTCPClient != nullptr; }
 
     void setPNGCompression(PNGCompression compression) { m_pngCompression = compression; }
 
@@ -46,6 +49,12 @@ public:
     // Only returns true the on the first server request for a given name.
     // Prevents gms from running more than once in a multi-process execution.
     bool claimGMTest(const std::string&);
+
+    // Downloads the next .riv file to test. (Must only be run on the main thread.)
+    bool fetchRivFile(std::string& name, std::vector<uint8_t>& bytes);
+
+    // Returns true if there is an input character to process from the server.
+    bool peekChar(char& key);
 
     void shutdown();
 
@@ -64,6 +73,7 @@ private:
     void sendConsoleMessage(const char* message, uint32_t messageLength);
 
     void shutdownStdioThread();
+    void shutdownInputPumpThread();
 
     // Forwards stdout and stderr to the server.
     static void MonitorStdIOThread(void* thisPtr)
@@ -79,6 +89,13 @@ private:
     }
     void encodePNGThread();
 
+    // Receives standard input from the server and queues it up.
+    static void InputPumpThread(void* thisPtr)
+    {
+        reinterpret_cast<TestHarness*>(thisPtr)->inputPumpThread();
+    }
+    void inputPumpThread();
+
     bool m_initialized = false;
     std::unique_ptr<TCPClient> m_primaryTCPClient;
     std::filesystem::path m_outputDir;
@@ -93,4 +110,8 @@ private:
     queue<ImageSaveArgs> m_encodeQueue{1};
     PNGCompression m_pngCompression = PNGCompression::compact;
     std::vector<std::thread> m_encodeThreads;
+
+    // Standard input from the server.
+    queue<char> m_inputQueue{128};
+    std::thread m_inputPumpThread;
 };
