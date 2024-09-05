@@ -87,6 +87,7 @@ parser.add_argument("--no-install", action='store_true',
 parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose output")
 
 args = parser.parse_args()
+skipped_golden_tests = set()
 target_info = {} # dictionary for info about the target (ios_version, etc.)
 rivsqueue = queue.Queue()
 
@@ -132,7 +133,8 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
         address = (self.host, 0) # let the kernel give us a port
         self.shutdown_event = None
         self.claimed_gm_tests_lock = threading.Lock()
-        self.claimed_gm_tests = set()
+        # "Claim" the skipped tests upfront so they don't get drawn.
+        self.claimed_gm_tests = set(skipped_golden_tests)
         super().__init__(address, handler)
 
     def server_activate(self):
@@ -247,11 +249,15 @@ class RIVRequestHandler(ToolRequestHandler):
                           end='\r' if not args.verbose else '', flush=True)
 
                 riv = rivsqueue.get_nowait()
+                riv_basename = os.path.basename(riv)
+                if riv_basename in skipped_golden_tests:
+                    continue
+
                 if args.verbose:
                     print("[server] Sending %s..." % riv, end='\r', flush=True)
 
                 # Send the next riv to the client.
-                riv_ascii = os.path.basename(riv).encode("ascii")
+                riv_ascii = riv_basename.encode("ascii")
                 self.request.sendall(len(riv_ascii).to_bytes(4, byteorder="big"))
                 self.request.sendall(riv_ascii)
                 host_filename = riv
@@ -389,6 +395,20 @@ def force_stop_android_tools_apk():
     subprocess.check_call(["adb", "shell", "am force-stop app.rive.android_tools"])
 
 def main():
+    # Parse skipped tests.
+    rive_skipped_golden_tests = os.getenv("RIVE_SKIPPED_GOLDEN_TESTS")
+    if rive_skipped_golden_tests:
+        for test in rive_skipped_golden_tests.split(","):
+            if '/' in test:
+                # A "/" character separates a specific backend from a test name.
+                # Only skip one of these tests if it's the same backend we're currently running.
+                backend, test = test.split("/", 1)
+                if backend != args.backend:
+                    continue
+            skipped_golden_tests.add(test)
+        if args.verbose:
+            print("[server] skipped_golden_tests: ", skipped_golden_tests, flush=True)
+
     if args.target == "android":
         args.jobs_per_tool = 1 # Android can only launch one process at a time.
         if args.builddir == None:
