@@ -17,7 +17,7 @@
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
-		83EA69F52C13D8F40092F554 /* rive_ios_tools.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = rive_ios_tools.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		83EA69F52C13D8F40092F554 /* rive_ios_tests.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = rive_ios_tests.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		83EA6A052C13D8F40092F554 /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		83EA6A0C2C13D8F50092F554 /* main.mm */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.cpp.objcpp; path = main.mm; sourceTree = "<group>"; };
 		83EA6A212C141D7C0092F554 /* Metal.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Metal.framework; path = System/Library/Frameworks/Metal.framework; sourceTree = SDKROOT; };
@@ -46,7 +46,7 @@
 		83EA69EC2C13D8F40092F554 = {
 			isa = PBXGroup;
 			children = (
-				83EA69F72C13D8F40092F554 /* ios_tools */,
+				83EA69F72C13D8F40092F554 /* ios_tests */,
 				83EA69F62C13D8F40092F554 /* Products */,
 				83EA6A202C141D7C0092F554 /* Frameworks */,
 			);
@@ -55,18 +55,18 @@
 		83EA69F62C13D8F40092F554 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				83EA69F52C13D8F40092F554 /* rive_ios_tools.app */,
+				83EA69F52C13D8F40092F554 /* rive_ios_tests.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
 		};
-		83EA69F72C13D8F40092F554 /* ios_tools */ = {
+		83EA69F72C13D8F40092F554 /* ios_tests */ = {
 			isa = PBXGroup;
 			children = (
 				83EA6A042C13D8F40092F554 /* Main.storyboard */,
 				83EA6A0C2C13D8F50092F554 /* main.mm */,
 			);
-			path = ios_tools;
+			path = ios_tests;
 			sourceTree = "<group>";
 		};
 		83EA6A202C141D7C0092F554 /* Frameworks */ = {
@@ -84,9 +84,9 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		83EA69F42C13D8F40092F554 /* ios_tools */ = {
+		83EA69F42C13D8F40092F554 /* ios_tests */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 83EA6A102C13D8F50092F554 /* Build configuration list for PBXNativeTarget "ios_tools" */;
+			buildConfigurationList = 83EA6A102C13D8F50092F554 /* Build configuration list for PBXNativeTarget "ios_tests" */;
 			buildPhases = (
 				83EA69F12C13D8F40092F554 /* Sources */,
 				83EA69F22C13D8F40092F554 /* Frameworks */,
@@ -96,9 +96,9 @@
 			);
 			dependencies = (
 			);
-			name = ios_tools;
+			name = ios_tests;
 			productName = ios_gold;
-			productReference = 83EA69F52C13D8F40092F554 /* rive_ios_tools.app */;
+			productReference = 83EA69F52C13D8F40092F554 /* rive_ios_tests.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -115,7 +115,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 83EA69F02C13D8F40092F554 /* Build configuration list for PBXProject "ios_tools" */;
+			buildConfigurationList = 83EA69F02C13D8F40092F554 /* Build configuration list for PBXProject "ios_tests" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -128,7 +128,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				83EA69F42C13D8F40092F554 /* ios_tools */,
+				83EA69F42C13D8F40092F554 /* ios_tests */,
 			);
 		};
 /* End PBXProject section */
@@ -349,7 +349,7 @@
 					../out/iossim_universal_debug/libgms.a,
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "rive.app.golden-test-app";
-				PRODUCT_NAME = rive_ios_tools;
+				PRODUCT_NAME = rive_ios_tests;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -382,7 +382,7 @@
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
 				PRODUCT_BUNDLE_IDENTIFIER = "rive.app.golden-test-app";
-				PRODUCT_NAME = rive_ios_tools;
+				PRODUCT_NAME = rive_ios_tests;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
@@ -391,7 +391,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		83EA69F02C13D8F40092F554 /* Build configuration list for PBXProject "ios_tools" */ = {
+		83EA69F02C13D8F40092F554 /* Build configuration list for PBXProject "ios_tests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83EA6A0E2C13D8F50092F554 /* Debug */,
@@ -400,7 +400,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		83EA6A102C13D8F50092F554 /* Build configuration list for PBXNativeTarget "ios_tools" */ = {
+		83EA6A102C13D8F50092F554 /* Build configuration list for PBXNativeTarget "ios_tests" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				83EA6A112C13D8F50092F554 /* Debug */,

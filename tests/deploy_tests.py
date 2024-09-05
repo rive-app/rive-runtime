@@ -292,8 +292,8 @@ def update_cmd_to_deploy_on_target(cmd):
         print("\nDeploying %s on android..." % sharedlib)
         tool_args = ' '.join([sharedlib] + cmd[1:])
         return ["adb", "shell",
-                "am force-stop app.rive.android_tools && "
-                "am start -n app.rive.android_tools/.%s -e args '%s'" % (toolname, tool_args)]
+                "am force-stop app.rive.android_tests && "
+                "am start -n app.rive.android_tests/.%s -e args '%s'" % (toolname, tool_args)]
 
     elif args.target == "ios":
         print("\nDeploying %s on ios (udid=%s, ios_version=%i)..." %
@@ -308,7 +308,7 @@ def update_cmd_to_deploy_on_target(cmd):
                     "rive.app.golden-test-app"] + cmd
         else:
             return ["ios-deploy", "--noinstall", "--noninteractive", "--bundle",
-                    "ios_tools/build/Debug-iphoneos/rive_ios_tools.app",
+                    "ios_tests/build/Debug-iphoneos/rive_ios_tests.app",
                     "--envs", "MTL_DEBUG_LAYER=1",
                     "--args", ' '.join(cmd)]
 
@@ -391,8 +391,8 @@ def launch_player(test_harness_server, riv_server):
     player.start()
     return player
 
-def force_stop_android_tools_apk():
-    subprocess.check_call(["adb", "shell", "am force-stop app.rive.android_tools"])
+def force_stop_android_tests_apk():
+    subprocess.check_call(["adb", "shell", "am force-stop app.rive.android_tests"])
 
 def main():
     # Parse skipped tests.
@@ -480,8 +480,8 @@ def main():
 
     if not args.no_install:
         if args.target == "android":
-            # Copy the native libraries into the android_tools project.
-            jni_dir = os.path.join("android_tools", "app", "src", "main", "jniLibs")
+            # Copy the native libraries into the android_tests project.
+            jni_dir = os.path.join("android_tests", "app", "src", "main", "jniLibs")
             android_arch = "arm64-v8a" # TODO: support more android architectures if needed.
             os.makedirs(os.path.join(jni_dir, android_arch), exist_ok=True)
             for tool in build_targets:
@@ -500,46 +500,46 @@ def main():
                     os.makedirs(os.path.dirname(dst), exist_ok=True)
                     shutil.move(lib, dst)
                 shutil.rmtree("android-binaries-1.3.290.0")
-            # Build the android_tools wrapper app.
+            # Build the android_tests wrapper app.
             cwd = os.getcwd()
-            os.chdir(os.path.join(rive_tools_dir, "android_tools"))
+            os.chdir(os.path.join(rive_tools_dir, "android_tests"))
             subprocess.check_call(["./gradlew" if os.name != "nt" else "gradlew.bat",
                                    ":app:assembleDebug"])
-            # Install the android_tools wrapper app.
-            force_stop_android_tools_apk()
+            # Install the android_tests wrapper app.
+            force_stop_android_tests_apk()
             subprocess.check_call(["adb", "install", "-r", "app/build/outputs/apk/debug/app-debug.apk"])
             os.chdir(cwd)
             print()
         elif args.target == "ios":
-            # Build the ios_tools wrapper app.
+            # Build the ios_tests wrapper app.
             subprocess.check_call(["xcodebuild",
                                    "-destination", "generic/platform=iOS",
                                    "-config", "Debug",
-                                   "build", "-project", "ios_tools/ios_tools.xcodeproj"])
-            # Install the ios_tools wrapper app on the device.
+                                   "build", "-project", "ios_tests/ios_tests.xcodeproj"])
+            # Install the ios_tests wrapper app on the device.
             if target_info["ios_version"] >= 17:
                 # ios-deploy is no longer supported after iOS 17.
                 subprocess.check_call(["xcrun", "devicectl", "device", "install", "app", "--device",
                                        args.ios_udid,
-                                       "ios_tools/build/Debug-iphoneos/rive_ios_tools.app"])
+                                       "ios_tests/build/Debug-iphoneos/rive_ios_tests.app"])
             else:
                 subprocess.check_call(["ios-deploy", "--bundle",
-                                       "ios_tools/build/Debug-iphoneos/rive_ios_tools.app"])
+                                       "ios_tests/build/Debug-iphoneos/rive_ios_tests.app"])
             print()
         elif args.target == "iossim":
-            # Build the ios_tools wrapper app for the simulator.
+            # Build the ios_tests wrapper app for the simulator.
             subprocess.check_call(["xcodebuild",
                                    "-destination", "generic/platform=iOS Simulator",
                                    "-config", "Debug",
                                    "-sdk", "iphonesimulator",
-                                   "build", "-project", "ios_tools/ios_tools.xcodeproj"])
-            # Install the ios_tools wrapper app on the simulator.
+                                   "build", "-project", "ios_tests/ios_tests.xcodeproj"])
+            # Install the ios_tests wrapper app on the simulator.
             subprocess.check_call(["xcrun", "simctl", "install", args.ios_udid,
-                                   "ios_tools/build/Debug-iphonesimulator/rive_ios_tools.app"])
+                                   "ios_tests/build/Debug-iphonesimulator/rive_ios_tests.app"])
             print()
 
     if args.target == "android":
-        atexit.register(force_stop_android_tools_apk)
+        atexit.register(force_stop_android_tests_apk)
 
     with (ToolServer(TestHarnessRequestHandler) as test_harness_server,
           ToolServer(RIVRequestHandler) as riv_server):

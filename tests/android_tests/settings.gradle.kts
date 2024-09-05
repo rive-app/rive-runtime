@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "android_tools"
+rootProject.name = "android_tests"
 include(":app")

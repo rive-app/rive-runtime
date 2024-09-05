@@ -1,4 +1,4 @@
-package app.rive.android_tools
+package app.rive.android_tests
 
 import android.app.NativeActivity
 

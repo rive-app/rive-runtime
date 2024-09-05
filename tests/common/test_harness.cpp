@@ -135,7 +135,7 @@ void TestHarness::monitorStdIOThread()
         threadTCPClient->send4(REQUEST_TYPE_CONSOLE_MESSAGE);
         threadTCPClient->sendString(buff);
 #ifdef RIVE_ANDROID
-        __android_log_write(ANDROID_LOG_DEBUG, "rive_android_tools", buff);
+        __android_log_write(ANDROID_LOG_DEBUG, "rive_android_tests", buff);
 #endif
     }
 

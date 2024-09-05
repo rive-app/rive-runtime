@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "app.rive.android_tools"
+    namespace = "app.rive.android_tests"
     compileSdk = 34
 
     defaultConfig {
-        applicationId = "app.rive.android_tools"
+        applicationId = "app.rive.android_tests"
         minSdk = 21
         targetSdk = 34
         versionCode = 1

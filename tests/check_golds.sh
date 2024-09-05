@@ -90,12 +90,12 @@ do
         echo
         echo "Rebaselining $ID..."
         rm -fr .gold/$ID
-        python3 deploy_tools.py gms goldens -j$GOLDEN_JOBS $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD
+        python3 deploy_tests.py gms goldens -j$GOLDEN_JOBS $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD
     else
         echo
         echo "Checking $ID..."
         rm -fr .gold/candidates/$ID
-        python3 deploy_tools.py gms goldens -j$GOLDEN_JOBS $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
+        python3 deploy_tests.py gms goldens -j$GOLDEN_JOBS $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
 
         echo
         echo "Checking $ID..."

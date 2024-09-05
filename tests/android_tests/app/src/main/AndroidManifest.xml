@@ -13,7 +13,7 @@
         android:theme="@style/Theme.Android_tools"
         tools:targetApi="31">
         <activity android:name=".gms"
-            android:label="android_tools_gms"
+            android:label="android_tests_gms"
             android:configChanges="orientation|keyboardHidden"
             android:screenOrientation="portrait"
             android:exported="true">
@@ -26,7 +26,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".goldens"
-            android:label="android_tools_goldens"
+            android:label="android_tests_goldens"
             android:configChanges="orientation|keyboardHidden"
             android:screenOrientation="portrait"
             android:exported="true">
@@ -39,7 +39,7 @@
             </intent-filter>
         </activity>
         <activity android:name=".player"
-            android:label="android_tools_player"
+            android:label="android_tests_player"
             android:configChanges="orientation|keyboardHidden"
             android:screenOrientation="portrait"
             android:exported="true">
