@@ -59,7 +59,7 @@
 #extension GL_KHR_blend_equation_advanced : require
 #endif
 
-#if defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT)
+#if defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT) && defined(GL_ES)
 #ifdef GL_EXT_clip_cull_distance
 #extension GL_EXT_clip_cull_distance : require
 #elif defined(GL_ANGLE_clip_cull_distance)

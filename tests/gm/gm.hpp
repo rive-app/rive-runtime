@@ -55,15 +55,28 @@ protected:
 template <typename T> class Registry
 {
     static Registry* s_Head;
+    static Registry* s_Tail;
 
     T m_Value;
-    Registry* m_Next;
+    Registry* m_Next = nullptr;
 
 public:
-    Registry(T value) : m_Value(value)
+    Registry(T value, bool isSlow) : m_Value(value)
     {
-        m_Next = s_Head;
-        s_Head = this;
+        if (s_Head == nullptr)
+        {
+            s_Tail = s_Head = this;
+        }
+        else if (isSlow)
+        {
+            m_Next = s_Head;
+            s_Head = this;
+        }
+        else
+        {
+            s_Tail->m_Next = this;
+            s_Tail = this;
+        }
     }
 
     static const Registry* head() { return s_Head; }
@@ -71,7 +84,8 @@ public:
     const Registry* next() const { return m_Next; }
 };
 
-template <typename T> Registry<T>* Registry<T>::s_Head;
+template <typename T> Registry<T>* Registry<T>::s_Head = nullptr;
+template <typename T> Registry<T>* Registry<T>::s_Tail = nullptr;
 
 using GMFactory = std::unique_ptr<GM> (*)();
 using GMRegistry = Registry<GMFactory>;
@@ -88,8 +102,11 @@ using GMRegistry = Registry<GMFactory>;
 // Usage: GMREGISTER( return new mygmclass(...) )
 //
 #define GMREGISTER(code)                                                                           \
-    static GMRegistry RIVE_MACRO_APPEND_COUNTER(rivegm_registry)(                                  \
-        []() { return std::unique_ptr<rivegm::GM>([]() { code; }()); });
+    static GMRegistry RIVE_MACRO_APPEND_COUNTER(                                                   \
+        rivegm_registry)([]() { return std::unique_ptr<rivegm::GM>([]() { code; }()); }, false);
+#define GMREGISTER_SLOW(code)                                                                      \
+    static GMRegistry RIVE_MACRO_APPEND_COUNTER(                                                   \
+        rivegm_registry)([]() { return std::unique_ptr<rivegm::GM>([]() { code; }()); }, true);
 
 // Usage:
 //

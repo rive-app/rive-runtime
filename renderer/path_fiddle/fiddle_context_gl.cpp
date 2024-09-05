@@ -51,7 +51,13 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
         {
             return;
         }
-        if (strstr(message, "is being recompiled based on GL state."))
+        if (strstr(message, "is being recompiled based on GL state"))
+        {
+            return;
+        }
+        if (strcmp(message,
+                   "Pixel-path performance warning: Pixel transfer is synchronized with 3D "
+                   "rendering.") == 0)
         {
             return;
         }
@@ -76,13 +82,7 @@ public:
         }
 #endif
 
-        printf("GL_VENDOR: %s\n", glGetString(GL_VENDOR));
-        printf("GL_RENDERER: %s\n", glGetString(GL_RENDERER));
-        printf("GL_VERSION: %s\n", glGetString(GL_VERSION));
-#ifdef RIVE_DESKTOP_GL
-        printf("GL_ANGLE_shader_pixel_local_storage_coherent: %i\n",
-               GLAD_GL_ANGLE_shader_pixel_local_storage_coherent);
-#endif
+        printf("==== GL GPU: %s ====\n", glGetString(GL_RENDERER));
 #if 0
         int n;
         glGetIntegerv(GL_NUM_EXTENSIONS, &n);

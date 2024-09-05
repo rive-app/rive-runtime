@@ -42,6 +42,10 @@ while :; do
             ARGS="$ARGS --verbose"
             shift
             ;;
+        -n)
+            ARGS="$ARGS --no-rebuild"
+            shift
+            ;;
         *)
             break
             ;;
@@ -77,7 +81,7 @@ do
 
     NUMBER_OF_PROCESSORS="${NUMBER_OF_PROCESSORS:-$(nproc 2>/dev/null || sysctl -n hw.physicalcpu)}"
     if [[ $NUMBER_OF_PROCESSORS > 20 ]]; then
-        GOLDEN_JOBS=8
+        GOLDEN_JOBS=6
     else
         GOLDEN_JOBS=4
     fi
