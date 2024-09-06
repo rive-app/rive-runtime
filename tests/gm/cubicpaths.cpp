@@ -8,10 +8,8 @@
 
 #include "gm.hpp"
 #include "gmutils.hpp"
-#include "include/core/SkColor.h"
-#include "include/core/SkMatrix.h"
-#include "include/core/SkScalar.h"
-#include "include/utils/SkRandom.h"
+#include "rive/shapes/paint/color.hpp"
+#include "rive/math/mat2d.hpp"
 #include "rive/renderer.hpp"
 
 using namespace rivegm;
@@ -35,10 +33,10 @@ private:
         Paint paint;
         AABB bounds = {0, 0, 170, 150}; // path.getBounds();
 
-        for (SkScalar dy = -1; dy <= 1; dy += 1)
+        for (float dy = -1; dy <= 1; dy += 1)
         {
             canvas->save();
-            for (SkScalar dx = -1; dx <= 1; dx += 1)
+            for (float dx = -1; dx <= 1; dx += 1)
             {
                 canvas->save();
                 canvas->clipPath(PathBuilder::Rect(bounds));
@@ -113,13 +111,12 @@ private:
                        -0.013089005235602302f,
                        131);
         fPath->close();
-        SkMatrix matrix;
-        matrix.reset();
-        matrix.setScaleX(0);
-        matrix.setScaleY(0);
-        matrix.setSkewX(1);
-        matrix.setSkewY(1);
-        fFlipped->addRenderPath(fPath, mat2d_fromSkMatrix(matrix));
+        Mat2D matrix;
+        matrix[0] = 0.0f;
+        matrix[1] = 1.0f;
+        matrix[2] = 1.0f;
+        matrix[3] = 0.0f;
+        fFlipped->addRenderPath(fPath, matrix);
     }
 
     Path fPath;
@@ -140,7 +137,7 @@ private:
                   StrokeJoin join,
                   RenderPaintStyle style,
                   FillRule fill,
-                  SkScalar strokeWidth)
+                  float strokeWidth)
     {
         path->fillRule(fill);
         Paint paint;
@@ -165,10 +162,6 @@ private:
         constexpr FillAndName gFills[] = {
             {FillRule::nonZero, "Winding"},
             {FillRule::evenOdd, "Even / Odd"},
-#if 0
-            {SkPathFillType::kInverseWinding, "Inverse Winding"},
-            {SkPathFillType::kInverseEvenOdd, "Inverse Even / Odd"},
-#endif
         };
         struct StyleAndName
         {
@@ -178,9 +171,6 @@ private:
         constexpr StyleAndName gStyles[] = {
             {RenderPaintStyle::fill, "Fill"},
             {RenderPaintStyle::stroke, "Stroke"},
-#if 0
-            {SkPaint::kStrokeAndFill_Style, "Stroke And Fill"},
-#endif
         };
         struct CapAndName
         {
@@ -197,49 +187,33 @@ private:
             const char* fName;
         };
         PathAndName path;
-        path.fPath->moveTo(25 * SK_Scalar1, 10 * SK_Scalar1);
-        path.fPath->cubicTo(40 * SK_Scalar1,
-                            20 * SK_Scalar1,
-                            60 * SK_Scalar1,
-                            20 * SK_Scalar1,
-                            75 * SK_Scalar1,
-                            10 * SK_Scalar1);
+        path.fPath->moveTo(25 * 1.0f, 10 * 1.0f);
+        path.fPath->cubicTo(40 * 1.0f, 20 * 1.0f, 60 * 1.0f, 20 * 1.0f, 75 * 1.0f, 10 * 1.0f);
         path.fName = "moveTo-cubic";
 
-#if 0
-        SkPaint titlePaint;
-        titlePaint.setColor(SK_ColorBLACK);
-        titlePaint.setAntiAlias(true);
-        SkFont font(ToolUtils::create_portable_typeface(), 15);
-        const char title[] = "Cubic Drawn Into Rectangle Clips With "
-                             "Indicated Style, Fill and Linecaps, with stroke width 10";
-        canvas->drawString(title, 20, 20, font, titlePaint);
-#endif
-
-        SkRandom rand;
-        AABB rect = {0, 0, 100 * SK_Scalar1, 30 * SK_Scalar1};
+        AABB rect = {0, 0, 100 * 1.0f, 30 * 1.0f};
         canvas->save();
-        canvas->translate(10 * SK_Scalar1, 30 * SK_Scalar1);
+        canvas->translate(10 * 1.0f, 30 * 1.0f);
         canvas->save();
-        for (size_t cap = 0; cap < SK_ARRAY_COUNT(gCaps); ++cap)
+        for (size_t cap = 0; cap < std::size(gCaps); ++cap)
         {
             if (0 < cap)
             {
-                canvas->translate((rect.width() + 40 * SK_Scalar1) * SK_ARRAY_COUNT(gStyles), 0);
+                canvas->translate((rect.width() + 40 * 1.0f) * std::size(gStyles), 0);
             }
             canvas->save();
-            for (size_t fill = 0; fill < SK_ARRAY_COUNT(gFills); ++fill)
+            for (size_t fill = 0; fill < std::size(gFills); ++fill)
             {
                 if (0 < fill)
                 {
-                    canvas->translate(0, rect.height() + 40 * SK_Scalar1);
+                    canvas->translate(0, rect.height() + 40 * 1.0f);
                 }
                 canvas->save();
-                for (size_t style = 0; style < SK_ARRAY_COUNT(gStyles); ++style)
+                for (size_t style = 0; style < std::size(gStyles); ++style)
                 {
                     if (0 < style)
                     {
-                        canvas->translate(rect.width() + 40 * SK_Scalar1, 0);
+                        canvas->translate(rect.width() + 40 * 1.0f, 0);
                     }
 
                     ColorInt color = 0xff007000;
@@ -251,23 +225,13 @@ private:
                                    gCaps[cap].fJoin,
                                    gStyles[style].fStyle,
                                    gFills[fill].fFill,
-                                   SK_Scalar1 * 10);
+                                   1.0f * 10);
 
                     Paint rectPaint;
-                    rectPaint->color(SK_ColorBLACK);
+                    rectPaint->color(0xFF000000);
                     rectPaint->style(RenderPaintStyle::stroke);
                     rectPaint->thickness(-1);
                     canvas->drawPath(PathBuilder::Rect(rect), rectPaint);
-
-#if 0
-                    SkPaint labelPaint;
-                    labelPaint.setColor(color);
-                    font.setSize(10);
-                    canvas->drawString(
-                        gStyles[style].fName, 0, rect.height() + 12, font, labelPaint);
-                    canvas->drawString(gFills[fill].fName, 0, rect.height() + 24, font, labelPaint);
-                    canvas->drawString(gCaps[cap].fName, 0, rect.height() + 36, font, labelPaint);
-#endif
                 }
                 canvas->restore();
             }
@@ -292,7 +256,7 @@ private:
                   StrokeJoin join,
                   RenderPaintStyle style,
                   FillRule fill,
-                  SkScalar strokeWidth)
+                  float strokeWidth)
     {
         path->fillRule(fill);
         Paint paint;
@@ -317,10 +281,6 @@ private:
         constexpr FillAndName gFills[] = {
             {FillRule::nonZero, "Winding"},
             {FillRule::evenOdd, "Even / Odd"},
-#if 0
-            {SkPathFillType::kInverseWinding, "Inverse Winding"},
-            {SkPathFillType::kInverseEvenOdd, "Inverse Even / Odd"},
-#endif
         };
         struct StyleAndName
         {
@@ -330,9 +290,6 @@ private:
         constexpr StyleAndName gStyles[] = {
             {RenderPaintStyle::fill, "Fill"},
             {RenderPaintStyle::stroke, "Stroke"},
-#if 0
-            {SkPaint::kStrokeAndFill_Style, "Stroke And Fill"},
-#endif
         };
         struct CapAndName
         {
@@ -349,53 +306,37 @@ private:
             const char* fName;
         };
         PathAndName path;
-        path.fPath->moveTo(25 * SK_Scalar1, 10 * SK_Scalar1);
-        path.fPath->cubicTo(40 * SK_Scalar1,
-                            20 * SK_Scalar1,
-                            60 * SK_Scalar1,
-                            20 * SK_Scalar1,
-                            75 * SK_Scalar1,
-                            10 * SK_Scalar1);
+        path.fPath->moveTo(25 * 1.0f, 10 * 1.0f);
+        path.fPath->cubicTo(40 * 1.0f, 20 * 1.0f, 60 * 1.0f, 20 * 1.0f, 75 * 1.0f, 10 * 1.0f);
         path.fPath->close();
         path.fName = "moveTo-cubic-close";
 
-#if 0
-        SkPaint titlePaint;
-        titlePaint.setColor(SK_ColorBLACK);
-        titlePaint.setAntiAlias(true);
-        SkFont font(ToolUtils::create_portable_typeface(), 15);
-        const char title[] = "Cubic Closed Drawn Into Rectangle Clips With "
-                             "Indicated Style, Fill and Linecaps, with stroke width 10";
-        canvas->drawString(title, 20, 20, font, titlePaint);
-#endif
-
-        SkRandom rand;
-        AABB rect = {0, 0, 100 * SK_Scalar1, 30 * SK_Scalar1};
+        AABB rect = {0, 0, 100 * 1.0f, 30 * 1.0f};
         canvas->save();
-        canvas->translate(10 * SK_Scalar1, 30 * SK_Scalar1);
+        canvas->translate(10 * 1.0f, 30 * 1.0f);
         canvas->save();
-        for (size_t cap = 0; cap < SK_ARRAY_COUNT(gCaps); ++cap)
+        for (size_t cap = 0; cap < std::size(gCaps); ++cap)
         {
             if (0 < cap)
             {
-                canvas->translate((rect.width() + 40 * SK_Scalar1) * SK_ARRAY_COUNT(gStyles), 0);
+                canvas->translate((rect.width() + 40 * 1.0f) * std::size(gStyles), 0);
             }
             canvas->save();
-            for (size_t fill = 0; fill < SK_ARRAY_COUNT(gFills); ++fill)
+            for (size_t fill = 0; fill < std::size(gFills); ++fill)
             {
                 if (0 < fill)
                 {
-                    canvas->translate(0, rect.height() + 40 * SK_Scalar1);
+                    canvas->translate(0, rect.height() + 40 * 1.0f);
                 }
                 canvas->save();
-                for (size_t style = 0; style < SK_ARRAY_COUNT(gStyles); ++style)
+                for (size_t style = 0; style < std::size(gStyles); ++style)
                 {
                     if (0 < style)
                     {
-                        canvas->translate(rect.width() + 40 * SK_Scalar1, 0);
+                        canvas->translate(rect.width() + 40 * 1.0f, 0);
                     }
 
-                    SkColor color = 0xff007000;
+                    ColorInt color = 0xff007000;
                     this->drawPath(path.fPath,
                                    canvas,
                                    color,
@@ -404,24 +345,13 @@ private:
                                    gCaps[cap].fJoin,
                                    gStyles[style].fStyle,
                                    gFills[fill].fFill,
-                                   SK_Scalar1 * 10);
+                                   1.0f * 10);
 
                     Paint rectPaint;
-                    rectPaint->color(SK_ColorBLACK);
+                    rectPaint->color(0xFF000000);
                     rectPaint->style(RenderPaintStyle::stroke);
                     rectPaint->thickness(-1);
                     canvas->drawPath(PathBuilder::Rect(rect), rectPaint);
-
-#if 0
-                    SkPaint labelPaint;
-                    labelPaint.setColor(color);
-                    labelPaint.setAntiAlias(true);
-                    font.setSize(10);
-                    canvas->drawString(
-                        gStyles[style].fName, 0, rect.height() + 12, font, labelPaint);
-                    canvas->drawString(gFills[fill].fName, 0, rect.height() + 24, font, labelPaint);
-                    canvas->drawString(gCaps[cap].fName, 0, rect.height() + 36, font, labelPaint);
-#endif
                 }
                 canvas->restore();
             }
@@ -435,7 +365,7 @@ private:
 DEF_SIMPLE_GM(bug5099, 50, 50, canvas)
 {
     Paint p;
-    p->color(SK_ColorRED);
+    p->color(0xFFFF0000);
     p->style(RenderPaintStyle::stroke);
     p->thickness(10);
 
@@ -448,24 +378,24 @@ DEF_SIMPLE_GM(bug5099, 50, 50, canvas)
 DEF_SIMPLE_GM(bug6083, 100, 50, canvas)
 {
     Paint p;
-    p->color(SK_ColorRED);
+    p->color(0xFFFF0000);
     p->style(RenderPaintStyle::stroke);
     p->thickness(15);
     canvas->translate(-500, -130);
     Path path;
     path->moveTo(500.988f, 155.200f);
     path->lineTo(526.109f, 155.200f);
-    SkPoint p1 = {526.109f, 155.200f};
-    SkPoint p2 = {525.968f, 212.968f};
-    SkPoint p3 = {526.109f, 241.840f};
-    path->cubicTo(p1.x(), p1.y(), p2.x(), p2.y(), p3.x(), p3.y());
+    Vec2D p1 = {526.109f, 155.200f};
+    Vec2D p2 = {525.968f, 212.968f};
+    Vec2D p3 = {526.109f, 241.840f};
+    path->cubicTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
     canvas->drawPath(path, p);
     canvas->translate(50, 0);
     path = Path();
-    p2.set(525.968f, 213.172f);
+    p2 = Vec2D(525.968f, 213.172f);
     path->moveTo(500.988f, 155.200f);
     path->lineTo(526.109f, 155.200f);
-    path->cubicTo(p1.x(), p1.y(), p2.x(), p2.y(), p3.x(), p3.y());
+    path->cubicTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
     canvas->drawPath(path, p);
 }
 

@@ -10,35 +10,37 @@
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
 #include "rive/renderer/render_context.hpp"
-#include "include/core/SkPoint.h"
-#include "include/utils/SkRandom.h"
+#include "rive/math/vec2d.hpp"
+#include "rive/math/math_types.hpp"
+#include "common/rand.hpp"
+#include "path_utils.hpp"
+#include <cassert>
 
 using namespace rivegm;
 using namespace rive;
-
-extern void SkChopQuadAt(const SkPoint src[3], SkPoint dst[5], SkScalar t);
-extern void SkChopCubicAt(const SkPoint src[4], SkPoint dst[7], SkScalar t);
+using namespace rive::math;
+using namespace rive::pathutils;
 
 // Slices paths into sliver-size contours shaped like ice cream cones.
 class MandolineSlicer
 {
 public:
-    MandolineSlicer(SkPoint anchorPt) { this->reset(anchorPt); }
+    MandolineSlicer(Vec2D anchorPt) { this->reset(anchorPt); }
 
-    void reset(SkPoint anchorPt)
+    void reset(Vec2D anchorPt)
     {
         fPath = Path();
         fPath->fillRule(FillRule::evenOdd);
         fLastPt = fAnchorPt = anchorPt;
     }
 
-    void sliceLine(SkPoint pt, int numSubdivisions)
+    void sliceLine(Vec2D pt, int numSubdivisions)
     {
         if (numSubdivisions <= 0)
         {
-            fPath->moveTo(fAnchorPt.x(), fAnchorPt.y());
-            fPath->lineTo(fLastPt.x(), fLastPt.y());
-            fPath->lineTo(pt.x(), pt.y());
+            fPath->moveTo(fAnchorPt.x, fAnchorPt.y);
+            fPath->lineTo(fLastPt.x, fLastPt.y);
+            fPath->lineTo(pt.x, pt.y);
             fPath->close();
             fLastPt = pt;
             return;
@@ -48,23 +50,23 @@ public:
         {
             return;
         }
-        SkPoint midpt = fLastPt * (1 - T) + pt * T;
+        Vec2D midpt = fLastPt * (1 - T) + pt * T;
         this->sliceLine(midpt, numSubdivisions - 1);
         this->sliceLine(pt, numSubdivisions - 1);
     }
 
-    void sliceQuadratic(SkPoint p1, SkPoint p2, int numSubdivisions)
+    void sliceQuadratic(Vec2D p1, Vec2D p2, int numSubdivisions)
     {
         if (numSubdivisions <= 0)
         {
-            fPath->moveTo(fAnchorPt.x(), fAnchorPt.y());
-            fPath->lineTo(fLastPt.x(), fLastPt.y());
-            fPath->cubicTo(fLastPt.x() + (p1.x() - fLastPt.x()) * (2 / 3.f),
-                           fLastPt.y() + (p1.y() - fLastPt.y()) * (2 / 3.f),
-                           p2.x() + (p1.x() - p2.x()) * (2 / 3.f),
-                           p2.y() + (p1.y() - p2.y()) * (2 / 3.f),
-                           p2.x(),
-                           p2.y());
+            fPath->moveTo(fAnchorPt.x, fAnchorPt.y);
+            fPath->lineTo(fLastPt.x, fLastPt.y);
+            fPath->cubicTo(fLastPt.x + (p1.x - fLastPt.x) * (2 / 3.f),
+                           fLastPt.y + (p1.y - fLastPt.y) * (2 / 3.f),
+                           p2.x + (p1.x - p2.x) * (2 / 3.f),
+                           p2.y + (p1.y - p2.y) * (2 / 3.f),
+                           p2.x,
+                           p2.y);
             fPath->close();
             fLastPt = p2;
             return;
@@ -74,19 +76,21 @@ public:
         {
             return;
         }
-        SkPoint P[3] = {fLastPt, p1, p2}, PP[5];
-        SkChopQuadAt(P, PP, T);
-        this->sliceQuadratic(PP[1], PP[2], numSubdivisions - 1);
-        this->sliceQuadratic(PP[3], PP[4], numSubdivisions - 1);
+        Vec2D P[4] = {fLastPt, Vec2D::lerp(fLastPt, p1, 2 / 3.f), Vec2D::lerp(p2, p1, 2 / 3.f), p2},
+              PP[7];
+        ChopCubicAt(P, PP, T);
+
+        this->sliceCubic(PP[1], PP[2], PP[3], numSubdivisions - 1);
+        this->sliceCubic(PP[4], PP[5], PP[6], numSubdivisions - 1);
     }
 
-    void sliceCubic(SkPoint p1, SkPoint p2, SkPoint p3, int numSubdivisions)
+    void sliceCubic(Vec2D p1, Vec2D p2, Vec2D p3, int numSubdivisions)
     {
         if (numSubdivisions <= 0)
         {
-            fPath->moveTo(fAnchorPt.x(), fAnchorPt.y());
-            fPath->lineTo(fLastPt.x(), fLastPt.y());
-            fPath->cubicTo(p1.x(), p1.y(), p2.x(), p2.y(), p3.x(), p3.y());
+            fPath->moveTo(fAnchorPt.x, fAnchorPt.y);
+            fPath->lineTo(fLastPt.x, fLastPt.y);
+            fPath->cubicTo(p1.x, p1.y, p2.x, p2.y, p3.x, p3.y);
             fPath->close();
             fLastPt = p3;
             return;
@@ -96,8 +100,8 @@ public:
         {
             return;
         }
-        SkPoint P[4] = {fLastPt, p1, p2, p3}, PP[7];
-        SkChopCubicAt(P, PP, T);
+        Vec2D P[4] = {fLastPt, p1, p2, p3}, PP[7];
+        ChopCubicAt(P, PP, T);
         this->sliceCubic(PP[1], PP[2], PP[3], numSubdivisions - 1);
         this->sliceCubic(PP[4], PP[5], PP[6], numSubdivisions - 1);
     }
@@ -107,20 +111,20 @@ public:
 private:
     float chooseChopT(int numSubdivisions)
     {
-        SkASSERT(numSubdivisions > 0);
+        assert(numSubdivisions > 0);
         if (numSubdivisions > 1)
         {
             return .5f;
         }
-        float T = (0 == fRand.nextU() % 10) ? 0 : scalbnf(1, -(int)fRand.nextRangeU(10, 149));
-        SkASSERT(T >= 0 && T < 1);
+        float T = (0 == fRand.u32() % 10) ? 0 : scalbnf(1, -(int)fRand.u32(10, 149));
+        assert(T >= 0 && T < 1);
         return T;
     }
 
-    SkRandom fRand;
+    Rand fRand;
     Path fPath;
-    SkPoint fAnchorPt;
-    SkPoint fLastPt;
+    Vec2D fAnchorPt;
+    Vec2D fLastPt;
 };
 
 class MandolineGM : public GM
@@ -164,16 +168,16 @@ protected:
         renderer->save();
         renderer->translate(421, 105);
         renderer->scale(100, 81);
-        mandoline.reset({-cosf(SkDegreesToRadians(-60)), sinf(SkDegreesToRadians(-60))});
+        mandoline.reset({-cosf(degreesToRadians(-60)), sinf(degreesToRadians(-60))});
         mandoline.sliceQuadratic({-2, 0},
-                                 {-cosf(SkDegreesToRadians(60)), sinf(SkDegreesToRadians(60))},
+                                 {-cosf(degreesToRadians(60)), sinf(degreesToRadians(60))},
                                  subdivisions);
         mandoline.sliceQuadratic(
-            {-cosf(SkDegreesToRadians(120)) * 2, sinf(SkDegreesToRadians(120)) * 2},
+            {-cosf(degreesToRadians(120)) * 2, sinf(degreesToRadians(120)) * 2},
             {1, 0},
             subdivisions);
         mandoline.sliceLine({0, 0}, subdivisions);
-        mandoline.sliceLine({-cosf(SkDegreesToRadians(-60)), sinf(SkDegreesToRadians(-60))},
+        mandoline.sliceLine({-cosf(degreesToRadians(-60)), sinf(degreesToRadians(-60))},
                             subdivisions);
         renderer->drawPath(mandoline.path(), paint);
         renderer->restore();
@@ -185,8 +189,8 @@ protected:
         constexpr int nquads = 5;
         for (int i = 0; i < nquads; ++i)
         {
-            float theta1 = 2 * SK_ScalarPI / nquads * (i + .5f);
-            float theta2 = 2 * SK_ScalarPI / nquads * (i + 1);
+            float theta1 = 2 * PI / nquads * (i + .5f);
+            float theta2 = 2 * PI / nquads * (i + 1);
             mandoline.sliceQuadratic({cosf(theta1) * 2, sinf(theta1) * 2},
                                      {cosf(theta2), sinf(theta2)},
                                      subdivisions);

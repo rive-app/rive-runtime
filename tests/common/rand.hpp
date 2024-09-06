@@ -17,6 +17,11 @@ public:
 
     bool boolean() { return m_impl() & 1; }
 
+    uint32_t u32(uint32_t start, uint32_t end)
+    {
+        return static_cast<uint32_t>(std::uniform_int_distribution<uint32_t>(start, end)(m_impl));
+    }
+
 private:
     std::mt19937_64 m_impl;
 };

@@ -131,6 +131,8 @@ RIVE_ALWAYS_INLINE static float clamp(float x, float lo, float hi)
 {
     return fminf(fmaxf(lo, x), hi);
 }
+
+RIVE_ALWAYS_INLINE static float degreesToRadians(float degrees) { return degrees * (PI / 180.0f); }
 } // namespace math
 
 template <typename T> T lerp(const T& a, const T& b, float t) { return a + (b - a) * t; }
