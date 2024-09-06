@@ -400,11 +400,11 @@ def launch_goldens(test_harness_server):
         print("Can't find rivspath " + args.src, flush=True)
         return -1;
 
-    src = glob.glob(os.path.join(args.src, "*.riv"))
-    n = len(src)
-
-    for riv in src:
-        rivsqueue.put(riv)
+    if os.path.isdir(args.src):
+        for riv in glob.iglob(os.path.join(args.src, "*.riv")):
+            rivsqueue.put(riv)
+    else:
+        rivsqueue.put(args.src)
 
     cmd = [tool,
            "--test_harness", "%s:%u" % test_harness_server.server_address,
