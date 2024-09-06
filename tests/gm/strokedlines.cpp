@@ -6,10 +6,14 @@
  * found in the LICENSE file.
  */
 
+#include <cassert>
+
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkMatrix.h"
+#include "rive/math/mat2d.hpp"
+#include "rive/math/math_types.hpp"
+#include "rive/math/vec2d.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -22,30 +26,30 @@ constexpr int kPad = 5;     // padding on both sides of the snowflake
 constexpr int kNumSpokes = 6;
 constexpr float kStrokeWidth = 5.0f;
 
-static void draw_fins(Renderer* renderer, const SkPoint& offset, float angle, RenderPaint* paint)
+static void draw_fins(Renderer* renderer, const Vec2D& offset, float angle, RenderPaint* paint)
 {
     float cos, sin;
 
     // first fin
-    sin = SkScalarSin(angle + (SK_ScalarPI / 4));
-    cos = SkScalarCos(angle + (SK_ScalarPI / 4));
+    sin = sinf(angle + (math::PI / 4));
+    cos = cosf(angle + (math::PI / 4));
     sin *= kRadius / 2.0f;
     cos *= kRadius / 2.0f;
 
     Path p;
-    p->moveTo(offset.fX, offset.fY);
-    p->lineTo(offset.fX + cos, offset.fY + sin);
+    p->moveTo(offset.x, offset.y);
+    p->lineTo(offset.x + cos, offset.y + sin);
     renderer->drawPath(p, paint);
 
     // second fin
-    sin = SkScalarSin(angle - (SK_ScalarPI / 4));
-    cos = SkScalarCos(angle - (SK_ScalarPI / 4));
+    sin = sinf(angle - (math::PI / 4));
+    cos = cosf(angle - (math::PI / 4));
     sin *= kRadius / 2.0f;
     cos *= kRadius / 2.0f;
 
     p = Path();
-    p->moveTo(offset.fX, offset.fY);
-    p->lineTo(offset.fX + cos, offset.fY + sin);
+    p->moveTo(offset.x, offset.y);
+    p->lineTo(offset.x + cos, offset.y + sin);
     renderer->drawPath(p, paint);
 }
 
@@ -56,10 +60,10 @@ static void draw_snowflake(Renderer* renderer, RenderPaint* paint)
         PathBuilder::Rect({-kRadius - kPad, -kRadius - kPad, kRadius + kPad, kRadius + kPad}));
 
     float sin, cos, angle = 0.0f;
-    for (int i = 0; i < kNumSpokes / 2; ++i, angle += SK_ScalarPI / (int)(kNumSpokes / 2))
+    for (int i = 0; i < kNumSpokes / 2; ++i, angle += math::PI / (int)(kNumSpokes / 2))
     {
-        sin = SkScalarSin(angle);
-        cos = SkScalarCos(angle);
+        sin = sinf(angle);
+        cos = cosf(angle);
         sin *= kRadius;
         cos *= kRadius;
 
@@ -70,16 +74,16 @@ static void draw_snowflake(Renderer* renderer, RenderPaint* paint)
         renderer->drawPath(p, paint);
 
         // fins on positive side
-        const SkPoint posOffset = SkPoint::Make(0.5f * cos, 0.5f * sin);
+        const Vec2D posOffset = Vec2D(0.5f * cos, 0.5f * sin);
         draw_fins(renderer, posOffset, angle, paint);
 
         // fins on negative side
-        const SkPoint negOffset = SkPoint::Make(-0.5f * cos, -0.5f * sin);
-        draw_fins(renderer, negOffset, angle + SK_ScalarPI, paint);
+        const Vec2D negOffset = Vec2D(-0.5f * cos, -0.5f * sin);
+        draw_fins(renderer, negOffset, angle + math::PI, paint);
     }
 }
 
-static void draw_row(Renderer* renderer, RenderPaint* paint, const SkMatrix& localMatrix)
+static void draw_row(Renderer* renderer, RenderPaint* paint, const Mat2D& localMatrix)
 {
     renderer->translate(kRadius + kPad, 0.0f);
 
@@ -90,7 +94,7 @@ static void draw_row(Renderer* renderer, RenderPaint* paint, const SkMatrix& loc
         paint->cap(cap);
 
         renderer->save();
-        renderer->transform(mat2d_fromSkMatrix(localMatrix));
+        renderer->transform(localMatrix);
         draw_snowflake(renderer, paint);
         renderer->restore();
 
@@ -123,13 +127,13 @@ protected:
         {
             // gradient
             ColorInt colors[] = {0xffff0000, 0xff00ff00};
-            SkPoint pts[] = {{-kRadius - kPad, -kRadius - kPad}, {kRadius + kPad, kRadius + kPad}};
+            Vec2D pts[] = {{-kRadius - kPad, -kRadius - kPad}, {kRadius + kPad, kRadius + kPad}};
             float stops[] = {0, 1};
 
-            auto sh = TestingWindow::Get()->factory()->makeLinearGradient(pts[0].x(),
-                                                                          pts[0].y(),
-                                                                          pts[1].x(),
-                                                                          pts[1].y(),
+            auto sh = TestingWindow::Get()->factory()->makeLinearGradient(pts[0].x,
+                                                                          pts[0].y,
+                                                                          pts[1].x,
+                                                                          pts[1].y,
                                                                           colors,
                                                                           stops,
                                                                           2);
@@ -173,29 +177,26 @@ protected:
         // matrices
         {
             // rotation
-            SkMatrix m;
-            m.setRotate(12.0f);
+            Mat2D m = Mat2D::fromRotation(12.0f * math::PI / 180);
 
             fMatrices.push_back(m);
         }
         {
             // skew
-            SkMatrix m;
-            m.setSkew(0.3f, 0.5f);
+            Mat2D m;
+            m.xy(0.5f);
+            m.yx(0.3f);
 
             fMatrices.push_back(m);
         }
         {
-            // perspective
-            SkMatrix m;
-            m.reset();
-            m.setPerspX(-SK_Scalar1 / 300);
-            m.setPerspY(SK_Scalar1 / 300);
+            // perspective - not supported
+            Mat2D m;
 
             fMatrices.push_back(m);
         }
 
-        SkASSERT(kNumRows == kNumPaints + fMatrices.size());
+        assert(kNumRows == kNumPaints + fMatrices.size());
     }
 
     ColorInt clearColor() const override { return 0xFF1A65D7; }
@@ -207,7 +208,7 @@ protected:
         for (int i = 0; i < kNumPaints; ++i)
         {
             renderer->save();
-            draw_row(renderer, fPaints[i], SkMatrix::I());
+            draw_row(renderer, fPaints[i], Mat2D());
             renderer->restore();
 
             renderer->translate(0, 2 * (kRadius + kPad));
@@ -225,7 +226,7 @@ protected:
 
 private:
     Paint fPaints[kNumPaints];
-    std::vector<SkMatrix> fMatrices;
+    std::vector<Mat2D> fMatrices;
 
     using INHERITED = GM;
 };
