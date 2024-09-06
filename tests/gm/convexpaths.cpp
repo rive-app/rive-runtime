@@ -9,7 +9,7 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/utils/SkRandom.h"
+#include "common/rand.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -25,7 +25,7 @@ public:
     bool alreadyDone() const { return fDidOnce; }
     void accomplished()
     {
-        SkASSERT(!fDidOnce);
+        assert(!fDidOnce);
         fDidOnce = true;
     }
 
@@ -69,19 +69,19 @@ private:
         b.moveTo(0, 0);
         for (int i = 1; i < kPtsPerSide; ++i)
         { // skip the first point due to moveTo.
-            b.lineTo(kLength * SkIntToScalar(i) / kPtsPerSide, 0);
+            b.lineTo(kLength * (float)(i) / kPtsPerSide, 0);
         }
         for (int i = 0; i < kPtsPerSide; ++i)
         {
-            b.lineTo(kLength, kLength * SkIntToScalar(i) / kPtsPerSide);
+            b.lineTo(kLength, kLength * (float)(i) / kPtsPerSide);
         }
         for (int i = kPtsPerSide; i > 0; --i)
         {
-            b.lineTo(kLength * SkIntToScalar(i) / kPtsPerSide, kLength);
+            b.lineTo(kLength * (float)(i) / kPtsPerSide, kLength);
         }
         for (int i = kPtsPerSide; i > 0; --i)
         {
-            b.lineTo(0, kLength * SkIntToScalar(i) / kPtsPerSide);
+            b.lineTo(0, kLength * (float)(i) / kPtsPerSide);
         }
         fPaths.push_back(b.detach());
 
@@ -192,7 +192,7 @@ private:
         this->makePaths();
 
         Paint paint;
-        SkRandom rand;
+        Rand rand;
         renderer->translate(20, 20);
 
         // As we've added more paths this has gotten pretty big. Scale the whole thing down.
@@ -203,7 +203,7 @@ private:
             renderer->save();
             // position the path, and make it at off-integer coords.
             renderer->translate(200.0f * (i % 5) + 1.0f / 10, 200.0f * (int)(i / 5) + 9.0f / 10);
-            ColorInt color = rand.nextU();
+            ColorInt color = rand.u32();
             color |= 0xff000000;
             paint->color(color);
 #if 0 // This hitting on 32bit Linux builds for some paths. Temporarily disabling while it is

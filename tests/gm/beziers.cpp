@@ -8,8 +8,7 @@
 
 #include "gm.hpp"
 #include "gmutils.hpp"
-#include "include/utils/SkRandom.h"
-#include "rive/renderer.hpp"
+#include "common/rand.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -18,42 +17,41 @@ using namespace rive;
 #define H 400
 #define N 10
 
-constexpr SkScalar SH = SkIntToScalar(H);
+constexpr float SH = H;
 
-static Path rnd_quad(RenderPaint* paint, SkRandom& rand)
+static Path rnd_quad(RenderPaint* paint, Rand& rand)
 {
-    auto a = rand.nextRangeScalar(0, W), b = rand.nextRangeScalar(0, H);
+    auto a = rand.f32(0, W), b = rand.f32(0, H);
 
     PathBuilder builder;
     builder.moveTo(a, b);
     for (int x = 0; x < 2; ++x)
     {
-        auto c = rand.nextRangeScalar(W / 4.f, W), d = rand.nextRangeScalar(0, H),
-             e = rand.nextRangeScalar(0, W), f = rand.nextRangeScalar(H / 4.f, H);
+        auto c = rand.f32(W / 4.f, W), d = rand.f32(0, H), e = rand.f32(0, W),
+             f = rand.f32(H / 4.f, H);
         builder.quadTo(c, d, e, f);
     }
-    paint->color(rand.nextU());
-    SkScalar width = rand.nextRangeScalar(1, 5);
+    paint->color(rand.u32());
+    float width = rand.f32(1, 5);
     width *= width;
     paint->thickness(width);
     return builder.detach();
 }
 
-static Path rnd_cubic(RenderPaint* paint, SkRandom& rand)
+static Path rnd_cubic(RenderPaint* paint, Rand& rand)
 {
-    auto a = rand.nextRangeScalar(0, W), b = rand.nextRangeScalar(0, H);
+    auto a = rand.f32(0, W), b = rand.f32(0, H);
 
     PathBuilder builder;
     builder.moveTo(a, b);
     for (int x = 0; x < 2; ++x)
     {
-        auto c = rand.nextRangeScalar(W / 4.f, W), d = rand.nextRangeScalar(0, H),
-             e = rand.nextRangeScalar(0, W), f = rand.nextRangeScalar(H / 4.f, H),
-             g = rand.nextRangeScalar(W / 4.f, W), h = rand.nextRangeScalar(H / 4.f, H);
+        auto c = rand.f32(W / 4.f, W), d = rand.f32(0, H), e = rand.f32(0, W),
+             f = rand.f32(H / 4.f, H), g = rand.f32(W / 4.f, W), h = rand.f32(H / 4.f, H);
         builder.cubicTo(c, d, e, f, g, h);
     }
-    paint->color(rand.nextU());
-    SkScalar width = rand.nextRangeScalar(1, 5);
+    paint->color(rand.u32());
+    float width = rand.f32(1, 5);
     width *= width;
     paint->thickness(width);
     return builder.detach();
@@ -69,9 +67,9 @@ protected:
     {
         Paint paint;
         paint->style(RenderPaintStyle::stroke);
-        paint->thickness(SkIntToScalar(9) / 2);
+        paint->thickness(9.0f / 2.0f);
 
-        SkRandom rand;
+        Rand rand;
         for (int i = 0; i < N; i++)
         {
             canvas->drawPath(rnd_quad(paint, rand), paint);

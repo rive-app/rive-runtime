@@ -9,7 +9,7 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkColor.h"
+#include "rive/math/math_types.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -20,7 +20,7 @@ public:
     BatchedConvexPathsGM() : GM(512, 512, "batchedconvexpaths") {}
 
 private:
-    ColorInt clearColor() const override { return SK_ColorBLACK; }
+    ColorInt clearColor() const override { return 0xFF000000; }
 
     void onDraw(Renderer* canvas) override
     {
@@ -33,7 +33,7 @@ private:
             path->moveTo(1, 0);
             for (float j = 1; j < numPoints; j += 3)
             {
-                constexpr float k2PI = SK_ScalarPI * 2;
+                constexpr float k2PI = math::PI * 2;
                 path->cubicTo(cosf(j / numPoints * k2PI),
                               sinf(j / numPoints * k2PI),
                               cosf((j + 1) / numPoints * k2PI),

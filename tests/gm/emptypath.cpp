@@ -9,14 +9,12 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkPoint.h"
-#include "skia/include/utils/SkRandom.h"
 
 using namespace rivegm;
 using namespace rive;
 
 static constexpr int kPtsCount = 3;
-static constexpr SkPoint kPts[kPtsCount] = {
+static constexpr Vec2D kPts[kPtsCount] = {
     {40, 40},
     {80, 40},
     {120, 40},
@@ -25,9 +23,9 @@ static constexpr SkPoint kPts[kPtsCount] = {
 static Path make_path_move()
 {
     PathBuilder builder;
-    for (SkPoint p : kPts)
+    for (Vec2D p : kPts)
     {
-        builder.moveTo(p.x(), p.y());
+        builder.moveTo(p.x, p.y);
     }
     return builder.detach();
 }
@@ -35,9 +33,9 @@ static Path make_path_move()
 static Path make_path_move_close()
 {
     PathBuilder builder;
-    for (SkPoint p : kPts)
+    for (Vec2D p : kPts)
     {
-        builder.moveTo(p.x(), p.y()).close();
+        builder.moveTo(p.x, p.y).close();
     }
     return builder.detach();
 }
@@ -45,9 +43,9 @@ static Path make_path_move_close()
 static Path make_path_move_line()
 {
     PathBuilder builder;
-    for (SkPoint p : kPts)
+    for (Vec2D p : kPts)
     {
-        builder.moveTo(p.x(), p.y()).lineTo(p.x(), p.y());
+        builder.moveTo(p.x, p.y).lineTo(p.x, p.y);
     }
     return builder.detach();
 }
@@ -55,11 +53,11 @@ static Path make_path_move_line()
 static Path make_path_move_mix()
 {
     return PathBuilder()
-        .moveTo(kPts[0].x(), kPts[0].y())
-        .moveTo(kPts[1].x(), kPts[1].y())
+        .moveTo(kPts[0].x, kPts[0].y)
+        .moveTo(kPts[1].x, kPts[1].y)
         .close()
-        .moveTo(kPts[2].x(), kPts[2].y())
-        .lineTo(kPts[2].x(), kPts[2].y())
+        .moveTo(kPts[2].x, kPts[2].y)
+        .lineTo(kPts[2].x, kPts[2].y)
         .detach();
 }
 
@@ -94,10 +92,10 @@ private:
             {
                 for (int i = 0; i < 3; ++i)
                 {
-                    renderer->drawPath(PathBuilder::Oval({kPts[i].x() - 3.5f,
-                                                          kPts[i].y() - 3.5f,
-                                                          kPts[i].x() + 3.5f,
-                                                          kPts[i].y() + 3.5f}),
+                    renderer->drawPath(PathBuilder::Oval({kPts[i].x - 3.5f,
+                                                          kPts[i].y - 3.5f,
+                                                          kPts[i].x + 3.5f,
+                                                          kPts[i].y + 3.5f}),
                                        dotPaint);
                 }
                 renderer->drawPath(proc(), strokePaint);
