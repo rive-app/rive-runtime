@@ -10,14 +10,11 @@
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
 #include "skia/include/core/SkMatrix.h"
-#include "skia/include/core/SkPoint.h"
-#include "skia/include/core/SkRect.h"
-#include "skia/include/utils/SkRandom.h"
+#include "common/rand.hpp"
+#include "path_utils.hpp"
 
 using namespace rivegm;
 using namespace rive;
-
-extern void SkChopCubicAt(const SkPoint src[4], SkPoint dst[7], SkScalar t);
 
 static constexpr float kStrokeWidth = 30;
 static constexpr int kCellSize = 200;
@@ -34,7 +31,7 @@ enum class CellFillMode
 
 struct TrickyCubic
 {
-    SkPoint fPoints[4];
+    Vec2D fPoints[4];
     int fNumPts;
     CellFillMode fFillMode;
     float fScale = 1;
@@ -84,28 +81,37 @@ static const TrickyCubic kTrickyCubics[] = {
      CellFillMode::kStretch}, // Flat CONIC with a cusp
 };
 
-static SkRect calc_tight_cubic_bounds(const SkPoint P[4], int depth = 5)
+static AABB calc_tight_cubic_bounds(const Vec2D P[4], int depth = 5)
 {
     if (0 == depth)
     {
-        SkRect bounds;
-        bounds.fLeft = std::min(std::min(P[0].x(), P[1].x()), std::min(P[2].x(), P[3].x()));
-        bounds.fTop = std::min(std::min(P[0].y(), P[1].y()), std::min(P[2].y(), P[3].y()));
-        bounds.fRight = std::max(std::max(P[0].x(), P[1].x()), std::max(P[2].x(), P[3].x()));
-        bounds.fBottom = std::max(std::max(P[0].y(), P[1].y()), std::max(P[2].y(), P[3].y()));
+        AABB bounds;
+        bounds.minX = std::min(std::min(P[0].x, P[1].x), std::min(P[2].x, P[3].x));
+        bounds.minY = std::min(std::min(P[0].y, P[1].y), std::min(P[2].y, P[3].y));
+        bounds.maxX = std::max(std::max(P[0].x, P[1].x), std::max(P[2].x, P[3].x));
+        bounds.maxY = std::max(std::max(P[0].y, P[1].y), std::max(P[2].y, P[3].y));
         return bounds;
     }
 
-    SkPoint chopped[7];
-    SkChopCubicAt(P, chopped, .5f);
-    SkRect bounds = calc_tight_cubic_bounds(chopped, depth - 1);
-    bounds.join(calc_tight_cubic_bounds(chopped + 3, depth - 1));
-    return bounds;
+    Vec2D chopped[7];
+    pathutils::ChopCubicAt(P, chopped, .5f);
+    AABB bounds0 = calc_tight_cubic_bounds(chopped, depth - 1);
+    AABB bounds1 = calc_tight_cubic_bounds(chopped + 3, depth - 1);
+    if (bounds1.isEmptyOrNaN())
+    {
+        return bounds0;
+    }
+    if (bounds0.isEmptyOrNaN())
+    {
+        return bounds1;
+    }
+    bounds0.expand(bounds1);
+    return bounds0;
 }
 
-static SkPoint lerp(const SkPoint& a, const SkPoint& b, float T)
+static Vec2D lerp(const Vec2D& a, const Vec2D& b, float T)
 {
-    SkASSERT(1 != T); // The below does not guarantee lerp(a, b, 1) === b.
+    assert(1 != T); // The below does not guarantee lerp(a, b, 1) === b.
     return (b - a) * T + a;
 }
 
@@ -126,7 +132,7 @@ public:
 
     void onDraw(rive::Renderer* renderer) override
     {
-        SkRandom rand;
+        Rand rand;
 
         Paint strokePaint;
         strokePaint->style(RenderPaintStyle::stroke);
@@ -138,63 +144,67 @@ public:
         {
             auto [originalPts, numPts, fillMode, scale] = kTrickyCubics[i];
 
-            SkASSERT(numPts <= 4);
-            SkPoint p[4];
-            memcpy(p, originalPts, sizeof(SkPoint) * numPts);
+            assert(numPts <= 4);
+            Vec2D p[4];
+            memcpy(p, originalPts, sizeof(Vec2D) * numPts);
             for (int j = 0; j < numPts; ++j)
             {
                 p[j] *= scale;
             }
 
-            auto cellRect = SkRect::MakeXYWH((i % kNumCols) * kCellSize,
-                                             (int)(i / kNumCols) * kCellSize,
-                                             kCellSize,
-                                             kCellSize);
+            auto cellRect = AABB::fromLTWH((i % kNumCols) * kCellSize,
+                                           (int)(i / kNumCols) * kCellSize,
+                                           kCellSize,
+                                           kCellSize);
 
-            SkRect strokeBounds;
+            AABB strokeBounds;
             if (numPts == 4)
             {
                 strokeBounds = calc_tight_cubic_bounds(p);
             }
             else
             {
-                SkASSERT(numPts == 3);
-                SkPoint asCubic[4] = {p[0],
-                                      lerp(p[0], p[1], 2 / 3.f),
-                                      lerp(p[1], p[2], 1 / 3.f),
-                                      p[2]};
+                assert(numPts == 3);
+                Vec2D asCubic[4] = {p[0],
+                                    lerp(p[0], p[1], 2 / 3.f),
+                                    lerp(p[1], p[2], 1 / 3.f),
+                                    p[2]};
                 strokeBounds = calc_tight_cubic_bounds(asCubic);
             }
-            strokeBounds.outset(kStrokeWidth, kStrokeWidth);
+            strokeBounds = strokeBounds.inset(-kStrokeWidth, -kStrokeWidth);
 
-            SkMatrix matrix;
+            Mat2D matrix;
             if (fillMode == CellFillMode::kStretch)
             {
-                matrix = SkMatrix::RectToRect(strokeBounds, cellRect, SkMatrix::kCenter_ScaleToFit);
+                SkRect skStrokeBounds, SkCellRect;
+                memcpy(&skStrokeBounds, &strokeBounds, sizeof(SkRect));
+                memcpy(&SkCellRect, &cellRect, sizeof(SkRect));
+                matrix = mat2d_fromSkMatrix(
+                    SkMatrix::RectToRect(skStrokeBounds, SkCellRect, SkMatrix::kCenter_ScaleToFit));
             }
             else
             {
-                matrix.setTranslate(
-                    cellRect.x() + kStrokeWidth + (cellRect.width() - strokeBounds.width()) / 2,
-                    cellRect.y() + kStrokeWidth + (cellRect.height() - strokeBounds.height()) / 2);
+                matrix = Mat2D::fromTranslate(
+                    cellRect.minX + kStrokeWidth + (cellRect.width() - strokeBounds.width()) / 2,
+                    cellRect.minY + kStrokeWidth + (cellRect.height() - strokeBounds.height()) / 2);
             }
 
             renderer->save();
-            renderer->transform(mat2d_fromSkMatrix(matrix));
-            strokePaint->thickness(kStrokeWidth / matrix.getMaxScale());
-            strokePaint->color(rand.nextU() | 0xff808080);
+            renderer->transform(matrix);
+            strokePaint->thickness(kStrokeWidth / matrix.findMaxScale());
+            strokePaint->color(rand.u32() | 0xff808080);
             Path path;
-            path->moveTo(p[0].x(), p[0].y());
+            path->moveTo(p[0].x, p[0].y);
             if (numPts == 4)
             {
-                path->cubicTo(p[1].x(), p[1].y(), p[2].x(), p[2].y(), p[3].x(), p[3].y());
+                path->cubicTo(p[1].x, p[1].y, p[2].x, p[2].y, p[3].x, p[3].y);
             }
             else
             {
-                SkASSERT(numPts == 3);
-                SkPoint c0 = p[0] + (p[1] - p[0]) * (2 / 3.f);
-                SkPoint c1 = p[2] + (p[1] - p[2]) * (2 / 3.f);
-                path->cubicTo(c0.x(), c0.y(), c1.x(), c1.y(), p[2].x(), p[2].y());
+                assert(numPts == 3);
+                Vec2D c0 = p[0] + (p[1] - p[0]) * (2 / 3.f);
+                Vec2D c1 = p[2] + (p[1] - p[2]) * (2 / 3.f);
+                path->cubicTo(c0.x, c0.y, c1.x, c1.y, p[2].x, p[2].y);
             }
             renderer->drawPath(path, strokePaint);
             renderer->restore();

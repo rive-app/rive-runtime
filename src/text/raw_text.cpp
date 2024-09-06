@@ -118,8 +118,10 @@ void RawText::update()
     }
     auto runs = m_styled.runs();
     m_shape = runs[0].font->shapeText(m_styled.unichars(), runs);
-    m_lines =
-        Text::BreakLines(m_shape, m_sizing == TextSizing::autoWidth ? -1.0f : m_maxWidth, m_align);
+    m_lines = Text::BreakLines(m_shape,
+                               m_sizing == TextSizing::autoWidth ? -1.0f : m_maxWidth,
+                               m_align,
+                               m_wrap);
 
     m_orderedLines.clear();
     m_ellipsisRun = {};

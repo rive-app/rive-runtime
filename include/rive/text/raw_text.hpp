@@ -82,6 +82,7 @@ private:
     TextSizing m_sizing = TextSizing::autoWidth;
     TextOverflow m_overflow = TextOverflow::visible;
     TextAlign m_align = TextAlign::left;
+    TextWrap m_wrap = TextWrap::wrap;
     float m_maxWidth = 0.0f;
     float m_maxHeight = 0.0f;
     std::vector<OrderedLine> m_orderedLines;

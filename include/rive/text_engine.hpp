@@ -38,6 +38,13 @@ enum class TextAlign : uint8_t
     center = 2
 };
 
+// The wrap mode.
+enum class TextWrap : uint8_t
+{
+    wrap = 0,
+    noWrap = 1
+};
+
 // A horizontal line of text within a paragraph, after line-breaking.
 struct GlyphLine
 {

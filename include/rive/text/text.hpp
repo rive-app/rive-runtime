@@ -32,12 +32,6 @@ enum class TextOrigin : uint8_t
     baseline
 };
 
-enum class TextWrap : uint8_t
-{
-    wrap,
-    noWrap
-};
-
 class OrderedLine;
 class TextModifierGroup;
 
@@ -211,7 +205,8 @@ public:
     const std::vector<TextValueRun*>& runs() const { return m_runs; }
     static SimpleArray<SimpleArray<GlyphLine>> BreakLines(const SimpleArray<Paragraph>& paragraphs,
                                                           float width,
-                                                          TextAlign align);
+                                                          TextAlign align,
+                                                          TextWrap wrap);
 #endif
 
     bool haveModifiers() const
