@@ -9,7 +9,6 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkTypes.h"
 
 using namespace rivegm;
 using namespace rive;
@@ -57,9 +56,9 @@ static void draw_labyrinth(Renderer* renderer, StrokeCap cap)
     };
 
     Path maze;
-    for (size_t y = 0; y < SK_ARRAY_COUNT(kRows); ++y)
+    for (size_t y = 0; y < std::size(kRows); ++y)
     {
-        for (size_t x = 0; x < SK_ARRAY_COUNT(kRows[0]); ++x)
+        for (size_t x = 0; x < std::size(kRows[0]); ++x)
         {
             if (kRows[y][x])
             {
@@ -68,9 +67,9 @@ static void draw_labyrinth(Renderer* renderer, StrokeCap cap)
             }
         }
     }
-    for (size_t x = 0; x < SK_ARRAY_COUNT(kCols); ++x)
+    for (size_t x = 0; x < std::size(kCols); ++x)
     {
-        for (size_t y = 0; y < SK_ARRAY_COUNT(kCols[0]); ++y)
+        for (size_t y = 0; y < std::size(kCols[0]); ++y)
         {
             if (kCols[x][y])
             {
