@@ -10,7 +10,7 @@
 
 TEST_CASE("clipping loads correctly", "[clipping]")
 {
-    auto file = ReadRiveFile("../assets/circle_clips.riv");
+    auto file = ReadRiveFile("assets/circle_clips.riv");
 
     auto node = file->artboard()->find("TopEllipse");
     REQUIRE(node != nullptr);
@@ -56,7 +56,7 @@ class ClippingFactory : public rive::NoOpFactory
 TEST_CASE("artboard is clipped correctly", "[clipping]")
 {
     ClippingFactory factory;
-    auto file = ReadRiveFile("../assets/artboardclipping.riv", &factory);
+    auto file = ReadRiveFile("assets/artboardclipping.riv", &factory);
 
     auto artboard = file->artboard("Center");
     REQUIRE(artboard != nullptr);
@@ -91,7 +91,7 @@ TEST_CASE("artboard is clipped correctly", "[clipping]")
 TEST_CASE("Shape does not have any clipping paths visible", "[clipping]")
 {
     ClippingFactory factory;
-    auto file = ReadRiveFile("../assets/clip_tests.riv", &factory);
+    auto file = ReadRiveFile("assets/clip_tests.riv", &factory);
 
     auto artboard = file->artboard("Empty-Shape");
     REQUIRE(artboard != nullptr);
@@ -113,7 +113,7 @@ TEST_CASE("Shape does not have any clipping paths visible", "[clipping]")
 TEST_CASE("Shape has at least a clipping path visible", "[clipping]")
 {
     ClippingFactory factory;
-    auto file = ReadRiveFile("../assets/clip_tests.riv", &factory);
+    auto file = ReadRiveFile("assets/clip_tests.riv", &factory);
 
     auto artboard = file->artboard("Hidden-Path-Visible-Path");
     REQUIRE(artboard != nullptr);
@@ -135,7 +135,7 @@ TEST_CASE("Shape has at least a clipping path visible", "[clipping]")
 TEST_CASE("Shape returns an empty clip when one clipping shape is empty", "[clipping]")
 {
     ClippingFactory factory;
-    auto file = ReadRiveFile("../assets/clip_tests.riv", &factory);
+    auto file = ReadRiveFile("assets/clip_tests.riv", &factory);
 
     auto artboard = file->artboard("One-Clipping-Shape-Visible-One-Hidden");
     REQUIRE(artboard != nullptr);

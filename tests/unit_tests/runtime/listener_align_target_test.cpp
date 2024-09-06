@@ -19,7 +19,7 @@ TEST_CASE("align target with preserve offset off test", "[listener_align]")
 {
     // The circle starts at coords 100, 100
     // Once the pointer move has acted, the new coords should be 100, 51
-    auto file = ReadRiveFile("../assets/align_target.riv");
+    auto file = ReadRiveFile("assets/align_target.riv");
 
     auto artboard = file->artboard("preserve-inactive");
     auto artboardInstance = artboard->instance();
@@ -52,7 +52,7 @@ TEST_CASE("align target preserve offset test", "[listener_align]")
 {
     // The circle starts at coords 100, 100
     // Once the pointer move has acted, the new coords should be 100, 101
-    auto file = ReadRiveFile("../assets/align_target.riv");
+    auto file = ReadRiveFile("assets/align_target.riv");
 
     auto artboard = file->artboard("preserve-active");
     auto artboardInstance = artboard->instance();

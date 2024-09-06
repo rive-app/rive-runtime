@@ -55,9 +55,9 @@ static rive::rcp<rive::Font> pickFallbackFont(rive::Span<const rive::Unichar> mi
 TEST_CASE("fallback glyphs are found", "[text]")
 {
     REQUIRE(fallbackFonts.empty());
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
-    auto fallbackFont = loadFont("../assets/IBMPlexSansArabic-Regular.ttf");
+    auto fallbackFont = loadFont("assets/IBMPlexSansArabic-Regular.ttf");
     REQUIRE(fallbackFont != nullptr);
     fallbackFonts.push_back(fallbackFont);
 
@@ -78,7 +78,7 @@ TEST_CASE("fallback glyphs are found", "[text]")
 TEST_CASE("variable axis values can be read", "[text]")
 {
     REQUIRE(fallbackFonts.empty());
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
     auto count = font->getAxisCount();
@@ -132,7 +132,7 @@ static bool hasTag(std::vector<std::string> featureStrings, std::string tag)
 TEST_CASE("font features load as expected", "[text]")
 {
     REQUIRE(fallbackFonts.empty());
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
     rive::SimpleArray<uint32_t> features = font->features();

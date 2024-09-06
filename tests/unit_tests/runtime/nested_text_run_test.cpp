@@ -10,7 +10,7 @@
 
 TEST_CASE("validate nested text get/set", "[nestedText]")
 {
-    auto file = ReadRiveFile("../assets/runtime_nested_text_runs.riv");
+    auto file = ReadRiveFile("assets/runtime_nested_text_runs.riv");
 
     auto artboard = file->artboard("ArtboardA")->instance();
     REQUIRE(artboard != nullptr);

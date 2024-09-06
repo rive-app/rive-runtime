@@ -12,7 +12,7 @@
 
 TEST_CASE("file with skins in solos loads correctly", "[solo]")
 {
-    auto file = ReadRiveFile("../assets/death_knight.riv");
+    auto file = ReadRiveFile("assets/death_knight.riv");
 
     auto artboard = file->artboard()->instance();
     artboard->advance(0.0f);
@@ -22,7 +22,7 @@ TEST_CASE("file with skins in solos loads correctly", "[solo]")
 
 TEST_CASE("children load correctly", "[solo]")
 {
-    auto file = ReadRiveFile("../assets/solo_test.riv");
+    auto file = ReadRiveFile("assets/solo_test.riv");
 
     auto artboard = file->artboard()->instance();
     artboard->advance(0.0f);
@@ -76,7 +76,7 @@ TEST_CASE("children load correctly", "[solo]")
 
 TEST_CASE("nested solos work", "[solo]")
 {
-    auto file = ReadRiveFile("../assets/nested_solo.riv");
+    auto file = ReadRiveFile("assets/nested_solo.riv");
 
     auto artboard = file->artboard()->instance();
     artboard->advance(0.0f);
@@ -158,7 +158,7 @@ TEST_CASE("nested solos work", "[solo]")
 
 TEST_CASE("hit test on solos", "[solo]")
 {
-    auto file = ReadRiveFile("../assets/hit_test_solos.riv");
+    auto file = ReadRiveFile("assets/hit_test_solos.riv");
 
     auto artboard = file->artboard()->instance();
 
@@ -221,7 +221,7 @@ TEST_CASE("hit test on solos", "[solo]")
 
 TEST_CASE("hit test on nested artboards in solos", "[solo]")
 {
-    auto file = ReadRiveFile("../assets/pointer_events_nested_artboards_in_solos.riv");
+    auto file = ReadRiveFile("assets/pointer_events_nested_artboards_in_solos.riv");
 
     auto mainArtboard = file->artboard()->instance();
 

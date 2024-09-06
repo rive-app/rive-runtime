@@ -12,7 +12,7 @@
 
 TEST_CASE("default state machine is detected at load", "[file]")
 {
-    auto file = ReadRiveFile("../assets/entry.riv");
+    auto file = ReadRiveFile("assets/entry.riv");
 
     auto abi = file->artboardAt(0);
     auto index = abi->defaultStateMachineIndex();

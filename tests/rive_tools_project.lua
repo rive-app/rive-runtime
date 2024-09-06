@@ -39,6 +39,7 @@ function rive_tools_project(name, project_kind)
         RIVE_PLS_DIR .. '/src',
         RIVE_RUNTIME_DIR .. '/include',
         RIVE_RUNTIME_DIR .. '/cg_renderer/include',
+        'unit_tests',
     })
 
     includedirs({
@@ -234,7 +235,7 @@ rive_tools_project('tools_common', 'StaticLib')
 do
     files({
         'common/*.cpp',
-        'assets/*.cpp',
+        'unit_tests/assets/*.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_gl.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_d3d.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_vulkan.cpp',

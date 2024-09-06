@@ -9,7 +9,7 @@
 
 TEST_CASE("transform constraint updates world transform", "[file]")
 {
-    auto file = ReadRiveFile("../assets/transform_constraint.riv");
+    auto file = ReadRiveFile("assets/transform_constraint.riv");
 
     auto artboard = file->artboard();
 

@@ -20,7 +20,7 @@
 
 TEST_CASE("file with state machine be read", "[file]")
 {
-    auto file = ReadRiveFile("../assets/rocket.riv");
+    auto file = ReadRiveFile("assets/rocket.riv");
 
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
@@ -93,7 +93,7 @@ TEST_CASE("file with state machine be read", "[file]")
 
 TEST_CASE("file with blend states loads correctly", "[file]")
 {
-    auto file = ReadRiveFile("../assets/blend_test.riv");
+    auto file = ReadRiveFile("assets/blend_test.riv");
 
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
@@ -149,7 +149,7 @@ TEST_CASE("file with blend states loads correctly", "[file]")
 
 TEST_CASE("animation state with no animation doesn't crash", "[file]")
 {
-    auto file = ReadRiveFile("../assets/multiple_state_machines.riv");
+    auto file = ReadRiveFile("assets/multiple_state_machines.riv");
 
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
@@ -179,7 +179,7 @@ TEST_CASE("animation state with no animation doesn't crash", "[file]")
 TEST_CASE("1D blend state keeps keepsGoing true even when animations themselves have stopped",
           "[file]")
 {
-    auto file = ReadRiveFile("../assets/oneshotblend.riv");
+    auto file = ReadRiveFile("assets/oneshotblend.riv");
 
     auto artboard = file->artboard();
     auto stateMachine = artboard->stateMachine("State Machine 1");
@@ -205,7 +205,7 @@ TEST_CASE("1D blend state keeps keepsGoing true even when animations themselves 
 TEST_CASE("Transitions with duration completes the state correctly before changing states",
           "[file]")
 {
-    auto file = ReadRiveFile("../assets/state_machine_transition.riv");
+    auto file = ReadRiveFile("assets/state_machine_transition.riv");
     auto black_color = 0xFF000000;
     auto white_color = 0xFFFFFFFF;
 
@@ -246,7 +246,7 @@ TEST_CASE("Transitions with duration completes the state correctly before changi
 
 TEST_CASE("Blend state animations with reset applied to them.", "[file]")
 {
-    auto file = ReadRiveFile("../assets/animation_reset_cases.riv");
+    auto file = ReadRiveFile("assets/animation_reset_cases.riv");
 
     auto artboard = file->artboard();
     auto stateMachine = artboard->stateMachine("blend-states-state-machine");
@@ -341,7 +341,7 @@ TEST_CASE("Blend state animations with reset applied to them.", "[file]")
 
 TEST_CASE("Transitions with reset applied to them.", "[file]")
 {
-    auto file = ReadRiveFile("../assets/animation_reset_cases.riv");
+    auto file = ReadRiveFile("assets/animation_reset_cases.riv");
 
     auto artboard = file->artboard("transitions");
     auto stateMachine = artboard->stateMachine("transitions-state-machine");

@@ -12,7 +12,7 @@
 
 TEST_CASE("A 0 scale path will trim with no crash", "[file]")
 {
-    auto file = ReadRiveFile("../assets/trim.riv");
+    auto file = ReadRiveFile("assets/trim.riv");
 
     auto artboard = file->artboard();
     auto node = artboard->find<rive::Node>("I");

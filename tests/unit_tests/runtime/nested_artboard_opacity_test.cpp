@@ -6,7 +6,7 @@
 
 TEST_CASE("Nested artboard background renders with opacity", "[file]")
 {
-    auto file = ReadRiveFile("../assets/nested_artboard_opacity.riv");
+    auto file = ReadRiveFile("assets/nested_artboard_opacity.riv");
 
     auto mainArtboard = file->artboard()->instance();
     REQUIRE(mainArtboard->find("Parent Artboard") != nullptr);

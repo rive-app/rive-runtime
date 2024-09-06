@@ -11,7 +11,7 @@
 
 TEST_CASE("file with text loads correctly", "[text]")
 {
-    auto file = ReadRiveFile("../assets/new_text.riv");
+    auto file = ReadRiveFile("assets/new_text.riv");
     auto artboard = file->artboard();
 
     auto textObjects = artboard->find<rive::Text>();
@@ -30,7 +30,7 @@ TEST_CASE("file with text loads correctly", "[text]")
 
 TEST_CASE("can query for all text runs", "[text]")
 {
-    auto file = ReadRiveFile("../assets/new_text.riv");
+    auto file = ReadRiveFile("assets/new_text.riv");
     auto artboard = file->artboard();
 
     auto textRunCount = artboard->count<rive::TextValueRun>();
@@ -39,7 +39,7 @@ TEST_CASE("can query for all text runs", "[text]")
 
 TEST_CASE("can query for a text run at a given index", "[text]")
 {
-    auto file = ReadRiveFile("../assets/hello_world.riv");
+    auto file = ReadRiveFile("assets/hello_world.riv");
     auto artboard = file->artboard();
 
     auto textRun = artboard->objectAt<rive::TextValueRun>(0);
@@ -48,7 +48,7 @@ TEST_CASE("can query for a text run at a given index", "[text]")
 
 TEST_CASE("simple text loads", "[text]")
 {
-    auto file = ReadRiveFile("../assets/hello_world.riv");
+    auto file = ReadRiveFile("assets/hello_world.riv");
     auto artboard = file->artboard();
 
     auto textObjects = artboard->find<rive::Text>();
@@ -107,7 +107,7 @@ TEST_CASE("simple text loads", "[text]")
 
 TEST_CASE("ellipsis is shown", "[text]")
 {
-    auto file = ReadRiveFile("../assets/ellipsis.riv");
+    auto file = ReadRiveFile("assets/ellipsis.riv");
     auto artboard = file->artboard();
 
     auto textObjects = artboard->find<rive::Text>();
@@ -199,7 +199,7 @@ TEST_CASE("range mapper maps words", "[text]")
 
 TEST_CASE("run modifier ranges select runs", "[text]")
 {
-    auto file = ReadRiveFile("../assets/modifier_to_run.riv");
+    auto file = ReadRiveFile("assets/modifier_to_run.riv");
     auto artboard = file->artboard();
 
     artboard->advance(0.0f);
@@ -268,7 +268,7 @@ TEST_CASE("run modifier ranges select runs", "[text]")
 
 TEST_CASE("run modifier ranges select runs with varying text size", "[text]")
 {
-    auto file = ReadRiveFile("../assets/test_modifier_run.riv");
+    auto file = ReadRiveFile("assets/test_modifier_run.riv");
     auto artboard = file->artboard();
 
     artboard->advance(0.0f);
@@ -315,7 +315,7 @@ TEST_CASE("run modifier ranges select runs with varying text size", "[text]")
 
 TEST_CASE("double new line type works", "[text]")
 {
-    auto file = ReadRiveFile("../assets/double_line.riv");
+    auto file = ReadRiveFile("assets/double_line.riv");
     auto artboard = file->artboard();
 
     auto textObjects = artboard->find<rive::Text>();

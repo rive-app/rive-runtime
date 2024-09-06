@@ -4,7 +4,7 @@
 
 TEST_CASE("png file decodes correctly", "[image-decoder]")
 {
-    auto file = ReadFile("../assets/placeholder.png");
+    auto file = ReadFile("assets/placeholder.png");
     REQUIRE(file.size() == 1096);
 
     auto bitmap = Bitmap::decode(file.data(), file.size());
@@ -17,7 +17,7 @@ TEST_CASE("png file decodes correctly", "[image-decoder]")
 
 TEST_CASE("jpeg file decodes correctly", "[image-decoder]")
 {
-    auto file = ReadFile("../assets/open_source.jpg");
+    auto file = ReadFile("assets/open_source.jpg");
     REQUIRE(file.size() == 8880);
 
     auto bitmap = Bitmap::decode(file.data(), file.size());
@@ -33,7 +33,7 @@ TEST_CASE("jpeg file decodes correctly", "[image-decoder]")
 // calls IIOReadPlugin::createInfoPtr which leaks
 TEST_CASE("bad jpeg file doesn't cause an overflow", "[image-decoder]")
 {
-    auto file = ReadFile("../assets/bad.jpg");
+    auto file = ReadFile("assets/bad.jpg");
     REQUIRE(file.size() == 88731);
 
     auto bitmap = Bitmap::decode(file.data(), file.size());
@@ -47,7 +47,7 @@ TEST_CASE("bad jpeg file doesn't cause an overflow", "[image-decoder]")
 
 TEST_CASE("bad png file doesn't cause an overflow", "[image-decoder]")
 {
-    auto file = ReadFile("../assets/bad.png");
+    auto file = ReadFile("assets/bad.png");
     REQUIRE(file.size() == 534283);
 
     auto bitmap = Bitmap::decode(file.data(), file.size());
@@ -67,7 +67,7 @@ TEST_CASE("bad png file doesn't cause an overflow", "[image-decoder]")
 
 TEST_CASE("webp file decodes correctly", "[image-decoder]")
 {
-    auto file = ReadFile("../assets/1.webp");
+    auto file = ReadFile("assets/1.webp");
     REQUIRE(file.size() == 30320);
 
     auto bitmap = Bitmap::decode(file.data(), file.size());

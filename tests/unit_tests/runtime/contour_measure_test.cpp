@@ -145,7 +145,7 @@ TEST_CASE("contour-oval", "[contourmeasure]")
 
 TEST_CASE("bad contour", "[contourmeasure]")
 {
-    auto file = ReadRiveFile("../assets/zombie_skins.riv");
+    auto file = ReadRiveFile("assets/zombie_skins.riv");
 
     auto artboard = file->artboard()->instance();
     REQUIRE(artboard != nullptr);

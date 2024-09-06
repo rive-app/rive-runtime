@@ -74,7 +74,7 @@ TEST_CASE("hit test on opaque target", "[hittest]")
     // "green-activate" sets "toGreen" to true
     // There is also a "gray-activate" above the other 2 that is not opaque so events should
     // traverse through the other targets
-    auto file = ReadRiveFile("../assets/opaque_hit_test.riv");
+    auto file = ReadRiveFile("assets/opaque_hit_test.riv");
 
     auto artboard = file->artboard("main");
     auto artboardInstance = artboard->instance();
@@ -125,7 +125,7 @@ TEST_CASE("hit test on opaque nested artboard", "[hittest]")
     // this rect has a listener that toggles "second-gray-toggle"
     // and a nested artboard at [0, 0, 150, 150]
     // the nested artboard and the rect have opaque targets
-    auto file = ReadRiveFile("../assets/opaque_hit_test.riv");
+    auto file = ReadRiveFile("assets/opaque_hit_test.riv");
 
     auto artboard = file->artboard("second");
     auto artboardInstance = artboard->instance();
@@ -189,7 +189,7 @@ TEST_CASE("hit test on opaque nested artboard", "[hittest]")
 
 TEST_CASE("early out on listeners", "[hittest]")
 {
-    auto file = ReadRiveFile("../assets/pointer_events.riv");
+    auto file = ReadRiveFile("assets/pointer_events.riv");
 
     auto artboard = file->artboard("art-1");
     auto artboardInstance = artboard->instance();
@@ -256,7 +256,7 @@ TEST_CASE("click event", "[hittest]")
     // they overlap between coordinates [100,100]-[200, 200]
     // they are inside a group that has a listener attached to it
     // that listener should fire an event on "Click"
-    auto file = ReadRiveFile("../assets/click_event.riv");
+    auto file = ReadRiveFile("assets/click_event.riv");
 
     auto artboard = file->artboard("art-1");
     auto artboardInstance = artboard->instance();
@@ -315,7 +315,7 @@ TEST_CASE("multiple shapes with mouse movement behavior", "[hittest]")
     // they are inside a group that has a Pointer enter and a Pointer out
     // listeners that toggle between two states (red and green)
     // starting at "red"
-    auto file = ReadRiveFile("../assets/click_event.riv");
+    auto file = ReadRiveFile("assets/click_event.riv");
 
     auto artboard = file->artboard("art-2");
     auto artboardInstance = artboard->instance();

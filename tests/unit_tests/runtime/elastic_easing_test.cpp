@@ -8,7 +8,7 @@
 
 TEST_CASE("test elastic easing loads properly", "[file]")
 {
-    auto file = ReadRiveFile("../assets/test_elastic.riv");
+    auto file = ReadRiveFile("assets/test_elastic.riv");
 
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);

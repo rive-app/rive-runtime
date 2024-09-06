@@ -25,7 +25,7 @@
 
 TEST_CASE("file with state machine listeners be read", "[file]")
 {
-    auto file = ReadRiveFile("../assets/bullet_man.riv");
+    auto file = ReadRiveFile("assets/bullet_man.riv");
 
     auto artboard = file->artboard("Bullet Man");
     REQUIRE(artboard != nullptr);
@@ -71,7 +71,7 @@ TEST_CASE("file with state machine listeners be read", "[file]")
 
 TEST_CASE("hit testing via a state machine works", "[file]")
 {
-    auto file = ReadRiveFile("../assets/bullet_man.riv");
+    auto file = ReadRiveFile("assets/bullet_man.riv");
 
     auto artboard = file->artboard("Bullet Man")->instance();
     REQUIRE(artboard != nullptr);
@@ -94,7 +94,7 @@ TEST_CASE("hit testing via a state machine works", "[file]")
 
 TEST_CASE("hit a toggle boolean listener", "[file]")
 {
-    auto file = ReadRiveFile("../assets/light_switch.riv");
+    auto file = ReadRiveFile("assets/light_switch.riv");
 
     auto artboard = file->artboard()->instance();
     REQUIRE(artboard != nullptr);
@@ -123,7 +123,7 @@ TEST_CASE("hit a toggle boolean listener", "[file]")
 
 TEST_CASE("can query for all rive events", "[events]")
 {
-    auto file = ReadRiveFile("../assets/event_on_listener.riv");
+    auto file = ReadRiveFile("assets/event_on_listener.riv");
     auto artboard = file->artboard();
 
     auto eventCount = artboard->count<rive::Event>();
@@ -132,7 +132,7 @@ TEST_CASE("can query for all rive events", "[events]")
 
 TEST_CASE("can query for a rive event at a given index", "[events]")
 {
-    auto file = ReadRiveFile("../assets/event_on_listener.riv");
+    auto file = ReadRiveFile("assets/event_on_listener.riv");
     auto artboard = file->artboard();
 
     auto event = artboard->objectAt<rive::Event>(0);
@@ -141,7 +141,7 @@ TEST_CASE("can query for a rive event at a given index", "[events]")
 
 TEST_CASE("events load correctly on a listener", "[events]")
 {
-    auto file = ReadRiveFile("../assets/event_on_listener.riv");
+    auto file = ReadRiveFile("assets/event_on_listener.riv");
 
     auto artboard = file->artboard()->instance();
     REQUIRE(artboard != nullptr);
@@ -187,7 +187,7 @@ TEST_CASE("events load correctly on a listener", "[events]")
 
 TEST_CASE("events load correctly on a state and transition", "[events]")
 {
-    auto file = ReadRiveFile("../assets/events_on_states.riv");
+    auto file = ReadRiveFile("assets/events_on_states.riv");
 
     auto artboard = file->artboard()->instance();
     REQUIRE(artboard != nullptr);
@@ -237,7 +237,7 @@ TEST_CASE("events load correctly on a state and transition", "[events]")
 
 TEST_CASE("timeline events load correctly and report", "[events]")
 {
-    auto file = ReadRiveFile("../assets/timeline_event_test.riv");
+    auto file = ReadRiveFile("assets/timeline_event_test.riv");
 
     auto artboard = file->artboard()->instance();
     REQUIRE(artboard != nullptr);
@@ -263,7 +263,7 @@ TEST_CASE("timeline events load correctly and report", "[events]")
 
 TEST_CASE("events from a nested artboard propagate to a listener on a parent", "[events]")
 {
-    auto file = ReadRiveFile("../assets/nested_event_test.riv");
+    auto file = ReadRiveFile("assets/nested_event_test.riv");
 
     auto artboard = file->artboard()->instance();
     REQUIRE(artboard != nullptr);

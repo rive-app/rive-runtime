@@ -9,7 +9,7 @@
 
 TEST_CASE("text modifiers load correctly", "[text]")
 {
-    auto file = ReadRiveFile("../assets/modifier_test.riv");
+    auto file = ReadRiveFile("assets/modifier_test.riv");
     auto artboard = file->artboard();
 
     auto textObjects = artboard->find<rive::Text>();

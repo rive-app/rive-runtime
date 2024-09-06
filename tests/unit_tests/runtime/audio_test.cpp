@@ -35,7 +35,7 @@ TEST_CASE("audio source can be opened", "[audio]")
 {
     rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
     REQUIRE(engine != nullptr);
-    auto file = loadFile("../assets/audio/what.wav");
+    auto file = loadFile("assets/audio/what.wav");
     auto span = Span<uint8_t>(file);
     rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
     REQUIRE(audioSource->channels() == 2);
@@ -78,7 +78,7 @@ TEST_CASE("audio source can be opened", "[audio]")
 
 TEST_CASE("file with audio loads correctly", "[text]")
 {
-    auto file = ReadRiveFile("../assets/sound.riv");
+    auto file = ReadRiveFile("assets/sound.riv");
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);
 
@@ -109,7 +109,7 @@ TEST_CASE("audio sound can outlive engine", "[audio]")
     {
         rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
         REQUIRE(engine != nullptr);
-        auto file = loadFile("../assets/audio/what.wav");
+        auto file = loadFile("assets/audio/what.wav");
         auto span = Span<uint8_t>(file);
         rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
         REQUIRE(audioSource->channels() == 2);
@@ -128,7 +128,7 @@ TEST_CASE("many audio sounds can outlive engine", "[audio]")
     {
         rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
         REQUIRE(engine != nullptr);
-        auto file = loadFile("../assets/audio/what.wav");
+        auto file = loadFile("assets/audio/what.wav");
         auto span = Span<uint8_t>(file);
         rcp<AudioSource> audioSource = rcp<AudioSource>(new AudioSource(span));
         REQUIRE(audioSource->channels() == 2);
@@ -151,7 +151,7 @@ TEST_CASE("audio sounds from different artboards stop accordingly", "[audio]")
 {
     rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("../assets/sound.riv");
+    auto file = ReadRiveFile("assets/sound.riv");
     auto artboard = file->artboardDefault();
     artboard->audioEngine(engine);
     auto artboard2 = file->artboardDefault();
@@ -189,7 +189,7 @@ TEST_CASE("Artboard has audio", "[audio]")
 {
     rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("../assets/sound2.riv");
+    auto file = ReadRiveFile("assets/sound2.riv");
     auto artboard = file->artboardNamed("child");
     artboard->audioEngine(engine);
 
@@ -204,7 +204,7 @@ TEST_CASE("Artboard has audio in nested artboard", "[audio]")
 {
     rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("../assets/sound2.riv");
+    auto file = ReadRiveFile("assets/sound2.riv");
     auto artboard = file->artboardNamed("grand-parent");
     artboard->audioEngine(engine);
 
@@ -219,7 +219,7 @@ TEST_CASE("Artboard does not have audio", "[audio]")
 {
     rcp<AudioEngine> engine = AudioEngine::Make(2, 44100);
 
-    auto file = ReadRiveFile("../assets/sound2.riv");
+    auto file = ReadRiveFile("assets/sound2.riv");
     auto artboard = file->artboardNamed("no-audio");
     artboard->audioEngine(engine);
 

@@ -31,7 +31,7 @@ TEST_CASE("transform order is as expected", "[transform]")
 
 TEST_CASE("file can be read", "[file]")
 {
-    auto file = ReadRiveFile("../assets/two_artboards.riv");
+    auto file = ReadRiveFile("assets/two_artboards.riv");
 
     // Default artboard should be named Two.
     REQUIRE(file->artboard()->name() == "Two");
@@ -42,7 +42,7 @@ TEST_CASE("file can be read", "[file]")
 
 TEST_CASE("file with bad blend mode fails to load", "[file]")
 {
-    std::vector<uint8_t> bytes = ReadFile("../assets/solar-system.riv");
+    std::vector<uint8_t> bytes = ReadFile("assets/solar-system.riv");
 
     rive::ImportResult result;
     auto file = rive::File::import(bytes, &gNoOpFactory, &result, nullptr);
@@ -51,7 +51,7 @@ TEST_CASE("file with bad blend mode fails to load", "[file]")
 
 TEST_CASE("file with animation can be read", "[file]")
 {
-    auto file = ReadRiveFile("../assets/juice.riv");
+    auto file = ReadRiveFile("assets/juice.riv");
 
     auto artboard = file->artboard();
     REQUIRE(artboard->name() == "New Artboard");
@@ -76,7 +76,7 @@ TEST_CASE("file with animation can be read", "[file]")
 
 TEST_CASE("artboards can be counted and accessed via index or name", "[file]")
 {
-    auto file = ReadRiveFile("../assets/dependency_test.riv");
+    auto file = ReadRiveFile("assets/dependency_test.riv");
 
     // The artboards caqn be counted
     REQUIRE(file->artboardCount() == 1);
@@ -108,7 +108,7 @@ TEST_CASE("dependencies are as expected", "[file]")
     //                   │ ┌──────────────┐
     //                   └▶│Rectangle Path│
     //                     └──────────────┘
-    auto file = ReadRiveFile("../assets/dependency_test.riv");
+    auto file = ReadRiveFile("assets/dependency_test.riv");
 
     auto artboard = file->artboard();
     REQUIRE(artboard->name() == "Blue");
@@ -148,7 +148,7 @@ TEST_CASE("dependencies are as expected", "[file]")
 
 TEST_CASE("long name in object is parsed correctly", "[file]")
 {
-    auto file = ReadRiveFile("../assets/long_name.riv");
+    auto file = ReadRiveFile("assets/long_name.riv");
     auto artboard = file->artboard();
 
     // Expect all object in file to be loaded, in this case 7
@@ -157,7 +157,7 @@ TEST_CASE("long name in object is parsed correctly", "[file]")
 
 TEST_CASE("file with in-band images can have the stripped", "[file]")
 {
-    FILE* fp = fopen("../assets/jellyfish_test.riv", "rb");
+    FILE* fp = fopen("assets/jellyfish_test.riv", "rb");
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);
@@ -197,7 +197,7 @@ TEST_CASE("file with in-band images can have the stripped", "[file]")
 
 TEST_CASE("file a bad skin (no parent skinnable) doesn't crash", "[file]")
 {
-    FILE* fp = fopen("../assets/bad_skin.riv", "rb");
+    FILE* fp = fopen("assets/bad_skin.riv", "rb");
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);

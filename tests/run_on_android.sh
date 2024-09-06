@@ -5,4 +5,4 @@ BINARY_NAME="$(basename $BINARY_PATH)"
 shift
 
 ./push_console_app_to_android.sh $BINARY_PATH
-adb shell "cd /data/local/tmp; export LD_LIBRARY_PATH=/data/local/tmp; ./$BINARY_NAME $@"
+adb shell "cd /data/local/tmp; ./$BINARY_NAME $@"

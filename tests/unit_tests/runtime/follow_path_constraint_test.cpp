@@ -9,7 +9,7 @@
 
 TEST_CASE("follow path constraint updates world transform", "[file]")
 {
-    auto file = ReadRiveFile("../assets/follow_path.riv");
+    auto file = ReadRiveFile("assets/follow_path.riv");
 
     auto artboard = file->artboard();
 
@@ -29,7 +29,7 @@ TEST_CASE("follow path constraint updates world transform", "[file]")
 
 TEST_CASE("follow path with 0 opacity constraint updates world transform", "[file]")
 {
-    auto file = ReadRiveFile("../assets/follow_path_with_0_opacity.riv");
+    auto file = ReadRiveFile("assets/follow_path_with_0_opacity.riv");
 
     auto artboard = file->artboard();
 
@@ -49,7 +49,7 @@ TEST_CASE("follow path with 0 opacity constraint updates world transform", "[fil
 
 TEST_CASE("follow path constraint with path at 0 opacity updates world transform", "[file]")
 {
-    auto file = ReadRiveFile("../assets/follow_path_path_0_opacity.riv");
+    auto file = ReadRiveFile("assets/follow_path_path_0_opacity.riv");
 
     auto artboard = file->artboard();
 

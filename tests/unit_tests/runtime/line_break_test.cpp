@@ -27,7 +27,7 @@ static rive::TextRun append(std::vector<rive::Unichar>* unichars,
 
 static rcp<Font> loadFont(const char* filename)
 {
-    FILE* fp = fopen("../assets/RobotoFlex.ttf", "rb");
+    FILE* fp = fopen("assets/RobotoFlex.ttf", "rb");
     REQUIRE(fp != nullptr);
 
     fseek(fp, 0, SEEK_END);
@@ -42,7 +42,7 @@ static rcp<Font> loadFont(const char* filename)
 
 TEST_CASE("line breaker separates words", "[line break]")
 {
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
     // one two⏎ three
@@ -66,7 +66,7 @@ TEST_CASE("line breaker separates words", "[line break]")
 
 TEST_CASE("line breaker handles multiple runs", "[line break]")
 {
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
     std::vector<rive::TextRun> truns;
@@ -99,7 +99,7 @@ TEST_CASE("line breaker handles multiple runs", "[line break]")
 
 TEST_CASE("line breaker handles returns", "[line break]")
 {
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
     std::vector<rive::TextRun> truns;
@@ -133,7 +133,7 @@ TEST_CASE("line breaker handles returns", "[line break]")
 
 TEST_CASE("line breaker builds lines", "[line break]")
 {
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
     // one two⏎ three
@@ -180,7 +180,7 @@ TEST_CASE("line breaker builds lines", "[line break]")
 
 TEST_CASE("line breaker deals with extremes", "[line break]")
 {
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
     // one two⏎ three
@@ -236,7 +236,7 @@ TEST_CASE("line breaker deals with extremes", "[line break]")
 
 TEST_CASE("line breaker breaks return characters", "[line break]")
 {
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
     // one two⏎ three
@@ -257,7 +257,7 @@ TEST_CASE("line breaker breaks return characters", "[line break]")
 
 TEST_CASE("shaper separates paragraphs", "[shaper]")
 {
-    auto font = loadFont("../assets/RobotoFlex.ttf");
+    auto font = loadFont("assets/RobotoFlex.ttf");
     REQUIRE(font != nullptr);
 
     // one two⏎ three
@@ -291,7 +291,7 @@ TEST_CASE("shaper separates paragraphs", "[shaper]")
 
 TEST_CASE("shaper handles RTL", "[shaper]")
 {
-    auto font = loadFont("../assets/IBMPlexSansArabic-Regular.ttf");
+    auto font = loadFont("assets/IBMPlexSansArabic-Regular.ttf");
     REQUIRE(font != nullptr);
 
     // one two⏎ three
@@ -323,7 +323,7 @@ TEST_CASE("shaper handles RTL", "[shaper]")
 
 TEST_CASE("shaper handles empty space", "[shaper]")
 {
-    auto font = loadFont("../assets/IBMPlexSansArabic-Regular.ttf");
+    auto font = loadFont("assets/IBMPlexSansArabic-Regular.ttf");
     REQUIRE(font != nullptr);
 
     std::vector<rive::TextRun> truns;
@@ -342,7 +342,7 @@ TEST_CASE("shaper handles empty space", "[shaper]")
 
 TEST_CASE("line breaker deals with empty paragraphs", "[line break]")
 {
-    auto font = loadFont("../assets/IBMPlexSansArabic-Regular.ttf");
+    auto font = loadFont("assets/IBMPlexSansArabic-Regular.ttf");
     REQUIRE(font != nullptr);
 
     std::vector<rive::TextRun> truns;
@@ -376,7 +376,7 @@ TEST_CASE("line breaker deals with empty paragraphs", "[line break]")
 
 TEST_CASE("line breaker deals with space only lines", "[line break]")
 {
-    auto font = loadFont("../assets/IBMPlexSansArabic-Regular.ttf");
+    auto font = loadFont("assets/IBMPlexSansArabic-Regular.ttf");
     REQUIRE(font != nullptr);
 
     std::vector<rive::TextRun> truns;
@@ -397,7 +397,7 @@ TEST_CASE("line breaker deals with space only lines", "[line break]")
 
 TEST_CASE("line breaker deals with empty lines", "[line break]")
 {
-    auto font = loadFont("../assets/IBMPlexSansArabic-Regular.ttf");
+    auto font = loadFont("assets/IBMPlexSansArabic-Regular.ttf");
     REQUIRE(font != nullptr);
 
     std::vector<rive::TextRun> truns;

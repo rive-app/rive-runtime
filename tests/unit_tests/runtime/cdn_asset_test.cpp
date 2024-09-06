@@ -17,7 +17,7 @@
 
 TEST_CASE("Image assets with cdn information loads correctly", "[cdn]")
 {
-    auto file = ReadRiveFile("../assets/hosted_image_file.riv");
+    auto file = ReadRiveFile("assets/hosted_image_file.riv");
 
     auto assets = file->assets();
     REQUIRE(assets.size() == 1);
@@ -36,7 +36,7 @@ TEST_CASE("Image assets with cdn information loads correctly", "[cdn]")
 
 TEST_CASE("Font assets with cdn information loads correctly", "[cdn]")
 {
-    auto file = ReadRiveFile("../assets/hosted_font_file.riv");
+    auto file = ReadRiveFile("assets/hosted_font_file.riv");
 
     auto assets = file->assets();
     REQUIRE(assets.size() == 1);

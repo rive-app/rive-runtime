@@ -10,7 +10,7 @@
 
 TEST_CASE("compute bounds of background shape", "[bounds]")
 {
-    auto file = ReadRiveFile("../assets/background_measure.riv");
+    auto file = ReadRiveFile("assets/background_measure.riv");
 
     auto artboard = file->artboard();
 

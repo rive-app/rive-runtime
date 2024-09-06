@@ -47,25 +47,6 @@ do
     files({ 'bench/*.cpp' })
 end
 
-rive_tools_project('tests', _OPTIONS['os'] == 'ios' and 'StaticLib' or 'ConsoleApp')
-do
-    exceptionhandling('On')
-
-    defines({
-        'TESTING',
-        'ENABLE_QUERY_FLAT_VERTICES',
-    })
-
-    externalincludedirs({
-        '../include', -- For catch.hpp
-    })
-
-    files({
-        'unit_tests/runtime/main_test.cpp', -- main() function for catch.hpp
-        'unit_tests/renderer/*.cpp',
-    })
-end
-
 rive_tools_project('gms', 'RiveTool')
 do
     externalincludedirs({

@@ -13,7 +13,7 @@
 
 TEST_CASE("validate nested boolean get/set", "[nestedInput]")
 {
-    auto file = ReadRiveFile("../assets/runtime_nested_inputs.riv");
+    auto file = ReadRiveFile("assets/runtime_nested_inputs.riv");
 
     auto artboard = file->artboard("MainArtboard")->instance();
     REQUIRE(artboard != nullptr);
@@ -47,7 +47,7 @@ TEST_CASE("validate nested boolean get/set", "[nestedInput]")
 
 TEST_CASE("validate nested number get/set", "[nestedInput]")
 {
-    auto file = ReadRiveFile("../assets/runtime_nested_inputs.riv");
+    auto file = ReadRiveFile("assets/runtime_nested_inputs.riv");
 
     auto artboard = file->artboard("MainArtboard")->instance();
     REQUIRE(artboard != nullptr);
@@ -81,7 +81,7 @@ TEST_CASE("validate nested number get/set", "[nestedInput]")
 
 TEST_CASE("validate nested trigger fire", "[nestedInput]")
 {
-    auto file = ReadRiveFile("../assets/runtime_nested_inputs.riv");
+    auto file = ReadRiveFile("assets/runtime_nested_inputs.riv");
 
     auto artboard = file->artboard("MainArtboard")->instance();
     REQUIRE(artboard != nullptr);
@@ -106,7 +106,7 @@ TEST_CASE("validate nested trigger fire", "[nestedInput]")
 
 TEST_CASE("validate nested boolean get/set multiple nested artboards deep", "[nestedInput]")
 {
-    auto file = ReadRiveFile("../assets/runtime_nested_inputs.riv");
+    auto file = ReadRiveFile("assets/runtime_nested_inputs.riv");
 
     auto artboard = file->artboard("MainArtboard")->instance();
     REQUIRE(artboard != nullptr);

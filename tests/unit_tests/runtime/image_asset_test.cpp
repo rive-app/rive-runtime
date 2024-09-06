@@ -13,7 +13,7 @@
 
 TEST_CASE("image assets loads correctly", "[assets]")
 {
-    auto file = ReadRiveFile("../assets/walle.riv");
+    auto file = ReadRiveFile("assets/walle.riv");
 
     auto node = file->artboard()->find("walle");
     REQUIRE(node != nullptr);
@@ -46,7 +46,7 @@ TEST_CASE("out of band image assets loads correctly", "[assets]")
 {
     rive::NoOpFactory gEmptyFactory;
 
-    std::string filename = "../assets/out_of_band/walle.riv";
+    std::string filename = "assets/out_of_band/walle.riv";
     rive::RelativeLocalAssetLoader loader(filename);
 
     auto file = ReadRiveFile(filename.c_str(), &gEmptyFactory, &loader);

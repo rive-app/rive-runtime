@@ -9,7 +9,7 @@
 
 TEST_CASE("distance constraints moves items as expected", "[file]")
 {
-    auto file = ReadRiveFile("../assets/distance_constraint.riv");
+    auto file = ReadRiveFile("assets/distance_constraint.riv");
 
     auto artboard = file->artboard();
 

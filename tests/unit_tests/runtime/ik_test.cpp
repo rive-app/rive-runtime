@@ -8,7 +8,7 @@
 
 TEST_CASE("two bone ik places bones correctly", "[file]")
 {
-    auto file = ReadRiveFile("../assets/two_bone_ik.riv");
+    auto file = ReadRiveFile("assets/two_bone_ik.riv");
     auto artboard = file->artboard();
 
     REQUIRE(artboard->find<rive::Shape>("circle a") != nullptr);
@@ -81,7 +81,7 @@ TEST_CASE("two bone ik places bones correctly", "[file]")
 
 TEST_CASE("ik keeps working after a lot of iterations", "[file]")
 {
-    auto file = ReadRiveFile("../assets/two_bone_ik.riv");
+    auto file = ReadRiveFile("assets/two_bone_ik.riv");
     auto artboard = file->artboard();
 
     REQUIRE(artboard->find<rive::Shape>("circle a") != nullptr);

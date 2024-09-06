@@ -13,7 +13,7 @@
 
 TEST_CASE("collapsed nested artboards do not advance", "[solo]")
 {
-    auto file = ReadRiveFile("../assets/solos_with_nested_artboards.riv");
+    auto file = ReadRiveFile("assets/solos_with_nested_artboards.riv");
 
     auto artboard = file->artboard("main-artboard")->instance();
     artboard->advance(0.0f);
@@ -42,7 +42,7 @@ TEST_CASE("collapsed nested artboards do not advance", "[solo]")
 TEST_CASE("nested artboards with looping animations will keep main advanceAndApply advancing",
           "[nested]")
 {
-    auto file = ReadRiveFile("../assets/ball_test.riv");
+    auto file = ReadRiveFile("assets/ball_test.riv");
     auto artboard = file->artboard("Artboard")->instance();
     artboard->advance(0.0f);
     auto stateMachine = artboard->stateMachineAt(0);
@@ -54,7 +54,7 @@ TEST_CASE("nested artboards with one shot animations will not main advanceAndApp
           "[nested]")
 {
 
-    auto file = ReadRiveFile("../assets/ball_test.riv");
+    auto file = ReadRiveFile("assets/ball_test.riv");
     auto artboard = file->artboard("Artboard 2")->instance();
     artboard->advance(0.0f);
     auto stateMachine = artboard->stateMachineAt(0);

@@ -10,7 +10,7 @@
 
 TEST_CASE("translation constraint updates world transform", "[file]")
 {
-    auto file = ReadRiveFile("../assets/translation_constraint.riv");
+    auto file = ReadRiveFile("assets/translation_constraint.riv");
 
     auto artboard = file->artboard();
 

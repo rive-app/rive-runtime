@@ -11,7 +11,7 @@
 
 TEST_CASE("draw rules load and sort correctly", "[draw rules]")
 {
-    auto file = ReadRiveFile("../assets/draw_rule_cycle.riv");
+    auto file = ReadRiveFile("assets/draw_rule_cycle.riv");
 
     // auto file = reader.file();
     std::unique_ptr<rive::ArtboardInstance> artboard = file->artboardDefault();

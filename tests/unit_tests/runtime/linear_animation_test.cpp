@@ -59,7 +59,7 @@ TEST_CASE("LinearAnimation with negative speed have reversed start and end secon
 
 TEST_CASE("quantize goes to whole frames", "[animation]")
 {
-    auto file = ReadRiveFile("../assets/quantize_test.riv");
+    auto file = ReadRiveFile("assets/quantize_test.riv");
     auto artboard = file->artboard();
     auto animation = artboard->animation(0);
     REQUIRE(animation->quantize());
@@ -127,7 +127,7 @@ public:
 
 TEST_CASE("Looping timeline events load correctly and report", "[events]")
 {
-    auto file = ReadRiveFile("../assets/looping_timeline_events.riv");
+    auto file = ReadRiveFile("assets/looping_timeline_events.riv");
 
     auto artboard = file->artboard()->instance();
     REQUIRE(artboard != nullptr);

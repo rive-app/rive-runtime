@@ -11,7 +11,7 @@
 
 TEST_CASE("cloning an ellipse works", "[instancing]")
 {
-    auto file = ReadRiveFile("../assets/circle_clips.riv");
+    auto file = ReadRiveFile("assets/circle_clips.riv");
 
     auto node = file->artboard()->find<rive::Shape>("TopEllipse");
     REQUIRE(node != nullptr);
@@ -25,7 +25,7 @@ TEST_CASE("cloning an ellipse works", "[instancing]")
 
 TEST_CASE("instancing artboard clones clipped properties", "[instancing]")
 {
-    auto file = ReadRiveFile("../assets/circle_clips.riv");
+    auto file = ReadRiveFile("assets/circle_clips.riv");
 
     REQUIRE(!file->artboard()->isInstance());
 
@@ -50,7 +50,7 @@ TEST_CASE("instancing artboard clones clipped properties", "[instancing]")
 
 TEST_CASE("instancing artboard doesn't clone animations", "[instancing]")
 {
-    auto file = ReadRiveFile("../assets/juice.riv");
+    auto file = ReadRiveFile("assets/juice.riv");
 
     auto artboard = file->artboardDefault();
 

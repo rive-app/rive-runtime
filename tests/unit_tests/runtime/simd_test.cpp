@@ -239,15 +239,15 @@ template <typename T> void check_if_then_else()
 {
     using vec4 = simd::gvec<T, 4>;
     using vec2 = simd::gvec<T, 2>;
+    using bmask = typename simd::boolean_mask_type<T>::type;
 
     // Vector condition.
     vec4 f4 = simd::if_then_else(vec4{1, 2, 3, 4} < vec4{4, 3, 2, 1}, vec4(1), vec4(2));
     CHECK_ALL((f4 == vec4{1, 1, 2, 2}));
 
     // In vector, -1 is true, 0 is false.
-    vec2 u2 = simd::if_then_else(simd::gvec<typename simd::boolean_mask_type<T>::type, 2>{0, -1},
-                                 vec2{1, 2},
-                                 vec2{3, 4});
+    vec2 u2 =
+        simd::if_then_else(simd::gvec<bmask, 2>{0, static_cast<bmask>(-1)}, vec2{1, 2}, vec2{3, 4});
     CHECK_ALL((u2 == vec2{3, 2}));
 
     // Scalar condition.

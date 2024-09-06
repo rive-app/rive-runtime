@@ -268,7 +268,7 @@ TEST_CASE("ellipse path builds expected commands", "[path]")
 TEST_CASE("nested solo with shape expanded and path collapsed", "[path]")
 {
     TestNoOpFactory emptyFactory;
-    auto file = ReadRiveFile("../assets/solos_collapse_tests.riv", &emptyFactory);
+    auto file = ReadRiveFile("assets/solos_collapse_tests.riv", &emptyFactory);
 
     auto artboard = file->artboard("test-1-shape-with-shape-and-path")->instance();
     // Root-Shape
@@ -300,7 +300,7 @@ TEST_CASE("nested solo with shape expanded and path collapsed", "[path]")
 TEST_CASE("nested solo clipping with shape collapsed and path expanded", "[path]")
 {
     TestNoOpFactory emptyFactory;
-    auto file = ReadRiveFile("../assets/solos_collapse_tests.riv", &emptyFactory);
+    auto file = ReadRiveFile("assets/solos_collapse_tests.riv", &emptyFactory);
 
     auto artboard = file->artboard("test-2-clip-with-shape-and-path")->instance();
     // Root-Shape
@@ -333,7 +333,7 @@ TEST_CASE("nested solo clipping with shape collapsed and path expanded", "[path]
 TEST_CASE("nested solo clipping with animation", "[path]")
 {
     TestNoOpFactory emptyFactory;
-    auto file = ReadRiveFile("../assets/solos_collapse_tests.riv", &emptyFactory);
+    auto file = ReadRiveFile("assets/solos_collapse_tests.riv", &emptyFactory);
 
     auto artboard = file->artboard("test-5-clip-with-group-and-path-and-shape")->instance();
     artboard->advance(0.0f);
@@ -377,7 +377,7 @@ TEST_CASE("nested solo clipping with animation", "[path]")
 TEST_CASE("double nested solos clipping with animation", "[path]")
 {
     TestNoOpFactory emptyFactory;
-    auto file = ReadRiveFile("../assets/solos_collapse_tests.riv", &emptyFactory);
+    auto file = ReadRiveFile("assets/solos_collapse_tests.riv", &emptyFactory);
 
     auto artboard = file->artboard("test-6-clip-with-nested-solos")->instance();
     artboard->advance(0.0f);

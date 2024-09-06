@@ -12,7 +12,7 @@
 
 TEST_CASE("stroke can be looked up at runtime", "[file]")
 {
-    auto file = ReadRiveFile("../assets/stroke_name_test.riv");
+    auto file = ReadRiveFile("assets/stroke_name_test.riv");
 
     auto artboard = file->artboard();
     REQUIRE(artboard->find<rive::Stroke>("white_stroke") != nullptr);

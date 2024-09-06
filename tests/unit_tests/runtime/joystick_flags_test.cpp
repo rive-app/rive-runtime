@@ -5,7 +5,7 @@
 
 TEST_CASE("joystick flags load as expected", "[file]")
 {
-    auto file = ReadRiveFile("../assets/joystick_flag_test.riv");
+    auto file = ReadRiveFile("assets/joystick_flag_test.riv");
     auto artboard = file->artboard();
 
     auto invertX = artboard->find<rive::Joystick>("Invert X Joystick");

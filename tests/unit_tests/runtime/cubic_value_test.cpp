@@ -7,7 +7,7 @@
 
 TEST_CASE("test cubic value load and interpolate properly", "[file]")
 {
-    auto file = ReadRiveFile("../assets/cubic_value_test.riv");
+    auto file = ReadRiveFile("assets/cubic_value_test.riv");
 
     auto artboard = file->artboard();
     REQUIRE(artboard != nullptr);

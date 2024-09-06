@@ -11,7 +11,7 @@
 
 TEST_CASE("ik with skinned bones orders correctly", "[file]")
 {
-    auto file = ReadRiveFile("../assets/complex_ik_dependency.riv");
+    auto file = ReadRiveFile("assets/complex_ik_dependency.riv");
 
     auto artboard = file->artboard();
 

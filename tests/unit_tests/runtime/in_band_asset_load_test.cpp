@@ -48,7 +48,7 @@ public:
 
 TEST_CASE("Load asset with in-band image", "[asset]")
 {
-    auto file = ReadRiveFile("../assets/in_band_asset.riv");
+    auto file = ReadRiveFile("assets/in_band_asset.riv");
 
     auto assets = file->assets();
     REQUIRE(assets.size() == 1);
@@ -75,7 +75,7 @@ TEST_CASE("Load asset with in-band image, passing responsibility to loader", "[a
     // our Loader has not attempted to load any asset.
     REQUIRE(loader.attemptedAsset == nullptr);
 
-    auto file = ReadRiveFile("../assets/in_band_asset.riv", nullptr, &loader);
+    auto file = ReadRiveFile("assets/in_band_asset.riv", nullptr, &loader);
 
     auto assets = file->assets();
     REQUIRE(assets.size() == 1);
@@ -108,7 +108,7 @@ TEST_CASE("Load asset with in-band image, passing responsibility to loader", "[a
 TEST_CASE("Load asset with in-band image, rejecting the loading responsiblity as loader", "[asset]")
 {
     auto loader = RejectAssetLoader();
-    auto file = ReadRiveFile("../assets/in_band_asset.riv", nullptr, &loader);
+    auto file = ReadRiveFile("assets/in_band_asset.riv", nullptr, &loader);
     auto assets = file->assets();
     auto firstAsset = assets[0];
     REQUIRE(firstAsset->is<rive::ImageAsset>());

@@ -14,7 +14,7 @@
 
 TEST_CASE("bound bones load correctly", "[bones]")
 {
-    auto file = ReadRiveFile("../assets/off_road_car.riv");
+    auto file = ReadRiveFile("assets/off_road_car.riv");
 
     auto node = file->artboard()->find("transmission_front_testing");
     REQUIRE(node != nullptr);
