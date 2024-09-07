@@ -49,19 +49,7 @@ end
 
 rive_tools_project('gms', 'RiveTool')
 do
-    externalincludedirs({
-        RIVE_RUNTIME_DIR .. '/skia/dependencies/',
-        RIVE_RUNTIME_DIR .. '/skia/dependencies/' .. SKIA_DIR_NAME,
-        RIVE_RUNTIME_DIR .. '/skia/dependencies/' .. SKIA_DIR_NAME .. '/include/core',
-    })
-
     files({ 'gm/*.cpp' })
-
-    libdirs({
-        RIVE_RUNTIME_DIR .. '/skia/dependencies/' .. SKIA_DIR_NAME .. '/out/' .. SKIA_OUT_NAME,
-    })
-
-    links({ 'skia' })
 end
 
 rive_tools_project('goldens', 'RiveTool')

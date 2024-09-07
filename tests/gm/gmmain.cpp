@@ -8,7 +8,6 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "utils/no_op_renderer.hpp"
-#include "skia/include/core/SkSurface.h"
 #include "common/testing_window.hpp"
 #include "common/test_harness.hpp"
 
@@ -43,36 +42,13 @@ static void dump_gm(GM* gm)
     }
 }
 
-static double bench_gm(GM* gm)
-{
-    auto info = SkImageInfo::MakeN32Premul(gm->width(), gm->height());
-    auto surf = SkSurface::MakeRaster(info);
-
-    // warm us up without timing
-    const int WARM_UP_N = 3;
-    for (int i = 0; i < WARM_UP_N; ++i)
-    {
-        rive::NoOpRenderer renderer;
-        gm->draw(&renderer);
-    }
-
-    const int loops = gm->benchLoopCount();
-    const double start = GetCurrSeconds();
-    for (int i = 0; i < loops; ++i)
-    {
-        rive::NoOpRenderer renderer;
-        gm->draw(&renderer);
-    }
-    return GetCurrSeconds() - start;
-}
-
 static bool contains(const std::string& str, const std::string& substr)
 {
     auto pos = str.find(substr, 0);
     return pos < str.size();
 }
 
-static void dumpGMs(const std::string& match, bool bench, bool interactive)
+static void dumpGMs(const std::string& match, bool interactive)
 {
     for (auto head = rivegm::GMRegistry::head(); head; head = head->next())
     {
@@ -89,17 +65,9 @@ static void dumpGMs(const std::string& match, bool bench, bool interactive)
         {
             continue; // A different process already drew this gm.
         }
-        gm->setBenchMode(bench);
         gm->onceBeforeDraw();
-        if (bench)
-        {
-            double dur = bench_gm(gm.get());
-            printf("%s %g\n", gm->name().c_str(), dur);
-        }
-        else
-        {
-            dump_gm(gm.get());
-        }
+
+        dump_gm(gm.get());
         if (interactive)
         {
             // Wait for any key if in interactive mode.
@@ -128,7 +96,6 @@ int main(int argc, const char* argv[])
 #endif
 
     const char* match = "";
-    bool bench = false;
     bool interactive = false;
     auto backend = TestingWindow::Backend::gl;
     std::string gpuNameFilter;
@@ -155,11 +122,6 @@ int main(int argc, const char* argv[])
         if (is_arg(argv[i], "--fast-png", "-f"))
         {
             TestHarness::Instance().setPNGCompression(PNGCompression::fast_rle);
-            continue;
-        }
-        if (is_arg(argv[i], "--bench", "-B"))
-        {
-            bench = true;
             continue;
         }
         if (is_arg(argv[i], "--interactive", "-i"))
@@ -192,7 +154,7 @@ int main(int argc, const char* argv[])
     }
 
     TestingWindow::Init(backend, visibility, gpuNameFilter);
-    dumpGMs(std::string(match), bench, interactive);
+    dumpGMs(std::string(match), interactive);
 
     TestingWindow::Destroy(); // Exercise our PLS teardown process now that we're done.
     TestHarness::Instance().shutdown();

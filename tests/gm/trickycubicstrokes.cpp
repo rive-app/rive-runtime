@@ -9,7 +9,6 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkMatrix.h"
 #include "common/rand.hpp"
 #include "path_utils.hpp"
 
@@ -140,7 +139,7 @@ public:
         strokePaint->cap(m_Cap);
         strokePaint->join(m_Join);
 
-        for (size_t i = 0; i < SK_ARRAY_COUNT(kTrickyCubics); ++i)
+        for (size_t i = 0; i < std::size(kTrickyCubics); ++i)
         {
             auto [originalPts, numPts, fillMode, scale] = kTrickyCubics[i];
 
@@ -176,11 +175,8 @@ public:
             Mat2D matrix;
             if (fillMode == CellFillMode::kStretch)
             {
-                SkRect skStrokeBounds, SkCellRect;
-                memcpy(&skStrokeBounds, &strokeBounds, sizeof(SkRect));
-                memcpy(&SkCellRect, &cellRect, sizeof(SkRect));
-                matrix = mat2d_fromSkMatrix(
-                    SkMatrix::RectToRect(skStrokeBounds, SkCellRect, SkMatrix::kCenter_ScaleToFit));
+                matrix =
+                    rive::computeAlignment(Fit::contain, Alignment::center, cellRect, strokeBounds);
             }
             else
             {

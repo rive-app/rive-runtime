@@ -5,7 +5,6 @@
 #include "gmutils.hpp"
 
 #include "rive/math/mat2d.hpp"
-#include "skia/include/core/SkMatrix.h"
 
 #include <chrono>
 #include <vector>
@@ -18,16 +17,6 @@ double GetCurrSeconds()
     auto now = std::chrono::steady_clock::now();
     std::chrono::duration<double> ns = now.time_since_epoch();
     return ns.count();
-}
-
-rive::Mat2D mat2d_fromSkMatrix(const SkMatrix& skMatrix)
-{
-    return rive::Mat2D(skMatrix.getScaleX(),
-                       skMatrix.getSkewY(),
-                       skMatrix.getSkewX(),
-                       skMatrix.getScaleY(),
-                       skMatrix.getTranslateX(),
-                       skMatrix.getTranslateY());
 }
 
 // Approximates with 4 cubics

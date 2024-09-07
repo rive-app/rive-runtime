@@ -13,8 +13,6 @@
 #include <utility>
 #include <vector>
 
-class SkMatrix;
-
 namespace rivegm
 {
 
@@ -82,8 +80,6 @@ enum class PathDirection
     cw = clockwise,
     ccw = counterclockwise,
 };
-
-rive::Mat2D mat2d_fromSkMatrix(const SkMatrix&);
 
 void path_addOval(rive::RenderPath*, rive::AABB bounds, PathDirection = PathDirection::cw);
 

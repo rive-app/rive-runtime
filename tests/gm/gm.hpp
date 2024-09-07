@@ -18,7 +18,6 @@ class GM
 {
     std::string m_Name;
     const int m_Width, m_Height;
-    bool m_InBenchMode = false;
 
 public:
     GM(int width, int height, const char name[]) :
@@ -40,14 +39,7 @@ public:
 
     void draw(rive::Renderer*);
 
-    int benchLoopCount() { return this->onBenchLoopCount(); }
-
-    bool benchMode() const { return m_InBenchMode; }
-
-    void setBenchMode(bool b) { m_InBenchMode = b; }
-
 protected:
-    virtual int onBenchLoopCount() { return 1; }
     virtual void onOnceBeforeDraw() {}
     virtual void onDraw(rive::Renderer*) = 0;
 };

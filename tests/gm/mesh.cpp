@@ -203,11 +203,9 @@ public:
                 {
                     color = 0xFFFFFFFF;
                 }
-                if (!this->benchMode())
-                {
-                    paint->color(color);
-                    draw_rect(ren, area, paint.get());
-                }
+
+                paint->color(color);
+                draw_rect(ren, area, paint.get());
             }
         }
     }
