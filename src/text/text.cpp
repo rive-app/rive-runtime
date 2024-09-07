@@ -291,8 +291,9 @@ void Text::buildRenderStyles()
     bool isEllipsisLineLast = false;
     // Find the line to put the ellipsis on (line before the one that
     // overflows).
-    bool wantEllipsis =
-        overflow() == TextOverflow::ellipsis && effectiveSizing() == TextSizing::fixed;
+    bool wantEllipsis = overflow() == TextOverflow::ellipsis &&
+                        effectiveSizing() == TextSizing::fixed &&
+                        verticalAlign() == VerticalTextAlign::top;
 
     int lastLineIndex = -1;
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
@@ -321,6 +322,7 @@ void Text::buildRenderStyles()
         }
         y += paragraphSpace;
     }
+    auto totalHeight = y;
     if (wantEllipsis && ellipsisLine == -1)
     {
         // Nothing fits, just show the first line and ellipse it.
@@ -343,6 +345,19 @@ void Text::buildRenderStyles()
             break;
     }
 
+    auto verticalAlignOffset = 0.0f;
+    switch (verticalAlign())
+    {
+        case VerticalTextAlign::middle:
+            verticalAlignOffset = (totalHeight - m_bounds.height()) / 2;
+            break;
+        case VerticalTextAlign::bottom:
+            verticalAlignOffset = totalHeight - m_bounds.height();
+            break;
+        default:
+            break;
+    }
+
     // Build the clip path if we want it.
     if (overflow() == TextOverflow::clipped)
     {
@@ -357,7 +372,10 @@ void Text::buildRenderStyles()
 
         AABB bounds = localBounds();
 
-        m_clipRenderPath->addRect(bounds.minX, bounds.minY, bounds.width(), bounds.height());
+        m_clipRenderPath->addRect(bounds.minX,
+                                  bounds.minY,
+                                  bounds.width(),
+                                  bounds.height() + verticalAlignOffset);
     }
     else
     {
@@ -381,24 +399,74 @@ void Text::buildRenderStyles()
         }
     }
     float minX = std::numeric_limits<float>::max();
+    bool drawLine = true;
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
     {
         const Paragraph& paragraph = m_shape[paragraphIndex++];
         for (const GlyphLine& line : paragraphLines)
         {
+            drawLine = true;
             switch (overflow())
             {
                 case TextOverflow::hidden:
-                    if (effectiveSizing() == TextSizing::fixed &&
-                        y + line.bottom > effectiveHeight())
+                    if (effectiveSizing() == TextSizing::fixed)
                     {
-                        return;
+                        switch (verticalAlign())
+                        {
+                            case VerticalTextAlign::top:
+                                if (y + line.bottom > effectiveHeight())
+                                {
+                                    return;
+                                }
+                                break;
+                            case VerticalTextAlign::middle:
+                                if (y + line.top < totalHeight / 2 - effectiveHeight() / 2)
+                                {
+                                    drawLine = false;
+                                }
+                                if (y + line.bottom > totalHeight / 2 + effectiveHeight() / 2)
+                                {
+                                    drawLine = false;
+                                    return;
+                                }
+                                break;
+                            case VerticalTextAlign::bottom:
+                                if (y + line.top < totalHeight - effectiveHeight())
+                                {
+                                    continue;
+                                }
+                                break;
+                        }
                     }
                     break;
                 case TextOverflow::clipped:
-                    if (effectiveSizing() == TextSizing::fixed && y + line.top > effectiveHeight())
+                    if (effectiveSizing() == TextSizing::fixed)
                     {
-                        return;
+                        switch (verticalAlign())
+                        {
+                            case VerticalTextAlign::top:
+                                if (y + line.top > effectiveHeight())
+                                {
+                                    return;
+                                }
+                                break;
+                            case VerticalTextAlign::middle:
+                                if (y + line.bottom < totalHeight / 2 - effectiveHeight() / 2)
+                                {
+                                    drawLine = false;
+                                }
+                                if (y + line.top > totalHeight / 2 + effectiveHeight() / 2)
+                                {
+                                    return;
+                                }
+                                break;
+                            case VerticalTextAlign::bottom:
+                                if (y + line.bottom < totalHeight - effectiveHeight())
+                                {
+                                    drawLine = false;
+                                }
+                                break;
+                        }
                     }
                     break;
                 default:
@@ -480,12 +548,16 @@ void Text::buildRenderStyles()
                         }
                     }
                 }
-                if (style->addPath(path, opacity))
+                if (drawLine)
                 {
-                    // This was the first path added to the style, so let's mark
-                    // it in our draw list.
-                    m_renderStyles.push_back(style);
-                    style->propagateOpacity(renderOpacity());
+
+                    if (style->addPath(path, opacity))
+                    {
+                        // This was the first path added to the style, so let's mark
+                        // it in our draw list.
+                        m_renderStyles.push_back(style);
+                        style->propagateOpacity(renderOpacity());
+                    }
                 }
             }
             if (lineIndex == ellipsisLine)
@@ -500,20 +572,23 @@ void Text::buildRenderStyles()
         }
         y += paragraphSpace;
     }
+    auto scale = 1.0f;
+    auto xOffset = 0.0f;
+    auto yOffset = 0.0f;
     if (overflow() == TextOverflow::fit)
     {
         auto xScale = (effectiveSizing() != TextSizing::autoWidth && maxWidth > m_bounds.width())
                           ? m_bounds.width() / maxWidth
                           : 1;
         auto baseline = m_lines[0][0].baseline;
-        auto yScale = (effectiveSizing() == TextSizing::fixed && y > m_bounds.height())
-                          ? (m_bounds.height() - baseline) / (y - baseline)
+        auto yScale = (effectiveSizing() == TextSizing::fixed && totalHeight > m_bounds.height())
+                          ? (m_bounds.height() - baseline) / (totalHeight - baseline)
                           : 1;
         if (xScale != 1 || yScale != 1)
         {
-            auto scale = std::max(0.0f, xScale > yScale ? yScale : xScale);
-            auto yOffset = baseline * (1 - scale);
-            auto xOffset = 0.0f;
+            scale = std::max(0.0f, xScale > yScale ? yScale : xScale);
+            yOffset = (baseline - m_bounds.height() * originY()) * (1 - scale);
+            xOffset = 0.0f;
             switch ((TextAlign)alignValue())
             {
                 case TextAlign::center:
@@ -525,13 +600,23 @@ void Text::buildRenderStyles()
                 default:
                     break;
             }
-            m_fitScale = Mat2D::fromScaleAndTranslation(scale, scale, xOffset, yOffset);
-        }
-        else
-        {
-            m_fitScale = Mat2D();
         }
     }
+    if (verticalAlign() != VerticalTextAlign::top)
+    {
+        if (effectiveSizing() == TextSizing::fixed)
+        {
+            if (verticalAlign() == VerticalTextAlign::middle)
+            {
+                yOffset = (m_bounds.height() - totalHeight * scale) / 2;
+            }
+            else if (verticalAlign() == VerticalTextAlign::bottom)
+            {
+                yOffset = m_bounds.height() - totalHeight * scale;
+            }
+        }
+    }
+    m_transform = Mat2D::fromScaleAndTranslation(scale, scale, xOffset, yOffset);
 }
 
 const TextStyle* Text::styleFromShaperId(uint16_t id) const
@@ -551,7 +636,7 @@ void Text::draw(Renderer* renderer)
     }
     if (clipResult != ClipResult::emptyClip)
     {
-        renderer->transform(m_WorldTransform * m_fitScale);
+        renderer->transform(m_WorldTransform * m_transform);
         if (overflow() == TextOverflow::clipped && m_clipRenderPath)
         {
             renderer->clipPath(m_clipRenderPath.get());

@@ -176,7 +176,7 @@ public:
     void modifierShapeDirty();
     void markPaintDirty();
     void update(ComponentDirt value) override;
-    Mat2D m_fitScale;
+    Mat2D m_transform;
 
     TextSizing sizing() const { return (TextSizing)sizingValue(); }
     TextSizing effectiveSizing() const
@@ -186,6 +186,7 @@ public:
     TextOverflow overflow() const { return (TextOverflow)overflowValue(); }
     TextOrigin textOrigin() const { return (TextOrigin)originValue(); }
     TextWrap wrap() const { return (TextWrap)wrapValue(); }
+    VerticalTextAlign verticalAlign() const { return (VerticalTextAlign)verticalAlignValue(); }
     void overflow(TextOverflow value) { return overflowValue((uint32_t)value); }
     void buildRenderStyles();
     const TextStyle* styleFromShaperId(uint16_t id) const;

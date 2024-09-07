@@ -108,6 +108,14 @@
         "string": "wrapvalue"
       },
       "description": "One of wrap, noWrap"
+    },
+    "verticalAlignValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 685,
+        "string": "verticalalignvalue"
+      }
     }
   }
 }
