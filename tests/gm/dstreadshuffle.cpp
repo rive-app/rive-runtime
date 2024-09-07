@@ -99,19 +99,17 @@ protected:
             }
             case kConcavePath_ShapeType:
             {
-                Vec2D points[5] = {{50.f, 0.f}};
-                Mat2D rot = Mat2D::fromTranslate(-50.f, -70.f);
-                rot *= Mat2D::fromRotation(360.f / 5);
-                rot *= Mat2D::fromTranslate(50.f, 70.f);
+                Vec2D points[5] = {{70.f * cosf(-math::PI / 2), 70.f * sinf(-math::PI / 2)}};
+                Mat2D rot = Mat2D::fromRotation(2 * math::PI / 5);
                 for (int i = 1; i < 5; ++i)
                 {
                     rot.mapPoints(points + i, points + i - 1, 1);
                 }
-                builder.moveTo(points[0].x, points[0].y);
+                builder.moveTo(points[0].x + 50, points[0].y + 70);
                 for (int i = 0; i < 5; ++i)
                 {
                     auto [x, y] = points[(2 * i) % 5];
-                    builder.lineTo(x, y);
+                    builder.lineTo(x + 50, y + 70);
                 }
                 builder.fillRule(FillRule::evenOdd);
                 break;
