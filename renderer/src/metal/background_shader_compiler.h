@@ -52,7 +52,7 @@ private:
     std::mutex m_mutex;
     std::condition_variable m_workAddedCondition;
     std::condition_variable m_workFinishedCondition;
-    bool m_shouldQuit;
+    bool m_shouldQuit = false;
     std::thread m_compilerThread;
 };
 } // namespace rive::gpu
