@@ -22,17 +22,14 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkColor.h"
-#include "skia/include/core/SkMatrix.h"
-#include "skia/include/core/SkScalar.h"
-#include "skia/include/core/SkPathBuilder.h"
-#include "skia/include/core/SkPathMeasure.h"
+#include "rive/math/vec2d.hpp"
+#include "rive/math/contour_measure.hpp"
 
 using namespace rivegm;
 using namespace rive;
 
-const SkScalar OVERSTROKE_WIDTH = 500.0f;
-const SkScalar NORMALSTROKE_WIDTH = 3.0f;
+const float OVERSTROKE_WIDTH = 500.0f;
+const float NORMALSTROKE_WIDTH = 3.0f;
 
 //////// path and paint builders
 
@@ -41,7 +38,7 @@ Paint make_normal_paint()
     Paint p;
     p->style(RenderPaintStyle::stroke);
     p->thickness(NORMALSTROKE_WIDTH);
-    p->color(SK_ColorBLUE);
+    p->color(0xff0000ff);
 
     return p;
 }
@@ -55,37 +52,62 @@ Paint make_overstroke_paint()
     return p;
 }
 
-Path quad_path(SkPath* skpath)
+RawPath quad_path()
 {
-    *skpath = SkPathBuilder().moveTo(0, 0).lineTo(100, 0).quadTo(50, -40, 0, 0).close().detach();
-    return PathBuilder().moveTo(0, 0).lineTo(100, 0).quadTo(50, -40, 0, 0).close().detach();
-}
-
-Path cubic_path(SkPath* skpath)
-{
-    skpath->moveTo(0, 0);
-    skpath->cubicTo(25, 75, 75, -50, 100, 0);
-
-    Path path;
-    path->moveTo(0, 0);
-    path->cubicTo(25, 75, 75, -50, 100, 0);
-
+    RawPath path;
+    path.moveTo(0, 0);
+    path.lineTo(100, 0);
+    path.quadTo(50, -40, 0, 0);
+    path.close();
     return path;
 }
 
-Path oval_path(SkPath* skpath)
+RawPath cubic_path()
 {
-    *skpath = SkPathBuilder().arcTo({0, -25, 100, 25}, 0, 359, true).close().detach();
-    return PathBuilder().addOval({0, -25, 100, 25}).close().detach();
+    RawPath path;
+    path.moveTo(0, 0);
+    path.cubicTo(25, 75, 75, -50, 100, 0);
+    return path;
 }
 
-Path ribs_path(const SkPath& skpath, SkScalar radius)
+RawPath oval_path()
+{
+    RawPath path;
+    path.addOval({0, -25, 100, 25});
+    return path;
+}
+
+Path ribs_path(const RawPath& path, float radius)
 {
     Path ribs;
 
-    const SkScalar spacing = 5.0f;
+    const float spacing = 5.0f;
     float accum = 0.0f;
 
+    ContourMeasureIter iter(&path);
+    while (auto meas = iter.next())
+    {
+        while (accum < meas->length())
+        {
+            auto posTan = meas->getPosTan(accum);
+            Vec2D pos = posTan.pos;
+            // there appeara to be a bug somewhere that is not normalizing this when it should,
+            // so i am doing it here
+            Vec2D tan = posTan.tan.normalized();
+            tan = {tan.y * radius, -tan.x * radius};
+
+            Vec2D start = pos + tan;
+            Vec2D end = pos - tan;
+
+            ribs->moveTo(start.x, start.y);
+            ribs->lineTo(end.x, end.y);
+
+            accum += spacing;
+        }
+        accum += meas->length();
+    }
+
+    /*
     SkPathMeasure meas(skpath, false);
     SkScalar length = meas.getLength();
     SkPoint pos;
@@ -102,16 +124,17 @@ Path ribs_path(const SkPath& skpath, SkScalar radius)
         }
         accum += spacing;
     }
+    */
 
     return ribs;
 }
 
-void draw_ribs(Renderer* canvas, const SkPath& skpath)
+void draw_ribs(Renderer* canvas, const RawPath& path)
 {
-    Path ribs = ribs_path(skpath, OVERSTROKE_WIDTH / 2.0f);
+    Path ribs = ribs_path(path, OVERSTROKE_WIDTH / 2.0f);
     Paint p = make_normal_paint();
     p->thickness(1);
-    p->color(SK_ColorGREEN);
+    p->color(0xff00ff00);
 
     canvas->drawPath(ribs, p);
 }
@@ -124,45 +147,29 @@ void draw_small_quad(Renderer* canvas)
     // canvas->scale(8, 8);
 
     Paint p = make_normal_paint();
-    SkPath skpath;
-    Path path = quad_path(&skpath);
+    RawPath path = quad_path();
 
-    draw_ribs(canvas, skpath);
-    canvas->drawPath(path, p);
+    auto renderPath = renderPathFromRawPath(path);
+
+    draw_ribs(canvas, path);
+    canvas->drawPath(renderPath.get(), p);
 }
 
 void draw_large_quad(Renderer* canvas)
 {
     Paint p = make_overstroke_paint();
-    SkPath skpath;
-    Path path = quad_path(&skpath);
+    RawPath path = quad_path();
 
-    canvas->drawPath(path, p);
-    draw_ribs(canvas, skpath);
+    auto renderPath = renderPathFromRawPath(path);
+
+    canvas->drawPath(renderPath.get(), p);
+    draw_ribs(canvas, path);
 }
-
-#if 0
-void draw_quad_fillpath(Renderer* canvas) {
-    Path path = quad_path();
-    Paint p = make_overstroke_paint();
-
-    Paint fillp = make_normal_paint();
-    fillp->color(SK_ColorMAGENTA);
-
-    Path fillpath;
-    p.getFillPath(path, &fillpath);
-
-    canvas->drawPath(fillpath, fillp);
-}
-#endif
 
 void draw_stroked_quad(Renderer* canvas)
 {
     canvas->translate(400, 0);
     draw_large_quad(canvas);
-#if 0
-    draw_quad_fillpath(canvas);
-#endif
 }
 
 ////////// cubics
@@ -170,45 +177,29 @@ void draw_stroked_quad(Renderer* canvas)
 void draw_small_cubic(Renderer* canvas)
 {
     Paint p = make_normal_paint();
-    SkPath skpath;
-    Path path = cubic_path(&skpath);
+    RawPath path = cubic_path();
 
-    draw_ribs(canvas, skpath);
-    canvas->drawPath(path, p);
+    auto renderPath = renderPathFromRawPath(path);
+
+    draw_ribs(canvas, path);
+    canvas->drawPath(renderPath.get(), p);
 }
 
 void draw_large_cubic(Renderer* canvas)
 {
     Paint p = make_overstroke_paint();
-    SkPath skpath;
-    Path path = cubic_path(&skpath);
+    RawPath path = cubic_path();
 
-    canvas->drawPath(path, p);
-    draw_ribs(canvas, skpath);
+    auto renderPath = renderPathFromRawPath(path);
+
+    canvas->drawPath(renderPath.get(), p);
+    draw_ribs(canvas, path);
 }
-
-#if 0
-void draw_cubic_fillpath(SkCanvas* canvas) {
-    Path path = cubic_path();
-    Paint p = make_overstroke_paint();
-
-    SkPaint fillp = make_normal_paint();
-    fillp.setColor(SK_ColorMAGENTA);
-
-    SkPath fillpath;
-    p.getFillPath(path, &fillpath);
-
-    canvas->drawPath(fillpath, fillp);
-}
-#endif
 
 void draw_stroked_cubic(Renderer* canvas)
 {
     canvas->translate(400, 0);
     draw_large_cubic(canvas);
-#if 0
-    draw_cubic_fillpath(canvas);
-#endif
 }
 
 ////////// ovals
@@ -216,46 +207,29 @@ void draw_stroked_cubic(Renderer* canvas)
 void draw_small_oval(Renderer* canvas)
 {
     Paint p = make_normal_paint();
+    RawPath path = oval_path();
 
-    SkPath skpath;
-    Path path = oval_path(&skpath);
+    auto renderPath = renderPathFromRawPath(path);
 
-    draw_ribs(canvas, skpath);
-    canvas->drawPath(path, p);
+    draw_ribs(canvas, path);
+    canvas->drawPath(renderPath.get(), p);
 }
 
 void draw_large_oval(Renderer* canvas)
 {
     Paint p = make_overstroke_paint();
-    SkPath skpath;
-    Path path = oval_path(&skpath);
+    RawPath path = oval_path();
 
-    canvas->drawPath(path, p);
-    draw_ribs(canvas, skpath);
+    auto renderPath = renderPathFromRawPath(path);
+
+    canvas->drawPath(renderPath.get(), p);
+    draw_ribs(canvas, path);
 }
-
-#if 0
-void draw_oval_fillpath(SkCanvas* canvas) {
-    Path path = oval_path();
-    Paint p = make_overstroke_paint();
-
-    SkPaint fillp = make_normal_paint();
-    fillp.setColor(SK_ColorMAGENTA);
-
-    SkPath fillpath;
-    p.getFillPath(path, &fillpath);
-
-    canvas->drawPath(fillpath, fillp);
-}
-#endif
 
 void draw_stroked_oval(Renderer* canvas)
 {
     canvas->translate(400, 0);
     draw_large_oval(canvas);
-#if 0
-    draw_oval_fillpath(canvas);
-#endif
 }
 
 ////////// gm

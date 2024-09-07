@@ -91,6 +91,10 @@ void draw_rect(rive::Renderer* r, rive::AABB rect, rive::RenderPaint*);
 void draw_oval(rive::Renderer* r, rive::AABB rect, rive::RenderPaint*);
 void draw_image(rive::Renderer*, rive::RenderImage*, rive::AABB);
 
+rive::rcp<rive::RenderPath> renderPathFromRawPath(
+    rive::RawPath& path,
+    const rive::FillRule fillRule = rive::FillRule::nonZero);
+
 class PathBuilder
 {
 public:

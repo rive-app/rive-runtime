@@ -9,26 +9,22 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkColor.h"
-#include "skia/include/core/SkMatrix.h"
-#include "skia/include/core/SkScalar.h"
-#include "skia/include/core/SkPathBuilder.h"
-#include "skia/include/core/SkPathMeasure.h"
+#include "rive/math/math_types.hpp"
 
 using namespace rivegm;
 using namespace rive;
 
-static const SkScalar kStdFakeBoldInterpKeys[] = {
-    SK_Scalar1 * 9,
-    SK_Scalar1 * 36,
+static const float kStdFakeBoldInterpKeys[] = {
+    1.0f * 9,
+    1.0f * 36,
 };
-static const SkScalar kStdFakeBoldInterpValues[] = {
-    SK_Scalar1 / 24,
-    SK_Scalar1 / 32,
+static const float kStdFakeBoldInterpValues[] = {
+    1.0f / 24,
+    1.0f / 32,
 };
-static_assert(SK_ARRAY_COUNT(kStdFakeBoldInterpKeys) == SK_ARRAY_COUNT(kStdFakeBoldInterpValues),
+static_assert(std::size(kStdFakeBoldInterpKeys) == std::size(kStdFakeBoldInterpValues),
               "mismatched_array_size");
-static const int kStdFakeBoldInterpLength = SK_ARRAY_COUNT(kStdFakeBoldInterpKeys);
+static const int kStdFakeBoldInterpLength = std::size(kStdFakeBoldInterpKeys);
 
 /* Generated on a Mac with:
  * paint.setTypeface(SkTypeface::CreateByName("Papyrus"));
@@ -247,26 +243,51 @@ static Path hiragino_maru_gothic_pro_dash()
     return path;
 }
 
-#if 0
-static void show_bold(SkCanvas* canvas, const char* text,
-                      SkScalar x, SkScalar y, const Paint& paint, const SkFont& font) {
-    canvas->drawString(text, x, y, font, paint);
-    SkFont f(font);
-    f.setEmbolden(true);
-    canvas->drawString(text, x, y + 120, f, paint);
-}
+float lerp(float a, float b, float t) { return a + t * (b - a); }
+
+float scalarInterpFunc(float searchKey, const float keys[], const float values[], int length)
+{
+    assert(length > 0);
+    assert(keys != nullptr);
+    assert(values != nullptr);
+#ifdef RIVE_DEBUG
+    for (int i = 1; i < length; i++)
+    {
+        assert(keys[i - 1] <= keys[i]);
+    }
 #endif
+    int right = 0;
+    while (right < length && keys[right] < searchKey)
+    {
+        ++right;
+    }
+    // Could use sentinel values to eliminate conditionals, but since the
+    // tables are taken as input, a simpler format is better.
+    if (right == length)
+    {
+        return values[length - 1];
+    }
+    if (right == 0)
+    {
+        return values[0];
+    }
+    // Otherwise, interpolate between right - 1 and right.
+    float leftKey = keys[right - 1];
+    float rightKey = keys[right];
+    float fract = (searchKey - leftKey) / (rightKey - leftKey);
+    return lerp(values[right - 1], values[right], fract);
+}
 
 static void path_bold(Renderer* canvas, const Path& path, float textSize)
 {
     Paint p;
-    p->thickness(SkIntToScalar(5));
+    p->thickness(static_cast<float>(5));
     canvas->drawPath(path, p);
-    SkScalar fakeBoldScale = SkScalarInterpFunc(textSize,
-                                                kStdFakeBoldInterpKeys,
-                                                kStdFakeBoldInterpValues,
-                                                kStdFakeBoldInterpLength);
-    SkScalar extra = textSize * fakeBoldScale;
+    float fakeBoldScale = scalarInterpFunc(textSize,
+                                           kStdFakeBoldInterpKeys,
+                                           kStdFakeBoldInterpValues,
+                                           kStdFakeBoldInterpLength);
+    float extra = textSize * fakeBoldScale;
     p->thickness(extra);
     canvas->save();
     canvas->translate(0, 120);
@@ -280,79 +301,75 @@ static AABB xywh(float x, float y, float w, float h) { return {x, y, x + w, y + 
 
 DEF_SIMPLE_GM(strokefill, 640, 480, canvas)
 {
-    SkScalar x = SkIntToScalar(100);
-    SkScalar y = SkIntToScalar(88);
+    float x = static_cast<float>(100);
+    float y = static_cast<float>(88);
 
-#if 0
-    // use the portable typeface to generically test the fake bold code everywhere
-    // (as long as the freetype option to do the bolding itself isn't enabled)
-    SkFont  font(ToolUtils::create_portable_typeface("serif", SkFontStyle()), 100);
-#endif
     Paint paint;
-    paint->thickness(SkIntToScalar(5));
+    paint->thickness(static_cast<float>(5));
 
     // use paths instead of text to test the path data on all platforms, since the
     // Mac-specific font may change or is not available everywhere
     path_bold(canvas, papyrus_hello(), 100);
     path_bold(canvas, hiragino_maru_gothic_pro_dash(), 100);
 
-#if 0
-    show_bold(canvas, "Hi There", x + SkIntToScalar(430), y, paint, font);
-#endif
-
     PathBuilder b;
     b.fillRule(FillRule::nonZero);
-    b.addCircle(x, y + SkIntToScalar(200), SkIntToScalar(50), rivegm::PathDirection::cw);
-    b.addCircle(x, y + SkIntToScalar(200), SkIntToScalar(40), rivegm::PathDirection::ccw);
+    b.addCircle(x, y + static_cast<float>(200), static_cast<float>(50), rivegm::PathDirection::cw);
+    b.addCircle(x, y + static_cast<float>(200), static_cast<float>(40), rivegm::PathDirection::ccw);
     canvas->drawPath(b.detach(), paint);
 
-    b.addCircle(x + SkIntToScalar(120),
-                y + SkIntToScalar(200),
-                SkIntToScalar(50),
+    b.addCircle(x + static_cast<float>(120),
+                y + static_cast<float>(200),
+                static_cast<float>(50),
                 rivegm::PathDirection::ccw);
-    b.addCircle(x + SkIntToScalar(120),
-                y + SkIntToScalar(200),
-                SkIntToScalar(40),
+    b.addCircle(x + static_cast<float>(120),
+                y + static_cast<float>(200),
+                static_cast<float>(40),
                 rivegm::PathDirection::cw);
     canvas->drawPath(b.detach(), paint);
 
-    b.addCircle(x + SkIntToScalar(240),
-                y + SkIntToScalar(200),
-                SkIntToScalar(50),
+    b.addCircle(x + static_cast<float>(240),
+                y + static_cast<float>(200),
+                static_cast<float>(50),
                 rivegm::PathDirection::ccw);
     canvas->drawPath(b.detach(), paint);
 
-    b.addCircle(x + SkIntToScalar(360),
-                y + SkIntToScalar(200),
-                SkIntToScalar(50),
+    b.addCircle(x + static_cast<float>(360),
+                y + static_cast<float>(200),
+                static_cast<float>(50),
                 rivegm::PathDirection::cw);
     canvas->drawPath(b.detach(), paint);
 
-    AABB r =
-        xywh(x - SkIntToScalar(50), y + SkIntToScalar(280), SkIntToScalar(100), SkIntToScalar(100));
+    AABB r = xywh(x - static_cast<float>(50),
+                  y + static_cast<float>(280),
+                  static_cast<float>(100),
+                  static_cast<float>(100));
     b.addRect(r, rivegm::PathDirection::cw);
-    r = r.inset(SkIntToScalar(10), SkIntToScalar(10));
+    r = r.inset(static_cast<float>(10), static_cast<float>(10));
     b.addRect(r, rivegm::PathDirection::ccw);
     canvas->drawPath(b.detach(), paint);
 
-    r = xywh(x + SkIntToScalar(70), y + SkIntToScalar(280), SkIntToScalar(100), SkIntToScalar(100));
+    r = xywh(x + static_cast<float>(70),
+             y + static_cast<float>(280),
+             static_cast<float>(100),
+             static_cast<float>(100));
     b.addRect(r, rivegm::PathDirection::ccw);
-    r = r.inset(SkIntToScalar(10), SkIntToScalar(10));
+    r = r.inset(static_cast<float>(10), static_cast<float>(10));
     b.addRect(r, rivegm::PathDirection::cw);
     canvas->drawPath(b.detach(), paint);
 
-    r = xywh(x + SkIntToScalar(190),
-             y + SkIntToScalar(280),
-             SkIntToScalar(100),
-             SkIntToScalar(100));
+    r = xywh(x + static_cast<float>(190),
+             y + static_cast<float>(280),
+             static_cast<float>(100),
+             static_cast<float>(100));
     b.addRect(r, rivegm::PathDirection::ccw);
     b.moveTo(0, 0); // test for crbug.com/247770
     canvas->drawPath(b.detach(), paint);
 
-    r = xywh(x + SkIntToScalar(310),
-             y + SkIntToScalar(280),
-             SkIntToScalar(100),
-             SkIntToScalar(100));
+    r = xywh(x + static_cast<float>(310),
+             y + static_cast<float>(280),
+             static_cast<float>(100),
+             static_cast<float>(100));
     b.addRect(r, rivegm::PathDirection::cw);
     b.moveTo(0, 0); // test for crbug.com/247770
     canvas->drawPath(b.detach(), paint);
@@ -374,11 +391,11 @@ DEF_SIMPLE_GM(bug339297, 640, 480, canvas)
     canvas->translate(258, 10365663);
 
     Paint paint;
-    paint->color(SK_ColorBLACK);
+    paint->color(0xff000000);
     paint->style(RenderPaintStyle::fill);
     canvas->drawPath(path, paint);
 
-    paint->color(SK_ColorRED);
+    paint->color(0xffff0000);
     paint->style(RenderPaintStyle::stroke);
     paint->thickness(1);
     canvas->drawPath(path, paint);
@@ -402,14 +419,14 @@ DEF_SIMPLE_GM(bug339297_as_clip, 640, 480, canvas)
     canvas->save();
     canvas->clipPath(path);
     Paint clearPaint;
-    clearPaint->color(SK_ColorBLACK);
+    clearPaint->color(0xff000000);
     const float b = 1e9f;
     draw_rect(canvas, {-b, -b, b, b}, clearPaint);
     canvas->restore();
 
     Paint paint;
     paint->style(RenderPaintStyle::fill);
-    paint->color(SK_ColorRED);
+    paint->color(0xffff0000);
     paint->style(RenderPaintStyle::stroke);
     paint->thickness(1);
     canvas->drawPath(path, paint);

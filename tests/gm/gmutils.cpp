@@ -118,6 +118,18 @@ void draw_image(rive::Renderer* ren, rive::RenderImage* img, rive::AABB dst)
     ren->restore();
 }
 
+rive::rcp<rive::RenderPath> renderPathFromRawPath(rive::RawPath& path,
+                                                  const rive::FillRule fillRule)
+{
+    auto factory = TestingWindow::Get()->factory();
+    // this causes crash paths that have a call to addQuad.
+    // auto renderPath = factory->makeRenderPath(path, fillRule);
+    // this does not crash
+    auto renderPath = factory->makeEmptyRenderPath();
+    path.addTo(renderPath.get());
+    return renderPath;
+}
+
 PathBuilder& PathBuilder::fillRule(rive::FillRule f)
 {
     m_Path->fillRule(f);
