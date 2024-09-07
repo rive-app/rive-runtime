@@ -893,6 +893,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     {
         auto dataBind = machine->dataBind(i);
         auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
+        dataBindClone->converter(dataBind->converter());
         m_dataBinds.push_back(dataBindClone);
         if (dataBind->target()->is<BindableProperty>())
         {

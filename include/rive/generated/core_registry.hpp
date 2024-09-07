@@ -76,6 +76,7 @@
 #include "rive/animation/transition_value_enum_comparator.hpp"
 #include "rive/animation/transition_value_number_comparator.hpp"
 #include "rive/animation/transition_value_string_comparator.hpp"
+#include "rive/animation/transition_value_trigger_comparator.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/artboard.hpp"
 #include "rive/assets/asset.hpp"
@@ -120,12 +121,14 @@
 #include "rive/data_bind/bindable_property_enum.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
+#include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_operation.hpp"
 #include "rive/data_bind/converters/data_converter_rounder.hpp"
 #include "rive/data_bind/converters/data_converter_to_string.hpp"
+#include "rive/data_bind/converters/data_converter_trigger.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/draw_rules.hpp"
@@ -199,6 +202,7 @@
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
+#include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_property.hpp"
@@ -208,6 +212,7 @@
 #include "rive/viewmodel/viewmodel_property_list.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_string.hpp"
+#include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/world_transform_component.hpp"
 namespace rive
@@ -255,10 +260,14 @@ public:
                 return new ViewModelInstanceList();
             case ViewModelInstanceNumberBase::typeKey:
                 return new ViewModelInstanceNumber();
+            case ViewModelInstanceTriggerBase::typeKey:
+                return new ViewModelInstanceTrigger();
             case ViewModelPropertyStringBase::typeKey:
                 return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
             case DataEnumValueBase::typeKey:
                 return new DataEnumValue();
             case DrawTargetBase::typeKey:
@@ -299,6 +308,8 @@ public:
                 return new NSlicer();
             case ListenerFireEventBase::typeKey:
                 return new ListenerFireEvent();
+            case TransitionValueTriggerComparatorBase::typeKey:
+                return new TransitionValueTriggerComparator();
             case KeyFrameUintBase::typeKey:
                 return new KeyFrameUint();
             case NestedSimpleAnimationBase::typeKey:
@@ -471,6 +482,8 @@ public:
                 return new Backboard();
             case OpenUrlEventBase::typeKey:
                 return new OpenUrlEvent();
+            case BindablePropertyTriggerBase::typeKey:
+                return new BindablePropertyTrigger();
             case BindablePropertyBooleanBase::typeKey:
                 return new BindablePropertyBoolean();
             case DataBindBase::typeKey:
@@ -481,6 +494,8 @@ public:
                 return new DataConverterGroup();
             case DataConverterRounderBase::typeKey:
                 return new DataConverterRounder();
+            case DataConverterTriggerBase::typeKey:
+                return new DataConverterTrigger();
             case DataConverterOperationBase::typeKey:
                 return new DataConverterOperation();
             case DataConverterToStringBase::typeKey:
@@ -678,6 +693,9 @@ public:
             case ViewModelPropertyEnumBase::enumIdPropertyKey:
                 object->as<ViewModelPropertyEnumBase>()->enumId(value);
                 break;
+            case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
+                object->as<ViewModelInstanceTriggerBase>()->propertyValue(value);
+                break;
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceViewModelBase>()->propertyValue(value);
                 break;
@@ -864,6 +882,9 @@ public:
             case LayerStateBase::flagsPropertyKey:
                 object->as<LayerStateBase>()->flags(value);
                 break;
+            case TransitionValueTriggerComparatorBase::valuePropertyKey:
+                object->as<TransitionValueTriggerComparatorBase>()->value(value);
+                break;
             case KeyFrameBase::framePropertyKey:
                 object->as<KeyFrameBase>()->frame(value);
                 break;
@@ -1046,6 +1067,9 @@ public:
                 break;
             case OpenUrlEventBase::targetValuePropertyKey:
                 object->as<OpenUrlEventBase>()->targetValue(value);
+                break;
+            case BindablePropertyTriggerBase::propertyValuePropertyKey:
+                object->as<BindablePropertyTriggerBase>()->propertyValue(value);
                 break;
             case DataBindBase::propertyKeyPropertyKey:
                 object->as<DataBindBase>()->propertyKey(value);
@@ -1857,6 +1881,8 @@ public:
                 return object->as<ViewModelInstanceBase>()->viewModelId();
             case ViewModelPropertyEnumBase::enumIdPropertyKey:
                 return object->as<ViewModelPropertyEnumBase>()->enumId();
+            case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
+                return object->as<ViewModelInstanceTriggerBase>()->propertyValue();
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceViewModelBase>()->propertyValue();
             case DrawTargetBase::drawableIdPropertyKey:
@@ -1981,6 +2007,8 @@ public:
                 return object->as<ListenerFireEventBase>()->eventId();
             case LayerStateBase::flagsPropertyKey:
                 return object->as<LayerStateBase>()->flags();
+            case TransitionValueTriggerComparatorBase::valuePropertyKey:
+                return object->as<TransitionValueTriggerComparatorBase>()->value();
             case KeyFrameBase::framePropertyKey:
                 return object->as<KeyFrameBase>()->frame();
             case InterpolatingKeyFrameBase::interpolationTypePropertyKey:
@@ -2103,6 +2131,8 @@ public:
                 return object->as<JoystickBase>()->handleSourceId();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->as<OpenUrlEventBase>()->targetValue();
+            case BindablePropertyTriggerBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyTriggerBase>()->propertyValue();
             case DataBindBase::propertyKeyPropertyKey:
                 return object->as<DataBindBase>()->propertyKey();
             case DataBindBase::flagsPropertyKey:
@@ -2630,6 +2660,7 @@ public:
             case ComponentBase::parentIdPropertyKey:
             case ViewModelInstanceBase::viewModelIdPropertyKey:
             case ViewModelPropertyEnumBase::enumIdPropertyKey:
+            case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
             case DrawTargetBase::drawableIdPropertyKey:
             case DrawTargetBase::placementValuePropertyKey:
@@ -2692,6 +2723,7 @@ public:
             case LayoutComponentStyleBase::maxHeightUnitsValuePropertyKey:
             case ListenerFireEventBase::eventIdPropertyKey:
             case LayerStateBase::flagsPropertyKey:
+            case TransitionValueTriggerComparatorBase::valuePropertyKey:
             case KeyFrameBase::framePropertyKey:
             case InterpolatingKeyFrameBase::interpolationTypePropertyKey:
             case InterpolatingKeyFrameBase::interpolatorIdPropertyKey:
@@ -2753,6 +2785,7 @@ public:
             case JoystickBase::joystickFlagsPropertyKey:
             case JoystickBase::handleSourceIdPropertyKey:
             case OpenUrlEventBase::targetValuePropertyKey:
+            case BindablePropertyTriggerBase::propertyValuePropertyKey:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
             case DataBindBase::converterIdPropertyKey:
@@ -3095,6 +3128,8 @@ public:
                 return object->is<ViewModelInstanceBase>();
             case ViewModelPropertyEnumBase::enumIdPropertyKey:
                 return object->is<ViewModelPropertyEnumBase>();
+            case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
+                return object->is<ViewModelInstanceTriggerBase>();
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceViewModelBase>();
             case DrawTargetBase::drawableIdPropertyKey:
@@ -3219,6 +3254,8 @@ public:
                 return object->is<ListenerFireEventBase>();
             case LayerStateBase::flagsPropertyKey:
                 return object->is<LayerStateBase>();
+            case TransitionValueTriggerComparatorBase::valuePropertyKey:
+                return object->is<TransitionValueTriggerComparatorBase>();
             case KeyFrameBase::framePropertyKey:
                 return object->is<KeyFrameBase>();
             case InterpolatingKeyFrameBase::interpolationTypePropertyKey:
@@ -3341,6 +3378,8 @@ public:
                 return object->is<JoystickBase>();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->is<OpenUrlEventBase>();
+            case BindablePropertyTriggerBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyTriggerBase>();
             case DataBindBase::propertyKeyPropertyKey:
                 return object->is<DataBindBase>();
             case DataBindBase::flagsPropertyKey:

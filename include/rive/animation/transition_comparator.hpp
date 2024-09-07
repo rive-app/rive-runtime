@@ -22,6 +22,7 @@ protected:
     bool compareEnums(uint16_t left, uint16_t right, TransitionConditionOp op);
     bool compareColors(int left, int right, TransitionConditionOp op);
     bool compareStrings(std::string left, std::string right, TransitionConditionOp op);
+    bool compareTriggers(uint32_t left, uint32_t right, TransitionConditionOp op);
 };
 } // namespace rive
 

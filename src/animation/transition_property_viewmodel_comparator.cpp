@@ -4,6 +4,7 @@
 #include "rive/animation/transition_value_color_comparator.hpp"
 #include "rive/animation/transition_value_boolean_comparator.hpp"
 #include "rive/animation/transition_value_enum_comparator.hpp"
+#include "rive/animation/transition_value_trigger_comparator.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/importers/bindable_property_importer.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
@@ -11,6 +12,7 @@
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
+#include "rive/data_bind/bindable_property_trigger.hpp"
 
 using namespace rive;
 
@@ -120,6 +122,32 @@ bool TransitionPropertyViewModelComparator::compare(
                 return compareEnums(value<BindablePropertyEnum, uint16_t>(stateMachineInstance),
                                     rightValue,
                                     operation);
+            }
+            break;
+        case BindablePropertyTrigger::typeKey:
+            if (comparand->is<TransitionPropertyViewModelComparator>())
+            {
+                auto rightValue =
+                    comparand->as<TransitionPropertyViewModelComparator>()
+                        ->value<BindablePropertyTrigger, uint32_t>(stateMachineInstance);
+                return compareTriggers(
+                    value<BindablePropertyTrigger, uint32_t>(stateMachineInstance),
+                    rightValue,
+                    operation);
+            }
+            else if (comparand->is<TransitionValueTriggerComparator>())
+            {
+                auto rightValue = comparand->as<TransitionValueTriggerComparator>()->value();
+                auto leftValue = value<BindablePropertyTrigger, uint32_t>(stateMachineInstance);
+                auto result = compareTriggers(leftValue, rightValue, operation);
+                // For trigger comparisons, the comparand is reset to the
+                // last propertyValue of the view model instance so it doesn't
+                // trigger more than once.
+                if (result)
+                {
+                    comparand->as<TransitionValueTriggerComparator>()->value(leftValue);
+                }
+                return result;
             }
             break;
     }

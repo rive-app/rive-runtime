@@ -1,0 +1,8 @@
+{
+  "name": "DataConverterTrigger",
+  "key": {
+    "int": 504,
+    "string": "dataconvertertrigger"
+  },
+  "extends": "data_bind/converters/data_converter.json"
+}

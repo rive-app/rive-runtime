@@ -7,6 +7,7 @@
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
+#include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/context/context_value_boolean.hpp"
 #include "rive/data_bind/context/context_value_number.hpp"
@@ -14,6 +15,7 @@
 #include "rive/data_bind/context/context_value_enum.hpp"
 #include "rive/data_bind/context/context_value_list.hpp"
 #include "rive/data_bind/context/context_value_color.hpp"
+#include "rive/data_bind/context/context_value_trigger.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine.hpp"
@@ -52,6 +54,7 @@ StatusCode DataBind::import(ImportStack& importStack)
             case BindablePropertyBooleanBase::typeKey:
             case BindablePropertyEnumBase::typeKey:
             case BindablePropertyColorBase::typeKey:
+            case BindablePropertyTriggerBase::typeKey:
             case TransitionPropertyViewModelComparatorBase::typeKey:
             {
                 auto stateMachineImporter =
@@ -99,6 +102,8 @@ DataType DataBind::outputType()
             return DataType::boolean;
         case ViewModelInstanceListBase::typeKey:
             return DataType::list;
+        case ViewModelInstanceTriggerBase::typeKey:
+            return DataType::trigger;
     }
     return DataType::none;
 }
@@ -128,6 +133,10 @@ void DataBind::bind()
         case DataType::list:
             m_ContextValue = rivestd::make_unique<DataBindContextValueList>(m_Source, converter());
             m_ContextValue->update(m_target);
+            break;
+        case DataType::trigger:
+            m_ContextValue =
+                rivestd::make_unique<DataBindContextValueTrigger>(m_Source, converter());
             break;
         default:
             break;

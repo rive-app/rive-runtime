@@ -24,7 +24,10 @@ enum class DataType : unsigned int
     list = 5,
 
     /// Enum.
-    enumType = 6
+    enumType = 6,
+
+    /// Trigger.
+    trigger = 7
 };
 } // namespace rive
 #endif

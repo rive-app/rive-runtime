@@ -80,6 +80,27 @@ bool TransitionComparator::compareEnums(uint16_t left, uint16_t right, Transitio
     }
 }
 
+bool TransitionComparator::compareTriggers(uint32_t left, uint32_t right, TransitionConditionOp op)
+{
+    switch (op)
+    {
+        case TransitionConditionOp::equal:
+            return left == right;
+        case TransitionConditionOp::notEqual:
+            return left != right;
+        case TransitionConditionOp::lessThanOrEqual:
+            return left <= right;
+        case TransitionConditionOp::lessThan:
+            return left < right;
+        case TransitionConditionOp::greaterThanOrEqual:
+            return left >= right;
+        case TransitionConditionOp::greaterThan:
+            return left > right;
+        default:
+            return false;
+    }
+}
+
 bool TransitionComparator::compareColors(int left, int right, TransitionConditionOp op)
 {
     switch (op)

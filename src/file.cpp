@@ -40,6 +40,7 @@
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
+#include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/audio_asset.hpp"
@@ -56,6 +57,7 @@
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_enum.hpp"
 #include "rive/viewmodel/viewmodel_property_list.hpp"
+#include "rive/viewmodel/viewmodel_property_trigger.hpp"
 
 // Default namespace for Rive Cpp code
 using namespace rive;
@@ -387,6 +389,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case BindablePropertyColor::typeKey:
             case BindablePropertyEnum::typeKey:
             case BindablePropertyBoolean::typeKey:
+            case BindablePropertyTrigger::typeKey:
                 stackObject =
                     rivestd::make_unique<BindablePropertyImporter>(object->as<BindableProperty>());
                 stackType = BindablePropertyBase::typeKey;

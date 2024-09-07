@@ -7,6 +7,7 @@
 #include "rive/data_bind/data_values/data_value_enum.hpp"
 #include "rive/data_bind/data_values/data_value_color.hpp"
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
+#include "rive/data_bind/data_values/data_value_trigger.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;
@@ -44,6 +45,10 @@ DataBindContextValue::DataBindContextValue(ViewModelInstanceValue* source,
                                                 viewModelPropertyEnum->dataEnum());
             }
             break;
+            case ViewModelInstanceTriggerBase::typeKey:
+                m_dataValue =
+                    new DataValueTrigger(m_source->as<ViewModelInstanceTrigger>()->propertyValue());
+                break;
             default:
                 m_dataValue = new DataValue();
         }
@@ -75,6 +80,10 @@ void DataBindContextValue::updateSourceValue()
             case ViewModelInstanceEnumBase::typeKey:
                 m_dataValue->as<DataValueEnum>()->value(
                     m_source->as<ViewModelInstanceEnum>()->propertyValue());
+                break;
+            case ViewModelInstanceTriggerBase::typeKey:
+                m_dataValue->as<DataValueTrigger>()->value(
+                    m_source->as<ViewModelInstanceTrigger>()->propertyValue());
                 break;
         }
     }
@@ -116,6 +125,12 @@ void DataBindContextValue::applyToSource(Core* component,
         {
             auto value = calculateValue<DataValueEnum, uint32_t>(targetValue, isMainDirection);
             m_source->as<ViewModelInstanceEnum>()->propertyValue(value);
+        }
+        break;
+        case ViewModelInstanceTriggerBase::typeKey:
+        {
+            auto value = calculateValue<DataValueTrigger, uint32_t>(targetValue, isMainDirection);
+            m_source->as<ViewModelInstanceTrigger>()->propertyValue(value);
         }
         break;
     }
