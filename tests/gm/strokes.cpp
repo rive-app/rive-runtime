@@ -10,9 +10,8 @@
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
 #include "rive/math/math_types.hpp"
-#include "skia/include/core/SkColor.h"
-#include "skia/include/core/SkPoint.h"
-#include "skia/include/utils/SkRandom.h"
+#include "rive/math/vec2d.hpp"
+#include "common/rand.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -21,17 +20,19 @@ using namespace rive;
 #define H 400
 #define N 50
 
-constexpr SkScalar SW = SkIntToScalar(W);
-constexpr SkScalar SH = SkIntToScalar(H);
+constexpr float SW = static_cast<float>(W);
+constexpr float SH = static_cast<float>(H);
 
-static void rnd_rect(AABB* r, RenderPaint* paint, SkRandom& rand)
+static void rnd_rect(AABB* r, RenderPaint* paint, Rand& rand)
 {
-    SkScalar x = rand.nextUScalar1() * W;
-    SkScalar y = rand.nextUScalar1() * H;
-    SkScalar w = rand.nextUScalar1() * (W >> 2);
-    SkScalar h = rand.nextUScalar1() * (H >> 2);
-    SkScalar hoffset = rand.nextSScalar1();
-    SkScalar woffset = rand.nextSScalar1();
+    float x = (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * W;
+    float y = (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * H;
+    float w = (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * (W >> 2);
+    float h = (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * (H >> 2);
+    float hoffset =
+        (static_cast<int32_t>(static_cast<int32_t>(rand.u32()) >> 15) * 1.52587890625e-5f);
+    float woffset =
+        (static_cast<int32_t>(static_cast<int32_t>(rand.u32()) >> 15) * 1.52587890625e-5f);
 
     r->minX = x;
     r->minY = y;
@@ -39,7 +40,7 @@ static void rnd_rect(AABB* r, RenderPaint* paint, SkRandom& rand)
     r->maxY = y + h;
     r->offset(-w / 2 + woffset, -h / 2 + hoffset);
 
-    paint->color(rand.nextU());
+    paint->color(rand.u32());
     // paint->setAlphaf(1.0f);
 }
 
@@ -53,13 +54,15 @@ protected:
     {
         Paint paint;
         paint->style(RenderPaintStyle::stroke);
-        paint->thickness(SkIntToScalar(9) / 2);
+        paint->thickness(static_cast<float>(9) / 2);
 
         renderer->save();
-        renderer->clipPath(PathBuilder::Rect(
-            {SkIntToScalar(2), SkIntToScalar(2), SW - SkIntToScalar(2), SH - SkIntToScalar(2)}));
+        renderer->clipPath(PathBuilder::Rect({static_cast<float>(2),
+                                              static_cast<float>(2),
+                                              SW - static_cast<float>(2),
+                                              SH - static_cast<float>(2)}));
 
-        SkRandom rand;
+        Rand rand;
         for (int i = 0; i < N; i++)
         {
             AABB r;
@@ -141,7 +144,7 @@ protected:
             renderer->drawPath(fMoveZfPath, strokePaint);
 #if 0
             dashPaint = strokePaint;
-            const SkScalar intervals[] = {0, 10};
+            const float intervals[] = {0, 10};
             dashPaint.setPathEffect(SkDashPathEffect::Make(intervals, 2, 0));
             SkPath fillPath;
             dashPaint.getFillPath(fDashedfPath, &fillPath);
@@ -176,7 +179,7 @@ public:
     TeenyStrokesGM() : GM(W, H * .5, "teenyStrokes") {}
 
 private:
-    static void line(SkScalar scale, Renderer* canvas, ColorInt color)
+    static void line(float scale, Renderer* canvas, ColorInt color)
     {
         Paint p;
         p->style(RenderPaintStyle::stroke);
@@ -198,11 +201,11 @@ private:
 
     void onDraw(Renderer* canvas) override
     {
-        line(0.00005f, canvas, SK_ColorBLACK);
-        line(0.000045f, canvas, SK_ColorRED);
-        line(0.0000035f, canvas, SK_ColorGREEN);
-        line(0.000003f, canvas, SK_ColorBLUE);
-        line(0.000002f, canvas, SK_ColorBLACK);
+        line(0.00005f, canvas, 0xff000000);
+        line(0.000045f, canvas, 0xffff0000);
+        line(0.0000035f, canvas, 0xff00ff00);
+        line(0.000003f, canvas, 0xff0000ff);
+        line(0.000002f, canvas, 0xff000000);
     }
 };
 
@@ -257,24 +260,24 @@ DEF_SIMPLE_GM(quadcap, 70, 30, canvas)
     p->style(RenderPaintStyle::stroke);
     p->thickness(1);
     PathBuilder b;
-    SkPoint pts[] = {{105.738571f, 13.126318f}, {105.738571f, 13.126318f}, {123.753784f, 1.f}};
-    SkVector tangent = pts[1] - pts[2];
-    tangent.normalize();
-    SkPoint pts2[3];
+    Vec2D pts[] = {{105.738571f, 13.126318f}, {105.738571f, 13.126318f}, {123.753784f, 1.f}};
+    Vec2D tangent = pts[1] - pts[2];
+    tangent = tangent.normalized();
+    Vec2D pts2[3];
     memcpy(pts2, pts, sizeof(pts));
-    const SkScalar capOutset = SK_ScalarPI / 8;
-    pts2[0].fX += tangent.fX * capOutset;
-    pts2[0].fY += tangent.fY * capOutset;
-    pts2[1].fX += tangent.fX * capOutset;
-    pts2[1].fY += tangent.fY * capOutset;
-    pts2[2].fX += -tangent.fX * capOutset;
-    pts2[2].fY += -tangent.fY * capOutset;
-    b.moveTo(pts2[0].x(), pts2[0].y());
-    b.quadTo(pts2[1].x(), pts2[1].y(), pts2[2].x(), pts2[2].y());
+    const float capOutset = rive::math::PI / 8;
+    pts2[0].x += tangent.x * capOutset;
+    pts2[0].y += tangent.y * capOutset;
+    pts2[1].x += tangent.x * capOutset;
+    pts2[1].y += tangent.y * capOutset;
+    pts2[2].x += -tangent.x * capOutset;
+    pts2[2].y += -tangent.y * capOutset;
+    b.moveTo(pts2[0].x, pts2[0].y);
+    b.quadTo(pts2[1].x, pts2[1].y, pts2[2].x, pts2[2].y);
     canvas->drawPath(b.detach(), p);
 
-    b.moveTo(pts[0].x(), pts[0].y());
-    b.quadTo(pts[1].x(), pts[1].y(), pts[2].x(), pts[2].y());
+    b.moveTo(pts[0].x, pts[0].y);
+    b.quadTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y);
     p->cap(StrokeCap::round);
     canvas->translate(30, 0);
     canvas->drawPath(b.detach(), p);
@@ -291,12 +294,12 @@ private:
 protected:
     void onOnceBeforeDraw() override
     {
-        SkRandom rand;
+        Rand rand;
         fPath->moveTo(0, 0);
         for (int i = 0; i < 13; i++)
         {
-            SkScalar x = rand.nextUScalar1() * (W >> 1);
-            SkScalar y = rand.nextUScalar1() * (H >> 1);
+            float x = (static_cast<int32_t>(rand.u32() >> 16) * 1.52587890625e-5f) * (W >> 1);
+            float y = (static_cast<int32_t>(rand.u32() >> 16) * 1.52587890625e-5f) * (H >> 1);
             fPath->lineTo(x, y);
         }
     }
@@ -305,13 +308,15 @@ protected:
     {
         Paint paint;
         paint->style(RenderPaintStyle::stroke);
-        paint->thickness(SkIntToScalar(9) / 2);
+        paint->thickness(static_cast<float>(9) / 2);
 
         canvas->save();
-        canvas->clipPath(PathBuilder::Rect(
-            {SkIntToScalar(2), SkIntToScalar(2), SW - SkIntToScalar(2), SH - SkIntToScalar(2)}));
+        canvas->clipPath(PathBuilder::Rect({static_cast<float>(2),
+                                            static_cast<float>(2),
+                                            SW - static_cast<float>(2),
+                                            SH - static_cast<float>(2)}));
 
-        SkRandom rand;
+        Rand rand;
         for (int i = 0; i < N / 2; i++)
         {
             AABB r;
@@ -384,20 +389,20 @@ protected:
         Paint origPaint;
         origPaint->style(RenderPaintStyle::stroke);
         // Paint fillPaint;
-        // fillPaint->color(SK_ColorRED);
+        // fillPaint->color(0xffff0000);
         Paint strokePaint;
         strokePaint->style(RenderPaintStyle::stroke);
         strokePaint->color(0xFF4444FF);
 
         void (*procs[])(PathBuilder*, const AABB&) = {make0, make1, make2, make3, make4, make5};
 
-        canvas->translate(SkIntToScalar(20), SkIntToScalar(80));
+        canvas->translate(static_cast<float>(20), static_cast<float>(80));
 
-        AABB bounds = {0, 0, SkIntToScalar(50), SkIntToScalar(50)};
-        SkScalar dx = bounds.width() * 4 / 3;
-        SkScalar dy = bounds.height() * 5;
+        AABB bounds = {0, 0, static_cast<float>(50), static_cast<float>(50)};
+        float dx = bounds.width() * 4 / 3;
+        float dy = bounds.height() * 5;
 
-        for (size_t i = 0; i < SK_ARRAY_COUNT(procs); ++i)
+        for (size_t i = 0; i < std::size(procs); ++i)
         {
             PathBuilder orig;
             procs[i](&orig, bounds);
@@ -406,7 +411,7 @@ protected:
             canvas->save();
             for (int j = 0; j < 13; ++j)
             {
-                float thickness = SK_Scalar1 * j * j;
+                float thickness = 1.0f * j * j;
                 strokePaint->thickness(thickness);
                 canvas->drawPath(orig2, strokePaint);
                 canvas->drawPath(orig2, origPaint);
@@ -448,7 +453,7 @@ protected:
     void onDraw(Renderer* canvas) override
     {
         Paint p;
-        p->color(SK_ColorRED);
+        p->color(0xffff0000);
         p->style(RenderPaintStyle::stroke);
         p->thickness(40);
         p->cap(StrokeCap::butt);
@@ -487,58 +492,11 @@ GMREGISTER(return new Strokes5GM;)
 GMREGISTER(return new ZeroLenStrokesGM;)
 GMREGISTER(return new TeenyStrokesGM;)
 
-#if 0
-DEF_SIMPLE_GM(zerolinedash, canvas, 256, 256) {
-    canvas->clear(SK_ColorWHITE);
-
-    SkPaint paint;
-    paint.setColor(SkColorSetARGB(255, 0, 0, 0));
-    paint.setStrokeWidth(11);
-    paint.setStrokeCap(SkPaint::kRound_Cap);
-    paint.setStrokeJoin(SkPaint::kBevel_Join);
-
-    SkScalar dash_pattern[] = {1, 5};
-    paint.setPathEffect(SkDashPathEffect::Make(dash_pattern, 2, 0));
-
-    canvas->drawLine(100, 100, 100, 100, paint);
-}
-
-#ifdef PDF_IS_FIXED_SO_THIS_DOESNT_BREAK_IT
-DEF_SIMPLE_GM(longrect_dash, canvas, 250, 250) {
-    canvas->clear(SK_ColorWHITE);
-
-    SkPaint paint;
-    paint.setColor(SkColorSetARGB(255, 0, 0, 0));
-    paint.setStrokeWidth(5);
-    paint.setStrokeCap(SkPaint::kRound_Cap);
-    paint.setStrokeJoin(SkPaint::kBevel_Join);
-    paint.setStyle(SkPaint::kStroke_Style);
-    SkScalar dash_pattern[] = {1, 5};
-    paint.setPathEffect(SkDashPathEffect::Make(dash_pattern, 2, 0));
-    // try all combinations of stretching bounds
-    for (auto left : {20.f, -100001.f}) {
-        for (auto top : {20.f, -100001.f}) {
-            for (auto right : {40.f, 100001.f}) {
-                for (auto bottom : {40.f, 100001.f}) {
-                    canvas->save();
-                    canvas->clipRect({10, 10, 50, 50});
-                    canvas->drawRect({left, top, right, bottom}, paint);
-                    canvas->restore();
-                    canvas->translate(60, 0);
-                }
-            }
-            canvas->translate(-60 * 4, 60);
-        }
-    }
-}
-#endif
-#endif
-
 DEF_SIMPLE_GM(inner_join_geometry, 1000, 700, canvas)
 {
     // These paths trigger cases where we must add inner join geometry.
     // skbug.com/11964
-    const SkPoint pathPoints[] = {
+    const Vec2D pathPoints[] = {
         /*moveTo*/ /*lineTo*/ /*lineTo*/
         {119, 71},
         {129, 151},
@@ -574,18 +532,18 @@ DEF_SIMPLE_GM(inner_join_geometry, 1000, 700, canvas)
     Paint skeletonPaint;
     skeletonPaint->style(RenderPaintStyle::stroke);
     skeletonPaint->thickness(1);
-    skeletonPaint->color(SK_ColorRED);
+    skeletonPaint->color(0xffff0000);
 #endif
 
     canvas->translate(0, 50);
-    for (size_t i = 0; i < SK_ARRAY_COUNT(pathPoints) / 3; i++)
+    for (size_t i = 0; i < std::size(pathPoints) / 3; i++)
     {
         // auto path = SkPath::Polygon(pathPoints + i * 3, 3, false);
         PathBuilder path;
         size_t j = i * 3;
-        path.moveTo(pathPoints[j].x(), pathPoints[j].y());
-        path.lineTo(pathPoints[j + 1].x(), pathPoints[j + 1].y());
-        path.lineTo(pathPoints[j + 2].x(), pathPoints[j + 2].y());
+        path.moveTo(pathPoints[j].x, pathPoints[j].y);
+        path.lineTo(pathPoints[j + 1].x, pathPoints[j + 1].y);
+        path.lineTo(pathPoints[j + 2].x, pathPoints[j + 2].y);
         canvas->drawPath(path.detach(), pathPaint);
 
 #if 0
@@ -623,7 +581,7 @@ DEF_SIMPLE_GM(skbug12244, 150, 150, canvas)
     path->lineTo(-2.7854299545288085938, 6.9635753631591796875);
 
     Paint p;
-    p->color(SK_ColorGREEN);
+    p->color(0xff00ff00);
 
     canvas->translate(20.f, 20.f);
     canvas->drawPath(path, p);

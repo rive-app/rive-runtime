@@ -9,7 +9,7 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/utils/SkRandom.h"
+#include "common/rand.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -18,7 +18,7 @@ static constexpr float kStrokeWidth = 100;
 static constexpr int kTestWidth = 120 * 4;
 static constexpr int kTestHeight = 120 * 3 + 140;
 
-static void draw_strokes(Renderer* renderer, SkRandom* rand, RenderPath* path, RenderPath* cubic)
+static void draw_strokes(Renderer* renderer, Rand* rand, RenderPath* path, RenderPath* cubic)
 {
     Paint strokePaint;
     strokePaint->thickness(kStrokeWidth);
@@ -27,21 +27,21 @@ static void draw_strokes(Renderer* renderer, SkRandom* rand, RenderPath* path, R
     renderer->save();
 
     strokePaint->join(StrokeJoin::bevel);
-    strokePaint->color(rand->nextU() | 0xff808080);
+    strokePaint->color(rand->u32() | 0xff808080);
     renderer->drawPath(path, strokePaint);
 
     renderer->translate(120, 0);
     strokePaint->join(StrokeJoin::round);
-    strokePaint->color(rand->nextU() | 0xff808080);
+    strokePaint->color(rand->u32() | 0xff808080);
     renderer->drawPath(path, strokePaint);
 
     renderer->translate(120, 0);
     strokePaint->join(StrokeJoin::miter);
-    strokePaint->color(rand->nextU() | 0xff808080);
+    strokePaint->color(rand->u32() | 0xff808080);
     renderer->drawPath(path, strokePaint);
 
     renderer->translate(120, 0);
-    strokePaint->color(rand->nextU() | 0xff808080);
+    strokePaint->color(rand->u32() | 0xff808080);
     renderer->drawPath(cubic, strokePaint);
 
     renderer->restore();
@@ -56,7 +56,7 @@ public:
 
     void onDraw(rive::Renderer* renderer) override
     {
-        SkRandom rand;
+        Rand rand;
 
         renderer->save();
 

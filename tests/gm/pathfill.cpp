@@ -8,9 +8,9 @@
 
 #include "gm.hpp"
 #include "gmutils.hpp"
-#include "include/core/SkColor.h"
-#include "include/core/SkScalar.h"
 #include "rive/renderer.hpp"
+#include "rive/math/vec2d.hpp"
+#include "rive/math/math_types.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -20,32 +20,19 @@ namespace
 struct PathDY
 {
     Path path;
-    SkScalar dy;
+    float dy;
 };
 } // namespace
 
 typedef PathDY (*MakePathProc)();
 
-#if 0
-static PathDY make_frame() {
-    AABB r = { SkIntToScalar(10), SkIntToScalar(10),
-                 SkIntToScalar(630), SkIntToScalar(470) };
-    Path path = Path::RRect(SkRRect::MakeRectXY(r, 15, 15));
-    Paint paint;
-    paint->style(RenderPaintStyle::stroke);
-    paint->thickness(SkIntToScalar(5));
-    paint.getFillPath(path, &path);
-    return {path, 15};
-}
-#endif
-
 static PathDY make_triangle()
 {
     constexpr int gCoord[] = {10, 20, 15, 5, 30, 30};
     return {PathBuilder()
-                .moveTo(SkIntToScalar(gCoord[0] + 10), SkIntToScalar(gCoord[1]))
-                .lineTo(SkIntToScalar(gCoord[2] + 10), SkIntToScalar(gCoord[3]))
-                .lineTo(SkIntToScalar(gCoord[4] + 10), SkIntToScalar(gCoord[5]))
+                .moveTo(static_cast<float>(gCoord[0] + 10), static_cast<float>(gCoord[1]))
+                .lineTo(static_cast<float>(gCoord[2] + 10), static_cast<float>(gCoord[3]))
+                .lineTo(static_cast<float>(gCoord[4] + 10), static_cast<float>(gCoord[5]))
                 .close()
                 .detach(),
             30};
@@ -53,23 +40,29 @@ static PathDY make_triangle()
 
 static PathDY make_rect()
 {
-    AABB r = {SkIntToScalar(10 + 10), SkIntToScalar(10), SkIntToScalar(30 + 10), SkIntToScalar(30)};
+    AABB r = {static_cast<float>(10 + 10),
+              static_cast<float>(10),
+              static_cast<float>(30 + 10),
+              static_cast<float>(30)};
     return {PathBuilder().addRect(r).detach(), 30};
 }
 
 static PathDY make_oval()
 {
-    AABB r = {SkIntToScalar(10 + 20), SkIntToScalar(10), SkIntToScalar(30 + 20), SkIntToScalar(30)};
+    AABB r = {static_cast<float>(10 + 20),
+              static_cast<float>(10),
+              static_cast<float>(30 + 20),
+              static_cast<float>(30)};
     return {PathBuilder().addOval(r).detach(), 30};
 }
 
 static PathDY make_sawtooth(int teeth)
 {
-    SkScalar x = SkIntToScalar(20);
-    SkScalar y = SkIntToScalar(20);
-    const SkScalar x0 = x;
-    const SkScalar dx = SkIntToScalar(5);
-    const SkScalar dy = SkIntToScalar(10);
+    float x = static_cast<float>(20);
+    float y = static_cast<float>(20);
+    const float x0 = x;
+    const float dx = static_cast<float>(5);
+    const float dy = static_cast<float>(10);
 
     PathBuilder builder;
     builder.moveTo(x, y);
@@ -129,18 +122,18 @@ static PathDY make_house()
 
 static PathDY make_star(int n)
 {
-    const SkScalar c = SkIntToScalar(45);
-    const SkScalar r = SkIntToScalar(20);
+    const float c = static_cast<float>(45);
+    const float r = static_cast<float>(20);
 
-    SkScalar rad = -SK_ScalarPI / 2;
-    const SkScalar drad = (n >> 1) * SK_ScalarPI * 2 / n;
+    float rad = -rive::math::PI / 2;
+    const float drad = (n >> 1) * rive::math::PI * 2 / n;
 
     PathBuilder builder;
     builder.moveTo(c, c - r);
     for (int i = 1; i < n; i++)
     {
         rad += drad;
-        builder.lineTo(c + SkScalarCos(rad) * r, c + SkScalarSin(rad) * r);
+        builder.lineTo(c + cosf(rad) * r, c + sinf(rad) * r);
     }
     builder.close();
 
@@ -267,9 +260,6 @@ static Path make_visualizer()
 }
 
 constexpr MakePathProc gProcs[] = {
-#if 0
-    make_frame,
-#endif
     make_triangle,
     make_rect,
     make_oval,
@@ -281,7 +271,7 @@ constexpr MakePathProc gProcs[] = {
     make_sawtooth_3,
 };
 
-#define N SK_ARRAY_COUNT(gProcs)
+#define N std::size(gProcs)
 
 class PathFillGM : public GM
 {
@@ -290,7 +280,7 @@ public:
 
 private:
     Path fPath[N];
-    SkScalar fDY[N];
+    float fDY[N];
     Path fInfoPath;
     Path fAccessibilityPath;
     Path fVisualizerPath;
@@ -317,7 +307,7 @@ protected:
         for (size_t i = 0; i < N; i++)
         {
             canvas->drawPath(fPath[i], paint);
-            canvas->translate(SkIntToScalar(0), fDY[i]);
+            canvas->translate(static_cast<float>(0), fDY[i]);
         }
 
         canvas->save();
@@ -336,74 +326,6 @@ protected:
     }
 };
 
-#if 0
-// test inverse-fill w/ a clip that completely excludes the geometry
-class PathInverseFillGM : public skiagm::GM {
-    Path  fPath[N];
-    SkScalar fDY[N];
-protected:
-    void onOnceBeforeDraw() override {
-        for (size_t i = 0; i < N; i++) {
-            auto [path, dy] = gProcs[i]();
-            fPath[i] = path;
-            fDY[i] = dy;
-        }
-    }
-
-    SkString onShortName() override {
-        return SkString("pathinvfill");
-    }
-
-    SkISize onISize() override {
-        return SkISize::Make(450, 220);
-    }
-
-    static void show(SkCanvas* canvas, const Path& path, const Paint& paint,
-                     const AABB* clip, SkScalar top, const SkScalar bottom) {
-        canvas->save();
-        if (clip) {
-            AABB r = *clip;
-            r.fTop = top;
-            r.fBottom = bottom;
-            canvas->clipRect(r);
-        }
-        canvas->drawPath(path, paint);
-        canvas->restore();
-    }
-
-    void onDraw(SkCanvas* canvas) override {
-        Path path = PathBuilder().addCircle(50, 50, 40)
-                                     .toggleInverseFillType()
-                                     .detach();
-
-        AABB clipR = {0, 0, 100, 200};
-
-        canvas->translate(10, 10);
-
-        for (int doclip = 0; doclip <= 1; ++doclip) {
-            for (int aa = 0; aa <= 1; ++aa) {
-                Paint paint;
-                paint.setAntiAlias(SkToBool(aa));
-
-                canvas->save();
-                canvas->clipRect(clipR);
-
-                const AABB* clipPtr = doclip ? &clipR : nullptr;
-
-                show(canvas, path, paint, clipPtr, clipR.fTop, clipR.centerY());
-                show(canvas, path, paint, clipPtr, clipR.centerY(), clipR.fBottom);
-
-                canvas->restore();
-                canvas->translate(SkIntToScalar(110), 0);
-            }
-        }
-    }
-
-private:
-    using INHERITED = skiagm::GM;
-};
-#endif
-
 DEF_SIMPLE_GM(rotatedcubicpath, 100, 100, canvas)
 {
     Paint p;
@@ -417,11 +339,11 @@ DEF_SIMPLE_GM(rotatedcubicpath, 100, 100, canvas)
     path->cubicTo(2, 0, 44, -21.5, 48, -23);
     path->close();
 
-    p->color(SK_ColorBLUE);
+    p->color(0xff0000ff);
     canvas->drawPath(path, p);
 
     // Rotated path, which is not antialiased on GPU
-    p->color(SK_ColorRED);
+    p->color(0xffff0000);
     canvas->rotate(90);
     canvas->drawPath(path, p);
 }
@@ -429,9 +351,6 @@ DEF_SIMPLE_GM(rotatedcubicpath, 100, 100, canvas)
 ///////////////////////////////////////////////////////////////////////////////
 
 GMREGISTER(return new PathFillGM;)
-#if 0
-DEF_GM( return new PathInverseFillGM; )
-#endif
 
 DEF_SIMPLE_GM(bug7792, 800, 800, canvas)
 {
@@ -613,20 +532,10 @@ DEF_SIMPLE_GM(bug7792, 800, 800, canvas)
     canvas->drawPath(path, p);
 }
 
-#if 0
-#include "include/core/SkSurface.h"
-#endif
-
 DEF_SIMPLE_GM(path_stroke_clip_crbug1070835, 30, 25, canvas)
 {
-#if 0
-    SkCanvas* orig = canvas;
-    auto surf = SkSurface::MakeRasterN32Premul(25, 25);
-    canvas = surf->getCanvas();
-#endif
-
     Paint p;
-    p->color(SK_ColorRED);
+    p->color(0xffff0000);
     p->style(RenderPaintStyle::stroke);
     p->thickness(2);
 
@@ -634,7 +543,7 @@ DEF_SIMPLE_GM(path_stroke_clip_crbug1070835, 30, 25, canvas)
 
     PathBuilder path;
 
-    SkPoint pts[] = {
+    Vec2D pts[] = {
         {11, 12},
         {11, 18.0751324f},
         {6.07513189f, 23},
@@ -649,42 +558,19 @@ DEF_SIMPLE_GM(path_stroke_clip_crbug1070835, 30, 25, canvas)
         {10.9999981f, 5.92486572f},
         {11, 11.9999971f},
     };
-    path.moveTo(pts[0].x(), pts[0].y())
-        .cubicTo(pts[1].x(), pts[1].y(), pts[2].x(), pts[2].y(), pts[3].x(), pts[3].y())
-        .cubicTo(pts[4].x(), pts[4].y(), pts[5].x(), pts[5].y(), pts[6].x(), pts[6].y())
-        .cubicTo(pts[7].x(), pts[7].y(), pts[8].x(), pts[8].y(), pts[9].x(), pts[9].y())
-        .cubicTo(pts[10].x(), pts[10].y(), pts[11].x(), pts[11].y(), pts[12].x(), pts[12].y());
+    path.moveTo(pts[0].x, pts[0].y)
+        .cubicTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y)
+        .cubicTo(pts[4].x, pts[4].y, pts[5].x, pts[5].y, pts[6].x, pts[6].y)
+        .cubicTo(pts[7].x, pts[7].y, pts[8].x, pts[8].y, pts[9].x, pts[9].y)
+        .cubicTo(pts[10].x, pts[10].y, pts[11].x, pts[11].y, pts[12].x, pts[12].y);
 
     canvas->drawPath(path.detach(), p);
-
-#if 0
-    surf->draw(orig, 0, 0);
-#endif
 }
-
-#if 0
-DEF_SIMPLE_GM(path_arcto_skbug_9077, 200, 200, canvas) {
-    Paint p;
-    p->color(SK_ColorRED);
-    p->style(RenderPaintStyle::stroke);
-    p->thickness(2);
-
-    PathBuilder path;
-    SkPoint pts[] = {{20, 20}, {100, 20}, {100, 60}, {130, 150}, {180, 160}};
-    // SkScalar radius = 60;
-    path.moveTo(pts[0].x(), pts[0].y());
-    path.lineTo(pts[1].x(), pts[1].y());
-    path.lineTo(pts[2].x(), pts[2].y());
-    path.close();
-    // path.arcTo(pts[3].x(), pts[3].y(), pts[4].x(), pts[4].y(), radius);
-    canvas->drawPath(path.detach(), p);
-}
-#endif
 
 DEF_SIMPLE_GM(path_skbug_11859, 512, 512, canvas)
 {
     Paint paint;
-    paint->color(SK_ColorRED);
+    paint->color(0xffff0000);
 
     Path path;
     path->moveTo(258, -2);
@@ -704,15 +590,10 @@ DEF_SIMPLE_GM(path_skbug_11859, 512, 512, canvas)
 
 DEF_SIMPLE_GM(path_skbug_11886, 128, 256, canvas)
 {
-    SkPoint m = {0.f, 770.f};
+    Vec2D m = {0.f, 770.f};
     Path path;
-    path->moveTo(m.x(), m.y());
-    path->cubicTo(m.x() + 0.f,
-                  m.y() + 1.f,
-                  m.x() + 20.f,
-                  m.y() - 750.f,
-                  m.x() + 83.f,
-                  m.y() + -746.f);
+    path->moveTo(m.x, m.y);
+    path->cubicTo(m.x + 0.f, m.y + 1.f, m.x + 20.f, m.y - 750.f, m.x + 83.f, m.y + -746.f);
     Paint paint;
     canvas->drawPath(path, paint);
 }

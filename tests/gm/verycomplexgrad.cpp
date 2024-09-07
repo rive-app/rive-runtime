@@ -5,10 +5,7 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkMatrix.h"
-#include "skia/include/core/SkPoint.h"
-#include "skia/include/core/SkRect.h"
-#include "skia/include/utils/SkRandom.h"
+#include "common/rand.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -26,13 +23,13 @@ public:
 
     void onDraw(rive::Renderer* renderer) override
     {
-        SkRandom rand;
+        Rand rand;
         ColorInt colors[N];
         float stops[N];
         for (size_t i = 0; i < N; ++i)
         {
-            colors[i] = rand.nextU() | 0xff808080;
-            stops[i] = rand.nextF();
+            colors[i] = rand.u32() | 0xff808080;
+            stops[i] = rand.f32();
         }
         std::sort(stops, stops + N);
 

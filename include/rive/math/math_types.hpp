@@ -132,6 +132,8 @@ RIVE_ALWAYS_INLINE static float clamp(float x, float lo, float hi)
     return fminf(fmaxf(lo, x), hi);
 }
 
+inline float degrees_to_radians(float degrees) { return degrees * PI / 180.0f; }
+
 RIVE_ALWAYS_INLINE static float degreesToRadians(float degrees) { return degrees * (PI / 180.0f); }
 } // namespace math
 

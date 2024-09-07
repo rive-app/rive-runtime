@@ -10,8 +10,9 @@
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
 #include "rive/math/math_types.hpp"
-#include "skia/include/core/SkMatrix.h"
-#include "skia/include/utils/SkRandom.h"
+#include "rive/math/vec2d.hpp"
+#include "rive/math/mat2d.hpp"
+#include "common/rand.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -98,14 +99,15 @@ protected:
             }
             case kConcavePath_ShapeType:
             {
-                SkPoint points[5] = {{50.f, 0.f}};
-                SkMatrix rot;
-                rot.setRotate(360.f / 5, 50.f, 70.f);
+                Vec2D points[5] = {{50.f, 0.f}};
+                Mat2D rot = Mat2D::fromTranslate(-50.f, -70.f);
+                rot *= Mat2D::fromRotation(360.f / 5);
+                rot *= Mat2D::fromTranslate(50.f, 70.f);
                 for (int i = 1; i < 5; ++i)
                 {
                     rot.mapPoints(points + i, points + i - 1, 1);
                 }
-                builder.moveTo(points[0].x(), points[0].y());
+                builder.moveTo(points[0].x, points[0].y);
                 for (int i = 0; i < 5; ++i)
                 {
                     auto [x, y] = points[(2 * i) % 5];
@@ -120,7 +122,7 @@ protected:
         renderer->drawPath(builder.detach(), paint);
     }
 
-    static ColorInt GetColor(SkRandom* random) { return 0x80000000 | (random->nextU() & 0xffffff); }
+    static ColorInt GetColor(Rand* random) { return 0x80000000 | (random->u32() & 0xffffff); }
 
     // static void DrawHairlines(Renderer* renderer) {
     //     if (canvas->imageInfo().alphaType() == kOpaque_SkAlphaType) {
@@ -134,7 +136,7 @@ protected:
     //     hairPaint.setAntiAlias(true);
     //     static constexpr int kNumHairlines = 12;
     //     SkPoint pts[] = {{3.f, 7.f}, {29.f, 7.f}};
-    //     SkRandom colorRandom;
+    //     Rand colorRandom;
     //     SkMatrix rot;
     //     rot.setRotate(360.f / kNumHairlines, 15.5f, 12.f);
     //     rot.postTranslate(3.f, 0);
@@ -151,12 +153,12 @@ protected:
         p->color(0x80808080);
         draw_rect(renderer, {0, 0, 530, 690}, p);
 
-        SkScalar y = 5;
+        float y = 5;
         for (int i = 0; i < kNumShapeTypes; i++)
         {
-            SkRandom colorRandom;
+            Rand colorRandom;
             ShapeType shapeType = static_cast<ShapeType>(i);
-            SkScalar x = 5;
+            float x = 5;
             for (int r = 0; r <= 15; r++)
             {
                 Paint p;
@@ -179,7 +181,7 @@ protected:
                     BlendMode::color,
                     BlendMode::luminosity,
                 };
-                p->blendMode(blendModes[r % SK_ARRAY_COUNT(blendModes)]);
+                p->blendMode(blendModes[r % std::size(blendModes)]);
                 renderer->save();
                 renderer->translate(x, y);
                 this->drawShape(renderer, p, shapeType);

@@ -10,10 +10,7 @@
 #include "gmutils.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkMatrix.h"
-#include "skia/include/core/SkPoint.h"
-#include "skia/include/core/SkRect.h"
-#include "skia/include/utils/SkRandom.h"
+#include "common/rand.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -27,7 +24,7 @@ public:
 
     void onDraw(rive::Renderer* renderer) override
     {
-        SkRandom rand;
+        Rand rand;
 
         const float r = 141.5;
 
@@ -56,7 +53,7 @@ public:
             else
                 path->lineTo(cosf(theta), sinf(theta));
             path->lineTo(0, 0);
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
     }

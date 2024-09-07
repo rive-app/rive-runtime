@@ -6,7 +6,6 @@
 #include "gmutils.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/utils/SkRandom.h"
 
 using namespace rivegm;
 using namespace rive;

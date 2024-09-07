@@ -6,7 +6,7 @@
 #include "gmutils.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/utils/SkRandom.h"
+#include "common/rand.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -21,7 +21,7 @@ public:
 
     void onDraw(rive::Renderer* renderer) override
     {
-        SkRandom rand;
+        Rand rand;
         Factory* factory = TestingWindow::Get()->factory();
 
         Paint outerPaint;
@@ -56,7 +56,7 @@ public:
 
             renderer->save();
             renderer->drawPath(outerPath.get(), outerPaint);
-            innerPaint->color(rand.nextU() | 0xff808080);
+            innerPaint->color(rand.u32() | 0xff808080);
             renderer->clipPath(innerPath.get());
             renderer->drawPath(outerPath.get(), innerPaint);
             renderer->restore();
@@ -67,7 +67,7 @@ public:
             renderer->rotate(rive::math::PI / 8);
             renderer->translate(-outerRect.center().x, -outerRect.center().y);
             renderer->drawPath(outerPath.get(), outerPaint);
-            innerPaint->color(rand.nextU() | 0xff808080);
+            innerPaint->color(rand.u32() | 0xff808080);
             renderer->clipPath(innerPath.get());
             renderer->drawPath(outerPath.get(), innerPaint);
             renderer->restore();
@@ -78,7 +78,7 @@ public:
             renderer->transform(Mat2D{.9f, .1f, -.3f, .7f, 0, 0});
             renderer->translate(-outerRect.center().x, -outerRect.center().y);
             renderer->drawPath(outerPath.get(), outerPaint);
-            innerPaint->color(rand.nextU() | 0xff808080);
+            innerPaint->color(rand.u32() | 0xff808080);
             renderer->clipPath(innerPath.get());
             renderer->drawPath(outerPath.get(), innerPaint);
             renderer->restore();

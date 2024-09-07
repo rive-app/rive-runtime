@@ -9,10 +9,7 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "skia/include/core/SkMatrix.h"
-#include "skia/include/core/SkPoint.h"
-#include "skia/include/core/SkRect.h"
-#include "skia/include/utils/SkRandom.h"
+#include "common/rand.hpp"
 
 static constexpr float kStrokeWidth = 30;
 
@@ -28,7 +25,7 @@ public:
 
     void onDraw(rive::Renderer* renderer) override
     {
-        SkRandom rand;
+        Rand rand;
 
         Paint strokePaint;
         strokePaint->style(RenderPaintStyle::stroke);
@@ -40,7 +37,7 @@ public:
             Path path;
             path->moveTo(30, 170);
             path->lineTo(170, 30);
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
 
@@ -49,7 +46,7 @@ public:
             path->moveTo(230, 170);
             path->lineTo(370, 30);
             path->close();
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
 
@@ -59,7 +56,7 @@ public:
             path->lineTo(430, 30);
             path->lineTo(570, 170);
             path->close();
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
 
@@ -68,7 +65,7 @@ public:
             path->moveTo(770, 170);
             path->lineTo(630, 30);
             path->lineTo(770, 170);
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
 
@@ -76,7 +73,7 @@ public:
             Path path;
             path->moveTo(30, 370);
             path->cubicTo(230, 230, 230, 230, 30, 370);
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
 
@@ -85,7 +82,7 @@ public:
             path->moveTo(770, 370);
             path->cubicTo(570, 230, 570, 230, 770, 370);
             path->close();
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
 
@@ -94,7 +91,7 @@ public:
             path->moveTo(400, 550);
             path->cubicTo(-100, 130, 900, 130, 400, 550);
             path->close();
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
 
@@ -102,7 +99,7 @@ public:
         {
             Path path;
             path->moveTo(100, 500);
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
 
@@ -110,7 +107,7 @@ public:
             Path path;
             path->moveTo(700, 500);
             path->close();
-            strokePaint->color(rand.nextU() | 0xff808080);
+            strokePaint->color(rand.u32() | 0xff808080);
             renderer->drawPath(path, strokePaint);
         }
     }
