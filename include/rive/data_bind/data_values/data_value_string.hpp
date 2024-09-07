@@ -17,6 +17,7 @@ public:
     bool isTypeOf(DataType typeKey) const override { return typeKey == DataType::string; };
     std::string value() { return m_value; };
     void value(std::string value) { m_value = value; };
+    constexpr static const char* defaultValue = "";
 };
 } // namespace rive
 #endif

@@ -27,7 +27,7 @@ public:
         {
             return dataValue->as<T>()->value();
         }
-        return (new T())->value();
+        return T::defaultValue;
     };
     template <typename T = DataValue, typename U> U getReverseDataValue(DataValue* input)
     {
@@ -36,7 +36,7 @@ public:
         {
             return dataValue->as<T>()->value();
         }
-        return (new T())->value();
+        return T::defaultValue;
     };
     template <typename T = DataValue, typename U>
     U calculateValue(DataValue* input, bool isMainDirection)

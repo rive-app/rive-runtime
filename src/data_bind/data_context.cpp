@@ -7,15 +7,6 @@ DataContext::DataContext(ViewModelInstance* viewModelInstance) :
     m_ViewModelInstance(viewModelInstance)
 {}
 
-DataContext::DataContext() : m_ViewModelInstances({}) {}
-
-DataContext::~DataContext() {}
-
-void DataContext::addViewModelInstance(ViewModelInstance* value)
-{
-    m_ViewModelInstances.push_back(value);
-}
-
 void DataContext::viewModelInstance(ViewModelInstance* value) { m_ViewModelInstance = value; }
 
 ViewModelInstanceValue* DataContext::getViewModelProperty(const std::vector<uint32_t> path) const
@@ -24,22 +15,6 @@ ViewModelInstanceValue* DataContext::getViewModelProperty(const std::vector<uint
     if (path.size() == 0)
     {
         return nullptr;
-    }
-    // TODO: @hernan review. We should probably remove the std::vector and only keep the instance
-    for (auto viewModel : m_ViewModelInstances)
-    {
-        if (viewModel->viewModelId() == path[0])
-        {
-            ViewModelInstance* instance = viewModel;
-            for (it = path.begin() + 1; it != path.end() - 1; it++)
-            {
-                instance = instance->propertyValue(*it)
-                               ->as<ViewModelInstanceViewModel>()
-                               ->referenceViewModelInstance();
-            }
-            ViewModelInstanceValue* value = instance->propertyValue(*it++);
-            return value;
-        }
     }
     if (m_ViewModelInstance != nullptr && m_ViewModelInstance->viewModelId() == path[0])
     {

@@ -1197,6 +1197,7 @@ void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool
         if (dataBind->is<DataBindContext>())
         {
             dataBind->as<DataBindContext>()->bindFromContext(m_DataContext);
+            dataBind->addDirt(ComponentDirt::Bindings, true);
         }
     }
     if (isRoot)
@@ -1207,8 +1208,6 @@ void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool
 
 void Artboard::sortDataBinds(std::vector<DataBind*> dataBinds)
 {
-    // TODO: @hernan review this. Should not need to push to a component list to sort.
-
     for (auto dataBind : dataBinds)
     {
         m_AllDataBinds.push_back(dataBind->as<DataBind>());

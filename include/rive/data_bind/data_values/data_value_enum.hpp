@@ -21,6 +21,7 @@ public:
     void value(uint32_t value) { m_value = value; };
     DataEnum* dataEnum() { return m_dataEnum; };
     void dataEnum(DataEnum* value) { m_dataEnum = value; };
+    static const uint32_t defaultValue = 0;
 };
 } // namespace rive
 #endif
