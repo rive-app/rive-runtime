@@ -10,7 +10,7 @@
       "type": "Id",
       "typeRuntime": "uint",
       "initialValue": "Core.missingId",
-      "initialValueRuntime": "0",
+      "initialValueRuntime": "-1",
       "key": {
         "int": 240,
         "string": "targetid"

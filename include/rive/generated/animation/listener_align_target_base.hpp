@@ -33,7 +33,7 @@ public:
     static const uint16_t preserveOffsetPropertyKey = 541;
 
 private:
-    uint32_t m_TargetId = 0;
+    uint32_t m_TargetId = -1;
     bool m_PreserveOffset = false;
 
 public:
