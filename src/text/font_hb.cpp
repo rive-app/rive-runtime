@@ -49,7 +49,10 @@ rive::rcp<rive::Font> HBFont::Decode(rive::Span<const uint8_t> span)
 }
 
 #ifndef __APPLE__
-rive::rcp<rive::Font> HBFont::FromSystem(void* systemFont) { return nullptr; }
+rive::rcp<rive::Font> HBFont::FromSystem(void* systemFont, uint16_t weight, uint8_t width)
+{
+    return nullptr;
+}
 #endif
 
 //////////////
