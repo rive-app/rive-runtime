@@ -7,7 +7,7 @@ fi
 
 mkdir -p $DEPENDENCIES/bin
 echo Downloading Premake5
-curl https://github.com/premake/premake-core/releases/download/v5.0.0-beta1/premake-5.0.0-beta1-macosx.tar.gz -L -o $DEPENDENCIES//bin/premake_macosx.tar.gz
+curl https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-macosx.tar.gz -L -o $DEPENDENCIES//bin/premake_macosx.tar.gz
 cd $DEPENDENCIES/bin
 # Export premake5 into bin
 tar -xvf premake_macosx.tar.gz 2>/dev/null

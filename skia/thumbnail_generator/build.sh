@@ -3,8 +3,8 @@ set -e
 
 BASEDIR="$PWD"
 
-if [ -d "$PWD/../../../rive-cpp" ]; then
-    export RIVE_RUNTIME_DIR="$PWD/../../../rive-cpp"
+if [ -d "$PWD/../../../rive-runtime" ]; then
+    export RIVE_RUNTIME_DIR="$PWD/../../../rive-runtime"
 else
     export RIVE_RUNTIME_DIR="$PWD/../../../runtime"
 fi
@@ -17,6 +17,8 @@ cd "$BASEDIR"
 cd build
 
 OPTION=$1
+
+export PREMAKE_PATH="$RIVE_RUNTIME_DIR/build":$PREMAKE_PATH
 
 if [ "$OPTION" = 'help' ]; then
     echo build.sh - build debug library
