@@ -6,12 +6,13 @@ using namespace rive;
 
 IntrinsicallySizeable* IntrinsicallySizeable::from(Component* component)
 {
-    switch (component->coreType())
+    if (component->is<TransformComponent>())
     {
-        case TransformComponent::typeKey:
-            return component->as<TransformComponent>();
-        case Joystick::typeKey:
-            return component->as<Joystick>();
+        return component->as<TransformComponent>();
+    }
+    else if (component->is<Joystick>())
+    {
+        return component->as<Joystick>();
     }
     return nullptr;
 }
