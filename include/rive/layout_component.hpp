@@ -146,6 +146,7 @@ public:
                                    KeyFrameInterpolator* inheritedInterpolator,
                                    float inheritedInterpolationTime);
     void clearInheritedInterpolation();
+    bool isLeaf();
 #else
     LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())), m_proxy(this)
     {}

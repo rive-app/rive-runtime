@@ -4,6 +4,7 @@
 #include "rive/factory.hpp"
 #include "rive/intrinsically_sizeable.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/nested_artboard_layout.hpp"
 #include "rive/node.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/shapes/paint/fill.hpp"
@@ -234,6 +235,18 @@ bool LayoutComponent::mainAxisIsColumn()
            style()->flexDirection() == YGFlexDirectionColumnReverse;
 }
 
+bool LayoutComponent::isLeaf()
+{
+    for (auto child : children())
+    {
+        if (child->is<LayoutComponent>() || child->is<NestedArtboardLayout>())
+        {
+            return false;
+        }
+    }
+    return true;
+}
+
 void LayoutComponent::syncStyle()
 {
     if (m_style == nullptr)
@@ -242,7 +255,7 @@ void LayoutComponent::syncStyle()
     }
     YGNode& ygNode = layoutNode();
     YGStyle& ygStyle = layoutStyle();
-    if (m_style->intrinsicallySized())
+    if (m_style->intrinsicallySized() && isLeaf())
     {
         ygNode.setContext(this);
         ygNode.setMeasureFunc(measureFunc);
