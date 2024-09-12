@@ -24,6 +24,7 @@ public:
     Core* target() const { return m_target; };
     void target(Core* value) { m_target = value; };
     virtual void bind();
+    virtual void unbind();
     ComponentDirt dirt() { return m_Dirt; };
     void dirt(ComponentDirt value) { m_Dirt = value; };
     bool addDirt(ComponentDirt value, bool recurse);

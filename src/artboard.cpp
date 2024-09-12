@@ -1206,6 +1206,23 @@ void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool
     }
 }
 
+void Artboard::clearDataContext()
+{
+    m_DataContext = nullptr;
+    for (auto nestedArtboard : m_NestedArtboards)
+    {
+        if (nestedArtboard->artboardInstance() == nullptr)
+        {
+            continue;
+        }
+        nestedArtboard->clearDataContext();
+    }
+    for (auto dataBind : m_DataBinds)
+    {
+        dataBind->unbind();
+    }
+}
+
 void Artboard::sortDataBinds(std::vector<DataBind*> dataBinds)
 {
     for (auto dataBind : dataBinds)

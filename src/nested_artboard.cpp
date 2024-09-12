@@ -288,6 +288,8 @@ void NestedArtboard::internalDataContext(DataContext* value, DataContext* parent
     }
 }
 
+void NestedArtboard::clearDataContext() { artboardInstance()->clearDataContext(); }
+
 void NestedArtboard::dataContextFromInstance(ViewModelInstance* viewModelInstance,
                                              DataContext* parent)
 {

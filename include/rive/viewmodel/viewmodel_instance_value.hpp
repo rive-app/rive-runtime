@@ -24,6 +24,7 @@ public:
     void viewModelProperty(ViewModelProperty* value);
     ViewModelProperty* viewModelProperty();
     void addDependent(DataBind* value);
+    void removeDependent(DataBind* value);
     virtual void setRoot(ViewModelInstance* value);
 };
 } // namespace rive

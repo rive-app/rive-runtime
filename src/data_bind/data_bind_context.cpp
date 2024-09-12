@@ -39,3 +39,13 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
         }
     }
 }
+
+void DataBindContext::unbind()
+{
+    if (m_Source != nullptr)
+    {
+        m_Source->removeDependent(this);
+        m_Source = nullptr;
+    }
+    DataBind::unbind();
+}

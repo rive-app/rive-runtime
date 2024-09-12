@@ -143,6 +143,15 @@ void DataBind::bind()
     }
 }
 
+void DataBind::unbind()
+{
+    if (m_ContextValue != nullptr)
+    {
+        m_ContextValue->dispose();
+        m_ContextValue = nullptr;
+    }
+}
+
 void DataBind::update(ComponentDirt value)
 {
     if (m_Source != nullptr && m_ContextValue != nullptr)

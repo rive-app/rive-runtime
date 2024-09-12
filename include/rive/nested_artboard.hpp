@@ -66,6 +66,7 @@ public:
     std::vector<uint32_t> dataBindPathIds() { return m_DataBindPathIdsBuffer; };
     void dataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent);
     void internalDataContext(DataContext* dataContext, DataContext* parent);
+    void clearDataContext();
 };
 } // namespace rive
 

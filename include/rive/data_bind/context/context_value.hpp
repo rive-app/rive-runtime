@@ -18,6 +18,7 @@ public:
     virtual void applyToSource(Core* component, uint32_t propertyKey, bool isMainDirection);
     virtual void apply(Core* component, uint32_t propertyKey, bool isMainDirection){};
     virtual void update(Core* component){};
+    virtual void dispose(){};
     virtual DataValue* getTargetValue(Core* target, uint32_t propertyKey) { return nullptr; };
     void updateSourceValue();
     template <typename T = DataValue, typename U> U getDataValue(DataValue* input)

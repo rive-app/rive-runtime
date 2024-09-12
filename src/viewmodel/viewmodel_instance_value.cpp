@@ -33,6 +33,11 @@ void ViewModelInstanceValue::addDependent(DataBind* value)
     m_DependencyHelper.addDependent(value);
 }
 
+void ViewModelInstanceValue::removeDependent(DataBind* value)
+{
+    m_DependencyHelper.removeDependent(value);
+}
+
 void ViewModelInstanceValue::addDirt(ComponentDirt value) { m_DependencyHelper.addDirt(value); }
 
 void ViewModelInstanceValue::setRoot(ViewModelInstance* viewModelInstance)

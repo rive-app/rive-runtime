@@ -183,6 +183,7 @@ public:
     bool isTranslucent(const LinearAnimationInstance*) const;
     void dataContext(DataContext* dataContext, DataContext* parent);
     void internalDataContext(DataContext* dataContext, DataContext* parent, bool isRoot);
+    void clearDataContext();
     void dataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent);
     void dataContextFromInstance(ViewModelInstance* viewModelInstance,
                                  DataContext* parent,

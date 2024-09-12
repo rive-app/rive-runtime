@@ -16,6 +16,7 @@ protected:
 public:
     void decodeSourcePathIds(Span<const uint8_t> value) override;
     void copySourcePathIds(const DataBindContextBase& object) override;
+    void unbind() override;
     void bindFromContext(DataContext* dataContext);
     ViewModelInstanceValue* source() { return m_Source; };
 };
