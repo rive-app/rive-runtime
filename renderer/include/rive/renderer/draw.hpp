@@ -137,12 +137,12 @@ public:
     float strokeRadius() const { return m_strokeRadius; }
     gpu::ContourDirections contourDirections() const { return m_contourDirections; }
 
-    void pushToRenderContext(RenderContext::LogicalFlush*) final;
+    void pushToRenderContext(RenderContext::LogicalFlush*) override;
 
     void releaseRefs() override;
 
 public:
-    RiveRenderPathDraw(IAABB pathBounds,
+    RiveRenderPathDraw(IAABB,
                        const Mat2D&,
                        rcp<const RiveRenderPath>,
                        FillRule,
@@ -150,7 +150,7 @@ public:
                        Type,
                        gpu::InterlockMode);
 
-    virtual void onPushToRenderContext(RenderContext::LogicalFlush*) = 0;
+    void onPushToRenderContext(RenderContext::LogicalFlush*);
 
     const RiveRenderPath* const m_pathRef;
     const FillRule
@@ -161,22 +161,13 @@ public:
 
     // Used to guarantee m_pathRef doesn't change for the entire time we hold it.
     RIVE_DEBUG_CODE(uint64_t m_rawPathMutationID;)
-};
 
-// Draws a path by fanning tessellation patches around the midpoint of each contour.
-class MidpointFanPathDraw : public RiveRenderPathDraw
-{
 public:
-    MidpointFanPathDraw(RenderContext*,
-                        IAABB pixelBounds,
-                        const Mat2D&,
-                        rcp<const RiveRenderPath>,
-                        FillRule,
-                        const RiveRenderPaint*);
+    // Midpoint path draw
+    void initForMidpointFan(RenderContext*, const RiveRenderPaint*);
 
-protected:
-    void onPushToRenderContext(RenderContext::LogicalFlush*) override;
-
+private:
+    // Draws a path by fanning tessellation patches around the midpoint of each contour.
     // Emulates a stroke cap before the given cubic by pushing a copy of the cubic, reversed, with 0
     // tessellation segments leading up to the join section, and a 180-degree join that looks like
     // the desired stroke cap.
@@ -220,13 +211,10 @@ protected:
     RIVE_DEBUG_CODE(size_t m_pendingStrokeCapCount;)
     // Counts how many additional curves were pushed by pushEmulatedStrokeCapAsJoinBeforeCubic().
     RIVE_DEBUG_CODE(size_t m_pendingEmptyStrokeCountForCaps;)
-};
 
-// Draws a path by triangulating the interior into non-overlapping triangles and tessellating the
-// outer curves.
-class InteriorTriangulationDraw : public RiveRenderPathDraw
-{
 public:
+    // Draws a path by triangulating the interior into non-overlapping triangles and tessellating
+    // the outer curves.
     enum class TriangulatorAxis
     {
         horizontal,
@@ -234,38 +222,11 @@ public:
         dontCare,
     };
 
-    InteriorTriangulationDraw(RenderContext*,
-                              IAABB pixelBounds,
-                              const Mat2D&,
-                              rcp<const RiveRenderPath>,
-                              FillRule,
-                              const RiveRenderPaint*,
-                              RawPath* scratchPath,
-                              TriangulatorAxis);
-
+    // Interior Triangulation path draw
+    void initForInteriorTriangulation(RenderContext*, RawPath*, TriangulatorAxis);
     GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
 
-protected:
-    void onPushToRenderContext(RenderContext::LogicalFlush*) override;
-
-    // The final segment in an outerCurve patch is a bowtie join.
-    constexpr static size_t kJoinSegmentCount = 1;
-    constexpr static size_t kPatchSegmentCountExcludingJoin =
-        kOuterCurvePatchSegmentSpan - kJoinSegmentCount;
-
-    // Maximum # of outerCurve patches a curve on the path can be subdivided into.
-    constexpr static size_t kMaxCurveSubdivisions =
-        (kMaxParametricSegments + kPatchSegmentCountExcludingJoin - 1) /
-        kPatchSegmentCountExcludingJoin;
-
-    static uint32_t FindSubdivisionCount(const Vec2D pts[],
-                                         const wangs_formula::VectorXform& vectorXform)
-    {
-        float numSubdivisions = ceilf(wangs_formula::cubic(pts, kParametricPrecision, vectorXform) *
-                                      (1.f / kPatchSegmentCountExcludingJoin));
-        return static_cast<uint32_t>(math::clamp(numSubdivisions, 1, kMaxCurveSubdivisions));
-    }
-
+private:
     enum class PathOp : bool
     {
         countDataAndTriangulate,

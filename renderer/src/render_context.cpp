@@ -1710,7 +1710,7 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::pushMirroredAndForwardTesse
     assert(m_pathMirroredTessLocation >= m_expectedPathMirroredTessLocationAtEndOfPath);
 }
 
-void RenderContext::LogicalFlush::pushInteriorTriangulation(InteriorTriangulationDraw* draw)
+void RenderContext::LogicalFlush::pushInteriorTriangulation(RiveRenderPathDraw* draw)
 {
     assert(m_hasDoneLayout);
 

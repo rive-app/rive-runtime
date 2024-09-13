@@ -17,6 +17,25 @@ namespace rive::gpu
 {
 namespace
 {
+
+// The final segment in an outerCurve patch is a bowtie join.
+constexpr static size_t kJoinSegmentCount = 1;
+constexpr static size_t kPatchSegmentCountExcludingJoin =
+    kOuterCurvePatchSegmentSpan - kJoinSegmentCount;
+
+// Maximum # of outerCurve patches a curve on the path can be subdivided into.
+constexpr static size_t kMaxCurveSubdivisions =
+    (kMaxParametricSegments + kPatchSegmentCountExcludingJoin - 1) /
+    kPatchSegmentCountExcludingJoin;
+
+static uint32_t FindSubdivisionCount(const Vec2D pts[],
+                                     const wangs_formula::VectorXform& vectorXform)
+{
+    float numSubdivisions = ceilf(wangs_formula::cubic(pts, kParametricPrecision, vectorXform) *
+                                  (1.f / kPatchSegmentCountExcludingJoin));
+    return static_cast<uint32_t>(math::clamp(numSubdivisions, 1, kMaxCurveSubdivisions));
+}
+
 constexpr static int kNumSegmentsInMiterOrBevelJoin = 5;
 constexpr static int kStrokeStyleFlag = 8;
 constexpr static int kRoundJoinStyleFlag = kStrokeStyleFlag << 1;
@@ -363,6 +382,8 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
         mappedBounds = mappedBounds.inset(-strokePixelOutset.width(), -strokePixelOutset.height());
     }
     IAABB pixelBounds = mappedBounds.roundOut();
+    bool doTriangulation = false;
+    const AABB& localBounds = path->getBounds();
     if (context->isOutsideCurrentFrame(pixelBounds))
     {
         return DrawUniquePtr();
@@ -371,31 +392,38 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
     {
         // Use interior triangulation to draw filled paths if they're large enough to benefit from
         // it.
-        const AABB& localBounds = path->getBounds();
         // FIXME! Implement interior triangulation in depthStencil mode.
+
         if (context->frameInterlockMode() != gpu::InterlockMode::depthStencil &&
             path->getRawPath().verbs().count() < 1000 &&
             gpu::FindTransformedArea(localBounds, matrix) > 512 * 512)
         {
-            return DrawUniquePtr(context->make<InteriorTriangulationDraw>(
-                context,
-                pixelBounds,
-                matrix,
-                std::move(path),
-                fillRule,
-                paint,
-                scratchPath,
-                localBounds.width() > localBounds.height()
-                    ? InteriorTriangulationDraw::TriangulatorAxis::horizontal
-                    : InteriorTriangulationDraw::TriangulatorAxis::vertical));
+            doTriangulation = true;
         }
     }
-    return DrawUniquePtr(context->make<MidpointFanPathDraw>(context,
-                                                            pixelBounds,
-                                                            matrix,
-                                                            std::move(path),
-                                                            fillRule,
-                                                            paint));
+
+    auto draw = context->make<RiveRenderPathDraw>(pixelBounds,
+                                                  matrix,
+                                                  std::move(path),
+                                                  fillRule,
+                                                  paint,
+                                                  doTriangulation ? Type::interiorTriangulationPath
+                                                                  : Type::midpointFanPath,
+                                                  context->frameInterlockMode());
+    if (doTriangulation)
+    {
+        draw->initForInteriorTriangulation(context,
+                                           scratchPath,
+                                           localBounds.width() > localBounds.height()
+                                               ? RiveRenderPathDraw::TriangulatorAxis::horizontal
+                                               : RiveRenderPathDraw::TriangulatorAxis::vertical);
+    }
+    else
+    {
+        draw->initForMidpointFan(context, paint);
+    }
+
+    return DrawUniquePtr(draw);
 }
 
 RiveRenderPathDraw::RiveRenderPathDraw(IAABB pixelBounds,
@@ -500,19 +528,7 @@ void RiveRenderPathDraw::releaseRefs()
     m_pathRef->unref();
 }
 
-MidpointFanPathDraw::MidpointFanPathDraw(RenderContext* context,
-                                         IAABB pixelBounds,
-                                         const Mat2D& matrix,
-                                         rcp<const RiveRenderPath> path,
-                                         FillRule fillRule,
-                                         const RiveRenderPaint* paint) :
-    RiveRenderPathDraw(pixelBounds,
-                       matrix,
-                       std::move(path),
-                       fillRule,
-                       paint,
-                       Type::midpointFanPath,
-                       context->frameInterlockMode())
+void RiveRenderPathDraw::initForMidpointFan(RenderContext* context, const RiveRenderPaint* paint)
 {
     if (isStroked())
     {
@@ -1012,8 +1028,24 @@ MidpointFanPathDraw::MidpointFanPathDraw(RenderContext* context,
     }
 }
 
-void MidpointFanPathDraw::onPushToRenderContext(RenderContext::LogicalFlush* flush)
+void RiveRenderPathDraw::onPushToRenderContext(RenderContext::LogicalFlush* flush)
 {
+    if (type() == Type::interiorTriangulationPath)
+    {
+        // Interior Triangulation Case
+        processPath(PathOp::submitOuterCubics, nullptr, nullptr, TriangulatorAxis::dontCare, flush);
+        if (flush->desc().interlockMode == gpu::InterlockMode::atomics)
+        {
+            // We need a barrier between the outer cubics and interior triangles in atomic mode.
+            flush->pushBarrier();
+        }
+        flush->pushInteriorTriangulation(this);
+        return;
+    }
+
+    assert(type() == Type::midpointFanPath);
+
+    // Midpoint Fan Case
     const RawPath& rawPath = m_pathRef->getRawPath();
     RawPath::Iter startOfContour = rawPath.begin();
     for (size_t i = 0; i < m_resourceCounts.contourCount; ++i)
@@ -1323,10 +1355,10 @@ void MidpointFanPathDraw::onPushToRenderContext(RenderContext::LogicalFlush* flu
     assert(m_pendingEmptyStrokeCountForCaps == 0);
 }
 
-void MidpointFanPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(RenderContext::LogicalFlush* flush,
-                                                                 const Vec2D cubic[],
-                                                                 uint32_t emulatedCapAsJoinFlags,
-                                                                 uint32_t strokeCapSegmentCount)
+void RiveRenderPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(RenderContext::LogicalFlush* flush,
+                                                                const Vec2D cubic[],
+                                                                uint32_t emulatedCapAsJoinFlags,
+                                                                uint32_t strokeCapSegmentCount)
 {
     // Reverse the cubic and push it with zero parametric and polar segments, and a 180-degree join
     // tangent. This results in a solitary join, positioned immediately before the provided cubic,
@@ -1342,21 +1374,9 @@ void MidpointFanPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(RenderContext::
     RIVE_DEBUG_CODE(--m_pendingEmptyStrokeCountForCaps;)
 }
 
-InteriorTriangulationDraw::InteriorTriangulationDraw(RenderContext* context,
-                                                     IAABB pixelBounds,
-                                                     const Mat2D& matrix,
-                                                     rcp<const RiveRenderPath> path,
-                                                     FillRule fillRule,
-                                                     const RiveRenderPaint* paint,
-                                                     RawPath* scratchPath,
-                                                     TriangulatorAxis triangulatorAxis) :
-    RiveRenderPathDraw(pixelBounds,
-                       matrix,
-                       std::move(path),
-                       fillRule,
-                       paint,
-                       Type::interiorTriangulationPath,
-                       context->frameInterlockMode())
+void RiveRenderPathDraw::initForInteriorTriangulation(RenderContext* context,
+                                                      RawPath* scratchPath,
+                                                      TriangulatorAxis triangulatorAxis)
 {
     assert(!isStroked());
     assert(m_strokeRadius == 0);
@@ -1367,22 +1387,11 @@ InteriorTriangulationDraw::InteriorTriangulationDraw(RenderContext* context,
                 nullptr);
 }
 
-void InteriorTriangulationDraw::onPushToRenderContext(RenderContext::LogicalFlush* flush)
-{
-    processPath(PathOp::submitOuterCubics, nullptr, nullptr, TriangulatorAxis::dontCare, flush);
-    if (flush->desc().interlockMode == gpu::InterlockMode::atomics)
-    {
-        // We need a barrier between the outer cubics and interior triangles in atomic mode.
-        flush->pushBarrier();
-    }
-    flush->pushInteriorTriangulation(this);
-}
-
-void InteriorTriangulationDraw::processPath(PathOp op,
-                                            TrivialBlockAllocator* allocator,
-                                            RawPath* scratchPath,
-                                            TriangulatorAxis triangulatorAxis,
-                                            RenderContext::LogicalFlush* flush)
+void RiveRenderPathDraw::processPath(PathOp op,
+                                     TrivialBlockAllocator* allocator,
+                                     RawPath* scratchPath,
+                                     TriangulatorAxis triangulatorAxis,
+                                     RenderContext::LogicalFlush* flush)
 {
     Vec2D chops[kMaxCurveSubdivisions * 3 + 1];
     const RawPath& rawPath = m_pathRef->getRawPath();

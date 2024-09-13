@@ -29,8 +29,6 @@ class GradientLibrary;
 class IntersectionBoard;
 class ImageMeshDraw;
 class ImageRectDraw;
-class InteriorTriangulationDraw;
-class MidpointFanPathDraw;
 class StencilClipReset;
 class Draw;
 class Gradient;
@@ -256,8 +254,6 @@ public:
 private:
     friend class Draw;
     friend class RiveRenderPathDraw;
-    friend class MidpointFanPathDraw;
-    friend class InteriorTriangulationDraw;
     friend class ImageRectDraw;
     friend class ImageMeshDraw;
     friend class StencilClipReset;
@@ -527,7 +523,7 @@ private:
 
         // Pushes triangles to be drawn using the data records from the most recent calls to
         // pushPath() and pushPaint().
-        void pushInteriorTriangulation(InteriorTriangulationDraw*);
+        void pushInteriorTriangulation(RiveRenderPathDraw*);
 
         // Pushes an imageRect to the draw list.
         // This should only be used when we don't have bindless textures in atomic mode. Otherwise,
