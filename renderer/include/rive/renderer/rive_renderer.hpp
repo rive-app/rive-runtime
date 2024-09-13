@@ -63,9 +63,15 @@ private:
 
     // Pushes any necessary clip updates to m_internalDrawBatch and sets the Draw's clipID and
     // clipRectInverseMatrix, if any.
-    // Returns false if the operation failed, at which point the caller should issue a logical flush
-    // and try again.
-    [[nodiscard]] bool applyClip(gpu::Draw*);
+    // Returns failure if the operation failed, at which point the caller should issue a logical
+    // flush and try again.
+    enum class ApplyClipResult
+    {
+        success,
+        failure,
+        clipEmpty,
+    };
+    [[nodiscard]] ApplyClipResult applyClip(gpu::Draw*);
 
     struct RenderState
     {

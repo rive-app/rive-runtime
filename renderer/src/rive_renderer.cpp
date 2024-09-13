@@ -124,6 +124,10 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     {                                            // thickness is NaN.
         return;
     }
+    if (m_stack.back().clipIsEmpty)
+    {
+        return;
+    }
 
     clipAndPushDraw(gpu::RiveRenderPathDraw::Make(m_context,
                                                   m_stack.back().matrix,
@@ -136,6 +140,11 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 void RiveRenderer::clipPath(RenderPath* renderPath)
 {
     LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
+
+    if (m_stack.back().clipIsEmpty)
+    {
+        return;
+    }
 
     if (path->getRawPath().empty())
     {
@@ -269,15 +278,18 @@ void RiveRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode
     {
         // Fall back on ImageRectDraw if the current frame doesn't support drawing paths with image
         // paints.
-        const Mat2D& m = m_stack.back().matrix;
-        auto riveRenderImage = static_cast<const RiveRenderImage*>(renderImage);
-        clipAndPushDraw(gpu::DrawUniquePtr(
-            m_context->make<gpu::ImageRectDraw>(m_context,
-                                                m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
-                                                m,
-                                                blendMode,
-                                                riveRenderImage->refTexture(),
-                                                opacity)));
+        if (!m_stack.back().clipIsEmpty)
+        {
+            const Mat2D& m = m_stack.back().matrix;
+            auto riveRenderImage = static_cast<const RiveRenderImage*>(renderImage);
+            clipAndPushDraw(gpu::DrawUniquePtr(
+                m_context->make<gpu::ImageRectDraw>(m_context,
+                                                    m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
+                                                    m,
+                                                    blendMode,
+                                                    riveRenderImage->refTexture(),
+                                                    opacity)));
+        }
     }
     else
     {
@@ -315,6 +327,11 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
     assert(uvCoords_f32);
     assert(indices_u16);
 
+    if (m_stack.back().clipIsEmpty)
+    {
+        return;
+    }
+
     clipAndPushDraw(
         gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshDraw>(gpu::Draw::kFullscreenPixelBounds,
                                                                m_stack.back().matrix,
@@ -329,7 +346,8 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
 
 void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 {
-    if (m_stack.back().clipIsEmpty)
+    assert(!m_stack.back().clipIsEmpty);
+    if (draw.get() == nullptr)
     {
         return;
     }
@@ -358,11 +376,16 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 
         AutoResetInternalDrawBatch aridb(this);
 
-        if (!applyClip(draw.get()))
+        auto applyClipResult = applyClip(draw.get());
+        if (applyClipResult == ApplyClipResult::failure)
         {
             // There wasn't room in the GPU buffers for this path draw. Flush and try again.
             m_context->logicalFlush();
             continue;
+        }
+        else if (applyClipResult == ApplyClipResult::clipEmpty)
+        {
+            return;
         }
 
         m_internalDrawBatch.push_back(std::move(draw));
@@ -386,15 +409,19 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
             "RiveRenderer::clipAndPushDraw failed. The draw and/or clip stack are too complex.\n");
 }
 
-bool RiveRenderer::applyClip(gpu::Draw* draw)
+RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
 {
+    if (m_stack.back().clipIsEmpty)
+    {
+        return ApplyClipResult::clipEmpty;
+    }
     draw->setClipRect(m_stack.back().clipRectInverseMatrix);
 
     const size_t clipStackHeight = m_stack.back().clipStackHeight;
     if (clipStackHeight == 0)
     {
         assert(draw->clipID() == 0);
-        return true;
+        return ApplyClipResult::success;
     }
 
     // Find which clip element in the stack (if any) is currently rendered to the clip buffer.
@@ -448,6 +475,10 @@ bool RiveRenderer::applyClip(gpu::Draw* draw)
                                                           clip.fillRule,
                                                           &clipUpdatePaint,
                                                           &m_scratchPath);
+            if (clipDraw.get() == nullptr)
+            {
+                return ApplyClipResult::clipEmpty;
+            }
             clipDrawBounds = clipDraw->pixelBounds();
             // Generate a new clipID every time we (re-)render an element to the clip buffer.
             // (Each embodiment of the element needs its own separate readBounds.)
@@ -455,7 +486,8 @@ bool RiveRenderer::applyClip(gpu::Draw* draw)
             assert(clip.clipID != m_context->getClipContentID());
             if (clip.clipID == 0)
             {
-                return false; // The context is out of clipIDs. We will flush and try again.
+                return ApplyClipResult::failure; // The context is out of clipIDs. We will flush and
+                                                 // try again.
             }
             clipDraw->setClipID(clip.clipID);
             if (!m_context->isOutsideCurrentFrame(clipDrawBounds))
@@ -490,6 +522,6 @@ bool RiveRenderer::applyClip(gpu::Draw* draw)
     draw->setClipID(lastClipID);
     m_context->addClipReadBounds(lastClipID, draw->pixelBounds());
     m_context->setClipContentID(lastClipID);
-    return true;
+    return ApplyClipResult::success;
 }
 } // namespace rive

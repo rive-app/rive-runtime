@@ -363,6 +363,10 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
         mappedBounds = mappedBounds.inset(-strokePixelOutset.width(), -strokePixelOutset.height());
     }
     IAABB pixelBounds = mappedBounds.roundOut();
+    if (context->isOutsideCurrentFrame(pixelBounds))
+    {
+        return DrawUniquePtr();
+    }
     if (!paint->getIsStroked())
     {
         // Use interior triangulation to draw filled paths if they're large enough to benefit from
