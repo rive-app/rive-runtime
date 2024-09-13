@@ -126,11 +126,6 @@ private:
 
     void flush(const FlushDescriptor&) override;
 
-    template <typename HighLevelStruct>
-    ID3D11ShaderResourceView* replaceStructuredBufferSRV(const BufferRing*,
-                                                         UINT highLevelStructCount,
-                                                         UINT firstHighLevelStruct);
-
     void setPipelineLayoutAndShaders(DrawType,
                                      gpu::ShaderFeatures,
                                      gpu::InterlockMode,

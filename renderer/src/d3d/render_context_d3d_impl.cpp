@@ -582,7 +582,12 @@ public:
         BufferRingD3D(renderContextImpl, capacityInBytes, bindFlags, 0, 0)
     {}
 
-    ID3D11Buffer* submittedBuffer() const { return m_buffers[submittedBufferIdx()].Get(); }
+    ID3D11Buffer* flush(ID3D11DeviceContext* gpuContext)
+    {
+        updateBuffer(gpuContext, 0, m_dirtySizeInBytes);
+        m_dirtySizeInBytes = 0;
+        return m_buffer.Get();
+    }
 
 protected:
     BufferRingD3D(RenderContextD3DImpl* renderContextImpl,
@@ -590,7 +595,7 @@ protected:
                   UINT bindFlags,
                   UINT elementSizeInBytes,
                   UINT miscFlags) :
-        BufferRing(capacityInBytes), m_gpuContext(renderContextImpl->gpuContext())
+        BufferRing(capacityInBytes)
     {
         D3D11_BUFFER_DESC desc{};
         desc.ByteWidth = math::lossless_numeric_cast<UINT>(capacityInBytes);
@@ -599,12 +604,9 @@ protected:
         desc.CPUAccessFlags = 0;
         desc.StructureByteStride = elementSizeInBytes;
         desc.MiscFlags = miscFlags;
-
-        for (size_t i = 0; i < kBufferRingSize; ++i)
-        {
-            VERIFY_OK(renderContextImpl->gpu()
-                          ->CreateBuffer(&desc, nullptr, m_buffers[i].ReleaseAndGetAddressOf()));
-        }
+        VERIFY_OK(renderContextImpl->gpu()->CreateBuffer(&desc,
+                                                         nullptr,
+                                                         m_buffer.ReleaseAndGetAddressOf()));
     }
 
     void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
@@ -615,29 +617,28 @@ protected:
 
     void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
-        if (mapSizeInBytes == capacityInBytes())
-        {
-            // Constant buffers don't allow partial updates, so special-case the event where we
-            // update the entire buffer.
-            m_gpuContext
-                ->UpdateSubresource(m_buffers[bufferIdx].Get(), 0, NULL, shadowBuffer(), 0, 0);
-        }
-        else
+        m_dirtySizeInBytes = math::lossless_numeric_cast<UINT>(mapSizeInBytes);
+    }
+
+    void updateBuffer(ID3D11DeviceContext* gpuContext, UINT offsetInBytes, UINT sizeInBytes) const
+    {
+        assert(offsetInBytes + sizeInBytes <= m_dirtySizeInBytes);
+        if (sizeInBytes != 0)
         {
             D3D11_BOX box;
             box.left = 0;
-            box.right = math::lossless_numeric_cast<UINT>(mapSizeInBytes);
+            box.right = sizeInBytes;
             box.top = 0;
             box.bottom = 1;
             box.front = 0;
             box.back = 1;
-            m_gpuContext
-                ->UpdateSubresource(m_buffers[bufferIdx].Get(), 0, &box, shadowBuffer(), 0, 0);
+            gpuContext
+                ->UpdateSubresource(m_buffer.Get(), 0, &box, shadowBuffer() + offsetInBytes, 0, 0);
         }
     }
 
-    ComPtr<ID3D11DeviceContext> m_gpuContext;
-    ComPtr<ID3D11Buffer> m_buffers[kBufferRingSize];
+    ComPtr<ID3D11Buffer> m_buffer;
+    UINT m_dirtySizeInBytes = 0;
 };
 
 class StructuredBufferRingD3D : public BufferRingD3D
@@ -653,26 +654,28 @@ public:
                       D3D11_RESOURCE_MISC_BUFFER_STRUCTURED)
     {
         assert(capacityInBytes % elementSizeInBytes == 0);
-    }
-
-    ID3D11ShaderResourceView* replaceSRV(ID3D11Device* gpu,
-                                         UINT elementCount,
-                                         UINT firstElement) const
-    {
         D3D11_SHADER_RESOURCE_VIEW_DESC srvDesc;
         srvDesc.Format = DXGI_FORMAT_UNKNOWN;
         srvDesc.ViewDimension = D3D11_SRV_DIMENSION_BUFFER;
-        srvDesc.Buffer.FirstElement = firstElement;
-        srvDesc.Buffer.NumElements = elementCount;
+        srvDesc.Buffer.FirstElement = 0;
+        srvDesc.Buffer.NumElements =
+            math::lossless_numeric_cast<UINT>(capacityInBytes / elementSizeInBytes);
+        VERIFY_OK(
+            renderContextImpl->gpu()->CreateShaderResourceView(m_buffer.Get(),
+                                                               &srvDesc,
+                                                               m_srv.ReleaseAndGetAddressOf()));
+    }
 
-        VERIFY_OK(gpu->CreateShaderResourceView(m_buffers[submittedBufferIdx()].Get(),
-                                                &srvDesc,
-                                                m_currentSRV.ReleaseAndGetAddressOf()));
-        return m_currentSRV.Get();
+    ID3D11ShaderResourceView* flush(ID3D11DeviceContext* gpuContext,
+                                    UINT offsetInBytes,
+                                    UINT sizeInBytes) const
+    {
+        updateBuffer(gpuContext, offsetInBytes, sizeInBytes);
+        return m_srv.Get();
     }
 
 protected:
-    mutable ComPtr<ID3D11ShaderResourceView> m_currentSRV;
+    ComPtr<ID3D11ShaderResourceView> m_srv;
 };
 
 std::unique_ptr<BufferRing> RenderContextD3DImpl::makeUniformBufferRing(size_t capacityInBytes)
@@ -921,25 +924,6 @@ void RenderContextD3DImpl::resizeTessellationTexture(uint32_t width, uint32_t he
     }
 }
 
-template <typename HighLevelStruct>
-ID3D11ShaderResourceView* RenderContextD3DImpl::replaceStructuredBufferSRV(
-    const BufferRing* bufferRing,
-    UINT highLevelStructCount,
-    UINT firstHighLevelStruct)
-{
-    // Shaders access our storage buffers as arrays of basic types, as opposed to structures. Our
-    // SRV therefore needs to be indexed by the underlying basic type, not the high level structure.
-    constexpr static UINT kUnderlyingTypeSizeInBytes =
-        gpu::StorageBufferElementSizeInBytes(HighLevelStruct::kBufferStructure);
-    static_assert(sizeof(HighLevelStruct) % kUnderlyingTypeSizeInBytes == 0);
-    constexpr static UINT kStructIndexMultiplier =
-        sizeof(HighLevelStruct) / kUnderlyingTypeSizeInBytes;
-    return static_cast<const StructuredBufferRingD3D*>(bufferRing)
-        ->replaceSRV(m_gpu.Get(),
-                     highLevelStructCount * kStructIndexMultiplier,
-                     firstHighLevelStruct * kStructIndexMultiplier);
-}
-
 void RenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                                                        gpu::ShaderFeatures shaderFeatures,
                                                        gpu::InterlockMode interlockMode,
@@ -968,9 +952,8 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         }
         if (m_d3dCapabilities.supportsRasterizerOrderedViews)
         {
-            if ((interlockMode == gpu::InterlockMode::rasterOrdering &&
-                 drawType != DrawType::interiorTriangulation) ||
-                drawType == DrawType::imageMesh)
+            if (interlockMode == gpu::InterlockMode::rasterOrdering &&
+                drawType != DrawType::interiorTriangulation)
             {
                 s << "#define " << GLSL_ENABLE_RASTERIZER_ORDERED_VIEWS << '\n';
             }
@@ -1164,17 +1147,29 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
     m_gpuContext->PSSetShader(pixelEntry->second.Get(), NULL, 0);
 }
 
-static ID3D11Buffer* submitted_buffer(const BufferRing* bufferRing)
-{
-    assert(bufferRing != nullptr);
-    return static_cast<const BufferRingD3D*>(bufferRing)->submittedBuffer();
-}
-
 static const char* heap_buffer_contents(const BufferRing* bufferRing)
 {
     assert(bufferRing != nullptr);
     auto heapBuffer = static_cast<const HeapBufferRing*>(bufferRing);
     return reinterpret_cast<const char*>(heapBuffer->contents());
+}
+
+static ID3D11Buffer* flush_buffer(ID3D11DeviceContext* gpuContext, BufferRing* bufferRing)
+{
+    assert(bufferRing != nullptr);
+    return static_cast<BufferRingD3D*>(bufferRing)->flush(gpuContext);
+}
+
+template <typename HighLevelStruct>
+ID3D11ShaderResourceView* flush_structured_buffer(ID3D11DeviceContext* gpuContext,
+                                                  BufferRing* bufferRing,
+                                                  UINT highLevelStructCount,
+                                                  UINT firstHighLevelStruct)
+{
+    return static_cast<const StructuredBufferRingD3D*>(bufferRing)
+        ->flush(gpuContext,
+                firstHighLevelStruct * sizeof(HighLevelStruct),
+                highLevelStructCount * sizeof(HighLevelStruct));
 }
 
 static void blit_sub_rect(ID3D11DeviceContext* gpuContext,
@@ -1219,22 +1214,26 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     // All programs use the same storage buffers.
     ID3D11ShaderResourceView* storageBufferBufferSRVs[] = {
-        desc.pathCount > 0 ? replaceStructuredBufferSRV<gpu::PathData>(
+        desc.pathCount > 0 ? flush_structured_buffer<gpu::PathData>(
+                                 m_gpuContext.Get(),
                                  pathBufferRing(),
                                  desc.pathCount,
                                  math::lossless_numeric_cast<UINT>(desc.firstPath))
                            : nullptr,
-        desc.pathCount > 0 ? replaceStructuredBufferSRV<gpu::PaintData>(
+        desc.pathCount > 0 ? flush_structured_buffer<gpu::PaintData>(
+                                 m_gpuContext.Get(),
                                  paintBufferRing(),
                                  desc.pathCount,
                                  math::lossless_numeric_cast<UINT>(desc.firstPaint))
                            : nullptr,
-        desc.pathCount > 0 ? replaceStructuredBufferSRV<gpu::PaintAuxData>(
+        desc.pathCount > 0 ? flush_structured_buffer<gpu::PaintAuxData>(
+                                 m_gpuContext.Get(),
                                  paintAuxBufferRing(),
                                  desc.pathCount,
                                  math::lossless_numeric_cast<UINT>(desc.firstPaintAux))
                            : nullptr,
-        desc.contourCount > 0 ? replaceStructuredBufferSRV<gpu::ContourData>(
+        desc.contourCount > 0 ? flush_structured_buffer<gpu::ContourData>(
+                                    m_gpuContext.Get(),
                                     contourBufferRing(),
                                     desc.contourCount,
                                     math::lossless_numeric_cast<UINT>(desc.firstContour))
@@ -1255,7 +1254,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)
     {
-        ID3D11Buffer* gradSpanBuffer = submitted_buffer(gradSpanBufferRing());
+        ID3D11Buffer* gradSpanBuffer = flush_buffer(m_gpuContext.Get(), gradSpanBufferRing());
         UINT gradStride = sizeof(GradientSpan);
         UINT gradOffset = 0;
         m_gpuContext->IASetVertexBuffers(0, 1, &gradSpanBuffer, &gradStride, &gradOffset);
@@ -1310,7 +1309,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
-        ID3D11Buffer* tessSpanBuffer = submitted_buffer(tessSpanBufferRing());
+        ID3D11Buffer* tessSpanBuffer = flush_buffer(m_gpuContext.Get(), tessSpanBufferRing());
         UINT tessStride = sizeof(TessVertexSpan);
         UINT tessOffset = 0;
         m_gpuContext->IASetVertexBuffers(0, 1, &tessSpanBuffer, &tessStride, &tessOffset);
@@ -1403,7 +1402,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     // Execute the DrawList.
     ID3D11Buffer* vertexBuffers[3] = {
         m_patchVertexBuffer.Get(),
-        desc.hasTriangleVertices ? submitted_buffer(triangleBufferRing()) : NULL,
+        desc.hasTriangleVertices ? flush_buffer(m_gpuContext.Get(), triangleBufferRing()) : NULL,
         m_imageRectVertexBuffer.Get()};
     UINT vertexStrides[3] = {sizeof(gpu::PatchVertex),
                              sizeof(gpu::TriangleVertex),

@@ -56,16 +56,16 @@ public:
     }
 
 protected:
-    const BufferRing* flushUniformBufferRing() const { return m_flushUniformBuffer.get(); }
-    const BufferRing* imageDrawUniformBufferRing() const { return m_imageDrawUniformBuffer.get(); }
-    const BufferRing* pathBufferRing() { return m_pathBuffer.get(); }
-    const BufferRing* paintBufferRing() { return m_paintBuffer.get(); }
-    const BufferRing* paintAuxBufferRing() { return m_paintAuxBuffer.get(); }
-    const BufferRing* contourBufferRing() { return m_contourBuffer.get(); }
-    const BufferRing* simpleColorRampsBufferRing() const { return m_simpleColorRampsBuffer.get(); }
-    const BufferRing* gradSpanBufferRing() const { return m_gradSpanBuffer.get(); }
-    const BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
-    const BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
+    BufferRing* flushUniformBufferRing() { return m_flushUniformBuffer.get(); }
+    BufferRing* imageDrawUniformBufferRing() { return m_imageDrawUniformBuffer.get(); }
+    BufferRing* pathBufferRing() { return m_pathBuffer.get(); }
+    BufferRing* paintBufferRing() { return m_paintBuffer.get(); }
+    BufferRing* paintAuxBufferRing() { return m_paintAuxBuffer.get(); }
+    BufferRing* contourBufferRing() { return m_contourBuffer.get(); }
+    BufferRing* simpleColorRampsBufferRing() { return m_simpleColorRampsBuffer.get(); }
+    BufferRing* gradSpanBufferRing() { return m_gradSpanBuffer.get(); }
+    BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
+    BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
 
     virtual rcp<Texture> makeImageTexture(uint32_t width,
                                           uint32_t height,
