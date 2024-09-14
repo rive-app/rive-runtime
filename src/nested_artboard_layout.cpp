@@ -94,12 +94,18 @@ void NestedArtboardLayout::updateWidthOverride()
     if (instanceWidthScaleType() == 0) // LayoutScaleType::fixed
     {
         // If we're set to fixed, pass the unit value (points|percent)
+        artboardInstance()->widthIntrinsicallySizeOverride(false);
         artboardInstance()->widthOverride(actualInstanceWidth(), instanceWidthUnitsValue(), isRow);
     }
     else if (instanceWidthScaleType() == 1) // LayoutScaleType::fill
     {
         // If we're set to fill, pass auto
+        artboardInstance()->widthIntrinsicallySizeOverride(false);
         artboardInstance()->widthOverride(actualInstanceWidth(), 3, isRow);
+    }
+    else if (instanceWidthScaleType() == 2)
+    {
+        artboardInstance()->widthIntrinsicallySizeOverride(true);
     }
 }
 
@@ -114,6 +120,7 @@ void NestedArtboardLayout::updateHeightOverride()
     if (instanceHeightScaleType() == 0) // LayoutScaleType::fixed
     {
         // If we're set to fixed, pass the unit value (points|percent)
+        artboardInstance()->heightIntrinsicallySizeOverride(false);
         artboardInstance()->heightOverride(actualInstanceHeight(),
                                            instanceHeightUnitsValue(),
                                            isRow);
@@ -121,7 +128,12 @@ void NestedArtboardLayout::updateHeightOverride()
     else if (instanceHeightScaleType() == 1) // LayoutScaleType::fill
     {
         // If we're set to fill, pass auto
+        artboardInstance()->heightIntrinsicallySizeOverride(false);
         artboardInstance()->heightOverride(actualInstanceHeight(), 3, isRow);
+    }
+    else if (instanceWidthScaleType() == 2)
+    {
+        artboardInstance()->heightIntrinsicallySizeOverride(true);
     }
 }
 

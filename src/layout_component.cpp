@@ -149,6 +149,24 @@ void LayoutComponent::heightOverride(float height, int unitValue, bool isRow)
     markLayoutNodeDirty();
 }
 
+void LayoutComponent::widthIntrinsicallySizeOverride(bool intrinsic)
+{
+    m_widthIntrinsicallySizeOverride = intrinsic;
+    // If we have an intrinsically sized override, set units to auto
+    // otherwise set to points
+    m_widthUnitValueOverride = intrinsic ? 3 : 1;
+    markLayoutNodeDirty();
+}
+
+void LayoutComponent::heightIntrinsicallySizeOverride(bool intrinsic)
+{
+    m_heightIntrinsicallySizeOverride = intrinsic;
+    // If we have an intrinsically sized override, set units to auto
+    // otherwise set to points
+    m_heightUnitValueOverride = intrinsic ? 3 : 1;
+    markLayoutNodeDirty();
+}
+
 #ifdef WITH_RIVE_LAYOUT
 StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
 {
@@ -298,7 +316,14 @@ void LayoutComponent::syncStyle()
                     realWidthScaleType = LayoutScaleType::fixed;
                     break;
                 case YGUnitAuto:
-                    realWidthScaleType = LayoutScaleType::fill;
+                    if (m_widthIntrinsicallySizeOverride)
+                    {
+                        realWidthScaleType = LayoutScaleType::hug;
+                    }
+                    else
+                    {
+                        realWidthScaleType = LayoutScaleType::fill;
+                    }
                     break;
                 default:
                     break;
@@ -314,7 +339,14 @@ void LayoutComponent::syncStyle()
                     realHeightScaleType = LayoutScaleType::fixed;
                     break;
                 case YGUnitAuto:
-                    realHeightScaleType = LayoutScaleType::fill;
+                    if (m_heightIntrinsicallySizeOverride)
+                    {
+                        realHeightScaleType = LayoutScaleType::hug;
+                    }
+                    else
+                    {
+                        realHeightScaleType = LayoutScaleType::fill;
+                    }
                     break;
                 default:
                     break;
