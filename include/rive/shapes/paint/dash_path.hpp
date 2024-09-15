@@ -34,6 +34,9 @@ private:
     RenderPath* m_renderPath = nullptr;
     rcp<RenderPath> m_dashedPath;
     std::vector<rcp<ContourMeasure>> m_contours;
+
+public:
+    float pathLength() const;
 };
 } // namespace rive
 #endif

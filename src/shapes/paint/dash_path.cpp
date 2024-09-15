@@ -83,3 +83,13 @@ RenderPath* PathDasher::dash(const RawPath& source,
 
     return m_renderPath;
 }
+
+float PathDasher::pathLength() const
+{
+    float totalLength = 0.0f;
+    for (auto contour : m_contours)
+    {
+        totalLength += contour->length();
+    }
+    return totalLength;
+}
