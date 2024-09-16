@@ -127,6 +127,15 @@ void SliceMesh::updateBuffers()
 
 std::vector<float> SliceMesh::uvStops(AxisType forAxis)
 {
+    float imageSize =
+        forAxis == AxisType::X ? m_nslicer->image()->width() : m_nslicer->image()->height();
+    float imageScale = std::abs(forAxis == AxisType::X ? m_nslicer->image()->scaleX()
+                                                       : m_nslicer->image()->scaleY());
+    if (imageSize == 0 || imageScale == 0)
+    {
+        return {};
+    }
+
     const std::vector<Axis*>& axes = (forAxis == AxisType::X) ? m_nslicer->xs() : m_nslicer->ys();
     std::vector<float> result = {0.0};
     for (const Axis* axis : axes)
@@ -137,9 +146,6 @@ std::vector<float> SliceMesh::uvStops(AxisType forAxis)
         }
         else
         {
-            float imageSize =
-                forAxis == AxisType::X ? m_nslicer->image()->width() : m_nslicer->image()->height();
-            imageSize = std::max(1.0f, imageSize);
             result.emplace_back(math::clamp(axis->offset() / imageSize, 0, 1));
         }
     }
@@ -155,27 +161,57 @@ std::vector<float> SliceMesh::vertexStops(const std::vector<float>& normalizedSt
     Image* image = m_nslicer->image();
     float imageSize = forAxis == AxisType::X ? image->width() : image->height();
     float imageScale = std::abs(forAxis == AxisType::X ? image->scaleX() : image->scaleY());
-
-    float fixedPct = 0.0;
-    for (int i = 0; i < normalizedStops.size() - 1; i++)
+    if (imageSize == 0 || imageScale == 0)
     {
+        return {};
+    }
+
+    auto infinity = std::numeric_limits<float>::infinity();
+    float fixedPct = 0.0;
+    int numEmptyScaledPatch = 0;
+    for (int i = 0; i < (int)normalizedStops.size() - 1; i++)
+    {
+        float range = normalizedStops[i + 1] - normalizedStops[i];
         if (isFixedSegment(i))
         {
-            fixedPct += normalizedStops[i + 1] - normalizedStops[i];
+            fixedPct += range;
+        }
+        else
+        {
+            numEmptyScaledPatch += (range == 0);
         }
     }
 
     float fixedSize = fixedPct * imageSize;
-    float scalableSize = std::max(1.0f, imageSize - fixedSize);
-    float scale = (imageSize * imageScale - fixedSize) / scalableSize;
+    float scalableSize = imageSize - fixedSize;
+
+    float scaleFactor =
+        scalableSize == 0 ? infinity : (imageSize * imageScale - fixedSize) / scalableSize;
+    float emptyScalableSize =
+        numEmptyScaledPatch == 0 ? 0 : ((imageSize - fixedSize / imageScale) / numEmptyScaledPatch);
 
     std::vector<float> result;
     float cur = 0.0;
-    for (int i = 0; i < normalizedStops.size() - 1; i++)
+    for (int i = 0; i < (int)normalizedStops.size() - 1; i++)
     {
         result.emplace_back(cur);
-        float segmentSize = imageSize * (normalizedStops[i + 1] - normalizedStops[i]);
-        cur += segmentSize * (isFixedSegment(i) ? 1 : scale) / imageScale;
+        float segment = imageSize * (normalizedStops[i + 1] - normalizedStops[i]);
+        if (isFixedSegment(i))
+        {
+            cur += segment / imageScale;
+        }
+        else
+        {
+            if (scalableSize == 0)
+            {
+                cur += emptyScalableSize;
+            }
+            else
+            {
+                cur += segment * scaleFactor / imageScale;
+            }
+        }
+        cur = math::clamp(cur, 0, imageSize);
     }
     result.emplace_back(cur);
     return result;
@@ -200,14 +236,27 @@ uint16_t SliceMesh::tileRepeat(std::vector<SliceMeshVertex>& vertices,
 
     // The size of each repeated tile in image space
     Image* image = m_nslicer->image();
-    const float sizeX = image->width() * (endU - startU) / std::abs(image->scaleX());
-    const float sizeY = image->height() * (endV - startV) / std::abs(image->scaleY());
+    float scaleX = std::abs(image->scaleX());
+    float scaleY = std::abs(image->scaleY());
+
+    if (scaleX == 0 || scaleY == 0)
+    {
+        return 0;
+    }
+
+    const float sizeX = image->width() * (endU - startU) / scaleX;
+    const float sizeY = image->height() * (endV - startV) / scaleY;
+
+    if (std::abs(sizeX) < 1 || std::abs(sizeY) < 1)
+    {
+        return 0;
+    }
 
     float curX = startX;
     float curY = startY;
     int curV = start;
 
-    int escape = 1000000; // a million
+    int escape = 1000;
     while (curY < endY && escape > 0)
     {
         escape--;
@@ -264,7 +313,6 @@ uint16_t SliceMesh::tileRepeat(std::vector<SliceMeshVertex>& vertices,
         }
         curY += sizeY;
     }
-    assert(escape > 0);
     return curV - start;
 }
 
@@ -282,9 +330,9 @@ void SliceMesh::calc()
 
     std::vector<SliceMeshVertex> vertices;
     uint16_t vertexIndex = 0;
-    for (int patchY = 0; patchY < vs.size() - 1; patchY++)
+    for (int patchY = 0; patchY < (int)vs.size() - 1; patchY++)
     {
-        for (int patchX = 0; patchX < us.size() - 1; patchX++)
+        for (int patchX = 0; patchX < (int)us.size() - 1; patchX++)
         {
             auto tileModeIt = tileModes.find(m_nslicer->patchIndex(patchX, patchY));
             auto tileMode =
