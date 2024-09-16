@@ -8,6 +8,7 @@
 #include "rive/math/math_types.hpp"
 #include "rive/math/wangs_formula.hpp"
 #include <cmath>
+#include <limits>
 
 using namespace rive;
 

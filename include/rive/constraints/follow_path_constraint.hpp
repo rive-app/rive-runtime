@@ -2,7 +2,7 @@
 #define _RIVE_FOLLOW_PATH_CONSTRAINT_HPP_
 #include "rive/generated/constraints/follow_path_constraint_base.hpp"
 #include "rive/math/transform_components.hpp"
-#include "rive/math/contour_measure.hpp"
+#include "rive/math/path_measure.hpp"
 namespace rive
 {
 class FollowPathConstraint : public FollowPathConstraintBase
@@ -18,7 +18,7 @@ public:
 
 private:
     RawPath m_rawPath;
-    std::vector<rcp<ContourMeasure>> m_contours;
+    PathMeasure m_pathMeasure;
     TransformComponents m_ComponentsA;
     TransformComponents m_ComponentsB;
 };

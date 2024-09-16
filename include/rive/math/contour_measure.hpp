@@ -55,6 +55,20 @@ public:
     {
         Vec2D pos, tan;
     };
+    struct PosTanDistance
+    {
+        Vec2D pos, tan;
+        /// Distance along the curve.
+        float distance;
+
+        /// Squared distance to point projected to curve.
+        float sqDistanceToPoint;
+
+        PosTanDistance() : distance(0.0f), sqDistanceToPoint(0.0f) {}
+        PosTanDistance(PosTan posTan, float dist) :
+            pos(posTan.pos), tan(posTan.tan), distance(dist), sqDistanceToPoint(0.0f)
+        {}
+    };
     PosTan getPosTan(float distance) const;
 
     void getSegment(float startDistance, float endDistance, RawPath* dst, bool startWithMove) const;
