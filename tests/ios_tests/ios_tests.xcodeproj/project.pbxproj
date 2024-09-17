@@ -307,19 +307,12 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = "";
-				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = (
-					../out/ios_debug,
-					../../skia/dependencies/skia/out/ios/arm64,
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = (
-					../out/iossim_universal_debug,
-					../../skia/dependencies/skia/out/ios/iossim_fat,
-				);
+				"LIBRARY_SEARCH_PATHS[sdk=iphoneos*]" = ../out/ios_debug;
+				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = ../out/iossim_universal_debug;
 				MACH_O_TYPE = mh_execute;
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = "";
 				"OTHER_LDFLAGS[sdk=iphoneos*]" = (
-					"-lskia",
 					"-lrive",
 					"-lrive_sheenbidi",
 					"-lrive_harfbuzz",
@@ -334,7 +327,6 @@
 					../out/ios_debug/libgms.a,
 				);
 				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
-					"-lskia",
 					"-lrive",
 					"-lrive_sheenbidi",
 					"-lrive_harfbuzz",
