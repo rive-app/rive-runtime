@@ -30,6 +30,12 @@ public:
 
     bool empty() const { return m_Points.empty(); }
     AABB bounds() const;
+#ifdef DEBUG
+    void printCode() const;
+#endif
+#ifdef WITH_RIVE_TOOLS
+    AABB preciseBounds() const;
+#endif
     size_t countMoveTos() const;
 
     void move(Vec2D);

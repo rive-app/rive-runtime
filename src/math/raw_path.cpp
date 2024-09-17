@@ -369,4 +369,183 @@ void RawPath::addTo(CommandPath* result) const
         }
     }
 }
+
+#ifdef DEBUG
+void RawPath::printCode() const
+{
+    fprintf(stderr, "RawPath path;\n");
+    for (auto iter : *this)
+    {
+        PathVerb verb = std::get<0>(iter);
+        const Vec2D* pts = std::get<1>(iter);
+        switch (verb)
+        {
+            case PathVerb::move:
+                fprintf(stderr, "path.moveTo(%f, %f);\n", pts[0].x, pts[0].y);
+                break;
+            case PathVerb::line:
+                fprintf(stderr, "path.lineTo(%f, %f);\n", pts[1].x, pts[1].y);
+                break;
+            case PathVerb::cubic:
+                fprintf(stderr,
+                        "path.cubicTo(%f, %f, %f, %f, %f, %f);\n",
+                        pts[1].x,
+                        pts[1].y,
+                        pts[2].x,
+                        pts[2].y,
+                        pts[3].x,
+                        pts[3].y);
+                break;
+            case PathVerb::close:
+                fprintf(stderr, "path.close();\n");
+                break;
+            case PathVerb::quad:
+                fprintf(stderr,
+                        "path.quadTo(%f, %f, %f, %f);\n",
+                        pts[1].x,
+                        pts[1].y,
+                        pts[2].x,
+                        pts[2].y);
+        }
+    }
+    fprintf(stderr, "\n");
+}
+#endif
+#ifdef WITH_RIVE_TOOLS
+static void expandAxisBounds(AABB& bounds, int axis, float value)
+{
+    switch (axis)
+    {
+        case 0:
+            if (value < bounds.minX)
+            {
+                bounds.minX = value;
+            }
+            if (value > bounds.maxX)
+            {
+                bounds.maxX = value;
+            }
+            break;
+        case 1:
+            if (value < bounds.minY)
+            {
+                bounds.minY = value;
+            }
+            if (value > bounds.maxY)
+            {
+                bounds.maxY = value;
+            }
+            break;
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+
+// Expand our bounds to a point (in normalized T space) on the cubic.
+static void expandBoundsToCubicPoint(AABB& bounds,
+                                     int axis,
+                                     float t,
+                                     float a,
+                                     float b,
+                                     float c,
+                                     float d)
+{
+    if (t >= 0.0f && t <= 1.0f)
+    {
+        float ti = 1.0f - t;
+        float pointAtT = ((ti * ti * ti) * a) + ((3.0f * ti * ti * t) * b) +
+                         ((3.0f * ti * t * t) * c) + (t * t * t * d);
+        expandAxisBounds(bounds, axis, pointAtT);
+    }
+}
+
+// Based on finding the extremas of the curve as described here:
+// https://pomax.github.io/bezierinfo/#extremities and based on PR we provided to the Flutter team
+// here: https://github.com/flutter/engine/pull/19054 and here:
+// https://github.com/luigi-rosso/engine/blob/9ae3efd7dc6bcb9634402b4b8818d0add096c12d/lib/web_ui/lib/src/engine/surface/path.dart#L892
+static void expandCubicBoundsForAxis(AABB& bounds,
+                                     int axis,
+                                     float start,
+                                     float cp1,
+                                     float cp2,
+                                     float end)
+{
+    // Check start/end as cubic goes through those.
+    expandAxisBounds(bounds, axis, start);
+    expandAxisBounds(bounds, axis, end);
+    // Now check extremas.
+
+    // Find the first derivative
+    float a = 3.0f * (cp1 - start);
+    float b = 3.0f * (cp2 - cp1);
+    float c = 3.0f * (end - cp2);
+    float d = a - 2.0f * b + c;
+
+    // Solve roots for first derivative.
+    if (d != 0)
+    {
+        float m1 = -std::sqrtf(b * b - a * c);
+        float m2 = -a + b;
+
+        // First root.
+        expandBoundsToCubicPoint(bounds, axis, -(m1 + m2) / d, start, cp1, cp2, end);
+        expandBoundsToCubicPoint(bounds, axis, -(-m1 + m2) / d, start, cp1, cp2, end);
+    }
+    else if (b != c && d == 0)
+    {
+        expandBoundsToCubicPoint(bounds,
+                                 axis,
+                                 (2.0f * b - c) / (2.0f * (b - c)),
+                                 start,
+                                 cp1,
+                                 cp2,
+                                 end);
+    }
+
+    // Derive the first derivative to get the 2nd and use the root of
+    // that (linear).
+    float d2a = 2.0f * (b - a);
+    float d2b = 2.0f * (c - b);
+    if (d2a != b)
+    {
+        expandBoundsToCubicPoint(bounds, axis, d2a / (d2a - d2b), start, cp1, cp2, end);
+    }
+}
+
+AABB RawPath::preciseBounds() const
+{
+    AABB bounds = AABB::forExpansion();
+    for (auto iter : *this)
+    {
+        PathVerb verb = std::get<0>(iter);
+        const Vec2D* pts = std::get<1>(iter);
+        switch (verb)
+        {
+            case PathVerb::move:
+                bounds.expandTo(bounds, pts[0]);
+                break;
+            case PathVerb::line:
+                bounds.expandTo(bounds, pts[1]);
+                break;
+            case PathVerb::cubic:
+                expandCubicBoundsForAxis(bounds, 0, pts[0].x, pts[1].x, pts[2].x, pts[3].x);
+                expandCubicBoundsForAxis(bounds, 1, pts[0].y, pts[1].y, pts[2].y, pts[3].y);
+                break;
+            case PathVerb::close:
+                break;
+            case PathVerb::quad:
+                // Rive very rarely computes precise bounds for quadratics so we
+                // don't implement this specific case. We do use it in the
+                // editor for some cases so we still solve it as a cubic.
+                Vec2D pt1 = Vec2D::lerp(pts[0], pts[1], 2 / 3.f);
+                Vec2D pt2 = Vec2D::lerp(pts[2], pts[1], 2 / 3.f);
+                expandCubicBoundsForAxis(bounds, 0, pts[0].x, pt1.x, pt2.x, pts[2].x);
+                expandCubicBoundsForAxis(bounds, 1, pts[0].y, pt1.y, pt2.y, pts[2].y);
+                break;
+        }
+    }
+    return bounds;
+}
+#endif
+
 } // namespace rive
