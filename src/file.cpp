@@ -274,7 +274,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 case ViewModelPropertyEnum::typeKey:
                 {
                     auto vme = object->as<ViewModelPropertyEnum>();
-                    vme->dataEnum(m_Enums[vme->enumId()]);
+                    if (vme->enumId() < m_Enums.size())
+                    {
+                        vme->dataEnum(m_Enums[vme->enumId()]);
+                    }
                 }
                 break;
             }
