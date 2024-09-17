@@ -1,6 +1,6 @@
 #ifndef _RIVE_STATE_TRANSITION_HPP_
 #define _RIVE_STATE_TRANSITION_HPP_
-#include "rive/animation/cubic_interpolator.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/animation/state_transition_flags.hpp"
 #include "rive/generated/animation/state_transition_base.hpp"
 #include <stdio.h>
@@ -36,7 +36,7 @@ private:
     }
     LayerState* m_StateTo = nullptr;
     uint32_t m_EvaluatedRandomWeight = 1;
-    CubicInterpolator* m_Interpolator = nullptr;
+    KeyFrameInterpolator* m_Interpolator = nullptr;
 
     std::vector<TransitionCondition*> m_Conditions;
     void addCondition(TransitionCondition* condition);
@@ -44,7 +44,7 @@ private:
 public:
     ~StateTransition() override;
     const LayerState* stateTo() const { return m_StateTo; }
-    inline CubicInterpolator* interpolator() const { return m_Interpolator; }
+    inline KeyFrameInterpolator* interpolator() const { return m_Interpolator; }
 
     inline uint32_t evaluatedRandomWeight() const { return m_EvaluatedRandomWeight; }
     void evaluatedRandomWeight(uint32_t value) { m_EvaluatedRandomWeight = value; }

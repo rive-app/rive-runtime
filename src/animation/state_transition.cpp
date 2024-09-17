@@ -32,11 +32,11 @@ StatusCode StateTransition::onAddedDirty(CoreContext* context)
     if (interpolatorId() != -1)
     {
         auto coreObject = context->resolve(interpolatorId());
-        if (coreObject == nullptr || !coreObject->is<CubicInterpolator>())
+        if (coreObject == nullptr || !coreObject->is<KeyFrameInterpolator>())
         {
             return StatusCode::MissingObject;
         }
-        m_Interpolator = coreObject->as<CubicInterpolator>();
+        m_Interpolator = coreObject->as<KeyFrameInterpolator>();
     }
 
     for (auto condition : m_Conditions)

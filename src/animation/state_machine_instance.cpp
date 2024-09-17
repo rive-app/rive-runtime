@@ -3,7 +3,7 @@
 #include "rive/animation/animation_state_instance.hpp"
 #include "rive/animation/animation_state.hpp"
 #include "rive/animation/any_state.hpp"
-#include "rive/animation/cubic_interpolator.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/layer_state_flags.hpp"
 #include "rive/animation/nested_linear_animation.hpp"
@@ -365,20 +365,20 @@ public:
             m_holdAnimation = nullptr;
         }
 
-        CubicInterpolator* cubic = nullptr;
+        KeyFrameInterpolator* interpolator = nullptr;
         if (m_transition != nullptr && m_transition->interpolator() != nullptr)
         {
-            cubic = m_transition->interpolator();
+            interpolator = m_transition->interpolator();
         }
 
         if (m_stateFrom != nullptr && m_mix < 1.0f)
         {
-            auto fromMix = cubic != nullptr ? cubic->transform(m_mixFrom) : m_mixFrom;
+            auto fromMix = interpolator != nullptr ? interpolator->transform(m_mixFrom) : m_mixFrom;
             m_stateFrom->apply(m_artboardInstance, fromMix);
         }
         if (m_currentState != nullptr)
         {
-            auto mix = cubic != nullptr ? cubic->transform(m_mix) : m_mix;
+            auto mix = interpolator != nullptr ? interpolator->transform(m_mix) : m_mix;
             m_currentState->apply(m_artboardInstance, mix);
         }
     }
