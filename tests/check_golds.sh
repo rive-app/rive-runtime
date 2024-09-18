@@ -43,7 +43,7 @@ while :; do
             shift
             ;;
         -n)
-            ARGS="$ARGS --no-rebuild"
+            ARGS="$ARGS --no-rebuild --no-install"
             shift
             ;;
         *)
@@ -62,7 +62,8 @@ open_file() {
     fi
 }
 
-# Updated to "--no-rebuild" after the first backend (so we only rebuild once).
+# Updated to "--no-rebuild --no-install" after the first backend (so we only
+# rebuild once).
 NO_REBUILD=
 
 for BACKEND in "${@:-$DEFAULT_BACKEND}"
@@ -104,5 +105,5 @@ do
             || open_file .gold/diffs/$ID/index.html
     fi
 
-    NO_REBUILD=--no-rebuild
+    NO_REBUILD="--no-rebuild --no-install"
 done

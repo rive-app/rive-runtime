@@ -59,7 +59,7 @@ static void sig_handler(int signo)
     printf("Received signal %i (\"%s\")\n", signo, strsignal(signo));
     signal(signo, SIG_DFL);
     TestHarness::Instance().onApplicationCrash(strsignal(signo));
-    exit(-1);
+    abort();
 }
 
 static void check_early_exit()

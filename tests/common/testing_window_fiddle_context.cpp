@@ -47,7 +47,7 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
             {
                 switch (key)
                 {
-                    // clang-format off
+                        // clang-format off
                     case GLFW_KEY_1: key = '!'; break;
                     case GLFW_KEY_2: key = '@'; break;
                     case GLFW_KEY_3: key = '#'; break;
@@ -182,6 +182,7 @@ public:
             .synchronousShaderCompilations = true,
             .enableReadPixels = true,
             .disableRasterOrdering = IsAtomic(backend),
+            .coreFeaturesOnly = IsCore(backend),
             .allowHeadlessRendering = visibility == Visibility::headless,
             .enableVulkanValidationLayers = true,
             .gpuNameFilter = gpuNameFilter,
@@ -206,12 +207,12 @@ public:
             case Backend::metalatomic:
                 m_fiddleContext = FiddleContext::MakeMetalPLS(fiddleOptions);
                 break;
-            case Backend::vulkan:
-            case Backend::vulkanatomic:
+            case Backend::vk:
+            case Backend::vkcore:
             case Backend::moltenvk:
-            case Backend::moltenvkatomic:
+            case Backend::moltenvkcore:
             case Backend::swiftshader:
-            case Backend::swiftshaderatomic:
+            case Backend::swiftshadercore:
                 m_fiddleContext = FiddleContext::MakeVulkanPLS(fiddleOptions);
                 break;
             case Backend::dawn:

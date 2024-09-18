@@ -23,8 +23,8 @@ class RenderTarget;
 } // namespace gpu
 }; // namespace rive
 
-// Wraps a factory for rive::Renderer and a singleton target for it to render into (GL window, HTML
-// canvas, software buffer, etc.):
+// Wraps a factory for rive::Renderer and a singleton target for it to render into
+// (GL window, HTML canvas, software buffer, etc.):
 //
 //   TestingWindow::Init(type);
 //   renderer = TestingWindow::Get()->reset(width, height);
@@ -44,19 +44,19 @@ public:
         metalatomic,
 
         // System default Vulkan driver.
-        vulkan,
-        vulkanatomic,
+        vk,
+        vkcore, // Vulkan with as few features enabled as possible.
 
         // Vulkan on Metal, aka MoltenVK.
-        // (defaults to /usr/local/share/vulkan/icd.d/MoltenVK_icd.json if VK_ICD_FILENAMES is not
-        // set.)
+        // (defaults to /usr/local/share/vulkan/icd.d/MoltenVK_icd.json if
+        // VK_ICD_FILENAMES is not set.)
         moltenvk,
-        moltenvkatomic,
+        moltenvkcore,
 
         // Swiftshader, Google's CPU implementation of Vulkan.
         // (defaults to ./vk_swiftshader_icd.json if VK_ICD_FILENAMES is not set.)
         swiftshader,
-        swiftshaderatomic,
+        swiftshadercore,
 
         angle,
         anglemsaa,
@@ -78,12 +78,12 @@ public:
             case Backend::d3datomic:
             case Backend::metal:
             case Backend::metalatomic:
-            case Backend::vulkan:
-            case Backend::vulkanatomic:
+            case Backend::vk:
+            case Backend::vkcore:
             case Backend::moltenvk:
-            case Backend::moltenvkatomic:
+            case Backend::moltenvkcore:
             case Backend::swiftshader:
-            case Backend::swiftshaderatomic:
+            case Backend::swiftshadercore:
             case Backend::dawn:
             case Backend::coregraphics:
                 return false;
@@ -105,12 +105,12 @@ public:
             case Backend::d3datomic:
             case Backend::metal:
             case Backend::metalatomic:
-            case Backend::vulkan:
-            case Backend::vulkanatomic:
+            case Backend::vk:
+            case Backend::vkcore:
             case Backend::moltenvk:
-            case Backend::moltenvkatomic:
+            case Backend::moltenvkcore:
             case Backend::swiftshader:
-            case Backend::swiftshaderatomic:
+            case Backend::swiftshadercore:
             case Backend::dawn:
             case Backend::coregraphics:
                 return false;
@@ -122,12 +122,12 @@ public:
     {
         switch (backend)
         {
-            case Backend::vulkan:
-            case Backend::vulkanatomic:
+            case Backend::vk:
+            case Backend::vkcore:
             case Backend::moltenvk:
-            case Backend::moltenvkatomic:
+            case Backend::moltenvkcore:
             case Backend::swiftshader:
-            case Backend::swiftshaderatomic:
+            case Backend::swiftshadercore:
                 return true;
             case Backend::gl:
             case Backend::glatomic:
@@ -152,15 +152,42 @@ public:
             case Backend::glatomic:
             case Backend::d3datomic:
             case Backend::metalatomic:
-            case Backend::vulkanatomic:
-            case Backend::moltenvkatomic:
-            case Backend::swiftshaderatomic:
+            case Backend::vkcore:
+            case Backend::moltenvkcore:
+            case Backend::swiftshadercore:
                 return true;
             case Backend::gl:
             case Backend::glmsaa:
             case Backend::d3d:
             case Backend::metal:
-            case Backend::vulkan:
+            case Backend::vk:
+            case Backend::moltenvk:
+            case Backend::swiftshader:
+            case Backend::angle:
+            case Backend::anglemsaa:
+            case Backend::dawn:
+            case Backend::coregraphics:
+                return false;
+        }
+        RIVE_UNREACHABLE();
+    }
+
+    constexpr static bool IsCore(Backend backend)
+    {
+        switch (backend)
+        {
+            case Backend::vkcore:
+            case Backend::moltenvkcore:
+            case Backend::swiftshadercore:
+                return true;
+            case Backend::glatomic:
+            case Backend::d3datomic:
+            case Backend::metalatomic:
+            case Backend::gl:
+            case Backend::glmsaa:
+            case Backend::d3d:
+            case Backend::metal:
+            case Backend::vk:
             case Backend::moltenvk:
             case Backend::swiftshader:
             case Backend::angle:
@@ -182,13 +209,13 @@ public:
             case Backend::glatomic:
             case Backend::d3datomic:
             case Backend::metalatomic:
-            case Backend::vulkanatomic:
-            case Backend::moltenvkatomic:
-            case Backend::swiftshaderatomic:
+            case Backend::vkcore:
+            case Backend::moltenvkcore:
+            case Backend::swiftshadercore:
             case Backend::gl:
             case Backend::d3d:
             case Backend::metal:
-            case Backend::vulkan:
+            case Backend::vk:
             case Backend::moltenvk:
             case Backend::swiftshader:
             case Backend::angle:
@@ -240,7 +267,8 @@ public:
     virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const { return nullptr; }
     virtual rive::gpu::RenderTarget* renderTarget() const { return nullptr; }
 
-    // For testing render pass breaks. Caller must call renderContext()->beginFrame() again.
+    // For testing render pass breaks. Caller must call
+    // renderContext()->beginFrame() again.
     virtual void flushPLSContext() {}
 
     // Blocks until a key is pressed.
@@ -270,7 +298,8 @@ private:
                                                             Visibility,
                                                             const char* gpuNameFilter,
                                                             void* platformWindow);
-    static std::unique_ptr<TestingWindow> MakeVulkanTexture(const char* gpuNameFilter);
+    static std::unique_ptr<TestingWindow> MakeVulkanTexture(bool coreFeaturesOnly,
+                                                            const char* gpuNameFilter);
     static std::unique_ptr<TestingWindow> MakeAndroidVulkan(void* platformWindow);
 };
 

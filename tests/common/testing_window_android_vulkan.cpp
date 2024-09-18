@@ -14,19 +14,15 @@ std::unique_ptr<TestingWindow> TestingWindow::MakeAndroidVulkan(void* platformWi
 #else
 
 #include "rive_vk_bootstrap/rive_vk_bootstrap.hpp"
-#include "rive_vk_bootstrap/vulkan_fence_pool.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
+#include "rive/renderer/vulkan/vkutil_resource_pool.hpp"
 #include <vulkan/vulkan_android.h>
 #include <vk_mem_alloc.h>
 #include <android/native_app_glue/android_native_app_glue.h>
 
 using namespace rive;
 using namespace rive::gpu;
-
-// +1 because PLS doesn't wait for the previous fence until partway through flush.
-// (After we need to acquire a new image from the swapchain.)
-static constexpr int kResourcePoolSize = gpu::kBufferRingSize + 1;
 
 class TestingWindowAndroidVulkan : public TestingWindow
 {
@@ -62,9 +58,10 @@ public:
 
         VulkanFeatures vulkanFeatures;
         std::tie(m_physicalDevice, vulkanFeatures) = rive_vkb::select_physical_device(
-            vkb::PhysicalDeviceSelector(m_instance).set_surface(m_windowSurface));
+            vkb::PhysicalDeviceSelector(m_instance).set_surface(m_windowSurface),
+            rive_vkb::FeatureSet::allAvailable);
         m_device = VKB_CHECK(vkb::DeviceBuilder(m_physicalDevice).build());
-        m_vkTable = m_device.make_table();
+        m_vkbTable = m_device.make_table();
         m_queue = VKB_CHECK(m_device.get_queue(vkb::QueueType::graphics));
         m_renderContext = RenderContextVulkanImpl::MakeContext(m_instance,
                                                                m_physicalDevice,
@@ -96,7 +93,8 @@ public:
         }
         else
         {
-            printf("Android window does NOT support VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT. "
+            printf("Android window does NOT support "
+                   "VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT. "
                    "Performance will suffer.\n");
             swapchainBuilder.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
                 .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
@@ -124,38 +122,12 @@ public:
                                               }));
         }
 
-        m_swapchainImageLayouts = std::vector(m_swapchainImages.size(), VK_IMAGE_LAYOUT_UNDEFINED);
-
-        m_swapchainImageIndex = 0;
-
         m_renderTarget = impl()->makeRenderTarget(m_width, m_height, m_swapchain.image_format);
-
-        VkCommandPoolCreateInfo commandPoolCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .flags = VkCommandPoolCreateFlagBits::VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-            .queueFamilyIndex = *m_device.get_queue_index(vkb::QueueType::graphics),
-        };
-
-        VK_CHECK(m_vkTable.createCommandPool(&commandPoolCreateInfo, nullptr, &m_commandPool));
-
-        VkCommandBufferAllocateInfo commandBufferAllocateInfo = {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = m_commandPool,
-            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = static_cast<uint32_t>(std::size(m_commandBuffers)),
-        };
-
-        VK_CHECK(m_vkTable.allocateCommandBuffers(&commandBufferAllocateInfo, m_commandBuffers));
-
-        VkSemaphoreCreateInfo semaphoreCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        };
-        for (VkSemaphore& semaphore : m_semaphores)
-        {
-            VK_CHECK(m_vkTable.createSemaphore(&semaphoreCreateInfo, nullptr, &semaphore));
-        }
-
-        m_fencePool = make_rcp<VulkanFencePool>(ref_rcp(vk()));
+        m_commandBufferPool = make_rcp<vkutil::ResourcePool<vkutil::CommandBuffer>>(
+            ref_rcp(vk()),
+            *m_device.get_queue_index(vkb::QueueType::graphics));
+        m_semaphorePool = make_rcp<vkutil::ResourcePool<vkutil::Semaphore>>(ref_rcp(vk()));
+        m_fencePool = make_rcp<vkutil::ResourcePool<vkutil::Fence>>(ref_rcp(vk()));
     }
 
     ~TestingWindowAndroidVulkan()
@@ -166,15 +138,11 @@ public:
         m_swapchainImageViews.clear();
         m_fencePool.reset();
 
-        VK_CHECK(m_vkTable.queueWaitIdle(m_queue));
+        VK_CHECK(m_vkbTable.queueWaitIdle(m_queue));
 
-        m_vkTable.freeCommandBuffers(m_commandPool, kResourcePoolSize, m_commandBuffers);
-        m_vkTable.destroyCommandPool(m_commandPool, nullptr);
-
-        for (VkSemaphore semaphore : m_semaphores)
-        {
-            m_vkTable.destroySemaphore(semaphore, nullptr);
-        }
+        m_commandBufferPool = nullptr;
+        m_semaphorePool = nullptr;
+        m_fencePool = nullptr;
 
         if (m_swapchain != VK_NULL_HANDLE)
         {
@@ -222,60 +190,68 @@ public:
 
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
-        m_vkTable.acquireNextImageKHR(m_swapchain,
-                                      UINT64_MAX,
-                                      m_semaphores[m_resourcePoolIdx],
-                                      VK_NULL_HANDLE,
-                                      &m_swapchainImageIndex);
+        auto swapchainSemaphore = m_semaphorePool->make();
+        m_vkbTable.acquireNextImageKHR(m_swapchain,
+                                       UINT64_MAX,
+                                       *swapchainSemaphore,
+                                       VK_NULL_HANDLE,
+                                       &m_swapchainImageIndex);
 
-        VkCommandBuffer commandBuffer = m_commandBuffers[m_resourcePoolIdx];
-        m_vkTable.resetCommandBuffer(commandBuffer, {});
+        auto commandBuffer = m_commandBufferPool->make();
 
         VkCommandBufferBeginInfo commandBufferBeginInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         };
+        m_vkbTable.beginCommandBuffer(*commandBuffer, &commandBufferBeginInfo);
 
-        m_vkTable.beginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+        m_renderTarget->setTargetTextureView(m_swapchainImageViews[m_swapchainImageIndex], {});
 
-        m_renderTarget->setTargetTextureView(m_swapchainImageViews[m_swapchainImageIndex]);
-
-        insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_GENERAL);
-
-        rcp<VulkanFence> frameFence = m_fencePool->makeFence();
+        rcp<vkutil::Fence> frameFence = m_fencePool->make();
 
         m_renderContext->flush({
             .renderTarget = m_renderTarget.get(),
-            .externalCommandBuffer = m_commandBuffers[m_resourcePoolIdx],
+            .externalCommandBuffer = *commandBuffer,
             .frameCompletionFence = frameFence.get(),
         });
 
-        insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        m_renderTarget->setTargetLastAccess(vk()->simpleImageMemoryBarrier(
+            *commandBuffer,
+            m_renderTarget->targetLastAccess(),
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                .accessMask = VK_ACCESS_NONE,
+                .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            },
+            m_swapchainImages[m_swapchainImageIndex]));
 
-        VK_CHECK(m_vkTable.endCommandBuffer(commandBuffer));
+        VK_CHECK(m_vkbTable.endCommandBuffer(*commandBuffer));
 
-        VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        auto flushSemaphore = m_semaphorePool->make();
+        VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
         VkSubmitInfo submitInfo = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = swapchainSemaphore->vkSemaphoreAddressOf(),
             .pWaitDstStageMask = &waitDstStageMask,
             .commandBufferCount = 1,
-            .pCommandBuffers = &commandBuffer,
+            .pCommandBuffers = commandBuffer->vkCommandBufferAddressOf(),
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores = flushSemaphore->vkSemaphoreAddressOf(),
         };
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &m_semaphores[m_resourcePoolIdx];
 
-        VK_CHECK(m_vkTable.queueSubmit(m_queue, 1, &submitInfo, *frameFence));
+        VK_CHECK(m_vkbTable.queueSubmit(m_queue, 1, &submitInfo, *frameFence));
 
         VkPresentInfoKHR presentInfo = {
             .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = flushSemaphore->vkSemaphoreAddressOf(),
             .swapchainCount = 1,
             .pSwapchains = &m_swapchain.swapchain,
             .pImageIndices = &m_swapchainImageIndex,
         };
 
-        m_vkTable.queuePresentKHR(m_queue, &presentInfo);
-
-        m_resourcePoolIdx = (m_resourcePoolIdx + 1) % kResourcePoolSize;
+        m_vkbTable.queuePresentKHR(m_queue, &presentInfo);
     }
 
 private:
@@ -286,39 +262,25 @@ private:
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
-    void insertSwapchainImageBarrier(VkImageLayout newLayout)
-    {
-        vk()->insertImageMemoryBarrier(m_commandBuffers[m_resourcePoolIdx],
-                                       m_swapchainImages[m_swapchainImageIndex],
-                                       m_swapchainImageLayouts[m_swapchainImageIndex],
-                                       newLayout);
-        m_swapchainImageLayouts[m_swapchainImageIndex] = newLayout;
-    }
-
     vkb::Instance m_instance;
     vkb::InstanceDispatchTable m_instanceFns;
     vkb::PhysicalDevice m_physicalDevice;
     vkb::Device m_device;
-    vkb::DispatchTable m_vkTable;
+    vkb::DispatchTable m_vkbTable;
     VkQueue m_queue;
 
     VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
     vkb::Swapchain m_swapchain;
     std::vector<VkImage> m_swapchainImages;
     std::vector<rcp<vkutil::TextureView>> m_swapchainImageViews;
-    std::vector<VkImageLayout> m_swapchainImageLayouts;
-    uint32_t m_swapchainImageIndex;
+    uint32_t m_swapchainImageIndex = 0;
 
-    VkCommandPool m_commandPool;
-    VkCommandBuffer m_commandBuffers[kResourcePoolSize];
-    VkSemaphore m_semaphores[kResourcePoolSize];
-
-    rcp<VulkanFencePool> m_fencePool;
+    rcp<vkutil::ResourcePool<vkutil::CommandBuffer>> m_commandBufferPool;
+    rcp<vkutil::ResourcePool<vkutil::Semaphore>> m_semaphorePool;
+    rcp<vkutil::ResourcePool<vkutil::Fence>> m_fencePool;
 
     std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetVulkan> m_renderTarget;
-
-    int m_resourcePoolIdx = 0;
 };
 
 std::unique_ptr<TestingWindow> TestingWindow::MakeAndroidVulkan(void* platformWindow)

@@ -82,11 +82,16 @@ void Buffer::init()
     }
 }
 
-void Buffer::flushMappedContents(size_t updatedSizeInBytes)
+void Buffer::flushContents(size_t updatedSizeInBytes)
 {
     // Leave the buffer constantly mapped and let the OS/drivers handle the
     // rest.
     vmaFlushAllocation(m_vk->vmaAllocator, m_vmaAllocation, 0, updatedSizeInBytes);
+}
+
+void Buffer::invalidateContents(size_t updatedSizeInBytes)
+{
+    vmaInvalidateAllocation(m_vk->vmaAllocator, m_vmaAllocation, 0, updatedSizeInBytes);
 }
 
 BufferRing::BufferRing(rcp<VulkanContext> vk,
@@ -136,10 +141,10 @@ void* BufferRing::contentsAt(int bufferRingIdx, size_t dirtySize)
     return m_buffers[bufferRingIdx]->contents();
 }
 
-void BufferRing::flushMappedContentsAt(int bufferRingIdx)
+void BufferRing::flushContentsAt(int bufferRingIdx)
 {
     assert(m_pendingFlushSize > 0);
-    m_buffers[bufferRingIdx]->flushMappedContents(m_pendingFlushSize);
+    m_buffers[bufferRingIdx]->flushContents(m_pendingFlushSize);
     m_pendingFlushSize = 0;
 }
 

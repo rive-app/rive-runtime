@@ -12,8 +12,9 @@
 #include <windows.h>
 #endif
 
-// Don't explicitly delete this object. Calling eglDestroyContext during app teardown causes a crash
-// on Pixel 4. The OS will clean this up for us automatically when we exit.
+// Don't explicitly delete this object. Calling eglDestroyContext during app
+// teardown causes a crash on Pixel 4. The OS will clean this up for us
+// automatically when we exit.
 std::unique_ptr<TestingWindow> s_TestingWindow = nullptr;
 
 const char* TestingWindow::BackendName(Backend backend)
@@ -34,18 +35,18 @@ const char* TestingWindow::BackendName(Backend backend)
             return "metal";
         case TestingWindow::Backend::metalatomic:
             return "metalatomic";
-        case TestingWindow::Backend::vulkan:
-            return "vulkan";
-        case TestingWindow::Backend::vulkanatomic:
-            return "vulkanatomic";
+        case TestingWindow::Backend::vk:
+            return "vk";
+        case TestingWindow::Backend::vkcore:
+            return "vkcore";
         case TestingWindow::Backend::moltenvk:
             return "moltenvk";
-        case TestingWindow::Backend::moltenvkatomic:
-            return "moltenvkatomic";
+        case TestingWindow::Backend::moltenvkcore:
+            return "moltenvkcore";
         case TestingWindow::Backend::swiftshader:
             return "swiftshader";
-        case TestingWindow::Backend::swiftshaderatomic:
-            return "swiftshaderatomic";
+        case TestingWindow::Backend::swiftshadercore:
+            return "swiftshadercore";
         case TestingWindow::Backend::angle:
             return "angle";
         case TestingWindow::Backend::anglemsaa:
@@ -72,7 +73,8 @@ static std::vector<std::string> split(const char* str, char delimiter)
 
 TestingWindow::Backend TestingWindow::ParseBackend(const char* name, std::string* gpuNameFilter)
 {
-    // Backends can come in the form <backendName>, or <gpuNameFilter>/<backendName>.
+    // Backends can come in the form <backendName>, or
+    // <gpuNameFilter>/<backendName>.
     std::vector<std::string> tokens = split(name, '/');
     assert(!tokens.empty());
     if (gpuNameFilter != nullptr)
@@ -95,17 +97,17 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name, std::string
     if (nameStr == "metalatomic")
         return Backend::metalatomic;
     if (nameStr == "vulkan" || nameStr == "vk")
-        return Backend::vulkan;
-    if (nameStr == "vulkanatomic" || nameStr == "vkatomic")
-        return Backend::vulkanatomic;
+        return Backend::vk;
+    if (nameStr == "vulkancore" || nameStr == "vkcore")
+        return Backend::vkcore;
     if (nameStr == "moltenvk" || nameStr == "mvk")
         return Backend::moltenvk;
-    if (nameStr == "moltenvkatomic" || nameStr == "mvkatomic")
-        return Backend::moltenvkatomic;
+    if (nameStr == "moltenvkcore" || nameStr == "mvkcore")
+        return Backend::moltenvkcore;
     if (nameStr == "swiftshader" || nameStr == "sw")
         return Backend::swiftshader;
-    if (nameStr == "swiftshaderatomic" || nameStr == "swatomic")
-        return Backend::swiftshaderatomic;
+    if (nameStr == "swiftshadercore" || nameStr == "swcore")
+        return Backend::swiftshadercore;
     if (nameStr == "angle")
         return Backend::angle;
     if (nameStr == "anglemsaa")
@@ -163,23 +165,25 @@ TestingWindow* TestingWindow::Init(Backend backend,
                 s_TestingWindow = MakeEGL(backend, platformWindow);
             }
             break;
-        case Backend::vulkan:
-        case Backend::vulkanatomic:
+        case Backend::vk:
+        case Backend::vkcore:
         case Backend::moltenvk:
-        case Backend::moltenvkatomic:
+        case Backend::moltenvkcore:
         case Backend::swiftshader:
-        case Backend::swiftshaderatomic:
-            if (backend == Backend::moltenvk || backend == Backend::moltenvkatomic)
+        case Backend::swiftshadercore:
+            if (backend == Backend::moltenvk || backend == Backend::moltenvkcore)
             {
-                // Use the MoltenVK built by packages/runtime/renderer/make_moltenvk.sh
+                // Use the MoltenVK built by
+                // packages/runtime/renderer/make_moltenvk.sh
                 constexpr static char kMoltenVKICD[] =
                     "../renderer/dependencies/MoltenVK/Package/Release/"
                     "MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json";
                 set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
             }
-            else if (backend == Backend::swiftshader || backend == Backend::swiftshaderatomic)
+            else if (backend == Backend::swiftshader || backend == Backend::swiftshadercore)
             {
-                // Use the swiftshader built by packages/runtime/renderer/make_swiftshader.sh
+                // Use the swiftshader built by
+                // packages/runtime/renderer/make_swiftshader.sh
                 constexpr static char kSwiftShaderICD[] =
 #ifdef __APPLE__
                     "../renderer/dependencies/SwiftShader/build/Darwin/"
@@ -202,7 +206,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
 #endif
             if (visibility == Visibility::headless)
             {
-                s_TestingWindow = TestingWindow::MakeVulkanTexture(gpuNameFilter);
+                s_TestingWindow = TestingWindow::MakeVulkanTexture(IsCore(backend), gpuNameFilter);
             }
             else
             {

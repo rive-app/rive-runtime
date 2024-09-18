@@ -85,7 +85,7 @@ protected:
         return m_bufferRing.contentsAt(backBufferIdx());
     }
 
-    void onUnmap() override { m_bufferRing.flushMappedContentsAt(backBufferIdx()); }
+    void onUnmap() override { m_bufferRing.flushContentsAt(backBufferIdx()); }
 
 private:
     vkutil::BufferRing m_bufferRing;
@@ -122,9 +122,8 @@ public:
             },
             vkutil::Mappability::writeOnly))
     {
-        memcpy(vkutil::ScopedBufferFlush(*m_imageUploadBuffer),
-               imageDataRGBA,
-               m_imageUploadBuffer->info().size);
+        memcpy(m_imageUploadBuffer->contents(), imageDataRGBA, m_imageUploadBuffer->info().size);
+        m_imageUploadBuffer->flushContents();
     }
 
     bool hasUpdates() const { return m_imageUploadBuffer != nullptr; }
@@ -143,12 +142,22 @@ public:
             .imageExtent = {width(), height(), 1},
         };
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       *m_texture,
-                                       VK_IMAGE_LAYOUT_UNDEFINED,
-                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                       0,
-                                       m_texture->info().mipLevels);
+        m_vk->imageMemoryBarrier(commandBuffer,
+                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 0,
+                                 {
+                                     .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                                     .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                                     .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                     .image = *m_texture,
+                                     .subresourceRange =
+                                         {
+                                             .baseMipLevel = 0,
+                                             .levelCount = m_texture->info().mipLevels,
+                                         },
+                                 });
 
         m_vk->CmdCopyBufferToImage(commandBuffer,
                                    *m_imageUploadBuffer,
@@ -187,12 +196,22 @@ public:
                 imageBlit.dstOffsets[0] = {0, 0, 0};
                 imageBlit.dstOffsets[1] = {dstSize.x, dstSize.y, 1};
 
-                m_vk->insertImageMemoryBarrier(commandBuffer,
-                                               *m_texture,
-                                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                               VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                               level - 1,
-                                               1);
+                m_vk->imageMemoryBarrier(commandBuffer,
+                                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                         VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                         0,
+                                         {
+                                             .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                                             .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                                             .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                             .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                             .image = *m_texture,
+                                             .subresourceRange =
+                                                 {
+                                                     .baseMipLevel = level - 1,
+                                                     .levelCount = 1,
+                                                 },
+                                         });
 
                 m_vk->CmdBlitImage(commandBuffer,
                                    *m_texture,
@@ -204,20 +223,40 @@ public:
                                    VK_FILTER_LINEAR);
             }
 
-            m_vk->insertImageMemoryBarrier(commandBuffer,
-                                           *m_texture,
-                                           VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                           VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                           0,
-                                           mipLevels - 1);
+            m_vk->imageMemoryBarrier(commandBuffer,
+                                     VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                     0,
+                                     {
+                                         .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                                         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                                         .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                         .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                         .image = *m_texture,
+                                         .subresourceRange =
+                                             {
+                                                 .baseMipLevel = 0,
+                                                 .levelCount = mipLevels - 1,
+                                             },
+                                     });
         }
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       *m_texture,
-                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                       VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                       mipLevels - 1,
-                                       1);
+        m_vk->imageMemoryBarrier(commandBuffer,
+                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                 0,
+                                 {
+                                     .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                                     .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                                     .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                     .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                     .image = *m_texture,
+                                     .subresourceRange =
+                                         {
+                                             .baseMipLevel = mipLevels - 1,
+                                             .levelCount = 1,
+                                         },
+                                 });
 
         m_imageUploadBuffer = nullptr;
     }
@@ -389,7 +428,7 @@ public:
             .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
             .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         };
         VkAttachmentReference attachmentReference = {
             .attachment = 0,
@@ -634,8 +673,8 @@ public:
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-            .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         };
         VkAttachmentReference attachmentReference = {
             .attachment = 0,
@@ -1028,13 +1067,16 @@ public:
         if (m_renderPasses[renderPassVariantIdx] == VK_NULL_HANDLE)
         {
             // Create the render pass.
+            VkAttachmentLoadOp colorLoadOp = LoadOpFromRenderPassVariant(renderPassVariantIdx);
             VkAttachmentDescription attachmentDescriptions[] = {
                 {
                     .format = FormatFromRenderPassVariant(renderPassVariantIdx),
                     .samples = VK_SAMPLE_COUNT_1_BIT,
-                    .loadOp = LoadOpFromRenderPassVariant(renderPassVariantIdx),
+                    .loadOp = colorLoadOp,
                     .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .initialLayout = colorLoadOp == VK_ATTACHMENT_LOAD_OP_LOAD
+                                         ? VK_IMAGE_LAYOUT_GENERAL
+                                         : VK_IMAGE_LAYOUT_UNDEFINED,
                     .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
                 },
                 {
@@ -1042,7 +1084,7 @@ public:
                     .samples = VK_SAMPLE_COUNT_1_BIT,
                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
                 },
                 {
@@ -1050,7 +1092,7 @@ public:
                     .samples = VK_SAMPLE_COUNT_1_BIT,
                     .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
                 },
                 {
@@ -1058,7 +1100,7 @@ public:
                     .samples = VK_SAMPLE_COUNT_1_BIT,
                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-                    .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
                 },
             };
@@ -1110,11 +1152,11 @@ public:
                 .pColorAttachments = attachmentReferences,
             };
 
-            if (m_interlockMode == gpu::InterlockMode::rasterOrdering)
+            if (m_interlockMode == gpu::InterlockMode::rasterOrdering &&
+                m_vk->features.rasterizationOrderColorAttachmentAccess)
             {
                 // With EXT_rasterization_order_attachment_access, we just need
-                // this flag and all "subpassLoad" dependencies are implicit.
-                assert(m_vk->features.rasterizationOrderColorAttachmentAccess);
+                // this flag and all subpass dependencies are implicit.
                 subpassDescription.flags |=
                     VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT;
             }
@@ -1127,10 +1169,11 @@ public:
                 .pSubpasses = &subpassDescription,
             };
 
-            if (m_interlockMode == gpu::InterlockMode::atomics)
+            if (!(subpassDescription.flags &
+                  VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT))
             {
-                // Without EXT_rasterization_order_attachment_access (aka atomic mode),
-                // "subpassLoad" calls require explicit dependencies and barriers.
+                // Without EXT_rasterization_order_attachment_access, we need to
+                // declare a "subpassLoad" dependency.
                 constexpr static VkSubpassDependency kSubpassLoadDependency = {
                     .srcSubpass = 0,
                     .dstSubpass = 0,
@@ -1596,9 +1639,9 @@ public:
             .pAttachments = blendColorAttachments,
         };
 
-        if (interlockMode == gpu::InterlockMode::rasterOrdering)
+        if (interlockMode == gpu::InterlockMode::rasterOrdering &&
+            m_vk->features.rasterizationOrderColorAttachmentAccess)
         {
-            assert(m_vk->features.rasterizationOrderColorAttachmentAccess);
             pipelineColorBlendStateCreateInfo.flags |=
                 VK_PIPELINE_COLOR_BLEND_STATE_CREATE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_BIT_EXT;
         }
@@ -1674,22 +1717,28 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(VkInstance instance,
     m_tessSpanBufferRing(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vkutil::Mappability::writeOnly),
     m_triangleBufferRing(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vkutil::Mappability::writeOnly),
     m_colorRampPipeline(std::make_unique<ColorRampPipeline>(m_vk)),
-    m_tessellatePipeline(std::make_unique<TessellatePipeline>(m_vk))
+    m_tessellatePipeline(std::make_unique<TessellatePipeline>(m_vk)),
+    m_descriptorSetPoolPool(make_rcp<vkutil::ResourcePool<DescriptorSetPool>>(m_vk))
 {
     m_platformFeatures.supportsRasterOrdering = features.rasterizationOrderColorAttachmentAccess;
     m_platformFeatures.supportsFragmentShaderAtomics = features.fragmentStoresAndAtomics;
     m_platformFeatures.invertOffscreenY = false;
     m_platformFeatures.uninvertOnScreenY = true;
 
-    VkPhysicalDeviceProperties physicalDeviceProperties;
-    m_vk->GetPhysicalDeviceProperties(m_vk->physicalDevice, &physicalDeviceProperties);
-    if (physicalDeviceProperties.vendorID == vkutil::kVendorQualcomm)
+    if (features.vendorID == vkutil::kVendorQualcomm)
     {
         // Qualcomm advertises EXT_rasterization_order_attachment_access, but it's
         // slow. Use atomics instead on this platform.
         m_platformFeatures.supportsRasterOrdering = false;
         // Pixel4 struggles with fine-grained fp16 path IDs.
         m_platformFeatures.pathIDGranularity = 2;
+    }
+    else if (features.vendorID == vkutil::kVendorARM)
+    {
+        // This is undocumented, but raster ordering always works on ARM Mali GPUs
+        // if you define a subpass dependency, even without
+        // EXT_rasterization_order_attachment_access.
+        m_platformFeatures.supportsRasterOrdering = true;
     }
 }
 
@@ -1732,9 +1781,8 @@ void RenderContextVulkanImpl::initGPUObjects()
             .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         },
         vkutil::Mappability::writeOnly);
-    memcpy(vkutil::ScopedBufferFlush(*m_tessSpanIndexBuffer),
-           gpu::kTessSpanIndices,
-           sizeof(gpu::kTessSpanIndices));
+    memcpy(m_tessSpanIndexBuffer->contents(), gpu::kTessSpanIndices, sizeof(gpu::kTessSpanIndices));
+    m_tessSpanIndexBuffer->flushContents();
 
     m_pathPatchVertexBuffer = m_vk->makeBuffer(
         {
@@ -1749,8 +1797,10 @@ void RenderContextVulkanImpl::initGPUObjects()
         },
         vkutil::Mappability::writeOnly);
     gpu::GeneratePatchBufferData(
-        vkutil::ScopedBufferFlush(*m_pathPatchVertexBuffer).as<PatchVertex*>(),
-        vkutil::ScopedBufferFlush(*m_pathPatchIndexBuffer).as<uint16_t*>());
+        reinterpret_cast<PatchVertex*>(m_pathPatchVertexBuffer->contents()),
+        reinterpret_cast<uint16_t*>(m_pathPatchIndexBuffer->contents()));
+    m_pathPatchVertexBuffer->flushContents();
+    m_pathPatchIndexBuffer->flushContents();
 
     m_imageRectVertexBuffer = m_vk->makeBuffer(
         {
@@ -1758,18 +1808,20 @@ void RenderContextVulkanImpl::initGPUObjects()
             .usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
         },
         vkutil::Mappability::writeOnly);
-    memcpy(vkutil::ScopedBufferFlush(*m_imageRectVertexBuffer),
+    memcpy(m_imageRectVertexBuffer->contents(),
            gpu::kImageRectVertices,
            sizeof(gpu::kImageRectVertices));
+    m_imageRectVertexBuffer->flushContents();
     m_imageRectIndexBuffer = m_vk->makeBuffer(
         {
             .size = sizeof(gpu::kImageRectIndices),
             .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         },
         vkutil::Mappability::writeOnly);
-    memcpy(vkutil::ScopedBufferFlush(*m_imageRectIndexBuffer),
+    memcpy(m_imageRectIndexBuffer->contents(),
            gpu::kImageRectIndices,
            sizeof(gpu::kImageRectIndices));
+    m_imageRectIndexBuffer->flushContents();
 }
 
 RenderContextVulkanImpl::~RenderContextVulkanImpl()
@@ -1883,9 +1935,8 @@ constexpr static uint32_t kMaxStorageBufferUpdates = 6;
 constexpr static uint32_t kMaxDescriptorSets = 3 + kMaxImageTextureUpdates;
 } // namespace descriptor_pool_limits
 
-RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
-    RenderContextVulkanImpl* renderContextImpl) :
-    RenderingResource(renderContextImpl->m_vk), m_renderContextImpl(renderContextImpl)
+RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(rcp<VulkanContext> vk) :
+    m_vk(std::move(vk))
 {
     VkDescriptorPoolSize descriptorPoolSizes[] = {
         {
@@ -1931,7 +1982,6 @@ RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
 
 RenderContextVulkanImpl::DescriptorSetPool::~DescriptorSetPool()
 {
-    freeDescriptorSets();
     m_vk->DestroyDescriptorPool(m_vk->device, m_vkDescriptorPool, nullptr);
 }
 
@@ -1945,55 +1995,19 @@ VkDescriptorSet RenderContextVulkanImpl::DescriptorSetPool::allocateDescriptorSe
         .pSetLayouts = &layout,
     };
 
-    VK_CHECK(m_vk->AllocateDescriptorSets(m_vk->device,
-                                          &descriptorSetAllocateInfo,
-                                          &m_descriptorSets.emplace_back()));
+    VkDescriptorSet descriptorSet;
+    VK_CHECK(
+        m_vk->AllocateDescriptorSets(m_vk->device, &descriptorSetAllocateInfo, &descriptorSet));
 
-    return m_descriptorSets.back();
+    return descriptorSet;
 }
 
-void RenderContextVulkanImpl::DescriptorSetPool::freeDescriptorSets()
+void RenderContextVulkanImpl::DescriptorSetPool::reset()
 {
     m_vk->ResetDescriptorPool(m_vk->device, m_vkDescriptorPool, 0);
 }
 
-void RenderContextVulkanImpl::DescriptorSetPool::onRefCntReachedZero() const
-{
-    constexpr static uint32_t kMaxDescriptorSetPoolsInPool = 64;
-
-    if (m_renderContextImpl->m_descriptorSetPoolPool.size() < kMaxDescriptorSetPoolsInPool)
-    {
-        // Hang out in the renderContext's m_descriptorSetPoolPool until in-flight
-        // command buffers have finished using our descriptors.
-        m_renderContextImpl->m_descriptorSetPoolPool.emplace_back(
-            const_cast<DescriptorSetPool*>(this),
-            m_vk->currentFrameIdx());
-    }
-    else
-    {
-        delete this;
-    }
-}
-
-rcp<RenderContextVulkanImpl::DescriptorSetPool> RenderContextVulkanImpl::makeDescriptorSetPool()
-{
-    rcp<DescriptorSetPool> pool;
-    if (!m_descriptorSetPoolPool.empty() &&
-        m_descriptorSetPoolPool.front().expirationFrameIdx <= m_vk->currentFrameIdx())
-    {
-        pool = ref_rcp(m_descriptorSetPoolPool.front().resource.release());
-        pool->freeDescriptorSets();
-        m_descriptorSetPoolPool.pop_front();
-    }
-    else
-    {
-        pool = make_rcp<DescriptorSetPool>(this);
-    }
-    assert(pool->debugging_refcnt() == 1);
-    return pool;
-}
-
-VkImageView RenderTargetVulkan::ensureOffscreenColorTextureView(VkCommandBuffer commandBuffer)
+vkutil::TextureView* RenderTargetVulkan::ensureOffscreenColorTextureView()
 {
     if (m_offscreenColorTextureView == nullptr)
     {
@@ -2004,17 +2018,13 @@ VkImageView RenderTargetVulkan::ensureOffscreenColorTextureView(VkCommandBuffer 
                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         });
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       *m_offscreenColorTexture,
-                                       VK_IMAGE_LAYOUT_UNDEFINED,
-                                       VK_IMAGE_LAYOUT_GENERAL);
         m_offscreenColorTextureView = m_vk->makeTextureView(m_offscreenColorTexture);
     }
 
-    return *m_offscreenColorTextureView;
+    return m_offscreenColorTextureView.get();
 }
 
-VkImageView RenderTargetVulkan::ensureCoverageTextureView(VkCommandBuffer commandBuffer)
+vkutil::TextureView* RenderTargetVulkan::ensureCoverageTextureView()
 {
     if (m_coverageTextureView == nullptr)
     {
@@ -2025,17 +2035,13 @@ VkImageView RenderTargetVulkan::ensureCoverageTextureView(VkCommandBuffer comman
                      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         });
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       *m_coverageTexture,
-                                       VK_IMAGE_LAYOUT_UNDEFINED,
-                                       VK_IMAGE_LAYOUT_GENERAL);
         m_coverageTextureView = m_vk->makeTextureView(m_coverageTexture);
     }
 
-    return *m_coverageTextureView;
+    return m_coverageTextureView.get();
 }
 
-VkImageView RenderTargetVulkan::ensureClipTextureView(VkCommandBuffer commandBuffer)
+vkutil::TextureView* RenderTargetVulkan::ensureClipTextureView()
 {
     if (m_clipTextureView == nullptr)
     {
@@ -2046,17 +2052,13 @@ VkImageView RenderTargetVulkan::ensureClipTextureView(VkCommandBuffer commandBuf
                      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         });
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       *m_clipTexture,
-                                       VK_IMAGE_LAYOUT_UNDEFINED,
-                                       VK_IMAGE_LAYOUT_GENERAL);
         m_clipTextureView = m_vk->makeTextureView(m_clipTexture);
     }
 
-    return *m_clipTextureView;
+    return m_clipTextureView.get();
 }
 
-VkImageView RenderTargetVulkan::ensureScratchColorTextureView(VkCommandBuffer commandBuffer)
+vkutil::TextureView* RenderTargetVulkan::ensureScratchColorTextureView()
 {
     if (m_scratchColorTextureView == nullptr)
     {
@@ -2067,18 +2069,13 @@ VkImageView RenderTargetVulkan::ensureScratchColorTextureView(VkCommandBuffer co
                      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         });
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       *m_scratchColorTexture,
-                                       VK_IMAGE_LAYOUT_UNDEFINED,
-                                       VK_IMAGE_LAYOUT_GENERAL);
-
         m_scratchColorTextureView = m_vk->makeTextureView(m_scratchColorTexture);
     }
 
-    return *m_scratchColorTextureView;
+    return m_scratchColorTextureView.get();
 }
 
-VkImageView RenderTargetVulkan::ensureCoverageAtomicTextureView(VkCommandBuffer commandBuffer)
+vkutil::TextureView* RenderTargetVulkan::ensureCoverageAtomicTextureView()
 {
     if (m_coverageAtomicTextureView == nullptr)
     {
@@ -2089,38 +2086,107 @@ VkImageView RenderTargetVulkan::ensureCoverageAtomicTextureView(VkCommandBuffer 
                      VK_IMAGE_USAGE_TRANSFER_DST_BIT, // For vkCmdClearColorImage
         });
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       *m_coverageAtomicTexture,
-                                       VK_IMAGE_LAYOUT_UNDEFINED,
-                                       VK_IMAGE_LAYOUT_GENERAL);
-
         m_coverageAtomicTextureView = m_vk->makeTextureView(m_coverageAtomicTexture);
     }
 
-    return *m_coverageAtomicTextureView;
+    return m_coverageAtomicTextureView.get();
 }
 
 void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 {
+    constexpr static VkDeviceSize zeroOffset[1] = {0};
+    constexpr static uint32_t zeroOffset32[1] = {0};
+
     if (desc.interlockMode == gpu::InterlockMode::depthStencil)
     {
         return;
     }
 
     auto commandBuffer = reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
-    rcp<DescriptorSetPool> descriptorSetPool = makeDescriptorSetPool();
+    rcp<DescriptorSetPool> descriptorSetPool = m_descriptorSetPoolPool->make();
 
-    constexpr static VkDeviceSize zeroOffset[1] = {0};
-    constexpr static uint32_t zeroOffset32[1] = {0};
+    // Apply pending texture updates.
+    if (m_nullImageTexture->hasUpdates())
+    {
+        m_nullImageTexture->synchronize(commandBuffer);
+    }
+    for (const DrawBatch& batch : *desc.drawList)
+    {
+        if (auto imageTextureVulkan = static_cast<const TextureVulkanImpl*>(batch.imageTexture))
+        {
+            if (imageTextureVulkan->hasUpdates())
+            {
+                imageTextureVulkan->synchronize(commandBuffer);
+            }
+        }
+    }
 
-    m_vk->insertImageMemoryBarrier(commandBuffer,
+    VulkanContext::TextureAccess lastGradTextureAccess, lastTessTextureAccess;
+    lastTessTextureAccess = lastGradTextureAccess = {
+        // The last thing to access the gradient and tessellation textures was the
+        // previous flush. Make sure our barriers account for this so we don't
+        // overwrite these textures before previous draws are done reading them.
+        .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+        .accessMask = VK_ACCESS_SHADER_READ_BIT,
+        // Transition from an "UNDEFINED" layout because we don't care about
+        // preserving color ramp content from the previous frame.
+        .layout = VK_IMAGE_LAYOUT_UNDEFINED,
+    };
+
+    // Copy the simple color ramps to the gradient texture.
+    if (desc.simpleGradTexelsHeight > 0)
+    {
+        // Wait for previous accesses to finish before copying to the gradient
+        // texture.
+        lastGradTextureAccess =
+            m_vk->simpleImageMemoryBarrier(commandBuffer,
+                                           lastGradTextureAccess,
+                                           {
+                                               .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                               .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                                               .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                           },
+                                           *m_gradientTexture);
+
+        VkBufferImageCopy bufferImageCopy{
+            .bufferOffset = desc.simpleGradDataOffsetInBytes,
+            .bufferRowLength = gpu::kGradTextureWidth,
+            .imageSubresource =
+                {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .layerCount = 1,
+                },
+            .imageExtent =
+                {
+                    desc.simpleGradTexelsWidth,
+                    desc.simpleGradTexelsHeight,
+                    1,
+                },
+        };
+
+        m_vk->CmdCopyBufferToImage(commandBuffer,
+                                   m_simpleColorRampsBufferRing.vkBufferAt(m_bufferRingIdx),
                                    *m_gradientTexture,
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                   1,
+                                   &bufferImageCopy);
+    }
 
     // Render the complex color ramps to the gradient texture.
     if (desc.complexGradSpanCount > 0)
     {
+        // Wait for previous accesses to finish before rendering to the gradient
+        // texture.
+        lastGradTextureAccess = m_vk->simpleImageMemoryBarrier(
+            commandBuffer,
+            lastGradTextureAccess,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            },
+            *m_gradientTexture);
+
         VkRect2D renderArea = {
             .offset = {0, static_cast<int32_t>(desc.complexGradRowsTop)},
             .extent = {gpu::kGradTextureWidth, desc.complexGradRowsHeight},
@@ -2174,53 +2240,38 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         m_vk->CmdDraw(commandBuffer, 4, desc.complexGradSpanCount, 0, 0);
 
         m_vk->CmdEndRenderPass(commandBuffer);
+
+        // The render pass transitioned the gradient texture to
+        // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
+        lastGradTextureAccess.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
-    m_vk->insertImageMemoryBarrier(commandBuffer,
-                                   *m_gradientTexture,
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
-    // Copy the simple color ramps to the gradient texture.
-    if (desc.simpleGradTexelsHeight > 0)
-    {
-        VkBufferImageCopy bufferImageCopy{
-            .bufferOffset = desc.simpleGradDataOffsetInBytes,
-            .bufferRowLength = gpu::kGradTextureWidth,
-            .imageSubresource =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .layerCount = 1,
-                },
-            .imageExtent =
-                {
-                    desc.simpleGradTexelsWidth,
-                    desc.simpleGradTexelsHeight,
-                    1,
-                },
-        };
-
-        m_vk->CmdCopyBufferToImage(commandBuffer,
-                                   m_simpleColorRampsBufferRing.vkBufferAt(m_bufferRingIdx),
-                                   *m_gradientTexture,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   1,
-                                   &bufferImageCopy);
-    }
-
-    m_vk->insertImageMemoryBarrier(commandBuffer,
-                                   *m_gradientTexture,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    m_vk->insertImageMemoryBarrier(commandBuffer,
-                                   *m_tessVertexTexture,
-                                   VK_IMAGE_LAYOUT_UNDEFINED,
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL);
+    // Ensure the gradient texture has finished updating before the path fragment
+    // shaders read it.
+    m_vk->simpleImageMemoryBarrier(commandBuffer,
+                                   lastGradTextureAccess,
+                                   {
+                                       .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                       .accessMask = VK_ACCESS_SHADER_READ_BIT,
+                                       .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   },
+                                   *m_gradientTexture);
 
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
+        // Don't render new vertices until the previous flush has finished using
+        // the tessellation texture.
+        lastTessTextureAccess = m_vk->simpleImageMemoryBarrier(
+            commandBuffer,
+            lastTessTextureAccess,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            },
+            *m_tessVertexTexture);
+
         VkRect2D renderArea = {
             .extent = {gpu::kTessTextureWidth, desc.tessDataHeight},
         };
@@ -2303,28 +2354,22 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                              0);
 
         m_vk->CmdEndRenderPass(commandBuffer);
+
+        // The render pass transitioned the tessellation texture to
+        // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
+        lastTessTextureAccess.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
-    m_vk->insertImageMemoryBarrier(commandBuffer,
-                                   *m_tessVertexTexture,
-                                   VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-                                   VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL);
-
-    // Apply pending texture updates.
-    if (m_nullImageTexture->hasUpdates())
-    {
-        m_nullImageTexture->synchronize(commandBuffer);
-    }
-    for (const DrawBatch& batch : *desc.drawList)
-    {
-        if (auto imageTextureVulkan = static_cast<const TextureVulkanImpl*>(batch.imageTexture))
-        {
-            if (imageTextureVulkan->hasUpdates())
-            {
-                imageTextureVulkan->synchronize(commandBuffer);
-            }
-        }
-    }
+    // Ensure the tessellation texture has finished rendering before the path
+    // vertex shaders read it.
+    m_vk->simpleImageMemoryBarrier(commandBuffer,
+                                   lastTessTextureAccess,
+                                   {
+                                       .pipelineStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+                                       .accessMask = VK_ACCESS_SHADER_READ_BIT,
+                                       .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                                   },
+                                   *m_tessVertexTexture);
 
     auto pipelineLayoutOptions = DrawPipelineLayoutOptions::none;
     if (m_vk->features.independentBlend && desc.interlockMode == gpu::InterlockMode::atomics &&
@@ -2343,55 +2388,77 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             std::make_unique<DrawPipelineLayout>(this, desc.interlockMode, pipelineLayoutOptions);
     }
     DrawPipelineLayout& pipelineLayout = *m_drawPipelineLayouts[pipelineLayoutIdx];
+    bool fixedFunctionColorBlend =
+        pipelineLayout.options() & DrawPipelineLayoutOptions::fixedFunctionColorBlend;
 
     auto* renderTarget = static_cast<RenderTargetVulkan*>(desc.renderTarget);
 
-    auto targetView =
+    vkutil::TextureView* colorView =
         renderTarget->targetViewContainsUsageFlag(VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
-                (pipelineLayout.options() & DrawPipelineLayoutOptions::fixedFunctionColorBlend)
+                fixedFunctionColorBlend
             ? renderTarget->targetTextureView()
-            : renderTarget->ensureOffscreenColorTextureView(commandBuffer);
-    auto clipView = renderTarget->ensureClipTextureView(commandBuffer);
-    auto scratchColorTextureView = desc.interlockMode == gpu::InterlockMode::atomics
-                                       ? VK_NULL_HANDLE
-                                       : renderTarget->ensureScratchColorTextureView(commandBuffer);
-    auto coverageTextureView = desc.interlockMode == gpu::InterlockMode::atomics
-                                   ? renderTarget->ensureCoverageAtomicTextureView(commandBuffer)
-                                   : renderTarget->ensureCoverageTextureView(commandBuffer);
+            : renderTarget->ensureOffscreenColorTextureView();
+    vkutil::TextureView* clipView = renderTarget->ensureClipTextureView();
+    vkutil::TextureView* scratchColorTextureView =
+        desc.interlockMode == gpu::InterlockMode::atomics
+            ? VK_NULL_HANDLE
+            : renderTarget->ensureScratchColorTextureView();
+    vkutil::TextureView* coverageTextureView = desc.interlockMode == gpu::InterlockMode::atomics
+                                                   ? renderTarget->ensureCoverageAtomicTextureView()
+                                                   : renderTarget->ensureCoverageTextureView();
 
-    if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget &&
-        targetView == renderTarget->offscreenColorTextureView())
+    VulkanContext::TextureAccess initialColorAccess = renderTarget->targetLastAccess();
+
+    if (desc.colorLoadAction != gpu::LoadAction::preserveRenderTarget)
     {
+        // No need to preserve what was in the render target before.
+        initialColorAccess.layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    }
+    else if (colorView == renderTarget->offscreenColorTextureView())
+    {
+        // The access we just declared was actually for the *renderTarget* texture,
+        // not the actual color attachment we will render to, which will be the the
+        // offscreen texture.
+        VulkanContext::TextureAccess initialRenderTargetAccess = initialColorAccess;
+
+        // The initial *color attachment* (aka offscreenColorTexture) access is
+        // the previous frame's copy into the renderTarget texture.
+        initialColorAccess = {
+            .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        };
+
         // Copy the target into our offscreen color texture before rendering.
+        VkImageMemoryBarrier imageMemoryBarriers[] = {
+            {
+                .srcAccessMask = initialRenderTargetAccess.accessMask,
+                .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                .oldLayout = initialRenderTargetAccess.layout,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .image = renderTarget->targetTexture(),
+            },
+            {
+                .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                .dstAccessMask = initialColorAccess.accessMask,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = initialColorAccess.layout,
+                .image = renderTarget->offscreenColorTexture(),
+            },
+        };
 
-        auto targetTexture = renderTarget->targetTexture();
-        // we know the offscreenColorTexture exists because of the if condition
-        auto offScreenTexture = renderTarget->offscreenColorTexture();
-
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       targetTexture,
-                                       VK_IMAGE_LAYOUT_GENERAL,
-                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
-
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       offScreenTexture,
-                                       VK_IMAGE_LAYOUT_GENERAL,
-                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        m_vk->imageMemoryBarriers(
+            commandBuffer,
+            initialRenderTargetAccess.pipelineStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
+            initialColorAccess.pipelineStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            std::size(imageMemoryBarriers),
+            imageMemoryBarriers);
 
         m_vk->blitSubRect(commandBuffer,
-                          targetTexture,
-                          offScreenTexture,
+                          renderTarget->targetTexture(),
+                          renderTarget->offscreenColorTexture(),
                           desc.renderTargetUpdateBounds);
-
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       targetTexture,
-                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                       VK_IMAGE_LAYOUT_GENERAL);
-
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       offScreenTexture,
-                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                       VK_IMAGE_LAYOUT_GENERAL);
     }
 
     int renderPassVariantIdx =
@@ -2400,10 +2467,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     VkRenderPass vkRenderPass = pipelineLayout.renderPassAt(renderPassVariantIdx);
 
     VkImageView imageViews[] = {
-        targetView,
-        clipView,
-        scratchColorTextureView,
-        desc.interlockMode == gpu::InterlockMode::atomics ? VK_NULL_HANDLE : coverageTextureView,
+        *colorView,
+        *clipView,
+        scratchColorTextureView != nullptr ? *scratchColorTextureView : VK_NULL_HANDLE,
+        coverageTextureView != nullptr ? *coverageTextureView : VK_NULL_HANDLE,
     };
 
     static_assert(COLOR_PLANE_IDX == 0);
@@ -2436,31 +2503,44 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
 
+    // Ensure any previous accesses to the color texture complete before we begin
+    // rendering.
+    m_vk->simpleImageMemoryBarrier(
+        commandBuffer,
+        initialColorAccess,
+        {
+            // "Load" operations always occur in
+            // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
+            .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .layout = VK_IMAGE_LAYOUT_GENERAL,
+        },
+        colorView->info().image);
+
     bool needsBarrierBeforeNextDraw = false;
     if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
-        // If the color attachment will be cleared, make sure we get a barrier on
-        // it before shaders access it via subpassLoad().
-        needsBarrierBeforeNextDraw =
-#if 0
-            // TODO: If we end up using HW blend when not using advanced blend, we
-            // don't need a barrier after the clear.
-            desc.combinedShaderFeatures &
-                gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
-#endif
-            desc.colorLoadAction == gpu::LoadAction::clear;
-
         // Clear the coverage texture, which is not an attachment.
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       renderTarget->coverageAtomicTexture(),
-                                       VK_IMAGE_LAYOUT_GENERAL,
-                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
-
         VkImageSubresourceRange clearRange = {
             .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
             .levelCount = 1,
             .layerCount = 1,
         };
+
+        // Don't clear the coverage texture until shaders in the previous flush
+        // have finished using it.
+        m_vk->imageMemoryBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            {
+                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .image = renderTarget->coverageAtomicTexture(),
+            });
 
         m_vk->CmdClearColorImage(commandBuffer,
                                  renderTarget->coverageAtomicTexture(),
@@ -2469,10 +2549,36 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                  1,
                                  &clearRange);
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       renderTarget->coverageAtomicTexture(),
-                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                       VK_IMAGE_LAYOUT_GENERAL);
+        // Don't use the coverage texture in shaders until the clear finishes.
+        m_vk->imageMemoryBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            {
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .image = renderTarget->coverageAtomicTexture(),
+            });
+
+        // Ensure all reads to any internal attachments complete before we execute the
+        // load operations.
+        m_vk->memoryBarrier(commandBuffer,
+                            // "Load" operations always occur in
+                            // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
+                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                            0,
+                            {
+                                .srcAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+                                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                            });
+
+        // Make sure we get a barrier between load operations and the first color
+        // attachment accesses.
+        needsBarrierBeforeNextDraw = true;
     }
 
     VkRenderPassBeginInfo renderPassBeginInfo = {
@@ -2584,7 +2690,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     VkDescriptorSet inputAttachmentDescriptorSet =
         descriptorSetPool->allocateDescriptorSet(pipelineLayout.plsLayout());
 
-    if (!(pipelineLayoutOptions & DrawPipelineLayoutOptions::fixedFunctionColorBlend))
+    if (!fixedFunctionColorBlend)
     {
         m_vk->updateImageDescriptorSets(inputAttachmentDescriptorSet,
                                         {
@@ -2592,7 +2698,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                                         },
                                         {{
-                                            .imageView = targetView,
+                                            .imageView = *colorView,
                                             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                                         }});
     }
@@ -2603,7 +2709,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                         .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                                     },
                                     {{
-                                        .imageView = clipView,
+                                        .imageView = *clipView,
                                         .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                                     }});
 
@@ -2615,7 +2721,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                                         },
                                         {{
-                                            .imageView = scratchColorTextureView,
+                                            .imageView = *scratchColorTextureView,
                                             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                                         }});
     }
@@ -2629,7 +2735,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                   : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
         },
         {{
-            .imageView = coverageTextureView,
+            .imageView = *coverageTextureView,
             .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
         }});
 
@@ -2681,7 +2787,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 {
                     // We ran out of room for image texture updates. Allocate a new
                     // pool.
-                    descriptorSetPool = makeDescriptorSetPool();
+                    descriptorSetPool = m_descriptorSetPoolPool->make();
                     imageTextureUpdateCount = 0;
                 }
 
@@ -2756,23 +2862,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         if (needsBarrierBeforeNextDraw)
         {
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
-
-            VkMemoryBarrier memoryBarrier = {
-                .sType = VkStructureType::VK_STRUCTURE_TYPE_MEMORY_BARRIER,
-                .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
-            };
-
-            m_vk->CmdPipelineBarrier(commandBuffer,
-                                     VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                     VK_DEPENDENCY_BY_REGION_BIT,
-                                     1,
-                                     &memoryBarrier,
-                                     0,
-                                     nullptr,
-                                     0,
-                                     nullptr);
+            m_vk->memoryBarrier(commandBuffer,
+                                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                VK_DEPENDENCY_BY_REGION_BIT,
+                                {
+                                    .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                                    .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+                                });
         }
 
         switch (drawType)
@@ -2869,36 +2966,62 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     m_vk->CmdEndRenderPass(commandBuffer);
 
-    if (targetView == renderTarget->offscreenColorTextureView())
+    VulkanContext::TextureAccess finalRenderTargetAccess = {
+        // "Store" operations always occur in
+        // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
+        .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
+
+    if (colorView == renderTarget->offscreenColorTextureView())
     {
-        // Copy our offscreen color texture back to the render target now that we've finished
-        // rendering.
-        auto dstImage = renderTarget->targetTexture();
-        // we know the offscreenColorTexture exists because of the if condition
-        auto offScreenTexture = renderTarget->offscreenColorTexture();
+        // The access we just declared was actually for the offscreen texture, not
+        // the final target.
+        VulkanContext::TextureAccess finalOffscreenAccess = finalRenderTargetAccess;
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       offScreenTexture,
-                                       VK_IMAGE_LAYOUT_GENERAL,
-                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+        // The final *renderTarget* access will be a copy from the offscreen
+        // texture.
+        finalRenderTargetAccess = {
+            .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+        };
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       dstImage,
-                                       VK_IMAGE_LAYOUT_GENERAL,
-                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL);
+        // Copy our offscreen color texture back to the render target now that
+        // we've finished rendering.
+        VkImageMemoryBarrier imageMemoryBarriers[] = {
+            {
+                .srcAccessMask = finalOffscreenAccess.accessMask,
+                .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                .oldLayout = finalOffscreenAccess.layout,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .image = renderTarget->offscreenColorTexture(),
+            },
+            {
+                .srcAccessMask = VK_ACCESS_NONE,
+                .dstAccessMask = finalRenderTargetAccess.accessMask,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = finalRenderTargetAccess.layout,
+                .image = renderTarget->targetTexture(),
+            },
+        };
 
-        m_vk->blitSubRect(commandBuffer, offScreenTexture, dstImage, desc.renderTargetUpdateBounds);
+        m_vk->imageMemoryBarriers(
+            commandBuffer,
+            finalOffscreenAccess.pipelineStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
+            finalRenderTargetAccess.pipelineStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            std::size(imageMemoryBarriers),
+            imageMemoryBarriers);
 
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       dstImage,
-                                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                       VK_IMAGE_LAYOUT_GENERAL);
-
-        m_vk->insertImageMemoryBarrier(commandBuffer,
-                                       offScreenTexture,
-                                       VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                       VK_IMAGE_LAYOUT_GENERAL);
+        m_vk->blitSubRect(commandBuffer,
+                          renderTarget->offscreenColorTexture(),
+                          renderTarget->targetTexture(),
+                          desc.renderTargetUpdateBounds);
     }
+
+    renderTarget->setTargetLastAccess(finalRenderTargetAccess);
 
     if (desc.isFinalFlushOfFrame)
     {

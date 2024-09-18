@@ -26,7 +26,8 @@ VulkanContext::VulkanContext(VkInstance instance,
     device(device_),
     features(features_),
     vmaAllocator(make_vma_allocator({
-        .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT, // We are single-threaded.
+        // We are single-threaded.
+        .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
         .physicalDevice = physicalDevice,
         .device = device,
         .pVulkanFunctions =
@@ -39,7 +40,6 @@ VulkanContext::VulkanContext(VkInstance instance,
     , CMD(reinterpret_cast<PFN_vk##CMD>(fp_vkGetInstanceProcAddr(instance, "vk" #CMD)))
 #define LOAD_VULKAN_DEVICE_COMMAND(CMD)                                                            \
     , CMD(reinterpret_cast<PFN_vk##CMD>(fp_vkGetDeviceProcAddr(device, "vk" #CMD)))
-    RIVE_VULKAN_INSTANCE_COMMANDS(LOAD_VULKAN_INSTANCE_COMMAND)
     RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
 #undef LOAD_VULKAN_DEVICE_COMMAND
 #undef LOAD_VULKAN_INSTANCE_COMMAND
@@ -184,136 +184,76 @@ void VulkanContext::updateBufferDescriptorSets(
     UpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
 }
 
-static VkAccessFlags pipeline_stage_for_layout(VkImageLayout layout)
+void VulkanContext::memoryBarrier(VkCommandBuffer commandBuffer,
+                                  VkPipelineStageFlags srcStageMask,
+                                  VkPipelineStageFlags dstStageMask,
+                                  VkDependencyFlags dependencyFlags,
+                                  VkMemoryBarrier memoryBarrier)
 {
-    switch (layout)
-    {
-        case VK_IMAGE_LAYOUT_UNDEFINED:
-            return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        case VK_IMAGE_LAYOUT_GENERAL:
-            return VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-            return VK_PIPELINE_STAGE_TRANSFER_BIT;
-        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-            return VK_PIPELINE_STAGE_TRANSFER_BIT;
-        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-            return VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
-        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            return VK_PIPELINE_STAGE_VERTEX_SHADER_BIT | VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT;
-        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
-            return VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        default:
-            fprintf(stderr,
-                    "vkutil::insert_image_memory_barrier: layout 0x%x is not "
-                    "supported\n",
-                    layout);
-    }
-    RIVE_UNREACHABLE();
-}
-
-static VkAccessFlags access_flags_for_layout(VkImageLayout layout)
-{
-    switch (layout)
-    {
-        case VK_IMAGE_LAYOUT_UNDEFINED:
-            return VK_ACCESS_NONE;
-        case VK_IMAGE_LAYOUT_GENERAL:
-            return VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT;
-        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-            return VK_ACCESS_TRANSFER_WRITE_BIT;
-        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-            return VK_ACCESS_TRANSFER_READ_BIT;
-        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-            return VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            return VK_ACCESS_SHADER_READ_BIT;
-        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
-            return VK_ACCESS_NONE;
-        default:
-            fprintf(stderr,
-                    "vkutil::insert_image_memory_barrier: layout 0x%x is not "
-                    "supported\n",
-                    layout);
-    }
-    RIVE_UNREACHABLE();
-}
-
-void VulkanContext::insertImageMemoryBarrier(VkCommandBuffer commandBuffer,
-                                             VkImage image,
-                                             VkImageLayout oldLayout,
-                                             VkImageLayout newLayout,
-                                             uint32_t mipLevel,
-                                             uint32_t levelCount)
-{
-    VkImageMemoryBarrier imageMemoryBarrier = {
-        .sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER,
-        .srcAccessMask = access_flags_for_layout(oldLayout),
-        .dstAccessMask = access_flags_for_layout(newLayout),
-        .oldLayout = oldLayout,
-        .newLayout = newLayout,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .image = image,
-        .subresourceRange =
-            {
-                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                .baseMipLevel = mipLevel,
-                .levelCount = levelCount,
-                .layerCount = VK_REMAINING_ARRAY_LAYERS,
-            },
-    };
-
+    memoryBarrier.sType = VK_STRUCTURE_TYPE_MEMORY_BARRIER;
     CmdPipelineBarrier(commandBuffer,
-                       pipeline_stage_for_layout(oldLayout),
-                       pipeline_stage_for_layout(newLayout),
-                       0,
-                       0,
-                       nullptr,
-                       0,
-                       nullptr,
+                       srcStageMask,
+                       dstStageMask,
+                       dependencyFlags,
                        1,
-                       &imageMemoryBarrier);
-}
-
-static VkAccessFlags pipeline_stage_for_buffer_access(VkAccessFlags access)
-{
-    switch (access)
-    {
-        case VK_ACCESS_TRANSFER_WRITE_BIT:
-            return VK_PIPELINE_STAGE_TRANSFER_BIT;
-        case VK_ACCESS_HOST_READ_BIT:
-            return VK_PIPELINE_STAGE_HOST_BIT;
-        default:
-            fprintf(stderr,
-                    "vkutil::insert_buffer_memory_barrier: access %u is not "
-                    "supported\n",
-                    access);
-    }
-    RIVE_UNREACHABLE();
-}
-
-void VulkanContext::insertBufferMemoryBarrier(VkCommandBuffer commandBuffer,
-                                              VkAccessFlags srcAccessMask,
-                                              VkAccessFlags dstAccessMask,
-                                              VkBuffer buffer,
-                                              VkDeviceSize offset,
-                                              VkDeviceSize size)
-{
-    VkBufferMemoryBarrier bufferMemoryBarrier = {
-        .sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER,
-        .srcAccessMask = srcAccessMask,
-        .dstAccessMask = dstAccessMask,
-        .srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED,
-        .buffer = buffer,
-        .offset = offset,
-        .size = size,
-    };
-
-    CmdPipelineBarrier(commandBuffer,
-                       pipeline_stage_for_buffer_access(srcAccessMask),
-                       pipeline_stage_for_buffer_access(dstAccessMask),
+                       &memoryBarrier,
                        0,
+                       nullptr,
+                       0,
+                       nullptr);
+}
+
+void VulkanContext::imageMemoryBarriers(VkCommandBuffer commandBuffer,
+                                        VkPipelineStageFlags srcStageMask,
+                                        VkPipelineStageFlags dstStageMask,
+                                        VkDependencyFlags dependencyFlags,
+                                        uint32_t count,
+                                        VkImageMemoryBarrier* imageMemoryBarriers)
+{
+    for (uint32_t i = 0; i < count; ++i)
+    {
+        auto& imageMemoryBarrier = imageMemoryBarriers[i];
+        imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
+        if (imageMemoryBarrier.subresourceRange.aspectMask == 0)
+        {
+            imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+        }
+        if (imageMemoryBarrier.subresourceRange.levelCount == 0)
+        {
+            imageMemoryBarrier.subresourceRange.levelCount = 1;
+        }
+        if (imageMemoryBarrier.subresourceRange.layerCount == 0)
+        {
+            imageMemoryBarrier.subresourceRange.layerCount = 1;
+        }
+    }
+    CmdPipelineBarrier(commandBuffer,
+                       srcStageMask,
+                       dstStageMask,
+                       dependencyFlags,
+                       0,
+                       nullptr,
+                       0,
+                       nullptr,
+                       count,
+                       imageMemoryBarriers);
+}
+
+void VulkanContext::bufferMemoryBarrier(VkCommandBuffer commandBuffer,
+                                        VkPipelineStageFlags srcStageMask,
+                                        VkPipelineStageFlags dstStageMask,
+                                        VkDependencyFlags dependencyFlags,
+                                        VkBufferMemoryBarrier bufferMemoryBarrier)
+{
+    bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
+    if (bufferMemoryBarrier.size == 0)
+    {
+        bufferMemoryBarrier.size = VK_WHOLE_SIZE;
+    }
+    CmdPipelineBarrier(commandBuffer,
+                       srcStageMask,
+                       dstStageMask,
+                       dependencyFlags,
                        0,
                        nullptr,
                        1,
@@ -327,6 +267,11 @@ void VulkanContext::blitSubRect(VkCommandBuffer commandBuffer,
                                 VkImage dst,
                                 const IAABB& blitBounds)
 {
+    if (blitBounds.empty())
+    {
+        return;
+    }
+
     VkImageBlit imageBlit = {
         .srcSubresource =
             {

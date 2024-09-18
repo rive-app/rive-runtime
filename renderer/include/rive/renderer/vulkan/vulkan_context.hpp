@@ -14,6 +14,7 @@ namespace rive::gpu
 struct VulkanFeatures
 {
     uint32_t vulkanApiVersion = VK_API_VERSION_1_0;
+    uint32_t vendorID = 0;
 
     // VkPhysicalDeviceFeatures.
     bool independentBlend = false;
@@ -50,9 +51,8 @@ public:
     const VulkanFeatures features;
     const VmaAllocator vmaAllocator;
 
-#define RIVE_VULKAN_INSTANCE_COMMANDS(F) F(GetPhysicalDeviceProperties)
-
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                                             \
+    F(AllocateCommandBuffers)                                                                      \
     F(AllocateDescriptorSets)                                                                      \
     F(CmdBeginRenderPass)                                                                          \
     F(CmdBindDescriptorSets)                                                                       \
@@ -68,6 +68,7 @@ public:
     F(CmdPipelineBarrier)                                                                          \
     F(CmdSetScissor)                                                                               \
     F(CmdSetViewport)                                                                              \
+    F(CreateCommandPool)                                                                           \
     F(CreateDescriptorPool)                                                                        \
     F(CreateDescriptorSetLayout)                                                                   \
     F(CreateFence)                                                                                 \
@@ -77,7 +78,9 @@ public:
     F(CreatePipelineLayout)                                                                        \
     F(CreateRenderPass)                                                                            \
     F(CreateSampler)                                                                               \
+    F(CreateSemaphore)                                                                             \
     F(CreateShaderModule)                                                                          \
+    F(DestroyCommandPool)                                                                          \
     F(DestroyDescriptorPool)                                                                       \
     F(DestroyDescriptorSetLayout)                                                                  \
     F(DestroyFence)                                                                                \
@@ -87,14 +90,16 @@ public:
     F(DestroyPipelineLayout)                                                                       \
     F(DestroyRenderPass)                                                                           \
     F(DestroySampler)                                                                              \
+    F(DestroySemaphore)                                                                            \
     F(DestroyShaderModule)                                                                         \
+    F(FreeCommandBuffers)                                                                          \
+    F(ResetCommandBuffer)                                                                          \
     F(ResetDescriptorPool)                                                                         \
     F(ResetFences)                                                                                 \
     F(UpdateDescriptorSets)                                                                        \
     F(WaitForFences)
 
 #define DECLARE_VULKAN_COMMAND(CMD) const PFN_vk##CMD CMD;
-    RIVE_VULKAN_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)
     RIVE_VULKAN_DEVICE_COMMANDS(DECLARE_VULKAN_COMMAND)
 #undef DECLARE_VULKAN_COMMAND
 
@@ -134,18 +139,67 @@ public:
     void updateBufferDescriptorSets(VkDescriptorSet,
                                     VkWriteDescriptorSet,
                                     std::initializer_list<VkDescriptorBufferInfo>);
-    void insertImageMemoryBarrier(VkCommandBuffer,
-                                  VkImage,
-                                  VkImageLayout oldLayout,
-                                  VkImageLayout newLayout,
-                                  uint32_t mipLevel = 0,
-                                  uint32_t levelCount = 1);
-    void insertBufferMemoryBarrier(VkCommandBuffer,
-                                   VkAccessFlags srcAccessMask,
-                                   VkAccessFlags dstAccessMask,
-                                   VkBuffer,
-                                   VkDeviceSize offset = 0,
-                                   VkDeviceSize size = VK_WHOLE_SIZE);
+
+    void memoryBarrier(VkCommandBuffer,
+                       VkPipelineStageFlags srcStageMask,
+                       VkPipelineStageFlags dstStageMask,
+                       VkDependencyFlags,
+                       VkMemoryBarrier);
+
+    void imageMemoryBarriers(VkCommandBuffer,
+                             VkPipelineStageFlags srcStageMask,
+                             VkPipelineStageFlags dstStageMask,
+                             VkDependencyFlags,
+                             uint32_t count,
+                             VkImageMemoryBarrier*);
+
+    void imageMemoryBarrier(VkCommandBuffer commandBuffer,
+                            VkPipelineStageFlags srcStageMask,
+                            VkPipelineStageFlags dstStageMask,
+                            VkDependencyFlags dependencyFlags,
+                            VkImageMemoryBarrier imageMemoryBarrier)
+    {
+        imageMemoryBarriers(commandBuffer,
+                            srcStageMask,
+                            dstStageMask,
+                            dependencyFlags,
+                            1,
+                            &imageMemoryBarrier);
+    }
+
+    struct TextureAccess
+    {
+        VkPipelineStageFlags pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+        VkAccessFlags accessMask = VK_ACCESS_NONE;
+        VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+    };
+
+    const TextureAccess& simpleImageMemoryBarrier(VkCommandBuffer commandBuffer,
+                                                  const TextureAccess& srcAccess,
+                                                  const TextureAccess& dstAccess,
+                                                  VkImage image,
+                                                  VkDependencyFlags dependencyFlags = 0)
+    {
+        imageMemoryBarrier(commandBuffer,
+                           srcAccess.pipelineStages,
+                           dstAccess.pipelineStages,
+                           dependencyFlags,
+                           {
+                               .srcAccessMask = srcAccess.accessMask,
+                               .dstAccessMask = dstAccess.accessMask,
+                               .oldLayout = srcAccess.layout,
+                               .newLayout = dstAccess.layout,
+                               .image = image,
+                           });
+        return dstAccess;
+    }
+
+    void bufferMemoryBarrier(VkCommandBuffer,
+                             VkPipelineStageFlags srcStageMask,
+                             VkPipelineStageFlags dstStageMask,
+                             VkDependencyFlags,
+                             VkBufferMemoryBarrier);
+
     void blitSubRect(VkCommandBuffer commandBuffer, VkImage src, VkImage dst, const IAABB&);
 
 private:

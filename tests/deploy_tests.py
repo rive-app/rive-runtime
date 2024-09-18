@@ -510,8 +510,13 @@ def main():
         args.jobs_per_tool = 1 # Only print the command for each job once.
 
     # Build the native tools.
+    rive_tools_dir = os.path.dirname(os.path.realpath(__file__))
+    if "ios" in args.target:
+        # ios links statically, so we need to build every tool every time.
+        build_targets = ["gms", "goldens", "player"]
+    else:
+        build_targets = args.tools
     if not args.no_rebuild and not args.no_install:
-        rive_tools_dir = os.path.dirname(os.path.realpath(__file__))
         build_rive = [os.path.join(rive_tools_dir, "../build/build_rive.sh")]
         if os.name == "nt":
             if subprocess.run(["which", "msbuild.exe"]).returncode == 0:
@@ -520,11 +525,6 @@ def main():
             else:
                 # msbuild.exe is not on the path; go through build_rive.bat.
                 build_rive[0] = os.path.splitext(build_rive[0])[0] + '.bat'
-        if "ios" in args.target:
-            # ios links statically, so we need to build every tool every time.
-            build_targets = ["gms", "goldens", "player"]
-        else:
-            build_targets = args.tools
         subprocess.check_call(build_rive + ["rebuild", args.builddir] + build_targets)
 
     if not args.no_install:
@@ -618,6 +618,9 @@ def main():
                 test_harness_server.wait_for_shutdown_event()
                 procs[0].join()
                 procs = []
+                if args.target == "android":
+                    force_stop_android_tests_apk()
+                    time.sleep(3)
             else:
                 procs += launch_gms(test_harness_server)
 
@@ -630,6 +633,9 @@ def main():
                 test_harness_server.wait_for_shutdown_event()
                 procs[0].join()
                 procs = []
+                if args.target == "android":
+                    force_stop_android_tests_apk()
+                    time.sleep(3)
             else:
                 procs += launch_goldens(test_harness_server)
 

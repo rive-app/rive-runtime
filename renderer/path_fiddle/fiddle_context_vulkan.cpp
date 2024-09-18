@@ -14,9 +14,9 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeVulkanPLS(FiddleContextOptions
 #else
 
 #include "rive_vk_bootstrap/rive_vk_bootstrap.hpp"
-#include "rive_vk_bootstrap/vulkan_fence_pool.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
+#include "rive/renderer/vulkan/vkutil_resource_pool.hpp"
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 #include <vulkan/vulkan.h>
@@ -25,10 +25,6 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeVulkanPLS(FiddleContextOptions
 
 using namespace rive;
 using namespace rive::gpu;
-
-// +1 because PLS doesn't wait for the previous fence until partway through flush.
-// (After we need to acquire a new image from the swapchain.)
-static constexpr int kResourcePoolSize = gpu::kBufferRingSize + 1;
 
 class FiddleContextVulkanPLS : public FiddleContext
 {
@@ -50,53 +46,28 @@ public:
 #endif
                                    .enable_extensions(glfwExtensionCount, glfwExtensions)
                                    .build());
-        m_instanceDispatch = m_instance.make_table();
+        m_instanceTable = m_instance.make_table();
 
         VulkanFeatures vulkanFeatures;
         std::tie(m_physicalDevice, vulkanFeatures) = rive_vkb::select_physical_device(
             vkb::PhysicalDeviceSelector(m_instance).defer_surface_initialization(),
+            m_options.coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
+                                       : rive_vkb::FeatureSet::allAvailable,
             m_options.gpuNameFilter);
         m_device = VKB_CHECK(vkb::DeviceBuilder(m_physicalDevice).build());
-        m_vkDispatch = m_device.make_table();
+        m_vkbTable = m_device.make_table();
         m_queue = VKB_CHECK(m_device.get_queue(vkb::QueueType::graphics));
-
-        VkCommandPoolCreateInfo commandPoolCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO,
-            .flags = VkCommandPoolCreateFlagBits::VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT,
-            .queueFamilyIndex = *m_device.get_queue_index(vkb::QueueType::graphics),
-        };
-
-        VK_CHECK(m_vkDispatch.createCommandPool(&commandPoolCreateInfo, nullptr, &m_commandPool));
-
-        VkCommandBufferAllocateInfo commandBufferAllocateInfo = {
-            .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO,
-            .commandPool = m_commandPool,
-            .level = VK_COMMAND_BUFFER_LEVEL_PRIMARY,
-            .commandBufferCount = 1,
-        };
-
-        for (VkCommandBuffer& commandBuffer : m_commandBuffers)
-        {
-            VK_CHECK(
-                m_vkDispatch.allocateCommandBuffers(&commandBufferAllocateInfo, &commandBuffer));
-        }
-
         m_renderContext = RenderContextVulkanImpl::MakeContext(m_instance,
                                                                m_physicalDevice,
                                                                m_device,
                                                                vulkanFeatures,
                                                                m_instance.fp_vkGetInstanceProcAddr,
                                                                m_instance.fp_vkGetDeviceProcAddr);
-
-        VkSemaphoreCreateInfo semaphoreCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,
-        };
-        for (VkSemaphore& semaphore : m_semaphores)
-        {
-            VK_CHECK(m_vkDispatch.createSemaphore(&semaphoreCreateInfo, nullptr, &semaphore));
-        }
-
-        m_fencePool = make_rcp<VulkanFencePool>(ref_rcp(vk()));
+        m_commandBufferPool = make_rcp<vkutil::ResourcePool<vkutil::CommandBuffer>>(
+            ref_rcp(vk()),
+            *m_device.get_queue_index(vkb::QueueType::graphics));
+        m_semaphorePool = make_rcp<vkutil::ResourcePool<vkutil::Semaphore>>(ref_rcp(vk()));
+        m_fencePool = make_rcp<vkutil::ResourcePool<vkutil::Fence>>(ref_rcp(vk()));
     }
 
     ~FiddleContextVulkanPLS()
@@ -109,15 +80,15 @@ public:
         m_fencePool.reset();
         m_frameFence.reset();
 
-        VK_CHECK(m_vkDispatch.queueWaitIdle(m_queue));
+        VK_CHECK(m_vkbTable.queueWaitIdle(m_queue));
 
-        m_vkDispatch.freeCommandBuffers(m_commandPool, kResourcePoolSize, m_commandBuffers);
-        m_vkDispatch.destroyCommandPool(m_commandPool, nullptr);
+        m_swapchainSemaphore = nullptr;
+        m_frameFence = nullptr;
+        m_frameCommandBuffer = nullptr;
 
-        for (VkSemaphore semaphore : m_semaphores)
-        {
-            m_vkDispatch.destroySemaphore(semaphore, nullptr);
-        }
+        m_commandBufferPool = nullptr;
+        m_semaphorePool = nullptr;
+        m_fencePool = nullptr;
 
         if (m_swapchain != VK_NULL_HANDLE)
         {
@@ -126,7 +97,7 @@ public:
 
         if (m_windowSurface != VK_NULL_HANDLE)
         {
-            m_instanceDispatch.destroySurfaceKHR(m_windowSurface, nullptr);
+            m_instanceTable.destroySurfaceKHR(m_windowSurface, nullptr);
         }
 
         vkb::destroy_device(m_device);
@@ -150,7 +121,7 @@ public:
 
     void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
     {
-        VK_CHECK(m_vkDispatch.queueWaitIdle(m_queue));
+        VK_CHECK(m_vkbTable.queueWaitIdle(m_queue));
 
         if (m_swapchain != VK_NULL_HANDLE)
         {
@@ -159,16 +130,15 @@ public:
 
         if (m_windowSurface != VK_NULL_HANDLE)
         {
-            m_instanceDispatch.destroySurfaceKHR(m_windowSurface, nullptr);
+            m_instanceTable.destroySurfaceKHR(m_windowSurface, nullptr);
         }
 
         VK_CHECK(glfwCreateWindowSurface(m_instance, window, nullptr, &m_windowSurface));
 
         VkSurfaceCapabilitiesKHR windowCapabilities;
-        VK_CHECK(
-            m_instanceDispatch.fp_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice,
-                                                                            m_windowSurface,
-                                                                            &windowCapabilities));
+        VK_CHECK(m_instanceTable.fp_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice,
+                                                                              m_windowSurface,
+                                                                              &windowCapabilities));
 
         vkb::SwapchainBuilder swapchainBuilder(m_device, m_windowSurface);
         swapchainBuilder
@@ -184,7 +154,8 @@ public:
             .add_fallback_present_mode(VK_PRESENT_MODE_MAILBOX_KHR)
             .add_fallback_present_mode(VK_PRESENT_MODE_FIFO_RELAXED_KHR)
             .add_fallback_present_mode(VK_PRESENT_MODE_FIFO_KHR);
-        if (windowCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+        if (!m_options.coreFeaturesOnly &&
+            (windowCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
         {
             swapchainBuilder.add_image_usage_flags(VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
             if (m_options.enableReadPixels)
@@ -219,10 +190,6 @@ public:
                                               }));
         }
 
-        m_swapchainImageLayouts = std::vector(m_swapchainImages.size(), VK_IMAGE_LAYOUT_UNDEFINED);
-
-        m_swapchainImageIndex = 0;
-
         m_renderTarget = impl()->makeRenderTarget(width, height, m_swapchain.image_format);
 
         m_pixelReadBuffer = nullptr;
@@ -237,35 +204,32 @@ public:
 
     void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
     {
-        m_vkDispatch.acquireNextImageKHR(m_swapchain,
-                                         UINT64_MAX,
-                                         m_semaphores[m_resourcePoolIdx],
-                                         VK_NULL_HANDLE,
-                                         &m_swapchainImageIndex);
+        m_swapchainSemaphore = m_semaphorePool->make();
+        m_vkbTable.acquireNextImageKHR(m_swapchain,
+                                       UINT64_MAX,
+                                       *m_swapchainSemaphore,
+                                       VK_NULL_HANDLE,
+                                       &m_swapchainImageIndex);
 
         m_renderContext->beginFrame(std::move(frameDescriptor));
 
-        VkCommandBuffer commandBuffer = m_commandBuffers[m_resourcePoolIdx];
-        m_vkDispatch.resetCommandBuffer(commandBuffer, {});
+        m_frameCommandBuffer = m_commandBufferPool->make();
 
         VkCommandBufferBeginInfo commandBufferBeginInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         };
+        m_vkbTable.beginCommandBuffer(*m_frameCommandBuffer, &commandBufferBeginInfo);
 
-        m_vkDispatch.beginCommandBuffer(commandBuffer, &commandBufferBeginInfo);
+        m_renderTarget->setTargetTextureView(m_swapchainImageViews[m_swapchainImageIndex], {});
 
-        m_renderTarget->setTargetTextureView(m_swapchainImageViews[m_swapchainImageIndex]);
-
-        insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_GENERAL);
-
-        m_frameFence = m_fencePool->makeFence();
+        m_frameFence = m_fencePool->make();
     }
 
     void flushPLSContext() final
     {
         m_renderContext->flush({
             .renderTarget = m_renderTarget.get(),
-            .externalCommandBuffer = m_commandBuffers[m_resourcePoolIdx],
+            .externalCommandBuffer = *m_frameCommandBuffer,
             .frameCompletionFence = m_frameFence.get(),
         });
     }
@@ -274,7 +238,6 @@ public:
     {
         flushPLSContext();
 
-        VkCommandBuffer commandBuffer = m_commandBuffers[m_resourcePoolIdx];
         uint32_t w = m_renderTarget->width();
         uint32_t h = m_renderTarget->height();
 
@@ -292,6 +255,16 @@ public:
             }
             assert(m_pixelReadBuffer->info().size == h * w * 4);
 
+            m_renderTarget->setTargetLastAccess(
+                vk()->simpleImageMemoryBarrier(*m_frameCommandBuffer,
+                                               m_renderTarget->targetLastAccess(),
+                                               {
+                                                   .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                                   .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                                                   .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                               },
+                                               m_swapchainImages[m_swapchainImageIndex]));
+
             VkBufferImageCopy imageCopyDesc = {
                 .imageSubresource =
                     {
@@ -303,46 +276,61 @@ public:
                 .imageExtent = {w, h, 1},
             };
 
-            insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL);
+            m_vkbTable.cmdCopyImageToBuffer(*m_frameCommandBuffer,
+                                            m_swapchainImages[m_swapchainImageIndex],
+                                            VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                                            *m_pixelReadBuffer,
+                                            1,
+                                            &imageCopyDesc);
 
-            m_vkDispatch.cmdCopyImageToBuffer(commandBuffer,
-                                              m_swapchainImages[m_swapchainImageIndex],
-                                              VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                              *m_pixelReadBuffer,
-                                              1,
-                                              &imageCopyDesc);
-
-            vk()->insertBufferMemoryBarrier(commandBuffer,
-                                            VK_ACCESS_TRANSFER_WRITE_BIT,
-                                            VK_ACCESS_HOST_READ_BIT,
-                                            *m_pixelReadBuffer);
+            vk()->bufferMemoryBarrier(*m_frameCommandBuffer,
+                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                      VK_PIPELINE_STAGE_HOST_BIT,
+                                      0,
+                                      {
+                                          .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                                          .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+                                          .buffer = *m_pixelReadBuffer,
+                                      });
         }
 
-        insertSwapchainImageBarrier(VK_IMAGE_LAYOUT_PRESENT_SRC_KHR);
+        m_renderTarget->setTargetLastAccess(vk()->simpleImageMemoryBarrier(
+            *m_frameCommandBuffer,
+            m_renderTarget->targetLastAccess(),
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                .accessMask = VK_ACCESS_NONE,
+                .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
+            },
+            m_swapchainImages[m_swapchainImageIndex]));
 
-        VK_CHECK(m_vkDispatch.endCommandBuffer(commandBuffer));
+        VK_CHECK(m_vkbTable.endCommandBuffer(*m_frameCommandBuffer));
 
-        VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        auto flushSemaphore = m_semaphorePool->make();
+        VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
         VkSubmitInfo submitInfo = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = m_swapchainSemaphore->vkSemaphoreAddressOf(),
             .pWaitDstStageMask = &waitDstStageMask,
             .commandBufferCount = 1,
-            .pCommandBuffers = &commandBuffer,
+            .pCommandBuffers = m_frameCommandBuffer->vkCommandBufferAddressOf(),
+            .signalSemaphoreCount = 1,
+            .pSignalSemaphores = flushSemaphore->vkSemaphoreAddressOf(),
         };
-        submitInfo.waitSemaphoreCount = 1;
-        submitInfo.pWaitSemaphores = &m_semaphores[m_resourcePoolIdx];
 
-        VK_CHECK(m_vkDispatch.queueSubmit(m_queue, 1, &submitInfo, *m_frameFence));
+        VK_CHECK(m_vkbTable.queueSubmit(m_queue, 1, &submitInfo, *m_frameFence));
 
         if (pixelData != nullptr)
         {
-            // Copy the buffer containing the framebuffer contents to pixelData.
-            pixelData->resize(h * w * 4);
-
             // Wait for all rendering to complete before transferring the
             // framebuffer data to pixelData.
             m_frameFence->wait();
+            m_pixelReadBuffer->invalidateContents();
+
+            // Copy the buffer containing the framebuffer contents to pixelData.
+            pixelData->resize(h * w * 4);
 
             assert(m_pixelReadBuffer->info().size == h * w * 4);
             for (uint32_t y = 0; y < h; ++y)
@@ -363,15 +351,18 @@ public:
 
         VkPresentInfoKHR presentInfo = {
             .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
+            .waitSemaphoreCount = 1,
+            .pWaitSemaphores = flushSemaphore->vkSemaphoreAddressOf(),
             .swapchainCount = 1,
             .pSwapchains = &m_swapchain.swapchain,
             .pImageIndices = &m_swapchainImageIndex,
         };
 
-        m_vkDispatch.queuePresentKHR(m_queue, &presentInfo);
+        m_vkbTable.queuePresentKHR(m_queue, &presentInfo);
 
-        m_resourcePoolIdx = (m_resourcePoolIdx + 1) % kResourcePoolSize;
+        m_swapchainSemaphore = nullptr;
         m_frameFence = nullptr;
+        m_frameCommandBuffer = nullptr;
     }
 
 private:
@@ -382,42 +373,32 @@ private:
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
-    void insertSwapchainImageBarrier(VkImageLayout newLayout)
-    {
-        vk()->insertImageMemoryBarrier(m_commandBuffers[m_resourcePoolIdx],
-                                       m_swapchainImages[m_swapchainImageIndex],
-                                       m_swapchainImageLayouts[m_swapchainImageIndex],
-                                       newLayout);
-        m_swapchainImageLayouts[m_swapchainImageIndex] = newLayout;
-    }
-
     const FiddleContextOptions m_options;
     vkb::Instance m_instance;
-    vkb::InstanceDispatchTable m_instanceDispatch;
+    vkb::InstanceDispatchTable m_instanceTable;
     vkb::PhysicalDevice m_physicalDevice;
     vkb::Device m_device;
-    vkb::DispatchTable m_vkDispatch;
+    vkb::DispatchTable m_vkbTable;
     VkQueue m_queue;
 
     VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
     vkb::Swapchain m_swapchain;
     std::vector<VkImage> m_swapchainImages;
     std::vector<rcp<vkutil::TextureView>> m_swapchainImageViews;
-    std::vector<VkImageLayout> m_swapchainImageLayouts;
-    uint32_t m_swapchainImageIndex;
+    uint32_t m_swapchainImageIndex = 0;
 
-    VkCommandPool m_commandPool;
-    VkCommandBuffer m_commandBuffers[kResourcePoolSize];
-    VkSemaphore m_semaphores[kResourcePoolSize];
+    rcp<vkutil::ResourcePool<vkutil::CommandBuffer>> m_commandBufferPool;
+    rcp<vkutil::CommandBuffer> m_frameCommandBuffer;
 
-    rcp<VulkanFencePool> m_fencePool;
-    rcp<VulkanFence> m_frameFence;
+    rcp<vkutil::ResourcePool<vkutil::Semaphore>> m_semaphorePool;
+    rcp<vkutil::Semaphore> m_swapchainSemaphore;
+
+    rcp<vkutil::ResourcePool<vkutil::Fence>> m_fencePool;
+    rcp<vkutil::Fence> m_frameFence;
 
     std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetVulkan> m_renderTarget;
     rcp<vkutil::Buffer> m_pixelReadBuffer;
-
-    int m_resourcePoolIdx = 0;
 };
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeVulkanPLS(FiddleContextOptions options)

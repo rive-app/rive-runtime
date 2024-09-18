@@ -106,7 +106,15 @@ public:
         return m_contents;
     }
 
-    void flushMappedContents(size_t updatedSizeInBytes);
+    // Calls through to vkFlushMappedMemoryRanges().
+    // Called after modifying contents() with the CPU. Makes those modifications
+    // available to the GPU.
+    void flushContents(size_t sizeInBytes = VK_WHOLE_SIZE);
+
+    // Calls through to vkInvalidateMappedMemoryRanges().
+    // Called after modifying the buffer with the GPU. Makes those modifications
+    // available to the CPU via contents().
+    void invalidateContents(size_t sizeInBytes = VK_WHOLE_SIZE);
 
 private:
     friend class ::rive::gpu::VulkanContext;
@@ -120,24 +128,6 @@ private:
     VmaAllocation m_vmaAllocation;
     VkBuffer m_vkBuffer;
     void* m_contents;
-};
-
-// RAII utility to call flushMappedContents() on a buffer when the class goes out
-// of scope.
-class ScopedBufferFlush
-{
-public:
-    ScopedBufferFlush(Buffer& buff, size_t mapSizeInBytes = VK_WHOLE_SIZE) :
-        m_buff(buff), m_mapSizeInBytes(mapSizeInBytes)
-    {}
-    ~ScopedBufferFlush() { m_buff.flushMappedContents(m_mapSizeInBytes); }
-
-    operator void*() { return m_buff.contents(); }
-    template <typename T> T as() { return reinterpret_cast<T>(m_buff.contents()); }
-
-private:
-    Buffer& m_buff;
-    const size_t m_mapSizeInBytes;
 };
 
 // Wraps a ring of VkBuffers so we can map one while other(s) are in-flight.
@@ -158,7 +148,7 @@ public:
     void setTargetSize(size_t size);
     void synchronizeSizeAt(int bufferRingIdx);
     void* contentsAt(int bufferRingIdx, size_t dirtySize = VK_WHOLE_SIZE);
-    void flushMappedContentsAt(int bufferRingIdx);
+    void flushContentsAt(int bufferRingIdx);
 
 private:
     size_t m_targetSize;

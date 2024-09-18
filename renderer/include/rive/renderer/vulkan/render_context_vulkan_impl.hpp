@@ -6,10 +6,10 @@
 
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
+#include "rive/renderer/vulkan/vkutil_resource_pool.hpp"
 #include <chrono>
 #include <map>
 #include <vulkan/vulkan.h>
-#include <deque>
 
 namespace rive::gpu
 {
@@ -18,10 +18,19 @@ class TextureVulkanImpl;
 class RenderTargetVulkan : public RenderTarget
 {
 public:
-    void setTargetTextureView(rcp<vkutil::TextureView> view)
+    void setTargetTextureView(rcp<vkutil::TextureView> view,
+                              VulkanContext::TextureAccess targetLastAccess)
     {
         m_targetTextureView = std::move(view);
+        setTargetLastAccess(targetLastAccess);
     }
+
+    void setTargetLastAccess(VulkanContext::TextureAccess lastAccess)
+    {
+        m_targetLastAccess = lastAccess;
+    }
+
+    const VulkanContext::TextureAccess& targetLastAccess() const { return m_targetLastAccess; }
 
     bool targetViewContainsUsageFlag(VkImageUsageFlagBits bit) const
     {
@@ -33,11 +42,11 @@ public:
 
     VkImage targetTexture() const { return m_targetTextureView->info().image; }
 
-    VkImageView targetTextureView() const { return *m_targetTextureView; }
+    vkutil::TextureView* targetTextureView() const { return m_targetTextureView.get(); }
 
-    VkImageView offscreenColorTextureView() const
+    vkutil::TextureView* offscreenColorTextureView() const
     {
-        return m_offscreenColorTextureView ? *m_offscreenColorTextureView : nullptr;
+        return m_offscreenColorTextureView.get();
     }
 
     VkImage offscreenColorTexture() const { return *m_offscreenColorTexture; }
@@ -48,11 +57,11 @@ public:
 
     // getters that lazy load if needed.
 
-    VkImageView ensureOffscreenColorTextureView(VkCommandBuffer);
-    VkImageView ensureCoverageTextureView(VkCommandBuffer);
-    VkImageView ensureClipTextureView(VkCommandBuffer);
-    VkImageView ensureScratchColorTextureView(VkCommandBuffer);
-    VkImageView ensureCoverageAtomicTextureView(VkCommandBuffer);
+    vkutil::TextureView* ensureOffscreenColorTextureView();
+    vkutil::TextureView* ensureCoverageTextureView();
+    vkutil::TextureView* ensureClipTextureView();
+    vkutil::TextureView* ensureScratchColorTextureView();
+    vkutil::TextureView* ensureCoverageAtomicTextureView();
 
 private:
     friend class RenderContextVulkanImpl;
@@ -67,6 +76,7 @@ private:
     const rcp<VulkanContext> m_vk;
     const VkFormat m_framebufferFormat;
     rcp<vkutil::TextureView> m_targetTextureView;
+    VulkanContext::TextureAccess m_targetLastAccess;
 
     rcp<vkutil::Texture> m_offscreenColorTexture; // Used when m_targetTextureView does not have
                                                   // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
@@ -125,7 +135,7 @@ private:
     {                                                                                              \
         return m_name.contentsAt(m_bufferRingIdx, mapSizeInBytes);                                 \
     }                                                                                              \
-    void unmap##Name() override { m_name.flushMappedContentsAt(m_bufferRingIdx); }
+    void unmap##Name() override { m_name.flushContentsAt(m_bufferRingIdx); }
 
 #define IMPLEMENT_PLS_STRUCTURED_BUFFER(Name, m_name)                                              \
     void resize##Name(size_t sizeInBytes, gpu::StorageBufferStructure) override                    \
@@ -136,7 +146,7 @@ private:
     {                                                                                              \
         return m_name.contentsAt(m_bufferRingIdx, mapSizeInBytes);                                 \
     }                                                                                              \
-    void unmap##Name() override { m_name.flushMappedContentsAt(m_bufferRingIdx); }
+    void unmap##Name() override { m_name.flushContentsAt(m_bufferRingIdx); }
 
     IMPLEMENT_PLS_BUFFER(FlushUniformBuffer, m_flushUniformBufferRing)
     IMPLEMENT_PLS_BUFFER(ImageDrawUniformBuffer, m_imageDrawUniformBufferRing)
@@ -160,26 +170,25 @@ private:
     // The vkutil::RenderingResource base ensures this class stays alive until its
     // command buffer finishes, at which point we free the allocated descriptor
     // sets and return the VkDescriptor to the renderContext.
-    class DescriptorSetPool final : public vkutil::RenderingResource
+    class DescriptorSetPool final : public RefCnt<DescriptorSetPool>
     {
     public:
-        DescriptorSetPool(RenderContextVulkanImpl*);
-        ~DescriptorSetPool() final;
+        DescriptorSetPool(rcp<VulkanContext>);
+        ~DescriptorSetPool();
 
         VkDescriptorSet allocateDescriptorSet(VkDescriptorSetLayout);
-        void freeDescriptorSets();
+        void reset();
 
     private:
-        // Recycles this instance in the renderContext's m_descriptorSetPoolPool, if
-        // the renderContext still exists.
-        void onRefCntReachedZero() const;
+        friend class RefCnt<DescriptorSetPool>;
+        friend class vkutil::ResourcePool<DescriptorSetPool>;
 
-        RenderContextVulkanImpl* const m_renderContextImpl;
+        void onRefCntReachedZero() const { m_pool->onResourceRefCntReachedZero(this); }
+
+        const rcp<VulkanContext> m_vk;
+        rcp<vkutil::ResourcePool<DescriptorSetPool>> m_pool;
         VkDescriptorPool m_vkDescriptorPool;
-        std::vector<VkDescriptorSet> m_descriptorSets;
     };
-
-    rcp<DescriptorSetPool> makeDescriptorSetPool();
 
     void flush(const FlushDescriptor&) override;
 
@@ -243,8 +252,8 @@ private:
     rcp<gpu::CommandBufferCompletionFence> m_frameCompletionFences[gpu::kBufferRingSize];
     int m_bufferRingIdx = -1;
 
-    // Pool of DescriptorSetPools that have been fully released. These can be
+    // Pool of DescriptorSetPools that have been fully released. These will be
     // recycled once their expirationFrameIdx is reached.
-    std::deque<vkutil::ZombieResource<DescriptorSetPool>> m_descriptorSetPoolPool;
+    rcp<vkutil::ResourcePool<DescriptorSetPool>> m_descriptorSetPoolPool;
 };
 } // namespace rive::gpu

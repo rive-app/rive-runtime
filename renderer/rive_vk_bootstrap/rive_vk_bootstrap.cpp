@@ -88,6 +88,7 @@ static const char* physical_device_type_name(VkPhysicalDeviceType type)
 // Abort if the filter matches more than one name.
 std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_device(
     vkb::PhysicalDeviceSelector& selector,
+    FeatureSet featureSet,
     const char* gpuNameFilter)
 {
     if (const char* rive_gpu = getenv("RIVE_GPU"))
@@ -150,40 +151,25 @@ std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_devic
     auto physicalDevice = VKB_CHECK(selectResult);
 
     physicalDevice.enable_features_if_present({
-        .independentBlend = VK_TRUE,
+        .independentBlend = featureSet != FeatureSet::coreOnly,
         .fillModeNonSolid = VK_TRUE,
         .fragmentStoresAndAtomics = VK_TRUE,
     });
 
-    rive::gpu::VulkanFeatures riveVulkanFeatures;
-    riveVulkanFeatures.independentBlend = physicalDevice.features.independentBlend;
-    riveVulkanFeatures.fillModeNonSolid = physicalDevice.features.fillModeNonSolid;
-    riveVulkanFeatures.fragmentStoresAndAtomics = physicalDevice.features.fragmentStoresAndAtomics;
+    rive::gpu::VulkanFeatures riveVulkanFeatures = {
+        riveVulkanFeatures.vulkanApiVersion = VK_API_VERSION_1_0,
+        riveVulkanFeatures.vendorID = physicalDevice.properties.vendorID,
+        riveVulkanFeatures.independentBlend = physicalDevice.features.independentBlend,
+        riveVulkanFeatures.fillModeNonSolid = physicalDevice.features.fillModeNonSolid,
+        riveVulkanFeatures.fragmentStoresAndAtomics =
+            physicalDevice.features.fragmentStoresAndAtomics,
+    };
 
-    {
-        printf("==== Vulkan GPU (%s): %s [",
-               physical_device_type_name(physicalDevice.properties.deviceType),
-               physicalDevice.properties.deviceName);
-        const char* prefix = "";
-        if (riveVulkanFeatures.independentBlend)
-            printf("%sindependentBlend", std::exchange(prefix, ", "));
-        if (riveVulkanFeatures.fillModeNonSolid)
-            printf("%sfillModeNonSolid", std::exchange(prefix, ", "));
-        if (riveVulkanFeatures.fragmentStoresAndAtomics)
-            printf("%sfragmentStoresAndAtomics", std::exchange(prefix, ", "));
-        printf("] ====\n");
-    }
-
-#if 0
-    printf("Extensions:\n");
-    for (const auto& ext : physicalDevice.get_available_extensions())
-    {
-        printf("  %s\n", ext.c_str());
-    }
-#endif
-    if (physicalDevice.enable_extension_if_present(
-            VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME) ||
-        physicalDevice.enable_extension_if_present("VK_AMD_rasterization_order_attachment_access"))
+    if (featureSet != FeatureSet::coreOnly &&
+        (physicalDevice.enable_extension_if_present(
+             VK_EXT_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_EXTENSION_NAME) ||
+         physicalDevice.enable_extension_if_present(
+             "VK_AMD_rasterization_order_attachment_access")))
     {
         constexpr static VkPhysicalDeviceRasterizationOrderAttachmentAccessFeaturesEXT
             rasterOrderFeatures = {
@@ -194,9 +180,33 @@ std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_devic
         if (physicalDevice.enable_extension_features_if_present(rasterOrderFeatures))
         {
             riveVulkanFeatures.rasterizationOrderColorAttachmentAccess = true;
-            printf(" rasterizationOrderColorAttachmentAccess");
         }
     }
+
+    printf("==== Vulkan GPU (%s): %s [ ",
+           physical_device_type_name(physicalDevice.properties.deviceType),
+           physicalDevice.properties.deviceName);
+    struct CommaSeparator
+    {
+        const char* m_separator = "";
+        const char* operator*() { return std::exchange(m_separator, ", "); }
+    } commaSeparator;
+    if (riveVulkanFeatures.independentBlend)
+        printf("%sindependentBlend", *commaSeparator);
+    if (riveVulkanFeatures.fillModeNonSolid)
+        printf("%sfillModeNonSolid", *commaSeparator);
+    if (riveVulkanFeatures.fragmentStoresAndAtomics)
+        printf("%sfragmentStoresAndAtomics", *commaSeparator);
+    if (riveVulkanFeatures.rasterizationOrderColorAttachmentAccess)
+        printf("%srasterizationOrderColorAttachmentAccess", *commaSeparator);
+#if 0
+    printf("Extensions:\n");
+    for (const auto& ext : physicalDevice.get_available_extensions())
+    {
+        printf("  %s\n", ext.c_str());
+    }
+#endif
+    printf(" ] ====\n");
 
     return {physicalDevice, riveVulkanFeatures};
 }

@@ -548,12 +548,12 @@ std::unique_ptr<TestingWindow> TestingWindow::MakeEGL(Backend backend, void* pla
         case Backend::d3datomic:
         case Backend::metal:
         case Backend::metalatomic:
-        case Backend::vulkan:
-        case Backend::vulkanatomic:
+        case Backend::vk:
+        case Backend::vkcore:
         case Backend::moltenvk:
-        case Backend::moltenvkatomic:
+        case Backend::moltenvkcore:
         case Backend::swiftshader:
-        case Backend::swiftshaderatomic:
+        case Backend::swiftshadercore:
         case Backend::dawn:
         case Backend::coregraphics:
             printf("Invalid backend for TestingWindow::MakeEGLPbuffer.");
