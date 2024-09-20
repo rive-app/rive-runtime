@@ -1285,8 +1285,8 @@ public:
                     break;
 
                 case DrawType::imageRect:
-                case DrawType::gpuAtomicResolve:
-                case DrawType::gpuAtomicInitialize:
+                case DrawType::atomicResolve:
+                case DrawType::atomicInitialize:
                 case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
             }
@@ -1334,7 +1334,7 @@ public:
                         spirv::atomic_draw_image_mesh_frag);
                     break;
 
-                case DrawType::gpuAtomicResolve:
+                case DrawType::atomicResolve:
                     vkutil::set_shader_code(vsInfo, spirv::atomic_resolve_pls_vert);
                     vkutil::set_shader_code_if_then_else(fsInfo,
                                                          fixedFunctionColorBlend,
@@ -1342,7 +1342,7 @@ public:
                                                          spirv::atomic_resolve_pls_frag);
                     break;
 
-                case DrawType::gpuAtomicInitialize:
+                case DrawType::atomicInitialize:
                 case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
             }
@@ -1573,7 +1573,7 @@ public:
                 break;
             }
 
-            case DrawType::gpuAtomicResolve:
+            case DrawType::atomicResolve:
             {
                 pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
                 pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
@@ -1582,7 +1582,7 @@ public:
                 break;
             }
 
-            case DrawType::gpuAtomicInitialize:
+            case DrawType::atomicInitialize:
             case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }
@@ -2948,14 +2948,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 break;
             }
 
-            case DrawType::gpuAtomicResolve:
+            case DrawType::atomicResolve:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 m_vk->CmdDraw(commandBuffer, 4, 1, 0, 0);
                 break;
             }
 
-            case DrawType::gpuAtomicInitialize:
+            case DrawType::atomicInitialize:
             case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }

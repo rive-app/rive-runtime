@@ -1005,7 +1005,7 @@ void RenderContext::LogicalFlush::writeResources()
             platformFeatures.atomicPLSMustBeInitializedAsDraw)
         {
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                    DrawType::gpuAtomicInitialize,
+                                    DrawType::atomicInitialize,
                                     nullptr,
                                     1,
                                     0);
@@ -1050,7 +1050,7 @@ void RenderContext::LogicalFlush::writeResources()
         {
             pushBarrier();
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                    DrawType::gpuAtomicResolve,
+                                    DrawType::atomicResolve,
                                     nullptr,
                                     1,
                                     0);
@@ -1851,8 +1851,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(Draw* draw,
     {
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::gpuAtomicInitialize:
-        case DrawType::gpuAtomicResolve:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
         case DrawType::stencilClipReset:
             needsNewBatch =
                 m_drawList.empty() || m_drawList.tail().drawType != drawType ||

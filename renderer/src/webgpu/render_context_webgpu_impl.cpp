@@ -592,8 +592,8 @@ public:
                     RIVE_UNREACHABLE();
                 case DrawType::imageMesh:
                     break;
-                case DrawType::gpuAtomicInitialize:
-                case DrawType::gpuAtomicResolve:
+                case DrawType::atomicInitialize:
+                case DrawType::atomicResolve:
                 case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
             }
@@ -642,11 +642,11 @@ public:
                     addDefine(GLSL_DRAW_IMAGE_MESH);
                     glsl << gpu::glsl::draw_image_mesh << '\n';
                     break;
-                case DrawType::gpuAtomicInitialize:
+                case DrawType::atomicInitialize:
                     addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
                     addDefine(GLSL_INITIALIZE_PLS);
                     RIVE_UNREACHABLE();
-                case DrawType::gpuAtomicResolve:
+                case DrawType::atomicResolve:
                     addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
                     addDefine(GLSL_RESOLVE_PLS);
                     RIVE_UNREACHABLE();
@@ -709,8 +709,8 @@ public:
                         draw_image_mesh_frag,
                         std::size(draw_image_mesh_frag));
                     break;
-                case DrawType::gpuAtomicInitialize:
-                case DrawType::gpuAtomicResolve:
+                case DrawType::atomicInitialize:
+                case DrawType::atomicResolve:
                 case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
             }
@@ -1528,8 +1528,8 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 },
             };
             break;
-        case DrawType::gpuAtomicInitialize:
-        case DrawType::gpuAtomicResolve:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
         case DrawType::stencilClipReset:
             RIVE_UNREACHABLE();
     }
@@ -2076,8 +2076,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 drawPass.DrawIndexed(batch.elementCount, 1, batch.baseElement);
                 break;
             }
-            case DrawType::gpuAtomicInitialize:
-            case DrawType::gpuAtomicResolve:
+            case DrawType::atomicInitialize:
+            case DrawType::atomicResolve:
             case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }

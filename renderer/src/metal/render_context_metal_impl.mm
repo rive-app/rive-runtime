@@ -125,8 +125,8 @@ public:
             case DrawType::imageMesh:
                 namespacePrefix = 'm';
                 break;
-            case DrawType::gpuAtomicInitialize:
-            case DrawType::gpuAtomicResolve:
+            case DrawType::atomicInitialize:
+            case DrawType::atomicResolve:
             case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }
@@ -178,7 +178,7 @@ public:
                         framebuffer.alphaBlendOperation = MTLBlendOperationAdd;
                         framebuffer.writeMask = MTLColorWriteMaskAll;
                     }
-                    else if (drawType == gpu::DrawType::gpuAtomicResolve)
+                    else if (drawType == gpu::DrawType::atomicResolve)
                     {
                         // We're resolving from the offscreen color buffer to the framebuffer
                         // attachment. Write out the final color directly without any blend modes.
@@ -1022,13 +1022,13 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         gpu::ShaderMiscFlags batchMiscFlags = baselineShaderMiscFlags;
         if (!(batchMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorBlend))
         {
-            if (batch.drawType == gpu::DrawType::gpuAtomicResolve)
+            if (batch.drawType == gpu::DrawType::atomicResolve)
             {
                 // Atomic mode can always do a coalesced resolve when rendering to an offscreen
                 // color buffer.
                 batchMiscFlags |= gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
             }
-            else if (batch.drawType == gpu::DrawType::gpuAtomicInitialize)
+            else if (batch.drawType == gpu::DrawType::atomicInitialize)
             {
                 if (desc.colorLoadAction == gpu::LoadAction::clear)
                 {
@@ -1124,8 +1124,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 }
                 break;
             }
-            case DrawType::gpuAtomicInitialize:
-            case DrawType::gpuAtomicResolve:
+            case DrawType::atomicInitialize:
+            case DrawType::atomicResolve:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 [encoder setRenderPipelineState:drawPipelineState];

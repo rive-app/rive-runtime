@@ -107,7 +107,7 @@ struct PlatformFeatures
                                     // bottom-up or top-down?
     bool atomicPLSMustBeInitializedAsDraw = false; // Backend cannot initialize PLS with typical
                                                    // clear/load APIs in atomic mode. Issue a
-                                                   // "DrawType::gpuAtomicInitialize" draw instead.
+                                                   // "DrawType::atomicInitialize" draw instead.
     uint8_t pathIDGranularity = 1; // Workaround for precision issues. Determines how far apart we
                                    // space unique path IDs.
 };
@@ -456,9 +456,9 @@ enum class DrawType : uint8_t
     interiorTriangulation,
     imageRect,
     imageMesh,
-    gpuAtomicInitialize, // Clear/init PLS data when we can't do it with existing clear/load APIs.
-    gpuAtomicResolve,    // Resolve PLS data to the final renderTarget color in atomic mode.
-    stencilClipReset,    // Clear or intersect (based on DrawContents) the stencil clip bit.
+    atomicInitialize, // Clear/init PLS data when we can't do it with existing clear/load APIs.
+    atomicResolve,    // Resolve PLS data to the final renderTarget color in atomic mode.
+    stencilClipReset, // Clear or intersect (based on DrawContents) the stencil clip bit.
 };
 
 constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
@@ -471,8 +471,8 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::gpuAtomicInitialize:
-        case DrawType::gpuAtomicResolve:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
         case DrawType::stencilClipReset:
             return false;
     }
@@ -619,10 +619,10 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(DrawType drawType,
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-        case DrawType::gpuAtomicResolve:
+        case DrawType::atomicResolve:
             mask = kAllShaderFeatures;
             break;
-        case DrawType::gpuAtomicInitialize:
+        case DrawType::atomicInitialize:
             assert(interlockMode == gpu::InterlockMode::atomics);
             mask = ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_ADVANCED_BLEND;
             break;
@@ -644,15 +644,15 @@ enum class ShaderMiscFlags : uint32_t
     // need to read the color buffer when advanced blend is not used.
     fixedFunctionColorBlend = 1 << 0,
 
-    // DrawType::gpuAtomicInitialize only. Also store the color clear value to PLS when drawing a
+    // DrawType::atomicInitialize only. Also store the color clear value to PLS when drawing a
     // clear, in addition to clearing the other PLS planes.
     storeColorClear = 1 << 1,
 
-    // DrawType::gpuAtomicInitialize only. Swizzle the existing framebuffer contents from BGRA to
+    // DrawType::atomicInitialize only. Swizzle the existing framebuffer contents from BGRA to
     // RGBA. (For when this data had to get copied from a BGRA target.)
     swizzleColorBGRAToRGBA = 1 << 2,
 
-    // DrawType::gpuAtomicResolve only. Optimization for when rendering to an offscreen texture.
+    // DrawType::atomicResolve only. Optimization for when rendering to an offscreen texture.
     //
     // It renders the final "resolve" operation directly to the renderTarget in a single pass,
     // instead of (1) resolving the offscreen texture, and then (2) copying the offscreen texture to

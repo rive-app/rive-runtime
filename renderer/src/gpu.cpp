@@ -25,13 +25,13 @@ uint32_t ShaderUniqueKey(DrawType drawType,
 {
     if (miscFlags & ShaderMiscFlags::coalescedResolveAndTransfer)
     {
-        assert(drawType == DrawType::gpuAtomicResolve);
+        assert(drawType == DrawType::atomicResolve);
         assert(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
         assert(interlockMode == InterlockMode::atomics);
     }
     if (miscFlags & (ShaderMiscFlags::storeColorClear | ShaderMiscFlags::swizzleColorBGRAToRGBA))
     {
-        assert(drawType == DrawType::gpuAtomicInitialize);
+        assert(drawType == DrawType::atomicInitialize);
     }
     uint32_t drawTypeKey;
     switch (drawType)
@@ -49,11 +49,11 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::imageMesh:
             drawTypeKey = 3;
             break;
-        case DrawType::gpuAtomicInitialize:
+        case DrawType::atomicInitialize:
             assert(interlockMode == gpu::InterlockMode::atomics);
             drawTypeKey = 4;
             break;
-        case DrawType::gpuAtomicResolve:
+        case DrawType::atomicResolve:
             assert(interlockMode == gpu::InterlockMode::atomics);
             drawTypeKey = 5;
             break;

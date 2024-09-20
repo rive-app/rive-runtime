@@ -994,12 +994,12 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                 s << "#define " << GLSL_DRAW_IMAGE << '\n';
                 s << "#define " << GLSL_DRAW_IMAGE_MESH << '\n';
                 break;
-            case DrawType::gpuAtomicResolve:
+            case DrawType::atomicResolve:
                 assert(interlockMode == gpu::InterlockMode::atomics);
                 s << "#define " << GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS << '\n';
                 s << "#define " << GLSL_RESOLVE_PLS << '\n';
                 break;
-            case DrawType::gpuAtomicInitialize:
+            case DrawType::atomicInitialize:
             case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }
@@ -1035,12 +1035,12 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                           : gpu::glsl::atomic_draw)
                   << '\n';
                 break;
-            case DrawType::gpuAtomicResolve:
+            case DrawType::atomicResolve:
             case DrawType::stencilClipReset:
                 assert(interlockMode == gpu::InterlockMode::atomics);
                 s << gpu::glsl::atomic_draw << '\n';
                 break;
-            case DrawType::gpuAtomicInitialize:
+            case DrawType::atomicInitialize:
                 RIVE_UNREACHABLE();
         }
 
@@ -1110,10 +1110,10 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
                                      0};
                     vertexAttribCount = 2;
                     break;
-                case DrawType::gpuAtomicResolve:
+                case DrawType::atomicResolve:
                     vertexAttribCount = 0;
                     break;
-                case DrawType::gpuAtomicInitialize:
+                case DrawType::atomicInitialize:
                 case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
             }
@@ -1477,7 +1477,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
         auto pixelShaderMiscFlags =
-            drawType == gpu::DrawType::gpuAtomicResolve && renderPassHasCoalescedResolveAndTransfer
+            drawType == gpu::DrawType::atomicResolve && renderPassHasCoalescedResolveAndTransfer
                 ? gpu::ShaderMiscFlags::coalescedResolveAndTransfer
                 : gpu::ShaderMiscFlags::none;
         if (renderDirectToRasterPipeline)
@@ -1560,7 +1560,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 m_gpuContext->DrawIndexed(batch.elementCount, batch.baseElement, 0);
                 break;
             }
-            case DrawType::gpuAtomicResolve:
+            case DrawType::atomicResolve:
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 m_gpuContext->IASetPrimitiveTopology(D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
                 m_gpuContext->RSSetState(m_backCulledRasterState[0].Get());
@@ -1595,7 +1595,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 }
                 m_gpuContext->Draw(4, 0);
                 break;
-            case DrawType::gpuAtomicInitialize:
+            case DrawType::atomicInitialize:
             case DrawType::stencilClipReset:
                 RIVE_UNREACHABLE();
         }

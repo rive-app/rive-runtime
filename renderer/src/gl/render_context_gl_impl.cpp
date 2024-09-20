@@ -722,7 +722,7 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
                                   ? gpu::glsl::atomic_draw
                                   : gpu::glsl::draw_image_mesh);
             break;
-        case gpu::DrawType::gpuAtomicResolve:
+        case gpu::DrawType::atomicResolve:
             assert(interlockMode == gpu::InterlockMode::atomics);
             defines.push_back(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
             defines.push_back(GLSL_RESOLVE_PLS);
@@ -733,7 +733,7 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
             }
             sources.push_back(gpu::glsl::atomic_draw);
             break;
-        case gpu::DrawType::gpuAtomicInitialize:
+        case gpu::DrawType::atomicInitialize:
             assert(interlockMode == gpu::InterlockMode::atomics);
             RIVE_UNREACHABLE();
     }
@@ -1476,7 +1476,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                reinterpret_cast<const void*>(batch.baseElement * sizeof(uint16_t)));
                 break;
             }
-            case gpu::DrawType::gpuAtomicResolve:
+            case gpu::DrawType::atomicResolve:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
@@ -1485,7 +1485,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
             }
-            case gpu::DrawType::gpuAtomicInitialize:
+            case gpu::DrawType::atomicInitialize:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 RIVE_UNREACHABLE();
