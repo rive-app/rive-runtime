@@ -11,7 +11,6 @@ float Dash::normalizedValue(float length) const
 {
     float right = m_percentage ? 1.0f : length;
     float p = fmodf(m_value, right);
-    fprintf(stderr, "Normalized value: %f | %f %f\n", p, m_value, m_percentage ? 1.0f : length);
     if (p < 0.0f)
     {
         p += right;
@@ -87,8 +86,15 @@ RenderPath* PathDasher::dash(const RawPath& source,
                     endLength -= contour->length();
                     if (draw)
                     {
-                        contour->getSegment(distance, contour->length(), &m_rawPath, true);
-                        contour->getSegment(0.0f, endLength, &m_rawPath, !contour->isClosed());
+                        if (distance < contour->length())
+                        {
+                            contour->getSegment(distance, contour->length(), &m_rawPath, true);
+                            contour->getSegment(0.0f, endLength, &m_rawPath, !contour->isClosed());
+                        }
+                        else
+                        {
+                            contour->getSegment(0.0f, endLength, &m_rawPath, true);
+                        }
                     }
 
                     // Setup next step.
