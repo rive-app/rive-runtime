@@ -14,6 +14,7 @@
 #include "rive/text/raw_text.hpp"
 #include "assets/roboto_flex.ttf.hpp"
 #include <stdio.h>
+#include <fstream>
 
 #ifdef RIVE_ANDROID
 #include <android/native_app_glue/android_native_app_glue.h>
@@ -170,13 +171,26 @@ int main(int argc, const char* argv[])
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
-    auto backend = TestingWindow::Backend::gl;
+    std::string rivName;
+    std::vector<uint8_t> rivBytes;
+    auto backend =
+#ifdef __APPLE__
+        TestingWindow::Backend::metal;
+#else
+        TestingWindow::Backend::vk;
+#endif
+    auto visibility = TestingWindow::Visibility::fullscreen;
     std::string gpuNameFilter;
     for (int i = 0; i < argc; ++i)
     {
         if (strcmp(argv[i], "--test_harness") == 0)
         {
             TestHarness::Instance().init(TCPClient::Connect(argv[++i]), 0);
+            if (!TestHarness::Instance().fetchRivFile(rivName, rivBytes))
+            {
+                fprintf(stderr, "failed to fetch a riv file.");
+                abort();
+            }
         }
         else if (strcmp(argv[i], "--backend") == 0)
         {
@@ -189,10 +203,20 @@ int main(int argc, const char* argv[])
                 key_pressed(*k);
             }
         }
+        else if (strcmp(argv[i], "--src") == 0 || strcmp(argv[i], "-s") == 0)
+        {
+            rivName = argv[++i];
+            std::ifstream rivStream(rivName, std::ios::binary);
+            rivBytes = std::vector<uint8_t>(std::istreambuf_iterator<char>(rivStream), {});
+        }
+        else if (strcmp(argv[i], "--window") == 0 || strcmp(argv[i], "-w") == 0)
+        {
+            visibility = TestingWindow::Visibility::window;
+        }
     }
 
     TestingWindow::Init(backend,
-                        TestingWindow::Visibility::fullscreen,
+                        visibility,
                         gpuNameFilter,
 #ifdef RIVE_ANDROID
                         app->window
@@ -202,11 +226,9 @@ int main(int argc, const char* argv[])
     );
 
     // Load the riv file.
-    std::string rivName;
-    std::vector<uint8_t> rivBytes;
-    if (!TestHarness::Instance().fetchRivFile(rivName, rivBytes))
+    if (rivBytes.empty())
     {
-        fprintf(stderr, "failed to fetch a riv file.");
+        fprintf(stderr, "no .riv file specified");
         abort();
     }
     auto file = rive::File::import(rivBytes, TestingWindow::Get()->factory());
