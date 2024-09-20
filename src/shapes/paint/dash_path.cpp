@@ -5,7 +5,19 @@ using namespace rive;
 
 Dash::Dash() : m_value(0.0f), m_percentage(false) {}
 Dash::Dash(float value, bool percentage) : m_value(value), m_percentage(percentage) {}
-float Dash::value() const { return m_value < 0.0 ? 0.0f : m_value; }
+float Dash::value() const { return m_value; }
+
+float Dash::normalizedValue(float length) const
+{
+    float right = m_percentage ? 1.0f : length;
+    float p = fmodf(m_value, right);
+    fprintf(stderr, "Normalized value: %f | %f %f\n", p, m_value, m_percentage ? 1.0f : length);
+    if (p < 0.0f)
+    {
+        p += right;
+    }
+    return m_percentage ? p * length : p;
+}
 bool Dash::percentage() const { return m_percentage; }
 
 void PathDasher::invalidateSourcePath()
@@ -38,11 +50,18 @@ RenderPath* PathDasher::dash(const RawPath& source,
 
     // Make sure dashes have some length.
     bool hasValidDash = false;
-    for (auto dash : dashes)
+    for (const rcp<ContourMeasure>& contour : m_contours)
     {
-        if (dash.value() > 0.0f)
+        for (auto dash : dashes)
         {
-            hasValidDash = true;
+            if (dash.normalizedValue(contour->length()) > 0.0f)
+            {
+                hasValidDash = true;
+                break;
+            }
+        }
+        if (hasValidDash)
+        {
             break;
         }
     }
@@ -51,19 +70,36 @@ RenderPath* PathDasher::dash(const RawPath& source,
         int dashIndex = 0;
         for (const rcp<ContourMeasure>& contour : m_contours)
         {
-            float distance =
-                offset.percentage() ? offset.value() * contour->length() : offset.value();
+            float dashed = 0.0f;
+            float distance = offset.normalizedValue(contour->length());
             bool draw = true;
-            while (distance < contour->length())
+            while (dashed < contour->length())
             {
                 const Dash& dash = dashes[dashIndex++ % dashes.size()];
-                float dashLength =
-                    dash.percentage() ? dash.value() * contour->length() : dash.value();
-                if (draw)
+                float dashLength = dash.normalizedValue(contour->length());
+                if (dashLength > contour->length())
                 {
-                    contour->getSegment(distance, distance + dashLength, &m_rawPath, true);
+                    dashLength = contour->length();
+                }
+                float endLength = distance + dashLength;
+                if (endLength > contour->length())
+                {
+                    endLength -= contour->length();
+                    if (draw)
+                    {
+                        contour->getSegment(distance, contour->length(), &m_rawPath, true);
+                        contour->getSegment(0.0f, endLength, &m_rawPath, !contour->isClosed());
+                    }
+
+                    // Setup next step.
+                    distance = endLength - dashLength;
+                }
+                else if (draw)
+                {
+                    contour->getSegment(distance, endLength, &m_rawPath, true);
                 }
                 distance += dashLength;
+                dashed += dashLength;
                 draw = !draw;
             }
         }

@@ -15,6 +15,7 @@ public:
     Dash(float value, bool percentage);
 
     float value() const;
+    float normalizedValue(float length) const;
     bool percentage() const;
 
 private:
