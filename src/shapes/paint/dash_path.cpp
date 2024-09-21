@@ -1,35 +1,22 @@
 #include "rive/shapes/paint/dash_path.hpp"
+#include "rive/shapes/paint/dash.hpp"
+#include "rive/shapes/paint/stroke.hpp"
 #include "rive/factory.hpp"
 
 using namespace rive;
-
-Dash::Dash() : m_value(0.0f), m_percentage(false) {}
-Dash::Dash(float value, bool percentage) : m_value(value), m_percentage(percentage) {}
-float Dash::value() const { return m_value; }
-
-float Dash::normalizedValue(float length) const
-{
-    float right = m_percentage ? 1.0f : length;
-    float p = fmodf(m_value, right);
-    if (p < 0.0f)
-    {
-        p += right;
-    }
-    return m_percentage ? p * length : p;
-}
-bool Dash::percentage() const { return m_percentage; }
 
 void PathDasher::invalidateSourcePath()
 {
     m_contours.clear();
     invalidateDash();
 }
+
 void PathDasher::invalidateDash() { m_renderPath = nullptr; }
 
 RenderPath* PathDasher::dash(const RawPath& source,
                              Factory* factory,
-                             Dash offset,
-                             Span<Dash> dashes)
+                             Dash* offset,
+                             Span<Dash*> dashes)
 {
     if (m_renderPath != nullptr)
     {
@@ -53,7 +40,7 @@ RenderPath* PathDasher::dash(const RawPath& source,
     {
         for (auto dash : dashes)
         {
-            if (dash.normalizedValue(contour->length()) > 0.0f)
+            if (dash->normalizedLength(contour->length()) > 0.0f)
             {
                 hasValidDash = true;
                 break;
@@ -70,12 +57,12 @@ RenderPath* PathDasher::dash(const RawPath& source,
         for (const rcp<ContourMeasure>& contour : m_contours)
         {
             float dashed = 0.0f;
-            float distance = offset.normalizedValue(contour->length());
+            float distance = offset->normalizedLength(contour->length());
             bool draw = true;
             while (dashed < contour->length())
             {
-                const Dash& dash = dashes[dashIndex++ % dashes.size()];
-                float dashLength = dash.normalizedValue(contour->length());
+                const Dash* dash = dashes[dashIndex++ % dashes.size()];
+                float dashLength = dash->normalizedLength(contour->length());
                 if (dashLength > contour->length())
                 {
                     dashLength = contour->length();
@@ -135,3 +122,33 @@ float PathDasher::pathLength() const
     }
     return totalLength;
 }
+
+StatusCode DashPath::onAddedClean(CoreContext* context)
+{
+    if (!parent()->is<Stroke>())
+    {
+        return StatusCode::InvalidObject;
+    }
+    parent()->as<Stroke>()->addStrokeEffect(this);
+
+    m_dashes.clear();
+    for (auto child : children())
+    {
+        if (child->is<Dash>())
+        {
+            m_dashes.push_back(child->as<Dash>());
+        }
+    }
+    return StatusCode::Ok;
+}
+
+RenderPath* DashPath::effectPath(const RawPath& source, Factory* factory)
+{
+    Dash dashOffset(offset(), offsetIsPercentage());
+    return dash(source, factory, &dashOffset, m_dashes);
+}
+
+void DashPath::invalidateEffect() { invalidateSourcePath(); }
+
+void DashPath::offsetChanged() { invalidateDash(); }
+void DashPath::offsetIsPercentageChanged() { invalidateDash(); }

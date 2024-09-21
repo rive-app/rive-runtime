@@ -1,0 +1,27 @@
+{
+  "name": "DashPath",
+  "key": {
+    "int": 506,
+    "string": "dashpath"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "offset": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 690,
+        "string": "offset"
+      }
+    },
+    "offsetIsPercentage": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 691,
+        "string": "offsetispercentage"
+      }
+    }
+  }
+}

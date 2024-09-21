@@ -159,6 +159,8 @@
 #include "rive/shapes/image.hpp"
 #include "rive/shapes/mesh.hpp"
 #include "rive/shapes/mesh_vertex.hpp"
+#include "rive/shapes/paint/dash.hpp"
+#include "rive/shapes/paint/dash_path.hpp"
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/gradient_stop.hpp"
 #include "rive/shapes/paint/linear_gradient.hpp"
@@ -420,10 +422,14 @@ public:
                 return new StateMachineBool();
             case BlendAnimation1DBase::typeKey:
                 return new BlendAnimation1D();
+            case DashPathBase::typeKey:
+                return new DashPath();
             case LinearGradientBase::typeKey:
                 return new LinearGradient();
             case RadialGradientBase::typeKey:
                 return new RadialGradient();
+            case DashBase::typeKey:
+                return new Dash();
             case StrokeBase::typeKey:
                 return new Stroke();
             case SolidColorBase::typeKey:
@@ -632,6 +638,12 @@ public:
                 break;
             case ShapePaintBase::isVisiblePropertyKey:
                 object->as<ShapePaintBase>()->isVisible(value);
+                break;
+            case DashPathBase::offsetIsPercentagePropertyKey:
+                object->as<DashPathBase>()->offsetIsPercentage(value);
+                break;
+            case DashBase::lengthIsPercentagePropertyKey:
+                object->as<DashBase>()->lengthIsPercentage(value);
                 break;
             case StrokeBase::transformAffectsStrokePropertyKey:
                 object->as<StrokeBase>()->transformAffectsStroke(value);
@@ -1490,6 +1502,9 @@ public:
             case BlendAnimation1DBase::valuePropertyKey:
                 object->as<BlendAnimation1DBase>()->value(value);
                 break;
+            case DashPathBase::offsetPropertyKey:
+                object->as<DashPathBase>()->offset(value);
+                break;
             case LinearGradientBase::startXPropertyKey:
                 object->as<LinearGradientBase>()->startX(value);
                 break;
@@ -1504,6 +1519,9 @@ public:
                 break;
             case LinearGradientBase::opacityPropertyKey:
                 object->as<LinearGradientBase>()->opacity(value);
+                break;
+            case DashBase::lengthPropertyKey:
+                object->as<DashBase>()->length(value);
                 break;
             case StrokeBase::thicknessPropertyKey:
                 object->as<StrokeBase>()->thickness(value);
@@ -1838,6 +1856,10 @@ public:
                 return object->as<StateMachineBoolBase>()->value();
             case ShapePaintBase::isVisiblePropertyKey:
                 return object->as<ShapePaintBase>()->isVisible();
+            case DashPathBase::offsetIsPercentagePropertyKey:
+                return object->as<DashPathBase>()->offsetIsPercentage();
+            case DashBase::lengthIsPercentagePropertyKey:
+                return object->as<DashBase>()->lengthIsPercentage();
             case StrokeBase::transformAffectsStrokePropertyKey:
                 return object->as<StrokeBase>()->transformAffectsStroke();
             case PointsPathBase::isClosedPropertyKey:
@@ -2422,6 +2444,8 @@ public:
                 return object->as<NestedRemapAnimationBase>()->time();
             case BlendAnimation1DBase::valuePropertyKey:
                 return object->as<BlendAnimation1DBase>()->value();
+            case DashPathBase::offsetPropertyKey:
+                return object->as<DashPathBase>()->offset();
             case LinearGradientBase::startXPropertyKey:
                 return object->as<LinearGradientBase>()->startX();
             case LinearGradientBase::startYPropertyKey:
@@ -2432,6 +2456,8 @@ public:
                 return object->as<LinearGradientBase>()->endY();
             case LinearGradientBase::opacityPropertyKey:
                 return object->as<LinearGradientBase>()->opacity();
+            case DashBase::lengthPropertyKey:
+                return object->as<DashBase>()->length();
             case StrokeBase::thicknessPropertyKey:
                 return object->as<StrokeBase>()->thickness();
             case GradientStopBase::positionPropertyKey:
@@ -2641,6 +2667,8 @@ public:
             case LinearAnimationBase::quantizePropertyKey:
             case StateMachineBoolBase::valuePropertyKey:
             case ShapePaintBase::isVisiblePropertyKey:
+            case DashPathBase::offsetIsPercentagePropertyKey:
+            case DashBase::lengthIsPercentagePropertyKey:
             case StrokeBase::transformAffectsStrokePropertyKey:
             case PointsPathBase::isClosedPropertyKey:
             case RectangleBase::linkCornerRadiusPropertyKey:
@@ -2924,11 +2952,13 @@ public:
             case NestedNumberBase::nestedValuePropertyKey:
             case NestedRemapAnimationBase::timePropertyKey:
             case BlendAnimation1DBase::valuePropertyKey:
+            case DashPathBase::offsetPropertyKey:
             case LinearGradientBase::startXPropertyKey:
             case LinearGradientBase::startYPropertyKey:
             case LinearGradientBase::endXPropertyKey:
             case LinearGradientBase::endYPropertyKey:
             case LinearGradientBase::opacityPropertyKey:
+            case DashBase::lengthPropertyKey:
             case StrokeBase::thicknessPropertyKey:
             case GradientStopBase::positionPropertyKey:
             case TrimPathBase::startPropertyKey:
@@ -3092,6 +3122,10 @@ public:
                 return object->is<StateMachineBoolBase>();
             case ShapePaintBase::isVisiblePropertyKey:
                 return object->is<ShapePaintBase>();
+            case DashPathBase::offsetIsPercentagePropertyKey:
+                return object->is<DashPathBase>();
+            case DashBase::lengthIsPercentagePropertyKey:
+                return object->is<DashBase>();
             case StrokeBase::transformAffectsStrokePropertyKey:
                 return object->is<StrokeBase>();
             case PointsPathBase::isClosedPropertyKey:
@@ -3648,6 +3682,8 @@ public:
                 return object->is<NestedRemapAnimationBase>();
             case BlendAnimation1DBase::valuePropertyKey:
                 return object->is<BlendAnimation1DBase>();
+            case DashPathBase::offsetPropertyKey:
+                return object->is<DashPathBase>();
             case LinearGradientBase::startXPropertyKey:
                 return object->is<LinearGradientBase>();
             case LinearGradientBase::startYPropertyKey:
@@ -3658,6 +3694,8 @@ public:
                 return object->is<LinearGradientBase>();
             case LinearGradientBase::opacityPropertyKey:
                 return object->is<LinearGradientBase>();
+            case DashBase::lengthPropertyKey:
+                return object->is<DashBase>();
             case StrokeBase::thicknessPropertyKey:
                 return object->is<StrokeBase>();
             case GradientStopBase::positionPropertyKey:
