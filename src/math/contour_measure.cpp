@@ -42,6 +42,10 @@ size_t ContourMeasure::findSegment(float distance) const
 
     const Segment seg = {distance, 0, 0, 0};
     auto iter = std::lower_bound(m_segments.begin(), m_segments.end(), seg);
+    while (iter->m_distance == 0.0f && iter != m_segments.end())
+    {
+        iter = std::next(iter);
+    }
     assert(iter != m_segments.end());
     assert(iter->m_distance >= distance);
     assert(iter->m_ptIndex < m_points.size());
@@ -426,14 +430,17 @@ rcp<ContourMeasure> ContourMeasureIter::tryNext()
                 endOfContour = it; // This move belongs to the next contour.
                 break;
             case PathVerb::line:
-                ++lineCount;
+                if (Vec2D::distanceSquared(it.linePts()[1], it.linePts()[0]) > 0.0f)
+                {
+                    ++lineCount;
+                }
                 continue;
             case PathVerb::quad:
             {
                 assert(nextSegCount < m_segmentCounts.data() + m_segmentCounts.size());
                 uint32_t segmentCount = static_cast<uint32_t>(
                     ceilf(wangs_formula::quadratic(it.quadPts(), m_invTolerance)));
-                segmentCount = std::max(1u, std::min(segmentCount, kMaxSegments));
+                segmentCount = std::min(segmentCount, kMaxSegments);
                 segmentCountInCurves += segmentCount;
                 *nextSegCount++ = segmentCount;
                 continue;
@@ -443,7 +450,7 @@ rcp<ContourMeasure> ContourMeasureIter::tryNext()
                 assert(nextSegCount < m_segmentCounts.data() + m_segmentCounts.size());
                 uint32_t segmentCount = static_cast<uint32_t>(
                     ceilf(ceilf(wangs_formula::cubic(it.cubicPts(), m_invTolerance))));
-                segmentCount = std::max(1u, std::min(segmentCount, kMaxSegments));
+                segmentCount = std::min(segmentCount, kMaxSegments);
                 segmentCountInCurves += segmentCount;
                 *nextSegCount++ = segmentCount;
                 continue;
@@ -474,14 +481,20 @@ rcp<ContourMeasure> ContourMeasureIter::tryNext()
             case PathVerb::move:
                 RIVE_UNREACHABLE();
             case PathVerb::line:
-                distance += (it.linePts()[1] - it.linePts()[0]).length();
-                *nextSeg++ = {distance, ptIndex, kMaxDot30, SegmentType::kLine};
+                if (Vec2D::distanceSquared(it.linePts()[1], it.linePts()[0]) > 0.0f)
+                {
+                    distance += (it.linePts()[1] - it.linePts()[0]).length();
+                    *nextSeg++ = {distance, ptIndex, kMaxDot30, SegmentType::kLine};
+                }
                 ++ptIndex;
                 break;
             case PathVerb::quad:
             {
                 const uint32_t n = *nextSegCount++;
-                distance = addQuadSegs(nextSeg, it.quadPts(), n, ptIndex, distance);
+                if (n > 0)
+                {
+                    distance = addQuadSegs(nextSeg, it.quadPts(), n, ptIndex, distance);
+                }
                 nextSeg += n;
                 ptIndex += 2;
                 break;
@@ -489,7 +502,10 @@ rcp<ContourMeasure> ContourMeasureIter::tryNext()
             case PathVerb::cubic:
             {
                 const uint32_t n = *nextSegCount++;
-                distance = addCubicSegs(nextSeg, it.cubicPts(), n, ptIndex, distance);
+                if (n > 0)
+                {
+                    distance = addCubicSegs(nextSeg, it.cubicPts(), n, ptIndex, distance);
+                }
                 nextSeg += n;
                 ptIndex += 3;
                 break;
