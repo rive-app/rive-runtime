@@ -484,7 +484,7 @@ static void expandCubicBoundsForAxis(AABB& bounds,
     // Solve roots for first derivative.
     if (d != 0)
     {
-        float m1 = -std::sqrtf(b * b - a * c);
+        float m1 = -sqrtf(b * b - a * c);
         float m2 = -a + b;
 
         // First root.
