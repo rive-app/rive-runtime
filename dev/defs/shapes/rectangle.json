@@ -13,7 +13,8 @@
         "int": 164,
         "string": "linkcornerradius"
       },
-      "description": "Whether the TL corner radius defines all the radiuses"
+      "description": "Whether the TL corner radius defines all the radiuses",
+      "bindable": true
     },
     "cornerRadiusTL": {
       "type": "double",
@@ -33,7 +34,8 @@
         "int": 161,
         "string": "cornerRadiusTR"
       },
-      "description": "Top right radius of the corners of this rectangle"
+      "description": "Top right radius of the corners of this rectangle",
+      "bindable": true
     },
     "cornerRadiusBL": {
       "type": "double",
@@ -43,7 +45,8 @@
         "int": 162,
         "string": "cornerRadiusBL"
       },
-      "description": "Bottom left radius of the corners of this rectangle"
+      "description": "Bottom left radius of the corners of this rectangle",
+      "bindable": true
     },
     "cornerRadiusBR": {
       "type": "double",
@@ -53,7 +56,8 @@
         "int": 163,
         "string": "cornerRadiusBR"
       },
-      "description": "Bottom right radius of the corners of this rectangle"
+      "description": "Bottom right radius of the corners of this rectangle",
+      "bindable": true
     }
   }
 }

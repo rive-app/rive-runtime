@@ -14,7 +14,8 @@
         "int": 174,
         "string": "invert_direction"
       },
-      "description": "True when the direction taken towards the target should be inverted from the default."
+      "description": "True when the direction taken towards the target should be inverted from the default.",
+      "bindable": true
     },
     "parentBoneCount": {
       "type": "uint",

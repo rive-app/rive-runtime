@@ -14,7 +14,8 @@
         "int": 363,
         "string": "distance"
       },
-      "description": "Distance along the path to follow."
+      "description": "Distance along the path to follow.",
+      "bindable": true
     },
     "orient": {
       "type": "bool",
@@ -24,7 +25,8 @@
         "int": 364,
         "string": "orient"
       },
-      "description": "True when the orientation from the path is copied to the constrained transform."
+      "description": "True when the orientation from the path is copied to the constrained transform.",
+      "bindable": true
     },
     "offset": {
       "type": "bool",
@@ -33,7 +35,8 @@
         "int": 365,
         "string": "offset"
       },
-      "description": "True when the local translation is used to offset the transformed one."
+      "description": "True when the local translation is used to offset the transformed one.",
+      "bindable": true
     }
   }
 }

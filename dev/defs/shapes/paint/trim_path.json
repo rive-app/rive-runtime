@@ -13,7 +13,8 @@
       "key": {
         "int": 114,
         "string": "trimStart"
-      }
+      },
+      "bindable": true
     },
     "end": {
       "type": "double",
@@ -22,7 +23,8 @@
       "key": {
         "int": 115,
         "string": "trimEnd"
-      }
+      },
+      "bindable": true
     },
     "offset": {
       "type": "double",
@@ -31,7 +33,8 @@
       "key": {
         "int": 116,
         "string": "trimOffset"
-      }
+      },
+      "bindable": true
     },
     "modeValue": {
       "type": "uint",

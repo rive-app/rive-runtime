@@ -13,7 +13,8 @@
       "key": {
         "int": 47,
         "string": "thickness"
-      }
+      },
+      "bindable": true
     },
     "cap": {
       "type": "uint",

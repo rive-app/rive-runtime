@@ -14,7 +14,8 @@
         "int": 177,
         "string": "distance"
       },
-      "description": "The unit distance the constraint will move the constrained object relative to the target."
+      "description": "The unit distance the constraint will move the constrained object relative to the target.",
+      "bindable": true
     },
     "modeValue": {
       "type": "uint",

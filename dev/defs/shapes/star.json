@@ -14,7 +14,8 @@
         "int": 127,
         "string": "inner_radius"
       },
-      "description": "Percentage of width/height to project inner points of the star."
+      "description": "Percentage of width/height to project inner points of the star.",
+      "bindable": true
     }
   }
 }

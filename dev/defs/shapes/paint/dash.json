@@ -13,7 +13,8 @@
       "key": {
         "int": 692,
         "string": "length"
-      }
+      },
+      "bindable": true
     },
     "lengthIsPercentage": {
       "type": "bool",
