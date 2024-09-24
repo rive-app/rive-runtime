@@ -247,6 +247,7 @@ Vec2D Text::measureLayout(float width,
                           float height,
                           LayoutMeasureMode heightMode)
 {
+    m_layoutMeasured = true;
     return measure(Vec2D(
         widthMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max() : width,
         heightMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max() : height));
@@ -260,6 +261,15 @@ void Text::controlSize(Vec2D size)
         m_layoutHeight = size.y;
         markShapeDirty(false);
     }
+}
+
+TextSizing Text::effectiveSizing() const
+{
+    if (!std::isnan(m_layoutHeight) && !m_layoutMeasured)
+    {
+        return TextSizing::fixed;
+    }
+    return sizing();
 }
 
 void Text::buildRenderStyles()
@@ -617,6 +627,9 @@ void Text::buildRenderStyles()
         }
     }
     m_transform = Mat2D::fromScaleAndTranslation(scale, scale, xOffset, yOffset);
+#ifdef WITH_RIVE_LAYOUT
+    markLayoutNodeDirty();
+#endif
 }
 
 const TextStyle* Text::styleFromShaperId(uint16_t id) const
@@ -664,15 +677,20 @@ void Text::markShapeDirty(bool sendToLayout)
 #ifdef WITH_RIVE_LAYOUT
     if (sendToLayout)
     {
-        for (ContainerComponent* p = parent(); p != nullptr; p = p->parent())
-        {
-            if (p->is<LayoutComponent>())
-            {
-                p->as<LayoutComponent>()->markLayoutNodeDirty();
-            }
-        }
+        markLayoutNodeDirty();
     }
 #endif
+}
+
+void Text::markLayoutNodeDirty()
+{
+    for (ContainerComponent* p = parent(); p != nullptr; p = p->parent())
+    {
+        if (p->is<LayoutComponent>())
+        {
+            p->as<LayoutComponent>()->markLayoutNodeDirty();
+        }
+    }
 }
 
 void Text::modifierShapeDirty() { addDirt(ComponentDirt::Path); }
@@ -890,6 +908,7 @@ void Text::update(ComponentDirt value)
             style->propagateOpacity(renderOpacity());
         }
     }
+    m_layoutMeasured = false;
 }
 
 Vec2D Text::measure(Vec2D maxSize)
@@ -899,13 +918,11 @@ Vec2D Text::measure(Vec2D maxSize)
         const float paragraphSpace = paragraphSpacing();
         auto runs = m_styledText.runs();
         auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
-        auto lines = BreakLines(shape,
-                                std::min(maxSize.x,
-                                         sizing() == TextSizing::autoWidth
-                                             ? std::numeric_limits<float>::max()
-                                             : width()),
-                                (TextAlign)alignValue(),
-                                wrap());
+        auto lines =
+            BreakLines(shape,
+                       std::min(maxSize.x, sizing() == TextSizing::autoWidth ? -1.0f : width()),
+                       (TextAlign)alignValue(),
+                       wrap());
         float y = 0;
         float computedHeight = 0.0f;
         float minY = 0;
@@ -918,7 +935,8 @@ Vec2D Text::measure(Vec2D maxSize)
             minY = y;
         }
         int ellipsisLine = -1;
-        bool wantEllipsis = overflow() == TextOverflow::ellipsis;
+        bool wantEllipsis = overflow() == TextOverflow::ellipsis && sizing() == TextSizing::fixed &&
+                            verticalAlign() == VerticalTextAlign::top;
 
         for (const SimpleArray<GlyphLine>& paragraphLines : lines)
         {

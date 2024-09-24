@@ -179,10 +179,7 @@ public:
     Mat2D m_transform;
 
     TextSizing sizing() const { return (TextSizing)sizingValue(); }
-    TextSizing effectiveSizing() const
-    {
-        return std::isnan(m_layoutHeight) ? sizing() : TextSizing::fixed;
-    }
+    TextSizing effectiveSizing() const;
     TextOverflow overflow() const { return (TextOverflow)overflowValue(); }
     TextOrigin textOrigin() const { return (TextOrigin)originValue(); }
     TextWrap wrap() const { return (TextWrap)wrapValue(); }
@@ -208,6 +205,10 @@ public:
                                                           float width,
                                                           TextAlign align,
                                                           TextWrap wrap);
+#endif
+
+#ifdef WITH_RIVE_LAYOUT
+    void markLayoutNodeDirty();
 #endif
 
     bool haveModifiers() const
@@ -258,6 +259,9 @@ private:
 #endif
     float m_layoutWidth = NAN;
     float m_layoutHeight = NAN;
+    // If set to true, it means the parent LayoutComponent is set to hug
+    // and has called measureLayout() on this text component
+    bool m_layoutMeasured = false;
     Vec2D measure(Vec2D maxSize);
 };
 } // namespace rive
