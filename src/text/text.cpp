@@ -382,17 +382,17 @@ void Text::buildRenderStyles()
 
         AABB bounds = localBounds();
 
-        m_clipRenderPath->addRect(bounds.minX,
-                                  bounds.minY,
+        m_clipRenderPath->addRect(bounds.minX + bounds.width() * originX(),
+                                  bounds.minY + bounds.height() * originY() + verticalAlignOffset,
                                   bounds.width(),
-                                  bounds.height() + verticalAlignOffset);
+                                  bounds.height());
     }
     else
     {
         m_clipRenderPath = nullptr;
     }
 
-    y = -m_bounds.height() * originY();
+    y = 0;
     if (textOrigin() == TextOrigin::baseline && !m_lines.empty() && !m_lines[0].empty())
     {
         y -= m_lines[0][0].baseline;
@@ -426,7 +426,7 @@ void Text::buildRenderStyles()
                             case VerticalTextAlign::top:
                                 if (y + line.bottom > effectiveHeight())
                                 {
-                                    return;
+                                    goto skipLines;
                                 }
                                 break;
                             case VerticalTextAlign::middle:
@@ -437,7 +437,7 @@ void Text::buildRenderStyles()
                                 if (y + line.bottom > totalHeight / 2 + effectiveHeight() / 2)
                                 {
                                     drawLine = false;
-                                    return;
+                                    goto skipLines;
                                 }
                                 break;
                             case VerticalTextAlign::bottom:
@@ -457,7 +457,7 @@ void Text::buildRenderStyles()
                             case VerticalTextAlign::top:
                                 if (y + line.top > effectiveHeight())
                                 {
-                                    return;
+                                    goto skipLines;
                                 }
                                 break;
                             case VerticalTextAlign::middle:
@@ -467,7 +467,7 @@ void Text::buildRenderStyles()
                                 }
                                 if (y + line.top > totalHeight / 2 + effectiveHeight() / 2)
                                 {
-                                    return;
+                                    goto skipLines;
                                 }
                                 break;
                             case VerticalTextAlign::bottom:
@@ -495,7 +495,7 @@ void Text::buildRenderStyles()
             }
 
             const OrderedLine& orderedLine = m_orderedLines[lineIndex];
-            float x = -m_bounds.width() * originX() + line.startX;
+            float x = line.startX;
             minX = std::min(x, minX);
             float renderY = y + line.baseline;
             for (auto glyphItr : orderedLine)
@@ -572,7 +572,7 @@ void Text::buildRenderStyles()
             }
             if (lineIndex == ellipsisLine)
             {
-                return;
+                goto skipLines;
             }
             lineIndex++;
         }
@@ -582,9 +582,10 @@ void Text::buildRenderStyles()
         }
         y += paragraphSpace;
     }
+skipLines:
     auto scale = 1.0f;
-    auto xOffset = 0.0f;
-    auto yOffset = 0.0f;
+    auto xOffset = -m_bounds.width() * originX();
+    auto yOffset = -m_bounds.height() * originY();
     if (overflow() == TextOverflow::fit)
     {
         auto xScale = (effectiveSizing() != TextSizing::autoWidth && maxWidth > m_bounds.width())
@@ -597,15 +598,14 @@ void Text::buildRenderStyles()
         if (xScale != 1 || yScale != 1)
         {
             scale = std::max(0.0f, xScale > yScale ? yScale : xScale);
-            yOffset = (baseline - m_bounds.height() * originY()) * (1 - scale);
-            xOffset = 0.0f;
+            yOffset += baseline * (1 - scale);
             switch ((TextAlign)alignValue())
             {
                 case TextAlign::center:
-                    xOffset = (m_bounds.width() - maxWidth * scale) / 2 - minX * scale;
+                    xOffset += (m_bounds.width() - maxWidth * scale) / 2 - minX * scale;
                     break;
                 case TextAlign::right:
-                    xOffset = m_bounds.width() - maxWidth * scale - minX * scale;
+                    xOffset += m_bounds.width() - maxWidth * scale - minX * scale;
                     break;
                 default:
                     break;
@@ -616,13 +616,14 @@ void Text::buildRenderStyles()
     {
         if (effectiveSizing() == TextSizing::fixed)
         {
+            yOffset = -m_bounds.height() * originY();
             if (verticalAlign() == VerticalTextAlign::middle)
             {
-                yOffset = (m_bounds.height() - totalHeight * scale) / 2;
+                yOffset += (m_bounds.height() - totalHeight * scale) / 2;
             }
             else if (verticalAlign() == VerticalTextAlign::bottom)
             {
-                yOffset = m_bounds.height() - totalHeight * scale;
+                yOffset += m_bounds.height() - totalHeight * scale;
             }
         }
     }
