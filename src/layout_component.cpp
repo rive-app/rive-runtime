@@ -368,6 +368,7 @@ void LayoutComponent::syncStyle()
             if (parentIsRow)
             {
                 ygStyle.flexGrow() = YGFloatOptional(1);
+                ygStyle.flexShrink() = YGFloatOptional(1);
             }
             else
             {
@@ -400,6 +401,7 @@ void LayoutComponent::syncStyle()
             if (!parentIsRow)
             {
                 ygStyle.flexGrow() = YGFloatOptional(1);
+                ygStyle.flexShrink() = YGFloatOptional(1);
             }
             else
             {
