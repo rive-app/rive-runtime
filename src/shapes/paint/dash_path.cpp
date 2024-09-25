@@ -27,7 +27,8 @@ RenderPath* PathDasher::dash(const RawPath& source,
     m_rawPath.rewind();
     if (m_contours.empty())
     {
-        ContourMeasureIter iter(&source);
+        // 0.5f / 8.0f is a value that seems to look good on dashes with small gaps and scaled
+        ContourMeasureIter iter(&source, 0.0625f);
         while (auto meas = iter.next())
         {
             m_contours.push_back(meas);
