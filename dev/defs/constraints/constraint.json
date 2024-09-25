@@ -15,7 +15,8 @@
         "int": 172,
         "string": "strength"
       },
-      "description": "Strength of the constraint. 0 means off. 1 means fully constraining."
+      "description": "Strength of the constraint. 0 means off. 1 means fully constraining.",
+      "bindable": true
     }
   }
 }
