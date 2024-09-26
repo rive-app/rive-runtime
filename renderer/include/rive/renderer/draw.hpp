@@ -44,7 +44,7 @@ public:
         stencilClipReset,
     };
 
-    Draw(IAABB pixelBounds, const Mat2D&, BlendMode, rcp<const Texture> imageTexture, Type);
+    Draw(AABB bounds, const Mat2D&, BlendMode, rcp<const Texture> imageTexture, Type);
 
     const Texture* imageTexture() const { return m_imageTextureRef; }
     const IAABB& pixelBounds() const { return m_pixelBounds; }
@@ -95,6 +95,7 @@ public:
 
 protected:
     const Texture* const m_imageTextureRef;
+    const AABB m_bounds;
     const IAABB m_pixelBounds;
     const Mat2D m_matrix;
     const BlendMode m_blendMode;
@@ -142,12 +143,21 @@ public:
     void releaseRefs() override;
 
 public:
-    RiveRenderPathDraw(IAABB,
+    RiveRenderPathDraw(AABB,
                        const Mat2D&,
                        rcp<const RiveRenderPath>,
                        FillRule,
                        const RiveRenderPaint*,
                        Type,
+                       gpu::InterlockMode);
+
+    // Copy constructor
+    RiveRenderPathDraw(const RiveRenderPathDraw&,
+                       float tx,
+                       float ty,
+                       rcp<const RiveRenderPath>,
+                       FillRule fillRule,
+                       const RiveRenderPaint* paint,
                        gpu::InterlockMode);
 
     void onPushToRenderContext(RenderContext::LogicalFlush*);

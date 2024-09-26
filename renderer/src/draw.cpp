@@ -295,13 +295,14 @@ RIVE_ALWAYS_INLINE uint32_t join_type_flags(StrokeJoin join)
 }
 } // namespace
 
-Draw::Draw(IAABB pixelBounds,
+Draw::Draw(AABB bounds,
            const Mat2D& matrix,
            BlendMode blendMode,
            rcp<const Texture> imageTexture,
            Type type) :
     m_imageTextureRef(imageTexture.release()),
-    m_pixelBounds(pixelBounds),
+    m_bounds(bounds),
+    m_pixelBounds(bounds.roundOut()),
     m_matrix(matrix),
     m_blendMode(blendMode),
     m_type(type)
@@ -426,14 +427,14 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
     return DrawUniquePtr(draw);
 }
 
-RiveRenderPathDraw::RiveRenderPathDraw(IAABB pixelBounds,
+RiveRenderPathDraw::RiveRenderPathDraw(AABB bounds,
                                        const Mat2D& matrix,
                                        rcp<const RiveRenderPath> path,
                                        FillRule fillRule,
                                        const RiveRenderPaint* paint,
                                        Type type,
                                        gpu::InterlockMode frameInterlockMode) :
-    Draw(pixelBounds, matrix, paint->getBlendMode(), ref_rcp(paint->getImageTexture()), type),
+    Draw(bounds, matrix, paint->getBlendMode(), ref_rcp(paint->getImageTexture()), type),
     m_pathRef(path.release()),
     m_fillRule(paint->getIsStroked() ? FillRule::nonZero : fillRule),
     m_paintType(paint->getType())
@@ -500,6 +501,48 @@ RiveRenderPathDraw::RiveRenderPathDraw(IAABB pixelBounds,
     assert(isStroked() == (strokeRadius() > 0));
 }
 
+RiveRenderPathDraw::RiveRenderPathDraw(const RiveRenderPathDraw& from,
+                                       float tx,
+                                       float ty,
+                                       rcp<const RiveRenderPath> path,
+                                       FillRule fillRule,
+                                       const RiveRenderPaint* paint,
+                                       gpu::InterlockMode frameInterlockMode) :
+    RiveRenderPathDraw(
+        from.m_bounds.offset(tx - from.m_matrix.tx(), ty - from.m_matrix.ty()),
+        from.m_matrix.translate(Vec2D(tx - from.m_matrix.tx(), ty - from.m_matrix.ty())),
+        path,
+        fillRule,
+        paint,
+        from.m_type,
+        frameInterlockMode)
+
+{
+    m_resourceCounts = from.m_resourceCounts;
+    m_strokeMatrixMaxScale = from.m_strokeMatrixMaxScale;
+
+    if (isStroked())
+    {
+        m_strokeMatrixMaxScale = from.m_strokeMatrixMaxScale;
+        m_strokeJoin = from.m_strokeJoin;
+        m_strokeCap = from.m_strokeCap;
+    }
+    m_contours = from.m_contours;
+    m_numChops = from.m_numChops;
+    m_chopVertices = from.m_chopVertices;
+    m_tangentPairs = from.m_tangentPairs;
+    m_polarSegmentCounts = from.m_polarSegmentCounts;
+    m_parametricSegmentCounts = from.m_parametricSegmentCounts;
+    m_triangulator = from.m_triangulator;
+
+    RIVE_DEBUG_CODE(m_pendingLineCount = from.m_pendingLineCount;)
+    RIVE_DEBUG_CODE(m_pendingCurveCount = from.m_pendingCurveCount;)
+    RIVE_DEBUG_CODE(m_pendingRotationCount = from.m_pendingRotationCount;)
+    RIVE_DEBUG_CODE(m_pendingStrokeJoinCount = from.m_pendingStrokeJoinCount;)
+    RIVE_DEBUG_CODE(m_pendingStrokeCapCount = from.m_pendingStrokeCapCount;)
+    RIVE_DEBUG_CODE(m_pendingEmptyStrokeCountForCaps = from.m_pendingEmptyStrokeCountForCaps;)
+}
+
 void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush)
 {
     // Make sure the rawPath in our path reference hasn't changed since we began holding!
@@ -523,6 +566,7 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush)
 
 void RiveRenderPathDraw::releaseRefs()
 {
+    m_pathRef->invalidateDrawCache();
     Draw::releaseRefs();
     RIVE_DEBUG_CODE(m_pathRef->unlockRawPathMutations();)
     m_pathRef->unref();

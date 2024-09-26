@@ -129,12 +129,30 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
         return;
     }
 
-    clipAndPushDraw(gpu::RiveRenderPathDraw::Make(m_context,
-                                                  m_stack.back().matrix,
-                                                  ref_rcp(path),
-                                                  path->getFillRule(),
-                                                  paint,
-                                                  &m_scratchPath));
+    gpu::DrawUniquePtr cacheDraw = path->getDrawCache(m_stack.back().matrix,
+                                                      paint,
+                                                      path->getFillRule(),
+                                                      &m_context->perFrameAllocator(),
+                                                      m_context->frameInterlockMode());
+
+    if (cacheDraw != nullptr)
+    {
+        clipAndPushDraw(std::move(cacheDraw));
+        return;
+    }
+
+    auto draw = gpu::RiveRenderPathDraw::Make(m_context,
+                                              m_stack.back().matrix,
+                                              ref_rcp(path),
+                                              path->getFillRule(),
+                                              paint,
+                                              &m_scratchPath);
+
+    path->setDrawCache(static_cast<gpu::RiveRenderPathDraw*>(draw.get()),
+                       m_stack.back().matrix,
+                       paint);
+
+    clipAndPushDraw(std::move(draw));
 }
 
 void RiveRenderer::clipPath(RenderPath* renderPath)
@@ -469,16 +487,32 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         {
             RiveRenderPaint clipUpdatePaint;
             clipUpdatePaint.clipUpdate(/*clip THIS clipDraw against:*/ lastClipID);
-            auto clipDraw = gpu::RiveRenderPathDraw::Make(m_context,
-                                                          clip.matrix,
-                                                          clip.path,
-                                                          clip.fillRule,
-                                                          &clipUpdatePaint,
-                                                          &m_scratchPath);
-            if (clipDraw.get() == nullptr)
+
+            gpu::DrawUniquePtr clipDraw = clip.path->getDrawCache(clip.matrix,
+                                                                  &clipUpdatePaint,
+                                                                  clip.fillRule,
+                                                                  &m_context->perFrameAllocator(),
+                                                                  m_context->frameInterlockMode());
+
+            if (clipDraw == nullptr)
             {
-                return ApplyClipResult::clipEmpty;
+                clipDraw = gpu::RiveRenderPathDraw::Make(m_context,
+                                                         clip.matrix,
+                                                         clip.path,
+                                                         clip.fillRule,
+                                                         &clipUpdatePaint,
+                                                         &m_scratchPath);
+
+                if (clipDraw == nullptr)
+                {
+                    return ApplyClipResult::clipEmpty;
+                }
+
+                clip.path->setDrawCache(static_cast<gpu::RiveRenderPathDraw*>(clipDraw.get()),
+                                        clip.matrix,
+                                        &clipUpdatePaint);
             }
+
             clipDrawBounds = clipDraw->pixelBounds();
             // Generate a new clipID every time we (re-)render an element to the clip buffer.
             // (Each embodiment of the element needs its own separate readBounds.)

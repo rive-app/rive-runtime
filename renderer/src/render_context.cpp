@@ -925,7 +925,6 @@ void RenderContext::LogicalFlush::writeResources()
         for (size_t i = 0; i < m_draws.size(); ++i)
         {
             Draw* draw = m_draws[i].get();
-
             int4 drawBounds = simd::load4i(&m_draws[i]->pixelBounds());
 
             // Add one extra pixel of padding to the draw bounds to make absolutely certain we get

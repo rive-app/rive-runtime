@@ -10,6 +10,7 @@
 
 namespace rive
 {
+
 RiveRenderPath::RiveRenderPath(FillRule fillRule, RawPath& rawPath)
 {
     m_rawPath.swap(rawPath);
@@ -162,5 +163,74 @@ uint64_t RiveRenderPath::getRawPathMutationID() const
         m_dirt &= ~kRawPathMutationIDDirt;
     }
     return m_rawPathMutationID;
+}
+
+void RiveRenderPath::setDrawCache(gpu::RiveRenderPathDraw* drawCache,
+                                  const Mat2D& mat,
+                                  rive::RiveRenderPaint* riveRenderPaint) const
+{
+    CacheElements& cache =
+        m_cachedElements[riveRenderPaint->getIsStroked() ? CACHE_STROKED : CACHE_FILLED];
+
+    cache.draw = drawCache;
+
+    cache.xx = mat.xx();
+    cache.xy = mat.xy();
+    cache.yx = mat.yx();
+    cache.yy = mat.yy();
+
+    if (riveRenderPaint->getIsStroked())
+    {
+        m_cachedThickness = riveRenderPaint->getThickness();
+        m_cachedJoin = riveRenderPaint->getJoin();
+        m_cachedCap = riveRenderPaint->getCap();
+    }
+}
+
+gpu::DrawUniquePtr RiveRenderPath::getDrawCache(const Mat2D& matrix,
+                                                const RiveRenderPaint* paint,
+                                                FillRule fillRule,
+                                                TrivialBlockAllocator* allocator,
+                                                gpu::InterlockMode interlockMode) const
+{
+    const CacheElements& cache =
+        m_cachedElements[paint->getIsStroked() ? CACHE_STROKED : CACHE_FILLED];
+
+    if (cache.draw == nullptr)
+    {
+        return nullptr;
+    }
+
+    if (paint->getIsStroked())
+    {
+        if (m_cachedThickness != paint->getThickness())
+        {
+            return nullptr;
+        }
+
+        if (m_cachedJoin != paint->getJoin())
+        {
+            return nullptr;
+        }
+
+        if (m_cachedCap != paint->getCap())
+        {
+            return nullptr;
+        }
+    }
+
+    if (matrix.xx() != cache.xx || matrix.xy() != cache.xy || matrix.yx() != cache.yx ||
+        matrix.yy() != cache.yy)
+    {
+        return nullptr;
+    }
+
+    return gpu::DrawUniquePtr(allocator->make<gpu::RiveRenderPathDraw>(*cache.draw,
+                                                                       matrix.tx(),
+                                                                       matrix.ty(),
+                                                                       ref_rcp(this),
+                                                                       fillRule,
+                                                                       paint,
+                                                                       interlockMode));
 }
 } // namespace rive

@@ -30,6 +30,18 @@ Mat2D Mat2D::scale(Vec2D vec) const
     };
 }
 
+Mat2D Mat2D::translate(Vec2D vec) const
+{
+    return {
+        m_buffer[0],
+        m_buffer[1],
+        m_buffer[2],
+        m_buffer[3],
+        m_buffer[4] + vec.x,
+        m_buffer[5] + vec.y,
+    };
+}
+
 Mat2D Mat2D::multiply(const Mat2D& a, const Mat2D& b)
 {
     float a0 = a[0], a1 = a[1], a2 = a[2], a3 = a[3], a4 = a[4], a5 = a[5], b0 = b[0], b1 = b[1],
