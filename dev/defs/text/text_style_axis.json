@@ -21,7 +21,8 @@
       "key": {
         "int": 288,
         "string": "axisValue"
-      }
+      },
+      "bindable": true
     }
   }
 }

@@ -39,7 +39,8 @@
         "int": 285,
         "string": "width"
       },
-      "description": "Width of the text object."
+      "description": "Width of the text object.",
+      "bindable": true
     },
     "height": {
       "type": "double",
@@ -49,7 +50,8 @@
         "int": 286,
         "string": "height"
       },
-      "description": "Height of the text object."
+      "description": "Height of the text object.",
+      "bindable": true
     },
     "highlightTextRuns": {
       "type": "bool",
@@ -70,7 +72,8 @@
         "int": 366,
         "string": "originx"
       },
-      "description": "Origin x in normalized coordinates (0.5 = center, 0 = left, 1 = right)."
+      "description": "Origin x in normalized coordinates (0.5 = center, 0 = left, 1 = right).",
+      "bindable": true
     },
     "originY": {
       "type": "double",
@@ -80,7 +83,8 @@
         "int": 367,
         "string": "originy"
       },
-      "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom)."
+      "description": "Origin y in normalized coordinates (0.5 = center, 0 = top, 1 = bottom).",
+      "bindable": true
     },
     "paragraphSpacing": {
       "type": "double",
@@ -88,7 +92,8 @@
       "animates": true,
       "key": {
         "int": 371,
-        "string": "paragraphspacing"
+        "string": "paragraphspacing",
+        "bindable": true
       }
     },
     "originValue": {

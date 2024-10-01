@@ -13,7 +13,8 @@
       "key": {
         "int": 274,
         "string": "fontsize"
-      }
+      },
+      "bindable": true
     },
     "lineHeight": {
       "type": "double",
@@ -22,7 +23,8 @@
       "key": {
         "int": 370,
         "string": "lineheight"
-      }
+      },
+      "bindable": true
     },
     "letterSpacing": {
       "type": "double",
@@ -31,7 +33,8 @@
       "key": {
         "int": 390,
         "string": "letterspacing"
-      }
+      },
+      "bindable": true
     },
     "fontAssetId": {
       "type": "Id",

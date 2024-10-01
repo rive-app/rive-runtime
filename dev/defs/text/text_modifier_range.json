@@ -13,7 +13,8 @@
       "key": {
         "int": 327,
         "string": "modifyfrom"
-      }
+      },
+      "bindable": true
     },
     "modifyTo": {
       "type": "double",
@@ -22,7 +23,8 @@
       "key": {
         "int": 336,
         "string": "modifyto"
-      }
+      },
+      "bindable": true
     },
     "strength": {
       "type": "double",
@@ -31,7 +33,8 @@
       "key": {
         "int": 334,
         "string": "strength"
-      }
+      },
+      "bindable": true
     },
     "unitsValue": {
       "type": "uint",
@@ -72,7 +75,8 @@
       "key": {
         "int": 317,
         "string": "fallofffrom"
-      }
+      },
+      "bindable": true
     },
     "falloffTo": {
       "type": "double",
@@ -81,7 +85,8 @@
       "key": {
         "int": 318,
         "string": "falloffto"
-      }
+      },
+      "bindable": true
     },
     "offset": {
       "type": "double",
@@ -90,7 +95,8 @@
       "key": {
         "int": 319,
         "string": "offset"
-      }
+      },
+      "bindable": true
     },
     "runId": {
       "type": "Id",

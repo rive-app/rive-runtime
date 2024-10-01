@@ -13,7 +13,8 @@
       "key": {
         "int": 690,
         "string": "offset"
-      }
+      },
+      "bindable": true
     },
     "offsetIsPercentage": {
       "type": "bool",

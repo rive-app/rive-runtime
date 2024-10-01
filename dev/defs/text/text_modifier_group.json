@@ -22,7 +22,8 @@
       "key": {
         "int": 328,
         "string": "x"
-      }
+      },
+      "bindable": true
     },
     "originY": {
       "type": "double",
@@ -32,7 +33,8 @@
       "key": {
         "int": 329,
         "string": "y"
-      }
+      },
+      "bindable": true
     },
     "opacity": {
       "type": "double",
@@ -41,7 +43,8 @@
       "key": {
         "int": 324,
         "string": "opacity"
-      }
+      },
+      "bindable": true
     },
     "x": {
       "type": "double",
@@ -51,7 +54,8 @@
       "key": {
         "int": 322,
         "string": "x"
-      }
+      },
+      "bindable": true
     },
     "y": {
       "type": "double",
@@ -61,7 +65,8 @@
       "key": {
         "int": 323,
         "string": "y"
-      }
+      },
+      "bindable": true
     },
     "rotation": {
       "type": "double",
@@ -70,7 +75,8 @@
       "key": {
         "int": 332,
         "string": "rotation"
-      }
+      },
+      "bindable": true
     },
     "scaleX": {
       "type": "double",
@@ -80,7 +86,8 @@
       "key": {
         "int": 330,
         "string": "x"
-      }
+      },
+      "bindable": true
     },
     "scaleY": {
       "type": "double",
@@ -90,7 +97,8 @@
       "key": {
         "int": 331,
         "string": "y"
-      }
+      },
+      "bindable": true
     }
   }
 }
