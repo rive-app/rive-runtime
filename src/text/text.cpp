@@ -683,6 +683,7 @@ void Text::markShapeDirty(bool sendToLayout)
 #endif
 }
 
+#ifdef WITH_RIVE_LAYOUT
 void Text::markLayoutNodeDirty()
 {
     for (ContainerComponent* p = parent(); p != nullptr; p = p->parent())
@@ -693,6 +694,7 @@ void Text::markLayoutNodeDirty()
         }
     }
 }
+#endif
 
 void Text::modifierShapeDirty() { addDirt(ComponentDirt::Path); }
 
