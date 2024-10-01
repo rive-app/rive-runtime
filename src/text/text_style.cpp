@@ -59,7 +59,7 @@ StatusCode TextStyle::onAddedClean(CoreContext* context)
         return code;
     }
     // This ensures context propagates to variation helper too.
-    if (!m_variations.empty())
+    if (!m_variations.empty() || !m_styleFeatures.empty())
     {
         m_variationHelper = rivestd::make_unique<TextVariationHelper>(this);
     }
