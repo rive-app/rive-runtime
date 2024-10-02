@@ -619,6 +619,12 @@ void Artboard::update(ComponentDirt value)
     {
         sortDrawOrder();
     }
+#ifdef WITH_RIVE_LAYOUT
+    if (hasDirt(value, ComponentDirt::LayoutStyle))
+    {
+        cascadeAnimationStyle(interpolation(), interpolator(), interpolationTime());
+    }
+#endif
 }
 
 void Artboard::updateDataBinds()
@@ -747,11 +753,6 @@ bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot, bool nested)
     bool didUpdate = false;
     m_HasChangedDrawOrderInLastUpdate = false;
 #ifdef WITH_RIVE_LAYOUT
-    if (hasDirt(ComponentDirt::LayoutStyle))
-    {
-        cascadeAnimationStyle(interpolation(), interpolator(), interpolationTime());
-    }
-
     if (syncStyleChanges() && m_updatesOwnLayout)
     {
         calculateLayout();
