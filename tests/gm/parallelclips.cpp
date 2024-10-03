@@ -10,8 +10,8 @@ using namespace rivegm;
 
 namespace rive::gpu
 {
-// Draws non-overlapping clips, which will get reordered and batched together in atomic and
-// depthStencil modes.
+// Draws non-overlapping clips, which will get reordered and batched together in atomic and msaa
+// modes.
 class ParallelClipsGM : public GM
 {
 public:

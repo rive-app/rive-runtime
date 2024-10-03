@@ -45,7 +45,7 @@ public:
         m_resourceCounts.contourCount = 1;
         m_resourceCounts.maxTessellatedSegmentCount = kNumTriangles;
         m_resourceCounts.outerCubicTessVertexCount =
-            context->frameInterlockMode() != gpu::InterlockMode::depthStencil
+            context->frameInterlockMode() != gpu::InterlockMode::msaa
                 ? gpu::kOuterCurvePatchSegmentSpan * kNumTriangles * 2
                 : gpu::kOuterCurvePatchSegmentSpan * kNumTriangles;
     }

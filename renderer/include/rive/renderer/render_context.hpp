@@ -102,8 +102,8 @@ public:
         uint32_t renderTargetHeight = 0;
         LoadAction loadAction = LoadAction::clear;
         ColorInt clearColor = 0;
-        int msaaSampleCount = 0; // If nonzero, the number of MSAA samples to use.
-                                 // Setting this to a nonzero value forces depthStencil mode.
+        int msaaSampleCount = 0;            // If nonzero, the number of MSAA samples to use.
+                                            // Setting this to a nonzero value forces msaa mode.
         bool disableRasterOrdering = false; // Use atomic mode in place of rasterOrdering, even if
                                             // rasterOrdering is supported.
 
@@ -643,8 +643,8 @@ private:
         RIVE_DEBUG_CODE(uint32_t m_expectedPathMirroredTessLocationAtEndOfPath;)
         RIVE_DEBUG_CODE(uint32_t m_pathCurveCount;)
 
-        // Stateful Z index of the current draw being pushed. Used by depthStencil mode to avoid
-        // double hits and to reverse-sort opaque paths front to back.
+        // Stateful Z index of the current draw being pushed. Used by msaa mode to avoid double hits
+        // and to reverse-sort opaque paths front to back.
         uint32_t m_currentZIndex;
 
         RIVE_DEBUG_CODE(bool m_hasDoneLayout = false;)

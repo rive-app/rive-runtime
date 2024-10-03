@@ -393,9 +393,9 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
     {
         // Use interior triangulation to draw filled paths if they're large enough to benefit from
         // it.
-        // FIXME! Implement interior triangulation in depthStencil mode.
+        // FIXME! Implement interior triangulation in msaa mode.
 
-        if (context->frameInterlockMode() != gpu::InterlockMode::depthStencil &&
+        if (context->frameInterlockMode() != gpu::InterlockMode::msaa &&
             path->getRawPath().verbs().count() < 1000 &&
             gpu::FindTransformedArea(localBounds, matrix) > 512 * 512)
         {
@@ -473,16 +473,16 @@ RiveRenderPathDraw::RiveRenderPathDraw(AABB bounds,
         // Stroke triangles are always forward.
         m_contourDirections = gpu::ContourDirections::forward;
     }
-    else if (frameInterlockMode != gpu::InterlockMode::depthStencil)
+    else if (frameInterlockMode != gpu::InterlockMode::msaa)
     {
         // atomic and rasterOrdering fills need reverse AND forward triangles.
         m_contourDirections = gpu::ContourDirections::reverseAndForward;
     }
     else if (m_fillRule != FillRule::evenOdd)
     {
-        // Emit "nonZero" depthStencil fills in a direction such that the dominant triangle winding
-        // area is always clockwise. This maximizes pixel throughput since we will draw
-        // counterclockwise triangles twice and clockwise only once.
+        // Emit "nonZero" msaa fills in a direction such that the dominant triangle winding area is
+        // always clockwise. This maximizes pixel throughput since we will draw counterclockwise
+        // triangles twice and clockwise only once.
         float matrixDeterminant = matrix[0] * matrix[3] - matrix[2] * matrix[1];
         m_contourDirections = m_pathRef->getCoarseArea() * matrixDeterminant >= 0
                                   ? gpu::ContourDirections::forward
@@ -490,7 +490,7 @@ RiveRenderPathDraw::RiveRenderPathDraw(AABB bounds,
     }
     else
     {
-        // "evenOdd" depthStencil fils just get drawn twice, so any direction is fine.
+        // "evenOdd" msaa fills just get drawn twice, so any direction is fine.
         m_contourDirections = gpu::ContourDirections::forward;
     }
 

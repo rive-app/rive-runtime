@@ -58,7 +58,7 @@ uint32_t ShaderUniqueKey(DrawType drawType,
             drawTypeKey = 5;
             break;
         case DrawType::stencilClipReset:
-            assert(interlockMode == gpu::InterlockMode::depthStencil);
+            assert(interlockMode == gpu::InterlockMode::msaa);
             drawTypeKey = 6;
             break;
     }

@@ -461,7 +461,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
     uint32_t lastClipID = clipIdxCurrentlyInClipBuffer == -1
                               ? 0 // The next clip to be drawn is not nested.
                               : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
-    if (m_context->frameInterlockMode() == gpu::InterlockMode::depthStencil)
+    if (m_context->frameInterlockMode() == gpu::InterlockMode::msaa)
     {
         if (lastClipID == 0 && m_context->getClipContentID() != 0)
         {
@@ -533,7 +533,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         if (lastClipID != 0)
         {
             m_context->addClipReadBounds(lastClipID, clipDrawBounds);
-            if (m_context->frameInterlockMode() == gpu::InterlockMode::depthStencil)
+            if (m_context->frameInterlockMode() == gpu::InterlockMode::msaa)
             {
                 // When drawing nested stencil clips, we need to intersect them, which involves
                 // erasing the region of the current clip in the stencil buffer that is outside the

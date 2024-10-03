@@ -193,7 +193,7 @@ public:
                         framebuffer.writeMask = MTLColorWriteMaskNone;
                     }
                     break;
-                case gpu::InterlockMode::depthStencil:
+                case gpu::InterlockMode::msaa:
                     RIVE_UNREACHABLE();
             }
             return make_pipeline_state(gpu, desc);
@@ -824,7 +824,7 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
 
 void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 {
-    assert(desc.interlockMode != gpu::InterlockMode::depthStencil); // TODO: msaa.
+    assert(desc.interlockMode != gpu::InterlockMode::msaa); // TODO: msaa.
 
     auto* renderTarget = static_cast<RenderTargetMetal*>(desc.renderTarget);
     id<MTLCommandBuffer> commandBuffer = (__bridge id<MTLCommandBuffer>)desc.externalCommandBuffer;

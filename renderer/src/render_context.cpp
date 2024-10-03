@@ -234,7 +234,7 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     }
     if (m_frameDescriptor.msaaSampleCount > 0)
     {
-        m_frameInterlockMode = gpu::InterlockMode::depthStencil;
+        m_frameInterlockMode = gpu::InterlockMode::msaa;
     }
     else if ((!platformFeatures().supportsRasterOrdering ||
               m_frameDescriptor.disableRasterOrdering) &&
@@ -267,7 +267,7 @@ bool RenderContext::isOutsideCurrentFrame(const IAABB& pixelBounds)
 bool RenderContext::frameSupportsClipRects() const
 {
     assert(m_didBeginFrame);
-    return m_frameInterlockMode != gpu::InterlockMode::depthStencil ||
+    return m_frameInterlockMode != gpu::InterlockMode::msaa ||
            platformFeatures().supportsClipPlanes;
 }
 
@@ -939,10 +939,10 @@ void RenderContext::LogicalFlush::writeResources()
             // to maximize batching while preserving correctness.
             int64_t drawGroupIdx = intersectionBoard->addRectangle(drawBounds);
             assert(drawGroupIdx > 0);
-            if (m_flushDesc.interlockMode == gpu::InterlockMode::depthStencil && draw->isOpaque())
+            if (m_flushDesc.interlockMode == gpu::InterlockMode::msaa && draw->isOpaque())
             {
-                // In depthStencil mode we can reverse-sort opaque paths front to back, draw them
-                // first, and take advantage of early Z culling.
+                // In msaa mode we can reverse-sort opaque paths front to back, draw them first, and
+                // take advantage of early Z culling.
                 //
                 // To keep things simple initially, we don't reverse-sort draws that use clipping.
                 // (Otherwise if a clip affects both opaque and transparent content, we would have
@@ -976,7 +976,7 @@ void RenderContext::LogicalFlush::writeResources()
             assert(blendMode <= kBlendModeMask >> kBlendModeShift);
             key |= blendMode << kBlendModeShift;
 
-            // depthStencil mode draws strokes, fills, and even/odd with different stencil settings.
+            // msaa mode draws strokes, fills, and even/odd with different stencil settings.
             int64_t drawContents = static_cast<int64_t>(draw->drawContents());
             assert(drawContents <= kDrawContentsMask >> kDrawContentsShift);
             key |= drawContents << kDrawContentsShift;
@@ -1014,10 +1014,10 @@ void RenderContext::LogicalFlush::writeResources()
         // Draws with the same drawGroupIdx don't overlap, but once we cross into a new draw group,
         // we need to insert a barrier between the overlaps.
         int64_t needsBarrierMask = kDrawGroupMask;
-        if (m_flushDesc.interlockMode == gpu::InterlockMode::depthStencil)
+        if (m_flushDesc.interlockMode == gpu::InterlockMode::msaa)
         {
-            // depthStencil mode also draws clips, strokes, fills, and even/odd with different
-            // stencil settings, so these also need a barrier.
+            // msaa mode also draws clips, strokes, fills, and even/odd with different stencil
+            // settings, so these also need a barrier.
             needsBarrierMask |= kDrawContentsMask;
             if (platformFeatures.supportsKHRBlendEquations)
             {
@@ -1877,9 +1877,9 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(Draw* draw,
         assert(batch.drawType == drawType);
         assert(can_combine_draw_images(batch.imageTexture, draw->imageTexture()));
         assert(!batch.needsBarrier);
-        if (m_flushDesc.interlockMode == gpu::InterlockMode::depthStencil)
+        if (m_flushDesc.interlockMode == gpu::InterlockMode::msaa)
         {
-            // depthStencil can't mix drawContents in a batch.
+            // msaa can't mix drawContents in a batch.
             assert(batch.drawContents == draw->drawContents());
             assert((batch.shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
                    (draw->blendMode() != BlendMode::srcOver));

@@ -95,8 +95,8 @@ struct PlatformFeatures
 {
     bool supportsRasterOrdering = false;        // InterlockMode::rasterOrdering.
     bool supportsFragmentShaderAtomics = false; // InterlockMode::atomics.
-    bool supportsKHRBlendEquations = false; // Use KHR_blend_equation_advanced in depthStencil mode?
-    bool supportsClipPlanes = false;        // Required for @ENABLE_CLIP_RECT in depthStencil mode.
+    bool supportsKHRBlendEquations = false;     // Use KHR_blend_equation_advanced in msaa mode?
+    bool supportsClipPlanes = false;            // Required for @ENABLE_CLIP_RECT in msaa mode.
     bool supportsBindlessTextures = false;
     bool avoidFlatVaryings = false;
     bool invertOffscreenY = false;  // Invert Y when drawing to offscreen render targets? (Gradient
@@ -554,7 +554,7 @@ enum class InterlockMode
 {
     rasterOrdering,
     atomics,
-    depthStencil,
+    msaa,
 };
 
 // "Uber shader" features that can be #defined in a draw shader.
@@ -591,7 +591,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(InterlockMode interlockMod
             return kAllShaderFeatures;
         case InterlockMode::atomics:
             return kAllShaderFeatures & ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
-        case InterlockMode::depthStencil:
+        case InterlockMode::msaa:
             return ShaderFeatures::ENABLE_CLIP_RECT | ShaderFeatures::ENABLE_ADVANCED_BLEND |
                    ShaderFeatures::ENABLE_HSL_BLEND_MODES;
     }
@@ -666,9 +666,9 @@ uint32_t ShaderUniqueKey(DrawType, ShaderFeatures, InterlockMode, ShaderMiscFlag
 
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
-// Flags indicating the contents of a draw. These don't affect shaders, but in depthStencil mode
-// they are needed to break up batching. (depthStencil needs different stencil/blend state,
-// depending on the DrawContents.)
+// Flags indicating the contents of a draw. These don't affect shaders, but in msaa mode they are
+// needed to break up batching. (msaa needs different stencil/blend state, depending on the
+// DrawContents.)
 //
 // These also affect the draw sort order, so we attempt associate more expensive shader branch
 // misses with higher flags.
@@ -766,7 +766,7 @@ struct FlushDescriptor
     RenderTarget* renderTarget = nullptr;
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdering;
-    int msaaSampleCount = 0; // (0 unless interlockMode is depthStencil.)
+    int msaaSampleCount = 0; // (0 unless interlockMode is msaa.)
 
     LoadAction colorLoadAction = LoadAction::clear;
     ColorInt clearColor = 0; // When loadAction == LoadAction::clear.
@@ -922,7 +922,7 @@ public:
 private:
     WRITEONLY float m_matrix[6];
     WRITEONLY float m_strokeRadius; // "0" indicates that the path is filled, not stroked.
-    WRITEONLY uint32_t m_zIndex;    // gpu::InterlockMode::depthStencil only.
+    WRITEONLY uint32_t m_zIndex;    // gpu::InterlockMode::msaa only.
 };
 static_assert(sizeof(PathData) == StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 2);
 static_assert(256 % sizeof(PathData) == 0);
@@ -1052,7 +1052,7 @@ private:
     WRITEONLY float m_clipRectInverseMatrix[6];
     WRITEONLY uint32_t m_clipID;
     WRITEONLY uint32_t m_blendMode;
-    WRITEONLY uint32_t m_zIndex; // gpu::InterlockMode::depthStencil only.
+    WRITEONLY uint32_t m_zIndex; // gpu::InterlockMode::msaa only.
     // Uniform blocks must be multiples of 256 bytes in size.
     WRITEONLY uint8_t m_padTo256Bytes[256 - 68];
 

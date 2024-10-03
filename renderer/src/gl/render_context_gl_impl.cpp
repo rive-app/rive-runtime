@@ -648,7 +648,7 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
         if (shaderFeatures & feature)
         {
             assert((kVertexShaderFeaturesMask & feature) || shaderType == GL_FRAGMENT_SHADER);
-            if (interlockMode == gpu::InterlockMode::depthStencil &&
+            if (interlockMode == gpu::InterlockMode::msaa &&
                 feature == gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
                 renderContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
             {
@@ -660,7 +660,7 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
             }
         }
     }
-    if (interlockMode == gpu::InterlockMode::depthStencil)
+    if (interlockMode == gpu::InterlockMode::msaa)
     {
         defines.push_back(GLSL_USING_DEPTH_STENCIL);
     }
@@ -700,7 +700,7 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
                                                                            : gpu::glsl::draw_path);
             break;
         case gpu::DrawType::stencilClipReset:
-            assert(interlockMode == gpu::InterlockMode::depthStencil);
+            assert(interlockMode == gpu::InterlockMode::msaa);
             sources.push_back(gpu::glsl::stencil_draw);
             break;
         case gpu::DrawType::interiorTriangulation:
@@ -816,7 +816,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* renderContext
     glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glUniform1i(glGetUniformLocation(m_id, GLSL_imageTexture),
                 kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
-    if (interlockMode == gpu::InterlockMode::depthStencil &&
+    if (interlockMode == gpu::InterlockMode::msaa &&
         (shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
         !renderContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
     {
@@ -1122,14 +1122,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 
     auto msaaResolveAction = RenderTargetGL::MSAAResolveAction::automatic;
     std::array<GLenum, 3> msaaDepthStencilColor;
-    if (desc.interlockMode != gpu::InterlockMode::depthStencil)
+    if (desc.interlockMode != gpu::InterlockMode::msaa)
     {
         assert(desc.msaaSampleCount == 0);
         m_plsImpl->activatePixelLocalStorage(this, desc);
     }
     else
     {
-        // Render with MSAA in depthStencil mode.
         assert(desc.msaaSampleCount > 0);
         bool preserveRenderTarget = desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget;
         bool isFBO0;
@@ -1216,7 +1215,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             glBindTexture(GL_TEXTURE_2D, imageTextureGL->textureID());
         }
 
-        if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+        if (desc.interlockMode == gpu::InterlockMode::msaa)
         {
             // Set up the next blend.
             if (batch.drawContents & gpu::DrawContents::opaquePaint)
@@ -1230,8 +1229,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             else if (m_capabilities.KHR_blend_equation_advanced_coherent)
             {
-                // When m_platformFeatures.supportsKHRBlendEquations is true in depthStencil mode,
-                // the renderContext does not combine draws when they have different blend modes.
+                // When m_platformFeatures.supportsKHRBlendEquations is true in msaa mode, the
+                // renderContext does not combine draws when they have different blend modes.
                 m_state->setBlendEquation(batch.internalDrawList->blendMode());
             }
             else
@@ -1275,7 +1274,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                                       batch.elementCount,
                                                       batch.baseElement);
 
-                if (desc.interlockMode != gpu::InterlockMode::depthStencil)
+                if (desc.interlockMode != gpu::InterlockMode::msaa)
                 {
                     m_plsImpl->ensureRasterOrderingEnabled(this,
                                                            desc,
@@ -1385,7 +1384,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case gpu::DrawType::stencilClipReset:
             {
-                assert(desc.interlockMode == gpu::InterlockMode::depthStencil);
+                assert(desc.interlockMode == gpu::InterlockMode::msaa);
                 m_state->bindVAO(m_trianglesVAO);
                 bool isNestedClipUpdate =
                     (batch.drawContents & gpu::kNestedClipUpdateMask) == gpu::kNestedClipUpdateMask;
@@ -1410,7 +1409,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case gpu::DrawType::interiorTriangulation:
             {
-                assert(desc.interlockMode != gpu::InterlockMode::depthStencil); // TODO!
+                assert(desc.interlockMode != gpu::InterlockMode::msaa); // TODO!
                 m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_trianglesVAO);
                 m_state->setCullFace(GL_BACK);
@@ -1452,7 +1451,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   gl_buffer_id(imageDrawUniformBufferRing()),
                                   batch.imageDrawDataOffset,
                                   sizeof(gpu::ImageDrawUniforms));
-                if (desc.interlockMode != gpu::InterlockMode::depthStencil)
+                if (desc.interlockMode != gpu::InterlockMode::msaa)
                 {
                     // Try to enable raster ordering for image meshes in rasterOrdering and atomic
                     // mode both; we have no control over whether the internal geometry has self
@@ -1491,14 +1490,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 RIVE_UNREACHABLE();
             }
         }
-        if (desc.interlockMode != gpu::InterlockMode::depthStencil && batch.needsBarrier &&
+        if (desc.interlockMode != gpu::InterlockMode::msaa && batch.needsBarrier &&
             batch.drawType != gpu::DrawType::imageMesh /*EW!*/)
         {
             m_plsImpl->barrier(desc);
         }
     }
 
-    if (desc.interlockMode != gpu::InterlockMode::depthStencil)
+    if (desc.interlockMode != gpu::InterlockMode::msaa)
     {
         m_plsImpl->deactivatePixelLocalStorage(this, desc);
     }

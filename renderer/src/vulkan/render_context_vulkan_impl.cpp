@@ -810,7 +810,7 @@ public:
                        DrawPipelineLayoutOptions options) :
         m_vk(ref_rcp(impl->vulkanContext())), m_interlockMode(interlockMode), m_options(options)
     {
-        assert(interlockMode != gpu::InterlockMode::depthStencil); // TODO: msaa.
+        assert(interlockMode != gpu::InterlockMode::msaa); // TODO: msaa.
 
         // Most bindings only need to be set once per flush.
         VkDescriptorSetLayoutBinding perFlushLayoutBindings[] = {
@@ -2097,7 +2097,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     constexpr static VkDeviceSize zeroOffset[1] = {0};
     constexpr static uint32_t zeroOffset32[1] = {0};
 
-    if (desc.interlockMode == gpu::InterlockMode::depthStencil)
+    if (desc.interlockMode == gpu::InterlockMode::msaa)
     {
         return;
     }
