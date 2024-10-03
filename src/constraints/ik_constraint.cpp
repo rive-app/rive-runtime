@@ -186,6 +186,8 @@ void IKConstraint::solve2(BoneChainLink* fk1,
     firstChild->angle = r2;
 }
 
+void IKConstraint::invertDirectionChanged() { markConstraintDirty(); }
+
 void IKConstraint::constrainRotation(BoneChainLink& fk, float rotation)
 {
     Bone* bone = fk.bone;

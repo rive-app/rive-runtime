@@ -29,6 +29,7 @@ public:
     StatusCode onAddedClean(CoreContext* context) override;
     void constrain(TransformComponent* component) override;
     void buildDependencies() override;
+    void invertDirectionChanged() override;
 };
 } // namespace rive
 

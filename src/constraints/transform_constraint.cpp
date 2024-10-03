@@ -14,6 +14,10 @@ const Mat2D TransformConstraint::targetTransform() const
     return m_Target->worldTransform() * local;
 }
 
+void TransformConstraint::originXChanged() { markConstraintDirty(); }
+
+void TransformConstraint::originYChanged() { markConstraintDirty(); }
+
 void TransformConstraint::constrain(TransformComponent* component)
 {
     if (m_Target == nullptr || m_Target->isCollapsed())

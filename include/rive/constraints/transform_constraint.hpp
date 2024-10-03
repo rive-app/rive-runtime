@@ -15,6 +15,8 @@ private:
 public:
     virtual const Mat2D targetTransform() const;
     void constrain(TransformComponent* component) override;
+    void originXChanged() override;
+    void originYChanged() override;
 };
 } // namespace rive
 
