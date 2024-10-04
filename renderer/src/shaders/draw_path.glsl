@@ -199,10 +199,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         else // IMAGE_PAINT_TYPE
         {
             // v_paint.a <= -1. signals that the paint is an image.
+            // -v_paint.a - 2 is the texture mipmap level-of-detail.
             // v_paint.b is the image opacity.
             // v_paint.rg is the normalized image texture coordinate (built into the paintMatrix).
             float opacity = uintBitsToFloat(paintData.y);
-            v_paint = float4(paintCoord.x, paintCoord.y, opacity, -2.);
+            float lod = paintTranslate.z;
+            v_paint = float4(paintCoord.x, paintCoord.y, opacity, -2. - lod);
         }
     }
 
@@ -261,13 +263,7 @@ SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
 
-INLINE half4 find_paint_color(float4 paint
-#ifdef @TARGET_VULKAN
-                              ,
-                              float2 imagePaintDDX,
-                              float2 imagePaintDDY
-#endif
-                                  FRAGMENT_CONTEXT_DECL)
+INLINE half4 find_paint_color(float4 paint FRAGMENT_CONTEXT_DECL)
 {
     if (paint.a >= .0) // Is the paint a solid color?
     {
@@ -288,19 +284,10 @@ INLINE half4 find_paint_color(float4 paint
     }
     else // The paint is an image.
     {
-        half4 color;
-#ifdef @TARGET_VULKAN
-        // Vulkan validators require explicit derivatives when sampling a texture in
-        // "non-uniform" control flow. See above.
-        color = TEXTURE_SAMPLE_GRAD(@imageTexture,
-                                    imageSampler,
-                                    paint.rg,
-                                    imagePaintDDX,
-                                    imagePaintDDY);
-#else
-        color = TEXTURE_SAMPLE(@imageTexture, imageSampler, paint.rg);
-#endif
-        color.a *= paint.b; // paint.b holds the opacity of the image.
+        half lod = -paint.a - 2.;
+        half4 color = TEXTURE_SAMPLE_LOD(@imageTexture, imageSampler, paint.rg, lod);
+        half opacity = paint.b;
+        color.a *= opacity;
         return color;
     }
 }
@@ -333,17 +320,6 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_UNPACK(v_blendMode, half);
-#endif
-
-#ifdef @TARGET_VULKAN
-    // Strict validators require derivatives (i.e., for a mipmapped texture sample) to be computed
-    // within uniform control flow.
-    // Our control flow for texture sampling is uniform for an entire triangle, so we're fine, but
-    // the validators don't know this.
-    // If this might be a problem (e.g., for WebGPU), just find the potential image paint
-    // derivatives here.
-    float2 imagePaintDDX = dFdx(v_paint.rg);
-    float2 imagePaintDDY = dFdy(v_paint.rg);
 #endif
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
@@ -446,13 +422,7 @@ PLS_MAIN(@drawFragmentMain)
         }
 #endif // ENABLE_CLIP_RECT
 
-        half4 color = find_paint_color(v_paint
-#ifdef @TARGET_VULKAN
-                                       ,
-                                       imagePaintDDX,
-                                       imagePaintDDY
-#endif
-                                           FRAGMENT_CONTEXT_UNPACK);
+        half4 color = find_paint_color(v_paint FRAGMENT_CONTEXT_UNPACK);
         color.a *= coverage;
 
         half4 dstColor;

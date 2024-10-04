@@ -97,7 +97,6 @@ struct PlatformFeatures
     bool supportsFragmentShaderAtomics = false; // InterlockMode::atomics.
     bool supportsKHRBlendEquations = false;     // Use KHR_blend_equation_advanced in msaa mode?
     bool supportsClipPlanes = false;            // Required for @ENABLE_CLIP_RECT in msaa mode.
-    bool supportsBindlessTextures = false;
     bool avoidFlatVaryings = false;
     bool invertOffscreenY = false;  // Invert Y when drawing to offscreen render targets? (Gradient
                                     // and tessellation textures.)
@@ -239,9 +238,8 @@ constexpr static size_t kTessVertexBufferAlignmentInElements = 256 / sizeof(Tess
 // Tessellation spans are drawn as two distinct, 1px-tall rectangles: the span and its reflection.
 constexpr uint16_t kTessSpanIndices[4 * 3] = {0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7};
 
-// ImageRects are a special type of non-overlapping antialiased draw that we only have to use when
-// we don't have bindless textures in atomic mode. They allow us to bind a texture and draw it in
-// its entirety in a single pass.
+// ImageRects are a special type of non-overlapping antialiased draw that we only have to use in
+// atomic mode. They allow us to bind a texture and draw it in its entirety in a single pass.
 struct ImageRectVertex
 {
     float x;
@@ -984,7 +982,7 @@ private:
     {
         WRITEONLY float m_gradTextureHorizontalSpan[2]; // Paintype::linearGradient,
                                                         // Paintype::radialGradient
-        WRITEONLY uint32_t m_bindlessTextureHandle[2];  // PaintType::image
+        WRITEONLY float m_imageTextureLOD;              // PaintType::image
     };
 
     WRITEONLY float m_clipRectInverseMatrix[6]; // Maps _fragCoord to normalized clipRect coords.

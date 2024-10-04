@@ -526,8 +526,8 @@ private:
         void pushInteriorTriangulation(RiveRenderPathDraw*);
 
         // Pushes an imageRect to the draw list.
-        // This should only be used when we don't have bindless textures in atomic mode. Otherwise,
-        // images should be drawn as rectangular paths with an image paint.
+        // This should only be used when we in atomic mode. Otherwise, images should be drawn as
+        // rectangular paths with an image paint.
         void pushImageRect(ImageRectDraw*);
 
         void pushImageMesh(ImageMeshDraw*);

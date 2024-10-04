@@ -263,9 +263,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // VERTEX
 #endif // DRAW_RENDER_TARGET_UPDATE_BOUNDS
 
-#ifdef @ENABLE_BINDLESS_TEXTURES
-#define NEEDS_IMAGE_TEXTURE
-#endif
 #ifdef @DRAW_IMAGE
 #define NEEDS_IMAGE_TEXTURE
 #endif
@@ -360,34 +357,16 @@ half4 resolve_path_color(half coverageCount,
             break;
         case LINEAR_GRADIENT_PAINT_TYPE:
         case RADIAL_GRADIENT_PAINT_TYPE:
-#ifdef @ENABLE_BINDLESS_TEXTURES
-        case IMAGE_PAINT_TYPE:
-#endif // ENABLE_BINDLESS_TEXTURES
         {
             float2x2 M = make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u));
             float4 translate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 1u);
             float2 paintCoord = MUL(M, _fragCoord) + translate.xy;
-#ifdef @ENABLE_BINDLESS_TEXTURES
-            if (paintType == IMAGE_PAINT_TYPE)
-            {
-                color = TEXTURE_SAMPLE_GRAD(sampler2D(floatBitsToUint(translate.zw)),
-                                            imageSampler,
-                                            paintCoord,
-                                            M[0],
-                                            M[1]);
-                float opacity = uintBitsToFloat(paintData.y);
-                color.a *= opacity;
-            }
-            else
-#endif // ENABLE_BINDLESS_TEXTURES
-            {
-                float t = paintType == LINEAR_GRADIENT_PAINT_TYPE ? /*linear*/ paintCoord.x
-                                                                  : /*radial*/ length(paintCoord);
-                t = clamp(t, .0, 1.);
-                float x = t * translate.z + translate.w;
-                float y = uintBitsToFloat(paintData.y);
-                color = TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, y), .0);
-            }
+            float t = paintType == LINEAR_GRADIENT_PAINT_TYPE ? /*linear*/ paintCoord.x
+                                                              : /*radial*/ length(paintCoord);
+            t = clamp(t, .0, 1.);
+            float x = t * translate.z + translate.w;
+            float y = uintBitsToFloat(paintData.y);
+            color = TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, y), .0);
 #ifdef @ENABLE_CLIPPING
             if (@ENABLE_CLIPPING)
             {

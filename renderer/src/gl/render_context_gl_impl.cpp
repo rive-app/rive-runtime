@@ -86,10 +86,6 @@ RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
     {
         m_platformFeatures.supportsClipPlanes = true;
     }
-    if (m_capabilities.ARB_bindless_texture)
-    {
-        m_platformFeatures.supportsBindlessTextures = true;
-    }
     if (strstr(rendererString, "Apple") && strstr(rendererString, "Metal"))
     {
         // In Metal, non-flat varyings preserve their exact value if all vertices in the triangle
@@ -194,27 +190,23 @@ RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
     m_state->bindVAO(m_trianglesVAO);
     glEnableVertexAttribArray(0);
 
-    if (!m_capabilities.ARB_bindless_texture)
-    {
-        // We only have to draw imageRects when in atomic mode and bindless textures are not
-        // supported.
-        m_state->bindVAO(m_imageRectVAO);
+    // We draw imageRects when in atomic mode.
+    m_state->bindVAO(m_imageRectVAO);
 
-        m_state->bindBuffer(GL_ARRAY_BUFFER, m_imageRectVertexBuffer);
-        glBufferData(GL_ARRAY_BUFFER,
-                     sizeof(gpu::kImageRectVertices),
-                     gpu::kImageRectVertices,
-                     GL_STATIC_DRAW);
+    m_state->bindBuffer(GL_ARRAY_BUFFER, m_imageRectVertexBuffer);
+    glBufferData(GL_ARRAY_BUFFER,
+                 sizeof(gpu::kImageRectVertices),
+                 gpu::kImageRectVertices,
+                 GL_STATIC_DRAW);
 
-        glEnableVertexAttribArray(0);
-        glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(gpu::ImageRectVertex), nullptr);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(gpu::ImageRectVertex), nullptr);
 
-        m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_imageRectIndexBuffer);
-        glBufferData(GL_ELEMENT_ARRAY_BUFFER,
-                     sizeof(gpu::kImageRectIndices),
-                     gpu::kImageRectIndices,
-                     GL_STATIC_DRAW);
-    }
+    m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_imageRectIndexBuffer);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 sizeof(gpu::kImageRectIndices),
+                 gpu::kImageRectIndices,
+                 GL_STATIC_DRAW);
 
     m_state->bindVAO(m_imageMeshVAO);
     glEnableVertexAttribArray(0);
@@ -276,27 +268,7 @@ public:
                   GLuint textureID,
                   const GLCapabilities& capabilities) :
         Texture(width, height), m_textureID(textureID)
-    {
-#ifdef RIVE_DESKTOP_GL
-        if (capabilities.ARB_bindless_texture)
-        {
-            m_bindlessTextureHandle = glGetTextureHandleARB(m_textureID);
-            glMakeTextureHandleResidentARB(m_bindlessTextureHandle);
-        }
-#endif
-    }
-
-    ~TextureGLImpl() override
-    {
-#ifdef RIVE_DESKTOP_GL
-        if (m_bindlessTextureHandle != 0)
-        {
-            glMakeTextureHandleNonResidentARB(m_bindlessTextureHandle);
-        }
-#else
-        assert(m_bindlessTextureHandle == 0);
-#endif
-    }
+    {}
 
     GLuint textureID() const { return m_textureID; }
 
@@ -736,10 +708,6 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
         case gpu::DrawType::atomicInitialize:
             assert(interlockMode == gpu::InterlockMode::atomics);
             RIVE_UNREACHABLE();
-    }
-    if (renderContextImpl->m_capabilities.ARB_bindless_texture)
-    {
-        defines.push_back(GLSL_ENABLE_BINDLESS_TEXTURES);
     }
     if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
     {
@@ -1419,7 +1387,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case gpu::DrawType::imageRect:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
-                assert(!m_capabilities.ARB_bindless_texture);
                 assert(m_imageRectVAO != 0); // Should have gotten lazily allocated by now.
                 m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_imageRectVAO);
@@ -1767,11 +1734,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 #endif // RIVE_WEBGL
 
 #ifdef RIVE_DESKTOP_GL
-    // We implement some ES capabilities with core Desktop GL in glad_custom.c.
-    if (GLAD_GL_ARB_bindless_texture)
-    {
-        capabilities.ARB_bindless_texture = true;
-    }
     if (GLAD_GL_ANGLE_base_vertex_base_instance_shader_builtin)
     {
         capabilities.ANGLE_base_vertex_base_instance_shader_builtin = true;

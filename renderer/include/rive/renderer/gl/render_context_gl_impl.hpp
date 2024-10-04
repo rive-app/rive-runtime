@@ -217,8 +217,7 @@ private:
     glutils::Buffer m_patchIndicesBuffer;
     glutils::VAO m_trianglesVAO;
 
-    // Vertex/index buffers for drawing image rects. (Atomic mode only, and only used when bindless
-    // textures aren't supported.)
+    // Vertex/index buffers for drawing image rects. (Atomic mode only.)
     glutils::VAO m_imageRectVAO;
     glutils::Buffer m_imageRectVertexBuffer;
     glutils::Buffer m_imageRectIndexBuffer;

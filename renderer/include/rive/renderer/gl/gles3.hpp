@@ -124,7 +124,6 @@ struct GLCapabilities
     bool ANGLE_polygon_mode : 1;
     bool ANGLE_provoking_vertex : 1;
     bool ARM_shader_framebuffer_fetch : 1;
-    bool ARB_bindless_texture : 1;
     bool ARB_fragment_shader_interlock : 1;
     bool ARB_shader_image_load_store : 1;
     bool ARB_shader_storage_buffer_object : 1;

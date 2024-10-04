@@ -51,10 +51,6 @@
 #extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
 #endif
 
-#ifdef @ENABLE_BINDLESS_TEXTURES
-#extension GL_ARB_bindless_texture : require
-#endif
-
 #ifdef @ENABLE_KHR_BLEND
 #extension GL_KHR_blend_equation_advanced : require
 #endif
@@ -183,9 +179,9 @@
 #define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
     TEXTURE_RGBA32F(PER_FLUSH_BINDINGS_SET, IDX, NAME)
 #define STORAGE_BUFFER_LOAD4(NAME, I)                                                              \
-    TEXEL_FETCH(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))
+    TEXEL_FETCH(NAME, int2((I) & STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))
 #define STORAGE_BUFFER_LOAD2(NAME, I)                                                              \
-    TEXEL_FETCH(NAME, int2((I)&STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y)).xy
+    TEXEL_FETCH(NAME, int2((I) & STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y)).xy
 
 #else
 

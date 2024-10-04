@@ -6,7 +6,7 @@
 
 #include "rive/renderer/render_target.hpp"
 #include "shaders/constants.glsl"
-#include "rive/renderer/rive_render_image.hpp"
+#include "rive/renderer/texture.hpp"
 #include "rive_render_paint.hpp"
 #include "gradient.hpp"
 
@@ -487,9 +487,16 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
             }
             if (paintType == PaintType::image)
             {
-                uint64_t bindlessTextureHandle = imageTexture->bindlessTextureHandle();
-                m_bindlessTextureHandle[0] = static_cast<uint32_t>(bindlessTextureHandle);
-                m_bindlessTextureHandle[1] = bindlessTextureHandle >> 32;
+                // Since we don't use perspective transformations, the image mipmap level-of-detail
+                // is constant throughout the entire path. Compute it ahead of time here.
+                float dudx = paintMatrix.xx() * imageTexture->width();
+                float dudy = paintMatrix.yx() * imageTexture->height();
+                float dvdx = paintMatrix.xy() * imageTexture->width();
+                float dvdy = paintMatrix.yy() * imageTexture->height();
+                float maxScaleFactorPow2 =
+                    std::max(dudx * dudx + dvdx * dvdx, dudy * dudy + dvdy * dvdy);
+                // Instead of finding sqrt(maxScaleFactorPow2), just multiply the log by .5.
+                m_imageTextureLOD = log2f(std::max(maxScaleFactorPow2, 1.f)) * .5f;
             }
             else
             {

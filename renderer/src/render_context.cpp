@@ -274,8 +274,7 @@ bool RenderContext::frameSupportsClipRects() const
 bool RenderContext::frameSupportsImagePaintForPaths() const
 {
     assert(m_didBeginFrame);
-    return m_frameInterlockMode != gpu::InterlockMode::atomics ||
-           platformFeatures().supportsBindlessTextures;
+    return m_frameInterlockMode != gpu::InterlockMode::atomics;
 }
 
 uint32_t RenderContext::generateClipID(const IAABB& contentBounds)

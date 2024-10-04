@@ -257,8 +257,8 @@ private:
 };
 
 // Pushes an imageRect to the render context.
-// This should only be used when we don't have bindless textures in atomic mode. Otherwise, images
-// should be drawn as rectangular paths with an image paint.
+// This should only be used in atomic mode. Otherwise, images should be drawn as rectangular paths
+// with an image paint.
 class ImageRectDraw : public Draw
 {
 public:
