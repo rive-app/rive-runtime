@@ -344,6 +344,15 @@ uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode)
     RIVE_UNREACHABLE();
 }
 
+uint32_t SwizzleRiveColorToRGBAPremul(ColorInt riveColor)
+{
+    uint4 rgba = (rive::uint4(riveColor) >> uint4{16, 8, 0, 24}) & 0xffu;
+    uint32_t alpha = rgba.w;
+    rgba.w = 255;
+    uint4 premul = rgba * alpha / 255;
+    return simd::reduce_or(premul << uint4{0, 8, 16, 24});
+}
+
 FlushUniforms::InverseViewports::InverseViewports(const FlushDescriptor& flushDesc,
                                                   const PlatformFeatures& platformFeatures)
 {
@@ -371,7 +380,7 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_inverseViewports(flushDesc, platformFeatures),
     m_renderTargetWidth(flushDesc.renderTarget->width()),
     m_renderTargetHeight(flushDesc.renderTarget->height()),
-    m_colorClearValue(SwizzleRiveColorToRGBA(flushDesc.clearColor)),
+    m_colorClearValue(SwizzleRiveColorToRGBAPremul(flushDesc.clearColor)),
     m_coverageClearValue(flushDesc.coverageClearValue),
     m_renderTargetUpdateBounds(flushDesc.renderTargetUpdateBounds),
     m_pathIDGranularity(platformFeatures.pathIDGranularity)

@@ -199,7 +199,7 @@ class RenderContextGLImpl::PLSImplWebGL : public RenderContextGLImpl::PixelLocal
         if (desc.colorLoadAction == LoadAction::clear)
         {
             float clearColor4f[4];
-            UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
+            UnpackColorToRGBA32FPremul(desc.clearColor, clearColor4f);
             glFramebufferPixelLocalClearValuefvANGLE(COLOR_PLANE_IDX, clearColor4f);
         }
         GLenum clipLoadAction = (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)

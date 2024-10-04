@@ -90,7 +90,7 @@ public:
         if (desc.colorLoadAction == LoadAction::clear)
         {
             float clearColor4f[4];
-            UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
+            UnpackColorToRGBA32FPremul(desc.clearColor, clearColor4f);
             glClearBufferfv(GL_COLOR, COLOR_PLANE_IDX, clearColor4f);
         }
         if (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)

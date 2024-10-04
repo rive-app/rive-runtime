@@ -935,7 +935,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         case gpu::LoadAction::clear:
         {
             float cc[4];
-            UnpackColorToRGBA32F(desc.clearColor, cc);
+            UnpackColorToRGBA32FPremul(desc.clearColor, cc);
             pass.colorAttachments[COLOR_PLANE_IDX].loadAction = MTLLoadActionClear;
             pass.colorAttachments[COLOR_PLANE_IDX].clearColor =
                 MTLClearColorMake(cc[0], cc[1], cc[2], cc[3]);

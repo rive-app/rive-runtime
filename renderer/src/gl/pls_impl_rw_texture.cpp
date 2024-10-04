@@ -89,7 +89,7 @@ class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelL
             // If the color buffer is not a storage texture, we will clear it once the main
             // framebuffer gets bound.
             float clearColor4f[4];
-            UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
+            UnpackColorToRGBA32FPremul(desc.clearColor, clearColor4f);
             glClearBufferfv(GL_COLOR, COLOR_PLANE_IDX, clearColor4f);
         }
         if (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
@@ -116,7 +116,7 @@ class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelL
                 {
                     // We're rendering directly to the main framebuffer. Clear it now.
                     float cc[4];
-                    UnpackColorToRGBA32F(desc.clearColor, cc);
+                    UnpackColorToRGBA32FPremul(desc.clearColor, cc);
                     glClearColor(cc[0], cc[1], cc[2], cc[3]);
                     glClear(GL_COLOR_BUFFER_BIT);
                 }

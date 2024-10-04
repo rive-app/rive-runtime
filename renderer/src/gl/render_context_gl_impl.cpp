@@ -1157,7 +1157,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         if (desc.colorLoadAction == gpu::LoadAction::clear)
         {
             float cc[4];
-            UnpackColorToRGBA32F(desc.clearColor, cc);
+            UnpackColorToRGBA32FPremul(desc.clearColor, cc);
             glClearColor(cc[0], cc[1], cc[2], cc[3]);
             buffersToClear |= GL_COLOR_BUFFER_BIT;
         }

@@ -832,6 +832,10 @@ RIVE_ALWAYS_INLINE uint32_t SwizzleRiveColorToRGBA(ColorInt riveColor)
     return (riveColor & 0xff00ff00) | (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
 }
 
+// Swizzles the byte order of ColorInt to litte-endian RGBA (the order expected by GLSL),
+// and premultiplies alpha.
+uint32_t SwizzleRiveColorToRGBAPremul(ColorInt riveColor);
+
 // Used for fields that are used to layout write-only mapped GPU memory.
 // "volatile" to discourage the compiler from generating code that reads these values
 // (e.g., don't let the compiler generate "x ^= x" instead of "x = 0").

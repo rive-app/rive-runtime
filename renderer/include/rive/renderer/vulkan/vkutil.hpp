@@ -264,7 +264,7 @@ void set_shader_code_if_then_else(VkShaderModuleCreateInfo& info,
 inline VkClearColorValue color_clear_rgba32f(ColorInt riveColor)
 {
     VkClearColorValue ret;
-    UnpackColorToRGBA32F(riveColor, ret.float32);
+    UnpackColorToRGBA32FPremul(riveColor, ret.float32);
     return ret;
 }
 

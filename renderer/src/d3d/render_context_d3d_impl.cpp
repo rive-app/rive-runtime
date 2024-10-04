@@ -1359,19 +1359,19 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             if (renderDirectToRasterPipeline)
             {
                 float clearColor4f[4];
-                UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
+                UnpackColorToRGBA32FPremul(desc.clearColor, clearColor4f);
                 m_gpuContext->ClearRenderTargetView(renderTarget->targetRTV(), clearColor4f);
             }
             else if (m_d3dCapabilities.supportsTypedUAVLoadStore)
             {
                 float clearColor4f[4];
-                UnpackColorToRGBA32F(desc.clearColor, clearColor4f);
+                UnpackColorToRGBA32FPremul(desc.clearColor, clearColor4f);
                 m_gpuContext->ClearUnorderedAccessViewFloat(renderTarget->targetUAV(),
                                                             clearColor4f);
             }
             else
             {
-                UINT clearColorui[4] = {gpu::SwizzleRiveColorToRGBA(desc.clearColor)};
+                UINT clearColorui[4] = {gpu::SwizzleRiveColorToRGBAPremul(desc.clearColor)};
                 m_gpuContext->ClearUnorderedAccessViewUint(renderTarget->targetUAV(), clearColorui);
             }
             break;
