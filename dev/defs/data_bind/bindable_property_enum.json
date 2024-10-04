@@ -15,7 +15,8 @@
         "int": 637,
         "string": "propertyvalue"
       },
-      "description": "The id of the enum that can be used for data binding."
+      "description": "The id of the enum that can be used for data binding.",
+      "bindable": true
     }
   }
 }
