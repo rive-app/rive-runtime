@@ -298,7 +298,7 @@ void NestedArtboard::dataContextFromInstance(ViewModelInstance* viewModelInstanc
     {
         if (animation->is<NestedStateMachine>())
         {
-            animation->as<NestedStateMachine>()->dataContextFromInstance(viewModelInstance);
+            animation->as<NestedStateMachine>()->dataContext(artboardInstance()->dataContext());
         }
     }
 }
