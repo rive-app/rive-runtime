@@ -19,12 +19,6 @@ pushd ../skia/dependencies
 popd
 ```
 
-## Install Python PLY
-
-```
-python3 -m pip install ply
-```
-
 ## Add build_rive.sh to $PATH
 
 ```

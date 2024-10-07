@@ -1,6 +1,7 @@
 dofile('rive_build_config.lua')
 
 RIVE_RUNTIME_DIR = path.getabsolute('..')
+local dependency = require('dependency')
 
 newoption({
     trigger = 'with_vulkan',
@@ -9,7 +10,6 @@ newoption({
 -- Guard this in an "if" (instead of filter()) so we don't download these repos when not building
 -- for Vulkan.
 if _OPTIONS['with_vulkan'] then
-    local dependency = require('dependency')
     -- Standardize on the same set of Vulkan headers on all platforms.
     vulkan_headers = dependency.github('KhronosGroup/Vulkan-Headers', 'vulkan-sdk-1.3.283')
     vulkan_memory_allocator = dependency.github(
@@ -90,12 +90,21 @@ else
     nproc = handle:read('*a')
     handle:close()
 end
-nproc = nproc:gsub("%s+", "") -- remove whitespace
+nproc = nproc:gsub('%s+', '') -- remove whitespace
+local python_ply = dependency.github('dabeaz/ply', '5c4dc94d4c6d059ec127ee1493c735963a5d2645')
 local pls_generated_headers = RIVE_BUILD_OUT .. '/include'
 local pls_shaders_absolute_dir = path.getabsolute(pls_generated_headers .. '/generated/shaders')
-local makecommand = 'make -C '
+local makecommand
+if os.host() == 'windows' then
+    makecommand = '"set PYTHONPATH=' .. python_ply .. '/src" && '
+else
+    makecommand = 'PYTHONPATH="' .. python_ply .. '/src" '
+end
+makecommand = makecommand
+    .. 'make -C '
     .. path.getabsolute('src/shaders')
-    .. ' -j' .. nproc
+    .. ' -j'
+    .. nproc
     .. ' OUT='
     .. pls_shaders_absolute_dir
 

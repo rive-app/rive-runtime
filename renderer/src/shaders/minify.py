@@ -84,9 +84,9 @@ def t_DEFINE(tok):
     return tok
 
 def t_IFDEF(tok):
-    r"\#[ \t]*(?P<tag>ifn?def)[ \t]+(?P<id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)"
+    r"\#[ \t]*(?P<tag>ifn?def)[ \t]+(?P<ifdef_id>[\@\$]?[A-Za-z_][A-Za-z0-9_]*)"
     tok.ifdef_tag = re.match(t_IFDEF.__doc__, tok.value)['tag']
-    tok.ifdef_id = re.match(t_IFDEF.__doc__, tok.value)['id']
+    tok.ifdef_id = re.match(t_IFDEF.__doc__, tok.value)['ifdef_id']
     if tok.ifdef_id[0] == '@':
         exported_switches.add(tok.ifdef_id)
     parse_id(tok.ifdef_id, tok.lexer.exports, is_reference=True)
