@@ -356,6 +356,9 @@ void LayoutComponent::syncStyle()
     ygStyle.dimensions()[YGDimensionWidth] = YGValue{realWidth, realWidthUnits};
     ygStyle.dimensions()[YGDimensionHeight] = YGValue{realHeight, realHeightUnits};
 
+    ygStyle.flexGrow() = YGFloatOptional();
+    ygStyle.flexShrink() = YGFloatOptional();
+    ygStyle.alignSelf() = YGAlignAuto;
     switch (realWidthScaleType)
     {
         case LayoutScaleType::fixed:
