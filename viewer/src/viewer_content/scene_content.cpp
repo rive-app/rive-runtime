@@ -88,7 +88,7 @@ class SceneContent : public ViewerContent
         m_ArtboardInstance = m_File->artboardAt(m_ArtboardIndex);
         // m_ViewModelInstance = m_File->viewModelInstanceNamed("vm-3");
         m_ViewModelInstance = m_File->createViewModelInstance(m_ArtboardInstance.get());
-        m_ArtboardInstance->dataContextFromInstance(m_ViewModelInstance);
+        m_ArtboardInstance->setDataContextFromInstance(m_ViewModelInstance);
 
         m_ArtboardInstance->advance(0.0f);
         loadNames(m_ArtboardInstance.get());

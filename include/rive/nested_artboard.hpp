@@ -64,8 +64,8 @@ public:
     void decodeDataBindPathIds(Span<const uint8_t> value) override;
     void copyDataBindPathIds(const NestedArtboardBase& object) override;
     std::vector<uint32_t> dataBindPathIds() { return m_DataBindPathIdsBuffer; };
-    void dataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent);
-    void internalDataContext(DataContext* dataContext, DataContext* parent);
+    void setDataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent);
+    void internalDataContext(DataContext* dataContext);
     void clearDataContext();
 };
 } // namespace rive

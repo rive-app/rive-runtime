@@ -1137,7 +1137,7 @@ SMITrigger* StateMachineInstance::getTrigger(const std::string& name) const
     return getNamedInput<StateMachineTrigger, SMITrigger>(name);
 }
 
-void StateMachineInstance::dataContextFromInstance(ViewModelInstance* viewModelInstance)
+void StateMachineInstance::setDataContextFromInstance(ViewModelInstance* viewModelInstance)
 {
     dataContext(new DataContext(viewModelInstance));
 }

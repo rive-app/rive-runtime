@@ -109,11 +109,11 @@ NestedInput* NestedStateMachine::input(std::string name)
 
 void NestedStateMachine::addNestedInput(NestedInput* input) { m_nestedInputs.push_back(input); }
 
-void NestedStateMachine::dataContextFromInstance(ViewModelInstance* viewModelInstance)
+void NestedStateMachine::setDataContextFromInstance(ViewModelInstance* viewModelInstance)
 {
     if (m_StateMachineInstance != nullptr)
     {
-        m_StateMachineInstance->dataContextFromInstance(viewModelInstance);
+        m_StateMachineInstance->setDataContextFromInstance(viewModelInstance);
     }
 }
 

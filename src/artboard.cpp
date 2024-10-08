@@ -1173,10 +1173,9 @@ StatusCode Artboard::import(ImportStack& importStack)
     return result;
 }
 
-void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool isRoot)
+void Artboard::internalDataContext(DataContext* value, bool isRoot)
 {
     m_DataContext = value;
-    m_DataContext->parent(parent);
     for (auto nestedArtboard : m_NestedArtboards)
     {
         if (nestedArtboard->artboardInstance() == nullptr)
@@ -1186,11 +1185,11 @@ void Artboard::internalDataContext(DataContext* value, DataContext* parent, bool
         auto value = m_DataContext->getViewModelInstance(nestedArtboard->dataBindPathIds());
         if (value != nullptr && value->is<ViewModelInstance>())
         {
-            nestedArtboard->dataContextFromInstance(value, m_DataContext);
+            nestedArtboard->setDataContextFromInstance(value, m_DataContext);
         }
         else
         {
-            nestedArtboard->internalDataContext(m_DataContext, m_DataContext->parent());
+            nestedArtboard->internalDataContext(m_DataContext);
         }
     }
     for (auto dataBind : m_DataBinds)
@@ -1271,24 +1270,21 @@ void Artboard::collectDataBinds()
 
 void Artboard::addDataBind(DataBind* dataBind) { m_DataBinds.push_back(dataBind); }
 
-void Artboard::dataContext(DataContext* value, DataContext* parent)
+void Artboard::dataContext(DataContext* value) { internalDataContext(value, true); }
+
+void Artboard::setDataContextFromInstance(ViewModelInstance* viewModelInstance)
 {
-    internalDataContext(value, parent, true);
+    setDataContextFromInstance(viewModelInstance, nullptr, true);
 }
 
-void Artboard::dataContextFromInstance(ViewModelInstance* viewModelInstance)
+void Artboard::setDataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent)
 {
-    dataContextFromInstance(viewModelInstance, nullptr, true);
+    setDataContextFromInstance(viewModelInstance, parent, true);
 }
 
-void Artboard::dataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent)
-{
-    dataContextFromInstance(viewModelInstance, parent, true);
-}
-
-void Artboard::dataContextFromInstance(ViewModelInstance* viewModelInstance,
-                                       DataContext* parent,
-                                       bool isRoot)
+void Artboard::setDataContextFromInstance(ViewModelInstance* viewModelInstance,
+                                          DataContext* parent,
+                                          bool isRoot)
 {
     if (viewModelInstance == nullptr)
     {
@@ -1298,7 +1294,9 @@ void Artboard::dataContextFromInstance(ViewModelInstance* viewModelInstance,
     {
         viewModelInstance->setAsRoot();
     }
-    internalDataContext(new DataContext(viewModelInstance), parent, isRoot);
+    auto dataContext = new DataContext(viewModelInstance);
+    dataContext->parent(parent);
+    internalDataContext(dataContext, isRoot);
 }
 
 ////////// ArtboardInstance

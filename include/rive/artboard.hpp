@@ -181,14 +181,14 @@ public:
     bool isTranslucent() const;
     bool isTranslucent(const LinearAnimation*) const;
     bool isTranslucent(const LinearAnimationInstance*) const;
-    void dataContext(DataContext* dataContext, DataContext* parent);
-    void internalDataContext(DataContext* dataContext, DataContext* parent, bool isRoot);
+    void dataContext(DataContext* dataContext);
+    void internalDataContext(DataContext* dataContext, bool isRoot);
     void clearDataContext();
-    void dataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent);
-    void dataContextFromInstance(ViewModelInstance* viewModelInstance,
-                                 DataContext* parent,
-                                 bool isRoot);
-    void dataContextFromInstance(ViewModelInstance* viewModelInstance);
+    void setDataContextFromInstance(ViewModelInstance* viewModelInstance, DataContext* parent);
+    void setDataContextFromInstance(ViewModelInstance* viewModelInstance,
+                                    DataContext* parent,
+                                    bool isRoot);
+    void setDataContextFromInstance(ViewModelInstance* viewModelInstance);
     void addDataBind(DataBind* dataBind);
     void populateDataBinds(std::vector<DataBind*>* dataBinds);
     void sortDataBinds(std::vector<DataBind*> dataBinds);
