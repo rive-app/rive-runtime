@@ -538,7 +538,6 @@ public:
         desc.height = height;
         desc.mipmapLevelCount = mipLevelCount;
         desc.usage = MTLTextureUsageShaderRead;
-        desc.storageMode = MTLStorageModeShared;
         desc.textureType = MTLTextureType2D;
         m_texture = [gpu newTextureWithDescriptor:desc];
 
