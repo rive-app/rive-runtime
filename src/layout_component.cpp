@@ -356,15 +356,13 @@ void LayoutComponent::syncStyle()
     ygStyle.dimensions()[YGDimensionWidth] = YGValue{realWidth, realWidthUnits};
     ygStyle.dimensions()[YGDimensionHeight] = YGValue{realHeight, realHeightUnits};
 
-    ygStyle.flexGrow() = YGFloatOptional();
-    ygStyle.flexShrink() = YGFloatOptional();
-    ygStyle.alignSelf() = YGAlignAuto;
     switch (realWidthScaleType)
     {
         case LayoutScaleType::fixed:
             if (parentIsRow)
             {
                 ygStyle.flexGrow() = YGFloatOptional(0);
+                ygStyle.flexShrink() = YGFloatOptional(0);
             }
             break;
         case LayoutScaleType::fill:
@@ -382,6 +380,7 @@ void LayoutComponent::syncStyle()
             if (parentIsRow)
             {
                 ygStyle.flexGrow() = YGFloatOptional(0);
+                ygStyle.flexShrink() = YGFloatOptional(0);
             }
             else
             {
@@ -398,6 +397,7 @@ void LayoutComponent::syncStyle()
             if (!parentIsRow)
             {
                 ygStyle.flexGrow() = YGFloatOptional(0);
+                ygStyle.flexShrink() = YGFloatOptional(0);
             }
             break;
         case LayoutScaleType::fill:
@@ -415,6 +415,7 @@ void LayoutComponent::syncStyle()
             if (!parentIsRow)
             {
                 ygStyle.flexGrow() = YGFloatOptional(0);
+                ygStyle.flexShrink() = YGFloatOptional(0);
             }
             else
             {
