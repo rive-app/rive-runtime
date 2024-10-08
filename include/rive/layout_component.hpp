@@ -97,6 +97,7 @@ public:
 
     void draw(Renderer* renderer) override;
     void drawProxy(Renderer* renderer) override;
+    bool isProxyHidden() override { return isHidden(); }
     Core* hitTest(HitInfo*, const Mat2D&) override;
     DrawableProxy* proxy() { return &m_proxy; };
     virtual void updateRenderPath();

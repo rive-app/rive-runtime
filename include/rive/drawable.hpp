@@ -35,7 +35,7 @@ public:
     void addClippingShape(ClippingShape* shape);
     inline const std::vector<ClippingShape*>& clippingShapes() const { return m_ClippingShapes; }
 
-    inline bool isHidden() const
+    virtual bool isHidden() const
     {
         return (static_cast<DrawableFlag>(drawableFlags()) & DrawableFlag::Hidden) ==
                    DrawableFlag::Hidden ||
@@ -57,6 +57,7 @@ class ProxyDrawing
 {
 public:
     virtual void drawProxy(Renderer* renderer) = 0;
+    virtual bool isProxyHidden() = 0;
 };
 
 class DrawableProxy : public Drawable
@@ -68,6 +69,8 @@ public:
     DrawableProxy(ProxyDrawing* proxy) : m_proxyDrawing(proxy) {}
 
     void draw(Renderer* renderer) override { m_proxyDrawing->drawProxy(renderer); }
+
+    bool isHidden() const override { return m_proxyDrawing->isProxyHidden(); }
 
     Core* hitTest(HitInfo*, const Mat2D&) override { return nullptr; }
 };
