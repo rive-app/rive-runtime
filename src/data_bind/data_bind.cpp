@@ -141,6 +141,7 @@ void DataBind::bind()
         default:
             break;
     }
+    addDirt(ComponentDirt::Bindings, true);
 }
 
 void DataBind::unbind()

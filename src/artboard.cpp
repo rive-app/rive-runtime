@@ -1197,7 +1197,6 @@ void Artboard::internalDataContext(DataContext* value, bool isRoot)
         if (dataBind->is<DataBindContext>())
         {
             dataBind->as<DataBindContext>()->bindFromContext(m_DataContext);
-            dataBind->addDirt(ComponentDirt::Bindings, true);
         }
     }
     if (isRoot)
