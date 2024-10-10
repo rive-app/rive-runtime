@@ -65,7 +65,7 @@ parser.add_argument("-m", "--match",
                     help="`match` patter for gms")
 parser.add_argument("-t", "--target",
                     default="host",
-                    choices=["host", "android", "ios", "iossim"],
+                    choices=["host", "android", "ios", "iossim", "unreal"],
                     help="which platform to run on")
 parser.add_argument("-u", "--ios_udid",
                     type=str,
@@ -338,6 +338,10 @@ def update_cmd_to_deploy_on_target(cmd):
     dirname = os.path.dirname(cmd[0])
     toolname = os.path.basename(cmd[0])
 
+    if args.target == "unreal":
+        unreal_exe_path = os.path.join(dirname, "Windows", "rive_unreal.exe")
+        return [unreal_exe_path, "/Game/maps/" + toolname, "-ResX=1280", "-ResY=720", "-WINDOWED"] + cmd[1:]
+
     if args.target == "android":
         sharedlib = os.path.join(dirname, "lib%s.so" % toolname)
         print("\nDeploying %s on android..." % sharedlib)
@@ -491,6 +495,13 @@ def main():
         args.remote = True # Since we can't do port forwarding in iOS, it always has to be remote.
         if not args.ios_udid:
             args.ios_udid = "booted"
+    elif args.target == 'unreal':
+         # currently, unreal needs to run only one job at a time for goldens and gms to work
+        args.jobs_per_tool = 1
+        if args.builddir == None:
+            args.builddir = "out/debug"
+        # unreal is currently always rhi, we may have seperate rhi types in the future like rhi_metal etc..
+        args.backend = 'rhi'
     else:
         assert(args.target == "host")
         if args.builddir == None:
@@ -596,7 +607,7 @@ def main():
               flush=True)
 
         # On mobile we can't launch >1 instance of the app at a time.
-        serial_deploy = not args.server_only and ("ios" in args.target or args.target == "android")
+        serial_deploy = not args.server_only and ("ios" in args.target or args.target == "android" or args.target == "unreal")
         procs = []
 
         def keyboard_interrupt_handler(signal, frame):

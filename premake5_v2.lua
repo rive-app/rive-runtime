@@ -37,7 +37,6 @@ dofile(path.join(dependencies, 'premake5_yoga_v2.lua'))
 project('rive')
 do
     kind('StaticLib')
-    cppdialect('C++11')
     includedirs({
         'include',
         harfbuzz .. '/src',
@@ -58,7 +57,17 @@ do
 
     files({ 'src/**.cpp' })
 
-    flags({ 'FatalCompileWarnings' })
+    filter('options:not for_unreal')
+    do
+        cppdialect('C++11')
+        flags({ 'FatalCompileWarnings' })
+    end
+
+    filter({ 'options:for_unreal' })
+    do
+        cppdialect('C++17')
+        defines({ '_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR' })
+    end
 
     filter({ 'options:with_rive_text', 'options:not no-harfbuzz-renames' })
     do

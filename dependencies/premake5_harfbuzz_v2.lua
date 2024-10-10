@@ -264,7 +264,7 @@ do
         })
     end
 
-    filter('options:config=release')
+    filter({ 'options:config=release', 'options:not for_unreal' })
     do
         optimize('Size')
     end

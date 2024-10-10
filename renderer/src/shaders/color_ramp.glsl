@@ -7,7 +7,14 @@
 
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
+#ifdef SPLIT_UINT4_ATTRIBUTES
+ATTR(0, uint, @a_spanX);
+ATTR(1, uint, @a_y);
+ATTR(2, uint, @a_color0);
+ATTR(3, uint, @a_color1);
+#else
 ATTR(0, uint4, @a_span); // [spanX, y, color0, color1]
+#endif
 ATTR_BLOCK_END
 #endif
 
@@ -30,8 +37,15 @@ half4 unpackColorInt(uint color)
 
 VERTEX_MAIN(@colorRampVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
+#ifdef SPLIT_UINT4_ATTRIBUTES
+    ATTR_UNPACK(_instanceID, attrs, @a_spanX, uint);
+    ATTR_UNPACK(_instanceID, attrs, @a_y, uint);
+    ATTR_UNPACK(_instanceID, attrs, @a_color0, uint);
+    ATTR_UNPACK(_instanceID, attrs, @a_color1, uint);
+    uint4 @a_span = uint4(@a_spanX, @a_y, @a_color0, @a_color1);
+#else
     ATTR_UNPACK(_instanceID, attrs, @a_span, uint4);
-
+#endif
     VARYING_INIT(v_rampColor, half4);
 
     float x = float((_vertexID & 1) == 0 ? @a_span.x & 0xffffu : @a_span.x >> 16) / 65536.;

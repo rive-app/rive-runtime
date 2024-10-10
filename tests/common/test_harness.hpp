@@ -101,8 +101,8 @@ private:
     std::filesystem::path m_outputDir;
 
     // Forwarding stdout and stderr to the server.
-    int m_savedStdout;
-    int m_savedStderr;
+    int m_savedStdout = 0;
+    int m_savedStderr = 0;
     std::array<int, 2> m_stdioPipe = {0, 0};
     std::thread m_stdioThread;
 

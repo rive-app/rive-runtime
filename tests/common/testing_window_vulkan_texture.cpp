@@ -6,8 +6,7 @@
 
 #ifndef RIVE_VULKAN
 
-std::unique_ptr<TestingWindow> TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly,
-                                                                const char* gpuNameFilter)
+TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly, const char* gpuNameFilter)
 {
     return nullptr;
 }
@@ -261,10 +260,9 @@ private:
 };
 }; // namespace rive::gpu
 
-std::unique_ptr<TestingWindow> TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly,
-                                                                const char* gpuNameFilter)
+TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly, const char* gpuNameFilter)
 {
-    return std::make_unique<rive::gpu::TestingWindowVulkanTexture>(coreFeaturesOnly, gpuNameFilter);
+    return new rive::gpu::TestingWindowVulkanTexture(coreFeaturesOnly, gpuNameFilter);
 }
 
 #endif

@@ -16,7 +16,14 @@ ATTR_BLOCK_BEGIN(Attrs)
 ATTR(0, float4, @a_p0p1_); // End in '_' because D3D interprets the '1' as a semantic index.
 ATTR(1, float4, @a_p2p3_);
 ATTR(2, float4, @a_joinTan_and_ys); // [joinTangent, y, reflectionY]
-ATTR(3, uint4, @a_args);            // [x0x1, reflectionX0X1, segmentCounts, contourIDWithFlags]
+#ifdef SPLIT_UINT4_ATTRIBUTES
+ATTR(3, uint, @a_x0x1);
+ATTR(4, uint, @a_reflectionX0X1);
+ATTR(5, uint, @a_segmentCounts);
+ATTR(6, uint, @a_contourIDWithFlags);
+#else
+ATTR(3, uint4, @a_args); // [x0x1, reflectionX0X1, segmentCounts, contourIDWithFlags]
+#endif
 ATTR_BLOCK_END
 #endif
 
@@ -61,7 +68,16 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     ATTR_UNPACK(_instanceID, attrs, @a_p0p1_, float4);
     ATTR_UNPACK(_instanceID, attrs, @a_p2p3_, float4);
     ATTR_UNPACK(_instanceID, attrs, @a_joinTan_and_ys, float4);
+#ifdef SPLIT_UINT4_ATTRIBUTES
+    ATTR_UNPACK(_instanceID, attrs, @a_x0x1, uint);
+    ATTR_UNPACK(_instanceID, attrs, @a_reflectionX0X1, uint);
+    ATTR_UNPACK(_instanceID, attrs, @a_segmentCounts, uint);
+    ATTR_UNPACK(_instanceID, attrs, @a_contourIDWithFlags, uint);
+
+    uint4 @a_args = uint4(@a_x0x1, @a_reflectionX0X1, @a_segmentCounts, @a_contourIDWithFlags);
+#else
     ATTR_UNPACK(_instanceID, attrs, @a_args, uint4);
+#endif
 
     VARYING_INIT(v_p0p1, float4);
     VARYING_INIT(v_p2p3, float4);

@@ -71,9 +71,6 @@ private:
     AutoCF<CGColorSpaceRef> m_space;
 };
 
-std::unique_ptr<TestingWindow> TestingWindow::MakeCoreGraphics()
-{
-    return std::make_unique<TestingWindowCoreGraphics>();
-}
+TestingWindow* TestingWindow::MakeCoreGraphics() { return new TestingWindowCoreGraphics; }
 
 #endif

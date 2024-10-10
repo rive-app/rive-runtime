@@ -1,0 +1,15 @@
+#define PLS_IMPL_SUBPASS_LOAD
+#define OPTIONALLY_FLAT flat
+#define DRAW_IMAGE
+#define DRAW_IMAGE_MESH
+
+#include "/Engine/Public/Platform.ush"
+#include "/Engine/Generated/GeneratedUniformBuffers.ush"
+
+#include "parse_environment.ush"
+#include "Generated/rhi.minified.ush"
+#include "Generated/constants.minified.ush"
+#include "Generated/specialization.minified.ush"
+#include "Generated/common.minified.ush"
+#include "Generated/advanced_blend.minified.ush"
+#include "Generated/draw_image_mesh.minified.ush"

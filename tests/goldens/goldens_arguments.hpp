@@ -22,21 +22,19 @@ public:
         args::Group required(*m_parser, "required arguments:", args::Group::Validators::All);
         args::Group optional(*m_parser, "optional arguments:", args::Group::Validators::DontCare);
 
-        args::ValueFlag<std::string> testHarness(optional,
-                                                 "test_harness",
-                                                 "TCP server address of python test harness",
-                                                 {"test_harness"},
-                                                 "/dev/null");
         args::ValueFlag<std::string> src(optional,
                                          "src",
                                          "source src filename (ignored if --test_harness)",
                                          {'s', "src"});
+        args::ValueFlag<std::string> testHarness(optional,
+                                                 "test_harness",
+                                                 "TCP server address of python test harness",
+                                                 {"test_harness"});
+        // no default for windows because /dev/null isnt a thing
         args::ValueFlag<std::string> output(optional,
                                             "output",
                                             "output png directory (ignored if --test_harness)",
-                                            {'o', "output"},
-                                            "/dev/null");
-
+                                            {'o', "output"});
         args::ValueFlag<std::string> artboard(optional,
                                               "artboard",
                                               "artboard to draw from (only when src != '-')",
@@ -49,7 +47,7 @@ public:
         args::ValueFlag<std::string> backend(optional,
                                              "backend",
                                              "backend type: [gl, metal, angle_gl, angle_d3d, "
-                                             "angle_vk, angle_mtl, coregraphics, skia_raster]",
+                                             "angle_vk, angle_mtl, coregraphics, skia_raster, rhi]",
                                              {'b', "backend"});
         args::Flag headless(optional,
                             "headless",

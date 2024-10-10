@@ -81,7 +81,80 @@ static bool is_arg(const char arg[], const char target[], const char alt[] = nul
     return !strcmp(arg, target) || (arg && !strcmp(arg, alt));
 }
 
-#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
+#if defined(RIVE_UNREAL)
+
+typedef const void* REGISTRY_HANDLE;
+
+REGISTRY_HANDLE gms_get_registry_head() { return rivegm::GMRegistry::head(); }
+
+REGISTRY_HANDLE gms_registry_get_next(REGISTRY_HANDLE position_handle)
+{
+    const GMRegistry* position = reinterpret_cast<const GMRegistry*>(position_handle);
+    if (position == nullptr)
+        return nullptr;
+    return position->next();
+}
+
+bool gms_run_gm(REGISTRY_HANDLE gm_handle)
+{
+    const GMRegistry* position = reinterpret_cast<const GMRegistry*>(gm_handle);
+    if (position == nullptr)
+        return false;
+
+    auto gm = position->get()();
+    if (!gm)
+    {
+        return false;
+    }
+
+    gm->onceBeforeDraw();
+
+    uint32_t width = gm->width();
+    uint32_t height = gm->height();
+    TestingWindow::Get()->resize(width, height);
+    gm->run(nullptr);
+
+    return true;
+}
+
+bool gms_registry_get_name(REGISTRY_HANDLE position_handle, std::string& name)
+{
+    const GMRegistry* position = reinterpret_cast<const GMRegistry*>(position_handle);
+    if (position == nullptr)
+        return false;
+
+    auto gm = position->get()();
+    if (!gm)
+    {
+        return false;
+    }
+
+    name = gm->name();
+    return true;
+}
+
+bool gms_registry_get_size(REGISTRY_HANDLE position_handle, size_t& width, size_t& height)
+{
+    const GMRegistry* position = reinterpret_cast<const GMRegistry*>(position_handle);
+    if (position == nullptr)
+        return false;
+
+    width = 0;
+    height = 0;
+
+    auto gm = position->get()();
+    if (!gm)
+    {
+        return false;
+    }
+
+    width = gm->width();
+    height = gm->height();
+
+    return true;
+}
+int gms_main(int argc, const char* argv[])
+#elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int gms_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
 int rive_android_main(int argc, const char* const* argv, struct android_app*)
@@ -157,6 +230,7 @@ int main(int argc, const char* argv[])
     dumpGMs(std::string(match), interactive);
 
     TestingWindow::Destroy(); // Exercise our PLS teardown process now that we're done.
+
     TestHarness::Instance().shutdown();
     return 0;
 }

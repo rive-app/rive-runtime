@@ -94,27 +94,30 @@ nproc = nproc:gsub('%s+', '') -- remove whitespace
 local python_ply = dependency.github('dabeaz/ply', '5c4dc94d4c6d059ec127ee1493c735963a5d2645')
 local pls_generated_headers = RIVE_BUILD_OUT .. '/include'
 local pls_shaders_absolute_dir = path.getabsolute(pls_generated_headers .. '/generated/shaders')
-local makecommand
-if os.host() == 'windows' then
-    makecommand = '"set PYTHONPATH=' .. python_ply .. '/src" && '
-else
-    makecommand = 'PYTHONPATH="' .. python_ply .. '/src" '
-end
-makecommand = makecommand
-    .. 'make -C '
+local makecommand = 'make -C '
     .. path.getabsolute('src/shaders')
     .. ' -j'
     .. nproc
     .. ' OUT='
     .. pls_shaders_absolute_dir
 
+local minify_flags = '-p ' .. python_ply .. '/src'
 newoption({
     trigger = 'raw_shaders',
     description = 'don\'t rename shader variables, or remove whitespace or comments',
 })
 if _OPTIONS['raw_shaders'] then
-    makecommand = makecommand .. ' FLAGS=--human-readable'
+    minify_flags = minify_flags .. ' --human-readable'
 end
+
+local minified_extension = 'glsl'
+
+if _OPTIONS['for_unreal'] then
+    minified_extension = 'ush'
+end
+
+minify_flags = minify_flags .. ' --minified-extension=' .. minified_extension
+makecommand = makecommand .. ' FLAGS="' .. minify_flags .. '"'
 
 if os.host() == 'macosx' then
     if _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'system' then

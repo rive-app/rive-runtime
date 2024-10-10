@@ -3,7 +3,6 @@
  */
 
 // Common functions shared by multiple shaders.
-
 #define PI float(3.141592653589793238)
 
 #ifndef @USING_DEPTH_STENCIL
@@ -138,6 +137,8 @@ INLINE half min_value(half4 min4)
 INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
 
 #ifdef @VERTEX
+
+#ifndef $UNIFORM_DEFINITIONS_AUTO_GENERATED
 UNIFORM_BLOCK_BEGIN(FLUSH_UNIFORM_BUFFER_IDX, @FlushUniforms)
 float gradInverseViewportY;
 float tessInverseViewportY;
@@ -151,6 +152,7 @@ int4 renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if there is 
 uint pathIDGranularity;        // Spacing between adjacent path IDs (1 if IEEE compliant).
 float vertexDiscardValue;
 UNIFORM_BLOCK_END(uniforms)
+#endif
 
 #define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                                                   \
     float4((COORD).x* uniforms.renderTargetInverseViewportX - 1.,                                  \
@@ -218,6 +220,7 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
 #endif // VERTEX
 
 #ifdef @DRAW_IMAGE
+#ifndef $UNIFORM_DEFINITIONS_AUTO_GENERATED
 UNIFORM_BLOCK_BEGIN(IMAGE_DRAW_UNIFORM_BUFFER_IDX, @ImageDrawUniforms)
 float4 viewMatrix;
 float2 translate;
@@ -231,4 +234,5 @@ uint clipID;
 uint blendMode;
 uint zIndex;
 UNIFORM_BLOCK_END(imageDrawUniforms)
+#endif
 #endif

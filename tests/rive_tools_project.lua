@@ -18,6 +18,7 @@ function rive_tools_project(name, project_kind)
         kind(
             _OPTIONS['os'] == 'android' and 'SharedLib'
                 or _OPTIONS['os'] == 'ios' and 'StaticLib'
+                or _OPTIONS['for_unreal'] and 'StaticLib'
                 or 'ConsoleApp'
         )
     else
@@ -129,13 +130,8 @@ function rive_tools_project(name, project_kind)
         })
     end
 
-    filter({})
-
-    if
-        project_kind == 'ConsoleApp'
-        or project_kind == 'SharedLib'
-        or project_kind == 'RiveTool'
-    then
+    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp' })
+    do
         libdirs({ RIVE_RUNTIME_DIR .. '/build/%{cfg.system}/bin/' .. RIVE_BUILD_CONFIG })
 
         links({
@@ -150,22 +146,24 @@ function rive_tools_project(name, project_kind)
             'libwebp',
             'rive_yoga',
             'rive_harfbuzz',
-            'rive_sheenbidi'
+            'rive_sheenbidi',
         })
 
         if ndk then
             relative_ndk = ndk
             if string.sub(ndk, 1, 1) == '/' then
                 -- An absolute file path wasn't working with premake.
-                local current_path = string.gmatch(path.getabsolute('.'), "([^\\/]+)") 
+                local current_path = string.gmatch(path.getabsolute('.'), '([^\\/]+)')
                 for dir in current_path do
                     relative_ndk = '../' .. relative_ndk
                 end
             end
-            files({ relative_ndk .. '/sources/android/native_app_glue/android_native_app_glue.c' })
+            files({
+                relative_ndk .. '/sources/android/native_app_glue/android_native_app_glue.c',
+            })
         end
 
-        filter({ 'system:windows' })
+        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:windows' })
         do
             libdirs({
                 RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
@@ -173,7 +171,7 @@ function rive_tools_project(name, project_kind)
             links({ 'glfw3', 'opengl32', 'd3d11', 'dxgi', 'd3dcompiler', 'ws2_32' })
         end
 
-        filter('system:macosx')
+        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:macosx' })
         do
             libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
             links({
@@ -195,18 +193,18 @@ function rive_tools_project(name, project_kind)
             })
         end
 
-        filter('system:linux')
+        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:linux' })
         do
             libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
             links({ 'glfw3', 'm', 'z', 'dl', 'pthread', 'GL' })
         end
 
-        filter('system:android')
+        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:android' })
         do
             links({ 'EGL', 'GLESv3', 'log' })
         end
 
-        filter('options:with-dawn')
+        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with-dawn' })
         do
             links({
                 'dawn_native_static',
@@ -216,20 +214,27 @@ function rive_tools_project(name, project_kind)
             })
         end
 
-        filter({ 'options:with-dawn', 'system:windows' })
+        filter({
+            'kind:ConsoleApp or SharedLib or WindowedApp',
+            'options:with-dawn',
+            'system:windows',
+        })
         do
             links({ 'dxguid' })
         end
 
-        filter({ 'options:with-dawn', 'system:macosx' })
+        filter({
+            'kind:ConsoleApp or SharedLib or WindowedApp',
+            'options:with-dawn',
+            'system:macosx',
+        })
         do
             links({ 'IOSurface.framework' })
         end
-
-        filter({})
     end
-end
 
+    filter({})
+end
 
 rive_tools_project('tools_common', 'StaticLib')
 do
@@ -241,6 +246,12 @@ do
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_vulkan.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn.cpp',
     })
+
+    filter({ 'options:for_unreal' })
+    do
+        defines({ 'RIVE_UNREAL', 'RIVE_TOOLS_NO_GLFW', 'RIVE_TOOLS_NO_GL' })
+        cppdialect('C++20')
+    end
 
     filter({ 'toolset:not msc' })
     do

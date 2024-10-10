@@ -5,11 +5,10 @@
 #include "testing_window.hpp"
 
 #if defined(TESTING) || defined(RIVE_TOOLS_NO_GLFW)
-
-std::unique_ptr<TestingWindow> TestingWindow::MakeFiddleContext(Backend,
-                                                                Visibility,
-                                                                const char*,
-                                                                void* platformWindow)
+TestingWindow* TestingWindow::MakeFiddleContext(Backend,
+                                                Visibility,
+                                                const char*,
+                                                void* platformWindow)
 {
     return nullptr;
 }
@@ -190,6 +189,7 @@ public:
 
         switch (backend)
         {
+            case Backend::rhi:
             case Backend::coregraphics:
                 break;
             case Backend::gl:
@@ -328,15 +328,12 @@ private:
     std::unique_ptr<FiddleContext> m_fiddleContext;
 };
 
-std::unique_ptr<TestingWindow> TestingWindow::MakeFiddleContext(Backend backend,
-                                                                Visibility visibility,
-                                                                const char* gpuNameFilter,
-                                                                void* platformWindow)
+TestingWindow* TestingWindow::MakeFiddleContext(Backend backend,
+                                                Visibility visibility,
+                                                const char* gpuNameFilter,
+                                                void* platformWindow)
 {
-    return std::make_unique<TestingWindowFiddleContext>(backend,
-                                                        visibility,
-                                                        gpuNameFilter,
-                                                        platformWindow);
+    return new TestingWindowFiddleContext(backend, visibility, gpuNameFilter, platformWindow);
 }
 
 #endif

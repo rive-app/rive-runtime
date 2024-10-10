@@ -12,43 +12,48 @@ ARGS=
 
 while :; do
     case $1 in
+        -u)
+            TARGET="unreal"
+            DEFAULT_BACKEND=rhi
+            shift
+        ;;
         -i)
             TARGET="ios"
             DEFAULT_BACKEND=metal
             UDID="$(idevice_id -l)" # brew install ideviceinstaller
             shift
-            ;;
+        ;;
         -s)
             TARGET="iossim"
             DEFAULT_BACKEND=metal
             UDID="$(xcrun simctl list devices | grep '(Booted)' | sed 's/^[^(]*(\([A-Z0-9\-]*\)) (Booted).*$/\1/')"
             shift
-            ;;
+        ;;
         -a)
             TARGET="android"
             DEFAULT_BACKEND=gl
             SERIAL="$(adb get-serialno)"
             shift
-            ;;
+        ;;
         -R)
             REBASELINE=true
             shift
-            ;;
+        ;;
         -r)
             ARGS="$ARGS --remote"
             shift
-            ;;
+        ;;
         -v)
             ARGS="$ARGS --verbose"
             shift
-            ;;
+        ;;
         -n)
             ARGS="$ARGS --no-rebuild --no-install"
             shift
-            ;;
+        ;;
         *)
             break
-            ;;
+        ;;
     esac
 done
 
@@ -79,14 +84,14 @@ do
     elif [[ "$TARGET" == "android" ]]; then
         ID="android_$SERIAL/$BACKEND"
     fi
-
+    
     NUMBER_OF_PROCESSORS="${NUMBER_OF_PROCESSORS:-$(nproc 2>/dev/null || sysctl -n hw.physicalcpu)}"
     if [[ $NUMBER_OF_PROCESSORS > 20 ]]; then
         GOLDEN_JOBS=6
     else
         GOLDEN_JOBS=4
     fi
-
+    
     if [ "$REBASELINE" == true ]; then
         echo
         echo "Rebaselining $ID..."
@@ -97,13 +102,13 @@ do
         echo "Checking $ID..."
         rm -fr .gold/candidates/$ID
         python3 deploy_tests.py gms goldens -j$GOLDEN_JOBS $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
-
+        
         echo
         echo "Checking $ID..."
         rm -fr .gold/diffs/$ID && mkdir -p .gold/diffs/$ID
         python3 diff.py -g .gold/$ID -c .gold/candidates/$ID -j$NUMBER_OF_PROCESSORS -o .gold/diffs/$ID \
             || open_file .gold/diffs/$ID/index.html
     fi
-
+    
     NO_REBUILD="--no-rebuild --no-install"
 done

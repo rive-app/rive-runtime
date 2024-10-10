@@ -6,10 +6,7 @@
 
 #ifdef RIVE_TOOLS_NO_GL
 
-std::unique_ptr<TestingWindow> TestingWindow::MakeEGL(Backend backend, void* platformWindow)
-{
-    return nullptr;
-}
+TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow) { return nullptr; }
 
 #else
 
@@ -512,7 +509,7 @@ private:
     glutils::Texture m_headlessRenderTexture = glutils::Texture::Zero();
 };
 
-std::unique_ptr<TestingWindow> TestingWindow::MakeEGL(Backend backend, void* platformWindow)
+TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
 {
     auto rendererFlags = RendererFlags::none;
     EGLint angleBackend = EGL_NONE;
@@ -556,14 +553,15 @@ std::unique_ptr<TestingWindow> TestingWindow::MakeEGL(Backend backend, void* pla
         case Backend::swiftshadercore:
         case Backend::dawn:
         case Backend::coregraphics:
+        case Backend::rhi:
             printf("Invalid backend for TestingWindow::MakeEGLPbuffer.");
             abort();
             break;
     }
-    return std::make_unique<TestingWindowEGL>(angleBackend,
-                                              samples,
-                                              TestingGLRenderer::Make(rendererFlags),
-                                              platformWindow);
+    return new TestingWindowEGL(angleBackend,
+                                samples,
+                                TestingGLRenderer::Make(rendererFlags),
+                                platformWindow);
 }
 
 #endif

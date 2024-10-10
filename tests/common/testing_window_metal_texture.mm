@@ -132,9 +132,9 @@ private:
 };
 }; // namespace rive::gpu
 
-std::unique_ptr<TestingWindow> TestingWindow::MakeMetalTexture()
+TestingWindow* TestingWindow::MakeMetalTexture()
 {
-    return std::make_unique<rive::gpu::TestingWindowMetalTexture>();
+    return new rive::gpu::TestingWindowMetalTexture();
 }
 
 #endif

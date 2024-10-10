@@ -56,6 +56,10 @@ do
     filter('options:config=release')
     do
         defines({ 'SB_CONFIG_UNITY' })
+    end
+
+    filter({ 'options:config=release', 'options:not for_unreal' })
+    do
         optimize('Size')
     end
 

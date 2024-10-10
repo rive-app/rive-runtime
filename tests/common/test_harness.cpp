@@ -417,9 +417,15 @@ void TestHarness::onApplicationCrash(const char* message)
 {
     if (m_primaryTCPClient != nullptr)
     {
-        // Buy monitorStdIOThread() some time to finish pumping any messages
-        // related to this abort.
+// Buy monitorStdIOThread() some time to finish pumping any messages
+// related to this abort.
+
+// std::this_thread::sleep_for causes weird link issues in unreal. just use sleep instead
+#if defined(RIVE_UNREAL) && defined(_WIN32)
+        Sleep(100);
+#else
         std::this_thread::sleep_for(std::chrono::milliseconds(100));
+#endif
         shutdownStdioThread();
         shutdownInputPumpThread();
         m_primaryTCPClient->send4(REQUEST_TYPE_APPLICATION_CRASH);

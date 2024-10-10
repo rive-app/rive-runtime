@@ -49,7 +49,7 @@ do
         'runtime/**.cpp', -- the runtime tests
         'renderer/**.cpp', -- the renderer tests
         '../../utils/**.cpp', -- no_op utils
-        '../common/render_context_null.cpp', 
+        '../common/render_context_null.cpp',
     })
 
     filter('system:linux')
@@ -81,12 +81,11 @@ do
             'CoreText.framework',
         })
     end
-    
+
     filter({ 'toolset:not msc' })
     do
         buildoptions({ '-Wshorten-64-to-32' })
     end
 
     filter({})
-
 end

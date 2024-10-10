@@ -6,10 +6,7 @@
 
 #if !defined(RIVE_ANDROID)
 
-std::unique_ptr<TestingWindow> TestingWindow::MakeAndroidVulkan(void* platformWindow)
-{
-    return nullptr;
-}
+TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow) { return nullptr; }
 
 #else
 
@@ -283,10 +280,9 @@ private:
     rcp<RenderTargetVulkan> m_renderTarget;
 };
 
-std::unique_ptr<TestingWindow> TestingWindow::MakeAndroidVulkan(void* platformWindow)
+TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow)
 {
-    return std::make_unique<TestingWindowAndroidVulkan>(
-        reinterpret_cast<ANativeWindow*>(platformWindow));
+    return new TestingWindowAndroidVulkan(reinterpret_cast<ANativeWindow*>(platformWindow));
 }
 
 #endif

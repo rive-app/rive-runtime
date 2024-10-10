@@ -30,6 +30,7 @@ class RenderTarget;
 //   renderer = TestingWindow::Get()->reset(width, height);
 //   ...
 //
+
 class TestingWindow
 {
 public:
@@ -62,6 +63,8 @@ public:
         anglemsaa,
         dawn,
         coregraphics,
+
+        rhi,
     };
 
     constexpr static bool IsGL(Backend backend)
@@ -86,6 +89,7 @@ public:
             case Backend::swiftshadercore:
             case Backend::dawn:
             case Backend::coregraphics:
+            case Backend::rhi:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -113,6 +117,7 @@ public:
             case Backend::swiftshadercore:
             case Backend::dawn:
             case Backend::coregraphics:
+            case Backend::rhi:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -140,6 +145,7 @@ public:
             case Backend::coregraphics:
             case Backend::angle:
             case Backend::anglemsaa:
+            case Backend::rhi:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -152,6 +158,7 @@ public:
             case Backend::glatomic:
             case Backend::d3datomic:
             case Backend::metalatomic:
+            case Backend::rhi:
             case Backend::vkcore:
             case Backend::moltenvkcore:
             case Backend::swiftshadercore:
@@ -194,6 +201,7 @@ public:
             case Backend::anglemsaa:
             case Backend::dawn:
             case Backend::coregraphics:
+            case Backend::rhi:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -221,6 +229,7 @@ public:
             case Backend::angle:
             case Backend::dawn:
             case Backend::coregraphics:
+            case Backend::rhi:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -247,6 +256,7 @@ public:
                                const std::string& gpuNameFilter,
                                void* platformWindow = nullptr);
     static TestingWindow* Get();
+    static void Set(TestingWindow* inWindow);
     static void Destroy();
 
     uint32_t width() const { return m_width; }
@@ -273,7 +283,11 @@ public:
 
     // Blocks until a key is pressed.
     virtual bool peekKey(char& key) { return false; }
-    virtual char getKey();
+    virtual char getKey()
+    {
+        fprintf(stderr, "TestingWindow::getKey not implemented.");
+        abort();
+    }
     virtual bool shouldQuit() const { return false; }
 
     virtual ~TestingWindow() {}
@@ -283,24 +297,23 @@ protected:
     uint32_t m_height = 0;
 
 private:
-    static std::unique_ptr<TestingWindow> MakeGLFW(Backend, Visibility);
-    static std::unique_ptr<TestingWindow> MakeEGL(Backend, void* platformWindow);
+    static TestingWindow* MakeGLFW(Backend, Visibility);
+    static TestingWindow* MakeEGL(Backend, void* platformWindow);
 #ifdef _WIN32
-    static std::unique_ptr<TestingWindow> MakeD3D(Visibility);
+    static TestingWindow* MakeD3D(Visibility);
 #endif
 #ifdef __APPLE__
-    static std::unique_ptr<TestingWindow> MakeMetalTexture();
+    static TestingWindow* MakeMetalTexture();
 #endif
 #ifdef RIVE_MACOSX
-    static std::unique_ptr<TestingWindow> MakeCoreGraphics();
+    static TestingWindow* MakeCoreGraphics();
 #endif
-    static std::unique_ptr<TestingWindow> MakeFiddleContext(Backend,
-                                                            Visibility,
-                                                            const char* gpuNameFilter,
-                                                            void* platformWindow);
-    static std::unique_ptr<TestingWindow> MakeVulkanTexture(bool coreFeaturesOnly,
-                                                            const char* gpuNameFilter);
-    static std::unique_ptr<TestingWindow> MakeAndroidVulkan(void* platformWindow);
+    static TestingWindow* MakeFiddleContext(Backend,
+                                            Visibility,
+                                            const char* gpuNameFilter,
+                                            void* platformWindow);
+    static TestingWindow* MakeVulkanTexture(bool coreFeaturesOnly, const char* gpuNameFilter);
+    static TestingWindow* MakeAndroidVulkan(void* platformWindow);
 };
 
 RIVE_MAKE_ENUM_BITSET(TestingWindow::RendererFlags);

@@ -12,10 +12,8 @@
 #include <windows.h>
 #endif
 
-// Don't explicitly delete this object. Calling eglDestroyContext during app
-// teardown causes a crash on Pixel 4. The OS will clean this up for us
-// automatically when we exit.
-std::unique_ptr<TestingWindow> s_TestingWindow = nullptr;
+// Call TestingWindow::Destroy if you want to delete the window singleton
+TestingWindow* s_TestingWindow = nullptr;
 
 const char* TestingWindow::BackendName(Backend backend)
 {
@@ -55,6 +53,8 @@ const char* TestingWindow::BackendName(Backend backend)
             return "dawn";
         case TestingWindow::Backend::coregraphics:
             return "coregraphics";
+        case Backend::rhi:
+            return "rhi";
     }
     RIVE_UNREACHABLE();
 }
@@ -116,6 +116,8 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name, std::string
         return Backend::dawn;
     if (nameStr == "coregraphics")
         return Backend::coregraphics;
+    if (nameStr == "rhi")
+        return Backend::rhi;
     fprintf(stderr, "'%s': invalid TestingWindow::Backend\n", name);
     abort();
 }
@@ -142,8 +144,14 @@ TestingWindow* TestingWindow::Init(Backend backend,
                                    const std::string& gpuNameFilterStr,
                                    void* platformWindow)
 {
-    const char* gpuNameFilter = !gpuNameFilterStr.empty() ? gpuNameFilterStr.c_str() : nullptr;
-    assert(!s_TestingWindow);
+
+    const char* gpuNameFilter RIVE_MAYBE_UNUSED =
+        !gpuNameFilterStr.empty() ? gpuNameFilterStr.c_str() : nullptr;
+
+    if (backend == Backend::rhi)
+        assert(s_TestingWindow);
+    else
+        assert(!s_TestingWindow);
     switch (backend)
     {
         case Backend::gl:
@@ -236,29 +244,33 @@ TestingWindow* TestingWindow::Init(Backend backend,
             s_TestingWindow = MakeCoreGraphics();
 #endif
             break;
+        case Backend::rhi:
+            break;
     }
     if (!s_TestingWindow)
     {
         fprintf(stderr, "Failed to create testing window for Backend::%s\n", BackendName(backend));
         abort();
     }
-    return s_TestingWindow.get();
+
+    return s_TestingWindow;
 }
 
 TestingWindow* TestingWindow::Get()
 {
     assert(s_TestingWindow); // Call Init() first!
-    return s_TestingWindow.get();
+    return s_TestingWindow;
+}
+
+void TestingWindow::Set(TestingWindow* inWindow)
+{
+    assert(inWindow);
+    s_TestingWindow = inWindow;
 }
 
 void TestingWindow::Destroy()
 {
     assert(s_TestingWindow);
+    delete s_TestingWindow;
     s_TestingWindow = nullptr;
-}
-
-char TestingWindow::getKey()
-{
-    fprintf(stderr, "TestingWindow::getKey not implemented.");
-    abort();
 }

@@ -40,7 +40,6 @@ project('rive')
 do
     kind('StaticLib')
     language('C++')
-    cppdialect('C++11')
     targetdir('%{cfg.system}/bin/%{cfg.buildcfg}')
     objdir('%{cfg.system}/obj/%{cfg.buildcfg}')
     includedirs({
@@ -56,6 +55,17 @@ do
     files({ '../src/**.cpp' })
 
     flags({ 'FatalCompileWarnings' })
+
+    filter({ 'options:for_unreal' })
+    do
+        cppdialect('C++17')
+        defines({ '_DISABLE_CONSTEXPR_MUTEX_CONSTRUCTOR' })
+    end
+
+    filter({ 'options:not for_unreal' })
+    do
+        cppdialect('C++11')
+    end
 
     filter({ 'system:macosx' })
     do

@@ -1,7 +1,6 @@
 import argparse
 import glob
 import os
-import ply.lex as lex
 import re
 import sys
 from collections import defaultdict
@@ -36,7 +35,15 @@ parser.add_argument("-o", "--outdir", required=True,
                     help="OUTPUT directory to store the header files")
 parser.add_argument("-H", "--human-readable", action='store_true',
                     help="don't rename or strip out comments or whitespace")
+parser.add_argument("-e", "--minified-extension", type=str, default="glsl", 
+                    help="use this extension for minified files")
+parser.add_argument("-p", "--ply-path", required=True, type=str, help="path to ply module")
+
 args = parser.parse_args()
+
+sys.path.append(args.ply_path)
+
+import ply.lex as lex
 
 # tokens used by PLY to run lexical analysis on our glsl files.
 tokens = [
@@ -539,6 +546,7 @@ class Minifier:
         out.write('#pragma once\n\n')
         for exp in sorted(self.exports):
             out.write('#define GLSL_%s "%s"\n' % (exp[1:], new_names[exp]))
+            out.write('#define GLSL_%s_raw %s\n' % (exp[1:], new_names[exp]))
         out.close()
 
 
@@ -568,7 +576,7 @@ class Minifier:
 
 
     def write_offline_glsl(self, outdir):
-        output_path = os.path.join(outdir, os.path.splitext(self.basename)[0] + ".minified.glsl")
+        output_path = os.path.join(outdir, os.path.splitext(self.basename)[0] + ".minified." + args.minified_extension)
         print("Minifying %s <- %s" % (output_path, self.basename))
         out = open(output_path, "w", newline='\n')
         self.emit_tokens_to_rewritten_glsl(out, preserve_exported_switches=True)

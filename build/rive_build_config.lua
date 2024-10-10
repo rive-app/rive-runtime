@@ -102,6 +102,11 @@ newoption({
     description = 'Don\'t build with link time optimizations.',
 })
 
+newoption({
+    trigger = 'for_unreal',
+    description = 'compile for unreal engine',
+})
+
 location(RIVE_BUILD_OUT)
 targetdir(RIVE_BUILD_OUT)
 objdir(RIVE_BUILD_OUT .. '/obj')
@@ -165,39 +170,49 @@ newoption({
 
 -- This is just to match our old windows config. Rive Native specifically sets
 -- static/dynamic and maybe we should do the same elsewhere.
-filter({ 'system:windows', 'options:windows_runtime=default' })
+filter({ 'system:windows', 'options:windows_runtime=default', 'options:not for_unreal' })
 do
     staticruntime('on') -- Match Skia's /MT flag for link compatibility
     runtime('Release')
 end
 
-filter({ 'system:windows', 'options:windows_runtime=static' })
+filter({ 'system:windows', 'options:windows_runtime=static', 'options:not for_unreal' })
 do
     staticruntime('on') -- Match Skia's /MT flag for link compatibility
 end
 
-filter({ 'system:windows', 'options:windows_runtime=dynamic' })
+filter({ 'system:windows', 'options:windows_runtime=dynamic', 'options:not for_unreal' })
 do
     staticruntime('off')
 end
 
-filter({ 'system:windows', 'options:not windows_runtime=default', 'options:config=debug' })
+filter({
+    'system:windows',
+    'options:not windows_runtime=default',
+    'options:config=debug',
+    'options:not for_unreal',
+})
 do
     runtime('Debug')
 end
 
-filter({ 'system:windows', 'options:not windows_runtime=default', 'options:config=release' })
+filter({
+    'system:windows',
+    'options:not windows_runtime=default',
+    'options:config=release',
+    'options:not for_unreal',
+})
 do
     runtime('Release')
 end
 
-filter({ 'system:windows', 'options:windows_runtime=dynamic_debug' })
+filter({ 'system:windows', 'options:windows_runtime=dynamic_debug', 'options:not for_unreal' })
 do
     staticruntime('off')
     runtime('Debug')
 end
 
-filter({ 'system:windows', 'options:windows_runtime=dynamic_release' })
+filter({ 'system:windows', 'options:windows_runtime=dynamic_release', 'options:not for_unreal' })
 do
     staticruntime('off')
     runtime('Release')
@@ -207,6 +222,12 @@ filter('system:windows')
 do
     architecture('x64')
     defines({ '_USE_MATH_DEFINES', 'NOMINMAX' })
+end
+
+filter({ 'system:windows', 'options:for_unreal' })
+do
+    staticruntime('off')
+    runtime('Release')
 end
 
 filter({ 'system:windows', 'options:toolset=clang' })
@@ -361,29 +382,60 @@ if _OPTIONS['os'] == 'android' then
         '-static-libstdc++',
     })
 
-    filter('options:arch=x86')
+    filter({ 'options:arch=x86', 'options:not for_unreal' })
     do
         architecture('x86')
         buildoptions({ '--target=i686-none-linux-android21' })
         linkoptions({ '--target=i686-none-linux-android21' })
     end
-    filter('options:arch=x64')
+
+    filter({ 'options:arch=x86', 'options:for_unreal' })
+    do
+        architecture('x86')
+        buildoptions({ '--target=i686-none-linux-android31' })
+        linkoptions({ '--target=i686-none-linux-android31' })
+    end
+
+    filter({ 'options:arch=x64', 'options:not for_unreal' })
     do
         architecture('x64')
         buildoptions({ '--target=x86_64-none-linux-android21' })
         linkoptions({ '--target=x86_64-none-linux-android21' })
     end
-    filter('options:arch=arm')
+
+    filter({ 'options:arch=x64', 'options:for_unreal' })
+    do
+        architecture('x64')
+        buildoptions({ '--target=x86_64-none-linux-androi31' })
+        linkoptions({ '--target=x86_64-none-linux-android31' })
+    end
+
+    filter({ 'options:arch=arm', 'options:not for_unreal' })
     do
         architecture('arm')
         buildoptions({ '--target=armv7a-none-linux-android21' })
         linkoptions({ '--target=armv7a-none-linux-android21' })
     end
-    filter('options:arch=arm64')
+
+    filter({ 'options:arch=arm', 'options:for_unreal' })
+    do
+        architecture('arm')
+        buildoptions({ '--target=armv7a-none-linux-android31' })
+        linkoptions({ '--target=armv7a-none-linux-android31' })
+    end
+
+    filter({ 'options:arch=arm64', 'options:not for_unreal' })
     do
         architecture('arm64')
         buildoptions({ '--target=aarch64-none-linux-android21' })
         linkoptions({ '--target=aarch64-none-linux-android21' })
+    end
+
+    filter({ 'options:arch=arm64', 'options:for_unreal' })
+    do
+        architecture('arm64')
+        buildoptions({ '--target=aarch64-none-linux-android31' })
+        linkoptions({ '--target=aarch64-none-linux-android31' })
     end
 
     filter({})

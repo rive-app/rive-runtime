@@ -209,29 +209,60 @@ if _OPTIONS['os'] == 'android' then
     })
 
     pic('on') -- Position-independent code is required for NDK libraries.
-    filter('options:arch=x86')
+    filter({ 'options:arch=x86', 'options:not for_unreal' })
     do
         architecture('x86')
         buildoptions({ '--target=i686-none-linux-android21' })
         linkoptions({ '--target=i686-none-linux-android21' })
     end
-    filter('options:arch=x64')
+
+    filter({ 'options:arch=x86', 'options:for_unreal' })
+    do
+        architecture('x86')
+        buildoptions({ '--target=i686-none-linux-android31' })
+        linkoptions({ '--target=i686-none-linux-android31' })
+    end
+
+    filter({ 'options:arch=x64', 'options:not for_unreal' })
     do
         architecture('x64')
         buildoptions({ '--target=x86_64-none-linux-android21' })
         linkoptions({ '--target=x86_64-none-linux-android21' })
     end
-    filter('options:arch=arm')
+
+    filter({ 'options:arch=x64', 'options:for_unreal' })
+    do
+        architecture('x64')
+        buildoptions({ '--target=x86_64-none-linux-androi31' })
+        linkoptions({ '--target=x86_64-none-linux-android31' })
+    end
+
+    filter({ 'options:arch=arm', 'options:not for_unreal' })
     do
         architecture('arm')
         buildoptions({ '--target=armv7a-none-linux-android21' })
         linkoptions({ '--target=armv7a-none-linux-android21' })
     end
-    filter('options:arch=arm64')
+
+    filter({ 'options:arch=arm', 'options:for_unreal' })
+    do
+        architecture('arm')
+        buildoptions({ '--target=armv7a-none-linux-android31' })
+        linkoptions({ '--target=armv7a-none-linux-android31' })
+    end
+
+    filter({ 'options:arch=arm64', 'options:not for_unreal' })
     do
         architecture('arm64')
         buildoptions({ '--target=aarch64-none-linux-android21' })
         linkoptions({ '--target=aarch64-none-linux-android21' })
+    end
+
+    filter({ 'options:arch=arm64', 'options:for_unreal' })
+    do
+        architecture('arm64')
+        buildoptions({ '--target=aarch64-none-linux-android31' })
+        linkoptions({ '--target=aarch64-none-linux-android31' })
     end
     filter({})
 end

@@ -19,7 +19,6 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
-
 constexpr static int kWindowTargetSize = 1600;
 
 GoldensArguments s_args;
@@ -165,6 +164,8 @@ private:
 int goldens_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
 int rive_android_main(int argc, const char* const* argv, struct android_app*)
+#elif defined(RIVE_UNREAL)
+int goldens_main(int argc, const char* argv[])
 #else
 int main(int argc, const char* argv[])
 #endif
