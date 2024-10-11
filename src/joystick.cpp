@@ -116,4 +116,6 @@ void Joystick::controlSize(Vec2D size)
 {
     width(size.x);
     height(size.y);
+    posX(size.x * originX());
+    posY(size.y * originY());
 }
