@@ -16,18 +16,21 @@ AnimationStateInstance::AnimationStateInstance(const AnimationState* state,
     // SystemStateInstance (basically a no-op StateMachine state) which would
     // cause bad casts in parts of the code where we assumed AnimationStates
     // would have create AnimationStateInstances.
-    m_AnimationInstance(state->animation() ? state->animation() : &emptyAnimation,
+    m_AnimationInstance(state->animation() ? state->animation()
+                                           : &emptyAnimation,
                         instance,
                         state->speed()),
     m_KeepGoing(true)
 {}
 
-// NOTE:: should we return bool here? we are not currently using the output of this, we are instead
-// using m_keepGoing directly.
-void AnimationStateInstance::advance(float seconds, StateMachineInstance* stateMachineInstance)
+// NOTE:: should we return bool here? we are not currently using the output of
+// this, we are instead using m_keepGoing directly.
+void AnimationStateInstance::advance(float seconds,
+                                     StateMachineInstance* stateMachineInstance)
 {
-    m_KeepGoing = m_AnimationInstance.advance(seconds * state()->as<AnimationState>()->speed(),
-                                              stateMachineInstance);
+    m_KeepGoing = m_AnimationInstance.advance(
+        seconds * state()->as<AnimationState>()->speed(),
+        stateMachineInstance);
 }
 
 void AnimationStateInstance::apply(ArtboardInstance* instance, float mix)
@@ -36,4 +39,7 @@ void AnimationStateInstance::apply(ArtboardInstance* instance, float mix)
 }
 
 bool AnimationStateInstance::keepGoing() const { return m_KeepGoing; }
-void AnimationStateInstance::clearSpilledTime() { m_AnimationInstance.clearSpilledTime(); }
+void AnimationStateInstance::clearSpilledTime()
+{
+    m_AnimationInstance.clearSpilledTime();
+}

@@ -19,18 +19,23 @@ public:
     TestingWindowMetalTexture()
     {
         RenderContextMetalImpl::ContextOptions metalOptions;
-        // Turn on synchronous shader compilations to ensure deterministic rendering and to make
-        // sure we test every unique shader.
+        // Turn on synchronous shader compilations to ensure deterministic
+        // rendering and to make sure we test every unique shader.
         metalOptions.synchronousShaderCompilations = true;
-        m_renderContext = RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
+        m_renderContext =
+            RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
         printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
     }
 
     rive::Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* renderContext() const override { return m_renderContext.get(); }
+    rive::gpu::RenderContext* renderContext() const override
+    {
+        return m_renderContext.get();
+    }
 
-    // rive::gpu::RenderTarget* renderTarget() const override { return m_renderTarget.get(); }
+    // rive::gpu::RenderTarget* renderTarget() const override { return
+    // m_renderTarget.get(); }
 
     std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
                                                bool doClear,
@@ -55,8 +60,9 @@ public:
             m_renderTarget->width() != m_width)
         {
             m_renderTarget =
-                m_renderContext->static_impl_cast<RenderContextMetalImpl>()->makeRenderTarget(
-                    MTLPixelFormatBGRA8Unorm, m_width, m_height);
+                m_renderContext->static_impl_cast<RenderContextMetalImpl>()
+                    ->makeRenderTarget(
+                        MTLPixelFormatBGRA8Unorm, m_width, m_height);
             MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
             desc.pixelFormat = MTLPixelFormatBGRA8Unorm;
             desc.width = m_width;
@@ -65,12 +71,15 @@ public:
             desc.textureType = MTLTextureType2D;
             desc.mipmapLevelCount = 1;
             desc.storageMode = MTLStorageModePrivate;
-            m_renderTarget->setTargetTexture([m_gpu newTextureWithDescriptor:desc]);
-            m_pixelReadBuff = [m_gpu newBufferWithLength:m_height * m_width * 4
-                                                 options:MTLResourceStorageModeShared];
+            m_renderTarget->setTargetTexture(
+                [m_gpu newTextureWithDescriptor:desc]);
+            m_pixelReadBuff =
+                [m_gpu newBufferWithLength:m_height * m_width * 4
+                                   options:MTLResourceStorageModeShared];
         }
-        m_renderContext->flush({.renderTarget = m_renderTarget.get(),
-                                .externalCommandBuffer = (__bridge void*)m_flushCommandBuffer});
+        m_renderContext->flush(
+            {.renderTarget = m_renderTarget.get(),
+             .externalCommandBuffer = (__bridge void*)m_flushCommandBuffer});
     }
 
     void endFrame(std::vector<uint8_t>* pixelData) override
@@ -79,7 +88,8 @@ public:
 
         if (pixelData)
         {
-            id<MTLBlitCommandEncoder> blitEncoder = [m_flushCommandBuffer blitCommandEncoder];
+            id<MTLBlitCommandEncoder> blitEncoder =
+                [m_flushCommandBuffer blitCommandEncoder];
 
             // Blit the framebuffer into m_pixelReadBuff.
             [blitEncoder copyFromTexture:m_renderTarget->targetTexture()
@@ -104,12 +114,14 @@ public:
             // Copy the image data from m_pixelReadBuff to pixelData.
             pixelData->resize(m_height * m_width * 4);
             assert(m_pixelReadBuff.length == pixelData->size());
-            const uint8_t* contents = reinterpret_cast<const uint8_t*>(m_pixelReadBuff.contents);
+            const uint8_t* contents =
+                reinterpret_cast<const uint8_t*>(m_pixelReadBuff.contents);
             const size_t rowBytes = m_width * 4;
             for (size_t y = 0; y < m_height; ++y)
             {
                 // Flip Y.
-                const uint8_t* src = &contents[(m_height - y - 1) * m_width * 4];
+                const uint8_t* src =
+                    &contents[(m_height - y - 1) * m_width * 4];
                 uint8_t* dst = &(*pixelData)[y * m_width * 4];
                 for (size_t x = 0; x < rowBytes; x += 4)
                 {

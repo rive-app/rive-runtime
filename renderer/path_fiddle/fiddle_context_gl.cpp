@@ -2,7 +2,10 @@
 
 #ifdef RIVE_TOOLS_NO_GLFW
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS(FiddleContextOptions) { return nullptr; }
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS(FiddleContextOptions)
+{
+    return nullptr;
+}
 
 #else
 
@@ -36,8 +39,8 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
     {
         printf("GL ERROR: %s\n", message);
         fflush(stdout);
-        // Don't abort if it's a shader compile error; let our internal handlers print the source
-        // (for debugging) and exit on their own.
+        // Don't abort if it's a shader compile error; let our internal handlers
+        // print the source (for debugging) and exit on their own.
         if (!strstr(message, "SHADER_ID_COMPILE error has been generated"))
         {
             assert(0);
@@ -46,8 +49,10 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
     else if (type == GL_DEBUG_TYPE_PERFORMANCE)
     {
         if (strcmp(message,
-                   "API_ID_REDUNDANT_FBO performance warning has been generated. Redundant state "
-                   "change in glBindFramebuffer API call, FBO 0, \"\", already bound.") == 0)
+                   "API_ID_REDUNDANT_FBO performance warning has been "
+                   "generated. Redundant state "
+                   "change in glBindFramebuffer API call, FBO 0, \"\", already "
+                   "bound.") == 0)
         {
             return;
         }
@@ -56,7 +61,8 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
             return;
         }
         if (strcmp(message,
-                   "Pixel-path performance warning: Pixel transfer is synchronized with 3D "
+                   "Pixel-path performance warning: Pixel transfer is "
+                   "synchronized with 3D "
                    "rendering.") == 0)
         {
             return;
@@ -97,7 +103,12 @@ public:
         if (GLAD_GL_KHR_debug)
         {
             glEnable(GL_DEBUG_OUTPUT);
-            glDebugMessageControlKHR(GL_DONT_CARE, GL_DONT_CARE, GL_DONT_CARE, 0, NULL, GL_TRUE);
+            glDebugMessageControlKHR(GL_DONT_CARE,
+                                     GL_DONT_CARE,
+                                     GL_DONT_CARE,
+                                     0,
+                                     NULL,
+                                     GL_TRUE);
             glDebugMessageCallbackKHR(&err_msg_callback, nullptr);
         }
 #endif
@@ -137,11 +148,19 @@ public:
             glGenTextures(1, &tex);
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, tex);
-            glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGB8, kZoomWindowWidth, kZoomWindowHeight);
+            glTexStorage2D(GL_TEXTURE_2D,
+                           1,
+                           GL_RGB8,
+                           kZoomWindowWidth,
+                           kZoomWindowHeight);
 
             glGenFramebuffers(1, &m_zoomWindowFBO);
             glBindFramebuffer(GL_FRAMEBUFFER, m_zoomWindowFBO);
-            glFramebufferTexture2D(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, GL_TEXTURE_2D, tex, 0);
+            glFramebufferTexture2D(GL_FRAMEBUFFER,
+                                   GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_2D,
+                                   tex,
+                                   0);
             glBindFramebuffer(GL_FRAMEBUFFER, 0);
 
             glDeleteTextures(1, &tex);
@@ -150,13 +169,23 @@ public:
 
     rive::Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* renderContextOrNull() override { return m_renderContext.get(); }
-
-    rive::gpu::RenderTarget* renderTargetOrNull() override { return m_renderTarget.get(); }
-
-    void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
+    rive::gpu::RenderContext* renderContextOrNull() override
     {
-        m_renderTarget = make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
+        return m_renderContext.get();
+    }
+
+    rive::gpu::RenderTarget* renderTargetOrNull() override
+    {
+        return m_renderTarget.get();
+    }
+
+    void onSizeChanged(GLFWwindow* window,
+                       int width,
+                       int height,
+                       uint32_t sampleCount) override
+    {
+        m_renderTarget =
+            make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
         glViewport(0, 0, width, height);
     }
 
@@ -167,20 +196,26 @@ public:
 
     void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
     {
-        m_renderContext->static_impl_cast<RenderContextGLImpl>()->invalidateGLState();
+        m_renderContext->static_impl_cast<RenderContextGLImpl>()
+            ->invalidateGLState();
         m_renderContext->beginFrame(frameDescriptor);
     }
 
-    void flushPLSContext() final { m_renderContext->flush({.renderTarget = m_renderTarget.get()}); }
+    void flushPLSContext() final
+    {
+        m_renderContext->flush({.renderTarget = m_renderTarget.get()});
+    }
 
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
         flushPLSContext();
-        m_renderContext->static_impl_cast<RenderContextGLImpl>()->unbindGLInternalResources();
+        m_renderContext->static_impl_cast<RenderContextGLImpl>()
+            ->unbindGLInternalResources();
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         if (pixelData)
         {
-            pixelData->resize(m_renderTarget->height() * m_renderTarget->width() * 4);
+            pixelData->resize(m_renderTarget->height() *
+                              m_renderTarget->width() * 4);
             glBindFramebuffer(GL_READ_FRAMEBUFFER, 0);
             glReadPixels(0,
                          0,
@@ -241,7 +276,8 @@ private:
     rcp<RenderTargetGL> m_renderTarget;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS(FiddleContextOptions options)
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS(
+    FiddleContextOptions options)
 {
     return std::make_unique<FiddleContextGL>(options);
 }

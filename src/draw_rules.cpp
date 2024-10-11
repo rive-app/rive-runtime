@@ -21,7 +21,10 @@ StatusCode DrawRules::onAddedDirty(CoreContext* context)
     return StatusCode::Ok;
 }
 
-StatusCode DrawRules::onAddedClean(CoreContext* context) { return StatusCode::Ok; }
+StatusCode DrawRules::onAddedClean(CoreContext* context)
+{
+    return StatusCode::Ok;
+}
 
 void DrawRules::drawTargetIdChanged()
 {

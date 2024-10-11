@@ -4,15 +4,29 @@
 
 using namespace rive;
 
-AnimationReset::AnimationReset() : m_binaryWriter(&m_WriteBuffer), m_binaryReader(nullptr, 0) {}
+AnimationReset::AnimationReset() :
+    m_binaryWriter(&m_WriteBuffer), m_binaryReader(nullptr, 0)
+{}
 
-void AnimationReset::writeObjectId(uint32_t objectId) { m_binaryWriter.writeVarUint(objectId); }
+void AnimationReset::writeObjectId(uint32_t objectId)
+{
+    m_binaryWriter.writeVarUint(objectId);
+}
 
-void AnimationReset::writeTotalProperties(uint32_t value) { m_binaryWriter.writeVarUint(value); }
+void AnimationReset::writeTotalProperties(uint32_t value)
+{
+    m_binaryWriter.writeVarUint(value);
+}
 
-void AnimationReset::writePropertyKey(uint32_t value) { m_binaryWriter.writeVarUint(value); }
+void AnimationReset::writePropertyKey(uint32_t value)
+{
+    m_binaryWriter.writeVarUint(value);
+}
 
-void AnimationReset::writePropertyValue(float value) { m_binaryWriter.writeFloat(value); }
+void AnimationReset::writePropertyValue(float value)
+{
+    m_binaryWriter.writeFloat(value);
+}
 
 void AnimationReset::clear() { m_binaryWriter.clear(); }
 

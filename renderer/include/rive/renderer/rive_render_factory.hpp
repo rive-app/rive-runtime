@@ -8,7 +8,8 @@
 
 namespace rive
 {
-// Partial rive::Factory implementation for the PLS objects that are backend-agnostic.
+// Partial rive::Factory implementation for the PLS objects that are
+// backend-agnostic.
 class RiveRenderFactory : public Factory
 {
 public:

@@ -17,7 +17,10 @@ public:
     }
 
     // For testing IntersectionBoard.
-    void resizeAndReset(uint32_t viewportWidth, uint32_t viewportHeight) { reset(0, 0, 0); }
+    void resizeAndReset(uint32_t viewportWidth, uint32_t viewportHeight)
+    {
+        reset(0, 0, 0);
+    }
 
     // For testing IntersectionTile.
     void addRectangle(int4 ltrb, int16_t groupIndex)
@@ -27,12 +30,15 @@ public:
     }
 
     // For testing IntersectionTile.
-    int16x8 findMaxIntersectingGroupIndex(int4 ltrb, int16x8 baselineGroupIndices = 0) const
+    int16x8 findMaxIntersectingGroupIndex(
+        int4 ltrb,
+        int16x8 baselineGroupIndices = 0) const
     {
         int16_t index = m_baselineGroupIndex;
         for (size_t i = 0; i < m_rects.size(); ++i)
         {
-            if (simd::all(ltrb.xy < m_rects[i].zw) && simd::all(ltrb.zw > m_rects[i].xy))
+            if (simd::all(ltrb.xy < m_rects[i].zw) &&
+                simd::all(ltrb.zw > m_rects[i].xy))
             {
                 index = std::max(index, m_groupIndices[i]);
             }

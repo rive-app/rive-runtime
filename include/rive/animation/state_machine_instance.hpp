@@ -42,7 +42,9 @@ class StateMachineInstance;
 typedef void (*InputChanged)(StateMachineInstance*, uint64_t);
 #endif
 
-class StateMachineInstance : public Scene, public NestedEventNotifier, public NestedEventListener
+class StateMachineInstance : public Scene,
+                             public NestedEventNotifier,
+                             public NestedEventListener
 {
     friend class SMIInput;
     friend class KeyedProperty;
@@ -50,21 +52,25 @@ class StateMachineInstance : public Scene, public NestedEventNotifier, public Ne
     friend class StateMachineLayerInstance;
 
 private:
-    /// Provide a hitListener if you want to process a down or an up for the pointer position
-    /// too.
+    /// Provide a hitListener if you want to process a down or an up for the
+    /// pointer position too.
     HitResult updateListeners(Vec2D position, ListenerType hitListener);
 
     template <typename SMType, typename InstType>
     InstType* getNamedInput(const std::string& name) const;
-    void notifyEventListeners(const std::vector<EventReport>& events, NestedArtboard* source);
+    void notifyEventListeners(const std::vector<EventReport>& events,
+                              NestedArtboard* source);
     void sortHitComponents();
     double randomValue();
-    StateTransition* findRandomTransition(StateInstance* stateFromInstance, bool ignoreTriggers);
-    StateTransition* findAllowedTransition(StateInstance* stateFromInstance, bool ignoreTriggers);
+    StateTransition* findRandomTransition(StateInstance* stateFromInstance,
+                                          bool ignoreTriggers);
+    StateTransition* findAllowedTransition(StateInstance* stateFromInstance,
+                                           bool ignoreTriggers);
     DataContext* m_DataContext;
 
 public:
-    StateMachineInstance(const StateMachine* machine, ArtboardInstance* instance);
+    StateMachineInstance(const StateMachine* machine,
+                         ArtboardInstance* instance);
     StateMachineInstance(StateMachineInstance const&) = delete;
     ~StateMachineInstance() override;
 
@@ -84,7 +90,8 @@ public:
     SMIBool* getBool(const std::string& name) const override;
     SMINumber* getNumber(const std::string& name) const override;
     SMITrigger* getTrigger(const std::string& name) const override;
-    void setDataContextFromInstance(ViewModelInstance* viewModelInstance) override;
+    void setDataContextFromInstance(
+        ViewModelInstance* viewModelInstance) override;
     void dataContext(DataContext* dataContext);
 
     size_t currentAnimationCount() const;
@@ -121,13 +128,21 @@ public:
     {
         m_parentStateMachineInstance = instance;
     }
-    StateMachineInstance* parentStateMachineInstance() { return m_parentStateMachineInstance; }
+    StateMachineInstance* parentStateMachineInstance()
+    {
+        return m_parentStateMachineInstance;
+    }
 
-    void setParentNestedArtboard(NestedArtboard* artboard) { m_parentNestedArtboard = artboard; }
+    void setParentNestedArtboard(NestedArtboard* artboard)
+    {
+        m_parentNestedArtboard = artboard;
+    }
     NestedArtboard* parentNestedArtboard() { return m_parentNestedArtboard; }
-    void notify(const std::vector<EventReport>& events, NestedArtboard* context) override;
+    void notify(const std::vector<EventReport>& events,
+                NestedArtboard* context) override;
 
-    /// Tracks an event that reported, will be cleared at the end of the next advance.
+    /// Tracks an event that reported, will be cleared at the end of the next
+    /// advance.
     void reportEvent(Event* event, float secondsDelay = 0.0f) override;
 
     /// Gets the number of events that reported since the last advance.
@@ -136,7 +151,8 @@ public:
     /// Gets a reported event at an index < reportedEventCount().
     const EventReport reportedEventAt(std::size_t index) const;
     bool playsAudio() override { return true; }
-    BindableProperty* bindablePropertyInstance(BindableProperty* bindableProperty) const;
+    BindableProperty* bindablePropertyInstance(
+        BindableProperty* bindableProperty) const;
     DataBind* bindableDataBind(BindableProperty* bindableProperty);
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };
@@ -164,12 +180,16 @@ private:
     StateMachineInstance* m_parentStateMachineInstance = nullptr;
     NestedArtboard* m_parentNestedArtboard = nullptr;
     std::vector<DataBind*> m_dataBinds;
-    std::unordered_map<BindableProperty*, BindableProperty*> m_bindablePropertyInstances;
+    std::unordered_map<BindableProperty*, BindableProperty*>
+        m_bindablePropertyInstances;
     std::unordered_map<BindableProperty*, DataBind*> m_bindableDataBinds;
 
 #ifdef WITH_RIVE_TOOLS
 public:
-    void onInputChanged(InputChanged callback) { m_inputChangedCallback = callback; }
+    void onInputChanged(InputChanged callback)
+    {
+        m_inputChangedCallback = callback;
+    }
     void onDataBindChanged(DataBindChanged callback);
     InputChanged m_inputChangedCallback = nullptr;
 #endif
@@ -179,11 +199,14 @@ class HitComponent
 {
 public:
     Component* component() const { return m_component; }
-    HitComponent(Component* component, StateMachineInstance* stateMachineInstance) :
+    HitComponent(Component* component,
+                 StateMachineInstance* stateMachineInstance) :
         m_component(component), m_stateMachineInstance(stateMachineInstance)
     {}
     virtual ~HitComponent() {}
-    virtual HitResult processEvent(Vec2D position, ListenerType hitType, bool canHit) = 0;
+    virtual HitResult processEvent(Vec2D position,
+                                   ListenerType hitType,
+                                   bool canHit) = 0;
     virtual void prepareEvent(Vec2D position, ListenerType hitType) = 0;
 #ifdef WITH_RIVE_TOOLS
     virtual bool hitTest(Vec2D position) const = 0;

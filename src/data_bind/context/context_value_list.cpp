@@ -5,8 +5,9 @@
 
 using namespace rive;
 
-DataBindContextValueList::DataBindContextValueList(ViewModelInstanceValue* source,
-                                                   DataConverter* converter) :
+DataBindContextValueList::DataBindContextValueList(
+    ViewModelInstanceValue* source,
+    DataConverter* converter) :
     DataBindContextValue(source, converter)
 {}
 
@@ -22,14 +23,16 @@ std::unique_ptr<ArtboardInstance> DataBindContextValueList::createArtboard(
         auto dataContext = mainArtboard->dataContext();
         auto artboardCopy = artboard->instance();
         artboardCopy->advanceInternal(0.0f, false);
-        artboardCopy->setDataContextFromInstance(listItem->viewModelInstance(), dataContext, false);
+        artboardCopy->setDataContextFromInstance(listItem->viewModelInstance(),
+                                                 dataContext,
+                                                 false);
         return artboardCopy;
     }
     return nullptr;
 }
 
-std::unique_ptr<StateMachineInstance> DataBindContextValueList::createStateMachineInstance(
-    ArtboardInstance* artboard)
+std::unique_ptr<StateMachineInstance> DataBindContextValueList::
+    createStateMachineInstance(ArtboardInstance* artboard)
 {
     if (artboard != nullptr)
     {
@@ -45,28 +48,35 @@ void DataBindContextValueList::insertItem(Core* target,
                                           int index)
 {
     auto artboard = listItem->artboard();
-    auto artboardCopy = createArtboard(target->as<Component>(), artboard, listItem);
+    auto artboardCopy =
+        createArtboard(target->as<Component>(), artboard, listItem);
     auto stateMachineInstance = createStateMachineInstance(artboardCopy.get());
     std::unique_ptr<DataBindContextValueListItem> cacheListItem =
-        rivestd::make_unique<DataBindContextValueListItem>(std::move(artboardCopy),
-                                                           std::move(stateMachineInstance),
-                                                           listItem);
+        rivestd::make_unique<DataBindContextValueListItem>(
+            std::move(artboardCopy),
+            std::move(stateMachineInstance),
+            listItem);
     if (index == -1)
     {
         m_ListItemsCache.push_back(std::move(cacheListItem));
     }
     else
     {
-        m_ListItemsCache.insert(m_ListItemsCache.begin() + index, std::move(cacheListItem));
+        m_ListItemsCache.insert(m_ListItemsCache.begin() + index,
+                                std::move(cacheListItem));
     }
 }
 
 void DataBindContextValueList::swapItems(Core* target, int index1, int index2)
 {
-    std::iter_swap(m_ListItemsCache.begin() + index1, m_ListItemsCache.begin() + index2);
+    std::iter_swap(m_ListItemsCache.begin() + index1,
+                   m_ListItemsCache.begin() + index2);
 }
 
-void DataBindContextValueList::popItem(Core* target) { m_ListItemsCache.pop_back(); }
+void DataBindContextValueList::popItem(Core* target)
+{
+    m_ListItemsCache.pop_back();
+}
 
 void DataBindContextValueList::update(Core* target)
 {
@@ -91,7 +101,8 @@ void DataBindContextValueList::update(Core* target)
                     bool found = false;
                     while (cacheIndex < m_ListItemsCache.size())
                     {
-                        if (m_ListItemsCache[cacheIndex]->listItem() == listItem)
+                        if (m_ListItemsCache[cacheIndex]->listItem() ==
+                            listItem)
                         {
                             // swap cache position with new item
                             swapItems(target, listIndex, cacheIndex);
@@ -125,7 +136,10 @@ void DataBindContextValueList::update(Core* target)
     }
 }
 
-void DataBindContextValueList::apply(Core* target, uint32_t propertyKey, bool isMainDirection) {}
+void DataBindContextValueList::apply(Core* target,
+                                     uint32_t propertyKey,
+                                     bool isMainDirection)
+{}
 
 void DataBindContextValueList::applyToSource(Core* target,
                                              uint32_t propertyKey,

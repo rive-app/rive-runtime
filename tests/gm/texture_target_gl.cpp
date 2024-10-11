@@ -23,7 +23,8 @@ using namespace rivegm;
 using namespace rive;
 using namespace rive::gpu;
 
-// Most gms render directly to the framebuffer. This GM checks that texture targets work in GL.
+// Most gms render directly to the framebuffer. This GM checks that texture
+// targets work in GL.
 class TextureTargetGL : public GM
 {
 public:
@@ -40,8 +41,8 @@ public:
             // Intercept the current frameDescriptor and end the PLS frame.
             auto renderContext = TestingWindow::Get()->renderContext();
             auto originalFrameDescriptor = renderContext->frameDescriptor();
-            auto originalRenderTarget =
-                static_cast<RenderTargetGL*>(TestingWindow::Get()->renderTarget());
+            auto originalRenderTarget = static_cast<RenderTargetGL*>(
+                TestingWindow::Get()->renderTarget());
             TestingWindow::Get()->flushPLSContext();
             plsImplGL->unbindGLInternalResources();
 
@@ -51,10 +52,18 @@ public:
                 glGenTextures(1, &m_offscreenTex);
                 glBindTexture(GL_TEXTURE_2D, m_offscreenTex);
                 glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 256, 256);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MIN_FILTER, GL_NEAREST);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, GL_NEAREST);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D,
+                                GL_TEXTURE_MIN_FILTER,
+                                GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D,
+                                GL_TEXTURE_MAG_FILTER,
+                                GL_NEAREST);
+                glTexParameteri(GL_TEXTURE_2D,
+                                GL_TEXTURE_WRAP_S,
+                                GL_CLAMP_TO_EDGE);
+                glTexParameteri(GL_TEXTURE_2D,
+                                GL_TEXTURE_WRAP_T,
+                                GL_CLAMP_TO_EDGE);
             }
             auto textureTargetGL = make_rcp<TextureRenderTargetGL>(256, 256);
             textureTargetGL->setTargetTexture(m_offscreenTex);
@@ -70,16 +79,20 @@ public:
 
             // Copy the offscreen texture back to the destination framebuffer.
             auto copyFrameDescriptor = originalFrameDescriptor;
-            copyFrameDescriptor.loadAction = gpu::LoadAction::preserveRenderTarget;
+            copyFrameDescriptor.loadAction =
+                gpu::LoadAction::preserveRenderTarget;
             copyFrameDescriptor.clearColor = 0xffff0000;
             renderContext->beginFrame(std::move(copyFrameDescriptor));
             originalRenderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
-            plsImplGL->blitTextureToFramebufferAsDraw(m_offscreenTex, {0, 0, 256, 256}, 256);
+            plsImplGL->blitTextureToFramebufferAsDraw(m_offscreenTex,
+                                                      {0, 0, 256, 256},
+                                                      256);
         }
         else
 #endif
         {
-            // We aren't PLS/GL, but still draw with a red background, just for fun.
+            // We aren't PLS/GL, but still draw with a red background, just for
+            // fun.
             drawInternal(originalRenderer, nullptr);
         }
     }
@@ -151,10 +164,12 @@ public:
         TextureTargetGL(name), m_blendMode(blendMode)
     {}
     TextureTargetGLPreserve() :
-        TextureTargetGLPreserve("texture_target_gl_preserve", BlendMode::srcOver)
+        TextureTargetGLPreserve("texture_target_gl_preserve",
+                                BlendMode::srcOver)
     {}
 
-    virtual void drawInternal(Renderer* renderer, TextureRenderTargetGL* renderTextureTargetGL)
+    virtual void drawInternal(Renderer* renderer,
+                              TextureRenderTargetGL* renderTextureTargetGL)
     {
         ColorInt colors[2];
         float stops[2];
@@ -163,8 +178,9 @@ public:
         colors[1] = 0xffff00ff;
         stops[1] = 1;
         Paint paint;
-        paint->shader(
-            TestingWindow::Get()->factory()->makeLinearGradient(0, 0, 250, 0, colors, stops, 2));
+        paint->shader(TestingWindow::Get()
+                          ->factory()
+                          ->makeLinearGradient(0, 0, 250, 0, colors, stops, 2));
         renderer->drawPath(PathBuilder::Rect({0, 0, 256, 256}), paint);
 
         colors[0] = 0x80000000;
@@ -173,7 +189,9 @@ public:
         stops[1] = 1;
         Paint paint2;
         paint2->shader(
-            TestingWindow::Get()->factory()->makeLinearGradient(0, 0, 0, 250, colors, stops, 2));
+            TestingWindow::Get()
+                ->factory()
+                ->makeLinearGradient(0, 0, 0, 250, colors, stops, 2));
         renderer->drawPath(PathBuilder::Rect({0, 0, 256, 256}), paint2);
 
         if (auto renderContext = TestingWindow::Get()->renderContext())
@@ -186,10 +204,12 @@ public:
                 renderContext->flush({.renderTarget = renderTextureTargetGL});
                 if (int sampleCount = frameDescriptor.msaaSampleCount)
                 {
-                    // If the MSAA framebuffer target is not the target texture, wipe it to red
-                    // behind the scenes in order to make sure our preservation codepath works. (It
-                    // shouldn't appear red in the end -- this should get preserved instead.)
-                    if (!plsImplGL->capabilities().EXT_multisampled_render_to_texture)
+                    // If the MSAA framebuffer target is not the target texture,
+                    // wipe it to red behind the scenes in order to make sure
+                    // our preservation codepath works. (It shouldn't appear red
+                    // in the end -- this should get preserved instead.)
+                    if (!plsImplGL->capabilities()
+                             .EXT_multisampled_render_to_texture)
                     {
                         renderTextureTargetGL->bindMSAAFramebuffer(plsImplGL,
                                                                    sampleCount,
@@ -222,10 +242,12 @@ public:
                 renderContext->flush({.renderTarget = renderTextureTargetGL});
                 if (int sampleCount = frameDescriptor.msaaSampleCount)
                 {
-                    // If the MSAA framebuffer target is not the target texture, wipe it to red
-                    // behind the scenes in order to make sure our preservation codepath works. (It
-                    // shouldn't appear red in the end -- this should get preserved instead.)
-                    if (!plsImplGL->capabilities().EXT_multisampled_render_to_texture)
+                    // If the MSAA framebuffer target is not the target texture,
+                    // wipe it to red behind the scenes in order to make sure
+                    // our preservation codepath works. (It shouldn't appear red
+                    // in the end -- this should get preserved instead.)
+                    if (!plsImplGL->capabilities()
+                             .EXT_multisampled_render_to_texture)
                     {
                         renderTextureTargetGL->bindMSAAFramebuffer(plsImplGL,
                                                                    sampleCount,
@@ -259,7 +281,8 @@ class TextureTargetGLPreserveLum : public TextureTargetGLPreserve
 {
 public:
     TextureTargetGLPreserveLum() :
-        TextureTargetGLPreserve("texture_target_gl_preserve_lum", BlendMode::luminosity)
+        TextureTargetGLPreserve("texture_target_gl_preserve_lum",
+                                BlendMode::luminosity)
     {}
 };
 GMREGISTER(return new TextureTargetGLPreserveLum)

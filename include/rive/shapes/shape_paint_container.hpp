@@ -38,7 +38,10 @@ public:
     void propagateOpacity(float opacity);
 
 #ifdef TESTING
-    const std::vector<ShapePaint*>& shapePaints() const { return m_ShapePaints; }
+    const std::vector<ShapePaint*>& shapePaints() const
+    {
+        return m_ShapePaints;
+    }
 #endif
 };
 } // namespace rive

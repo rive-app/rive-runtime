@@ -24,7 +24,8 @@ namespace rive
 {
 class Vec2D;
 
-// Helper that computes a matrix to "align" content (source) to fit inside frame (destination).
+// Helper that computes a matrix to "align" content (source) to fit inside frame
+// (destination).
 Mat2D computeAlignment(Fit, Alignment, const AABB& frame, const AABB& content);
 
 enum class RenderBufferType
@@ -36,12 +37,14 @@ enum class RenderBufferType
 enum class RenderBufferFlags
 {
     none = 0,
-    mappedOnceAtInitialization = 1 << 0, // The client will map the buffer exactly one time, before
-                                         // rendering, and will never update it again.
+    mappedOnceAtInitialization =
+        1 << 0, // The client will map the buffer exactly one time, before
+                // rendering, and will never update it again.
 };
 RIVE_MAKE_ENUM_BITSET(RenderBufferFlags)
 
-class RenderBuffer : public RefCnt<RenderBuffer>, public enable_lite_rtti<RenderBuffer>
+class RenderBuffer : public RefCnt<RenderBuffer>,
+                     public enable_lite_rtti<RenderBuffer>
 {
 public:
     RenderBuffer(RenderBufferType, RenderBufferFlags, size_t sizeInBytes);
@@ -91,16 +94,19 @@ enum class RenderPaintStyle
  *  Shaders are immutable, and sharable between multiple paints, etc.
  *
  *  It is common that a shader may be created with a 'localMatrix'. If this is
- *  not null, then it is applied to the shader's domain before the Renderer's CTM.
+ *  not null, then it is applied to the shader's domain before the Renderer's
+ * CTM.
  */
-class RenderShader : public RefCnt<RenderShader>, public enable_lite_rtti<RenderShader>
+class RenderShader : public RefCnt<RenderShader>,
+                     public enable_lite_rtti<RenderShader>
 {
 public:
     RenderShader();
     virtual ~RenderShader();
 };
 
-class RenderPaint : public RefCnt<RenderPaint>, public enable_lite_rtti<RenderPaint>
+class RenderPaint : public RefCnt<RenderPaint>,
+                    public enable_lite_rtti<RenderPaint>
 {
 public:
     RenderPaint();
@@ -116,7 +122,8 @@ public:
     virtual void invalidateStroke() = 0;
 };
 
-class RenderImage : public RefCnt<RenderImage>, public enable_lite_rtti<RenderImage>
+class RenderImage : public RefCnt<RenderImage>,
+                    public enable_lite_rtti<RenderImage>
 {
 protected:
     int m_Width = 0;
@@ -173,7 +180,10 @@ public:
     void scale(float sx, float sy);
     void rotate(float radians);
 
-    void align(Fit fit, Alignment alignment, const AABB& frame, const AABB& content)
+    void align(Fit fit,
+               Alignment alignment,
+               const AABB& frame,
+               const AABB& content)
     {
         transform(computeAlignment(fit, alignment, frame, content));
     }

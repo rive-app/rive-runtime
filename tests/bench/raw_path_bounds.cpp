@@ -8,7 +8,10 @@
 
 using namespace rive;
 
-static Vec2D randpt() { return Vec2D(float(rand()), float(rand())) * 100 / (float)RAND_MAX; }
+static Vec2D randpt()
+{
+    return Vec2D(float(rand()), float(rand())) * 100 / (float)RAND_MAX;
+}
 
 // Measure the speed of RawPath::bounds().
 class RawPathBounds : public Bench

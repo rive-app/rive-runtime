@@ -83,7 +83,8 @@ using namespace rive;
 
 // Import a single Rive runtime object.
 // Used by the file importer.
-static Core* readRuntimeObject(BinaryReader& reader, const RuntimeHeader& header)
+static Core* readRuntimeObject(BinaryReader& reader,
+                               const RuntimeHeader& header)
 {
     auto coreObjectKey = reader.readVarUintAs<int>();
     auto object = CoreRegistry::makeCoreInstance(coreObjectKey);
@@ -284,7 +285,9 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         }
         else
         {
-            fprintf(stderr, "Failed to import object of type %d\n", object->coreType());
+            fprintf(stderr,
+                    "Failed to import object of type %d\n",
+                    object->coreType());
             delete object;
             continue;
         }
@@ -294,49 +297,54 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         switch (stackType)
         {
             case Backboard::typeKey:
-                stackObject = rivestd::make_unique<BackboardImporter>(object->as<Backboard>());
+                stackObject = rivestd::make_unique<BackboardImporter>(
+                    object->as<Backboard>());
                 break;
             case Artboard::typeKey:
-                stackObject = rivestd::make_unique<ArtboardImporter>(object->as<Artboard>());
+                stackObject = rivestd::make_unique<ArtboardImporter>(
+                    object->as<Artboard>());
                 break;
             case DataEnum::typeKey:
-                stackObject = rivestd::make_unique<EnumImporter>(object->as<DataEnum>());
+                stackObject =
+                    rivestd::make_unique<EnumImporter>(object->as<DataEnum>());
                 break;
             case LinearAnimation::typeKey:
-                stackObject =
-                    rivestd::make_unique<LinearAnimationImporter>(object->as<LinearAnimation>());
+                stackObject = rivestd::make_unique<LinearAnimationImporter>(
+                    object->as<LinearAnimation>());
                 break;
             case KeyedObject::typeKey:
-                stackObject = rivestd::make_unique<KeyedObjectImporter>(object->as<KeyedObject>());
+                stackObject = rivestd::make_unique<KeyedObjectImporter>(
+                    object->as<KeyedObject>());
                 break;
             case KeyedProperty::typeKey:
             {
-                auto importer =
-                    importStack.latest<LinearAnimationImporter>(LinearAnimation::typeKey);
+                auto importer = importStack.latest<LinearAnimationImporter>(
+                    LinearAnimation::typeKey);
                 if (importer == nullptr)
                 {
                     return ImportResult::malformed;
                 }
-                stackObject =
-                    rivestd::make_unique<KeyedPropertyImporter>(importer->animation(),
-                                                                object->as<KeyedProperty>());
+                stackObject = rivestd::make_unique<KeyedPropertyImporter>(
+                    importer->animation(),
+                    object->as<KeyedProperty>());
                 break;
             }
             case StateMachine::typeKey:
-                stackObject =
-                    rivestd::make_unique<StateMachineImporter>(object->as<StateMachine>());
+                stackObject = rivestd::make_unique<StateMachineImporter>(
+                    object->as<StateMachine>());
                 break;
             case StateMachineLayer::typeKey:
             {
-                auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+                auto artboardImporter =
+                    importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
                 if (artboardImporter == nullptr)
                 {
                     return ImportResult::malformed;
                 }
 
-                stackObject =
-                    rivestd::make_unique<StateMachineLayerImporter>(object->as<StateMachineLayer>(),
-                                                                    artboardImporter->artboard());
+                stackObject = rivestd::make_unique<StateMachineLayerImporter>(
+                    object->as<StateMachineLayer>(),
+                    artboardImporter->artboard());
 
                 break;
             }
@@ -346,29 +354,33 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case AnimationState::typeKey:
             case BlendState1D::typeKey:
             case BlendStateDirect::typeKey:
-                stackObject = rivestd::make_unique<LayerStateImporter>(object->as<LayerState>());
+                stackObject = rivestd::make_unique<LayerStateImporter>(
+                    object->as<LayerState>());
                 stackType = LayerState::typeKey;
                 break;
             case StateTransition::typeKey:
             case BlendStateTransition::typeKey:
-                stackObject =
-                    rivestd::make_unique<StateTransitionImporter>(object->as<StateTransition>());
+                stackObject = rivestd::make_unique<StateTransitionImporter>(
+                    object->as<StateTransition>());
                 stackType = StateTransition::typeKey;
                 break;
             case StateMachineListener::typeKey:
-                stackObject = rivestd::make_unique<StateMachineListenerImporter>(
-                    object->as<StateMachineListener>());
+                stackObject =
+                    rivestd::make_unique<StateMachineListenerImporter>(
+                        object->as<StateMachineListener>());
                 break;
             case ImageAsset::typeKey:
             case FontAsset::typeKey:
             case AudioAsset::typeKey:
-                stackObject = rivestd::make_unique<FileAssetImporter>(object->as<FileAsset>(),
-                                                                      m_assetLoader,
-                                                                      m_factory);
+                stackObject = rivestd::make_unique<FileAssetImporter>(
+                    object->as<FileAsset>(),
+                    m_assetLoader,
+                    m_factory);
                 stackType = FileAsset::typeKey;
                 break;
             case ViewModel::typeKey:
-                stackObject = rivestd::make_unique<ViewModelImporter>(object->as<ViewModel>());
+                stackObject = rivestd::make_unique<ViewModelImporter>(
+                    object->as<ViewModel>());
                 stackType = ViewModel::typeKey;
                 break;
             case ViewModelInstance::typeKey:
@@ -377,14 +389,16 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackType = ViewModelInstance::typeKey;
                 break;
             case ViewModelInstanceList::typeKey:
-                stackObject = rivestd::make_unique<ViewModelInstanceListImporter>(
-                    object->as<ViewModelInstanceList>());
+                stackObject =
+                    rivestd::make_unique<ViewModelInstanceListImporter>(
+                        object->as<ViewModelInstanceList>());
                 stackType = ViewModelInstanceList::typeKey;
                 break;
             case TransitionViewModelCondition::typeKey:
             case TransitionArtboardCondition::typeKey:
-                stackObject = rivestd::make_unique<TransitionViewModelConditionImporter>(
-                    object->as<TransitionViewModelCondition>());
+                stackObject =
+                    rivestd::make_unique<TransitionViewModelConditionImporter>(
+                        object->as<TransitionViewModelCondition>());
                 stackType = TransitionViewModelCondition::typeKey;
                 break;
             case BindablePropertyNumber::typeKey:
@@ -393,8 +407,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case BindablePropertyEnum::typeKey:
             case BindablePropertyBoolean::typeKey:
             case BindablePropertyTrigger::typeKey:
-                stackObject =
-                    rivestd::make_unique<BindablePropertyImporter>(object->as<BindableProperty>());
+                stackObject = rivestd::make_unique<BindablePropertyImporter>(
+                    object->as<BindableProperty>());
                 stackType = BindablePropertyBase::typeKey;
                 break;
             case DataConverterGroupBase::typeKey:
@@ -403,22 +417,26 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackType = DataConverterGroupBase::typeKey;
                 break;
         }
-        if (importStack.makeLatest(stackType, std::move(stackObject)) != StatusCode::Ok)
+        if (importStack.makeLatest(stackType, std::move(stackObject)) !=
+            StatusCode::Ok)
         {
             // Some previous stack item didn't resolve.
             return ImportResult::malformed;
         }
         if (object->is<StateMachineLayerComponent>() &&
-            importStack.makeLatest(StateMachineLayerComponent::typeKey,
-                                   rivestd::make_unique<StateMachineLayerComponentImporter>(
-                                       object->as<StateMachineLayerComponent>())) != StatusCode::Ok)
+            importStack.makeLatest(
+                StateMachineLayerComponent::typeKey,
+                rivestd::make_unique<StateMachineLayerComponentImporter>(
+                    object->as<StateMachineLayerComponent>())) !=
+                StatusCode::Ok)
         {
             return ImportResult::malformed;
         }
     }
 
-    return !reader.hasError() && importStack.resolve() == StatusCode::Ok ? ImportResult::success
-                                                                         : ImportResult::malformed;
+    return !reader.hasError() && importStack.resolve() == StatusCode::Ok
+               ? ImportResult::success
+               : ImportResult::malformed;
 }
 
 Artboard* File::artboard(std::string name) const
@@ -487,10 +505,12 @@ void File::completeViewModelInstance(ViewModelInstance* viewModelInstance)
             if (property->is<ViewModelPropertyViewModel>())
             {
                 auto valueViewModel = value->as<ViewModelInstanceViewModel>();
-                auto propertViewModel = property->as<ViewModelPropertyViewModel>();
-                auto viewModelReference = m_ViewModels[propertViewModel->viewModelReferenceId()];
-                auto viewModelInstance =
-                    viewModelReference->instance(valueViewModel->propertyValue());
+                auto propertViewModel =
+                    property->as<ViewModelPropertyViewModel>();
+                auto viewModelReference =
+                    m_ViewModels[propertViewModel->viewModelReferenceId()];
+                auto viewModelInstance = viewModelReference->instance(
+                    valueViewModel->propertyValue());
                 if (viewModelInstance != nullptr)
                 {
                     valueViewModel->referenceViewModelInstance(
@@ -504,19 +524,23 @@ void File::completeViewModelInstance(ViewModelInstance* viewModelInstance)
             for (auto listItem : viewModelList->listItems())
             {
                 auto viewModel = m_ViewModels[listItem->viewModelId()];
-                auto viewModelInstance = viewModel->instance(listItem->viewModelInstanceId());
-                listItem->viewModelInstance(copyViewModelInstance(viewModelInstance));
+                auto viewModelInstance =
+                    viewModel->instance(listItem->viewModelInstanceId());
+                listItem->viewModelInstance(
+                    copyViewModelInstance(viewModelInstance));
                 if (listItem->artboardId() < m_artboards.size())
                 {
                     listItem->artboard(m_artboards[listItem->artboardId()]);
                 }
             }
         }
-        value->viewModelProperty(viewModel->property(value->viewModelPropertyId()));
+        value->viewModelProperty(
+            viewModel->property(value->viewModelPropertyId()));
     }
 }
 
-ViewModelInstance* File::copyViewModelInstance(ViewModelInstance* viewModelInstance)
+ViewModelInstance* File::copyViewModelInstance(
+    ViewModelInstance* viewModelInstance)
 {
     auto copy = viewModelInstance->clone()->as<ViewModelInstance>();
     completeViewModelInstance(copy);
@@ -538,7 +562,8 @@ ViewModelInstance* File::createViewModelInstance(std::string name)
     return nullptr;
 }
 
-ViewModelInstance* File::createViewModelInstance(std::string name, std::string instanceName)
+ViewModelInstance* File::createViewModelInstance(std::string name,
+                                                 std::string instanceName)
 {
     for (auto viewModel : m_ViewModels)
     {
@@ -557,7 +582,8 @@ ViewModelInstance* File::createViewModelInstance(std::string name, std::string i
     return nullptr;
 }
 
-ViewModelInstance* File::createViewModelInstance(size_t index, size_t instanceIndex)
+ViewModelInstance* File::createViewModelInstance(size_t index,
+                                                 size_t instanceIndex)
 {
     if (index < m_ViewModels.size())
     {
@@ -594,7 +620,8 @@ ViewModelInstance* File::createViewModelInstance(Artboard* artboard)
     return nullptr;
 }
 
-ViewModelInstanceListItem* File::viewModelInstanceListItem(ViewModelInstance* viewModelInstance)
+ViewModelInstanceListItem* File::viewModelInstanceListItem(
+    ViewModelInstance* viewModelInstance)
 {
     // Search for an implicit artboard linked to the viewModel.
     // It will return the first one it finds, but there could be more.
@@ -610,8 +637,9 @@ ViewModelInstanceListItem* File::viewModelInstanceListItem(ViewModelInstance* vi
     return nullptr;
 }
 
-ViewModelInstanceListItem* File::viewModelInstanceListItem(ViewModelInstance* viewModelInstance,
-                                                           Artboard* artboard)
+ViewModelInstanceListItem* File::viewModelInstanceListItem(
+    ViewModelInstance* viewModelInstance,
+    Artboard* artboard)
 {
     auto viewModelInstanceListItem = new ViewModelInstanceListItem();
     viewModelInstanceListItem->viewModelInstance(viewModelInstance);
@@ -658,7 +686,9 @@ const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
     }
     else
     {
-        strippedData.insert(strippedData.end(), bytes.data(), reader.position());
+        strippedData.insert(strippedData.end(),
+                            bytes.data(),
+                            reader.position());
         const uint8_t* from = reader.position();
         const uint8_t* to = reader.position();
         uint16_t lastAssetType = 0;
@@ -673,7 +703,8 @@ const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
             {
                 lastAssetType = object->coreType();
             }
-            if (object->is<FileAssetContents>() && typeKeys.find(lastAssetType) != typeKeys.end())
+            if (object->is<FileAssetContents>() &&
+                typeKeys.find(lastAssetType) != typeKeys.end())
             {
                 if (from != to)
                 {

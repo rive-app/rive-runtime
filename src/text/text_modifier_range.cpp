@@ -47,10 +47,11 @@ void TextModifierRange::addChild(Component* component)
 
 void TextModifierRange::clearRangeMap() { m_rangeMapper.clear(); }
 
-void TextModifierRange::computeRange(Span<const Unichar> text,
-                                     const SimpleArray<Paragraph>& shape,
-                                     const SimpleArray<SimpleArray<GlyphLine>>& lines,
-                                     const GlyphLookup& glyphLookup)
+void TextModifierRange::computeRange(
+    Span<const Unichar> text,
+    const SimpleArray<Paragraph>& shape,
+    const SimpleArray<SimpleArray<GlyphLine>>& lines,
+    const GlyphLookup& glyphLookup)
 {
     // Check if the range mapper is still valid.
     if (!m_rangeMapper.empty())
@@ -73,7 +74,8 @@ void TextModifierRange::computeRange(Span<const Unichar> text,
             m_rangeMapper.fromWords(text, start, end);
             break;
         case TextRangeUnits::lines:
-            m_rangeMapper.fromLines(text, start, end, shape, lines, glyphLookup);
+            m_rangeMapper
+                .fromLines(text, start, end, shape, lines, glyphLookup);
             break;
         default:
             m_rangeMapper.fromCharacters(text, start, end, glyphLookup);
@@ -102,7 +104,9 @@ float TextModifierRange::coverageAt(float t)
         else if (t > m_indexFalloffTo)
         {
             float range = std::max(0.0f, m_indexTo - m_indexFalloffTo);
-            c = range == 0.0f ? 1.0f : 1.0f - std::min(1.0f, (t - m_indexFalloffTo) / range);
+            c = range == 0.0f
+                    ? 1.0f
+                    : 1.0f - std::min(1.0f, (t - m_indexFalloffTo) / range);
             if (m_interpolator != nullptr)
             {
                 c = m_interpolator->transform(c);
@@ -179,8 +183,11 @@ void TextModifierRange::computeCoverage(Span<float> coverage)
         // Set space between units coverage to 0.
         if (unitIndex + 1 < m_rangeMapper.unitCharacterIndexCount())
         {
-            uint32_t nextCharacterIndex = m_rangeMapper.unitCharacterIndex(unitIndex + 1);
-            for (uint32_t i = characterIndex + unitLength; i < nextCharacterIndex; i++)
+            uint32_t nextCharacterIndex =
+                m_rangeMapper.unitCharacterIndex(unitIndex + 1);
+            for (uint32_t i = characterIndex + unitLength;
+                 i < nextCharacterIndex;
+                 i++)
             {
                 coverage[i] = 0;
             }
@@ -188,21 +195,51 @@ void TextModifierRange::computeCoverage(Span<float> coverage)
     }
 }
 
-void TextModifierRange::modifyFromChanged() { parent()->as<TextModifierGroup>()->rangeChanged(); }
-void TextModifierRange::modifyToChanged() { parent()->as<TextModifierGroup>()->rangeChanged(); }
-void TextModifierRange::strengthChanged() { parent()->as<TextModifierGroup>()->rangeChanged(); }
+void TextModifierRange::modifyFromChanged()
+{
+    parent()->as<TextModifierGroup>()->rangeChanged();
+}
+void TextModifierRange::modifyToChanged()
+{
+    parent()->as<TextModifierGroup>()->rangeChanged();
+}
+void TextModifierRange::strengthChanged()
+{
+    parent()->as<TextModifierGroup>()->rangeChanged();
+}
 void TextModifierRange::unitsValueChanged()
 {
     parent()->as<TextModifierGroup>()->rangeTypeChanged();
 }
-void TextModifierRange::typeValueChanged() { parent()->as<TextModifierGroup>()->rangeChanged(); }
-void TextModifierRange::modeValueChanged() { parent()->as<TextModifierGroup>()->rangeChanged(); }
-void TextModifierRange::clampChanged() { parent()->as<TextModifierGroup>()->rangeChanged(); }
-void TextModifierRange::falloffFromChanged() { parent()->as<TextModifierGroup>()->rangeChanged(); }
-void TextModifierRange::falloffToChanged() { parent()->as<TextModifierGroup>()->rangeChanged(); }
-void TextModifierRange::offsetChanged() { parent()->as<TextModifierGroup>()->rangeChanged(); }
+void TextModifierRange::typeValueChanged()
+{
+    parent()->as<TextModifierGroup>()->rangeChanged();
+}
+void TextModifierRange::modeValueChanged()
+{
+    parent()->as<TextModifierGroup>()->rangeChanged();
+}
+void TextModifierRange::clampChanged()
+{
+    parent()->as<TextModifierGroup>()->rangeChanged();
+}
+void TextModifierRange::falloffFromChanged()
+{
+    parent()->as<TextModifierGroup>()->rangeChanged();
+}
+void TextModifierRange::falloffToChanged()
+{
+    parent()->as<TextModifierGroup>()->rangeChanged();
+}
+void TextModifierRange::offsetChanged()
+{
+    parent()->as<TextModifierGroup>()->rangeChanged();
+}
 
-bool TextModifierRange::needsShape() const { return units() == TextRangeUnits::lines; }
+bool TextModifierRange::needsShape() const
+{
+    return units() == TextRangeUnits::lines;
+}
 
 void RangeMapper::clear()
 {
@@ -216,7 +253,8 @@ float RangeMapper::unitToCharacterRange(float word) const
     {
         return 0.0f;
     }
-    float clampedUnit = std::min(std::max(word, 0.0f), (float)(m_unitCharacterIndices.size() - 1));
+    float clampedUnit = std::min(std::max(word, 0.0f),
+                                 (float)(m_unitCharacterIndices.size() - 1));
     size_t intUnit = (size_t)clampedUnit;
     float characters = (float)m_unitCharacterIndices[intUnit];
     if (intUnit < m_unitLengths.size())
@@ -244,7 +282,9 @@ void RangeMapper::addRange(uint32_t indexFrom,
     }
 }
 
-void RangeMapper::fromWords(Span<const Unichar> text, uint32_t start, uint32_t end)
+void RangeMapper::fromWords(Span<const Unichar> text,
+                            uint32_t start,
+                            uint32_t end)
 {
     if (text.empty())
     {
@@ -334,7 +374,8 @@ void RangeMapper::fromLines(Span<const Unichar> text,
             uint32_t indexFrom = rf.textIndices[line.startGlyphIndex];
 
             const GlyphRun& rt = glyphRuns[line.endRunIndex];
-            uint32_t endGlyphIndex = line.endGlyphIndex == 0 ? 0 : line.endGlyphIndex - 1;
+            uint32_t endGlyphIndex =
+                line.endGlyphIndex == 0 ? 0 : line.endGlyphIndex - 1;
             uint32_t indexTo = rt.textIndices[endGlyphIndex];
             indexTo += glyphLookup.count(indexTo);
 

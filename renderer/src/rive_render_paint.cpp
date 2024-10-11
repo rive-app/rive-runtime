@@ -23,9 +23,11 @@ void RiveRenderPaint::color(ColorInt color)
 void RiveRenderPaint::shader(rcp<RenderShader> shader)
 {
     m_gradient = static_rcp_cast<gpu::Gradient>(std::move(shader));
-    m_paintType = m_gradient ? m_gradient->paintType() : gpu::PaintType::solidColor;
-    // m_simpleValue.colorRampLocation is unused at this level. A new location for a this gradient's
-    // color ramp will decided by the render context every frame.
+    m_paintType =
+        m_gradient ? m_gradient->paintType() : gpu::PaintType::solidColor;
+    // m_simpleValue.colorRampLocation is unused at this level. A new location
+    // for a this gradient's color ramp will decided by the render context every
+    // frame.
     m_simpleValue.color = 0xff000000;
     m_imageTexture.reset();
 }

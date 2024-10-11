@@ -26,7 +26,9 @@ public:
 
     void moveTo(float x, float y) override {}
     void lineTo(float x, float y) override {}
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override {}
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+        override
+    {}
     void close() override {}
 };
 

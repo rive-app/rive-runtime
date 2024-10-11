@@ -6,7 +6,9 @@
 
 using namespace rive;
 
-AudioSound::AudioSound(AudioEngine* engine, rcp<AudioSource> source, Artboard* artboard) :
+AudioSound::AudioSound(AudioEngine* engine,
+                       rcp<AudioSource> source,
+                       Artboard* artboard) :
     m_decoder({}),
     m_buffer({}),
     m_sound({}),
@@ -64,7 +66,8 @@ bool AudioSound::seek(uint64_t timeInFrames)
     {
         return false;
     }
-    return ma_sound_seek_to_pcm_frame(&m_sound, (ma_uint64)timeInFrames) == MA_SUCCESS;
+    return ma_sound_seek_to_pcm_frame(&m_sound, (ma_uint64)timeInFrames) ==
+           MA_SUCCESS;
 }
 
 #endif

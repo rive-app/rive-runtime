@@ -26,7 +26,12 @@ VARYING_BLOCK_END
 VERTEX_TEXTURE_BLOCK_BEGIN
 VERTEX_TEXTURE_BLOCK_END
 
-IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _vertexID)
+IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
+                       PositionAttr,
+                       position,
+                       UVAttr,
+                       uv,
+                       _vertexID)
 {
     ATTR_UNPACK(_vertexID, position, @a_position, float2);
     ATTR_UNPACK(_vertexID, uv, @a_texCoord, float2);
@@ -40,12 +45,14 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _ver
 #endif
 
     float2 vertexPosition =
-        MUL(make_float2x2(imageDrawUniforms.viewMatrix), @a_position) + imageDrawUniforms.translate;
+        MUL(make_float2x2(imageDrawUniforms.viewMatrix), @a_position) +
+        imageDrawUniforms.translate;
     v_texCoord = @a_texCoord;
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING)
     {
-        v_clipID = id_bits_to_f16(imageDrawUniforms.clipID, uniforms.pathIDGranularity);
+        v_clipID = id_bits_to_f16(imageDrawUniforms.clipID,
+                                  uniforms.pathIDGranularity);
     }
 #endif
 #ifdef @ENABLE_CLIP_RECT
@@ -57,9 +64,10 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain, PositionAttr, position, UVAttr, uv, _ver
             imageDrawUniforms.clipRectInverseTranslate,
             vertexPosition);
 #else  // USING_DEPTH_STENCIL
-        set_clip_rect_plane_distances(make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
-                                      imageDrawUniforms.clipRectInverseTranslate,
-                                      vertexPosition);
+        set_clip_rect_plane_distances(
+            make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
+            imageDrawUniforms.clipRectInverseTranslate,
+            vertexPosition);
 #endif // USING_DEPTH_STENCIL
     }
 #endif // ENABLE_CLIP_RECT
@@ -133,7 +141,8 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     {
         half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
         half clipContentID = clipData.g;
-        half clipCoverage = clipContentID == v_clipID ? clipData.r : make_half(.0);
+        half clipCoverage =
+            clipContentID == v_clipID ? clipData.r : make_half(.0);
         coverage = min(coverage, clipCoverage);
     }
 #endif
@@ -144,9 +153,10 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND && imageDrawUniforms.blendMode != BLEND_SRC_OVER)
     {
-        color = advanced_blend(color,
-                               unmultiply(dstColor),
-                               cast_uint_to_ushort(imageDrawUniforms.blendMode));
+        color =
+            advanced_blend(color,
+                           unmultiply(dstColor),
+                           cast_uint_to_ushort(imageDrawUniforms.blendMode));
     }
     else
 #endif
@@ -177,8 +187,11 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
     {
-        half4 dstColor = TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
-        color = advanced_blend(color, unmultiply(dstColor), imageDrawUniforms.blendMode);
+        half4 dstColor =
+            TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
+        color = advanced_blend(color,
+                               unmultiply(dstColor),
+                               imageDrawUniforms.blendMode);
     }
     else
 #endif // !ENABLE_ADVANCED_BLEND

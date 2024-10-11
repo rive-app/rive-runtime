@@ -26,7 +26,8 @@ struct GM_API FGMData
     // Height of the GM gets populate when GM list is created
     UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
     int32 Height = 0;
-    // transient texture that gets deleted after this gm is removed from view to save memory
+    // transient texture that gets deleted after this gm is removed from view to
+    // save memory
     UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
     URiveTexture* RiveTexture = nullptr;
     // the name of the golden
@@ -49,7 +50,8 @@ struct GM_API FGoldenData
     UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
     int32 Height = 0;
 
-    // transient texture that gets deleted after this golden is removed from view to save memory
+    // transient texture that gets deleted after this golden is removed from
+    // view to save memory
     UPROPERTY(BlueprintReadOnly, VisibleAnywhere)
     URiveTexture* RiveTexture = nullptr;
 
@@ -76,11 +78,14 @@ public:
     static void ResetGoldenTexture(UPARAM(ref) FGoldenData& Data);
     // Create a new golden with minimal info, verifying the path exists
     UFUNCTION(BlueprintCallable)
-    static void MakeGoldenData(FString PathToRiv, FGoldenData& OutGoldenData, bool& Successful);
-    // Create Goldens using assumed launch location is the Unreal Project root directory, like
-    // running from editor
+    static void MakeGoldenData(FString PathToRiv,
+                               FGoldenData& OutGoldenData,
+                               bool& Successful);
+    // Create Goldens using assumed launch location is the Unreal Project root
+    // directory, like running from editor
     UFUNCTION(BlueprintCallable)
-    static void GenerateGoldenForDefaultLocation(TArray<FGoldenData>& OutGoldens);
+    static void GenerateGoldenForDefaultLocation(
+        TArray<FGoldenData>& OutGoldens);
 };
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FGMTestingReady);
@@ -105,19 +110,23 @@ public:
 
     /*
      * Runs the given GM through gms.dll
-     * If @ShouldGenerateDisplayTexture is true, a new RiveTexture will be created and stored in GM
-     * That will be rendered to assuming it will be used to display the finished GM
+     * If @ShouldGenerateDisplayTexture is true, a new RiveTexture will be
+     * created and stored in GM That will be rendered to assuming it will be
+     * used to display the finished GM
      */
     UFUNCTION(BlueprintCallable)
-    void RunGM(UPARAM(ref) FGMData& GM, bool ShouldGenerateDisplayTexture = true);
+    void RunGM(UPARAM(ref) FGMData& GM,
+               bool ShouldGenerateDisplayTexture = true);
 
     /*
      * Runs the given Golden through goldens_main
-     * If @ShouldGenerateDisplayTexture is true, a new RiveTexture will be created and stored in
-     * Golden That will be rendered to assuming it will be used to display the finished Golden
+     * If @ShouldGenerateDisplayTexture is true, a new RiveTexture will be
+     * created and stored in Golden That will be rendered to assuming it will be
+     * used to display the finished Golden
      */
     UFUNCTION(BlueprintCallable)
-    void RunGolden(UPARAM(ref) FGoldenData& Golden, bool ShouldGenerateDisplayTexture = true);
+    void RunGolden(UPARAM(ref) FGoldenData& Golden,
+                   bool ShouldGenerateDisplayTexture = true);
 
     UFUNCTION(BlueprintCallable)
     void RunCustomTestClear();
@@ -160,14 +169,16 @@ private:
 
     void RunCustomTestClear_RenderThread(FRHICommandListImmediate& RHICmdList,
                                          FTextureRHIRef& NewResource);
-    void RunCustomTestManyPaths_RenderThread(FRHICommandListImmediate& RHICmdList,
-                                             FTextureRHIRef& NewResource);
+    void RunCustomTestManyPaths_RenderThread(
+        FRHICommandListImmediate& RHICmdList,
+        FTextureRHIRef& NewResource);
     void RunSpecificGM_RenderThread(FRHICommandListImmediate& RHICmdList,
                                     FTextureRHIRef& NewResource);
     // GMRan in RunSpecificGM_RenderThread and set by RunGM
     FGMData* GMToRun = nullptr;
 
-    // this is managed by the GM lib. so we just reset this to null after running gms_main
+    // this is managed by the GM lib. so we just reset this to null after
+    // running gms_main
     UnrealTestingWindow* TestingWindow;
 
     UPROPERTY()

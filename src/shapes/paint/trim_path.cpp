@@ -63,7 +63,10 @@ void TrimPath::trimRawPath(const RawPath& source)
 
                 if (startLength < contourLength)
                 {
-                    contour->getSegment(startLength, endLength, &m_rawPath, true);
+                    contour->getSegment(startLength,
+                                        endLength,
+                                        &m_rawPath,
+                                        true);
                     endLength -= contourLength;
                     startLength = 0;
                 }
@@ -101,7 +104,10 @@ void TrimPath::trimRawPath(const RawPath& source)
                 {
                     startLength = 0;
                     endLength -= contourLength;
-                    contour->getSegment(startLength, endLength, &m_rawPath, true);
+                    contour->getSegment(startLength,
+                                        endLength,
+                                        &m_rawPath,
+                                        true);
                 }
             }
         }

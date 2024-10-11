@@ -19,7 +19,8 @@ public:
     const LinearAnimationInstance* exitTimeAnimationInstance(
         const StateInstance* from) const override;
 
-    const LinearAnimation* exitTimeAnimation(const LayerState* from) const override;
+    const LinearAnimation* exitTimeAnimation(
+        const LayerState* from) const override;
 };
 
 } // namespace rive

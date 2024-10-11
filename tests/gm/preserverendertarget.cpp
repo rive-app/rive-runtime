@@ -10,11 +10,14 @@
 using namespace rivegm;
 using namespace rive;
 
-// Ensures the PLS render target does not get cleared when using LoadAction::preserveRenderTarget.
+// Ensures the PLS render target does not get cleared when using
+// LoadAction::preserveRenderTarget.
 class PreserveRenderTargetBase : public GM
 {
 protected:
-    PreserveRenderTargetBase(const char* name, bool empty, BlendMode blendMode) :
+    PreserveRenderTargetBase(const char* name,
+                             bool empty,
+                             BlendMode blendMode) :
         GM(64, 64, name), m_empty(empty), m_blendMode(blendMode)
     {}
 
@@ -32,7 +35,8 @@ protected:
         {
             rive::gpu::RenderContext::FrameDescriptor frameDescriptor =
                 renderContext->frameDescriptor();
-            frameDescriptor.loadAction = rive::gpu::LoadAction::preserveRenderTarget;
+            frameDescriptor.loadAction =
+                rive::gpu::LoadAction::preserveRenderTarget;
             frameDescriptor.clearColor = 0xffff0000;
 
             TestingWindow::Get()->flushPLSContext();
@@ -41,7 +45,8 @@ protected:
         else
         {
             TestingWindow::Get()->endFrame();
-            renderer = TestingWindow::Get()->beginFrame(0xffff0000, false /*doClear*/);
+            renderer =
+                TestingWindow::Get()->beginFrame(0xffff0000, false /*doClear*/);
         }
 
         if (!m_empty)
@@ -66,7 +71,9 @@ class PreserveRenderTargetGM : public PreserveRenderTargetBase
 {
 public:
     PreserveRenderTargetGM() :
-        PreserveRenderTargetBase("preserverendertarget", false, BlendMode::srcOver)
+        PreserveRenderTargetBase("preserverendertarget",
+                                 false,
+                                 BlendMode::srcOver)
     {}
 };
 GMREGISTER(return new PreserveRenderTargetGM)
@@ -75,7 +82,9 @@ class PreserveRenderTargetBlendModeGM : public PreserveRenderTargetBase
 {
 public:
     PreserveRenderTargetBlendModeGM() :
-        PreserveRenderTargetBase("preserverendertarget_blendmode", false, BlendMode::darken)
+        PreserveRenderTargetBase("preserverendertarget_blendmode",
+                                 false,
+                                 BlendMode::darken)
     {}
 };
 GMREGISTER(return new PreserveRenderTargetBlendModeGM)
@@ -84,7 +93,9 @@ class PreserveRenderTargetEmptyGM : public PreserveRenderTargetBase
 {
 public:
     PreserveRenderTargetEmptyGM() :
-        PreserveRenderTargetBase("preserverendertarget_empty", true, BlendMode::srcOver)
+        PreserveRenderTargetBase("preserverendertarget_empty",
+                                 true,
+                                 BlendMode::srcOver)
     {}
 };
 GMREGISTER(return new PreserveRenderTargetEmptyGM)

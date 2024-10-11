@@ -7,7 +7,8 @@
 #include <chrono>
 #include <string.h>
 
-// Run a microbenchmark repeatedly for a few seconds and print the quickest time.
+// Run a microbenchmark repeatedly for a few seconds and print the quickest
+// time.
 int main(int argc, const char** argv)
 {
     using namespace std::chrono_literals;
@@ -37,7 +38,8 @@ int main(int argc, const char** argv)
         // Print out the usage unless they ran "bench list".
         if (arg >= endarg || !!strcmp(*arg, "list"))
         {
-            fprintf(stderr, "Usage:\n\nbench [--duration <seconds>] <benchmark>\n\n");
+            fprintf(stderr,
+                    "Usage:\n\nbench [--duration <seconds>] <benchmark>\n\n");
             fprintf(stderr, "Benchmarks:\n\n");
             fflush(stderr);
         }
@@ -70,7 +72,9 @@ int main(int argc, const char** argv)
 #ifdef DEBUG
     printf("<time hidden in debug builds> %s\n", benchName);
 #else
-    printf("%.4gms %s\n", std::chrono::nanoseconds(minTime).count() * 1e-6, benchName);
+    printf("%.4gms %s\n",
+           std::chrono::nanoseconds(minTime).count() * 1e-6,
+           benchName);
 #endif
 
     return 0;

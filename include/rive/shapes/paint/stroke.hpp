@@ -22,7 +22,8 @@ public:
     void invalidateEffects();
     bool isVisible() const override;
     void invalidateRendering();
-    void applyTo(RenderPaint* renderPaint, float opacityModifier) const override;
+    void applyTo(RenderPaint* renderPaint,
+                 float opacityModifier) const override;
 
 protected:
     void thicknessChanged() override;

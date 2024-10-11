@@ -12,8 +12,8 @@ protected:
 public:
     static const uint16_t typeKey = 428;
 
-    /// Helper to quickly determine if a core object extends another without RTTI
-    /// at runtime.
+    /// Helper to quickly determine if a core object extends another without
+    /// RTTI at runtime.
     bool isTypeOf(uint16_t typeKey) const override
     {
         switch (typeKey)
@@ -33,7 +33,10 @@ private:
     uint32_t m_ViewModelPropertyId = 0;
 
 public:
-    inline uint32_t viewModelPropertyId() const { return m_ViewModelPropertyId; }
+    inline uint32_t viewModelPropertyId() const
+    {
+        return m_ViewModelPropertyId;
+    }
     void viewModelPropertyId(uint32_t value)
     {
         if (m_ViewModelPropertyId == value)

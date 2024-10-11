@@ -37,7 +37,8 @@ public:
     void addFileAssetReferencer(FileAssetReferencer* referencer);
     void addDataConverterReferencer(DataBind* referencer);
     void addDataConverter(DataConverter* converter);
-    void addDataConverterGroupItemReferencer(DataConverterGroupItem* referencer);
+    void addDataConverterGroupItemReferencer(
+        DataConverterGroupItem* referencer);
 
     StatusCode resolve() override;
     const Backboard* backboard() const { return m_Backboard; }

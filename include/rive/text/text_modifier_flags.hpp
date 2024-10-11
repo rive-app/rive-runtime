@@ -16,21 +16,24 @@ enum class TextModifierFlags : uint8_t
     invertOpacity = 1 << 6
 };
 
-inline constexpr TextModifierFlags operator&(TextModifierFlags lhs, TextModifierFlags rhs)
+inline constexpr TextModifierFlags operator&(TextModifierFlags lhs,
+                                             TextModifierFlags rhs)
 {
     return static_cast<TextModifierFlags>(
         static_cast<std::underlying_type<TextModifierFlags>::type>(lhs) &
         static_cast<std::underlying_type<TextModifierFlags>::type>(rhs));
 }
 
-inline constexpr TextModifierFlags operator^(TextModifierFlags lhs, TextModifierFlags rhs)
+inline constexpr TextModifierFlags operator^(TextModifierFlags lhs,
+                                             TextModifierFlags rhs)
 {
     return static_cast<TextModifierFlags>(
         static_cast<std::underlying_type<TextModifierFlags>::type>(lhs) ^
         static_cast<std::underlying_type<TextModifierFlags>::type>(rhs));
 }
 
-inline constexpr TextModifierFlags operator|(TextModifierFlags lhs, TextModifierFlags rhs)
+inline constexpr TextModifierFlags operator|(TextModifierFlags lhs,
+                                             TextModifierFlags rhs)
 {
     return static_cast<TextModifierFlags>(
         static_cast<std::underlying_type<TextModifierFlags>::type>(lhs) |
@@ -43,7 +46,8 @@ inline constexpr TextModifierFlags operator~(TextModifierFlags rhs)
         ~static_cast<std::underlying_type<TextModifierFlags>::type>(rhs));
 }
 
-inline TextModifierFlags& operator|=(TextModifierFlags& lhs, TextModifierFlags rhs)
+inline TextModifierFlags& operator|=(TextModifierFlags& lhs,
+                                     TextModifierFlags rhs)
 {
     lhs = static_cast<TextModifierFlags>(
         static_cast<std::underlying_type<TextModifierFlags>::type>(lhs) |
@@ -52,7 +56,8 @@ inline TextModifierFlags& operator|=(TextModifierFlags& lhs, TextModifierFlags r
     return lhs;
 }
 
-inline TextModifierFlags& operator&=(TextModifierFlags& lhs, TextModifierFlags rhs)
+inline TextModifierFlags& operator&=(TextModifierFlags& lhs,
+                                     TextModifierFlags rhs)
 {
     lhs = static_cast<TextModifierFlags>(
         static_cast<std::underlying_type<TextModifierFlags>::type>(lhs) &
@@ -61,7 +66,8 @@ inline TextModifierFlags& operator&=(TextModifierFlags& lhs, TextModifierFlags r
     return lhs;
 }
 
-inline TextModifierFlags& operator^=(TextModifierFlags& lhs, TextModifierFlags rhs)
+inline TextModifierFlags& operator^=(TextModifierFlags& lhs,
+                                     TextModifierFlags rhs)
 {
     lhs = static_cast<TextModifierFlags>(
         static_cast<std::underlying_type<TextModifierFlags>::type>(lhs) ^

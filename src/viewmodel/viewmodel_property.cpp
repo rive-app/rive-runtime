@@ -6,7 +6,8 @@ using namespace rive;
 
 StatusCode ViewModelProperty::import(ImportStack& importStack)
 {
-    auto viewModelImporter = importStack.latest<ViewModelImporter>(ViewModel::typeKey);
+    auto viewModelImporter =
+        importStack.latest<ViewModelImporter>(ViewModel::typeKey);
     if (viewModelImporter == nullptr)
     {
         return StatusCode::MissingObject;

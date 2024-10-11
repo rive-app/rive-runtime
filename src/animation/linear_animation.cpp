@@ -67,7 +67,8 @@ void LinearAnimation::apply(Artboard* artboard, float time, float mix) const
 
 StatusCode LinearAnimation::import(ImportStack& importStack)
 {
-    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    auto artboardImporter =
+        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -85,15 +86,25 @@ float LinearAnimation::endSeconds() const
     return (enableWorkArea() ? workEnd() : duration()) / (float)fps();
 }
 
-float LinearAnimation::startTime() const { return (speed() >= 0) ? startSeconds() : endSeconds(); }
+float LinearAnimation::startTime() const
+{
+    return (speed() >= 0) ? startSeconds() : endSeconds();
+}
 float LinearAnimation::startTime(float multiplier) const
 {
     return ((speed() * multiplier) >= 0) ? startSeconds() : endSeconds();
 }
-float LinearAnimation::endTime() const { return (speed() >= 0) ? endSeconds() : startSeconds(); }
-float LinearAnimation::durationSeconds() const { return std::abs(endSeconds() - startSeconds()); }
+float LinearAnimation::endTime() const
+{
+    return (speed() >= 0) ? endSeconds() : startSeconds();
+}
+float LinearAnimation::durationSeconds() const
+{
+    return std::abs(endSeconds() - startSeconds());
+}
 
-// Matches Dart modulus: https://api.dart.dev/stable/2.19.0/dart-core/double/operator_modulo.html
+// Matches Dart modulus:
+// https://api.dart.dev/stable/2.19.0/dart-core/double/operator_modulo.html
 static float positiveMod(float value, float range)
 {
     assert(range > 0.0f);
@@ -116,7 +127,8 @@ float LinearAnimation::globalToLocalSeconds(float seconds) const
         case Loop::pingPong:
             float localTime = positiveMod(seconds, (durationSeconds()));
             int direction = ((int)(seconds / (durationSeconds()))) % 2;
-            return direction == 0 ? localTime + startTime() : endTime() - localTime;
+            return direction == 0 ? localTime + startTime()
+                                  : endTime() - localTime;
     }
     RIVE_UNREACHABLE();
 }
@@ -134,7 +146,10 @@ void LinearAnimation::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
     {
         for (const auto& object : m_KeyedObjects)
         {
-            object->reportKeyedCallbacks(reporter, secondsFrom, secondsTo, isAtStartFrame);
+            object->reportKeyedCallbacks(reporter,
+                                         secondsFrom,
+                                         secondsTo,
+                                         isAtStartFrame);
         }
     }
 }

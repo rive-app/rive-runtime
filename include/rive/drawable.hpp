@@ -33,19 +33,22 @@ public:
     virtual void draw(Renderer* renderer) = 0;
     virtual Core* hitTest(HitInfo*, const Mat2D&) = 0;
     void addClippingShape(ClippingShape* shape);
-    inline const std::vector<ClippingShape*>& clippingShapes() const { return m_ClippingShapes; }
+    inline const std::vector<ClippingShape*>& clippingShapes() const
+    {
+        return m_ClippingShapes;
+    }
 
     virtual bool isHidden() const
     {
-        return (static_cast<DrawableFlag>(drawableFlags()) & DrawableFlag::Hidden) ==
-                   DrawableFlag::Hidden ||
+        return (static_cast<DrawableFlag>(drawableFlags()) &
+                DrawableFlag::Hidden) == DrawableFlag::Hidden ||
                hasDirt(ComponentDirt::Collapsed);
     }
 
     inline bool isTargetOpaque() const
     {
-        return (static_cast<DrawableFlag>(drawableFlags()) & DrawableFlag::Opaque) ==
-               DrawableFlag::Opaque;
+        return (static_cast<DrawableFlag>(drawableFlags()) &
+                DrawableFlag::Opaque) == DrawableFlag::Opaque;
     }
 
     bool isChildOfLayout(LayoutComponent* layout);
@@ -68,7 +71,10 @@ private:
 public:
     DrawableProxy(ProxyDrawing* proxy) : m_proxyDrawing(proxy) {}
 
-    void draw(Renderer* renderer) override { m_proxyDrawing->drawProxy(renderer); }
+    void draw(Renderer* renderer) override
+    {
+        m_proxyDrawing->drawProxy(renderer);
+    }
 
     bool isHidden() const override { return m_proxyDrawing->isProxyHidden(); }
 

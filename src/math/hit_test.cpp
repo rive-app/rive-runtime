@@ -85,7 +85,11 @@ static void append_line(const float height,
     }
 }
 
-static void clip_line(const float height, Point p0, Point p1, int delta[], const int iwidth)
+static void clip_line(const float height,
+                      Point p0,
+                      Point p1,
+                      int delta[],
+                      const int iwidth)
 {
     if (p0.y == p1.y)
     {
@@ -379,8 +383,8 @@ bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices)
     {
         const auto bounds = AABB(verts);
 
-        if (bounds.bottom() < pt.y || pt.y < bounds.top() || bounds.right() < pt.x ||
-            pt.x < bounds.left())
+        if (bounds.bottom() < pt.y || pt.y < bounds.top() ||
+            bounds.right() < pt.x || pt.x < bounds.left())
         {
             return false;
         }
@@ -408,13 +412,17 @@ bool HitTester::testMesh(Vec2D pt, Span<Vec2D> verts, Span<uint16_t> indices)
     return false;
 }
 
-bool HitTester::testMesh(const IAABB& area, Span<Vec2D> verts, Span<uint16_t> indices)
+bool HitTester::testMesh(const IAABB& area,
+                         Span<Vec2D> verts,
+                         Span<uint16_t> indices)
 {
-    // this version can give slightly different results, so perhaps we should do this
-    // automatically, ... its just much faster if we do.
+    // this version can give slightly different results, so perhaps we should do
+    // this automatically, ... its just much faster if we do.
     if (area.width() * area.height() == 1)
     {
-        return testMesh(Vec2D((float)area.left, (float)area.top), verts, indices);
+        return testMesh(Vec2D((float)area.left, (float)area.top),
+                        verts,
+                        indices);
     }
 
     if (verts.size() < 3)

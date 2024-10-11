@@ -7,7 +7,8 @@ using namespace rive;
 
 StatusCode KeyFrameInterpolator::import(ImportStack& importStack)
 {
-    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    auto artboardImporter =
+        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr)
     {
         return StatusCode::MissingObject;

@@ -11,17 +11,21 @@
 using namespace rive;
 
 /// Compute an ideal control point distance to create a curve of the given
-/// radius. Based on "natural rounding" https://observablehq.com/@daformat/rounding-polygon-corners
+/// radius. Based on "natural rounding"
+/// https://observablehq.com/@daformat/rounding-polygon-corners
 static float computeIdealControlPointDistance(const Vec2D& toPrev,
                                               const Vec2D& toNext,
                                               float radius)
 {
     // Get the angle between next and prev
-    float angle = fabs(atan2(Vec2D::cross(toPrev, toNext), Vec2D::dot(toPrev, toNext)));
+    float angle =
+        fabs(atan2(Vec2D::cross(toPrev, toNext), Vec2D::dot(toPrev, toNext)));
 
-    return fmin(radius,
-                (4.0f / 3.0f) * tan(math::PI / (2.0f * ((2.0f * math::PI) / angle))) * radius *
-                    (angle < math::PI / 2 ? 1 + cos(angle) : 2.0f - sin(angle)));
+    return fmin(
+        radius,
+        (4.0f / 3.0f) * tan(math::PI / (2.0f * ((2.0f * math::PI) / angle))) *
+            radius *
+            (angle < math::PI / 2 ? 1 + cos(angle) : 2.0f - sin(angle)));
 }
 
 StatusCode Path::onAddedClean(CoreContext* context)
@@ -52,7 +56,10 @@ void Path::buildDependencies() { Super::buildDependencies(); }
 void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
 void Path::addFlags(PathFlags flags) { m_pathFlags |= flags; }
-bool Path::isFlagged(PathFlags flags) const { return (int)(m_pathFlags & flags) != 0x00; }
+bool Path::isFlagged(PathFlags flags) const
+{
+    return (int)(m_pathFlags & flags) != 0x00;
+}
 
 bool Path::canDeferPathUpdate()
 {
@@ -66,7 +73,8 @@ bool Path::canDeferPathUpdate()
     // Shape is necessarily forced to update put the paths are, which is why we
     // explicitly also check the shape's path space.
 
-    return m_Shape->canDeferPathUpdate() && !m_Shape->isFlagged(PathFlags::followPath) &&
+    return m_Shape->canDeferPathUpdate() &&
+           !m_Shape->isFlagged(PathFlags::followPath) &&
            !isFlagged(PathFlags::followPath | PathFlags::clipping);
 }
 
@@ -111,28 +119,34 @@ void Path::buildPath(RawPath& rawPath) const
 
             Vec2D pos = point.renderTranslation();
 
-            Vec2D toPrev = (prev->is<CubicVertex>() ? prev->as<CubicVertex>()->renderOut()
-                                                    : prev->renderTranslation()) -
-                           pos;
+            Vec2D toPrev =
+                (prev->is<CubicVertex>() ? prev->as<CubicVertex>()->renderOut()
+                                         : prev->renderTranslation()) -
+                pos;
 
             auto toPrevLength = toPrev.normalizeLength();
 
             auto next = vertices[1];
 
-            Vec2D toNext = (next->is<CubicVertex>() ? next->as<CubicVertex>()->renderIn()
-                                                    : next->renderTranslation()) -
-                           pos;
+            Vec2D toNext =
+                (next->is<CubicVertex>() ? next->as<CubicVertex>()->renderIn()
+                                         : next->renderTranslation()) -
+                pos;
             auto toNextLength = toNext.normalizeLength();
 
             float renderRadius =
-                std::min(toPrevLength / 2.0f, std::min(toNextLength / 2.0f, radius));
-            float idealDistance = computeIdealControlPointDistance(toPrev, toNext, renderRadius);
+                std::min(toPrevLength / 2.0f,
+                         std::min(toNextLength / 2.0f, radius));
+            float idealDistance =
+                computeIdealControlPointDistance(toPrev, toNext, renderRadius);
 
             startIn = start = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
             rawPath.move(startIn);
 
-            Vec2D outPoint = Vec2D::scaleAndAdd(pos, toPrev, renderRadius - idealDistance);
-            Vec2D inPoint = Vec2D::scaleAndAdd(pos, toNext, renderRadius - idealDistance);
+            Vec2D outPoint =
+                Vec2D::scaleAndAdd(pos, toPrev, renderRadius - idealDistance);
+            Vec2D inPoint =
+                Vec2D::scaleAndAdd(pos, toNext, renderRadius - idealDistance);
             out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
             rawPath.cubic(outPoint, inPoint, out);
             prevIsCubic = false;
@@ -167,24 +181,30 @@ void Path::buildPath(RawPath& rawPath) const
             if (radius > 0.0f)
             {
                 auto prev = vertices[i - 1];
-                Vec2D toPrev = (prev->is<CubicVertex>() ? prev->as<CubicVertex>()->renderOut()
-                                                        : prev->renderTranslation()) -
+                Vec2D toPrev = (prev->is<CubicVertex>()
+                                    ? prev->as<CubicVertex>()->renderOut()
+                                    : prev->renderTranslation()) -
                                pos;
                 auto toPrevLength = toPrev.normalizeLength();
 
                 auto next = vertices[(i + 1) % length];
 
-                Vec2D toNext = (next->is<CubicVertex>() ? next->as<CubicVertex>()->renderIn()
-                                                        : next->renderTranslation()) -
+                Vec2D toNext = (next->is<CubicVertex>()
+                                    ? next->as<CubicVertex>()->renderIn()
+                                    : next->renderTranslation()) -
                                pos;
                 auto toNextLength = toNext.normalizeLength();
 
                 float renderRadius =
-                    std::min(toPrevLength / 2.0f, std::min(toNextLength / 2.0f, radius));
+                    std::min(toPrevLength / 2.0f,
+                             std::min(toNextLength / 2.0f, radius));
                 float idealDistance =
-                    computeIdealControlPointDistance(toPrev, toNext, renderRadius);
+                    computeIdealControlPointDistance(toPrev,
+                                                     toNext,
+                                                     renderRadius);
 
-                Vec2D translation = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
+                Vec2D translation =
+                    Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
                 if (prevIsCubic)
                 {
                     rawPath.cubic(out, translation, translation);
@@ -194,8 +214,14 @@ void Path::buildPath(RawPath& rawPath) const
                     rawPath.line(translation);
                 }
 
-                Vec2D outPoint = Vec2D::scaleAndAdd(pos, toPrev, renderRadius - idealDistance);
-                Vec2D inPoint = Vec2D::scaleAndAdd(pos, toNext, renderRadius - idealDistance);
+                Vec2D outPoint =
+                    Vec2D::scaleAndAdd(pos,
+                                       toPrev,
+                                       renderRadius - idealDistance);
+                Vec2D inPoint =
+                    Vec2D::scaleAndAdd(pos,
+                                       toNext,
+                                       renderRadius - idealDistance);
                 out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
                 rawPath.cubic(outPoint, inPoint, out);
                 prevIsCubic = false;
@@ -292,7 +318,9 @@ bool Path::collapse(bool value)
 class DisplayCubicVertex : public CubicVertex
 {
 public:
-    DisplayCubicVertex(const Vec2D& in, const Vec2D& out, const Vec2D& translation)
+    DisplayCubicVertex(const Vec2D& in,
+                       const Vec2D& out,
+                       const Vec2D& translation)
 
     {
         m_InPoint = in;
@@ -337,15 +365,18 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
             case StraightVertex::typeKey:
             {
                 auto point = *vertex->as<StraightVertex>();
-                if (point.radius() > 0.0f && (isPathClosed() || (i != 0 && i != length - 1)))
+                if (point.radius() > 0.0f &&
+                    (isPathClosed() || (i != 0 && i != length - 1)))
                 {
                     auto next = m_Vertices[(i + 1) % length];
 
-                    Vec2D prevPoint = previous->is<CubicVertex>()
-                                          ? previous->as<CubicVertex>()->renderOut()
-                                          : previous->renderTranslation();
-                    Vec2D nextPoint = next->is<CubicVertex>() ? next->as<CubicVertex>()->renderIn()
-                                                              : next->renderTranslation();
+                    Vec2D prevPoint =
+                        previous->is<CubicVertex>()
+                            ? previous->as<CubicVertex>()->renderOut()
+                            : previous->renderTranslation();
+                    Vec2D nextPoint = next->is<CubicVertex>()
+                                          ? next->as<CubicVertex>()->renderIn()
+                                          : next->renderTranslation();
 
                     Vec2D pos = point.renderTranslation();
 
@@ -355,23 +386,35 @@ FlattenedPath* Path::makeFlat(bool transformToParent)
                     Vec2D toNext = nextPoint - pos;
                     auto toNextLength = toNext.normalizeLength();
 
-                    auto renderRadius = std::min(toPrevLength / 2.0f,
-                                                 std::min(toNextLength / 2.0f, point.radius()));
+                    auto renderRadius =
+                        std::min(toPrevLength / 2.0f,
+                                 std::min(toNextLength / 2.0f, point.radius()));
                     float idealDistance =
-                        computeIdealControlPointDistance(toPrev, toNext, renderRadius);
-                    Vec2D translation = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
+                        computeIdealControlPointDistance(toPrev,
+                                                         toNext,
+                                                         renderRadius);
+                    Vec2D translation =
+                        Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
 
-                    Vec2D out = Vec2D::scaleAndAdd(pos, toPrev, renderRadius - idealDistance);
+                    Vec2D out =
+                        Vec2D::scaleAndAdd(pos,
+                                           toPrev,
+                                           renderRadius - idealDistance);
                     {
-                        auto v1 = new DisplayCubicVertex(translation, out, translation);
+                        auto v1 = new DisplayCubicVertex(translation,
+                                                         out,
+                                                         translation);
                         flat->addVertex(v1, transform);
                         delete v1;
                     }
 
                     translation = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
 
-                    Vec2D in = Vec2D::scaleAndAdd(pos, toNext, renderRadius - idealDistance);
-                    auto v2 = new DisplayCubicVertex(in, translation, translation);
+                    Vec2D in = Vec2D::scaleAndAdd(pos,
+                                                  toNext,
+                                                  renderRadius - idealDistance);
+                    auto v2 =
+                        new DisplayCubicVertex(in, translation, translation);
 
                     flat->addVertex(v2, transform);
                     if (deletePrevious)

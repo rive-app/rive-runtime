@@ -23,12 +23,16 @@ void Shape::addPath(Path* path)
 }
 
 void Shape::addFlags(PathFlags flags) { m_pathFlags |= flags; }
-bool Shape::isFlagged(PathFlags flags) const { return (int)(pathFlags() & flags) != 0x00; }
+bool Shape::isFlagged(PathFlags flags) const
+{
+    return (int)(pathFlags() & flags) != 0x00;
+}
 
 bool Shape::canDeferPathUpdate()
 {
     auto canDefer =
-        renderOpacity() == 0 && !isFlagged(PathFlags::clipping | PathFlags::neverDeferUpdate);
+        renderOpacity() == 0 &&
+        !isFlagged(PathFlags::clipping | PathFlags::neverDeferUpdate);
     if (canDefer)
     {
         // If we have a dependent Skin, don't defer the update
@@ -107,10 +111,11 @@ void Shape::draw(Renderer* renderer)
             {
                 renderer->transform(worldTransform());
             }
-            shapePaint->draw(
-                renderer,
-                paintsInLocal ? m_PathComposer.localPath() : m_PathComposer.worldPath(),
-                paintsInLocal ? &m_PathComposer.localRawPath() : &m_PathComposer.worldRawPath());
+            shapePaint->draw(renderer,
+                             paintsInLocal ? m_PathComposer.localPath()
+                                           : m_PathComposer.worldPath(),
+                             paintsInLocal ? &m_PathComposer.localRawPath()
+                                           : &m_PathComposer.worldRawPath());
             renderer->restore();
         }
     }
@@ -229,7 +234,8 @@ bool Shape::isEmpty()
     return true;
 }
 
-// Do constraints need to be marked as dirty too? From tests it doesn't seem they do.
+// Do constraints need to be marked as dirty too? From tests it doesn't seem
+// they do.
 void Shape::pathCollapseChanged() { m_PathComposer.pathCollapseChanged(); }
 
 class ComputeBoundsCommandPath : public CommandPath
@@ -245,11 +251,15 @@ public:
 
     void rewind() override { m_rawPath.rewind(); }
     void fillRule(FillRule value) override {}
-    void addPath(CommandPath* path, const Mat2D& transform) override { assert(false); }
+    void addPath(CommandPath* path, const Mat2D& transform) override
+    {
+        assert(false);
+    }
 
     void moveTo(float x, float y) override { m_rawPath.moveTo(x, y); }
     void lineTo(float x, float y) override { m_rawPath.lineTo(x, y); }
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+        override
     {
         m_rawPath.cubicTo(ox, oy, ix, iy, x, y);
     }
@@ -279,8 +289,9 @@ AABB Shape::computeWorldBounds(const Mat2D* xform) const
         }
         path->rawPath().addTo(&boundsCalculator);
 
-        AABB aabb = boundsCalculator.bounds(xform == nullptr ? path->pathTransform()
-                                                             : path->pathTransform() * *xform);
+        AABB aabb = boundsCalculator.bounds(
+            xform == nullptr ? path->pathTransform()
+                             : path->pathTransform() * *xform);
 
         if (first)
         {
@@ -312,8 +323,10 @@ Vec2D Shape::measureLayout(float width,
     Vec2D size = Vec2D();
     for (auto path : m_Paths)
     {
-        Vec2D measured = path->measureLayout(width, widthMode, height, heightMode);
-        size = Vec2D(std::max(size.x, measured.x), std::max(size.y, measured.y));
+        Vec2D measured =
+            path->measureLayout(width, widthMode, height, heightMode);
+        size =
+            Vec2D(std::max(size.x, measured.x), std::max(size.y, measured.y));
     }
     return size;
 }

@@ -22,7 +22,8 @@
 #include <string.h>
 #include <vector>
 
-// Represents raw, premultiplied, RGBA image data with tightly packed rows (width * 4 bytes).
+// Represents raw, premultiplied, RGBA image data with tightly packed rows
+// (width * 4 bytes).
 struct PlatformCGImage
 {
     uint32_t width = 0;
@@ -35,7 +36,8 @@ bool cg_image_decode(const uint8_t* encodedBytes,
                      size_t encodedSizeInBytes,
                      PlatformCGImage* platformImage)
 {
-    AutoCF data = CFDataCreate(kCFAllocatorDefault, encodedBytes, encodedSizeInBytes);
+    AutoCF data =
+        CFDataCreate(kCFAllocatorDefault, encodedBytes, encodedSizeInBytes);
     if (!data)
     {
         return false;
@@ -84,8 +86,8 @@ bool cg_image_decode(const uint8_t* encodedBytes,
     std::unique_ptr<uint8_t[]> pixels(new uint8_t[size]);
 
     AutoCF cs = CGColorSpaceCreateDeviceRGB();
-    AutoCF cg =
-        CGBitmapContextCreate(pixels.get(), width, height, bitsPerComponent, rowBytes, cs, cgInfo);
+    AutoCF cg = CGBitmapContextCreate(
+        pixels.get(), width, height, bitsPerComponent, rowBytes, cs, cgInfo);
     if (!cg)
     {
         return false;
@@ -125,7 +127,8 @@ std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
         auto twoPixels = rive::simd::load<uint8_t, 8>(&image.pixels[i]);
         auto a0 = twoPixels[3];
         auto a1 = twoPixels[7];
-        // Avoid computation if both pixels are either fully transparent or opaque pixels
+        // Avoid computation if both pixels are either fully transparent or
+        // opaque pixels
         if ((a0 > 0 && a0 < 255) || (a1 > 0 && a1 < 255))
         {
             // Avoid potential division by zero

@@ -89,7 +89,9 @@ void KeyedProperty::reportKeyedCallbacks(KeyedCallbackReporter* reporter,
     while (idxTo > idx)
     {
         const std::unique_ptr<KeyFrame>& frame = m_keyFrames[idx];
-        reporter->reportKeyedCallback(objectId, propertyKey(), secondsTo - frame->seconds());
+        reporter->reportKeyedCallback(objectId,
+                                      propertyKey(),
+                                      secondsTo - frame->seconds());
         idx++;
     }
 }
@@ -103,7 +105,8 @@ void KeyedProperty::apply(Core* object, float seconds, float mix)
 
     if (idx == 0)
     {
-        static_cast<InterpolatingKeyFrame*>(m_keyFrames[0].get())->apply(object, pk, mix);
+        static_cast<InterpolatingKeyFrame*>(m_keyFrames[0].get())
+            ->apply(object, pk, mix);
     }
     else
     {
@@ -125,13 +128,18 @@ void KeyedProperty::apply(Core* object, float seconds, float mix)
                 }
                 else
                 {
-                    fromFrame->applyInterpolation(object, pk, seconds, toFrame, mix);
+                    fromFrame->applyInterpolation(object,
+                                                  pk,
+                                                  seconds,
+                                                  toFrame,
+                                                  mix);
                 }
             }
         }
         else
         {
-            static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx - 1].get())->apply(object, pk, mix);
+            static_cast<InterpolatingKeyFrame*>(m_keyFrames[idx - 1].get())
+                ->apply(object, pk, mix);
         }
     }
 }
@@ -164,7 +172,8 @@ StatusCode KeyedProperty::onAddedClean(CoreContext* context)
 
 StatusCode KeyedProperty::import(ImportStack& importStack)
 {
-    auto importer = importStack.latest<KeyedObjectImporter>(KeyedObjectBase::typeKey);
+    auto importer =
+        importStack.latest<KeyedObjectImporter>(KeyedObjectBase::typeKey);
     if (importer == nullptr)
     {
         return StatusCode::MissingObject;

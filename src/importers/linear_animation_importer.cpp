@@ -9,7 +9,8 @@ LinearAnimationImporter::LinearAnimationImporter(LinearAnimation* animation) :
     m_Animation(animation)
 {}
 
-void LinearAnimationImporter::addKeyedObject(std::unique_ptr<KeyedObject> object)
+void LinearAnimationImporter::addKeyedObject(
+    std::unique_ptr<KeyedObject> object)
 {
     m_Animation->addKeyedObject(std::move(object));
 }

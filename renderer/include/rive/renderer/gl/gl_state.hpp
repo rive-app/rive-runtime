@@ -14,14 +14,19 @@ namespace rive::gpu
 class GLState : public RefCnt<GLState>
 {
 public:
-    GLState(const GLCapabilities& capabilities) : m_capabilities(capabilities) { invalidate(); }
+    GLState(const GLCapabilities& capabilities) : m_capabilities(capabilities)
+    {
+        invalidate();
+    }
 
     void invalidate();
 
     void setBlendEquation(BlendMode);
     void disableBlending();
 
-    void setWriteMasks(bool colorWriteMask, bool depthWriteMask, GLuint stencilWriteMask);
+    void setWriteMasks(bool colorWriteMask,
+                       bool depthWriteMask,
+                       GLuint stencilWriteMask);
     void setCullFace(GLenum);
 
     void bindProgram(GLuint);

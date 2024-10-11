@@ -2,7 +2,10 @@
 
 #ifndef _WIN32
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions) { return nullptr; }
+std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions)
+{
+    return nullptr;
+}
 
 #else
 
@@ -23,25 +26,37 @@ using namespace rive::gpu;
 class FiddleContextD3DPLS : public FiddleContext
 {
 public:
-    FiddleContextD3DPLS(ComPtr<IDXGIFactory2> d3dFactory,
-                        ComPtr<ID3D11Device> gpu,
-                        ComPtr<ID3D11DeviceContext> gpuContext,
-                        const RenderContextD3DImpl::ContextOptions& contextOptions) :
+    FiddleContextD3DPLS(
+        ComPtr<IDXGIFactory2> d3dFactory,
+        ComPtr<ID3D11Device> gpu,
+        ComPtr<ID3D11DeviceContext> gpuContext,
+        const RenderContextD3DImpl::ContextOptions& contextOptions) :
         m_d3dFactory(std::move(d3dFactory)),
         m_gpu(std::move(gpu)),
         m_gpuContext(std::move(gpuContext)),
-        m_renderContext(RenderContextD3DImpl::MakeContext(m_gpu, m_gpuContext, contextOptions))
+        m_renderContext(RenderContextD3DImpl::MakeContext(m_gpu,
+                                                          m_gpuContext,
+                                                          contextOptions))
     {}
 
     float dpiScale(GLFWwindow*) const override { return 1; }
 
     rive::Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* renderContextOrNull() override { return m_renderContext.get(); }
+    rive::gpu::RenderContext* renderContextOrNull() override
+    {
+        return m_renderContext.get();
+    }
 
-    rive::gpu::RenderTarget* renderTargetOrNull() override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* renderTargetOrNull() override
+    {
+        return m_renderTarget.get();
+    }
 
-    void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
+    void onSizeChanged(GLFWwindow* window,
+                       int width,
+                       int height,
+                       uint32_t sampleCount) override
     {
         m_swapchain.Reset();
 
@@ -50,17 +65,20 @@ public:
         scd.Height = height;
         scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
         scd.SampleDesc.Count = 1;
-        scd.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS;
+        scd.BufferUsage =
+            DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS;
         scd.BufferCount = 2;
         scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-        VERIFY_OK(m_d3dFactory->CreateSwapChainForHwnd(m_gpu.Get(),
-                                                       glfwGetWin32Window(window),
-                                                       &scd,
-                                                       NULL,
-                                                       NULL,
-                                                       m_swapchain.ReleaseAndGetAddressOf()));
+        VERIFY_OK(m_d3dFactory->CreateSwapChainForHwnd(
+            m_gpu.Get(),
+            glfwGetWin32Window(window),
+            &scd,
+            NULL,
+            NULL,
+            m_swapchain.ReleaseAndGetAddressOf()));
 
-        auto renderContextImpl = m_renderContext->static_impl_cast<RenderContextD3DImpl>();
+        auto renderContextImpl =
+            m_renderContext->static_impl_cast<RenderContextD3DImpl>();
         m_renderTarget = renderContextImpl->makeRenderTarget(width, height);
         m_readbackTexture = nullptr;
     }
@@ -72,7 +90,8 @@ public:
         return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
-    void begin(const rive::gpu::RenderContext::FrameDescriptor& frameDescriptor) override
+    void begin(const rive::gpu::RenderContext::FrameDescriptor& frameDescriptor)
+        override
     {
         m_renderContext->beginFrame(frameDescriptor);
     }
@@ -111,18 +130,25 @@ public:
                 readbackTexDesc.BindFlags = 0;
                 readbackTexDesc.CPUAccessFlags = D3D11_CPU_ACCESS_READ;
                 readbackTexDesc.MiscFlags = 0;
-                VERIFY_OK(m_gpu->CreateTexture2D(&readbackTexDesc,
-                                                 nullptr,
-                                                 m_readbackTexture.ReleaseAndGetAddressOf()));
+                VERIFY_OK(m_gpu->CreateTexture2D(
+                    &readbackTexDesc,
+                    nullptr,
+                    m_readbackTexture.ReleaseAndGetAddressOf()));
             }
 
             D3D11_MAPPED_SUBRESOURCE map;
-            m_gpuContext->CopyResource(m_readbackTexture.Get(), m_renderTarget->targetTexture());
-            m_gpuContext->Map(m_readbackTexture.Get(), 0, D3D11_MAP_READ, 0, &map);
+            m_gpuContext->CopyResource(m_readbackTexture.Get(),
+                                       m_renderTarget->targetTexture());
+            m_gpuContext->Map(m_readbackTexture.Get(),
+                              0,
+                              D3D11_MAP_READ,
+                              0,
+                              &map);
             pixelData->resize(h * w * 4);
             for (uint32_t y = 0; y < h; ++y)
             {
-                auto row = reinterpret_cast<const char*>(map.pData) + map.RowPitch * y;
+                auto row =
+                    reinterpret_cast<const char*>(map.pData) + map.RowPitch * y;
                 memcpy(pixelData->data() + (h - y - 1) * w * 4, row, w * 4);
             }
             m_gpuContext->Unmap(m_readbackTexture.Get(), 0);
@@ -142,12 +168,14 @@ private:
     rcp<RenderTargetD3D> m_renderTarget;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions fiddleOptions)
+std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(
+    FiddleContextOptions fiddleOptions)
 {
     // Create a DXGIFactory object.
     ComPtr<IDXGIFactory2> factory;
-    VERIFY_OK(CreateDXGIFactory(__uuidof(IDXGIFactory2),
-                                reinterpret_cast<void**>(factory.ReleaseAndGetAddressOf())));
+    VERIFY_OK(CreateDXGIFactory(
+        __uuidof(IDXGIFactory2),
+        reinterpret_cast<void**>(factory.ReleaseAndGetAddressOf())));
 
     ComPtr<IDXGIAdapter> adapter;
     DXGI_ADAPTER_DESC adapterDesc{};
@@ -155,13 +183,16 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions fi
     if (fiddleOptions.disableRasterOrdering)
     {
         contextOptions.disableRasterizerOrderedViews = true;
-        // Also disable typed UAVs in atomic mode, to get more complete test coverage.
+        // Also disable typed UAVs in atomic mode, to get more complete test
+        // coverage.
         contextOptions.disableTypedUAVLoadStore = true;
     }
-    for (UINT i = 0; factory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND; ++i)
+    for (UINT i = 0; factory->EnumAdapters(i, &adapter) != DXGI_ERROR_NOT_FOUND;
+         ++i)
     {
         adapter->GetDesc(&adapterDesc);
-        contextOptions.isIntel = adapterDesc.VendorId == 0x163C || adapterDesc.VendorId == 0x8086 ||
+        contextOptions.isIntel = adapterDesc.VendorId == 0x163C ||
+                                 adapterDesc.VendorId == 0x8086 ||
                                  adapterDesc.VendorId == 0x8087;
         break;
     }

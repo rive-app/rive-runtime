@@ -12,13 +12,24 @@ class FontArguments
 
 public:
     FontArguments(int argc, const char** argv) :
-        m_Parser("Convert a font file into the rive format.", "Experimental....")
+        m_Parser("Convert a font file into the rive format.",
+                 "Experimental....")
     {
-        args::HelpFlag help(m_Parser, "help", "Display this help menu", {'h', "help"});
-        args::Group required(m_Parser, "required arguments:", args::Group::Validators::All);
-        args::Group optional(m_Parser, "optional arguments:", args::Group::Validators::DontCare);
+        args::HelpFlag help(m_Parser,
+                            "help",
+                            "Display this help menu",
+                            {'h', "help"});
+        args::Group required(m_Parser,
+                             "required arguments:",
+                             args::Group::Validators::All);
+        args::Group optional(m_Parser,
+                             "optional arguments:",
+                             args::Group::Validators::DontCare);
 
-        args::ValueFlag<std::string> source(required, "path", "source filename", {'s', "source"});
+        args::ValueFlag<std::string> source(required,
+                                            "path",
+                                            "source filename",
+                                            {'s', "source"});
         args::ValueFlag<std::string> destination(required,
                                                  "path",
                                                  "destination filename",

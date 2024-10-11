@@ -17,7 +17,12 @@ private:
 
 public:
     TransformComponents() :
-        m_X(0.0f), m_Y(0.0f), m_ScaleX(1.0f), m_ScaleY(1.0f), m_Rotation(0.0f), m_Skew(0.0f)
+        m_X(0.0f),
+        m_Y(0.0f),
+        m_ScaleX(1.0f),
+        m_ScaleY(1.0f),
+        m_Rotation(0.0f),
+        m_Skew(0.0f)
     {}
     TransformComponents(const TransformComponents& copy) :
         m_X(copy.m_X),

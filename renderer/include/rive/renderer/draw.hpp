@@ -25,14 +25,14 @@ class Draw;
 class RenderContext;
 class Gradient;
 
-// High level abstraction of a single object to be drawn (path, imageRect, or imageMesh). These get
-// built up for an entire frame in order to count GPU resource allocation sizes, and then sorted,
-// batched, and drawn.
+// High level abstraction of a single object to be drawn (path, imageRect, or
+// imageMesh). These get built up for an entire frame in order to count GPU
+// resource allocation sizes, and then sorted, batched, and drawn.
 class Draw
 {
 public:
-    // Use a "fullscreen" bounding box that is reasonably larger than any screen, but not so big
-    // that it runs the risk of overflowing.
+    // Use a "fullscreen" bounding box that is reasonably larger than any
+    // screen, but not so big that it runs the risk of overflowing.
     constexpr static IAABB kFullscreenPixelBounds = {0, 0, 1 << 24, 1 << 24};
 
     enum class Type : uint8_t
@@ -44,7 +44,11 @@ public:
         stencilClipReset,
     };
 
-    Draw(AABB bounds, const Mat2D&, BlendMode, rcp<const Texture> imageTexture, Type);
+    Draw(AABB bounds,
+         const Mat2D&,
+         BlendMode,
+         rcp<const Texture> imageTexture,
+         Type);
 
     const Texture* imageTexture() const { return m_imageTextureRef; }
     const IAABB& pixelBounds() const { return m_pixelBounds; }
@@ -52,21 +56,36 @@ public:
     BlendMode blendMode() const { return m_blendMode; }
     Type type() const { return m_type; }
     gpu::DrawContents drawContents() const { return m_drawContents; }
-    bool isStroked() const { return m_drawContents & gpu::DrawContents::stroke; }
-    bool isEvenOddFill() const { return m_drawContents & gpu::DrawContents::evenOddFill; }
-    bool isOpaque() const { return m_drawContents & gpu::DrawContents::opaquePaint; }
+    bool isStroked() const
+    {
+        return m_drawContents & gpu::DrawContents::stroke;
+    }
+    bool isEvenOddFill() const
+    {
+        return m_drawContents & gpu::DrawContents::evenOddFill;
+    }
+    bool isOpaque() const
+    {
+        return m_drawContents & gpu::DrawContents::opaquePaint;
+    }
     uint32_t clipID() const { return m_clipID; }
     bool hasClipRect() const { return m_clipRectInverseMatrix != nullptr; }
     const gpu::ClipRectInverseMatrix* clipRectInverseMatrix() const
     {
         return m_clipRectInverseMatrix;
     }
-    gpu::SimplePaintValue simplePaintValue() const { return m_simplePaintValue; }
+    gpu::SimplePaintValue simplePaintValue() const
+    {
+        return m_simplePaintValue;
+    }
     const Gradient* gradient() const { return m_gradientRef; }
 
     // Clipping setup.
     void setClipID(uint32_t clipID);
-    void setClipRect(const gpu::ClipRectInverseMatrix* m) { m_clipRectInverseMatrix = m; }
+    void setClipRect(const gpu::ClipRectInverseMatrix* m)
+    {
+        m_clipRectInverseMatrix = m;
+    }
 
     // Used to allocate GPU resources for a collection of draws.
     using ResourceCounters = RenderContext::LogicalFlush::ResourceCounters;
@@ -78,19 +97,25 @@ public:
         assert(m_batchInternalNeighbor == nullptr);
         m_batchInternalNeighbor = neighbor;
     };
-    const Draw* batchInternalNeighbor() const { return m_batchInternalNeighbor; }
+    const Draw* batchInternalNeighbor() const
+    {
+        return m_batchInternalNeighbor;
+    }
 
-    // Adds the gradient (if any) for this draw to the render context's gradient texture.
-    // Returns false if this draw needed a gradient but there wasn't room for it in the texture, at
-    // which point the gradient texture will need to be re-rendered mid flight.
-    bool allocateGradientIfNeeded(RenderContext::LogicalFlush*, ResourceCounters*);
+    // Adds the gradient (if any) for this draw to the render context's gradient
+    // texture. Returns false if this draw needed a gradient but there wasn't
+    // room for it in the texture, at which point the gradient texture will need
+    // to be re-rendered mid flight.
+    bool allocateGradientIfNeeded(RenderContext::LogicalFlush*,
+                                  ResourceCounters*);
 
-    // Pushes the data for this draw to the render context. Called once the GPU buffers have been
-    // counted and allocated, and the draws have been sorted.
+    // Pushes the data for this draw to the render context. Called once the GPU
+    // buffers have been counted and allocated, and the draws have been sorted.
     virtual void pushToRenderContext(RenderContext::LogicalFlush*) = 0;
 
-    // We can't have a destructor because we're block-allocated. Instead, the client calls this
-    // method before clearing the drawList to release all our held references.
+    // We can't have a destructor because we're block-allocated. Instead, the
+    // client calls this method before clearing the drawList to release all our
+    // held references.
     virtual void releaseRefs();
 
 protected:
@@ -109,8 +134,8 @@ protected:
     // Filled in by the subclass constructor.
     ResourceCounters m_resourceCounts;
 
-    // Gradient data used by some draws. Stored in the base class so allocateGradientIfNeeded()
-    // doesn't have to be virtual.
+    // Gradient data used by some draws. Stored in the base class so
+    // allocateGradientIfNeeded() doesn't have to be virtual.
     const Gradient* m_gradientRef = nullptr;
     gpu::SimplePaintValue m_simplePaintValue;
 
@@ -118,14 +143,17 @@ protected:
     const Draw* m_batchInternalNeighbor = nullptr;
 };
 
-// Implement DrawReleaseRefs (defined in pls_render_context.hpp) now that Draw is defined.
+// Implement DrawReleaseRefs (defined in pls_render_context.hpp) now that Draw
+// is defined.
 inline void DrawReleaseRefs::operator()(Draw* draw) { draw->releaseRefs(); }
 
-// High level abstraction of a single path to be drawn (midpoint fan or interior triangulation).
+// High level abstraction of a single path to be drawn (midpoint fan or interior
+// triangulation).
 class RiveRenderPathDraw : public Draw
 {
 public:
-    // Creates either a normal path draw or an interior triangulation if the path is large enough.
+    // Creates either a normal path draw or an interior triangulation if the
+    // path is large enough.
     static DrawUniquePtr Make(RenderContext*,
                               const Mat2D&,
                               rcp<const RiveRenderPath>,
@@ -136,7 +164,10 @@ public:
     FillRule fillRule() const { return m_fillRule; }
     gpu::PaintType paintType() const { return m_paintType; }
     float strokeRadius() const { return m_strokeRadius; }
-    gpu::ContourDirections contourDirections() const { return m_contourDirections; }
+    gpu::ContourDirections contourDirections() const
+    {
+        return m_contourDirections;
+    }
 
     void pushToRenderContext(RenderContext::LogicalFlush*) override;
 
@@ -163,13 +194,14 @@ public:
     void onPushToRenderContext(RenderContext::LogicalFlush*);
 
     const RiveRenderPath* const m_pathRef;
-    const FillRule
-        m_fillRule; // Bc RiveRenderPath fillRule can mutate during the artboard draw process.
+    const FillRule m_fillRule; // Bc RiveRenderPath fillRule can mutate during
+                               // the artboard draw process.
     const gpu::PaintType m_paintType;
     float m_strokeRadius = 0;
     gpu::ContourDirections m_contourDirections;
 
-    // Used to guarantee m_pathRef doesn't change for the entire time we hold it.
+    // Used to guarantee m_pathRef doesn't change for the entire time we hold
+    // it.
     RIVE_DEBUG_CODE(uint64_t m_rawPathMutationID;)
 
 public:
@@ -177,10 +209,11 @@ public:
     void initForMidpointFan(RenderContext*, const RiveRenderPaint*);
 
 private:
-    // Draws a path by fanning tessellation patches around the midpoint of each contour.
-    // Emulates a stroke cap before the given cubic by pushing a copy of the cubic, reversed, with 0
-    // tessellation segments leading up to the join section, and a 180-degree join that looks like
-    // the desired stroke cap.
+    // Draws a path by fanning tessellation patches around the midpoint of each
+    // contour. Emulates a stroke cap before the given cubic by pushing a copy
+    // of the cubic, reversed, with 0 tessellation segments leading up to the
+    // join section, and a 180-degree join that looks like the desired stroke
+    // cap.
     void pushEmulatedStrokeCapAsJoinBeforeCubic(RenderContext::LogicalFlush*,
                                                 const Vec2D cubic[],
                                                 uint32_t emulatedCapAsJoinFlags,
@@ -196,7 +229,8 @@ private:
         size_t endLineIdx;
         size_t firstCurveIdx;
         size_t endCurveIdx;
-        size_t firstRotationIdx; // We measure rotations on both curves and round joins.
+        size_t firstRotationIdx; // We measure rotations on both curves and
+                                 // round joins.
         size_t endRotationIdx;
         Vec2D midpoint;
         bool closed;
@@ -219,12 +253,13 @@ private:
     RIVE_DEBUG_CODE(size_t m_pendingRotationCount;)
     RIVE_DEBUG_CODE(size_t m_pendingStrokeJoinCount;)
     RIVE_DEBUG_CODE(size_t m_pendingStrokeCapCount;)
-    // Counts how many additional curves were pushed by pushEmulatedStrokeCapAsJoinBeforeCubic().
+    // Counts how many additional curves were pushed by
+    // pushEmulatedStrokeCapAsJoinBeforeCubic().
     RIVE_DEBUG_CODE(size_t m_pendingEmptyStrokeCountForCaps;)
 
 public:
-    // Draws a path by triangulating the interior into non-overlapping triangles and tessellating
-    // the outer curves.
+    // Draws a path by triangulating the interior into non-overlapping triangles
+    // and tessellating the outer curves.
     enum class TriangulatorAxis
     {
         horizontal,
@@ -233,7 +268,9 @@ public:
     };
 
     // Interior Triangulation path draw
-    void initForInteriorTriangulation(RenderContext*, RawPath*, TriangulatorAxis);
+    void initForInteriorTriangulation(RenderContext*,
+                                      RawPath*,
+                                      TriangulatorAxis);
     GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
 
 private:
@@ -243,10 +280,11 @@ private:
         submitOuterCubics,
     };
 
-    // For now, we just iterate and subdivide the path twice (once for each enum in PathOp).
-    // Since we only do this for large paths, and since we're triangulating the path interior
-    // anyway, adding complexity to only run Wang's formula and chop once would save about ~5%
-    // of the total CPU time. (And large paths are GPU-bound anyway.)
+    // For now, we just iterate and subdivide the path twice (once for each enum
+    // in PathOp). Since we only do this for large paths, and since we're
+    // triangulating the path interior anyway, adding complexity to only run
+    // Wang's formula and chop once would save about ~5% of the total CPU time.
+    // (And large paths are GPU-bound anyway.)
     void processPath(PathOp op,
                      TrivialBlockAllocator*,
                      RawPath* scratchPath,
@@ -257,8 +295,8 @@ private:
 };
 
 // Pushes an imageRect to the render context.
-// This should only be used in atomic mode. Otherwise, images should be drawn as rectangular paths
-// with an image paint.
+// This should only be used in atomic mode. Otherwise, images should be drawn as
+// rectangular paths with an image paint.
 class ImageRectDraw : public Draw
 {
 public:
@@ -309,8 +347,9 @@ protected:
     const float m_opacity;
 };
 
-// Resets the stencil clip by either entirely erasing the existing clip, or intersecting it with a
-// nested clip (i.e., erasing the region outside the nested clip).
+// Resets the stencil clip by either entirely erasing the existing clip, or
+// intersecting it with a nested clip (i.e., erasing the region outside the
+// nested clip).
 class StencilClipReset : public Draw
 {
 public:

@@ -48,14 +48,16 @@ void riveInitPlayer(int w,
 {
     RenderContextWebGPUImpl::ContextOptions contextOptions = {
         .plsType = plsType,
-        .disableStorageBuffers = maxVertexStorageBlocks < gpu::kMaxStorageBuffers,
+        .disableStorageBuffers =
+            maxVertexStorageBlocks < gpu::kMaxStorageBuffers,
     };
-    s_renderContext =
-        RenderContextWebGPUImpl::MakeContext(gpu, queue, contextOptions, platformFeatures);
-    s_renderTarget = s_renderContext->static_impl_cast<RenderContextWebGPUImpl>()->makeRenderTarget(
-        wgpu::TextureFormat::BGRA8Unorm,
-        w,
-        h);
+    s_renderContext = RenderContextWebGPUImpl::MakeContext(gpu,
+                                                           queue,
+                                                           contextOptions,
+                                                           platformFeatures);
+    s_renderTarget =
+        s_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
+            ->makeRenderTarget(wgpu::TextureFormat::BGRA8Unorm, w, h);
     s_renderer = std::make_unique<RiveRenderer>(s_renderContext.get());
 }
 
@@ -82,13 +84,15 @@ extern "C"
         {
             platformFeatures.uninvertOnScreenY = true;
         }
-        riveInitPlayer(canvasWidth,
-                       canvasHeight,
-                       wgpu::Device::Acquire(emscripten_webgpu_import_device(s_deviceHandle.get())),
-                       emscripten_webgpu_import_queue(s_queueHandle.get()),
-                       platformFeatures,
-                       static_cast<PixelLocalStorageType>(pixelLocalStorageType),
-                       maxVertexStorgeBlocks);
+        riveInitPlayer(
+            canvasWidth,
+            canvasHeight,
+            wgpu::Device::Acquire(
+                emscripten_webgpu_import_device(s_deviceHandle.get())),
+            emscripten_webgpu_import_queue(s_queueHandle.get()),
+            platformFeatures,
+            static_cast<PixelLocalStorageType>(pixelLocalStorageType),
+            maxVertexStorgeBlocks);
     }
 
     intptr_t EMSCRIPTEN_KEEPALIVE RiveBeginRendering(int textureViewID,
@@ -118,14 +122,17 @@ extern "C"
         s_textureViewHandle = EmJsHandle();
     }
 
-    intptr_t EMSCRIPTEN_KEEPALIVE RiveLoadFile(intptr_t wasmBytesPtr, size_t length)
+    intptr_t EMSCRIPTEN_KEEPALIVE RiveLoadFile(intptr_t wasmBytesPtr,
+                                               size_t length)
     {
         const uint8_t* bytes = reinterpret_cast<const uint8_t*>(wasmBytesPtr);
-        std::unique_ptr<File> file = File::import({bytes, length}, s_renderContext.get());
+        std::unique_ptr<File> file =
+            File::import({bytes, length}, s_renderContext.get());
         return reinterpret_cast<intptr_t>(file.release());
     }
 
-    intptr_t EMSCRIPTEN_KEEPALIVE File_artboardNamed(intptr_t nativePtr, const char* name)
+    intptr_t EMSCRIPTEN_KEEPALIVE File_artboardNamed(intptr_t nativePtr,
+                                                     const char* name)
     {
         auto file = reinterpret_cast<File*>(nativePtr);
         std::unique_ptr<ArtboardInstance> artboard = file->artboardNamed(name);
@@ -157,26 +164,30 @@ extern "C"
         return artboard->bounds().height();
     }
 
-    intptr_t EMSCRIPTEN_KEEPALIVE ArtboardInstance_stateMachineNamed(intptr_t nativePtr,
-                                                                     const char* name)
+    intptr_t EMSCRIPTEN_KEEPALIVE
+    ArtboardInstance_stateMachineNamed(intptr_t nativePtr, const char* name)
     {
         auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        std::unique_ptr<StateMachineInstance> stateMachine = artboard->stateMachineNamed(name);
+        std::unique_ptr<StateMachineInstance> stateMachine =
+            artboard->stateMachineNamed(name);
         return reinterpret_cast<intptr_t>(stateMachine.release());
     }
 
-    intptr_t EMSCRIPTEN_KEEPALIVE ArtboardInstance_animationNamed(intptr_t nativePtr,
-                                                                  const char* name)
+    intptr_t EMSCRIPTEN_KEEPALIVE
+    ArtboardInstance_animationNamed(intptr_t nativePtr, const char* name)
     {
         auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        std::unique_ptr<LinearAnimationInstance> animation = artboard->animationNamed(name);
+        std::unique_ptr<LinearAnimationInstance> animation =
+            artboard->animationNamed(name);
         return reinterpret_cast<intptr_t>(animation.release());
     }
 
-    intptr_t EMSCRIPTEN_KEEPALIVE ArtboardInstance_defaultStateMachine(intptr_t nativePtr)
+    intptr_t EMSCRIPTEN_KEEPALIVE
+    ArtboardInstance_defaultStateMachine(intptr_t nativePtr)
     {
         auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        std::unique_ptr<StateMachineInstance> stateMachine = artboard->defaultStateMachine();
+        std::unique_ptr<StateMachineInstance> stateMachine =
+            artboard->defaultStateMachine();
         return reinterpret_cast<intptr_t>(stateMachine.release());
     }
 
@@ -204,9 +215,10 @@ extern "C"
         delete artboard;
     }
 
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_setBool(intptr_t nativePtr,
-                                                           const char* inputName,
-                                                           int value)
+    void EMSCRIPTEN_KEEPALIVE
+    StateMachineInstance_setBool(intptr_t nativePtr,
+                                 const char* inputName,
+                                 int value)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
         if (SMIBool* input = stateMachine->getBool(inputName))
@@ -215,9 +227,10 @@ extern "C"
         }
     }
 
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_setNumber(intptr_t nativePtr,
-                                                             const char* inputName,
-                                                             float value)
+    void EMSCRIPTEN_KEEPALIVE
+    StateMachineInstance_setNumber(intptr_t nativePtr,
+                                   const char* inputName,
+                                   float value)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
         if (SMINumber* input = stateMachine->getNumber(inputName))
@@ -226,8 +239,8 @@ extern "C"
         }
     }
 
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_fireTrigger(intptr_t nativePtr,
-                                                               const char* inputName)
+    void EMSCRIPTEN_KEEPALIVE
+    StateMachineInstance_fireTrigger(intptr_t nativePtr, const char* inputName)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
         if (SMITrigger* input = stateMachine->getTrigger(inputName))
@@ -236,33 +249,37 @@ extern "C"
         }
     }
 
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerDown(intptr_t nativePtr, float x, float y)
+    void EMSCRIPTEN_KEEPALIVE
+    StateMachineInstance_pointerDown(intptr_t nativePtr, float x, float y)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
         stateMachine->pointerDown({x, y});
     }
 
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerMove(intptr_t nativePtr, float x, float y)
+    void EMSCRIPTEN_KEEPALIVE
+    StateMachineInstance_pointerMove(intptr_t nativePtr, float x, float y)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
         stateMachine->pointerMove({x, y});
     }
 
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerUp(intptr_t nativePtr, float x, float y)
+    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerUp(intptr_t nativePtr,
+                                                             float x,
+                                                             float y)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
         stateMachine->pointerUp({x, y});
     }
 
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_advanceAndApply(intptr_t nativePtr,
-                                                                   double elapsed)
+    void EMSCRIPTEN_KEEPALIVE
+    StateMachineInstance_advanceAndApply(intptr_t nativePtr, double elapsed)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
         stateMachine->advanceAndApply(elapsed);
     }
 
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_draw(intptr_t nativePtr,
-                                                        intptr_t rendererNativePtr)
+    void EMSCRIPTEN_KEEPALIVE
+    StateMachineInstance_draw(intptr_t nativePtr, intptr_t rendererNativePtr)
     {
         auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
         auto renderer = reinterpret_cast<RiveRenderer*>(rendererNativePtr);
@@ -275,22 +292,23 @@ extern "C"
         delete stateMachine;
     }
 
-    void EMSCRIPTEN_KEEPALIVE LinearAnimationInstance_advanceAndApply(intptr_t nativePtr,
-                                                                      double elapsed)
+    void EMSCRIPTEN_KEEPALIVE
+    LinearAnimationInstance_advanceAndApply(intptr_t nativePtr, double elapsed)
     {
         auto animation = reinterpret_cast<LinearAnimationInstance*>(nativePtr);
         animation->advanceAndApply(elapsed);
     }
 
-    void EMSCRIPTEN_KEEPALIVE LinearAnimationInstance_draw(intptr_t nativePtr,
-                                                           intptr_t rendererNativePtr)
+    void EMSCRIPTEN_KEEPALIVE
+    LinearAnimationInstance_draw(intptr_t nativePtr, intptr_t rendererNativePtr)
     {
         auto animation = reinterpret_cast<LinearAnimationInstance*>(nativePtr);
         auto renderer = reinterpret_cast<RiveRenderer*>(rendererNativePtr);
         animation->draw(renderer);
     }
 
-    void EMSCRIPTEN_KEEPALIVE LinearAnimationInstance_destroy(intptr_t nativePtr)
+    void EMSCRIPTEN_KEEPALIVE
+    LinearAnimationInstance_destroy(intptr_t nativePtr)
     {
         auto animation = reinterpret_cast<LinearAnimationInstance*>(nativePtr);
         delete animation;
@@ -308,7 +326,9 @@ extern "C"
         renderer->restore();
     }
 
-    void EMSCRIPTEN_KEEPALIVE Renderer_translate(intptr_t nativePtr, float x, float y)
+    void EMSCRIPTEN_KEEPALIVE Renderer_translate(intptr_t nativePtr,
+                                                 float x,
+                                                 float y)
     {
         auto renderer = reinterpret_cast<RiveRenderer*>(nativePtr);
         renderer->translate(x, y);
@@ -344,7 +364,9 @@ static void glfw_error_callback(int code, const char* message)
     printf("GLFW error: %i - %s\n", code, message);
 }
 
-static void print_device_error(WGPUErrorType errorType, const char* message, void*)
+static void print_device_error(WGPUErrorType errorType,
+                               const char* message,
+                               void*)
 {
     const char* errorTypeName = "";
     switch (errorType)
@@ -368,12 +390,16 @@ static void print_device_error(WGPUErrorType errorType, const char* message, voi
     printf("%s error: %s\n", errorTypeName, message);
 }
 
-static void device_lost_callback(WGPUDeviceLostReason reason, const char* message, void*)
+static void device_lost_callback(WGPUDeviceLostReason reason,
+                                 const char* message,
+                                 void*)
 {
     printf("device lost: %s\n", message);
 }
 
-static void device_log_callback(WGPULoggingType type, const char* message, void*)
+static void device_log_callback(WGPULoggingType type,
+                                const char* message,
+                                void*)
 {
     printf("Device log %s\n", message);
 }
@@ -385,16 +411,15 @@ static std::unique_ptr<dawn::native::Instance> s_instance;
 
 #ifdef __APPLE__
 extern float GetDawnWindowBackingScaleFactor(GLFWwindow*, bool retina);
-extern std::unique_ptr<wgpu::ChainedStruct> SetupDawnWindowAndGetSurfaceDescriptor(GLFWwindow*,
-                                                                                   bool retina);
+extern std::unique_ptr<wgpu::ChainedStruct>
+SetupDawnWindowAndGetSurfaceDescriptor(GLFWwindow*, bool retina);
 #else
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
-static std::unique_ptr<wgpu::ChainedStruct> SetupDawnWindowAndGetSurfaceDescriptor(
-    GLFWwindow* window,
-    bool retina)
+static std::unique_ptr<wgpu::ChainedStruct>
+SetupDawnWindowAndGetSurfaceDescriptor(GLFWwindow* window, bool retina)
 {
     std::unique_ptr<wgpu::SurfaceDescriptorFromWindowsHWND> desc =
         std::make_unique<wgpu::SurfaceDescriptorFromWindowsHWND>();
@@ -452,10 +477,13 @@ int main(int argc, const char** argv)
         adapter.GetProperties(&adapterProperties);
         return adapterProperties.adapterType == wgpu::AdapterType::DiscreteGPU;
     };
-    auto preferredAdapter = std::find_if(adapters.begin(), adapters.end(), isAdapterType);
+    auto preferredAdapter =
+        std::find_if(adapters.begin(), adapters.end(), isAdapterType);
     if (preferredAdapter == adapters.end())
     {
-        fprintf(stderr, "Failed to find an adapter! Please try another adapter type.\n");
+        fprintf(
+            stderr,
+            "Failed to find an adapter! Please try another adapter type.\n");
         abort();
     }
 
@@ -489,19 +517,28 @@ int main(int argc, const char** argv)
     s_backendDevice = preferredAdapter->CreateDevice(&deviceDesc);
     DawnProcTable backendProcs = dawn::native::GetProcs();
     dawnProcSetProcs(&backendProcs);
-    backendProcs.deviceSetUncapturedErrorCallback(s_backendDevice, print_device_error, nullptr);
-    backendProcs.deviceSetDeviceLostCallback(s_backendDevice, device_lost_callback, nullptr);
-    backendProcs.deviceSetLoggingCallback(s_backendDevice, device_log_callback, nullptr);
+    backendProcs.deviceSetUncapturedErrorCallback(s_backendDevice,
+                                                  print_device_error,
+                                                  nullptr);
+    backendProcs.deviceSetDeviceLostCallback(s_backendDevice,
+                                             device_lost_callback,
+                                             nullptr);
+    backendProcs.deviceSetLoggingCallback(s_backendDevice,
+                                          device_log_callback,
+                                          nullptr);
     wgpu::Device device = wgpu::Device::Acquire(s_backendDevice);
 
     int w, h;
     glfwGetFramebufferSize(s_window, &w, &h);
     // Create the swapchain
-    auto surfaceChainedDesc = SetupDawnWindowAndGetSurfaceDescriptor(s_window, true);
+    auto surfaceChainedDesc =
+        SetupDawnWindowAndGetSurfaceDescriptor(s_window, true);
     WGPUSurfaceDescriptor surfaceDesc = {
-        .nextInChain = reinterpret_cast<WGPUChainedStruct*>(surfaceChainedDesc.get()),
+        .nextInChain =
+            reinterpret_cast<WGPUChainedStruct*>(surfaceChainedDesc.get()),
     };
-    WGPUSurface surface = backendProcs.instanceCreateSurface(s_instance->Get(), &surfaceDesc);
+    WGPUSurface surface =
+        backendProcs.instanceCreateSurface(s_instance->Get(), &surfaceDesc);
 
     WGPUSwapChainDescriptor swapChainDesc = {
         .usage = WGPUTextureUsage_RenderAttachment,
@@ -512,7 +549,9 @@ int main(int argc, const char** argv)
     };
 
     WGPUSwapChain backendSwapChain =
-        backendProcs.deviceCreateSwapChain(s_backendDevice, surface, &swapChainDesc);
+        backendProcs.deviceCreateSwapChain(s_backendDevice,
+                                           surface,
+                                           &swapChainDesc);
     s_swapchain = wgpu::SwapChain::Acquire(backendSwapChain);
 
     riveInitPlayer(w,
@@ -523,9 +562,12 @@ int main(int argc, const char** argv)
                    PixelLocalStorageType::none,
                    8);
 
-    std::ifstream rivStream("../../../gold/rivs/Santa_Claus.riv", std::ios::binary);
-    std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream), {});
-    std::unique_ptr<File> rivFile = File::import(rivBytes, s_renderContext.get());
+    std::ifstream rivStream("../../../gold/rivs/Santa_Claus.riv",
+                            std::ios::binary);
+    std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
+                                  {});
+    std::unique_ptr<File> rivFile =
+        File::import(rivBytes, s_renderContext.get());
     std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
     std::unique_ptr<Scene> scene = artboard->defaultScene();
     scene->advanceAndApply(0);
@@ -535,7 +577,8 @@ int main(int argc, const char** argv)
     while (!glfwWindowShouldClose(s_window))
     {
         double timestamp = glfwGetTime();
-        s_renderTarget->setTargetTextureView(s_swapchain.GetCurrentTextureView());
+        s_renderTarget->setTargetTextureView(
+            s_swapchain.GetCurrentTextureView());
 
         s_renderContext->beginFrame({
             .renderTargetWidth = s_renderTarget->width(),

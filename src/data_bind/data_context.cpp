@@ -7,16 +7,21 @@ DataContext::DataContext(ViewModelInstance* viewModelInstance) :
     m_ViewModelInstance(viewModelInstance)
 {}
 
-void DataContext::viewModelInstance(ViewModelInstance* value) { m_ViewModelInstance = value; }
+void DataContext::viewModelInstance(ViewModelInstance* value)
+{
+    m_ViewModelInstance = value;
+}
 
-ViewModelInstanceValue* DataContext::getViewModelProperty(const std::vector<uint32_t> path) const
+ViewModelInstanceValue* DataContext::getViewModelProperty(
+    const std::vector<uint32_t> path) const
 {
     std::vector<uint32_t>::const_iterator it;
     if (path.size() == 0)
     {
         return nullptr;
     }
-    if (m_ViewModelInstance != nullptr && m_ViewModelInstance->viewModelId() == path[0])
+    if (m_ViewModelInstance != nullptr &&
+        m_ViewModelInstance->viewModelId() == path[0])
     {
         ViewModelInstance* instance = m_ViewModelInstance;
         for (it = path.begin() + 1; it != path.end() - 1; it++)
@@ -35,14 +40,16 @@ ViewModelInstanceValue* DataContext::getViewModelProperty(const std::vector<uint
     return nullptr;
 }
 
-ViewModelInstance* DataContext::getViewModelInstance(const std::vector<uint32_t> path) const
+ViewModelInstance* DataContext::getViewModelInstance(
+    const std::vector<uint32_t> path) const
 {
     std::vector<uint32_t>::const_iterator it;
     if (path.size() == 0)
     {
         return nullptr;
     }
-    if (m_ViewModelInstance != nullptr && m_ViewModelInstance->viewModelId() == path[0])
+    if (m_ViewModelInstance != nullptr &&
+        m_ViewModelInstance->viewModelId() == path[0])
     {
         ViewModelInstance* instance = m_ViewModelInstance;
         for (it = path.begin() + 1; it != path.end(); it++)

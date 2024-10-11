@@ -4,7 +4,8 @@
 #include "rive/tess/sokol/sokol_tess_renderer.hpp"
 #include "sokol_gfx.h"
 
-rive::rcp<rive::RenderImage> ViewerSokolFactory::decodeImage(rive::Span<const uint8_t> bytes)
+rive::rcp<rive::RenderImage> ViewerSokolFactory::decodeImage(
+    rive::Span<const uint8_t> bytes)
 {
     auto bitmap = Bitmap::decode(bytes.data(), bytes.size());
     if (bitmap)
@@ -23,7 +24,9 @@ rive::rcp<rive::RenderImage> ViewerSokolFactory::decodeImage(rive::Span<const ui
         // something that built up an atlas) the image gpu resource may be
         // shared by multiple RenderImage referenced by multiple Rive objects.
         auto imageGpuResource = rive::rcp<rive::SokolRenderImageResource>(
-            new rive::SokolRenderImageResource(bitmap->bytes(), bitmap->width(), bitmap->height()));
+            new rive::SokolRenderImageResource(bitmap->bytes(),
+                                               bitmap->width(),
+                                               bitmap->height()));
 
         static rive::Mat2D identity;
         return rive::make_rcp<rive::SokolRenderImage>(imageGpuResource,

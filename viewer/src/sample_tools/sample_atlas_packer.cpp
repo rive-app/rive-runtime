@@ -9,7 +9,8 @@
 
 using namespace rive;
 
-class AtlasRenderImage : public lite_rtti_override<RenderImage, AtlasRenderImage>
+class AtlasRenderImage
+    : public lite_rtti_override<RenderImage, AtlasRenderImage>
 {
 private:
     std::vector<uint8_t> m_Pixels;
@@ -40,7 +41,9 @@ class AtlasPackerFactory : public NoOpFactory
                 bitmap->pixelFormat(Bitmap::PixelFormat::RGBA);
             }
 
-            return make_rcp<AtlasRenderImage>(bitmap->bytes(), bitmap->width(), bitmap->height());
+            return make_rcp<AtlasRenderImage>(bitmap->bytes(),
+                                              bitmap->width(),
+                                              bitmap->height());
         }
         return nullptr;
     }
@@ -69,7 +72,8 @@ void SampleAtlasPacker::pack(Span<const uint8_t> rivBytes)
                 if (m_atlases.empty())
                 {
                     // Make the first atlas.
-                    m_atlases.push_back(new SampleAtlas(m_maxWidth, m_maxHeight));
+                    m_atlases.push_back(
+                        new SampleAtlas(m_maxWidth, m_maxHeight));
                 }
 
                 // Pack into the current atlas.
@@ -87,11 +91,12 @@ void SampleAtlasPacker::pack(Span<const uint8_t> rivBytes)
                                          renderImage->height(),
                                          uvTransform))
                     {
-                        // Still failed. Image must be larger than max atlas. Just push the whole
-                        // image as an atlas.
-                        m_atlases.push_back(new SampleAtlas(renderImage->pixels().data(),
-                                                            renderImage->width(),
-                                                            renderImage->height()));
+                        // Still failed. Image must be larger than max atlas.
+                        // Just push the whole image as an atlas.
+                        m_atlases.push_back(
+                            new SampleAtlas(renderImage->pixels().data(),
+                                            renderImage->width(),
+                                            renderImage->height()));
 
                         // Clean up unused next atlas.
                         delete nextAtlas;
@@ -129,8 +134,12 @@ SampleAtlas* SampleAtlasPacker::atlas(std::size_t index)
     return m_atlases[index];
 }
 
-SampleAtlas::SampleAtlas(const uint8_t* pixels, uint32_t width, uint32_t height) :
-    m_width(width), m_height(height), m_pixels(pixels, pixels + width * height * 4)
+SampleAtlas::SampleAtlas(const uint8_t* pixels,
+                         uint32_t width,
+                         uint32_t height) :
+    m_width(width),
+    m_height(height),
+    m_pixels(pixels, pixels + width * height * 4)
 {}
 
 SampleAtlas::SampleAtlas(uint32_t width, uint32_t height) :
@@ -186,7 +195,8 @@ bool SampleAtlas::pack(const uint8_t* sourcePixels,
     return true;
 }
 
-bool SampleAtlasPacker::find(const ImageAsset& asset, SampleAtlasLocation* location)
+bool SampleAtlasPacker::find(const ImageAsset& asset,
+                             SampleAtlasLocation* location)
 {
     auto assetId = asset.assetId();
     auto result = m_lookup.find(assetId);
@@ -198,9 +208,13 @@ bool SampleAtlasPacker::find(const ImageAsset& asset, SampleAtlasLocation* locat
     return false;
 }
 
-SampleAtlasLoader::SampleAtlasLoader(SampleAtlasPacker* packer) : m_packer(packer) {}
+SampleAtlasLoader::SampleAtlasLoader(SampleAtlasPacker* packer) :
+    m_packer(packer)
+{}
 
-bool SampleAtlasLoader::loadContents(FileAsset& asset, Span<const uint8_t> inBandBytes, Factory*)
+bool SampleAtlasLoader::loadContents(FileAsset& asset,
+                                     Span<const uint8_t> inBandBytes,
+                                     Factory*)
 {
     if (asset.is<ImageAsset>())
     {
@@ -236,10 +250,11 @@ bool SampleAtlasLoader::loadContents(FileAsset& asset, Span<const uint8_t> inBan
             // renderer (and hence will know which RenderImage they need to
             // make).
 
-            imageAsset->renderImage(make_rcp<SokolRenderImage>(imageResource,
-                                                               location.width,
-                                                               location.height,
-                                                               location.transform));
+            imageAsset->renderImage(
+                make_rcp<SokolRenderImage>(imageResource,
+                                           location.width,
+                                           location.height,
+                                           location.transform));
             return true;
         }
     }

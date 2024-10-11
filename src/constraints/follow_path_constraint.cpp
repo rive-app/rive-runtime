@@ -27,14 +27,16 @@ const Mat2D FollowPathConstraint::targetTransform() const
 
         if (orient())
         {
-            transformB = Mat2D::fromRotation(std::atan2(result.tan.y, result.tan.x));
+            transformB =
+                Mat2D::fromRotation(std::atan2(result.tan.y, result.tan.x));
         }
         Vec2D offsetPosition = Vec2D();
         if (offset())
         {
             if (parent()->is<TransformComponent>())
             {
-                Mat2D components = parent()->as<TransformComponent>()->transform();
+                Mat2D components =
+                    parent()->as<TransformComponent>()->transform();
                 offsetPosition.x = components[4];
                 offsetPosition.y = components[5];
             }
@@ -142,14 +144,17 @@ StatusCode FollowPathConstraint::onAddedClean(CoreContext* context)
 void FollowPathConstraint::buildDependencies()
 {
 
-    if (m_Target != nullptr && m_Target->is<Shape>()) // which should never happen
+    if (m_Target != nullptr &&
+        m_Target->is<Shape>()) // which should never happen
     {
         // Follow path should update after the target's path composer
         Shape* shape = static_cast<Shape*>(m_Target);
         shape->pathComposer()->addDependent(this);
     }
-    // ok this appears to be enough to get the inital layout & animations to be working.
-    else if (m_Target != nullptr && m_Target->is<Path>()) // which should never happen
+    // ok this appears to be enough to get the inital layout & animations to be
+    // working.
+    else if (m_Target != nullptr &&
+             m_Target->is<Path>()) // which should never happen
     {
         // or do we need to be dependent on the shape still???
         Path* path = static_cast<Path*>(m_Target);

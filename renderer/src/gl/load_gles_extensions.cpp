@@ -6,13 +6,17 @@
 
 #include <EGL/egl.h>
 
-PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEEXTPROC glDrawArraysInstancedBaseInstanceEXT = nullptr;
-PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC glDrawElementsInstancedBaseInstanceEXT = nullptr;
+PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEEXTPROC
+glDrawArraysInstancedBaseInstanceEXT = nullptr;
+PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC
+glDrawElementsInstancedBaseInstanceEXT = nullptr;
 PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC
 glDrawElementsInstancedBaseVertexBaseInstanceEXT = nullptr;
 PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM = nullptr;
-PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC glFramebufferTexture2DMultisampleEXT = nullptr;
-PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC glRenderbufferStorageMultisampleEXT = nullptr;
+PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC
+glFramebufferTexture2DMultisampleEXT = nullptr;
+PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC glRenderbufferStorageMultisampleEXT =
+    nullptr;
 
 void LoadGLESExtensions(const GLCapabilities& extensions)
 {
@@ -26,15 +30,17 @@ void LoadGLESExtensions(const GLCapabilities& extensions)
             (PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC)eglGetProcAddress(
                 "glDrawElementsInstancedBaseInstanceEXT");
         glDrawElementsInstancedBaseVertexBaseInstanceEXT =
-            (PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC)eglGetProcAddress(
-                "glDrawElementsInstancedBaseVertexBaseInstanceEXT");
+            (PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC)
+                eglGetProcAddress(
+                    "glDrawElementsInstancedBaseVertexBaseInstanceEXT");
         loadedExtensions.EXT_base_instance = true;
     }
     if (extensions.QCOM_shader_framebuffer_fetch_noncoherent &&
         !loadedExtensions.QCOM_shader_framebuffer_fetch_noncoherent)
     {
-        glFramebufferFetchBarrierQCOM = (PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC)eglGetProcAddress(
-            "glFramebufferFetchBarrierQCOM");
+        glFramebufferFetchBarrierQCOM =
+            (PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC)eglGetProcAddress(
+                "glFramebufferFetchBarrierQCOM");
         loadedExtensions.QCOM_shader_framebuffer_fetch_noncoherent = true;
     }
     if (extensions.EXT_multisampled_render_to_texture &&

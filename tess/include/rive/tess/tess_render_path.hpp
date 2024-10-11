@@ -34,7 +34,8 @@ private:
 
 protected:
     std::vector<SubPath> m_subPaths;
-    virtual void addTriangles(Span<const Vec2D> vertices, Span<const uint16_t> indices) = 0;
+    virtual void addTriangles(Span<const Vec2D> vertices,
+                              Span<const uint16_t> indices) = 0;
     virtual void setTriangulatedBounds(const AABB& value) = 0;
     void contour(const Mat2D& transform);
     void triangulate(TessRenderPath* containerPath);
@@ -53,7 +54,8 @@ public:
 
     void moveTo(float x, float y) override;
     void lineTo(float x, float y) override;
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+        override;
     void close() override;
     void addRenderPath(RenderPath* path, const Mat2D& transform) override;
 

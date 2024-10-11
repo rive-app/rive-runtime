@@ -18,10 +18,14 @@ public:
 
     void resizeFlushUniformBuffer(size_t sizeInBytes) override;
     void resizeImageDrawUniformBuffer(size_t sizeInBytes) override;
-    void resizePathBuffer(size_t sizeInBytes, gpu::StorageBufferStructure) override;
-    void resizePaintBuffer(size_t sizeInBytes, gpu::StorageBufferStructure) override;
-    void resizePaintAuxBuffer(size_t sizeInBytes, gpu::StorageBufferStructure) override;
-    void resizeContourBuffer(size_t sizeInBytes, gpu::StorageBufferStructure) override;
+    void resizePathBuffer(size_t sizeInBytes,
+                          gpu::StorageBufferStructure) override;
+    void resizePaintBuffer(size_t sizeInBytes,
+                           gpu::StorageBufferStructure) override;
+    void resizePaintAuxBuffer(size_t sizeInBytes,
+                              gpu::StorageBufferStructure) override;
+    void resizeContourBuffer(size_t sizeInBytes,
+                             gpu::StorageBufferStructure) override;
     void resizeSimpleColorRampsBuffer(size_t sizeInBytes) override;
     void resizeGradSpanBuffer(size_t sizeInBytes) override;
     void resizeTessVertexSpanBuffer(size_t sizeInBytes) override;
@@ -57,12 +61,18 @@ public:
 
 protected:
     BufferRing* flushUniformBufferRing() { return m_flushUniformBuffer.get(); }
-    BufferRing* imageDrawUniformBufferRing() { return m_imageDrawUniformBuffer.get(); }
+    BufferRing* imageDrawUniformBufferRing()
+    {
+        return m_imageDrawUniformBuffer.get();
+    }
     BufferRing* pathBufferRing() { return m_pathBuffer.get(); }
     BufferRing* paintBufferRing() { return m_paintBuffer.get(); }
     BufferRing* paintAuxBufferRing() { return m_paintAuxBuffer.get(); }
     BufferRing* contourBufferRing() { return m_contourBuffer.get(); }
-    BufferRing* simpleColorRampsBufferRing() { return m_simpleColorRampsBuffer.get(); }
+    BufferRing* simpleColorRampsBufferRing()
+    {
+        return m_simpleColorRampsBuffer.get();
+    }
     BufferRing* gradSpanBufferRing() { return m_gradSpanBuffer.get(); }
     BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
     BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
@@ -72,11 +82,15 @@ protected:
                                           uint32_t mipLevelCount,
                                           const uint8_t imageDataRGBA[]) = 0;
 
-    virtual std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) = 0;
-    virtual std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
-                                                              gpu::StorageBufferStructure) = 0;
-    virtual std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) = 0;
-    virtual std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) = 0;
+    virtual std::unique_ptr<BufferRing> makeUniformBufferRing(
+        size_t capacityInBytes) = 0;
+    virtual std::unique_ptr<BufferRing> makeStorageBufferRing(
+        size_t capacityInBytes,
+        gpu::StorageBufferStructure) = 0;
+    virtual std::unique_ptr<BufferRing> makeVertexBufferRing(
+        size_t capacityInBytes) = 0;
+    virtual std::unique_ptr<BufferRing> makeTextureTransferBufferRing(
+        size_t capacityInBytes) = 0;
 
 private:
     std::unique_ptr<BufferRing> m_flushUniformBuffer;
@@ -89,6 +103,7 @@ private:
     std::unique_ptr<BufferRing> m_gradSpanBuffer;
     std::unique_ptr<BufferRing> m_tessSpanBuffer;
     std::unique_ptr<BufferRing> m_triangleBuffer;
-    std::chrono::steady_clock::time_point m_localEpoch = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point m_localEpoch =
+        std::chrono::steady_clock::now();
 };
 } // namespace rive::gpu

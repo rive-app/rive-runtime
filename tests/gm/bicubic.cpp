@@ -5,7 +5,10 @@
 #include "bicubic.hpp"
 #include <vector>
 
-template <typename T> T lerp(const T& a, const T& b, float t) { return a * (1 - t) + b * t; }
+template <typename T> T lerp(const T& a, const T& b, float t)
+{
+    return a * (1 - t) + b * t;
+}
 
 using namespace rivegm;
 
@@ -117,13 +120,15 @@ BicubicPatch::Rec BicubicPatch::buffers(const rive::AABB* uvBounds) const
     return rec;
 }
 
-BicubicPatch::Mesh BicubicPatch::mesh(rive::Factory* factory, const rive::AABB* uvBounds) const
+BicubicPatch::Mesh BicubicPatch::mesh(rive::Factory* factory,
+                                      const rive::AABB* uvBounds) const
 {
     auto rec = BicubicPatch::buffers(uvBounds);
 
-    auto ptsBuffer = factory->makeRenderBuffer(rive::RenderBufferType::vertex,
-                                               rive::RenderBufferFlags::none,
-                                               rec.pts.size() * sizeof(rive::Vec2D));
+    auto ptsBuffer =
+        factory->makeRenderBuffer(rive::RenderBufferType::vertex,
+                                  rive::RenderBufferFlags::none,
+                                  rec.pts.size() * sizeof(rive::Vec2D));
     if (ptsBuffer)
     {
         void* ptsData = ptsBuffer->map();
@@ -131,9 +136,10 @@ BicubicPatch::Mesh BicubicPatch::mesh(rive::Factory* factory, const rive::AABB* 
         ptsBuffer->unmap();
     }
 
-    auto uvsBuffer = factory->makeRenderBuffer(rive::RenderBufferType::vertex,
-                                               rive::RenderBufferFlags::mappedOnceAtInitialization,
-                                               rec.uvs.size() * sizeof(rive::Vec2D));
+    auto uvsBuffer = factory->makeRenderBuffer(
+        rive::RenderBufferType::vertex,
+        rive::RenderBufferFlags::mappedOnceAtInitialization,
+        rec.uvs.size() * sizeof(rive::Vec2D));
     if (uvsBuffer)
     {
         void* uvsData = uvsBuffer->map();
@@ -141,9 +147,10 @@ BicubicPatch::Mesh BicubicPatch::mesh(rive::Factory* factory, const rive::AABB* 
         uvsBuffer->unmap();
     }
 
-    auto idxBuffer = factory->makeRenderBuffer(rive::RenderBufferType::index,
-                                               rive::RenderBufferFlags::mappedOnceAtInitialization,
-                                               rec.indices.size() * sizeof(uint16_t));
+    auto idxBuffer = factory->makeRenderBuffer(
+        rive::RenderBufferType::index,
+        rive::RenderBufferFlags::mappedOnceAtInitialization,
+        rec.indices.size() * sizeof(uint16_t));
     if (idxBuffer)
     {
         void* idxData = idxBuffer->map();

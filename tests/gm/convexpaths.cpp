@@ -51,16 +51,26 @@ private:
         fOnce.accomplished();
 
         PathBuilder b;
-        fPaths.push_back(b.moveTo(0, 0).quadTo(50, 100, 0, 100).lineTo(0, 0).detach());
+        fPaths.push_back(
+            b.moveTo(0, 0).quadTo(50, 100, 0, 100).lineTo(0, 0).detach());
 
-        fPaths.push_back(b.moveTo(0, 50).quadTo(50, 0, 100, 50).quadTo(50, 100, 0, 50).detach());
+        fPaths.push_back(b.moveTo(0, 50)
+                             .quadTo(50, 0, 100, 50)
+                             .quadTo(50, 100, 0, 50)
+                             .detach());
 
-        fPaths.push_back(PathBuilder::Rect({0, 0, 100, 100}, rivegm::PathDirection::cw));
-        fPaths.push_back(PathBuilder::Rect({0, 0, 100, 100}, rivegm::PathDirection::ccw));
-        fPaths.push_back(PathBuilder::Oval({0, 0, 100, 100}, rivegm::PathDirection::cw));
-        fPaths.push_back(PathBuilder::Oval({0, 0, 50, 100}, rivegm::PathDirection::cw));
-        fPaths.push_back(PathBuilder::Oval({0, 0, 100, 5}, rivegm::PathDirection::ccw));
-        fPaths.push_back(PathBuilder::Oval({0, 0, 1, 100}, rivegm::PathDirection::ccw));
+        fPaths.push_back(
+            PathBuilder::Rect({0, 0, 100, 100}, rivegm::PathDirection::cw));
+        fPaths.push_back(
+            PathBuilder::Rect({0, 0, 100, 100}, rivegm::PathDirection::ccw));
+        fPaths.push_back(
+            PathBuilder::Oval({0, 0, 100, 100}, rivegm::PathDirection::cw));
+        fPaths.push_back(
+            PathBuilder::Oval({0, 0, 50, 100}, rivegm::PathDirection::cw));
+        fPaths.push_back(
+            PathBuilder::Oval({0, 0, 100, 5}, rivegm::PathDirection::ccw));
+        fPaths.push_back(
+            PathBuilder::Oval({0, 0, 1, 100}, rivegm::PathDirection::ccw));
         fPaths.push_back(PathBuilder::RRect({0, 0, 100, 100}, 40, 20));
 
         // large number of points
@@ -86,7 +96,11 @@ private:
         fPaths.push_back(b.detach());
 
         // shallow diagonals
-        fPaths.push_back(b.moveTo(0, 0).lineTo(100, 1).lineTo(98, 100).lineTo(3, 96).detach());
+        fPaths.push_back(b.moveTo(0, 0)
+                             .lineTo(100, 1)
+                             .lineTo(98, 100)
+                             .lineTo(3, 96)
+                             .detach());
         fPaths.push_back(PathBuilder::Oval({0, 0, 50, 100}));
 
         // cubics
@@ -109,10 +123,14 @@ private:
                              .detach());
 
         // cubic where last three points are almost a line
-        fPaths.push_back(
-            b.moveTo(0, 228.0f / 8)
-                .cubicTo(628.0f / 8, 82.0f / 8, 1255.0f / 8, 141.0f / 8, 1883.0f / 8, 202.0f / 8)
-                .detach());
+        fPaths.push_back(b.moveTo(0, 228.0f / 8)
+                             .cubicTo(628.0f / 8,
+                                      82.0f / 8,
+                                      1255.0f / 8,
+                                      141.0f / 8,
+                                      1883.0f / 8,
+                                      202.0f / 8)
+                             .detach());
 
         // flat cubic where the at end point tangents both point outward.
         fPaths.push_back(b.moveTo(10, 0).cubicTo(0, 1, 30, 1, 20, 0).detach());
@@ -131,21 +149,31 @@ private:
                              .detach());
 
         // triangle where one edge is a quad with a repeated point
-        fPaths.push_back(b.moveTo(0, 25).lineTo(50, 0).quadTo(50, 50, 50, 50).detach());
+        fPaths.push_back(
+            b.moveTo(0, 25).lineTo(50, 0).quadTo(50, 50, 50, 50).detach());
 
         // triangle where one edge is a cubic with a 2x repeated point
-        fPaths.push_back(b.moveTo(0, 25).lineTo(50, 0).cubicTo(50, 0, 50, 50, 50, 50).detach());
+        fPaths.push_back(b.moveTo(0, 25)
+                             .lineTo(50, 0)
+                             .cubicTo(50, 0, 50, 50, 50, 50)
+                             .detach());
 
         // triangle where one edge is a quad with a nearly repeated point
-        fPaths.push_back(b.moveTo(0, 25).lineTo(50, 0).quadTo(50, 49.95f, 50, 50).detach());
+        fPaths.push_back(
+            b.moveTo(0, 25).lineTo(50, 0).quadTo(50, 49.95f, 50, 50).detach());
 
         // triangle where one edge is a cubic with a 3x nearly repeated point
-        fPaths.push_back(
-            b.moveTo(0, 25).lineTo(50, 0).cubicTo(50, 49.95f, 50, 49.97f, 50, 50).detach());
+        fPaths.push_back(b.moveTo(0, 25)
+                             .lineTo(50, 0)
+                             .cubicTo(50, 49.95f, 50, 49.97f, 50, 50)
+                             .detach());
 
         // triangle where there is a point degenerate cubic at one corner
-        fPaths.push_back(
-            b.moveTo(0, 25).lineTo(50, 0).lineTo(50, 50).cubicTo(50, 50, 50, 50, 50, 50).detach());
+        fPaths.push_back(b.moveTo(0, 25)
+                             .lineTo(50, 0)
+                             .lineTo(50, 50)
+                             .cubicTo(50, 50, 50, 50, 50, 50)
+                             .detach());
 
         // point line
         fPaths.push_back(b.moveTo(50, 50).lineTo(50, 50).detach());
@@ -154,11 +182,16 @@ private:
         fPaths.push_back(b.moveTo(50, 50).quadTo(50, 50, 50, 50).detach());
 
         // point cubic
-        fPaths.push_back(b.moveTo(50, 50).cubicTo(50, 50, 50, 50, 50, 50).detach());
+        fPaths.push_back(
+            b.moveTo(50, 50).cubicTo(50, 50, 50, 50, 50, 50).detach());
 
         // moveTo only paths
-        fPaths.push_back(
-            b.moveTo(0, 0).moveTo(0, 0).moveTo(1, 1).moveTo(1, 1).moveTo(10, 10).detach());
+        fPaths.push_back(b.moveTo(0, 0)
+                             .moveTo(0, 0)
+                             .moveTo(1, 1)
+                             .moveTo(1, 1)
+                             .moveTo(10, 10)
+                             .detach());
 
         fPaths.push_back(b.moveTo(0, 0).moveTo(0, 0).detach());
 
@@ -173,7 +206,12 @@ private:
         fPaths.push_back(Path());
         fPaths.back()->addRenderPath(
             b.moveTo(16.875f, 192.594f)
-                .cubicTo(45.625f, 192.594f, 74.375f, 192.594f, 103.125f, 192.594f)
+                .cubicTo(45.625f,
+                         192.594f,
+                         74.375f,
+                         192.594f,
+                         103.125f,
+                         192.594f)
                 .cubicTo(88.75f, 167.708f, 74.375f, 142.823f, 60, 117.938f)
                 .cubicTo(45.625f, 142.823f, 31.25f, 167.708f, 16.875f, 192.594f)
                 .close()
@@ -182,7 +220,8 @@ private:
 
         // small circle. This is listed last so that it has device coords far
         // from the origin (small area relative to x,y values).
-        fPaths.push_back(PathBuilder::Oval({-1.2f, -1.2f, 1.2f, 1.2f}, rivegm::PathDirection::ccw));
+        fPaths.push_back(PathBuilder::Oval({-1.2f, -1.2f, 1.2f, 1.2f},
+                                           rivegm::PathDirection::ccw));
     }
 
     ColorInt clearColor() const override { return 0xFF000000; }
@@ -195,19 +234,21 @@ private:
         Rand rand;
         renderer->translate(20, 20);
 
-        // As we've added more paths this has gotten pretty big. Scale the whole thing down.
+        // As we've added more paths this has gotten pretty big. Scale the whole
+        // thing down.
         renderer->scale(2.0f / 3, 2.0f / 3);
 
         for (size_t i = 0; i < fPaths.size(); ++i)
         {
             renderer->save();
             // position the path, and make it at off-integer coords.
-            renderer->translate(200.0f * (i % 5) + 1.0f / 10, 200.0f * (int)(i / 5) + 9.0f / 10);
+            renderer->translate(200.0f * (i % 5) + 1.0f / 10,
+                                200.0f * (int)(i / 5) + 9.0f / 10);
             ColorInt color = rand.u32();
             color |= 0xff000000;
             paint->color(color);
-#if 0 // This hitting on 32bit Linux builds for some paths. Temporarily disabling while it is
-      // debugged.
+#if 0 // This hitting on 32bit Linux builds for some paths. Temporarily
+      // disabling while it is debugged.
             SkASSERT(fPaths[i].isConvex());
 #endif
             renderer->drawPath(fPaths[i], paint);

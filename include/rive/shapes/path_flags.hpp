@@ -17,47 +17,54 @@ enum class PathFlags : uint8_t
 
 inline constexpr PathFlags operator&(PathFlags lhs, PathFlags rhs)
 {
-    return static_cast<PathFlags>(static_cast<std::underlying_type<PathFlags>::type>(lhs) &
-                                  static_cast<std::underlying_type<PathFlags>::type>(rhs));
+    return static_cast<PathFlags>(
+        static_cast<std::underlying_type<PathFlags>::type>(lhs) &
+        static_cast<std::underlying_type<PathFlags>::type>(rhs));
 }
 
 inline constexpr PathFlags operator^(PathFlags lhs, PathFlags rhs)
 {
-    return static_cast<PathFlags>(static_cast<std::underlying_type<PathFlags>::type>(lhs) ^
-                                  static_cast<std::underlying_type<PathFlags>::type>(rhs));
+    return static_cast<PathFlags>(
+        static_cast<std::underlying_type<PathFlags>::type>(lhs) ^
+        static_cast<std::underlying_type<PathFlags>::type>(rhs));
 }
 
 inline constexpr PathFlags operator|(PathFlags lhs, PathFlags rhs)
 {
-    return static_cast<PathFlags>(static_cast<std::underlying_type<PathFlags>::type>(lhs) |
-                                  static_cast<std::underlying_type<PathFlags>::type>(rhs));
+    return static_cast<PathFlags>(
+        static_cast<std::underlying_type<PathFlags>::type>(lhs) |
+        static_cast<std::underlying_type<PathFlags>::type>(rhs));
 }
 
 inline constexpr PathFlags operator~(PathFlags rhs)
 {
-    return static_cast<PathFlags>(~static_cast<std::underlying_type<PathFlags>::type>(rhs));
+    return static_cast<PathFlags>(
+        ~static_cast<std::underlying_type<PathFlags>::type>(rhs));
 }
 
 inline PathFlags& operator|=(PathFlags& lhs, PathFlags rhs)
 {
-    lhs = static_cast<PathFlags>(static_cast<std::underlying_type<PathFlags>::type>(lhs) |
-                                 static_cast<std::underlying_type<PathFlags>::type>(rhs));
+    lhs = static_cast<PathFlags>(
+        static_cast<std::underlying_type<PathFlags>::type>(lhs) |
+        static_cast<std::underlying_type<PathFlags>::type>(rhs));
 
     return lhs;
 }
 
 inline PathFlags& operator&=(PathFlags& lhs, PathFlags rhs)
 {
-    lhs = static_cast<PathFlags>(static_cast<std::underlying_type<PathFlags>::type>(lhs) &
-                                 static_cast<std::underlying_type<PathFlags>::type>(rhs));
+    lhs = static_cast<PathFlags>(
+        static_cast<std::underlying_type<PathFlags>::type>(lhs) &
+        static_cast<std::underlying_type<PathFlags>::type>(rhs));
 
     return lhs;
 }
 
 inline PathFlags& operator^=(PathFlags& lhs, PathFlags rhs)
 {
-    lhs = static_cast<PathFlags>(static_cast<std::underlying_type<PathFlags>::type>(lhs) ^
-                                 static_cast<std::underlying_type<PathFlags>::type>(rhs));
+    lhs = static_cast<PathFlags>(
+        static_cast<std::underlying_type<PathFlags>::type>(lhs) ^
+        static_cast<std::underlying_type<PathFlags>::type>(rhs));
 
     return lhs;
 }

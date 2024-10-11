@@ -22,13 +22,15 @@ public:
         //                                       | 3 -6  3  0|   |P2|
         //                                       |-1  3 -3  1|   |P3|
         //
-        // Find the cubic's power basis coefficients. These define the bezier curve as:
+        // Find the cubic's power basis coefficients. These define the bezier
+        // curve as:
         //
         //                                  |t^3|
         //     Cubic(T) = x,y = |A  B  C| * |t^2| + P0
         //                      |.  .  .|   |t  |
         //
-        // (Duplicate coefficients across a float4 so we can evaluate two at once.)
+        // (Duplicate coefficients across a float4 so we can evaluate two at
+        // once.)
         m_P0 = simd::load2f(pts + 0).xyxy;
         float4 P1 = simd::load2f(pts + 1).xyxy;
         float4 P2 = simd::load2f(pts + 2).xyxy;

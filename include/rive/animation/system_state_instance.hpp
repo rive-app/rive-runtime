@@ -14,9 +14,11 @@ class StateMachineInstance;
 class SystemStateInstance : public StateInstance
 {
 public:
-    SystemStateInstance(const LayerState* layerState, ArtboardInstance* instance);
+    SystemStateInstance(const LayerState* layerState,
+                        ArtboardInstance* instance);
 
-    void advance(float seconds, StateMachineInstance* stateMachineInstance) override;
+    void advance(float seconds,
+                 StateMachineInstance* stateMachineInstance) override;
     void apply(ArtboardInstance* artboard, float mix) override;
 
     bool keepGoing() const override;

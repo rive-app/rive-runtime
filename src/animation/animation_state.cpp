@@ -6,11 +6,15 @@
 
 using namespace rive;
 
-std::unique_ptr<StateInstance> AnimationState::makeInstance(ArtboardInstance* instance) const
+std::unique_ptr<StateInstance> AnimationState::makeInstance(
+    ArtboardInstance* instance) const
 {
     return rivestd::make_unique<AnimationStateInstance>(this, instance);
 }
 
 #ifdef TESTING
-void AnimationState::animation(LinearAnimation* animation) { m_Animation = animation; }
+void AnimationState::animation(LinearAnimation* animation)
+{
+    m_Animation = animation;
+}
 #endif

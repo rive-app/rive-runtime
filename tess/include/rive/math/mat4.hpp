@@ -66,7 +66,13 @@ public:
     static Mat4 multiply(const Mat4& a, const Mat4& b);
     static Mat4 multiply(const Mat4& a, const Mat2D& b);
 };
-inline Mat4 operator*(const Mat4& a, const Mat4& b) { return Mat4::multiply(a, b); }
-inline Mat4 operator*(const Mat4& a, const Mat2D& b) { return Mat4::multiply(a, b); }
+inline Mat4 operator*(const Mat4& a, const Mat4& b)
+{
+    return Mat4::multiply(a, b);
+}
+inline Mat4 operator*(const Mat4& a, const Mat2D& b)
+{
+    return Mat4::multiply(a, b);
+}
 } // namespace rive
 #endif

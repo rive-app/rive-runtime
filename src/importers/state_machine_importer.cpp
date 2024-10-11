@@ -7,7 +7,9 @@
 
 using namespace rive;
 
-StateMachineImporter::StateMachineImporter(StateMachine* machine) : m_StateMachine(machine) {}
+StateMachineImporter::StateMachineImporter(StateMachine* machine) :
+    m_StateMachine(machine)
+{}
 
 void StateMachineImporter::addLayer(std::unique_ptr<StateMachineLayer> layer)
 {
@@ -19,7 +21,8 @@ void StateMachineImporter::addInput(std::unique_ptr<StateMachineInput> input)
     m_StateMachine->addInput(std::move(input));
 }
 
-void StateMachineImporter::addListener(std::unique_ptr<StateMachineListener> listener)
+void StateMachineImporter::addListener(
+    std::unique_ptr<StateMachineListener> listener)
 {
     m_StateMachine->addListener(std::move(listener));
 }

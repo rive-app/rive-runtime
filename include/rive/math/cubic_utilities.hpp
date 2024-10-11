@@ -43,14 +43,15 @@ public:
 
         Vec2D oneThird = Vec2D::lerp(from, to, 1.0f / 3.0f);
         Vec2D twoThird = Vec2D::lerp(from, to, 2.0f / 3.0f);
-        return tooFar(fromOut, oneThird, threshold) || tooFar(toIn, twoThird, threshold);
+        return tooFar(fromOut, oneThird, threshold) ||
+               tooFar(toIn, twoThird, threshold);
     }
 
     static float cubicAt(float t, float a, float b, float c, float d)
     {
         float ti = 1.0f - t;
-        float value =
-            ti * ti * ti * a + 3.0f * ti * ti * t * b + 3.0f * ti * t * t * c + t * t * t * d;
+        float value = ti * ti * ti * a + 3.0f * ti * ti * t * b +
+                      3.0f * ti * t * t * c + t * t * t * d;
         return value;
     }
 };

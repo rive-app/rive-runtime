@@ -57,7 +57,10 @@ public:
     static void DefaultConstructArray(T* ptr, T* end) {}
     static void CopyConstructArray(const T* first, const T* end, T* ptr)
     {
-        memcpy(ptr, first, reinterpret_cast<uintptr_t>(end) - reinterpret_cast<uintptr_t>(first));
+        memcpy(ptr,
+               first,
+               reinterpret_cast<uintptr_t>(end) -
+                   reinterpret_cast<uintptr_t>(first));
     }
     static void DestructArray(T* ptr, T* end) {}
 };
@@ -74,7 +77,8 @@ template <typename T> class SimpleArray
 {
 public:
     SimpleArray() : m_ptr(nullptr), m_size(0) {}
-    SimpleArray(size_t size) : m_ptr(static_cast<T*>(malloc(size * sizeof(T)))), m_size(size)
+    SimpleArray(size_t size) :
+        m_ptr(static_cast<T*>(malloc(size * sizeof(T)))), m_size(size)
     {
         SimpleArrayHelper<T>::DefaultConstructArray(m_ptr, m_ptr + m_size);
 #ifdef TESTING
@@ -87,9 +91,12 @@ public:
         SimpleArrayHelper<T>::CopyConstructArray(ptr, ptr + size, m_ptr);
     }
 
-    constexpr SimpleArray(const SimpleArray<T>& other) : SimpleArray(other.m_ptr, other.m_size) {}
+    constexpr SimpleArray(const SimpleArray<T>& other) :
+        SimpleArray(other.m_ptr, other.m_size)
+    {}
 
-    SimpleArray(SimpleArray<T>&& other) : m_ptr(other.m_ptr), m_size(other.m_size)
+    SimpleArray(SimpleArray<T>&& other) :
+        m_ptr(other.m_ptr), m_size(other.m_size)
     {
         other.m_ptr = nullptr;
         other.m_size = 0;
@@ -115,7 +122,8 @@ public:
     template <typename Container>
     constexpr SimpleArray(Container& c) : SimpleArray(c.data(), c.size())
     {}
-    constexpr SimpleArray(const std::initializer_list<T>& il) : SimpleArray(il.begin(), il.size())
+    constexpr SimpleArray(const std::initializer_list<T>& il) :
+        SimpleArray(il.begin(), il.size())
     {}
     ~SimpleArray()
     {
@@ -214,10 +222,12 @@ private:
         SimpleArrayTesting::reallocCount++;
 #endif
         // Call destructor for elements when sizing down.
-        SimpleArrayHelper<T>::DestructArray(this->m_ptr + size, this->m_ptr + this->m_size);
+        SimpleArrayHelper<T>::DestructArray(this->m_ptr + size,
+                                            this->m_ptr + this->m_size);
         this->m_ptr = static_cast<T*>(realloc(this->m_ptr, size * sizeof(T)));
         // Call constructor for elements when sizing up.
-        SimpleArrayHelper<T>::DefaultConstructArray(this->m_ptr + this->m_size, this->m_ptr + size);
+        SimpleArrayHelper<T>::DefaultConstructArray(this->m_ptr + this->m_size,
+                                                    this->m_ptr + size);
         this->m_size = size;
     }
 
@@ -235,7 +245,8 @@ template <typename T> SimpleArray<T>::SimpleArray(SimpleArrayBuilder<T>&& other)
     other.m_size = 0;
 }
 
-template <typename T> SimpleArray<T>& SimpleArray<T>::operator=(SimpleArrayBuilder<T>&& other)
+template <typename T>
+SimpleArray<T>& SimpleArray<T>::operator=(SimpleArrayBuilder<T>&& other)
 {
     other.resize(other.size());
     this->m_ptr = other.m_ptr;

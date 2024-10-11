@@ -19,13 +19,15 @@ void StateMachineListener::addAction(std::unique_ptr<ListenerAction> action)
 
 StatusCode StateMachineListener::import(ImportStack& importStack)
 {
-    auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
+    auto stateMachineImporter =
+        importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
     if (stateMachineImporter == nullptr)
     {
         return StatusCode::MissingObject;
     }
     // Handing off ownership of this!
-    stateMachineImporter->addListener(std::unique_ptr<StateMachineListener>(this));
+    stateMachineImporter->addListener(
+        std::unique_ptr<StateMachineListener>(this));
     return Super::import(importStack);
 }
 
@@ -38,9 +40,10 @@ const ListenerAction* StateMachineListener::action(size_t index) const
     return nullptr;
 }
 
-void StateMachineListener::performChanges(StateMachineInstance* stateMachineInstance,
-                                          Vec2D position,
-                                          Vec2D previousPosition) const
+void StateMachineListener::performChanges(
+    StateMachineInstance* stateMachineInstance,
+    Vec2D position,
+    Vec2D previousPosition) const
 {
     for (auto& action : m_actions)
     {

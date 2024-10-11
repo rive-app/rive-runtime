@@ -13,8 +13,8 @@ protected:
 public:
     static const uint16_t typeKey = 452;
 
-    /// Helper to quickly determine if a core object extends another without RTTI
-    /// at runtime.
+    /// Helper to quickly determine if a core object extends another without
+    /// RTTI at runtime.
     bool isTypeOf(uint16_t typeKey) const override
     {
         switch (typeKey)
@@ -73,7 +73,10 @@ public:
         instanceHeightChanged();
     }
 
-    inline uint32_t instanceWidthUnitsValue() const { return m_InstanceWidthUnitsValue; }
+    inline uint32_t instanceWidthUnitsValue() const
+    {
+        return m_InstanceWidthUnitsValue;
+    }
     void instanceWidthUnitsValue(uint32_t value)
     {
         if (m_InstanceWidthUnitsValue == value)
@@ -84,7 +87,10 @@ public:
         instanceWidthUnitsValueChanged();
     }
 
-    inline uint32_t instanceHeightUnitsValue() const { return m_InstanceHeightUnitsValue; }
+    inline uint32_t instanceHeightUnitsValue() const
+    {
+        return m_InstanceHeightUnitsValue;
+    }
     void instanceHeightUnitsValue(uint32_t value)
     {
         if (m_InstanceHeightUnitsValue == value)
@@ -95,7 +101,10 @@ public:
         instanceHeightUnitsValueChanged();
     }
 
-    inline uint32_t instanceWidthScaleType() const { return m_InstanceWidthScaleType; }
+    inline uint32_t instanceWidthScaleType() const
+    {
+        return m_InstanceWidthScaleType;
+    }
     void instanceWidthScaleType(uint32_t value)
     {
         if (m_InstanceWidthScaleType == value)
@@ -106,7 +115,10 @@ public:
         instanceWidthScaleTypeChanged();
     }
 
-    inline uint32_t instanceHeightScaleType() const { return m_InstanceHeightScaleType; }
+    inline uint32_t instanceHeightScaleType() const
+    {
+        return m_InstanceHeightScaleType;
+    }
     void instanceHeightScaleType(uint32_t value)
     {
         if (m_InstanceHeightScaleType == value)

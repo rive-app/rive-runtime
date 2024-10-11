@@ -26,7 +26,8 @@ TEST_CASE("image assets loads correctly", "[assets]")
     REQUIRE(eve_left != nullptr);
     REQUIRE(eve_left->is<rive::Image>());
     REQUIRE(eve_left->as<rive::Image>()->imageAsset() != nullptr);
-    REQUIRE(eve_left->as<rive::Image>()->imageAsset()->decodedByteSize == 246825);
+    REQUIRE(eve_left->as<rive::Image>()->imageAsset()->decodedByteSize ==
+            246825);
 
     auto eve_right = file->artboard()->find("eve_right");
     REQUIRE(eve_right != nullptr);
@@ -62,7 +63,8 @@ TEST_CASE("out of band image assets loads correctly", "[assets]")
     REQUIRE(eve_left != nullptr);
     REQUIRE(eve_left->is<rive::Image>());
     REQUIRE(eve_left->as<rive::Image>()->imageAsset() != nullptr);
-    REQUIRE(eve_left->as<rive::Image>()->imageAsset()->decodedByteSize == 246825);
+    REQUIRE(eve_left->as<rive::Image>()->imageAsset()->decodedByteSize ==
+            246825);
 
     auto eve_right = file->artboard()->find("eve_right");
     REQUIRE(eve_right != nullptr);

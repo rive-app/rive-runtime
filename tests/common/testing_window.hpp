@@ -23,8 +23,8 @@ class RenderTarget;
 } // namespace gpu
 }; // namespace rive
 
-// Wraps a factory for rive::Renderer and a singleton target for it to render into
-// (GL window, HTML canvas, software buffer, etc.):
+// Wraps a factory for rive::Renderer and a singleton target for it to render
+// into (GL window, HTML canvas, software buffer, etc.):
 //
 //   TestingWindow::Init(type);
 //   renderer = TestingWindow::Get()->reset(width, height);
@@ -55,7 +55,8 @@ public:
         moltenvkcore,
 
         // Swiftshader, Google's CPU implementation of Vulkan.
-        // (defaults to ./vk_swiftshader_icd.json if VK_ICD_FILENAMES is not set.)
+        // (defaults to ./vk_swiftshader_icd.json if VK_ICD_FILENAMES is not
+        // set.)
         swiftshader,
         swiftshadercore,
 
@@ -268,14 +269,18 @@ public:
         m_width = width;
         m_height = height;
     }
-    virtual std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
-                                                       bool doClear = true,
-                                                       bool wireframe = false) = 0;
+    virtual std::unique_ptr<rive::Renderer> beginFrame(
+        uint32_t clearColor,
+        bool doClear = true,
+        bool wireframe = false) = 0;
     virtual void endFrame(std::vector<uint8_t>* pixelData = nullptr) = 0;
 
     // For testing directly on RenderContext.
     virtual rive::gpu::RenderContext* renderContext() const { return nullptr; }
-    virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const { return nullptr; }
+    virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const
+    {
+        return nullptr;
+    }
     virtual rive::gpu::RenderTarget* renderTarget() const { return nullptr; }
 
     // For testing render pass breaks. Caller must call
@@ -313,8 +318,10 @@ private:
                                             Visibility,
                                             const char* gpuNameFilter,
                                             void* platformWindow);
-    static TestingWindow* MakeVulkanTexture(bool coreFeaturesOnly, const char* gpuNameFilter);
-    static TestingWindow* MakeAndroidVulkan(void* platformWindow, bool coreFeaturesOnly);
+    static TestingWindow* MakeVulkanTexture(bool coreFeaturesOnly,
+                                            const char* gpuNameFilter);
+    static TestingWindow* MakeAndroidVulkan(void* platformWindow,
+                                            bool coreFeaturesOnly);
 };
 
 RIVE_MAKE_ENUM_BITSET(TestingWindow::RendererFlags);

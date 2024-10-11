@@ -6,7 +6,8 @@
 #include <stdio.h>
 namespace rive
 {
-class TransitionPropertyViewModelComparator : public TransitionPropertyViewModelComparatorBase
+class TransitionPropertyViewModelComparator
+    : public TransitionPropertyViewModelComparatorBase
 {
 public:
     StatusCode import(ImportStack& importStack) override;
@@ -19,7 +20,8 @@ public:
         if (m_bindableProperty->is<T>())
         {
             auto bindableInstance =
-                stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
+                stateMachineInstance->bindablePropertyInstance(
+                    m_bindableProperty);
             return bindableInstance->as<T>()->propertyValue();
         }
         return (new T())->propertyValue();

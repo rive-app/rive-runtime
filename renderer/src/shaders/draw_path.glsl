@@ -7,7 +7,9 @@ ATTR_BLOCK_BEGIN(Attrs)
 #ifdef @DRAW_INTERIOR_TRIANGLES
 ATTR(0, packed_float3, @a_triangleVertex);
 #else
-ATTR(0, float4, @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
+ATTR(0,
+     float4,
+     @a_patchVertexData); // [localVertexID, outset, fillCoverage, vertexType]
 ATTR(1, float4, @a_mirroredVertexData);
 #endif
 ATTR_BLOCK_END
@@ -71,30 +73,32 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
-    vertexPosition = unpack_interior_triangle_vertex(@a_triangleVertex,
-                                                     pathID,
-                                                     v_windingWeight VERTEX_CONTEXT_UNPACK);
+    vertexPosition =
+        unpack_interior_triangle_vertex(@a_triangleVertex,
+                                        pathID,
+                                        v_windingWeight VERTEX_CONTEXT_UNPACK);
 #else
-    shouldDiscardVertex = !unpack_tessellated_path_vertex(@a_patchVertexData,
-                                                          @a_mirroredVertexData,
-                                                          _instanceID,
-                                                          pathID,
-                                                          vertexPosition
+    shouldDiscardVertex =
+        !unpack_tessellated_path_vertex(@a_patchVertexData,
+                                        @a_mirroredVertexData,
+                                        _instanceID,
+                                        pathID,
+                                        vertexPosition
 #ifndef @USING_DEPTH_STENCIL
-                                                          ,
-                                                          v_edgeDistance
+                                        ,
+                                        v_edgeDistance
 #else
-                                                          ,
-                                                          pathZIndex
+                                        ,
+                                        pathZIndex
 #endif
-                                                              VERTEX_CONTEXT_UNPACK);
+                                            VERTEX_CONTEXT_UNPACK);
 #endif // !DRAW_INTERIOR_TRIANGLES
 
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
 
 #ifndef @USING_DEPTH_STENCIL
-    // Encode the integral pathID as a "half" that we know the hardware will see as a unique value
-    // in the fragment shader.
+    // Encode the integral pathID as a "half" that we know the hardware will see
+    // as a unique value in the fragment shader.
     v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
 
     // Indicate even-odd fill rule by making pathID negative.
@@ -106,9 +110,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING)
     {
-        uint clipIDBits = (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >> 16;
+        uint clipIDBits =
+            (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >>
+            16;
         v_clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
-        // Negative clipID means to update the clip buffer instead of the color buffer.
+        // Negative clipID means to update the clip buffer instead of the color
+        // buffer.
         if (paintType == CLIP_UPDATE_PAINT_TYPE)
             v_clipID = -v_clipID;
     }
@@ -120,7 +127,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 #endif
 
-    // Paint matrices operate on the fragment shader's "_fragCoord", which is bottom-up in GL.
+    // Paint matrices operate on the fragment shader's "_fragCoord", which is
+    // bottom-up in GL.
     float2 fragCoord = vertexPosition;
 #ifdef FRAG_COORD_BOTTOM_UP
     fragCoord.y = float(uniforms.renderTargetHeight) - fragCoord.y;
@@ -129,15 +137,17 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @ENABLE_CLIP_RECT
     if (@ENABLE_CLIP_RECT)
     {
-        // clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is
-        // the normalized rectangle: [-1, -1, 1, 1].
-        float2x2 clipRectInverseMatrix =
-            make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
-        float4 clipRectInverseTranslate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
+        // clipRectInverseMatrix transforms from pixel coordinates to a space
+        // where the clipRect is the normalized rectangle: [-1, -1, 1, 1].
+        float2x2 clipRectInverseMatrix = make_float2x2(
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
+        float4 clipRectInverseTranslate =
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
 #ifndef @USING_DEPTH_STENCIL
-        v_clipRect = find_clip_rect_coverage_distances(clipRectInverseMatrix,
-                                                       clipRectInverseTranslate.xy,
-                                                       fragCoord);
+        v_clipRect =
+            find_clip_rect_coverage_distances(clipRectInverseMatrix,
+                                              clipRectInverseTranslate.xy,
+                                              fragCoord);
 #else  // USING_DEPTH_STENCIL
         set_clip_rect_plane_distances(clipRectInverseMatrix,
                                       clipRectInverseTranslate.xy,
@@ -155,23 +165,30 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @ENABLE_CLIPPING
     else if (@ENABLE_CLIPPING && paintType == CLIP_UPDATE_PAINT_TYPE)
     {
-        half outerClipID = id_bits_to_f16(paintData.x >> 16, uniforms.pathIDGranularity);
+        half outerClipID =
+            id_bits_to_f16(paintData.x >> 16, uniforms.pathIDGranularity);
         v_paint = float4(outerClipID, 0, 0, 0);
     }
 #endif
     else
     {
-        float2x2 paintMatrix = make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u));
-        float4 paintTranslate = STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 1u);
+        float2x2 paintMatrix =
+            make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u));
+        float4 paintTranslate =
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 1u);
         float2 paintCoord = MUL(paintMatrix, fragCoord) + paintTranslate.xy;
-        if (paintType == LINEAR_GRADIENT_PAINT_TYPE || paintType == RADIAL_GRADIENT_PAINT_TYPE)
+        if (paintType == LINEAR_GRADIENT_PAINT_TYPE ||
+            paintType == RADIAL_GRADIENT_PAINT_TYPE)
         {
-            // v_paint.a contains "-row" of the gradient ramp at texel center, in normalized space.
+            // v_paint.a contains "-row" of the gradient ramp at texel center,
+            // in normalized space.
             v_paint.a = -uintBitsToFloat(paintData.y);
             // abs(v_paint.b) contains either:
             //   - 2 if the gradient ramp spans an entire row.
-            //   - x0 of the gradient ramp in normalized space, if it's a simple 2-texel ramp.
-            if (paintTranslate.z > .9) // paintTranslate.z is either ~1 or ~1/GRAD_TEXTURE_WIDTH.
+            //   - x0 of the gradient ramp in normalized space, if it's a simple
+            //   2-texel ramp.
+            if (paintTranslate.z >
+                .9) // paintTranslate.z is either ~1 or ~1/GRAD_TEXTURE_WIDTH.
             {
                 // Complex ramps span an entire row. Set it to 2 to convey this.
                 v_paint.b = 2.;
@@ -189,9 +206,10 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             }
             else
             {
-                // The paint is a radial gradient. Mark v_paint.b negative to indicate this to the
-                // fragment shader. (v_paint.b can't be zero because the gradient ramp is aligned on
-                // pixel centers, so negating it will always produce a negative number.)
+                // The paint is a radial gradient. Mark v_paint.b negative to
+                // indicate this to the fragment shader. (v_paint.b can't be
+                // zero because the gradient ramp is aligned on pixel centers,
+                // so negating it will always produce a negative number.)
                 v_paint.b = -v_paint.b;
                 v_paint.rg = paintCoord.xy;
             }
@@ -201,7 +219,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             // v_paint.a <= -1. signals that the paint is an image.
             // -v_paint.a - 2 is the texture mipmap level-of-detail.
             // v_paint.b is the image opacity.
-            // v_paint.rg is the normalized image texture coordinate (built into the paintMatrix).
+            // v_paint.rg is the normalized image texture coordinate (built into
+            // the paintMatrix).
             float opacity = uintBitsToFloat(paintData.y);
             float lod = paintTranslate.z;
             v_paint = float4(paintCoord.x, paintCoord.y, opacity, -2. - lod);
@@ -271,21 +290,28 @@ INLINE half4 find_paint_color(float4 paint FRAGMENT_CONTEXT_DECL)
     }
     else if (paint.a > -1.) // Is paint is a gradient (linear or radial)?
     {
-        float t = paint.b > .0 ? /*linear*/ paint.r : /*radial*/ length(paint.rg);
+        float t =
+            paint.b > .0 ? /*linear*/ paint.r : /*radial*/ length(paint.rg);
         t = clamp(t, .0, 1.);
         float span = abs(paint.b);
-        float x = span > 1. ? /*entire row*/ (1. - 1. / GRAD_TEXTURE_WIDTH) * t +
-                                  (.5 / GRAD_TEXTURE_WIDTH)
-                            : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
+        float x = span > 1.
+                      ? /*entire row*/ (1. - 1. / GRAD_TEXTURE_WIDTH) * t +
+                            (.5 / GRAD_TEXTURE_WIDTH)
+                      : /*two texels*/ (1. / GRAD_TEXTURE_WIDTH) * t + span;
         float row = -paint.a;
-        // Our gradient texture is not mipmapped. Issue a texture-sample that explicitly does not
-        // find derivatives for LOD computation (by specifying derivatives directly).
-        return TEXTURE_SAMPLE_LOD(@gradTexture, gradSampler, float2(x, row), .0);
+        // Our gradient texture is not mipmapped. Issue a texture-sample that
+        // explicitly does not find derivatives for LOD computation (by
+        // specifying derivatives directly).
+        return TEXTURE_SAMPLE_LOD(@gradTexture,
+                                  gradSampler,
+                                  float2(x, row),
+                                  .0);
     }
     else // The paint is an image.
     {
         half lod = -paint.a - 2.;
-        half4 color = TEXTURE_SAMPLE_LOD(@imageTexture, imageSampler, paint.rg, lod);
+        half4 color =
+            TEXTURE_SAMPLE_LOD(@imageTexture, imageSampler, paint.rg, lod);
         half opacity = paint.b;
         color.a *= opacity;
         return color;
@@ -329,18 +355,22 @@ PLS_MAIN(@drawFragmentMain)
 
     half2 coverageData = unpackHalf2x16(PLS_LOADUI(coverageCountBuffer));
     half coverageBufferID = coverageData.g;
-    half coverageCount = coverageBufferID == v_pathID ? coverageData.r : make_half(.0);
+    half coverageCount =
+        coverageBufferID == v_pathID ? coverageData.r : make_half(.0);
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
     coverageCount += v_windingWeight;
 #else
     if (v_edgeDistance.y >= .0) // Stroke.
-        coverageCount = max(min(v_edgeDistance.x, v_edgeDistance.y), coverageCount);
-    else // Fill. (Back-face culling ensures v_edgeDistance.x is appropriately signed.)
+        coverageCount =
+            max(min(v_edgeDistance.x, v_edgeDistance.y), coverageCount);
+    else // Fill. (Back-face culling ensures v_edgeDistance.x is appropriately
+         // signed.)
         coverageCount += v_edgeDistance.x;
 
     // Save the updated coverage.
-    PLS_STOREUI(coverageCountBuffer, packHalf2x16(make_half2(coverageCount, v_pathID)));
+    PLS_STOREUI(coverageCountBuffer,
+                packHalf2x16(make_half2(coverageCount, v_pathID)));
 #endif
 
     // Convert coverageCount to coverage.
@@ -351,7 +381,9 @@ PLS_MAIN(@drawFragmentMain)
         coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
     }
 #endif
-    coverage = min(coverage, make_half(1.)); // This also caps stroke coverage, which can be >1.
+    coverage =
+        min(coverage,
+            make_half(1.)); // This also caps stroke coverage, which can be >1.
 
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.
@@ -363,29 +395,35 @@ PLS_MAIN(@drawFragmentMain)
             half outerClipID = v_paint.r;
             if (outerClipID != .0)
             {
-                // This is a nested clip. Intersect coverage with the enclosing clip (outerClipID).
+                // This is a nested clip. Intersect coverage with the enclosing
+                // clip (outerClipID).
                 half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
                 half clipContentID = clipData.g;
                 half outerClipCoverage;
                 if (clipContentID != clipID)
                 {
-                    // First hit: either clipBuffer contains outerClipCoverage, or this pixel is not
-                    // inside the outer clip and outerClipCoverage is zero.
-                    outerClipCoverage = clipContentID == outerClipID ? clipData.r : .0;
+                    // First hit: either clipBuffer contains outerClipCoverage,
+                    // or this pixel is not inside the outer clip and
+                    // outerClipCoverage is zero.
+                    outerClipCoverage =
+                        clipContentID == outerClipID ? clipData.r : .0;
 #ifndef @DRAW_INTERIOR_TRIANGLES
-                    // Stash outerClipCoverage before overwriting clipBuffer, in case we hit this
-                    // pixel again and need it. (Not necessary when drawing interior triangles
-                    // because they always go last and don't overlap.)
-                    PLS_STORE4F(scratchColorBuffer, make_half4(outerClipCoverage, .0, .0, .0));
+                    // Stash outerClipCoverage before overwriting clipBuffer, in
+                    // case we hit this pixel again and need it. (Not necessary
+                    // when drawing interior triangles because they always go
+                    // last and don't overlap.)
+                    PLS_STORE4F(scratchColorBuffer,
+                                make_half4(outerClipCoverage, .0, .0, .0));
 #endif
                 }
                 else
                 {
-                    // Subsequent hit: outerClipCoverage is stashed in scratchColorBuffer.
+                    // Subsequent hit: outerClipCoverage is stashed in
+                    // scratchColorBuffer.
                     outerClipCoverage = PLS_LOAD4F(scratchColorBuffer).r;
 #ifndef @DRAW_INTERIOR_TRIANGLES
-                    // Since interior triangles are always last, there's no need to preserve this
-                    // value.
+                    // Since interior triangles are always last, there's no need
+                    // to preserve this value.
                     PLS_PRESERVE_4F(scratchColorBuffer);
 #endif
                 }
@@ -405,11 +443,14 @@ PLS_MAIN(@drawFragmentMain)
             // Apply the clip.
             if (v_clipID != .0)
             {
-                // Clip IDs are not necessarily drawn in monotonically increasing order, so always
-                // check exact equality of the clipID.
+                // Clip IDs are not necessarily drawn in monotonically
+                // increasing order, so always check exact equality of the
+                // clipID.
                 half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
                 half clipContentID = clipData.g;
-                coverage = (clipContentID == v_clipID) ? min(clipData.r, coverage) : make_half(.0);
+                coverage = (clipContentID == v_clipID)
+                               ? min(clipData.r, coverage)
+                               : make_half(.0);
             }
             PLS_PRESERVE_UI(clipBuffer);
         }
@@ -431,8 +472,9 @@ PLS_MAIN(@drawFragmentMain)
             // This is the first fragment from pathID to touch this pixel.
             dstColor = PLS_LOAD4F(colorBuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
-            // We don't need to store coverage when drawing interior triangles because they always
-            // go last and don't overlap, so every fragment is the final one in the path.
+            // We don't need to store coverage when drawing interior triangles
+            // because they always go last and don't overlap, so every fragment
+            // is the final one in the path.
             PLS_STORE4F(scratchColorBuffer, dstColor);
 #endif
         }
@@ -440,16 +482,20 @@ PLS_MAIN(@drawFragmentMain)
         {
             dstColor = PLS_LOAD4F(scratchColorBuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
-            // Since interior triangles are always last, there's no need to preserve this value.
+            // Since interior triangles are always last, there's no need to
+            // preserve this value.
             PLS_PRESERVE_4F(scratchColorBuffer);
 #endif
         }
 
         // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
-        if (@ENABLE_ADVANCED_BLEND && v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
+        if (@ENABLE_ADVANCED_BLEND &&
+            v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
         {
-            color = advanced_blend(color, unmultiply(dstColor), cast_half_to_ushort(v_blendMode));
+            color = advanced_blend(color,
+                                   unmultiply(dstColor),
+                                   cast_half_to_ushort(v_blendMode));
         }
         else
 #endif
@@ -483,8 +529,11 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
     {
-        half4 dstColor = TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
-        color = advanced_blend(color, unmultiply(dstColor), cast_half_to_ushort(v_blendMode));
+        half4 dstColor =
+            TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
+        color = advanced_blend(color,
+                               unmultiply(dstColor),
+                               cast_half_to_ushort(v_blendMode));
     }
     else
 #endif // !ENABLE_ADVANCED_BLEND

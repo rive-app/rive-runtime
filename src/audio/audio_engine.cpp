@@ -77,7 +77,9 @@ public:
 
         ma_uint32 frameCount = pFrameCountIn[0];
 
-        static_cast<LevelsNode*>(pNode)->engine->measureLevels(frames, (uint32_t)frameCount);
+        static_cast<LevelsNode*>(pNode)->engine->measureLevels(
+            frames,
+            (uint32_t)frameCount);
     }
 };
 } // namespace rive
@@ -117,7 +119,8 @@ void AudioEngine::initLevelMonitor()
         m_levels.resize(channelCount);
 
         auto graph = ma_engine_get_node_graph(m_engine);
-        if (ma_node_init(graph, &nodeConfig, nullptr, &m_levelMonitor->base) != MA_SUCCESS)
+        if (ma_node_init(graph, &nodeConfig, nullptr, &m_levelMonitor->base) !=
+            MA_SUCCESS)
         {
             delete m_levelMonitor;
             m_levelMonitor = nullptr;
@@ -163,15 +166,16 @@ void AudioEngine::stop() { ma_engine_stop(m_engine); }
 
 rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
 {
-// I _think_ MA_NO_DEVICE_IO is defined when building for Unity; otherwise, it seems to pass
-// "standard" building When defined, pContext is unavailable, which causes build errors when
-// building Unity for iOS. - David
-#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&                      \
+// I _think_ MA_NO_DEVICE_IO is defined when building for Unity; otherwise, it
+// seems to pass "standard" building When defined, pContext is unavailable,
+// which causes build errors when building Unity for iOS. - David
+#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&  \
     !defined(MA_NO_DEVICE_IO)
-    // Used for configuration only, and isn't referenced past the usage of ma_context_init; thus,
-    // can be locally scoped. Uses the "logical" defaults from miniaudio, and updates only what we
-    // need. This should automatically set available backends in priority order based on the target
-    // it's built for, which in the case of Apple is Core Audio first.
+    // Used for configuration only, and isn't referenced past the usage of
+    // ma_context_init; thus, can be locally scoped. Uses the "logical" defaults
+    // from miniaudio, and updates only what we need. This should automatically
+    // set available backends in priority order based on the target it's built
+    // for, which in the case of Apple is Core Audio first.
     ma_context_config contextConfig = ma_context_config_init();
 
     // By setting the core audio session to none, miniaudio will not
@@ -183,7 +187,8 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
     // This does not touch whether the session is made (in)active.
     contextConfig.coreaudio.sessionCategory = ma_ios_session_category_none;
 
-    // We only need to initialize space for the context if we're targeting Apple platforms
+    // We only need to initialize space for the context if we're targeting Apple
+    // platforms
     ma_context* context = (ma_context*)malloc(sizeof(ma_context));
 
     if (ma_context_init(NULL, 0, &contextConfig, context) != MA_SUCCESS)
@@ -199,7 +204,7 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
     engineConfig.channels = numChannels;
     engineConfig.sampleRate = sampleRate;
 
-#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&                      \
+#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&  \
     !defined(MA_NO_DEVICE_IO)
     if (context != nullptr)
     {
@@ -215,7 +220,7 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
 
     if (ma_engine_init(&engineConfig, engine) != MA_SUCCESS)
     {
-#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&                      \
+#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&  \
     !defined(MA_NO_DEVICE_IO)
         if (context != nullptr)
         {
@@ -232,8 +237,14 @@ rcp<AudioEngine> AudioEngine::Make(uint32_t numChannels, uint32_t sampleRate)
     return rcp<AudioEngine>(new AudioEngine(engine, context));
 }
 
-uint32_t AudioEngine::channels() const { return ma_engine_get_channels(m_engine); }
-uint32_t AudioEngine::sampleRate() const { return ma_engine_get_sample_rate(m_engine); }
+uint32_t AudioEngine::channels() const
+{
+    return ma_engine_get_channels(m_engine);
+}
+uint32_t AudioEngine::sampleRate() const
+{
+    return ma_engine_get_sample_rate(m_engine);
+}
 
 AudioEngine::AudioEngine(ma_engine* engine, ma_context* context) :
     m_device(ma_engine_get_device(engine)), m_engine(engine), m_context(context)
@@ -260,33 +271,39 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
     }
     m_completedSounds.clear();
 
-    rcp<AudioSound> audioSound = rcp<AudioSound>(new AudioSound(this, source, artboard));
+    rcp<AudioSound> audioSound =
+        rcp<AudioSound>(new AudioSound(this, source, artboard));
     if (source->isBuffered())
     {
         rive::Span<float> samples = source->bufferedSamples();
         ma_uint64 sizeInFrames = samples.size() / source->channels();
         if (endTime != 0)
         {
-            float durationSeconds = (soundStartTime + endTime - startTime) / (float)sampleRate();
-            ma_uint64 clippedFrames = (ma_uint64)std::round(durationSeconds * source->sampleRate());
+            float durationSeconds =
+                (soundStartTime + endTime - startTime) / (float)sampleRate();
+            ma_uint64 clippedFrames =
+                (ma_uint64)std::round(durationSeconds * source->sampleRate());
             if (clippedFrames < sizeInFrames)
             {
                 sizeInFrames = clippedFrames;
             }
         }
-        ma_audio_buffer_config config = ma_audio_buffer_config_init(ma_format_f32,
-                                                                    source->channels(),
-                                                                    sizeInFrames,
-                                                                    (const void*)samples.data(),
-                                                                    nullptr);
+        ma_audio_buffer_config config =
+            ma_audio_buffer_config_init(ma_format_f32,
+                                        source->channels(),
+                                        sizeInFrames,
+                                        (const void*)samples.data(),
+                                        nullptr);
         if (ma_audio_buffer_init(&config, audioSound->buffer()) != MA_SUCCESS)
         {
-            fprintf(stderr, "AudioSource::play - Failed to initialize audio buffer.\n");
+            fprintf(stderr,
+                    "AudioSource::play - Failed to initialize audio buffer.\n");
             return nullptr;
         }
         if (ma_sound_init_from_data_source(m_engine,
                                            audioSound->buffer(),
-                                           MA_SOUND_FLAG_NO_PITCH | MA_SOUND_FLAG_NO_SPATIALIZATION,
+                                           MA_SOUND_FLAG_NO_PITCH |
+                                               MA_SOUND_FLAG_NO_SPATIALIZATION,
                                            nullptr,
                                            audioSound->sound()) != MA_SUCCESS)
         {
@@ -301,14 +318,16 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
         // using ma_sound_set_stop_time_in_pcm_frames(audioSound->sound(),
         // endTime); as this keeps the sound playing/ready to fade back in.
         auto clip = audioSound->clippedDecoder();
-        ma_decoder_config config = ma_decoder_config_init(ma_format_f32, channels(), sampleRate());
+        ma_decoder_config config =
+            ma_decoder_config_init(ma_format_f32, channels(), sampleRate());
         auto sourceBytes = source->bytes();
         if (ma_decoder_init_memory(sourceBytes.data(),
                                    sourceBytes.size(),
                                    &config,
                                    &clip->decoder) != MA_SUCCESS)
         {
-            fprintf(stderr, "AudioSource::play - Failed to initialize decoder.\n");
+            fprintf(stderr,
+                    "AudioSource::play - Failed to initialize decoder.\n");
             return nullptr;
         }
         clip->frameCursor = 0;
@@ -323,7 +342,8 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
 
         if (ma_sound_init_from_data_source(m_engine,
                                            audioSound->clippedDecoder(),
-                                           MA_SOUND_FLAG_NO_PITCH | MA_SOUND_FLAG_NO_SPATIALIZATION,
+                                           MA_SOUND_FLAG_NO_PITCH |
+                                               MA_SOUND_FLAG_NO_SPATIALIZATION,
                                            nullptr,
                                            audioSound->sound()) != MA_SUCCESS)
         {
@@ -336,7 +356,9 @@ rcp<AudioSound> AudioEngine::play(rcp<AudioSource> source,
         audioSound->seek(soundStartTime);
     }
 
-    ma_sound_set_end_callback(audioSound->sound(), SoundCompleted, audioSound.get());
+    ma_sound_set_end_callback(audioSound->sound(),
+                              SoundCompleted,
+                              audioSound.get());
 
     if (startTime != 0)
     {
@@ -416,7 +438,7 @@ AudioEngine::~AudioEngine()
     }
     m_completedSounds.clear();
 
-#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&                      \
+#if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&  \
     !defined(MA_NO_DEVICE_IO)
     // m_context is only set when Core Audio is available
     if (m_context != nullptr)
@@ -454,13 +476,16 @@ rcp<AudioEngine> AudioEngine::RuntimeEngine(bool makeWhenNecessary)
     }
     else if (m_runtimeAudioEngine == nullptr)
     {
-        m_runtimeAudioEngine = AudioEngine::Make(defaultNumChannels, defaultSampleRate);
+        m_runtimeAudioEngine =
+            AudioEngine::Make(defaultNumChannels, defaultSampleRate);
     }
     return m_runtimeAudioEngine;
 }
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
-bool AudioEngine::readAudioFrames(float* frames, uint64_t numFrames, uint64_t* framesRead)
+bool AudioEngine::readAudioFrames(float* frames,
+                                  uint64_t numFrames,
+                                  uint64_t* framesRead)
 {
     return ma_engine_read_pcm_frames(m_engine,
                                      (void*)frames,

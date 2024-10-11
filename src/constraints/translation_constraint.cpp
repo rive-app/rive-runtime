@@ -37,7 +37,8 @@ void TranslationConstraint::constrain(TransformComponent* component)
 
         if (!doesCopy())
         {
-            translationB.x = destSpace() == TransformSpace::local ? 0.0f : translationA.x;
+            translationB.x =
+                destSpace() == TransformSpace::local ? 0.0f : translationA.x;
         }
         else
         {
@@ -50,7 +51,8 @@ void TranslationConstraint::constrain(TransformComponent* component)
 
         if (!doesCopyY())
         {
-            translationB.y = destSpace() == TransformSpace::local ? 0.0f : translationA.y;
+            translationB.y =
+                destSpace() == TransformSpace::local ? 0.0f : translationA.y;
         }
         else
         {

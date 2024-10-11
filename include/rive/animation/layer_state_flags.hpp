@@ -16,7 +16,8 @@ enum class LayerStateFlags : unsigned char
     Reset = 1 << 1,
 };
 
-inline constexpr LayerStateFlags operator&(LayerStateFlags lhs, LayerStateFlags rhs)
+inline constexpr LayerStateFlags operator&(LayerStateFlags lhs,
+                                           LayerStateFlags rhs)
 {
     return static_cast<LayerStateFlags>(
         static_cast<std::underlying_type<LayerStateFlags>::type>(lhs) &

@@ -40,17 +40,24 @@ protected:
     }
 
     std::vector<PathDraw> m_pathDraws;
-    std::unique_ptr<RenderContext> m_nullContext = RenderContextNULL::MakeContext();
+    std::unique_ptr<RenderContext> m_nullContext =
+        RenderContextNULL::MakeContext();
     mutable RiveRenderer m_renderer{m_nullContext.get()};
     rive::rcp<RenderTarget> m_renderTarget =
-        m_nullContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(1600, 1600);
+        m_nullContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
+            1600,
+            1600);
 };
 
 class SniffPathsRenderer : public Renderer
 {
 public:
-    SniffPathsRenderer(std::vector<PathDraw>* pathDraws, bool allStrokes, bool allRoundJoin) :
-        m_pathDraws(pathDraws), m_allStrokes(allStrokes), m_allRoundJoin(allRoundJoin)
+    SniffPathsRenderer(std::vector<PathDraw>* pathDraws,
+                       bool allStrokes,
+                       bool allRoundJoin) :
+        m_pathDraws(pathDraws),
+        m_allStrokes(allStrokes),
+        m_allRoundJoin(allRoundJoin)
     {}
     void save() override {}
     void restore() override {}
@@ -90,7 +97,8 @@ private:
     bool m_allRoundJoin;
 };
 
-// Measure the speed of RiveRenderer::drawPath() from the contents of a .riv file.
+// Measure the speed of RiveRenderer::drawPath() from the contents of a .riv
+// file.
 class DrawRiveRenderPaths : public DrawRiveRenderPath
 {
 public:
@@ -98,7 +106,8 @@ public:
     {
         // Sniff paths out of a .riv file.
         SniffPathsRenderer sniffer(&m_pathDraws, allStrokes, allRoundJoin);
-        std::unique_ptr<File> rivFile = File::import(assets::paper_riv(), m_nullContext.get());
+        std::unique_ptr<File> rivFile =
+            File::import(assets::paper_riv(), m_nullContext.get());
         std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
         std::unique_ptr<Scene> scene = artboard->defaultScene();
         scene->advanceAndApply(0);
@@ -108,8 +117,8 @@ public:
 
 REGISTER_BENCH(DrawRiveRenderPaths);
 
-// Measure the speed of RiveRenderer::drawPath() from the contents of a .riv file, all paths
-// converted to strokes.
+// Measure the speed of RiveRenderer::drawPath() from the contents of a .riv
+// file, all paths converted to strokes.
 class DrawRiveRenderPathsAsStrokes : public DrawRiveRenderPaths
 {
 public:
@@ -135,10 +144,12 @@ public:
             buildPath(rawPath);
             auto renderPath = static_rcp_cast<RiveRenderPath>(
                 m_nullContext->makeRenderPath(rawPath, FillRule::nonZero));
-            auto renderPaint = static_rcp_cast<RiveRenderPaint>(m_nullContext->makeRenderPaint());
+            auto renderPaint = static_rcp_cast<RiveRenderPaint>(
+                m_nullContext->makeRenderPaint());
             renderPaint->style(RenderPaintStyle::stroke);
             renderPaint->thickness(2);
-            m_pathDraws.emplace_back(std::move(renderPath), std::move(renderPaint));
+            m_pathDraws.emplace_back(std::move(renderPath),
+                                     std::move(renderPaint));
         }
     }
 

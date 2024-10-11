@@ -11,7 +11,11 @@ namespace rive::gpu
 class PLSTestPath : public RiveRenderPath
 {
 public:
-    void addRect(float x, float y, float width, float height, PathDirection wind)
+    void addRect(float x,
+                 float y,
+                 float width,
+                 float height,
+                 PathDirection wind)
     {
         RawPath rawPath;
         rawPath.addRect({x, y, x + width, y + height}, wind);
@@ -28,8 +32,9 @@ public:
     }
 };
 
-// Check that RiveRenderPath::getCoarseArea() is positive for clockwise paths and negative for
-// counterclockwise. Also check that it's within a margin of error of the true area for curves.
+// Check that RiveRenderPath::getCoarseArea() is positive for clockwise paths
+// and negative for counterclockwise. Also check that it's within a margin of
+// error of the true area for curves.
 TEST_CASE("getCoarseArea", "[RiveRenderPath]")
 {
     PLSTestPath path;
@@ -44,7 +49,11 @@ TEST_CASE("getCoarseArea", "[RiveRenderPath]")
     path.addRect(0, 0, 1, 1, PathDirection::clockwise); // +1 px
     CHECK(path.getCoarseArea() == (2000 - 40 + 1));
 
-    path.addRect(-1, -1, 300, 100, PathDirection::counterclockwise); // -30000 px
+    path.addRect(-1,
+                 -1,
+                 300,
+                 100,
+                 PathDirection::counterclockwise); // -30000 px
     CHECK(path.getCoarseArea() == (2000 - 40 + 1 - 30000));
     CHECK(path.getCoarseArea() == (2000 - 40 + 1 - 30000));
 
@@ -53,14 +62,17 @@ TEST_CASE("getCoarseArea", "[RiveRenderPath]")
     CHECK(path.getCoarseArea() == 0);
 
     path.addCircle(0, 0, 1000, PathDirection::clockwise);
-    CHECK(path.getCoarseArea() / (math::PI * 1000 * 1000) == Approx(1).margin(1e-2f));
+    CHECK(path.getCoarseArea() / (math::PI * 1000 * 1000) ==
+          Approx(1).margin(1e-2f));
     path.rewind();
 
     path.addCircle(30, -100, 900, PathDirection::counterclockwise);
-    CHECK(path.getCoarseArea() / (math::PI * 900 * 900) == Approx(-1).margin(1e-2f));
+    CHECK(path.getCoarseArea() / (math::PI * 900 * 900) ==
+          Approx(-1).margin(1e-2f));
 
     path.addCircle(0, 0, 1000, PathDirection::clockwise);
-    CHECK(path.getCoarseArea() / (math::PI * 1000 * 1000 - math::PI * 900 * 900) ==
+    CHECK(path.getCoarseArea() /
+              (math::PI * 1000 * 1000 - math::PI * 900 * 900) ==
           Approx(1).margin(1e-2f));
 }
 } // namespace rive::gpu

@@ -19,15 +19,19 @@ private:
 
 public:
     // bytes is expected to be tightly packed RGBA*width*height.
-    SokolRenderImageResource(const uint8_t* bytes, uint32_t width, uint32_t height);
+    SokolRenderImageResource(const uint8_t* bytes,
+                             uint32_t width,
+                             uint32_t height);
     ~SokolRenderImageResource();
 
     sg_image image() const { return m_gpuResource; }
 };
 
-// The unique render image associated with a given source Rive asset. Can be stored in sub-region of
-// an actual graphics device image (SokolRenderImageResource).
-class SokolRenderImage : public lite_rtti_override<RenderImage, SokolRenderImage>
+// The unique render image associated with a given source Rive asset. Can be
+// stored in sub-region of an actual graphics device image
+// (SokolRenderImageResource).
+class SokolRenderImage
+    : public lite_rtti_override<RenderImage, SokolRenderImage>
 {
 private:
     rcp<SokolRenderImageResource> m_gpuImage;

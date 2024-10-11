@@ -30,19 +30,26 @@ public:
         m_targetLastAccess = lastAccess;
     }
 
-    const VulkanContext::TextureAccess& targetLastAccess() const { return m_targetLastAccess; }
+    const VulkanContext::TextureAccess& targetLastAccess() const
+    {
+        return m_targetLastAccess;
+    }
 
     bool targetViewContainsUsageFlag(VkImageUsageFlagBits bit) const
     {
-        return m_targetTextureView ? static_cast<bool>(m_targetTextureView->usageFlags() & bit)
-                                   : false;
+        return m_targetTextureView
+                   ? static_cast<bool>(m_targetTextureView->usageFlags() & bit)
+                   : false;
     }
 
     const VkFormat framebufferFormat() const { return m_framebufferFormat; }
 
     VkImage targetTexture() const { return m_targetTextureView->info().image; }
 
-    vkutil::TextureView* targetTextureView() const { return m_targetTextureView.get(); }
+    vkutil::TextureView* targetTextureView() const
+    {
+        return m_targetTextureView.get();
+    }
 
     vkutil::TextureView* offscreenColorTextureView() const
     {
@@ -70,7 +77,9 @@ private:
                        uint32_t width,
                        uint32_t height,
                        VkFormat framebufferFormat) :
-        RenderTarget(width, height), m_vk(std::move(vk)), m_framebufferFormat(framebufferFormat)
+        RenderTarget(width, height),
+        m_vk(std::move(vk)),
+        m_framebufferFormat(framebufferFormat)
     {}
 
     const rcp<VulkanContext> m_vk;
@@ -78,12 +87,15 @@ private:
     rcp<vkutil::TextureView> m_targetTextureView;
     VulkanContext::TextureAccess m_targetLastAccess;
 
-    rcp<vkutil::Texture> m_offscreenColorTexture; // Used when m_targetTextureView does not have
-                                                  // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
-    rcp<vkutil::Texture> m_coverageTexture;       // gpu::InterlockMode::rasterOrdering.
+    rcp<vkutil::Texture>
+        m_offscreenColorTexture; // Used when m_targetTextureView does not have
+                                 // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
+    rcp<vkutil::Texture>
+        m_coverageTexture; // gpu::InterlockMode::rasterOrdering.
     rcp<vkutil::Texture> m_clipTexture;
     rcp<vkutil::Texture> m_scratchColorTexture;
-    rcp<vkutil::Texture> m_coverageAtomicTexture; // gpu::InterlockMode::atomics.
+    rcp<vkutil::Texture>
+        m_coverageAtomicTexture; // gpu::InterlockMode::atomics.
 
     rcp<vkutil::TextureView> m_offscreenColorTextureView;
     rcp<vkutil::TextureView> m_coverageTextureView;
@@ -109,10 +121,13 @@ public:
                                              uint32_t height,
                                              VkFormat framebufferFormat)
     {
-        return rcp(new RenderTargetVulkan(m_vk, width, height, framebufferFormat));
+        return rcp(
+            new RenderTargetVulkan(m_vk, width, height, framebufferFormat));
     }
 
-    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType,
+                                       RenderBufferFlags,
+                                       size_t) override;
 
     rcp<Texture> decodeImageTexture(Span<const uint8_t> encodedBytes) override;
 
@@ -129,23 +144,27 @@ private:
 
     void prepareToMapBuffers() override;
 
-#define IMPLEMENT_PLS_BUFFER(Name, m_name)                                                         \
-    void resize##Name(size_t sizeInBytes) override { m_name.setTargetSize(sizeInBytes); }          \
-    void* map##Name(size_t mapSizeInBytes) override                                                \
-    {                                                                                              \
-        return m_name.contentsAt(m_bufferRingIdx, mapSizeInBytes);                                 \
-    }                                                                                              \
+#define IMPLEMENT_PLS_BUFFER(Name, m_name)                                     \
+    void resize##Name(size_t sizeInBytes) override                             \
+    {                                                                          \
+        m_name.setTargetSize(sizeInBytes);                                     \
+    }                                                                          \
+    void* map##Name(size_t mapSizeInBytes) override                            \
+    {                                                                          \
+        return m_name.contentsAt(m_bufferRingIdx, mapSizeInBytes);             \
+    }                                                                          \
     void unmap##Name() override { m_name.flushContentsAt(m_bufferRingIdx); }
 
-#define IMPLEMENT_PLS_STRUCTURED_BUFFER(Name, m_name)                                              \
-    void resize##Name(size_t sizeInBytes, gpu::StorageBufferStructure) override                    \
-    {                                                                                              \
-        m_name.setTargetSize(sizeInBytes);                                                         \
-    }                                                                                              \
-    void* map##Name(size_t mapSizeInBytes) override                                                \
-    {                                                                                              \
-        return m_name.contentsAt(m_bufferRingIdx, mapSizeInBytes);                                 \
-    }                                                                                              \
+#define IMPLEMENT_PLS_STRUCTURED_BUFFER(Name, m_name)                          \
+    void resize##Name(size_t sizeInBytes, gpu::StorageBufferStructure)         \
+        override                                                               \
+    {                                                                          \
+        m_name.setTargetSize(sizeInBytes);                                     \
+    }                                                                          \
+    void* map##Name(size_t mapSizeInBytes) override                            \
+    {                                                                          \
+        return m_name.contentsAt(m_bufferRingIdx, mapSizeInBytes);             \
+    }                                                                          \
     void unmap##Name() override { m_name.flushContentsAt(m_bufferRingIdx); }
 
     IMPLEMENT_PLS_BUFFER(FlushUniformBuffer, m_flushUniformBufferRing)
@@ -167,9 +186,9 @@ private:
 
     // Wraps a VkDescriptorPool created specifically for a PLS flush, and tracks
     // its allocated descriptor sets.
-    // The vkutil::RenderingResource base ensures this class stays alive until its
-    // command buffer finishes, at which point we free the allocated descriptor
-    // sets and return the VkDescriptor to the renderContext.
+    // The vkutil::RenderingResource base ensures this class stays alive until
+    // its command buffer finishes, at which point we free the allocated
+    // descriptor sets and return the VkDescriptor to the renderContext.
     class DescriptorSetPool final : public RefCnt<DescriptorSetPool>
     {
     public:
@@ -183,7 +202,10 @@ private:
         friend class RefCnt<DescriptorSetPool>;
         friend class vkutil::ResourcePool<DescriptorSetPool>;
 
-        void onRefCntReachedZero() const { m_pool->onResourceRefCntReachedZero(this); }
+        void onRefCntReachedZero() const
+        {
+            m_pool->onResourceRefCntReachedZero(this);
+        }
 
         const rcp<VulkanContext> m_vk;
         rcp<vkutil::ResourcePool<DescriptorSetPool>> m_pool;
@@ -211,7 +233,8 @@ private:
     vkutil::BufferRing m_gradSpanBufferRing;
     vkutil::BufferRing m_tessSpanBufferRing;
     vkutil::BufferRing m_triangleBufferRing;
-    std::chrono::steady_clock::time_point m_localEpoch = std::chrono::steady_clock::now();
+    std::chrono::steady_clock::time_point m_localEpoch =
+        std::chrono::steady_clock::now();
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;
@@ -232,7 +255,8 @@ private:
     // [rasterOrdering, atomics] x [all DrawPipelineLayoutOptions permutations].
     class DrawPipelineLayout;
     constexpr static int kDrawPipelineLayoutOptionCount = 1;
-    std::array<std::unique_ptr<DrawPipelineLayout>, 2 * (1 << kDrawPipelineLayoutOptionCount)>
+    std::array<std::unique_ptr<DrawPipelineLayout>,
+               2 * (1 << kDrawPipelineLayoutOptionCount)>
         m_drawPipelineLayouts;
 
     class DrawShader;
@@ -241,7 +265,8 @@ private:
     class DrawPipeline;
     std::map<uint32_t, DrawPipeline> m_drawPipelines;
 
-    rcp<TextureVulkanImpl> m_nullImageTexture; // Bound when there is not an image paint.
+    rcp<TextureVulkanImpl>
+        m_nullImageTexture; // Bound when there is not an image paint.
     VkSampler m_linearSampler;
     VkSampler m_mipmapSampler;
     rcp<vkutil::Buffer> m_pathPatchVertexBuffer;
@@ -249,7 +274,8 @@ private:
     rcp<vkutil::Buffer> m_imageRectVertexBuffer;
     rcp<vkutil::Buffer> m_imageRectIndexBuffer;
 
-    rcp<gpu::CommandBufferCompletionFence> m_frameCompletionFences[gpu::kBufferRingSize];
+    rcp<gpu::CommandBufferCompletionFence>
+        m_frameCompletionFences[gpu::kBufferRingSize];
     int m_bufferRingIdx = -1;
 
     // Pool of DescriptorSetPools that have been fully released. These will be

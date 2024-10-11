@@ -10,12 +10,14 @@ using namespace rive;
 StatusCode ListenerAction::import(ImportStack& importStack)
 {
     auto stateMachineListenerImporter =
-        importStack.latest<StateMachineListenerImporter>(StateMachineListenerBase::typeKey);
+        importStack.latest<StateMachineListenerImporter>(
+            StateMachineListenerBase::typeKey);
     if (stateMachineListenerImporter == nullptr)
     {
         return StatusCode::MissingObject;
     }
 
-    stateMachineListenerImporter->addAction(std::unique_ptr<ListenerAction>(this));
+    stateMachineListenerImporter->addAction(
+        std::unique_ptr<ListenerAction>(this));
     return Super::import(importStack);
 }

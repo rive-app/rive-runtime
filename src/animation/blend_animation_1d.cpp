@@ -2,6 +2,12 @@
 
 using namespace rive;
 
-StatusCode BlendAnimation1D::onAddedDirty(CoreContext* context) { return StatusCode::Ok; }
+StatusCode BlendAnimation1D::onAddedDirty(CoreContext* context)
+{
+    return StatusCode::Ok;
+}
 
-StatusCode BlendAnimation1D::onAddedClean(CoreContext* context) { return StatusCode::Ok; }
+StatusCode BlendAnimation1D::onAddedClean(CoreContext* context)
+{
+    return StatusCode::Ok;
+}

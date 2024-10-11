@@ -4,7 +4,8 @@
 #include <stdio.h>
 namespace rive
 {
-class TransitionValueNumberComparator : public TransitionValueNumberComparatorBase
+class TransitionValueNumberComparator
+    : public TransitionValueNumberComparatorBase
 {
 public:
     bool compare(TransitionComparator* comparand,

@@ -13,7 +13,8 @@ using namespace rive;
 
 constexpr static int kNumRows = 3;
 
-// Ensures that rectangular clips (which are handled as clipRects) get rendered correctly.
+// Ensures that rectangular clips (which are handled as clipRects) get rendered
+// correctly.
 class ClipRectsGM : public GM
 {
 public:
@@ -31,7 +32,8 @@ public:
 
         for (size_t i = 0; i < kNumRows; ++i)
         {
-            AABB outerRect = AABB::fromLTWH(25.f, 25.f + 200.f * i, 150.f, 150.f);
+            AABB outerRect =
+                AABB::fromLTWH(25.f, 25.f + 200.f * i, 150.f, 150.f);
             AABB innerRect = outerRect.inset(5, 5);
 
             if (i == kNumRows - 1)

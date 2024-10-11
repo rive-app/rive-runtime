@@ -32,8 +32,10 @@ protected:
         float stops[2] = {0, 1};
         rive::ColorInt dstColors[2] = {0, 0xff00ff00};
         rive::ColorInt srcColors[2] = {0, 0xffff0000};
-        rcp<RenderShader> dstGrad = factory->makeLinearGradient(0, 0, w, 0, dstColors, stops, 2);
-        rcp<RenderShader> srcGrad = factory->makeLinearGradient(0, 0, 0, h, srcColors, stops, 2);
+        rcp<RenderShader> dstGrad =
+            factory->makeLinearGradient(0, 0, w, 0, dstColors, stops, 2);
+        rcp<RenderShader> srcGrad =
+            factory->makeLinearGradient(0, 0, 0, h, srcColors, stops, 2);
 
         // SkFont font(ToolUtils::create_portable_typeface());
 

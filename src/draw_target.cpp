@@ -21,6 +21,12 @@ StatusCode DrawTarget::onAddedDirty(CoreContext* context)
     return StatusCode::Ok;
 }
 
-StatusCode DrawTarget::onAddedClean(CoreContext* context) { return StatusCode::Ok; }
+StatusCode DrawTarget::onAddedClean(CoreContext* context)
+{
+    return StatusCode::Ok;
+}
 
-void DrawTarget::placementValueChanged() { artboard()->addDirt(ComponentDirt::DrawOrder); }
+void DrawTarget::placementValueChanged()
+{
+    artboard()->addDirt(ComponentDirt::DrawOrder);
+}

@@ -36,7 +36,9 @@ private:
             ltrb.zw = simd::max(box.xy, box.zw);
             ltrb = simd::min(ltrb, int4(254));
             ltrb.zw += 1;
-            uint16_t idx = simd::reduce_max(m_tile.findMaxIntersectingGroupIndex(ltrb, 0)) + 1;
+            uint16_t idx = simd::reduce_max(
+                               m_tile.findMaxIntersectingGroupIndex(ltrb, 0)) +
+                           1;
             m_tile.addRectangle(ltrb, idx);
         }
         return idx;
@@ -54,8 +56,14 @@ REGISTER_BENCH(IntersectionTileBench);
 class IntersectionBoardBench : public Bench
 {
 public:
-    IntersectionBoardBench(uint32_t width, uint32_t height, const int4* bboxes, size_t bboxCount) :
-        m_width(width), m_height(height), m_bboxes(bboxes), m_bboxCount(bboxCount)
+    IntersectionBoardBench(uint32_t width,
+                           uint32_t height,
+                           const int4* bboxes,
+                           size_t bboxCount) :
+        m_width(width),
+        m_height(height),
+        m_bboxes(bboxes),
+        m_bboxCount(bboxCount)
     {}
 
     void setup() override

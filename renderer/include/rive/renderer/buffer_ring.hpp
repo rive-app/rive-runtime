@@ -8,13 +8,15 @@
 
 namespace rive::gpu
 {
-// API-agnostic implementation of an abstract buffer ring. We use rings to ensure the GPU can render
-// one frame in parallel while the CPU prepares the next frame.
+// API-agnostic implementation of an abstract buffer ring. We use rings to
+// ensure the GPU can render one frame in parallel while the CPU prepares the
+// next frame.
 //
 // Calling mapBuffer() maps the next buffer in the ring.
 //
-// Calling unmapAndSubmitBuffer() submits the currently-mapped buffer for GPU rendering, in whatever
-// way that is meaningful for the RenderContext implementation.
+// Calling unmapAndSubmitBuffer() submits the currently-mapped buffer for GPU
+// rendering, in whatever way that is meaningful for the RenderContext
+// implementation.
 //
 // This class is meant to only be used through BufferRing<>.
 class BufferRing
@@ -37,8 +39,8 @@ public:
         return onMapBuffer(m_submittedBufferIdx, m_mapSizeInBytes);
     }
 
-    // Submits the currently-mapped buffer for GPU rendering, in whatever way that is meaningful for
-    // the RenderContext implementation.
+    // Submits the currently-mapped buffer for GPU rendering, in whatever way
+    // that is meaningful for the RenderContext implementation.
     void unmapAndSubmitBuffer()
     {
         assert(isMapped());
@@ -54,7 +56,8 @@ protected:
     }
 
     virtual void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) = 0;
-    virtual void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) = 0;
+    virtual void onUnmapAndSubmitBuffer(int bufferIdx,
+                                        size_t mapSizeInBytes) = 0;
 
     uint8_t* shadowBuffer() const
     {
@@ -70,11 +73,13 @@ private:
     size_t m_mapSizeInBytes = 0;
     int m_submittedBufferIdx = 0;
 
-    // Lazy-allocated CPU buffer for when buffer mapping isn't supported by the API.
+    // Lazy-allocated CPU buffer for when buffer mapping isn't supported by the
+    // API.
     mutable std::unique_ptr<uint8_t[]> m_shadowBuffer;
 };
 
-// BufferRing that resides solely in CPU memory, and therefore doesn't require a ring.
+// BufferRing that resides solely in CPU memory, and therefore doesn't require a
+// ring.
 class HeapBufferRing : public BufferRing
 {
 public:
@@ -83,7 +88,11 @@ public:
     uint8_t* contents() const { return shadowBuffer(); }
 
 protected:
-    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override { return shadowBuffer(); }
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override {}
+    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
+    {
+        return shadowBuffer();
+    }
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
+    {}
 };
 } // namespace rive::gpu

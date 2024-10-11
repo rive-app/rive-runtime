@@ -23,7 +23,11 @@ inline static void vk_check(VkResult res, const char* file, int line)
 {
     if (res != VK_SUCCESS)
     {
-        fprintf(stderr, "Vulkan error %i at line: %i in file: %s\n", res, line, file);
+        fprintf(stderr,
+                "Vulkan error %i at line: %i in file: %s\n",
+                res,
+                line,
+                file);
         abort();
     }
 }
@@ -38,8 +42,8 @@ constexpr static uint32_t kVendorQualcomm = 0x5143;
 constexpr static uint32_t kVendorINTEL = 0x8086;
 
 constexpr static VkColorComponentFlags kColorWriteMaskRGBA =
-    VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT | VK_COLOR_COMPONENT_B_BIT |
-    VK_COLOR_COMPONENT_A_BIT;
+    VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
+    VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;
 
 enum class Mappability
 {
@@ -76,7 +80,8 @@ private:
 template <typename T> struct ZombieResource
 {
     ZombieResource(T* resource_, uint64_t lastFrameUsed) :
-        resource(resource_), expirationFrameIdx(lastFrameUsed + gpu::kBufferRingSize)
+        resource(resource_),
+        expirationFrameIdx(lastFrameUsed + gpu::kBufferRingSize)
     {
         assert(resource_->debugging_refcnt() == 0);
     }
@@ -138,7 +143,10 @@ public:
 
     size_t size() const { return m_targetSize; }
 
-    VkBuffer vkBufferAt(int bufferRingIdx) const { return *m_buffers[bufferRingIdx]; }
+    VkBuffer vkBufferAt(int bufferRingIdx) const
+    {
+        return *m_buffers[bufferRingIdx];
+    }
 
     const VkBuffer* vkBufferAtAddressOf(int bufferRingIdx) const
     {
@@ -239,7 +247,8 @@ private:
 };
 
 template <size_t Size>
-void set_shader_code(VkShaderModuleCreateInfo& info, const uint32_t (&code)[Size])
+void set_shader_code(VkShaderModuleCreateInfo& info,
+                     const uint32_t (&code)[Size])
 {
     info.codeSize = sizeof(code);
     info.pCode = code;

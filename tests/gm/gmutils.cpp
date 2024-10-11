@@ -97,9 +97,9 @@ void draw_image(rive::Renderer* ren, rive::RenderImage* img, rive::AABB dst)
         return;
     }
 
-    rive::Mat2D mat =
-        rive::Mat2D::fromTranslate(dst.left(), dst.top()) *
-        rive::Mat2D::fromScale(dst.width() / img->width(), dst.height() / img->height());
+    rive::Mat2D mat = rive::Mat2D::fromTranslate(dst.left(), dst.top()) *
+                      rive::Mat2D::fromScale(dst.width() / img->width(),
+                                             dst.height() / img->height());
 
     ren->save();
     ren->transform(mat);
@@ -154,7 +154,12 @@ PathBuilder& PathBuilder::quadTo(float ox, float oy, float x, float y)
     return *this;
 }
 
-PathBuilder& PathBuilder::cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+PathBuilder& PathBuilder::cubicTo(float ox,
+                                  float oy,
+                                  float ix,
+                                  float iy,
+                                  float x,
+                                  float y)
 {
     m_Path->cubicTo(ox, oy, ix, iy, x, y);
     m_LastX = x;
@@ -200,7 +205,10 @@ PathBuilder& PathBuilder::addOval(rive::AABB bounds, PathDirection dir)
     return *this;
 }
 
-PathBuilder& PathBuilder::addCircle(float x, float y, float r, PathDirection dir)
+PathBuilder& PathBuilder::addCircle(float x,
+                                    float y,
+                                    float r,
+                                    PathDirection dir)
 {
     return addOval({x - r, y - r, x + r, y + r}, dir);
 }
@@ -220,7 +228,8 @@ PathBuilder& PathBuilder::addRRect(rive::AABB rect, float radX, float radY)
     return close();
 }
 
-PathBuilder& PathBuilder::addPolygon(const std::vector<rive::Vec2D>& pts, bool doClose)
+PathBuilder& PathBuilder::addPolygon(const std::vector<rive::Vec2D>& pts,
+                                     bool doClose)
 {
     moveTo(pts[0].x, pts[0].y);
     for (size_t i = 1; i < pts.size(); ++i)

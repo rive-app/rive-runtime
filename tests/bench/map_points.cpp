@@ -8,7 +8,9 @@
 
 using namespace rive;
 
-static void map(const Mat2D& m, std::vector<Vec2D>& dst, const std::vector<Vec2D>& pts)
+static void map(const Mat2D& m,
+                std::vector<Vec2D>& dst,
+                const std::vector<Vec2D>& pts)
 {
     size_t n = pts.size();
 #if 0

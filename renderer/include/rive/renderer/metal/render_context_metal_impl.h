@@ -37,25 +37,32 @@ public:
 private:
     friend class RenderContextMetalImpl;
 
-    RenderTargetMetal(
-        id<MTLDevice>, MTLPixelFormat, uint32_t width, uint32_t height, const PlatformFeatures&);
+    RenderTargetMetal(id<MTLDevice>,
+                      MTLPixelFormat,
+                      uint32_t width,
+                      uint32_t height,
+                      const PlatformFeatures&);
 
-    // Lazily-allocated buffers for atomic mode. Unlike the memoryless textures, these buffers have
-    // actual physical storage that gets allocated the first time they're accessed.
+    // Lazily-allocated buffers for atomic mode. Unlike the memoryless textures,
+    // these buffers have actual physical storage that gets allocated the first
+    // time they're accessed.
     id<MTLBuffer> colorAtomicBuffer()
     {
-        return m_colorAtomicBuffer != nil ? m_colorAtomicBuffer
-                                          : m_colorAtomicBuffer = makeAtomicBuffer();
+        return m_colorAtomicBuffer != nil
+                   ? m_colorAtomicBuffer
+                   : m_colorAtomicBuffer = makeAtomicBuffer();
     }
     id<MTLBuffer> coverageAtomicBuffer()
     {
-        return m_coverageAtomicBuffer != nil ? m_coverageAtomicBuffer
-                                             : m_coverageAtomicBuffer = makeAtomicBuffer();
+        return m_coverageAtomicBuffer != nil
+                   ? m_coverageAtomicBuffer
+                   : m_coverageAtomicBuffer = makeAtomicBuffer();
     }
     id<MTLBuffer> clipAtomicBuffer()
     {
-        return m_clipAtomicBuffer != nil ? m_clipAtomicBuffer
-                                         : m_clipAtomicBuffer = makeAtomicBuffer();
+        return m_clipAtomicBuffer != nil
+                   ? m_clipAtomicBuffer
+                   : m_clipAtomicBuffer = makeAtomicBuffer();
     }
     id<MTLBuffer> makeAtomicBuffer()
     {
@@ -83,16 +90,19 @@ class RenderContextMetalImpl : public RenderContextHelperImpl
 public:
     struct ContextOptions
     {
-        // Wait for shaders to compile inline with rendering (causing jank), instead of compiling
-        // asynchronously in a background thread. (Primarily for testing.)
+        // Wait for shaders to compile inline with rendering (causing jank),
+        // instead of compiling asynchronously in a background thread.
+        // (Primarily for testing.)
         bool synchronousShaderCompilations = false;
 
-        // (macOS only -- ignored on iOS). Override m_platformFeatures.supportsRasterOrdering to
-        // false, forcing us to always render in atomic mode.
+        // (macOS only -- ignored on iOS). Override
+        // m_platformFeatures.supportsRasterOrdering to false, forcing us to
+        // always render in atomic mode.
         bool disableFramebufferReads = false;
     };
 
-    static std::unique_ptr<RenderContext> MakeContext(id<MTLDevice>, const ContextOptions&);
+    static std::unique_ptr<RenderContext> MakeContext(id<MTLDevice>,
+                                                      const ContextOptions&);
 
     static std::unique_ptr<RenderContext> MakeContext(id<MTLDevice> gpu)
     {
@@ -103,37 +113,44 @@ public:
 
     id<MTLDevice> gpu() const { return m_gpu; }
 
-    rcp<RenderTargetMetal> makeRenderTarget(MTLPixelFormat, uint32_t width, uint32_t height);
+    rcp<RenderTargetMetal> makeRenderTarget(MTLPixelFormat,
+                                            uint32_t width,
+                                            uint32_t height);
 
-    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType,
+                                       RenderBufferFlags,
+                                       size_t) override;
 
     rcp<Texture> makeImageTexture(uint32_t width,
                                   uint32_t height,
                                   uint32_t mipLevelCount,
                                   const uint8_t imageDataRGBA[]) override;
 
-    // Atomic mode requires a barrier between overlapping draws. We have to implement this barrier
-    // in various different ways, depending on which hardware we're on.
+    // Atomic mode requires a barrier between overlapping draws. We have to
+    // implement this barrier in various different ways, depending on which
+    // hardware we're on.
     enum class AtomicBarrierType
     {
-        // The hardware supports a normal fragment-fragment memory barrier. (Not supported on
-        // Apple-Silicon).
+        // The hardware supports a normal fragment-fragment memory barrier. (Not
+        // supported on Apple-Silicon).
         memoryBarrier,
 
-        // Apple Silicon is very fast at raster ordering, and doesn't support fragment-fragment
-        // memory barriers anyway, so on this hardware we just use raster order groups in atomic
-        // mode.
+        // Apple Silicon is very fast at raster ordering, and doesn't support
+        // fragment-fragment memory barriers anyway, so on this hardware we just
+        // use raster order groups in atomic mode.
         rasterOrderGroup,
 
-        // On very old hardware that can't support barriers, we just take a sledge hammer and break
-        // the entire render pass between overlapping draws.
+        // On very old hardware that can't support barriers, we just take a
+        // sledge hammer and break the entire render pass between overlapping
+        // draws.
         // TODO: Is there a lighter way to accomplish this?
         renderPassBreak,
     };
 
     struct MetalFeatures
     {
-        AtomicBarrierType atomicBarrierType = AtomicBarrierType::renderPassBreak;
+        AtomicBarrierType atomicBarrierType =
+            AtomicBarrierType::renderPassBreak;
     };
 
     const MetalFeatures& metalFeatures() const { return m_metalFeatures; }
@@ -141,11 +158,14 @@ public:
 protected:
     RenderContextMetalImpl(id<MTLDevice>, const ContextOptions&);
 
-    std::unique_ptr<BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
-    std::unique_ptr<BufferRing> makeStorageBufferRing(size_t capacityInBytes,
-                                                      StorageBufferStructure) override;
-    std::unique_ptr<BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
-    std::unique_ptr<BufferRing> makeTextureTransferBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeUniformBufferRing(
+        size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeStorageBufferRing(
+        size_t capacityInBytes, StorageBufferStructure) override;
+    std::unique_ptr<BufferRing> makeVertexBufferRing(
+        size_t capacityInBytes) override;
+    std::unique_ptr<BufferRing> makeTextureTransferBufferRing(
+        size_t capacityInBytes) override;
 
 private:
     // Renders paths to the main render target.
@@ -154,20 +174,23 @@ private:
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
 
-    // Obtains an exclusive lock on the next buffer ring index, potentially blocking until the GPU
-    // has finished rendering with it. This ensures it is safe for the CPU to begin modifying the
-    // next buffers in our rings.
+    // Obtains an exclusive lock on the next buffer ring index, potentially
+    // blocking until the GPU has finished rendering with it. This ensures it is
+    // safe for the CPU to begin modifying the next buffers in our rings.
     void prepareToMapBuffers() override;
 
-    // Creates a MTLRenderCommandEncoder and sets the common state for PLS draws.
-    id<MTLRenderCommandEncoder> makeRenderPassForDraws(const gpu::FlushDescriptor&,
-                                                       MTLRenderPassDescriptor*,
-                                                       id<MTLCommandBuffer>,
-                                                       gpu::ShaderMiscFlags baselineMiscFlags);
+    // Creates a MTLRenderCommandEncoder and sets the common state for PLS
+    // draws.
+    id<MTLRenderCommandEncoder> makeRenderPassForDraws(
+        const gpu::FlushDescriptor&,
+        MTLRenderPassDescriptor*,
+        id<MTLCommandBuffer>,
+        gpu::ShaderMiscFlags baselineMiscFlags);
 
-    // Returns the specific DrawPipeline for the given feature set, if it has been compiled. If it
-    // has not finished compiling yet, this method may return a (potentially slower) DrawPipeline
-    // that can draw a superset of the given features.
+    // Returns the specific DrawPipeline for the given feature set, if it has
+    // been compiled. If it has not finished compiling yet, this method may
+    // return a (potentially slower) DrawPipeline that can draw a superset of
+    // the given features.
     const DrawPipeline* findCompatibleDrawPipeline(gpu::DrawType,
                                                    gpu::ShaderFeatures,
                                                    gpu::InterlockMode,
@@ -180,7 +203,8 @@ private:
 
     MetalFeatures m_metalFeatures;
     std::unique_ptr<BackgroundShaderCompiler> m_backgroundShaderCompiler;
-    id<MTLLibrary> m_plsPrecompiledLibrary; // Many shaders come precompiled in a static library.
+    id<MTLLibrary> m_plsPrecompiledLibrary; // Many shaders come precompiled in
+                                            // a static library.
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;
@@ -199,12 +223,13 @@ private:
     id<MTLBuffer> m_pathPatchVertexBuffer;
     id<MTLBuffer> m_pathPatchIndexBuffer;
 
-    // Vertex/index buffers for drawing image rects. (gpu::InterlockMode::atomics only.)
+    // Vertex/index buffers for drawing image rects.
+    // (gpu::InterlockMode::atomics only.)
     id<MTLBuffer> m_imageRectVertexBuffer;
     id<MTLBuffer> m_imageRectIndexBuffer;
 
-    // Locks buffer contents until the GPU has finished rendering with them. Prevents the CPU from
-    // overriding data before the GPU is done with it.
+    // Locks buffer contents until the GPU has finished rendering with them.
+    // Prevents the CPU from overriding data before the GPU is done with it.
     std::mutex m_bufferRingLocks[kBufferRingSize];
     int m_bufferRingIdx = 0;
 };

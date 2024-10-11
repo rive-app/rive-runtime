@@ -16,10 +16,12 @@
 
 using namespace rive;
 
-StatusCode TransitionPropertyViewModelComparator::import(ImportStack& importStack)
+StatusCode TransitionPropertyViewModelComparator::import(
+    ImportStack& importStack)
 {
     auto bindablePropertyImporter =
-        importStack.latest<BindablePropertyImporter>(BindablePropertyBase::typeKey);
+        importStack.latest<BindablePropertyImporter>(
+            BindablePropertyBase::typeKey);
     if (bindablePropertyImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -39,18 +41,23 @@ bool TransitionPropertyViewModelComparator::compare(
         case BindablePropertyNumber::typeKey:
             if (comparand->is<TransitionPropertyViewModelComparator>())
             {
-                auto rightValue = comparand->as<TransitionPropertyViewModelComparator>()
-                                      ->value<BindablePropertyNumber, float>(stateMachineInstance);
-                return compareNumbers(value<BindablePropertyNumber, float>(stateMachineInstance),
-                                      rightValue,
-                                      operation);
+                auto rightValue =
+                    comparand->as<TransitionPropertyViewModelComparator>()
+                        ->value<BindablePropertyNumber, float>(
+                            stateMachineInstance);
+                return compareNumbers(
+                    value<BindablePropertyNumber, float>(stateMachineInstance),
+                    rightValue,
+                    operation);
             }
             else if (comparand->is<TransitionValueNumberComparator>())
             {
-                auto rightValue = comparand->as<TransitionValueNumberComparator>()->value();
-                return compareNumbers(value<BindablePropertyNumber, float>(stateMachineInstance),
-                                      rightValue,
-                                      operation);
+                auto rightValue =
+                    comparand->as<TransitionValueNumberComparator>()->value();
+                return compareNumbers(
+                    value<BindablePropertyNumber, float>(stateMachineInstance),
+                    rightValue,
+                    operation);
             }
             break;
         case BindablePropertyString::typeKey:
@@ -58,17 +65,21 @@ bool TransitionPropertyViewModelComparator::compare(
             {
                 auto rightValue =
                     comparand->as<TransitionPropertyViewModelComparator>()
-                        ->value<BindablePropertyString, std::string>(stateMachineInstance);
+                        ->value<BindablePropertyString, std::string>(
+                            stateMachineInstance);
                 return compareStrings(
-                    value<BindablePropertyString, std::string>(stateMachineInstance),
+                    value<BindablePropertyString, std::string>(
+                        stateMachineInstance),
                     rightValue,
                     operation);
             }
             else if (comparand->is<TransitionValueStringComparator>())
             {
-                auto rightValue = comparand->as<TransitionValueStringComparator>()->value();
+                auto rightValue =
+                    comparand->as<TransitionValueStringComparator>()->value();
                 return compareStrings(
-                    value<BindablePropertyString, std::string>(stateMachineInstance),
+                    value<BindablePropertyString, std::string>(
+                        stateMachineInstance),
                     rightValue,
                     operation);
             }
@@ -76,52 +87,67 @@ bool TransitionPropertyViewModelComparator::compare(
         case BindablePropertyColor::typeKey:
             if (comparand->is<TransitionPropertyViewModelComparator>())
             {
-                auto rightValue = comparand->as<TransitionPropertyViewModelComparator>()
-                                      ->value<BindablePropertyColor, int>(stateMachineInstance);
-                return compareColors(value<BindablePropertyColor, int>(stateMachineInstance),
-                                     rightValue,
-                                     operation);
+                auto rightValue =
+                    comparand->as<TransitionPropertyViewModelComparator>()
+                        ->value<BindablePropertyColor, int>(
+                            stateMachineInstance);
+                return compareColors(
+                    value<BindablePropertyColor, int>(stateMachineInstance),
+                    rightValue,
+                    operation);
             }
             else if (comparand->is<TransitionValueColorComparator>())
             {
-                auto rightValue = comparand->as<TransitionValueColorComparator>()->value();
-                return compareColors(value<BindablePropertyColor, int>(stateMachineInstance),
-                                     rightValue,
-                                     operation);
+                auto rightValue =
+                    comparand->as<TransitionValueColorComparator>()->value();
+                return compareColors(
+                    value<BindablePropertyColor, int>(stateMachineInstance),
+                    rightValue,
+                    operation);
             }
             break;
         case BindablePropertyBoolean::typeKey:
             if (comparand->is<TransitionPropertyViewModelComparator>())
             {
-                auto rightValue = comparand->as<TransitionPropertyViewModelComparator>()
-                                      ->value<BindablePropertyBoolean, bool>(stateMachineInstance);
-                return compareBooleans(value<BindablePropertyBoolean, bool>(stateMachineInstance),
-                                       rightValue,
-                                       operation);
+                auto rightValue =
+                    comparand->as<TransitionPropertyViewModelComparator>()
+                        ->value<BindablePropertyBoolean, bool>(
+                            stateMachineInstance);
+                return compareBooleans(
+                    value<BindablePropertyBoolean, bool>(stateMachineInstance),
+                    rightValue,
+                    operation);
             }
             else if (comparand->is<TransitionValueBooleanComparator>())
             {
-                auto rightValue = comparand->as<TransitionValueBooleanComparator>()->value();
-                return compareBooleans(value<BindablePropertyBoolean, bool>(stateMachineInstance),
-                                       rightValue,
-                                       operation);
+                auto rightValue =
+                    comparand->as<TransitionValueBooleanComparator>()->value();
+                return compareBooleans(
+                    value<BindablePropertyBoolean, bool>(stateMachineInstance),
+                    rightValue,
+                    operation);
             }
             break;
         case BindablePropertyEnum::typeKey:
             if (comparand->is<TransitionPropertyViewModelComparator>())
             {
-                auto rightValue = comparand->as<TransitionPropertyViewModelComparator>()
-                                      ->value<BindablePropertyEnum, uint16_t>(stateMachineInstance);
-                return compareEnums(value<BindablePropertyEnum, uint16_t>(stateMachineInstance),
-                                    rightValue,
-                                    operation);
+                auto rightValue =
+                    comparand->as<TransitionPropertyViewModelComparator>()
+                        ->value<BindablePropertyEnum, uint16_t>(
+                            stateMachineInstance);
+                return compareEnums(
+                    value<BindablePropertyEnum, uint16_t>(stateMachineInstance),
+                    rightValue,
+                    operation);
             }
             else if (comparand->is<TransitionValueEnumComparator>())
             {
-                auto rightValue = comparand->as<TransitionValueEnumComparator>()->value();
-                return compareEnums(value<BindablePropertyEnum, uint16_t>(stateMachineInstance),
-                                    rightValue,
-                                    operation);
+                auto rightValue =
+                    comparand->as<TransitionValueEnumComparator>()->value();
+                return compareEnums(
+                    value<BindablePropertyEnum, uint16_t>(stateMachineInstance),
+                    rightValue,
+                    operation);
             }
             break;
         case BindablePropertyTrigger::typeKey:
@@ -129,23 +155,27 @@ bool TransitionPropertyViewModelComparator::compare(
             {
                 auto rightValue =
                     comparand->as<TransitionPropertyViewModelComparator>()
-                        ->value<BindablePropertyTrigger, uint32_t>(stateMachineInstance);
-                return compareTriggers(
-                    value<BindablePropertyTrigger, uint32_t>(stateMachineInstance),
-                    rightValue,
-                    operation);
+                        ->value<BindablePropertyTrigger, uint32_t>(
+                            stateMachineInstance);
+                return compareTriggers(value<BindablePropertyTrigger, uint32_t>(
+                                           stateMachineInstance),
+                                       rightValue,
+                                       operation);
             }
             else if (comparand->is<TransitionValueTriggerComparator>())
             {
-                auto rightValue = comparand->as<TransitionValueTriggerComparator>()->value();
-                auto leftValue = value<BindablePropertyTrigger, uint32_t>(stateMachineInstance);
+                auto rightValue =
+                    comparand->as<TransitionValueTriggerComparator>()->value();
+                auto leftValue = value<BindablePropertyTrigger, uint32_t>(
+                    stateMachineInstance);
                 auto result = compareTriggers(leftValue, rightValue, operation);
                 // For trigger comparisons, the comparand is reset to the
                 // last propertyValue of the view model instance so it doesn't
                 // trigger more than once.
                 if (result)
                 {
-                    comparand->as<TransitionValueTriggerComparator>()->value(leftValue);
+                    comparand->as<TransitionValueTriggerComparator>()->value(
+                        leftValue);
                 }
                 return result;
             }

@@ -17,17 +17,25 @@ private:
     bool m_KeepGoing;
 
 public:
-    AnimationStateInstance(const AnimationState* animationState, ArtboardInstance* instance);
+    AnimationStateInstance(const AnimationState* animationState,
+                           ArtboardInstance* instance);
 
-    void advance(float seconds, StateMachineInstance* stateMachineInstance) override;
+    void advance(float seconds,
+                 StateMachineInstance* stateMachineInstance) override;
     void apply(ArtboardInstance* instance, float mix) override;
 
     bool keepGoing() const override;
     void clearSpilledTime() override;
 
-    const LinearAnimationInstance* animationInstance() const { return &m_AnimationInstance; }
+    const LinearAnimationInstance* animationInstance() const
+    {
+        return &m_AnimationInstance;
+    }
 
-    LinearAnimationInstance* animationInstance() { return &m_AnimationInstance; }
+    LinearAnimationInstance* animationInstance()
+    {
+        return &m_AnimationInstance;
+    }
 };
 } // namespace rive
 #endif

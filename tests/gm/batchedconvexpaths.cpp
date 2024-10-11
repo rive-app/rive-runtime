@@ -34,19 +34,23 @@ private:
             for (float j = 1; j < numPoints; j += 3)
             {
                 constexpr float k2PI = math::PI * 2;
-                path->cubicTo(cosf(j / numPoints * k2PI),
-                              sinf(j / numPoints * k2PI),
-                              cosf((j + 1) / numPoints * k2PI),
-                              sinf((j + 1) / numPoints * k2PI),
-                              j + 2 == numPoints ? 1 : cosf((j + 2) / numPoints * k2PI),
-                              j + 2 == numPoints ? 0 : sinf((j + 2) / numPoints * k2PI));
+                path->cubicTo(
+                    cosf(j / numPoints * k2PI),
+                    sinf(j / numPoints * k2PI),
+                    cosf((j + 1) / numPoints * k2PI),
+                    sinf((j + 1) / numPoints * k2PI),
+                    j + 2 == numPoints ? 1 : cosf((j + 2) / numPoints * k2PI),
+                    j + 2 == numPoints ? 0 : sinf((j + 2) / numPoints * k2PI));
             }
             float scale = 256 - i * 24;
-            canvas->translate(scale + (256 - scale) * .33f, scale + (256 - scale) * .33f);
+            canvas->translate(scale + (256 - scale) * .33f,
+                              scale + (256 - scale) * .33f);
             canvas->scale(scale, scale);
 
             Paint paint;
-            paint->color(colorModulateOpacity(((i + 123458383u) * 285018463u) | 0xff808080, 0.3f));
+            paint->color(colorModulateOpacity(((i + 123458383u) * 285018463u) |
+                                                  0xff808080,
+                                              0.3f));
 
             canvas->drawPath(path, paint);
 

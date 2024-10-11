@@ -67,7 +67,8 @@ TEST_CASE("LinearAnimationInstance speed", "[animation]")
     delete linearAnimation;
 }
 
-TEST_CASE("LinearAnimationInstance negative advance adds absolute total time ", "[animation]")
+TEST_CASE("LinearAnimationInstance negative advance adds absolute total time ",
+          "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -397,12 +398,15 @@ TEST_CASE("LinearAnimationInstance override loop", "[animation]")
         new rive::LinearAnimationInstance(linearAnimation, abi.get());
 
     // Check the loop value is same as the animation's
-    REQUIRE(linearAnimationInstance->loopValue() == linearAnimation->loopValue());
+    REQUIRE(linearAnimationInstance->loopValue() ==
+            linearAnimation->loopValue());
 
     // Override the loop type
     linearAnimationInstance->loopValue(static_cast<int>(rive::Loop::pingPong));
-    REQUIRE(linearAnimationInstance->loopValue() != linearAnimation->loopValue());
-    REQUIRE(linearAnimationInstance->loopValue() == static_cast<int>(rive::Loop::pingPong));
+    REQUIRE(linearAnimationInstance->loopValue() !=
+            linearAnimation->loopValue());
+    REQUIRE(linearAnimationInstance->loopValue() ==
+            static_cast<int>(rive::Loop::pingPong));
     REQUIRE(linearAnimationInstance->loop() == rive::Loop::pingPong);
 
     delete linearAnimationInstance;

@@ -11,7 +11,9 @@ const int SubdivisionMaxIterations = 10;
 // Returns x(t) given t, x1, and x2, or y(t) given t, y1, and y2.
 float CubicInterpolatorSolver::calcBezier(float aT, float aA1, float aA2)
 {
-    return (((1.0f - 3.0f * aA2 + 3.0f * aA1) * aT + (3.0f * aA2 - 6.0f * aA1)) * aT +
+    return (((1.0f - 3.0f * aA2 + 3.0f * aA1) * aT +
+             (3.0f * aA2 - 6.0f * aA1)) *
+                aT +
             (3.0f * aA1)) *
            aT;
 }
@@ -39,15 +41,16 @@ float CubicInterpolatorSolver::getT(float x) const
     int currentSample = 1;
     int lastSample = SplineTableSize - 1;
 
-    for (; currentSample != lastSample && m_values[currentSample] <= x; ++currentSample)
+    for (; currentSample != lastSample && m_values[currentSample] <= x;
+         ++currentSample)
     {
         intervalStart += SampleStepSize;
     }
     --currentSample;
 
     // Interpolate to provide an initial guess for t
-    float dist =
-        (x - m_values[currentSample]) / (m_values[currentSample + 1] - m_values[currentSample]);
+    float dist = (x - m_values[currentSample]) /
+                 (m_values[currentSample + 1] - m_values[currentSample]);
     float guessForT = intervalStart + dist * SampleStepSize;
 
     float initialSlope = getSlope(guessForT, m_x1, m_x2);
@@ -86,7 +89,8 @@ float CubicInterpolatorSolver::getT(float x) const
             {
                 intervalStart = currentT;
             }
-        } while (std::abs(currentX) > SubdivisionPrecision && ++i < SubdivisionMaxIterations);
+        } while (std::abs(currentX) > SubdivisionPrecision &&
+                 ++i < SubdivisionMaxIterations);
         return currentT;
     }
 }

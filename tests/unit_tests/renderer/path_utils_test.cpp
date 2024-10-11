@@ -61,14 +61,15 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
     }
 
     static const float chopTs[] = {
-        0,        3 / 83.f, 3 / 79.f, 3 / 73.f, 3 / 71.f, 3 / 67.f, 3 / 61.f, 3 / 59.f,
-        3 / 53.f, 3 / 47.f, 3 / 43.f, 3 / 41.f, 3 / 37.f, 3 / 31.f, 3 / 29.f, 3 / 23.f,
-        3 / 19.f, 3 / 17.f, 3 / 13.f, 3 / 11.f, 3 / 7.f,  3 / 5.f,  1,
+        0,        3 / 83.f, 3 / 79.f, 3 / 73.f, 3 / 71.f, 3 / 67.f,
+        3 / 61.f, 3 / 59.f, 3 / 53.f, 3 / 47.f, 3 / 43.f, 3 / 41.f,
+        3 / 37.f, 3 / 31.f, 3 / 29.f, 3 / 23.f, 3 / 19.f, 3 / 17.f,
+        3 / 13.f, 3 / 11.f, 3 / 7.f,  3 / 5.f,  1,
     };
     float ones[] = {1, 1, 1, 1, 1};
 
-    // Ensure an odd number of T values so we exercise the single chop code at the end of
-    // SkChopCubicAt form multiple T.
+    // Ensure an odd number of T values so we exercise the single chop code at
+    // the end of SkChopCubicAt form multiple T.
     static_assert(std::size(chopTs) % 2 == 1);
     static_assert(std::size(ones) % 2 == 1);
 
@@ -84,7 +85,8 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
         int i = 3;
         for (float chopT : chopTs)
         {
-            // Ensure we chop at approximately the correct points when we chop an entire list.
+            // Ensure we chop at approximately the correct points when we chop
+            // an entire list.
             Vec2D expectedPt = pathutils::EvalCubicAt(pts, chopT);
             CHECK(fuzzy_equal(allChops[i].x, expectedPt.x));
             CHECK(fuzzy_equal(allChops[i].y, expectedPt.y));
@@ -98,7 +100,8 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
             }
             i += 3;
 
-            // Ensure the middle is exactly degenerate when we chop at two equal points.
+            // Ensure the middle is exactly degenerate when we chop at two equal
+            // points.
             Vec2D localChops[10];
             pathutils::ChopCubicAt(pts, localChops, chopT, chopT);
             CHECK(localChops[3] == localChops[4]);
@@ -106,7 +109,8 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
             CHECK(localChops[3] == localChops[6]);
             if (chopT == 0)
             {
-                // Also ensure the first curve is exactly p0 when we chop at T=0.
+                // Also ensure the first curve is exactly p0 when we chop at
+                // T=0.
                 CHECK(localChops[0] == pts[0]);
                 CHECK(localChops[1] == pts[0]);
                 CHECK(localChops[2] == pts[0]);
@@ -122,7 +126,8 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
             }
         }
 
-        // Now test what happens when SkChopCubicAt does 0/0 and gets NaN values.
+        // Now test what happens when SkChopCubicAt does 0/0 and gets NaN
+        // values.
         Vec2D oneChops[4 + std::size(ones) * 3];
         pathutils::ChopCubicAt(pts, oneChops, ones, std::size(ones));
         CHECK(oneChops[0] == pts[0]);
@@ -181,8 +186,9 @@ static float SkMeasureNonInflectCubicRotation(const Vec2D pts[4])
     {
         return pathutils::MeasureAngleBetweenVectors(a, b);
     }
-    // Postulate: When no points are colocated and there are no inflection points in T=0..1, the
-    // rotation is: 360 degrees, minus the angle [p0,p1,p2], minus the angle [p1,p2,p3].
+    // Postulate: When no points are colocated and there are no inflection
+    // points in T=0..1, the rotation is: 360 degrees, minus the angle
+    // [p0,p1,p2], minus the angle [p1,p2,p3].
     return 2 * math::PI - pathutils::MeasureAngleBetweenVectors(a, -b) -
            pathutils::MeasureAngleBetweenVectors(b, -c);
 }
@@ -193,13 +199,16 @@ TEST_CASE("SkMeasureNonInflectCubicRotation", "[pathutils]")
     CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic), 0));
 
     static Vec2D kFlatCubic180_1[4] = {{0, 0}, {1, 0}, {3, 0}, {2, 0}};
-    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic180_1), math::PI));
+    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic180_1),
+                      math::PI));
 
     static Vec2D kFlatCubic180_2[4] = {{0, 1}, {0, 0}, {0, 2}, {0, 3}};
-    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic180_2), math::PI));
+    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic180_2),
+                      math::PI));
 
     static Vec2D kFlatCubic360[4] = {{0, 1}, {0, 0}, {0, 3}, {0, 2}};
-    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic360), 2 * math::PI));
+    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic360),
+                      2 * math::PI));
 
     static Vec2D kSquare180[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
     CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kSquare180), math::PI));
@@ -210,13 +219,16 @@ TEST_CASE("SkMeasureNonInflectCubicRotation", "[pathutils]")
         CHECK(fuzzy_equal(r, expectedRotation));
 #endif
         Vec2D cubic1[4] = {pts[0], pts[0], pts[1], pts[2]};
-        CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(cubic1), expectedRotation));
+        CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(cubic1),
+                          expectedRotation));
 
         Vec2D cubic2[4] = {pts[0], pts[1], pts[1], pts[2]};
-        CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(cubic2), expectedRotation));
+        CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(cubic2),
+                          expectedRotation));
 
         Vec2D cubic3[4] = {pts[0], pts[1], pts[2], pts[2]};
-        CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(cubic3), expectedRotation));
+        CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(cubic3),
+                          expectedRotation));
     };
 
     static Vec2D kFlatQuad[4] = {{0, 0}, {0, 1}, {0, 2}};
@@ -272,8 +284,8 @@ static int valid_unit_divide(float numer, float denom, float* ratio)
     return 1;
 }
 
-// Just returns its argument, but makes it easy to set a break-point to know when
-// SkFindUnitQuadRoots is going to return 0 (an error).
+// Just returns its argument, but makes it easy to set a break-point to know
+// when SkFindUnitQuadRoots is going to return 0 (an error).
 static int return_check_zero(int value)
 {
     if (value == 0)
@@ -345,7 +357,10 @@ static int SkFindCubicInflections(const Vec2D src[4], float tValues[2])
     float Cx = src[3].x + 3 * (src[1].x - src[2].x) - src[0].x;
     float Cy = src[3].y + 3 * (src[1].y - src[2].y) - src[0].y;
 
-    return SkFindUnitQuadRoots(Bx * Cy - By * Cx, Ax * Cy - Ay * Cx, Ax * By - Ay * Bx, tValues);
+    return SkFindUnitQuadRoots(Bx * Cy - By * Cx,
+                               Ax * Cy - Ay * Cx,
+                               Ax * By - Ay * Bx,
+                               tValues);
 }
 
 static void check_cubic_convex_180(const Vec2D p[4])
@@ -354,13 +369,15 @@ static void check_cubic_convex_180(const Vec2D p[4])
     float inflectT[2], convex180T[2];
     if (int inflectN = SkFindCubicInflections(p, inflectT))
     {
-        // The curve has inflections. FindCubicConvex180Chops should return the inflection
-        // points.
-        int convex180N = pathutils::FindCubicConvex180Chops(p, convex180T, &areCusps);
+        // The curve has inflections. FindCubicConvex180Chops should return the
+        // inflection points.
+        int convex180N =
+            pathutils::FindCubicConvex180Chops(p, convex180T, &areCusps);
         REQUIRE(inflectN == convex180N);
         if (!areCusps)
         {
-            REQUIRE((inflectN == 1 || fabsf(inflectT[0] - inflectT[1]) >= kEpsilon));
+            REQUIRE((inflectN == 1 ||
+                     fabsf(inflectT[0] - inflectT[1]) >= kEpsilon));
         }
         for (int i = 0; i < convex180N; ++i)
         {
@@ -370,7 +387,8 @@ static void check_cubic_convex_180(const Vec2D p[4])
     else
     {
         float totalRotation = SkMeasureNonInflectCubicRotation(p);
-        int convex180N = pathutils::FindCubicConvex180Chops(p, convex180T, &areCusps);
+        int convex180N =
+            pathutils::FindCubicConvex180Chops(p, convex180T, &areCusps);
         Vec2D chops[10];
         pathutils::ChopCubicAt(p, chops, convex180T, convex180N);
         float radsSum = 0;
@@ -380,8 +398,8 @@ static void check_cubic_convex_180(const Vec2D p[4])
             {
                 // The cusp itself accounts for 180 degrees of rotation.
                 radsSum = math::PI;
-                // Rechop, this time straddling the cusp, to avoid fp32 precision issues from
-                // crossover.
+                // Rechop, this time straddling the cusp, to avoid fp32
+                // precision issues from crossover.
                 Vec2D straddleChops[10];
                 pathutils::ChopCubicAt(p,
                                        straddleChops,
@@ -392,8 +410,8 @@ static void check_cubic_convex_180(const Vec2D p[4])
             }
             else if (convex180N == 2)
             {
-                // The only way a cubic can have two cusps is if it's flat with two 180 degree
-                // turnarounds.
+                // The only way a cubic can have two cusps is if it's flat with
+                // two 180 degree turnarounds.
                 radsSum = math::PI * 2;
                 chops[1] = chops[0];
                 chops[2] = chops[4] = chops[3];
@@ -418,9 +436,11 @@ static void check_cubic_convex_180(const Vec2D p[4])
             if (totalRotation > math::PI + kEpsilon)
             {
                 REQUIRE(convex180N == 1);
-                // This works because cusps take the "inflection" path above, so we don't get
-                // non-lilnear curves that lose rotation when chopped.
-                REQUIRE(fuzzy_equal(SkMeasureNonInflectCubicRotation(chops), math::PI));
+                // This works because cusps take the "inflection" path above, so
+                // we don't get non-lilnear curves that lose rotation when
+                // chopped.
+                REQUIRE(fuzzy_equal(SkMeasureNonInflectCubicRotation(chops),
+                                    math::PI));
                 REQUIRE(fuzzy_equal(SkMeasureNonInflectCubicRotation(chops + 3),
                                     totalRotation - math::PI));
             }
@@ -435,8 +455,9 @@ static void check_cubic_convex_180(const Vec2D p[4])
 
 TEST_CASE("FindCubicConvex180Chops", "[pathutils]")
 {
-    // Test all combinations of corners from the square [0,0,1,1]. This covers every cubic type
-    // as well as a wide variety of special cases for cusps, lines, loops, and inflections.
+    // Test all combinations of corners from the square [0,0,1,1]. This covers
+    // every cubic type as well as a wide variety of special cases for cusps,
+    // lines, loops, and inflections.
     for (int i = 0; i < (1 << 8); ++i)
     {
         Vec2D p[4] = {Vec2D((i >> 0) & 1, (i >> 1) & 1),
@@ -472,8 +493,8 @@ TEST_CASE("FindCubicConvex180Chops", "[pathutils]")
     CHECK(pathutils::FindCubicConvex180Chops(cusp, T, &areCusps) == 1);
     CHECK(areCusps == true);
 
-    // Find the height of the right side of "cusp" at which the distance between its inflection
-    // points is epsilon (in parametric space).
+    // Find the height of the right side of "cusp" at which the distance between
+    // its inflection points is epsilon (in parametric space).
     constexpr double epsilon = 1.0 / (1 << 11);
     constexpr double epsilonPow2 = epsilon * epsilon;
     double h = (1 - epsilonPow2) / (3 * epsilonPow2 + 1);
@@ -483,13 +504,15 @@ TEST_CASE("FindCubicConvex180Chops", "[pathutils]")
     CHECK(SkFindCubicInflections(cusp, T) == 2);
     CHECK(fuzzy_equal(T[1] - T[0], (float)epsilon, (float)epsilonPow2));
 
-    // Ensure two inflection points barely more than epsilon apart do not get flagged as cusps.
+    // Ensure two inflection points barely more than epsilon apart do not get
+    // flagged as cusps.
     cusp[1].y = (float)(1 - 4 * dy);
     cusp[2].y = (float)(0 + 4 * dy);
     CHECK(pathutils::FindCubicConvex180Chops(cusp, T, &areCusps) == 2);
     CHECK(areCusps == false);
 
-    // Ensure two inflection points barely less than epsilon apart do get flagged as cusps.
+    // Ensure two inflection points barely less than epsilon apart do get
+    // flagged as cusps.
     cusp[1].y = (float)(1 - .9 * dy);
     cusp[2].y = (float)(0 + .9 * dy);
     CHECK(pathutils::FindCubicConvex180Chops(cusp, T, &areCusps) == 1);

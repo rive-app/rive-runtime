@@ -18,22 +18,24 @@ using namespace rive::gpu;
 class FiddleContextMetalPLS : public FiddleContext
 {
 public:
-    FiddleContextMetalPLS(FiddleContextOptions fiddleOptions) : m_fiddleOptions(fiddleOptions)
+    FiddleContextMetalPLS(FiddleContextOptions fiddleOptions) :
+        m_fiddleOptions(fiddleOptions)
     {
         RenderContextMetalImpl::ContextOptions metalOptions;
         if (m_fiddleOptions.synchronousShaderCompilations)
         {
-            // Turn on synchronous shader compilations to ensure deterministic rendering and to make
-            // sure we test every unique shader.
+            // Turn on synchronous shader compilations to ensure deterministic
+            // rendering and to make sure we test every unique shader.
             metalOptions.synchronousShaderCompilations = true;
         }
         if (m_fiddleOptions.disableRasterOrdering)
         {
-            // Turn on synchronous shader compilations to ensure deterministic rendering and to make
-            // sure we test every unique shader.
+            // Turn on synchronous shader compilations to ensure deterministic
+            // rendering and to make sure we test every unique shader.
             metalOptions.disableFramebufferReads = true;
         }
-        m_renderContext = RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
+        m_renderContext =
+            RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
         printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
     }
 
@@ -45,11 +47,20 @@ public:
 
     Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* renderContextOrNull() override { return m_renderContext.get(); }
+    rive::gpu::RenderContext* renderContextOrNull() override
+    {
+        return m_renderContext.get();
+    }
 
-    rive::gpu::RenderTarget* renderTargetOrNull() override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* renderTargetOrNull() override
+    {
+        return m_renderTarget.get();
+    }
 
-    void onSizeChanged(GLFWwindow* window, int width, int height, uint32_t sampleCount) override
+    void onSizeChanged(GLFWwindow* window,
+                       int width,
+                       int height,
+                       uint32_t sampleCount) override
     {
         NSWindow* nsWindow = glfwGetCocoaWindow(window);
         NSView* view = [nsWindow contentView];
@@ -64,9 +75,10 @@ public:
         m_swapchain.displaySyncEnabled = NO;
         view.layer = m_swapchain;
 
-        auto renderContextImpl = m_renderContext->static_impl_cast<RenderContextMetalImpl>();
-        m_renderTarget =
-            renderContextImpl->makeRenderTarget(MTLPixelFormatBGRA8Unorm, width, height);
+        auto renderContextImpl =
+            m_renderContext->static_impl_cast<RenderContextMetalImpl>();
+        m_renderTarget = renderContextImpl->makeRenderTarget(
+            MTLPixelFormatBGRA8Unorm, width, height);
         m_pixelReadBuff = nil;
     }
 
@@ -87,14 +99,17 @@ public:
         if (m_currentFrameSurface == nil)
         {
             m_currentFrameSurface = [m_swapchain nextDrawable];
-            assert(m_currentFrameSurface.texture.width == m_renderTarget->width());
-            assert(m_currentFrameSurface.texture.height == m_renderTarget->height());
+            assert(m_currentFrameSurface.texture.width ==
+                   m_renderTarget->width());
+            assert(m_currentFrameSurface.texture.height ==
+                   m_renderTarget->height());
             m_renderTarget->setTargetTexture(m_currentFrameSurface.texture);
         }
 
         id<MTLCommandBuffer> flushCommandBuffer = [m_queue commandBuffer];
-        m_renderContext->flush({.renderTarget = m_renderTarget.get(),
-                                .externalCommandBuffer = (__bridge void*)flushCommandBuffer});
+        m_renderContext->flush(
+            {.renderTarget = m_renderTarget.get(),
+             .externalCommandBuffer = (__bridge void*)flushCommandBuffer});
         [flushCommandBuffer commit];
     }
 
@@ -111,13 +126,15 @@ public:
             // Create a buffer to receive the pixels.
             if (m_pixelReadBuff == nil)
             {
-                m_pixelReadBuff = [m_gpu newBufferWithLength:h * w * 4
-                                                     options:MTLResourceStorageModeShared];
+                m_pixelReadBuff =
+                    [m_gpu newBufferWithLength:h * w * 4
+                                       options:MTLResourceStorageModeShared];
             }
             assert(m_pixelReadBuff.length == h * w * 4);
 
             id<MTLCommandBuffer> commandBuffer = [m_queue commandBuffer];
-            id<MTLBlitCommandEncoder> blitEncoder = [commandBuffer blitCommandEncoder];
+            id<MTLBlitCommandEncoder> blitEncoder =
+                [commandBuffer blitCommandEncoder];
 
             // Blit the framebuffer into m_pixelReadBuff.
             [blitEncoder copyFromTexture:m_renderTarget->targetTexture()
@@ -136,7 +153,8 @@ public:
 
             // Copy the image data from m_pixelReadBuff to pixelData.
             pixelData->resize(h * w * 4);
-            const uint8_t* contents = reinterpret_cast<const uint8_t*>(m_pixelReadBuff.contents);
+            const uint8_t* contents =
+                reinterpret_cast<const uint8_t*>(m_pixelReadBuff.contents);
             const size_t rowBytes = w * 4;
             for (size_t y = 0; y < h; ++y)
             {
@@ -173,7 +191,8 @@ private:
     id<CAMetalDrawable> m_currentFrameSurface = nil;
 };
 
-std::unique_ptr<FiddleContext> FiddleContext::MakeMetalPLS(FiddleContextOptions fiddleOptions)
+std::unique_ptr<FiddleContext> FiddleContext::MakeMetalPLS(
+    FiddleContextOptions fiddleOptions)
 {
     return std::make_unique<FiddleContextMetalPLS>(fiddleOptions);
 }

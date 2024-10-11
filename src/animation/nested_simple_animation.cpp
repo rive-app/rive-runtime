@@ -10,8 +10,8 @@ bool NestedSimpleAnimation::advance(float elapsedSeconds)
     {
         if (isPlaying())
         {
-            keepGoing =
-                m_AnimationInstance->advance(elapsedSeconds * speed(), m_AnimationInstance.get());
+            keepGoing = m_AnimationInstance->advance(elapsedSeconds * speed(),
+                                                     m_AnimationInstance.get());
         }
         if (mix() != 0.0f)
         {

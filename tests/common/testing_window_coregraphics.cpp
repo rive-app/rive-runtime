@@ -17,7 +17,10 @@
 class TestingWindowCoreGraphics : public TestingWindow
 {
 public:
-    TestingWindowCoreGraphics() { m_space.reset(CGColorSpaceCreateDeviceRGB()); }
+    TestingWindowCoreGraphics()
+    {
+        m_space.reset(CGColorSpaceCreateDeviceRGB());
+    }
 
     rive::Factory* factory() override { return &m_factory; }
 
@@ -26,7 +29,13 @@ public:
         m_pixels.resize(w * h);
 
         auto info = kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast;
-        m_ctx.reset(CGBitmapContextCreate(m_pixels.data(), w, h, 8, w * 4, m_space, info));
+        m_ctx.reset(CGBitmapContextCreate(m_pixels.data(),
+                                          w,
+                                          h,
+                                          8,
+                                          w * 4,
+                                          m_space,
+                                          info));
         m_width = w;
         m_height = h;
     }
@@ -73,6 +82,9 @@ private:
     AutoCF<CGColorSpaceRef> m_space;
 };
 
-TestingWindow* TestingWindow::MakeCoreGraphics() { return new TestingWindowCoreGraphics; }
+TestingWindow* TestingWindow::MakeCoreGraphics()
+{
+    return new TestingWindowCoreGraphics;
+}
 
 #endif

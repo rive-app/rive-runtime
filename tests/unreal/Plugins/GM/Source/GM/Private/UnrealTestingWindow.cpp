@@ -16,7 +16,8 @@
 #define CREATE_TEXTURE(RHICmdList, Desc) RHICmdList.CreateTexture(Desc)
 #endif
 
-UnrealTestingWindow::UnrealTestingWindow(UObject* WorldContextObject, IRiveRenderer* RiveRenderer) :
+UnrealTestingWindow::UnrealTestingWindow(UObject* WorldContextObject,
+                                         IRiveRenderer* RiveRenderer) :
     RiveRenderer(RiveRenderer),
     RenderContext(RiveRenderer->GetRenderContext()),
     WorldContextObject(WorldContextObject)
@@ -39,13 +40,14 @@ void UnrealTestingWindow::resize(int width, int height)
     }
     else
     {
-        FRHITextureCreateDesc Desc =
-            FRHITextureCreateDesc::Create2D(TEXT("RiveTestingWindowRenderTarget"),
-                                            width,
-                                            height,
-                                            EPixelFormat::PF_R8G8B8A8);
+        FRHITextureCreateDesc Desc = FRHITextureCreateDesc::Create2D(
+            TEXT("RiveTestingWindowRenderTarget"),
+            width,
+            height,
+            EPixelFormat::PF_R8G8B8A8);
         Desc.SetFlags(ETextureCreateFlags::UAV | ETextureCreateFlags::Dynamic |
-                      ETextureCreateFlags::ShaderResource | ETextureCreateFlags::RenderTargetable);
+                      ETextureCreateFlags::ShaderResource |
+                      ETextureCreateFlags::RenderTargetable);
         FTexture2DRHIRef Texture = CREATE_TEXTURE(RHICmdList, Desc);
         RenderTarget = impl->makeRenderTarget(RHICmdList, Texture);
     }
@@ -61,13 +63,16 @@ void UnrealTestingWindow::resize(int width, int height)
 
 rive::Factory* UnrealTestingWindow::factory() { return RenderContext; }
 
-std::unique_ptr<rive::Renderer> UnrealTestingWindow::beginFrame(uint32_t clearColor, bool doClear)
+std::unique_ptr<rive::Renderer> UnrealTestingWindow::beginFrame(
+    uint32_t clearColor,
+    bool doClear)
 {
     rive::gpu::RenderContext::FrameDescriptor FrameDescriptor;
     FrameDescriptor.renderTargetWidth = width();
     FrameDescriptor.renderTargetHeight = height();
     FrameDescriptor.loadAction =
-        doClear ? rive::gpu::LoadAction::clear : rive::gpu::LoadAction::preserveRenderTarget;
+        doClear ? rive::gpu::LoadAction::clear
+                : rive::gpu::LoadAction::preserveRenderTarget;
     FrameDescriptor.clearColor = clearColor;
     FrameDescriptor.wireframe = false;
     FrameDescriptor.fillsDisabled = false;
@@ -101,15 +106,20 @@ void UnrealTestingWindow::endFrame(std::vector<uint8_t>* pixelData)
                              CopyDestTexture,
                              FRHICopyTextureInfo());
 
-    RHICmdList.Transition(
-        FRHITransitionInfo(CopyDestTexture, ERHIAccess::Unknown, ERHIAccess::CPURead));
+    RHICmdList.Transition(FRHITransitionInfo(CopyDestTexture,
+                                             ERHIAccess::Unknown,
+                                             ERHIAccess::CPURead));
 
     RHICmdList.WriteGPUFence(Fence);
 
     void* Data = nullptr;
     int32 Width;
     int32 Height;
-    RHICmdList.MapStagingSurface(CopyDestTexture, Fence.GetReference(), Data, Width, Height);
+    RHICmdList.MapStagingSurface(CopyDestTexture,
+                                 Fence.GetReference(),
+                                 Data,
+                                 Width,
+                                 Height);
 
     check(Width >= static_cast<int32>(m_width));
     check(Height >= static_cast<int32>(m_height));
@@ -126,15 +136,25 @@ void UnrealTestingWindow::endFrame(std::vector<uint8_t>* pixelData)
     RHICmdList.UnmapStagingSurface(CopyDestTexture);
 }
 
-rive::gpu::RenderContext* UnrealTestingWindow::renderContext() const { return RenderContext; }
+rive::gpu::RenderContext* UnrealTestingWindow::renderContext() const
+{
+    return RenderContext;
+}
 
-rive::gpu::RenderTarget* UnrealTestingWindow::renderTarget() const { return RenderTarget.get(); }
+rive::gpu::RenderTarget* UnrealTestingWindow::renderTarget() const
+{
+    return RenderTarget.get();
+}
 
-void UnrealTestingWindow::flushPLSContext() { RenderContext->flush({RenderTarget.get()}); }
+void UnrealTestingWindow::flushPLSContext()
+{
+    RenderContext->flush({RenderTarget.get()});
+}
 
 bool UnrealTestingWindow::peekKey(char& key)
 {
-    auto controller = UGameplayStatics::GetPlayerController(WorldContextObject, 0);
+    auto controller =
+        UGameplayStatics::GetPlayerController(WorldContextObject, 0);
     return controller->GetInputAnalogKeyState(EKeys::SpaceBar) != 0;
 }
 

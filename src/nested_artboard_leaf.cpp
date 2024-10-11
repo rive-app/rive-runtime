@@ -30,10 +30,11 @@ void NestedArtboardLeaf::update(ComponentDirt value)
                           ? p->as<LayoutComponent>()->localBounds()
                           : AABB();
 
-        auto viewTransform = computeAlignment((Fit)fit(),
-                                              Alignment(alignmentX(), alignmentY()),
-                                              bounds,
-                                              artboard->bounds());
+        auto viewTransform =
+            computeAlignment((Fit)fit(),
+                             Alignment(alignmentX(), alignmentY()),
+                             bounds,
+                             artboard->bounds());
 
         m_WorldTransform *= viewTransform;
     }

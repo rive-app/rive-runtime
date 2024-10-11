@@ -10,7 +10,9 @@ StatusCode ElasticInterpolator::onAddedDirty(CoreContext* context)
     return StatusCode::Ok;
 }
 
-float ElasticInterpolator::transformValue(float valueFrom, float valueTo, float factor)
+float ElasticInterpolator::transformValue(float valueFrom,
+                                          float valueTo,
+                                          float factor)
 {
     return valueFrom + (valueTo - valueFrom) * transform(factor);
 }

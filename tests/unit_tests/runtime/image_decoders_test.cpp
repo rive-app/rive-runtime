@@ -29,8 +29,9 @@ TEST_CASE("jpeg file decodes correctly", "[image-decoder]")
 }
 
 #ifndef __APPLE__
-// Loading this particular jpeg image in CG causes a memory leak CGImageSourceCreateImageAtIndex
-// calls IIOReadPlugin::createInfoPtr which leaks
+// Loading this particular jpeg image in CG causes a memory leak
+// CGImageSourceCreateImageAtIndex calls IIOReadPlugin::createInfoPtr which
+// leaks
 TEST_CASE("bad jpeg file doesn't cause an overflow", "[image-decoder]")
 {
     auto file = ReadFile("assets/bad.jpg");
@@ -53,14 +54,15 @@ TEST_CASE("bad png file doesn't cause an overflow", "[image-decoder]")
     auto bitmap = Bitmap::decode(file.data(), file.size());
 
 #ifdef __APPLE__
-    // Loading this bad PNG file in CG actually works and we do get an image albiet black
+    // Loading this bad PNG file in CG actually works and we do get an image
+    // albiet black
     REQUIRE(bitmap != nullptr);
 
     REQUIRE(bitmap->width() == 58278);
     REQUIRE(bitmap->height() == 24566);
 #else
-    // Our decoders return null as we have an invalid header with bogus resolution and we want to
-    // avoid a potential attack vector
+    // Our decoders return null as we have an invalid header with bogus
+    // resolution and we want to avoid a potential attack vector
     REQUIRE(bitmap == nullptr);
 #endif
 }

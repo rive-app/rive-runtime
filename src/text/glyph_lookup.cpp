@@ -3,7 +3,8 @@
 
 using namespace rive;
 
-void GlyphLookup::compute(Span<const Unichar> text, const SimpleArray<Paragraph>& shape)
+void GlyphLookup::compute(Span<const Unichar> text,
+                          const SimpleArray<Paragraph>& shape)
 {
     size_t codeUnitCount = text.size();
     m_glyphIndices.resize(codeUnitCount + 1);
@@ -34,7 +35,8 @@ void GlyphLookup::compute(Span<const Unichar> text, const SimpleArray<Paragraph>
 
     // Store a fake unreachable glyph at the end to allow selecting the last
     // one.
-    m_glyphIndices[codeUnitCount] = codeUnitCount == 0 ? 0 : m_glyphIndices[codeUnitCount - 1] + 1;
+    m_glyphIndices[codeUnitCount] =
+        codeUnitCount == 0 ? 0 : m_glyphIndices[codeUnitCount - 1] + 1;
 }
 
 uint32_t GlyphLookup::count(uint32_t index) const

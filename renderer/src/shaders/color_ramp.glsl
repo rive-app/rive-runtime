@@ -2,8 +2,8 @@
  * Copyright 2022 Rive
  */
 
-// This shader draws horizontal color ramps into a gradient texture, which will later be sampled by
-// the renderer for drawing gradients.
+// This shader draws horizontal color ramps into a gradient texture, which will
+// later be sampled by the renderer for drawing gradients.
 
 #ifdef @VERTEX
 ATTR_BLOCK_BEGIN(Attrs)
@@ -31,7 +31,9 @@ VERTEX_STORAGE_BUFFER_BLOCK_END
 
 half4 unpackColorInt(uint color)
 {
-    return cast_uint4_to_half4((uint4(color, color, color, color) >> uint4(16, 8, 0, 24)) & 0xffu) /
+    return cast_uint4_to_half4(
+               (uint4(color, color, color, color) >> uint4(16, 8, 0, 24)) &
+               0xffu) /
            255.;
 }
 
@@ -48,11 +50,14 @@ VERTEX_MAIN(@colorRampVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
     VARYING_INIT(v_rampColor, half4);
 
-    float x = float((_vertexID & 1) == 0 ? @a_span.x & 0xffffu : @a_span.x >> 16) / 65536.;
+    float x =
+        float((_vertexID & 1) == 0 ? @a_span.x & 0xffffu : @a_span.x >> 16) /
+        65536.;
     float offsetY = (_vertexID & 2) == 0 ? 1. : .0;
     if (uniforms.gradInverseViewportY < .0)
     {
-        // Make sure we always emit clockwise triangles. Swap the top and bottom vertices.
+        // Make sure we always emit clockwise triangles. Swap the top and bottom
+        // vertices.
         offsetY = 1. - offsetY;
     }
     v_rampColor = unpackColorInt((_vertexID & 1) == 0 ? @a_span.z : @a_span.w);

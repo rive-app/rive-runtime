@@ -18,7 +18,10 @@ StatusCode Constraint::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void Constraint::markConstraintDirty() { parent()->as<TransformComponent>()->markTransformDirty(); }
+void Constraint::markConstraintDirty()
+{
+    parent()->as<TransformComponent>()->markTransformDirty();
+}
 
 void Constraint::strengthChanged() { markConstraintDirty(); }
 

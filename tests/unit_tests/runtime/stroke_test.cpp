@@ -18,5 +18,6 @@ TEST_CASE("stroke can be looked up at runtime", "[file]")
     REQUIRE(artboard->find<rive::Stroke>("white_stroke") != nullptr);
     auto stroke = artboard->find<rive::Stroke>("white_stroke");
     REQUIRE(stroke->paint()->is<rive::SolidColor>());
-    stroke->paint()->as<rive::SolidColor>()->colorValue(rive::colorARGB(255, 0, 255, 255));
+    stroke->paint()->as<rive::SolidColor>()->colorValue(
+        rive::colorARGB(255, 0, 255, 255));
 }

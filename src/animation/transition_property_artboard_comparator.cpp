@@ -34,20 +34,23 @@ float TransitionPropertyArtboardComparator::propertyValue(
     return 0;
 }
 
-bool TransitionPropertyArtboardComparator::compare(TransitionComparator* comparand,
-                                                   TransitionConditionOp operation,
-                                                   const StateMachineInstance* stateMachineInstance)
+bool TransitionPropertyArtboardComparator::compare(
+    TransitionComparator* comparand,
+    TransitionConditionOp operation,
+    const StateMachineInstance* stateMachineInstance)
 {
     auto value = propertyValue(stateMachineInstance);
     if (comparand->is<TransitionPropertyViewModelComparator>())
     {
-        auto rightValue = comparand->as<TransitionPropertyViewModelComparator>()
-                              ->value<BindablePropertyNumber, float>(stateMachineInstance);
+        auto rightValue =
+            comparand->as<TransitionPropertyViewModelComparator>()
+                ->value<BindablePropertyNumber, float>(stateMachineInstance);
         return compareNumbers(value, rightValue, operation);
     }
     else if (comparand->is<TransitionValueNumberComparator>())
     {
-        auto rightValue = comparand->as<TransitionValueNumberComparator>()->value();
+        auto rightValue =
+            comparand->as<TransitionValueNumberComparator>()->value();
         return compareNumbers(value, rightValue, operation);
     }
     return false;

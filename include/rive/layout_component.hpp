@@ -34,7 +34,9 @@ struct LayoutAnimationData
     AABB toBounds = AABB();
 };
 
-class LayoutComponent : public LayoutComponentBase, public ProxyDrawing, public ShapePaintContainer
+class LayoutComponent : public LayoutComponentBase,
+                        public ProxyDrawing,
+                        public ShapePaintContainer
 {
 protected:
     LayoutComponentStyle* m_style = nullptr;
@@ -47,7 +49,8 @@ protected:
 
     LayoutAnimationData m_animationData;
     KeyFrameInterpolator* m_inheritedInterpolator;
-    LayoutStyleInterpolation m_inheritedInterpolation = LayoutStyleInterpolation::hold;
+    LayoutStyleInterpolation m_inheritedInterpolation =
+        LayoutStyleInterpolation::hold;
     float m_inheritedInterpolationTime = 0;
     Rectangle* m_backgroundRect = new Rectangle();
     rcp<RenderPath> m_backgroundPath;
@@ -112,11 +115,14 @@ public:
     }
     AABB localBounds() const override
     {
-        return AABB::fromLTWH(0.0f, 0.0f, m_layoutSizeWidth, m_layoutSizeHeight);
+        return AABB::fromLTWH(0.0f,
+                              0.0f,
+                              m_layoutSizeWidth,
+                              m_layoutSizeHeight);
     }
 
-    // We provide a way for nested artboards (or other objects) to override this layout's
-    // width/height and unit values.
+    // We provide a way for nested artboards (or other objects) to override this
+    // layout's width/height and unit values.
     void widthOverride(float width, int unitValue = 1, bool isRow = true);
     void heightOverride(float height, int unitValue = 1, bool isRow = true);
     void widthIntrinsicallySizeOverride(bool intrinsic);
@@ -126,7 +132,9 @@ public:
     bool mainAxisIsColumn();
 
 #ifdef WITH_RIVE_LAYOUT
-    LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())), m_proxy(this)
+    LayoutComponent() :
+        m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())),
+        m_proxy(this)
     {
         layoutNode().getConfig()->setPointScaleFactor(0);
     }
@@ -147,13 +155,16 @@ public:
     void cascadeAnimationStyle(LayoutStyleInterpolation inheritedInterpolation,
                                KeyFrameInterpolator* inheritedInterpolator,
                                float inheritedInterpolationTime);
-    void setInheritedInterpolation(LayoutStyleInterpolation inheritedInterpolation,
-                                   KeyFrameInterpolator* inheritedInterpolator,
-                                   float inheritedInterpolationTime);
+    void setInheritedInterpolation(
+        LayoutStyleInterpolation inheritedInterpolation,
+        KeyFrameInterpolator* inheritedInterpolator,
+        float inheritedInterpolationTime);
     void clearInheritedInterpolation();
     bool isLeaf();
 #else
-    LayoutComponent() : m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())), m_proxy(this)
+    LayoutComponent() :
+        m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())),
+        m_proxy(this)
     {}
 #endif
     void buildDependencies() override;

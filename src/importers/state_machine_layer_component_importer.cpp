@@ -17,7 +17,8 @@ StateMachineLayerComponentImporter::StateMachineLayerComponentImporter(
     m_stateMachineLayerComponent(component)
 {}
 
-void StateMachineLayerComponentImporter::addFireEvent(StateMachineFireEvent* fireEvent)
+void StateMachineLayerComponentImporter::addFireEvent(
+    StateMachineFireEvent* fireEvent)
 {
     m_stateMachineLayerComponent->m_events.push_back(fireEvent);
 }

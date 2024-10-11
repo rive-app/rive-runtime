@@ -18,12 +18,14 @@ Core* NestedArtboardLayout::clone() const
 
 float NestedArtboardLayout::actualInstanceWidth()
 {
-    return instanceWidth() == -1.0f ? artboardInstance()->originalWidth() : instanceWidth();
+    return instanceWidth() == -1.0f ? artboardInstance()->originalWidth()
+                                    : instanceWidth();
 }
 
 float NestedArtboardLayout::actualInstanceHeight()
 {
-    return instanceHeight() == -1.0f ? artboardInstance()->originalHeight() : instanceHeight();
+    return instanceHeight() == -1.0f ? artboardInstance()->originalHeight()
+                                     : instanceHeight();
 }
 
 #ifdef WITH_RIVE_LAYOUT
@@ -56,13 +58,14 @@ void NestedArtboardLayout::update(ComponentDirt value)
         if (parent()->is<Artboard>())
         {
             auto parentArtboard = parent()->as<Artboard>();
-            auto correctedArtboardSpace =
-                Mat2D::fromTranslation(parentArtboard->origin() + layoutPosition);
+            auto correctedArtboardSpace = Mat2D::fromTranslation(
+                parentArtboard->origin() + layoutPosition);
             m_WorldTransform = correctedArtboardSpace * m_WorldTransform;
         }
         else
         {
-            m_WorldTransform = Mat2D::fromTranslation(layoutPosition) * m_WorldTransform;
+            m_WorldTransform =
+                Mat2D::fromTranslation(layoutPosition) * m_WorldTransform;
         }
         auto back = Mat2D::fromTranslation(-artboard->origin());
         m_WorldTransform = back * m_WorldTransform;
@@ -89,13 +92,16 @@ void NestedArtboardLayout::updateWidthOverride()
     {
         return;
     }
-    auto isRow =
-        parent()->is<LayoutComponent>() ? parent()->as<LayoutComponent>()->mainAxisIsRow() : true;
+    auto isRow = parent()->is<LayoutComponent>()
+                     ? parent()->as<LayoutComponent>()->mainAxisIsRow()
+                     : true;
     if (instanceWidthScaleType() == 0) // LayoutScaleType::fixed
     {
         // If we're set to fixed, pass the unit value (points|percent)
         artboardInstance()->widthIntrinsicallySizeOverride(false);
-        artboardInstance()->widthOverride(actualInstanceWidth(), instanceWidthUnitsValue(), isRow);
+        artboardInstance()->widthOverride(actualInstanceWidth(),
+                                          instanceWidthUnitsValue(),
+                                          isRow);
     }
     else if (instanceWidthScaleType() == 1) // LayoutScaleType::fill
     {
@@ -115,8 +121,9 @@ void NestedArtboardLayout::updateHeightOverride()
     {
         return;
     }
-    auto isRow =
-        parent()->is<LayoutComponent>() ? parent()->as<LayoutComponent>()->mainAxisIsRow() : true;
+    auto isRow = parent()->is<LayoutComponent>()
+                     ? parent()->as<LayoutComponent>()->mainAxisIsRow()
+                     : true;
     if (instanceHeightScaleType() == 0) // LayoutScaleType::fixed
     {
         // If we're set to fixed, pass the unit value (points|percent)
@@ -141,10 +148,22 @@ void NestedArtboardLayout::instanceWidthChanged() { updateWidthOverride(); }
 
 void NestedArtboardLayout::instanceHeightChanged() { updateHeightOverride(); }
 
-void NestedArtboardLayout::instanceWidthUnitsValueChanged() { updateWidthOverride(); }
+void NestedArtboardLayout::instanceWidthUnitsValueChanged()
+{
+    updateWidthOverride();
+}
 
-void NestedArtboardLayout::instanceHeightUnitsValueChanged() { updateHeightOverride(); }
+void NestedArtboardLayout::instanceHeightUnitsValueChanged()
+{
+    updateHeightOverride();
+}
 
-void NestedArtboardLayout::instanceWidthScaleTypeChanged() { updateWidthOverride(); }
+void NestedArtboardLayout::instanceWidthScaleTypeChanged()
+{
+    updateWidthOverride();
+}
 
-void NestedArtboardLayout::instanceHeightScaleTypeChanged() { updateHeightOverride(); }
+void NestedArtboardLayout::instanceHeightScaleTypeChanged()
+{
+    updateHeightOverride();
+}

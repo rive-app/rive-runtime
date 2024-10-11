@@ -67,7 +67,8 @@ StatusCode StateMachine::onAddedClean(CoreContext* context)
 
 StatusCode StateMachine::import(ImportStack& importStack)
 {
-    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    auto artboardImporter =
+        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr)
     {
         return StatusCode::MissingObject;

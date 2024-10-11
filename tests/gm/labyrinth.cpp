@@ -16,12 +16,14 @@ using namespace rive;
 /**
  * Repro case for https://bugs.chromium.org/p/chromium/issues/detail?id=913223
  *
- * The original bug was filed against square caps, but here we also draw the labyrinth using round
- * and butt caps.
+ * The original bug was filed against square caps, but here we also draw the
+ * labyrinth using round and butt caps.
  *
- * Square and round caps expose over-coverage on overlaps when using coverage counting.
+ * Square and round caps expose over-coverage on overlaps when using coverage
+ * counting.
  *
- * Butt caps expose under-coverage on abutted strokes when using a 'max()' coverage function.
+ * Butt caps expose under-coverage on abutted strokes when using a 'max()'
+ * coverage function.
  */
 static void draw_labyrinth(Renderer* renderer, StrokeCap cap)
 {

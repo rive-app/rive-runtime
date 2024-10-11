@@ -76,7 +76,10 @@ public:
         {
             return;
         }
-        Vec2D P[4] = {fLastPt, Vec2D::lerp(fLastPt, p1, 2 / 3.f), Vec2D::lerp(p2, p1, 2 / 3.f), p2},
+        Vec2D P[4] = {fLastPt,
+                      Vec2D::lerp(fLastPt, p1, 2 / 3.f),
+                      Vec2D::lerp(p2, p1, 2 / 3.f),
+                      p2},
               PP[7];
         ChopCubicAt(P, PP, T);
 
@@ -116,7 +119,8 @@ private:
         {
             return .5f;
         }
-        float T = (0 == fRand.u32() % 10) ? 0 : scalbnf(1, -(int)fRand.u32(10, 149));
+        float T =
+            (0 == fRand.u32() % 10) ? 0 : scalbnf(1, -(int)fRand.u32(10, 149));
         assert(T >= 0 && T < 1);
         return T;
     }
@@ -138,12 +142,15 @@ protected:
     void onDraw(Renderer* renderer) override
     {
         int subdivisions = 12;
-        if (gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext())
+        if (gpu::RenderContext* renderContext =
+                TestingWindow::Get()->renderContext())
         {
-            if (renderContext->frameInterlockMode() == gpu::InterlockMode::atomics)
+            if (renderContext->frameInterlockMode() ==
+                gpu::InterlockMode::atomics)
             {
-                // Atomic mode uses 7:9 fixed point, so the winding number breaks if a shape has
-                // more than 128 levels of self overlap at any point.
+                // Atomic mode uses 7:9 fixed point, so the winding number
+                // breaks if a shape has more than 128 levels of self overlap at
+                // any point.
                 subdivisions = 4;
             }
         }
@@ -168,17 +175,20 @@ protected:
         renderer->save();
         renderer->translate(421, 105);
         renderer->scale(100, 81);
-        mandoline.reset({-cosf(degreesToRadians(-60)), sinf(degreesToRadians(-60))});
-        mandoline.sliceQuadratic({-2, 0},
-                                 {-cosf(degreesToRadians(60)), sinf(degreesToRadians(60))},
-                                 subdivisions);
+        mandoline.reset(
+            {-cosf(degreesToRadians(-60)), sinf(degreesToRadians(-60))});
+        mandoline.sliceQuadratic(
+            {-2, 0},
+            {-cosf(degreesToRadians(60)), sinf(degreesToRadians(60))},
+            subdivisions);
         mandoline.sliceQuadratic(
             {-cosf(degreesToRadians(120)) * 2, sinf(degreesToRadians(120)) * 2},
             {1, 0},
             subdivisions);
         mandoline.sliceLine({0, 0}, subdivisions);
-        mandoline.sliceLine({-cosf(degreesToRadians(-60)), sinf(degreesToRadians(-60))},
-                            subdivisions);
+        mandoline.sliceLine(
+            {-cosf(degreesToRadians(-60)), sinf(degreesToRadians(-60))},
+            subdivisions);
         renderer->drawPath(mandoline.path(), paint);
         renderer->restore();
 

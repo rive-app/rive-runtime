@@ -82,13 +82,15 @@ public:
                 AutoRestore ar(ren, true);
 
                 ren->translate(x * 100, y * 100);
-                auto shader = TestingWindow::Get()->factory()->makeLinearGradient(rec[i].a.x,
-                                                                                  rec[i].a.y,
-                                                                                  rec[i].b.x,
-                                                                                  rec[i].b.y,
-                                                                                  rec[i].c,
-                                                                                  rec[i].p,
-                                                                                  rec[i].n);
+                auto shader =
+                    TestingWindow::Get()->factory()->makeLinearGradient(
+                        rec[i].a.x,
+                        rec[i].a.y,
+                        rec[i].b.x,
+                        rec[i].b.y,
+                        rec[i].c,
+                        rec[i].p,
+                        rec[i].n);
                 paint->shader(shader);
                 draw_rect(ren, rect, paint);
                 i += 1;

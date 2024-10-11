@@ -7,7 +7,8 @@ using namespace rive;
 
 void Solo::propagateCollapse(bool collapse)
 {
-    Core* active = collapse ? nullptr : artboard()->resolve(activeComponentId());
+    Core* active =
+        collapse ? nullptr : artboard()->resolve(activeComponentId());
     for (Component* child : children())
     {
         // Some child components shouldn't be considered as part of the solo set

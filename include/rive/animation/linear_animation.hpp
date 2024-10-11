@@ -33,7 +33,8 @@ public:
     float startSeconds() const;
     float endSeconds() const;
 
-    /// Returns the start time/ end time of the animation in seconds, considering speed
+    /// Returns the start time/ end time of the animation in seconds,
+    /// considering speed
     float startTime() const;
     float startTime(float multiplier) const;
     float endTime() const;

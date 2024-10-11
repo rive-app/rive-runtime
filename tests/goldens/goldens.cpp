@@ -23,7 +23,9 @@ constexpr static int kWindowTargetSize = 1600;
 
 GoldensArguments s_args;
 
-static void render_and_dump_png(int cellSize, const char* rivName, rive::Scene* scene)
+static void render_and_dump_png(int cellSize,
+                                const char* rivName,
+                                rive::Scene* scene)
 {
     if (s_args.verbose())
     {
@@ -73,7 +75,10 @@ static void render_and_dump_png(int cellSize, const char* rivName, rive::Scene* 
         assert(pixels.size() == windowHeight * windowWidth * 4);
         std::ostringstream imageName;
 
-        imageName << std::filesystem::path(rivName).filename().stem().generic_string();
+        imageName << std::filesystem::path(rivName)
+                         .filename()
+                         .stem()
+                         .generic_string();
         if (s_args.rows() != 1 || s_args.cols() != 1)
         {
             imageName << '.' << s_args.cols() << 'x' << s_args.rows() << '.';
@@ -180,27 +185,34 @@ int main(int argc, const char* argv[])
     {
         s_args.parse(argc, argv);
         std::string gpuNameFilter;
-        auto backend = s_args.backend().empty()
-                           ? TestingWindow::Backend::gl
-                           : TestingWindow::ParseBackend(s_args.backend().c_str(), &gpuNameFilter);
-        auto visibility = s_args.headless() ? TestingWindow::Visibility::headless
-                                            : TestingWindow::Visibility::window;
+        auto backend =
+            s_args.backend().empty()
+                ? TestingWindow::Backend::gl
+                : TestingWindow::ParseBackend(s_args.backend().c_str(),
+                                              &gpuNameFilter);
+        auto visibility = s_args.headless()
+                              ? TestingWindow::Visibility::headless
+                              : TestingWindow::Visibility::window;
         TestingWindow::Init(backend, visibility, gpuNameFilter);
 
         if (!s_args.testHarness().empty())
         {
-            TestHarness::Instance().init(TCPClient::Connect(s_args.testHarness().c_str()),
-                                         s_args.pngThreads());
+            TestHarness::Instance().init(
+                TCPClient::Connect(s_args.testHarness().c_str()),
+                s_args.pngThreads());
         }
         else
         {
-            TestHarness::Instance().init(std::filesystem::path(s_args.output().c_str()),
-                                         s_args.pngThreads());
+            TestHarness::Instance().init(
+                std::filesystem::path(s_args.output().c_str()),
+                s_args.pngThreads());
         }
-        TestHarness::Instance().setPNGCompression(s_args.fastPNG() ? PNGCompression::fast_rle
-                                                                   : PNGCompression::compact);
+        TestHarness::Instance().setPNGCompression(
+            s_args.fastPNG() ? PNGCompression::fast_rle
+                             : PNGCompression::compact);
 
-        int cellSize = kWindowTargetSize / std::max(s_args.cols(), s_args.rows());
+        int cellSize =
+            kWindowTargetSize / std::max(s_args.cols(), s_args.rows());
         int windowWidth = cellSize * s_args.cols();
         int windowHeight = cellSize * s_args.rows();
         TestingWindow::Get()->resize(windowWidth, windowHeight);
@@ -216,7 +228,9 @@ int main(int argc, const char* argv[])
                 RIVLoader riv(rivBytes,
                               nullptr /*default artboard*/,
                               nullptr /*default state machine*/);
-                render_and_dump_png(cellSize, rivName.c_str(), riv.stateMachine());
+                render_and_dump_png(cellSize,
+                                    rivName.c_str(),
+                                    riv.stateMachine());
             }
         }
         else
@@ -227,10 +241,14 @@ int main(int argc, const char* argv[])
             {
                 throw "Bad file";
             }
-            RIVLoader riv(std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
-                          s_args.artboard().c_str(),
-                          s_args.stateMachine().c_str());
-            render_and_dump_png(cellSize, s_args.src().c_str(), riv.stateMachine());
+            RIVLoader riv(
+                std::vector<uint8_t>(std::istreambuf_iterator<char>(stream),
+                                     {}),
+                s_args.artboard().c_str(),
+                s_args.stateMachine().c_str());
+            render_and_dump_png(cellSize,
+                                s_args.src().c_str(),
+                                riv.stateMachine());
         }
     }
     catch (const args::Completion&)
@@ -255,7 +273,8 @@ int main(int argc, const char* argv[])
         return -1;
     }
 
-    TestingWindow::Destroy(); // Exercise our PLS teardown process now that we're done.
+    TestingWindow::Destroy(); // Exercise our PLS teardown process now that
+                              // we're done.
     TestHarness::Instance().shutdown();
     return 0;
 }

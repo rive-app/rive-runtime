@@ -8,10 +8,13 @@
 
 using namespace rive;
 
-static Vec2D randpt() { return Vec2D(float(rand()), float(rand())) * 100 / (float)RAND_MAX; }
+static Vec2D randpt()
+{
+    return Vec2D(float(rand()), float(rand())) * 100 / (float)RAND_MAX;
+}
 
-// Measure the speed of building a RawPath, without growing arrays or figuring out the actual path
-// contents.
+// Measure the speed of building a RawPath, without growing arrays or figuring
+// out the actual path contents.
 class BuildRawPath : public Bench
 {
 public:

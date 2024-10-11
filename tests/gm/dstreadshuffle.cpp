@@ -84,7 +84,8 @@ protected:
             }
             case kPolygonFan_ShapeType:
             {
-                float a0 = 0, a1 = 2 * math::PI / 3, a2 = 4 * math::PI / 3, a3 = 2 * math::PI;
+                float a0 = 0, a1 = 2 * math::PI / 3, a2 = 4 * math::PI / 3,
+                      a3 = 2 * math::PI;
                 float x = (l + r) / 2, y = (t + b) / 2;
                 float rx = (r - l) / 2, ry = (b - t) / 2;
                 builder.moveTo(cosf(a0) * rx + x, sinf(a0) * ry + y);
@@ -99,7 +100,8 @@ protected:
             }
             case kConcavePath_ShapeType:
             {
-                Vec2D points[5] = {{70.f * cosf(-math::PI / 2), 70.f * sinf(-math::PI / 2)}};
+                Vec2D points[5] = {
+                    {70.f * cosf(-math::PI / 2), 70.f * sinf(-math::PI / 2)}};
                 Mat2D rot = Mat2D::fromRotation(2 * math::PI / 5);
                 for (int i = 1; i < 5; ++i)
                 {
@@ -120,7 +122,10 @@ protected:
         renderer->drawPath(builder.detach(), paint);
     }
 
-    static ColorInt GetColor(Rand* random) { return 0x80000000 | (random->u32() & 0xffffff); }
+    static ColorInt GetColor(Rand* random)
+    {
+        return 0x80000000 | (random->u32() & 0xffffff);
+    }
 
     // static void DrawHairlines(Renderer* renderer) {
     //     if (canvas->imageInfo().alphaType() == kOpaque_SkAlphaType) {
@@ -161,8 +166,8 @@ protected:
             {
                 Paint p;
                 p->color(GetColor(&colorRandom));
-                // In order to get some op combining on the GPU backend we do 2 src over
-                // for each xfer mode which requires a dst read
+                // In order to get some op combining on the GPU backend we do 2
+                // src over for each xfer mode which requires a dst read
                 constexpr static BlendMode blendModes[] = {
                     BlendMode::srcOver,
                     BlendMode::screen,
@@ -188,11 +193,13 @@ protected:
             }
             y += 110;
         }
-        // // Draw hairlines to a surface and then draw that to the main canvas with a zoom so that
+        // // Draw hairlines to a surface and then draw that to the main canvas
+        // with a zoom so that
         // // it is easier to see how they blend.
         // SkImageInfo info;
         // // Recording canvases don't have a color type.
-        // if (SkColorType::kUnknown_SkColorType == canvas->imageInfo().colorType()) {
+        // if (SkColorType::kUnknown_SkColorType ==
+        // canvas->imageInfo().colorType()) {
         //     info = SkImageInfo::MakeN32Premul(35, 35);
         // } else {
         //     info = SkImageInfo::Make(35, 35,
@@ -202,10 +209,11 @@ protected:
         // }
         // auto surf = canvas->makeSurface(info);
         // if (!surf) {
-        //     // Fall back to raster. Raster supports only one of the 8 bit per-channel RGBA or
-        //     BGRA
-        //     // formats. This fall back happens when running with --preAbandonGpuContext.
-        //     if ((info.colorType() == kRGBA_8888_SkColorType ||
+        //     // Fall back to raster. Raster supports only one of the 8 bit
+        //     per-channel RGBA or BGRA
+        //     // formats. This fall back happens when running with
+        //     --preAbandonGpuContext. if ((info.colorType() ==
+        //     kRGBA_8888_SkColorType ||
         //          info.colorType() == kBGRA_8888_SkColorType) &&
         //         info.colorType() != kN32_SkColorType) {
         //         info = SkImageInfo::Make(35, 35,

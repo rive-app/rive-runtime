@@ -4,7 +4,8 @@
 #include <deque>
 #include <mutex>
 
-// Copied from https://morestina.net/blog/1400/minimalistic-blocking-bounded-queue-for-c
+// Copied from
+// https://morestina.net/blog/1400/minimalistic-blocking-bounded-queue-for-c
 template <typename T> class queue
 {
     std::deque<T> content;

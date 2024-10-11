@@ -41,8 +41,14 @@ void BinaryWriter::write(double value)
     auto bytes = reinterpret_cast<uint8_t*>(&value);
     if (is_big_endian())
     {
-        uint8_t backwards[8] =
-            {bytes[7], bytes[6], bytes[5], bytes[4], bytes[3], bytes[2], bytes[1], bytes[0]};
+        uint8_t backwards[8] = {bytes[7],
+                                bytes[6],
+                                bytes[5],
+                                bytes[4],
+                                bytes[3],
+                                bytes[2],
+                                bytes[1],
+                                bytes[0]};
         m_Stream->write(backwards, 8);
     }
     else
@@ -105,8 +111,14 @@ void BinaryWriter::writeDouble(double value)
     auto bytes = reinterpret_cast<uint8_t*>(&value);
     if (is_big_endian())
     {
-        uint8_t backwards[8] =
-            {bytes[7], bytes[6], bytes[5], bytes[4], bytes[3], bytes[2], bytes[1], bytes[0]};
+        uint8_t backwards[8] = {bytes[7],
+                                bytes[6],
+                                bytes[5],
+                                bytes[4],
+                                bytes[3],
+                                bytes[2],
+                                bytes[1],
+                                bytes[0]};
         m_Stream->write(backwards, 8);
     }
     else
@@ -115,10 +127,19 @@ void BinaryWriter::writeDouble(double value)
     }
 }
 
-void BinaryWriter::write(uint8_t value) { m_Stream->write((const uint8_t*)&value, 1); }
+void BinaryWriter::write(uint8_t value)
+{
+    m_Stream->write((const uint8_t*)&value, 1);
+}
 
-void BinaryWriter::write(uint16_t value) { m_Stream->write((const uint8_t*)&value, 2); }
+void BinaryWriter::write(uint16_t value)
+{
+    m_Stream->write((const uint8_t*)&value, 2);
+}
 
-void BinaryWriter::write(uint32_t value) { m_Stream->write((const uint8_t*)&value, 4); }
+void BinaryWriter::write(uint32_t value)
+{
+    m_Stream->write((const uint8_t*)&value, 4);
+}
 
 void BinaryWriter::clear() { m_Stream->clear(); }

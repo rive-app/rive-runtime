@@ -13,7 +13,8 @@
 
 namespace rive::gpu
 {
-rcp<Texture> RenderContextHelperImpl::decodeImageTexture(Span<const uint8_t> encodedBytes)
+rcp<Texture> RenderContextHelperImpl::decodeImageTexture(
+    Span<const uint8_t> encodedBytes)
 {
 #ifdef RIVE_DECODERS
     auto bitmap = Bitmap::decode(encodedBytes.data(), encodedBytes.size());
@@ -43,26 +44,30 @@ void RenderContextHelperImpl::resizeImageDrawUniformBuffer(size_t sizeInBytes)
     m_imageDrawUniformBuffer = makeUniformBufferRing(sizeInBytes);
 }
 
-void RenderContextHelperImpl::resizePathBuffer(size_t sizeInBytes,
-                                               gpu::StorageBufferStructure bufferStructure)
+void RenderContextHelperImpl::resizePathBuffer(
+    size_t sizeInBytes,
+    gpu::StorageBufferStructure bufferStructure)
 {
     m_pathBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
-void RenderContextHelperImpl::resizePaintBuffer(size_t sizeInBytes,
-                                                gpu::StorageBufferStructure bufferStructure)
+void RenderContextHelperImpl::resizePaintBuffer(
+    size_t sizeInBytes,
+    gpu::StorageBufferStructure bufferStructure)
 {
     m_paintBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
-void RenderContextHelperImpl::resizePaintAuxBuffer(size_t sizeInBytes,
-                                                   gpu::StorageBufferStructure bufferStructure)
+void RenderContextHelperImpl::resizePaintAuxBuffer(
+    size_t sizeInBytes,
+    gpu::StorageBufferStructure bufferStructure)
 {
     m_paintAuxBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
-void RenderContextHelperImpl::resizeContourBuffer(size_t sizeInBytes,
-                                                  gpu::StorageBufferStructure bufferStructure)
+void RenderContextHelperImpl::resizeContourBuffer(
+    size_t sizeInBytes,
+    gpu::StorageBufferStructure bufferStructure)
 {
     m_contourBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
@@ -147,20 +152,35 @@ void RenderContextHelperImpl::unmapImageDrawUniformBuffer()
     m_imageDrawUniformBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapPathBuffer() { m_pathBuffer->unmapAndSubmitBuffer(); }
+void RenderContextHelperImpl::unmapPathBuffer()
+{
+    m_pathBuffer->unmapAndSubmitBuffer();
+}
 
-void RenderContextHelperImpl::unmapPaintBuffer() { m_paintBuffer->unmapAndSubmitBuffer(); }
+void RenderContextHelperImpl::unmapPaintBuffer()
+{
+    m_paintBuffer->unmapAndSubmitBuffer();
+}
 
-void RenderContextHelperImpl::unmapPaintAuxBuffer() { m_paintAuxBuffer->unmapAndSubmitBuffer(); }
+void RenderContextHelperImpl::unmapPaintAuxBuffer()
+{
+    m_paintAuxBuffer->unmapAndSubmitBuffer();
+}
 
-void RenderContextHelperImpl::unmapContourBuffer() { m_contourBuffer->unmapAndSubmitBuffer(); }
+void RenderContextHelperImpl::unmapContourBuffer()
+{
+    m_contourBuffer->unmapAndSubmitBuffer();
+}
 
 void RenderContextHelperImpl::unmapSimpleColorRampsBuffer()
 {
     m_simpleColorRampsBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapGradSpanBuffer() { m_gradSpanBuffer->unmapAndSubmitBuffer(); }
+void RenderContextHelperImpl::unmapGradSpanBuffer()
+{
+    m_gradSpanBuffer->unmapAndSubmitBuffer();
+}
 
 void RenderContextHelperImpl::unmapTessVertexSpanBuffer()
 {

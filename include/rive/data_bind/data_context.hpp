@@ -16,8 +16,10 @@ public:
 
     DataContext* parent() { return m_Parent; }
     void parent(DataContext* value) { m_Parent = value; }
-    ViewModelInstanceValue* getViewModelProperty(const std::vector<uint32_t> path) const;
-    ViewModelInstance* getViewModelInstance(const std::vector<uint32_t> path) const;
+    ViewModelInstanceValue* getViewModelProperty(
+        const std::vector<uint32_t> path) const;
+    ViewModelInstance* getViewModelInstance(
+        const std::vector<uint32_t> path) const;
     void viewModelInstance(ViewModelInstance* value);
     ViewModelInstance* viewModelInstance() { return m_ViewModelInstance; };
 

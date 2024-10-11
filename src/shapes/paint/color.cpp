@@ -8,7 +8,8 @@ namespace rive
 {
 unsigned int colorARGB(int a, int r, int g, int b)
 {
-    return (((a & 0xff) << 24) | ((r & 0xff) << 16) | ((g & 0xff) << 8) | ((b & 0xff) << 0)) &
+    return (((a & 0xff) << 24) | ((r & 0xff) << 16) | ((g & 0xff) << 8) |
+            ((b & 0xff) << 0)) &
            0xFFFFFFFF;
 }
 
@@ -28,13 +29,15 @@ void UnpackColorToRGBA8(ColorInt color, uint8_t out[4])
 
 void UnpackColorToRGBA32F(ColorInt color, float out[4])
 {
-    float4 color4f = simd::cast<float>(color << uint4{8, 16, 24, 0} >> 24u) * (1.f / 255.f);
+    float4 color4f =
+        simd::cast<float>(color << uint4{8, 16, 24, 0} >> 24u) * (1.f / 255.f);
     simd::store(out, color4f);
 }
 
 void UnpackColorToRGBA32FPremul(ColorInt color, float out[4])
 {
-    float4 premulColor4f = simd::cast<float>(color << uint4{8, 16, 24, 0} >> 24u) * (1.f / 255.f);
+    float4 premulColor4f =
+        simd::cast<float>(color << uint4{8, 16, 24, 0} >> 24u) * (1.f / 255.f);
     float alpha = premulColor4f.w;
     premulColor4f *= float4{alpha, alpha, alpha, 1.f};
     simd::store(out, premulColor4f);
@@ -44,7 +47,8 @@ float colorOpacity(ColorInt value) { return (float)colorAlpha(value) / 0xFF; }
 
 static uint8_t opacityToAlpha(float opacity)
 {
-    return (uint8_t)std::lround(255.f * std::max(0.0f, std::min(1.0f, opacity)));
+    return (uint8_t)std::lround(255.f *
+                                std::max(0.0f, std::min(1.0f, opacity)));
 }
 
 ColorInt colorWithAlpha(ColorInt value, unsigned int a)
@@ -64,7 +68,8 @@ ColorInt colorModulateOpacity(ColorInt value, float opacity)
 
 static unsigned int lerp(unsigned int a, unsigned int b, float mix)
 {
-    return std::lround(std::max(0.0f, std::min(255.f, a * (1.0f - mix) + b * mix)));
+    return std::lround(
+        std::max(0.0f, std::min(255.f, a * (1.0f - mix) + b * mix)));
 }
 
 ColorInt colorLerp(ColorInt from, ColorInt to, float mix)

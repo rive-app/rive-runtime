@@ -12,7 +12,8 @@ static void applyColor(Core* object, int propertyKey, float mix, int value)
     }
     else
     {
-        auto mixedColor = colorLerp(CoreRegistry::getColor(object, propertyKey), value, mix);
+        auto mixedColor =
+            colorLerp(CoreRegistry::getColor(object, propertyKey), value, mix);
         CoreRegistry::setColor(object, propertyKey, mixedColor);
     }
 }
@@ -37,5 +38,8 @@ void KeyFrameColor::applyInterpolation(Core* object,
         f = keyframeInterpolator->transform(f);
     }
 
-    applyColor(object, propertyKey, mix, colorLerp(value(), nextColor.value(), f));
+    applyColor(object,
+               propertyKey,
+               mix,
+               colorLerp(value(), nextColor.value(), f));
 }

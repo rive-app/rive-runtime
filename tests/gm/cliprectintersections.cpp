@@ -10,12 +10,13 @@
 using namespace rivegm;
 using namespace rive;
 
-// Ensures clipRect intersections are rendered properly, including the case where the clipRect goes
-// negative and nothing should get drawn.
+// Ensures clipRect intersections are rendered properly, including the case
+// where the clipRect goes negative and nothing should get drawn.
 class CLipRectIntersectionsGM : public GM
 {
 public:
-    CLipRectIntersectionsGM() : GM(150 + 120 * 3, 685, "cliprectintersections") {}
+    CLipRectIntersectionsGM() : GM(150 + 120 * 3, 685, "cliprectintersections")
+    {}
 
     ColorInt clearColor() const override { return 0xff000000; }
 

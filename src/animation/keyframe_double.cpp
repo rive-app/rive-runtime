@@ -17,9 +17,10 @@ static void applyDouble(Core* object, int propertyKey, float mix, float value)
     else
     {
         float mixi = 1.0f - mix;
-        CoreRegistry::setDouble(object,
-                                propertyKey,
-                                CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
+        CoreRegistry::setDouble(
+            object,
+            propertyKey,
+            CoreRegistry::getDouble(object, propertyKey) * mixi + value * mix);
     }
 }
 
@@ -41,7 +42,9 @@ void KeyFrameDouble::applyInterpolation(Core* object,
     float frameValue;
     if (KeyFrameInterpolator* keyframeInterpolator = interpolator())
     {
-        frameValue = keyframeInterpolator->transformValue(value(), nextDouble.value(), f);
+        frameValue = keyframeInterpolator->transformValue(value(),
+                                                          nextDouble.value(),
+                                                          f);
     }
     else
     {

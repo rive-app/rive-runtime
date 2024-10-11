@@ -8,7 +8,10 @@ using namespace rive;
 
 #ifdef WITH_RIVE_LAYOUT
 
-KeyFrameInterpolator* LayoutComponentStyle::interpolator() { return m_interpolator; }
+KeyFrameInterpolator* LayoutComponentStyle::interpolator()
+{
+    return m_interpolator;
+}
 
 LayoutStyleInterpolation LayoutComponentStyle::interpolation()
 {
@@ -37,75 +40,165 @@ LayoutScaleType LayoutComponentStyle::heightScaleType()
 
 YGDisplay LayoutComponentStyle::display() { return YGDisplay(displayValue()); }
 
-YGPositionType LayoutComponentStyle::positionType() { return YGPositionType(positionTypeValue()); }
+YGPositionType LayoutComponentStyle::positionType()
+{
+    return YGPositionType(positionTypeValue());
+}
 
 YGFlexDirection LayoutComponentStyle::flexDirection()
 {
     return YGFlexDirection(flexDirectionValue());
 }
 
-YGDirection LayoutComponentStyle::direction() { return YGDirection(directionValue()); }
+YGDirection LayoutComponentStyle::direction()
+{
+    return YGDirection(directionValue());
+}
 
 YGWrap LayoutComponentStyle::flexWrap() { return YGWrap(flexWrapValue()); }
 
-YGAlign LayoutComponentStyle::alignItems() { return YGAlign(alignItemsValue()); }
+YGAlign LayoutComponentStyle::alignItems()
+{
+    return YGAlign(alignItemsValue());
+}
 
 YGAlign LayoutComponentStyle::alignSelf() { return YGAlign(alignSelfValue()); }
 
-YGAlign LayoutComponentStyle::alignContent() { return YGAlign(alignContentValue()); }
+YGAlign LayoutComponentStyle::alignContent()
+{
+    return YGAlign(alignContentValue());
+}
 
-YGJustify LayoutComponentStyle::justifyContent() { return YGJustify(justifyContentValue()); }
+YGJustify LayoutComponentStyle::justifyContent()
+{
+    return YGJustify(justifyContentValue());
+}
 
-YGOverflow LayoutComponentStyle::overflow() { return YGOverflow(overflowValue()); }
+YGOverflow LayoutComponentStyle::overflow()
+{
+    return YGOverflow(overflowValue());
+}
 
-bool LayoutComponentStyle::intrinsicallySized() { return intrinsicallySizedValue() == 1; }
+bool LayoutComponentStyle::intrinsicallySized()
+{
+    return intrinsicallySizedValue() == 1;
+}
 
 YGUnit LayoutComponentStyle::widthUnits() { return YGUnit(widthUnitsValue()); }
 
-YGUnit LayoutComponentStyle::heightUnits() { return YGUnit(heightUnitsValue()); }
+YGUnit LayoutComponentStyle::heightUnits()
+{
+    return YGUnit(heightUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::borderLeftUnits() { return YGUnit(borderLeftUnitsValue()); }
+YGUnit LayoutComponentStyle::borderLeftUnits()
+{
+    return YGUnit(borderLeftUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::borderRightUnits() { return YGUnit(borderRightUnitsValue()); }
+YGUnit LayoutComponentStyle::borderRightUnits()
+{
+    return YGUnit(borderRightUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::borderTopUnits() { return YGUnit(borderTopUnitsValue()); }
+YGUnit LayoutComponentStyle::borderTopUnits()
+{
+    return YGUnit(borderTopUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::borderBottomUnits() { return YGUnit(borderBottomUnitsValue()); }
+YGUnit LayoutComponentStyle::borderBottomUnits()
+{
+    return YGUnit(borderBottomUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::marginLeftUnits() { return YGUnit(marginLeftUnitsValue()); }
+YGUnit LayoutComponentStyle::marginLeftUnits()
+{
+    return YGUnit(marginLeftUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::marginRightUnits() { return YGUnit(marginRightUnitsValue()); }
+YGUnit LayoutComponentStyle::marginRightUnits()
+{
+    return YGUnit(marginRightUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::marginTopUnits() { return YGUnit(marginTopUnitsValue()); }
+YGUnit LayoutComponentStyle::marginTopUnits()
+{
+    return YGUnit(marginTopUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::marginBottomUnits() { return YGUnit(marginBottomUnitsValue()); }
+YGUnit LayoutComponentStyle::marginBottomUnits()
+{
+    return YGUnit(marginBottomUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::paddingLeftUnits() { return YGUnit(paddingLeftUnitsValue()); }
+YGUnit LayoutComponentStyle::paddingLeftUnits()
+{
+    return YGUnit(paddingLeftUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::paddingRightUnits() { return YGUnit(paddingRightUnitsValue()); }
+YGUnit LayoutComponentStyle::paddingRightUnits()
+{
+    return YGUnit(paddingRightUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::paddingTopUnits() { return YGUnit(paddingTopUnitsValue()); }
+YGUnit LayoutComponentStyle::paddingTopUnits()
+{
+    return YGUnit(paddingTopUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::paddingBottomUnits() { return YGUnit(paddingBottomUnitsValue()); }
+YGUnit LayoutComponentStyle::paddingBottomUnits()
+{
+    return YGUnit(paddingBottomUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::positionLeftUnits() { return YGUnit(positionLeftUnitsValue()); }
+YGUnit LayoutComponentStyle::positionLeftUnits()
+{
+    return YGUnit(positionLeftUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::positionRightUnits() { return YGUnit(positionRightUnitsValue()); }
+YGUnit LayoutComponentStyle::positionRightUnits()
+{
+    return YGUnit(positionRightUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::positionTopUnits() { return YGUnit(positionTopUnitsValue()); }
+YGUnit LayoutComponentStyle::positionTopUnits()
+{
+    return YGUnit(positionTopUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::positionBottomUnits() { return YGUnit(positionBottomUnitsValue()); }
+YGUnit LayoutComponentStyle::positionBottomUnits()
+{
+    return YGUnit(positionBottomUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::gapHorizontalUnits() { return YGUnit(gapHorizontalUnitsValue()); }
+YGUnit LayoutComponentStyle::gapHorizontalUnits()
+{
+    return YGUnit(gapHorizontalUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::gapVerticalUnits() { return YGUnit(gapVerticalUnitsValue()); }
+YGUnit LayoutComponentStyle::gapVerticalUnits()
+{
+    return YGUnit(gapVerticalUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::maxWidthUnits() { return YGUnit(maxWidthUnitsValue()); }
+YGUnit LayoutComponentStyle::maxWidthUnits()
+{
+    return YGUnit(maxWidthUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::maxHeightUnits() { return YGUnit(maxHeightUnitsValue()); }
+YGUnit LayoutComponentStyle::maxHeightUnits()
+{
+    return YGUnit(maxHeightUnitsValue());
+}
 
-YGUnit LayoutComponentStyle::minWidthUnits() { return YGUnit(minWidthUnitsValue()); }
-YGUnit LayoutComponentStyle::minHeightUnits() { return YGUnit(minHeightUnitsValue()); }
+YGUnit LayoutComponentStyle::minWidthUnits()
+{
+    return YGUnit(minWidthUnitsValue());
+}
+YGUnit LayoutComponentStyle::minHeightUnits()
+{
+    return YGUnit(minHeightUnitsValue());
+}
 void LayoutComponentStyle::markLayoutNodeDirty()
 {
     if (parent()->is<LayoutComponent>())
@@ -142,19 +235,37 @@ void LayoutComponentStyle::markLayoutNodeDirty() {}
 void LayoutComponentStyle::markLayoutStyleDirty() {}
 #endif
 
-void LayoutComponentStyle::layoutAlignmentTypeChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::layoutWidthScaleTypeChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::layoutHeightScaleTypeChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::layoutAlignmentTypeChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::layoutWidthScaleTypeChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::layoutHeightScaleTypeChanged()
+{
+    markLayoutNodeDirty();
+}
 void LayoutComponentStyle::displayValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::positionTypeValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::overflowValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::intrinsicallySizedValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::flexDirectionValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::intrinsicallySizedValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::flexDirectionValueChanged()
+{
+    markLayoutNodeDirty();
+}
 void LayoutComponentStyle::directionValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::alignContentValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::alignItemsValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::alignSelfValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::justifyContentValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::justifyContentValueChanged()
+{
+    markLayoutNodeDirty();
+}
 void LayoutComponentStyle::flexWrapValueChanged() { markLayoutNodeDirty(); }
 
 void LayoutComponentStyle::flexChanged() { markLayoutNodeDirty(); }
@@ -187,28 +298,94 @@ void LayoutComponentStyle::positionBottomChanged() { markLayoutNodeDirty(); }
 
 void LayoutComponentStyle::widthUnitsValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::heightUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::gapHorizontalUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::gapVerticalUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::maxWidthUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::maxHeightUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::minWidthUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::minHeightUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::borderLeftUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::borderRightUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::borderTopUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::borderBottomUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::marginLeftUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::marginRightUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::marginTopUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::marginBottomUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::paddingLeftUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::paddingRightUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::paddingTopUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::paddingBottomUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::positionLeftUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::positionRightUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::positionTopUnitsValueChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::positionBottomUnitsValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::gapHorizontalUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::gapVerticalUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::maxWidthUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::maxHeightUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::minWidthUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::minHeightUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::borderLeftUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::borderRightUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::borderTopUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::borderBottomUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::marginLeftUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::marginRightUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::marginTopUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::marginBottomUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::paddingLeftUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::paddingRightUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::paddingTopUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::paddingBottomUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::positionLeftUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::positionRightUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::positionTopUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
+void LayoutComponentStyle::positionBottomUnitsValueChanged()
+{
+    markLayoutNodeDirty();
+}
 void LayoutComponentStyle::cornerRadiusTLChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::cornerRadiusTRChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::cornerRadiusBLChanged() { markLayoutNodeDirty(); }

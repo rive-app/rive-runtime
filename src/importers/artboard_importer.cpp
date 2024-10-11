@@ -11,7 +11,10 @@ using namespace rive;
 
 ArtboardImporter::ArtboardImporter(Artboard* artboard) : m_Artboard(artboard) {}
 
-void ArtboardImporter::addComponent(Core* object) { m_Artboard->addObject(object); }
+void ArtboardImporter::addComponent(Core* object)
+{
+    m_Artboard->addObject(object);
+}
 
 void ArtboardImporter::addAnimation(LinearAnimation* animation)
 {
@@ -23,7 +26,10 @@ void ArtboardImporter::addStateMachine(StateMachine* stateMachine)
     m_Artboard->addStateMachine(stateMachine);
 }
 
-void ArtboardImporter::addDataBind(DataBind* dataBind) { m_Artboard->addDataBind(dataBind); }
+void ArtboardImporter::addDataBind(DataBind* dataBind)
+{
+    m_Artboard->addDataBind(dataBind);
+}
 
 StatusCode ArtboardImporter::resolve() { return m_Artboard->initialize(); }
 

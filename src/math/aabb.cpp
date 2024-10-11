@@ -51,7 +51,10 @@ IAABB AABB::roundOut() const
     return math::bit_cast<IAABB>(simd::cast<int32_t>(bounds));
 }
 
-void AABB::expandTo(AABB& out, const Vec2D& point) { expandTo(out, point.x, point.y); }
+void AABB::expandTo(AABB& out, const Vec2D& point)
+{
+    expandTo(out, point.x, point.y);
+}
 
 void AABB::expandTo(AABB& out, float x, float y)
 {
@@ -83,5 +86,6 @@ void AABB::join(AABB& out, const AABB& a, const AABB& b)
 
 bool AABB::contains(Vec2D point) const
 {
-    return point.x >= left() && point.x <= right() && point.y >= top() && point.y <= bottom();
+    return point.x >= left() && point.x <= right() && point.y >= top() &&
+           point.y <= bottom();
 }

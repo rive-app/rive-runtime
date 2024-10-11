@@ -7,7 +7,8 @@ using namespace rive;
 ElasticEase::ElasticEase(float amplitude, float period) :
     m_amplitude(amplitude),
     m_period(period),
-    m_s(amplitude < 1.0f ? period / 4.0f : period / (2.0f * math::PI) * asinf(1.0f / amplitude))
+    m_s(amplitude < 1.0f ? period / 4.0f
+                         : period / (2.0f * math::PI) * asinf(1.0f / amplitude))
 {}
 
 float ElasticEase::computeActualAmplitude(float time) const
@@ -15,9 +16,9 @@ float ElasticEase::computeActualAmplitude(float time) const
     if (m_amplitude < 1.0f)
     {
         /// We use this when the amplitude is less than 1.0 (amplitude is
-        /// described as factor of change in value). We also precompute s which is
-        /// the effective starting period we use to align the decaying sin with
-        /// our keyframe.
+        /// described as factor of change in value). We also precompute s which
+        /// is the effective starting period we use to align the decaying sin
+        /// with our keyframe.
         float t = abs(m_s);
         float absTime = abs(time);
         if (absTime < t)

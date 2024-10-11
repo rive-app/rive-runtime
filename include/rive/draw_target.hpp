@@ -25,7 +25,10 @@ public:
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
 
-    DrawTargetPlacement placement() const { return (DrawTargetPlacement)placementValue(); }
+    DrawTargetPlacement placement() const
+    {
+        return (DrawTargetPlacement)placementValue();
+    }
 
 protected:
     void placementValueChanged() override;

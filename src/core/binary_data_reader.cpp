@@ -4,7 +4,10 @@
 using namespace rive;
 
 BinaryDataReader::BinaryDataReader(uint8_t* bytes, size_t length) :
-    m_Position(bytes), m_End(bytes + length), m_Overflowed(false), m_Length(length)
+    m_Position(bytes),
+    m_End(bytes + length),
+    m_Overflowed(false),
+    m_Length(length)
 {}
 
 size_t BinaryDataReader::lengthInBytes() const { return m_Length; }

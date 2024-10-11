@@ -3,4 +3,7 @@
 
 using namespace rive;
 
-float CoreDoubleType::deserialize(BinaryReader& reader) { return reader.readFloat32(); }
+float CoreDoubleType::deserialize(BinaryReader& reader)
+{
+    return reader.readFloat32();
+}

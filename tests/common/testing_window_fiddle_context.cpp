@@ -29,7 +29,11 @@ using namespace rive::gpu;
 
 static std::deque<char> s_keys;
 
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+static void key_callback(GLFWwindow* window,
+                         int key,
+                         int scancode,
+                         int action,
+                         int mods)
 {
     if (action == GLFW_PRESS)
     {
@@ -94,11 +98,14 @@ public:
         if (IsANGLE(backend))
         {
 #ifdef __APPLE__
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_METAL);
+            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                         GLFW_ANGLE_PLATFORM_TYPE_METAL);
 #elif defined(_WIN32)
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_D3D11);
+            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                         GLFW_ANGLE_PLATFORM_TYPE_D3D11);
 #else
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
+            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                         GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
 #endif
         }
         if (!glfwInit())
@@ -145,14 +152,17 @@ public:
             glfwWindowHint(GLFW_CENTER_CURSOR, GLFW_FALSE);
 
             // For GLFW, the platformWindow is a fullscreen monitor index.
-            intptr_t fullscreenMonitorIdx = reinterpret_cast<intptr_t>(platformWindow);
+            intptr_t fullscreenMonitorIdx =
+                reinterpret_cast<intptr_t>(platformWindow);
 
             int monitorCount;
             GLFWmonitor** monitors = glfwGetMonitors(&monitorCount);
-            if (fullscreenMonitorIdx < 0 || fullscreenMonitorIdx >= monitorCount)
+            if (fullscreenMonitorIdx < 0 ||
+                fullscreenMonitorIdx >= monitorCount)
             {
                 fprintf(stderr,
-                        "Monitor index out of range. Requested %zi but %i are available.",
+                        "Monitor index out of range. Requested %zi but %i are "
+                        "available.",
                         fullscreenMonitorIdx,
                         monitorCount);
                 abort();
@@ -160,11 +170,15 @@ public:
             fullscreenMonitor = monitors[fullscreenMonitorIdx];
         }
 
-        // GLFW doesn't appear to have a way to say "make the window as big as the
-        // screen", but if we don't make it large enough here, the fullscreen window
-        // will be quarter resultion instead of full.
-        // NOTE: glfwGetMonitorPhysicalSize() returns bogus values.
-        m_glfwWindow = glfwCreateWindow(9999, 9999, "Rive Renderer", fullscreenMonitor, nullptr);
+        // GLFW doesn't appear to have a way to say "make the window as big as
+        // the screen", but if we don't make it large enough here, the
+        // fullscreen window will be quarter resultion instead of full. NOTE:
+        // glfwGetMonitorPhysicalSize() returns bogus values.
+        m_glfwWindow = glfwCreateWindow(9999,
+                                        9999,
+                                        "Rive Renderer",
+                                        fullscreenMonitor,
+                                        nullptr);
         if (!m_glfwWindow)
         {
             glfwTerminate();
@@ -323,7 +337,10 @@ public:
         return key;
     }
 
-    bool shouldQuit() const override { return glfwWindowShouldClose(m_glfwWindow); }
+    bool shouldQuit() const override
+    {
+        return glfwWindowShouldClose(m_glfwWindow);
+    }
 
 private:
     GLFWwindow* m_glfwWindow = nullptr;
@@ -336,7 +353,10 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend backend,
                                                 const char* gpuNameFilter,
                                                 void* platformWindow)
 {
-    return new TestingWindowFiddleContext(backend, visibility, gpuNameFilter, platformWindow);
+    return new TestingWindowFiddleContext(backend,
+                                          visibility,
+                                          gpuNameFilter,
+                                          platformWindow);
 }
 
 #endif

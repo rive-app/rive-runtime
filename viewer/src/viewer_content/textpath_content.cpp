@@ -407,5 +407,8 @@ std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[])
     return rivestd::make_unique<TextPathContent>();
 }
 #else
-std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[]) { return nullptr; }
+std::unique_ptr<ViewerContent> ViewerContent::TextPath(const char filename[])
+{
+    return nullptr;
+}
 #endif

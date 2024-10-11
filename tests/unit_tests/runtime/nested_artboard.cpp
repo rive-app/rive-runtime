@@ -25,8 +25,10 @@ TEST_CASE("collapsed nested artboards do not advance", "[solo]")
     artboard->advance(0.75f);
     // Testing whether the squares have moved in the artboard is an indirect way
     // if checking whether the time of each artboard has advanced
-    // Unfortunately there is no way of accessing the time of the animations directly
-    auto redNestedArtboard = stateMachine->artboard()->find<rive::NestedArtboard>("red-artboard");
+    // Unfortunately there is no way of accessing the time of the animations
+    // directly
+    auto redNestedArtboard =
+        stateMachine->artboard()->find<rive::NestedArtboard>("red-artboard");
     auto redNestedArtboardArtboard = redNestedArtboard->artboardInstance();
     auto movingShapes = redNestedArtboardArtboard->find<rive::Shape>();
     auto redRect = movingShapes.at(0);
@@ -39,7 +41,8 @@ TEST_CASE("collapsed nested artboards do not advance", "[solo]")
     REQUIRE(greenRect->x() == 50);
 }
 
-TEST_CASE("nested artboards with looping animations will keep main advanceAndApply advancing",
+TEST_CASE("nested artboards with looping animations will keep main "
+          "advanceAndApply advancing",
           "[nested]")
 {
     auto file = ReadRiveFile("assets/ball_test.riv");
@@ -50,7 +53,8 @@ TEST_CASE("nested artboards with looping animations will keep main advanceAndApp
     REQUIRE(stateMachine->advanceAndApply(1.0f) == true);
     REQUIRE(stateMachine->advanceAndApply(1.0f) == true);
 }
-TEST_CASE("nested artboards with one shot animations will not main advanceAndApply advancing",
+TEST_CASE("nested artboards with one shot animations will not main "
+          "advanceAndApply advancing",
           "[nested]")
 {
 

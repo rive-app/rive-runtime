@@ -5,13 +5,20 @@
 
 using namespace rive;
 
-StatusCode StateMachineInput::onAddedDirty(CoreContext* context) { return StatusCode::Ok; }
+StatusCode StateMachineInput::onAddedDirty(CoreContext* context)
+{
+    return StatusCode::Ok;
+}
 
-StatusCode StateMachineInput::onAddedClean(CoreContext* context) { return StatusCode::Ok; }
+StatusCode StateMachineInput::onAddedClean(CoreContext* context)
+{
+    return StatusCode::Ok;
+}
 
 StatusCode StateMachineInput::import(ImportStack& importStack)
 {
-    auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
+    auto stateMachineImporter =
+        importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
     if (stateMachineImporter == nullptr)
     {
         return StatusCode::MissingObject;

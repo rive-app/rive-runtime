@@ -11,13 +11,14 @@ Vec2D ParametricPath::measureLayout(float width,
                                     float height,
                                     LayoutMeasureMode heightMode)
 {
-    return Vec2D(
-        std::min(
-            (widthMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max() : width),
-            ParametricPath::width()),
-        std::min((heightMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max()
-                                                             : height),
-                 ParametricPath::height()));
+    return Vec2D(std::min((widthMode == LayoutMeasureMode::undefined
+                               ? std::numeric_limits<float>::max()
+                               : width),
+                          ParametricPath::width()),
+                 std::min((heightMode == LayoutMeasureMode::undefined
+                               ? std::numeric_limits<float>::max()
+                               : height),
+                          ParametricPath::height()));
 }
 
 void ParametricPath::controlSize(Vec2D size)

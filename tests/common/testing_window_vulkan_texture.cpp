@@ -6,7 +6,8 @@
 
 #ifndef RIVE_VULKAN
 
-TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly, const char* gpuNameFilter)
+TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly,
+                                                const char* gpuNameFilter)
 {
     return nullptr;
 }
@@ -27,41 +28,49 @@ public:
     {
         rive_vkb::load_vulkan();
 
-        m_instance = VKB_CHECK(vkb::InstanceBuilder()
-                                   .set_app_name("rive_tools")
-                                   .set_engine_name("Rive Renderer")
-                                   .set_headless(true)
+        m_instance =
+            VKB_CHECK(vkb::InstanceBuilder()
+                          .set_app_name("rive_tools")
+                          .set_engine_name("Rive Renderer")
+                          .set_headless(true)
 #ifdef DEBUG
-                                   .enable_validation_layers()
-                                   .set_debug_callback(rive_vkb::default_debug_callback)
+                          .enable_validation_layers()
+                          .set_debug_callback(rive_vkb::default_debug_callback)
 #endif
-                                   .build());
+                          .build());
 
         VulkanFeatures vulkanFeatures;
-        std::tie(m_physicalDevice, vulkanFeatures) = rive_vkb::select_physical_device(
-            m_instance,
-            coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly : rive_vkb::FeatureSet::allAvailable,
-            gpuNameFilter);
+        std::tie(m_physicalDevice, vulkanFeatures) =
+            rive_vkb::select_physical_device(
+                m_instance,
+                coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
+                                 : rive_vkb::FeatureSet::allAvailable,
+                gpuNameFilter);
         m_device = VKB_CHECK(vkb::DeviceBuilder(m_physicalDevice).build());
         m_queue = VKB_CHECK(m_device.get_queue(vkb::QueueType::graphics));
-        m_renderContext = RenderContextVulkanImpl::MakeContext(m_instance,
-                                                               m_physicalDevice,
-                                                               m_device,
-                                                               vulkanFeatures,
-                                                               m_instance.fp_vkGetInstanceProcAddr,
-                                                               m_instance.fp_vkGetDeviceProcAddr);
+        m_renderContext = RenderContextVulkanImpl::MakeContext(
+            m_instance,
+            m_physicalDevice,
+            m_device,
+            vulkanFeatures,
+            m_instance.fp_vkGetInstanceProcAddr,
+            m_instance.fp_vkGetDeviceProcAddr);
         m_vkbTable = m_device.make_table();
 
-        m_semaphorePool = make_rcp<vkutil::ResourcePool<vkutil::Semaphore>>(ref_rcp(vk()));
-        m_fencePool = make_rcp<vkutil::ResourcePool<vkutil::Fence>>(ref_rcp(vk()));
-        m_commandBufferPool = make_rcp<vkutil::ResourcePool<vkutil::CommandBuffer>>(
-            ref_rcp(vk()),
-            *m_device.get_queue_index(vkb::QueueType::graphics));
+        m_semaphorePool =
+            make_rcp<vkutil::ResourcePool<vkutil::Semaphore>>(ref_rcp(vk()));
+        m_fencePool =
+            make_rcp<vkutil::ResourcePool<vkutil::Fence>>(ref_rcp(vk()));
+        m_commandBufferPool =
+            make_rcp<vkutil::ResourcePool<vkutil::CommandBuffer>>(
+                ref_rcp(vk()),
+                *m_device.get_queue_index(vkb::QueueType::graphics));
 
-        m_textureUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                              VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                              (coreFeaturesOnly ? VK_IMAGE_USAGE_TRANSFER_DST_BIT
-                                                : VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+        m_textureUsageFlags =
+            VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+            (coreFeaturesOnly ? VK_IMAGE_USAGE_TRANSFER_DST_BIT
+                              : VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
     }
 
     ~TestingWindowVulkanTexture()
@@ -86,7 +95,10 @@ public:
 
     rive::Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* renderContext() const override { return m_renderContext.get(); }
+    rive::gpu::RenderContext* renderContext() const override
+    {
+        return m_renderContext.get();
+    }
 
     std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
                                                bool doClear,
@@ -102,7 +114,8 @@ public:
         VkCommandBufferBeginInfo commandBufferBeginInfo = {
             .sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO,
         };
-        m_vkbTable.beginCommandBuffer(*m_commandBuffer, &commandBufferBeginInfo);
+        m_vkbTable.beginCommandBuffer(*m_commandBuffer,
+                                      &commandBufferBeginInfo);
 
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
             .renderTargetWidth = m_width,
@@ -123,7 +136,9 @@ public:
         {
             m_texture = vk()->makeTexture({
                 .format = VK_FORMAT_B8G8R8A8_UNORM,
-                .extent = {static_cast<uint32_t>(m_width), static_cast<uint32_t>(m_height), 1},
+                .extent = {static_cast<uint32_t>(m_width),
+                           static_cast<uint32_t>(m_height),
+                           1},
                 .usage = m_textureUsageFlags,
             });
             m_pixelReadBuffer = vk()->makeBuffer(
@@ -132,8 +147,12 @@ public:
                     .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 },
                 vkutil::Mappability::readWrite);
-            m_renderTarget = impl()->makeRenderTarget(m_width, m_height, m_texture->info().format);
-            m_renderTarget->setTargetTextureView(vk()->makeTextureView(m_texture), {});
+            m_renderTarget = impl()->makeRenderTarget(m_width,
+                                                      m_height,
+                                                      m_texture->info().format);
+            m_renderTarget->setTargetTextureView(
+                vk()->makeTextureView(m_texture),
+                {});
         }
 
         m_renderContext->flush({
@@ -148,15 +167,15 @@ public:
         flushPLSContext();
 
         // Copy the framebuffer out to a buffer.
-        m_renderTarget->setTargetLastAccess(
-            vk()->simpleImageMemoryBarrier(*m_commandBuffer,
-                                           m_renderTarget->targetLastAccess(),
-                                           {
-                                               .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                               .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                                               .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                           },
-                                           *m_texture));
+        m_renderTarget->setTargetLastAccess(vk()->simpleImageMemoryBarrier(
+            *m_commandBuffer,
+            m_renderTarget->targetLastAccess(),
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            },
+            *m_texture));
 
         VkBufferImageCopy imageCopyDesc = {
             .imageSubresource =
@@ -176,20 +195,22 @@ public:
                                         1,
                                         &imageCopyDesc);
 
-        vk()->bufferMemoryBarrier(*m_commandBuffer,
-                                  VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                  VK_PIPELINE_STAGE_HOST_BIT,
-                                  0,
-                                  {
-                                      .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                                      .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
-                                      .buffer = *m_pixelReadBuffer,
-                                  });
+        vk()->bufferMemoryBarrier(
+            *m_commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_HOST_BIT,
+            0,
+            {
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_HOST_READ_BIT,
+                .buffer = *m_pixelReadBuffer,
+            });
 
         VK_CHECK(m_vkbTable.endCommandBuffer(*m_commandBuffer));
 
         auto nextFrameSemaphore = m_semaphorePool->make();
-        VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        VkPipelineStageFlags waitDstStageMask =
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
         VkSubmitInfo submitInfo = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -202,10 +223,12 @@ public:
         if (m_lastFrameSemaphore != nullptr)
         {
             submitInfo.waitSemaphoreCount = 1;
-            submitInfo.pWaitSemaphores = m_lastFrameSemaphore->vkSemaphoreAddressOf();
+            submitInfo.pWaitSemaphores =
+                m_lastFrameSemaphore->vkSemaphoreAddressOf();
         }
 
-        VK_CHECK(m_vkbTable.queueSubmit(m_queue, 1, &submitInfo, *m_lastFrameFence));
+        VK_CHECK(
+            m_vkbTable.queueSubmit(m_queue, 1, &submitInfo, *m_lastFrameFence));
 
         m_lastFrameSemaphore = std::move(nextFrameSemaphore);
 
@@ -221,8 +244,10 @@ public:
             for (uint32_t y = 0; y < m_height; ++y)
             {
                 auto src =
-                    static_cast<const uint8_t*>(m_pixelReadBuffer->contents()) + m_width * 4 * y;
-                uint8_t* dst = pixelData->data() + (m_height - y - 1) * m_width * 4;
+                    static_cast<const uint8_t*>(m_pixelReadBuffer->contents()) +
+                    m_width * 4 * y;
+                uint8_t* dst =
+                    pixelData->data() + (m_height - y - 1) * m_width * 4;
                 memcpy(dst, src, m_width * 4);
                 if (m_texture->info().format == VK_FORMAT_B8G8R8A8_UNORM)
                 {
@@ -265,9 +290,11 @@ private:
 };
 }; // namespace rive::gpu
 
-TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly, const char* gpuNameFilter)
+TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly,
+                                                const char* gpuNameFilter)
 {
-    return new rive::gpu::TestingWindowVulkanTexture(coreFeaturesOnly, gpuNameFilter);
+    return new rive::gpu::TestingWindowVulkanTexture(coreFeaturesOnly,
+                                                     gpuNameFilter);
 }
 
 #endif

@@ -8,10 +8,12 @@
 #include <stdio.h>
 #include <string.h>
 
-std::unique_ptr<TCPClient> TCPClient::Connect(const char* serverAddress /*server:port*/)
+std::unique_ptr<TCPClient> TCPClient::Connect(
+    const char* serverAddress /*server:port*/)
 {
     bool success;
-    auto tcpClient = std::unique_ptr<TCPClient>(new TCPClient(serverAddress, &success));
+    auto tcpClient =
+        std::unique_ptr<TCPClient>(new TCPClient(serverAddress, &success));
     if (success)
     {
         return tcpClient;
@@ -134,7 +136,8 @@ uint32_t TCPClient::send(const char* data, uint32_t size)
 
 uint32_t TCPClient::recv(char* buff, uint32_t size)
 {
-    return rive::math::lossless_numeric_cast<uint32_t>(::recv(m_sockfd, buff, size, 0));
+    return rive::math::lossless_numeric_cast<uint32_t>(
+        ::recv(m_sockfd, buff, size, 0));
 }
 
 void TCPClient::sendall(const void* data, size_t size)
@@ -142,8 +145,9 @@ void TCPClient::sendall(const void* data, size_t size)
     const char* cdata = reinterpret_cast<const char*>(data);
     while (size != 0)
     {
-        uint32_t sent =
-            send(cdata, rive::math::lossless_numeric_cast<uint32_t>(std::min<size_t>(size, 4096)));
+        uint32_t sent = send(cdata,
+                             rive::math::lossless_numeric_cast<uint32_t>(
+                                 std::min<size_t>(size, 4096)));
         size -= sent;
         cdata += sent;
     }
@@ -154,8 +158,9 @@ void TCPClient::recvall(void* buff, size_t size)
     char* cbuff = reinterpret_cast<char*>(buff);
     while (size != 0)
     {
-        uint32_t read =
-            recv(cbuff, rive::math::lossless_numeric_cast<uint32_t>(std::min<size_t>(size, 4096)));
+        uint32_t read = recv(cbuff,
+                             rive::math::lossless_numeric_cast<uint32_t>(
+                                 std::min<size_t>(size, 4096)));
         size -= read;
         cbuff += read;
     }

@@ -36,8 +36,9 @@ public:
 
     void onceBeforeDraw() { this->onOnceBeforeDraw(); }
 
-    // Calls clearColor(), TestingWindow::beginFrame(), draw(), TestingWindow::flush().
-    // (Most GMs just need to override onDraw() instead of overriding this method.)
+    // Calls clearColor(), TestingWindow::beginFrame(), draw(),
+    // TestingWindow::flush(). (Most GMs just need to override onDraw() instead
+    // of overriding this method.)
     virtual void run(std::vector<uint8_t>* pixels);
 
     virtual rive::ColorInt clearColor() const { return 0xffffffff; }
@@ -101,8 +102,8 @@ class RenderTarget;
 } // namespace gpu
 }; // namespace rive
 
-// Wraps a factory for rive::Renderer and a singleton target for it to render into (GL window, HTML
-// canvas, software buffer, etc.):
+// Wraps a factory for rive::Renderer and a singleton target for it to render
+// into (GL window, HTML canvas, software buffer, etc.):
 //
 //   TestingWindow::Init(type);
 //   renderer = TestingWindow::Get()->reset(width, height);
@@ -127,13 +128,14 @@ public:
         vulkanatomic,
 
         // Vulkan on Metal, aka MoltenVK.
-        // (defaults to /usr/local/share/vulkan/icd.d/MoltenVK_icd.json if VK_ICD_FILENAMES is not
-        // set.)
+        // (defaults to /usr/local/share/vulkan/icd.d/MoltenVK_icd.json if
+        // VK_ICD_FILENAMES is not set.)
         moltenvk,
         moltenvkatomic,
 
         // Swiftshader, Google's CPU implementation of Vulkan.
-        // (defaults to ./vk_swiftshader_icd.json if VK_ICD_FILENAMES is not set.)
+        // (defaults to ./vk_swiftshader_icd.json if VK_ICD_FILENAMES is not
+        // set.)
         swiftshader,
         swiftshaderatomic,
 
@@ -324,10 +326,14 @@ public:
 
     // For testing directly on RenderContext.
     virtual rive::gpu::RenderContext* renderContext() const { return nullptr; }
-    virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const { return nullptr; }
+    virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const
+    {
+        return nullptr;
+    }
     virtual rive::gpu::RenderTarget* renderTarget() const { return nullptr; }
 
-    // For testing render pass breaks. Caller must call renderContext()->beginFrame() again.
+    // For testing render pass breaks. Caller must call
+    // renderContext()->beginFrame() again.
     virtual void flushPLSContext() {}
 
     // Blocks until a key is pressed.
@@ -347,7 +353,8 @@ protected:
 
 private:
     static std::unique_ptr<TestingWindow> MakeGLFW(Backend, Visibility);
-    static std::unique_ptr<TestingWindow> MakeEGL(Backend, void* platformWindow);
+    static std::unique_ptr<TestingWindow> MakeEGL(Backend,
+                                                  void* platformWindow);
 #ifdef _WIN32
     static std::unique_ptr<TestingWindow> MakeD3D(Visibility);
 #endif
@@ -357,12 +364,15 @@ private:
 #ifdef RIVE_MACOSX
     static std::unique_ptr<TestingWindow> MakeCoreGraphics();
 #endif
-    static std::unique_ptr<TestingWindow> MakeFiddleContext(Backend,
-                                                            Visibility,
-                                                            const char* gpuNameFilter,
-                                                            void* platformWindow);
-    static std::unique_ptr<TestingWindow> MakeVulkanTexture(const char* gpuNameFilter);
-    static std::unique_ptr<TestingWindow> MakeAndroidVulkan(void* platformWindow);
+    static std::unique_ptr<TestingWindow> MakeFiddleContext(
+        Backend,
+        Visibility,
+        const char* gpuNameFilter,
+        void* platformWindow);
+    static std::unique_ptr<TestingWindow> MakeVulkanTexture(
+        const char* gpuNameFilter);
+    static std::unique_ptr<TestingWindow> MakeAndroidVulkan(
+        void* platformWindow);
 };
 
 RIVE_MAKE_ENUM_BITSET(TestingWindow::RendererFlags);
@@ -371,7 +381,9 @@ typedef const void* REGISTRY_HANDLE;
 
 int gms_main(int argc, const char* argv[]);
 void gms_memcpy(void* dst, void* src, size_t size);
-bool gms_registry_get_size(REGISTRY_HANDLE position_handle, size_t& width, size_t& height);
+bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
+                           size_t& width,
+                           size_t& height);
 bool gms_registry_get_name(REGISTRY_HANDLE position_handle, std::string& name);
 REGISTRY_HANDLE gms_get_registry_head();
 REGISTRY_HANDLE gms_registry_get_next(REGISTRY_HANDLE position_handle);

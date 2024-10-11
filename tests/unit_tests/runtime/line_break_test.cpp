@@ -105,8 +105,10 @@ TEST_CASE("line breaker handles returns", "[line break]")
     std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
     truns.push_back(append(&unichars, font, 32.0f, "one two thr"));
-    truns.push_back(
-        append(&unichars, font, 60.0f, reinterpret_cast<const char*>(u8"ee\u2028 four")));
+    truns.push_back(append(&unichars,
+                           font,
+                           60.0f,
+                           reinterpret_cast<const char*>(u8"ee\u2028 four")));
 
     auto paragraphs = font->shapeText(unichars, truns);
     const auto& paragraph = paragraphs.front();
@@ -243,7 +245,10 @@ TEST_CASE("line breaker breaks return characters", "[line break]")
     std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
     truns.push_back(
-        append(&unichars, font, 32.0f, reinterpret_cast<const char*>(u8"hello look\u2028here")));
+        append(&unichars,
+               font,
+               32.0f,
+               reinterpret_cast<const char*>(u8"hello look\u2028here")));
 
     auto paragraphs = font->shapeText(unichars, truns);
     REQUIRE(paragraphs.size() == 1);
@@ -263,11 +268,11 @@ TEST_CASE("shaper separates paragraphs", "[shaper]")
     // one two⏎ three
     std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
-    truns.push_back(
-        append(&unichars,
-               font,
-               32.0f,
-               reinterpret_cast<const char*>(u8"hello look\u2028here\nsecond paragraph")));
+    truns.push_back(append(&unichars,
+                           font,
+                           32.0f,
+                           reinterpret_cast<const char*>(
+                               u8"hello look\u2028here\nsecond paragraph")));
 
     auto paragraphs = font->shapeText(unichars, truns);
     REQUIRE(paragraphs.size() == 2);
@@ -381,7 +386,10 @@ TEST_CASE("line breaker deals with space only lines", "[line break]")
 
     std::vector<rive::TextRun> truns;
     std::vector<rive::Unichar> unichars;
-    truns.push_back(append(&unichars, font, 32.0f, reinterpret_cast<const char*>(u8"hi\u2028 ")));
+    truns.push_back(append(&unichars,
+                           font,
+                           32.0f,
+                           reinterpret_cast<const char*>(u8"hi\u2028 ")));
 
     auto paragraphs = font->shapeText(unichars, truns);
     REQUIRE(paragraphs.size() == 1);
@@ -417,7 +425,8 @@ TEST_CASE("line breaker deals with empty lines", "[line break]")
                 REQUIRE(line.startRunIndex == 0);
                 REQUIRE(line.startGlyphIndex == 0);
                 REQUIRE(paragraph.runs[line.startRunIndex].glyphs.size() == 3);
-                REQUIRE(paragraph.runs[line.startRunIndex].textIndices.size() == 3);
+                REQUIRE(paragraph.runs[line.startRunIndex].textIndices.size() ==
+                        3);
                 REQUIRE(paragraph.runs[line.startRunIndex].textIndices[0] == 0);
             }
         }

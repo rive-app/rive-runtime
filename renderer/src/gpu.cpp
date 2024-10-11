@@ -29,7 +29,8 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         assert(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
         assert(interlockMode == InterlockMode::atomics);
     }
-    if (miscFlags & (ShaderMiscFlags::storeColorClear | ShaderMiscFlags::swizzleColorBGRAToRGBA))
+    if (miscFlags & (ShaderMiscFlags::storeColorClear |
+                     ShaderMiscFlags::swizzleColorBGRAToRGBA))
     {
         assert(drawType == DrawType::atomicInitialize);
     }
@@ -66,7 +67,8 @@ uint32_t ShaderUniqueKey(DrawType drawType,
     assert(static_cast<uint32_t>(interlockMode) < 1 << 2);
     key = (key << 2) | static_cast<uint32_t>(interlockMode);
     key = (key << kShaderFeatureCount) |
-          (shaderFeatures & ShaderFeaturesMaskFor(drawType, interlockMode)).bits();
+          (shaderFeatures & ShaderFeaturesMaskFor(drawType, interlockMode))
+              .bits();
     assert(drawTypeKey < 1 << 3);
     key = (key << 3) | drawTypeKey;
     return key;
@@ -104,11 +106,12 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
                                                 uint16_t indices[],
                                                 uint16_t baseVertex)
 {
-    // AA border vertices. "Inner tessellation curves" have one more segment without a fan triangle
-    // whose purpose is to be a bowtie join.
+    // AA border vertices. "Inner tessellation curves" have one more segment
+    // without a fan triangle whose purpose is to be a bowtie join.
     size_t vertexCount = 0;
-    int32_t patchSegmentSpan = patchType == PatchType::midpointFan ? kMidpointFanPatchSegmentSpan
-                                                                   : kOuterCurvePatchSegmentSpan;
+    int32_t patchSegmentSpan = patchType == PatchType::midpointFan
+                                   ? kMidpointFanPatchSegmentSpan
+                                   : kOuterCurvePatchSegmentSpan;
     for (int32_t i = 0; i < patchSegmentSpan; ++i)
     {
         float params = pack_params(patchSegmentSpan, STROKE_VERTEX);
@@ -121,8 +124,8 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
             vertices[vertexCount + 2].set(r, 0.f, .5f, params);
             vertices[vertexCount + 3].set(r, 1.f, .0f, params);
 
-            // Give the vertex an alternate position when mirrored so the border has the same
-            // diagonals whether morrored or not.
+            // Give the vertex an alternate position when mirrored so the border
+            // has the same diagonals whether morrored or not.
             vertices[vertexCount + 0].setMirroredPosition(r, 0.f, .5f);
             vertices[vertexCount + 1].setMirroredPosition(l, 0.f, .5f);
             vertices[vertexCount + 2].setMirroredPosition(r, 1.f, .0f);
@@ -136,8 +139,8 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
             vertices[vertexCount + 2].set(r, -1.f, 1.f, params);
             vertices[vertexCount + 3].set(r, +1.f, 0.f, params);
 
-            // Give the vertex an alternate position when mirrored so the border has the same
-            // diagonals whether morrored or not.
+            // Give the vertex an alternate position when mirrored so the border
+            // has the same diagonals whether morrored or not.
             vertices[vertexCount + 0].setMirroredPosition(r - 1.f, -1.f, 1.f);
             vertices[vertexCount + 1].setMirroredPosition(l - 1.f, -1.f, 1.f);
             vertices[vertexCount + 2].setMirroredPosition(r - 1.f, +1.f, 0.f);
@@ -160,8 +163,8 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
             vertices[vertexCount + 2].set(l, -1.f, .0f, params);
             vertices[vertexCount + 3].set(r, -1.f, .0f, params);
 
-            // Give the vertex an alternate position when mirrored so the border has the same
-            // diagonals whether morrored or not.
+            // Give the vertex an alternate position when mirrored so the border
+            // has the same diagonals whether morrored or not.
             vertices[vertexCount + 0].setMirroredPosition(r, -0.f, .5f);
             vertices[vertexCount + 1].setMirroredPosition(r, -1.f, .0f);
             vertices[vertexCount + 2].setMirroredPosition(l, -0.f, .5f);
@@ -171,12 +174,14 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
         }
     }
 
-    // Triangle fan vertices. (These only touch the first "fanSegmentSpan" segments on inner
-    // tessellation curves.
+    // Triangle fan vertices. (These only touch the first "fanSegmentSpan"
+    // segments on inner tessellation curves.
     size_t fanVerticesIdx = vertexCount;
-    size_t fanSegmentSpan =
-        patchType == PatchType::midpointFan ? patchSegmentSpan : patchSegmentSpan - 1;
-    assert((fanSegmentSpan & (fanSegmentSpan - 1)) == 0); // The fan must be a power of two.
+    size_t fanSegmentSpan = patchType == PatchType::midpointFan
+                                ? patchSegmentSpan
+                                : patchSegmentSpan - 1;
+    assert((fanSegmentSpan & (fanSegmentSpan - 1)) ==
+           0); // The fan must be a power of two.
     for (int i = 0; i <= fanSegmentSpan; ++i)
     {
         float params = pack_params(patchSegmentSpan, FAN_VERTEX);
@@ -187,7 +192,9 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
         else
         {
             vertices[vertexCount].set(static_cast<float>(i), -1.f, 1, params);
-            vertices[vertexCount].setMirroredPosition(static_cast<float>(i) - 1, -1.f, 1);
+            vertices[vertexCount].setMirroredPosition(static_cast<float>(i) - 1,
+                                                      -1.f,
+                                                      1);
         }
         ++vertexCount;
     }
@@ -196,24 +203,30 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     size_t midpointIdx = vertexCount;
     if (patchType == PatchType::midpointFan)
     {
-        vertices[vertexCount++].set(0, 0, 1, pack_params(patchSegmentSpan, FAN_MIDPOINT_VERTEX));
+        vertices[vertexCount++]
+            .set(0, 0, 1, pack_params(patchSegmentSpan, FAN_MIDPOINT_VERTEX));
     }
-    assert(vertexCount == (patchType == PatchType::outerCurves ? kOuterCurvePatchVertexCount
-                                                               : kMidpointFanPatchVertexCount));
+    assert(vertexCount == (patchType == PatchType::outerCurves
+                               ? kOuterCurvePatchVertexCount
+                               : kMidpointFanPatchVertexCount));
 
     // AA border indices.
     constexpr static size_t kBorderPatternVertexCount = 4;
     constexpr static size_t kBorderPatternIndexCount = 6;
-    constexpr static uint16_t kBorderPattern[kBorderPatternIndexCount] = {0, 1, 2, 2, 1, 3};
-    constexpr static uint16_t kNegativeBorderPattern[kBorderPatternIndexCount] = {0, 2, 1, 1, 2, 3};
+    constexpr static uint16_t kBorderPattern[kBorderPatternIndexCount] =
+        {0, 1, 2, 2, 1, 3};
+    constexpr static uint16_t kNegativeBorderPattern[kBorderPatternIndexCount] =
+        {0, 2, 1, 1, 2, 3};
 
     size_t indexCount = 0;
     size_t borderEdgeVerticesIdx = 0;
-    for (size_t borderSegmentIdx = 0; borderSegmentIdx < patchSegmentSpan; ++borderSegmentIdx)
+    for (size_t borderSegmentIdx = 0; borderSegmentIdx < patchSegmentSpan;
+         ++borderSegmentIdx)
     {
         for (size_t i = 0; i < kBorderPatternIndexCount; ++i)
         {
-            indices[indexCount++] = baseVertex + borderEdgeVerticesIdx + kBorderPattern[i];
+            indices[indexCount++] =
+                baseVertex + borderEdgeVerticesIdx + kBorderPattern[i];
         }
         borderEdgeVerticesIdx += kBorderPatternVertexCount;
     }
@@ -221,12 +234,13 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     // Bottom (negative coverage) side of the AA border.
     if (patchType == PatchType::outerCurves)
     {
-        for (size_t borderSegmentIdx = 0; borderSegmentIdx < patchSegmentSpan; ++borderSegmentIdx)
+        for (size_t borderSegmentIdx = 0; borderSegmentIdx < patchSegmentSpan;
+             ++borderSegmentIdx)
         {
             for (size_t i = 0; i < kBorderPatternIndexCount; ++i)
             {
-                indices[indexCount++] =
-                    baseVertex + borderEdgeVerticesIdx + kNegativeBorderPattern[i];
+                indices[indexCount++] = baseVertex + borderEdgeVerticesIdx +
+                                        kNegativeBorderPattern[i];
             }
             borderEdgeVerticesIdx += kBorderPatternVertexCount;
         }
@@ -240,8 +254,8 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
     assert(borderEdgeVerticesIdx == fanVerticesIdx);
 
     // Triangle fan indices, in a middle-out topology.
-    // Don't include the final bowtie join if this is an "outerStroke" patch. (i.e., use
-    // fanSegmentSpan and not "patchSegmentSpan".)
+    // Don't include the final bowtie join if this is an "outerStroke" patch.
+    // (i.e., use fanSegmentSpan and not "patchSegmentSpan".)
     for (int step = 1; step < fanSegmentSpan; step <<= 1)
     {
         for (int i = 0; i < fanSegmentSpan; i += step * 2)
@@ -269,7 +283,10 @@ static void generate_buffer_data_for_patch_type(PatchType patchType,
 void GeneratePatchBufferData(PatchVertex vertices[kPatchVertexBufferCount],
                              uint16_t indices[kPatchIndexBufferCount])
 {
-    generate_buffer_data_for_patch_type(PatchType::midpointFan, vertices, indices, 0);
+    generate_buffer_data_for_patch_type(PatchType::midpointFan,
+                                        vertices,
+                                        indices,
+                                        0);
     generate_buffer_data_for_patch_type(PatchType::outerCurves,
                                         vertices + kMidpointFanPatchVertexCount,
                                         indices + kMidpointFanPatchIndexCount,
@@ -278,18 +295,19 @@ void GeneratePatchBufferData(PatchVertex vertices[kPatchVertexBufferCount],
 
 void ClipRectInverseMatrix::reset(const Mat2D& clipMatrix, const AABB& clipRect)
 {
-    // Find the matrix that transforms from pixel space to "normalized clipRect space", where the
-    // clipRect is the normalized rectangle: [-1, -1, +1, +1].
+    // Find the matrix that transforms from pixel space to "normalized clipRect
+    // space", where the clipRect is the normalized rectangle: [-1, -1, +1, +1].
     Mat2D m = clipMatrix * Mat2D(clipRect.width() * .5f,
                                  0,
                                  0,
                                  clipRect.height() * .5f,
                                  clipRect.center().x,
                                  clipRect.center().y);
-    if (clipRect.width() <= 0 || clipRect.height() <= 0 || !m.invert(&m_inverseMatrix))
+    if (clipRect.width() <= 0 || clipRect.height() <= 0 ||
+        !m.invert(&m_inverseMatrix))
     {
-        // If the width or height went zero or negative, or if "m" is non-invertible, clip away
-        // everything.
+        // If the width or height went zero or negative, or if "m" is
+        // non-invertible, clip away everything.
         *this = Empty();
     }
 }
@@ -353,8 +371,9 @@ uint32_t SwizzleRiveColorToRGBAPremul(ColorInt riveColor)
     return simd::reduce_or(premul << uint4{0, 8, 16, 24});
 }
 
-FlushUniforms::InverseViewports::InverseViewports(const FlushDescriptor& flushDesc,
-                                                  const PlatformFeatures& platformFeatures)
+FlushUniforms::InverseViewports::InverseViewports(
+    const FlushDescriptor& flushDesc,
+    const PlatformFeatures& platformFeatures)
 {
     float4 numerators = 2;
     if (platformFeatures.invertOffscreenY)
@@ -365,10 +384,11 @@ FlushUniforms::InverseViewports::InverseViewports(const FlushDescriptor& flushDe
     {
         numerators.w = -numerators.w;
     }
-    float4 vals = numerators / float4{static_cast<float>(flushDesc.complexGradRowsHeight),
-                                      static_cast<float>(flushDesc.tessDataHeight),
-                                      static_cast<float>(flushDesc.renderTarget->width()),
-                                      static_cast<float>(flushDesc.renderTarget->height())};
+    float4 vals = numerators /
+                  float4{static_cast<float>(flushDesc.complexGradRowsHeight),
+                         static_cast<float>(flushDesc.tessDataHeight),
+                         static_cast<float>(flushDesc.renderTarget->width()),
+                         static_cast<float>(flushDesc.renderTarget->height())};
     m_vals[0] = vals[0];
     m_vals[1] = vals[1];
     m_vals[2] = vals[2];
@@ -417,7 +437,8 @@ void PaintData::set(FillRule fillRule,
     {
         case PaintType::solidColor:
         {
-            // Swizzle the riveColor to little-endian RGBA (the order expected by GLSL).
+            // Swizzle the riveColor to little-endian RGBA (the order expected
+            // by GLSL).
             m_color = SwizzleRiveColorToRGBA(simplePaintValue.color);
             localParams |= shiftedClipID | shiftedBlendMode;
             break;
@@ -431,7 +452,8 @@ void PaintData::set(FillRule fillRule,
                 // Complex gradients rows are offset after the simple gradients.
                 row += gradTextureLayout.complexOffsetY;
             }
-            m_gradTextureY = (static_cast<float>(row) + .5f) * gradTextureLayout.inverseHeight;
+            m_gradTextureY = (static_cast<float>(row) + .5f) *
+                             gradTextureLayout.inverseHeight;
             localParams |= shiftedClipID | shiftedBlendMode;
             break;
         }
@@ -483,20 +505,24 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
             if (platformFeatures.fragCoordBottomUp)
             {
                 // Flip _fragCoord.y.
-                paintMatrix = paintMatrix * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
+                paintMatrix =
+                    paintMatrix * Mat2D(1, 0, 0, -1, 0, renderTarget->height());
             }
             if (paintType == PaintType::image)
             {
-                // Since we don't use perspective transformations, the image mipmap level-of-detail
-                // is constant throughout the entire path. Compute it ahead of time here.
+                // Since we don't use perspective transformations, the image
+                // mipmap level-of-detail is constant throughout the entire
+                // path. Compute it ahead of time here.
                 float dudx = paintMatrix.xx() * imageTexture->width();
                 float dudy = paintMatrix.yx() * imageTexture->height();
                 float dvdx = paintMatrix.xy() * imageTexture->width();
                 float dvdy = paintMatrix.yy() * imageTexture->height();
-                float maxScaleFactorPow2 =
-                    std::max(dudx * dudx + dvdx * dvdx, dudy * dudy + dvdy * dvdy);
-                // Instead of finding sqrt(maxScaleFactorPow2), just multiply the log by .5.
-                m_imageTextureLOD = log2f(std::max(maxScaleFactorPow2, 1.f)) * .5f;
+                float maxScaleFactorPow2 = std::max(dudx * dudx + dvdx * dvdx,
+                                                    dudy * dudy + dvdy * dvdy);
+                // Instead of finding sqrt(maxScaleFactorPow2), just multiply
+                // the log by .5.
+                m_imageTextureLOD =
+                    log2f(std::max(maxScaleFactorPow2, 1.f)) * .5f;
             }
             else
             {
@@ -504,15 +530,25 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
                 const float* gradCoeffs = gradient->coeffs();
                 if (paintType == PaintType::linearGradient)
                 {
-                    paintMatrix =
-                        Mat2D(gradCoeffs[0], 0, gradCoeffs[1], 0, gradCoeffs[2], 0) * paintMatrix;
+                    paintMatrix = Mat2D(gradCoeffs[0],
+                                        0,
+                                        gradCoeffs[1],
+                                        0,
+                                        gradCoeffs[2],
+                                        0) *
+                                  paintMatrix;
                 }
                 else
                 {
                     assert(paintType == PaintType::radialGradient);
                     float w = 1 / gradCoeffs[2];
-                    paintMatrix =
-                        Mat2D(w, 0, 0, w, -gradCoeffs[0] * w, -gradCoeffs[1] * w) * paintMatrix;
+                    paintMatrix = Mat2D(w,
+                                        0,
+                                        0,
+                                        w,
+                                        -gradCoeffs[0] * w,
+                                        -gradCoeffs[1] * w) *
+                                  paintMatrix;
                 }
                 float left, right;
                 if (simplePaintValue.colorRampLocation.isComplex())
@@ -525,8 +561,10 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
                     left = simplePaintValue.colorRampLocation.col;
                     right = left + 2;
                 }
-                m_gradTextureHorizontalSpan[0] = (right - left - 1) * GRAD_TEXTURE_INVERSE_WIDTH;
-                m_gradTextureHorizontalSpan[1] = (left + .5f) * GRAD_TEXTURE_INVERSE_WIDTH;
+                m_gradTextureHorizontalSpan[0] =
+                    (right - left - 1) * GRAD_TEXTURE_INVERSE_WIDTH;
+                m_gradTextureHorizontalSpan[1] =
+                    (left + .5f) * GRAD_TEXTURE_INVERSE_WIDTH;
             }
             write_matrix(m_matrix, paintMatrix);
             break;
@@ -551,18 +589,20 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
     }
     else
     {
-        write_matrix(m_clipRectInverseMatrix, ClipRectInverseMatrix::WideOpen().inverseMatrix());
+        write_matrix(m_clipRectInverseMatrix,
+                     ClipRectInverseMatrix::WideOpen().inverseMatrix());
         m_inverseFwidth.x = 0;
         m_inverseFwidth.y = 0;
     }
 }
 
-ImageDrawUniforms::ImageDrawUniforms(const Mat2D& matrix,
-                                     float opacity,
-                                     const ClipRectInverseMatrix* clipRectInverseMatrix,
-                                     uint32_t clipID,
-                                     BlendMode blendMode,
-                                     uint32_t zIndex)
+ImageDrawUniforms::ImageDrawUniforms(
+    const Mat2D& matrix,
+    float opacity,
+    const ClipRectInverseMatrix* clipRectInverseMatrix,
+    uint32_t clipID,
+    BlendMode blendMode,
+    uint32_t zIndex)
 {
     write_matrix(m_matrix, matrix);
     m_opacity = opacity;
@@ -575,28 +615,36 @@ ImageDrawUniforms::ImageDrawUniforms(const Mat2D& matrix,
     m_zIndex = zIndex;
 }
 
-std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes,
-                                                  StorageBufferStructure bufferStructure)
+std::tuple<uint32_t, uint32_t> StorageTextureSize(
+    size_t bufferSizeInBytes,
+    StorageBufferStructure bufferStructure)
 {
-    assert(bufferSizeInBytes % gpu::StorageBufferElementSizeInBytes(bufferStructure) == 0);
-    uint32_t elementCount = math::lossless_numeric_cast<uint32_t>(bufferSizeInBytes) /
-                            gpu::StorageBufferElementSizeInBytes(bufferStructure);
-    uint32_t height = (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
-    // RenderContext is responsible for breaking up a flush before any storage buffer grows
-    // larger than can be supported by a GL texture of width "STORAGE_TEXTURE_WIDTH".
-    // (2048 is the min required value for GL_MAX_TEXTURE_SIZE.)
+    assert(bufferSizeInBytes %
+               gpu::StorageBufferElementSizeInBytes(bufferStructure) ==
+           0);
+    uint32_t elementCount =
+        math::lossless_numeric_cast<uint32_t>(bufferSizeInBytes) /
+        gpu::StorageBufferElementSizeInBytes(bufferStructure);
+    uint32_t height =
+        (elementCount + STORAGE_TEXTURE_WIDTH - 1) / STORAGE_TEXTURE_WIDTH;
+    // RenderContext is responsible for breaking up a flush before any storage
+    // buffer grows larger than can be supported by a GL texture of width
+    // "STORAGE_TEXTURE_WIDTH". (2048 is the min required value for
+    // GL_MAX_TEXTURE_SIZE.)
     constexpr int kMaxRequredTextureHeight RIVE_MAYBE_UNUSED = 2048;
     assert(height <= kMaxRequredTextureHeight);
     uint32_t width = std::min<uint32_t>(elementCount, STORAGE_TEXTURE_WIDTH);
     return {width, height};
 }
 
-size_t StorageTextureBufferSize(size_t bufferSizeInBytes, StorageBufferStructure bufferStructure)
+size_t StorageTextureBufferSize(size_t bufferSizeInBytes,
+                                StorageBufferStructure bufferStructure)
 {
-    // The polyfill texture needs to be updated in entire rows at a time. Extend the buffer's length
-    // to be able to service a worst-case scenario.
+    // The polyfill texture needs to be updated in entire rows at a time. Extend
+    // the buffer's length to be able to service a worst-case scenario.
     return bufferSizeInBytes +
-           (STORAGE_TEXTURE_WIDTH - 1) * gpu::StorageBufferElementSizeInBytes(bufferStructure);
+           (STORAGE_TEXTURE_WIDTH - 1) *
+               gpu::StorageBufferElementSizeInBytes(bufferStructure);
 }
 
 float FindTransformedArea(const AABB& bounds, const Mat2D& matrix)
@@ -610,6 +658,7 @@ float FindTransformedArea(const AABB& bounds, const Mat2D& matrix)
     Vec2D v[3] = {screenSpacePts[1] - screenSpacePts[0],
                   screenSpacePts[2] - screenSpacePts[0],
                   screenSpacePts[3] - screenSpacePts[0]};
-    return (fabsf(Vec2D::cross(v[0], v[1])) + fabsf(Vec2D::cross(v[1], v[2]))) * .5f;
+    return (fabsf(Vec2D::cross(v[0], v[1])) + fabsf(Vec2D::cross(v[1], v[2]))) *
+           .5f;
 }
 } // namespace rive::gpu

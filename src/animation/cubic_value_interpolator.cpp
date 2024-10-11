@@ -19,7 +19,9 @@ void CubicValueInterpolator::computeParameters()
     // m_D = y1;
 }
 
-float CubicValueInterpolator::transformValue(float valueFrom, float valueTo, float factor)
+float CubicValueInterpolator::transformValue(float valueFrom,
+                                             float valueTo,
+                                             float factor)
 {
     if (m_D != valueFrom || m_ValueTo != valueTo)
     {

@@ -27,7 +27,8 @@ RenderPath* PathDasher::dash(const RawPath& source,
     m_rawPath.rewind();
     if (m_contours.empty())
     {
-        // 0.5f / 8.0f is a value that seems to look good on dashes with small gaps and scaled
+        // 0.5f / 8.0f is a value that seems to look good on dashes with small
+        // gaps and scaled
         ContourMeasureIter iter(&source, 0.0625f);
         while (auto meas = iter.next())
         {
@@ -76,12 +77,21 @@ RenderPath* PathDasher::dash(const RawPath& source,
                     {
                         if (distance < contour->length())
                         {
-                            contour->getSegment(distance, contour->length(), &m_rawPath, true);
-                            contour->getSegment(0.0f, endLength, &m_rawPath, !contour->isClosed());
+                            contour->getSegment(distance,
+                                                contour->length(),
+                                                &m_rawPath,
+                                                true);
+                            contour->getSegment(0.0f,
+                                                endLength,
+                                                &m_rawPath,
+                                                !contour->isClosed());
                         }
                         else
                         {
-                            contour->getSegment(0.0f, endLength, &m_rawPath, true);
+                            contour->getSegment(0.0f,
+                                                endLength,
+                                                &m_rawPath,
+                                                true);
                         }
                     }
 

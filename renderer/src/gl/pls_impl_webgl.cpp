@@ -34,21 +34,28 @@ EM_JS(void,
           const pls = GL.getContext(gl).GLctx.pls;
           if (pls)
           {
-              pls["framebufferTexturePixelLocalStorageWEBGL"](plane,
-                                                              GL.textures[backingtexture],
-                                                              level,
-                                                              layer);
+              pls["framebufferTexturePixelLocalStorageWEBGL"](
+                  plane,
+                  GL.textures[backingtexture],
+                  level,
+                  layer);
           }
       });
 
 EM_JS(void,
       framebufferPixelLocalClearValuefvWEBGL,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLint plane, float r, float g, float b, float a),
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl,
+       GLint plane,
+       float r,
+       float g,
+       float b,
+       float a),
       {
           const pls = GL.getContext(gl).GLctx.pls;
           if (pls)
           {
-              pls["framebufferPixelLocalClearValuefvWEBGL"](plane, [ r, g, b, a ]);
+              pls["framebufferPixelLocalClearValuefvWEBGL"](plane,
+                                                            [ r, g, b, a ]);
           }
       });
 
@@ -76,28 +83,36 @@ EM_JS(void,
           }
       });
 
-EM_JS(bool, enable_WEBGL_provoking_vertex, (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl), {
-    gl = GL.getContext(gl).GLctx;
-    gl.pv = gl["getExtension"]("WEBGL_provoking_vertex");
-    return Boolean(gl.pv);
-});
+EM_JS(bool,
+      enable_WEBGL_provoking_vertex,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl),
+      {
+          gl = GL.getContext(gl).GLctx;
+          gl.pv = gl["getExtension"]("WEBGL_provoking_vertex");
+          return Boolean(gl.pv);
+      });
 
-EM_JS(void, provokingVertexWEBGL, (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLenum provokeMode), {
-    const pv = GL.getContext(gl).GLctx.pv;
-    if (pv)
-    {
-        pv["provokingVertexWEBGL"](provokeMode);
-    }
-});
+EM_JS(void,
+      provokingVertexWEBGL,
+      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLenum provokeMode),
+      {
+          const pv = GL.getContext(gl).GLctx.pv;
+          if (pv)
+          {
+              pv["provokingVertexWEBGL"](provokeMode);
+          }
+      });
 
 bool webgl_enable_WEBGL_shader_pixel_local_storage_coherent()
 {
-    return enable_WEBGL_shader_pixel_local_storage_coherent(emscripten_webgl_get_current_context());
+    return enable_WEBGL_shader_pixel_local_storage_coherent(
+        emscripten_webgl_get_current_context());
 }
 
 bool webgl_enable_WEBGL_provoking_vertex()
 {
-    return enable_WEBGL_provoking_vertex(emscripten_webgl_get_current_context());
+    return enable_WEBGL_provoking_vertex(
+        emscripten_webgl_get_current_context());
 }
 
 void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,
@@ -105,35 +120,40 @@ void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,
                                                 GLint level,
                                                 GLint layer)
 {
-    framebufferTexturePixelLocalStorageWEBGL(emscripten_webgl_get_current_context(),
-                                             plane,
-                                             backingtexture,
-                                             level,
-                                             layer);
+    framebufferTexturePixelLocalStorageWEBGL(
+        emscripten_webgl_get_current_context(),
+        plane,
+        backingtexture,
+        level,
+        layer);
 }
 
-void glFramebufferPixelLocalClearValuefvANGLE(GLint plane, const GLfloat value[4])
+void glFramebufferPixelLocalClearValuefvANGLE(GLint plane,
+                                              const GLfloat value[4])
 {
-    framebufferPixelLocalClearValuefvWEBGL(emscripten_webgl_get_current_context(),
-                                           plane,
-                                           value[0],
-                                           value[1],
-                                           value[2],
-                                           value[3]);
+    framebufferPixelLocalClearValuefvWEBGL(
+        emscripten_webgl_get_current_context(),
+        plane,
+        value[0],
+        value[1],
+        value[2],
+        value[3]);
 }
 
 void glBeginPixelLocalStorageANGLE(GLsizei n, const uint32_t loadops[])
 {
     beginPixelLocalStorageWEBGL(emscripten_webgl_get_current_context(),
                                 n,
-                                reinterpret_cast<uintptr_t>(loadops) / sizeof(uint32_t));
+                                reinterpret_cast<uintptr_t>(loadops) /
+                                    sizeof(uint32_t));
 }
 
 void glEndPixelLocalStorageANGLE(GLsizei n, const uint32_t storeops[])
 {
     endPixelLocalStorageWEBGL(emscripten_webgl_get_current_context(),
                               n,
-                              reinterpret_cast<uintptr_t>(storeops) / sizeof(uint32_t));
+                              reinterpret_cast<uintptr_t>(storeops) /
+                                  sizeof(uint32_t));
 }
 
 void glProvokingVertexANGLE(GLenum provokeMode)
@@ -160,14 +180,17 @@ static GLenum webgl_load_op(gpu::LoadAction loadAction)
     RIVE_UNREACHABLE();
 }
 
-class RenderContextGLImpl::PLSImplWebGL : public RenderContextGLImpl::PixelLocalStorageImpl
+class RenderContextGLImpl::PLSImplWebGL
+    : public RenderContextGLImpl::PixelLocalStorageImpl
 {
-    bool supportsRasterOrdering(const GLCapabilities& capabilities) const override
+    bool supportsRasterOrdering(
+        const GLCapabilities& capabilities) const override
     {
         return capabilities.ANGLE_shader_pixel_local_storage_coherent;
     }
 
-    bool supportsFragmentShaderAtomics(const GLCapabilities& capabilities) const override
+    bool supportsFragmentShaderAtomics(
+        const GLCapabilities& capabilities) const override
     {
         return false;
     }
@@ -178,33 +201,40 @@ class RenderContextGLImpl::PLSImplWebGL : public RenderContextGLImpl::PixelLocal
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
-        auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget);
+        auto framebufferRenderTarget =
+            lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget);
         if (framebufferRenderTarget != nullptr)
         {
-            // We're targeting an external FBO directly. Make sure to allocate and attach an
-            // offscreen target texture.
+            // We're targeting an external FBO directly. Make sure to allocate
+            // and attach an offscreen target texture.
             framebufferRenderTarget->allocateOffscreenTargetTexture();
             if (desc.colorLoadAction == LoadAction::preserveRenderTarget)
             {
                 // Copy the framebuffer's contents to our offscreen texture.
-                framebufferRenderTarget->bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
-                framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
-                                                                 DrawBufferMask::color);
-                glutils::BlitFramebuffer(desc.renderTargetUpdateBounds, renderTarget->height());
+                framebufferRenderTarget->bindDestinationFramebuffer(
+                    GL_READ_FRAMEBUFFER);
+                framebufferRenderTarget->bindInternalFramebuffer(
+                    GL_DRAW_FRAMEBUFFER,
+                    DrawBufferMask::color);
+                glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
+                                         renderTarget->height());
             }
         }
 
         // Begin pixel local storage.
-        renderTarget->bindHeadlessFramebuffer(renderContextImpl->m_capabilities);
+        renderTarget->bindHeadlessFramebuffer(
+            renderContextImpl->m_capabilities);
         if (desc.colorLoadAction == LoadAction::clear)
         {
             float clearColor4f[4];
             UnpackColorToRGBA32FPremul(desc.clearColor, clearColor4f);
-            glFramebufferPixelLocalClearValuefvANGLE(COLOR_PLANE_IDX, clearColor4f);
+            glFramebufferPixelLocalClearValuefvANGLE(COLOR_PLANE_IDX,
+                                                     clearColor4f);
         }
-        GLenum clipLoadAction = (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
-                                    ? GL_LOAD_OP_ZERO_ANGLE
-                                    : GL_DONT_CARE;
+        GLenum clipLoadAction =
+            (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
+                ? GL_LOAD_OP_ZERO_ANGLE
+                : GL_DONT_CARE;
         GLenum loadOps[4] = {webgl_load_op(desc.colorLoadAction),
                              clipLoadAction,
                              GL_DONT_CARE,
@@ -216,7 +246,8 @@ class RenderContextGLImpl::PLSImplWebGL : public RenderContextGLImpl::PixelLocal
         glBeginPixelLocalStorageANGLE(4, loadOps);
     }
 
-    void deactivatePixelLocalStorage(RenderContextGLImpl*, const FlushDescriptor& desc) override
+    void deactivatePixelLocalStorage(RenderContextGLImpl*,
+                                     const FlushDescriptor& desc) override
     {
         constexpr static GLenum kStoreOps[4] = {GL_STORE_OP_STORE_ANGLE,
                                                 GL_DONT_CARE,
@@ -228,25 +259,31 @@ class RenderContextGLImpl::PLSImplWebGL : public RenderContextGLImpl::PixelLocal
         static_assert(COVERAGE_PLANE_IDX == 3);
         glEndPixelLocalStorageANGLE(4, kStoreOps);
 
-        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
-                static_cast<RenderTargetGL*>(desc.renderTarget)))
+        if (auto framebufferRenderTarget =
+                lite_rtti_cast<FramebufferRenderTargetGL*>(
+                    static_cast<RenderTargetGL*>(desc.renderTarget)))
         {
-            // We rendered to an offscreen texture. Copy back to the external target FBO.
-            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER,
-                                                             DrawBufferMask::color);
-            framebufferRenderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
+            // We rendered to an offscreen texture. Copy back to the external
+            // target FBO.
+            framebufferRenderTarget->bindInternalFramebuffer(
+                GL_READ_FRAMEBUFFER,
+                DrawBufferMask::color);
+            framebufferRenderTarget->bindDestinationFramebuffer(
+                GL_DRAW_FRAMEBUFFER);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                      framebufferRenderTarget->height());
         }
     }
 
-    void pushShaderDefines(gpu::InterlockMode, std::vector<const char*>* defines) const override
+    void pushShaderDefines(gpu::InterlockMode,
+                           std::vector<const char*>* defines) const override
     {
         defines->push_back(GLSL_PLS_IMPL_ANGLE);
     }
 };
 
-std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl> RenderContextGLImpl::MakePLSImplWebGL()
+std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl>
+RenderContextGLImpl::MakePLSImplWebGL()
 {
     return std::make_unique<PLSImplWebGL>();
 }

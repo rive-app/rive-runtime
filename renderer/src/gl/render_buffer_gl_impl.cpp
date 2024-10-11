@@ -12,7 +12,8 @@ RenderBufferGLImpl::RenderBufferGLImpl(RenderBufferType type,
                                        RenderBufferFlags flags,
                                        size_t sizeInBytes) :
     lite_rtti_override(type, flags, sizeInBytes),
-    m_target(type == RenderBufferType::vertex ? GL_ARRAY_BUFFER : GL_ELEMENT_ARRAY_BUFFER)
+    m_target(type == RenderBufferType::vertex ? GL_ARRAY_BUFFER
+                                              : GL_ELEMENT_ARRAY_BUFFER)
 {}
 
 RenderBufferGLImpl::RenderBufferGLImpl(RenderBufferType RenderBufferType,
@@ -40,8 +41,9 @@ void RenderBufferGLImpl::init(rcp<GLState> state)
     assert(!m_state);
     assert(!m_bufferIDs[0]);
     m_state = std::move(state);
-    int bufferCount =
-        (flags() & RenderBufferFlags::mappedOnceAtInitialization) ? 1 : gpu::kBufferRingSize;
+    int bufferCount = (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+                          ? 1
+                          : gpu::kBufferRingSize;
     glGenBuffers(bufferCount, m_bufferIDs.data());
     m_state->bindVAO(0);
     for (int i = 0; i < bufferCount; ++i)
@@ -50,8 +52,9 @@ void RenderBufferGLImpl::init(rcp<GLState> state)
         glBufferData(m_target,
                      sizeInBytes(),
                      nullptr,
-                     (flags() & RenderBufferFlags::mappedOnceAtInitialization) ? GL_STATIC_DRAW
-                                                                               : GL_DYNAMIC_DRAW);
+                     (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+                         ? GL_STATIC_DRAW
+                         : GL_DYNAMIC_DRAW);
     }
 }
 
@@ -80,7 +83,8 @@ void* RenderBufferGLImpl::onMap()
         return glMapBufferRange(m_target,
                                 0,
                                 sizeInBytes(),
-                                GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT |
+                                GL_MAP_WRITE_BIT |
+                                    GL_MAP_INVALIDATE_BUFFER_BIT |
                                     GL_MAP_UNSYNCHRONIZED_BIT);
 #else
         // WebGL doesn't support buffer mapping.
@@ -95,10 +99,14 @@ void RenderBufferGLImpl::onUnmap()
     m_state->bindBuffer(m_target, m_bufferIDs[backBufferIdx()]);
     if (!canMapBuffer())
     {
-        glBufferSubData(m_target, 0, sizeInBytes(), m_fallbackMappedMemory.get());
+        glBufferSubData(m_target,
+                        0,
+                        sizeInBytes(),
+                        m_fallbackMappedMemory.get());
         if (flags() & RenderBufferFlags::mappedOnceAtInitialization)
         {
-            m_fallbackMappedMemory.reset(); // This buffer will only be mapped once.
+            m_fallbackMappedMemory
+                .reset(); // This buffer will only be mapped once.
         }
     }
     else

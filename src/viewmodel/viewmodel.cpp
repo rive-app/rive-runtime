@@ -9,7 +9,10 @@
 
 using namespace rive;
 
-void ViewModel::addProperty(ViewModelProperty* property) { m_Properties.push_back(property); }
+void ViewModel::addProperty(ViewModelProperty* property)
+{
+    m_Properties.push_back(property);
+}
 
 ViewModelProperty* ViewModel::property(size_t index)
 {
@@ -38,7 +41,10 @@ void ViewModel::addInstance(ViewModelInstance* value)
     value->viewModel(this);
 }
 
-ViewModelInstance* ViewModel::defaultInstance() { return m_Instances[defaultInstanceId()]; }
+ViewModelInstance* ViewModel::defaultInstance()
+{
+    return m_Instances[defaultInstanceId()];
+}
 
 ViewModelInstance* ViewModel::instance(size_t index)
 {

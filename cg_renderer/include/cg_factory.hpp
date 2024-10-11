@@ -14,7 +14,9 @@ namespace rive
 class CGFactory : public Factory
 {
 public:
-    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t) override;
+    rcp<RenderBuffer> makeRenderBuffer(RenderBufferType,
+                                       RenderBufferFlags,
+                                       size_t) override;
 
     rcp<RenderShader> makeLinearGradient(float sx,
                                          float sy,

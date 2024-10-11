@@ -6,7 +6,8 @@
 
 using namespace rive;
 
-SMIInput::SMIInput(const StateMachineInput* input, StateMachineInstance* machineInstance) :
+SMIInput::SMIInput(const StateMachineInput* input,
+                   StateMachineInstance* machineInstance) :
     m_machineInstance(machineInstance), m_input(input)
 {}
 
@@ -28,7 +29,8 @@ void SMIInput::valueChanged()
 
 // bool
 
-SMIBool::SMIBool(const StateMachineBool* input, StateMachineInstance* machineInstance) :
+SMIBool::SMIBool(const StateMachineBool* input,
+                 StateMachineInstance* machineInstance) :
     SMIInput(input, machineInstance), m_Value(input->value())
 {}
 
@@ -43,7 +45,8 @@ void SMIBool::value(bool newValue)
 }
 
 // number
-SMINumber::SMINumber(const StateMachineNumber* input, StateMachineInstance* machineInstance) :
+SMINumber::SMINumber(const StateMachineNumber* input,
+                     StateMachineInstance* machineInstance) :
     SMIInput(input, machineInstance), m_Value(input->value())
 {}
 
@@ -58,7 +61,8 @@ void SMINumber::value(float newValue)
 }
 
 // trigger
-SMITrigger::SMITrigger(const StateMachineTrigger* input, StateMachineInstance* machineInstance) :
+SMITrigger::SMITrigger(const StateMachineTrigger* input,
+                       StateMachineInstance* machineInstance) :
     SMIInput(input, machineInstance)
 {}
 

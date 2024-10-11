@@ -118,10 +118,11 @@ void RawText::update()
     }
     auto runs = m_styled.runs();
     m_shape = runs[0].font->shapeText(m_styled.unichars(), runs);
-    m_lines = Text::BreakLines(m_shape,
-                               m_sizing == TextSizing::autoWidth ? -1.0f : m_maxWidth,
-                               m_align,
-                               m_wrap);
+    m_lines =
+        Text::BreakLines(m_shape,
+                         m_sizing == TextSizing::autoWidth ? -1.0f : m_maxWidth,
+                         m_align,
+                         m_wrap);
 
     m_orderedLines.clear();
     m_ellipsisRun = {};
@@ -138,7 +139,8 @@ void RawText::update()
     float y = 0.0f;
     float minY = 0.0f;
     float measuredWidth = 0.0f;
-    if (m_origin == TextOrigin::baseline && !m_lines.empty() && !m_lines[0].empty())
+    if (m_origin == TextOrigin::baseline && !m_lines.empty() &&
+        !m_lines[0].empty())
     {
         y -= m_lines[0][0].baseline;
         minY = y;
@@ -148,7 +150,8 @@ void RawText::update()
     bool isEllipsisLineLast = false;
     // Find the line to put the ellipsis on (line before the one that
     // overflows).
-    bool wantEllipsis = m_overflow == TextOverflow::ellipsis && m_sizing == TextSizing::fixed;
+    bool wantEllipsis =
+        m_overflow == TextOverflow::ellipsis && m_sizing == TextSizing::fixed;
 
     int lastLineIndex = -1;
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
@@ -158,7 +161,8 @@ void RawText::update()
         {
             const GlyphRun& endRun = paragraph.runs[line.endRunIndex];
             const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
-            float width = endRun.xpos[line.endGlyphIndex] - startRun.xpos[line.startGlyphIndex] -
+            float width = endRun.xpos[line.endGlyphIndex] -
+                          startRun.xpos[line.startGlyphIndex] -
                           endRun.letterSpacing;
             if (width > measuredWidth)
             {
@@ -189,10 +193,16 @@ void RawText::update()
     switch (m_sizing)
     {
         case TextSizing::autoWidth:
-            m_bounds = AABB(0.0f, minY, measuredWidth, std::max(minY, y - m_paragraphSpacing));
+            m_bounds = AABB(0.0f,
+                            minY,
+                            measuredWidth,
+                            std::max(minY, y - m_paragraphSpacing));
             break;
         case TextSizing::autoHeight:
-            m_bounds = AABB(0.0f, minY, m_maxWidth, std::max(minY, y - m_paragraphSpacing));
+            m_bounds = AABB(0.0f,
+                            minY,
+                            m_maxWidth,
+                            std::max(minY, y - m_paragraphSpacing));
             break;
         case TextSizing::fixed:
             m_bounds = AABB(0.0f, minY, m_maxWidth, minY + m_maxHeight);
@@ -222,7 +232,8 @@ void RawText::update()
     }
 
     y = 0;
-    if (m_origin == TextOrigin::baseline && !m_lines.empty() && !m_lines[0].empty())
+    if (m_origin == TextOrigin::baseline && !m_lines.empty() &&
+        !m_lines[0].empty())
     {
         y -= m_lines[0][0].baseline;
     }
@@ -236,13 +247,15 @@ void RawText::update()
             switch (m_overflow)
             {
                 case TextOverflow::hidden:
-                    if (m_sizing == TextSizing::fixed && y + line.bottom > m_maxHeight)
+                    if (m_sizing == TextSizing::fixed &&
+                        y + line.bottom > m_maxHeight)
                     {
                         return;
                     }
                     break;
                 case TextOverflow::clipped:
-                    if (m_sizing == TextSizing::fixed && y + line.top > m_maxHeight)
+                    if (m_sizing == TextSizing::fixed &&
+                        y + line.top > m_maxHeight)
                     {
                         return;
                     }
@@ -254,12 +267,13 @@ void RawText::update()
             if (lineIndex >= m_orderedLines.size())
             {
                 // We need to still compute this line's ordered runs.
-                m_orderedLines.emplace_back(OrderedLine(paragraph,
-                                                        line,
-                                                        m_maxWidth,
-                                                        ellipsisLine == lineIndex,
-                                                        isEllipsisLineLast,
-                                                        &m_ellipsisRun));
+                m_orderedLines.emplace_back(
+                    OrderedLine(paragraph,
+                                line,
+                                m_maxWidth,
+                                ellipsisLine == lineIndex,
+                                isEllipsisLineLast,
+                                &m_ellipsisRun));
             }
 
             const OrderedLine& orderedLine = m_orderedLines[lineIndex];
@@ -278,8 +292,12 @@ void RawText::update()
 
                 RawPath path = font->getPath(glyphId);
 
-                path.transformInPlace(
-                    Mat2D(run->size, 0.0f, 0.0f, run->size, x + offset.x, renderY + offset.y));
+                path.transformInPlace(Mat2D(run->size,
+                                            0.0f,
+                                            0.0f,
+                                            run->size,
+                                            x + offset.x,
+                                            renderY + offset.y));
 
                 x += advance;
 
@@ -336,7 +354,8 @@ void RawText::render(Renderer* renderer, rcp<RenderPaint> paint)
     }
     for (auto style : m_renderStyles)
     {
-        renderer->drawPath(style->path.get(), paint ? paint.get() : style->paint.get());
+        renderer->drawPath(style->path.get(),
+                           paint ? paint.get() : style->paint.get());
     }
     if (m_overflow == TextOverflow::clipped && m_clipRenderPath)
     {

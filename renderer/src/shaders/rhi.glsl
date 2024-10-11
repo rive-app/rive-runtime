@@ -2,15 +2,16 @@
  * Copyright 2023 Rive
  */
 
-// This header provides GLSL-specific #defines and declarations that enable our shaders to be
-// compiled on MSL and GLSL both.
+// This header provides GLSL-specific #defines and declarations that enable our
+// shaders to be compiled on MSL and GLSL both.
 
-// HLSL warns that it will unroll the loops through r,g,b values in advanced_blend.glsl, but
-// unrolling these loops is exactly what we want.
+// HLSL warns that it will unroll the loops through r,g,b values in
+// advanced_blend.glsl, but unrolling these loops is exactly what we want.
 #pragma $warning($disable : 3550)
 
-// Don't warn about uninitialized variables. If we leave one uninitialized it's because we know what
-// we're doing and don't want to pay the cost of initializing it.
+// Don't warn about uninitialized variables. If we leave one uninitialized it's
+// because we know what we're doing and don't want to pay the cost of
+// initializing it.
 #pragma $warning($disable : 4000)
 
 // #define native hlsl types if their names are being rewritten.
@@ -63,31 +64,31 @@ $typedef $uint ushort;
 #define INLINE $inline
 #define OUT(ARG_TYPE) out ARG_TYPE
 
-#define ATTR_BLOCK_BEGIN(NAME)                                                                     \
-    struct NAME                                                                                    \
+#define ATTR_BLOCK_BEGIN(NAME)                                                 \
+    struct NAME                                                                \
     {
 #define ATTR(IDX, TYPE, NAME) TYPE NAME : SPLAT(ATTRIBUTE, IDX)
-#define ATTR_BLOCK_END                                                                             \
-    }                                                                                              \
+#define ATTR_BLOCK_END                                                         \
+    }                                                                          \
     ;
 #define ATTR_LOAD(T, A, N, I)
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE) TYPE NAME = attrs.NAME
 
 #define UNIFORM_BUFFER_REGISTER(IDX) $register(SPLAT($b, IDX))
 
-#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
-    $cbuffer NAME : UNIFORM_BUFFER_REGISTER(IDX)                                                   \
-    {                                                                                              \
-        struct                                                                                     \
+#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                         \
+    $cbuffer NAME : UNIFORM_BUFFER_REGISTER(IDX)                               \
+    {                                                                          \
+        struct                                                                 \
         {
 
-#define UNIFORM_BLOCK_END(NAME)                                                                    \
-    }                                                                                              \
-    NAME;                                                                                          \
+#define UNIFORM_BLOCK_END(NAME)                                                \
+    }                                                                          \
+    NAME;                                                                      \
     }
 
-#define VARYING_BLOCK_BEGIN                                                                        \
-    struct Varyings                                                                                \
+#define VARYING_BLOCK_BEGIN                                                    \
+    struct Varyings                                                            \
     {
 
 #define NO_PERSPECTIVE $noperspective
@@ -95,9 +96,9 @@ $typedef $uint ushort;
 #define FLAT $nointerpolation
 #define VARYING(IDX, TYPE, NAME) TYPE NAME : SPLAT($TEXCOORD, IDX)
 
-#define VARYING_BLOCK_END                                                                          \
-    float4 _pos : $SV_Position;                                                                    \
-    }                                                                                              \
+#define VARYING_BLOCK_END                                                      \
+    float4 _pos : $SV_Position;                                                \
+    }                                                                          \
     ;
 
 #define VARYING_INIT(NAME, TYPE) TYPE NAME
@@ -114,22 +115,26 @@ $typedef $uint ushort;
 #define FRAG_TEXTURE_BLOCK_END
 #endif
 
-#define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform $Texture2D<uint4> NAME : $register(SPLAT($t, IDX))
-#define TEXTURE_RGBA32F(SET, IDX, NAME) uniform $Texture2D<float4> NAME : $register(SPLAT($t, IDX))
-#define TEXTURE_RGBA8(SET, IDX, NAME)                                                              \
+#define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
+    uniform $Texture2D<uint4> NAME : $register(SPLAT($t, IDX))
+#define TEXTURE_RGBA32F(SET, IDX, NAME)                                        \
+    uniform $Texture2D<float4> NAME : $register(SPLAT($t, IDX))
+#define TEXTURE_RGBA8(SET, IDX, NAME)                                          \
     uniform $Texture2D<$unorm float4> NAME : $register(SPLAT($t, IDX))
 
-// SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler parameters are defined
-// at the API level.
-#define SAMPLER(TEXTURE_IDX, NAME) $SamplerState NAME : $register(SPLAT($s, TEXTURE_IDX));
+// SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler
+// parameters are defined at the API level.
+#define SAMPLER(TEXTURE_IDX, NAME)                                             \
+    $SamplerState NAME : $register(SPLAT($s, TEXTURE_IDX));
 #define SAMPLER_LINEAR SAMPLER
 #define SAMPLER_MIPMAP SAMPLER
 
 #define TEXEL_FETCH(NAME, COORD) NAME[COORD]
-#define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) NAME.$Sample(SAMPLER_NAME, COORD)
-#define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                                         \
+#define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD)                              \
+    NAME.$Sample(SAMPLER_NAME, COORD)
+#define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     NAME.$SampleLevel(SAMPLER_NAME, COORD, LOD)
-#define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)                                   \
+#define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     NAME.$SampleGrad(SAMPLER_NAME, COORD, DDX, DDY)
 
 #define PLS_INTERLOCK_BEGIN
@@ -143,11 +148,14 @@ $typedef $uint ushort;
 
 #define PLS_BLOCK_BEGIN
 #ifdef @ENABLE_TYPED_UAV_LOAD_STORE
-#define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<$unorm half4> NAME : $register($SPLAT(u, IDX))
+#define PLS_DECL4F(IDX, NAME)                                                  \
+    uniform PLS_TEX2D<$unorm half4> NAME : $register($SPLAT(u, IDX))
 #else
-#define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register(SPLAT($u, IDX))
+#define PLS_DECL4F(IDX, NAME)                                                  \
+    uniform PLS_TEX2D<uint> NAME : $register(SPLAT($u, IDX))
 #endif
-#define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register(SPLAT($u, IDX))
+#define PLS_DECLUI(IDX, NAME)                                                  \
+    uniform PLS_TEX2D<uint> NAME : $register(SPLAT($u, IDX))
 #define PLS_DECLUI_ATOMIC PLS_DECLUI
 #define PLS_LOADUI_ATOMIC PLS_LOADUI
 #define PLS_STOREUI_ATOMIC PLS_STOREUI
@@ -190,40 +198,46 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define VERTEX_CONTEXT_DECL
 #define VERTEX_CONTEXT_UNPACK
 
-#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
-                                                                                                   \
-    uint $baseInstance;                                                                            \
-                                                                                                   \
-    Varyings NAME(Attrs attrs, uint _vertexID                                                      \
-                  : $SV_VertexID, uint _instanceIDWithoutBase                                      \
-                  : $SV_InstanceID)                                                                \
-    {                                                                                              \
-        uint _instanceID = _instanceIDWithoutBase + $baseInstance;                                 \
+#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
+                                                                               \
+    uint $baseInstance;                                                        \
+                                                                               \
+    Varyings NAME(Attrs attrs, uint _vertexID                                  \
+                  : $SV_VertexID, uint _instanceIDWithoutBase                  \
+                  : $SV_InstanceID)                                            \
+    {                                                                          \
+        uint _instanceID = _instanceIDWithoutBase + $baseInstance;             \
         Varyings _varyings;
 
-#define IMAGE_RECT_VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                         \
-    Varyings NAME(Attrs attrs, uint _vertexID : $SV_VertexID)                                      \
-    {                                                                                              \
-        Varyings _varyings;                                                                        \
+#define IMAGE_RECT_VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)     \
+    Varyings NAME(Attrs attrs, uint _vertexID : $SV_VertexID)                  \
+    {                                                                          \
+        Varyings _varyings;                                                    \
         float4 _pos;
 
-#define IMAGE_MESH_VERTEX_MAIN(NAME, PositionAttr, position, UVAttr, uv, _vertexID)                \
-    Varyings NAME(PositionAttr position, UVAttr uv, uint _vertexID : $SV_VertexID)                 \
-    {                                                                                              \
-        Varyings _varyings;                                                                        \
+#define IMAGE_MESH_VERTEX_MAIN(NAME,                                           \
+                               PositionAttr,                                   \
+                               position,                                       \
+                               UVAttr,                                         \
+                               uv,                                             \
+                               _vertexID)                                      \
+    Varyings NAME(PositionAttr position, UVAttr uv, uint _vertexID             \
+                  : $SV_VertexID)                                              \
+    {                                                                          \
+        Varyings _varyings;                                                    \
         float4 _pos;
 
-#define EMIT_VERTEX(POSITION)                                                                      \
-    _varyings._pos = POSITION;                                                                     \
-    }                                                                                              \
+#define EMIT_VERTEX(POSITION)                                                  \
+    _varyings._pos = POSITION;                                                 \
+    }                                                                          \
     return _varyings;
 
-#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                                            \
-    DATA_TYPE NAME(Varyings _varyings) : $SV_Target                                                \
+#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
+    DATA_TYPE NAME(Varyings _varyings) : $SV_Target                            \
     {
 
-#define EMIT_FRAG_DATA(VALUE)                                                                      \
-    return VALUE;                                                                                  \
+#define EMIT_FRAG_DATA(VALUE)                                                  \
+    return VALUE;                                                              \
     }
 
 #define FRAGMENT_CONTEXT_DECL , float2 _fragCoord
@@ -240,17 +254,17 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define EMIT_PLS }
 
-#define PLS_FRAG_COLOR_MAIN(NAME)                                                                  \
-    [$earlydepthstencil] half4 NAME(Varyings _varyings) : $SV_Target                               \
-    {                                                                                              \
-        float2 _fragCoord = _varyings._pos.xy;                                                     \
-        int2 _plsCoord = int2(floor(_fragCoord));                                                  \
+#define PLS_FRAG_COLOR_MAIN(NAME)                                              \
+    [$earlydepthstencil] half4 NAME(Varyings _varyings) : $SV_Target           \
+    {                                                                          \
+        float2 _fragCoord = _varyings._pos.xy;                                 \
+        int2 _plsCoord = int2(floor(_fragCoord));                              \
         half4 _fragColor;
 
 #define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME) PLS_FRAG_COLOR_MAIN(NAME)
 
-#define EMIT_PLS_AND_FRAG_COLOR                                                                    \
-    }                                                                                              \
+#define EMIT_PLS_AND_FRAG_COLOR                                                \
+    }                                                                          \
     return _fragColor;
 
 #define uintBitsToFloat $asfloat
@@ -262,8 +276,9 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define lessThanEqual(A, B) ((A) <= (B))
 #define greaterThanEqual(A, B) ((A) >= (B))
 
-// HLSL matrices are stored in row-major order, and therefore transposed from their counterparts
-// in GLSL and Metal. We can work around this entirely by reversing the arguments to mul().
+// HLSL matrices are stored in row-major order, and therefore transposed from
+// their counterparts in GLSL and Metal. We can work around this entirely by
+// reversing the arguments to mul().
 #define MUL(A, B) $mul(B, A)
 
 #define VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
@@ -272,11 +287,11 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 #define FRAG_STORAGE_BUFFER_BLOCK_END
 
-#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                      \
     $StructuredBuffer<uint2> NAME : $register(SPLAT($t, IDX))
-#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
     $StructuredBuffer<uint4> NAME : $register(SPLAT($t, IDX))
-#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
     $StructuredBuffer<float4> NAME : $register(SPLAT($t, IDX))
 
 #define STORAGE_BUFFER_LOAD4(NAME, I) NAME[I]
@@ -331,7 +346,8 @@ INLINE float3 fract(float3 x) { return $frac(x); }
 INLINE float4 fract(float4 x) { return $frac(x); }
 
 // Reimplement intrinsics for half types.
-// This shadows the intrinsic function for floats, so we also have to declare that overload.
+// This shadows the intrinsic function for floats, so we also have to declare
+// that overload.
 
 INLINE float rive_sign(float x) { return sign(x); }
 INLINE float2 rive_sign(float2 x) { return sign(x); }

@@ -31,7 +31,10 @@ public:
     int patchIndex(int patchX, int patchY);
     const std::vector<Axis*>& xs() { return m_xs; }
     const std::vector<Axis*>& ys() { return m_ys; }
-    const std::unordered_map<int, NSlicerTileModeType>& tileModes() { return m_tileModes; }
+    const std::unordered_map<int, NSlicerTileModeType>& tileModes()
+    {
+        return m_tileModes;
+    }
 
     void addAxisX(Axis* axis);
     void addAxisY(Axis* axis);

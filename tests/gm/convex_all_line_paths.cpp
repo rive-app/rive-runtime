@@ -34,28 +34,44 @@ static void create_ngon(int n, Vec2D* pts, float width, float height)
 namespace ConvexLineOnlyData
 {
 // narrow rect
-const Vec2D gPoints0[] = {{-1.5f, -50.0f}, {1.5f, -50.0f}, {1.5f, 50.0f}, {-1.5f, 50.0f}};
+const Vec2D gPoints0[] = {{-1.5f, -50.0f},
+                          {1.5f, -50.0f},
+                          {1.5f, 50.0f},
+                          {-1.5f, 50.0f}};
 // narrow rect on an angle
-const Vec2D gPoints1[] = {{-50.0f, -49.0f}, {-49.0f, -50.0f}, {50.0f, 49.0f}, {49.0f, 50.0f}};
+const Vec2D gPoints1[] = {{-50.0f, -49.0f},
+                          {-49.0f, -50.0f},
+                          {50.0f, 49.0f},
+                          {49.0f, 50.0f}};
 // trap - narrow on top - wide on bottom
-const Vec2D gPoints2[] = {{-10.0f, -50.0f}, {10.0f, -50.0f}, {50.0f, 50.0f}, {-50.0f, 50.0f}};
+const Vec2D gPoints2[] = {{-10.0f, -50.0f},
+                          {10.0f, -50.0f},
+                          {50.0f, 50.0f},
+                          {-50.0f, 50.0f}};
 // wide skewed rect
-const Vec2D gPoints3[] = {{-50.0f, -50.0f}, {0.0f, -50.0f}, {50.0f, 50.0f}, {0.0f, 50.0f}};
+const Vec2D gPoints3[] = {{-50.0f, -50.0f},
+                          {0.0f, -50.0f},
+                          {50.0f, 50.0f},
+                          {0.0f, 50.0f}};
 // thin rect with colinear-ish lines
-const Vec2D gPoints4[] = {{-6.0f, -50.0f},
-                          {4.0f, -50.0f},
-                          {5.0f, -25.0f}, // remove if collinear diagonal points are not concave
-                          {6.0f, 0.0f},
-                          {5.0f, 25.0f}, // remove if collinear diagonal points are not concave
-                          {4.0f, 50.0f},
-                          {-4.0f, 50.0f}};
+const Vec2D gPoints4[] = {
+    {-6.0f, -50.0f},
+    {4.0f, -50.0f},
+    {5.0f, -25.0f}, // remove if collinear diagonal points are not concave
+    {6.0f, 0.0f},
+    {5.0f, 25.0f}, // remove if collinear diagonal points are not concave
+    {4.0f, 50.0f},
+    {-4.0f, 50.0f}};
 // degenerate
 const Vec2D gPoints5[] = {{-0.025f, -0.025f},
                           {0.025f, -0.025f},
                           {0.025f, 0.025f},
                           {-0.025f, 0.025f}};
 // Triangle in which the first point should fuse with last
-const Vec2D gPoints6[] = {{-20.0f, -13.0f}, {-20.0f, -13.05f}, {20.0f, -13.0f}, {20.0f, 27.0f}};
+const Vec2D gPoints6[] = {{-20.0f, -13.0f},
+                          {-20.0f, -13.05f},
+                          {20.0f, -13.0f},
+                          {20.0f, 27.0f}};
 // thin rect with colinear lines
 const Vec2D gPoints7[] = {{-10.0f, -50.0f},
                           {10.0f, -50.0f},
@@ -245,12 +261,15 @@ protected:
         Vec2D center;
         {
             Path path = GetPath(index, rivegm::PathDirection::cw);
-            if (offset->x + kMaxPathWidth /* path.getBounds().width() */ > kGMWidth)
+            if (offset->x + kMaxPathWidth /* path.getBounds().width() */ >
+                kGMWidth)
             {
                 offset->x = 0;
                 offset->y += kMaxPathHeight;
             }
-            center = {offset->x + 0.5f * (kMaxPathHeight /* path.getBounds().width() */),
+            center = {offset->x +
+                          0.5f *
+                              (kMaxPathHeight /* path.getBounds().width() */),
                       offset->y};
             offset->x += kMaxPathWidth /* path.getBounds().width() */;
         }

@@ -33,33 +33,39 @@ public:
 
     void moveTo(float x, float y) override {}
     void lineTo(float x, float y) override {}
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override {}
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+        override
+    {}
     void close() override {}
 };
 } // namespace
 
-rcp<RenderBuffer> NoOpFactory::makeRenderBuffer(RenderBufferType, RenderBufferFlags, size_t)
+rcp<RenderBuffer> NoOpFactory::makeRenderBuffer(RenderBufferType,
+                                                RenderBufferFlags,
+                                                size_t)
 {
     return nullptr;
 }
 
-rcp<RenderShader> NoOpFactory::makeLinearGradient(float sx,
-                                                  float sy,
-                                                  float ex,
-                                                  float ey,
-                                                  const ColorInt colors[], // [count]
-                                                  const float stops[],     // [count]
-                                                  size_t count)
+rcp<RenderShader> NoOpFactory::makeLinearGradient(
+    float sx,
+    float sy,
+    float ex,
+    float ey,
+    const ColorInt colors[], // [count]
+    const float stops[],     // [count]
+    size_t count)
 {
     return nullptr;
 }
 
-rcp<RenderShader> NoOpFactory::makeRadialGradient(float cx,
-                                                  float cy,
-                                                  float radius,
-                                                  const ColorInt colors[], // [count]
-                                                  const float stops[],     // [count]
-                                                  size_t count)
+rcp<RenderShader> NoOpFactory::makeRadialGradient(
+    float cx,
+    float cy,
+    float radius,
+    const ColorInt colors[], // [count]
+    const float stops[],     // [count]
+    size_t count)
 {
     return nullptr;
 }
@@ -69,8 +75,17 @@ rcp<RenderPath> NoOpFactory::makeRenderPath(RawPath&, FillRule)
     return make_rcp<NoOpRenderPath>();
 }
 
-rcp<RenderPath> NoOpFactory::makeEmptyRenderPath() { return make_rcp<NoOpRenderPath>(); }
+rcp<RenderPath> NoOpFactory::makeEmptyRenderPath()
+{
+    return make_rcp<NoOpRenderPath>();
+}
 
-rcp<RenderPaint> NoOpFactory::makeRenderPaint() { return make_rcp<NoOpRenderPaint>(); }
+rcp<RenderPaint> NoOpFactory::makeRenderPaint()
+{
+    return make_rcp<NoOpRenderPaint>();
+}
 
-rcp<RenderImage> NoOpFactory::decodeImage(Span<const uint8_t>) { return nullptr; }
+rcp<RenderImage> NoOpFactory::decodeImage(Span<const uint8_t>)
+{
+    return nullptr;
+}

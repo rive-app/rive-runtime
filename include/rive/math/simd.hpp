@@ -4,12 +4,13 @@
 
 // An SSE / NEON / WASM_SIMD library based on clang vector types.
 //
-// This header makes use of the clang vector builtins specified in https://reviews.llvm.org/D111529.
-// This effort in clang is still a work in progress, so getting maximum performance from this header
-// requires an extremely recent version of clang.
+// This header makes use of the clang vector builtins specified in
+// https://reviews.llvm.org/D111529. This effort in clang is still a work in
+// progress, so getting maximum performance from this header requires an
+// extremely recent version of clang.
 //
-// To explore the codegen from this header, paste it into https://godbolt.org/, select a recent
-// clang compiler, and add an -O3 flag.
+// To explore the codegen from this header, paste it into https://godbolt.org/,
+// select a recent clang compiler, and add an -O3 flag.
 
 #ifndef _RIVE_SIMD_HPP_
 #define _RIVE_SIMD_HPP_
@@ -61,10 +62,12 @@ namespace simd
 // gvec can be native vectors inside the compiler.
 // (The GLSL spec uses "gvec" to denote a vector of unspecified type.)
 template <typename T, int N>
-using gvec = T __attribute__((ext_vector_type(N))) __attribute__((aligned(sizeof(T) * N)));
+using gvec = T __attribute__((ext_vector_type(N)))
+__attribute__((aligned(sizeof(T) * N)));
 
-// Vector booleans are masks of integer type, where true is -1 and false is 0. Vector booleans masks
-// are generated using the builtin boolean operators: ==, !=, <=, >=, <, >
+// Vector booleans are masks of integer type, where true is -1 and false is 0.
+// Vector booleans masks are generated using the builtin boolean operators: ==,
+// !=, <=, >=, <, >
 template <typename T> struct extract_element_type;
 template <typename T, int N> struct extract_element_type<gvec<T, N>>
 {
@@ -72,7 +75,8 @@ template <typename T, int N> struct extract_element_type<gvec<T, N>>
 };
 template <typename T> struct boolean_mask_type
 {
-    using type = typename extract_element_type<decltype(gvec<T, 4>() == gvec<T, 4>())>::type;
+    using type = typename extract_element_type<decltype(gvec<T, 4>() ==
+                                                        gvec<T, 4>())>::type;
 };
 } // namespace simd
 } // namespace rive
@@ -83,7 +87,8 @@ template <typename T> struct boolean_mask_type
 
 // gvec needs to be polyfilled with templates.
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: ext_vector_type not supported. Consider using clang.")
+#pragma message(                                                               \
+    "performance: ext_vector_type not supported. Consider using clang.")
 #endif
 #include "simd_gvec_polyfill.hpp"
 
@@ -97,8 +102,9 @@ namespace simd
 {
 ////// Boolean logic //////
 //
-// Vector booleans are masks of integer type, where true is -1 and false is 0. Vector booleans masks
-// can be generated using the builtin boolean operators: ==, !=, <=, >=, <, >
+// Vector booleans are masks of integer type, where true is -1 and false is 0.
+// Vector booleans masks can be generated using the builtin boolean operators:
+// ==, !=, <=, >=, <, >
 //
 
 // Returns true if all elements in x are equal to 0.
@@ -108,7 +114,8 @@ template <typename T, int N> SIMD_ALWAYS_INLINE bool any(gvec<T, N> x)
     return __builtin_reduce_or(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_reduce_or() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_reduce_or() not supported. Consider updating clang.")
 #endif
     // This particular logic structure gets decent codegen in clang.
     for (int i = 0; i < N; ++i)
@@ -127,22 +134,27 @@ template <typename T, int N> SIMD_ALWAYS_INLINE bool all(gvec<T, N> x)
     return __builtin_reduce_and(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_reduce_and() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_reduce_and() not supported. Consider updating clang.")
 #endif
     // In vector, true is represented by -1 exactly, so we use ~x for "not".
     return !any(~x);
 #endif
 }
 
-template <typename T,
-          int N,
-          typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
-SIMD_ALWAYS_INLINE gvec<typename boolean_mask_type<T>::type, N> isnan(gvec<T, N> x)
+template <
+    typename T,
+    int N,
+    typename std::enable_if<std::is_floating_point<T>::value>::type* = nullptr>
+SIMD_ALWAYS_INLINE gvec<typename boolean_mask_type<T>::type, N> isnan(
+    gvec<T, N> x)
 {
     return ~(x == x);
 }
 
-template <typename T, int N, typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
+template <typename T,
+          int N,
+          typename std::enable_if<std::is_integral<T>::value>::type* = nullptr>
 constexpr gvec<typename boolean_mask_type<T>::type, N> isnan(gvec<T, N>)
 {
     return {}; // Integer types are never NaN.
@@ -152,16 +164,18 @@ constexpr gvec<typename boolean_mask_type<T>::type, N> isnan(gvec<T, N>)
 
 // Elementwise ternary expression: "_if ? _then : _else" for each component.
 template <typename T, int N>
-SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<typename boolean_mask_type<T>::type, N> _if,
-                                           gvec<T, N> _then,
-                                           gvec<T, N> _else)
+SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(
+    gvec<typename boolean_mask_type<T>::type, N> _if,
+    gvec<T, N> _then,
+    gvec<T, N> _else)
 {
 #if defined(__clang_major__) && __clang_major__ >= 13
     // The '?:' operator supports a vector condition beginning in clang 13.
     return _if ? _then : _else;
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: vectorized '?:' operator not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: vectorized '?:' operator not supported. Consider updating clang.")
 #endif
     gvec<T, N> ret{};
     for (int i = 0; i < N; ++i)
@@ -172,30 +186,36 @@ SIMD_ALWAYS_INLINE gvec<T, N> if_then_else(gvec<typename boolean_mask_type<T>::t
 
 // Similar to std::min(), with a noteworthy difference:
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
+template <typename T, int N>
+SIMD_ALWAYS_INLINE gvec<T, N> min(gvec<T, N> a, gvec<T, N> b)
 {
 #if __has_builtin(__builtin_elementwise_min) && SIMD_NATIVE_GVEC
     return __builtin_elementwise_min(a, b);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_elementwise_min() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_elementwise_min() not supported. Consider updating clang.")
 #endif
-    // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
+    // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a
+    // no-op for int types.)
     return if_then_else(b < a || isnan(a), b, a);
 #endif
 }
 
 // Similar to std::max(), with a noteworthy difference:
 // If a[i] or b[i] is NaN and the other is not, returns whichever is _not_ NaN.
-template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
+template <typename T, int N>
+SIMD_ALWAYS_INLINE gvec<T, N> max(gvec<T, N> a, gvec<T, N> b)
 {
 #if __has_builtin(__builtin_elementwise_max) && SIMD_NATIVE_GVEC
     return __builtin_elementwise_max(a, b);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_elementwise_max() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_elementwise_max() not supported. Consider updating clang.")
 #endif
-    // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a no-op for int types.)
+    // Generate the same behavior for NaN as the SIMD builtins. (isnan() is a
+    // no-op for int types.)
     return if_then_else(a < b || isnan(a), b, a);
 #endif
 }
@@ -213,28 +233,33 @@ SIMD_ALWAYS_INLINE gvec<T, N> clamp(gvec<T, N> x, gvec<T, N> lo, gvec<T, N> hi)
 }
 
 // Returns the absolute value of x per element, with one exception:
-// If x[i] is an integer type and equal to the minimum representable value, returns x[i].
+// If x[i] is an integer type and equal to the minimum representable value,
+// returns x[i].
 template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> abs(gvec<T, N> x)
 {
 #if __has_builtin(__builtin_elementwise_abs) && SIMD_NATIVE_GVEC
     return __builtin_elementwise_abs(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_elementwise_abs() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_elementwise_abs() not supported. Consider updating clang.")
 #endif
-    return if_then_else(x < (T)0, -x, x); // Negate on the "true" side so we never negate NaN.
+    return if_then_else(x < (T)0,
+                        -x,
+                        x); // Negate on the "true" side so we never negate NaN.
 #endif
 }
 
 template <typename T, int N>
-SIMD_ALWAYS_INLINE typename std::enable_if<std::is_integral<T>::value, T>::type reduce_add(
-    gvec<T, N> x)
+SIMD_ALWAYS_INLINE typename std::enable_if<std::is_integral<T>::value, T>::type
+reduce_add(gvec<T, N> x)
 {
 #if __has_builtin(__builtin_reduce_add) && SIMD_NATIVE_GVEC
     return __builtin_reduce_add(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_reduce_and() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_reduce_and() not supported. Consider updating clang.")
 #endif
     T s = x[0];
     for (int i = 1; i < N; ++i)
@@ -244,11 +269,12 @@ SIMD_ALWAYS_INLINE typename std::enable_if<std::is_integral<T>::value, T>::type 
 }
 
 template <typename T, int N>
-SIMD_ALWAYS_INLINE typename std::enable_if<!std::is_integral<T>::value, T>::type reduce_add(
-    gvec<T, N> x)
+SIMD_ALWAYS_INLINE typename std::enable_if<!std::is_integral<T>::value, T>::type
+reduce_add(gvec<T, N> x)
 {
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_reduce_and() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_reduce_and() not supported. Consider updating clang.")
 #endif
     T s = x[0];
     for (int i = 1; i < N; ++i)
@@ -262,7 +288,8 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_min(gvec<T, N> x)
     return __builtin_reduce_min(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_reduce_and() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_reduce_and() not supported. Consider updating clang.")
 #endif
     T reduced = x[0];
     for (int i = 1; i < N; ++i)
@@ -277,7 +304,8 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_max(gvec<T, N> x)
     return __builtin_reduce_max(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_reduce_and() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_reduce_and() not supported. Consider updating clang.")
 #endif
     T reduced = x[0];
     for (int i = 1; i < N; ++i)
@@ -292,7 +320,8 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_and(gvec<T, N> x)
     return __builtin_reduce_and(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_reduce_and() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_reduce_and() not supported. Consider updating clang.")
 #endif
     T reduced = x[0];
     for (int i = 1; i < N; ++i)
@@ -307,7 +336,8 @@ template <typename T, int N> SIMD_ALWAYS_INLINE T reduce_or(gvec<T, N> x)
     return __builtin_reduce_or(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_reduce_and() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_reduce_and() not supported. Consider updating clang.")
 #endif
     T reduced = x[0];
     for (int i = 1; i < N; ++i)
@@ -324,7 +354,7 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> floor(gvec<float, N> x)
     return __builtin_elementwise_floor(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message(                                                                                   \
+#pragma message(                                                               \
     "performance: __builtin_elementwise_floor() not supported. Consider updating clang.")
 #endif
     for (int i = 0; i < N; ++i)
@@ -339,7 +369,8 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
     return __builtin_elementwise_ceil(x);
 #else
 #ifdef RIVE_SIMD_PERF_WARNINGS
-#pragma message("performance: __builtin_elementwise_ceil() not supported. Consider updating clang.")
+#pragma message(                                                               \
+    "performance: __builtin_elementwise_ceil() not supported. Consider updating clang.")
 #endif
     for (int i = 0; i < N; ++i)
         x[i] = ceilf(x[i]);
@@ -350,8 +381,8 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
 // IEEE compliant sqrt.
 template <int N> SIMD_ALWAYS_INLINE gvec<float, N> sqrt(gvec<float, N> x)
 {
-    // There isn't an elementwise builtin for sqrt. We define architecture-specific specializations
-    // of this function later.
+    // There isn't an elementwise builtin for sqrt. We define
+    // architecture-specific specializations of this function later.
     for (int i = 0; i < N; ++i)
         x[i] = sqrtf(x[i]);
     return x;
@@ -433,7 +464,8 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> fast_acos(gvec<float, N> x)
 
 ////// Type conversion //////
 
-template <typename U, typename T, int N> SIMD_ALWAYS_INLINE gvec<U, N> cast(gvec<T, N> x)
+template <typename U, typename T, int N>
+SIMD_ALWAYS_INLINE gvec<U, N> cast(gvec<T, N> x)
 {
 #if __has_builtin(__builtin_convertvector) && SIMD_NATIVE_GVEC
     return __builtin_convertvector(x, gvec<U, N>);
@@ -453,14 +485,33 @@ template <typename T, int N> SIMD_ALWAYS_INLINE gvec<T, N> load(const void* ptr)
     SIMD_INLINE_MEMCPY(&ret, ptr, sizeof(T) * N);
     return ret;
 }
-SIMD_ALWAYS_INLINE gvec<float, 2> load2f(const void* ptr) { return load<float, 2>(ptr); }
-SIMD_ALWAYS_INLINE gvec<float, 4> load4f(const void* ptr) { return load<float, 4>(ptr); }
-SIMD_ALWAYS_INLINE gvec<int32_t, 2> load2i(const void* ptr) { return load<int32_t, 2>(ptr); }
-SIMD_ALWAYS_INLINE gvec<int32_t, 4> load4i(const void* ptr) { return load<int32_t, 4>(ptr); }
-SIMD_ALWAYS_INLINE gvec<uint32_t, 2> load2ui(const void* ptr) { return load<uint32_t, 2>(ptr); }
-SIMD_ALWAYS_INLINE gvec<uint32_t, 4> load4ui(const void* ptr) { return load<uint32_t, 4>(ptr); }
+SIMD_ALWAYS_INLINE gvec<float, 2> load2f(const void* ptr)
+{
+    return load<float, 2>(ptr);
+}
+SIMD_ALWAYS_INLINE gvec<float, 4> load4f(const void* ptr)
+{
+    return load<float, 4>(ptr);
+}
+SIMD_ALWAYS_INLINE gvec<int32_t, 2> load2i(const void* ptr)
+{
+    return load<int32_t, 2>(ptr);
+}
+SIMD_ALWAYS_INLINE gvec<int32_t, 4> load4i(const void* ptr)
+{
+    return load<int32_t, 4>(ptr);
+}
+SIMD_ALWAYS_INLINE gvec<uint32_t, 2> load2ui(const void* ptr)
+{
+    return load<uint32_t, 2>(ptr);
+}
+SIMD_ALWAYS_INLINE gvec<uint32_t, 4> load4ui(const void* ptr)
+{
+    return load<uint32_t, 4>(ptr);
+}
 
-template <typename T, int N> SIMD_ALWAYS_INLINE void store(void* dst, gvec<T, N> vec)
+template <typename T, int N>
+SIMD_ALWAYS_INLINE void store(void* dst, gvec<T, N> vec)
 {
     SIMD_INLINE_MEMCPY(dst, &vec, sizeof(T) * N);
 }
@@ -468,8 +519,9 @@ template <typename T, int N> SIMD_ALWAYS_INLINE void store(void* dst, gvec<T, N>
 ////// Column-major (transposed) loads //////
 
 #if defined(__ARM_NEON__) || defined(__aarch64__)
-SIMD_ALWAYS_INLINE std::tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
-load4x4f(const float* matrix)
+SIMD_ALWAYS_INLINE std::
+    tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
+    load4x4f(const float* matrix)
 {
     float32x4x4_t m = vld4q_f32(matrix);
     gvec<float, 4> c0, c1, c2, c3;
@@ -480,8 +532,9 @@ load4x4f(const float* matrix)
     return {c0, c1, c2, c3};
 }
 #elif defined(__SSE__)
-SIMD_ALWAYS_INLINE std::tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
-load4x4f(const float* m)
+SIMD_ALWAYS_INLINE std::
+    tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
+    load4x4f(const float* m)
 {
     __m128 r0, r1, r2, r3;
     SIMD_INLINE_MEMCPY(&r0, m + 4 * 0, sizeof(r0));
@@ -497,8 +550,9 @@ load4x4f(const float* m)
     return {c0, c1, c2, c3};
 }
 #else
-SIMD_ALWAYS_INLINE std::tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
-load4x4f(const float* m)
+SIMD_ALWAYS_INLINE std::
+    tuple<gvec<float, 4>, gvec<float, 4>, gvec<float, 4>, gvec<float, 4>>
+    load4x4f(const float* m)
 {
     gvec<float, 4> c0 = {m[0], m[4], m[8], m[12]};
     gvec<float, 4> c1 = {m[1], m[5], m[9], m[13]};
@@ -518,7 +572,9 @@ SIMD_ALWAYS_INLINE gvec<T, M + N> join(gvec<T, M> a, gvec<T, N> b)
 }
 
 template <typename T, int M, int N, int O>
-SIMD_ALWAYS_INLINE gvec<T, M + N + O> join(gvec<T, M> a, gvec<T, N> b, gvec<T, O> c)
+SIMD_ALWAYS_INLINE gvec<T, M + N + O> join(gvec<T, M> a,
+                                           gvec<T, N> b,
+                                           gvec<T, O> c)
 {
     T data[M + N + O];
     SIMD_INLINE_MEMCPY(data, &a, sizeof(T) * M);
@@ -541,7 +597,8 @@ SIMD_ALWAYS_INLINE gvec<T, M + N + O + P> join(gvec<T, M> a,
     return load<T, M + N + O + P>(data);
 }
 
-template <typename T> SIMD_ALWAYS_INLINE gvec<T, 4> zip(gvec<T, 2> a, gvec<T, 2> b)
+template <typename T>
+SIMD_ALWAYS_INLINE gvec<T, 4> zip(gvec<T, 2> a, gvec<T, 2> b)
 {
 #if __has_builtin(__builtin_shufflevector) && SIMD_NATIVE_GVEC
     return __builtin_shufflevector(a, b, 0, 2, 1, 3);
@@ -550,7 +607,8 @@ template <typename T> SIMD_ALWAYS_INLINE gvec<T, 4> zip(gvec<T, 2> a, gvec<T, 2>
 #endif
 }
 
-template <typename T> SIMD_ALWAYS_INLINE gvec<T, 8> zip(gvec<T, 4> a, gvec<T, 4> b)
+template <typename T>
+SIMD_ALWAYS_INLINE gvec<T, 8> zip(gvec<T, 4> a, gvec<T, 4> b)
 {
 #if __has_builtin(__builtin_shufflevector) && SIMD_NATIVE_GVEC
     return __builtin_shufflevector(a, b, 0, 4, 1, 5, 2, 6, 3, 7);
@@ -559,10 +617,28 @@ template <typename T> SIMD_ALWAYS_INLINE gvec<T, 8> zip(gvec<T, 4> a, gvec<T, 4>
 #endif
 }
 
-template <typename T> SIMD_ALWAYS_INLINE gvec<T, 16> zip(gvec<T, 8> a, gvec<T, 8> b)
+template <typename T>
+SIMD_ALWAYS_INLINE gvec<T, 16> zip(gvec<T, 8> a, gvec<T, 8> b)
 {
 #if __has_builtin(__builtin_shufflevector) && SIMD_NATIVE_GVEC
-    return __builtin_shufflevector(a, b, 0, 8, 1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15);
+    return __builtin_shufflevector(a,
+                                   b,
+                                   0,
+                                   8,
+                                   1,
+                                   9,
+                                   2,
+                                   10,
+                                   3,
+                                   11,
+                                   4,
+                                   12,
+                                   5,
+                                   13,
+                                   6,
+                                   14,
+                                   7,
+                                   15);
 #else
     return gvec<T, 16>{a[0],
                        b[0],
@@ -584,9 +660,9 @@ template <typename T> SIMD_ALWAYS_INLINE gvec<T, 16> zip(gvec<T, 8> a, gvec<T, 8
 }
 
 template <typename T, int N>
-SIMD_ALWAYS_INLINE typename std::enable_if<N != 2 && N != 4 && N != 8, gvec<T, N * 2>>::type zip(
-    gvec<T, N> a,
-    gvec<T, N> b)
+SIMD_ALWAYS_INLINE
+    typename std::enable_if<N != 2 && N != 4 && N != 8, gvec<T, N * 2>>::type
+    zip(gvec<T, N> a, gvec<T, N> b)
 {
     gvec<T, N * 2> ret{};
     for (int i = 0; i < N; ++i)
@@ -599,7 +675,8 @@ SIMD_ALWAYS_INLINE typename std::enable_if<N != 2 && N != 4 && N != 8, gvec<T, N
 
 ////// Basic linear algebra //////
 
-template <typename T, int N> SIMD_ALWAYS_INLINE T dot(gvec<T, N> a, gvec<T, N> b)
+template <typename T, int N>
+SIMD_ALWAYS_INLINE T dot(gvec<T, N> a, gvec<T, N> b)
 {
     return reduce_add(a * b);
 }
@@ -614,19 +691,25 @@ SIMD_ALWAYS_INLINE float cross(gvec<float, 2> a, gvec<float, 2> b)
 //
 // NOTE: mix(a, b, 1) !== b (!!)
 //
-// The floating point numerics are not precise in the case where t === 1. But overall, this
-// structure seems to get better precision for things like chopping cubics on exact cusp points than
-// "a*(1 - t) + b*t" (which would return exactly b when t == 1).
+// The floating point numerics are not precise in the case where t === 1. But
+// overall, this structure seems to get better precision for things like
+// chopping cubics on exact cusp points than "a*(1 - t) + b*t" (which would
+// return exactly b when t == 1).
 template <int N>
-SIMD_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a, gvec<float, N> b, gvec<float, N> t)
+SIMD_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a,
+                                      gvec<float, N> b,
+                                      gvec<float, N> t)
 {
     assert(simd::all(0.f <= t && t < 1.f));
     return (b - a) * t + a;
 }
 
-// Linearly interpolates between a and b, returning precisely 'a' if t==0 and precisely 'b' if t==1.
+// Linearly interpolates between a and b, returning precisely 'a' if t==0 and
+// precisely 'b' if t==1.
 template <int N>
-SIMD_ALWAYS_INLINE gvec<float, N> precise_mix(gvec<float, N> a, gvec<float, N> b, gvec<float, N> t)
+SIMD_ALWAYS_INLINE gvec<float, N> precise_mix(gvec<float, N> a,
+                                              gvec<float, N> b,
+                                              gvec<float, N> t)
 {
     return a * (1.f - t) + b * t;
 }

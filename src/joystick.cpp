@@ -49,12 +49,14 @@ void Joystick::update(ComponentDirt value)
     {
         return;
     }
-    if (hasDirt(value, ComponentDirt::WorldTransform | ComponentDirt::Transform))
+    if (hasDirt(value,
+                ComponentDirt::WorldTransform | ComponentDirt::Transform))
     {
         Mat2D world = Mat2D::fromTranslate(posX(), posY());
         if (parent() != nullptr && parent()->is<WorldTransformComponent>())
         {
-            world = parent()->as<WorldTransformComponent>()->worldTransform() * world;
+            world = parent()->as<WorldTransformComponent>()->worldTransform() *
+                    world;
         }
 
         if (m_worldTransform != world)
@@ -80,16 +82,18 @@ void Joystick::apply(Artboard* artboard) const
 {
     if (m_xAnimation != nullptr)
     {
-        m_xAnimation->apply(artboard,
-                            ((isJoystickFlagged(JoystickFlags::invertX) ? -x() : x()) + 1.0f) /
-                                2.0f * m_xAnimation->durationSeconds());
+        m_xAnimation->apply(
+            artboard,
+            ((isJoystickFlagged(JoystickFlags::invertX) ? -x() : x()) + 1.0f) /
+                2.0f * m_xAnimation->durationSeconds());
     }
     if (m_yAnimation != nullptr)
     {
 
-        m_yAnimation->apply(artboard,
-                            ((isJoystickFlagged(JoystickFlags::invertY) ? -y() : y()) + 1.0f) /
-                                2.0f * m_yAnimation->durationSeconds());
+        m_yAnimation->apply(
+            artboard,
+            ((isJoystickFlagged(JoystickFlags::invertY) ? -y() : y()) + 1.0f) /
+                2.0f * m_yAnimation->durationSeconds());
     }
 }
 
@@ -98,13 +102,14 @@ Vec2D Joystick::measureLayout(float width,
                               float height,
                               LayoutMeasureMode heightMode)
 {
-    return Vec2D(
-        std::min(
-            (widthMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max() : width),
-            Joystick::width()),
-        std::min((heightMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max()
-                                                             : height),
-                 Joystick::height()));
+    return Vec2D(std::min((widthMode == LayoutMeasureMode::undefined
+                               ? std::numeric_limits<float>::max()
+                               : width),
+                          Joystick::width()),
+                 std::min((heightMode == LayoutMeasureMode::undefined
+                               ? std::numeric_limits<float>::max()
+                               : height),
+                          Joystick::height()));
 }
 
 void Joystick::controlSize(Vec2D size)

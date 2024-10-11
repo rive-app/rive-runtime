@@ -10,7 +10,8 @@ TransitionViewModelConditionImporter::TransitionViewModelConditionImporter(
     m_TransitionViewModelCondition(transitionViewModelCondition)
 {}
 
-void TransitionViewModelConditionImporter::setComparator(TransitionComparator* comparator)
+void TransitionViewModelConditionImporter::setComparator(
+    TransitionComparator* comparator)
 {
     m_TransitionViewModelCondition->comparator(comparator);
 }

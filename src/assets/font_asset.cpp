@@ -22,6 +22,7 @@ void FontAsset::font(rcp<Font> font)
     // ::asset(rcp<Asset> asset)
     for (FileAssetReferencer* fileAssetReferencer : fileAssetReferencers())
     {
-        static_cast<TextStyle*>(fileAssetReferencer)->addDirt(ComponentDirt::TextShape);
+        static_cast<TextStyle*>(fileAssetReferencer)
+            ->addDirt(ComponentDirt::TextShape);
     }
 }

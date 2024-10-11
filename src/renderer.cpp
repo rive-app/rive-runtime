@@ -4,12 +4,17 @@
 
 using namespace rive;
 
-Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, const AABB& content)
+Mat2D rive::computeAlignment(Fit fit,
+                             Alignment alignment,
+                             const AABB& frame,
+                             const AABB& content)
 {
     float contentWidth = content.width();
     float contentHeight = content.height();
-    float x = -content.left() - contentWidth * 0.5f - (alignment.x() * contentWidth * 0.5f);
-    float y = -content.top() - contentHeight * 0.5f - (alignment.y() * contentHeight * 0.5f);
+    float x = -content.left() - contentWidth * 0.5f -
+              (alignment.x() * contentWidth * 0.5f);
+    float y = -content.top() - contentHeight * 0.5f -
+              (alignment.y() * contentHeight * 0.5f);
 
     float scaleX = 1.0f, scaleY = 1.0f;
 
@@ -23,15 +28,15 @@ Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, co
         }
         case Fit::contain:
         {
-            float minScale =
-                std::fmin(frame.width() / contentWidth, frame.height() / contentHeight);
+            float minScale = std::fmin(frame.width() / contentWidth,
+                                       frame.height() / contentHeight);
             scaleX = scaleY = minScale;
             break;
         }
         case Fit::cover:
         {
-            float maxScale =
-                std::fmax(frame.width() / contentWidth, frame.height() / contentHeight);
+            float maxScale = std::fmax(frame.width() / contentWidth,
+                                       frame.height() / contentHeight);
             scaleX = scaleY = maxScale;
             break;
         }
@@ -54,23 +59,32 @@ Mat2D rive::computeAlignment(Fit fit, Alignment alignment, const AABB& frame, co
         }
         case Fit::scaleDown:
         {
-            float minScale =
-                std::fmin(frame.width() / contentWidth, frame.height() / contentHeight);
+            float minScale = std::fmin(frame.width() / contentWidth,
+                                       frame.height() / contentHeight);
             scaleX = scaleY = minScale < 1.0f ? minScale : 1.0f;
             break;
         }
     }
 
     Mat2D translation;
-    translation[4] = frame.left() + frame.width() * 0.5f + (alignment.x() * frame.width() * 0.5f);
-    translation[5] = frame.top() + frame.height() * 0.5f + (alignment.y() * frame.height() * 0.5f);
+    translation[4] = frame.left() + frame.width() * 0.5f +
+                     (alignment.x() * frame.width() * 0.5f);
+    translation[5] = frame.top() + frame.height() * 0.5f +
+                     (alignment.y() * frame.height() * 0.5f);
 
-    return translation * Mat2D::fromScale(scaleX, scaleY) * Mat2D::fromTranslate(x, y);
+    return translation * Mat2D::fromScale(scaleX, scaleY) *
+           Mat2D::fromTranslate(x, y);
 }
 
-void Renderer::translate(float tx, float ty) { this->transform(Mat2D(1, 0, 0, 1, tx, ty)); }
+void Renderer::translate(float tx, float ty)
+{
+    this->transform(Mat2D(1, 0, 0, 1, tx, ty));
+}
 
-void Renderer::scale(float sx, float sy) { this->transform(Mat2D(sx, 0, 0, sy, 0, 0)); }
+void Renderer::scale(float sx, float sy)
+{
+    this->transform(Mat2D(sx, 0, 0, sy, 0, 0));
+}
 
 void Renderer::rotate(float radians)
 {
@@ -79,7 +93,9 @@ void Renderer::rotate(float radians)
     this->transform(Mat2D(c, s, -s, c, 0, 0));
 }
 
-RenderBuffer::RenderBuffer(RenderBufferType type, RenderBufferFlags flags, size_t sizeInBytes) :
+RenderBuffer::RenderBuffer(RenderBufferType type,
+                           RenderBufferFlags flags,
+                           size_t sizeInBytes) :
     m_type(type), m_flags(flags), m_sizeInBytes(sizeInBytes)
 {}
 
@@ -87,7 +103,8 @@ RenderBuffer::~RenderBuffer() {}
 
 void* RenderBuffer::map()
 {
-    assert(m_mapCount == 0 || !(m_flags & RenderBufferFlags::mappedOnceAtInitialization));
+    assert(m_mapCount == 0 ||
+           !(m_flags & RenderBufferFlags::mappedOnceAtInitialization));
     assert(m_mapCount == m_unmapCount);
     RIVE_DEBUG_CODE(++m_mapCount;)
     m_dirty = true;
@@ -107,7 +124,8 @@ RenderShader::~RenderShader() {}
 RenderPaint::RenderPaint() {}
 RenderPaint::~RenderPaint() {}
 
-RenderImage::RenderImage(const Mat2D& uvTransform) : m_uvTransform(uvTransform) {}
+RenderImage::RenderImage(const Mat2D& uvTransform) : m_uvTransform(uvTransform)
+{}
 RenderImage::RenderImage() {}
 RenderImage::~RenderImage() {}
 
@@ -116,7 +134,8 @@ RenderPath::~RenderPath() {}
 
 bool rive::isWhiteSpace(Unichar c) { return c <= ' ' || c == 0x2028; }
 
-SimpleArray<Paragraph> Font::shapeText(Span<const Unichar> text, Span<const TextRun> runs) const
+SimpleArray<Paragraph> Font::shapeText(Span<const Unichar> text,
+                                       Span<const TextRun> runs) const
 {
 #ifdef DEBUG
     size_t count = 0;

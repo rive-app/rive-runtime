@@ -23,14 +23,20 @@ class RenderContextGLImpl::PLSImplFramebufferFetch
     : public RenderContextGLImpl::PixelLocalStorageImpl
 {
 public:
-    PLSImplFramebufferFetch(const GLCapabilities& extensions) : m_capabilities(extensions) {}
+    PLSImplFramebufferFetch(const GLCapabilities& extensions) :
+        m_capabilities(extensions)
+    {}
 
-    bool supportsRasterOrdering(const GLCapabilities&) const override { return true; }
-
-    bool supportsFragmentShaderAtomics(const GLCapabilities& capabilities) const override
+    bool supportsRasterOrdering(const GLCapabilities&) const override
     {
-        // It only makes sense to use atomic mode if the driver allows us to turn
-        // raster ordering OFF with framebuffer fetches.
+        return true;
+    }
+
+    bool supportsFragmentShaderAtomics(
+        const GLCapabilities& capabilities) const override
+    {
+        // It only makes sense to use atomic mode if the driver allows us to
+        // turn raster ordering OFF with framebuffer fetches.
         return capabilities.QCOM_shader_framebuffer_fetch_noncoherent;
     }
 
@@ -42,17 +48,20 @@ public:
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
-        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
+        if (auto framebufferRenderTarget =
+                lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
         {
-            // We're targeting an external FBO directly. Allocate and attach an offscreen target
-            // texture since we can't modify their attachments.
+            // We're targeting an external FBO directly. Allocate and attach an
+            // offscreen target texture since we can't modify their attachments.
             framebufferRenderTarget->allocateOffscreenTargetTexture();
             if (desc.colorLoadAction == LoadAction::preserveRenderTarget)
             {
                 // Copy the framebuffer's contents to our offscreen texture.
-                framebufferRenderTarget->bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
-                framebufferRenderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
-                                                                 DrawBufferMask::color);
+                framebufferRenderTarget->bindDestinationFramebuffer(
+                    GL_READ_FRAMEBUFFER);
+                framebufferRenderTarget->bindInternalFramebuffer(
+                    GL_DRAW_FRAMEBUFFER,
+                    DrawBufferMask::color);
                 glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                          framebufferRenderTarget->height());
             }
@@ -66,25 +75,31 @@ public:
         }
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
         {
-            fbFetchBuffers |= DrawBufferMask::coverage | DrawBufferMask::scratchColor;
+            fbFetchBuffers |=
+                DrawBufferMask::coverage | DrawBufferMask::scratchColor;
         }
         else
         {
-            // Clear and bind the coverage buffer now, since it won't be enabled on the framebuffer.
-            renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, DrawBufferMask::coverage);
+            // Clear and bind the coverage buffer now, since it won't be enabled
+            // on the framebuffer.
+            renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
+                                                  DrawBufferMask::coverage);
             glClearBufferuiv(GL_COLOR, COVERAGE_PLANE_IDX, coverageClear);
             renderTarget->bindAsImageTextures(DrawBufferMask::coverage);
         }
-        renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER, fbFetchBuffers);
+        renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
+                                              fbFetchBuffers);
 
-        // Instruct the driver not to load existing PLS plane contents into tiled memory, with the
-        // exception of the color buffer if it's preserved.
+        // Instruct the driver not to load existing PLS plane contents into
+        // tiled memory, with the exception of the color buffer if it's
+        // preserved.
         static_assert(COLOR_PLANE_IDX == 0);
-        glInvalidateFramebuffer(GL_FRAMEBUFFER,
-                                desc.colorLoadAction == LoadAction::preserveRenderTarget ? 3 : 4,
-                                desc.colorLoadAction == LoadAction::preserveRenderTarget
-                                    ? kPLSDrawBuffers + 1
-                                    : kPLSDrawBuffers);
+        glInvalidateFramebuffer(
+            GL_FRAMEBUFFER,
+            desc.colorLoadAction == LoadAction::preserveRenderTarget ? 3 : 4,
+            desc.colorLoadAction == LoadAction::preserveRenderTarget
+                ? kPLSDrawBuffers + 1
+                : kPLSDrawBuffers);
 
         // Clear the PLS planes.
         if (desc.colorLoadAction == LoadAction::clear)
@@ -104,7 +119,8 @@ public:
         }
 
         if (desc.interlockMode == gpu::InterlockMode::atomics &&
-            !(desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT))
+            !(desc.combinedShaderFeatures &
+              gpu::ShaderFeatures::ENABLE_CLIP_RECT))
         {
             renderContextImpl->state()->setBlendEquation(BlendMode::srcOver);
         }
@@ -115,25 +131,30 @@ public:
         }
     }
 
-    void deactivatePixelLocalStorage(RenderContextGLImpl*, const FlushDescriptor& desc) override
+    void deactivatePixelLocalStorage(RenderContextGLImpl*,
+                                     const FlushDescriptor& desc) override
     {
         if (desc.interlockMode == gpu::InterlockMode::atomics)
         {
             glMemoryBarrierByRegion(GL_ALL_BARRIER_BITS);
         }
 
-        // Instruct the driver not to flush PLS contents from tiled memory, with the exception of
-        // the color buffer.
+        // Instruct the driver not to flush PLS contents from tiled memory, with
+        // the exception of the color buffer.
         static_assert(COLOR_PLANE_IDX == 0);
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 3, kPLSDrawBuffers + 1);
 
-        if (auto framebufferRenderTarget = lite_rtti_cast<FramebufferRenderTargetGL*>(
-                static_cast<RenderTargetGL*>(desc.renderTarget)))
+        if (auto framebufferRenderTarget =
+                lite_rtti_cast<FramebufferRenderTargetGL*>(
+                    static_cast<RenderTargetGL*>(desc.renderTarget)))
         {
-            // We rendered to an offscreen texture. Copy back to the external framebuffer.
-            framebufferRenderTarget->bindInternalFramebuffer(GL_READ_FRAMEBUFFER,
-                                                             DrawBufferMask::color);
-            framebufferRenderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
+            // We rendered to an offscreen texture. Copy back to the external
+            // framebuffer.
+            framebufferRenderTarget->bindInternalFramebuffer(
+                GL_READ_FRAMEBUFFER,
+                DrawBufferMask::color);
+            framebufferRenderTarget->bindDestinationFramebuffer(
+                GL_DRAW_FRAMEBUFFER);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
                                      framebufferRenderTarget->height());
         }
@@ -181,8 +202,9 @@ private:
     const GLCapabilities m_capabilities;
 };
 
-std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl> RenderContextGLImpl::
-    MakePLSImplFramebufferFetch(const GLCapabilities& extensions)
+std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl>
+RenderContextGLImpl::MakePLSImplFramebufferFetch(
+    const GLCapabilities& extensions)
 {
     return std::make_unique<PLSImplFramebufferFetch>(extensions);
 }

@@ -11,13 +11,15 @@ namespace rive::gpu::vkutil
 {
 void vkutil::RenderingResource::onRefCntReachedZero() const
 {
-    // VulkanContext will hold off on deleting "this" until any in-flight command
-    // buffers have finished (potentially) referencing our underlying Vulkan
-    // objects.
+    // VulkanContext will hold off on deleting "this" until any in-flight
+    // command buffers have finished (potentially) referencing our underlying
+    // Vulkan objects.
     m_vk->onRenderingResourceReleased(this);
 }
 
-Buffer::Buffer(rcp<VulkanContext> vk, const VkBufferCreateInfo& info, Mappability mappability) :
+Buffer::Buffer(rcp<VulkanContext> vk,
+               const VkBufferCreateInfo& info,
+               Mappability mappability) :
     RenderingResource(std::move(vk)), m_mappability(mappability), m_info(info)
 {
     m_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
@@ -72,7 +74,8 @@ void Buffer::init()
 
         // Leave the buffer constantly mapped and let the OS/drivers handle the
         // rest.
-        VK_CHECK(vmaMapMemory(m_vk->vmaAllocator, m_vmaAllocation, &m_contents));
+        VK_CHECK(
+            vmaMapMemory(m_vk->vmaAllocator, m_vmaAllocation, &m_contents));
     }
     else
     {
@@ -86,12 +89,18 @@ void Buffer::flushContents(size_t updatedSizeInBytes)
 {
     // Leave the buffer constantly mapped and let the OS/drivers handle the
     // rest.
-    vmaFlushAllocation(m_vk->vmaAllocator, m_vmaAllocation, 0, updatedSizeInBytes);
+    vmaFlushAllocation(m_vk->vmaAllocator,
+                       m_vmaAllocation,
+                       0,
+                       updatedSizeInBytes);
 }
 
 void Buffer::invalidateContents(size_t updatedSizeInBytes)
 {
-    vmaInvalidateAllocation(m_vk->vmaAllocator, m_vmaAllocation, 0, updatedSizeInBytes);
+    vmaInvalidateAllocation(m_vk->vmaAllocator,
+                            m_vmaAllocation,
+                            0,
+                            updatedSizeInBytes);
 }
 
 BufferRing::BufferRing(rcp<VulkanContext> vk,
@@ -228,17 +237,28 @@ TextureView::TextureView(rcp<VulkanContext> vk,
     m_info(info)
 {
     m_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    VK_CHECK(m_vk->CreateImageView(m_vk->device, &m_info, nullptr, &m_vkImageView));
+    VK_CHECK(
+        m_vk->CreateImageView(m_vk->device, &m_info, nullptr, &m_vkImageView));
 }
 
-TextureView::~TextureView() { m_vk->DestroyImageView(m_vk->device, m_vkImageView, nullptr); }
+TextureView::~TextureView()
+{
+    m_vk->DestroyImageView(m_vk->device, m_vkImageView, nullptr);
+}
 
-Framebuffer::Framebuffer(rcp<VulkanContext> vk, const VkFramebufferCreateInfo& info) :
+Framebuffer::Framebuffer(rcp<VulkanContext> vk,
+                         const VkFramebufferCreateInfo& info) :
     RenderingResource(std::move(vk)), m_info(info)
 {
     m_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    VK_CHECK(m_vk->CreateFramebuffer(m_vk->device, &m_info, nullptr, &m_vkFramebuffer));
+    VK_CHECK(m_vk->CreateFramebuffer(m_vk->device,
+                                     &m_info,
+                                     nullptr,
+                                     &m_vkFramebuffer));
 }
 
-Framebuffer::~Framebuffer() { m_vk->DestroyFramebuffer(m_vk->device, m_vkFramebuffer, nullptr); }
+Framebuffer::~Framebuffer()
+{
+    m_vk->DestroyFramebuffer(m_vk->device, m_vkFramebuffer, nullptr);
+}
 } // namespace rive::gpu::vkutil

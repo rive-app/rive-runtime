@@ -9,8 +9,8 @@ using namespace rive;
 
 StatusCode StateMachineFireEvent::import(ImportStack& importStack)
 {
-    auto stateImporter =
-        importStack.latest<StateMachineLayerComponentImporter>(StateMachineLayerComponent::typeKey);
+    auto stateImporter = importStack.latest<StateMachineLayerComponentImporter>(
+        StateMachineLayerComponent::typeKey);
     if (stateImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -19,7 +19,8 @@ StatusCode StateMachineFireEvent::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
-void StateMachineFireEvent::perform(StateMachineInstance* stateMachineInstance) const
+void StateMachineFireEvent::perform(
+    StateMachineInstance* stateMachineInstance) const
 {
     auto coreEvent = stateMachineInstance->artboard()->resolve(eventId());
     if (coreEvent == nullptr || !coreEvent->is<Event>())

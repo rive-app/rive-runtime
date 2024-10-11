@@ -11,7 +11,8 @@ VERTEX_STORAGE_BUFFER_BLOCK_END
 
 VERTEX_MAIN(@blitVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
-    // Fill the entire screen. The caller will use a scissor test to control the bounds being drawn.
+    // Fill the entire screen. The caller will use a scissor test to control the
+    // bounds being drawn.
     float2 coord;
     coord.x = (_vertexID & 1) == 0 ? -1. : 1.;
     coord.y = (_vertexID & 2) == 0 ? -1. : 1.;
@@ -27,7 +28,8 @@ FRAG_TEXTURE_BLOCK_END
 
 FRAG_DATA_MAIN(half4, @blitFragmentMain)
 {
-    half4 srcColor = TEXEL_FETCH(@blitTextureSource, int2(floor(_fragCoord.xy)));
+    half4 srcColor =
+        TEXEL_FETCH(@blitTextureSource, int2(floor(_fragCoord.xy)));
     EMIT_FRAG_DATA(srcColor);
 }
 #endif // FRAGMENT

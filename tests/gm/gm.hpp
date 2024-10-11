@@ -31,8 +31,9 @@ public:
 
     void onceBeforeDraw() { this->onOnceBeforeDraw(); }
 
-    // Calls clearColor(), TestingWindow::beginFrame(), draw(), TestingWindow::flush().
-    // (Most GMs just need to override onDraw() instead of overriding this method.)
+    // Calls clearColor(), TestingWindow::beginFrame(), draw(),
+    // TestingWindow::flush(). (Most GMs just need to override onDraw() instead
+    // of overriding this method.)
     virtual void run(std::vector<uint8_t>* pixels);
 
     virtual rive::ColorInt clearColor() const { return 0xffffffff; }
@@ -93,12 +94,14 @@ using GMRegistry = Registry<GMFactory>;
 
 // Usage: GMREGISTER( return new mygmclass(...) )
 //
-#define GMREGISTER(code)                                                                           \
-    static GMRegistry RIVE_MACRO_APPEND_COUNTER(                                                   \
-        rivegm_registry)([]() { return std::unique_ptr<rivegm::GM>([]() { code; }()); }, false);
-#define GMREGISTER_SLOW(code)                                                                      \
-    static GMRegistry RIVE_MACRO_APPEND_COUNTER(                                                   \
-        rivegm_registry)([]() { return std::unique_ptr<rivegm::GM>([]() { code; }()); }, true);
+#define GMREGISTER(code)                                                       \
+    static GMRegistry RIVE_MACRO_APPEND_COUNTER(rivegm_registry)(              \
+        []() { return std::unique_ptr<rivegm::GM>([]() { code; }()); },        \
+        false);
+#define GMREGISTER_SLOW(code)                                                  \
+    static GMRegistry RIVE_MACRO_APPEND_COUNTER(rivegm_registry)(              \
+        []() { return std::unique_ptr<rivegm::GM>([]() { code; }()); },        \
+        true);
 
 // Usage:
 //
@@ -106,14 +109,14 @@ using GMRegistry = Registry<GMFactory>;
 //       renderer->...
 //   }
 //
-#define DEF_SIMPLE_GM(NAME, WIDTH, HEIGHT, RENDERER)                                               \
-    class NAME##_GM : public rivegm::GM                                                            \
-    {                                                                                              \
-    public:                                                                                        \
-        NAME##_GM() : GM(WIDTH, HEIGHT, #NAME) {}                                                  \
-        void onDraw(rive::Renderer*) override;                                                     \
-    };                                                                                             \
-    GMREGISTER(return new NAME##_GM)                                                               \
+#define DEF_SIMPLE_GM(NAME, WIDTH, HEIGHT, RENDERER)                           \
+    class NAME##_GM : public rivegm::GM                                        \
+    {                                                                          \
+    public:                                                                    \
+        NAME##_GM() : GM(WIDTH, HEIGHT, #NAME) {}                              \
+        void onDraw(rive::Renderer*) override;                                 \
+    };                                                                         \
+    GMREGISTER(return new NAME##_GM)                                           \
     void NAME##_GM::onDraw(rive::Renderer* RENDERER)
 
 // Usage:
@@ -122,15 +125,19 @@ using GMRegistry = Registry<GMFactory>;
 //       renderer->...
 //   }
 //
-#define DEF_SIMPLE_GM_WITH_CLEAR_COLOR(NAME, CLEAR_COLOR, WIDTH, HEIGHT, RENDERER)                 \
-    class NAME##_GM : public rivegm::GM                                                            \
-    {                                                                                              \
-    public:                                                                                        \
-        NAME##_GM() : GM(WIDTH, HEIGHT, #NAME) {}                                                  \
-        ColorInt clearColor() const override { return CLEAR_COLOR; }                               \
-        void onDraw(rive::Renderer*) override;                                                     \
-    };                                                                                             \
-    GMREGISTER(return new NAME##_GM)                                                               \
+#define DEF_SIMPLE_GM_WITH_CLEAR_COLOR(NAME,                                   \
+                                       CLEAR_COLOR,                            \
+                                       WIDTH,                                  \
+                                       HEIGHT,                                 \
+                                       RENDERER)                               \
+    class NAME##_GM : public rivegm::GM                                        \
+    {                                                                          \
+    public:                                                                    \
+        NAME##_GM() : GM(WIDTH, HEIGHT, #NAME) {}                              \
+        ColorInt clearColor() const override { return CLEAR_COLOR; }           \
+        void onDraw(rive::Renderer*) override;                                 \
+    };                                                                         \
+    GMREGISTER(return new NAME##_GM)                                           \
     void NAME##_GM::onDraw(rive::Renderer* RENDERER)
 
 #endif

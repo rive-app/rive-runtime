@@ -7,7 +7,8 @@ using namespace rive;
 
 StatusCode DataConverter::import(ImportStack& importStack)
 {
-    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter =
+        importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr)
     {
         return StatusCode::MissingObject;

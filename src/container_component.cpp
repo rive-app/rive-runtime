@@ -1,7 +1,10 @@
 #include "rive/container_component.hpp"
 using namespace rive;
 
-void ContainerComponent::addChild(Component* component) { m_children.push_back(component); }
+void ContainerComponent::addChild(Component* component)
+{
+    m_children.push_back(component);
+}
 
 bool ContainerComponent::collapse(bool value)
 {

@@ -7,7 +7,10 @@ StaticScene::StaticScene(ArtboardInstance* instance) : Scene(instance) {}
 
 StaticScene::~StaticScene() {}
 
-bool StaticScene::isTranslucent() const { return m_artboardInstance->isTranslucent(); };
+bool StaticScene::isTranslucent() const
+{
+    return m_artboardInstance->isTranslucent();
+};
 
 std::string StaticScene::name() const { return m_artboardInstance->name(); };
 

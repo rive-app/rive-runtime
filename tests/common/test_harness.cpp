@@ -85,11 +85,13 @@ TestHarness::TestHarness()
         signal(i, sig_handler);
     }
 
-    // Check for if the app exits early (before calling TestHarness::shutdown()).
+    // Check for if the app exits early (before calling
+    // TestHarness::shutdown()).
     atexit(check_early_exit);
 }
 
-void TestHarness::init(std::unique_ptr<TCPClient> tcpClient, size_t pngThreadCount)
+void TestHarness::init(std::unique_ptr<TCPClient> tcpClient,
+                       size_t pngThreadCount)
 {
     assert(!m_initialized);
     m_initialized = true;
@@ -204,7 +206,8 @@ void TestHarness::encodePNGThread()
         threadTCPClient->send4(REQUEST_TYPE_IMAGE_UPLOAD);
         threadTCPClient->sendString(pngName);
 
-        auto png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+        auto png =
+            png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
         if (!png)
         {
             fprintf(stderr, "TestHarness: png_create_write_struct failed\n");
@@ -230,7 +233,10 @@ void TestHarness::encodePNGThread()
             abort();
         }
 
-        png_set_write_fn(png, threadTCPClient.get(), &send_png_data_chunk, &flush_png_data);
+        png_set_write_fn(png,
+                         threadTCPClient.get(),
+                         &send_png_data_chunk,
+                         &flush_png_data);
 
         // Write header.
         if (setjmp(png_jmpbuf(png)))
@@ -261,7 +267,8 @@ void TestHarness::encodePNGThread()
         std::vector<uint8_t*> rows(args.height);
         for (uint32_t y = 0; y < args.height; ++y)
         {
-            rows[y] = args.pixels.data() + (args.height - 1 - y) * args.width * 4;
+            rows[y] =
+                args.pixels.data() + (args.height - 1 - y) * args.width * 4;
         }
         png_write_image(png, rows.data());
 
@@ -420,7 +427,8 @@ void TestHarness::onApplicationCrash(const char* message)
 // Buy monitorStdIOThread() some time to finish pumping any messages
 // related to this abort.
 
-// std::this_thread::sleep_for causes weird link issues in unreal. just use sleep instead
+// std::this_thread::sleep_for causes weird link issues in unreal. just use
+// sleep instead
 #if defined(RIVE_UNREAL) && defined(_WIN32)
         Sleep(100);
 #else

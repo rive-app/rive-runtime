@@ -28,7 +28,8 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(const uint32_t id)
     return nullptr;
 }
 
-ViewModelInstanceValue* ViewModelInstance::propertyValue(const std::string& name)
+ViewModelInstanceValue* ViewModelInstance::propertyValue(
+    const std::string& name)
 {
     auto viewModelProperty = viewModel()->property(name);
     if (viewModelProperty != nullptr)
@@ -80,7 +81,8 @@ Core* ViewModelInstance::clone() const
 
 StatusCode ViewModelInstance::import(ImportStack& importStack)
 {
-    auto viewModelImporter = importStack.latest<ViewModelImporter>(ViewModel::typeKey);
+    auto viewModelImporter =
+        importStack.latest<ViewModelImporter>(ViewModel::typeKey);
     if (viewModelImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -90,8 +92,9 @@ StatusCode ViewModelInstance::import(ImportStack& importStack)
     return StatusCode::Ok;
 }
 
-ViewModelInstanceValue* ViewModelInstance::propertyFromPath(std::vector<uint32_t>* path,
-                                                            size_t index)
+ViewModelInstanceValue* ViewModelInstance::propertyFromPath(
+    std::vector<uint32_t>* path,
+    size_t index)
 {
     if (index < path->size())
     {
@@ -105,8 +108,10 @@ ViewModelInstanceValue* ViewModelInstance::propertyFromPath(std::vector<uint32_t
             }
             if (property->is<ViewModelInstanceViewModel>())
             {
-                auto propertyViewModel = property->as<ViewModelInstanceViewModel>();
-                auto viewModelInstance = propertyViewModel->referenceViewModelInstance();
+                auto propertyViewModel =
+                    property->as<ViewModelInstanceViewModel>();
+                auto viewModelInstance =
+                    propertyViewModel->referenceViewModelInstance();
                 return viewModelInstance->propertyFromPath(path, index + 1);
             }
         }

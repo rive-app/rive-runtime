@@ -299,8 +299,8 @@ TEST_CASE("run modifier ranges select runs with varying text size", "[text]")
         // // Run from 18-33 got selected.
         REQUIRE(firstRange->run()->offset() == 18);
         REQUIRE(firstRange->run()->length() == 16);
-        // We confirm that the size and the length of the text are different and they're
-        // both correct
+        // We confirm that the size and the length of the text are different and
+        // they're both correct
         REQUIRE(firstRange->run()->text().size() == 22);
         for (int i = 18; i < 34; i++)
         {

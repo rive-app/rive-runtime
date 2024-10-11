@@ -5,7 +5,8 @@
 namespace rive
 {
 class Artboard;
-class TransitionPropertyArtboardComparator : public TransitionPropertyArtboardComparatorBase
+class TransitionPropertyArtboardComparator
+    : public TransitionPropertyArtboardComparatorBase
 {
 public:
     bool compare(TransitionComparator* comparand,

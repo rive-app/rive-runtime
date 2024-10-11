@@ -8,7 +8,8 @@ void displayStats()
     style.WindowBorderSize = 0.0f;
     ImGui::Begin("stats",
                  &isOpen,
-                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize | ImGuiWindowFlags_NoMove);
+                 ImGuiWindowFlags_NoTitleBar | ImGuiWindowFlags_NoResize |
+                     ImGuiWindowFlags_NoMove);
     if (ImGui::BeginTable("table2", 2))
     {
 
@@ -28,7 +29,10 @@ void displayStats()
         ImGui::TableNextColumn();
         ImGui::Text("window size");
         ImGui::TableNextColumn();
-        ImGui::Text("%dx%d (%.1f)", sapp_width(), sapp_height(), sapp_dpi_scale());
+        ImGui::Text("%dx%d (%.1f)",
+                    sapp_width(),
+                    sapp_height(),
+                    sapp_dpi_scale());
 
         ImGui::TableNextRow();
         ImGui::TableNextColumn();
@@ -66,8 +70,9 @@ void displayStats()
     }
 
     ImGui::SetWindowSize(ImVec2(230.0f, 102.0f));
-    ImGui::SetWindowPos(ImVec2(sapp_width() / sapp_dpi_scale() - ImGui::GetWindowWidth(),
-                               sapp_height() / sapp_dpi_scale() - ImGui::GetWindowHeight()),
-                        true);
+    ImGui::SetWindowPos(
+        ImVec2(sapp_width() / sapp_dpi_scale() - ImGui::GetWindowWidth(),
+               sapp_height() / sapp_dpi_scale() - ImGui::GetWindowHeight()),
+        true);
     ImGui::End();
 }

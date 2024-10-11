@@ -73,7 +73,8 @@ StatusCode IKConstraint::onAddedClean(CoreContext* context)
         {
             auto childBone = bones[i];
             if (transformComponent->parent() == childBone &&
-                std::find(bones.begin(), bones.end(), transformComponent) == bones.end())
+                std::find(bones.begin(), bones.end(), transformComponent) ==
+                    bones.end())
             {
                 tip->addDependent(transformComponent);
             }
@@ -94,7 +95,8 @@ void IKConstraint::markConstraintDirty()
     }
 }
 
-void IKConstraint::solve1(BoneChainLink* fk1, const Vec2D& worldTargetTranslation)
+void IKConstraint::solve1(BoneChainLink* fk1,
+                          const Vec2D& worldTargetTranslation)
 {
     Mat2D iworld = fk1->parentWorldInverse;
     Vec2D pA = fk1->bone->worldTranslation();
@@ -135,8 +137,12 @@ void IKConstraint::solve2(BoneChainLink* fk1,
     Vec2D av = pB - pC, bv = pC - pA, cv = pBT - pA;
     float a = av.length(), b = bv.length(), c = cv.length();
 
-    float A = std::acos(std::max(-1.0f, std::min(1.0f, (-a * a + b * b + c * c) / (2.0f * b * c))));
-    float C = std::acos(std::max(-1.0f, std::min(1.0f, (a * a + b * b - c * c) / (2.0f * a * b))));
+    float A = std::acos(
+        std::max(-1.0f,
+                 std::min(1.0f, (-a * a + b * b + c * c) / (2.0f * b * c))));
+    float C = std::acos(
+        std::max(-1.0f,
+                 std::min(1.0f, (a * a + b * b - c * c) / (2.0f * a * b))));
 
     float r1, r2;
     if (b2->parent() != b1)
@@ -178,7 +184,8 @@ void IKConstraint::solve2(BoneChainLink* fk1,
     if (firstChild != fk2)
     {
         Bone* bone = fk2->bone;
-        bone->mutableWorldTransform() = getParentWorld(*bone) * bone->transform();
+        bone->mutableWorldTransform() =
+            getParentWorld(*bone) * bone->transform();
     }
 
     // Simple storage, need this for interpolation.
@@ -257,10 +264,13 @@ void IKConstraint::constrain(TransformComponent* component)
             {
                 BoneChainLink* item = &m_FkChain[i];
                 solve2(item, tip, worldTargetTranslation);
-                for (int j = item->index + 1, end = (int)m_FkChain.size() - 1; j < end; j++)
+                for (int j = item->index + 1, end = (int)m_FkChain.size() - 1;
+                     j < end;
+                     j++)
                 {
                     BoneChainLink& fk = m_FkChain[j];
-                    fk.parentWorldInverse = getParentWorld(*fk.bone).invertOrIdentity();
+                    fk.parentWorldInverse =
+                        getParentWorld(*fk.bone).invertOrIdentity();
                 }
             }
             break;
@@ -271,7 +281,8 @@ void IKConstraint::constrain(TransformComponent* component)
     {
         for (BoneChainLink& fk : m_FkChain)
         {
-            float fromAngle = std::fmod(fk.transformComponents.rotation(), math::PI * 2);
+            float fromAngle =
+                std::fmod(fk.transformComponents.rotation(), math::PI * 2);
             float toAngle = std::fmod(fk.angle, math::PI * 2);
             float diff = toAngle - fromAngle;
             if (diff > math::PI)

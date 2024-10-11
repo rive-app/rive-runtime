@@ -20,7 +20,9 @@ namespace
 void test_concave(Renderer* canvas, const Paint& paint)
 {
     canvas->translate(0, 0);
-    canvas->drawPath(PathBuilder::Polygon({{20, 20}, {80, 20}, {30, 30}, {20, 80}}, false), paint);
+    canvas->drawPath(
+        PathBuilder::Polygon({{20, 20}, {80, 20}, {30, 30}, {20, 80}}, false),
+        paint);
 }
 
 // Reverse concave test
@@ -28,7 +30,9 @@ void test_reverse_concave(Renderer* canvas, const Paint& paint)
 {
     canvas->save();
     canvas->translate(100, 0);
-    canvas->drawPath(PathBuilder::Polygon({{20, 20}, {20, 80}, {30, 30}, {80, 20}}, false), paint);
+    canvas->drawPath(
+        PathBuilder::Polygon({{20, 20}, {20, 80}, {30, 30}, {80, 20}}, false),
+        paint);
     canvas->restore();
 }
 
@@ -37,7 +41,9 @@ void test_bowtie(Renderer* canvas, const Paint& paint)
 {
     canvas->save();
     canvas->translate(200, 0);
-    canvas->drawPath(PathBuilder::Polygon({{20, 20}, {80, 80}, {80, 20}, {20, 80}}, false), paint);
+    canvas->drawPath(
+        PathBuilder::Polygon({{20, 20}, {80, 80}, {80, 20}, {20, 80}}, false),
+        paint);
     canvas->restore();
 }
 
@@ -47,7 +53,9 @@ void test_fake_bowtie(Renderer* canvas, const Paint& paint)
     canvas->save();
     canvas->translate(300, 0);
     canvas->drawPath(
-        PathBuilder::Polygon({{20, 20}, {50, 40}, {80, 20}, {80, 80}, {50, 60}, {20, 80}}, false),
+        PathBuilder::Polygon(
+            {{20, 20}, {50, 40}, {80, 20}, {80, 80}, {50, 60}, {20, 80}},
+            false),
         paint);
     canvas->restore();
 }
@@ -59,15 +67,16 @@ void test_intruding_vertex(Renderer* canvas, const Paint& paint)
     canvas->save();
     canvas->translate(400, 0);
     canvas->drawPath(
-        PathBuilder::Polygon({{20, 20}, {50, 50}, {68, 20}, {68, 80}, {50, 50}, {20, 80}},
-                             false,
-                             FillRule::nonZero),
+        PathBuilder::Polygon(
+            {{20, 20}, {50, 50}, {68, 20}, {68, 80}, {50, 50}, {20, 80}},
+            false,
+            FillRule::nonZero),
         paint);
     canvas->restore();
 }
 
-// A shape with an edge that becomes inverted on AA stroking and that also contains
-// a repeated start/end vertex.
+// A shape with an edge that becomes inverted on AA stroking and that also
+// contains a repeated start/end vertex.
 void test_inversion_repeat_vertex(Renderer* canvas, const Paint& paint)
 {
     canvas->save();
@@ -80,7 +89,8 @@ void test_inversion_repeat_vertex(Renderer* canvas, const Paint& paint)
         {39.99f, 80},
         {80, 50},
     };
-    canvas->drawPath(PathBuilder::Polygon(pts, false, FillRule::nonZero), paint);
+    canvas->drawPath(PathBuilder::Polygon(pts, false, FillRule::nonZero),
+                     paint);
     canvas->restore();
 }
 
@@ -90,9 +100,10 @@ void test_fish(Renderer* canvas, const Paint& paint)
     canvas->save();
     canvas->translate(0, 100);
     canvas->drawPath(
-        PathBuilder::Polygon({{20, 20}, {80, 80}, {70, 50}, {80, 20}, {20, 80}, {0, 50}},
-                             false,
-                             FillRule::nonZero),
+        PathBuilder::Polygon(
+            {{20, 20}, {80, 80}, {70, 50}, {80, 20}, {20, 80}, {0, 50}},
+            false,
+            FillRule::nonZero),
         paint);
     canvas->restore();
 }
@@ -130,7 +141,8 @@ void test_star(Renderer* canvas, const Paint& paint)
     canvas->save();
     canvas->translate(300, 100);
     canvas->drawPath(
-        PathBuilder::Polygon({{30, 20}, {50, 80}, {70, 20}, {20, 57}, {80, 57}}, false),
+        PathBuilder::Polygon({{30, 20}, {50, 80}, {70, 20}, {20, 57}, {80, 57}},
+                             false),
         paint);
     canvas->restore();
 }
@@ -157,7 +169,9 @@ void test_stairstep(Renderer* canvas, const Paint& paint)
     canvas->save();
     canvas->translate(0, 200);
     canvas->drawPath(
-        PathBuilder::Polygon({{50, 50}, {50, 20}, {80, 20}, {50, 50}, {20, 50}, {20, 80}}, false),
+        PathBuilder::Polygon(
+            {{50, 50}, {50, 20}, {80, 20}, {50, 50}, {20, 50}, {20, 80}},
+            false),
         paint);
     canvas->restore();
 }
@@ -167,7 +181,8 @@ void test_stairstep2(Renderer* canvas, const Paint& paint)
     canvas->save();
     canvas->translate(100, 200);
     canvas->drawPath(
-        PathBuilder::Polygon({{20, 60}, {35, 80}, {50, 60}, {65, 80}, {80, 60}}, false),
+        PathBuilder::Polygon({{20, 60}, {35, 80}, {50, 60}, {65, 80}, {80, 60}},
+                             false),
         paint);
     canvas->restore();
 }
@@ -177,7 +192,9 @@ void test_overlapping(Renderer* canvas, const Paint& paint)
 {
     canvas->save();
     canvas->translate(200, 200);
-    canvas->drawPath(PathBuilder::Polygon({{20, 80}, {80, 80}, {80, 20}, {80, 30}}, false), paint);
+    canvas->drawPath(
+        PathBuilder::Polygon({{20, 80}, {80, 80}, {80, 20}, {80, 30}}, false),
+        paint);
     canvas->restore();
 }
 
@@ -334,8 +351,9 @@ void test_bowtie_coincident_triangle(Renderer* canvas, const Paint& paint)
     canvas->restore();
 }
 
-// Collinear outer boundary edges. In the edge-AA codepath, this creates an overlap region
-// which contains a boundary edge. It can't be removed, but it must have the correct winding.
+// Collinear outer boundary edges. In the edge-AA codepath, this creates an
+// overlap region which contains a boundary edge. It can't be removed, but it
+// must have the correct winding.
 void test_collinear_outer_boundary_edge(Renderer* canvas, const Paint& paint)
 {
     PathBuilder path;

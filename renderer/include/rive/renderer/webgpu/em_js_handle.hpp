@@ -16,8 +16,8 @@
 #include <emscripten/html5_webgpu.h>
 #endif
 
-// RAII object that stores and releases a handle to a WebGPU object passed from Javascript.
-// Original source:
+// RAII object that stores and releases a handle to a WebGPU object passed from
+// Javascript. Original source:
 // https://github.com/emscripten-core/emscripten/blob/08cca043d8ba313d774bec8153fab66b70a6fe60/test/webgpu_jsvalstore.cpp
 class EmJsHandle
 {

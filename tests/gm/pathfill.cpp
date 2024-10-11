@@ -30,9 +30,12 @@ static PathDY make_triangle()
 {
     constexpr int gCoord[] = {10, 20, 15, 5, 30, 30};
     return {PathBuilder()
-                .moveTo(static_cast<float>(gCoord[0] + 10), static_cast<float>(gCoord[1]))
-                .lineTo(static_cast<float>(gCoord[2] + 10), static_cast<float>(gCoord[3]))
-                .lineTo(static_cast<float>(gCoord[4] + 10), static_cast<float>(gCoord[5]))
+                .moveTo(static_cast<float>(gCoord[0] + 10),
+                        static_cast<float>(gCoord[1]))
+                .lineTo(static_cast<float>(gCoord[2] + 10),
+                        static_cast<float>(gCoord[3]))
+                .lineTo(static_cast<float>(gCoord[4] + 10),
+                        static_cast<float>(gCoord[5]))
                 .close()
                 .detach(),
             30};
@@ -562,7 +565,12 @@ DEF_SIMPLE_GM(path_stroke_clip_crbug1070835, 30, 25, canvas)
         .cubicTo(pts[1].x, pts[1].y, pts[2].x, pts[2].y, pts[3].x, pts[3].y)
         .cubicTo(pts[4].x, pts[4].y, pts[5].x, pts[5].y, pts[6].x, pts[6].y)
         .cubicTo(pts[7].x, pts[7].y, pts[8].x, pts[8].y, pts[9].x, pts[9].y)
-        .cubicTo(pts[10].x, pts[10].y, pts[11].x, pts[11].y, pts[12].x, pts[12].y);
+        .cubicTo(pts[10].x,
+                 pts[10].y,
+                 pts[11].x,
+                 pts[11].y,
+                 pts[12].x,
+                 pts[12].y);
 
     canvas->drawPath(path.detach(), p);
 }
@@ -593,7 +601,12 @@ DEF_SIMPLE_GM(path_skbug_11886, 128, 256, canvas)
     Vec2D m = {0.f, 770.f};
     Path path;
     path->moveTo(m.x, m.y);
-    path->cubicTo(m.x + 0.f, m.y + 1.f, m.x + 20.f, m.y - 750.f, m.x + 83.f, m.y + -746.f);
+    path->cubicTo(m.x + 0.f,
+                  m.y + 1.f,
+                  m.x + 20.f,
+                  m.y - 750.f,
+                  m.x + 83.f,
+                  m.y + -746.f);
     Paint paint;
     canvas->drawPath(path, paint);
 }

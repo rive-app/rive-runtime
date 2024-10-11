@@ -9,11 +9,11 @@
  * Copyright 2022 Rive
  */
 
-// Ignore performance warnings in this file about having AVX disabled. We test vectors larger than 4
-// and aren't worried about performance.
+// Ignore performance warnings in this file about having AVX disabled. We test
+// vectors larger than 4 and aren't worried about performance.
 //
-// If we try to use large vectors in other parts of the code with AVX disabled, we definitely still
-// want this warning.
+// If we try to use large vectors in other parts of the code with AVX disabled,
+// we definitely still want this warning.
 #if defined(__clang__) || defined(__GNUC__)
 #pragma GCC diagnostic ignored "-Wpsabi"
 #endif
@@ -165,24 +165,27 @@ TEST_CASE("swizzles", "[simd]")
     CHECK_ALL((simd::fast_acos(a.yxwz) == simd::fast_acos(a_)));
     CHECK_ALL((simd::min(a.yxwz, b.yxwz) == simd::min(a_, b_)));
     CHECK_ALL((simd::max(a.yxwz, b.yxwz) == simd::max(a_, b_)));
+    CHECK_ALL((simd::clamp(a.yxwz, float4(2), float4(10)) ==
+               simd::clamp(a_, float4(2), float4(10))));
+    CHECK_ALL((simd::mix(a.yxwz, b.yxwz, float4(.5f)) ==
+               simd::mix(a_, b_, float4(.5f))));
+    CHECK_ALL((simd::precise_mix(a.yxwz, b.yxwz, float4(.5f)) ==
+               simd::precise_mix(a_, b_, float4(.5f))));
+    CHECK_ALL((simd::if_then_else(int4{~0}, a.yxwz, b.yxwz) ==
+               simd::if_then_else(int4{~0}, a_, b_)));
+    CHECK_ALL((simd::if_then_else(int4{~0}, a.yxwz, b.yxwz) ==
+               float4{a.y, b.x, b.w, b.z}));
     CHECK_ALL(
-        (simd::clamp(a.yxwz, float4(2), float4(10)) == simd::clamp(a_, float4(2), float4(10))));
-    CHECK_ALL((simd::mix(a.yxwz, b.yxwz, float4(.5f)) == simd::mix(a_, b_, float4(.5f))));
-    CHECK_ALL(
-        (simd::precise_mix(a.yxwz, b.yxwz, float4(.5f)) == simd::precise_mix(a_, b_, float4(.5f))));
-    CHECK_ALL(
-        (simd::if_then_else(int4{~0}, a.yxwz, b.yxwz) == simd::if_then_else(int4{~0}, a_, b_)));
-    CHECK_ALL((simd::if_then_else(int4{~0}, a.yxwz, b.yxwz) == float4{a.y, b.x, b.w, b.z}));
-    CHECK_ALL((simd::if_then_else(~int4{~0}, a_, b_) == float4{b.y, a.x, a.w, a.z}));
-    CHECK_ALL(
-        (simd::if_then_else(int4{~0}, a.yxwz, b.yxwz) != simd::if_then_else(~int4{~0}, a_, b_)));
+        (simd::if_then_else(~int4{~0}, a_, b_) == float4{b.y, a.x, a.w, a.z}));
+    CHECK_ALL((simd::if_then_else(int4{~0}, a.yxwz, b.yxwz) !=
+               simd::if_then_else(~int4{~0}, a_, b_)));
 
     float mem[4]{};
     simd::store(mem, a.yxwz);
     CHECK(!memcmp(mem, &a_, 4 * 4));
 
-    // Unfortunate, but there's no way to block the default assignment operator and still be a POD
-    // type.
+    // Unfortunate, but there's no way to block the default assignment operator
+    // and still be a POD type.
     a.zwxy = b.zwxy;
     CHECK_ALL((a == b));
 }
@@ -198,7 +201,8 @@ template <typename T> void check_ieee_compliance()
     CHECK_ALL((test == vec4{kTInf, -kTInf, 0, 1}));
 
     // Inf * Inf == Inf
-    test = vec4{kTInf, -kTInf, kTInf, -kTInf} * vec4{kTInf, kTInf, -kTInf, -kTInf};
+    test =
+        vec4{kTInf, -kTInf, kTInf, -kTInf} * vec4{kTInf, kTInf, -kTInf, -kTInf};
     CHECK_ALL((test == vec4{kTInf, -kTInf, -kTInf, kTInf}));
 
     // Inf/0 == Inf, 0/Inf == 0
@@ -223,7 +227,8 @@ template <typename T> void check_ieee_compliance()
     CHECK(!simd::any(test > test));
 
     // Inf + Inf == Inf, Inf + -Inf == NaN
-    test = vec4{kTInf, -kTInf, kTInf, -kTInf} + vec4{kTInf, -kTInf, -kTInf, kTInf};
+    test =
+        vec4{kTInf, -kTInf, kTInf, -kTInf} + vec4{kTInf, -kTInf, -kTInf, kTInf};
     CHECK_ALL((test.xy == vec2{kTInf, -kTInf}));
     CHECK(!simd::any(test.zw == test.zw)); // NaN
 }
@@ -242,12 +247,16 @@ template <typename T> void check_if_then_else()
     using bmask = typename simd::boolean_mask_type<T>::type;
 
     // Vector condition.
-    vec4 f4 = simd::if_then_else(vec4{1, 2, 3, 4} < vec4{4, 3, 2, 1}, vec4(1), vec4(2));
+    vec4 f4 = simd::if_then_else(vec4{1, 2, 3, 4} < vec4{4, 3, 2, 1},
+                                 vec4(1),
+                                 vec4(2));
     CHECK_ALL((f4 == vec4{1, 1, 2, 2}));
 
     // In vector, -1 is true, 0 is false.
     vec2 u2 =
-        simd::if_then_else(simd::gvec<bmask, 2>{0, static_cast<bmask>(-1)}, vec2{1, 2}, vec2{3, 4});
+        simd::if_then_else(simd::gvec<bmask, 2>{0, static_cast<bmask>(-1)},
+                           vec2{1, 2},
+                           vec2{3, 4});
     CHECK_ALL((u2 == vec2{3, 2}));
 
     // Scalar condition.
@@ -284,9 +293,11 @@ TEST_CASE("min-max", "[simd]")
     CHECK_ALL((i2 == int2{-2, -1}));
 
     // Infinity works as expected.
-    f4 = simd::min(float4{100, -kInf, -kInf, kInf}, float4{kInf, 100, kInf, -kInf});
+    f4 = simd::min(float4{100, -kInf, -kInf, kInf},
+                   float4{kInf, 100, kInf, -kInf});
     CHECK_ALL((f4 == float4{100, -kInf, -kInf, -kInf}));
-    f4 = simd::max(float4{100, -kInf, -kInf, kInf}, float4{kInf, 100, kInf, -kInf});
+    f4 = simd::max(float4{100, -kInf, -kInf, kInf},
+                   float4{kInf, 100, kInf, -kInf});
     CHECK_ALL((f4 == float4{kInf, 100, kInf, kInf}));
 
     // If a or b is NaN, min returns whichever is not NaN.
@@ -318,8 +329,8 @@ TEST_CASE("min-max", "[simd]")
         CHECK(std::isnan(std::max<double>(kNaN_double, d)));
     }
 
-    // fminf/fmaxf/std::min/std::max/simd::min/stmd::max all behave the same when the second
-    // argument is NaN.
+    // fminf/fmaxf/std::min/std::max/simd::min/stmd::max all behave the same
+    // when the second argument is NaN.
     for (float f : {1.f, -kInf, kInf})
     {
         CHECK(simd::min<float, 1>(f, kNaN).x == f);
@@ -340,27 +351,38 @@ TEST_CASE("min-max", "[simd]")
     }
 
     // check non-32-bit types.
-    CHECK_ALL((simd::max(simd::gvec<double, 2>{3, 4}, simd::gvec<double, 2>{4, 3}) ==
-               simd::gvec<double, 2>{4, 4}));
-    CHECK_ALL((simd::min(simd::gvec<uint64_t, 2>{3, 4}, simd::gvec<uint64_t, 2>{4, 3}) ==
-               simd::gvec<uint64_t, 2>{3, 3}));
-    CHECK_ALL((simd::max(simd::gvec<size_t, 2>{3, 4}, simd::gvec<size_t, 2>{4, 3}) ==
-               simd::gvec<size_t, 2>{4, 4}));
     CHECK_ALL(
-        (simd::max(simd::gvec<uint8_t, 16>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
-                   simd::gvec<uint8_t, 16>{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}) ==
-         simd::gvec<uint8_t, 16>{15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15}));
+        (simd::max(simd::gvec<double, 2>{3, 4}, simd::gvec<double, 2>{4, 3}) ==
+         simd::gvec<double, 2>{4, 4}));
+    CHECK_ALL((simd::min(simd::gvec<uint64_t, 2>{3, 4},
+                         simd::gvec<uint64_t, 2>{4, 3}) ==
+               simd::gvec<uint64_t, 2>{3, 3}));
+    CHECK_ALL(
+        (simd::max(simd::gvec<size_t, 2>{3, 4}, simd::gvec<size_t, 2>{4, 3}) ==
+         simd::gvec<size_t, 2>{4, 4}));
+    CHECK_ALL(
+        (simd::max(
+             simd::gvec<
+                 uint8_t,
+                 16>{0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15},
+             simd::gvec<
+                 uint8_t,
+                 16>{15, 14, 13, 12, 11, 10, 9, 8, 7, 6, 5, 4, 3, 2, 1, 0}) ==
+         simd::gvec<
+             uint8_t,
+             16>{15, 14, 13, 12, 11, 10, 9, 8, 8, 9, 10, 11, 12, 13, 14, 15}));
 }
 
 // Check simd::clamp.
 TEST_CASE("clamp", "[simd]")
 {
+    CHECK_ALL((simd::clamp(float4{1, 2, kInf, -kInf},
+                           float4{2, 1, kInf, 0},
+                           float4{3, 1, kInf, kInf}) == float4{2, 1, kInf, 0}));
     CHECK_ALL(
-        (simd::clamp(float4{1, 2, kInf, -kInf}, float4{2, 1, kInf, 0}, float4{3, 1, kInf, kInf}) ==
-         float4{2, 1, kInf, 0}));
-    CHECK_ALL((simd::clamp(float4{1, kNaN, kInf, -kInf},
-                           float4{kNaN, 2, kNaN, 0},
-                           float4{kNaN, 3, kInf, kNaN}) == float4{1, 2, kInf, 0}));
+        (simd::clamp(float4{1, kNaN, kInf, -kInf},
+                     float4{kNaN, 2, kNaN, 0},
+                     float4{kNaN, 3, kInf, kNaN}) == float4{1, 2, kInf, 0}));
     float4 f4 = simd::clamp(float4{1, kNaN, kNaN, kNaN},
                             float4{kNaN, 1, kNaN, kNaN},
                             float4{kNaN, kNaN, 1, kNaN});
@@ -401,24 +423,25 @@ TEST_CASE("abs", "[simd]")
     CHECK_ALL((simd::abs(float4{-1, 2, -3, 4}) == float4{1, 2, 3, 4}));
     CHECK_ALL((simd::abs(float2{-5, 6}) == float2{5, 6}));
     CHECK_ALL((simd::abs(float2{-0, 0}) == float2{0, 0}));
-    CHECK_ALL((float4{-std::numeric_limits<float>::epsilon(),
-                      -std::numeric_limits<float>::denorm_min(),
-                      -std::numeric_limits<float>::max(),
-                      -kInf} == float4{-std::numeric_limits<float>::epsilon(),
-                                       -std::numeric_limits<float>::denorm_min(),
-                                       -std::numeric_limits<float>::max(),
-                                       -kInf}
+    CHECK_ALL(
+        (float4{-std::numeric_limits<float>::epsilon(),
+                -std::numeric_limits<float>::denorm_min(),
+                -std::numeric_limits<float>::max(),
+                -kInf} == float4{-std::numeric_limits<float>::epsilon(),
+                                 -std::numeric_limits<float>::denorm_min(),
+                                 -std::numeric_limits<float>::max(),
+                                 -kInf}
 
-               ));
+         ));
     float2 nan2 = simd::abs(float2{kNaN, -kNaN});
     CHECK_ALL((simd::isnan(nan2)));
     CHECK_ALL((simd::abs(int4{7, -8, 9, -10}) == int4{7, 8, 9, 10}));
     CHECK_ALL((simd::abs(int2{0, -0}) == int2{0, 0}));
     // abs(INT_MIN) returns INT_MIN.
-    CHECK(
-        simd::all(simd::abs(int2{-std::numeric_limits<int32_t>::max(),
-                                 std::numeric_limits<int32_t>::min()}) ==
-                  int2{std::numeric_limits<int32_t>::max(), std::numeric_limits<int32_t>::min()}));
+    CHECK(simd::all(simd::abs(int2{-std::numeric_limits<int32_t>::max(),
+                                   std::numeric_limits<int32_t>::min()}) ==
+                    int2{std::numeric_limits<int32_t>::max(),
+                         std::numeric_limits<int32_t>::min()}));
 }
 
 // Check simd::reduce* methods.
@@ -505,7 +528,8 @@ TEST_CASE("reduce", "[simd]")
 // Check simd::floor.
 TEST_CASE("floor", "[simd]")
 {
-    CHECK_ALL((simd::floor(float4{-1.9f, 1.9f, 2, -2}) == float4{-2, 1, 2, -2}));
+    CHECK_ALL(
+        (simd::floor(float4{-1.9f, 1.9f, 2, -2}) == float4{-2, 1, 2, -2}));
     CHECK_ALL((simd::floor(float2{kInf, -kInf}) == float2{kInf, -kInf}));
     CHECK_ALL((simd::isnan(simd::floor(float2{kNaN, -kNaN}))));
 }
@@ -524,7 +548,8 @@ TEST_CASE("sqrt", "[simd]")
     CHECK_ALL((simd::sqrt(float4{1, 4, 9, 16}) == float4{1, 2, 3, 4}));
     CHECK_ALL((simd::sqrt(float2{25, 36}) == float2{5, 6}));
     CHECK_ALL((simd::sqrt(vec<1>{36}) == vec<1>{6}));
-    CHECK_ALL((simd::sqrt(vec<5>{49, 64, 81, 100, 121}) == vec<5>{7, 8, 9, 10, 11}));
+    CHECK_ALL(
+        (simd::sqrt(vec<5>{49, 64, 81, 100, 121}) == vec<5>{7, 8, 9, 10, 11}));
     CHECK_ALL((simd::isnan(simd::sqrt(float4{-1, -kInf, kNaN, -2}))));
     CHECK_ALL((simd::sqrt(vec<3>{kInf, 0, 1}) == vec<3>{kInf, 0, 1}));
 }
@@ -565,15 +590,17 @@ TEST_CASE("fast_acos", "[simd]")
     check_fast_acos(0, boundaries[1]);
     check_fast_acos(+1, boundaries[2]);
 
-    // Select a distribution of starting points around which to begin testing fast_acos. These
-    // fall roughly around the known minimum and maximum errors. No need to include -1, 0, or 1
-    // since those were just tested above. (Those are tricky because 0 is an inflection and the
-    // derivative is infinite at 1 and -1.)
+    // Select a distribution of starting points around which to begin testing
+    // fast_acos. These fall roughly around the known minimum and maximum
+    // errors. No need to include -1, 0, or 1 since those were just tested
+    // above. (Those are tricky because 0 is an inflection and the derivative is
+    // infinite at 1 and -1.)
     using float8 = vec<8>;
     float8 x = {-.99f, -.8f, -.4f, -.2f, .2f, .4f, .8f, .99f};
 
-    // Converge at the various local minima and maxima of "fast_acos(x) - cosf(x)" and verify that
-    // fast_acos is always within "kTolerance" degrees of the expected answer.
+    // Converge at the various local minima and maxima of "fast_acos(x) -
+    // cosf(x)" and verify that fast_acos is always within "kTolerance" degrees
+    // of the expected answer.
     float8 err_;
     for (int iter = 0; iter < 10; ++iter)
     {
@@ -582,7 +609,8 @@ TEST_CASE("fast_acos", "[simd]")
 
         // Find d/dx(error)
         //    = d/dx(fast_acos(x) - acos(x))
-        //    = (f'g - fg')/gg + 1/sqrt(1 - x^2), [where f = bx^3 + ax, g = dx^4 + cx^2 + 1]
+        //    = (f'g - fg')/gg + 1/sqrt(1 - x^2), [where f = bx^3 + ax, g = dx^4
+        //    + cx^2 + 1]
         float8 xx = x * x;
         float8 a = -0.939115566365855f;
         float8 b = 0.9217841528914573f;
@@ -601,8 +629,10 @@ TEST_CASE("fast_acos", "[simd]")
         //    = ((f''g - fg'')g - (f'g - fg')2g') / g^3 + x(1 - x^2)^(-3/2)
         float8 f__ = 6.f * b * x;
         float8 g__ = 12.f * d * xx + 2.f * c;
-        float8 err__ = ((f__ * g - f * g__) * g - (f_ * g - f * g_) * 2.f * g_) / (gg * g) +
-                       x / ((1.f - xx) * q);
+        float8 err__ =
+            ((f__ * g - f * g__) * g - (f_ * g - f * g_) * 2.f * g_) /
+                (gg * g) +
+            x / ((1.f - xx) * q);
 
 #if 0
         SkDebugf("\n\niter %i\n", iter);
@@ -621,8 +651,8 @@ TEST_CASE("fast_acos", "[simd]")
             }
         }
 
-        // Use Newton's method to update the x values to locations closer to their local minimum or
-        // maximum. (This is where d/dx(error) == 0.)
+        // Use Newton's method to update the x values to locations closer to
+        // their local minimum or maximum. (This is where d/dx(error) == 0.)
         x -= err_ / err__;
         x = simd::clamp<float, 8>(x, -.99f, .99f);
     }
@@ -634,7 +664,8 @@ TEST_CASE("fast_acos", "[simd]")
     }
 
     // Make sure we found all the actual known locations of local min/max error.
-    for (float knownRoot : {-0.983536f, -0.867381f, -0.410923f, 0.410923f, 0.867381f, 0.983536f})
+    for (float knownRoot :
+         {-0.983536f, -0.867381f, -0.410923f, 0.410923f, 0.867381f, 0.983536f})
     {
         CHECK_ANY((simd::abs(x - knownRoot) < math::EPSILON));
     }
@@ -646,8 +677,10 @@ TEST_CASE("cast", "[simd]")
     CHECK(simd::all(simd::cast<int>(f4) == int4{-1, -1, 1, 1}));
     CHECK(simd::all(simd::cast<int>(simd::floor(f4)) == int4{-2, -2, 1, 1}));
     CHECK(simd::all(simd::cast<int>(simd::ceil(f4)) == int4{-1, -1, 2, 2}));
-    CHECK(simd::all(simd::cast<int>(simd::ceil(f4.zwxy)) == int4{2, 2, -1, -1}));
-    CHECK(simd::all(simd::cast<int>(simd::ceil(f4).zwxy) == int4{2, 2, -1, -1}));
+    CHECK(
+        simd::all(simd::cast<int>(simd::ceil(f4.zwxy)) == int4{2, 2, -1, -1}));
+    CHECK(
+        simd::all(simd::cast<int>(simd::ceil(f4).zwxy) == int4{2, 2, -1, -1}));
 }
 
 // Check simd::dot.
@@ -683,15 +716,21 @@ TEST_CASE("cross", "[simd]")
 // Check simd::join
 TEST_CASE("join", "[simd]")
 {
-    CHECK_ALL((simd::join(int2{1, 2}, int4{3, 4, 5, 6}) == ivec<6>{1, 2, 3, 4, 5, 6}));
+    CHECK_ALL((simd::join(int2{1, 2}, int4{3, 4, 5, 6}) ==
+               ivec<6>{1, 2, 3, 4, 5, 6}));
     CHECK_ALL((simd::join(vec<1>{1}, vec<3>{2, 3, 4}) == float4{1, 2, 3, 4}));
-    CHECK_ALL((simd::join(vec<1>{1}, vec<2>{2, 3}, vec<3>{4, 5, 6}) == vec<6>{1, 2, 3, 4, 5, 6}));
-    CHECK_ALL((simd::join(vec<1>{1}, vec<2>{2, 3}, vec<3>{4, 5, 6}, float4{7, 8, 9, 10}) ==
+    CHECK_ALL((simd::join(vec<1>{1}, vec<2>{2, 3}, vec<3>{4, 5, 6}) ==
+               vec<6>{1, 2, 3, 4, 5, 6}));
+    CHECK_ALL((simd::join(vec<1>{1},
+                          vec<2>{2, 3},
+                          vec<3>{4, 5, 6},
+                          float4{7, 8, 9, 10}) ==
                vec<10>{1, 2, 3, 4, 5, 6, 7, 8, 9, 10}));
     uint8x8 a = 3, b = 9, c = 3, d = 100;
-    CHECK_ALL((simd::join(a, b, c, d) == uint8x32{3, 3, 3,   3,   3,   3,   3,   3,   9,   9,  9,
-                                                  9, 9, 9,   9,   9,   3,   3,   3,   3,   3,  3,
-                                                  3, 3, 100, 100, 100, 100, 100, 100, 100, 100}));
+    CHECK_ALL((simd::join(a, b, c, d) ==
+               uint8x32{3, 3, 3,   3,   3,   3,   3,   3,   9,   9,  9,
+                        9, 9, 9,   9,   9,   3,   3,   3,   3,   3,  3,
+                        3, 3, 100, 100, 100, 100, 100, 100, 100, 100}));
 }
 
 // Check simd::zip
@@ -700,12 +739,15 @@ TEST_CASE("zip", "[simd]")
     CHECK_ALL((simd::zip(simd::gvec<char, 1>{'a'}, simd::gvec<char, 1>{'b'}) ==
                simd::gvec<char, 2>{'a', 'b'}));
     CHECK_ALL((simd::zip(int2{1, 2}, int2{3, 4}) == int4{1, 3, 2, 4}));
-    CHECK_ALL((simd::zip(int4{1, 2, 3, 4}, int4{5, 6, 7, 8}) == ivec<8>{1, 5, 2, 6, 3, 7, 4, 8}));
-    CHECK_ALL((simd::zip(simd::gvec<uint8_t, 8>{1, 2, 3, 4, 5, 6, 7, 8},
-                         simd::gvec<uint8_t, 8>{9, 10, 11, 12, 13, 14, 15, 16}) ==
-               simd::gvec<uint8_t, 16>{1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15, 8, 16}));
-    CHECK_ALL(
-        (simd::zip(float4{1, 2, 3, 4}, float4{5, 6, 7, 8}) == vec<8>{1, 5, 2, 6, 3, 7, 4, 8}));
+    CHECK_ALL((simd::zip(int4{1, 2, 3, 4}, int4{5, 6, 7, 8}) ==
+               ivec<8>{1, 5, 2, 6, 3, 7, 4, 8}));
+    CHECK_ALL((
+        simd::zip(simd::gvec<uint8_t, 8>{1, 2, 3, 4, 5, 6, 7, 8},
+                  simd::gvec<uint8_t, 8>{9, 10, 11, 12, 13, 14, 15, 16}) ==
+        simd::gvec<uint8_t,
+                   16>{1, 9, 2, 10, 3, 11, 4, 12, 5, 13, 6, 14, 7, 15, 8, 16}));
+    CHECK_ALL((simd::zip(float4{1, 2, 3, 4}, float4{5, 6, 7, 8}) ==
+               vec<8>{1, 5, 2, 6, 3, 7, 4, 8}));
 }
 
 template <int N> static vec<N> mix_reference_impl(vec<N> a, vec<N> b, float t)
@@ -717,7 +759,8 @@ template <int N> static vec<N> mix_reference_impl(vec<N> a, vec<N> b, vec<N> t)
     return a * (1.f - t) + b * t;
 }
 
-template <typename T, int N> static bool fuzzy_equal(simd::gvec<T, N> a, simd::gvec<T, N> b)
+template <typename T, int N>
+static bool fuzzy_equal(simd::gvec<T, N> a, simd::gvec<T, N> b)
 {
     return simd::all(b - a < 1e-4f);
 }
@@ -744,10 +787,12 @@ template <int N> void check_mix()
     vec<N> b = vrand<N>();
     float t = frand();
     CHECK(fuzzy_equal(simd::mix(a, b, vec<N>(t)), mix_reference_impl(a, b, t)));
-    CHECK(fuzzy_equal(simd::precise_mix(a, b, vec<N>(t)), mix_reference_impl(a, b, t)));
+    CHECK(fuzzy_equal(simd::precise_mix(a, b, vec<N>(t)),
+                      mix_reference_impl(a, b, t)));
     vec<N> tt = vrand<N>();
     CHECK(fuzzy_equal(simd::mix(a, b, tt), mix_reference_impl(a, b, tt)));
-    CHECK(fuzzy_equal(simd::precise_mix(a, b, tt), mix_reference_impl(a, b, tt)));
+    CHECK(
+        fuzzy_equal(simd::precise_mix(a, b, tt), mix_reference_impl(a, b, tt)));
 }
 
 // Check simd::mix
@@ -759,11 +804,14 @@ TEST_CASE("mix", "[simd]")
     check_mix<3>();
     check_mix<4>();
     check_mix<5>();
-    CHECK_ALL((simd::mix(float4{1, 2, 3, 4}, float4{5, 6, 7, 8}, float4(0)) == float4{1, 2, 3, 4}));
-    CHECK_ALL((simd::precise_mix(float4{-1, 2, 3, 4}, float4{5, 6, 7, 8}, float4(0)) ==
-               float4{-1, 2, 3, 4}));
-    CHECK_ALL((simd::precise_mix(float4{1, 2, 3, 4}, float4{5, -6, 7, -8}, float4(1)) ==
-               float4{5, -6, 7, -8}));
+    CHECK_ALL((simd::mix(float4{1, 2, 3, 4}, float4{5, 6, 7, 8}, float4(0)) ==
+               float4{1, 2, 3, 4}));
+    CHECK_ALL((simd::precise_mix(float4{-1, 2, 3, 4},
+                                 float4{5, 6, 7, 8},
+                                 float4(0)) == float4{-1, 2, 3, 4}));
+    CHECK_ALL((simd::precise_mix(float4{1, 2, 3, 4},
+                                 float4{5, -6, 7, -8},
+                                 float4(1)) == float4{5, -6, 7, -8}));
 }
 
 // Check simd::load4x4f

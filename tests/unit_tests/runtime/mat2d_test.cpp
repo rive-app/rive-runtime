@@ -9,8 +9,8 @@ TEST_CASE("mapPoints", "[Mat2D]")
     std::vector<Vec2D> testPts{{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}};
     for (int i = 0; i < 100; ++i)
     {
-        testPts.push_back(
-            {static_cast<float>(rand() % 201 - 100), static_cast<float>(rand() % 201 - 100)});
+        testPts.push_back({static_cast<float>(rand() % 201 - 100),
+                           static_cast<float>(rand() % 201 - 100)});
     }
     size_t n = testPts.size();
     std::vector<Vec2D> dstPts(n);
@@ -22,11 +22,13 @@ TEST_CASE("mapPoints", "[Mat2D]")
         expectedPts[0] = m * testPts[2];
         CHECK(dstPts[0] == expectedPts[0]);
 
-        // Map n - 1 points (ensures we test one even-length and one odd-length array).
+        // Map n - 1 points (ensures we test one even-length and one odd-length
+        // array).
         m.mapPoints(dstPts.data(), testPts.data() + 1, n - 1);
         for (size_t i = 0; i < n - 1; ++i)
             expectedPts[i] = m * testPts[i + 1];
-        CHECK(std::equal(dstPts.begin(), dstPts.end() - 1, expectedPts.begin()));
+        CHECK(
+            std::equal(dstPts.begin(), dstPts.end() - 1, expectedPts.begin()));
 
         // Map n points.
         m.mapPoints(dstPts.data(), testPts.data(), n);
@@ -132,8 +134,9 @@ TEST_CASE("findMaxScale", "[Mat2D]")
         // REQUIRE(minScale >= 0);
         REQUIRE(maxScale >= 0);
 
-        // test a bunch of vectors. All should be scaled by between minScale and maxScale
-        // (modulo some error) and we should find a vector that is scaled by almost each.
+        // test a bunch of vectors. All should be scaled by between minScale and
+        // maxScale (modulo some error) and we should find a vector that is
+        // scaled by almost each.
         static const float gVectorScaleTol = (105 * 1.f) / 100;
         static const float gCloseScaleTol = (97 * 1.f) / 100;
         float max = 0, min = std::numeric_limits<float>::max();
@@ -168,7 +171,8 @@ TEST_CASE("findMaxScale", "[Mat2D]")
 
 TEST_CASE("mapBoundingBox", "[Mat2D]")
 {
-    const std::vector<Vec2D> testPts{{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {-1, -1}};
+    const std::vector<Vec2D>
+        testPts{{0, 0}, {1, 0}, {0, 1}, {-1, 0}, {0, -1}, {1, 1}, {-1, -1}};
     std::vector<Vec2D> mappedPts(testPts.size());
     auto checkMatrix = [&](Mat2D m) {
         // Check zero points.
@@ -190,7 +194,8 @@ TEST_CASE("mapBoundingBox", "[Mat2D]")
             CHECK(mappedBbox.bottom() == Approx(mappedPt.y));
         }
 
-        // Check n - 1 points (ensures we test one even-length and one odd-length array).
+        // Check n - 1 points (ensures we test one even-length and one
+        // odd-length array).
         m.mapPoints(mappedPts.data(), testPts.data() + 1, testPts.size() - 1);
         mappedBbox = m.mapBoundingBox(testPts.data() + 1, testPts.size() - 1);
         AABB testBbox = {1e9f, 1e9f, -1e9f, -1e9f};
@@ -223,7 +228,8 @@ TEST_CASE("mapBoundingBox", "[Mat2D]")
         CHECK(mappedBboxFromPts.left() == Approx(mappedBboxFromAABB.left()));
         CHECK(mappedBboxFromPts.top() == Approx(mappedBboxFromAABB.top()));
         CHECK(mappedBboxFromPts.right() == Approx(mappedBboxFromAABB.right()));
-        CHECK(mappedBboxFromPts.bottom() == Approx(mappedBboxFromAABB.bottom()));
+        CHECK(mappedBboxFromPts.bottom() ==
+              Approx(mappedBboxFromAABB.bottom()));
     };
     checkMatrix(Mat2D());
     checkMatrix(Mat2D(1, 0, 0, 1, 2, -3));

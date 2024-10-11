@@ -9,14 +9,16 @@ using namespace rive;
 
 StatusCode DataConverterGroupItem::import(ImportStack& importStack)
 {
-    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter =
+        importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr)
     {
         return StatusCode::MissingObject;
     }
     backboardImporter->addDataConverterGroupItemReferencer(this);
     auto dataConveterGroupImporter =
-        importStack.latest<DataConverterGroupImporter>(DataConverterGroupBase::typeKey);
+        importStack.latest<DataConverterGroupImporter>(
+            DataConverterGroupBase::typeKey);
     if (dataConveterGroupImporter == nullptr)
     {
         return StatusCode::MissingObject;

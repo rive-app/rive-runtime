@@ -15,11 +15,14 @@ static void fillColorBuffer(float* buffer, ColorInt value)
     buffer[3] = colorOpacity(value);
 }
 
-class SokolRenderPath : public lite_rtti_override<TessRenderPath, SokolRenderPath>
+class SokolRenderPath
+    : public lite_rtti_override<TessRenderPath, SokolRenderPath>
 {
 public:
     SokolRenderPath() {}
-    SokolRenderPath(RawPath& rawPath, FillRule fillRule) : lite_rtti_override(rawPath, fillRule) {}
+    SokolRenderPath(RawPath& rawPath, FillRule fillRule) :
+        lite_rtti_override(rawPath, fillRule)
+    {}
 
     ~SokolRenderPath()
     {
@@ -37,7 +40,8 @@ private:
     std::size_t m_boundsIndex = 0;
 
 protected:
-    void addTriangles(rive::Span<const rive::Vec2D> vts, rive::Span<const uint16_t> idx) override
+    void addTriangles(rive::Span<const rive::Vec2D> vts,
+                      rive::Span<const uint16_t> idx) override
     {
         m_vertices.insert(m_vertices.end(), vts.begin(), vts.end());
         m_indices.insert(m_indices.end(), idx.begin(), idx.end());
@@ -66,14 +70,18 @@ public:
         {
             for (auto& subPath : m_subPaths)
             {
-                LITE_RTTI_CAST_OR_CONTINUE(sokolPath, SokolRenderPath*, subPath.path());
+                LITE_RTTI_CAST_OR_CONTINUE(sokolPath,
+                                           SokolRenderPath*,
+                                           subPath.path());
                 sokolPath->drawStroke(stroke);
             }
             return;
         }
         std::size_t start, end;
         stroke->nextRenderOffset(start, end);
-        sg_draw(start < 2 ? 0 : (start - 2) * 3, end - start < 2 ? 0 : (end - start - 2) * 3, 1);
+        sg_draw(start < 2 ? 0 : (start - 2) * 3,
+                end - start < 2 ? 0 : (end - start - 2) * 3,
+                1);
     }
 
     void drawFill()
@@ -145,17 +153,22 @@ rcp<RenderPath> SokolFactory::makeRenderPath(RawPath& rawPath, FillRule rule)
     return make_rcp<SokolRenderPath>(rawPath, rule);
 }
 
-rcp<RenderPath> SokolFactory::makeEmptyRenderPath() { return make_rcp<SokolRenderPath>(); }
+rcp<RenderPath> SokolFactory::makeEmptyRenderPath()
+{
+    return make_rcp<SokolRenderPath>();
+}
 
 class SokolBuffer : public lite_rtti_override<RenderBuffer, SokolBuffer>
 {
 public:
-    SokolBuffer(RenderBufferType type, RenderBufferFlags renderBufferFlags, size_t sizeInBytes) :
+    SokolBuffer(RenderBufferType type,
+                RenderBufferFlags renderBufferFlags,
+                size_t sizeInBytes) :
         lite_rtti_override(type, renderBufferFlags, sizeInBytes),
         m_mappedMemory(new char[sizeInBytes])
     {
-        // If the buffer will be immutable, defer creation until the client unmaps for the only time
-        // and we have our initial data.
+        // If the buffer will be immutable, defer creation until the client
+        // unmaps for the only time and we have our initial data.
         if (!(flags() & RenderBufferFlags::mappedOnceAtInitialization))
         {
             m_buffer = sg_make_buffer(makeNoDataBufferDesc());
@@ -165,8 +178,9 @@ public:
 
     sg_buffer buffer()
     {
-        // In the case of RenderBufferFlags::mappedOnceAtInitialization, the client is expected to
-        // map()/unmap() before we need to access this buffer for rendering.
+        // In the case of RenderBufferFlags::mappedOnceAtInitialization, the
+        // client is expected to map()/unmap() before we need to access this
+        // buffer for rendering.
         assert(m_buffer.id);
         return m_buffer;
     }
@@ -174,7 +188,8 @@ public:
 protected:
     void* onMap() override
     {
-        // An immutable buffer is only mapped once, and then we delete m_mappedMemory.
+        // An immutable buffer is only mapped once, and then we delete
+        // m_mappedMemory.
         assert(m_mappedMemory);
         return m_mappedMemory.get();
     }
@@ -194,8 +209,9 @@ protected:
         else
         {
             assert(m_buffer.id);
-            sg_update_buffer(m_buffer,
-                             sg_range{.ptr = m_mappedMemory.get(), .size = sizeInBytes()});
+            sg_update_buffer(
+                m_buffer,
+                sg_range{.ptr = m_mappedMemory.get(), .size = sizeInBytes()});
         }
     }
 
@@ -204,10 +220,12 @@ private:
     {
         return {
             .size = sizeInBytes(),
-            .usage = (flags() & RenderBufferFlags::mappedOnceAtInitialization) ? SG_USAGE_IMMUTABLE
-                                                                               : SG_USAGE_STREAM,
-            .type = (type() == RenderBufferType::index) ? SG_BUFFERTYPE_INDEXBUFFER
-                                                        : SG_BUFFERTYPE_VERTEXBUFFER,
+            .usage = (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+                         ? SG_USAGE_IMMUTABLE
+                         : SG_USAGE_STREAM,
+            .type = (type() == RenderBufferType::index)
+                        ? SG_BUFFERTYPE_INDEXBUFFER
+                        : SG_BUFFERTYPE_VERTEXBUFFER,
         };
     };
 
@@ -267,8 +285,10 @@ SokolTessRenderer::SokolTessRenderer()
             {
                 .attrs =
                     {
-                        [ATTR_vs_position] = {.format = SG_VERTEXFORMAT_FLOAT2, .buffer_index = 0},
-                        [ATTR_vs_texcoord0] = {.format = SG_VERTEXFORMAT_FLOAT2, .buffer_index = 1},
+                        [ATTR_vs_position] = {.format = SG_VERTEXFORMAT_FLOAT2,
+                                              .buffer_index = 0},
+                        [ATTR_vs_texcoord0] = {.format = SG_VERTEXFORMAT_FLOAT2,
+                                               .buffer_index = 1},
                     },
             },
         .shader = sg_make_shader(rive_tess_shader_desc(sg_query_backend())),
@@ -288,109 +308,113 @@ SokolTessRenderer::SokolTessRenderer()
                             {
                                 .enabled = true,
                                 .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-                                .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                                .dst_factor_rgb =
+                                    SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
                             },
                     },
             },
         .label = "mesh-pipeline",
     });
 
-    auto uberShader = sg_make_shader(rive_tess_path_shader_desc(sg_query_backend()));
+    auto uberShader =
+        sg_make_shader(rive_tess_path_shader_desc(sg_query_backend()));
 
     assert(maxClippingPaths < 256);
 
     // Src Over Pipelines
     {
-        m_pathPipeline[0] = vectorPipeline(uberShader,
-                                           {
-                                               .enabled = true,
-                                               .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-                                               .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                                           },
-                                           {
-                                               .enabled = false,
-                                           });
+        m_pathPipeline[0] = vectorPipeline(
+            uberShader,
+            {
+                .enabled = true,
+                .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+                .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            },
+            {
+                .enabled = false,
+            });
 
         for (std::size_t i = 1; i <= maxClippingPaths; i++)
         {
-            m_pathPipeline[i] =
-                vectorPipeline(uberShader,
-                               {
-                                   .enabled = true,
-                                   .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-                                   .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                               },
-                               {
-                                   .enabled = true,
-                                   .ref = (uint8_t)i,
-                                   .read_mask = 0xFF,
-                                   .write_mask = 0x00,
-                                   .front =
-                                       {
-                                           .compare = SG_COMPAREFUNC_EQUAL,
-                                       },
-                                   .back =
-                                       {
-                                           .compare = SG_COMPAREFUNC_EQUAL,
-                                       },
-                               });
+            m_pathPipeline[i] = vectorPipeline(
+                uberShader,
+                {
+                    .enabled = true,
+                    .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+                    .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                },
+                {
+                    .enabled = true,
+                    .ref = (uint8_t)i,
+                    .read_mask = 0xFF,
+                    .write_mask = 0x00,
+                    .front =
+                        {
+                            .compare = SG_COMPAREFUNC_EQUAL,
+                        },
+                    .back =
+                        {
+                            .compare = SG_COMPAREFUNC_EQUAL,
+                        },
+                });
         }
     }
 
     // Screen Pipelines
     {
-        m_pathScreenPipeline[0] =
-            vectorPipeline(uberShader,
-                           {
-                               .enabled = true,
-                               .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-                               .dst_factor_rgb = SG_BLENDFACTOR_ONE,
-                               .src_factor_alpha = SG_BLENDFACTOR_SRC_ALPHA,
-                               .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                           },
-                           {
-                               .enabled = false,
-                           });
+        m_pathScreenPipeline[0] = vectorPipeline(
+            uberShader,
+            {
+                .enabled = true,
+                .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+                .dst_factor_rgb = SG_BLENDFACTOR_ONE,
+                .src_factor_alpha = SG_BLENDFACTOR_SRC_ALPHA,
+                .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            },
+            {
+                .enabled = false,
+            });
 
         for (std::size_t i = 1; i <= maxClippingPaths; i++)
         {
-            m_pathScreenPipeline[i] =
-                vectorPipeline(uberShader,
-                               {
-                                   .enabled = true,
-                                   .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-                                   .dst_factor_rgb = SG_BLENDFACTOR_ONE,
-                                   .src_factor_alpha = SG_BLENDFACTOR_SRC_ALPHA,
-                                   .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                               },
-                               {
-                                   .enabled = true,
-                                   .ref = (uint8_t)i,
-                                   .read_mask = 0xFF,
-                                   .write_mask = 0x00,
-                                   .front =
-                                       {
-                                           .compare = SG_COMPAREFUNC_EQUAL,
-                                       },
-                                   .back =
-                                       {
-                                           .compare = SG_COMPAREFUNC_EQUAL,
-                                       },
-                               });
+            m_pathScreenPipeline[i] = vectorPipeline(
+                uberShader,
+                {
+                    .enabled = true,
+                    .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+                    .dst_factor_rgb = SG_BLENDFACTOR_ONE,
+                    .src_factor_alpha = SG_BLENDFACTOR_SRC_ALPHA,
+                    .dst_factor_alpha = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                },
+                {
+                    .enabled = true,
+                    .ref = (uint8_t)i,
+                    .read_mask = 0xFF,
+                    .write_mask = 0x00,
+                    .front =
+                        {
+                            .compare = SG_COMPAREFUNC_EQUAL,
+                        },
+                    .back =
+                        {
+                            .compare = SG_COMPAREFUNC_EQUAL,
+                        },
+                });
         }
     }
 
     // Additive Pipelines
     {
-        m_pathAdditivePipeline[0] = vectorPipeline(uberShader,
-                                                   {
-                                                       .enabled = true,
-                                                       .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
-                                                       .dst_factor_rgb = SG_BLENDFACTOR_ONE,
-                                                   },
-                                                   {
-                                                       .enabled = false,
-                                                   });
+        m_pathAdditivePipeline[0] =
+            vectorPipeline(uberShader,
+                           {
+                               .enabled = true,
+                               .src_factor_rgb = SG_BLENDFACTOR_SRC_ALPHA,
+                               .dst_factor_rgb = SG_BLENDFACTOR_ONE,
+                           },
+                           {
+                               .enabled = false,
+                           });
 
         for (std::size_t i = 1; i <= maxClippingPaths; i++)
         {
@@ -420,92 +444,94 @@ SokolTessRenderer::SokolTessRenderer()
 
     // Multiply Pipelines
     {
-        m_pathMultiplyPipeline[0] =
-            vectorPipeline(uberShader,
-                           {
-                               .enabled = true,
-                               .src_factor_rgb = SG_BLENDFACTOR_DST_COLOR,
-                               .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                           },
-                           {
-                               .enabled = false,
-                           });
+        m_pathMultiplyPipeline[0] = vectorPipeline(
+            uberShader,
+            {
+                .enabled = true,
+                .src_factor_rgb = SG_BLENDFACTOR_DST_COLOR,
+                .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+            },
+            {
+                .enabled = false,
+            });
 
         for (std::size_t i = 1; i <= maxClippingPaths; i++)
         {
-            m_pathMultiplyPipeline[i] =
-                vectorPipeline(uberShader,
-                               {
-                                   .enabled = true,
-                                   .src_factor_rgb = SG_BLENDFACTOR_DST_COLOR,
-                                   .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
-                               },
-                               {
-                                   .enabled = true,
-                                   .ref = (uint8_t)i,
-                                   .read_mask = 0xFF,
-                                   .write_mask = 0x00,
-                                   .front =
-                                       {
-                                           .compare = SG_COMPAREFUNC_EQUAL,
-                                       },
-                                   .back =
-                                       {
-                                           .compare = SG_COMPAREFUNC_EQUAL,
-                                       },
-                               });
+            m_pathMultiplyPipeline[i] = vectorPipeline(
+                uberShader,
+                {
+                    .enabled = true,
+                    .src_factor_rgb = SG_BLENDFACTOR_DST_COLOR,
+                    .dst_factor_rgb = SG_BLENDFACTOR_ONE_MINUS_SRC_ALPHA,
+                },
+                {
+                    .enabled = true,
+                    .ref = (uint8_t)i,
+                    .read_mask = 0xFF,
+                    .write_mask = 0x00,
+                    .front =
+                        {
+                            .compare = SG_COMPAREFUNC_EQUAL,
+                        },
+                    .back =
+                        {
+                            .compare = SG_COMPAREFUNC_EQUAL,
+                        },
+                });
         }
     }
 
-    m_incClipPipeline = vectorPipeline(uberShader,
-                                       {
-                                           .enabled = false,
-                                       },
-                                       {
-                                           .enabled = true,
-                                           .read_mask = 0xFF,
-                                           .write_mask = 0xFF,
-                                           .front =
-                                               {
-                                                   .compare = SG_COMPAREFUNC_ALWAYS,
-                                                   .depth_fail_op = SG_STENCILOP_KEEP,
-                                                   .fail_op = SG_STENCILOP_KEEP,
-                                                   .pass_op = SG_STENCILOP_INCR_CLAMP,
-                                               },
-                                           .back =
-                                               {
-                                                   .compare = SG_COMPAREFUNC_ALWAYS,
-                                                   .depth_fail_op = SG_STENCILOP_KEEP,
-                                                   .fail_op = SG_STENCILOP_KEEP,
-                                                   .pass_op = SG_STENCILOP_INCR_CLAMP,
-                                               },
-                                       },
-                                       SG_COLORMASK_NONE);
+    m_incClipPipeline =
+        vectorPipeline(uberShader,
+                       {
+                           .enabled = false,
+                       },
+                       {
+                           .enabled = true,
+                           .read_mask = 0xFF,
+                           .write_mask = 0xFF,
+                           .front =
+                               {
+                                   .compare = SG_COMPAREFUNC_ALWAYS,
+                                   .depth_fail_op = SG_STENCILOP_KEEP,
+                                   .fail_op = SG_STENCILOP_KEEP,
+                                   .pass_op = SG_STENCILOP_INCR_CLAMP,
+                               },
+                           .back =
+                               {
+                                   .compare = SG_COMPAREFUNC_ALWAYS,
+                                   .depth_fail_op = SG_STENCILOP_KEEP,
+                                   .fail_op = SG_STENCILOP_KEEP,
+                                   .pass_op = SG_STENCILOP_INCR_CLAMP,
+                               },
+                       },
+                       SG_COLORMASK_NONE);
 
-    m_decClipPipeline = vectorPipeline(uberShader,
-                                       {
-                                           .enabled = false,
-                                       },
-                                       {
-                                           .enabled = true,
-                                           .read_mask = 0xFF,
-                                           .write_mask = 0xFF,
-                                           .front =
-                                               {
-                                                   .compare = SG_COMPAREFUNC_ALWAYS,
-                                                   .depth_fail_op = SG_STENCILOP_KEEP,
-                                                   .fail_op = SG_STENCILOP_KEEP,
-                                                   .pass_op = SG_STENCILOP_DECR_CLAMP,
-                                               },
-                                           .back =
-                                               {
-                                                   .compare = SG_COMPAREFUNC_ALWAYS,
-                                                   .depth_fail_op = SG_STENCILOP_KEEP,
-                                                   .fail_op = SG_STENCILOP_KEEP,
-                                                   .pass_op = SG_STENCILOP_DECR_CLAMP,
-                                               },
-                                       },
-                                       SG_COLORMASK_NONE);
+    m_decClipPipeline =
+        vectorPipeline(uberShader,
+                       {
+                           .enabled = false,
+                       },
+                       {
+                           .enabled = true,
+                           .read_mask = 0xFF,
+                           .write_mask = 0xFF,
+                           .front =
+                               {
+                                   .compare = SG_COMPAREFUNC_ALWAYS,
+                                   .depth_fail_op = SG_STENCILOP_KEEP,
+                                   .fail_op = SG_STENCILOP_KEEP,
+                                   .pass_op = SG_STENCILOP_DECR_CLAMP,
+                               },
+                           .back =
+                               {
+                                   .compare = SG_COMPAREFUNC_ALWAYS,
+                                   .depth_fail_op = SG_STENCILOP_KEEP,
+                                   .fail_op = SG_STENCILOP_KEEP,
+                                   .pass_op = SG_STENCILOP_DECR_CLAMP,
+                               },
+                       },
+                       SG_COLORMASK_NONE);
 
     uint16_t indices[] = {0, 1, 2, 0, 2, 3};
 
@@ -578,7 +604,9 @@ void SokolTessRenderer::orthographicProjection(float left,
     // }
 }
 
-void SokolTessRenderer::drawImage(const RenderImage* image, BlendMode, float opacity)
+void SokolTessRenderer::drawImage(const RenderImage* image,
+                                  BlendMode,
+                                  float opacity)
 {
     LITE_RTTI_CAST_OR_RETURN(sokolImage, const SokolRenderImage*, image);
 
@@ -596,7 +624,9 @@ void SokolTessRenderer::drawImage(const RenderImage* image, BlendMode, float opa
     };
 
     sg_apply_bindings(&bind);
-    sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE_REF(vs_params));
+    sg_apply_uniforms(SG_SHADERSTAGE_VS,
+                      SLOT_vs_params,
+                      SG_RANGE_REF(vs_params));
     sg_draw(0, 6, 1);
 }
 
@@ -612,7 +642,9 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
     LITE_RTTI_CAST_OR_RETURN(sokolVertices, SokolBuffer*, vertices_f32.get());
     LITE_RTTI_CAST_OR_RETURN(sokolUVCoords, SokolBuffer*, uvCoords_f32.get());
     LITE_RTTI_CAST_OR_RETURN(sokolIndices, SokolBuffer*, indices_u16.get());
-    LITE_RTTI_CAST_OR_RETURN(sokolRenderImage, const SokolRenderImage*, renderImage);
+    LITE_RTTI_CAST_OR_RETURN(sokolRenderImage,
+                             const SokolRenderImage*,
+                             renderImage);
 
     vs_params_t vs_params;
 
@@ -628,7 +660,9 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
     };
 
     sg_apply_bindings(&bind);
-    sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_params, SG_RANGE_REF(vs_params));
+    sg_apply_uniforms(SG_SHADERSTAGE_VS,
+                      SLOT_vs_params,
+                      SG_RANGE_REF(vs_params));
     sg_draw(0, indexCount, 1);
 }
 
@@ -644,7 +678,10 @@ private:
 
 private:
     // General gradient
-    SokolGradient(int type, const ColorInt colors[], const float stops[], size_t count) :
+    SokolGradient(int type,
+                  const ColorInt colors[],
+                  const float stops[],
+                  size_t count) :
         m_type(type)
     {
         m_stops.resize(count);
@@ -687,7 +724,8 @@ public:
         m_end = Vec2D(cx + radius, cy);
     }
 
-    void bind(vs_path_params_t& vertexUniforms, fs_path_uniforms_t& fragmentUniforms)
+    void bind(vs_path_params_t& vertexUniforms,
+              fs_path_uniforms_t& fragmentUniforms)
     {
         auto stopCount = m_stops.size();
         vertexUniforms.fillType = fragmentUniforms.fillType = m_type;
@@ -714,20 +752,24 @@ rcp<RenderShader> SokolFactory::makeLinearGradient(float sx,
                                                    const float stops[],
                                                    size_t count)
 {
-    return rcp<RenderShader>(new SokolGradient(sx, sy, ex, ey, colors, stops, count));
+    return rcp<RenderShader>(
+        new SokolGradient(sx, sy, ex, ey, colors, stops, count));
 }
 
-rcp<RenderShader> SokolFactory::makeRadialGradient(float cx,
-                                                   float cy,
-                                                   float radius,
-                                                   const ColorInt colors[], // [count]
-                                                   const float stops[],     // [count]
-                                                   size_t count)
+rcp<RenderShader> SokolFactory::makeRadialGradient(
+    float cx,
+    float cy,
+    float radius,
+    const ColorInt colors[], // [count]
+    const float stops[],     // [count]
+    size_t count)
 {
-    return rcp<RenderShader>(new SokolGradient(cx, cy, radius, colors, stops, count));
+    return rcp<RenderShader>(
+        new SokolGradient(cx, cy, radius, colors, stops, count));
 }
 
-class SokolRenderPaint : public lite_rtti_override<RenderPaint, SokolRenderPaint>
+class SokolRenderPaint
+    : public lite_rtti_override<RenderPaint, SokolRenderPaint>
 {
 private:
     fs_path_uniforms_t m_uniforms = {0};
@@ -818,8 +860,12 @@ public:
             m_shader->bind(vertexUniforms, m_uniforms);
         }
 
-        sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_path_params, SG_RANGE_REF(vertexUniforms));
-        sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_path_uniforms, SG_RANGE_REF(m_uniforms));
+        sg_apply_uniforms(SG_SHADERSTAGE_VS,
+                          SLOT_vs_path_params,
+                          SG_RANGE_REF(vertexUniforms));
+        sg_apply_uniforms(SG_SHADERSTAGE_FS,
+                          SLOT_fs_path_uniforms,
+                          SG_RANGE_REF(m_uniforms));
         if (m_stroke != nullptr)
         {
             if (m_strokeDirty)
@@ -854,11 +900,12 @@ public:
                         },
                 });
 
-                // Let's use a tris index buffer so we can keep the same sokol pipeline.
+                // Let's use a tris index buffer so we can keep the same sokol
+                // pipeline.
                 std::vector<uint16_t> indices;
 
-                // Build them by stroke offsets (where each offset represents a sub-path, or a move
-                // to)
+                // Build them by stroke offsets (where each offset represents a
+                // sub-path, or a move to)
                 m_stroke->resetRenderOffset();
                 m_StrokeOffsets.clear();
                 while (true)
@@ -927,14 +974,18 @@ public:
     }
 };
 
-rcp<RenderPaint> SokolFactory::makeRenderPaint() { return make_rcp<SokolRenderPaint>(); }
+rcp<RenderPaint> SokolFactory::makeRenderPaint()
+{
+    return make_rcp<SokolRenderPaint>();
+}
 
 void SokolTessRenderer::restore()
 {
     TessRenderer::restore();
     if (m_Stack.size() == 1)
     {
-        // When we've fully restored, immediately update clip to not wait for next draw.
+        // When we've fully restored, immediately update clip to not wait for
+        // next draw.
         applyClipping();
         m_currentPipeline = {0};
     }
@@ -989,11 +1040,17 @@ void SokolTessRenderer::applyClipping()
         if (decr)
         {
             // Draw appliedPath.path() with decr pipeline
-            LITE_RTTI_CAST_OR_CONTINUE(sokolPath, SokolRenderPath*, appliedPath.path());
+            LITE_RTTI_CAST_OR_CONTINUE(sokolPath,
+                                       SokolRenderPath*,
+                                       appliedPath.path());
             setPipeline(m_decClipPipeline);
             vs_params.mvp = m_Projection * appliedPath.transform();
-            sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_path_params, SG_RANGE_REF(vs_params));
-            sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_path_uniforms, SG_RANGE_REF(uniforms));
+            sg_apply_uniforms(SG_SHADERSTAGE_VS,
+                              SLOT_vs_path_params,
+                              SG_RANGE_REF(vs_params));
+            sg_apply_uniforms(SG_SHADERSTAGE_FS,
+                              SLOT_fs_path_uniforms,
+                              SG_RANGE_REF(uniforms));
             sokolPath->drawFill();
         }
     }
@@ -1007,11 +1064,17 @@ void SokolTessRenderer::applyClipping()
             continue;
         }
         // Draw nextClipPath.path() with incr pipeline
-        LITE_RTTI_CAST_OR_CONTINUE(sokolPath, SokolRenderPath*, nextClipPath.path());
+        LITE_RTTI_CAST_OR_CONTINUE(sokolPath,
+                                   SokolRenderPath*,
+                                   nextClipPath.path());
         setPipeline(m_incClipPipeline);
         vs_params.mvp = m_Projection * nextClipPath.transform();
-        sg_apply_uniforms(SG_SHADERSTAGE_VS, SLOT_vs_path_params, SG_RANGE_REF(vs_params));
-        sg_apply_uniforms(SG_SHADERSTAGE_FS, SLOT_fs_path_uniforms, SG_RANGE_REF(uniforms));
+        sg_apply_uniforms(SG_SHADERSTAGE_VS,
+                          SLOT_vs_path_params,
+                          SG_RANGE_REF(vs_params));
+        sg_apply_uniforms(SG_SHADERSTAGE_FS,
+                          SLOT_fs_path_uniforms,
+                          SG_RANGE_REF(uniforms));
         sokolPath->drawFill();
     }
 
@@ -1075,7 +1138,10 @@ SokolRenderImageResource::SokolRenderImageResource(const uint8_t* bytes,
         .pixel_format = SG_PIXELFORMAT_RGBA8,
     }))
 {}
-SokolRenderImageResource::~SokolRenderImageResource() { sg_destroy_image(m_gpuResource); }
+SokolRenderImageResource::~SokolRenderImageResource()
+{
+    sg_destroy_image(m_gpuResource);
+}
 
 SokolRenderImage::SokolRenderImage(rcp<SokolRenderImageResource> image,
                                    uint32_t width,

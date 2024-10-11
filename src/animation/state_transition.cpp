@@ -64,7 +64,8 @@ StatusCode StateTransition::onAddedClean(CoreContext* context)
 
 StatusCode StateTransition::import(ImportStack& importStack)
 {
-    auto stateImporter = importStack.latest<LayerStateImporter>(LayerState::typeKey);
+    auto stateImporter =
+        importStack.latest<LayerStateImporter>(LayerState::typeKey);
     if (stateImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -104,7 +105,8 @@ float StateTransition::mixTime(const LayerState* stateFrom) const
     }
 }
 
-float StateTransition::exitTimeSeconds(const LayerState* stateFrom, bool absolute) const
+float StateTransition::exitTimeSeconds(const LayerState* stateFrom,
+                                       bool absolute) const
 {
     if ((transitionFlags() & StateTransitionFlags::ExitTimeIsPercentage) ==
         StateTransitionFlags::ExitTimeIsPercentage)
@@ -129,19 +131,23 @@ const LinearAnimationInstance* StateTransition::exitTimeAnimationInstance(
     const StateInstance* from) const
 {
     return from != nullptr && from->state()->is<AnimationState>()
-               ? static_cast<const AnimationStateInstance*>(from)->animationInstance()
+               ? static_cast<const AnimationStateInstance*>(from)
+                     ->animationInstance()
                : nullptr;
 }
 
-const LinearAnimation* StateTransition::exitTimeAnimation(const LayerState* from) const
+const LinearAnimation* StateTransition::exitTimeAnimation(
+    const LayerState* from) const
 {
-    return from != nullptr && from->is<AnimationState>() ? from->as<AnimationState>()->animation()
-                                                         : nullptr;
+    return from != nullptr && from->is<AnimationState>()
+               ? from->as<AnimationState>()->animation()
+               : nullptr;
 }
 
-AllowTransition StateTransition::allowed(StateInstance* stateFrom,
-                                         StateMachineInstance* stateMachineInstance,
-                                         bool ignoreTriggers) const
+AllowTransition StateTransition::allowed(
+    StateInstance* stateFrom,
+    StateMachineInstance* stateMachineInstance,
+    bool ignoreTriggers) const
 {
     if (isDisabled())
     {
@@ -204,7 +210,8 @@ bool StateTransition::applyExitCondition(StateInstance* from) const
 {
     // Hold exit time when the user has set to pauseOnExit on this condition
     // (only valid when exiting from an Animation).
-    bool useExitTime = enableExitTime() && (from != nullptr && from->state()->is<AnimationState>());
+    bool useExitTime = enableExitTime() &&
+                       (from != nullptr && from->state()->is<AnimationState>());
     if (pauseOnExit() && useExitTime)
     {
         static_cast<AnimationStateInstance*>(from)->animationInstance()->time(

@@ -7,12 +7,14 @@
 
 using namespace rive;
 
-LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animation,
-                                                 ArtboardInstance* instance,
-                                                 float speedMultiplier) :
+LinearAnimationInstance::LinearAnimationInstance(
+    const LinearAnimation* animation,
+    ArtboardInstance* instance,
+    float speedMultiplier) :
     Scene(instance),
     m_animation((assert(animation != nullptr), animation)),
-    m_time((speedMultiplier >= 0) ? animation->startTime() : animation->endTime()),
+    m_time((speedMultiplier >= 0) ? animation->startTime()
+                                  : animation->endTime()),
     m_speedDirection((speedMultiplier >= 0) ? 1 : -1),
     m_totalTime(0.0f),
     m_lastTotalTime(0.0f),
@@ -20,7 +22,8 @@ LinearAnimationInstance::LinearAnimationInstance(const LinearAnimation* animatio
     m_direction(1)
 {}
 
-LinearAnimationInstance::LinearAnimationInstance(LinearAnimationInstance const& lhs) :
+LinearAnimationInstance::LinearAnimationInstance(
+    LinearAnimationInstance const& lhs) :
     Scene(lhs),
     m_animation(lhs.m_animation),
     m_time(lhs.m_time),
@@ -43,7 +46,8 @@ bool LinearAnimationInstance::advanceAndApply(float seconds)
     return more;
 }
 
-bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporter* reporter)
+bool LinearAnimationInstance::advance(float elapsedSeconds,
+                                      KeyedCallbackReporter* reporter)
 {
     const LinearAnimation& animation = *m_animation;
     float deltaSeconds = elapsedSeconds * animation.speed() * m_direction;
@@ -66,13 +70,18 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
     m_time += deltaSeconds;
     if (reporter != nullptr)
     {
-        animation.reportKeyedCallbacks(reporter, lastTime, m_time, m_speedDirection, false);
+        animation.reportKeyedCallbacks(reporter,
+                                       lastTime,
+                                       m_time,
+                                       m_speedDirection,
+                                       false);
     }
 
     int fps = animation.fps();
     float frames = m_time * fps;
     int start = animation.enableWorkArea() ? animation.workStart() : 0;
-    int end = animation.enableWorkArea() ? animation.workEnd() : animation.duration();
+    int end =
+        animation.enableWorkArea() ? animation.workEnd() : animation.duration();
     int range = end - start;
 
     bool didLoop = false;
@@ -89,8 +98,8 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
                 // Account for the time dilation or contraction applied in the
                 // animation local time by its speed to calculate spilled time.
                 // Calculate the ratio of the time excess by the total elapsed
-                // time in local time (deltaFrames) and multiply the elapsed time
-                // by it.
+                // time in local time (deltaFrames) and multiply the elapsed
+                // time by it.
                 auto deltaFrames = deltaSeconds * fps;
                 auto spilledFramesRatio = (frames - end) / deltaFrames;
                 m_spilledTime = spilledFramesRatio * elapsedSeconds;
@@ -111,13 +120,16 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
         case Loop::loop:
             if (direction == 1 && frames >= end)
             {
-                // How spilled time has to be calculated, given that local time can be scaled
-                // to a factor of the regular time:
-                // - for convenience, calculate the local elapsed time in frames (deltaFrames)
-                // - get the remainder of current frame position (frames) by duration (range)
-                // - use that remainder as the ratio of the original time that was not consumed
-                // by the loop (spilledFramesRatio)
-                // - multiply the original elapsedTime by the ratio to set the spilled time
+                // How spilled time has to be calculated, given that local time
+                // can be scaled to a factor of the regular time:
+                // - for convenience, calculate the local elapsed time in frames
+                // (deltaFrames)
+                // - get the remainder of current frame position (frames) by
+                // duration (range)
+                // - use that remainder as the ratio of the original time that
+                // was not consumed by the loop (spilledFramesRatio)
+                // - multiply the original elapsedTime by the ratio to set the
+                // spilled time
                 auto deltaFrames = deltaSeconds * fps;
                 auto remainder = std::fmod(frames - start, (float)range);
                 auto spilledFramesRatio = remainder / deltaFrames;
@@ -127,13 +139,18 @@ bool LinearAnimationInstance::advance(float elapsedSeconds, KeyedCallbackReporte
                 didLoop = true;
                 if (reporter != nullptr)
                 {
-                    animation.reportKeyedCallbacks(reporter, 0.0f, m_time, m_speedDirection, false);
+                    animation.reportKeyedCallbacks(reporter,
+                                                   0.0f,
+                                                   m_time,
+                                                   m_speedDirection,
+                                                   false);
                 }
             }
             else if (direction == -1 && frames <= start)
             {
                 auto deltaFrames = deltaSeconds * fps;
-                auto remainder = std::abs(std::fmod(start - frames, (float)range));
+                auto remainder =
+                    std::abs(std::fmod(start - frames, (float)range));
                 auto spilledFramesRatio = std::abs(remainder / deltaFrames);
                 m_spilledTime = spilledFramesRatio * elapsedSeconds;
                 frames = end - remainder;
@@ -211,7 +228,8 @@ void LinearAnimationInstance::time(float value)
     // can track change even when setting time.
     auto diff = m_totalTime - m_lastTotalTime;
 
-    int start = (m_animation->enableWorkArea() ? m_animation->workStart() : 0) * m_animation->fps();
+    int start = (m_animation->enableWorkArea() ? m_animation->workStart() : 0) *
+                m_animation->fps();
     m_totalTime = value - start;
     m_lastTotalTime = m_totalTime - diff;
 
@@ -222,18 +240,28 @@ void LinearAnimationInstance::time(float value)
 
 void LinearAnimationInstance::reset(float speedMultiplier = 1.0)
 {
-    m_time = (speedMultiplier >= 0) ? m_animation->startTime() : m_animation->endTime();
+    m_time = (speedMultiplier >= 0) ? m_animation->startTime()
+                                    : m_animation->endTime();
 }
 
 uint32_t LinearAnimationInstance::fps() const { return m_animation->fps(); }
 
-uint32_t LinearAnimationInstance::duration() const { return m_animation->duration(); }
+uint32_t LinearAnimationInstance::duration() const
+{
+    return m_animation->duration();
+}
 
 float LinearAnimationInstance::speed() const { return m_animation->speed(); }
 
-float LinearAnimationInstance::startTime() const { return m_animation->startTime(); }
+float LinearAnimationInstance::startTime() const
+{
+    return m_animation->startTime();
+}
 
-std::string LinearAnimationInstance::name() const { return m_animation->name(); }
+std::string LinearAnimationInstance::name() const
+{
+    return m_animation->name();
+}
 
 bool LinearAnimationInstance::isTranslucent() const
 {
@@ -264,7 +292,10 @@ void LinearAnimationInstance::loopValue(int value)
     m_loopValue = value;
 }
 
-float LinearAnimationInstance::durationSeconds() const { return m_animation->durationSeconds(); }
+float LinearAnimationInstance::durationSeconds() const
+{
+    return m_animation->durationSeconds();
+}
 
 void LinearAnimationInstance::reportEvent(Event* event, float secondsDelay)
 {

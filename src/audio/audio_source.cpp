@@ -9,7 +9,9 @@
 using namespace rive;
 
 #ifdef WITH_RIVE_AUDIO
-AudioSource::AudioSource(rive::Span<float> samples, uint32_t numChannels, uint32_t sampleRate) :
+AudioSource::AudioSource(rive::Span<float> samples,
+                         uint32_t numChannels,
+                         uint32_t sampleRate) :
     m_isBuffered(true),
     m_channels(numChannels),
     m_sampleRate(sampleRate),
@@ -34,7 +36,8 @@ AudioSource::AudioSource(rive::SimpleArray<uint8_t> fileBytes) :
 const rive::Span<float> AudioSource::bufferedSamples() const
 {
     assert(m_isBuffered);
-    return rive::Span<float>((float*)m_ownedBytes.data(), m_ownedBytes.size() / sizeof(float));
+    return rive::Span<float>((float*)m_ownedBytes.data(),
+                             m_ownedBytes.size() / sizeof(float));
 }
 
 class AudioSourceDecoder
@@ -43,10 +46,13 @@ public:
     AudioSourceDecoder(rive::Span<uint8_t> fileBytes) : m_decoder({})
     {
         ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 0, 0);
-        if (ma_decoder_init_memory(fileBytes.data(), fileBytes.size(), &config, &m_decoder) !=
-            MA_SUCCESS)
+        if (ma_decoder_init_memory(fileBytes.data(),
+                                   fileBytes.size(),
+                                   &config,
+                                   &m_decoder) != MA_SUCCESS)
         {
-            fprintf(stderr, "AudioSourceDecoder - Failed to initialize decoder.\n");
+            fprintf(stderr,
+                    "AudioSourceDecoder - Failed to initialize decoder.\n");
         }
     }
 
@@ -88,10 +94,13 @@ AudioFormat AudioSource::format() const
     }
     ma_decoder decoder;
     ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 0, 0);
-    if (ma_decoder_init_memory(m_fileBytes.data(), m_fileBytes.size(), &config, &decoder) !=
-        MA_SUCCESS)
+    if (ma_decoder_init_memory(m_fileBytes.data(),
+                               m_fileBytes.size(),
+                               &config,
+                               &decoder) != MA_SUCCESS)
     {
-        fprintf(stderr, "AudioSource::format - Failed to initialize decoder.\n");
+        fprintf(stderr,
+                "AudioSource::format - Failed to initialize decoder.\n");
         return AudioFormat::unknown;
     }
     ma_encoding_format encodingFormat;
@@ -124,7 +133,8 @@ AudioFormat AudioSource::format() const
     return format;
 }
 
-rcp<AudioReader> AudioSource::makeReader(uint32_t numChannels, uint32_t sampleRate)
+rcp<AudioReader> AudioSource::makeReader(uint32_t numChannels,
+                                         uint32_t sampleRate)
 {
     if (m_isBuffered)
     {
@@ -135,14 +145,16 @@ rcp<AudioReader> AudioSource::makeReader(uint32_t numChannels, uint32_t sampleRa
     rcSource->ref();
     auto reader = rcp<AudioReader>(new AudioReader(rcSource, numChannels));
 
-    ma_decoder_config config = ma_decoder_config_init(ma_format_f32, numChannels, sampleRate);
+    ma_decoder_config config =
+        ma_decoder_config_init(ma_format_f32, numChannels, sampleRate);
 
     if (ma_decoder_init_memory(m_fileBytes.data(),
                                m_fileBytes.size(),
                                &config,
                                reader->decoder()) != MA_SUCCESS)
     {
-        fprintf(stderr, "AudioSource::makeReader - Failed to initialize decoder.\n");
+        fprintf(stderr,
+                "AudioSource::makeReader - Failed to initialize decoder.\n");
         return nullptr;
     }
 
@@ -151,7 +163,10 @@ rcp<AudioReader> AudioSource::makeReader(uint32_t numChannels, uint32_t sampleRa
 #else
 AudioSource::AudioSource(rive::Span<uint8_t> fileBytes) {}
 AudioSource::AudioSource(rive::SimpleArray<uint8_t> fileBytes) {}
-AudioSource::AudioSource(rive::Span<float> samples, uint32_t numChannels, uint32_t sampleRate) {}
+AudioSource::AudioSource(rive::Span<float> samples,
+                         uint32_t numChannels,
+                         uint32_t sampleRate)
+{}
 uint32_t AudioSource::channels() { return 0; }
 uint32_t AudioSource::sampleRate() { return 0; }
 AudioFormat AudioSource::format() const { return AudioFormat::unknown; }

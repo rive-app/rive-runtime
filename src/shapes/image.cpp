@@ -91,7 +91,8 @@ StatusCode Image::import(ImportStack& importStack)
 }
 
 // Question: thoughts on this? it looks a bit odd to me,
-// maybe there's a trick i'm missing here .. (could also implement getAssetId...)
+// maybe there's a trick i'm missing here .. (could also implement
+// getAssetId...)
 uint32_t Image::assetId() { return ImageBase::assetId(); }
 
 void Image::setAsset(FileAsset* asset)

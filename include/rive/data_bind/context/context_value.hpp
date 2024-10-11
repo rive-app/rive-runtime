@@ -13,26 +13,38 @@ protected:
     DataValue* m_dataValue;
 
 public:
-    DataBindContextValue(ViewModelInstanceValue* source, DataConverter* converter);
+    DataBindContextValue(ViewModelInstanceValue* source,
+                         DataConverter* converter);
     virtual ~DataBindContextValue(){};
-    virtual void applyToSource(Core* component, uint32_t propertyKey, bool isMainDirection);
-    virtual void apply(Core* component, uint32_t propertyKey, bool isMainDirection){};
+    virtual void applyToSource(Core* component,
+                               uint32_t propertyKey,
+                               bool isMainDirection);
+    virtual void apply(Core* component,
+                       uint32_t propertyKey,
+                       bool isMainDirection){};
     virtual void update(Core* component){};
     virtual void dispose(){};
-    virtual DataValue* getTargetValue(Core* target, uint32_t propertyKey) { return nullptr; };
-    void updateSourceValue();
-    template <typename T = DataValue, typename U> U getDataValue(DataValue* input)
+    virtual DataValue* getTargetValue(Core* target, uint32_t propertyKey)
     {
-        auto dataValue = m_converter != nullptr ? m_converter->convert(input) : input;
+        return nullptr;
+    };
+    void updateSourceValue();
+    template <typename T = DataValue, typename U>
+    U getDataValue(DataValue* input)
+    {
+        auto dataValue =
+            m_converter != nullptr ? m_converter->convert(input) : input;
         if (dataValue->is<T>())
         {
             return dataValue->as<T>()->value();
         }
         return T::defaultValue;
     };
-    template <typename T = DataValue, typename U> U getReverseDataValue(DataValue* input)
+    template <typename T = DataValue, typename U>
+    U getReverseDataValue(DataValue* input)
     {
-        auto dataValue = m_converter != nullptr ? m_converter->reverseConvert(input) : input;
+        auto dataValue =
+            m_converter != nullptr ? m_converter->reverseConvert(input) : input;
         if (dataValue->is<T>())
         {
             return dataValue->as<T>()->value();
@@ -42,7 +54,8 @@ public:
     template <typename T = DataValue, typename U>
     U calculateValue(DataValue* input, bool isMainDirection)
     {
-        return isMainDirection ? getDataValue<T, U>(input) : getReverseDataValue<T, U>(input);
+        return isMainDirection ? getDataValue<T, U>(input)
+                               : getReverseDataValue<T, U>(input);
     };
 };
 } // namespace rive

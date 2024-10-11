@@ -62,18 +62,18 @@
 
 // Annotations to assert unreachable control flow.
 #if defined(__GNUC__) || defined(__clang__)
-#define RIVE_UNREACHABLE                                                                           \
-    assert(!(bool)"unreachable reached");                                                          \
+#define RIVE_UNREACHABLE                                                       \
+    assert(!(bool)"unreachable reached");                                      \
     __builtin_unreachable
 #elif _MSC_VER
-#define RIVE_UNREACHABLE()                                                                         \
-    assert(!(bool)"unreachable reached");                                                          \
+#define RIVE_UNREACHABLE()                                                     \
+    assert(!(bool)"unreachable reached");                                      \
     __assume(0)
 #else
-#define RIVE_UNREACHABLE()                                                                         \
-    do                                                                                             \
-    {                                                                                              \
-        assert(!(bool)"unreachable reached");                                                      \
+#define RIVE_UNREACHABLE()                                                     \
+    do                                                                         \
+    {                                                                          \
+        assert(!(bool)"unreachable reached");                                  \
     } while (0)
 #endif
 
@@ -98,7 +98,8 @@
 #endif
 
 #if defined(__GNUC__) || defined(__clang__)
-// Recommended in https://clang.llvm.org/docs/LanguageExtensions.html#feature-checking-macros
+// Recommended in
+// https://clang.llvm.org/docs/LanguageExtensions.html#feature-checking-macros
 #ifndef __has_builtin
 #define __has_builtin(x) 0
 #endif

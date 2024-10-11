@@ -2,14 +2,14 @@
  * Copyright 2023 Rive
  */
 
-// This header provides GLSL-specific #defines and declarations that enable our shaders to be
-// compiled on MSL and GLSL both.
+// This header provides GLSL-specific #defines and declarations that enable our
+// shaders to be compiled on MSL and GLSL both.
 
 #define GLSL
 
 #ifndef @GLSL_VERSION
-// In "#version 320 es", Qualcomm incorrectly substitutes __VERSION__ to 300. @GLSL_VERSION is a
-// workaround for this.
+// In "#version 320 es", Qualcomm incorrectly substitutes __VERSION__ to 300.
+// @GLSL_VERSION is a workaround for this.
 #define @GLSL_VERSION __VERSION__
 #endif
 
@@ -57,7 +57,8 @@
 #extension GL_KHR_blend_equation_advanced : require
 #endif
 
-#if defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT) && defined(GL_ES)
+#if defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT) &&             \
+    defined(GL_ES)
 #ifdef GL_EXT_clip_cull_distance
 #extension GL_EXT_clip_cull_distance : require
 #elif defined(GL_ANGLE_clip_cull_distance)
@@ -66,17 +67,18 @@
 #endif // USING_DEPTH_STENCIL && ENABLE_CLIP_RECT
 
 #if @GLSL_VERSION >= 310
-#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
-    layout(binding = IDX, std140) uniform NAME                                                     \
+#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                         \
+    layout(binding = IDX, std140) uniform NAME                                 \
     {
 #else
-#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                                             \
-    layout(std140) uniform NAME                                                                    \
+#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                         \
+    layout(std140) uniform NAME                                                \
     {
 #endif
-// clang-format barrier... Otherwise it tries to merge this #define into the above macro...
-#define UNIFORM_BLOCK_END(NAME)                                                                    \
-    }                                                                                              \
+// clang-format barrier... Otherwise it tries to merge this #define into the
+// above macro...
+#define UNIFORM_BLOCK_END(NAME)                                                \
+    }                                                                          \
     NAME;
 
 #define ATTR_BLOCK_BEGIN(NAME)
@@ -127,16 +129,19 @@
 #endif
 
 #ifdef @TARGET_VULKAN
-#define TEXTURE_RGBA32UI(SET, IDX, NAME)                                                           \
+#define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
     layout(set = SET, binding = IDX) uniform highp utexture2D NAME
-#define TEXTURE_RGBA32F(SET, IDX, NAME)                                                            \
+#define TEXTURE_RGBA32F(SET, IDX, NAME)                                        \
     layout(set = SET, binding = IDX) uniform highp texture2D NAME
-#define TEXTURE_RGBA8(SET, IDX, NAME)                                                              \
+#define TEXTURE_RGBA8(SET, IDX, NAME)                                          \
     layout(set = SET, binding = IDX) uniform mediump texture2D NAME
 #elif @GLSL_VERSION >= 310
-#define TEXTURE_RGBA32UI(SET, IDX, NAME) layout(binding = IDX) uniform highp usampler2D NAME
-#define TEXTURE_RGBA32F(SET, IDX, NAME) layout(binding = IDX) uniform highp sampler2D NAME
-#define TEXTURE_RGBA8(SET, IDX, NAME) layout(binding = IDX) uniform mediump sampler2D NAME
+#define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
+    layout(binding = IDX) uniform highp usampler2D NAME
+#define TEXTURE_RGBA32F(SET, IDX, NAME)                                        \
+    layout(binding = IDX) uniform highp sampler2D NAME
+#define TEXTURE_RGBA8(SET, IDX, NAME)                                          \
+    layout(binding = IDX) uniform mediump sampler2D NAME
 #else
 #define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME) uniform highp sampler2D NAME
@@ -145,23 +150,28 @@
 #define TEXTURE_RG32UI(SET, IDX, NAME) TEXTURE_RGBA32UI(SET, IDX, NAME)
 
 #ifdef @TARGET_VULKAN
-#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                                          \
-    layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX) uniform mediump sampler NAME;
-#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                                          \
-    layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX) uniform mediump sampler NAME;
-#define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(sampler2D(NAME, SAMPLER_NAME), COORD)
-#define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                                         \
+#define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
+    layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)                  \
+        uniform mediump sampler NAME;
+#define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                      \
+    layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)                  \
+        uniform mediump sampler NAME;
+#define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD)                              \
+    texture(sampler2D(NAME, SAMPLER_NAME), COORD)
+#define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
-#define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)                                   \
+#define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
 #else
-// SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling parameters are API-level
-// state tied to the texture.
+// SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling
+// parameters are API-level state tied to the texture.
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
-#define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD) textureLod(NAME, COORD, LOD)
-#define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY) textureGrad(NAME, COORD, DDX, DDY)
+#define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
+    textureLod(NAME, COORD, LOD)
+#define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
+    textureGrad(NAME, COORD, DDX, DDY)
 #endif
 
 #define TEXEL_FETCH(NAME, COORD) texelFetch(NAME, COORD, 0)
@@ -174,44 +184,61 @@
 
 #ifdef @DISABLE_SHADER_STORAGE_BUFFERS
 
-#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                      \
     TEXTURE_RGBA32UI(PER_FLUSH_BINDINGS_SET, IDX, NAME)
-#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
     TEXTURE_RG32UI(PER_FLUSH_BINDINGS_SET, IDX, NAME)
-#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
     TEXTURE_RGBA32F(PER_FLUSH_BINDINGS_SET, IDX, NAME)
-#define STORAGE_BUFFER_LOAD4(NAME, I)                                                              \
-    TEXEL_FETCH(NAME, int2((I) & STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))
-#define STORAGE_BUFFER_LOAD2(NAME, I)                                                              \
-    TEXEL_FETCH(NAME, int2((I) & STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y)).xy
+#define STORAGE_BUFFER_LOAD4(NAME, I)                                          \
+    TEXEL_FETCH(                                                               \
+        NAME,                                                                  \
+        int2((I) & STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))
+#define STORAGE_BUFFER_LOAD2(NAME, I)                                          \
+    TEXEL_FETCH(                                                               \
+        NAME,                                                                  \
+        int2((I) & STORAGE_TEXTURE_MASK_X, (I) >> STORAGE_TEXTURE_SHIFT_Y))    \
+        .xy
 
 #else
 
 #ifdef GL_ARB_shader_storage_buffer_object
 #extension GL_ARB_shader_storage_buffer_object : require
 #endif
-#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                                          \
-    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { uint2 _values[]; }            \
+#define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                      \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME             \
+    {                                                                          \
+        uint2 _values[];                                                       \
+    }                                                                          \
     NAME
-#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
-    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { uint4 _values[]; }            \
+#define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME             \
+    {                                                                          \
+        uint4 _values[];                                                       \
+    }                                                                          \
     NAME
-#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                                          \
-    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME { float4 _values[]; }           \
+#define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
+    layout(std430, binding = IDX) readonly buffer GLSL_STRUCT_NAME             \
+    {                                                                          \
+        float4 _values[];                                                      \
+    }                                                                          \
     NAME
 #define STORAGE_BUFFER_LOAD4(NAME, I) NAME._values[I]
 #define STORAGE_BUFFER_LOAD2(NAME, I) NAME._values[I]
 
 #endif // DISABLE_SHADER_STORAGE_BUFFERS
 
-// Define macros for implementing pixel local storage based on available extensions.
+// Define macros for implementing pixel local storage based on available
+// extensions.
 #ifdef @PLS_IMPL_ANGLE
 
 #extension GL_ANGLE_shader_pixel_local_storage : require
 
 #define PLS_BLOCK_BEGIN
-#define PLS_DECL4F(IDX, NAME) layout(binding = IDX, rgba8) uniform lowp pixelLocalANGLE NAME
-#define PLS_DECLUI(IDX, NAME) layout(binding = IDX, r32ui) uniform highp upixelLocalANGLE NAME
+#define PLS_DECL4F(IDX, NAME)                                                  \
+    layout(binding = IDX, rgba8) uniform lowp pixelLocalANGLE NAME
+#define PLS_DECLUI(IDX, NAME)                                                  \
+    layout(binding = IDX, r32ui) uniform highp upixelLocalANGLE NAME
 #define PLS_BLOCK_END
 
 #define PLS_LOAD4F(PLANE) pixelLocalLoadANGLE(PLANE)
@@ -231,17 +258,18 @@
 
 #extension GL_EXT_shader_pixel_local_storage : enable
 
-// We need one of the framebuffer fetch extensions for the shader that loads the framebuffer.
+// We need one of the framebuffer fetch extensions for the shader that loads the
+// framebuffer.
 #extension GL_ARM_shader_framebuffer_fetch : enable
 #extension GL_EXT_shader_framebuffer_fetch : enable
 
-#define PLS_BLOCK_BEGIN                                                                            \
-    __pixel_localEXT PLS                                                                           \
+#define PLS_BLOCK_BEGIN                                                        \
+    __pixel_localEXT PLS                                                       \
     {
 #define PLS_DECL4F(IDX, NAME) layout(rgba8) lowp vec4 NAME
 #define PLS_DECLUI(IDX, NAME) layout(r32ui) highp uint NAME
-#define PLS_BLOCK_END                                                                              \
-    }                                                                                              \
+#define PLS_BLOCK_END                                                          \
+    }                                                                          \
     ;
 
 #define PLS_LOAD4F(PLANE) PLANE
@@ -271,8 +299,9 @@
 #define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
 #define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
 
-// When using multiple color attachments, we have to write a value to every color attachment, every
-// shader invocation, or else the contents become undefined.
+// When using multiple color attachments, we have to write a value to every
+// color attachment, every shader invocation, or else the contents become
+// undefined.
 #define PLS_PRESERVE_4F(PLANE) PLS_STORE4F(PLANE, PLS_LOAD4F(PLANE))
 #define PLS_PRESERVE_UI(PLANE) PLS_STOREUI(PLANE, PLS_LOADUI(PLANE))
 
@@ -301,14 +330,17 @@
 
 #define PLS_BLOCK_BEGIN
 #ifdef @TARGET_VULKAN
-#define PLS_DECL4F(IDX, NAME)                                                                      \
-    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgba8) uniform lowp coherent image2D NAME
-#define PLS_DECLUI(IDX, NAME)                                                                      \
-    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)                                   \
+#define PLS_DECL4F(IDX, NAME)                                                  \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, rgba8)               \
+        uniform lowp coherent image2D NAME
+#define PLS_DECLUI(IDX, NAME)                                                  \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)               \
         uniform highp coherent uimage2D NAME
 #else
-#define PLS_DECL4F(IDX, NAME) layout(binding = IDX, rgba8) uniform lowp coherent image2D NAME
-#define PLS_DECLUI(IDX, NAME) layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
+#define PLS_DECL4F(IDX, NAME)                                                  \
+    layout(binding = IDX, rgba8) uniform lowp coherent image2D NAME
+#define PLS_DECLUI(IDX, NAME)                                                  \
+    layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
 #endif
 #define PLS_BLOCK_END
 
@@ -330,15 +362,19 @@
 #ifdef @PLS_IMPL_SUBPASS_LOAD
 
 #define PLS_BLOCK_BEGIN
-#define PLS_DECL4F_READONLY(IDX, NAME)                                                             \
-    layout(input_attachment_index = IDX, binding = IDX, set = PLS_TEXTURE_BINDINGS_SET)            \
+#define PLS_DECL4F_READONLY(IDX, NAME)                                         \
+    layout(input_attachment_index = IDX,                                       \
+           binding = IDX,                                                      \
+           set = PLS_TEXTURE_BINDINGS_SET)                                     \
         uniform lowp subpassInput _in_##NAME;
-#define PLS_DECL4F(IDX, NAME)                                                                      \
-    PLS_DECL4F_READONLY(IDX, NAME);                                                                \
+#define PLS_DECL4F(IDX, NAME)                                                  \
+    PLS_DECL4F_READONLY(IDX, NAME);                                            \
     layout(location = IDX) out lowp vec4 NAME
-#define PLS_DECLUI(IDX, NAME)                                                                      \
-    layout(input_attachment_index = IDX, binding = IDX, set = PLS_TEXTURE_BINDINGS_SET)            \
-        uniform highp usubpassInput _in_##NAME;                                                    \
+#define PLS_DECLUI(IDX, NAME)                                                  \
+    layout(input_attachment_index = IDX,                                       \
+           binding = IDX,                                                      \
+           set = PLS_TEXTURE_BINDINGS_SET)                                     \
+        uniform highp usubpassInput _in_##NAME;                                \
     layout(location = IDX) out highp uvec4 NAME
 #define PLS_BLOCK_END
 
@@ -401,27 +437,32 @@
 #define VERTEX_CONTEXT_DECL
 #define VERTEX_CONTEXT_UNPACK
 
-#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                                    \
-    void main()                                                                                    \
-    {                                                                                              \
-        int _vertexID = gl_VertexID;                                                               \
+#define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
+    void main()                                                                \
+    {                                                                          \
+        int _vertexID = gl_VertexID;                                           \
         int _instanceID = INSTANCE_INDEX;
 
 #define IMAGE_RECT_VERTEX_MAIN VERTEX_MAIN
 
-#define IMAGE_MESH_VERTEX_MAIN(NAME, PositionAttr, position, UVAttr, uv, _vertexID)                \
+#define IMAGE_MESH_VERTEX_MAIN(NAME,                                           \
+                               PositionAttr,                                   \
+                               position,                                       \
+                               UVAttr,                                         \
+                               uv,                                             \
+                               _vertexID)                                      \
     VERTEX_MAIN(NAME, PositionAttr, position, _vertexID, _instanceID)
 
 #define VARYING_INIT(NAME, TYPE)
 #define VARYING_PACK(NAME)
 #define VARYING_UNPACK(NAME, TYPE)
 
-#define EMIT_VERTEX(_pos)                                                                          \
-    gl_Position = _pos;                                                                            \
+#define EMIT_VERTEX(_pos)                                                      \
+    gl_Position = _pos;                                                        \
     }
 
-#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                                            \
-    layout(location = 0) out DATA_TYPE _fd;                                                        \
+#define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
+    layout(location = 0) out DATA_TYPE _fd;                                    \
     void main()
 
 #define EMIT_FRAG_DATA(VALUE) _fd = VALUE
@@ -434,24 +475,25 @@
 #ifdef @USING_PLS_STORAGE_TEXTURES
 
 #ifdef @TARGET_VULKAN
-#define PLS_DECLUI_ATOMIC(IDX, NAME)                                                               \
-    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)                                   \
+#define PLS_DECLUI_ATOMIC(IDX, NAME)                                           \
+    layout(set = PLS_TEXTURE_BINDINGS_SET, binding = IDX, r32ui)               \
         uniform highp coherent uimage2D NAME
 #else
-#define PLS_DECLUI_ATOMIC(IDX, NAME)                                                               \
+#define PLS_DECLUI_ATOMIC(IDX, NAME)                                           \
     layout(binding = IDX, r32ui) uniform highp coherent uimage2D NAME
 #endif
 #define PLS_LOADUI_ATOMIC(PLANE) imageLoad(PLANE, _plsCoord).r
-#define PLS_STOREUI_ATOMIC(PLANE, VALUE) imageStore(PLANE, _plsCoord, uvec4(VALUE))
+#define PLS_STOREUI_ATOMIC(PLANE, VALUE)                                       \
+    imageStore(PLANE, _plsCoord, uvec4(VALUE))
 #define PLS_ATOMIC_MAX(PLANE, X) imageAtomicMax(PLANE, _plsCoord, X)
 #define PLS_ATOMIC_ADD(PLANE, X) imageAtomicAdd(PLANE, _plsCoord, X)
 
 #define PLS_CONTEXT_DECL , int2 _plsCoord
 #define PLS_CONTEXT_UNPACK , _plsCoord
 
-#define PLS_MAIN(NAME)                                                                             \
-    void main()                                                                                    \
-    {                                                                                              \
+#define PLS_MAIN(NAME)                                                         \
+    void main()                                                                \
+    {                                                                          \
         int2 _plsCoord = ivec2(floor(_fragCoord));
 
 #define EMIT_PLS }
@@ -468,12 +510,12 @@
 
 #define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME) PLS_MAIN(NAME)
 
-#define PLS_FRAG_COLOR_MAIN(NAME)                                                                  \
-    layout(location = 0) out half4 _fragColor;                                                     \
+#define PLS_FRAG_COLOR_MAIN(NAME)                                              \
+    layout(location = 0) out half4 _fragColor;                                 \
     PLS_MAIN(NAME)
 
-#define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                              \
-    layout(location = 0) out half4 _fragColor;                                                     \
+#define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                          \
+    layout(location = 0) out half4 _fragColor;                                 \
     PLS_MAIN(NAME)
 
 #define EMIT_PLS_AND_FRAG_COLOR EMIT_PLS

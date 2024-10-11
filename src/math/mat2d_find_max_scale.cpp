@@ -14,7 +14,10 @@
 #include "rive/math/math_types.hpp"
 #include <cmath>
 
-static inline float sdot(float a, float b, float c, float d) { return a * b + c * d; }
+static inline float sdot(float a, float b, float c, float d)
+{
+    return a * b + c * d;
+}
 
 namespace rive
 {

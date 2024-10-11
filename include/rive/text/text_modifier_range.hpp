@@ -42,7 +42,10 @@ class RangeMapper
 {
 public:
     uint32_t unitCount() { return (uint32_t)m_unitLengths.size(); }
-    uint32_t unitCharacterIndexCount() { return (uint32_t)m_unitCharacterIndices.size(); }
+    uint32_t unitCharacterIndexCount()
+    {
+        return (uint32_t)m_unitCharacterIndices.size();
+    }
 
     void clear();
     bool empty() { return m_unitLengths.empty(); }
@@ -79,8 +82,12 @@ public:
         return m_unitLengths[at];
     }
 
-    // Add (some of) unit at indexFrom to indexTo where it falls within the start/end offset.
-    void addRange(uint32_t indexFrom, uint32_t indexTo, uint32_t startOffset, uint32_t endOffset);
+    // Add (some of) unit at indexFrom to indexTo where it falls within the
+    // start/end offset.
+    void addRange(uint32_t indexFrom,
+                  uint32_t indexTo,
+                  uint32_t startOffset,
+                  uint32_t endOffset);
 
 private:
     /// Each item in this list represents the index (in unicode codepoints) of

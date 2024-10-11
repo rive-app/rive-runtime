@@ -14,6 +14,7 @@ BlendState::~BlendState()
 void BlendState::addAnimation(BlendAnimation* animation)
 {
     // Assert it's not already contained.
-    assert(std::find(m_Animations.begin(), m_Animations.end(), animation) == m_Animations.end());
+    assert(std::find(m_Animations.begin(), m_Animations.end(), animation) ==
+           m_Animations.end());
     m_Animations.push_back(animation);
 }

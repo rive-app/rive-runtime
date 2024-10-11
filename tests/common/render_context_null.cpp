@@ -12,7 +12,8 @@ using namespace rive::gpu;
 
 std::unique_ptr<rive::gpu::RenderContext> RenderContextNULL::MakeContext()
 {
-    return std::make_unique<RenderContext>(std::make_unique<RenderContextNULL>());
+    return std::make_unique<RenderContext>(
+        std::make_unique<RenderContextNULL>());
 }
 
 RenderContextNULL::RenderContextNULL()
@@ -27,24 +28,31 @@ public:
     BufferRingNULL(size_t capacityInBytes) : BufferRing(capacityInBytes) {}
 
 private:
-    void* onMapBuffer(int bufferIdx, size_t bytesWritten) { return shadowBuffer(); }
+    void* onMapBuffer(int bufferIdx, size_t bytesWritten)
+    {
+        return shadowBuffer();
+    }
     void onUnmapAndSubmitBuffer(int bufferIdx, size_t bytesWritten) {}
 };
 
-rive::rcp<rive::gpu::RenderTarget> RenderContextNULL::makeRenderTarget(uint32_t width,
-                                                                       uint32_t height)
+rive::rcp<rive::gpu::RenderTarget> RenderContextNULL::makeRenderTarget(
+    uint32_t width,
+    uint32_t height)
 {
     class RenderTargetNULL : public rive::gpu::RenderTarget
     {
     public:
-        RenderTargetNULL(uint32_t width, uint32_t height) : RenderTarget(width, height) {}
+        RenderTargetNULL(uint32_t width, uint32_t height) :
+            RenderTarget(width, height)
+        {}
     };
     return rive::make_rcp<RenderTargetNULL>(width, height);
 }
 
-rive::rcp<rive::RenderBuffer> RenderContextNULL::makeRenderBuffer(rive::RenderBufferType type,
-                                                                  rive::RenderBufferFlags flags,
-                                                                  size_t sizeInBytes)
+rive::rcp<rive::RenderBuffer> RenderContextNULL::makeRenderBuffer(
+    rive::RenderBufferType type,
+    rive::RenderBufferFlags flags,
+    size_t sizeInBytes)
 {
     return make_rcp<DataRenderBuffer>(type, flags, sizeInBytes);
 }
@@ -76,8 +84,8 @@ std::unique_ptr<rive::gpu::BufferRing> RenderContextNULL::makeVertexBufferRing(
     return std::make_unique<BufferRingNULL>(capacityInBytes);
 }
 
-std::unique_ptr<rive::gpu::BufferRing> RenderContextNULL::makeTextureTransferBufferRing(
-    size_t capacityInBytes)
+std::unique_ptr<rive::gpu::BufferRing> RenderContextNULL::
+    makeTextureTransferBufferRing(size_t capacityInBytes)
 {
     return std::make_unique<BufferRingNULL>(capacityInBytes);
 }

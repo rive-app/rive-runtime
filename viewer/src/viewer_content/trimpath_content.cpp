@@ -42,10 +42,14 @@ static RawPath make_quad_path(Span<const Vec2D> pts)
 
 static rcp<RenderPath> make_rpath(RawPath& path)
 {
-    return ViewerContent::RiveFactory()->makeRenderPath(path, FillRule::nonZero);
+    return ViewerContent::RiveFactory()->makeRenderPath(path,
+                                                        FillRule::nonZero);
 }
 
-static void stroke_path(Renderer* renderer, RawPath& path, float size, ColorInt color)
+static void stroke_path(Renderer* renderer,
+                        RawPath& path,
+                        float size,
+                        ColorInt color)
 {
     auto paint = ViewerContent::RiveFactory()->makeRenderPaint();
     paint->color(color);
@@ -144,7 +148,9 @@ public:
     void handlePointerDown(float x, float y) override
     {
         auto pt = Vec2D{x, y};
-        auto close_to = [](Vec2D a, Vec2D b) { return Vec2D::distance(a, b) <= 10; };
+        auto close_to = [](Vec2D a, Vec2D b) {
+            return Vec2D::distance(a, b) <= 10;
+        };
         for (size_t i = 0; i < m_pathpts.size(); ++i)
         {
             if (close_to(pt, m_pathpts[i]))

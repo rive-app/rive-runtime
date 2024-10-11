@@ -4,6 +4,7 @@
 
 using namespace rive;
 
-DataConverterGroupImporter::DataConverterGroupImporter(DataConverterGroup* group) :
+DataConverterGroupImporter::DataConverterGroupImporter(
+    DataConverterGroup* group) :
     m_dataConverterGroup(group)
 {}

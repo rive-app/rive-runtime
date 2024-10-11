@@ -27,10 +27,12 @@ void GLState::invalidate()
     glDisable(GL_DITHER);
 
 #ifndef RIVE_ANDROID
-    // D3D and Metal both have a provoking vertex convention of "first" for flat varyings, and it's
-    // very costly for ANGLE to implement the OpenGL convention of "last" on these backends. To
-    // workaround this, ANGLE provides the ANGLE_provoking_vertex extension. When this extension is
-    // present, we can just set the provoking vertex to "first" and trust that it will be fast.
+    // D3D and Metal both have a provoking vertex convention of "first" for flat
+    // varyings, and it's very costly for ANGLE to implement the OpenGL
+    // convention of "last" on these backends. To workaround this, ANGLE
+    // provides the ANGLE_provoking_vertex extension. When this extension is
+    // present, we can just set the provoking vertex to "first" and trust that
+    // it will be fast.
     if (m_capabilities.ANGLE_provoking_vertex)
     {
         glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
@@ -42,7 +44,8 @@ void GLState::invalidate()
     glDisable(GL_POLYGON_OFFSET_FILL);
 #ifndef RIVE_WEBGL
     // https://www.khronos.org/registry/webgl/specs/latest/2.0/#5.18
-    // WebGL 2.0 behaves as though PRIMITIVE_RESTART_FIXED_INDEX were always enabled.
+    // WebGL 2.0 behaves as though PRIMITIVE_RESTART_FIXED_INDEX were always
+    // enabled.
     glDisable(GL_PRIMITIVE_RESTART_FIXED_INDEX);
 #endif
     glDisable(GL_RASTERIZER_DISCARD);
@@ -128,11 +131,16 @@ void GLState::disableBlending()
     }
 }
 
-void GLState::setWriteMasks(bool colorWriteMask, bool depthWriteMask, GLuint stencilWriteMask)
+void GLState::setWriteMasks(bool colorWriteMask,
+                            bool depthWriteMask,
+                            GLuint stencilWriteMask)
 {
     if (!m_validState.writeMasks)
     {
-        glColorMask(colorWriteMask, colorWriteMask, colorWriteMask, colorWriteMask);
+        glColorMask(colorWriteMask,
+                    colorWriteMask,
+                    colorWriteMask,
+                    colorWriteMask);
         glDepthMask(depthWriteMask);
         glStencilMask(stencilWriteMask);
         m_colorWriteMask = colorWriteMask;
@@ -144,7 +152,10 @@ void GLState::setWriteMasks(bool colorWriteMask, bool depthWriteMask, GLuint ste
     {
         if (colorWriteMask != m_colorWriteMask)
         {
-            glColorMask(colorWriteMask, colorWriteMask, colorWriteMask, colorWriteMask);
+            glColorMask(colorWriteMask,
+                        colorWriteMask,
+                        colorWriteMask,
+                        colorWriteMask);
             m_colorWriteMask = colorWriteMask;
         }
         if (depthWriteMask != m_depthWriteMask)
@@ -206,11 +217,13 @@ void GLState::bindBuffer(GLenum target, GLuint bufferID)
     switch (target)
     {
         default:
-            // Don't track GL_ELEMENT_ARRAY_BUFFER, since it is tied to the VAO state.
+            // Don't track GL_ELEMENT_ARRAY_BUFFER, since it is tied to the VAO
+            // state.
             glBindBuffer(target, bufferID);
             return;
         case GL_ARRAY_BUFFER:
-            if (!m_validState.boundArrayBufferID || bufferID != m_boundArrayBufferID)
+            if (!m_validState.boundArrayBufferID ||
+                bufferID != m_boundArrayBufferID)
             {
                 glBindBuffer(GL_ARRAY_BUFFER, bufferID);
                 m_boundArrayBufferID = bufferID;
@@ -218,7 +231,8 @@ void GLState::bindBuffer(GLenum target, GLuint bufferID)
             }
             break;
         case GL_UNIFORM_BUFFER:
-            if (!m_validState.boundUniformBufferID || bufferID != m_boundUniformBufferID)
+            if (!m_validState.boundUniformBufferID ||
+                bufferID != m_boundUniformBufferID)
             {
                 glBindBuffer(GL_UNIFORM_BUFFER, bufferID);
                 m_boundUniformBufferID = bufferID;
@@ -226,7 +240,8 @@ void GLState::bindBuffer(GLenum target, GLuint bufferID)
             }
             break;
         case GL_PIXEL_UNPACK_BUFFER:
-            if (!m_validState.boundPixelUnpackBufferID || bufferID != m_boundPixelUnpackBufferID)
+            if (!m_validState.boundPixelUnpackBufferID ||
+                bufferID != m_boundPixelUnpackBufferID)
             {
                 glBindBuffer(GL_PIXEL_UNPACK_BUFFER, bufferID);
                 m_boundPixelUnpackBufferID = bufferID;
@@ -257,7 +272,8 @@ void GLState::deleteBuffer(GLuint bufferID)
         m_boundArrayBufferID = 0;
     if (m_validState.boundUniformBufferID && m_boundUniformBufferID == bufferID)
         m_boundUniformBufferID = 0;
-    if (m_validState.boundPixelUnpackBufferID && m_boundPixelUnpackBufferID == bufferID)
+    if (m_validState.boundPixelUnpackBufferID &&
+        m_boundPixelUnpackBufferID == bufferID)
         m_boundPixelUnpackBufferID = 0;
 }
 } // namespace rive::gpu

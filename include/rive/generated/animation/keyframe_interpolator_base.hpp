@@ -11,8 +11,8 @@ protected:
 public:
     static const uint16_t typeKey = 175;
 
-    /// Helper to quickly determine if a core object extends another without RTTI
-    /// at runtime.
+    /// Helper to quickly determine if a core object extends another without
+    /// RTTI at runtime.
     bool isTypeOf(uint16_t typeKey) const override
     {
         switch (typeKey)
@@ -28,7 +28,10 @@ public:
 
     void copy(const KeyFrameInterpolatorBase& object) {}
 
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override { return false; }
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        return false;
+    }
 
 protected:
 };

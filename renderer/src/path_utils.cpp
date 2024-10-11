@@ -100,10 +100,15 @@ void ChopCubicAt(const Vec2D src[4], Vec2D dst[10], float t0, float t1)
     simd::store(dst + 9, p33.zw);
 }
 
-void ChopCubicAt(const Vec2D src[4], Vec2D dst[], const float tValues[], int tCount)
+void ChopCubicAt(const Vec2D src[4],
+                 Vec2D dst[],
+                 const float tValues[],
+                 int tCount)
 {
     assert(tValues == nullptr ||
-           std::all_of(tValues, tValues + tCount, [](float t) { return t >= 0 && t <= 1; }));
+           std::all_of(tValues, tValues + tCount, [](float t) {
+               return t >= 0 && t <= 1;
+           }));
     assert(tValues == nullptr || std::is_sorted(tValues, tValues + tCount));
 
     if (dst)
@@ -124,7 +129,9 @@ void ChopCubicAt(const Vec2D src[4], Vec2D dst[], const float tValues[], int tCo
                 if (tValues != nullptr)
                 {
                     tt = simd::load2f(tValues + i);
-                    tt = simd::clamp((tt - lastT) / (1 - lastT), float2(0), float2(1));
+                    tt = simd::clamp((tt - lastT) / (1 - lastT),
+                                     float2(0),
+                                     float2(1));
                     lastT = tValues[i + 1];
                 }
                 else
@@ -139,7 +146,11 @@ void ChopCubicAt(const Vec2D src[4], Vec2D dst[], const float tValues[], int tCo
                 // Chop the final cubic if there was an odd number of chops.
                 assert(i + 1 == tCount);
                 float t = tValues != nullptr ? tValues[i] : .5f;
-                t = simd::clamp<float, 1>(math::ieee_float_divide(t - lastT, 1 - lastT), 0, 1).x;
+                t = simd::clamp<float, 1>(
+                        math::ieee_float_divide(t - lastT, 1 - lastT),
+                        0,
+                        1)
+                        .x;
                 ChopCubicAt(src, dst, t);
             }
         }
@@ -149,8 +160,10 @@ void ChopCubicAt(const Vec2D src[4], Vec2D dst[], const float tValues[], int tCo
 float MeasureAngleBetweenVectors(Vec2D a, Vec2D b)
 {
     float cosTheta =
-        math::ieee_float_divide(Vec2D::dot(a, b), sqrtf(Vec2D::dot(a, a) * Vec2D::dot(b, b)));
-    // Pin cosTheta such that if it is NaN (e.g., if a or b was 0), then we return acos(1) = 0.
+        math::ieee_float_divide(Vec2D::dot(a, b),
+                                sqrtf(Vec2D::dot(a, a) * Vec2D::dot(b, b)));
+    // Pin cosTheta such that if it is NaN (e.g., if a or b was 0), then we
+    // return acos(1) = 0.
     cosTheta = std::max(std::min(1.f, cosTheta), -1.f);
     return acosf(cosTheta);
 }
@@ -161,24 +174,28 @@ int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
     assert(T);
     assert(areCusps);
 
-    // If a chop falls within a distance of "kEpsilon" from 0 or 1, throw it out. Tangents become
-    // unstable when we chop too close to the boundary. This works out because the tessellation
-    // shaders don't allow more than 2^10 parametric segments, and they snap the beginning and
-    // ending edges at 0 and 1. So if we overstep an inflection or point of 180-degree rotation by a
-    // fraction of a tessellation segment, it just gets snapped.
+    // If a chop falls within a distance of "kEpsilon" from 0 or 1, throw it
+    // out. Tangents become unstable when we chop too close to the boundary.
+    // This works out because the tessellation shaders don't allow more than
+    // 2^10 parametric segments, and they snap the beginning and ending edges at
+    // 0 and 1. So if we overstep an inflection or point of 180-degree rotation
+    // by a fraction of a tessellation segment, it just gets snapped.
     constexpr static float kEpsilon = 1.f / (1 << 10);
     // Floating-point representation of "1 - 2*kEpsilon".
-    constexpr static uint32_t kIEEE_one_minus_2_epsilon = (127 << 23) - 2 * (1 << (24 - 10));
-    // Unfortunately we don't have a way to static_assert this, but we can runtime assert that the
-    // kIEEE_one_minus_2_epsilon bits are correct.
-    assert(math::bit_cast<float>(kIEEE_one_minus_2_epsilon) == 1 - 2 * kEpsilon);
+    constexpr static uint32_t kIEEE_one_minus_2_epsilon =
+        (127 << 23) - 2 * (1 << (24 - 10));
+    // Unfortunately we don't have a way to static_assert this, but we can
+    // runtime assert that the kIEEE_one_minus_2_epsilon bits are correct.
+    assert(math::bit_cast<float>(kIEEE_one_minus_2_epsilon) ==
+           1 - 2 * kEpsilon);
 
     float2 p0 = simd::load2f(&pts[0].x);
     float2 p1 = simd::load2f(&pts[1].x);
     float2 p2 = simd::load2f(&pts[2].x);
     float2 p3 = simd::load2f(&pts[3].x);
 
-    // Find the cubic's power basis coefficients. These define the bezier curve as:
+    // Find the cubic's power basis coefficients. These define the bezier curve
+    // as:
     //
     //                                    |T^3|
     //     Cubic(T) = x,y = |A  3B  3C| * |T^2| + P0
@@ -196,40 +213,44 @@ int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
     float2 B = D - C;
     float2 A = -3.f * D + E;
 
-    // Now find the cubic's inflection function. There are inflections where F' x F'' == 0.
-    // We formulate this as a quadratic equation:  F' x F'' == aT^2 + bT + c == 0.
-    // See: https://www.microsoft.com/en-us/research/wp-content/uploads/2005/01/p1000-loop.pdf
-    // NOTE: We only need the roots, so a uniform scale factor does not affect the solution.
+    // Now find the cubic's inflection function. There are inflections where F'
+    // x F'' == 0. We formulate this as a quadratic equation:  F' x F'' == aT^2
+    // + bT + c == 0. See:
+    // https://www.microsoft.com/en-us/research/wp-content/uploads/2005/01/p1000-loop.pdf
+    // NOTE: We only need the roots, so a uniform scale factor does not affect
+    // the solution.
     float a = simd::cross(A, B);
     float b = simd::cross(A, C);
     float c = simd::cross(B, C);
     float b_over_minus_2 = -.5f * b;
     float discr_over_4 = b_over_minus_2 * b_over_minus_2 - a * c;
 
-    // If -cuspThreshold <= discr_over_4 <= cuspThreshold, it means the two roots are within
-    // kEpsilon of one another (in parametric space). This is close enough for our purposes to
-    // consider them a single cusp.
+    // If -cuspThreshold <= discr_over_4 <= cuspThreshold, it means the two
+    // roots are within kEpsilon of one another (in parametric space). This is
+    // close enough for our purposes to consider them a single cusp.
     float cuspThreshold = a * (kEpsilon / 2);
     cuspThreshold *= cuspThreshold;
 
     if (discr_over_4 < -cuspThreshold)
     {
-        // The curve does not inflect or cusp. This means it might rotate more than 180 degrees
-        // instead. Chop were rotation == 180 deg. (This is the 2nd root where the tangent is
-        // parallel to tan0.)
+        // The curve does not inflect or cusp. This means it might rotate more
+        // than 180 degrees instead. Chop were rotation == 180 deg. (This is the
+        // 2nd root where the tangent is parallel to tan0.)
         //
         //      Tangent_Direction(T) x tan0 == 0
         //      (AT^2 x tan0) + (2BT x tan0) + (C x tan0) == 0
-        //      (A x C)T^2 + (2B x C)T + (C x C) == 0  [[because tan0 == P1 - P0 == C]]
-        //      bT^2 + 2cT + 0 == 0  [[because A x C == b, B x C == c]]
+        //      (A x C)T^2 + (2B x C)T + (C x C) == 0  [[because tan0 == P1 - P0
+        //      == C]] bT^2 + 2cT + 0 == 0  [[because A x C == b, B x C == c]]
         //      T = [0, -2c/b]
         //
-        // NOTE: if C == 0, then C != tan0. But this is fine because the curve is definitely
-        // convex-180 if any points are colocated, and T[0] will equal NaN which returns 0 chops.
+        // NOTE: if C == 0, then C != tan0. But this is fine because the curve
+        // is definitely convex-180 if any points are colocated, and T[0] will
+        // equal NaN which returns 0 chops.
         *areCusps = false;
         float root = math::ieee_float_divide(c, b_over_minus_2);
         // Is "root" inside the range [kEpsilon, 1 - kEpsilon)?
-        if (math::bit_cast<uint32_t>(root - kEpsilon) < kIEEE_one_minus_2_epsilon)
+        if (math::bit_cast<uint32_t>(root - kEpsilon) <
+            kIEEE_one_minus_2_epsilon)
         {
             T[0] = root;
             return 1;
@@ -240,13 +261,15 @@ int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
     *areCusps = (discr_over_4 <= cuspThreshold);
     if (*areCusps)
     {
-        // The two roots are close enough that we can consider them a single cusp.
+        // The two roots are close enough that we can consider them a single
+        // cusp.
         if (a != 0 || b_over_minus_2 != 0 || c != 0)
         {
             // Pick the average of both roots.
             float root = math::ieee_float_divide(b_over_minus_2, a);
             // Is "root" inside the range [kEpsilon, 1 - kEpsilon)?
-            if (math::bit_cast<uint32_t>(root - kEpsilon) < kIEEE_one_minus_2_epsilon)
+            if (math::bit_cast<uint32_t>(root - kEpsilon) <
+                kIEEE_one_minus_2_epsilon)
             {
                 T[0] = root;
                 return 1;
@@ -254,9 +277,10 @@ int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
             return 0;
         }
 
-        // The curve is a flat line. The standard inflection function doesn't detect cusps from flat
-        // lines. Find cusps by searching instead for points where the tangent is perpendicular to
-        // tan0. This will find any cusp point.
+        // The curve is a flat line. The standard inflection function doesn't
+        // detect cusps from flat lines. Find cusps by searching instead for
+        // points where the tangent is perpendicular to tan0. This will find any
+        // cusp point.
         //
         //     dot(tan0, Tangent_Direction(T)) == 0
         //
@@ -271,8 +295,8 @@ int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
         discr_over_4 = std::max(b_over_minus_2 * b_over_minus_2 - a * c, 0.f);
     }
 
-    // Solve our quadratic equation to find where to chop. See the quadratic formula from
-    // Numerical Recipes in C.
+    // Solve our quadratic equation to find where to chop. See the quadratic
+    // formula from Numerical Recipes in C.
     float q = sqrtf(discr_over_4);
     q = copysignf(q, b_over_minus_2);
     q = q + b_over_minus_2;

@@ -108,7 +108,12 @@ public:
                     p += 1;
                     break;
                 case PathVerb::quad:
-                    CGPathAddQuadCurveToPoint(m_path, nullptr, p[0].x, p[0].y, p[1].x, p[1].y);
+                    CGPathAddQuadCurveToPoint(m_path,
+                                              nullptr,
+                                              p[0].x,
+                                              p[0].y,
+                                              p[1].x,
+                                              p[1].y);
                     p += 2;
                     break;
                 case PathVerb::cubic:
@@ -144,12 +149,20 @@ public:
     }
     void fillRule(FillRule value) override
     {
-        m_fillMode = (value == FillRule::nonZero) ? CGPathDrawingMode::kCGPathFill
-                                                  : CGPathDrawingMode::kCGPathEOFill;
+        m_fillMode = (value == FillRule::nonZero)
+                         ? CGPathDrawingMode::kCGPathFill
+                         : CGPathDrawingMode::kCGPathEOFill;
     }
-    void moveTo(float x, float y) override { CGPathMoveToPoint(m_path, nullptr, x, y); }
-    void lineTo(float x, float y) override { CGPathAddLineToPoint(m_path, nullptr, x, y); }
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override
+    void moveTo(float x, float y) override
+    {
+        CGPathMoveToPoint(m_path, nullptr, x, y);
+    }
+    void lineTo(float x, float y) override
+    {
+        CGPathAddLineToPoint(m_path, nullptr, x, y);
+    }
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+        override
     {
         CGPathAddCurveToPoint(m_path, nullptr, ox, oy, ix, iy, x, y);
     }
@@ -190,14 +203,22 @@ public:
     {
         if (m_isStroke)
         {
-            CGContextSetRGBStrokeColor(ctx, m_rgba[0], m_rgba[1], m_rgba[2], m_rgba[3]);
+            CGContextSetRGBStrokeColor(ctx,
+                                       m_rgba[0],
+                                       m_rgba[1],
+                                       m_rgba[2],
+                                       m_rgba[3]);
             CGContextSetLineWidth(ctx, m_width);
             CGContextSetLineJoin(ctx, m_join);
             CGContextSetLineCap(ctx, m_cap);
         }
         else
         {
-            CGContextSetRGBFillColor(ctx, m_rgba[0], m_rgba[1], m_rgba[2], m_rgba[3]);
+            CGContextSetRGBFillColor(ctx,
+                                     m_rgba[0],
+                                     m_rgba[1],
+                                     m_rgba[2],
+                                     m_rgba[3]);
         }
         CGContextSetBlendMode(ctx, m_blend);
     }
@@ -218,7 +239,9 @@ public:
     void invalidateStroke() override {}
 };
 
-static CGGradientRef convert(const ColorInt colors[], const float stops[], size_t count)
+static CGGradientRef convert(const ColorInt colors[],
+                             const float stops[],
+                             size_t count)
 {
     AutoCF space = CGColorSpaceCreateDeviceRGB();
     std::vector<CGFloat> floats(count * 5); // colors[4] + stops[1]
@@ -273,7 +296,13 @@ public:
 
     void draw(CGContextRef ctx) override
     {
-        CGContextDrawRadialGradient(ctx, m_grad, m_center, 0, m_center, m_radius, clampOptions);
+        CGContextDrawRadialGradient(ctx,
+                                    m_grad,
+                                    m_center,
+                                    0,
+                                    m_center,
+                                    m_radius,
+                                    clampOptions);
     }
 };
 
@@ -307,7 +336,8 @@ class CGRenderImage : public lite_rtti_override<RenderImage, CGRenderImage>
 public:
     AutoCF<CGImageRef> m_image;
 
-    CGRenderImage(const Span<const uint8_t> span) : m_image(CGRenderer::DecodeToCGImage(span))
+    CGRenderImage(const Span<const uint8_t> span) :
+        m_image(CGRenderer::DecodeToCGImage(span))
     {
         if (m_image)
         {
@@ -320,7 +350,9 @@ public:
 
     void applyLocalMatrix(CGContextRef ctx) const
     {
-        CGContextConcatCTM(ctx, CGAffineTransformMake(1, 0, 0, -1, 0, (float)m_Height));
+        CGContextConcatCTM(
+            ctx,
+            CGAffineTransformMake(1, 0, 0, -1, 0, (float)m_Height));
     }
 };
 
@@ -342,7 +374,10 @@ void CGRenderer::save() { CGContextSaveGState(m_ctx); }
 
 void CGRenderer::restore() { CGContextRestoreGState(m_ctx); }
 
-void CGRenderer::transform(const Mat2D& m) { CGContextConcatCTM(m_ctx, convert(m)); }
+void CGRenderer::transform(const Mat2D& m)
+{
+    CGContextConcatCTM(m_ctx, convert(m));
+}
 
 void CGRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 {
@@ -386,7 +421,9 @@ void CGRenderer::clipPath(RenderPath* path)
     CGContextClip(m_ctx);
 }
 
-void CGRenderer::drawImage(const RenderImage* image, BlendMode blendMode, float opacity)
+void CGRenderer::drawImage(const RenderImage* image,
+                           BlendMode blendMode,
+                           float opacity)
 {
     LITE_RTTI_CAST_OR_RETURN(cgimg, const CGRenderImage*, image);
 
@@ -463,8 +500,8 @@ void CGRenderer::drawImageMesh(const RenderImage* image,
         const auto v0 = scale(uvs[index0]);
         const auto v1 = scale(uvs[index1]);
         const auto v2 = scale(uvs[index2]);
-        auto mx =
-            basis_matrix(p0, p1, p2) * basis_matrix(v0, v1, v2).invertOrIdentity() * localMatrix;
+        auto mx = basis_matrix(p0, p1, p2) *
+                  basis_matrix(v0, v1, v2).invertOrIdentity() * localMatrix;
         CGContextConcatCTM(m_ctx, convert(mx));
         CGContextDrawImage(m_ctx, bounds, cgimage->m_image);
 
@@ -483,24 +520,26 @@ rcp<RenderBuffer> CGFactory::makeRenderBuffer(RenderBufferType type,
     return make_rcp<DataRenderBuffer>(type, flags, sizeInBytes);
 }
 
-rcp<RenderShader> CGFactory::makeLinearGradient(float sx,
-                                                float sy,
-                                                float ex,
-                                                float ey,
-                                                const ColorInt colors[], // [count]
-                                                const float stops[],     // [count]
-                                                size_t count)
+rcp<RenderShader> CGFactory::makeLinearGradient(
+    float sx,
+    float sy,
+    float ex,
+    float ey,
+    const ColorInt colors[], // [count]
+    const float stops[],     // [count]
+    size_t count)
 {
     return rcp<RenderShader>(
         new CGLinearGradientRenderShader(sx, sy, ex, ey, colors, stops, count));
 }
 
-rcp<RenderShader> CGFactory::makeRadialGradient(float cx,
-                                                float cy,
-                                                float radius,
-                                                const ColorInt colors[], // [count]
-                                                const float stops[],     // [count]
-                                                size_t count)
+rcp<RenderShader> CGFactory::makeRadialGradient(
+    float cx,
+    float cy,
+    float radius,
+    const ColorInt colors[], // [count]
+    const float stops[],     // [count]
+    size_t count)
 {
     return rcp<RenderShader>(
         new CGRadialGradientRenderShader(cx, cy, radius, colors, stops, count));
@@ -511,9 +550,15 @@ rcp<RenderPath> CGFactory::makeRenderPath(RawPath& rawPath, FillRule fillRule)
     return make_rcp<CGRenderPath>(rawPath.points(), rawPath.verbs(), fillRule);
 }
 
-rcp<RenderPath> CGFactory::makeEmptyRenderPath() { return make_rcp<CGRenderPath>(); }
+rcp<RenderPath> CGFactory::makeEmptyRenderPath()
+{
+    return make_rcp<CGRenderPath>();
+}
 
-rcp<RenderPaint> CGFactory::makeRenderPaint() { return make_rcp<CGRenderPaint>(); }
+rcp<RenderPaint> CGFactory::makeRenderPaint()
+{
+    return make_rcp<CGRenderPaint>();
+}
 
 rcp<RenderImage> CGFactory::decodeImage(Span<const uint8_t> encoded)
 {

@@ -12,7 +12,9 @@ namespace rive::gpu
 {
 TextureRenderTargetGL::~TextureRenderTargetGL() {}
 
-static glutils::Texture make_backing_texture(GLenum internalformat, uint32_t width, uint32_t height)
+static glutils::Texture make_backing_texture(GLenum internalformat,
+                                             uint32_t width,
+                                             uint32_t height)
 {
     glutils::Texture texture;
     glActiveTexture(GL_TEXTURE0);
@@ -21,7 +23,8 @@ static glutils::Texture make_backing_texture(GLenum internalformat, uint32_t wid
     return texture;
 }
 
-void TextureRenderTargetGL::allocateInternalPLSTextures(gpu::InterlockMode interlockMode)
+void TextureRenderTargetGL::allocateInternalPLSTextures(
+    gpu::InterlockMode interlockMode)
 {
     if (m_coverageTexture == 0)
     {
@@ -35,15 +38,19 @@ void TextureRenderTargetGL::allocateInternalPLSTextures(gpu::InterlockMode inter
         m_framebufferInternalAttachmentsDirty = true;
         m_framebufferInternalPLSBindingsDirty = true;
     }
-    if (interlockMode == InterlockMode::rasterOrdering && m_scratchColorTexture == 0)
+    if (interlockMode == InterlockMode::rasterOrdering &&
+        m_scratchColorTexture == 0)
     {
-        m_scratchColorTexture = make_backing_texture(GL_RGBA8, width(), height());
+        m_scratchColorTexture =
+            make_backing_texture(GL_RGBA8, width(), height());
         m_framebufferInternalAttachmentsDirty = true;
         m_framebufferInternalPLSBindingsDirty = true;
     }
 }
 
-void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, DrawBufferMask drawBufferMask)
+void TextureRenderTargetGL::bindInternalFramebuffer(
+    GLenum target,
+    DrawBufferMask drawBufferMask)
 {
     if (m_framebufferID == 0)
     {
@@ -51,18 +58,22 @@ void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, DrawBufferMas
     }
     glBindFramebuffer(target, m_framebufferID);
 
-    if (target != GL_READ_FRAMEBUFFER && m_internalDrawBufferMask != drawBufferMask)
+    if (target != GL_READ_FRAMEBUFFER &&
+        m_internalDrawBufferMask != drawBufferMask)
     {
         GLenum drawBufferList[4];
         for (int i = 0; i < 4; ++i)
         {
-            drawBufferList[i] = (drawBufferMask & static_cast<DrawBufferMask>(1 << i))
-                                    ? GL_COLOR_ATTACHMENT0 + i
-                                    : GL_NONE;
+            drawBufferList[i] =
+                (drawBufferMask & static_cast<DrawBufferMask>(1 << i))
+                    ? GL_COLOR_ATTACHMENT0 + i
+                    : GL_NONE;
             static_assert((int)DrawBufferMask::color == 1 << COLOR_PLANE_IDX);
             static_assert((int)DrawBufferMask::clip == 1 << CLIP_PLANE_IDX);
-            static_assert((int)DrawBufferMask::scratchColor == 1 << SCRATCH_COLOR_PLANE_IDX);
-            static_assert((int)DrawBufferMask::coverage == 1 << COVERAGE_PLANE_IDX);
+            static_assert((int)DrawBufferMask::scratchColor ==
+                          1 << SCRATCH_COLOR_PLANE_IDX);
+            static_assert((int)DrawBufferMask::coverage ==
+                          1 << COVERAGE_PLANE_IDX);
         }
         glDrawBuffers(4, drawBufferList);
         m_internalDrawBufferMask = drawBufferMask;
@@ -99,7 +110,8 @@ void TextureRenderTargetGL::bindInternalFramebuffer(GLenum target, DrawBufferMas
     }
 }
 
-void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabilities)
+void TextureRenderTargetGL::bindHeadlessFramebuffer(
+    const GLCapabilities& capabilities)
 {
     if (m_headlessFramebuffer == 0)
     {
@@ -108,8 +120,12 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabi
 #ifndef RIVE_WEBGL
         if (capabilities.ARB_shader_image_load_store)
         {
-            glFramebufferParameteri(GL_DRAW_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_WIDTH, width());
-            glFramebufferParameteri(GL_DRAW_FRAMEBUFFER, GL_FRAMEBUFFER_DEFAULT_HEIGHT, height());
+            glFramebufferParameteri(GL_DRAW_FRAMEBUFFER,
+                                    GL_FRAMEBUFFER_DEFAULT_WIDTH,
+                                    width());
+            glFramebufferParameteri(GL_DRAW_FRAMEBUFFER,
+                                    GL_FRAMEBUFFER_DEFAULT_HEIGHT,
+                                    height());
         }
 #endif
         glDrawBuffers(0, nullptr);
@@ -124,18 +140,27 @@ void TextureRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabi
     {
         if (m_framebufferTargetPLSBindingDirty)
         {
-            glFramebufferTexturePixelLocalStorageANGLE(COLOR_PLANE_IDX, m_externalTextureID, 0, 0);
+            glFramebufferTexturePixelLocalStorageANGLE(COLOR_PLANE_IDX,
+                                                       m_externalTextureID,
+                                                       0,
+                                                       0);
             m_framebufferTargetPLSBindingDirty = false;
         }
 
         if (m_framebufferInternalPLSBindingsDirty)
         {
-            glFramebufferTexturePixelLocalStorageANGLE(CLIP_PLANE_IDX, m_clipTexture, 0, 0);
+            glFramebufferTexturePixelLocalStorageANGLE(CLIP_PLANE_IDX,
+                                                       m_clipTexture,
+                                                       0,
+                                                       0);
             glFramebufferTexturePixelLocalStorageANGLE(SCRATCH_COLOR_PLANE_IDX,
                                                        m_scratchColorTexture,
                                                        0,
                                                        0);
-            glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX, m_coverageTexture, 0, 0);
+            glFramebufferTexturePixelLocalStorageANGLE(COVERAGE_PLANE_IDX,
+                                                       m_coverageTexture,
+                                                       0,
+                                                       0);
             m_framebufferInternalPLSBindingsDirty = false;
         }
     }
@@ -159,7 +184,13 @@ void TextureRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMask)
     if (drawBufferMask & DrawBufferMask::clip)
     {
         assert(m_clipTexture != 0);
-        glBindImageTexture(CLIP_PLANE_IDX, m_clipTexture, 0, GL_FALSE, 0, GL_READ_WRITE, GL_R32UI);
+        glBindImageTexture(CLIP_PLANE_IDX,
+                           m_clipTexture,
+                           0,
+                           GL_FALSE,
+                           0,
+                           GL_READ_WRITE,
+                           GL_R32UI);
     }
     if (drawBufferMask & DrawBufferMask::scratchColor)
     {
@@ -211,7 +242,8 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
 
         glBindFramebuffer(GL_FRAMEBUFFER, m_msaaFramebuffer);
 #ifndef RIVE_WEBGL
-        if (renderContextImpl->capabilities().EXT_multisampled_render_to_texture)
+        if (renderContextImpl->capabilities()
+                .EXT_multisampled_render_to_texture)
         {
             glRenderbufferStorageMultisampleEXT(GL_RENDERBUFFER,
                                                 sampleCount,
@@ -219,7 +251,8 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
                                                 width(),
                                                 height());
 
-            // With EXT_multisampled_render_to_texture we can render directly to the target texture.
+            // With EXT_multisampled_render_to_texture we can render directly to
+            // the target texture.
             glFramebufferTexture2DMultisampleEXT(GL_FRAMEBUFFER,
                                                  GL_COLOR_ATTACHMENT0,
                                                  GL_TEXTURE_2D,
@@ -236,7 +269,8 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
                                              width(),
                                              height());
 
-            // Render to an offscreen renderbuffer that gets resolved into the target texture.
+            // Render to an offscreen renderbuffer that gets resolved into the
+            // target texture.
             m_msaaColorBuffer = glutils::Renderbuffer();
             glBindRenderbuffer(GL_RENDERBUFFER, m_msaaColorBuffer);
             glRenderbufferStorageMultisample(GL_RENDERBUFFER,
@@ -261,20 +295,24 @@ RenderTargetGL::MSAAResolveAction TextureRenderTargetGL::bindMSAAFramebuffer(
 
     if (renderContextImpl->capabilities().EXT_multisampled_render_to_texture)
     {
-        return MSAAResolveAction::automatic; // MSAA render-to-texture resolves automatically.
+        return MSAAResolveAction::automatic; // MSAA render-to-texture resolves
+                                             // automatically.
     }
     else
     {
         if (preserveBounds != nullptr)
         {
-            // The MSAA render target is offscreen. In order to preserve, we need to draw the target
-            // texture into the MSAA buffer. (glBlitFramebuffer() doesn't support texture -> MSAA.)
-            renderContextImpl->blitTextureToFramebufferAsDraw(m_externalTextureID,
-                                                              *preserveBounds,
-                                                              height());
+            // The MSAA render target is offscreen. In order to preserve, we
+            // need to draw the target texture into the MSAA buffer.
+            // (glBlitFramebuffer() doesn't support texture -> MSAA.)
+            renderContextImpl->blitTextureToFramebufferAsDraw(
+                m_externalTextureID,
+                *preserveBounds,
+                height());
         }
 
-        return MSAAResolveAction::framebufferBlit; // Caller must resolve this framebuffer.
+        return MSAAResolveAction::framebufferBlit; // Caller must resolve this
+                                                   // framebuffer.
     }
 }
 
@@ -295,44 +333,49 @@ void FramebufferRenderTargetGL::allocateOffscreenTargetTexture()
 {
     if (m_offscreenTargetTexture == 0)
     {
-        m_offscreenTargetTexture = make_backing_texture(GL_RGBA8, width(), height());
+        m_offscreenTargetTexture =
+            make_backing_texture(GL_RGBA8, width(), height());
         m_textureRenderTarget.setTargetTexture(m_offscreenTargetTexture);
     }
 }
 
-void FramebufferRenderTargetGL::allocateInternalPLSTextures(gpu::InterlockMode interlockMode)
+void FramebufferRenderTargetGL::allocateInternalPLSTextures(
+    gpu::InterlockMode interlockMode)
 {
     m_textureRenderTarget.allocateInternalPLSTextures(interlockMode);
 }
 
-void FramebufferRenderTargetGL::bindInternalFramebuffer(GLenum target,
-                                                        DrawBufferMask drawBufferMask)
+void FramebufferRenderTargetGL::bindInternalFramebuffer(
+    GLenum target,
+    DrawBufferMask drawBufferMask)
 {
 
     m_textureRenderTarget.bindInternalFramebuffer(target, drawBufferMask);
 }
 
-void FramebufferRenderTargetGL::bindHeadlessFramebuffer(const GLCapabilities& capabilities)
+void FramebufferRenderTargetGL::bindHeadlessFramebuffer(
+    const GLCapabilities& capabilities)
 {
     m_textureRenderTarget.bindHeadlessFramebuffer(capabilities);
 }
 
-void FramebufferRenderTargetGL::bindAsImageTextures(DrawBufferMask drawBufferMask)
+void FramebufferRenderTargetGL::bindAsImageTextures(
+    DrawBufferMask drawBufferMask)
 {
     m_textureRenderTarget.bindAsImageTextures(drawBufferMask);
 }
 
-RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::bindMSAAFramebuffer(
-    RenderContextGLImpl* renderContextImpl,
-    int sampleCount,
-    const IAABB* preserveBounds,
-    bool* isFBO0)
+RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::
+    bindMSAAFramebuffer(RenderContextGLImpl* renderContextImpl,
+                        int sampleCount,
+                        const IAABB* preserveBounds,
+                        bool* isFBO0)
 {
     assert(sampleCount > 0);
     if (m_sampleCount > 1)
     {
-        // Just bind the destination framebuffer it's already msaa, even if its sampleCount doesn't
-        // match the desired count.
+        // Just bind the destination framebuffer it's already msaa, even if its
+        // sampleCount doesn't match the desired count.
         bindDestinationFramebuffer(GL_FRAMEBUFFER);
         if (isFBO0 != nullptr)
         {
@@ -342,33 +385,41 @@ RenderTargetGL::MSAAResolveAction FramebufferRenderTargetGL::bindMSAAFramebuffer
     }
     else
     {
-        // The destination framebuffer is not multisampled. Bind the offscreen one.
+        // The destination framebuffer is not multisampled. Bind the offscreen
+        // one.
         if (preserveBounds != nullptr)
         {
-            // API support for copying a non-msaa framebuffer into an msaa framebuffer (for
-            // preservation) is awful. It needs to be done in 2 steps:
+            // API support for copying a non-msaa framebuffer into an msaa
+            // framebuffer (for preservation) is awful. It needs to be done in 2
+            // steps:
             //   1. Blit non-msaa framebuffer -> texture.
             //   2. Draw texture -> msaa framebuffer.
-            // (NOTE: step 2 gets skipped when we have EXT_multisampled_render_to_texture.)
+            // (NOTE: step 2 gets skipped when we have
+            // EXT_multisampled_render_to_texture.)
             allocateOffscreenTargetTexture();
-            m_textureRenderTarget.bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
-                                                          DrawBufferMask::color);
+            m_textureRenderTarget.bindInternalFramebuffer(
+                GL_DRAW_FRAMEBUFFER,
+                DrawBufferMask::color);
             bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
-            glutils::BlitFramebuffer(*preserveBounds, height()); // Step 1.
-                                                                 // Step 2 will happen when we bind.
+            glutils::BlitFramebuffer(
+                *preserveBounds,
+                height()); // Step 1.
+                           // Step 2 will happen when we bind.
         }
-        else if (renderContextImpl->capabilities().EXT_multisampled_render_to_texture)
+        else if (renderContextImpl->capabilities()
+                     .EXT_multisampled_render_to_texture)
         {
-            // When we have EXT_multisampled_render_to_texture, the "msaa buffer" is just the target
-            // texture.
+            // When we have EXT_multisampled_render_to_texture, the "msaa
+            // buffer" is just the target texture.
             allocateOffscreenTargetTexture();
         }
         m_textureRenderTarget.bindMSAAFramebuffer(renderContextImpl,
                                                   sampleCount,
                                                   preserveBounds,
                                                   isFBO0);
-        // Since we're rendering to an offscreen framebuffer, the client has to resolve this buffer
-        // even if we have EXT_multisampled_render_to_texture.
+        // Since we're rendering to an offscreen framebuffer, the client has to
+        // resolve this buffer even if we have
+        // EXT_multisampled_render_to_texture.
         return MSAAResolveAction::framebufferBlit;
     }
 }

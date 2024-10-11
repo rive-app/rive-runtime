@@ -20,8 +20,8 @@ class GrInnerFanTriangulator;
 class RenderBuffer;
 } // namespace rive
 
-// This header defines constants and data structures for Rive's pixel local storage path rendering
-// algorithm.
+// This header defines constants and data structures for Rive's pixel local
+// storage path rendering algorithm.
 //
 // Main algorithm:
 // https://docs.google.com/document/d/19Uk9eyFxav6dNSYsI2ZyiX9zHU1YOaJsMB2sdDFVz6s/edit
@@ -39,84 +39,96 @@ class RenderContextImpl;
 class RenderTarget;
 class Texture;
 
-// Tessellate in parametric space until each segment is within 1/4 pixel of the true curve.
+// Tessellate in parametric space until each segment is within 1/4 pixel of the
+// true curve.
 constexpr static int kParametricPrecision = 4;
 
-// Tessellate in polar space until the outset edge is within 1/8 pixel of the true stroke.
+// Tessellate in polar space until the outset edge is within 1/8 pixel of the
+// true stroke.
 constexpr static int kPolarPrecision = 8;
 
 // Maximum supported numbers of tessellated segments in a single curve.
 constexpr static uint32_t kMaxParametricSegments = 1023;
 constexpr static uint32_t kMaxPolarSegments = 1023;
 
-// We allocate all our GPU buffers in rings. This ensures the CPU can prepare frames in parallel
-// while the GPU renders them.
+// We allocate all our GPU buffers in rings. This ensures the CPU can prepare
+// frames in parallel while the GPU renders them.
 constexpr static int kBufferRingSize = 3;
 
-// Every coverage value in pixel local storage has an associated 16-bit path ID. This ID enables us
-// to batch multiple paths together without having to clear the coverage buffer in between. This ID
-// is implemented as an fp16, so the maximum path ID therefore cannot be NaN (or conservatively, all
-// 5 exponent bits cannot be 1's). We also skip denormalized values (exp == 0) because they have
-// been empirically unreliable on Android as ID values.
+// Every coverage value in pixel local storage has an associated 16-bit path ID.
+// This ID enables us to batch multiple paths together without having to clear
+// the coverage buffer in between. This ID is implemented as an fp16, so the
+// maximum path ID therefore cannot be NaN (or conservatively, all 5 exponent
+// bits cannot be 1's). We also skip denormalized values (exp == 0) because they
+// have been empirically unreliable on Android as ID values.
 constexpr static int kLargestFP16BeforeExponentAll1s = (0x1f << 10) - 1;
 constexpr static int kLargestDenormalizedFP16 = 1023;
 constexpr static int MaxPathID(int granularity)
 {
-    // Floating point equality gets funky when the exponent bits are all 1's, so the largest pathID
-    // we can support is kLargestFP16BeforeExponentAll1s.
+    // Floating point equality gets funky when the exponent bits are all 1's, so
+    // the largest pathID we can support is kLargestFP16BeforeExponentAll1s.
     //
     // The shader converts an integer path ID to fp16 as:
     //
     //     (id + kLargestDenormalizedFP16) * granularity
     //
     // So the largest path ID we can support is as follows.
-    return kLargestFP16BeforeExponentAll1s / granularity - kLargestDenormalizedFP16;
+    return kLargestFP16BeforeExponentAll1s / granularity -
+           kLargestDenormalizedFP16;
 }
 
-// Each contour has its own unique ID, which it uses to index a data record containing per-contour
-// information. This value is currently 16 bit.
+// Each contour has its own unique ID, which it uses to index a data record
+// containing per-contour information. This value is currently 16 bit.
 constexpr static size_t kMaxContourID = 65535;
 constexpr static uint32_t kContourIDMask = 0xffff;
 static_assert((kMaxContourID & kContourIDMask) == kMaxContourID);
 
-// Tessellation is performed by rendering vertices into a data texture. These values define the
-// dimensions of the tessellation data texture.
-constexpr static size_t kTessTextureWidth = 2048; // GL_MAX_TEXTURE_SIZE spec minimum on ES3/WebGL2.
+// Tessellation is performed by rendering vertices into a data texture. These
+// values define the dimensions of the tessellation data texture.
+constexpr static size_t kTessTextureWidth =
+    2048; // GL_MAX_TEXTURE_SIZE spec minimum on ES3/WebGL2.
 constexpr static size_t kTessTextureWidthLog2 = 11;
 static_assert(1 << kTessTextureWidthLog2 == kTessTextureWidth);
 
-// Gradients are implemented by sampling a horizontal ramp of pixels allocated in a global gradient
-// texture.
+// Gradients are implemented by sampling a horizontal ramp of pixels allocated
+// in a global gradient texture.
 constexpr static uint32_t kGradTextureWidth = 512;
-constexpr static uint32_t kGradTextureWidthInSimpleRamps = kGradTextureWidth / 2;
+constexpr static uint32_t kGradTextureWidthInSimpleRamps =
+    kGradTextureWidth / 2;
 
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
 {
-    bool supportsRasterOrdering = false;        // InterlockMode::rasterOrdering.
+    bool supportsRasterOrdering = false; // InterlockMode::rasterOrdering.
     bool supportsFragmentShaderAtomics = false; // InterlockMode::atomics.
-    bool supportsKHRBlendEquations = false;     // Use KHR_blend_equation_advanced in msaa mode?
-    bool supportsClipPlanes = false;            // Required for @ENABLE_CLIP_RECT in msaa mode.
+    bool supportsKHRBlendEquations =
+        false; // Use KHR_blend_equation_advanced in msaa mode?
+    bool supportsClipPlanes =
+        false; // Required for @ENABLE_CLIP_RECT in msaa mode.
     bool avoidFlatVaryings = false;
-    bool invertOffscreenY = false;  // Invert Y when drawing to offscreen render targets? (Gradient
-                                    // and tessellation textures.)
-    bool uninvertOnScreenY = false; // Specifies whether the graphics layer appends a negation of Y
-                                    // to on-screen vertex shaders that needs to be undone.
-    bool fragCoordBottomUp = false; // Does the built-in pixel coordinate in the fragment shader go
-                                    // bottom-up or top-down?
-    bool atomicPLSMustBeInitializedAsDraw = false; // Backend cannot initialize PLS with typical
-                                                   // clear/load APIs in atomic mode. Issue a
-                                                   // "DrawType::atomicInitialize" draw instead.
-    uint8_t pathIDGranularity = 1; // Workaround for precision issues. Determines how far apart we
-                                   // space unique path IDs.
+    bool invertOffscreenY =
+        false; // Invert Y when drawing to offscreen render targets? (Gradient
+               // and tessellation textures.)
+    bool uninvertOnScreenY =
+        false; // Specifies whether the graphics layer appends a negation of Y
+               // to on-screen vertex shaders that needs to be undone.
+    bool fragCoordBottomUp = false; // Does the built-in pixel coordinate in the
+                                    // fragment shader go bottom-up or top-down?
+    bool atomicPLSMustBeInitializedAsDraw =
+        false; // Backend cannot initialize PLS with typical
+               // clear/load APIs in atomic mode. Issue a
+               // "DrawType::atomicInitialize" draw instead.
+    uint8_t pathIDGranularity =
+        1; // Workaround for precision issues. Determines how far apart we
+           // space unique path IDs.
 };
 
-// Gradient color stops are implemented as a horizontal span of pixels in a global gradient
-// texture. They are rendered by "GradientSpan" instances.
+// Gradient color stops are implemented as a horizontal span of pixels in a
+// global gradient texture. They are rendered by "GradientSpan" instances.
 struct GradientSpan
 {
-    // x0Fixed and x1Fixed are normalized texel x coordinates, in the fixed-point range
-    // 0..65535.
+    // x0Fixed and x1Fixed are normalized texel x coordinates, in the
+    // fixed-point range 0..65535.
     RIVE_ALWAYS_INLINE void set(uint32_t x0Fixed,
                                 uint32_t x1Fixed,
                                 float y_,
@@ -138,17 +150,20 @@ struct GradientSpan
 static_assert(sizeof(GradientSpan) == sizeof(uint32_t) * 4);
 static_assert(256 % sizeof(GradientSpan) == 0);
 // Metal requires vertex buffers to be 256-byte aligned.
-constexpr static size_t kGradSpanBufferAlignmentInElements = 256 / sizeof(GradientSpan);
+constexpr static size_t kGradSpanBufferAlignmentInElements =
+    256 / sizeof(GradientSpan);
 
-// Each curve gets tessellated into vertices. This is performed by rendering a horizontal span
-// of positions and normals into the tessellation data texture, GP-GPU style. TessVertexSpan
-// defines one instance of a horizontal tessellation span for rendering.
+// Each curve gets tessellated into vertices. This is performed by rendering a
+// horizontal span of positions and normals into the tessellation data texture,
+// GP-GPU style. TessVertexSpan defines one instance of a horizontal
+// tessellation span for rendering.
 //
-// Each span has an optional reflection, rendered right to left, with the same vertices in
-// reverse order. These are used to draw mirrored patches with negative coverage when we have
-// back-face culling enabled. This emits every triangle twice, once clockwise and once
-// counterclockwise, and back-face culling naturally selects the triangle with the appropriately
-// signed coverage (discarding the other).
+// Each span has an optional reflection, rendered right to left, with the same
+// vertices in reverse order. These are used to draw mirrored patches with
+// negative coverage when we have back-face culling enabled. This emits every
+// triangle twice, once clockwise and once counterclockwise, and back-face
+// culling naturally selects the triangle with the appropriately signed coverage
+// (discarding the other).
 struct TessVertexSpan
 {
     RIVE_ALWAYS_INLINE void set(const Vec2D pts_[4],
@@ -189,8 +204,9 @@ struct TessVertexSpan
                                 uint32_t contourIDWithFlags_)
     {
 #ifndef NDEBUG
-        // Write to an intermediate local object in debug mode, so we can check its values.
-        // (Otherwise we can't read it because mapped memory is write-only.)
+        // Write to an intermediate local object in debug mode, so we can check
+        // its values. (Otherwise we can't read it because mapped memory is
+        // write-only.)
         TessVertexSpan localCopy;
 #define LOCAL(VAR) localCopy.VAR
 #else
@@ -202,8 +218,9 @@ struct TessVertexSpan
         LOCAL(reflectionY) = reflectionY_;
         LOCAL(x0x1) = (x1 << 16 | (x0 & 0xffff));
         LOCAL(reflectionX0X1) = (reflectionX1 << 16 | (reflectionX0 & 0xffff));
-        LOCAL(segmentCounts) =
-            (joinSegmentCount << 20) | (polarSegmentCount << 10) | parametricSegmentCount;
+        LOCAL(segmentCounts) = (joinSegmentCount << 20) |
+                               (polarSegmentCount << 10) |
+                               parametricSegmentCount;
         LOCAL(contourIDWithFlags) = contourIDWithFlags_;
 #undef LOCAL
 
@@ -227,19 +244,24 @@ struct TessVertexSpan
     float reflectionY;
     int32_t x0x1;
     int32_t reflectionX0X1;
-    uint32_t segmentCounts;      // [joinSegmentCount, polarSegmentCount, parametricSegmentCount]
+    uint32_t segmentCounts;      // [joinSegmentCount, polarSegmentCount,
+                                 // parametricSegmentCount]
     uint32_t contourIDWithFlags; // flags | contourID
 };
 static_assert(sizeof(TessVertexSpan) == sizeof(float) * 16);
 static_assert(256 % sizeof(TessVertexSpan) == 0);
 // Metal requires vertex buffers to be 256-byte aligned.
-constexpr static size_t kTessVertexBufferAlignmentInElements = 256 / sizeof(TessVertexSpan);
+constexpr static size_t kTessVertexBufferAlignmentInElements =
+    256 / sizeof(TessVertexSpan);
 
-// Tessellation spans are drawn as two distinct, 1px-tall rectangles: the span and its reflection.
-constexpr uint16_t kTessSpanIndices[4 * 3] = {0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7};
+// Tessellation spans are drawn as two distinct, 1px-tall rectangles: the span
+// and its reflection.
+constexpr uint16_t kTessSpanIndices[4 * 3] =
+    {0, 1, 2, 2, 1, 3, 4, 5, 6, 6, 5, 7};
 
-// ImageRects are a special type of non-overlapping antialiased draw that we only have to use in
-// atomic mode. They allow us to bind a texture and draw it in its entirety in a single pass.
+// ImageRects are a special type of non-overlapping antialiased draw that we
+// only have to use in atomic mode. They allow us to bind a texture and draw it
+// in its entirety in a single pass.
 struct ImageRectVertex
 {
     float x;
@@ -277,9 +299,10 @@ enum class PaintType : uint32_t
     image,
 };
 
-// Specifies the location of a simple or complex horizontal color ramp within the gradient texture.
-// A simple color ramp is two texels wide, beginning at the specified row and column.
-// A complex color ramp spans the entire width of the gradient texture, on the row:
+// Specifies the location of a simple or complex horizontal color ramp within
+// the gradient texture. A simple color ramp is two texels wide, beginning at
+// the specified row and column. A complex color ramp spans the entire width of
+// the gradient texture, on the row:
 //     "GradTextureLayout::complexOffsetY + ColorRampLocation::row".
 struct ColorRampLocation
 {
@@ -289,26 +312,34 @@ struct ColorRampLocation
     uint16_t col;
 };
 
-// Most of a paint's information can be described in a single value. Gradients and images reference
-// an additional Gradient* and Texture* respectively.
+// Most of a paint's information can be described in a single value. Gradients
+// and images reference an additional Gradient* and Texture* respectively.
 union SimplePaintValue
 {
-    ColorInt color = 0xff000000;         // PaintType::solidColor
-    ColorRampLocation colorRampLocation; // Paintype::linearGradient, Paintype::radialGradient
-    float imageOpacity;                  // PaintType::image
-    uint32_t outerClipID;                // Paintype::clipUpdate
+    ColorInt color = 0xff000000; // PaintType::solidColor
+    ColorRampLocation
+        colorRampLocation; // Paintype::linearGradient, Paintype::radialGradient
+    float imageOpacity;    // PaintType::image
+    uint32_t outerClipID;  // Paintype::clipUpdate
 };
 static_assert(sizeof(SimplePaintValue) == 4);
 
-// This class encapsulates a matrix that maps from _fragCoord to a space where the clipRect is the
-// normalized rectangle: [-1, -1, +1, +1]
+// This class encapsulates a matrix that maps from _fragCoord to a space where
+// the clipRect is the normalized rectangle: [-1, -1, +1, +1]
 class ClipRectInverseMatrix
 {
 public:
-    // When the clipRect inverse matrix is singular (e.g., all 0 in scale and skew), the shader
-    // uses tx and ty as fixed clip coverage values instead of finding edge distances.
-    constexpr static ClipRectInverseMatrix WideOpen() { return Mat2D{0, 0, 0, 0, 1, 1}; }
-    constexpr static ClipRectInverseMatrix Empty() { return Mat2D{0, 0, 0, 0, 0, 0}; }
+    // When the clipRect inverse matrix is singular (e.g., all 0 in scale and
+    // skew), the shader uses tx and ty as fixed clip coverage values instead of
+    // finding edge distances.
+    constexpr static ClipRectInverseMatrix WideOpen()
+    {
+        return Mat2D{0, 0, 0, 0, 1, 1};
+    }
+    constexpr static ClipRectInverseMatrix Empty()
+    {
+        return Mat2D{0, 0, 0, 0, 0, 0};
+    }
 
     ClipRectInverseMatrix() = default;
 
@@ -322,23 +353,25 @@ public:
     const Mat2D& inverseMatrix() const { return m_inverseMatrix; }
 
 private:
-    constexpr ClipRectInverseMatrix(const Mat2D& inverseMatrix) : m_inverseMatrix(inverseMatrix) {}
+    constexpr ClipRectInverseMatrix(const Mat2D& inverseMatrix) :
+        m_inverseMatrix(inverseMatrix)
+    {}
     Mat2D m_inverseMatrix;
 };
 
-// Specifies the height of the gradient texture, and the row at which we transition from simple
-// color ramps to complex.
+// Specifies the height of the gradient texture, and the row at which we
+// transition from simple color ramps to complex.
 //
-// This information is computed at flush time, once we know exactly how many color ramps of each
-// type will be in the gradient texture.
+// This information is computed at flush time, once we know exactly how many
+// color ramps of each type will be in the gradient texture.
 struct GradTextureLayout
 {
     uint32_t complexOffsetY; // Row of the first complex gradient.
     float inverseHeight;     // 1 / textureHeight
 };
 
-// Once all curves in a contour have been tessellated, we render the tessellated vertices in
-// "patches" (aka specific instanced geometry).
+// Once all curves in a contour have been tessellated, we render the tessellated
+// vertices in "patches" (aka specific instanced geometry).
 //
 // See:
 // https://docs.google.com/document/d/19Uk9eyFxav6dNSYsI2ZyiX9zHU1YOaJsMB2sdDFVz6s/edit#heading=h.fa4kubk3vimk
@@ -346,40 +379,47 @@ struct GradTextureLayout
 // With strokes:
 // https://docs.google.com/document/d/1CRKihkFjbd1bwT08ErMCP4fwSR7D4gnHvgdw_esY9GM/edit#heading=h.dcd0c58pxfs5
 //
-// A single patch spans N tessellation segments, connecting N + 1 tessellation vertices. It is
-// composed of a an AA border and fan triangles. The specifics of the fan triangles depend on
-// the PatchType.
+// A single patch spans N tessellation segments, connecting N + 1 tessellation
+// vertices. It is composed of a an AA border and fan triangles. The specifics
+// of the fan triangles depend on the PatchType.
 enum class PatchType
 {
-    // Patches fan around the contour midpoint. Outer edges are inset by ~1px, followed by a
-    // ~1px AA ramp.
+    // Patches fan around the contour midpoint. Outer edges are inset by ~1px,
+    // followed by a ~1px AA ramp.
     midpointFan,
 
-    // Patches only cover the AA ramps and interiors of bezier curves. The interior path
-    // triangles that connect the outer curves are triangulated on the CPU to eliminate overlap,
-    // and are drawn in a separate call. AA ramps are split down the middle (on the same lines
-    // as the interior triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset
-    // AA ramp that overlaps the inner tessellation and has negative coverage. A lone bowtie
-    // join is emitted at the end of the patch to tie the outer curves together.
+    // Patches only cover the AA ramps and interiors of bezier curves. The
+    // interior path triangles that connect the outer curves are triangulated on
+    // the CPU to eliminate overlap, and are drawn in a separate call. AA ramps
+    // are split down the middle (on the same lines as the interior
+    // triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset
+    // AA ramp that overlaps the inner tessellation and has negative coverage. A
+    // lone bowtie join is emitted at the end of the patch to tie the outer
+    // curves together.
     outerCurves,
 };
 
-// When tessellating path vertices, we have the ability to generate the triangles wound in forward
-// or reverse order.
-// Depending on the path and the rendering algorithm, we will either want the triangles wound
-// forward, reverse, or BOTH.
+// When tessellating path vertices, we have the ability to generate the
+// triangles wound in forward or reverse order. Depending on the path and the
+// rendering algorithm, we will either want the triangles wound forward,
+// reverse, or BOTH.
 enum class ContourDirections
 {
     none = 0,
     forward = 1 << 0,
     reverse = 1 << 1,
-    reverseAndForward = reverse | forward, // Generate two sets of triangles: reverse then forward.
+    reverseAndForward =
+        reverse |
+        forward, // Generate two sets of triangles: reverse then forward.
 };
 RIVE_MAKE_ENUM_BITSET(ContourDirections)
 
 struct PatchVertex
 {
-    void set(float localVertexID_, float outset_, float fillCoverage_, float params_)
+    void set(float localVertexID_,
+             float outset_,
+             float fillCoverage_,
+             float params_)
     {
         localVertexID = localVertexID_;
         outset = outset_;
@@ -388,23 +428,28 @@ struct PatchVertex
         setMirroredPosition(localVertexID_, outset_, fillCoverage_);
     }
 
-    // Patch vertices can have an optional, alternate position when mirrored. This is so we can
-    // ensure the diagonals inside the stroke line up on both versions of the patch (mirrored
-    // and not).
-    void setMirroredPosition(float localVertexID_, float outset_, float fillCoverage_)
+    // Patch vertices can have an optional, alternate position when mirrored.
+    // This is so we can ensure the diagonals inside the stroke line up on both
+    // versions of the patch (mirrored and not).
+    void setMirroredPosition(float localVertexID_,
+                             float outset_,
+                             float fillCoverage_)
     {
         mirroredVertexID = localVertexID_;
         mirroredOutset = outset_;
         mirroredFillCoverage = fillCoverage_;
     }
 
-    float localVertexID; // 0 or 1 -- which tessellated vertex of the two that we are connecting?
-    float outset;        // Outset from the tessellated position, in the direction of the normal.
-    float fillCoverage;  // 0..1 for the stroke. 1 all around for the triangles.
-                         // (Coverage will be negated later for counterclockwise triangles.)
-    int32_t params;      // "(patchSize << 2) | [flags::kStrokeVertex,
-                         //                      flags::kFanVertex,
-                         //                      flags::kFanMidpointVertex]"
+    float localVertexID; // 0 or 1 -- which tessellated vertex of the two that
+                         // we are connecting?
+    float outset; // Outset from the tessellated position, in the direction of
+                  // the normal.
+    float fillCoverage; // 0..1 for the stroke. 1 all around for the triangles.
+                        // (Coverage will be negated later for counterclockwise
+                        // triangles.)
+    int32_t params;     // "(patchSize << 2) | [flags::kStrokeVertex,
+                        //                      flags::kFanVertex,
+                        //                      flags::kFanMidpointVertex]"
     float mirroredVertexID;
     float mirroredOutset;
     float mirroredFillCoverage;
@@ -415,19 +460,23 @@ static_assert(sizeof(PatchVertex) == sizeof(float) * 8);
 // # of tessellation segments spanned by the midpoint fan patch.
 constexpr static uint32_t kMidpointFanPatchSegmentSpan = 8;
 
-// # of tessellation segments spanned by the outer curve patch. (In this particular instance,
-// the final segment is a bowtie join with zero length and no fan triangle.)
+// # of tessellation segments spanned by the outer curve patch. (In this
+// particular instance, the final segment is a bowtie join with zero length and
+// no fan triangle.)
 constexpr static uint32_t kOuterCurvePatchSegmentSpan = 17;
 
-// Define vertex and index buffers that contain all the triangles in every PatchType.
+// Define vertex and index buffers that contain all the triangles in every
+// PatchType.
 constexpr static uint32_t kMidpointFanPatchVertexCount =
     kMidpointFanPatchSegmentSpan * 4 /*Stroke and/or AA outer ramp*/ +
-    (kMidpointFanPatchSegmentSpan + 1) /*Curve fan*/ + 1 /*Triangle from path midpoint*/;
+    (kMidpointFanPatchSegmentSpan + 1) /*Curve fan*/ +
+    1 /*Triangle from path midpoint*/;
 constexpr static uint32_t kMidpointFanPatchBorderIndexCount =
     kMidpointFanPatchSegmentSpan * 6 /*Stroke and/or AA outer ramp*/;
 constexpr static uint32_t kMidpointFanPatchIndexCount =
     kMidpointFanPatchBorderIndexCount /*Stroke and/or AA outer ramp*/ +
-    (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ + 3 /*Triangle from path midpoint*/;
+    (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ +
+    3 /*Triangle from path midpoint*/;
 constexpr static uint32_t kMidpointFanPatchBaseIndex = 0;
 static_assert((kMidpointFanPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 constexpr static uint32_t kOuterCurvePatchVertexCount =
@@ -438,7 +487,8 @@ constexpr static uint32_t kOuterCurvePatchBorderIndexCount =
 constexpr static uint32_t kOuterCurvePatchIndexCount =
     kOuterCurvePatchBorderIndexCount /*AA center ramp with bowtie*/ +
     (kOuterCurvePatchSegmentSpan - 2) * 3 /*Curve fan*/;
-constexpr static uint32_t kOuterCurvePatchBaseIndex = kMidpointFanPatchIndexCount;
+constexpr static uint32_t kOuterCurvePatchBaseIndex =
+    kMidpointFanPatchIndexCount;
 static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
 constexpr static uint32_t kPatchVertexBufferCount =
     kMidpointFanPatchVertexCount + kOuterCurvePatchVertexCount;
@@ -450,13 +500,17 @@ void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
 enum class DrawType : uint8_t
 {
     midpointFanPatches, // Standard paths and/or strokes.
-    outerCurvePatches,  // Just the outer curves of a path; the interior will be triangulated.
+    outerCurvePatches,  // Just the outer curves of a path; the interior will be
+                        // triangulated.
     interiorTriangulation,
     imageRect,
     imageMesh,
-    atomicInitialize, // Clear/init PLS data when we can't do it with existing clear/load APIs.
-    atomicResolve,    // Resolve PLS data to the final renderTarget color in atomic mode.
-    stencilClipReset, // Clear or intersect (based on DrawContents) the stencil clip bit.
+    atomicInitialize, // Clear/init PLS data when we can't do it with existing
+                      // clear/load APIs.
+    atomicResolve, // Resolve PLS data to the final renderTarget color in atomic
+                   // mode.
+    stencilClipReset, // Clear or intersect (based on DrawContents) the stencil
+                      // clip bit.
 };
 
 constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
@@ -556,9 +610,10 @@ enum class InterlockMode
 };
 
 // "Uber shader" features that can be #defined in a draw shader.
-// This set is strictly limited to switches that don't *change* the behavior of the shader, i.e.,
-// turning them all on will enable all types Rive content, but simple content will still draw
-// identically; we can turn a feature off if we know a batch doesn't need it for better performance.
+// This set is strictly limited to switches that don't *change* the behavior of
+// the shader, i.e., turning them all on will enable all types Rive content, but
+// simple content will still draw identically; we can turn a feature off if we
+// know a batch doesn't need it for better performance.
 enum class ShaderFeatures
 {
     NONE = 0,
@@ -577,11 +632,12 @@ RIVE_MAKE_ENUM_BITSET(ShaderFeatures)
 constexpr static size_t kShaderFeatureCount = 6;
 constexpr static ShaderFeatures kAllShaderFeatures =
     static_cast<gpu::ShaderFeatures>((1 << kShaderFeatureCount) - 1);
-constexpr static ShaderFeatures kVertexShaderFeaturesMask = ShaderFeatures::ENABLE_CLIPPING |
-                                                            ShaderFeatures::ENABLE_CLIP_RECT |
-                                                            ShaderFeatures::ENABLE_ADVANCED_BLEND;
+constexpr static ShaderFeatures kVertexShaderFeaturesMask =
+    ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
+    ShaderFeatures::ENABLE_ADVANCED_BLEND;
 
-constexpr static ShaderFeatures ShaderFeaturesMaskFor(InterlockMode interlockMode)
+constexpr static ShaderFeatures ShaderFeaturesMaskFor(
+    InterlockMode interlockMode)
 {
     switch (interlockMode)
     {
@@ -590,14 +646,16 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(InterlockMode interlockMod
         case InterlockMode::atomics:
             return kAllShaderFeatures & ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
         case InterlockMode::msaa:
-            return ShaderFeatures::ENABLE_CLIP_RECT | ShaderFeatures::ENABLE_ADVANCED_BLEND |
+            return ShaderFeatures::ENABLE_CLIP_RECT |
+                   ShaderFeatures::ENABLE_ADVANCED_BLEND |
                    ShaderFeatures::ENABLE_HSL_BLEND_MODES;
     }
     RIVE_UNREACHABLE();
 }
 
-constexpr static ShaderFeatures ShaderFeaturesMaskFor(DrawType drawType,
-                                                      InterlockMode interlockMode)
+constexpr static ShaderFeatures ShaderFeaturesMaskFor(
+    DrawType drawType,
+    InterlockMode interlockMode)
 {
     ShaderFeatures mask = ShaderFeatures::NONE;
     switch (drawType)
@@ -606,13 +664,14 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(DrawType drawType,
         case DrawType::imageMesh:
             if (interlockMode != gpu::InterlockMode::atomics)
             {
-                mask = ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
+                mask = ShaderFeatures::ENABLE_CLIPPING |
+                       ShaderFeatures::ENABLE_CLIP_RECT |
                        ShaderFeatures::ENABLE_ADVANCED_BLEND |
                        ShaderFeatures::ENABLE_HSL_BLEND_MODES;
                 break;
             }
-            // Since atomic mode has to resolve previous draws, images need to consider the same
-            // shader features for path draws.
+            // Since atomic mode has to resolve previous draws, images need to
+            // consider the same shader features for path draws.
             [[fallthrough]];
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
@@ -622,7 +681,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(DrawType drawType,
             break;
         case DrawType::atomicInitialize:
             assert(interlockMode == gpu::InterlockMode::atomics);
-            mask = ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_ADVANCED_BLEND;
+            mask = ShaderFeatures::ENABLE_CLIPPING |
+                   ShaderFeatures::ENABLE_ADVANCED_BLEND;
             break;
         case DrawType::stencilClipReset:
             mask = ShaderFeatures::NONE;
@@ -631,44 +691,50 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(DrawType drawType,
     return mask & ShaderFeaturesMaskFor(interlockMode);
 }
 
-// Miscellaneous switches that *do* affect the behavior of a shader. A backend can add these to a
-// shader key if it wants to implement the behavior.
+// Miscellaneous switches that *do* affect the behavior of a shader. A backend
+// can add these to a shader key if it wants to implement the behavior.
 enum class ShaderMiscFlags : uint32_t
 {
     none = 0,
 
-    // InterlockMode::atomics only (without advanced blend). Render color to a standard attachment
-    // instead of PLS. The backend implementation is responsible to turn on src-over blending.
+    // InterlockMode::atomics only (without advanced blend). Render color to a
+    // standard attachment instead of PLS. The backend implementation is
+    // responsible to turn on src-over blending.
     fixedFunctionColorOutput = 1 << 0,
 
-    // DrawType::atomicInitialize only. Also store the color clear value to PLS when drawing a
-    // clear, in addition to clearing the other PLS planes.
+    // DrawType::atomicInitialize only. Also store the color clear value to PLS
+    // when drawing a clear, in addition to clearing the other PLS planes.
     storeColorClear = 1 << 1,
 
-    // DrawType::atomicInitialize only. Swizzle the existing framebuffer contents from BGRA to
-    // RGBA. (For when this data had to get copied from a BGRA target.)
+    // DrawType::atomicInitialize only. Swizzle the existing framebuffer
+    // contents from BGRA to RGBA. (For when this data had to get copied from a
+    // BGRA target.)
     swizzleColorBGRAToRGBA = 1 << 2,
 
-    // DrawType::atomicResolve only. Optimization for when rendering to an offscreen texture.
+    // DrawType::atomicResolve only. Optimization for when rendering to an
+    // offscreen texture.
     //
-    // It renders the final "resolve" operation directly to the renderTarget in a single pass,
-    // instead of (1) resolving the offscreen texture, and then (2) copying the offscreen texture to
-    // back the renderTarget.
+    // It renders the final "resolve" operation directly to the renderTarget in
+    // a single pass, instead of (1) resolving the offscreen texture, and then
+    // (2) copying the offscreen texture to back the renderTarget.
     coalescedResolveAndTransfer = 1 << 3,
 };
 RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
 
 // Returns a unique value that can be used to key a shader.
-uint32_t ShaderUniqueKey(DrawType, ShaderFeatures, InterlockMode, ShaderMiscFlags);
+uint32_t ShaderUniqueKey(DrawType,
+                         ShaderFeatures,
+                         InterlockMode,
+                         ShaderMiscFlags);
 
 extern const char* GetShaderFeatureGLSLName(ShaderFeatures feature);
 
-// Flags indicating the contents of a draw. These don't affect shaders, but in msaa mode they are
-// needed to break up batching. (msaa needs different stencil/blend state, depending on the
-// DrawContents.)
+// Flags indicating the contents of a draw. These don't affect shaders, but in
+// msaa mode they are needed to break up batching. (msaa needs different
+// stencil/blend state, depending on the DrawContents.)
 //
-// These also affect the draw sort order, so we attempt associate more expensive shader branch
-// misses with higher flags.
+// These also affect the draw sort order, so we attempt associate more expensive
+// shader branch misses with higher flags.
 enum class DrawContents
 {
     none = 0,
@@ -681,8 +747,8 @@ enum class DrawContents
 };
 RIVE_MAKE_ENUM_BITSET(DrawContents)
 
-// A nestedClip draw updates the clip buffer while simultaneously clipping against the outerClip
-// that is currently in the clip buffer.
+// A nestedClip draw updates the clip buffer while simultaneously clipping
+// against the outerClip that is currently in the clip buffer.
 constexpr static gpu::DrawContents kNestedClipUpdateMask =
     (gpu::DrawContents::activeClip | gpu::DrawContents::clipUpdate);
 
@@ -705,7 +771,8 @@ struct DrawBatch
     uint32_t baseElement;  // Base vertex, index, or instance.
     DrawContents drawContents = DrawContents::none;
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
-    bool needsBarrier = false; // Pixel-local-storage barrier required after submitting this batch.
+    bool needsBarrier = false; // Pixel-local-storage barrier required after
+                               // submitting this batch.
 
     // DrawType::imageRect and DrawType::imageMesh.
     uint32_t imageDrawDataOffset = 0;
@@ -717,8 +784,8 @@ struct DrawBatch
     RenderBuffer* indexBuffer;
 };
 
-// Simple gradients only have 2 texels, so we write them to mapped texture memory from the CPU
-// instead of rendering them.
+// Simple gradients only have 2 texels, so we write them to mapped texture
+// memory from the CPU instead of rendering them.
 struct TwoTexelRamp
 {
     void set(const ColorInt colors[2])
@@ -736,24 +803,28 @@ class CommandBufferCompletionFence : public RefCnt<CommandBufferCompletionFence>
 public:
     virtual void wait() = 0; // Wait until the fence signals.
 
-    // Virtualize the onRefCntReachedZero() hook in case the the subclass wants to recycle itself in
-    // a pool.
+    // Virtualize the onRefCntReachedZero() hook in case the the subclass wants
+    // to recycle itself in a pool.
     virtual void onRefCntReachedZero() const { RefCnt::onRefCntReachedZero(); }
 
     virtual ~CommandBufferCompletionFence() {}
 };
 
-// Detailed description of exactly how a RenderContextImpl should bind its buffers and draw a
-// flush. A typical flush is done in 4 steps:
+// Detailed description of exactly how a RenderContextImpl should bind its
+// buffers and draw a flush. A typical flush is done in 4 steps:
 //
-//  1. Render the complex gradients from the gradSpanBuffer to the gradient texture
-//     (complexGradSpanCount, firstComplexGradSpan, complexGradRowsTop, complexGradRowsHeight).
+//  1. Render the complex gradients from the gradSpanBuffer to the gradient
+//  texture
+//     (complexGradSpanCount, firstComplexGradSpan, complexGradRowsTop,
+//     complexGradRowsHeight).
 //
-//  2. Transfer the simple gradient texels from the simpleColorRampsBuffer to the top of the
+//  2. Transfer the simple gradient texels from the simpleColorRampsBuffer to
+//  the top of the
 //     gradient texture (simpleGradTexelsWidth, simpleGradTexelsHeight,
 //     simpleGradDataOffsetInBytes, tessDataHeight).
 //
-//  3. Render the tessellation texture from the tessVertexSpanBuffer (tessVertexSpanCount,
+//  3. Render the tessellation texture from the tessVertexSpanBuffer
+//  (tessVertexSpanCount,
 //     firstTessVertexSpan).
 //
 //  4. Execute the drawList, reading from the newly rendered resource textures.
@@ -769,8 +840,8 @@ struct FlushDescriptor
     ColorInt clearColor = 0; // When loadAction == LoadAction::clear.
     uint32_t coverageClearValue = 0;
 
-    IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if loadAction ==
-                                    // LoadAction::clear.
+    IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
+                                    // loadAction == LoadAction::clear.
 
     size_t flushUniformDataOffsetInBytes = 0;
     uint32_t pathCount = 0;
@@ -797,8 +868,8 @@ struct FlushDescriptor
     //  - Unused otherwise.
     void* externalCommandBuffer = nullptr;
 
-    // Fence that will be signalled once "externalCommandBuffer" finishes executing the entire
-    // frame. (Null if isFinalFlushOfFrame is false.)
+    // Fence that will be signalled once "externalCommandBuffer" finishes
+    // executing the entire frame. (Null if isFinalFlushOfFrame is false.)
     gpu::CommandBufferCompletionFence* frameCompletionFence = nullptr;
 
     bool hasTriangleVertices = false;
@@ -806,8 +877,10 @@ struct FlushDescriptor
     bool isFinalFlushOfFrame = false;
 };
 
-// Returns the smallest number that can be added to 'value', such that 'value % alignment' == 0.
-template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(size_t value)
+// Returns the smallest number that can be added to 'value', such that 'value %
+// alignment' == 0.
+template <uint32_t Alignment>
+RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(size_t value)
 {
     constexpr size_t maxMultipleOfAlignment =
         std::numeric_limits<size_t>::max() / Alignment * Alignment;
@@ -816,26 +889,28 @@ template <uint32_t Alignment> RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(size_
     return padding;
 }
 
-// Returns the area of the (potentially non-rectangular) quadrilateral that results from
-// transforming the given bounds by the given matrix.
+// Returns the area of the (potentially non-rectangular) quadrilateral that
+// results from transforming the given bounds by the given matrix.
 float FindTransformedArea(const AABB& bounds, const Mat2D&);
 
 // Convert a BlendMode to the tightly-packed range used by PLS shaders.
 uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode);
 
-// Swizzles the byte order of ColorInt to litte-endian RGBA (the order expected by GLSL).
+// Swizzles the byte order of ColorInt to litte-endian RGBA (the order expected
+// by GLSL).
 RIVE_ALWAYS_INLINE uint32_t SwizzleRiveColorToRGBA(ColorInt riveColor)
 {
-    return (riveColor & 0xff00ff00) | (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
+    return (riveColor & 0xff00ff00) |
+           (math::rotateleft32(riveColor, 16) & 0x00ff00ff);
 }
 
-// Swizzles the byte order of ColorInt to litte-endian RGBA (the order expected by GLSL),
-// and premultiplies alpha.
+// Swizzles the byte order of ColorInt to litte-endian RGBA (the order expected
+// by GLSL), and premultiplies alpha.
 uint32_t SwizzleRiveColorToRGBAPremul(ColorInt riveColor);
 
 // Used for fields that are used to layout write-only mapped GPU memory.
-// "volatile" to discourage the compiler from generating code that reads these values
-// (e.g., don't let the compiler generate "x ^= x" instead of "x = 0").
+// "volatile" to discourage the compiler from generating code that reads these
+// values (e.g., don't let the compiler generate "x ^= x" instead of "x = 0").
 // "RIVE_MAYBE_UNUSED" to suppress -Wunused-private-field.
 #define WRITEONLY RIVE_MAYBE_UNUSED volatile
 
@@ -866,30 +941,38 @@ private:
         InverseViewports(const FlushDescriptor&, const PlatformFeatures&);
 
     private:
-        WRITEONLY float m_vals[4]; // [complexGradientsY, tessDataY, renderTargetX,  renderTargetY]
+        WRITEONLY float m_vals[4]; // [complexGradientsY, tessDataY,
+                                   // renderTargetX,  renderTargetY]
     };
 
     WRITEONLY InverseViewports m_inverseViewports;
     WRITEONLY uint32_t m_renderTargetWidth = 0;
     WRITEONLY uint32_t m_renderTargetHeight = 0;
-    WRITEONLY uint32_t m_colorClearValue;       // Only used if clears are implemented as draws.
-    WRITEONLY uint32_t m_coverageClearValue;    // Only used if clears are implemented as draws.
-    WRITEONLY IAABB m_renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if there is a
-                                                // clear. (Used by the "@RESOLVE_PLS" step in
-                                                // InterlockMode::atomics.)
-    WRITEONLY uint32_t m_pathIDGranularity = 0; // Spacing between adjacent path IDs
-                                                // (1 if IEEE compliant).
-    WRITEONLY float m_vertexDiscardValue = std::numeric_limits<float>::quiet_NaN();
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 56]; // Uniform blocks must be multiples of 256 bytes in
-                                                 // size.
+    WRITEONLY uint32_t
+        m_colorClearValue; // Only used if clears are implemented as draws.
+    WRITEONLY uint32_t
+        m_coverageClearValue; // Only used if clears are implemented as draws.
+    WRITEONLY IAABB
+        m_renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
+                                    // there is a clear. (Used by the
+                                    // "@RESOLVE_PLS" step in
+                                    // InterlockMode::atomics.)
+    WRITEONLY uint32_t m_pathIDGranularity = 0; // Spacing between adjacent path
+                                                // IDs (1 if IEEE compliant).
+    WRITEONLY float m_vertexDiscardValue =
+        std::numeric_limits<float>::quiet_NaN();
+    WRITEONLY uint8_t
+        m_padTo256Bytes[256 - 56]; // Uniform blocks must be multiples of 256
+                                   // bytes in size.
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
-// Storage buffers are logically layed out as arrays of structs on the CPU, but the GPU shaders
-// access them as arrays of basic types. We do it this way in order to be able to easily polyfill
-// them with textures.
+// Storage buffers are logically layed out as arrays of structs on the CPU, but
+// the GPU shaders access them as arrays of basic types. We do it this way in
+// order to be able to easily polyfill them with textures.
 //
-// This enum defines the underlying basic type that each storage buffer struct is layed on top of.
+// This enum defines the underlying basic type that each storage buffer struct
+// is layed on top of.
 enum StorageBufferStructure
 {
     uint32x4,
@@ -897,7 +980,8 @@ enum StorageBufferStructure
     float32x4,
 };
 
-constexpr static uint32_t StorageBufferElementSizeInBytes(StorageBufferStructure bufferStructure)
+constexpr static uint32_t StorageBufferElementSizeInBytes(
+    StorageBufferStructure bufferStructure)
 {
     switch (bufferStructure)
     {
@@ -911,31 +995,36 @@ constexpr static uint32_t StorageBufferElementSizeInBytes(StorageBufferStructure
     RIVE_UNREACHABLE();
 }
 
-// High level structure of the "path" storage buffer. Each path has a unique data record on the GPU
-// that is accessed from the vertex shader.
+// High level structure of the "path" storage buffer. Each path has a unique
+// data record on the GPU that is accessed from the vertex shader.
 struct PathData
 {
 public:
-    constexpr static StorageBufferStructure kBufferStructure = StorageBufferStructure::uint32x4;
+    constexpr static StorageBufferStructure kBufferStructure =
+        StorageBufferStructure::uint32x4;
 
     void set(const Mat2D&, float strokeRadius, uint32_t zIndex);
 
 private:
     WRITEONLY float m_matrix[6];
-    WRITEONLY float m_strokeRadius; // "0" indicates that the path is filled, not stroked.
-    WRITEONLY uint32_t m_zIndex;    // gpu::InterlockMode::msaa only.
+    WRITEONLY float
+        m_strokeRadius; // "0" indicates that the path is filled, not stroked.
+    WRITEONLY uint32_t m_zIndex; // gpu::InterlockMode::msaa only.
 };
-static_assert(sizeof(PathData) == StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 2);
+static_assert(sizeof(PathData) ==
+              StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 2);
 static_assert(256 % sizeof(PathData) == 0);
 constexpr static size_t kPathBufferAlignmentInElements = 256 / sizeof(PathData);
 
-// High level structure of the "paint" storage buffer. Each path also has a data small record
-// describing its paint at a high level. Complex paints (gradients, images, or any path with a
-// clipRect) store additional rendering info in the PaintAuxData buffer.
+// High level structure of the "paint" storage buffer. Each path also has a data
+// small record describing its paint at a high level. Complex paints (gradients,
+// images, or any path with a clipRect) store additional rendering info in the
+// PaintAuxData buffer.
 struct PaintData
 {
 public:
-    constexpr static StorageBufferStructure kBufferStructure = StorageBufferStructure::uint32x2;
+    constexpr static StorageBufferStructure kBufferStructure =
+        StorageBufferStructure::uint32x2;
 
     void set(FillRule,
              PaintType,
@@ -950,21 +1039,25 @@ private:
     union
     {
         WRITEONLY uint32_t m_color;     // PaintType::solidColor
-        WRITEONLY float m_gradTextureY; // Paintype::linearGradient, Paintype::radialGradient
+        WRITEONLY float m_gradTextureY; // Paintype::linearGradient,
+                                        // Paintype::radialGradient
         WRITEONLY float m_opacity;      // PaintType::image
         WRITEONLY uint32_t m_shiftedClipReplacementID; // PaintType::clipUpdate
     };
 };
-static_assert(sizeof(PaintData) == StorageBufferElementSizeInBytes(PaintData::kBufferStructure));
+static_assert(sizeof(PaintData) ==
+              StorageBufferElementSizeInBytes(PaintData::kBufferStructure));
 static_assert(256 % sizeof(PaintData) == 0);
-constexpr static size_t kPaintBufferAlignmentInElements = 256 / sizeof(PaintData);
+constexpr static size_t kPaintBufferAlignmentInElements =
+    256 / sizeof(PaintData);
 
-// Structure of the "paintAux" storage buffer. Gradients, images, and clipRects store their details
-// here, indexed by pathID.
+// Structure of the "paintAux" storage buffer. Gradients, images, and clipRects
+// store their details here, indexed by pathID.
 struct PaintAuxData
 {
 public:
-    constexpr static StorageBufferStructure kBufferStructure = StorageBufferStructure::float32x4;
+    constexpr static StorageBufferStructure kBufferStructure =
+        StorageBufferStructure::float32x4;
 
     void set(const Mat2D& viewMatrix,
              PaintType,
@@ -979,39 +1072,48 @@ private:
     WRITEONLY float m_matrix[6]; // Maps _fragCoord to paint coordinates.
     union
     {
-        WRITEONLY float m_gradTextureHorizontalSpan[2]; // Paintype::linearGradient,
-                                                        // Paintype::radialGradient
-        WRITEONLY float m_imageTextureLOD;              // PaintType::image
+        WRITEONLY float
+            m_gradTextureHorizontalSpan[2]; // Paintype::linearGradient,
+                                            // Paintype::radialGradient
+        WRITEONLY float m_imageTextureLOD;  // PaintType::image
     };
 
-    WRITEONLY float m_clipRectInverseMatrix[6]; // Maps _fragCoord to normalized clipRect coords.
-    WRITEONLY Vec2D m_inverseFwidth; // -1 / fwidth(matrix * _fragCoord) -- for antialiasing.
+    WRITEONLY float m_clipRectInverseMatrix[6]; // Maps _fragCoord to normalized
+                                                // clipRect coords.
+    WRITEONLY Vec2D m_inverseFwidth; // -1 / fwidth(matrix * _fragCoord) -- for
+                                     // antialiasing.
 };
 static_assert(sizeof(PaintAuxData) ==
-              StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure) * 4);
+              StorageBufferElementSizeInBytes(PaintAuxData::kBufferStructure) *
+                  4);
 static_assert(256 % sizeof(PaintAuxData) == 0);
-constexpr static size_t kPaintAuxBufferAlignmentInElements = 256 / sizeof(PaintAuxData);
+constexpr static size_t kPaintAuxBufferAlignmentInElements =
+    256 / sizeof(PaintAuxData);
 
-// High level structure of the "contour" storage buffer. Each contour of every path has a data
-// record describing its info.
+// High level structure of the "contour" storage buffer. Each contour of every
+// path has a data record describing its info.
 struct ContourData
 {
 public:
-    constexpr static StorageBufferStructure kBufferStructure = StorageBufferStructure::uint32x4;
+    constexpr static StorageBufferStructure kBufferStructure =
+        StorageBufferStructure::uint32x4;
 
     ContourData(Vec2D midpoint, uint32_t pathID, uint32_t vertexIndex0) :
         m_midpoint(midpoint), m_pathID(pathID), m_vertexIndex0(vertexIndex0)
     {}
 
 private:
-    WRITEONLY Vec2D m_midpoint;        // Midpoint of the curve endpoints in just this contour.
-    WRITEONLY uint32_t m_pathID;       // ID of the path this contour belongs to.
-    WRITEONLY uint32_t m_vertexIndex0; // Index of the first tessellation vertex of the contour.
+    WRITEONLY Vec2D
+        m_midpoint; // Midpoint of the curve endpoints in just this contour.
+    WRITEONLY uint32_t m_pathID; // ID of the path this contour belongs to.
+    WRITEONLY uint32_t m_vertexIndex0; // Index of the first tessellation vertex
+                                       // of the contour.
 };
 static_assert(sizeof(ContourData) ==
               StorageBufferElementSizeInBytes(ContourData::kBufferStructure));
 static_assert(256 % sizeof(ContourData) == 0);
-constexpr static size_t kContourBufferAlignmentInElements = 256 / sizeof(ContourData);
+constexpr static size_t kContourBufferAlignmentInElements =
+    256 / sizeof(ContourData);
 
 // Per-vertex data for shaders that draw triangles.
 struct TriangleVertex
@@ -1019,7 +1121,8 @@ struct TriangleVertex
 public:
     TriangleVertex() = default;
     TriangleVertex(Vec2D point, int16_t weight, uint16_t pathID) :
-        m_point(point), m_weight_pathID((static_cast<int32_t>(weight) << 16) | pathID)
+        m_point(point),
+        m_weight_pathID((static_cast<int32_t>(weight) << 16) | pathID)
     {}
 
 #ifdef TESTING
@@ -1060,33 +1163,43 @@ private:
     constexpr void staticChecks()
     {
         static_assert(offsetof(ImageDrawUniforms, m_matrix) % 16 == 0);
-        static_assert(offsetof(ImageDrawUniforms, m_clipRectInverseMatrix) % 16 == 0);
+        static_assert(
+            offsetof(ImageDrawUniforms, m_clipRectInverseMatrix) % 16 == 0);
         static_assert(sizeof(ImageDrawUniforms) == 256);
     }
 };
 
 #undef WRITEONLY
 
-// The maximum number of storage buffers we will ever use in a vertex or fragment shader.
+// The maximum number of storage buffers we will ever use in a vertex or
+// fragment shader.
 constexpr static size_t kMaxStorageBuffers = 4;
 
-// If the backend doesn't support "kMaxStorageBuffers" a shader, we polyfill with textures. This
-// function returns the dimensions to use for these textures.
-std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes, StorageBufferStructure);
+// If the backend doesn't support "kMaxStorageBuffers" a shader, we polyfill
+// with textures. This function returns the dimensions to use for these
+// textures.
+std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes,
+                                                  StorageBufferStructure);
 
-// If the backend doesn't support "kMaxStorageBuffers" in a shader, we polyfill with textures. The
-// polyfill texture needs to be updated in entire rows at a time, meaning, its transfer buffer might
-// need to be larger than requested. This function returns a size that is large enough to service a
-// worst-case texture update.
-size_t StorageTextureBufferSize(size_t bufferSizeInBytes, StorageBufferStructure);
+// If the backend doesn't support "kMaxStorageBuffers" in a shader, we polyfill
+// with textures. The polyfill texture needs to be updated in entire rows at a
+// time, meaning, its transfer buffer might need to be larger than requested.
+// This function returns a size that is large enough to service a worst-case
+// texture update.
+size_t StorageTextureBufferSize(size_t bufferSizeInBytes,
+                                StorageBufferStructure);
 
-// Represents a block of mapped GPU memory. Since it can be extremely expensive to read mapped
-// memory, we use this class to enforce the write-only nature of this memory.
+// Represents a block of mapped GPU memory. Since it can be extremely expensive
+// to read mapped memory, we use this class to enforce the write-only nature of
+// this memory.
 template <typename T> class WriteOnlyMappedMemory
 {
 public:
     WriteOnlyMappedMemory() { reset(); }
-    WriteOnlyMappedMemory(T* ptr, size_t elementCount) { reset(ptr, elementCount); }
+    WriteOnlyMappedMemory(T* ptr, size_t elementCount)
+    {
+        reset(ptr, elementCount);
+    }
 
     void reset() { reset(nullptr, 0); }
 
@@ -1097,8 +1210,11 @@ public:
         m_mappingEnd = ptr + elementCount;
     }
 
-    using MapResourceBufferFn = void* (RenderContextImpl::*)(size_t mapSizeInBytes);
-    void mapElements(RenderContextImpl* impl, MapResourceBufferFn mapFn, size_t elementCount)
+    using MapResourceBufferFn =
+        void* (RenderContextImpl::*)(size_t mapSizeInBytes);
+    void mapElements(RenderContextImpl* impl,
+                     MapResourceBufferFn mapFn,
+                     size_t elementCount)
     {
         void* ptr = (impl->*mapFn)(elementCount * sizeof(T));
         reset(reinterpret_cast<T*>(ptr), elementCount);
@@ -1116,11 +1232,16 @@ public:
     size_t elementsWritten() const { return bytesWritten() / sizeof(T); }
 
     // Is there room to push() itemCount items to the buffer?
-    bool hasRoomFor(size_t itemCount) { return m_nextMappedItem + itemCount <= m_mappingEnd; }
+    bool hasRoomFor(size_t itemCount)
+    {
+        return m_nextMappedItem + itemCount <= m_mappingEnd;
+    }
 
-    // Append and write a new item to the buffer. In order to enforce the write-only requirement
-    // of a mapped buffer, these methods do not return any pointers to the client.
-    template <typename... Args> RIVE_ALWAYS_INLINE void emplace_back(Args&&... args)
+    // Append and write a new item to the buffer. In order to enforce the
+    // write-only requirement of a mapped buffer, these methods do not return
+    // any pointers to the client.
+    template <typename... Args>
+    RIVE_ALWAYS_INLINE void emplace_back(Args&&... args)
     {
         new (&push()) T(std::forward<Args>(args)...);
     }
@@ -1157,7 +1278,8 @@ private:
     const T* m_mappingEnd;
 };
 
-// Utility for tracking booleans that may be unknown (e.g., lazily computed values, GL state, etc.)
+// Utility for tracking booleans that may be unknown (e.g., lazily computed
+// values, GL state, etc.)
 enum class TriState
 {
     no,

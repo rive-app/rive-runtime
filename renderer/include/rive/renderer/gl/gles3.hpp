@@ -55,7 +55,8 @@ extern void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,
                                                        GLuint backingtexture,
                                                        GLint level,
                                                        GLint layer);
-extern void glFramebufferPixelLocalClearValuefvANGLE(GLint plane, const GLfloat value[4]);
+extern void glFramebufferPixelLocalClearValuefvANGLE(GLint plane,
+                                                     const GLfloat value[4]);
 extern void glBeginPixelLocalStorageANGLE(GLsizei n, const GLenum loadops[]);
 extern void glEndPixelLocalStorageANGLE(GLsizei n, const GLenum storeops[]);
 #endif
@@ -99,8 +100,8 @@ extern void glProvokingVertexANGLE(GLenum provokeMode);
 #endif // RIVE_WEBGL
 
 #if defined(RIVE_ANDROID) || defined(RIVE_WEBGL)
-// GLES 3.1 functionality is pulled in as an extension. Define these to avoid compile errors, even
-// if we won't use them.
+// GLES 3.1 functionality is pulled in as an extension. Define these to avoid
+// compile errors, even if we won't use them.
 #define GL_SHADER_STORAGE_BUFFER 0x90D2
 #define GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS 0x90D6
 #endif
@@ -111,7 +112,8 @@ struct GLCapabilities
 
     bool isContextVersionAtLeast(int major, int minor) const
     {
-        return ((contextVersionMajor << 16) | contextVersionMinor) >= ((major << 16) | minor);
+        return ((contextVersionMajor << 16) | contextVersionMinor) >=
+               ((major << 16) | minor);
     }
 
     int contextVersionMajor;
@@ -140,12 +142,16 @@ struct GLCapabilities
 
 #ifdef RIVE_ANDROID
 // Android doesn't load extension functions for us.
-extern PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEEXTPROC glDrawArraysInstancedBaseInstanceEXT;
-extern PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC glDrawElementsInstancedBaseInstanceEXT;
+extern PFNGLDRAWARRAYSINSTANCEDBASEINSTANCEEXTPROC
+    glDrawArraysInstancedBaseInstanceEXT;
+extern PFNGLDRAWELEMENTSINSTANCEDBASEINSTANCEEXTPROC
+    glDrawElementsInstancedBaseInstanceEXT;
 extern PFNGLDRAWELEMENTSINSTANCEDBASEVERTEXBASEINSTANCEEXTPROC
     glDrawElementsInstancedBaseVertexBaseInstanceEXT;
 extern PFNGLFRAMEBUFFERFETCHBARRIERQCOMPROC glFramebufferFetchBarrierQCOM;
-extern PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC glFramebufferTexture2DMultisampleEXT;
-extern PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC glRenderbufferStorageMultisampleEXT;
+extern PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC
+    glFramebufferTexture2DMultisampleEXT;
+extern PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC
+    glRenderbufferStorageMultisampleEXT;
 void LoadGLESExtensions(const GLCapabilities&);
 #endif

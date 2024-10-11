@@ -11,8 +11,11 @@ class DataBindContextValueList : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueList(ViewModelInstanceValue* source, DataConverter* converter);
-    void apply(Core* component, uint32_t propertyKey, bool isMainDirection) override;
+    DataBindContextValueList(ViewModelInstanceValue* source,
+                             DataConverter* converter);
+    void apply(Core* component,
+               uint32_t propertyKey,
+               bool isMainDirection) override;
     void update(Core* target) override;
     virtual void applyToSource(Core* component,
                                uint32_t propertyKey,
@@ -20,13 +23,17 @@ public:
 
 private:
     std::vector<std::unique_ptr<DataBindContextValueListItem>> m_ListItemsCache;
-    void insertItem(Core* target, ViewModelInstanceListItem* viewModelInstanceListItem, int index);
+    void insertItem(Core* target,
+                    ViewModelInstanceListItem* viewModelInstanceListItem,
+                    int index);
     void swapItems(Core* target, int index1, int index2);
     void popItem(Core* target);
-    std::unique_ptr<ArtboardInstance> createArtboard(Component* target,
-                                                     Artboard* artboard,
-                                                     ViewModelInstanceListItem* listItem) const;
-    std::unique_ptr<StateMachineInstance> createStateMachineInstance(ArtboardInstance* artboard);
+    std::unique_ptr<ArtboardInstance> createArtboard(
+        Component* target,
+        Artboard* artboard,
+        ViewModelInstanceListItem* listItem) const;
+    std::unique_ptr<StateMachineInstance> createStateMachineInstance(
+        ArtboardInstance* artboard);
 };
 } // namespace rive
 

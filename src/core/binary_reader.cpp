@@ -6,7 +6,10 @@
 using namespace rive;
 
 BinaryReader::BinaryReader(Span<const uint8_t> bytes) :
-    m_Bytes(bytes), m_Position(bytes.begin()), m_Overflowed(false), m_IntRangeError(false)
+    m_Bytes(bytes),
+    m_Position(bytes.begin()),
+    m_Overflowed(false),
+    m_IntRangeError(false)
 {}
 
 bool BinaryReader::reachedEnd() const
@@ -55,7 +58,8 @@ std::string BinaryReader::readString()
     }
 
     std::vector<char> rawValue((size_t)length + 1);
-    auto readBytes = decode_string(length, m_Position, m_Bytes.end(), &rawValue[0]);
+    auto readBytes =
+        decode_string(length, m_Position, m_Bytes.end(), &rawValue[0]);
     if (readBytes != length)
     {
         overflow();

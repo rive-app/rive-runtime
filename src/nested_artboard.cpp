@@ -16,7 +16,8 @@ NestedArtboard::~NestedArtboard() {}
 
 Core* NestedArtboard::clone() const
 {
-    NestedArtboard* nestedArtboard = static_cast<NestedArtboard*>(NestedArtboardBase::clone());
+    NestedArtboard* nestedArtboard =
+        static_cast<NestedArtboard*>(NestedArtboardBase::clone());
     if (m_Artboard == nullptr)
     {
         return nestedArtboard;
@@ -43,7 +44,8 @@ void NestedArtboard::nest(Artboard* artboard)
     m_Instance = nullptr;
     if (artboard->isInstance())
     {
-        m_Instance.reset(static_cast<ArtboardInstance*>(artboard)); // take ownership
+        m_Instance.reset(
+            static_cast<ArtboardInstance*>(artboard)); // take ownership
     }
     // This allows for swapping after initial load (after onAddedClean has
     // already been called).
@@ -95,7 +97,8 @@ Core* NestedArtboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
 
 StatusCode NestedArtboard::import(ImportStack& importStack)
 {
-    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter =
+        importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -166,7 +169,10 @@ bool NestedArtboard::hasNestedStateMachines() const
     return false;
 }
 
-Span<NestedAnimation*> NestedArtboard::nestedAnimations() { return m_NestedAnimations; }
+Span<NestedAnimation*> NestedArtboard::nestedAnimations()
+{
+    return m_NestedAnimations;
+}
 
 NestedArtboard* NestedArtboard::nestedArtboard(std::string name) const
 {
@@ -189,9 +195,13 @@ NestedStateMachine* NestedArtboard::stateMachine(std::string name) const
     return nullptr;
 }
 
-NestedInput* NestedArtboard::input(std::string name) const { return input(name, ""); }
+NestedInput* NestedArtboard::input(std::string name) const
+{
+    return input(name, "");
+}
 
-NestedInput* NestedArtboard::input(std::string name, std::string stateMachineName) const
+NestedInput* NestedArtboard::input(std::string name,
+                                   std::string stateMachineName) const
 {
     if (!stateMachineName.empty())
     {
@@ -241,13 +251,14 @@ Vec2D NestedArtboard::measureLayout(float width,
                                     float height,
                                     LayoutMeasureMode heightMode)
 {
-    return Vec2D(
-        std::min(widthMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max()
-                                                           : width,
-                 m_Instance ? m_Instance->width() : 0.0f),
-        std::min(heightMode == LayoutMeasureMode::undefined ? std::numeric_limits<float>::max()
-                                                            : height,
-                 m_Instance ? m_Instance->height() : 0.0f));
+    return Vec2D(std::min(widthMode == LayoutMeasureMode::undefined
+                              ? std::numeric_limits<float>::max()
+                              : width,
+                          m_Instance ? m_Instance->width() : 0.0f),
+                 std::min(heightMode == LayoutMeasureMode::undefined
+                              ? std::numeric_limits<float>::max()
+                              : height,
+                          m_Instance ? m_Instance->height() : 0.0f));
 }
 
 void NestedArtboard::syncStyleChanges()
@@ -273,7 +284,8 @@ void NestedArtboard::decodeDataBindPathIds(Span<const uint8_t> value)
 
 void NestedArtboard::copyDataBindPathIds(const NestedArtboardBase& object)
 {
-    m_DataBindPathIdsBuffer = object.as<NestedArtboard>()->m_DataBindPathIdsBuffer;
+    m_DataBindPathIdsBuffer =
+        object.as<NestedArtboard>()->m_DataBindPathIdsBuffer;
 }
 
 void NestedArtboard::internalDataContext(DataContext* value)
@@ -288,17 +300,24 @@ void NestedArtboard::internalDataContext(DataContext* value)
     }
 }
 
-void NestedArtboard::clearDataContext() { artboardInstance()->clearDataContext(); }
-
-void NestedArtboard::setDataContextFromInstance(ViewModelInstance* viewModelInstance,
-                                                DataContext* parent)
+void NestedArtboard::clearDataContext()
 {
-    artboardInstance()->setDataContextFromInstance(viewModelInstance, parent, false);
+    artboardInstance()->clearDataContext();
+}
+
+void NestedArtboard::setDataContextFromInstance(
+    ViewModelInstance* viewModelInstance,
+    DataContext* parent)
+{
+    artboardInstance()->setDataContextFromInstance(viewModelInstance,
+                                                   parent,
+                                                   false);
     for (auto animation : m_NestedAnimations)
     {
         if (animation->is<NestedStateMachine>())
         {
-            animation->as<NestedStateMachine>()->dataContext(artboardInstance()->dataContext());
+            animation->as<NestedStateMachine>()->dataContext(
+                artboardInstance()->dataContext());
         }
     }
 }

@@ -11,7 +11,8 @@ using namespace rive;
 StatusCode ViewModelInstanceListItem::import(ImportStack& importStack)
 {
     auto viewModelInstanceList =
-        importStack.latest<ViewModelInstanceListImporter>(ViewModelInstanceList::typeKey);
+        importStack.latest<ViewModelInstanceListImporter>(
+            ViewModelInstanceList::typeKey);
     if (viewModelInstanceList == nullptr)
     {
         return StatusCode::MissingObject;

@@ -26,7 +26,10 @@ StatusCode TextModifierGroup::onAddedDirty(CoreContext* context)
     return StatusCode::MissingObject;
 }
 
-void TextModifierGroup::addModifierRange(TextModifierRange* range) { m_ranges.push_back(range); }
+void TextModifierGroup::addModifierRange(TextModifierRange* range)
+{
+    m_ranges.push_back(range);
+}
 
 void TextModifierGroup::addModifier(TextModifier* modifier)
 {
@@ -43,7 +46,10 @@ void TextModifierGroup::rangeTypeChanged()
     addDirt(ComponentDirt::TextCoverage);
 }
 
-void TextModifierGroup::shapeModifierChanged() { parent()->as<Text>()->markShapeDirty(); }
+void TextModifierGroup::shapeModifierChanged()
+{
+    parent()->as<Text>()->markShapeDirty();
+}
 
 void TextModifierGroup::rangeChanged()
 {
@@ -72,10 +78,11 @@ void TextModifierGroup::clearRangeMaps()
     addDirt(ComponentDirt::TextCoverage);
 }
 
-void TextModifierGroup::computeRangeMap(Span<const Unichar> text,
-                                        const SimpleArray<Paragraph>& shape,
-                                        const SimpleArray<SimpleArray<GlyphLine>>& lines,
-                                        const GlyphLookup& glyphLookup)
+void TextModifierGroup::computeRangeMap(
+    Span<const Unichar> text,
+    const SimpleArray<Paragraph>& shape,
+    const SimpleArray<SimpleArray<GlyphLine>>& lines,
+    const GlyphLookup& glyphLookup)
 {
     for (TextModifierRange* range : m_ranges)
     {
@@ -103,7 +110,8 @@ void TextModifierGroup::computeCoverage(uint32_t textSize)
     }
 }
 
-float TextModifierGroup::glyphCoverage(uint32_t textIndex, uint32_t codePointCount)
+float TextModifierGroup::glyphCoverage(uint32_t textIndex,
+                                       uint32_t codePointCount)
 {
     assert(codePointCount >= 1);
     float c = coverage(textIndex);
@@ -123,7 +131,8 @@ void TextModifierGroup::transform(float amount, Mat2D& ctm)
     }
 
     float actualRotation = modifiesRotation() ? rotation() * amount : 0.0f;
-    Mat2D transform = actualRotation != 0.0f ? Mat2D::fromRotation(actualRotation) : Mat2D();
+    Mat2D transform =
+        actualRotation != 0.0f ? Mat2D::fromRotation(actualRotation) : Mat2D();
     if (modifiesTranslation())
     {
         transform[4] = x() * amount;
@@ -132,7 +141,8 @@ void TextModifierGroup::transform(float amount, Mat2D& ctm)
     if (modifiesScale())
     {
         float iamount = 1.0f - amount;
-        transform.scaleByValues(iamount + scaleX() * amount, iamount + scaleY() * amount);
+        transform.scaleByValues(iamount + scaleX() * amount,
+                                iamount + scaleY() * amount);
     }
     bool doesModifyOrigin = modifiesOrigin();
     if (doesModifyOrigin)
@@ -160,15 +170,36 @@ float TextModifierGroup::computeOpacity(float current, float t) const
     }
 }
 
-void TextModifierGroup::modifierFlagsChanged() { parent()->as<Text>()->markPaintDirty(); }
-void TextModifierGroup::originXChanged() { parent()->as<Text>()->markPaintDirty(); }
-void TextModifierGroup::originYChanged() { parent()->as<Text>()->markPaintDirty(); }
-void TextModifierGroup::opacityChanged() { parent()->as<Text>()->markPaintDirty(); }
+void TextModifierGroup::modifierFlagsChanged()
+{
+    parent()->as<Text>()->markPaintDirty();
+}
+void TextModifierGroup::originXChanged()
+{
+    parent()->as<Text>()->markPaintDirty();
+}
+void TextModifierGroup::originYChanged()
+{
+    parent()->as<Text>()->markPaintDirty();
+}
+void TextModifierGroup::opacityChanged()
+{
+    parent()->as<Text>()->markPaintDirty();
+}
 void TextModifierGroup::xChanged() { parent()->as<Text>()->markPaintDirty(); }
 void TextModifierGroup::yChanged() { parent()->as<Text>()->markPaintDirty(); }
-void TextModifierGroup::rotationChanged() { parent()->as<Text>()->markPaintDirty(); }
-void TextModifierGroup::scaleXChanged() { parent()->as<Text>()->markPaintDirty(); }
-void TextModifierGroup::scaleYChanged() { parent()->as<Text>()->markPaintDirty(); }
+void TextModifierGroup::rotationChanged()
+{
+    parent()->as<Text>()->markPaintDirty();
+}
+void TextModifierGroup::scaleXChanged()
+{
+    parent()->as<Text>()->markPaintDirty();
+}
+void TextModifierGroup::scaleYChanged()
+{
+    parent()->as<Text>()->markPaintDirty();
+}
 
 static TextRun copyRun(const TextRun& source, uint32_t unicharCount)
 {
@@ -184,7 +215,9 @@ static TextRun copyRun(const TextRun& source, uint32_t unicharCount)
     };
 }
 
-TextRun TextModifierGroup::modifyShape(const Text& text, TextRun run, float strength)
+TextRun TextModifierGroup::modifyShape(const Text& text,
+                                       TextRun run,
+                                       float strength)
 {
     const TextStyle* style = text.styleFromShaperId(run.styleId);
     if (style == nullptr || style->font() == nullptr)
@@ -227,7 +260,8 @@ TextRun TextModifierGroup::modifyShape(const Text& text, TextRun run, float stre
     return run;
 }
 
-void TextModifierGroup::applyShapeModifiers(const Text& text, StyledText& styledText)
+void TextModifierGroup::applyShapeModifiers(const Text& text,
+                                            StyledText& styledText)
 {
     if (m_shapeModifiers.empty())
     {
@@ -256,12 +290,15 @@ void TextModifierGroup::applyShapeModifiers(const Text& text, StyledText& styled
                     // Add new run from extractRunStart to index (exclusive)
                     if (lastCoverage == 0.0f)
                     {
-                        m_nextTextRuns.push_back(copyRun(run, index - extractRunIndex));
+                        m_nextTextRuns.push_back(
+                            copyRun(run, index - extractRunIndex));
                     }
                     else
                     {
                         m_nextTextRuns.push_back(
-                            modifyShape(text, copyRun(run, index - extractRunIndex), lastCoverage));
+                            modifyShape(text,
+                                        copyRun(run, index - extractRunIndex),
+                                        lastCoverage));
                     }
                 }
                 lastCoverage = coverage;
@@ -279,7 +316,9 @@ void TextModifierGroup::applyShapeModifiers(const Text& text, StyledText& styled
         else
         {
             m_nextTextRuns.push_back(
-                modifyShape(text, copyRun(run, end - extractRunIndex), lastCoverage));
+                modifyShape(text,
+                            copyRun(run, end - extractRunIndex),
+                            lastCoverage));
         }
         extractRunIndex = end;
     }

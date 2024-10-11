@@ -27,12 +27,16 @@ static void rnd_rect(AABB* r, RenderPaint* paint, Rand& rand)
 {
     float x = (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * W;
     float y = (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * H;
-    float w = (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * (W >> 2);
-    float h = (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * (H >> 2);
+    float w =
+        (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * (W >> 2);
+    float h =
+        (static_cast<int32_t>(rand.u32() >> 16)) * 1.52587890625e-5f * (H >> 2);
     float hoffset =
-        (static_cast<int32_t>(static_cast<int32_t>(rand.u32()) >> 15) * 1.52587890625e-5f);
+        (static_cast<int32_t>(static_cast<int32_t>(rand.u32()) >> 15) *
+         1.52587890625e-5f);
     float woffset =
-        (static_cast<int32_t>(static_cast<int32_t>(rand.u32()) >> 15) * 1.52587890625e-5f);
+        (static_cast<int32_t>(static_cast<int32_t>(rand.u32()) >> 15) *
+         1.52587890625e-5f);
 
     r->minX = x;
     r->minY = y;
@@ -69,7 +73,9 @@ protected:
             rnd_rect(&r, paint, rand);
             renderer->drawPath(PathBuilder::Oval(r), paint);
             rnd_rect(&r, paint, rand);
-            renderer->drawPath(PathBuilder::RRect(r, r.width() / 4, r.height() / 4), paint);
+            renderer->drawPath(
+                PathBuilder::RRect(r, r.width() / 4, r.height() / 4),
+                paint);
             rnd_rect(&r, paint, rand);
         }
         renderer->restore();
@@ -92,12 +98,15 @@ private:
 protected:
     void onOnceBeforeDraw() override
     {
-        // SkAssertResult(SkParsePath::FromSVGString("M0,0h0M10,0h0M20,0h0", &fMoveHfPath));
-        // SkAssertResult(SkParsePath::FromSVGString("M0,0zM10,0zM20,0z", &fMoveZfPath));
-        // SkAssertResult(SkParsePath::FromSVGString("M0,0h25", &fDashedfPath));
-        // SkAssertResult(SkParsePath::FromSVGString("M 0 0 C 0 0 0 0 0 0", &fCubicPath));
-        // SkAssertResult(SkParsePath::FromSVGString("M 0 0 Q 0 0 0 0", &fQuadPath));
-        // SkAssertResult(SkParsePath::FromSVGString("M 0 0 L 0 0", &fLinePath));
+        // SkAssertResult(SkParsePath::FromSVGString("M0,0h0M10,0h0M20,0h0",
+        // &fMoveHfPath));
+        // SkAssertResult(SkParsePath::FromSVGString("M0,0zM10,0zM20,0z",
+        // &fMoveZfPath)); SkAssertResult(SkParsePath::FromSVGString("M0,0h25",
+        // &fDashedfPath)); SkAssertResult(SkParsePath::FromSVGString("M 0 0 C 0
+        // 0 0 0 0 0", &fCubicPath));
+        // SkAssertResult(SkParsePath::FromSVGString("M 0 0 Q 0 0 0 0",
+        // &fQuadPath)); SkAssertResult(SkParsePath::FromSVGString("M 0 0 L 0
+        // 0", &fLinePath));
         fMoveHfPath = PathBuilder()
                           .moveTo(0, 0)
                           .lineTo(0, 0)
@@ -106,9 +115,16 @@ protected:
                           .moveTo(20, 0)
                           .lineTo(20, 0)
                           .detach();
-        fMoveZfPath =
-            PathBuilder().moveTo(0, 0).close().moveTo(10, 0).close().moveTo(20, 0).close().detach();
-        fCubicPath = PathBuilder().moveTo(0, 0).cubicTo(0, 0, 0, 0, 0, 0).detach();
+        fMoveZfPath = PathBuilder()
+                          .moveTo(0, 0)
+                          .close()
+                          .moveTo(10, 0)
+                          .close()
+                          .moveTo(20, 0)
+                          .close()
+                          .detach();
+        fCubicPath =
+            PathBuilder().moveTo(0, 0).cubicTo(0, 0, 0, 0, 0, 0).detach();
         fQuadPath = PathBuilder().moveTo(0, 0).quadTo(0, 0, 0, 0).detach();
         fLinePath = PathBuilder().moveTo(0, 0).lineTo(0, 0).detach();
 
@@ -130,7 +146,9 @@ protected:
     {
         Paint fillPaint, strokePaint; // , dashPaint;
         strokePaint->style(RenderPaintStyle::stroke);
-        StrokeCap caps[3] = {StrokeCap::round, StrokeCap::square, StrokeCap::butt};
+        StrokeCap caps[3] = {StrokeCap::round,
+                             StrokeCap::square,
+                             StrokeCap::butt};
         for (int i = 0; i < 3; ++i)
         {
             fillPaint->color(0xff000000);
@@ -189,13 +207,18 @@ private:
         p->thickness(scale * 5);
         canvas->scale(1 / scale, 1 / scale);
         // canvas->drawLine(20 * scale, 20 * scale, 20 * scale, 100 * scale, p);
-        // canvas->drawLine(20 * scale, 20 * scale, 100 * scale, 100 * scale, p);
-        canvas->drawPath(
-            PathBuilder().moveTo(20 * scale, 20 * scale).lineTo(20 * scale, 100 * scale).detach(),
-            p);
-        canvas->drawPath(
-            PathBuilder().moveTo(20 * scale, 20 * scale).lineTo(100 * scale, 100 * scale).detach(),
-            p);
+        // canvas->drawLine(20 * scale, 20 * scale, 100 * scale, 100 * scale,
+        // p);
+        canvas->drawPath(PathBuilder()
+                             .moveTo(20 * scale, 20 * scale)
+                             .lineTo(20 * scale, 100 * scale)
+                             .detach(),
+                         p);
+        canvas->drawPath(PathBuilder()
+                             .moveTo(20 * scale, 20 * scale)
+                             .lineTo(100 * scale, 100 * scale)
+                             .detach(),
+                         p);
         canvas->restore();
     }
 
@@ -260,7 +283,9 @@ DEF_SIMPLE_GM(quadcap, 70, 30, canvas)
     p->style(RenderPaintStyle::stroke);
     p->thickness(1);
     PathBuilder b;
-    Vec2D pts[] = {{105.738571f, 13.126318f}, {105.738571f, 13.126318f}, {123.753784f, 1.f}};
+    Vec2D pts[] = {{105.738571f, 13.126318f},
+                   {105.738571f, 13.126318f},
+                   {123.753784f, 1.f}};
     Vec2D tangent = pts[1] - pts[2];
     tangent = tangent.normalized();
     Vec2D pts2[3];
@@ -298,8 +323,12 @@ protected:
         fPath->moveTo(0, 0);
         for (int i = 0; i < 13; i++)
         {
-            float x = (static_cast<int32_t>(rand.u32() >> 16) * 1.52587890625e-5f) * (W >> 1);
-            float y = (static_cast<int32_t>(rand.u32() >> 16) * 1.52587890625e-5f) * (H >> 1);
+            float x =
+                (static_cast<int32_t>(rand.u32() >> 16) * 1.52587890625e-5f) *
+                (W >> 1);
+            float y =
+                (static_cast<int32_t>(rand.u32() >> 16) * 1.52587890625e-5f) *
+                (H >> 1);
             fPath->lineTo(x, y);
         }
     }
@@ -394,7 +423,9 @@ protected:
         strokePaint->style(RenderPaintStyle::stroke);
         strokePaint->color(0xFF4444FF);
 
-        void (*procs[])(PathBuilder*, const AABB&) = {make0, make1, make2, make3, make4, make5};
+        void (*procs[])(
+            PathBuilder*,
+            const AABB&) = {make0, make1, make2, make3, make4, make5};
 
         canvas->translate(static_cast<float>(20), static_cast<float>(80));
 
@@ -439,11 +470,14 @@ protected:
         paint->thickness(0.055f);
 
         canvas->scale(1000, 1000);
-        canvas->drawPath(PathBuilder::Oval({-1.97f, 2 - 1.97f, 1.97f, 2 + 1.97f}), paint);
+        canvas->drawPath(
+            PathBuilder::Oval({-1.97f, 2 - 1.97f, 1.97f, 2 + 1.97f}),
+            paint);
     }
 };
 
-// Test stroking for curves that produce degenerate tangents when t is 0 or 1 (see bug 4191)
+// Test stroking for curves that produce degenerate tangents when t is 0 or 1
+// (see bug 4191)
 class Strokes5GM : public GM
 {
 public:
@@ -562,10 +596,10 @@ DEF_SIMPLE_GM(inner_join_geometry, 1000, 700, canvas)
 
 DEF_SIMPLE_GM(skbug12244, 150, 150, canvas)
 {
-    // Should look like a stroked triangle; these vertices are the results of the SkStroker
-    // but we draw as a filled path in order to highlight that it's the GPU triangulating path
-    // renderer that's the source of the problem, and not the stroking operation. The original
-    // path was a simple:
+    // Should look like a stroked triangle; these vertices are the results of
+    // the SkStroker but we draw as a filled path in order to highlight that
+    // it's the GPU triangulating path renderer that's the source of the
+    // problem, and not the stroking operation. The original path was a simple:
     // m(0,0), l(100, 40), l(0, 80), l(0,0) with a stroke width of 15px
     Path path;
     path->moveTo(2.7854299545288085938, -6.9635753631591796875);

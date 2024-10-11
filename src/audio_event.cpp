@@ -32,7 +32,8 @@ void AudioEvent::play()
 #endif
                                              AudioEngine::RuntimeEngine();
 
-    auto sound = engine->play(audioSource, engine->timeInFrames(), 0, 0, artboard());
+    auto sound =
+        engine->play(audioSource, engine->timeInFrames(), 0, 0, artboard());
 
     if (volume != 1.0f)
     {

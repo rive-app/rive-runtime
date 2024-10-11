@@ -11,7 +11,10 @@ public:
     DataValue* convert(DataValue* value) override;
     DataValue* reverseConvert(DataValue* value) override;
     DataType outputType() override { return DataType::number; };
-    ArithmeticOperation op() const { return (ArithmeticOperation)operationType(); }
+    ArithmeticOperation op() const
+    {
+        return (ArithmeticOperation)operationType();
+    }
 };
 } // namespace rive
 

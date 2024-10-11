@@ -8,8 +8,8 @@
 
 namespace rive::gpu
 {
-// Fast, simple queue that operates on a block-allocated array. push_back() may only be called up to
-// m_capacity times before the queue must be rewound.
+// Fast, simple queue that operates on a block-allocated array. push_back() may
+// only be called up to m_capacity times before the queue must be rewound.
 template <typename T> class FixedQueue
 {
 public:
@@ -22,7 +22,8 @@ public:
 
     void rewind() { m_front = m_end = m_array; }
 
-    void shrinkToFit(TrivialArrayAllocator<T>& allocator, size_t originalCapacity)
+    void shrinkToFit(TrivialArrayAllocator<T>& allocator,
+                     size_t originalCapacity)
     {
         assert(m_capacity == originalCapacity);
         size_t newCapacity = m_end - m_array;

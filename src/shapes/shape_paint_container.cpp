@@ -25,7 +25,10 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component)
     return nullptr;
 }
 
-void ShapePaintContainer::addPaint(ShapePaint* paint) { m_ShapePaints.push_back(paint); }
+void ShapePaintContainer::addPaint(ShapePaint* paint)
+{
+    m_ShapePaints.push_back(paint);
+}
 
 PathFlags ShapePaintContainer::pathFlags() const
 {

@@ -13,23 +13,27 @@ public:
 
     RenderContextNULL();
 
-    rive::rcp<rive::gpu::RenderTarget> makeRenderTarget(uint32_t width, uint32_t height);
+    rive::rcp<rive::gpu::RenderTarget> makeRenderTarget(uint32_t width,
+                                                        uint32_t height);
 
 private:
     rive::rcp<rive::RenderBuffer> makeRenderBuffer(rive::RenderBufferType,
                                                    rive::RenderBufferFlags,
                                                    size_t) override;
 
-    rive::rcp<rive::gpu::Texture> makeImageTexture(uint32_t width,
-                                                   uint32_t height,
-                                                   uint32_t mipLevelCount,
-                                                   const uint8_t imageDataRGBA[]) override;
+    rive::rcp<rive::gpu::Texture> makeImageTexture(
+        uint32_t width,
+        uint32_t height,
+        uint32_t mipLevelCount,
+        const uint8_t imageDataRGBA[]) override;
 
-    std::unique_ptr<rive::gpu::BufferRing> makeUniformBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<rive::gpu::BufferRing> makeUniformBufferRing(
+        size_t capacityInBytes) override;
     std::unique_ptr<rive::gpu::BufferRing> makeStorageBufferRing(
         size_t capacityInBytes,
         rive::gpu::StorageBufferStructure) override;
-    std::unique_ptr<rive::gpu::BufferRing> makeVertexBufferRing(size_t capacityInBytes) override;
+    std::unique_ptr<rive::gpu::BufferRing> makeVertexBufferRing(
+        size_t capacityInBytes) override;
     std::unique_ptr<rive::gpu::BufferRing> makeTextureTransferBufferRing(
         size_t capacityInBytes) override;
 

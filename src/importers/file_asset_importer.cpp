@@ -13,9 +13,10 @@ FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
     m_FileAsset(fileAsset), m_FileAssetLoader(assetLoader), m_Factory(factory)
 {}
 
-// if file asset contents are found when importing a rive file, store those for when we resolve
-// the importer later
-void FileAssetImporter::onFileAssetContents(std::unique_ptr<FileAssetContents> contents)
+// if file asset contents are found when importing a rive file, store those for
+// when we resolve the importer later
+void FileAssetImporter::onFileAssetContents(
+    std::unique_ptr<FileAssetContents> contents)
 {
     // we should only ever be called once
     assert(!m_Content);
@@ -30,8 +31,8 @@ StatusCode FileAssetImporter::resolve()
         bytes = m_Content->bytes();
     }
 
-    // If we have a file asset loader, lets give it the opportunity to claim responsibility for
-    // loading the asset
+    // If we have a file asset loader, lets give it the opportunity to claim
+    // responsibility for loading the asset
     if (m_FileAssetLoader != nullptr &&
         m_FileAssetLoader->loadContents(*m_FileAsset, bytes, m_Factory))
     {

@@ -15,5 +15,7 @@ StatusCode CubicInterpolatorComponent::onAddedDirty(CoreContext* context)
 
 float CubicInterpolatorComponent::transform(float factor) const
 {
-    return CubicInterpolatorSolver::calcBezier(m_solver.getT(factor), y1(), y2());
+    return CubicInterpolatorSolver::calcBezier(m_solver.getT(factor),
+                                               y1(),
+                                               y2());
 }

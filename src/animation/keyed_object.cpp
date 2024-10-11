@@ -27,7 +27,8 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
     for (auto& property : m_keyedProperties)
     {
         // Validate coreObject supports propertyKey
-        if (!CoreRegistry::objectSupportsProperty(coreObject, property->propertyKey()))
+        if (!CoreRegistry::objectSupportsProperty(coreObject,
+                                                  property->propertyKey()))
         {
             return StatusCode::InvalidObject;
         }
@@ -87,7 +88,8 @@ void KeyedObject::apply(Artboard* artboard, float time, float mix)
 
 StatusCode KeyedObject::import(ImportStack& importStack)
 {
-    auto importer = importStack.latest<LinearAnimationImporter>(LinearAnimationBase::typeKey);
+    auto importer = importStack.latest<LinearAnimationImporter>(
+        LinearAnimationBase::typeKey);
     if (importer == nullptr)
     {
         return StatusCode::MissingObject;

@@ -25,10 +25,14 @@ TEST_CASE("ieee_float_divide", "[math]")
     // Returns 0 if b == +/-Inf.
     CHECK(math::ieee_float_divide(1, kInf) == 0);
     CHECK(math::ieee_float_divide(-100, kInf) == 0);
-    CHECK(math::ieee_float_divide(std::numeric_limits<float>::max(), kInf) == 0);
-    CHECK(math::ieee_float_divide(std::numeric_limits<float>::max(), -kInf) == 0);
-    CHECK(math::ieee_float_divide(-std::numeric_limits<float>::max(), -kInf) == 0);
-    CHECK(math::ieee_float_divide(-std::numeric_limits<float>::max(), kInf) == 0);
+    CHECK(math::ieee_float_divide(std::numeric_limits<float>::max(), kInf) ==
+          0);
+    CHECK(math::ieee_float_divide(std::numeric_limits<float>::max(), -kInf) ==
+          0);
+    CHECK(math::ieee_float_divide(-std::numeric_limits<float>::max(), -kInf) ==
+          0);
+    CHECK(math::ieee_float_divide(-std::numeric_limits<float>::max(), kInf) ==
+          0);
     CHECK(math::ieee_float_divide(0, kInf) == 0);
     CHECK(math::ieee_float_divide(0, -kInf) == 0);
     CHECK(math::ieee_float_divide(-0, -kInf) == 0);

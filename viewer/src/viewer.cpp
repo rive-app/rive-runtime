@@ -76,7 +76,9 @@ static void frame(void)
 
     auto newTime = std::chrono::high_resolution_clock::now();
     auto dur =
-        std::chrono::duration_cast<std::chrono::nanoseconds>(newTime - lastTime).count() / billion;
+        std::chrono::duration_cast<std::chrono::nanoseconds>(newTime - lastTime)
+            .count() /
+        billion;
     lastTime = newTime;
 
     g_Host->beforeDefaultPass(g_Content.get(), dur);
@@ -123,7 +125,8 @@ static void event(const sapp_event* ev)
         case SAPP_EVENTTYPE_RESIZED:
             if (g_Content)
             {
-                g_Content->handleResize(ev->framebuffer_width, ev->framebuffer_height);
+                g_Content->handleResize(ev->framebuffer_width,
+                                        ev->framebuffer_height);
             }
             g_Host->handleResize(ev->framebuffer_width, ev->framebuffer_height);
             break;
@@ -136,12 +139,14 @@ static void event(const sapp_event* ev)
             const int numDroppedFiles = sapp_get_num_dropped_files();
             if (numDroppedFiles != 0)
             {
-                const char* filename = sapp_get_dropped_file_path(numDroppedFiles - 1);
+                const char* filename =
+                    sapp_get_dropped_file_path(numDroppedFiles - 1);
                 auto newContent = ViewerContent::findHandler(filename);
                 if (newContent)
                 {
                     g_Content = std::move(newContent);
-                    g_Content->handleResize(ev->framebuffer_width, ev->framebuffer_height);
+                    g_Content->handleResize(ev->framebuffer_width,
+                                            ev->framebuffer_height);
                 }
                 else
                 {
@@ -199,8 +204,8 @@ sapp_desc sokol_main(int argc, char* argv[])
 
     return (sapp_desc)
     {
-        .init_cb = init, .frame_cb = frame, .cleanup_cb = cleanup, .event_cb = event,
-        .enable_dragndrop = true, .high_dpi = true,
+        .init_cb = init, .frame_cb = frame, .cleanup_cb = cleanup,
+        .event_cb = event, .enable_dragndrop = true, .high_dpi = true,
         .window_title = "Rive Viewer "
 #if defined(SOKOL_GLCORE33)
                         "(OpenGL 3.3)",
@@ -215,6 +220,7 @@ sapp_desc sokol_main(int argc, char* argv[])
 #elif defined(SOKOL_WGPU)
                         "(WebGPU)",
 #endif
-        .width = 800, .height = 600, .icon.sokol_default = true, .gl_force_gles2 = true,
+        .width = 800, .height = 600, .icon.sokol_default = true,
+        .gl_force_gles2 = true,
     };
 }

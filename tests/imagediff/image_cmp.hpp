@@ -33,7 +33,8 @@ uint32_t compute_diff1(uint32_t, uint32_t);
 
 sk_sp<SkImage> make_diff_image(sk_sp<SkImage> a,
                                sk_sp<SkImage> b,
-                               uint32_t (*compute_diff)(uint32_t a, uint32_t b));
+                               uint32_t (*compute_diff)(uint32_t a,
+                                                        uint32_t b));
 
 /* Always appends "name " + some info to the statusPath file
  *

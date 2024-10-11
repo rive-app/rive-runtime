@@ -5,7 +5,10 @@
 
 using namespace rive;
 
-void DataConverterGroup::addItem(DataConverterGroupItem* item) { m_items.push_back(item); }
+void DataConverterGroup::addItem(DataConverterGroupItem* item)
+{
+    m_items.push_back(item);
+}
 
 DataValue* DataConverterGroup::convert(DataValue* input)
 {

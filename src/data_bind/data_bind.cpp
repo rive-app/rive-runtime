@@ -39,7 +39,8 @@ StatusCode DataBind::onAddedDirty(CoreContext* context)
 StatusCode DataBind::import(ImportStack& importStack)
 {
 
-    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter =
+        importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -58,17 +59,20 @@ StatusCode DataBind::import(ImportStack& importStack)
             case TransitionPropertyViewModelComparatorBase::typeKey:
             {
                 auto stateMachineImporter =
-                    importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
+                    importStack.latest<StateMachineImporter>(
+                        StateMachineBase::typeKey);
                 if (stateMachineImporter != nullptr)
                 {
-                    stateMachineImporter->addDataBind(std::unique_ptr<DataBind>(this));
+                    stateMachineImporter->addDataBind(
+                        std::unique_ptr<DataBind>(this));
                     return Super::import(importStack);
                 }
                 break;
             }
             default:
             {
-                auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+                auto artboardImporter =
+                    importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
                 if (artboardImporter != nullptr)
                 {
                     artboardImporter->addDataBind(this);
@@ -114,29 +118,39 @@ void DataBind::bind()
     {
         case DataType::number:
             m_ContextValue =
-                rivestd::make_unique<DataBindContextValueNumber>(m_Source, converter());
+                rivestd::make_unique<DataBindContextValueNumber>(m_Source,
+                                                                 converter());
             break;
         case DataType::string:
             m_ContextValue =
-                rivestd::make_unique<DataBindContextValueString>(m_Source, converter());
+                rivestd::make_unique<DataBindContextValueString>(m_Source,
+                                                                 converter());
             break;
         case DataType::boolean:
             m_ContextValue =
-                rivestd::make_unique<DataBindContextValueBoolean>(m_Source, converter());
+                rivestd::make_unique<DataBindContextValueBoolean>(m_Source,
+                                                                  converter());
             break;
         case DataType::color:
-            m_ContextValue = rivestd::make_unique<DataBindContextValueColor>(m_Source, converter());
+            m_ContextValue =
+                rivestd::make_unique<DataBindContextValueColor>(m_Source,
+                                                                converter());
             break;
         case DataType::enumType:
-            m_ContextValue = rivestd::make_unique<DataBindContextValueEnum>(m_Source, converter());
+            m_ContextValue =
+                rivestd::make_unique<DataBindContextValueEnum>(m_Source,
+                                                               converter());
             break;
         case DataType::list:
-            m_ContextValue = rivestd::make_unique<DataBindContextValueList>(m_Source, converter());
+            m_ContextValue =
+                rivestd::make_unique<DataBindContextValueList>(m_Source,
+                                                               converter());
             m_ContextValue->update(m_target);
             break;
         case DataType::trigger:
             m_ContextValue =
-                rivestd::make_unique<DataBindContextValueTrigger>(m_Source, converter());
+                rivestd::make_unique<DataBindContextValueTrigger>(m_Source,
+                                                                  converter());
             break;
         default:
             break;
@@ -158,18 +172,20 @@ void DataBind::update(ComponentDirt value)
     if (m_Source != nullptr && m_ContextValue != nullptr)
     {
 
-        // Use the ComponentDirt::Components flag to indicate the viewmodel has added or removed
-        // an element to a list.
+        // Use the ComponentDirt::Components flag to indicate the viewmodel has
+        // added or removed an element to a list.
         if ((value & ComponentDirt::Components) == ComponentDirt::Components)
         {
             m_ContextValue->update(m_target);
         }
         if ((value & ComponentDirt::Bindings) == ComponentDirt::Bindings)
         {
-            // TODO: @hernan review how dirt and mode work together. If dirt is not set for
-            // certain modes, we might be able to skip the mode validation.
+            // TODO: @hernan review how dirt and mode work together. If dirt is
+            // not set for certain modes, we might be able to skip the mode
+            // validation.
             auto flagsValue = static_cast<DataBindFlags>(flags());
-            if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToTarget) ||
+            if (((flagsValue & DataBindFlags::Direction) ==
+                 DataBindFlags::ToTarget) ||
                 ((flagsValue & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
             {
                 m_ContextValue->apply(m_target,
@@ -189,10 +205,11 @@ void DataBind::updateSourceBinding()
     {
         if (m_ContextValue != nullptr)
         {
-            m_ContextValue->applyToSource(m_target,
-                                          propertyKey(),
-                                          (flagsValue & DataBindFlags::Direction) ==
-                                              DataBindFlags::ToSource);
+            m_ContextValue->applyToSource(
+                m_target,
+                propertyKey(),
+                (flagsValue & DataBindFlags::Direction) ==
+                    DataBindFlags::ToSource);
         }
     }
 }

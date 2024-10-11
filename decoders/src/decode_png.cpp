@@ -16,7 +16,9 @@ struct EncodedImageBuffer
     size_t size;
 };
 
-static void ReadDataFromMemory(png_structp png_ptr, png_bytep outBytes, png_size_t byteCountToRead)
+static void ReadDataFromMemory(png_structp png_ptr,
+                               png_bytep outBytes,
+                               png_size_t byteCountToRead)
 {
     png_voidp a = png_get_io_ptr(png_ptr);
     if (a == nullptr)
@@ -25,7 +27,8 @@ static void ReadDataFromMemory(png_structp png_ptr, png_bytep outBytes, png_size
     }
     EncodedImageBuffer& stream = *(EncodedImageBuffer*)a;
 
-    size_t bytesRead = std::min(byteCountToRead, (stream.size - stream.position));
+    size_t bytesRead =
+        std::min(byteCountToRead, (stream.size - stream.position));
     memcpy(outBytes, stream.bytes + stream.position, bytesRead);
     stream.position += bytesRead;
 
@@ -44,7 +47,10 @@ std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount)
     std::unique_ptr<uint8_t[]> pixelBuffer;
     std::unique_ptr<png_bytep[]> rowsPointer;
 
-    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING, nullptr, nullptr, nullptr);
+    png_ptr = png_create_read_struct(PNG_LIBPNG_VER_STRING,
+                                     nullptr,
+                                     nullptr,
+                                     nullptr);
 
     if (png_ptr == nullptr)
     {
@@ -102,7 +108,8 @@ std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount)
         png_set_strip_16(png_ptr);
     }
 
-    if (color_type == PNG_COLOR_TYPE_GRAY || color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
+    if (color_type == PNG_COLOR_TYPE_GRAY ||
+        color_type == PNG_COLOR_TYPE_GRAY_ALPHA)
     {
         png_set_gray_to_rgb(png_ptr);
     }
@@ -110,8 +117,9 @@ std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount)
     png_read_update_info(png_ptr, info_ptr);
     uint8_t channels = png_get_channels(png_ptr, info_ptr);
 
-    size_t pixelBufferSize =
-        static_cast<size_t>(width) * static_cast<size_t>(height) * static_cast<size_t>(channels);
+    size_t pixelBufferSize = static_cast<size_t>(width) *
+                             static_cast<size_t>(height) *
+                             static_cast<size_t>(channels);
     pixelBuffer = std::make_unique<uint8_t[]>(pixelBufferSize);
     const uint8_t* pixelBufferEnd = pixelBuffer.get() + pixelBufferSize;
 
@@ -145,5 +153,8 @@ std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount)
             pixelFormat = Bitmap::PixelFormat::RGB;
             break;
     }
-    return std::make_unique<Bitmap>(width, height, pixelFormat, std::move(pixelBuffer));
+    return std::make_unique<Bitmap>(width,
+                                    height,
+                                    pixelFormat,
+                                    std::move(pixelBuffer));
 }

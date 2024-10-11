@@ -17,7 +17,8 @@ namespace math
 {
 constexpr float PI = 3.14159265f;
 constexpr float SQRT2 = 1.41421356f;
-constexpr float EPSILON = 1.f / (1 << 12); // Common threshold for detecting values near zero.
+constexpr float EPSILON =
+    1.f / (1 << 12); // Common threshold for detecting values near zero.
 
 RIVE_MAYBE_UNUSED inline bool nearly_zero(float a, float tolerance = EPSILON)
 {
@@ -25,12 +26,15 @@ RIVE_MAYBE_UNUSED inline bool nearly_zero(float a, float tolerance = EPSILON)
     return fabsf(a) <= tolerance;
 }
 
-RIVE_MAYBE_UNUSED inline bool nearly_equal(float a, float b, float tolerance = EPSILON)
+RIVE_MAYBE_UNUSED inline bool nearly_equal(float a,
+                                           float b,
+                                           float tolerance = EPSILON)
 {
     return nearly_zero(b - a, tolerance);
 }
 
-// Performs a floating point division with conformant IEEE 754 behavior for NaN and Inf.
+// Performs a floating point division with conformant IEEE 754 behavior for NaN
+// and Inf.
 //
 //   Returns +/-Inf if b == 0.
 //   Returns 0 if b == +/-Inf.
@@ -100,7 +104,10 @@ RIVE_ALWAYS_INLINE static int clz64(uint64_t x)
 //   4..7 -> 3
 //   ...
 //
-RIVE_ALWAYS_INLINE static uint32_t msb(uint32_t x) { return x != 0 ? 32 - clz32(x) : 0; }
+RIVE_ALWAYS_INLINE static uint32_t msb(uint32_t x)
+{
+    return x != 0 ? 32 - clz32(x) : 0;
+}
 
 // Attempt to generate a "rotl" (rotate-left) assembly instruction.
 RIVE_ALWAYS_INLINE static uint32_t rotateleft32(uint32_t x, int y)
@@ -114,7 +121,8 @@ RIVE_ALWAYS_INLINE static uint32_t rotateleft32(uint32_t x, int y)
 
 // Returns x rounded up to the next multiple of N.
 // If x is already a multiple of N, returns x.
-template <size_t N, typename T> RIVE_ALWAYS_INLINE constexpr T round_up_to_multiple_of(T x)
+template <size_t N, typename T>
+RIVE_ALWAYS_INLINE constexpr T round_up_to_multiple_of(T x)
 {
     static_assert(N != 0 && (N & (N - 1)) == 0,
                   "math::round_up_to_multiple_of<> only supports powers of 2.");
@@ -134,10 +142,16 @@ RIVE_ALWAYS_INLINE static float clamp(float x, float lo, float hi)
 
 inline float degrees_to_radians(float degrees) { return degrees * PI / 180.0f; }
 
-RIVE_ALWAYS_INLINE static float degreesToRadians(float degrees) { return degrees * (PI / 180.0f); }
+RIVE_ALWAYS_INLINE static float degreesToRadians(float degrees)
+{
+    return degrees * (PI / 180.0f);
+}
 } // namespace math
 
-template <typename T> T lerp(const T& a, const T& b, float t) { return a + (b - a) * t; }
+template <typename T> T lerp(const T& a, const T& b, float t)
+{
+    return a + (b - a) * t;
+}
 } // namespace rive
 
 #endif

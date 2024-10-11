@@ -39,7 +39,10 @@ StatusCode Drawable::onAddedDirty(CoreContext* context)
     return StatusCode::InvalidObject;
 }
 
-void Drawable::addClippingShape(ClippingShape* shape) { m_ClippingShapes.push_back(shape); }
+void Drawable::addClippingShape(ClippingShape* shape)
+{
+    m_ClippingShapes.push_back(shape);
+}
 
 ClipResult Drawable::applyClip(Renderer* renderer) const
 {
@@ -65,8 +68,9 @@ ClipResult Drawable::applyClip(Renderer* renderer) const
         }
         else
         {
-            // If one renderPath is null we exit early because we are treating it
-            // as an empty path and its intersection will always be an empty path
+            // If one renderPath is null we exit early because we are treating
+            // it as an empty path and its intersection will always be an empty
+            // path
             return ClipResult::emptyClip;
         }
     }
@@ -75,9 +79,11 @@ ClipResult Drawable::applyClip(Renderer* renderer) const
 
 bool Drawable::isChildOfLayout(LayoutComponent* layout)
 {
-    for (ContainerComponent* parent = this; parent != nullptr; parent = parent->parent())
+    for (ContainerComponent* parent = this; parent != nullptr;
+         parent = parent->parent())
     {
-        if (parent->is<LayoutComponent>() && parent->as<LayoutComponent>() == layout)
+        if (parent->is<LayoutComponent>() &&
+            parent->as<LayoutComponent>() == layout)
         {
             return true;
         }

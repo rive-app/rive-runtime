@@ -11,8 +11,9 @@
 namespace rive::gpu
 {
 // WebGPU implementation that uses Vulkan input attachments,
-// VK_EXT_rasterization_order_attachment_access, and subpassLoad() for pixel local storage. These
-// Vulkan features are accessed via nonstandard WebGPU APIs.
+// VK_EXT_rasterization_order_attachment_access, and subpassLoad() for pixel
+// local storage. These Vulkan features are accessed via nonstandard WebGPU
+// APIs.
 class RenderContextWebGPUVulkan : public RenderContextWebGPUImpl
 {
 public:
@@ -23,26 +24,32 @@ public:
 protected:
     wgpu::BindGroupLayout initTextureBindGroup() override;
 
-    wgpu::RenderPipeline makeDrawPipeline(rive::gpu::DrawType drawType,
-                                          wgpu::TextureFormat framebufferFormat,
-                                          wgpu::ShaderModule vertexShader,
-                                          wgpu::ShaderModule fragmentShader,
-                                          EmJsHandle* pipelineJSHandleIfNeeded) override;
+    wgpu::RenderPipeline makeDrawPipeline(
+        rive::gpu::DrawType drawType,
+        wgpu::TextureFormat framebufferFormat,
+        wgpu::ShaderModule vertexShader,
+        wgpu::ShaderModule fragmentShader,
+        EmJsHandle* pipelineJSHandleIfNeeded) override;
 
-    wgpu::RenderPassEncoder makePLSRenderPass(wgpu::CommandEncoder,
-                                              const RenderTargetWebGPU*,
-                                              wgpu::LoadOp,
-                                              const wgpu::Color& clearColor,
-                                              EmJsHandle* renderPassJSHandleIfNeeded) override;
+    wgpu::RenderPassEncoder makePLSRenderPass(
+        wgpu::CommandEncoder,
+        const RenderTargetWebGPU*,
+        wgpu::LoadOp,
+        const wgpu::Color& clearColor,
+        EmJsHandle* renderPassJSHandleIfNeeded) override;
 
 private:
     friend class RenderContextWebGPUImpl;
 
-    RenderContextWebGPUVulkan(wgpu::Device device,
-                              wgpu::Queue queue,
-                              const ContextOptions& contextOptions,
-                              const gpu::PlatformFeatures& baselinePlatformFeatures) :
-        RenderContextWebGPUImpl(device, queue, contextOptions, baselinePlatformFeatures)
+    RenderContextWebGPUVulkan(
+        wgpu::Device device,
+        wgpu::Queue queue,
+        const ContextOptions& contextOptions,
+        const gpu::PlatformFeatures& baselinePlatformFeatures) :
+        RenderContextWebGPUImpl(device,
+                                queue,
+                                contextOptions,
+                                baselinePlatformFeatures)
     {
         assert(contextOptions.plsType == PixelLocalStorageType::subpassLoad);
     }

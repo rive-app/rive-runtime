@@ -71,7 +71,8 @@ static std::vector<std::string> split(const char* str, char delimiter)
     return tokens;
 }
 
-TestingWindow::Backend TestingWindow::ParseBackend(const char* name, std::string* gpuNameFilter)
+TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
+                                                   std::string* gpuNameFilter)
 {
     // Backends can come in the form <backendName>, or
     // <gpuNameFilter>/<backendName>.
@@ -79,7 +80,8 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name, std::string
     assert(!tokens.empty());
     if (gpuNameFilter != nullptr)
     {
-        *gpuNameFilter = tokens.size() > 1 ? tokens[tokens.size() - 2].c_str() : "";
+        *gpuNameFilter =
+            tokens.size() > 1 ? tokens[tokens.size() - 2].c_str() : "";
     }
     const std::string nameStr = tokens.back();
     if (nameStr == "gl")
@@ -162,10 +164,11 @@ TestingWindow* TestingWindow::Init(Backend backend,
 #ifndef RIVE_TOOLS_NO_GLFW
             if (!IsANGLE(backend) || visibility != Visibility::headless)
             {
-                s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
-                                                                   visibility,
-                                                                   gpuNameFilter,
-                                                                   platformWindow);
+                s_TestingWindow =
+                    TestingWindow::MakeFiddleContext(backend,
+                                                     visibility,
+                                                     gpuNameFilter,
+                                                     platformWindow);
             }
             else
 #endif
@@ -179,7 +182,8 @@ TestingWindow* TestingWindow::Init(Backend backend,
         case Backend::moltenvkcore:
         case Backend::swiftshader:
         case Backend::swiftshadercore:
-            if (backend == Backend::moltenvk || backend == Backend::moltenvkcore)
+            if (backend == Backend::moltenvk ||
+                backend == Backend::moltenvkcore)
             {
                 // Use the MoltenVK built by
                 // packages/runtime/renderer/make_moltenvk.sh
@@ -188,7 +192,8 @@ TestingWindow* TestingWindow::Init(Backend backend,
                     "MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json";
                 set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
             }
-            else if (backend == Backend::swiftshader || backend == Backend::swiftshadercore)
+            else if (backend == Backend::swiftshader ||
+                     backend == Backend::swiftshadercore)
             {
                 // Use the swiftshader built by
                 // packages/runtime/renderer/make_swiftshader.sh
@@ -208,20 +213,25 @@ TestingWindow* TestingWindow::Init(Backend backend,
 #ifdef RIVE_ANDROID
             if (platformWindow != nullptr)
             {
-                s_TestingWindow = TestingWindow::MakeAndroidVulkan(platformWindow, IsCore(backend));
+                s_TestingWindow =
+                    TestingWindow::MakeAndroidVulkan(platformWindow,
+                                                     IsCore(backend));
                 break;
             }
 #endif
             if (visibility == Visibility::headless)
             {
-                s_TestingWindow = TestingWindow::MakeVulkanTexture(IsCore(backend), gpuNameFilter);
+                s_TestingWindow =
+                    TestingWindow::MakeVulkanTexture(IsCore(backend),
+                                                     gpuNameFilter);
             }
             else
             {
-                s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
-                                                                   visibility,
-                                                                   gpuNameFilter,
-                                                                   platformWindow);
+                s_TestingWindow =
+                    TestingWindow::MakeFiddleContext(backend,
+                                                     visibility,
+                                                     gpuNameFilter,
+                                                     platformWindow);
             }
             break;
         case Backend::metal:
@@ -249,7 +259,9 @@ TestingWindow* TestingWindow::Init(Backend backend,
     }
     if (!s_TestingWindow)
     {
-        fprintf(stderr, "Failed to create testing window for Backend::%s\n", BackendName(backend));
+        fprintf(stderr,
+                "Failed to create testing window for Backend::%s\n",
+                BackendName(backend));
         abort();
     }
 

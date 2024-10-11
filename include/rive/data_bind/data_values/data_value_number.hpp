@@ -14,7 +14,10 @@ public:
     DataValueNumber(float value) : m_value(value){};
     DataValueNumber(){};
     static const DataType typeKey = DataType::number;
-    bool isTypeOf(DataType typeKey) const override { return typeKey == DataType::number; }
+    bool isTypeOf(DataType typeKey) const override
+    {
+        return typeKey == DataType::number;
+    }
     float value() { return m_value; };
     void value(float value) { m_value = value; };
     constexpr static const float defaultValue = 0;

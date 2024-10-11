@@ -23,7 +23,8 @@ void WritePNGFile(uint8_t* pixels,
     if (!fp)
     {
         fprintf(stderr,
-                "WritePNGFile: File %s could not be opened for writing (errno=%i)\n",
+                "WritePNGFile: File %s could not be opened for writing "
+                "(errno=%i)\n",
                 file_name,
                 errno);
         abort();
@@ -105,9 +106,12 @@ void WritePNGFile(uint8_t* pixels,
     fclose(fp);
 }
 
-static void append_png_data_chunk(png_structp png, png_bytep data, png_size_t length)
+static void append_png_data_chunk(png_structp png,
+                                  png_bytep data,
+                                  png_size_t length)
 {
-    auto encodedData = reinterpret_cast<std::vector<uint8_t>*>(png_get_io_ptr(png));
+    auto encodedData =
+        reinterpret_cast<std::vector<uint8_t>*>(png_get_io_ptr(png));
     encodedData->insert(encodedData->end(), data, data + length);
 }
 
@@ -150,7 +154,10 @@ std::vector<uint8_t> EncodePNGToBuffer(uint32_t width,
     }
 
     std::vector<uint8_t> encodedData;
-    png_set_write_fn(png, &encodedData, &append_png_data_chunk, &flush_png_data);
+    png_set_write_fn(png,
+                     &encodedData,
+                     &append_png_data_chunk,
+                     &flush_png_data);
 
     // Write header.
     if (setjmp(png_jmpbuf(png)))

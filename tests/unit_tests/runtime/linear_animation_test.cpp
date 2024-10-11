@@ -9,7 +9,9 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("LinearAnimation with positive speed have normal start and end seconds", "[animation]")
+TEST_CASE(
+    "LinearAnimation with positive speed have normal start and end seconds",
+    "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -33,7 +35,9 @@ TEST_CASE("LinearAnimation with positive speed have normal start and end seconds
     delete linearAnimation;
 }
 
-TEST_CASE("LinearAnimation with negative speed have reversed start and end seconds", "[animation]")
+TEST_CASE(
+    "LinearAnimation with negative speed have reversed start and end seconds",
+    "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -99,7 +103,8 @@ TEST_CASE("LinearAnimation reports when to keep going correctly", "[animation]")
     linearAnimation->workStart(30);
     linearAnimation->workEnd(42);
 
-    auto animationInstance = rive::LinearAnimationInstance(linearAnimation, abi.get());
+    auto animationInstance =
+        rive::LinearAnimationInstance(linearAnimation, abi.get());
 
     REQUIRE(animationInstance.advance(0.0f));
     REQUIRE(animationInstance.time() == 0.5f);
@@ -117,7 +122,9 @@ private:
     std::vector<uint32_t> m_reportedObjects;
 
 public:
-    void reportKeyedCallback(uint32_t objectId, uint32_t propertyKey, float elapsedSeconds) override
+    void reportKeyedCallback(uint32_t objectId,
+                             uint32_t propertyKey,
+                             float elapsedSeconds) override
     {
         m_reportedObjects.push_back(objectId);
     }

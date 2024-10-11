@@ -47,7 +47,12 @@ void RiveRenderPath::lineTo(float x, float y)
     m_dirt = kAllDirt;
 }
 
-void RiveRenderPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+void RiveRenderPath::cubicTo(float ox,
+                             float oy,
+                             float ix,
+                             float iy,
+                             float x,
+                             float y)
 {
     assert(m_rawPathMutationLockCount == 0);
 
@@ -76,7 +81,8 @@ void RiveRenderPath::addRenderPath(RenderPath* path, const Mat2D& matrix)
 {
     assert(m_rawPathMutationLockCount == 0);
     RiveRenderPath* riveRenderPath = static_cast<RiveRenderPath*>(path);
-    RawPath::Iter transformedPathIter = m_rawPath.addPath(riveRenderPath->m_rawPath, &matrix);
+    RawPath::Iter transformedPathIter =
+        m_rawPath.addPath(riveRenderPath->m_rawPath, &matrix);
     if (matrix != Mat2D())
     {
         // Prune any segments that became empty after the transform.
@@ -119,8 +125,10 @@ float RiveRenderPath::getCoarseArea() const
                     RIVE_UNREACHABLE();
                 case PathVerb::cubic:
                 {
-                    // Linearize the cubic in artboard space, then add up the area for each segment.
-                    float n = ceilf(wangs_formula::cubic(pts, 1.f / kCoarseAreaTolerance));
+                    // Linearize the cubic in artboard space, then add up the
+                    // area for each segment.
+                    float n = ceilf(
+                        wangs_formula::cubic(pts, 1.f / kCoarseAreaTolerance));
                     if (n > 1)
                     {
                         n = std::min(n, 64.f);
@@ -170,7 +178,8 @@ void RiveRenderPath::setDrawCache(gpu::RiveRenderPathDraw* drawCache,
                                   rive::RiveRenderPaint* riveRenderPaint) const
 {
     CacheElements& cache =
-        m_cachedElements[riveRenderPaint->getIsStroked() ? CACHE_STROKED : CACHE_FILLED];
+        m_cachedElements[riveRenderPaint->getIsStroked() ? CACHE_STROKED
+                                                         : CACHE_FILLED];
 
     cache.draw = drawCache;
 
@@ -187,11 +196,12 @@ void RiveRenderPath::setDrawCache(gpu::RiveRenderPathDraw* drawCache,
     }
 }
 
-gpu::DrawUniquePtr RiveRenderPath::getDrawCache(const Mat2D& matrix,
-                                                const RiveRenderPaint* paint,
-                                                FillRule fillRule,
-                                                TrivialBlockAllocator* allocator,
-                                                gpu::InterlockMode interlockMode) const
+gpu::DrawUniquePtr RiveRenderPath::getDrawCache(
+    const Mat2D& matrix,
+    const RiveRenderPaint* paint,
+    FillRule fillRule,
+    TrivialBlockAllocator* allocator,
+    gpu::InterlockMode interlockMode) const
 {
     const CacheElements& cache =
         m_cachedElements[paint->getIsStroked() ? CACHE_STROKED : CACHE_FILLED];
@@ -219,18 +229,19 @@ gpu::DrawUniquePtr RiveRenderPath::getDrawCache(const Mat2D& matrix,
         }
     }
 
-    if (matrix.xx() != cache.xx || matrix.xy() != cache.xy || matrix.yx() != cache.yx ||
-        matrix.yy() != cache.yy)
+    if (matrix.xx() != cache.xx || matrix.xy() != cache.xy ||
+        matrix.yx() != cache.yx || matrix.yy() != cache.yy)
     {
         return nullptr;
     }
 
-    return gpu::DrawUniquePtr(allocator->make<gpu::RiveRenderPathDraw>(*cache.draw,
-                                                                       matrix.tx(),
-                                                                       matrix.ty(),
-                                                                       ref_rcp(this),
-                                                                       fillRule,
-                                                                       paint,
-                                                                       interlockMode));
+    return gpu::DrawUniquePtr(
+        allocator->make<gpu::RiveRenderPathDraw>(*cache.draw,
+                                                 matrix.tx(),
+                                                 matrix.ty(),
+                                                 ref_rcp(this),
+                                                 fillRule,
+                                                 paint,
+                                                 interlockMode));
 }
 } // namespace rive

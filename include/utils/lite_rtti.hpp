@@ -2,9 +2,10 @@
  * Copyright 2023 Rive
  */
 
-// "lite_rtti_cast<T*>()" is a very basic polyfill for "dynamic_cast<T*>()" that can only cast a
-// pointer to its most-derived type. To use it, the base class must derive from enable_lite_rtti,
-// and the subclass must inherit from lite_rtti_override:
+// "lite_rtti_cast<T*>()" is a very basic polyfill for "dynamic_cast<T*>()" that
+// can only cast a pointer to its most-derived type. To use it, the base class
+// must derive from enable_lite_rtti, and the subclass must inherit from
+// lite_rtti_override:
 //
 //     class Root : public enable_lite_rtti<Root> {};
 //     class Derived : public lite_rtti_override<Root, Derived> {};
@@ -61,7 +62,9 @@ public:
 // Like dynamic_cast<>, but can only cast a pointer to its most-derived type.
 template <class U, class T> U lite_rtti_cast(T* t)
 {
-    if (t != nullptr && t->liteTypeID() == lite_type_id<typename std::remove_pointer<U>::type>())
+    if (t != nullptr &&
+        t->liteTypeID() ==
+            lite_type_id<typename std::remove_pointer<U>::type>())
     {
         return static_cast<U>(t);
     }

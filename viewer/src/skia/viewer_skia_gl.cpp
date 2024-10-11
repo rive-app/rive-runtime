@@ -7,7 +7,9 @@
 
 sk_sp<GrDirectContext> makeSkiaContext() { return GrDirectContext::MakeGL(); }
 
-sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context, int width, int height)
+sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context,
+                                 int width,
+                                 int height)
 {
     GrGLFramebufferInfo framebufferInfo;
     framebufferInfo.fFBOID = 0;

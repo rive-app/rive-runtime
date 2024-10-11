@@ -41,7 +41,8 @@ class Paint
 
 public:
     Paint() : m_Paint(TestingWindow::Get()->factory()->makeRenderPaint()) {}
-    Paint(rive::ColorInt c) : m_Paint(TestingWindow::Get()->factory()->makeRenderPaint())
+    Paint(rive::ColorInt c) :
+        m_Paint(TestingWindow::Get()->factory()->makeRenderPaint())
     {
         m_Paint->color(c);
     }
@@ -81,7 +82,9 @@ enum class PathDirection
     ccw = counterclockwise,
 };
 
-void path_addOval(rive::RenderPath*, rive::AABB bounds, PathDirection = PathDirection::cw);
+void path_addOval(rive::RenderPath*,
+                  rive::AABB bounds,
+                  PathDirection = PathDirection::cw);
 
 void draw_rect(rive::Renderer* r, rive::AABB rect, rive::RenderPaint*);
 void draw_oval(rive::Renderer* r, rive::AABB rect, rive::RenderPaint*);
@@ -102,7 +105,10 @@ public:
     {
         return PathBuilder().addOval(bounds, dir).detach();
     }
-    static Path Circle(float x, float y, float r, PathDirection dir = PathDirection::cw)
+    static Path Circle(float x,
+                       float y,
+                       float r,
+                       PathDirection dir = PathDirection::cw)
     {
         return PathBuilder().addCircle(x, y, r, dir).detach();
     }
@@ -114,19 +120,30 @@ public:
                         bool doClose,
                         rive::FillRule fillRule = rive::FillRule::nonZero)
     {
-        return PathBuilder().addPolygon(pts, doClose).fillRule(fillRule).detach();
+        return PathBuilder()
+            .addPolygon(pts, doClose)
+            .fillRule(fillRule)
+            .detach();
     }
 
     PathBuilder& fillRule(rive::FillRule f);
     PathBuilder& moveTo(float x, float y);
     PathBuilder& lineTo(float x, float y);
     PathBuilder& quadTo(float ox, float oy, float x, float y);
-    PathBuilder& cubicTo(float ox, float oy, float ix, float iy, float x, float y);
+    PathBuilder& cubicTo(float ox,
+                         float oy,
+                         float ix,
+                         float iy,
+                         float x,
+                         float y);
     PathBuilder& close();
 
     PathBuilder& addRect(rive::AABB rect, PathDirection = PathDirection::cw);
     PathBuilder& addOval(rive::AABB rect, PathDirection = PathDirection::cw);
-    PathBuilder& addCircle(float x, float y, float r, PathDirection = PathDirection::cw);
+    PathBuilder& addCircle(float x,
+                           float y,
+                           float r,
+                           PathDirection = PathDirection::cw);
     PathBuilder& addRRect(rive::AABB rect, float radX, float radY);
     PathBuilder& addPolygon(const std::vector<rive::Vec2D>&, bool doClose);
     PathBuilder& polylineTo(const std::vector<rive::Vec2D>&);

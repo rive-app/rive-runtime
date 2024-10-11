@@ -18,14 +18,15 @@ static void execute_tool()
     const char* pngServer = nullptr;
     for (int i = 1; i < tool_argc - 1; ++i)
     {
-        if (strcmp(tool_argv[i], "--output") == 0 || strcmp(tool_argv[i], "-o") == 0)
+        if (strcmp(tool_argv[i], "--output") == 0 ||
+            strcmp(tool_argv[i], "-o") == 0)
         {
             pngServer = tool_argv[i + 1];
         }
     }
 
-    // If there's a PNG server, wait until the app is granted local network permissions and can
-    // connect.
+    // If there's a PNG server, wait until the app is granted local network
+    // permissions and can connect.
     if (pngServer != nullptr)
     {
         auto tcpCheck = TCPClient::Connect(pngServer);
@@ -33,7 +34,8 @@ static void execute_tool()
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             tcpCheck = TCPClient::Connect(pngServer);
-            printf("Ensure the device is connected to WiFi, is on the same local network as the "
+            printf("Ensure the device is connected to WiFi, is on the same "
+                   "local network as the "
                    "host, and app has local network permissions.\n");
         }
     }

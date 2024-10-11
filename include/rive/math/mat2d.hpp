@@ -13,7 +13,12 @@ class Mat2D
 {
 public:
     constexpr Mat2D() : m_buffer{{1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f}} {}
-    constexpr Mat2D(float x1, float y1, float x2, float y2, float tx, float ty) :
+    constexpr Mat2D(float x1,
+                    float y1,
+                    float x2,
+                    float y2,
+                    float tx,
+                    float ty) :
         m_buffer{{x1, y1, x2, y2, tx, ty}}
     {}
 
@@ -24,7 +29,10 @@ public:
 
     static Mat2D fromRotation(float rad);
     static Mat2D fromScale(float sx, float sy) { return {sx, 0, 0, sy, 0, 0}; }
-    static Mat2D fromTranslate(float tx, float ty) { return {1, 0, 0, 1, tx, ty}; }
+    static Mat2D fromTranslate(float tx, float ty)
+    {
+        return {1, 0, 0, 1, tx, ty};
+    }
     static Mat2D fromTranslation(Vec2D translation)
     {
         return {1, 0, 0, 1, translation.x, translation.y};
@@ -45,8 +53,8 @@ public:
     // Sets dst[i] = M * pts[i] for i in 0..n-1.
     void mapPoints(Vec2D dst[], const Vec2D pts[], size_t n) const;
 
-    // Computes a bounding box that would tightly contain the given points if they were to all be
-    // transformed by this matrix, ignoring NaN values.
+    // Computes a bounding box that would tightly contain the given points if
+    // they were to all be transformed by this matrix, ignoring NaN values.
     // Returns {0, 0, 0, 0} if the given points are empty or all NaN.
     AABB mapBoundingBox(const Vec2D pts[], size_t n) const;
     AABB mapBoundingBox(const AABB&) const;
@@ -98,12 +106,15 @@ inline Vec2D operator*(const Mat2D& m, Vec2D v)
     };
 }
 
-inline Mat2D operator*(const Mat2D& a, const Mat2D& b) { return Mat2D::multiply(a, b); }
+inline Mat2D operator*(const Mat2D& a, const Mat2D& b)
+{
+    return Mat2D::multiply(a, b);
+}
 
 inline bool operator==(const Mat2D& a, const Mat2D& b)
 {
-    return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] && a[4] == b[4] &&
-           a[5] == b[5];
+    return a[0] == b[0] && a[1] == b[1] && a[2] == b[2] && a[3] == b[3] &&
+           a[4] == b[4] && a[5] == b[5];
 }
 
 inline bool operator!=(const Mat2D& a, const Mat2D& b) { return !(a == b); }

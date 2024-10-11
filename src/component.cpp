@@ -27,7 +27,10 @@ StatusCode Component::onAddedDirty(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void Component::addDependent(Component* component) { m_DependencyHelper.addDependent(component); }
+void Component::addDependent(Component* component)
+{
+    m_DependencyHelper.addDependent(component);
+}
 
 bool Component::addDirt(ComponentDirt value, bool recurse)
 {
@@ -63,7 +66,8 @@ StatusCode Component::import(ImportStack& importStack)
         return Super::import(importStack);
     }
 
-    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    auto artboardImporter =
+        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr)
     {
         return StatusCode::MissingObject;

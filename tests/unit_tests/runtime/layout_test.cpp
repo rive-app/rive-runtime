@@ -13,13 +13,16 @@ TEST_CASE("LayoutComponent FlexDirection row", "[layout]")
 
     auto artboard = file->artboard();
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent1") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent1") !=
+            nullptr);
     auto target1 = artboard->find<rive::LayoutComponent>("LayoutComponent1");
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent2") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent2") !=
+            nullptr);
     auto target2 = artboard->find<rive::LayoutComponent>("LayoutComponent2");
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent3") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent3") !=
+            nullptr);
     auto target3 = artboard->find<rive::LayoutComponent>("LayoutComponent3");
 
     artboard->advance(0.0f);
@@ -41,13 +44,16 @@ TEST_CASE("LayoutComponent FlexDirection column", "[layout]")
 
     auto artboard = file->artboard();
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent1") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent1") !=
+            nullptr);
     auto target1 = artboard->find<rive::LayoutComponent>("LayoutComponent1");
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent2") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent2") !=
+            nullptr);
     auto target2 = artboard->find<rive::LayoutComponent>("LayoutComponent2");
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent3") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent3") !=
+            nullptr);
     auto target3 = artboard->find<rive::LayoutComponent>("LayoutComponent3");
 
     artboard->advance(0.0f);
@@ -69,13 +75,16 @@ TEST_CASE("LayoutComponent FlexDirection row with gap", "[layout]")
 
     auto artboard = file->artboard();
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent1") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent1") !=
+            nullptr);
     auto target1 = artboard->find<rive::LayoutComponent>("LayoutComponent1");
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent2") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent2") !=
+            nullptr);
     auto target2 = artboard->find<rive::LayoutComponent>("LayoutComponent2");
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent3") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent3") !=
+            nullptr);
     auto target3 = artboard->find<rive::LayoutComponent>("LayoutComponent3");
 
     artboard->advance(0.0f);
@@ -97,7 +106,8 @@ TEST_CASE("LayoutComponent FlexDirection row with wrap", "[layout]")
 
     auto artboard = file->artboard();
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent6") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent6") !=
+            nullptr);
     auto target = artboard->find<rive::LayoutComponent>("LayoutComponent6");
 
     artboard->advance(0.0f);
@@ -107,13 +117,15 @@ TEST_CASE("LayoutComponent FlexDirection row with wrap", "[layout]")
     REQUIRE(targetComponents.y() == 100);
 }
 
-TEST_CASE("LayoutComponent Center using alignItems and justifyContent", "[layout]")
+TEST_CASE("LayoutComponent Center using alignItems and justifyContent",
+          "[layout]")
 {
     auto file = ReadRiveFile("assets/layout/layout_center.riv");
 
     auto artboard = file->artboard();
 
-    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent1") != nullptr);
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutComponent1") !=
+            nullptr);
     auto target = artboard->find<rive::LayoutComponent>("LayoutComponent1");
 
     artboard->advance(0.0f);
@@ -123,7 +135,8 @@ TEST_CASE("LayoutComponent Center using alignItems and justifyContent", "[layout
     REQUIRE(targetComponents.y() == 200);
 }
 
-TEST_CASE("LayoutComponent with intrinsic size gets measured correctly", "[layout]")
+TEST_CASE("LayoutComponent with intrinsic size gets measured correctly",
+          "[layout]")
 {
     auto file = ReadRiveFile("assets/layout/measure_tests.riv");
 

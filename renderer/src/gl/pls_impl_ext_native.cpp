@@ -14,8 +14,8 @@
 
 namespace rive::gpu
 {
-// Wraps an EXT_shader_pixel_local_storage load/store program, described by a set of
-// LoadStoreActions.
+// Wraps an EXT_shader_pixel_local_storage load/store program, described by a
+// set of LoadStoreActions.
 class PLSLoadStoreProgram
 {
 public:
@@ -39,14 +39,16 @@ public:
             glsl << "#define " GLSL_ENABLE_CLIPPING "\n";
         }
         BuildLoadStoreEXTGLSL(glsl, actions);
-        GLuint fragmentShader = glutils::CompileRawGLSL(GL_FRAGMENT_SHADER, glsl.str().c_str());
+        GLuint fragmentShader =
+            glutils::CompileRawGLSL(GL_FRAGMENT_SHADER, glsl.str().c_str());
         glAttachShader(m_id, fragmentShader);
         glDeleteShader(fragmentShader);
 
         glutils::LinkProgram(m_id);
         if (actions & LoadStoreActionsEXT::clearColor)
         {
-            m_colorClearUniLocation = glGetUniformLocation(m_id, GLSL_clearColor);
+            m_colorClearUniLocation =
+                glGetUniformLocation(m_id, GLSL_clearColor);
         }
     }
 
@@ -61,10 +63,13 @@ private:
     const rcp<GLState> m_state;
 };
 
-class RenderContextGLImpl::PLSImplEXTNative : public RenderContextGLImpl::PixelLocalStorageImpl
+class RenderContextGLImpl::PLSImplEXTNative
+    : public RenderContextGLImpl::PixelLocalStorageImpl
 {
 public:
-    PLSImplEXTNative(const GLCapabilities& capabilities) : m_capabilities(capabilities) {}
+    PLSImplEXTNative(const GLCapabilities& capabilities) :
+        m_capabilities(capabilities)
+    {}
 
     ~PLSImplEXTNative()
     {
@@ -80,13 +85,18 @@ public:
 
     void init(rcp<GLState> state) override { m_state = std::move(state); }
 
-    bool supportsRasterOrdering(const GLCapabilities&) const override { return true; }
-    bool supportsFragmentShaderAtomics(const GLCapabilities& capabilities) const override
+    bool supportsRasterOrdering(const GLCapabilities&) const override
+    {
+        return true;
+    }
+    bool supportsFragmentShaderAtomics(
+        const GLCapabilities& capabilities) const override
     {
         return false;
     }
 
-    void activatePixelLocalStorage(RenderContextGLImpl* impl, const FlushDescriptor& desc) override
+    void activatePixelLocalStorage(RenderContextGLImpl* impl,
+                                   const FlushDescriptor& desc) override
     {
         assert(impl->m_capabilities.EXT_shader_pixel_local_storage);
         assert(impl->m_capabilities.EXT_shader_framebuffer_fetch ||
@@ -101,20 +111,24 @@ public:
         if ((actions & LoadStoreActionsEXT::clearColor) &&
             simd::all(simd::load4f(clearColor4f.data()) == 0))
         {
-            // glClear() is only well-defined for EXT_shader_pixel_local_storage when the clear
-            // color is zero, and it zeros out every plane of pixel local storage.
+            // glClear() is only well-defined for EXT_shader_pixel_local_storage
+            // when the clear color is zero, and it zeros out every plane of
+            // pixel local storage.
             glClearColor(0, 0, 0, 0);
             glClear(GL_COLOR_BUFFER_BIT);
         }
         else
         {
-            // Otherwise we have to initialize pixel local storage with a fullscreen draw.
+            // Otherwise we have to initialize pixel local storage with a
+            // fullscreen draw.
             const PLSLoadStoreProgram& plsProgram =
                 findLoadStoreProgram(actions, desc.combinedShaderFeatures);
             m_state->bindProgram(plsProgram.id());
             if (plsProgram.clearColorUniLocation() >= 0)
             {
-                glUniform4fv(plsProgram.clearColorUniLocation(), 1, clearColor4f.data());
+                glUniform4fv(plsProgram.clearColorUniLocation(),
+                             1,
+                             clearColor4f.data());
             }
             m_state->bindVAO(m_plsLoadStoreVAO);
             glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
@@ -124,28 +138,32 @@ public:
     void deactivatePixelLocalStorage(RenderContextGLImpl* impl,
                                      const FlushDescriptor& desc) override
     {
-        // Issue a fullscreen draw that transfers the color information in pixel local storage to
-        // the main framebuffer.
+        // Issue a fullscreen draw that transfers the color information in pixel
+        // local storage to the main framebuffer.
         LoadStoreActionsEXT actions = LoadStoreActionsEXT::storeColor;
-        m_state->bindProgram(findLoadStoreProgram(actions, desc.combinedShaderFeatures).id());
+        m_state->bindProgram(
+            findLoadStoreProgram(actions, desc.combinedShaderFeatures).id());
         m_state->bindVAO(m_plsLoadStoreVAO);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 
         glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
     }
 
-    void pushShaderDefines(gpu::InterlockMode, std::vector<const char*>* defines) const override
+    void pushShaderDefines(gpu::InterlockMode,
+                           std::vector<const char*>* defines) const override
     {
         defines->push_back(GLSL_PLS_IMPL_EXT_NATIVE);
     }
 
 private:
-    const PLSLoadStoreProgram& findLoadStoreProgram(LoadStoreActionsEXT actions,
-                                                    gpu::ShaderFeatures combinedShaderFeatures)
+    const PLSLoadStoreProgram& findLoadStoreProgram(
+        LoadStoreActionsEXT actions,
+        gpu::ShaderFeatures combinedShaderFeatures)
     {
-        bool hasClipping = combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING;
-        uint32_t programKey =
-            (static_cast<uint32_t>(actions) << 1) | static_cast<uint32_t>(hasClipping);
+        bool hasClipping =
+            combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING;
+        uint32_t programKey = (static_cast<uint32_t>(actions) << 1) |
+                              static_cast<uint32_t>(hasClipping);
 
         if (m_plsLoadStoreVertexShaders[hasClipping] == 0)
         {
@@ -173,13 +191,14 @@ private:
 
     const GLCapabilities m_capabilities;
     std::map<uint32_t, PLSLoadStoreProgram> m_plsLoadStorePrograms;
-    GLuint m_plsLoadStoreVertexShaders[2] = {0}; // One with a clip plane and one without.
+    GLuint m_plsLoadStoreVertexShaders[2] = {
+        0}; // One with a clip plane and one without.
     GLuint m_plsLoadStoreVAO = 0;
     rcp<GLState> m_state;
 };
 
-std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl> RenderContextGLImpl::
-    MakePLSImplEXTNative(const GLCapabilities& capabilities)
+std::unique_ptr<RenderContextGLImpl::PixelLocalStorageImpl>
+RenderContextGLImpl::MakePLSImplEXTNative(const GLCapabilities& capabilities)
 {
     return std::make_unique<PLSImplEXTNative>(capabilities);
 }

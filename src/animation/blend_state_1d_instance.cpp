@@ -9,15 +9,16 @@ BlendState1DInstance::BlendState1DInstance(const BlendState1D* blendState,
     BlendStateInstance<BlendState1D, BlendAnimation1D>(blendState, instance)
 {
 
-    if ((static_cast<LayerStateFlags>(blendState->flags()) & LayerStateFlags::Reset) ==
-        LayerStateFlags::Reset)
+    if ((static_cast<LayerStateFlags>(blendState->flags()) &
+         LayerStateFlags::Reset) == LayerStateFlags::Reset)
     {
         auto animations = std::vector<const LinearAnimation*>();
         for (auto blendAnimation : blendState->animations())
         {
             animations.push_back(blendAnimation->animation());
         }
-        m_AnimationReset = AnimationResetFactory::fromAnimations(animations, instance, true);
+        m_AnimationReset =
+            AnimationResetFactory::fromAnimations(animations, instance, true);
     }
 }
 
@@ -69,9 +70,12 @@ void BlendState1DInstance::apply(ArtboardInstance* instance, float mix)
     BlendStateInstance::apply(instance, mix);
 }
 
-void BlendState1DInstance::advance(float seconds, StateMachineInstance* stateMachineInstance)
+void BlendState1DInstance::advance(float seconds,
+                                   StateMachineInstance* stateMachineInstance)
 {
-    BlendStateInstance<BlendState1D, BlendAnimation1D>::advance(seconds, stateMachineInstance);
+    BlendStateInstance<BlendState1D, BlendAnimation1D>::advance(
+        seconds,
+        stateMachineInstance);
 
     auto blendState = state()->as<BlendState1D>();
     float value = 0.0f;
@@ -84,13 +88,16 @@ void BlendState1DInstance::advance(float seconds, StateMachineInstance* stateMac
     }
     int index = animationIndex(value);
     auto animationsCount = static_cast<int>(m_AnimationInstances.size());
-    m_To = index >= 0 && index < animationsCount ? &m_AnimationInstances[index] : nullptr;
-    m_From =
-        index - 1 >= 0 && index - 1 < animationsCount ? &m_AnimationInstances[index - 1] : nullptr;
+    m_To = index >= 0 && index < animationsCount ? &m_AnimationInstances[index]
+                                                 : nullptr;
+    m_From = index - 1 >= 0 && index - 1 < animationsCount
+                 ? &m_AnimationInstances[index - 1]
+                 : nullptr;
 
     float mix, mixFrom;
     auto toValue = m_To == nullptr ? 0.0f : m_To->blendAnimation()->value();
-    auto fromValue = m_From == nullptr ? 0.0f : m_From->blendAnimation()->value();
+    auto fromValue =
+        m_From == nullptr ? 0.0f : m_From->blendAnimation()->value();
 
     if (m_To == nullptr || m_From == nullptr || toValue == fromValue)
     {

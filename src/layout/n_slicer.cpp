@@ -58,7 +58,8 @@ void NSlicer::addTileMode(int patchIndex, NSlicerTileModeType style)
 
 void NSlicer::update(ComponentDirt value)
 {
-    if (hasDirt(value, ComponentDirt::Path) || hasDirt(value, ComponentDirt::WorldTransform))
+    if (hasDirt(value, ComponentDirt::Path) ||
+        hasDirt(value, ComponentDirt::WorldTransform))
     {
         if (m_sliceMesh != nullptr)
         {

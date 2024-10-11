@@ -182,14 +182,17 @@ TEST_CASE("file with in-band images can have the stripped", "[file]")
         auto strippedBytes = rive::File::stripAssets(bytes, {}, &stripResult);
         REQUIRE(stripResult == rive::ImportResult::success);
         REQUIRE(bytes.size() == strippedBytes.size());
-        REQUIRE(std::memcmp(bytes.data(), strippedBytes.data(), bytes.size()) == 0);
+        REQUIRE(std::memcmp(bytes.data(), strippedBytes.data(), bytes.size()) ==
+                0);
     }
 
     // Strip image assets should result in a smaller file.
     {
         rive::ImportResult stripResult;
         auto strippedBytes =
-            rive::File::stripAssets(bytes, {rive::ImageAsset::typeKey}, &stripResult);
+            rive::File::stripAssets(bytes,
+                                    {rive::ImageAsset::typeKey},
+                                    &stripResult);
         REQUIRE(stripResult == rive::ImportResult::success);
         REQUIRE(strippedBytes.size() < bytes.size());
     }

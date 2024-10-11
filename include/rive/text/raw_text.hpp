@@ -47,7 +47,8 @@ public:
     /// How text aligns within the bounds.
     void align(TextAlign value);
 
-    /// The width at which the text will wrap when using any sizing but TextSizing::auto.
+    /// The width at which the text will wrap when using any sizing but
+    /// TextSizing::auto.
     void maxWidth(float value);
 
     /// The height at which the text will overflow when using TextSizing::fixed.

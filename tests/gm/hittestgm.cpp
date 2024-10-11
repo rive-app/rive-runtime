@@ -104,7 +104,8 @@ class HitTestGM : public GM
 
 public:
     HitTestGM(rive::FillRule fr) :
-        GM(320, 460, ("hittest_" + fillrule_to_name(fr)).c_str()), m_FillRule(fr)
+        GM(320, 460, ("hittest_" + fillrule_to_name(fr)).c_str()),
+        m_FillRule(fr)
     {}
 
     void onDraw(rive::Renderer* renderer) override

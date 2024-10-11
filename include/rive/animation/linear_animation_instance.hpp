@@ -14,7 +14,9 @@ class NestedEventNotifier;
 class LinearAnimationInstance : public Scene, public NestedEventNotifier
 {
 public:
-    LinearAnimationInstance(const LinearAnimation*, ArtboardInstance*, float speedMultiplier = 1.0);
+    LinearAnimationInstance(const LinearAnimation*,
+                            ArtboardInstance*,
+                            float speedMultiplier = 1.0);
     LinearAnimationInstance(LinearAnimationInstance const&);
     ~LinearAnimationInstance() override;
 
@@ -58,7 +60,10 @@ public:
     // Applies the animation instance to its artboard instance. The mix (a value
     // between 0 and 1) is the strength at which the animation is mixed with
     // other animations applied to the artboard.
-    void apply(float mix = 1.0f) const { m_animation->apply(m_artboardInstance, m_time, mix); }
+    void apply(float mix = 1.0f) const
+    {
+        m_animation->apply(m_artboardInstance, m_time, mix);
+    }
 
     // Set when the animation is advanced, true if the animation has stopped
     // (oneShot), reached the end (loop), or changed direction (pingPong)
@@ -74,8 +79,10 @@ public:
     bool keepGoing(float speedMultiplier) const
     {
         return this->loopValue() != static_cast<int>(rive::Loop::oneShot) ||
-               (directedSpeed() * speedMultiplier > 0 && m_time < m_animation->endSeconds()) ||
-               (directedSpeed() * speedMultiplier < 0 && m_time > m_animation->startSeconds());
+               (directedSpeed() * speedMultiplier > 0 &&
+                m_time < m_animation->endSeconds()) ||
+               (directedSpeed() * speedMultiplier < 0 &&
+                m_time > m_animation->startSeconds());
     }
 
     float totalTime() const { return m_totalTime; }

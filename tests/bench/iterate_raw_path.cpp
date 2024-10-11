@@ -9,10 +9,14 @@
 
 using namespace rive;
 
-static Vec2D randpt() { return Vec2D(float(rand()), float(rand())) * 100 / (float)RAND_MAX; }
+static Vec2D randpt()
+{
+    return Vec2D(float(rand()), float(rand())) * 100 / (float)RAND_MAX;
+}
 
-// Measure the speed of RawPath iteration. In an attempt to be representative of algorithms that
-// need to know p0 for lines and cubics, we sum up the midpoints of lines and cubics.
+// Measure the speed of RawPath iteration. In an attempt to be representative of
+// algorithms that need to know p0 for lines and cubics, we sum up the midpoints
+// of lines and cubics.
 class IterateRawPath : public Bench
 {
 public:

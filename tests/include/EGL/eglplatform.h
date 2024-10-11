@@ -54,8 +54,8 @@ typedef void* EGLNativeDisplayType;
 typedef void* EGLNativePixmapType;
 typedef void* EGLNativeWindowType;
 
-#elif defined(_WIN32) ||                                                                           \
-    defined(__VC32__) && !defined(__CYGWIN__) && !defined(__SCITECH_SNAP__) /* Win32 and WinCE */
+#elif defined(_WIN32) || defined(__VC32__) && !defined(__CYGWIN__) &&          \
+                             !defined(__SCITECH_SNAP__) /* Win32 and WinCE */
 #ifndef WIN32_LEAN_AND_MEAN
 #define WIN32_LEAN_AND_MEAN 1
 #endif
@@ -64,9 +64,10 @@ typedef void* EGLNativeWindowType;
 typedef HDC EGLNativeDisplayType;
 typedef HBITMAP EGLNativePixmapType;
 
-#if !defined(WINAPI_FAMILY) || (WINAPI_FAMILY == WINAPI_FAMILY_DESKTOP_APP) /* Windows Desktop */
+#if !defined(WINAPI_FAMILY) ||                                                 \
+    (WINAPI_FAMILY == WINAPI_FAMILY_DESKTOP_APP) /* Windows Desktop */
 typedef HWND EGLNativeWindowType;
-#else                                                                       /* Windows Store */
+#else                                            /* Windows Store */
 #include <inspectable.h>
 typedef IInspectable* EGLNativeWindowType;
 #endif

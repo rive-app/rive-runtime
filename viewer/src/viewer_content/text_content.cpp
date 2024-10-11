@@ -82,8 +82,10 @@ static float drawpara(rive::Factory* factory,
         while (runIndex != endRun)
         {
             const auto& run = paragraph.runs[runIndex];
-            int startGIndex = runIndex == line.startRunIndex ? line.startGlyphIndex : 0;
-            int endGIndex = runIndex == line.endRunIndex ? line.endGlyphIndex : run.glyphs.size();
+            int startGIndex =
+                runIndex == line.startRunIndex ? line.startGlyphIndex : 0;
+            int endGIndex = runIndex == line.endRunIndex ? line.endGlyphIndex
+                                                         : run.glyphs.size();
 
             x = drawrun(factory,
                         renderer,
@@ -100,7 +102,8 @@ static float drawpara(rive::Factory* factory,
 
 ////////////////////////////////////////////////////////////////////////////////////
 std::vector<rive::rcp<rive::Font>> fallbackFonts;
-static rive::rcp<rive::Font> pickFallbackFont(rive::Span<const rive::Unichar> missing)
+static rive::rcp<rive::Font> pickFallbackFont(
+    rive::Span<const rive::Unichar> missing)
 {
     size_t length = fallbackFonts.size();
     for (size_t i = 0; i < length; i++)
@@ -114,7 +117,9 @@ static rive::rcp<rive::Font> pickFallbackFont(rive::Span<const rive::Unichar> mi
     return nullptr;
 }
 
-static rive::rcp<rive::RenderPath> make_line(rive::Factory* factory, rive::Vec2D a, rive::Vec2D b)
+static rive::rcp<rive::RenderPath> make_line(rive::Factory* factory,
+                                             rive::Vec2D a,
+                                             rive::Vec2D b)
 {
     rive::RawPath rawPath;
     rawPath.move(a);
@@ -170,9 +175,10 @@ class TextContent : public ViewerContent
             return fact(bytes);
         };
 
-        const char* fontFiles[] = {"../../../test/assets/RobotoFlex.ttf",
-                                   "../../../test/assets/Montserrat.ttf",
-                                   "../../../test/assets/IBMPlexSansArabic-Regular.ttf"};
+        const char* fontFiles[] = {
+            "../../../test/assets/RobotoFlex.ttf",
+            "../../../test/assets/Montserrat.ttf",
+            "../../../test/assets/IBMPlexSansArabic-Regular.ttf"};
         // "../../../test/assets/NotoSansArabic-VariableFont_wdth,wght.ttf"};
 
         auto font0 = loader(fontFiles[0]);
@@ -189,20 +195,24 @@ class TextContent : public ViewerContent
         FontTextRuns truns;
 
         // truns.push_back(
-        //     append(&m_unichars, font0->makeAtCoord(c2), 32, "No one ever left alive in "));
-        // truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 54, "nineteen hundred"));
-        // truns.push_back(append(&m_unichars, font0->makeAtCoord(c1), 30, "ne漢字asy"));
+        //     append(&m_unichars, font0->makeAtCoord(c2), 32, "No one ever left
+        //     alive in "));
+        // truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 54,
+        // "nineteen hundred")); truns.push_back(append(&m_unichars,
+        // font0->makeAtCoord(c1), 30, "ne漢字asy"));
 
         // truns.push_back(append(&m_unichars, font2, 30, " its the  "));
         // truns.push_back(append(&m_unichars, font2, 40, "cRown"));
         // truns.push_back(append(&m_unichars, font2, 30, "a b c d"));
 
-        // truns.push_back(append(&m_unichars, font1->makeAtCoord(c1), 30, " that often"));
-        // truns.push_back(append(&m_unichars, font0, 30, " lies the head."));
-        // truns.push_back(append(&m_unichars, font0->makeAtCoord(c2), 60, "hi one two"));
+        // truns.push_back(append(&m_unichars, font1->makeAtCoord(c1), 30, "
+        // that often")); truns.push_back(append(&m_unichars, font0, 30, " lies
+        // the head.")); truns.push_back(append(&m_unichars,
+        // font0->makeAtCoord(c2), 60, "hi one two"));
 
-        // truns.push_back(append(&m_unichars, font2, 32.0f, "في 10-12 آذار 1997 بمدينة"));
-        // truns.push_back(append(&m_unichars, font2, 32.0f, "في 10-12 آذار 1997 بمدينة"));
+        // truns.push_back(append(&m_unichars, font2, 32.0f, "في 10-12 آذار 1997
+        // بمدينة")); truns.push_back(append(&m_unichars, font2, 32.0f, "في
+        // 10-12 آذار 1997 بمدينة"));
         truns.push_back(append(&m_unichars,
                                font1,
                                32.0f,
@@ -254,16 +264,18 @@ class TextContent : public ViewerContent
 
         // clang-format on
 
-        // truns.push_back(append(&m_unichars, font2, 32.0f, "abc def\nghijkl"));
+        // truns.push_back(append(&m_unichars, font2, 32.0f,
+        // "abc def\nghijkl"));
 
         // truns.push_back(append(&m_unichars, font2, 32.0f, "DEF دنة"));
 
         // truns.push_back(append(&m_unichars, font2, 32.0f, "AفيB"));
 
         // truns.push_back(append(&m_unichars, font0, 42.0f, "OT\nHER\n"));
-        // truns.push_back(append(&m_unichars, font1, 62.0f, "VERY LARGE FONT HERE"));
-        // truns.push_back(
-        //     append(&m_unichars, font0, 52.0f, "one two three\n\n\nfour five six seven"));
+        // truns.push_back(append(&m_unichars, font1, 62.0f, "VERY LARGE FONT
+        // HERE")); truns.push_back(
+        //     append(&m_unichars, font0, 52.0f, "one two three\n\n\nfour five
+        //     six seven"));
 
         // truns.push_back(append(&m_unichars, font0, 32.0f, "ab"));
         // truns.push_back(append(&m_unichars, font0, 60.0f, "ee\n four"));
@@ -279,7 +291,8 @@ public:
         auto truns = this->make_truns(ViewerContent::DecodeFont);
         m_paragraphs = truns[0].font->shapeText(m_unichars, truns);
 
-        m_xform = rive::Mat2D::fromTranslate(10, 0) * rive::Mat2D::fromScale(3, 3);
+        m_xform =
+            rive::Mat2D::fromTranslate(10, 0) * rive::Mat2D::fromScale(3, 3);
     }
 
     void draw(rive::Renderer* renderer,
@@ -293,27 +306,32 @@ public:
         float paragraphWidth = m_autoWidth ? -1.0f : width;
 
         rive::SimpleArray<rive::SimpleArray<rive::GlyphLine>>* lines =
-            new rive::SimpleArray<rive::SimpleArray<rive::GlyphLine>>(paragraphs.size());
-        rive::SimpleArray<rive::SimpleArray<rive::GlyphLine>>& linesRef = *lines;
+            new rive::SimpleArray<rive::SimpleArray<rive::GlyphLine>>(
+                paragraphs.size());
+        rive::SimpleArray<rive::SimpleArray<rive::GlyphLine>>& linesRef =
+            *lines;
         size_t paragraphIndex = 0;
 
         for (auto& para : paragraphs)
         {
             linesRef[paragraphIndex] =
-                rive::GlyphLine::BreakLines(para.runs, m_autoWidth ? -1.0f : width);
+                rive::GlyphLine::BreakLines(para.runs,
+                                            m_autoWidth ? -1.0f : width);
 
             if (m_autoWidth)
             {
-                paragraphWidth =
-                    std::max(paragraphWidth,
-                             rive::GlyphLine::ComputeMaxWidth(linesRef[paragraphIndex], para.runs));
+                paragraphWidth = std::max(
+                    paragraphWidth,
+                    rive::GlyphLine::ComputeMaxWidth(linesRef[paragraphIndex],
+                                                     para.runs));
             }
             paragraphIndex++;
         }
         paragraphIndex = 0;
         for (auto& para : paragraphs)
         {
-            rive::SimpleArray<rive::GlyphLine>& lines = linesRef[paragraphIndex];
+            rive::SimpleArray<rive::GlyphLine>& lines =
+                linesRef[paragraphIndex];
             rive::GlyphLine::ComputeLineSpacing(paragraphIndex == 0,
                                                 lines,
                                                 para.runs,
@@ -343,7 +361,10 @@ public:
         ImGui::Begin("text", nullptr);
         ImGui::SliderFloat("Width", &m_width, 1, 400);
         ImGui::Checkbox("Autowidth", &m_autoWidth);
-        ImGui::Combo("combo", &m_align, alignOptions, IM_ARRAYSIZE(alignOptions));
+        ImGui::Combo("combo",
+                     &m_align,
+                     alignOptions,
+                     IM_ARRAYSIZE(alignOptions));
         ImGui::End();
     }
 #endif

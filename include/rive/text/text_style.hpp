@@ -19,7 +19,9 @@ class RenderPaint;
 class TextVariationHelper;
 class TextStyleAxis;
 class TextStyleFeature;
-class TextStyle : public TextStyleBase, public ShapePaintContainer, public FileAssetReferencer
+class TextStyle : public TextStyleBase,
+                  public ShapePaintContainer,
+                  public FileAssetReferencer
 {
 private:
     Artboard* getArtboard() override { return artboard(); }

@@ -47,7 +47,8 @@ namespace spirv
 
 namespace rive::gpu
 {
-static VkBufferUsageFlagBits render_buffer_usage_flags(RenderBufferType renderBufferType)
+static VkBufferUsageFlagBits render_buffer_usage_flags(
+    RenderBufferType renderBufferType)
 {
     switch (renderBufferType)
     {
@@ -59,7 +60,8 @@ static VkBufferUsageFlagBits render_buffer_usage_flags(RenderBufferType renderBu
     RIVE_UNREACHABLE();
 }
 
-class RenderBufferVulkanImpl : public lite_rtti_override<RiveRenderBuffer, RenderBufferVulkanImpl>
+class RenderBufferVulkanImpl
+    : public lite_rtti_override<RiveRenderBuffer, RenderBufferVulkanImpl>
 {
 public:
     RenderBufferVulkanImpl(rcp<VulkanContext> vk,
@@ -73,7 +75,10 @@ public:
                      sizeInBytes)
     {}
 
-    VkBuffer frontVkBuffer() { return m_bufferRing.vkBufferAt(frontBufferIdx()); }
+    VkBuffer frontVkBuffer()
+    {
+        return m_bufferRing.vkBufferAt(frontBufferIdx());
+    }
 
     const VkBuffer* frontVkBufferAddressOf()
     {
@@ -93,9 +98,10 @@ private:
     vkutil::BufferRing m_bufferRing;
 };
 
-rcp<RenderBuffer> RenderContextVulkanImpl::makeRenderBuffer(RenderBufferType type,
-                                                            RenderBufferFlags flags,
-                                                            size_t sizeInBytes)
+rcp<RenderBuffer> RenderContextVulkanImpl::makeRenderBuffer(
+    RenderBufferType type,
+    RenderBufferFlags flags,
+    size_t sizeInBytes)
 {
     return make_rcp<RenderBufferVulkanImpl>(m_vk, type, flags, sizeInBytes);
 }
@@ -114,7 +120,8 @@ public:
             .format = VK_FORMAT_R8G8B8A8_UNORM,
             .extent = {width, height, 1},
             .mipLevels = mipLevelCount,
-            .usage = VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            .usage =
+                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         })),
         m_textureView(m_vk->makeTextureView(m_texture)),
         m_imageUploadBuffer(m_vk->makeBuffer(
@@ -124,7 +131,9 @@ public:
             },
             vkutil::Mappability::writeOnly))
     {
-        memcpy(m_imageUploadBuffer->contents(), imageDataRGBA, m_imageUploadBuffer->info().size);
+        memcpy(m_imageUploadBuffer->contents(),
+               imageDataRGBA,
+               m_imageUploadBuffer->info().size);
         m_imageUploadBuffer->flushContents();
     }
 
@@ -144,22 +153,23 @@ public:
             .imageExtent = {width(), height(), 1},
         };
 
-        m_vk->imageMemoryBarrier(commandBuffer,
-                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 0,
-                                 {
-                                     .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                                     .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                                     .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                                     .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                     .image = *m_texture,
-                                     .subresourceRange =
-                                         {
-                                             .baseMipLevel = 0,
-                                             .levelCount = m_texture->info().mipLevels,
-                                         },
-                                 });
+        m_vk->imageMemoryBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            {
+                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .image = *m_texture,
+                .subresourceRange =
+                    {
+                        .baseMipLevel = 0,
+                        .levelCount = m_texture->info().mipLevels,
+                    },
+            });
 
         m_vk->CmdCopyBufferToImage(commandBuffer,
                                    *m_imageUploadBuffer,
@@ -172,8 +182,10 @@ public:
         if (mipLevels > 1)
         {
             // Generate mipmaps.
-            int2 dstSize, srcSize = {static_cast<int32_t>(width()), static_cast<int32_t>(height())};
-            for (uint32_t level = 1; level < mipLevels; ++level, srcSize = dstSize)
+            int2 dstSize, srcSize = {static_cast<int32_t>(width()),
+                                     static_cast<int32_t>(height())};
+            for (uint32_t level = 1; level < mipLevels;
+                 ++level, srcSize = dstSize)
             {
                 dstSize = simd::max(srcSize >> 1, int2(1));
 
@@ -198,22 +210,23 @@ public:
                 imageBlit.dstOffsets[0] = {0, 0, 0};
                 imageBlit.dstOffsets[1] = {dstSize.x, dstSize.y, 1};
 
-                m_vk->imageMemoryBarrier(commandBuffer,
-                                         VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                         VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                         0,
-                                         {
-                                             .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                                             .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                                             .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                             .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                             .image = *m_texture,
-                                             .subresourceRange =
-                                                 {
-                                                     .baseMipLevel = level - 1,
-                                                     .levelCount = 1,
-                                                 },
-                                         });
+                m_vk->imageMemoryBarrier(
+                    commandBuffer,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    0,
+                    {
+                        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                        .image = *m_texture,
+                        .subresourceRange =
+                            {
+                                .baseMipLevel = level - 1,
+                                .levelCount = 1,
+                            },
+                    });
 
                 m_vk->CmdBlitImage(commandBuffer,
                                    *m_texture,
@@ -225,40 +238,42 @@ public:
                                    VK_FILTER_LINEAR);
             }
 
-            m_vk->imageMemoryBarrier(commandBuffer,
-                                     VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                     0,
-                                     {
-                                         .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                                         .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                                         .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                         .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                         .image = *m_texture,
-                                         .subresourceRange =
-                                             {
-                                                 .baseMipLevel = 0,
-                                                 .levelCount = mipLevels - 1,
-                                             },
-                                     });
+            m_vk->imageMemoryBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                0,
+                {
+                    .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                    .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    .image = *m_texture,
+                    .subresourceRange =
+                        {
+                            .baseMipLevel = 0,
+                            .levelCount = mipLevels - 1,
+                        },
+                });
         }
 
-        m_vk->imageMemoryBarrier(commandBuffer,
-                                 VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                 0,
-                                 {
-                                     .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                                     .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                                     .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                     .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                     .image = *m_texture,
-                                     .subresourceRange =
-                                         {
-                                             .baseMipLevel = mipLevels - 1,
-                                             .levelCount = 1,
-                                         },
-                                 });
+        m_vk->imageMemoryBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            0,
+            {
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                .image = *m_texture,
+                .subresourceRange =
+                    {
+                        .baseMipLevel = mipLevels - 1,
+                        .levelCount = 1,
+                    },
+            });
 
         m_imageUploadBuffer = nullptr;
     }
@@ -275,10 +290,12 @@ private:
     // Location for RenderContextVulkanImpl to store a descriptor set for the
     // current flush that binds this image texture.
     mutable VkDescriptorSet m_imageTextureDescriptorSet = VK_NULL_HANDLE;
-    mutable uint64_t m_descriptorSetFrameIdx = std::numeric_limits<size_t>::max();
+    mutable uint64_t m_descriptorSetFrameIdx =
+        std::numeric_limits<size_t>::max();
 };
 
-rcp<Texture> RenderContextVulkanImpl::decodeImageTexture(Span<const uint8_t> encodedBytes)
+rcp<Texture> RenderContextVulkanImpl::decodeImageTexture(
+    Span<const uint8_t> encodedBytes)
 {
 #ifdef RIVE_DECODERS
     auto bitmap = Bitmap::decode(encodedBytes.data(), encodedBytes.size());
@@ -292,7 +309,11 @@ rcp<Texture> RenderContextVulkanImpl::decodeImageTexture(Span<const uint8_t> enc
         uint32_t width = bitmap->width();
         uint32_t height = bitmap->height();
         uint32_t mipLevelCount = math::msb(height | width);
-        return make_rcp<TextureVulkanImpl>(m_vk, width, height, mipLevelCount, bitmap->bytes());
+        return make_rcp<TextureVulkanImpl>(m_vk,
+                                           width,
+                                           height,
+                                           mipLevelCount,
+                                           bitmap->bytes());
     }
 #endif
     return nullptr;
@@ -383,18 +404,22 @@ public:
             .format = VK_FORMAT_R32G32B32A32_UINT,
         };
 
-        VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            .vertexBindingDescriptionCount = 1,
-            .pVertexBindingDescriptions = &vertexInputBindingDescription,
-            .vertexAttributeDescriptionCount = 1,
-            .pVertexAttributeDescriptions = &vertexAttributeDescription,
-        };
+        VkPipelineVertexInputStateCreateInfo
+            pipelineVertexInputStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+                .vertexBindingDescriptionCount = 1,
+                .pVertexBindingDescriptions = &vertexInputBindingDescription,
+                .vertexAttributeDescriptionCount = 1,
+                .pVertexAttributeDescriptions = &vertexAttributeDescription,
+            };
 
-        VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-        };
+        VkPipelineInputAssemblyStateCreateInfo
+            pipelineInputAssemblyStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+                .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+            };
 
         VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
@@ -402,27 +427,33 @@ public:
             .scissorCount = 1,
         };
 
-        VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .polygonMode = VK_POLYGON_MODE_FILL,
-            .cullMode = VK_CULL_MODE_BACK_BIT,
-            .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-            .lineWidth = 1.0,
-        };
+        VkPipelineRasterizationStateCreateInfo
+            pipelineRasterizationStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+                .polygonMode = VK_POLYGON_MODE_FILL,
+                .cullMode = VK_CULL_MODE_BACK_BIT,
+                .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .lineWidth = 1.0,
+            };
 
-        VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        };
+        VkPipelineMultisampleStateCreateInfo
+            pipelineMultisampleStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+                .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+            };
 
         VkPipelineColorBlendAttachmentState blendColorAttachment = {
             .colorWriteMask = vkutil::kColorWriteMaskRGBA,
         };
-        VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-            .attachmentCount = 1,
-            .pAttachments = &blendColorAttachment,
-        };
+        VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo =
+            {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+                .attachmentCount = 1,
+                .pAttachments = &blendColorAttachment,
+            };
 
         VkAttachmentDescription attachment = {
             .format = VK_FORMAT_R8G8B8A8_UNORM,
@@ -449,8 +480,10 @@ public:
             .pSubpasses = &subpassDescription,
         };
 
-        VK_CHECK(
-            m_vk->CreateRenderPass(m_vk->device, &renderPassCreateInfo, nullptr, &m_renderPass));
+        VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
+                                        &renderPassCreateInfo,
+                                        nullptr,
+                                        &m_renderPass));
 
         VkDynamicState dynamicStates[] = {
             VK_DYNAMIC_STATE_VIEWPORT,
@@ -490,13 +523,18 @@ public:
 
     ~ColorRampPipeline()
     {
-        m_vk->DestroyDescriptorSetLayout(m_vk->device, m_descriptorSetLayout, nullptr);
+        m_vk->DestroyDescriptorSetLayout(m_vk->device,
+                                         m_descriptorSetLayout,
+                                         nullptr);
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
         m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
         m_vk->DestroyPipeline(m_vk->device, m_renderPipeline, nullptr);
     }
 
-    const VkDescriptorSetLayout& descriptorSetLayout() const { return m_descriptorSetLayout; }
+    const VkDescriptorSetLayout& descriptorSetLayout() const
+    {
+        return m_descriptorSetLayout;
+    }
     VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
     VkRenderPass renderPass() const { return m_renderPass; }
     VkPipeline renderPipeline() const { return m_renderPipeline; }
@@ -629,18 +667,22 @@ public:
             },
         };
 
-        VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            .vertexBindingDescriptionCount = 1,
-            .pVertexBindingDescriptions = &vertexInputBindingDescription,
-            .vertexAttributeDescriptionCount = 4,
-            .pVertexAttributeDescriptions = vertexAttributeDescriptions,
-        };
+        VkPipelineVertexInputStateCreateInfo
+            pipelineVertexInputStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+                .vertexBindingDescriptionCount = 1,
+                .pVertexBindingDescriptions = &vertexInputBindingDescription,
+                .vertexAttributeDescriptionCount = 4,
+                .pVertexAttributeDescriptions = vertexAttributeDescriptions,
+            };
 
-        VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        };
+        VkPipelineInputAssemblyStateCreateInfo
+            pipelineInputAssemblyStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+                .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            };
 
         VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
@@ -648,27 +690,33 @@ public:
             .scissorCount = 1,
         };
 
-        VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .polygonMode = VK_POLYGON_MODE_FILL,
-            .cullMode = VK_CULL_MODE_BACK_BIT,
-            .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-            .lineWidth = 1.0,
-        };
+        VkPipelineRasterizationStateCreateInfo
+            pipelineRasterizationStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+                .polygonMode = VK_POLYGON_MODE_FILL,
+                .cullMode = VK_CULL_MODE_BACK_BIT,
+                .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+                .lineWidth = 1.0,
+            };
 
-        VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        };
+        VkPipelineMultisampleStateCreateInfo
+            pipelineMultisampleStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+                .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+            };
 
         VkPipelineColorBlendAttachmentState blendColorAttachment = {
             .colorWriteMask = vkutil::kColorWriteMaskRGBA,
         };
-        VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-            .attachmentCount = 1,
-            .pAttachments = &blendColorAttachment,
-        };
+        VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo =
+            {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+                .attachmentCount = 1,
+                .pAttachments = &blendColorAttachment,
+            };
 
         VkAttachmentDescription attachment = {
             .format = VK_FORMAT_R32G32B32A32_UINT,
@@ -695,8 +743,10 @@ public:
             .pSubpasses = &subpassDescription,
         };
 
-        VK_CHECK(
-            m_vk->CreateRenderPass(m_vk->device, &renderPassCreateInfo, nullptr, &m_renderPass));
+        VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
+                                        &renderPassCreateInfo,
+                                        nullptr,
+                                        &m_renderPass));
 
         VkDynamicState dynamicStates[] = {
             VK_DYNAMIC_STATE_VIEWPORT,
@@ -736,13 +786,18 @@ public:
 
     ~TessellatePipeline()
     {
-        m_vk->DestroyDescriptorSetLayout(m_vk->device, m_descriptorSetLayout, nullptr);
+        m_vk->DestroyDescriptorSetLayout(m_vk->device,
+                                         m_descriptorSetLayout,
+                                         nullptr);
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
         m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
         m_vk->DestroyPipeline(m_vk->device, m_renderPipeline, nullptr);
     }
 
-    const VkDescriptorSetLayout& descriptorSetLayout() const { return m_descriptorSetLayout; }
+    const VkDescriptorSetLayout& descriptorSetLayout() const
+    {
+        return m_descriptorSetLayout;
+    }
     VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
     VkRenderPass renderPass() const { return m_renderPass; }
     VkPipeline renderPipeline() const { return m_renderPipeline; }
@@ -767,17 +822,19 @@ class RenderContextVulkanImpl::DrawPipelineLayout
 public:
     static_assert(kDrawPipelineLayoutOptionCount == 1);
 
-    // Number of render pass variants that can be used with a single DrawPipeline
-    // (framebufferFormat x loadOp).
+    // Number of render pass variants that can be used with a single
+    // DrawPipeline (framebufferFormat x loadOp).
     constexpr static int kRenderPassVariantCount = 6;
 
-    static int RenderPassVariantIdx(VkFormat framebufferFormat, gpu::LoadAction loadAction)
+    static int RenderPassVariantIdx(VkFormat framebufferFormat,
+                                    gpu::LoadAction loadAction)
     {
         int loadActionIdx = static_cast<int>(loadAction);
         assert(0 <= loadActionIdx && loadActionIdx < 3);
         assert(framebufferFormat == VK_FORMAT_B8G8R8A8_UNORM ||
                framebufferFormat == VK_FORMAT_R8G8B8A8_UNORM);
-        int idx = (loadActionIdx << 1) | (framebufferFormat == VK_FORMAT_B8G8R8A8_UNORM ? 1 : 0);
+        int idx = (loadActionIdx << 1) |
+                  (framebufferFormat == VK_FORMAT_B8G8R8A8_UNORM ? 1 : 0);
         assert(0 <= idx && idx < kRenderPassVariantCount);
         return idx;
     }
@@ -802,7 +859,8 @@ public:
         RIVE_UNREACHABLE();
     }
 
-    constexpr static uint32_t PLSAttachmentCount(gpu::InterlockMode interlockMode)
+    constexpr static uint32_t PLSAttachmentCount(
+        gpu::InterlockMode interlockMode)
     {
         return interlockMode == gpu::InterlockMode::atomics ? 2 : 4;
     }
@@ -810,7 +868,9 @@ public:
     DrawPipelineLayout(RenderContextVulkanImpl* impl,
                        gpu::InterlockMode interlockMode,
                        DrawPipelineLayoutOptions options) :
-        m_vk(ref_rcp(impl->vulkanContext())), m_interlockMode(interlockMode), m_options(options)
+        m_vk(ref_rcp(impl->vulkanContext())),
+        m_interlockMode(interlockMode),
+        m_options(options)
     {
         assert(interlockMode != gpu::InterlockMode::msaa); // TODO: msaa.
 
@@ -839,16 +899,18 @@ public:
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptorCount = 1,
                 .stageFlags = static_cast<VkShaderStageFlags>(
-                    m_interlockMode == gpu::InterlockMode::atomics ? VK_SHADER_STAGE_FRAGMENT_BIT
-                                                                   : VK_SHADER_STAGE_VERTEX_BIT),
+                    m_interlockMode == gpu::InterlockMode::atomics
+                        ? VK_SHADER_STAGE_FRAGMENT_BIT
+                        : VK_SHADER_STAGE_VERTEX_BIT),
             },
             {
                 .binding = PAINT_AUX_BUFFER_IDX,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptorCount = 1,
                 .stageFlags = static_cast<VkShaderStageFlags>(
-                    m_interlockMode == gpu::InterlockMode::atomics ? VK_SHADER_STAGE_FRAGMENT_BIT
-                                                                   : VK_SHADER_STAGE_VERTEX_BIT),
+                    m_interlockMode == gpu::InterlockMode::atomics
+                        ? VK_SHADER_STAGE_FRAGMENT_BIT
+                        : VK_SHADER_STAGE_VERTEX_BIT),
             },
             {
                 .binding = CONTOUR_BUFFER_IDX,
@@ -866,7 +928,8 @@ public:
                 .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                 .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
                 .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+                .stageFlags =
+                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             },
         };
 
@@ -876,10 +939,11 @@ public:
             .pBindings = perFlushLayoutBindings,
         };
 
-        VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                                 &perFlushLayoutInfo,
-                                                 nullptr,
-                                                 &m_descriptorSetLayouts[PER_FLUSH_BINDINGS_SET]));
+        VK_CHECK(m_vk->CreateDescriptorSetLayout(
+            m_vk->device,
+            &perFlushLayoutInfo,
+            nullptr,
+            &m_descriptorSetLayouts[PER_FLUSH_BINDINGS_SET]));
 
         // The imageTexture gets updated with every draw that uses it.
         VkDescriptorSetLayoutBinding perDrawLayoutBindings[] = {
@@ -897,10 +961,11 @@ public:
             .pBindings = perDrawLayoutBindings,
         };
 
-        VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                                 &perDrawLayoutInfo,
-                                                 nullptr,
-                                                 &m_descriptorSetLayouts[PER_DRAW_BINDINGS_SET]));
+        VK_CHECK(m_vk->CreateDescriptorSetLayout(
+            m_vk->device,
+            &perDrawLayoutInfo,
+            nullptr,
+            &m_descriptorSetLayouts[PER_DRAW_BINDINGS_SET]));
 
         // Samplers get bound once per lifetime.
         VkDescriptorSetLayoutBinding samplerLayoutBindings[] = {
@@ -924,12 +989,14 @@ public:
             .pBindings = samplerLayoutBindings,
         };
 
-        VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                                 &samplerLayoutInfo,
-                                                 nullptr,
-                                                 &m_descriptorSetLayouts[SAMPLER_BINDINGS_SET]));
+        VK_CHECK(m_vk->CreateDescriptorSetLayout(
+            m_vk->device,
+            &samplerLayoutInfo,
+            nullptr,
+            &m_descriptorSetLayouts[SAMPLER_BINDINGS_SET]));
 
-        // PLS planes get bound per flush as input attachments or storage textures.
+        // PLS planes get bound per flush as input attachments or storage
+        // textures.
         VkDescriptorSetLayoutBinding plsLayoutBindings[] = {
             {
                 .binding = COLOR_PLANE_IDX,
@@ -968,7 +1035,8 @@ public:
         };
         if (m_options & DrawPipelineLayoutOptions::fixedFunctionColorOutput)
         {
-            // Drop the COLOR input attachment when using fixedFunctionColorOutput.
+            // Drop the COLOR input attachment when using
+            // fixedFunctionColorOutput.
             assert(plsLayoutBindings[0].binding == COLOR_PLANE_IDX);
             plsLayoutInfo.bindingCount = std::size(plsLayoutBindings) - 1;
             plsLayoutInfo.pBindings = plsLayoutBindings + 1;
@@ -979,11 +1047,11 @@ public:
             plsLayoutInfo.pBindings = plsLayoutBindings;
         }
 
-        VK_CHECK(
-            m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                            &plsLayoutInfo,
-                                            nullptr,
-                                            &m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET]));
+        VK_CHECK(m_vk->CreateDescriptorSetLayout(
+            m_vk->device,
+            &plsLayoutInfo,
+            nullptr,
+            &m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET]));
 
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -1031,15 +1099,16 @@ public:
                                               &nullImageDescriptorSetInfo,
                                               &m_nullImageDescriptorSet));
 
-        m_vk->updateImageDescriptorSets(m_nullImageDescriptorSet,
-                                        {
-                                            .dstBinding = IMAGE_TEXTURE_IDX,
-                                            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                                        },
-                                        {{
-                                            .imageView = *impl->m_nullImageTexture->m_textureView,
-                                            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                        }});
+        m_vk->updateImageDescriptorSets(
+            m_nullImageDescriptorSet,
+            {
+                .dstBinding = IMAGE_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            },
+            {{
+                .imageView = *impl->m_nullImageTexture->m_textureView,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            }});
 
         VkDescriptorSetAllocateInfo samplerDescriptorSetInfo = {
             .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -1052,15 +1121,16 @@ public:
                                               &samplerDescriptorSetInfo,
                                               &m_samplerDescriptorSet));
 
-        m_vk->updateImageDescriptorSets(m_samplerDescriptorSet,
-                                        {
-                                            .dstBinding = GRAD_TEXTURE_IDX,
-                                            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-                                        },
-                                        {
-                                            {.sampler = impl->m_linearSampler},
-                                            {.sampler = impl->m_mipmapSampler},
-                                        });
+        m_vk->updateImageDescriptorSets(
+            m_samplerDescriptorSet,
+            {
+                .dstBinding = GRAD_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            },
+            {
+                {.sampler = impl->m_linearSampler},
+                {.sampler = impl->m_mipmapSampler},
+            });
         static_assert(IMAGE_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
     }
 
@@ -1069,8 +1139,10 @@ public:
         if (m_renderPasses[renderPassVariantIdx] == VK_NULL_HANDLE)
         {
             // Create the render pass.
-            VkAttachmentLoadOp colorLoadOp = LoadOpFromRenderPassVariant(renderPassVariantIdx);
-            VkFormat renderTargetFormat = FormatFromRenderPassVariant(renderPassVariantIdx);
+            VkAttachmentLoadOp colorLoadOp =
+                LoadOpFromRenderPassVariant(renderPassVariantIdx);
+            VkFormat renderTargetFormat =
+                FormatFromRenderPassVariant(renderPassVariantIdx);
             VkAttachmentDescription attachmentDescriptions[] = {
                 {
                     .format = renderTargetFormat,
@@ -1084,8 +1156,9 @@ public:
                 },
                 {
                     // The clip buffer is RGBA8 in atomic mode.
-                    .format = m_interlockMode == gpu::InterlockMode::atomics ? renderTargetFormat
-                                                                             : VK_FORMAT_R32_UINT,
+                    .format = m_interlockMode == gpu::InterlockMode::atomics
+                                  ? renderTargetFormat
+                                  : VK_FORMAT_R32_UINT,
                     .samples = VK_SAMPLE_COUNT_1_BIT,
                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
@@ -1140,14 +1213,16 @@ public:
             VkAttachmentReference inputAttachmentReferences[] = {
                 // COLOR is not an input attachment if we're using fixed
                 // function blending.
-                (m_options & DrawPipelineLayoutOptions::fixedFunctionColorOutput)
+                (m_options &
+                 DrawPipelineLayoutOptions::fixedFunctionColorOutput)
                     ? VkAttachmentReference{.attachment = VK_ATTACHMENT_UNUSED}
                     : attachmentReferences[0],
                 attachmentReferences[1],
                 attachmentReferences[2],
                 attachmentReferences[3],
             };
-            static_assert(sizeof(inputAttachmentReferences) == sizeof(attachmentReferences));
+            static_assert(sizeof(inputAttachmentReferences) ==
+                          sizeof(attachmentReferences));
 
             VkSubpassDescription subpassDescriptions[2] = {
                 {
@@ -1163,7 +1238,8 @@ public:
                     .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
                     .inputAttachmentCount = PLSAttachmentCount(m_interlockMode),
                     .pInputAttachments = inputAttachmentReferences,
-                    .colorAttachmentCount = 1u, // The resolve only writes color.
+                    .colorAttachmentCount =
+                        1u, // The resolve only writes color.
                     .pColorAttachments = attachmentReferences,
                 }};
             static_assert(COLOR_PLANE_IDX == 0);
@@ -1182,7 +1258,8 @@ public:
                 .attachmentCount = PLSAttachmentCount(m_interlockMode),
                 .pAttachments = attachmentDescriptions,
                 // Atomic mode has a second subpass for the resolve step.
-                .subpassCount = m_interlockMode == gpu::InterlockMode::atomics ? 2u : 1u,
+                .subpassCount =
+                    m_interlockMode == gpu::InterlockMode::atomics ? 2u : 1u,
                 .pSubpasses = subpassDescriptions,
             };
 
@@ -1196,7 +1273,8 @@ public:
                         // Draw subpass self-dependencies.
                         .srcSubpass = 0,
                         .dstSubpass = 0,
-                        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        .srcStageMask =
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                         .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                         .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
@@ -1206,7 +1284,8 @@ public:
                         // Atomic resolve dependencies.
                         .srcSubpass = 0,
                         .dstSubpass = 1,
-                        .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                        .srcStageMask =
+                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                         .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                         .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                         .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
@@ -1214,14 +1293,16 @@ public:
                     },
                 };
 
-                renderPassCreateInfo.dependencyCount = renderPassCreateInfo.subpassCount;
+                renderPassCreateInfo.dependencyCount =
+                    renderPassCreateInfo.subpassCount;
                 renderPassCreateInfo.pDependencies = kSubpassDependencies;
             }
 
-            VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
-                                            &renderPassCreateInfo,
-                                            nullptr,
-                                            &m_renderPasses[renderPassVariantIdx]));
+            VK_CHECK(
+                m_vk->CreateRenderPass(m_vk->device,
+                                       &renderPassCreateInfo,
+                                       nullptr,
+                                       &m_renderPasses[renderPassVariantIdx]));
         }
         return m_renderPasses[renderPassVariantIdx];
     }
@@ -1233,7 +1314,9 @@ public:
             m_vk->DestroyDescriptorSetLayout(m_vk->device, layout, nullptr);
         }
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
-        m_vk->DestroyDescriptorPool(m_vk->device, m_staticDescriptorPool, nullptr);
+        m_vk->DestroyDescriptorPool(m_vk->device,
+                                    m_staticDescriptorPool,
+                                    nullptr);
         for (VkRenderPass renderPass : m_renderPasses)
         {
             m_vk->DestroyRenderPass(m_vk->device, renderPass, nullptr);
@@ -1259,8 +1342,14 @@ public:
     {
         return m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET];
     }
-    VkDescriptorSet nullImageDescriptorSet() const { return m_nullImageDescriptorSet; }
-    VkDescriptorSet samplerDescriptorSet() const { return m_samplerDescriptorSet; }
+    VkDescriptorSet nullImageDescriptorSet() const
+    {
+        return m_nullImageDescriptorSet;
+    }
+    VkDescriptorSet samplerDescriptorSet() const
+    {
+        return m_samplerDescriptorSet;
+    }
 
     VkPipelineLayout operator*() const { return m_pipelineLayout; }
     VkPipelineLayout vkPipelineLayout() const { return m_pipelineLayout; }
@@ -1279,8 +1368,8 @@ private:
     std::array<VkRenderPass, kRenderPassVariantCount> m_renderPasses = {};
 };
 
-// Wraps vertex and fragment shader modules for a specific combination of DrawType,
-// InterlockMode, and ShaderFeatures.
+// Wraps vertex and fragment shader modules for a specific combination of
+// DrawType, InterlockMode, and ShaderFeatures.
 class RenderContextVulkanImpl::DrawShader
 {
 public:
@@ -1291,8 +1380,10 @@ public:
                gpu::ShaderMiscFlags shaderMiscFlags) :
         m_vk(ref_rcp(vk))
     {
-        VkShaderModuleCreateInfo vsInfo = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
-        VkShaderModuleCreateInfo fsInfo = {.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+        VkShaderModuleCreateInfo vsInfo = {
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
+        VkShaderModuleCreateInfo fsInfo = {
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO};
 
         if (interlockMode == gpu::InterlockMode::rasterOrdering)
         {
@@ -1305,13 +1396,19 @@ public:
                     break;
 
                 case DrawType::interiorTriangulation:
-                    vkutil::set_shader_code(vsInfo, spirv::draw_interior_triangles_vert);
-                    vkutil::set_shader_code(fsInfo, spirv::draw_interior_triangles_frag);
+                    vkutil::set_shader_code(
+                        vsInfo,
+                        spirv::draw_interior_triangles_vert);
+                    vkutil::set_shader_code(
+                        fsInfo,
+                        spirv::draw_interior_triangles_frag);
                     break;
 
                 case DrawType::imageMesh:
-                    vkutil::set_shader_code(vsInfo, spirv::draw_image_mesh_vert);
-                    vkutil::set_shader_code(fsInfo, spirv::draw_image_mesh_frag);
+                    vkutil::set_shader_code(vsInfo,
+                                            spirv::draw_image_mesh_vert);
+                    vkutil::set_shader_code(fsInfo,
+                                            spirv::draw_image_mesh_frag);
                     break;
 
                 case DrawType::imageRect:
@@ -1325,20 +1422,25 @@ public:
         {
             assert(interlockMode == gpu::InterlockMode::atomics);
             bool fixedFunctionColorOutput =
-                shaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+                shaderMiscFlags &
+                gpu::ShaderMiscFlags::fixedFunctionColorOutput;
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
                 case DrawType::outerCurvePatches:
-                    vkutil::set_shader_code(vsInfo, spirv::atomic_draw_path_vert);
-                    vkutil::set_shader_code_if_then_else(fsInfo,
-                                                         fixedFunctionColorOutput,
-                                                         spirv::atomic_draw_path_fixedcolor_frag,
-                                                         spirv::atomic_draw_path_frag);
+                    vkutil::set_shader_code(vsInfo,
+                                            spirv::atomic_draw_path_vert);
+                    vkutil::set_shader_code_if_then_else(
+                        fsInfo,
+                        fixedFunctionColorOutput,
+                        spirv::atomic_draw_path_fixedcolor_frag,
+                        spirv::atomic_draw_path_frag);
                     break;
 
                 case DrawType::interiorTriangulation:
-                    vkutil::set_shader_code(vsInfo, spirv::atomic_draw_interior_triangles_vert);
+                    vkutil::set_shader_code(
+                        vsInfo,
+                        spirv::atomic_draw_interior_triangles_vert);
                     vkutil::set_shader_code_if_then_else(
                         fsInfo,
                         fixedFunctionColorOutput,
@@ -1347,7 +1449,8 @@ public:
                     break;
 
                 case DrawType::imageRect:
-                    vkutil::set_shader_code(vsInfo, spirv::atomic_draw_image_rect_vert);
+                    vkutil::set_shader_code(vsInfo,
+                                            spirv::atomic_draw_image_rect_vert);
                     vkutil::set_shader_code_if_then_else(
                         fsInfo,
                         fixedFunctionColorOutput,
@@ -1356,7 +1459,8 @@ public:
                     break;
 
                 case DrawType::imageMesh:
-                    vkutil::set_shader_code(vsInfo, spirv::atomic_draw_image_mesh_vert);
+                    vkutil::set_shader_code(vsInfo,
+                                            spirv::atomic_draw_image_mesh_vert);
                     vkutil::set_shader_code_if_then_else(
                         fsInfo,
                         fixedFunctionColorOutput,
@@ -1365,11 +1469,13 @@ public:
                     break;
 
                 case DrawType::atomicResolve:
-                    vkutil::set_shader_code(vsInfo, spirv::atomic_resolve_pls_vert);
-                    vkutil::set_shader_code_if_then_else(fsInfo,
-                                                         fixedFunctionColorOutput,
-                                                         spirv::atomic_resolve_pls_fixedcolor_frag,
-                                                         spirv::atomic_resolve_pls_frag);
+                    vkutil::set_shader_code(vsInfo,
+                                            spirv::atomic_resolve_pls_vert);
+                    vkutil::set_shader_code_if_then_else(
+                        fsInfo,
+                        fixedFunctionColorOutput,
+                        spirv::atomic_resolve_pls_fixedcolor_frag,
+                        spirv::atomic_resolve_pls_frag);
                     break;
 
                 case DrawType::atomicInitialize:
@@ -1378,8 +1484,14 @@ public:
             }
         }
 
-        VK_CHECK(m_vk->CreateShaderModule(m_vk->device, &vsInfo, nullptr, &m_vertexModule));
-        VK_CHECK(m_vk->CreateShaderModule(m_vk->device, &fsInfo, nullptr, &m_fragmentModule));
+        VK_CHECK(m_vk->CreateShaderModule(m_vk->device,
+                                          &vsInfo,
+                                          nullptr,
+                                          &m_vertexModule));
+        VK_CHECK(m_vk->CreateShaderModule(m_vk->device,
+                                          &fsInfo,
+                                          nullptr,
+                                          &m_fragmentModule));
     }
 
     ~DrawShader()
@@ -1419,8 +1531,10 @@ public:
         m_vk(ref_rcp(impl->vulkanContext()))
     {
         gpu::InterlockMode interlockMode = pipelineLayout.interlockMode();
-        uint32_t shaderKey =
-            gpu::ShaderUniqueKey(drawType, shaderFeatures, interlockMode, shaderMiscFlags);
+        uint32_t shaderKey = gpu::ShaderUniqueKey(drawType,
+                                                  shaderFeatures,
+                                                  interlockMode,
+                                                  shaderMiscFlags);
         const DrawShader& drawShader = impl->m_drawShaders
                                            .try_emplace(shaderKey,
                                                         m_vk.get(),
@@ -1480,20 +1594,28 @@ public:
             },
         };
 
-        std::array<VkVertexInputBindingDescription, 2> vertexInputBindingDescriptions;
-        std::array<VkVertexInputAttributeDescription, 2> vertexAttributeDescriptions;
-        VkPipelineVertexInputStateCreateInfo pipelineVertexInputStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-            .vertexBindingDescriptionCount = 0,
-            .pVertexBindingDescriptions = vertexInputBindingDescriptions.data(),
-            .vertexAttributeDescriptionCount = 0,
-            .pVertexAttributeDescriptions = vertexAttributeDescriptions.data(),
-        };
+        std::array<VkVertexInputBindingDescription, 2>
+            vertexInputBindingDescriptions;
+        std::array<VkVertexInputAttributeDescription, 2>
+            vertexAttributeDescriptions;
+        VkPipelineVertexInputStateCreateInfo
+            pipelineVertexInputStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+                .vertexBindingDescriptionCount = 0,
+                .pVertexBindingDescriptions =
+                    vertexInputBindingDescriptions.data(),
+                .vertexAttributeDescriptionCount = 0,
+                .pVertexAttributeDescriptions =
+                    vertexAttributeDescriptions.data(),
+            };
 
-        VkPipelineInputAssemblyStateCreateInfo pipelineInputAssemblyStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-            .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-        };
+        VkPipelineInputAssemblyStateCreateInfo
+            pipelineInputAssemblyStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+                .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+            };
 
         switch (drawType)
         {
@@ -1519,8 +1641,10 @@ public:
                         .offset = 4 * sizeof(float),
                     },
                 }};
-                pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-                pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 2;
+                pipelineVertexInputStateCreateInfo
+                    .vertexBindingDescriptionCount = 1;
+                pipelineVertexInputStateCreateInfo
+                    .vertexAttributeDescriptionCount = 2;
                 break;
             }
 
@@ -1539,8 +1663,10 @@ public:
                         .offset = 0,
                     },
                 }};
-                pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-                pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
+                pipelineVertexInputStateCreateInfo
+                    .vertexBindingDescriptionCount = 1;
+                pipelineVertexInputStateCreateInfo
+                    .vertexAttributeDescriptionCount = 1;
                 break;
             }
 
@@ -1559,8 +1685,10 @@ public:
                         .offset = 0,
                     },
                 }};
-                pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 1;
-                pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 1;
+                pipelineVertexInputStateCreateInfo
+                    .vertexBindingDescriptionCount = 1;
+                pipelineVertexInputStateCreateInfo
+                    .vertexAttributeDescriptionCount = 1;
                 break;
             }
 
@@ -1593,16 +1721,20 @@ public:
                     },
                 }};
 
-                pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 2;
-                pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 2;
+                pipelineVertexInputStateCreateInfo
+                    .vertexBindingDescriptionCount = 2;
+                pipelineVertexInputStateCreateInfo
+                    .vertexAttributeDescriptionCount = 2;
 
                 break;
             }
 
             case DrawType::atomicResolve:
             {
-                pipelineVertexInputStateCreateInfo.vertexBindingDescriptionCount = 0;
-                pipelineVertexInputStateCreateInfo.vertexAttributeDescriptionCount = 0;
+                pipelineVertexInputStateCreateInfo
+                    .vertexBindingDescriptionCount = 0;
+                pipelineVertexInputStateCreateInfo
+                    .vertexAttributeDescriptionCount = 0;
                 pipelineInputAssemblyStateCreateInfo.topology =
                     VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
                 break;
@@ -1619,21 +1751,27 @@ public:
             .scissorCount = 1,
         };
 
-        VkPipelineRasterizationStateCreateInfo pipelineRasterizationStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .polygonMode = (drawPipelineOptions & DrawPipelineOptions::wireframe)
-                               ? VK_POLYGON_MODE_LINE
-                               : VK_POLYGON_MODE_FILL,
-            .cullMode = static_cast<VkCullModeFlags>(
-                DrawTypeIsImageDraw(drawType) ? VK_CULL_MODE_NONE : VK_CULL_MODE_BACK_BIT),
-            .frontFace = VK_FRONT_FACE_CLOCKWISE,
-            .lineWidth = 1.0,
-        };
+        VkPipelineRasterizationStateCreateInfo
+            pipelineRasterizationStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+                .polygonMode =
+                    (drawPipelineOptions & DrawPipelineOptions::wireframe)
+                        ? VK_POLYGON_MODE_LINE
+                        : VK_POLYGON_MODE_FILL,
+                .cullMode = static_cast<VkCullModeFlags>(
+                    DrawTypeIsImageDraw(drawType) ? VK_CULL_MODE_NONE
+                                                  : VK_CULL_MODE_BACK_BIT),
+                .frontFace = VK_FRONT_FACE_CLOCKWISE,
+                .lineWidth = 1.0,
+            };
 
-        VkPipelineMultisampleStateCreateInfo pipelineMultisampleStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-            .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-        };
+        VkPipelineMultisampleStateCreateInfo
+            pipelineMultisampleStateCreateInfo = {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+                .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+            };
 
         VkPipelineColorBlendAttachmentState colorBlendState =
             interlockMode == gpu::InterlockMode::atomics
@@ -1680,13 +1818,16 @@ public:
             {colorBlendState},
         };
 
-        VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-            .attachmentCount = drawType == gpu::DrawType::atomicResolve
-                                   ? 1u
-                                   : DrawPipelineLayout::PLSAttachmentCount(interlockMode),
-            .pAttachments = blendColorAttachments,
-        };
+        VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo =
+            {
+                .sType =
+                    VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+                .attachmentCount =
+                    drawType == gpu::DrawType::atomicResolve
+                        ? 1u
+                        : DrawPipelineLayout::PLSAttachmentCount(interlockMode),
+                .pAttachments = blendColorAttachments,
+            };
 
         if (interlockMode == gpu::InterlockMode::rasterOrdering &&
             m_vk->features.rasterizationOrderColorAttachmentAccess)
@@ -1729,7 +1870,10 @@ public:
                                                &m_vkPipeline));
     }
 
-    ~DrawPipeline() { m_vk->DestroyPipeline(m_vk->device, m_vkPipeline, nullptr); }
+    ~DrawPipeline()
+    {
+        m_vk->DestroyPipeline(m_vk->device, m_vkPipeline, nullptr);
+    }
 
     const VkPipeline vkPipeline() const { return m_vkPipeline; }
 
@@ -1738,12 +1882,13 @@ private:
     VkPipeline m_vkPipeline;
 };
 
-RenderContextVulkanImpl::RenderContextVulkanImpl(VkInstance instance,
-                                                 VkPhysicalDevice physicalDevice,
-                                                 VkDevice device,
-                                                 const VulkanFeatures& features,
-                                                 PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
-                                                 PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr) :
+RenderContextVulkanImpl::RenderContextVulkanImpl(
+    VkInstance instance,
+    VkPhysicalDevice physicalDevice,
+    VkDevice device,
+    const VulkanFeatures& features,
+    PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
+    PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr) :
     m_vk(make_rcp<VulkanContext>(instance,
                                  physicalDevice,
                                  device,
@@ -1756,37 +1901,54 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(VkInstance instance,
     m_imageDrawUniformBufferRing(m_vk,
                                  VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                                  vkutil::Mappability::writeOnly),
-    m_pathBufferRing(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkutil::Mappability::writeOnly),
-    m_paintBufferRing(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkutil::Mappability::writeOnly),
-    m_paintAuxBufferRing(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkutil::Mappability::writeOnly),
-    m_contourBufferRing(m_vk, VK_BUFFER_USAGE_STORAGE_BUFFER_BIT, vkutil::Mappability::writeOnly),
+    m_pathBufferRing(m_vk,
+                     VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                     vkutil::Mappability::writeOnly),
+    m_paintBufferRing(m_vk,
+                      VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                      vkutil::Mappability::writeOnly),
+    m_paintAuxBufferRing(m_vk,
+                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                         vkutil::Mappability::writeOnly),
+    m_contourBufferRing(m_vk,
+                        VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
+                        vkutil::Mappability::writeOnly),
     m_simpleColorRampsBufferRing(m_vk,
                                  VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
                                  vkutil::Mappability::writeOnly),
-    m_gradSpanBufferRing(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vkutil::Mappability::writeOnly),
-    m_tessSpanBufferRing(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vkutil::Mappability::writeOnly),
-    m_triangleBufferRing(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT, vkutil::Mappability::writeOnly),
+    m_gradSpanBufferRing(m_vk,
+                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                         vkutil::Mappability::writeOnly),
+    m_tessSpanBufferRing(m_vk,
+                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                         vkutil::Mappability::writeOnly),
+    m_triangleBufferRing(m_vk,
+                         VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
+                         vkutil::Mappability::writeOnly),
     m_colorRampPipeline(std::make_unique<ColorRampPipeline>(m_vk)),
     m_tessellatePipeline(std::make_unique<TessellatePipeline>(m_vk)),
-    m_descriptorSetPoolPool(make_rcp<vkutil::ResourcePool<DescriptorSetPool>>(m_vk))
+    m_descriptorSetPoolPool(
+        make_rcp<vkutil::ResourcePool<DescriptorSetPool>>(m_vk))
 {
-    m_platformFeatures.supportsRasterOrdering = features.rasterizationOrderColorAttachmentAccess;
-    m_platformFeatures.supportsFragmentShaderAtomics = features.fragmentStoresAndAtomics;
+    m_platformFeatures.supportsRasterOrdering =
+        features.rasterizationOrderColorAttachmentAccess;
+    m_platformFeatures.supportsFragmentShaderAtomics =
+        features.fragmentStoresAndAtomics;
     m_platformFeatures.invertOffscreenY = false;
     m_platformFeatures.uninvertOnScreenY = true;
 
     if (features.vendorID == vkutil::kVendorQualcomm)
     {
-        // Qualcomm advertises EXT_rasterization_order_attachment_access, but it's
-        // slow. Use atomics instead on this platform.
+        // Qualcomm advertises EXT_rasterization_order_attachment_access, but
+        // it's slow. Use atomics instead on this platform.
         m_platformFeatures.supportsRasterOrdering = false;
         // Pixel4 struggles with fine-grained fp16 path IDs.
         m_platformFeatures.pathIDGranularity = 2;
     }
     else if (features.vendorID == vkutil::kVendorARM)
     {
-        // This is undocumented, but raster ordering always works on ARM Mali GPUs
-        // if you define a subpass dependency, even without
+        // This is undocumented, but raster ordering always works on ARM Mali
+        // GPUs if you define a subpass dependency, even without
         // EXT_rasterization_order_attachment_access.
         m_platformFeatures.supportsRasterOrdering = true;
     }
@@ -1808,8 +1970,10 @@ void RenderContextVulkanImpl::initGPUObjects()
         .maxLod = 0,
     };
 
-    VK_CHECK(
-        m_vk->CreateSampler(m_vk->device, &linearSamplerCreateInfo, nullptr, &m_linearSampler));
+    VK_CHECK(m_vk->CreateSampler(m_vk->device,
+                                 &linearSamplerCreateInfo,
+                                 nullptr,
+                                 &m_linearSampler));
 
     VkSamplerCreateInfo mipmapSamplerCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -1822,8 +1986,10 @@ void RenderContextVulkanImpl::initGPUObjects()
         .maxLod = VK_LOD_CLAMP_NONE,
     };
 
-    VK_CHECK(
-        m_vk->CreateSampler(m_vk->device, &mipmapSamplerCreateInfo, nullptr, &m_mipmapSampler));
+    VK_CHECK(m_vk->CreateSampler(m_vk->device,
+                                 &mipmapSamplerCreateInfo,
+                                 nullptr,
+                                 &m_mipmapSampler));
 
     m_tessSpanIndexBuffer = m_vk->makeBuffer(
         {
@@ -1831,7 +1997,9 @@ void RenderContextVulkanImpl::initGPUObjects()
             .usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT,
         },
         vkutil::Mappability::writeOnly);
-    memcpy(m_tessSpanIndexBuffer->contents(), gpu::kTessSpanIndices, sizeof(gpu::kTessSpanIndices));
+    memcpy(m_tessSpanIndexBuffer->contents(),
+           gpu::kTessSpanIndices,
+           sizeof(gpu::kTessSpanIndices));
     m_tessSpanIndexBuffer->flushContents();
 
     m_pathPatchVertexBuffer = m_vk->makeBuffer(
@@ -1877,7 +2045,8 @@ void RenderContextVulkanImpl::initGPUObjects()
 RenderContextVulkanImpl::~RenderContextVulkanImpl()
 {
     // Wait for all fences before cleaning up.
-    for (const rcp<gpu::CommandBufferCompletionFence>& fence : m_frameCompletionFences)
+    for (const rcp<gpu::CommandBufferCompletionFence>& fence :
+         m_frameCompletionFences)
     {
         if (fence != nullptr)
         {
@@ -1885,26 +2054,29 @@ RenderContextVulkanImpl::~RenderContextVulkanImpl()
         }
     }
 
-    // Tell the context we are entering our shutdown cycle. After this point, all
-    // resources will be deleted immediately upon their refCount reaching zero, as
-    // opposed to being kept alive for in-flight command buffers.
+    // Tell the context we are entering our shutdown cycle. After this point,
+    // all resources will be deleted immediately upon their refCount reaching
+    // zero, as opposed to being kept alive for in-flight command buffers.
     m_vk->shutdown();
 
     m_vk->DestroySampler(m_vk->device, m_linearSampler, nullptr);
     m_vk->DestroySampler(m_vk->device, m_mipmapSampler, nullptr);
 }
 
-void RenderContextVulkanImpl::resizeGradientTexture(uint32_t width, uint32_t height)
+void RenderContextVulkanImpl::resizeGradientTexture(uint32_t width,
+                                                    uint32_t height)
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
-    if (m_gradientTexture == nullptr || m_gradientTexture->info().extent.width != width ||
+    if (m_gradientTexture == nullptr ||
+        m_gradientTexture->info().extent.width != width ||
         m_gradientTexture->info().extent.height != height)
     {
         m_gradientTexture = m_vk->makeTexture({
             .format = VK_FORMAT_R8G8B8A8_UNORM,
             .extent = {width, height, 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT |
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_SAMPLED_BIT |
                      VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         });
 
@@ -1921,17 +2093,20 @@ void RenderContextVulkanImpl::resizeGradientTexture(uint32_t width, uint32_t hei
     }
 }
 
-void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
+void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width,
+                                                        uint32_t height)
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
-    if (m_tessVertexTexture == nullptr || m_tessVertexTexture->info().extent.width != width ||
+    if (m_tessVertexTexture == nullptr ||
+        m_tessVertexTexture->info().extent.width != width ||
         m_tessVertexTexture->info().extent.height != height)
     {
         m_tessVertexTexture = m_vk->makeTexture({
             .format = VK_FORMAT_R32G32B32A32_UINT,
             .extent = {width, height, 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_SAMPLED_BIT,
         });
 
         m_tessVertexTextureView = m_vk->makeTextureView(m_tessVertexTexture);
@@ -1958,7 +2133,8 @@ void RenderContextVulkanImpl::prepareToMapBuffers()
         fence->wait();
     }
 
-    // Delete resources that are no longer referenced by in-flight command buffers.
+    // Delete resources that are no longer referenced by in-flight command
+    // buffers.
     m_vk->onNewFrameBegun();
 
     // Synchronize buffer sizes in the buffer rings.
@@ -1985,7 +2161,8 @@ constexpr static uint32_t kMaxStorageBufferUpdates = 6;
 constexpr static uint32_t kMaxDescriptorSets = 3 + kMaxImageTextureUpdates;
 } // namespace descriptor_pool_limits
 
-RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(rcp<VulkanContext> vk) :
+RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
+    rcp<VulkanContext> vk) :
     m_vk(std::move(vk))
 {
     VkDescriptorPoolSize descriptorPoolSizes[] = {
@@ -1995,7 +2172,8 @@ RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(rcp<VulkanContext>
         },
         {
             .type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-            .descriptorCount = descriptor_pool_limits::kMaxDynamicUniformUpdates,
+            .descriptorCount =
+                descriptor_pool_limits::kMaxDynamicUniformUpdates,
         },
         {
             .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
@@ -2035,8 +2213,8 @@ RenderContextVulkanImpl::DescriptorSetPool::~DescriptorSetPool()
     m_vk->DestroyDescriptorPool(m_vk->device, m_vkDescriptorPool, nullptr);
 }
 
-VkDescriptorSet RenderContextVulkanImpl::DescriptorSetPool::allocateDescriptorSet(
-    VkDescriptorSetLayout layout)
+VkDescriptorSet RenderContextVulkanImpl::DescriptorSetPool::
+    allocateDescriptorSet(VkDescriptorSetLayout layout)
 {
     VkDescriptorSetAllocateInfo descriptorSetAllocateInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
@@ -2046,8 +2224,9 @@ VkDescriptorSet RenderContextVulkanImpl::DescriptorSetPool::allocateDescriptorSe
     };
 
     VkDescriptorSet descriptorSet;
-    VK_CHECK(
-        m_vk->AllocateDescriptorSets(m_vk->device, &descriptorSetAllocateInfo, &descriptorSet));
+    VK_CHECK(m_vk->AllocateDescriptorSets(m_vk->device,
+                                          &descriptorSetAllocateInfo,
+                                          &descriptorSet));
 
     return descriptorSet;
 }
@@ -2064,11 +2243,14 @@ vkutil::TextureView* RenderTargetVulkan::ensureOffscreenColorTextureView()
         m_offscreenColorTexture = m_vk->makeTexture({
             .format = m_framebufferFormat,
             .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                     VK_IMAGE_USAGE_TRANSFER_DST_BIT,
         });
 
-        m_offscreenColorTextureView = m_vk->makeTextureView(m_offscreenColorTexture);
+        m_offscreenColorTextureView =
+            m_vk->makeTextureView(m_offscreenColorTexture);
     }
 
     return m_offscreenColorTextureView.get();
@@ -2081,7 +2263,8 @@ vkutil::TextureView* RenderTargetVulkan::ensureClipTextureView()
         m_clipTexture = m_vk->makeTexture({
             .format = VK_FORMAT_R32_UINT,
             .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
                      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         });
 
@@ -2098,11 +2281,13 @@ vkutil::TextureView* RenderTargetVulkan::ensureScratchColorTextureView()
         m_scratchColorTexture = m_vk->makeTexture({
             .format = m_framebufferFormat,
             .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
                      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         });
 
-        m_scratchColorTextureView = m_vk->makeTextureView(m_scratchColorTexture);
+        m_scratchColorTextureView =
+            m_vk->makeTextureView(m_scratchColorTexture);
     }
 
     return m_scratchColorTextureView.get();
@@ -2115,7 +2300,8 @@ vkutil::TextureView* RenderTargetVulkan::ensureCoverageTextureView()
         m_coverageTexture = m_vk->makeTexture({
             .format = VK_FORMAT_R32_UINT,
             .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
                      VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
         });
 
@@ -2132,11 +2318,13 @@ vkutil::TextureView* RenderTargetVulkan::ensureCoverageAtomicTextureView()
         m_coverageAtomicTexture = m_vk->makeTexture({
             .format = VK_FORMAT_R32_UINT,
             .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_STORAGE_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_DST_BIT, // For vkCmdClearColorImage
+            .usage =
+                VK_IMAGE_USAGE_STORAGE_BIT |
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT, // For vkCmdClearColorImage
         });
 
-        m_coverageAtomicTextureView = m_vk->makeTextureView(m_coverageAtomicTexture);
+        m_coverageAtomicTextureView =
+            m_vk->makeTextureView(m_coverageAtomicTexture);
     }
 
     return m_coverageAtomicTextureView.get();
@@ -2152,7 +2340,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         return;
     }
 
-    auto commandBuffer = reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
+    auto commandBuffer =
+        reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
     rcp<DescriptorSetPool> descriptorSetPool = m_descriptorSetPoolPool->make();
 
     // Apply pending texture updates.
@@ -2162,7 +2351,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
     for (const DrawBatch& batch : *desc.drawList)
     {
-        if (auto imageTextureVulkan = static_cast<const TextureVulkanImpl*>(batch.imageTexture))
+        if (auto imageTextureVulkan =
+                static_cast<const TextureVulkanImpl*>(batch.imageTexture))
         {
             if (imageTextureVulkan->hasUpdates())
             {
@@ -2173,7 +2363,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     VulkanContext::TextureAccess lastGradTextureAccess, lastTessTextureAccess;
     lastTessTextureAccess = lastGradTextureAccess = {
-        // The last thing to access the gradient and tessellation textures was the
+        // The last thing to access the gradient and tessellation textures was
+        // the
         // previous flush. Make sure our barriers account for this so we don't
         // overwrite these textures before previous draws are done reading them.
         .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
@@ -2188,15 +2379,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     {
         // Wait for previous accesses to finish before copying to the gradient
         // texture.
-        lastGradTextureAccess =
-            m_vk->simpleImageMemoryBarrier(commandBuffer,
-                                           lastGradTextureAccess,
-                                           {
-                                               .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                               .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                                               .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                           },
-                                           *m_gradientTexture);
+        lastGradTextureAccess = m_vk->simpleImageMemoryBarrier(
+            commandBuffer,
+            lastGradTextureAccess,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            },
+            *m_gradientTexture);
 
         VkBufferImageCopy bufferImageCopy{
             .bufferOffset = desc.simpleGradDataOffsetInBytes,
@@ -2214,12 +2405,13 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 },
         };
 
-        m_vk->CmdCopyBufferToImage(commandBuffer,
-                                   m_simpleColorRampsBufferRing.vkBufferAt(m_bufferRingIdx),
-                                   *m_gradientTexture,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   1,
-                                   &bufferImageCopy);
+        m_vk->CmdCopyBufferToImage(
+            commandBuffer,
+            m_simpleColorRampsBufferRing.vkBufferAt(m_bufferRingIdx),
+            *m_gradientTexture,
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            1,
+            &bufferImageCopy);
     }
 
     // Render the complex color ramps to the gradient texture.
@@ -2249,22 +2441,34 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .renderArea = renderArea,
         };
 
-        m_vk->CmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        m_vk->CmdBeginRenderPass(commandBuffer,
+                                 &renderPassBeginInfo,
+                                 VK_SUBPASS_CONTENTS_INLINE);
 
         m_vk->CmdBindPipeline(commandBuffer,
                               VK_PIPELINE_BIND_POINT_GRAPHICS,
                               m_colorRampPipeline->renderPipeline());
 
-        m_vk->CmdSetViewport(commandBuffer, 0, 1, vkutil::ViewportFromRect2D(renderArea));
+        m_vk->CmdSetViewport(commandBuffer,
+                             0,
+                             1,
+                             vkutil::ViewportFromRect2D(renderArea));
 
         m_vk->CmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
-        VkBuffer gradSpanBuffer = m_gradSpanBufferRing.vkBufferAt(m_bufferRingIdx);
-        VkDeviceSize gradSpanOffset = desc.firstComplexGradSpan * sizeof(gpu::GradientSpan);
-        m_vk->CmdBindVertexBuffers(commandBuffer, 0, 1, &gradSpanBuffer, &gradSpanOffset);
+        VkBuffer gradSpanBuffer =
+            m_gradSpanBufferRing.vkBufferAt(m_bufferRingIdx);
+        VkDeviceSize gradSpanOffset =
+            desc.firstComplexGradSpan * sizeof(gpu::GradientSpan);
+        m_vk->CmdBindVertexBuffers(commandBuffer,
+                                   0,
+                                   1,
+                                   &gradSpanBuffer,
+                                   &gradSpanOffset);
 
         VkDescriptorSet descriptorSet =
-            descriptorSetPool->allocateDescriptorSet(m_colorRampPipeline->descriptorSetLayout());
+            descriptorSetPool->allocateDescriptorSet(
+                m_colorRampPipeline->descriptorSetLayout());
 
         m_vk->updateBufferDescriptorSets(
             descriptorSet,
@@ -2296,16 +2500,17 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         lastGradTextureAccess.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
-    // Ensure the gradient texture has finished updating before the path fragment
-    // shaders read it.
-    m_vk->simpleImageMemoryBarrier(commandBuffer,
-                                   lastGradTextureAccess,
-                                   {
-                                       .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                       .accessMask = VK_ACCESS_SHADER_READ_BIT,
-                                       .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                   },
-                                   *m_gradientTexture);
+    // Ensure the gradient texture has finished updating before the path
+    // fragment shaders read it.
+    m_vk->simpleImageMemoryBarrier(
+        commandBuffer,
+        lastGradTextureAccess,
+        {
+            .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .accessMask = VK_ACCESS_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        },
+        *m_gradientTexture);
 
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
@@ -2333,35 +2538,50 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .renderArea = renderArea,
         };
 
-        m_vk->CmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+        m_vk->CmdBeginRenderPass(commandBuffer,
+                                 &renderPassBeginInfo,
+                                 VK_SUBPASS_CONTENTS_INLINE);
 
         m_vk->CmdBindPipeline(commandBuffer,
                               VK_PIPELINE_BIND_POINT_GRAPHICS,
                               m_tessellatePipeline->renderPipeline());
 
-        m_vk->CmdSetViewport(commandBuffer, 0, 1, vkutil::ViewportFromRect2D(renderArea));
+        m_vk->CmdSetViewport(commandBuffer,
+                             0,
+                             1,
+                             vkutil::ViewportFromRect2D(renderArea));
 
         m_vk->CmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
         VkBuffer tessBuffer = m_tessSpanBufferRing.vkBufferAt(m_bufferRingIdx);
-        VkDeviceSize tessOffset = desc.firstTessVertexSpan * sizeof(gpu::TessVertexSpan);
-        m_vk->CmdBindVertexBuffers(commandBuffer, 0, 1, &tessBuffer, &tessOffset);
+        VkDeviceSize tessOffset =
+            desc.firstTessVertexSpan * sizeof(gpu::TessVertexSpan);
+        m_vk->CmdBindVertexBuffers(commandBuffer,
+                                   0,
+                                   1,
+                                   &tessBuffer,
+                                   &tessOffset);
 
-        m_vk->CmdBindIndexBuffer(commandBuffer, *m_tessSpanIndexBuffer, 0, VK_INDEX_TYPE_UINT16);
+        m_vk->CmdBindIndexBuffer(commandBuffer,
+                                 *m_tessSpanIndexBuffer,
+                                 0,
+                                 VK_INDEX_TYPE_UINT16);
 
         VkDescriptorSet descriptorSet =
-            descriptorSetPool->allocateDescriptorSet(m_tessellatePipeline->descriptorSetLayout());
+            descriptorSetPool->allocateDescriptorSet(
+                m_tessellatePipeline->descriptorSetLayout());
 
-        m_vk->updateBufferDescriptorSets(descriptorSet,
-                                         {
-                                             .dstBinding = PATH_BUFFER_IDX,
-                                             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                         },
-                                         {{
-                                             .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
-                                             .offset = desc.firstPath * sizeof(gpu::PathData),
-                                             .range = VK_WHOLE_SIZE,
-                                         }});
+        m_vk->updateBufferDescriptorSets(
+            descriptorSet,
+            {
+                .dstBinding = PATH_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            },
+            {{
+                .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.firstPath * sizeof(gpu::PathData),
+                .range = VK_WHOLE_SIZE,
+            }});
 
         m_vk->updateBufferDescriptorSets(
             descriptorSet,
@@ -2412,43 +2632,53 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     // Ensure the tessellation texture has finished rendering before the path
     // vertex shaders read it.
-    m_vk->simpleImageMemoryBarrier(commandBuffer,
-                                   lastTessTextureAccess,
-                                   {
-                                       .pipelineStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
-                                       .accessMask = VK_ACCESS_SHADER_READ_BIT,
-                                       .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                   },
-                                   *m_tessVertexTexture);
+    m_vk->simpleImageMemoryBarrier(
+        commandBuffer,
+        lastTessTextureAccess,
+        {
+            .pipelineStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+            .accessMask = VK_ACCESS_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        },
+        *m_tessVertexTexture);
 
     auto pipelineLayoutOptions = DrawPipelineLayoutOptions::none;
-    if (m_vk->features.independentBlend && desc.interlockMode == gpu::InterlockMode::atomics &&
-        !(desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND))
+    if (m_vk->features.independentBlend &&
+        desc.interlockMode == gpu::InterlockMode::atomics &&
+        !(desc.combinedShaderFeatures &
+          gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND))
     {
-        pipelineLayoutOptions |= DrawPipelineLayoutOptions::fixedFunctionColorOutput;
+        pipelineLayoutOptions |=
+            DrawPipelineLayoutOptions::fixedFunctionColorOutput;
     }
 
-    int pipelineLayoutIdx =
-        ((desc.interlockMode == gpu::InterlockMode::atomics) << kDrawPipelineLayoutOptionCount) |
-        static_cast<int>(pipelineLayoutOptions);
+    int pipelineLayoutIdx = ((desc.interlockMode == gpu::InterlockMode::atomics)
+                             << kDrawPipelineLayoutOptionCount) |
+                            static_cast<int>(pipelineLayoutOptions);
     assert(pipelineLayoutIdx < m_drawPipelineLayouts.size());
     if (m_drawPipelineLayouts[pipelineLayoutIdx] == nullptr)
     {
         m_drawPipelineLayouts[pipelineLayoutIdx] =
-            std::make_unique<DrawPipelineLayout>(this, desc.interlockMode, pipelineLayoutOptions);
+            std::make_unique<DrawPipelineLayout>(this,
+                                                 desc.interlockMode,
+                                                 pipelineLayoutOptions);
     }
-    DrawPipelineLayout& pipelineLayout = *m_drawPipelineLayouts[pipelineLayoutIdx];
+    DrawPipelineLayout& pipelineLayout =
+        *m_drawPipelineLayouts[pipelineLayoutIdx];
     bool fixedFunctionColorOutput =
-        pipelineLayout.options() & DrawPipelineLayoutOptions::fixedFunctionColorOutput;
+        pipelineLayout.options() &
+        DrawPipelineLayoutOptions::fixedFunctionColorOutput;
 
     auto* renderTarget = static_cast<RenderTargetVulkan*>(desc.renderTarget);
 
     vkutil::TextureView* colorView =
-        renderTarget->targetViewContainsUsageFlag(VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
+        renderTarget->targetViewContainsUsageFlag(
+            VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
                 fixedFunctionColorOutput
             ? renderTarget->targetTextureView()
             : renderTarget->ensureOffscreenColorTextureView();
-    vkutil::TextureView *clipView, *scratchColorTextureView, *coverageTextureView;
+    vkutil::TextureView *clipView, *scratchColorTextureView,
+        *coverageTextureView;
     if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
         // In atomic mode, the clip plane is RGBA8. Just use the scratch color
@@ -2464,7 +2694,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         coverageTextureView = renderTarget->ensureCoverageTextureView();
     }
 
-    VulkanContext::TextureAccess initialColorAccess = renderTarget->targetLastAccess();
+    VulkanContext::TextureAccess initialColorAccess =
+        renderTarget->targetLastAccess();
 
     if (desc.colorLoadAction != gpu::LoadAction::preserveRenderTarget)
     {
@@ -2473,10 +2704,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
     else if (colorView == renderTarget->offscreenColorTextureView())
     {
-        // The access we just declared was actually for the *renderTarget* texture,
-        // not the actual color attachment we will render to, which will be the the
-        // offscreen texture.
-        VulkanContext::TextureAccess initialRenderTargetAccess = initialColorAccess;
+        // The access we just declared was actually for the *renderTarget*
+        // texture, not the actual color attachment we will render to, which
+        // will be the the offscreen texture.
+        VulkanContext::TextureAccess initialRenderTargetAccess =
+            initialColorAccess;
 
         // The initial *color attachment* (aka offscreenColorTexture) access is
         // the previous frame's copy into the renderTarget texture.
@@ -2504,13 +2736,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             },
         };
 
-        m_vk->imageMemoryBarriers(
-            commandBuffer,
-            initialRenderTargetAccess.pipelineStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
-            initialColorAccess.pipelineStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0,
-            std::size(imageMemoryBarriers),
-            imageMemoryBarriers);
+        m_vk->imageMemoryBarriers(commandBuffer,
+                                  initialRenderTargetAccess.pipelineStages |
+                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                  initialColorAccess.pipelineStages |
+                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                  0,
+                                  std::size(imageMemoryBarriers),
+                                  imageMemoryBarriers);
 
         m_vk->blitSubRect(commandBuffer,
                           renderTarget->targetTexture(),
@@ -2518,15 +2751,17 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                           desc.renderTargetUpdateBounds);
     }
 
-    int renderPassVariantIdx =
-        DrawPipelineLayout::RenderPassVariantIdx(renderTarget->framebufferFormat(),
-                                                 desc.colorLoadAction);
-    VkRenderPass vkRenderPass = pipelineLayout.renderPassAt(renderPassVariantIdx);
+    int renderPassVariantIdx = DrawPipelineLayout::RenderPassVariantIdx(
+        renderTarget->framebufferFormat(),
+        desc.colorLoadAction);
+    VkRenderPass vkRenderPass =
+        pipelineLayout.renderPassAt(renderPassVariantIdx);
 
     VkImageView imageViews[] = {
         *colorView,
         *clipView,
-        scratchColorTextureView != nullptr ? *scratchColorTextureView : VK_NULL_HANDLE,
+        scratchColorTextureView != nullptr ? *scratchColorTextureView
+                                           : VK_NULL_HANDLE,
         coverageTextureView != nullptr ? *coverageTextureView : VK_NULL_HANDLE,
     };
 
@@ -2537,7 +2772,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     rcp<vkutil::Framebuffer> framebuffer = m_vk->makeFramebuffer({
         .renderPass = vkRenderPass,
-        .attachmentCount = DrawPipelineLayout::PLSAttachmentCount(desc.interlockMode),
+        .attachmentCount =
+            DrawPipelineLayout::PLSAttachmentCount(desc.interlockMode),
         .pAttachments = imageViews,
         .width = static_cast<uint32_t>(renderTarget->width()),
         .height = static_cast<uint32_t>(renderTarget->height()),
@@ -2560,8 +2796,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
 
-    // Ensure any previous accesses to the color texture complete before we begin
-    // rendering.
+    // Ensure any previous accesses to the color texture complete before we
+    // begin rendering.
     m_vk->simpleImageMemoryBarrier(
         commandBuffer,
         initialColorAccess,
@@ -2592,7 +2828,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             0,
             {
-                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                .srcAccessMask =
+                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                 .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
@@ -2614,27 +2851,29 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             0,
             {
                 .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
+                .dstAccessMask =
+                    VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
                 .image = renderTarget->coverageAtomicTexture(),
             });
 
-        // Ensure all reads to any internal attachments complete before we execute
-        // the load operations.
-        m_vk->memoryBarrier(commandBuffer,
-                            // "Load" operations always occur in
-                            // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
-                            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                            0,
-                            {
-                                .srcAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
-                                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                            });
+        // Ensure all reads to any internal attachments complete before we
+        // execute the load operations.
+        m_vk->memoryBarrier(
+            commandBuffer,
+            // "Load" operations always occur in
+            // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
+            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            0,
+            {
+                .srcAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+                .dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            });
 
-        // Make sure we get a barrier between load operations and the first color
-        // attachment accesses.
+        // Make sure we get a barrier between load operations and the first
+        // color attachment accesses.
         needsBarrierBeforeNextDraw = true;
     }
 
@@ -2647,46 +2886,55 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         .pClearValues = clearValues,
     };
 
-    m_vk->CmdBeginRenderPass(commandBuffer, &renderPassBeginInfo, VK_SUBPASS_CONTENTS_INLINE);
+    m_vk->CmdBeginRenderPass(commandBuffer,
+                             &renderPassBeginInfo,
+                             VK_SUBPASS_CONTENTS_INLINE);
 
-    m_vk->CmdSetViewport(commandBuffer, 0, 1, vkutil::ViewportFromRect2D(renderArea));
+    m_vk->CmdSetViewport(commandBuffer,
+                         0,
+                         1,
+                         vkutil::ViewportFromRect2D(renderArea));
 
     m_vk->CmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
     // Update the per-flush descriptor sets.
     VkDescriptorSet perFlushDescriptorSet =
-        descriptorSetPool->allocateDescriptorSet(pipelineLayout.perFlushLayout());
+        descriptorSetPool->allocateDescriptorSet(
+            pipelineLayout.perFlushLayout());
 
-    m_vk->updateImageDescriptorSets(perFlushDescriptorSet,
-                                    {
-                                        .dstBinding = TESS_VERTEX_TEXTURE_IDX,
-                                        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                                    },
-                                    {{
-                                        .imageView = *m_tessVertexTextureView,
-                                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                    }});
+    m_vk->updateImageDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = TESS_VERTEX_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_tessVertexTextureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
 
-    m_vk->updateImageDescriptorSets(perFlushDescriptorSet,
-                                    {
-                                        .dstBinding = GRAD_TEXTURE_IDX,
-                                        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                                    },
-                                    {{
-                                        .imageView = *m_gradTextureView,
-                                        .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                                    }});
+    m_vk->updateImageDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = GRAD_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_gradTextureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
 
-    m_vk->updateBufferDescriptorSets(perFlushDescriptorSet,
-                                     {
-                                         .dstBinding = PATH_BUFFER_IDX,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                     },
-                                     {{
-                                         .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
-                                         .offset = desc.firstPath * sizeof(gpu::PathData),
-                                         .range = VK_WHOLE_SIZE,
-                                     }});
+    m_vk->updateBufferDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = PATH_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {{
+            .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = desc.firstPath * sizeof(gpu::PathData),
+            .range = VK_WHOLE_SIZE,
+        }});
 
     m_vk->updateBufferDescriptorSets(
         perFlushDescriptorSet,
@@ -2708,16 +2956,17 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         });
     static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
 
-    m_vk->updateBufferDescriptorSets(perFlushDescriptorSet,
-                                     {
-                                         .dstBinding = CONTOUR_BUFFER_IDX,
-                                         .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                                     },
-                                     {{
-                                         .buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx),
-                                         .offset = desc.firstContour * sizeof(gpu::ContourData),
-                                         .range = VK_WHOLE_SIZE,
-                                     }});
+    m_vk->updateBufferDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = CONTOUR_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {{
+            .buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = desc.firstContour * sizeof(gpu::ContourData),
+            .range = VK_WHOLE_SIZE,
+        }});
 
     m_vk->updateBufferDescriptorSets(
         perFlushDescriptorSet,
@@ -2749,38 +2998,41 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     if (!fixedFunctionColorOutput)
     {
-        m_vk->updateImageDescriptorSets(inputAttachmentDescriptorSet,
-                                        {
-                                            .dstBinding = COLOR_PLANE_IDX,
-                                            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                        },
-                                        {{
-                                            .imageView = *colorView,
-                                            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                        }});
+        m_vk->updateImageDescriptorSets(
+            inputAttachmentDescriptorSet,
+            {
+                .dstBinding = COLOR_PLANE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            },
+            {{
+                .imageView = *colorView,
+                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            }});
     }
 
-    m_vk->updateImageDescriptorSets(inputAttachmentDescriptorSet,
-                                    {
-                                        .dstBinding = CLIP_PLANE_IDX,
-                                        .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                    },
-                                    {{
-                                        .imageView = *clipView,
-                                        .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                    }});
+    m_vk->updateImageDescriptorSets(
+        inputAttachmentDescriptorSet,
+        {
+            .dstBinding = CLIP_PLANE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+        },
+        {{
+            .imageView = *clipView,
+            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+        }});
 
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {
-        m_vk->updateImageDescriptorSets(inputAttachmentDescriptorSet,
-                                        {
-                                            .dstBinding = SCRATCH_COLOR_PLANE_IDX,
-                                            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-                                        },
-                                        {{
-                                            .imageView = *scratchColorTextureView,
-                                            .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
-                                        }});
+        m_vk->updateImageDescriptorSets(
+            inputAttachmentDescriptorSet,
+            {
+                .dstBinding = SCRATCH_COLOR_PLANE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            },
+            {{
+                .imageView = *scratchColorTextureView,
+                .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
+            }});
     }
 
     m_vk->updateImageDescriptorSets(
@@ -2797,8 +3049,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }});
 
     // Bind the descriptor sets for this draw pass.
-    // (The imageTexture and imageDraw dynamic uniform offsets might have to update
-    // between draws, but this is otherwise all we need to bind!)
+    // (The imageTexture and imageDraw dynamic uniform offsets might have to
+    // update between draws, but this is otherwise all we need to bind!)
     VkDescriptorSet drawDescriptorSets[] = {
         perFlushDescriptorSet,
         pipelineLayout.nullImageDescriptorSet(),
@@ -2835,21 +3087,25 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         {
             // Update the imageTexture binding and the dynamic offset into the
             // imageDraw uniform buffer.
-            auto imageTexture = static_cast<const TextureVulkanImpl*>(batch.imageTexture);
-            if (imageTexture->m_descriptorSetFrameIdx != m_vk->currentFrameIdx())
+            auto imageTexture =
+                static_cast<const TextureVulkanImpl*>(batch.imageTexture);
+            if (imageTexture->m_descriptorSetFrameIdx !=
+                m_vk->currentFrameIdx())
             {
                 // Update the image's "texture binding" descriptor set. (These
                 // expire every frame, so we need to make a new one each frame.)
-                if (imageTextureUpdateCount >= descriptor_pool_limits::kMaxImageTextureUpdates)
+                if (imageTextureUpdateCount >=
+                    descriptor_pool_limits::kMaxImageTextureUpdates)
                 {
-                    // We ran out of room for image texture updates. Allocate a new
-                    // pool.
+                    // We ran out of room for image texture updates. Allocate a
+                    // new pool.
                     descriptorSetPool = m_descriptorSetPoolPool->make();
                     imageTextureUpdateCount = 0;
                 }
 
                 imageTexture->m_imageTextureDescriptorSet =
-                    descriptorSetPool->allocateDescriptorSet(pipelineLayout.perDrawLayout());
+                    descriptorSetPool->allocateDescriptorSet(
+                        pipelineLayout.perDrawLayout());
 
                 m_vk->updateImageDescriptorSets(
                     imageTexture->m_imageTextureDescriptorSet,
@@ -2867,7 +3123,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             }
 
             VkDescriptorSet imageDescriptorSets[] = {
-                perFlushDescriptorSet,                     // Dynamic offset to imageDraw uniforms.
+                perFlushDescriptorSet, // Dynamic offset to imageDraw uniforms.
                 imageTexture->m_imageTextureDescriptorSet, // imageTexture.
             };
             static_assert(PER_DRAW_BINDINGS_SET == PER_FLUSH_BINDINGS_SET + 1);
@@ -2883,27 +3139,34 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
 
         // Setup the pipeline for this specific drawType and shaderFeatures.
-        gpu::ShaderFeatures shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
-                                                 ? desc.combinedShaderFeatures
-                                                 : batch.shaderFeatures;
-        auto shaderMiscFlags = fixedFunctionColorOutput
-                                   ? gpu::ShaderMiscFlags::fixedFunctionColorOutput
-                                   : gpu::ShaderMiscFlags::none;
-        uint32_t pipelineKey =
-            gpu::ShaderUniqueKey(drawType, shaderFeatures, desc.interlockMode, shaderMiscFlags);
+        gpu::ShaderFeatures shaderFeatures =
+            desc.interlockMode == gpu::InterlockMode::atomics
+                ? desc.combinedShaderFeatures
+                : batch.shaderFeatures;
+        auto shaderMiscFlags =
+            fixedFunctionColorOutput
+                ? gpu::ShaderMiscFlags::fixedFunctionColorOutput
+                : gpu::ShaderMiscFlags::none;
+        uint32_t pipelineKey = gpu::ShaderUniqueKey(drawType,
+                                                    shaderFeatures,
+                                                    desc.interlockMode,
+                                                    shaderMiscFlags);
         auto drawPipelineOptions = DrawPipelineOptions::none;
         if (desc.wireframe && m_vk->features.fillModeNonSolid)
         {
             drawPipelineOptions |= DrawPipelineOptions::wireframe;
         }
-        assert(pipelineKey << kDrawPipelineOptionCount >> kDrawPipelineOptionCount == pipelineKey);
-        pipelineKey =
-            (pipelineKey << kDrawPipelineOptionCount) | static_cast<uint32_t>(drawPipelineOptions);
+        assert(pipelineKey << kDrawPipelineOptionCount >>
+                   kDrawPipelineOptionCount ==
+               pipelineKey);
+        pipelineKey = (pipelineKey << kDrawPipelineOptionCount) |
+                      static_cast<uint32_t>(drawPipelineOptions);
         assert(pipelineKey * DrawPipelineLayout::kRenderPassVariantCount /
                    DrawPipelineLayout::kRenderPassVariantCount ==
                pipelineKey);
         pipelineKey =
-            (pipelineKey * DrawPipelineLayout::kRenderPassVariantCount) + renderPassVariantIdx;
+            (pipelineKey * DrawPipelineLayout::kRenderPassVariantCount) +
+            renderPassVariantIdx;
         const DrawPipeline& drawPipeline = m_drawPipelines
                                                .try_emplace(pipelineKey,
                                                             this,
@@ -2924,14 +3187,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                                       // vkCmdNextSubpass().
         {
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
-            m_vk->memoryBarrier(commandBuffer,
-                                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                                VK_DEPENDENCY_BY_REGION_BIT,
-                                {
-                                    .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                                    .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
-                                });
+            m_vk->memoryBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                {
+                    .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+                });
         }
 
         switch (drawType)
@@ -2940,11 +3204,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.
-                m_vk->CmdBindVertexBuffers(commandBuffer,
-                                           0,
-                                           1,
-                                           m_pathPatchVertexBuffer->vkBufferAddressOf(),
-                                           zeroOffset);
+                m_vk->CmdBindVertexBuffers(
+                    commandBuffer,
+                    0,
+                    1,
+                    m_pathPatchVertexBuffer->vkBufferAddressOf(),
+                    zeroOffset);
                 m_vk->CmdBindIndexBuffer(commandBuffer,
                                          *m_pathPatchIndexBuffer,
                                          0,
@@ -2960,20 +3225,30 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
             case DrawType::interiorTriangulation:
             {
-                VkBuffer buffer = m_triangleBufferRing.vkBufferAt(m_bufferRingIdx);
-                m_vk->CmdBindVertexBuffers(commandBuffer, 0, 1, &buffer, zeroOffset);
-                m_vk->CmdDraw(commandBuffer, batch.elementCount, 1, batch.baseElement, 0);
+                VkBuffer buffer =
+                    m_triangleBufferRing.vkBufferAt(m_bufferRingIdx);
+                m_vk->CmdBindVertexBuffers(commandBuffer,
+                                           0,
+                                           1,
+                                           &buffer,
+                                           zeroOffset);
+                m_vk->CmdDraw(commandBuffer,
+                              batch.elementCount,
+                              1,
+                              batch.baseElement,
+                              0);
                 break;
             }
 
             case DrawType::imageRect:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
-                m_vk->CmdBindVertexBuffers(commandBuffer,
-                                           0,
-                                           1,
-                                           m_imageRectVertexBuffer->vkBufferAddressOf(),
-                                           zeroOffset);
+                m_vk->CmdBindVertexBuffers(
+                    commandBuffer,
+                    0,
+                    1,
+                    m_imageRectVertexBuffer->vkBufferAddressOf(),
+                    zeroOffset);
                 m_vk->CmdBindIndexBuffer(commandBuffer,
                                          *m_imageRectIndexBuffer,
                                          0,
@@ -2989,14 +3264,21 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
             case DrawType::imageMesh:
             {
-                LITE_RTTI_CAST_OR_BREAK(vertexBuffer, RenderBufferVulkanImpl*, batch.vertexBuffer);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, RenderBufferVulkanImpl*, batch.uvBuffer);
-                LITE_RTTI_CAST_OR_BREAK(indexBuffer, RenderBufferVulkanImpl*, batch.indexBuffer);
-                m_vk->CmdBindVertexBuffers(commandBuffer,
-                                           0,
-                                           1,
-                                           vertexBuffer->frontVkBufferAddressOf(),
-                                           zeroOffset);
+                LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
+                                        RenderBufferVulkanImpl*,
+                                        batch.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer,
+                                        RenderBufferVulkanImpl*,
+                                        batch.uvBuffer);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer,
+                                        RenderBufferVulkanImpl*,
+                                        batch.indexBuffer);
+                m_vk->CmdBindVertexBuffers(
+                    commandBuffer,
+                    0,
+                    1,
+                    vertexBuffer->frontVkBufferAddressOf(),
+                    zeroOffset);
                 m_vk->CmdBindVertexBuffers(commandBuffer,
                                            1,
                                            1,
@@ -3006,7 +3288,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                          indexBuffer->frontVkBuffer(),
                                          0,
                                          VK_INDEX_TYPE_UINT16);
-                m_vk->CmdDrawIndexed(commandBuffer, batch.elementCount, 1, batch.baseElement, 0, 0);
+                m_vk->CmdDrawIndexed(commandBuffer,
+                                     batch.elementCount,
+                                     1,
+                                     batch.baseElement,
+                                     0,
+                                     0);
                 break;
             }
 
@@ -3024,7 +3311,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
 
         needsBarrierBeforeNextDraw =
-            desc.interlockMode == gpu::InterlockMode::atomics && batch.needsBarrier;
+            desc.interlockMode == gpu::InterlockMode::atomics &&
+            batch.needsBarrier;
     }
 
     m_vk->CmdEndRenderPass(commandBuffer);
@@ -3039,9 +3327,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     if (colorView == renderTarget->offscreenColorTextureView())
     {
-        // The access we just declared was actually for the offscreen texture, not
-        // the final target.
-        VulkanContext::TextureAccess finalOffscreenAccess = finalRenderTargetAccess;
+        // The access we just declared was actually for the offscreen texture,
+        // not the final target.
+        VulkanContext::TextureAccess finalOffscreenAccess =
+            finalRenderTargetAccess;
 
         // The final *renderTarget* access will be a copy from the offscreen
         // texture.
@@ -3070,13 +3359,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             },
         };
 
-        m_vk->imageMemoryBarriers(
-            commandBuffer,
-            finalOffscreenAccess.pipelineStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
-            finalRenderTargetAccess.pipelineStages | VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0,
-            std::size(imageMemoryBarriers),
-            imageMemoryBarriers);
+        m_vk->imageMemoryBarriers(commandBuffer,
+                                  finalOffscreenAccess.pipelineStages |
+                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                  finalRenderTargetAccess.pipelineStages |
+                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                  0,
+                                  std::size(imageMemoryBarriers),
+                                  imageMemoryBarriers);
 
         m_vk->blitSubRect(commandBuffer,
                           renderTarget->offscreenColorTexture(),
@@ -3088,7 +3378,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     if (desc.isFinalFlushOfFrame)
     {
-        m_frameCompletionFences[m_bufferRingIdx] = ref_rcp(desc.frameCompletionFence);
+        m_frameCompletionFences[m_bufferRingIdx] =
+            ref_rcp(desc.frameCompletionFence);
     }
 }
 

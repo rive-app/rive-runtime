@@ -23,7 +23,8 @@ public:
     void update(ComponentDirt value) override;
     void markGradientDirty();
     void markStopsDirty();
-    void applyTo(RenderPaint* renderPaint, float opacityModifier) const override;
+    void applyTo(RenderPaint* renderPaint,
+                 float opacityModifier) const override;
 
 protected:
     void buildDependencies() override;

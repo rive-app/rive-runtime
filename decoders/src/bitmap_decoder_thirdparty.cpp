@@ -12,7 +12,8 @@ std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount);
 std::unique_ptr<Bitmap> DecodeJpeg(const uint8_t bytes[], size_t byteCount);
 std::unique_ptr<Bitmap> DecodeWebP(const uint8_t bytes[], size_t byteCount);
 
-using BitmapDecoder = std::unique_ptr<Bitmap> (*)(const uint8_t bytes[], size_t byteCount);
+using BitmapDecoder = std::unique_ptr<Bitmap> (*)(const uint8_t bytes[],
+                                                  size_t byteCount);
 struct ImageFormat
 {
     const char* name;
@@ -51,8 +52,8 @@ std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
             continue;
         }
 
-        // If the fingerprint doesn't match, discrd this decoder. These are all bytes so .size() is
-        // fine here.
+        // If the fingerprint doesn't match, discrd this decoder. These are all
+        // bytes so .size() is fine here.
         if (memcmp(fingerprint.data(), bytes, fingerprint.size()) != 0)
         {
             continue;
@@ -61,7 +62,9 @@ std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
         auto bitmap = recognizer.decodeImage(bytes, byteCount);
         if (!bitmap)
         {
-            fprintf(stderr, "Bitmap::decode - failed to decode a %s.\n", recognizer.name);
+            fprintf(stderr,
+                    "Bitmap::decode - failed to decode a %s.\n",
+                    recognizer.name);
         }
         return bitmap;
     }

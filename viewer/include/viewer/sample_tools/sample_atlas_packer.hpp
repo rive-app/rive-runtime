@@ -28,7 +28,10 @@ private:
 public:
     SampleAtlas(const uint8_t* pixels, uint32_t width, uint32_t height);
     SampleAtlas(uint32_t width, uint32_t height);
-    bool pack(const uint8_t* pixels, uint32_t width, uint32_t height, Mat2D& packTransform);
+    bool pack(const uint8_t* pixels,
+              uint32_t width,
+              uint32_t height,
+              Mat2D& packTransform);
 
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
@@ -39,8 +42,8 @@ struct SampleAtlasLocation
 {
     std::size_t atlasIndex;
     Mat2D transform;
-    // Original width & height of the image, so we can make vertex buffers for the "default renderer
-    // drawImage"
+    // Original width & height of the image, so we can make vertex buffers for
+    // the "default renderer drawImage"
     uint32_t width;
     uint32_t height;
 };
@@ -69,11 +72,14 @@ class SampleAtlasLoader : public FileAssetLoader
 {
 private:
     SampleAtlasPacker* m_packer;
-    std::unordered_map<uint32_t, rive::rcp<rive::SokolRenderImageResource>> m_sharedImageResources;
+    std::unordered_map<uint32_t, rive::rcp<rive::SokolRenderImageResource>>
+        m_sharedImageResources;
 
 public:
     SampleAtlasLoader(SampleAtlasPacker* packer);
-    bool loadContents(FileAsset& asset, Span<const uint8_t> inBandBytes, Factory*) override;
+    bool loadContents(FileAsset& asset,
+                      Span<const uint8_t> inBandBytes,
+                      Factory*) override;
 };
 } // namespace rive
 #endif

@@ -4,19 +4,24 @@
 
 using namespace rive;
 
-DataBindContextValueNumber::DataBindContextValueNumber(ViewModelInstanceValue* source,
-                                                       DataConverter* converter) :
+DataBindContextValueNumber::DataBindContextValueNumber(
+    ViewModelInstanceValue* source,
+    DataConverter* converter) :
     DataBindContextValue(source, converter)
 {}
 
-void DataBindContextValueNumber::apply(Core* target, uint32_t propertyKey, bool isMainDirection)
+void DataBindContextValueNumber::apply(Core* target,
+                                       uint32_t propertyKey,
+                                       bool isMainDirection)
 {
     updateSourceValue();
-    auto value = calculateValue<DataValueNumber, float>(m_dataValue, isMainDirection);
+    auto value =
+        calculateValue<DataValueNumber, float>(m_dataValue, isMainDirection);
     CoreRegistry::setDouble(target, propertyKey, value);
 }
 
-DataValue* DataBindContextValueNumber::getTargetValue(Core* target, uint32_t propertyKey)
+DataValue* DataBindContextValueNumber::getTargetValue(Core* target,
+                                                      uint32_t propertyKey)
 {
     auto value = CoreRegistry::getDouble(target, propertyKey);
     return new DataValueNumber(value);

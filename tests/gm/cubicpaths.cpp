@@ -15,8 +15,8 @@
 using namespace rivegm;
 using namespace rive;
 
-// https://bug.skia.org/1316 shows that this cubic, when slightly clipped, creates big
-// (incorrect) changes to its control points.
+// https://bug.skia.org/1316 shows that this cubic, when slightly clipped,
+// creates big (incorrect) changes to its control points.
 class ClippedCubicGM : public GM
 {
 public:
@@ -178,9 +178,10 @@ private:
             StrokeJoin fJoin;
             const char* fName;
         };
-        constexpr CapAndName gCaps[] = {{StrokeCap::butt, StrokeJoin::bevel, "Butt"},
-                                        {StrokeCap::round, StrokeJoin::round, "Round"},
-                                        {StrokeCap::square, StrokeJoin::bevel, "Square"}};
+        constexpr CapAndName gCaps[] = {
+            {StrokeCap::butt, StrokeJoin::bevel, "Butt"},
+            {StrokeCap::round, StrokeJoin::round, "Round"},
+            {StrokeCap::square, StrokeJoin::bevel, "Square"}};
         struct PathAndName
         {
             Path fPath;
@@ -188,7 +189,12 @@ private:
         };
         PathAndName path;
         path.fPath->moveTo(25 * 1.0f, 10 * 1.0f);
-        path.fPath->cubicTo(40 * 1.0f, 20 * 1.0f, 60 * 1.0f, 20 * 1.0f, 75 * 1.0f, 10 * 1.0f);
+        path.fPath->cubicTo(40 * 1.0f,
+                            20 * 1.0f,
+                            60 * 1.0f,
+                            20 * 1.0f,
+                            75 * 1.0f,
+                            10 * 1.0f);
         path.fName = "moveTo-cubic";
 
         AABB rect = {0, 0, 100 * 1.0f, 30 * 1.0f};
@@ -199,7 +205,9 @@ private:
         {
             if (0 < cap)
             {
-                canvas->translate((rect.width() + 40 * 1.0f) * std::size(gStyles), 0);
+                canvas->translate((rect.width() + 40 * 1.0f) *
+                                      std::size(gStyles),
+                                  0);
             }
             canvas->save();
             for (size_t fill = 0; fill < std::size(gFills); ++fill)
@@ -297,9 +305,10 @@ private:
             StrokeJoin fJoin;
             const char* fName;
         };
-        constexpr CapAndName gCaps[] = {{StrokeCap::butt, StrokeJoin::bevel, "Butt"},
-                                        {StrokeCap::round, StrokeJoin::round, "Round"},
-                                        {StrokeCap::square, StrokeJoin::bevel, "Square"}};
+        constexpr CapAndName gCaps[] = {
+            {StrokeCap::butt, StrokeJoin::bevel, "Butt"},
+            {StrokeCap::round, StrokeJoin::round, "Round"},
+            {StrokeCap::square, StrokeJoin::bevel, "Square"}};
         struct PathAndName
         {
             Path fPath;
@@ -307,7 +316,12 @@ private:
         };
         PathAndName path;
         path.fPath->moveTo(25 * 1.0f, 10 * 1.0f);
-        path.fPath->cubicTo(40 * 1.0f, 20 * 1.0f, 60 * 1.0f, 20 * 1.0f, 75 * 1.0f, 10 * 1.0f);
+        path.fPath->cubicTo(40 * 1.0f,
+                            20 * 1.0f,
+                            60 * 1.0f,
+                            20 * 1.0f,
+                            75 * 1.0f,
+                            10 * 1.0f);
         path.fPath->close();
         path.fName = "moveTo-cubic-close";
 
@@ -319,7 +333,9 @@ private:
         {
             if (0 < cap)
             {
-                canvas->translate((rect.width() + 40 * 1.0f) * std::size(gStyles), 0);
+                canvas->translate((rect.width() + 40 * 1.0f) *
+                                      std::size(gStyles),
+                                  0);
             }
             canvas->save();
             for (size_t fill = 0; fill < std::size(gFills); ++fill)

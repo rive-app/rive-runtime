@@ -76,7 +76,9 @@ static void dumpGMs(const std::string& match, bool interactive)
     }
 }
 
-static bool is_arg(const char arg[], const char target[], const char alt[] = nullptr)
+static bool is_arg(const char arg[],
+                   const char target[],
+                   const char alt[] = nullptr)
 {
     return !strcmp(arg, target) || (arg && !strcmp(arg, alt));
 }
@@ -89,7 +91,8 @@ REGISTRY_HANDLE gms_get_registry_head() { return rivegm::GMRegistry::head(); }
 
 REGISTRY_HANDLE gms_registry_get_next(REGISTRY_HANDLE position_handle)
 {
-    const GMRegistry* position = reinterpret_cast<const GMRegistry*>(position_handle);
+    const GMRegistry* position =
+        reinterpret_cast<const GMRegistry*>(position_handle);
     if (position == nullptr)
         return nullptr;
     return position->next();
@@ -119,7 +122,8 @@ bool gms_run_gm(REGISTRY_HANDLE gm_handle)
 
 bool gms_registry_get_name(REGISTRY_HANDLE position_handle, std::string& name)
 {
-    const GMRegistry* position = reinterpret_cast<const GMRegistry*>(position_handle);
+    const GMRegistry* position =
+        reinterpret_cast<const GMRegistry*>(position_handle);
     if (position == nullptr)
         return false;
 
@@ -133,9 +137,12 @@ bool gms_registry_get_name(REGISTRY_HANDLE position_handle, std::string& name)
     return true;
 }
 
-bool gms_registry_get_size(REGISTRY_HANDLE position_handle, size_t& width, size_t& height)
+bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
+                           size_t& width,
+                           size_t& height)
 {
-    const GMRegistry* position = reinterpret_cast<const GMRegistry*>(position_handle);
+    const GMRegistry* position =
+        reinterpret_cast<const GMRegistry*>(position_handle);
     if (position == nullptr)
         return false;
 
@@ -179,12 +186,14 @@ int main(int argc, const char* argv[])
     {
         if (strcmp(argv[i], "--test_harness") == 0)
         {
-            TestHarness::Instance().init(TCPClient::Connect(argv[++i]), pngThreads);
+            TestHarness::Instance().init(TCPClient::Connect(argv[++i]),
+                                         pngThreads);
             continue;
         }
         if (is_arg(argv[i], "--output", "-o"))
         {
-            TestHarness::Instance().init(std::filesystem::path(argv[++i]), pngThreads);
+            TestHarness::Instance().init(std::filesystem::path(argv[++i]),
+                                         pngThreads);
             continue;
         }
         if (is_arg(argv[i], "--match", "-m"))
@@ -229,7 +238,8 @@ int main(int argc, const char* argv[])
     TestingWindow::Init(backend, visibility, gpuNameFilter);
     dumpGMs(std::string(match), interactive);
 
-    TestingWindow::Destroy(); // Exercise our PLS teardown process now that we're done.
+    TestingWindow::Destroy(); // Exercise our PLS teardown process now that
+                              // we're done.
 
     TestHarness::Instance().shutdown();
     return 0;

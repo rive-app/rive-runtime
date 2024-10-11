@@ -10,7 +10,8 @@ using namespace rive;
 
 StatusCode FileAsset::import(ImportStack& importStack)
 {
-    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter =
+        importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -33,7 +34,10 @@ std::string FileAsset::uniqueName() const
     return uniqueName + "-" + std::to_string(assetId());
 }
 
-std::string FileAsset::uniqueFilename() const { return uniqueName() + "." + fileExtension(); }
+std::string FileAsset::uniqueFilename() const
+{
+    return uniqueName() + "." + fileExtension();
+}
 
 void FileAsset::copyCdnUuid(const FileAssetBase& object)
 {

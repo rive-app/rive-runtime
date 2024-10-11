@@ -14,7 +14,10 @@ public:
     void propertyValueChanged() override;
 #ifdef WITH_RIVE_TOOLS
 public:
-    void onChanged(ViewModelColorChanged callback) { m_changedCallback = callback; }
+    void onChanged(ViewModelColorChanged callback)
+    {
+        m_changedCallback = callback;
+    }
     ViewModelColorChanged m_changedCallback = nullptr;
 #endif
 };

@@ -18,7 +18,10 @@ class PathDasher
 protected:
     void invalidateSourcePath();
     void invalidateDash();
-    RenderPath* dash(const RawPath& source, Factory* factory, Dash* offset, Span<Dash*> dashes);
+    RenderPath* dash(const RawPath& source,
+                     Factory* factory,
+                     Dash* offset,
+                     Span<Dash*> dashes);
 
 private:
     RawPath m_rawPath;

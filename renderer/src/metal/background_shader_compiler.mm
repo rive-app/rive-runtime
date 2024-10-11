@@ -13,7 +13,8 @@
 #include "generated/shaders/draw_image_mesh.glsl.hpp"
 
 #ifndef RIVE_IOS
-// iOS doesn't need the atomic shaders; every non-simulated iOS device supports framebuffer reads.
+// iOS doesn't need the atomic shaders; every non-simulated iOS device supports
+// framebuffer reads.
 #include "generated/shaders/atomic_draw.glsl.hpp"
 #endif
 
@@ -37,14 +38,16 @@ void BackgroundShaderCompiler::pushJob(const BackgroundCompileJob& job)
         std::lock_guard lock(m_mutex);
         if (!m_compilerThread.joinable())
         {
-            m_compilerThread = std::thread(&BackgroundShaderCompiler::threadMain, this);
+            m_compilerThread =
+                std::thread(&BackgroundShaderCompiler::threadMain, this);
         }
         m_pendingJobs.push(std::move(job));
     }
     m_workAddedCondition.notify_all();
 }
 
-bool BackgroundShaderCompiler::popFinishedJob(BackgroundCompileJob* job, bool wait)
+bool BackgroundShaderCompiler::popFinishedJob(BackgroundCompileJob* job,
+                                              bool wait)
 {
     std::unique_lock lock(m_mutex);
     while (m_finishedJobs.empty())
@@ -102,7 +105,8 @@ void BackgroundShaderCompiler::threadMain()
         {
             // Atomic mode uses device buffers instead of framebuffer fetches.
             defines[@GLSL_PLS_IMPL_DEVICE_BUFFER] = @"";
-            if (m_metalFeatures.atomicBarrierType == AtomicBarrierType::rasterOrderGroup)
+            if (m_metalFeatures.atomicBarrierType ==
+                AtomicBarrierType::rasterOrderGroup)
             {
                 defines[@GLSL_PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED] = @"";
             }
@@ -112,9 +116,11 @@ void BackgroundShaderCompiler::threadMain()
             }
         }
 
-        auto source = [[NSMutableString alloc] initWithCString:gpu::glsl::metal
-                                                      encoding:NSUTF8StringEncoding];
-        [source appendFormat:@"%s\n%s\n", gpu::glsl::constants, gpu::glsl::common];
+        auto source =
+            [[NSMutableString alloc] initWithCString:gpu::glsl::metal
+                                            encoding:NSUTF8StringEncoding];
+        [source
+            appendFormat:@"%s\n%s\n", gpu::glsl::constants, gpu::glsl::common];
         if (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND)
         {
             [source appendFormat:@"%s\n", gpu::glsl::advanced_blend];
@@ -132,7 +138,8 @@ void BackgroundShaderCompiler::threadMain()
                 [source appendFormat:@"%s\n", gpu::glsl::draw_path];
 #else
                 [source appendFormat:@"%s\n",
-                                     interlockMode == gpu::InterlockMode::rasterOrdering
+                                     interlockMode ==
+                                             gpu::InterlockMode::rasterOrdering
                                          ? gpu::glsl::draw_path
                                          : gpu::glsl::atomic_draw];
 #endif
@@ -144,7 +151,8 @@ void BackgroundShaderCompiler::threadMain()
                 [source appendFormat:@"%s\n", gpu::glsl::draw_path];
 #else
                 [source appendFormat:@"%s\n",
-                                     interlockMode == gpu::InterlockMode::rasterOrdering
+                                     interlockMode ==
+                                             gpu::InterlockMode::rasterOrdering
                                          ? gpu::glsl::draw_path
                                          : gpu::glsl::atomic_draw];
 #endif
@@ -166,7 +174,8 @@ void BackgroundShaderCompiler::threadMain()
                 [source appendFormat:@"%s\n", gpu::glsl::draw_image_mesh];
 #else
                 [source appendFormat:@"%s\n",
-                                     interlockMode == gpu::InterlockMode::rasterOrdering
+                                     interlockMode ==
+                                             gpu::InterlockMode::rasterOrdering
                                          ? gpu::glsl::draw_image_mesh
                                          : gpu::glsl::atomic_draw];
 #endif
@@ -182,7 +191,8 @@ void BackgroundShaderCompiler::threadMain()
                 {
                     defines[@GLSL_STORE_COLOR_CLEAR] = @"";
                 }
-                if (shaderMiscFlags & gpu::ShaderMiscFlags::swizzleColorBGRAToRGBA)
+                if (shaderMiscFlags &
+                    gpu::ShaderMiscFlags::swizzleColorBGRAToRGBA)
                 {
                     defines[@GLSL_SWIZZLE_COLOR_BGRA_TO_RGBA] = @"";
                 }
@@ -196,7 +206,8 @@ void BackgroundShaderCompiler::threadMain()
                 assert(interlockMode == InterlockMode::atomics);
                 defines[@GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS] = @"";
                 defines[@GLSL_RESOLVE_PLS] = @"";
-                if (shaderMiscFlags & gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
+                if (shaderMiscFlags &
+                    gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
                 {
                     defines[@GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER] = @"";
                 }
@@ -207,12 +218,16 @@ void BackgroundShaderCompiler::threadMain()
                 RIVE_UNREACHABLE();
         }
 
-        NSError* err = [NSError errorWithDomain:@"compile" code:200 userInfo:nil];
+        NSError* err = [NSError errorWithDomain:@"compile"
+                                           code:200
+                                       userInfo:nil];
         MTLCompileOptions* compileOptions = [MTLCompileOptions new];
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
-        compileOptions.languageVersion = MTLLanguageVersion2_2; // On ios, we need version 2.2+
+        compileOptions.languageVersion =
+            MTLLanguageVersion2_2; // On ios, we need version 2.2+
 #else
-        compileOptions.languageVersion = MTLLanguageVersion2_3; // On mac, we need version 2.3+
+        compileOptions.languageVersion =
+            MTLLanguageVersion2_3; // On mac, we need version 2.3+
 #endif
         compileOptions.fastMathEnabled = YES;
         if (@available(iOS 14, *))
@@ -220,7 +235,9 @@ void BackgroundShaderCompiler::threadMain()
             compileOptions.preserveInvariance = YES;
         }
         compileOptions.preprocessorMacros = defines;
-        job.compiledLibrary = [m_gpu newLibraryWithSource:source options:compileOptions error:&err];
+        job.compiledLibrary = [m_gpu newLibraryWithSource:source
+                                                  options:compileOptions
+                                                    error:&err];
         if (job.compiledLibrary == nil)
         {
             int lineNumber = 1;

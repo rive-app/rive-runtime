@@ -52,19 +52,20 @@ public:
 
     AABB worldBounds()
     {
-        if ((static_cast<DrawableFlag>(drawableFlags()) & DrawableFlag::WorldBoundsClean) !=
-            DrawableFlag::WorldBoundsClean)
+        if ((static_cast<DrawableFlag>(drawableFlags()) &
+             DrawableFlag::WorldBoundsClean) != DrawableFlag::WorldBoundsClean)
         {
-            drawableFlags(drawableFlags() |
-                          static_cast<unsigned short>(DrawableFlag::WorldBoundsClean));
+            drawableFlags(
+                drawableFlags() |
+                static_cast<unsigned short>(DrawableFlag::WorldBoundsClean));
             m_WorldBounds = computeWorldBounds();
         }
         return m_WorldBounds;
     }
     void markBoundsDirty()
     {
-        drawableFlags(drawableFlags() &
-                      ~static_cast<unsigned short>(DrawableFlag::WorldBoundsClean));
+        drawableFlags(drawableFlags() & ~static_cast<unsigned short>(
+                                            DrawableFlag::WorldBoundsClean));
     }
 
     AABB computeWorldBounds(const Mat2D* xform = nullptr) const;

@@ -111,7 +111,8 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len)
     SkFont font(std::move(tf), 1.0f);
 
     uint16_t glyphIDs[len];
-    int glyphCount = font.textToGlyphs(str, len, SkTextEncoding::kUTF8, glyphIDs, len);
+    int glyphCount =
+        font.textToGlyphs(str, len, SkTextEncoding::kUTF8, glyphIDs, len);
     assert(glyphCount == (int)len);
 
     struct Rec
@@ -133,9 +134,10 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len)
         {
             // gonna add code -- now see if its glyph is unique
             uint16_t srcGlyph = glyphIDs[i];
-            auto it2 = std::find_if(rec.begin(), rec.end(), [srcGlyph](const auto& r) {
-                return r.srcGlyph == srcGlyph;
-            });
+            auto it2 =
+                std::find_if(rec.begin(), rec.end(), [srcGlyph](const auto& r) {
+                    return r.srcGlyph == srcGlyph;
+                });
             uint16_t dstGlyph;
             if (it2 == rec.end())
             {
@@ -155,7 +157,11 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len)
     });
     for (const auto& r : rec)
     {
-        printf("'%c' [%d] %d -> %d\n", r.charCode, r.charCode, r.srcGlyph, r.dstGlyph);
+        printf("'%c' [%d] %d -> %d\n",
+               r.charCode,
+               r.charCode,
+               r.srcGlyph,
+               r.dstGlyph);
         fCMap.push_back({r.charCode, r.dstGlyph});
     }
 
@@ -176,8 +182,9 @@ void RiveFont::load(sk_sp<SkTypeface> tf, const char str[], size_t len)
     append_glyph(0); // missing glyph
     for (int i = 1; i < newDstGlyphID; ++i)
     { // walk through our glyphs
-        auto iter =
-            std::find_if(rec.begin(), rec.end(), [i](const auto& r) { return r.dstGlyph == i; });
+        auto iter = std::find_if(rec.begin(), rec.end(), [i](const auto& r) {
+            return r.dstGlyph == i;
+        });
         assert(iter != rec.end());
         append_glyph(iter->srcGlyph);
     }
@@ -228,7 +235,10 @@ struct ByteBuilder
     {
         this->add(v.data(), v.size() * sizeof(T));
     }
-    void add(const ByteBuilder& bb) { this->add(bb.bytes.data(), bb.bytes.size()); }
+    void add(const ByteBuilder& bb)
+    {
+        this->add(bb.bytes.data(), bb.bytes.size());
+    }
     void add(sk_sp<SkData> data) { this->add(data->data(), data->size()); }
 
     void padTo16()
@@ -353,7 +363,8 @@ sk_sp<SkData> RiveFont::encode() const
         InfoTable itable;
         itable.glyphCount = fGlyphs.size();
         itable.upem = upem;
-        dir.push_back({kInfo_TableTag, SkData::MakeWithCopy(&itable, sizeof(itable))});
+        dir.push_back(
+            {kInfo_TableTag, SkData::MakeWithCopy(&itable, sizeof(itable))});
     }
 
     {
@@ -382,7 +393,8 @@ sk_sp<SkData> RiveFont::encode() const
         offsets.push_back(paths.length()); // store N+1 offsets
 
         dir.push_back(
-            {kOffsets_TableTag, SkData::MakeWithCopy(offsets.data(), offsets.size() * 4)});
+            {kOffsets_TableTag,
+             SkData::MakeWithCopy(offsets.data(), offsets.size() * 4)});
         dir.push_back({kPaths_TableTag, paths.detach()});
         dir.push_back({kAdvances_TableTag, advances.detach()});
     }
@@ -545,7 +557,13 @@ static SkPath decode_path(const void* data, size_t length, float scale)
         pts16 += 2;
     }
 
-    return SkPath::Make(pts, pointCount, verbs, verbCount, nullptr, 0, SkPathFillType::kWinding);
+    return SkPath::Make(pts,
+                        pointCount,
+                        verbs,
+                        verbCount,
+                        nullptr,
+                        0,
+                        SkPathFillType::kWinding);
 }
 
 bool RiveFont::decode(const void* data, size_t length)
@@ -605,8 +623,10 @@ bool RiveFont::decode(const void* data, size_t length)
         uint32_t end = offsets[i + 1];
         assert(start <= end);
 
-        fGlyphs.push_back(
-            {(start == end) ? SkPath() : decode_path(paths + start, end - start, scale), adv});
+        fGlyphs.push_back({(start == end)
+                               ? SkPath()
+                               : decode_path(paths + start, end - start, scale),
+                           adv});
     }
     return true;
 }

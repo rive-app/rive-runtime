@@ -20,7 +20,10 @@ private:
 
 public:
     ~BlendState() override;
-    inline const std::vector<BlendAnimation*>& animations() const { return m_Animations; }
+    inline const std::vector<BlendAnimation*>& animations() const
+    {
+        return m_Animations;
+    }
 
 #ifdef TESTING
     size_t animationCount() { return m_Animations.size(); }

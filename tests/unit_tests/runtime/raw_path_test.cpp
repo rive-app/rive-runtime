@@ -49,7 +49,8 @@ TEST_CASE("rawpath-add-helpers", "[rawpath]")
     REQUIRE(!path.empty());
     REQUIRE(path.bounds() == AABB{0, 0, 3, 6});
     REQUIRE(path.points().size() == 13);
-    REQUIRE(path.verbs().size() == 6); // move, cubic, cubic, cubic, cubic, close
+    REQUIRE(path.verbs().size() ==
+            6); // move, cubic, cubic, cubic, cubic, close
 
     const Vec2D pts[] = {
         {1, 2},
@@ -142,7 +143,10 @@ TEST_CASE("rawpath-iter", "[rawpath]")
         check_iter(iter, end, PathVerb::move, {{1, 2}});
         check_iter(iter, end, PathVerb::line, {{1, 2}, {3, 4}});
         check_iter(iter, end, PathVerb::quad, {{3, 4}, {5, 6}, {7, 8}});
-        check_iter(iter, end, PathVerb::cubic, {{7, 8}, {9, 10}, {11, 12}, {13, 14}});
+        check_iter(iter,
+                   end,
+                   PathVerb::cubic,
+                   {{7, 8}, {9, 10}, {11, 12}, {13, 14}});
         check_iter(iter, end, PathVerb::close, {});
         REQUIRE(iter == end);
 
@@ -179,7 +183,10 @@ TEST_CASE("rawpath-iter", "[rawpath]")
         check_iter(iter, end, PathVerb::line, {{0, 0}, {1, 2}});
         check_iter(iter, end, PathVerb::close, {});
         check_iter(iter, end, PathVerb::move, {{0, 0}});
-        check_iter(iter, end, PathVerb::cubic, {{0, 0}, {3, 4}, {5, 6}, {7, 8}});
+        check_iter(iter,
+                   end,
+                   PathVerb::cubic,
+                   {{0, 0}, {3, 4}, {5, 6}, {7, 8}});
         check_iter(iter, end, PathVerb::move, {{9, 10}});
         check_iter(iter, end, PathVerb::move, {{11, 12}});
         check_iter(iter, end, PathVerb::quad, {{11, 12}, {13, 14}, {15, 16}});
@@ -192,7 +199,7 @@ TEST_CASE("rawpath-iter", "[rawpath]")
 
 TEST_CASE("addPath", "[rawpath]")
 {
-    using PathMaker = void (*)(RawPath * sink);
+    using PathMaker = void (*)(RawPath* sink);
 
     const PathMaker makers[] = {
         [](RawPath* sink) {},
@@ -262,7 +269,9 @@ TEST_CASE("bounds", "[rawpath]")
     AABB bounds;
     srand(0);
     const auto randPt = [&] {
-        Vec2D pt = Vec2D(float(rand()), float(rand())) / (float(RAND_MAX) * .5f) - Vec2D(1, 1);
+        Vec2D pt =
+            Vec2D(float(rand()), float(rand())) / (float(RAND_MAX) * .5f) -
+            Vec2D(1, 1);
         bounds.minX = std::min(bounds.minX, pt.x);
         bounds.minY = std::min(bounds.minY, pt.y);
         bounds.maxX = std::max(bounds.maxX, pt.x);
@@ -382,11 +391,26 @@ TEST_CASE("prune-empty-segments", "[rawpath]")
         check_iter(iter, end, PathVerb::quad, {{3, 4}, {5, 6}, {7, 8}});
         check_iter(iter, end, PathVerb::quad, {{7, 8}, {7, 8}, {7, 9}});
         check_iter(iter, end, PathVerb::quad, {{7, 9}, {7, 9}, {7, 8}});
-        check_iter(iter, end, PathVerb::cubic, {{7, 8}, {9, 10}, {11, 12}, {13, 14}});
-        check_iter(iter, end, PathVerb::cubic, {{13, 14}, {13, 14}, {13, 14}, {13, 15}});
-        check_iter(iter, end, PathVerb::cubic, {{13, 15}, {13, 16}, {13, 15}, {13, 15}});
-        check_iter(iter, end, PathVerb::cubic, {{13, 15}, {13, 15}, {13, 16}, {13, 15}});
-        check_iter(iter, end, PathVerb::cubic, {{13, 15}, {13, 15}, {13, 15}, {13, 16}});
+        check_iter(iter,
+                   end,
+                   PathVerb::cubic,
+                   {{7, 8}, {9, 10}, {11, 12}, {13, 14}});
+        check_iter(iter,
+                   end,
+                   PathVerb::cubic,
+                   {{13, 14}, {13, 14}, {13, 14}, {13, 15}});
+        check_iter(iter,
+                   end,
+                   PathVerb::cubic,
+                   {{13, 15}, {13, 16}, {13, 15}, {13, 15}});
+        check_iter(iter,
+                   end,
+                   PathVerb::cubic,
+                   {{13, 15}, {13, 15}, {13, 16}, {13, 15}});
+        check_iter(iter,
+                   end,
+                   PathVerb::cubic,
+                   {{13, 15}, {13, 15}, {13, 15}, {13, 16}});
         check_iter(iter, end, PathVerb::close, {});
         CHECK(iter == end);
     }
@@ -416,15 +440,21 @@ TEST_CASE("prune-empty-segments", "[rawpath]")
             check_iter(iter, end, PathVerb::line, {{1, 2}, {1, 2}});
             check_iter(iter, end, PathVerb::line, {{1, 2}, {3, 4}});
             check_iter(iter, end, PathVerb::move, {{19, 20}});
-            check_iter(iter, end, PathVerb::quad, {{19, 20}, {19, 20}, {19, 20}});
+            check_iter(iter,
+                       end,
+                       PathVerb::quad,
+                       {{19, 20}, {19, 20}, {19, 20}});
             check_iter(iter, end, PathVerb::close, {});
             check_iter(iter, end, PathVerb::move, {{19, 20}});
-            check_iter(iter, end, PathVerb::cubic, {{19, 20}, {19, 20}, {19, 20}, {19, 20}});
+            check_iter(iter,
+                       end,
+                       PathVerb::cubic,
+                       {{19, 20}, {19, 20}, {19, 20}, {19, 20}});
             CHECK(iter == end);
         }
 
-        // Pruning just at the beginning of the added p2 won't remove the pre-existing empty
-        // segment.
+        // Pruning just at the beginning of the added p2 won't remove the
+        // pre-existing empty segment.
         p.pruneEmptySegments(p2it);
         {
             auto iter = p.begin();

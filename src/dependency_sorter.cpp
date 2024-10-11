@@ -9,7 +9,8 @@ void DependencySorter::sort(Component* root, std::vector<Component*>& order)
     visit(root, order);
 }
 
-void DependencySorter::sort(std::vector<Component*> roots, std::vector<Component*>& order)
+void DependencySorter::sort(std::vector<Component*> roots,
+                            std::vector<Component*>& order)
 {
     order.clear();
     for (auto root : roots)
@@ -18,7 +19,8 @@ void DependencySorter::sort(std::vector<Component*> roots, std::vector<Component
     }
 }
 
-bool DependencySorter::visit(Component* component, std::vector<Component*>& order)
+bool DependencySorter::visit(Component* component,
+                             std::vector<Component*>& order)
 {
     if (m_Perm.find(component) != m_Perm.end())
     {

@@ -10,7 +10,8 @@
 #include <catch.hpp>
 #include <cstdio>
 
-TEST_CASE("AnimationStateInstance advances in step with animation speed 1", "[animation]")
+TEST_CASE("AnimationStateInstance advances in step with animation speed 1",
+          "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -43,7 +44,8 @@ TEST_CASE("AnimationStateInstance advances in step with animation speed 1", "[an
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance advances twice as fast when speed is doubled", "[animation]")
+TEST_CASE("AnimationStateInstance advances twice as fast when speed is doubled",
+          "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -78,7 +80,8 @@ TEST_CASE("AnimationStateInstance advances twice as fast when speed is doubled",
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance advances half as fast when speed is halved", "[animation]")
+TEST_CASE("AnimationStateInstance advances half as fast when speed is halved",
+          "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -112,7 +115,8 @@ TEST_CASE("AnimationStateInstance advances half as fast when speed is halved", "
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance advances backwards when speed is negative", "[animation]")
+TEST_CASE("AnimationStateInstance advances backwards when speed is negative",
+          "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -147,7 +151,8 @@ TEST_CASE("AnimationStateInstance advances backwards when speed is negative", "[
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance starts a positive animation at the beginning", "[animation]")
+TEST_CASE("AnimationStateInstance starts a positive animation at the beginning",
+          "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -174,7 +179,8 @@ TEST_CASE("AnimationStateInstance starts a positive animation at the beginning",
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance starts a negative animation at the end", "[animation]")
+TEST_CASE("AnimationStateInstance starts a negative animation at the end",
+          "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -202,7 +208,8 @@ TEST_CASE("AnimationStateInstance starts a negative animation at the end", "[ani
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance with negative speed starts a positive animation at the end",
+TEST_CASE("AnimationStateInstance with negative speed starts a positive "
+          "animation at the end",
           "[animation]")
 {
     rive::NoOpFactory emptyFactory;
@@ -231,7 +238,8 @@ TEST_CASE("AnimationStateInstance with negative speed starts a positive animatio
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance with negative speed starts a negative animation at the beginning",
+TEST_CASE("AnimationStateInstance with negative speed starts a negative "
+          "animation at the beginning",
           "[animation]")
 {
     rive::NoOpFactory emptyFactory;
@@ -261,7 +269,9 @@ TEST_CASE("AnimationStateInstance with negative speed starts a negative animatio
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance spilledTime accounts for Nx speed with oneShot", "[animation]")
+TEST_CASE(
+    "AnimationStateInstance spilledTime accounts for Nx speed with oneShot",
+    "[animation]")
 {
 
     rive::NoOpFactory emptyFactory;
@@ -300,7 +310,9 @@ TEST_CASE("AnimationStateInstance spilledTime accounts for Nx speed with oneShot
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance spilledTime accounts for 1/Nx speed with oneShot", "[animation]")
+TEST_CASE(
+    "AnimationStateInstance spilledTime accounts for 1/Nx speed with oneShot",
+    "[animation]")
 {
 
     rive::NoOpFactory emptyFactory;
@@ -339,7 +351,8 @@ TEST_CASE("AnimationStateInstance spilledTime accounts for 1/Nx speed with oneSh
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance spilledTime accounts for Nx speed with loop", "[animation]")
+TEST_CASE("AnimationStateInstance spilledTime accounts for Nx speed with loop",
+          "[animation]")
 {
 
     rive::NoOpFactory emptyFactory;
@@ -378,7 +391,9 @@ TEST_CASE("AnimationStateInstance spilledTime accounts for Nx speed with loop", 
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance spilledTime accounts for 1/Nx speed with loop", "[animation]")
+TEST_CASE(
+    "AnimationStateInstance spilledTime accounts for 1/Nx speed with loop",
+    "[animation]")
 {
     rive::NoOpFactory emptyFactory;
     // For each of these tests, we cons up a dummy artboard/instance
@@ -416,7 +431,9 @@ TEST_CASE("AnimationStateInstance spilledTime accounts for 1/Nx speed with loop"
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance spilledTime accounts for -Nx speed with oneShot", "[animation]")
+TEST_CASE(
+    "AnimationStateInstance spilledTime accounts for -Nx speed with oneShot",
+    "[animation]")
 {
 
     rive::NoOpFactory emptyFactory;
@@ -457,7 +474,8 @@ TEST_CASE("AnimationStateInstance spilledTime accounts for -Nx speed with oneSho
     delete linearAnimation;
 }
 
-TEST_CASE("AnimationStateInstance spilledTime accounts for -Nx speed with loop", "[animation]")
+TEST_CASE("AnimationStateInstance spilledTime accounts for -Nx speed with loop",
+          "[animation]")
 {
 
     rive::NoOpFactory emptyFactory;

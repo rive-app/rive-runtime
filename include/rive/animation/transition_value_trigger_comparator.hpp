@@ -4,7 +4,8 @@
 #include <stdio.h>
 namespace rive
 {
-class TransitionValueTriggerComparator : public TransitionValueTriggerComparatorBase
+class TransitionValueTriggerComparator
+    : public TransitionValueTriggerComparatorBase
 {
 public:
 };

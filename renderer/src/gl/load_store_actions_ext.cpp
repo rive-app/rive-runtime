@@ -28,9 +28,12 @@ LoadStoreActionsEXT BuildLoadActionsEXT(const gpu::FlushDescriptor& desc,
     return actions;
 }
 
-std::ostream& BuildLoadStoreEXTGLSL(std::ostream& shader, LoadStoreActionsEXT actions)
+std::ostream& BuildLoadStoreEXTGLSL(std::ostream& shader,
+                                    LoadStoreActionsEXT actions)
 {
-    auto addDefine = [&shader](const char* name) { shader << "#define " << name << "\n"; };
+    auto addDefine = [&shader](const char* name) {
+        shader << "#define " << name << "\n";
+    };
     if (actions & LoadStoreActionsEXT::clearColor)
     {
         addDefine(GLSL_CLEAR_COLOR);

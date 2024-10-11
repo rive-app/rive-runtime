@@ -55,11 +55,13 @@ TEST_CASE("enum-operators", "[enum_bitset]")
     CHECK((Flags::one | Flags::two) == (Flags)3);
     CHECK((Flags::one | (Flags::two | Flags::four)) == (Flags)7);
     CHECK(((Flags::one | Flags::two) | Flags::four) == (Flags)7);
-    CHECK(((Flags::one | Flags::two) | (Flags::four | Flags::eight)) == (Flags)15);
+    CHECK(((Flags::one | Flags::two) | (Flags::four | Flags::eight)) ==
+          (Flags)15);
 
     // All ~ overloads.
-    CHECK(~Flags::two == (Flags)(255 ^ 2));                      // Flags is a uint8_t
-    CHECK(~(Flags::two | Flags::eight) == (Flags)(255 ^ 2 ^ 8)); // Flags is a uint8_t
+    CHECK(~Flags::two == (Flags)(255 ^ 2)); // Flags is a uint8_t
+    CHECK(~(Flags::two | Flags::eight) ==
+          (Flags)(255 ^ 2 ^ 8)); // Flags is a uint8_t
 
     // All &= overloads.
     flags = Flags::eight | Flags::four | Flags::two | Flags::one;

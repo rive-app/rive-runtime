@@ -55,7 +55,9 @@ static ImageCmp pixmap_cmp(const SkPixmap& pa, const SkPixmap& pb)
         }
     }
 
-    return ImageCmp::diff(maxdiff, (float)rgb_diffcount / (pixcount * 255), pixel_diffcount);
+    return ImageCmp::diff(maxdiff,
+                          (float)rgb_diffcount / (pixcount * 255),
+                          pixel_diffcount);
 }
 
 ImageCmp image_cmp(sk_sp<SkImage> a, sk_sp<SkImage> b)
@@ -114,7 +116,8 @@ sk_sp<SkImage> make_diff_image(sk_sp<SkImage> a,
     {
         for (int x = 0; x < df.width(); ++x)
         {
-            *df.writable_addr32(x, y) = compute_diff(*pa.addr32(x, y), *pb.addr32(x, y));
+            *df.writable_addr32(x, y) =
+                compute_diff(*pa.addr32(x, y), *pb.addr32(x, y));
         }
     }
 

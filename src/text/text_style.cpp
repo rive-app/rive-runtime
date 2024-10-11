@@ -25,7 +25,10 @@ public:
         addDependent(text);
     }
 
-    void update(ComponentDirt value) override { m_textStyle->updateVariableFont(); }
+    void update(ComponentDirt value) override
+    {
+        m_textStyle->updateVariableFont();
+    }
 
 private:
     TextStyle* m_textStyle;
@@ -35,9 +38,15 @@ private:
 // satisfy unique_ptr
 TextStyle::TextStyle() {}
 
-void TextStyle::addVariation(TextStyleAxis* axis) { m_variations.push_back(axis); }
+void TextStyle::addVariation(TextStyleAxis* axis)
+{
+    m_variations.push_back(axis);
+}
 
-void TextStyle::addFeature(TextStyleFeature* feature) { m_styleFeatures.push_back(feature); }
+void TextStyle::addFeature(TextStyleFeature* feature)
+{
+    m_styleFeatures.push_back(feature);
+}
 
 void TextStyle::onDirty(ComponentDirt dirt)
 {
@@ -107,7 +116,8 @@ void TextStyle::updateVariableFont()
         m_features.clear();
         for (TextStyleFeature* styleFeature : m_styleFeatures)
         {
-            m_features.push_back({styleFeature->tag(), styleFeature->featureValue()});
+            m_features.push_back(
+                {styleFeature->tag(), styleFeature->featureValue()});
         }
         m_variableFont = baseFont->withOptions(m_coords, m_features);
     }
@@ -187,7 +197,8 @@ void TextStyle::draw(Renderer* renderer)
         }
 
         uint32_t paintIndex = 0;
-        for (auto itr = m_opacityPaths.begin(); itr != m_opacityPaths.end(); itr++)
+        for (auto itr = m_opacityPaths.begin(); itr != m_opacityPaths.end();
+             itr++)
         {
             RenderPaint* renderPaint = m_paintPool[paintIndex++].get();
             shapePaint->applyTo(renderPaint, itr->first);
@@ -220,7 +231,10 @@ void TextStyle::fontSizeChanged() { parent()->as<Text>()->markShapeDirty(); }
 
 void TextStyle::lineHeightChanged() { parent()->as<Text>()->markShapeDirty(); }
 
-void TextStyle::letterSpacingChanged() { parent()->as<Text>()->markShapeDirty(); }
+void TextStyle::letterSpacingChanged()
+{
+    parent()->as<Text>()->markShapeDirty();
+}
 
 Core* TextStyle::clone() const
 {

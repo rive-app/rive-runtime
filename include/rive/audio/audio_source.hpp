@@ -23,7 +23,9 @@ public:
 
     // Makes a buffered audio source whose backing bytes will be deleted when
     // the AudioSource deletes.
-    AudioSource(rive::Span<float> samples, uint32_t numChannels, uint32_t sampleRate);
+    AudioSource(rive::Span<float> samples,
+                uint32_t numChannels,
+                uint32_t sampleRate);
 
 #ifdef WITH_RIVE_AUDIO
     rcp<AudioReader> makeReader(uint32_t numChannels, uint32_t sampleRate);

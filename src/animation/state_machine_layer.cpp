@@ -61,11 +61,15 @@ StatusCode StateMachineLayer::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void StateMachineLayer::addState(LayerState* state) { m_States.push_back(state); }
+void StateMachineLayer::addState(LayerState* state)
+{
+    m_States.push_back(state);
+}
 
 StatusCode StateMachineLayer::import(ImportStack& importStack)
 {
-    auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
+    auto stateMachineImporter =
+        importStack.latest<StateMachineImporter>(StateMachineBase::typeKey);
     if (stateMachineImporter == nullptr)
     {
         return StatusCode::MissingObject;

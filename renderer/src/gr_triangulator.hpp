@@ -85,7 +85,10 @@ protected:
                         bool* isLinear) const;
 
     // 2) Build a mesh of edges connecting the vertices:
-    void contoursToMesh(VertexList* contours, int contourCnt, VertexList* mesh, const Comparator&);
+    void contoursToMesh(VertexList* contours,
+                        int contourCnt,
+                        VertexList* mesh,
+                        const Comparator&);
 
     // 3) Sort the vertices in Y (and secondarily in X):
     static void SortedMerge(VertexList* front,
@@ -112,63 +115,76 @@ protected:
     [[nodiscard]] SimplifyResult simplify(VertexList* mesh, const Comparator&);
 
     // 5) Tessellate the simplified mesh into monotone polygons:
-    virtual std::tuple<Poly*, bool> tessellate(const VertexList& vertices, const Comparator&);
+    virtual std::tuple<Poly*, bool> tessellate(const VertexList& vertices,
+                                               const Comparator&);
 
     // 6) Triangulate the monotone polygons directly into a vertex buffer:
-    void polysToTriangles(Poly* polys,
-                          FillRule overrideFillRule,
-                          uint16_t pathID,
-                          bool reverseTriangles,
-                          gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+    void polysToTriangles(
+        Poly* polys,
+        FillRule overrideFillRule,
+        uint16_t pathID,
+        bool reverseTriangles,
+        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
-    // The vertex sorting in step (3) is a merge sort, since it plays well with the linked list
-    // of vertices (and the necessity of inserting new vertices on intersection).
+    // The vertex sorting in step (3) is a merge sort, since it plays well with
+    // the linked list of vertices (and the necessity of inserting new vertices
+    // on intersection).
     //
-    // Stages (4) and (5) use an active edge list -- a list of all edges for which the
-    // sweep line has crossed the top vertex, but not the bottom vertex.  It's sorted
-    // left-to-right based on the point where both edges are active (when both top vertices
-    // have been seen, so the "lower" top vertex of the two). If the top vertices are equal
-    // (shared), it's sorted based on the last point where both edges are active, so the
-    // "upper" bottom vertex.
+    // Stages (4) and (5) use an active edge list -- a list of all edges for
+    // which the sweep line has crossed the top vertex, but not the bottom
+    // vertex.  It's sorted left-to-right based on the point where both edges
+    // are active (when both top vertices have been seen, so the "lower" top
+    // vertex of the two). If the top vertices are equal (shared), it's sorted
+    // based on the last point where both edges are active, so the "upper"
+    // bottom vertex.
     //
-    // The most complex step is the simplification (4). It's based on the Bentley-Ottman
-    // line-sweep algorithm, but due to floating point inaccuracy, the intersection points are
-    // not exact and may violate the mesh topology or active edge list ordering. We
-    // accommodate this by adjusting the topology of the mesh and AEL to match the intersection
+    // The most complex step is the simplification (4). It's based on the
+    // Bentley-Ottman line-sweep algorithm, but due to floating point
+    // inaccuracy, the intersection points are not exact and may violate the
+    // mesh topology or active edge list ordering. We accommodate this by
+    // adjusting the topology of the mesh and AEL to match the intersection
     // points. This occurs in two ways:
     //
-    // A) Intersections may cause a shortened edge to no longer be ordered with respect to its
-    //    neighbouring edges at the top or bottom vertex. This is handled by merging the
-    //    edges (mergeCollinearVertices()).
-    // B) Intersections may cause an edge to violate the left-to-right ordering of the
-    //    active edge list. This is handled by detecting potential violations and rewinding
-    //    the active edge list to the vertex before they occur (rewind() during merging,
-    //    rewind_if_necessary() during splitting).
+    // A) Intersections may cause a shortened edge to no longer be ordered with
+    // respect to its
+    //    neighbouring edges at the top or bottom vertex. This is handled by
+    //    merging the edges (mergeCollinearVertices()).
+    // B) Intersections may cause an edge to violate the left-to-right ordering
+    // of the
+    //    active edge list. This is handled by detecting potential violations
+    //    and rewinding the active edge list to the vertex before they occur
+    //    (rewind() during merging, rewind_if_necessary() during splitting).
     //
-    // The tessellation steps (5) and (6) are based on "Triangulating Simple Polygons and
-    // Equivalent Problems" (Fournier and Montuno); also a line-sweep algorithm. Note that it
-    // currently uses a linked list for the active edge list, rather than a 2-3 tree as the
-    // paper describes. The 2-3 tree gives O(lg N) lookups, but insertion and removal also
-    // become O(lg N). In all the test cases, it was found that the cost of frequent O(lg N)
-    // insertions and removals was greater than the cost of infrequent O(N) lookups with the
-    // linked list implementation. With the latter, all removals are O(1), and most insertions
-    // are O(1), since we know the adjacent edge in the active edge list based on the topology.
-    // Only type 2 vertices (see paper) require the O(N) lookups, and these are much less
-    // frequent. There may be other data structures worth investigating, however.
+    // The tessellation steps (5) and (6) are based on "Triangulating Simple
+    // Polygons and Equivalent Problems" (Fournier and Montuno); also a
+    // line-sweep algorithm. Note that it currently uses a linked list for the
+    // active edge list, rather than a 2-3 tree as the paper describes. The 2-3
+    // tree gives O(lg N) lookups, but insertion and removal also become O(lg
+    // N). In all the test cases, it was found that the cost of frequent O(lg N)
+    // insertions and removals was greater than the cost of infrequent O(N)
+    // lookups with the linked list implementation. With the latter, all
+    // removals are O(1), and most insertions are O(1), since we know the
+    // adjacent edge in the active edge list based on the topology. Only type 2
+    // vertices (see paper) require the O(N) lookups, and these are much less
+    // frequent. There may be other data structures worth investigating,
+    // however.
     //
-    // Note that the orientation of the line sweep algorithms is determined by the aspect ratio of
-    // the path bounds. When the path is taller than it is wide, we sort vertices based on
-    // increasing Y coordinate, and secondarily by increasing X coordinate. When the path is wider
-    // than it is tall, we sort by increasing X coordinate, but secondarily by *decreasing* Y
-    // coordinate. This is so that the "left" and "right" orientation in the code remains correct
-    // (edges to the left are increasing in Y; edges to the right are decreasing in Y). That is, the
-    // setting rotates 90 degrees counterclockwise, rather that transposing.
+    // Note that the orientation of the line sweep algorithms is determined by
+    // the aspect ratio of the path bounds. When the path is taller than it is
+    // wide, we sort vertices based on increasing Y coordinate, and secondarily
+    // by increasing X coordinate. When the path is wider than it is tall, we
+    // sort by increasing X coordinate, but secondarily by *decreasing* Y
+    // coordinate. This is so that the "left" and "right" orientation in the
+    // code remains correct (edges to the left are increasing in Y; edges to the
+    // right are decreasing in Y). That is, the setting rotates 90 degrees
+    // counterclockwise, rather that transposing.
 
     // Additional helpers and driver functions.
-    void emitMonotonePoly(const MonotonePoly*,
-                          uint16_t pathID,
-                          bool reverseTriangles,
-                          gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+    void emitMonotonePoly(
+        const MonotonePoly*,
+        uint16_t pathID,
+        bool reverseTriangles,
+        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
     void emitTriangle(Vertex* prev,
                       Vertex* curr,
                       Vertex* next,
@@ -183,7 +199,9 @@ protected:
 
     Poly* makePoly(Poly** head, Vertex* v, int winding) const;
     void appendPointToContour(const Vec2D& p, VertexList* contour) const;
-    void appendQuadraticToContour(const Vec2D[3], float toleranceSqd, VertexList* contour) const;
+    void appendQuadraticToContour(const Vec2D[3],
+                                  float toleranceSqd,
+                                  VertexList* contour) const;
     void generateCubicPoints(const Vec2D&,
                              const Vec2D&,
                              const Vec2D&,
@@ -194,7 +212,10 @@ protected:
     bool applyFillType(int winding) const;
     MonotonePoly* allocateMonotonePoly(Edge* edge, Side side, int winding);
     Edge* allocateEdge(Vertex* top, Vertex* bottom, int winding, EdgeType type);
-    Edge* makeEdge(Vertex* prev, Vertex* next, EdgeType type, const Comparator&);
+    Edge* makeEdge(Vertex* prev,
+                   Vertex* next,
+                   EdgeType type,
+                   const Comparator&);
     [[nodiscard]] bool setTop(Edge* edge,
                               Vertex* v,
                               EdgeList* activeEdges,
@@ -220,7 +241,10 @@ protected:
                              EdgeType,
                              const Comparator&,
                              int windingScale = 1);
-    void mergeVertices(Vertex* src, Vertex* dst, VertexList* mesh, const Comparator&) const;
+    void mergeVertices(Vertex* src,
+                       Vertex* dst,
+                       VertexList* mesh,
+                       const Comparator&) const;
     static void FindEnclosingEdges(const Vertex& v,
                                    const EdgeList& edges,
                                    Edge** left,
@@ -253,19 +277,24 @@ protected:
                                   const Comparator&);
     void sanitizeContours(VertexList* contours, int contourCnt) const;
     bool mergeCoincidentVertices(VertexList* mesh, const Comparator&) const;
-    void buildEdges(VertexList* contours, int contourCnt, VertexList* mesh, const Comparator&);
-    std::tuple<Poly*, bool> contoursToPolys(VertexList* contours, int contourCnt);
+    void buildEdges(VertexList* contours,
+                    int contourCnt,
+                    VertexList* mesh,
+                    const Comparator&);
+    std::tuple<Poly*, bool> contoursToPolys(VertexList* contours,
+                                            int contourCnt);
     std::tuple<Poly*, bool> pathToPolys(const RawPath&,
                                         float tolerance,
                                         const AABB& clipBounds,
                                         bool* isLinear);
     static int64_t CountPoints(Poly* polys, FillRule overrideFillRule);
     size_t countMaxTriangleVertices(Poly*) const;
-    size_t polysToTriangles(Poly*,
-                            uint64_t maxVertexCount,
-                            uint16_t pathID,
-                            bool reverseTriangles,
-                            gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+    size_t polysToTriangles(
+        Poly*,
+        uint64_t maxVertexCount,
+        uint16_t pathID,
+        bool reverseTriangles,
+        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
     Comparator::Direction fDirection;
     FillRule fFillRule;
@@ -281,15 +310,17 @@ protected:
     bool fPreserveCollinearVertices = false;
     bool fCollectBreadcrumbTriangles = false;
 
-    // The breadcrumb triangles serve as a glue that erases T-junctions between a path's outer
-    // curves and its inner polygon triangulation. Drawing a path's outer curves, breadcrumb
-    // triangles, and inner polygon triangulation all together into the stencil buffer has the same
-    // identical rasterized effect as stenciling a classic Redbook fan.
+    // The breadcrumb triangles serve as a glue that erases T-junctions between
+    // a path's outer curves and its inner polygon triangulation. Drawing a
+    // path's outer curves, breadcrumb triangles, and inner polygon
+    // triangulation all together into the stencil buffer has the same identical
+    // rasterized effect as stenciling a classic Redbook fan.
     //
-    // The breadcrumb triangles track all the edge splits that led from the original inner polygon
-    // edges to the final triangulation. Every time an edge splits, we emit a razor-thin breadcrumb
-    // triangle consisting of the edge's original endpoints and the split point. (We also add
-    // supplemental breadcrumb triangles to areas where abs(winding) > 1.)
+    // The breadcrumb triangles track all the edge splits that led from the
+    // original inner polygon edges to the final triangulation. Every time an
+    // edge splits, we emit a razor-thin breadcrumb triangle consisting of the
+    // edge's original endpoints and the split point. (We also add supplemental
+    // breadcrumb triangles to areas where abs(winding) > 1.)
     //
     //                a
     //               /
@@ -300,8 +331,9 @@ protected:
     //          /
     //         b
     //
-    // The opposite-direction shared edges between the triangulation and breadcrumb triangles should
-    // all cancel out, leaving just the set of edges from the original polygon.
+    // The opposite-direction shared edges between the triangulation and
+    // breadcrumb triangles should all cancel out, leaving just the set of edges
+    // from the original polygon.
     class BreadcrumbTriangleList
     {
     public:
@@ -314,7 +346,11 @@ protected:
         const Node* head() const { return fHead; }
         int count() const { return fCount; }
 
-        void append(TrivialBlockAllocator* alloc, Vec2D a, Vec2D b, Vec2D c, int winding)
+        void append(TrivialBlockAllocator* alloc,
+                    Vec2D a,
+                    Vec2D b,
+                    Vec2D c,
+                    int winding)
         {
             if (a == b || a == c || b == c || winding == 0)
             {
@@ -358,12 +394,13 @@ protected:
 };
 
 /**
- * Vertices are used in three ways: first, the path contours are converted into a
- * circularly-linked list of Vertices for each contour. After edge construction, the same Vertices
- * are re-ordered by the merge sort according to the sweep_lt comparator (usually, increasing
- * in Y) using the same fPrev/fNext pointers that were used for the contours, to avoid
- * reallocation. Finally, MonotonePolys are built containing a circularly-linked list of
- * Vertices. (Currently, those Vertices are newly-allocated for the MonotonePolys, since
+ * Vertices are used in three ways: first, the path contours are converted into
+ * a circularly-linked list of Vertices for each contour. After edge
+ * construction, the same Vertices are re-ordered by the merge sort according to
+ * the sweep_lt comparator (usually, increasing in Y) using the same fPrev/fNext
+ * pointers that were used for the contours, to avoid reallocation. Finally,
+ * MonotonePolys are built containing a circularly-linked list of Vertices.
+ * (Currently, those Vertices are newly-allocated for the MonotonePolys, since
  * an individual Vertex from the path mesh may belong to multiple
  * MonotonePolys, so the original Vertices cannot be re-used.
  */
@@ -388,13 +425,13 @@ struct GrTriangulator::Vertex
         fID(-1.0f)
 #endif
     {}
-    Vec2D fPoint;              // Vertex position
-    Vertex* fPrev;             // Linked list of contours, then Y-sorted vertices.
-    Vertex* fNext;             // "
-    Edge* fFirstEdgeAbove;     // Linked list of edges above this vertex.
-    Edge* fLastEdgeAbove;      // "
-    Edge* fFirstEdgeBelow;     // Linked list of edges below this vertex.
-    Edge* fLastEdgeBelow;      // "
+    Vec2D fPoint;          // Vertex position
+    Vertex* fPrev;         // Linked list of contours, then Y-sorted vertices.
+    Vertex* fNext;         // "
+    Edge* fFirstEdgeAbove; // Linked list of edges above this vertex.
+    Edge* fLastEdgeAbove;  // "
+    Edge* fFirstEdgeBelow; // Linked list of edges below this vertex.
+    Edge* fLastEdgeBelow;  // "
     Edge* fLeftEnclosingEdge;  // Nearest edge in the AEL left of this vertex.
     Edge* fRightEnclosingEdge; // Nearest edge in the AEL right of this vertex.
     Vertex* fPartner;          // Corresponding inner or outer vertex (for AA).
@@ -403,7 +440,10 @@ struct GrTriangulator::Vertex
 #if TRIANGULATOR_LOGGING
     float fID; // Identifier used for logging.
 #endif
-    bool isConnected() const { return this->fFirstEdgeAbove || this->fFirstEdgeBelow; }
+    bool isConnected() const
+    {
+        return this->fFirstEdgeAbove || this->fFirstEdgeBelow;
+    }
 };
 
 struct GrTriangulator::VertexList
@@ -446,7 +486,8 @@ struct GrTriangulator::VertexList
 #endif
 };
 
-// A line equation in implicit form. fA * x + fB * y + fC = 0, for all points (x, y) on the line.
+// A line equation in implicit form. fA * x + fB * y + fC = 0, for all points
+// (x, y) on the line.
 struct GrTriangulator::Line
 {
     Line(double a, double b, double c) : fA(a), fB(b), fC(c) {}
@@ -485,21 +526,24 @@ struct GrTriangulator::Line
 };
 
 /**
- * An Edge joins a top Vertex to a bottom Vertex. Edge ordering for the list of "edges above" and
- * "edge below" a vertex as well as for the active edge list is handled by isLeftOf()/isRightOf().
- * Note that an Edge will give occasionally dist() != 0 for its own endpoints (because floating
- * point). For speed, that case is only tested by the callers that require it (e.g.,
- * rewind_if_necessary()). Edges also handle checking for intersection with other edges.
- * Currently, this converts the edges to the parametric form, in order to avoid doing a division
- * until an intersection has been confirmed. This is slightly slower in the "found" case, but
- * a lot faster in the "not found" case.
+ * An Edge joins a top Vertex to a bottom Vertex. Edge ordering for the list of
+ * "edges above" and "edge below" a vertex as well as for the active edge list
+ * is handled by isLeftOf()/isRightOf(). Note that an Edge will give
+ * occasionally dist() != 0 for its own endpoints (because floating point). For
+ * speed, that case is only tested by the callers that require it (e.g.,
+ * rewind_if_necessary()). Edges also handle checking for intersection with
+ * other edges. Currently, this converts the edges to the parametric form, in
+ * order to avoid doing a division until an intersection has been confirmed.
+ * This is slightly slower in the "found" case, but a lot faster in the "not
+ * found" case.
  *
- * The coefficients of the line equation stored in double precision to avoid catastrophic
- * cancellation in the isLeftOf() and isRightOf() checks. Using doubles ensures that the result is
- * correct in float, since it's a polynomial of degree 2. The intersect() function, being
- * degree 5, is still subject to catastrophic cancellation. We deal with that by assuming its
- * output may be incorrect, and adjusting the mesh topology to match (see comment at the top of
- * this file).
+ * The coefficients of the line equation stored in double precision to avoid
+ * catastrophic cancellation in the isLeftOf() and isRightOf() checks. Using
+ * doubles ensures that the result is correct in float, since it's a polynomial
+ * of degree 2. The intersect() function, being degree 5, is still subject to
+ * catastrophic cancellation. We deal with that by assuming its output may be
+ * incorrect, and adjusting the mesh topology to match (see comment at the top
+ * of this file).
  */
 
 struct GrTriangulator::Edge
@@ -531,9 +575,11 @@ struct GrTriangulator::Edge
     EdgeType fType;
     Edge* fLeft;          // The linked list of edges in the active edge list.
     Edge* fRight;         // "
-    Edge* fPrevEdgeAbove; // The linked list of edges in the bottom Vertex's "edges above".
+    Edge* fPrevEdgeAbove; // The linked list of edges in the bottom Vertex's
+                          // "edges above".
     Edge* fNextEdgeAbove; // "
-    Edge* fPrevEdgeBelow; // The linked list of edges in the top Vertex's "edges below".
+    Edge* fPrevEdgeBelow; // The linked list of edges in the top Vertex's "edges
+                          // below".
     Edge* fNextEdgeBelow; // "
     Poly* fLeftPoly;      // The Poly to the left of this edge, if any.
     Poly* fRightPoly;     // The Poly to the right of this edge, if any.
@@ -547,10 +593,11 @@ struct GrTriangulator::Edge
 
     double dist(const Vec2D& p) const
     {
-        // Coerce points coincident with the vertices to have dist = 0, since converting from
-        // a double intersection point back to float storage might construct a point that's no
-        // longer on the ideal line.
-        return (p == fTop->fPoint || p == fBottom->fPoint) ? 0.0 : fLine.dist(p);
+        // Coerce points coincident with the vertices to have dist = 0, since
+        // converting from a double intersection point back to float storage
+        // might construct a point that's no longer on the ideal line.
+        return (p == fTop->fPoint || p == fBottom->fPoint) ? 0.0
+                                                           : fLine.dist(p);
     }
     bool isRightOf(const Vertex& v) const { return this->dist(v.fPoint) < 0.0; }
     bool isLeftOf(const Vertex& v) const { return this->dist(v.fPoint) > 0.0; }
@@ -585,7 +632,10 @@ struct GrTriangulator::EdgeList
             fHead->fLeft = fTail;
         }
     }
-    bool contains(Edge* edge) const { return edge->fLeft || edge->fRight || fHead == edge; }
+    bool contains(Edge* edge) const
+    {
+        return edge->fLeft || edge->fRight || fHead == edge;
+    }
 };
 
 struct GrTriangulator::MonotonePoly
@@ -614,7 +664,10 @@ struct GrTriangulator::Poly
     Poly(Vertex* v, int winding);
 
     Poly* addEdge(Edge* e, Side side, GrTriangulator*);
-    Vertex* lastVertex() const { return fTail ? fTail->fLastEdge->fBottom : fFirstVertex; }
+    Vertex* lastVertex() const
+    {
+        return fTail ? fTail->fLastEdge->fBottom : fFirstVertex;
+    }
     Vertex* fFirstVertex;
     int fWinding;
     MonotonePoly* fHead;

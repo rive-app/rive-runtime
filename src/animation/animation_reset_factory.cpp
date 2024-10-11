@@ -35,12 +35,14 @@ public:
             auto pos = keyedPropertiesSet.find(keyedProperty->propertyKey());
             if (pos == keyedPropertiesSet.end())
             {
-                switch (CoreRegistry::propertyFieldId(keyedProperty->propertyKey()))
+                switch (
+                    CoreRegistry::propertyFieldId(keyedProperty->propertyKey()))
                 {
                     case CoreDoubleType::id:
                     case CoreColorType::id:
                         keyedPropertiesSet.insert(keyedProperty->propertyKey());
-                        keyedPropertiesData.push_back(KeyedPropertyData(keyedProperty, isBaseline));
+                        keyedPropertiesData.push_back(
+                            KeyedPropertyData(keyedProperty, isBaseline));
                         break;
                 }
             }
@@ -64,13 +66,15 @@ private:
             }
         }
 
-        auto keyedObjectData = rivestd::make_unique<KeyedObjectData>(keyedObject->objectId());
+        auto keyedObjectData =
+            rivestd::make_unique<KeyedObjectData>(keyedObject->objectId());
         auto ref = keyedObjectData.get();
         keyedObjectsData.push_back(std::move(keyedObjectData));
         return ref;
     }
 
-    void findKeyedObjects(const LinearAnimation* animation, bool isFirstAnimation)
+    void findKeyedObjects(const LinearAnimation* animation,
+                          bool isFirstAnimation)
     {
         size_t index = 0;
         while (index < animation->numKeyedObjects())
@@ -84,7 +88,8 @@ private:
     }
 
 public:
-    AnimationsData(std::vector<const LinearAnimation*>& animations, bool useFirstAsBaseline)
+    AnimationsData(std::vector<const LinearAnimation*>& animations,
+                   bool useFirstAsBaseline)
     {
         bool isFirstAnimation = useFirstAsBaseline;
         for (auto animation : animations)
@@ -94,11 +99,13 @@ public:
         }
     }
 
-    void writeObjects(AnimationReset* animationReset, ArtboardInstance* artboard)
+    void writeObjects(AnimationReset* animationReset,
+                      ArtboardInstance* artboard)
     {
         for (auto& keyedObjectData : keyedObjectsData)
         {
-            auto object = artboard->resolve(keyedObjectData->objectId)->as<Component>();
+            auto object =
+                artboard->resolve(keyedObjectData->objectId)->as<Component>();
             auto propertiesData = keyedObjectData->keyedPropertiesData;
             if (propertiesData.size() > 0)
             {
@@ -117,15 +124,17 @@ public:
                                 auto firstKeyframe = keyedProperty->first();
                                 if (firstKeyframe != nullptr)
                                 {
-                                    auto value =
-                                        keyedProperty->first()->as<KeyFrameDouble>()->value();
+                                    auto value = keyedProperty->first()
+                                                     ->as<KeyFrameDouble>()
+                                                     ->value();
                                     animationReset->writePropertyValue(value);
                                 }
                             }
                             else
                             {
                                 animationReset->writePropertyValue(
-                                    CoreRegistry::getDouble(object, propertyKey));
+                                    CoreRegistry::getDouble(object,
+                                                            propertyKey));
                             }
                             break;
                         case CoreColorType::id:
@@ -136,15 +145,17 @@ public:
                                 auto firstKeyframe = keyedProperty->first();
                                 if (firstKeyframe != nullptr)
                                 {
-                                    auto value =
-                                        keyedProperty->first()->as<KeyFrameColor>()->value();
+                                    auto value = keyedProperty->first()
+                                                     ->as<KeyFrameColor>()
+                                                     ->value();
                                     animationReset->writePropertyValue(value);
                                 }
                             }
                             else
                             {
                                 animationReset->writePropertyValue(
-                                    CoreRegistry::getColor(object, propertyKey));
+                                    CoreRegistry::getColor(object,
+                                                           propertyKey));
                             }
                             break;
                     }
@@ -168,22 +179,25 @@ std::unique_ptr<AnimationReset> AnimationResetFactory::getInstance()
     return instance;
 }
 
-void AnimationResetFactory::fromState(StateInstance* stateInstance,
-                                      std::vector<const LinearAnimation*>& animations)
+void AnimationResetFactory::fromState(
+    StateInstance* stateInstance,
+    std::vector<const LinearAnimation*>& animations)
 {
     if (stateInstance != nullptr)
     {
         auto state = stateInstance->state();
-        if (state->is<AnimationState>() && state->as<AnimationState>()->animation() != nullptr)
+        if (state->is<AnimationState>() &&
+            state->as<AnimationState>()->animation() != nullptr)
         {
             animations.push_back(state->as<AnimationState>()->animation());
         }
     }
 }
 
-std::unique_ptr<AnimationReset> AnimationResetFactory::fromStates(StateInstance* stateFrom,
-                                                                  StateInstance* currentState,
-                                                                  ArtboardInstance* artboard)
+std::unique_ptr<AnimationReset> AnimationResetFactory::fromStates(
+    StateInstance* stateFrom,
+    StateInstance* currentState,
+    ArtboardInstance* artboard)
 {
     std::vector<const LinearAnimation*> animations;
     fromState(stateFrom, animations);

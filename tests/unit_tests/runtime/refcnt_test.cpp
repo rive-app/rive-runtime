@@ -14,7 +14,10 @@ public:
     MyRefCnt() {}
     MyRefCnt(int, float, bool) {}
 
-    void require_count(int value) { REQUIRE(this->debugging_refcnt() == value); }
+    void require_count(int value)
+    {
+        REQUIRE(this->debugging_refcnt() == value);
+    }
 };
 
 TEST_CASE("refcnt", "[basics]")
@@ -64,8 +67,8 @@ TEST_CASE("rcp", "[basics]")
     REQUIRE(r2.get() == nullptr);
     REQUIRE(r1.get() == ptr);
 
-    // This is important, calling release() does not modify the ref count on the object
-    // We have to manage that explicit since we called release()
+    // This is important, calling release() does not modify the ref count on the
+    // object We have to manage that explicit since we called release()
     REQUIRE(r1->debugging_refcnt() == 2);
     ptr->unref();
     REQUIRE(r1->debugging_refcnt() == 1);

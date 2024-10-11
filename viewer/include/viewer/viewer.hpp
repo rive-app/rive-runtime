@@ -10,7 +10,9 @@
 #include "SkTypes.h"
 
 sk_sp<GrDirectContext> makeSkiaContext();
-sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context, int width, int height);
+sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context,
+                                 int width,
+                                 int height);
 void skiaPresentSurface(sk_sp<SkSurface> surface);
 #endif
 

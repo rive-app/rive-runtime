@@ -17,14 +17,22 @@ class RenderContextTest : public rive::gpu::RenderContext
 {
 public:
     using RenderContext::ResourceAllocationCounts;
-    RenderContextTest() : RenderContext(std::make_unique<RenderContextNULLTest>()) {}
-    RenderContextNULLTest* testingImpl() { return static_impl_cast<RenderContextNULLTest>(); }
+    RenderContextTest() :
+        RenderContext(std::make_unique<RenderContextNULLTest>())
+    {}
+    RenderContextNULLTest* testingImpl()
+    {
+        return static_impl_cast<RenderContextNULLTest>();
+    }
 
     ResourceAllocationCounts currentResourceAllocations() const
     {
         return m_currentResourceAllocations;
     }
-    double lastResourceTrimTimeInSeconds() const { return m_lastResourceTrimTimeInSeconds; }
+    double lastResourceTrimTimeInSeconds() const
+    {
+        return m_lastResourceTrimTimeInSeconds;
+    }
 };
 
 namespace rive::gpu
@@ -77,9 +85,10 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
     CHECK(allocs.gradTextureHeight == 16 * 5);
     CHECK(allocs.tessTextureHeight == 18 * 5);
 
-    allocs = simd::if_then_else(testAllocs.toVec() * size_t(2) <= allocs.toVec(),
-                                allocs.toVec() / size_t(2),
-                                allocs.toVec());
+    allocs =
+        simd::if_then_else(testAllocs.toVec() * size_t(2) <= allocs.toVec(),
+                           allocs.toVec() / size_t(2),
+                           allocs.toVec());
     CHECK(allocs.pathBufferCount == 18);
     CHECK(allocs.contourBufferCount == 16);
     CHECK(allocs.simpleGradientBufferCount == 14);
@@ -93,14 +102,16 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
 
 // Check that resources start getting trimmed after 5 seconds.
 //
-// (ResourceAllocationCounts proves that the SIMD handling of resources works, so here we only check
-// path and contour counts, and assume the rest will follow suite.)
+// (ResourceAllocationCounts proves that the SIMD handling of resources works,
+// so here we only check path and contour counts, and assume the rest will
+// follow suite.)
 TEST_CASE("ResourceTriming", "RenderContext")
 {
     RenderContextTest ctx;
     rive::RiveRenderer renderer(&ctx);
 
-    CHECK(ctx.lastResourceTrimTimeInSeconds() == ctx.testingImpl()->m_secondsOverride);
+    CHECK(ctx.lastResourceTrimTimeInSeconds() ==
+          ctx.testingImpl()->m_secondsOverride);
 
     CHECK(ctx.currentResourceAllocations().flushUniformBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().imageDrawUniformBufferCount == 0);
@@ -137,7 +148,8 @@ TEST_CASE("ResourceTriming", "RenderContext")
 
     size_t baselinePathCount = ctx.currentResourceAllocations().pathBufferCount;
     CHECK(baselinePathCount <= gpu::kPathBufferAlignmentInElements * 2);
-    size_t baselineContourCount = ctx.currentResourceAllocations().contourBufferCount;
+    size_t baselineContourCount =
+        ctx.currentResourceAllocations().contourBufferCount;
     CHECK(baselineContourCount <= gpu::kContourBufferAlignmentInElements * 2);
 
     // Check that resources grow to fit.
@@ -151,8 +163,10 @@ TEST_CASE("ResourceTriming", "RenderContext")
         }
         ctx.flush({.renderTarget = renderTarget.get()});
 
-        CHECK(ctx.currentResourceAllocations().pathBufferCount > lastCounts.pathBufferCount);
-        CHECK(ctx.currentResourceAllocations().contourBufferCount > lastCounts.contourBufferCount);
+        CHECK(ctx.currentResourceAllocations().pathBufferCount >
+              lastCounts.pathBufferCount);
+        CHECK(ctx.currentResourceAllocations().contourBufferCount >
+              lastCounts.contourBufferCount);
         lastCounts = ctx.currentResourceAllocations();
     }
 
@@ -166,24 +180,30 @@ TEST_CASE("ResourceTriming", "RenderContext")
         }
         ctx.flush({.renderTarget = renderTarget.get()});
 
-        CHECK(ctx.currentResourceAllocations().pathBufferCount == lastCounts.pathBufferCount);
-        CHECK(ctx.currentResourceAllocations().contourBufferCount == lastCounts.contourBufferCount);
+        CHECK(ctx.currentResourceAllocations().pathBufferCount ==
+              lastCounts.pathBufferCount);
+        CHECK(ctx.currentResourceAllocations().contourBufferCount ==
+              lastCounts.contourBufferCount);
     }
 
     // Drawing nothing shouldn't shrink any resources either.
     ctx.beginFrame(makeSimpleFrameDescriptor());
     ctx.flush({.renderTarget = renderTarget.get()});
-    CHECK(ctx.currentResourceAllocations().pathBufferCount == lastCounts.pathBufferCount);
-    CHECK(ctx.currentResourceAllocations().contourBufferCount == lastCounts.contourBufferCount);
+    CHECK(ctx.currentResourceAllocations().pathBufferCount ==
+          lastCounts.pathBufferCount);
+    CHECK(ctx.currentResourceAllocations().contourBufferCount ==
+          lastCounts.contourBufferCount);
 
-    // Pass the time limit and observe that allocations stay the same, since the previous usage is
-    // still in m_maxRecentResourceRequirements.
+    // Pass the time limit and observe that allocations stay the same, since the
+    // previous usage is still in m_maxRecentResourceRequirements.
     ctx.testingImpl()->m_secondsOverride += 5.0001;
     ctx.beginFrame(makeSimpleFrameDescriptor());
     renderer.drawPath(twoContourPath.get(), paint.get());
     ctx.flush({.renderTarget = renderTarget.get()});
-    CHECK(ctx.currentResourceAllocations().pathBufferCount == lastCounts.pathBufferCount);
-    CHECK(ctx.currentResourceAllocations().contourBufferCount == lastCounts.contourBufferCount);
+    CHECK(ctx.currentResourceAllocations().pathBufferCount ==
+          lastCounts.pathBufferCount);
+    CHECK(ctx.currentResourceAllocations().contourBufferCount ==
+          lastCounts.contourBufferCount);
 
     // Pass the time limit once more. This time resources should shrink since
     // m_maxRecentResourceRequirements only has the one path now.
@@ -191,8 +211,10 @@ TEST_CASE("ResourceTriming", "RenderContext")
     ctx.beginFrame(makeSimpleFrameDescriptor());
     renderer.drawPath(twoContourPath.get(), paint.get());
     ctx.flush({.renderTarget = renderTarget.get()});
-    CHECK(ctx.currentResourceAllocations().pathBufferCount == baselinePathCount);
-    CHECK(ctx.currentResourceAllocations().contourBufferCount == baselineContourCount);
+    CHECK(ctx.currentResourceAllocations().pathBufferCount ==
+          baselinePathCount);
+    CHECK(ctx.currentResourceAllocations().contourBufferCount ==
+          baselineContourCount);
 
     // Releasing resources should reset them all the way to zero.
     ctx.releaseResources();

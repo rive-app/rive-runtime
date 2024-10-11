@@ -18,7 +18,8 @@ enum class DrawableFlag : unsigned short
     /// Editor only
     Disconnected = 1 << 2,
 
-    /// Whether this Component lets hit events pass through to components behind it
+    /// Whether this Component lets hit events pass through to components behind
+    /// it
     Opaque = 1 << 3,
 
     /// Whether the computed world bounds for a shape need to be recalculated

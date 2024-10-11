@@ -42,21 +42,31 @@ public:
     }
 
     virtual void preDraw(rive::Renderer*) {}
-    virtual void drawSquare(rive::Renderer*, float size, size_t i, size_t j) = 0;
+    virtual void drawSquare(rive::Renderer*,
+                            float size,
+                            size_t i,
+                            size_t j) = 0;
 
 protected:
-    rive::ColorInt randColor() { return static_cast<rive::ColorInt>(m_rand.u64()) | 0x80000000; }
+    rive::ColorInt randColor()
+    {
+        return static_cast<rive::ColorInt>(m_rand.u64()) | 0x80000000;
+    }
 
     Rand m_rand;
 };
 
-// Stress-test the gradient library by drawing more color ramps than fit in the gradient texture.
+// Stress-test the gradient library by drawing more color ramps than fit in the
+// gradient texture.
 class LotsOfGradsGM : public LotsOfSquaresGM
 {
 public:
     LotsOfGradsGM(const char* name) : LotsOfSquaresGM(name) {}
 
-    void drawSquare(rive::Renderer* renderer, float size, size_t i, size_t j) override
+    void drawSquare(rive::Renderer* renderer,
+                    float size,
+                    size_t i,
+                    size_t j) override
     {
         rive::Factory* factory = TestingWindow::Get()->factory();
         auto paint = factory->makeRenderPaint();
@@ -64,7 +74,9 @@ public:
         rivegm::draw_rect(renderer, {0, 0, size, size}, paint.get());
     }
 
-    virtual rive::rcp<rive::RenderShader> makeGradient(rive::Factory*, size_t i, size_t j) = 0;
+    virtual rive::rcp<rive::RenderShader> makeGradient(rive::Factory*,
+                                                       size_t i,
+                                                       size_t j) = 0;
 };
 
 // Run out of "simple" texels in the gradient texture.
@@ -73,7 +85,9 @@ class LotsOfGradsSimpleGM : public LotsOfGradsGM
 public:
     LotsOfGradsSimpleGM() : LotsOfGradsGM("lots_of_grads_simple") {}
 
-    rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory, size_t i, size_t j) override
+    rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory,
+                                               size_t i,
+                                               size_t j) override
     {
         float stops[2] = {0, 1};
         rive::ColorInt colors[2] = {randColor(), randColor()};
@@ -94,12 +108,18 @@ class LotsOfGradsComplexGM : public LotsOfGradsGM
 public:
     LotsOfGradsComplexGM() : LotsOfGradsGM("lots_of_grads_complex") {}
 
-    rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory, size_t i, size_t j) override
+    rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory,
+                                               size_t i,
+                                               size_t j) override
     {
         float stops[3] = {.05f, .147f, 1};
         rive::ColorInt colors[3] = {randColor(), randColor(), randColor()};
-        return factory
-            ->makeRadialGradient((i & 1) ? 0 : 16, (j & 1) ? 2 : 22, 22, colors, stops, 3);
+        return factory->makeRadialGradient((i & 1) ? 0 : 16,
+                                           (j & 1) ? 2 : 22,
+                                           22,
+                                           colors,
+                                           stops,
+                                           3);
     }
 };
 GMREGISTER(return new LotsOfGradsComplexGM)
@@ -111,7 +131,9 @@ public:
     LotsOfGradSpansGM() : LotsOfGradsGM("lots_of_grad_spans") {}
     LotsOfGradSpansGM(const char* name) : LotsOfGradsGM(name) {}
 
-    rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory, size_t i, size_t j) override
+    rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory,
+                                               size_t i,
+                                               size_t j) override
     {
         float stops[7] = {0, .147f, .148f, .23f, .67f, .8f, 1};
         rive::ColorInt colors[7] = {randColor(),
@@ -132,7 +154,8 @@ public:
 };
 GMREGISTER(return new LotsOfGradSpansGM)
 
-// Ensure that an intermediate flush does not invalidate the clip buffer contents.
+// Ensure that an intermediate flush does not invalidate the clip buffer
+// contents.
 class LotsOfGradsClippedGM : public LotsOfGradSpansGM
 {
 public:
@@ -153,14 +176,20 @@ class LotsOfGradsMixedGM : public LotsOfGradsGM
 public:
     LotsOfGradsMixedGM() : LotsOfGradsGM("lots_of_grads_mixed") {}
 
-    rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory, size_t i, size_t j) override
+    rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory,
+                                               size_t i,
+                                               size_t j) override
     {
         if (m_rand.boolean())
         {
             float stops[3] = {.05f, .147f, 1};
             rive::ColorInt colors[3] = {randColor(), randColor(), randColor()};
-            return factory
-                ->makeRadialGradient((i & 1) ? 0 : 16, (j & 1) ? 2 : 22, 22, colors, stops, 3);
+            return factory->makeRadialGradient((i & 1) ? 0 : 16,
+                                               (j & 1) ? 2 : 22,
+                                               22,
+                                               colors,
+                                               stops,
+                                               3);
         }
         else
         {
@@ -178,14 +207,17 @@ public:
 };
 GMREGISTER(return new LotsOfGradsMixedGM)
 
-// Run out of VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE descriptors, requiring the Vulkan backend to allocate
-// a new VkDescriptorPool during flush.
+// Run out of VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE descriptors, requiring the Vulkan
+// backend to allocate a new VkDescriptorPool during flush.
 class LotsOfImagesGM : public LotsOfSquaresGM
 {
 public:
     LotsOfImagesGM() : LotsOfSquaresGM("lots_of_images") {}
 
-    void drawSquare(rive::Renderer* renderer, float size, size_t i, size_t j) override
+    void drawSquare(rive::Renderer* renderer,
+                    float size,
+                    size_t i,
+                    size_t j) override
     {
         size_t imageCount = std::size(m_images);
 #ifndef RIVE_TOOLS_NO_GL
@@ -193,7 +225,8 @@ public:
         {
             if (plsGLImpl->capabilities().isANGLEOrWebGL)
             {
-                // This test takes too long on ANGLE with all the images. Draw fewer images instead.
+                // This test takes too long on ANGLE with all the images. Draw
+                // fewer images instead.
                 imageCount = 16;
             }
         }
@@ -205,12 +238,16 @@ public:
             rive::Factory* factory = TestingWindow::Get()->factory();
             auto color = randColor();
             std::vector<uint8_t> imagePixels(pngSize * pngSize * 4);
-            for (auto it = imagePixels.begin(); it != imagePixels.end(); it += 4)
+            for (auto it = imagePixels.begin(); it != imagePixels.end();
+                 it += 4)
             {
                 rive::UnpackColorToRGBA8(color, &(*it));
             }
             std::vector<uint8_t> encodedData =
-                EncodePNGToBuffer(pngSize, pngSize, imagePixels.data(), PNGCompression::fast_rle);
+                EncodePNGToBuffer(pngSize,
+                                  pngSize,
+                                  imagePixels.data(),
+                                  PNGCompression::fast_rle);
             image = factory->decodeImage(rive::Span<uint8_t>(encodedData));
         }
 

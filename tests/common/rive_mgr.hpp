@@ -24,12 +24,17 @@ public:
     RiveMgr(rive::Factory* factory);
     ~RiveMgr();
 
-    bool loadAnimation(const char path[], const char artboard[], const char animation[]);
-    bool loadMachine(const char path[], const char artboard[], const char machine[]);
+    bool loadAnimation(const char path[],
+                       const char artboard[],
+                       const char animation[]);
+    bool loadMachine(const char path[],
+                     const char artboard[],
+                     const char machine[]);
 
     rive::Scene* scene() const { return m_Scene.get(); }
 
-    static std::unique_ptr<rive::File> loadFile(const char filename[], rive::Factory*);
+    static std::unique_ptr<rive::File> loadFile(const char filename[],
+                                                rive::Factory*);
 };
 
 #endif

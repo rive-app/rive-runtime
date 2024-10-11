@@ -18,13 +18,15 @@ public:
     bool init(sg_pass_action*, int width, int height) override
     {
         m_renderer = rivestd::make_unique<rive::SokolTessRenderer>();
-        m_renderer->orthographicProjection(0.0f, width, height, 0.0f, 0.0f, 1.0f);
+        m_renderer
+            ->orthographicProjection(0.0f, width, height, 0.0f, 0.0f, 1.0f);
         return true;
     }
 
     void handleResize(int width, int height) override
     {
-        m_renderer->orthographicProjection(0.0f, width, height, 0.0f, 0.0f, 1.0f);
+        m_renderer
+            ->orthographicProjection(0.0f, width, height, 0.0f, 0.0f, 1.0f);
     }
 
     void afterDefaultPass(ViewerContent* content, double elapsed) override
@@ -37,7 +39,10 @@ public:
     }
 };
 
-std::unique_ptr<ViewerHost> ViewerHost::Make() { return rivestd::make_unique<TessViewerHost>(); }
+std::unique_ptr<ViewerHost> ViewerHost::Make()
+{
+    return rivestd::make_unique<TessViewerHost>();
+}
 
 rive::Factory* ViewerHost::Factory()
 {

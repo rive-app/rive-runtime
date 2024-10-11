@@ -6,7 +6,10 @@
 
 #ifdef RIVE_TOOLS_NO_GL
 
-TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow) { return nullptr; }
+TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
+{
+    return nullptr;
+}
 
 #else
 
@@ -36,7 +39,8 @@ static PlatformLibraryHandle platform_dlopen(const char* libname)
     if (!lib)
     {
         WCHAR err[512];
-        FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM | FORMAT_MESSAGE_IGNORE_INSERTS,
+        FormatMessage(FORMAT_MESSAGE_FROM_SYSTEM |
+                          FORMAT_MESSAGE_IGNORE_INSERTS,
                       0,
                       GetLastError(),
                       0,
@@ -48,7 +52,8 @@ static PlatformLibraryHandle platform_dlopen(const char* libname)
     return lib;
 }
 
-static PlatformProcAddress platform_dlsym(PlatformLibraryHandle lib, const char* symbol)
+static PlatformProcAddress platform_dlsym(PlatformLibraryHandle lib,
+                                          const char* symbol)
 {
 
     return GetProcAddress(lib, symbol);
@@ -77,7 +82,8 @@ static PlatformLibraryHandle platform_dlopen(const char* libname)
     return lib;
 }
 
-static PlatformProcAddress platform_dlsym(PlatformLibraryHandle lib, const char* symbol)
+static PlatformProcAddress platform_dlsym(PlatformLibraryHandle lib,
+                                          const char* symbol)
 {
     return dlsym(lib, symbol);
 }
@@ -86,12 +92,12 @@ static PlatformProcAddress platform_dlsym(PlatformLibraryHandle lib, const char*
 
 static PlatformLibraryHandle s_LibEGL = nullptr;
 
-#define GET_EGL_PROC(eglProc)                                                                      \
-    eglProc = (decltype(eglProc))platform_dlsym(s_LibEGL, #eglProc);                               \
-    if (!eglProc)                                                                                  \
-    {                                                                                              \
-        fprintf(stderr, "Failed locate " #eglProc " in libEGL.\n");                                \
-        abort();                                                                                   \
+#define GET_EGL_PROC(eglProc)                                                  \
+    eglProc = (decltype(eglProc))platform_dlsym(s_LibEGL, #eglProc);           \
+    if (!eglProc)                                                              \
+    {                                                                          \
+        fprintf(stderr, "Failed locate " #eglProc " in libEGL.\n");            \
+        abort();                                                               \
     }
 
 static PFNEGLGETDISPLAYPROC eglGetDisplay;
@@ -119,7 +125,8 @@ static void init_egl()
     if (!s_LibEGL)
     {
         fprintf(stderr,
-                "Failed load libEGL. Did you build ANGLE and copy over libEGL and libGLESv2?\n");
+                "Failed load libEGL. Did you build ANGLE and copy over libEGL "
+                "and libGLESv2?\n");
         abort();
     }
 
@@ -156,7 +163,9 @@ static void GL_APIENTRY err_msg_callback(GLenum source,
     else if (type == GL_DEBUG_TYPE_PERFORMANCE_KHR)
     {
         if (strcmp(message, "CPU path taken to copy PBO") == 0 ||
-            strcmp(message, "EsxBufferObject::Map - Ignoring EsxBufferMapUnsyncedBit") == 0 ||
+            strcmp(message,
+                   "EsxBufferObject::Map - Ignoring EsxBufferMapUnsyncedBit") ==
+                0 ||
             strcmp(message, "Packing allocations for resource %p") == 0)
         {
             return;
@@ -181,7 +190,9 @@ public:
     virtual void resize(int width, int height) = 0;
 
 protected:
-    EGLWindow(EGLDisplay display, EGLConfig config) : m_display(display), m_config(config) {}
+    EGLWindow(EGLDisplay display, EGLConfig config) :
+        m_display(display), m_config(config)
+    {}
 
     void deleteSurface()
     {
@@ -202,7 +213,8 @@ protected:
 class PbufferWindow : public EGLWindow
 {
 public:
-    PbufferWindow(EGLDisplay display, EGLConfig config) : EGLWindow(display, config)
+    PbufferWindow(EGLDisplay display, EGLConfig config) :
+        EGLWindow(display, config)
     {
         resize(1, 1);
     }
@@ -212,8 +224,13 @@ public:
     void resize(int width, int height) final
     {
         deleteSurface();
-        const EGLint surfaceAttribs[] = {EGL_WIDTH, width, EGL_HEIGHT, height, EGL_NONE};
-        m_surface = eglCreatePbufferSurface(m_display, m_config, surfaceAttribs);
+        const EGLint surfaceAttribs[] = {EGL_WIDTH,
+                                         width,
+                                         EGL_HEIGHT,
+                                         height,
+                                         EGL_NONE};
+        m_surface =
+            eglCreatePbufferSurface(m_display, m_config, surfaceAttribs);
         if (!m_surface)
         {
             fprintf(stderr, "eglCreatePbufferSurface failed.\n");
@@ -230,10 +247,11 @@ public:
     NativeWindow(EGLDisplay display, EGLConfig config, void* platformWindow) :
         EGLWindow(display, config)
     {
-        m_surface = eglCreateWindowSurface(m_display,
-                                           m_config,
-                                           reinterpret_cast<EGLNativeWindowType>(platformWindow),
-                                           nullptr);
+        m_surface = eglCreateWindowSurface(
+            m_display,
+            m_config,
+            reinterpret_cast<EGLNativeWindowType>(platformWindow),
+            nullptr);
         if (!m_surface)
         {
             fprintf(stderr, "eglCreateWindowSurface failed.\n");
@@ -272,10 +290,13 @@ public:
             PFNEGLGETPLATFORMDISPLAYEXTPROC eglGetPlatformDisplayEXT;
             GET_EGL_PROC(eglGetPlatformDisplayEXT);
 
-            const EGLint displayAttribs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE, angleBackend, EGL_NONE};
-            m_Display = eglGetPlatformDisplayEXT(EGL_PLATFORM_ANGLE_ANGLE,
-                                                 reinterpret_cast<void*>(EGL_DEFAULT_DISPLAY),
-                                                 displayAttribs);
+            const EGLint displayAttribs[] = {EGL_PLATFORM_ANGLE_TYPE_ANGLE,
+                                             angleBackend,
+                                             EGL_NONE};
+            m_Display = eglGetPlatformDisplayEXT(
+                EGL_PLATFORM_ANGLE_ANGLE,
+                reinterpret_cast<void*>(EGL_DEFAULT_DISPLAY),
+                displayAttribs);
             if (!m_Display)
             {
                 fprintf(stderr, "eglGetPlatformDisplayEXT failed.\n");
@@ -301,13 +322,16 @@ public:
             fprintf(stderr, "eglInitialize failed.\n");
             abort();
         }
-        // printf("Initialized EGL version %i.%i\n", majorVersion, minorVersion);
-        // printf("EGL_VENDOR: %s\n", eglQueryString(m_Display, EGL_VENDOR));
-        // printf("EGL_VERSION: %s\n", eglQueryString(m_Display, EGL_VERSION));
-        if (angleBackend != EGL_NONE && !strstr(eglQueryString(m_Display, EGL_VERSION), "ANGLE"))
+        // printf("Initialized EGL version %i.%i\n", majorVersion,
+        // minorVersion); printf("EGL_VENDOR: %s\n", eglQueryString(m_Display,
+        // EGL_VENDOR)); printf("EGL_VERSION: %s\n", eglQueryString(m_Display,
+        // EGL_VERSION));
+        if (angleBackend != EGL_NONE &&
+            !strstr(eglQueryString(m_Display, EGL_VERSION), "ANGLE"))
         {
             fprintf(stderr,
-                    "libEGL does not appear to be ANGLE. Did you build ANGLE and copy over libEGL "
+                    "libEGL does not appear to be ANGLE. Did you build ANGLE "
+                    "and copy over libEGL "
                     "and libGLESv2?\n");
             abort();
         }
@@ -350,7 +374,8 @@ public:
                                          EGL_CONTEXT_MINOR_VERSION,
                                          0,
                                          EGL_NONE};
-        m_Context = eglCreateContext(m_Display, config, nullptr, contextAttribs);
+        m_Context =
+            eglCreateContext(m_Display, config, nullptr, contextAttribs);
         if (m_Context == EGL_NO_CONTEXT)
         {
             fprintf(stderr, "eglCreateContext failed.\n");
@@ -359,7 +384,9 @@ public:
 
         if (platformWindow != nullptr)
         {
-            m_window = std::make_unique<NativeWindow>(m_Display, config, platformWindow);
+            m_window = std::make_unique<NativeWindow>(m_Display,
+                                                      config,
+                                                      platformWindow);
         }
         else
         {
@@ -391,14 +418,16 @@ public:
 #ifdef DEBUG
         for (int i = 0; i < extensionCount; ++i)
         {
-            auto* ext = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
+            auto* ext =
+                reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
             if (strcmp(ext, "GL_KHR_debug") == 0)
             {
                 glEnable(GL_DEBUG_OUTPUT_KHR);
                 glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_KHR);
 
-                auto glDebugMessageControlKHR = reinterpret_cast<PFNGLDEBUGMESSAGECONTROLKHRPROC>(
-                    eglGetProcAddress("glDebugMessageControlKHR"));
+                auto glDebugMessageControlKHR =
+                    reinterpret_cast<PFNGLDEBUGMESSAGECONTROLKHRPROC>(
+                        eglGetProcAddress("glDebugMessageControlKHR"));
                 assert(glDebugMessageControlKHR);
                 glDebugMessageControlKHR(GL_DONT_CARE,
                                          GL_DONT_CARE,
@@ -407,8 +436,9 @@ public:
                                          NULL,
                                          GL_TRUE);
 
-                auto glDebugMessageCallbackKHR = reinterpret_cast<PFNGLDEBUGMESSAGECALLBACKKHRPROC>(
-                    eglGetProcAddress("glDebugMessageCallbackKHR"));
+                auto glDebugMessageCallbackKHR =
+                    reinterpret_cast<PFNGLDEBUGMESSAGECALLBACKKHRPROC>(
+                        eglGetProcAddress("glDebugMessageCallbackKHR"));
                 assert(glDebugMessageCallbackKHR);
                 glDebugMessageCallbackKHR(&err_msg_callback, nullptr);
 
@@ -423,7 +453,10 @@ public:
 
     ~TestingWindowEGL()
     {
-        eglMakeCurrent(EGL_NO_DISPLAY, EGL_NO_SURFACE, EGL_NO_SURFACE, EGL_NO_CONTEXT);
+        eglMakeCurrent(EGL_NO_DISPLAY,
+                       EGL_NO_SURFACE,
+                       EGL_NO_SURFACE,
+                       EGL_NO_CONTEXT);
         if (m_Context)
         {
             eglDestroyContext(m_Display, m_Context);
@@ -439,12 +472,15 @@ public:
             return;
         }
 
-        if (!m_isMSAA && renderContextGLImpl()->capabilities().EXT_shader_pixel_local_storage &&
+        if (!m_isMSAA &&
+            renderContextGLImpl()
+                ->capabilities()
+                .EXT_shader_pixel_local_storage &&
             m_window->isOffscreen())
         {
-            // ARM Mali GPUs seem to hang while rendering goldens to a Pbuffer with
-            // EXT_shader_pixel_local_storage. Rendering to a texture instead seems
-            // to work.
+            // ARM Mali GPUs seem to hang while rendering goldens to a Pbuffer
+            // with EXT_shader_pixel_local_storage. Rendering to a texture
+            // instead seems to work.
             m_headlessRenderTexture = glutils::Texture();
             glActiveTexture(GL_TEXTURE0);
             glBindTexture(GL_TEXTURE_2D, m_headlessRenderTexture);
@@ -469,7 +505,8 @@ public:
                                                bool doClear,
                                                bool wireframe) override
     {
-        auto renderer = m_renderer->reset(m_width, m_height, m_headlessRenderTexture);
+        auto renderer =
+            m_renderer->reset(m_width, m_height, m_headlessRenderTexture);
         m_renderer->beginFrame(clearColor, doClear, wireframe);
         return renderer;
     }
@@ -482,12 +519,21 @@ public:
             pixelData->resize(m_height * m_width * 4);
             static_cast<rive::gpu::RenderTargetGL*>(m_renderer->renderTarget())
                 ->bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
-            glReadPixels(0, 0, m_width, m_height, GL_RGBA, GL_UNSIGNED_BYTE, pixelData->data());
+            glReadPixels(0,
+                         0,
+                         m_width,
+                         m_height,
+                         GL_RGBA,
+                         GL_UNSIGNED_BYTE,
+                         pixelData->data());
         }
         eglSwapBuffers(m_Display, *m_window);
     }
 
-    rive::gpu::RenderContext* renderContext() const override { return m_renderer->renderContext(); }
+    rive::gpu::RenderContext* renderContext() const override
+    {
+        return m_renderer->renderContext();
+    }
 
     rive::gpu::RenderContextGLImpl* renderContextGLImpl() const override
     {
@@ -498,7 +544,10 @@ public:
         return nullptr;
     }
 
-    rive::gpu::RenderTarget* renderTarget() const override { return m_renderer->renderTarget(); }
+    rive::gpu::RenderTarget* renderTarget() const override
+    {
+        return m_renderer->renderTarget();
+    }
 
     void flushPLSContext() override { m_renderer->flushPLSContext(); }
 

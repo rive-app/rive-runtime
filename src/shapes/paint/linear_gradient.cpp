@@ -81,7 +81,8 @@ void LinearGradient::update(ComponentDirt value)
     // has changed. Local transform changes when a stop moves in local space.
     bool rebuildGradient =
         hasDirt(value,
-                ComponentDirt::Paint | ComponentDirt::RenderOpacity | ComponentDirt::Transform) ||
+                ComponentDirt::Paint | ComponentDirt::RenderOpacity |
+                    ComponentDirt::Transform) ||
         (
             // paints in world space
             parent()->as<ShapePaint>()->isFlagged(PathFlags::world) &&
@@ -93,9 +94,11 @@ void LinearGradient::update(ComponentDirt value)
     }
 }
 
-void LinearGradient::applyTo(RenderPaint* renderPaint, float opacityModifier) const
+void LinearGradient::applyTo(RenderPaint* renderPaint,
+                             float opacityModifier) const
 {
-    bool paintsInWorldSpace = parent()->as<ShapePaint>()->isFlagged(PathFlags::world);
+    bool paintsInWorldSpace =
+        parent()->as<ShapePaint>()->isFlagged(PathFlags::world);
     Vec2D start(startX(), startY());
     Vec2D end(endX(), endY());
     // Check if we need to update the world space gradient (if there's no
@@ -137,12 +140,20 @@ void LinearGradient::makeGradient(RenderPaint* renderPaint,
                                   size_t count) const
 {
     auto factory = artboard()->factory();
-    renderPaint->shader(
-        factory->makeLinearGradient(start.x, start.y, end.x, end.y, colors, stops, count));
+    renderPaint->shader(factory->makeLinearGradient(start.x,
+                                                    start.y,
+                                                    end.x,
+                                                    end.y,
+                                                    colors,
+                                                    stops,
+                                                    count));
 }
 
 void LinearGradient::markGradientDirty() { addDirt(ComponentDirt::Paint); }
-void LinearGradient::markStopsDirty() { addDirt(ComponentDirt::Paint | ComponentDirt::Stops); }
+void LinearGradient::markStopsDirty()
+{
+    addDirt(ComponentDirt::Paint | ComponentDirt::Stops);
+}
 
 void LinearGradient::renderOpacityChanged() { markGradientDirty(); }
 

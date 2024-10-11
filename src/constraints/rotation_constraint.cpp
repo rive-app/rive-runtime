@@ -37,15 +37,17 @@ void RotationConstraint::constrain(TransformComponent* component)
 
         if (!doesCopy())
         {
-            m_ComponentsB.rotation(destSpace() == TransformSpace::local ? 0.0f
-                                                                        : m_ComponentsA.rotation());
+            m_ComponentsB.rotation(destSpace() == TransformSpace::local
+                                       ? 0.0f
+                                       : m_ComponentsA.rotation());
         }
         else
         {
             m_ComponentsB.rotation(m_ComponentsB.rotation() * copyFactor());
             if (offset())
             {
-                m_ComponentsB.rotation(m_ComponentsB.rotation() + component->rotation());
+                m_ComponentsB.rotation(m_ComponentsB.rotation() +
+                                       component->rotation());
             }
         }
 

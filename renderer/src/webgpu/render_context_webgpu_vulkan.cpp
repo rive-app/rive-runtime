@@ -14,8 +14,8 @@
 
 namespace rive::gpu
 {
-// Create a group for binding PLS textures as Vulkan input attachments. The "inputTexture" property
-// is nonstandard WebGPU.
+// Create a group for binding PLS textures as Vulkan input attachments. The
+// "inputTexture" property is nonstandard WebGPU.
 EM_JS(int, make_pls_input_attachment_texture_bind_group, (int device), {
     device = JsValStore.get(device);
     const plsBindBroupLayout = device.createBindGroupLayout({
@@ -47,15 +47,19 @@ EM_JS(int, make_pls_input_attachment_texture_bind_group, (int device), {
 
 wgpu::BindGroupLayout RenderContextWebGPUVulkan::initTextureBindGroup()
 {
-    m_plsTextureBindGroupJSHandle = EmJsHandle(make_pls_input_attachment_texture_bind_group(
-        emscripten_webgpu_export_device(device().Get())));
+    m_plsTextureBindGroupJSHandle =
+        EmJsHandle(make_pls_input_attachment_texture_bind_group(
+            emscripten_webgpu_export_device(device().Get())));
     return wgpu::BindGroupLayout::Acquire(
-        emscripten_webgpu_import_bind_group_layout(m_plsTextureBindGroupJSHandle.get()));
+        emscripten_webgpu_import_bind_group_layout(
+            m_plsTextureBindGroupJSHandle.get()));
 }
 
-// The "TRANSIENT_ATTACHMENT" and "INPUT_ATTACHMENT" flags are nonstandard WebGPU.
+// The "TRANSIENT_ATTACHMENT" and "INPUT_ATTACHMENT" flags are nonstandard
+// WebGPU.
 EM_JS(int, texture_usage_transient_input_attachment, (), {
-    return GPUTextureUsage.TRANSIENT_ATTACHMENT | GPUTextureUsage.INPUT_ATTACHMENT;
+    return GPUTextureUsage.TRANSIENT_ATTACHMENT |
+           GPUTextureUsage.INPUT_ATTACHMENT;
 });
 
 rcp<RenderTargetWebGPU> RenderContextWebGPUVulkan::makeRenderTarget(
@@ -68,13 +72,14 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUVulkan::makeRenderTarget(
         framebufferFormat,
         width,
         height,
-        static_cast<wgpu::TextureUsage>(texture_usage_transient_input_attachment())));
+        static_cast<wgpu::TextureUsage>(
+            texture_usage_transient_input_attachment())));
 }
 
 // Create a standard PLS "draw" pipeline that uses Vulkan input attachments and
-// VK_EXT_rasterization_order_attachment_access for pixel local storage. The "inputs" and "features"
-// properties on GPUFragmentState, and the "usedAsInput" property on GPUColorTargetState are
-// nonstandard WebGPU.
+// VK_EXT_rasterization_order_attachment_access for pixel local storage. The
+// "inputs" and "features" properties on GPUFragmentState, and the "usedAsInput"
+// property on GPUColorTargetState are nonstandard WebGPU.
 EM_JS(int,
       make_pls_draw_pipeline,
       (int device,
@@ -196,7 +201,8 @@ EM_JS(int,
                       {format : "r32uint", usedAsInput : true},
                       {format : framebufferFormat, usedAsInput : true},
                   ],
-                  features : GPUFragmentStateFeatures.RASTERIZATION_ORDER_ATTACHMENT_ACCESS,
+                  features : GPUFragmentStateFeatures
+                      .RASTERIZATION_ORDER_ATTACHMENT_ACCESS,
               },
               primitive : {
                   topology : "triangle-list",
@@ -217,20 +223,22 @@ wgpu::RenderPipeline RenderContextWebGPUVulkan::makeDrawPipeline(
     wgpu::ShaderModule fragmentShader,
     EmJsHandle* pipelineJSHandleIfNeeded)
 {
-    *pipelineJSHandleIfNeeded = EmJsHandle(
-        make_pls_draw_pipeline(emscripten_webgpu_export_device(device().Get()),
-                               drawType,
-                               framebufferFormat,
-                               emscripten_webgpu_export_shader_module(vertexShader.Get()),
-                               emscripten_webgpu_export_shader_module(fragmentShader.Get()),
-                               emscripten_webgpu_export_pipeline_layout(drawPipelineLayout().Get()),
-                               frontFaceForOnScreenDraws() == wgpu::FrontFace::CW));
+    *pipelineJSHandleIfNeeded = EmJsHandle(make_pls_draw_pipeline(
+        emscripten_webgpu_export_device(device().Get()),
+        drawType,
+        framebufferFormat,
+        emscripten_webgpu_export_shader_module(vertexShader.Get()),
+        emscripten_webgpu_export_shader_module(fragmentShader.Get()),
+        emscripten_webgpu_export_pipeline_layout(drawPipelineLayout().Get()),
+        frontFaceForOnScreenDraws() == wgpu::FrontFace::CW));
     return wgpu::RenderPipeline::Acquire(
-        emscripten_webgpu_import_render_pipeline(pipelineJSHandleIfNeeded->get()));
+        emscripten_webgpu_import_render_pipeline(
+            pipelineJSHandleIfNeeded->get()));
 }
 
-// Create a standard PLS "draw" render pass that uses Vulkan input attachments for pixel local
-// storage. The "inputAttachments" property on GPURenderPassDescriptor is nonstandard WebGPU.
+// Create a standard PLS "draw" render pass that uses Vulkan input attachments
+// for pixel local storage. The "inputAttachments" property on
+// GPURenderPassDescriptor is nonstandard WebGPU.
 EM_JS(int,
       make_pls_render_pass,
       (int encoder,
@@ -309,17 +317,22 @@ wgpu::RenderPassEncoder RenderContextWebGPUVulkan::makePLSRenderPass(
 {
     *renderPassJSHandleIfNeeded = EmJsHandle(make_pls_render_pass(
         emscripten_webgpu_export_command_encoder(encoder.Get()),
-        emscripten_webgpu_export_texture_view(renderTarget->m_targetTextureView.Get()),
-        emscripten_webgpu_export_texture_view(renderTarget->m_coverageTextureView.Get()),
-        emscripten_webgpu_export_texture_view(renderTarget->m_clipTextureView.Get()),
-        emscripten_webgpu_export_texture_view(renderTarget->m_scratchColorTextureView.Get()),
+        emscripten_webgpu_export_texture_view(
+            renderTarget->m_targetTextureView.Get()),
+        emscripten_webgpu_export_texture_view(
+            renderTarget->m_coverageTextureView.Get()),
+        emscripten_webgpu_export_texture_view(
+            renderTarget->m_clipTextureView.Get()),
+        emscripten_webgpu_export_texture_view(
+            renderTarget->m_scratchColorTextureView.Get()),
         loadOp,
         clearColor.r,
         clearColor.g,
         clearColor.b,
         clearColor.a));
     return wgpu::RenderPassEncoder::Acquire(
-        emscripten_webgpu_import_render_pass_encoder(renderPassJSHandleIfNeeded->get()));
+        emscripten_webgpu_import_render_pass_encoder(
+            renderPassJSHandleIfNeeded->get()));
 }
 } // namespace rive::gpu
 

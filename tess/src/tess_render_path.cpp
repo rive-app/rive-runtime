@@ -26,7 +26,12 @@ void TessRenderPath::fillRule(FillRule value) { m_fillRule = value; }
 
 void TessRenderPath::moveTo(float x, float y) { m_rawPath.moveTo(x, y); }
 void TessRenderPath::lineTo(float x, float y) { m_rawPath.lineTo(x, y); }
-void TessRenderPath::cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+void TessRenderPath::cubicTo(float ox,
+                             float oy,
+                             float ix,
+                             float iy,
+                             float x,
+                             float y)
 {
     m_rawPath.cubicTo(ox, oy, ix, iy, x, y);
 }
@@ -41,7 +46,10 @@ void TessRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
     m_subPaths.emplace_back(SubPath(path, transform));
 }
 
-const SegmentedContour& TessRenderPath::segmentedContour() const { return m_segmentedContour; }
+const SegmentedContour& TessRenderPath::segmentedContour() const
+{
+    return m_segmentedContour;
+}
 
 // Helper for earcut to understand Vec2D
 namespace mapbox
@@ -125,7 +133,8 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath)
         {
             // Yes, it's a single path with commands, triangulate it.
             subRenderPath->contour(subPath.transform());
-            const SegmentedContour& segmentedContour = subRenderPath->segmentedContour();
+            const SegmentedContour& segmentedContour =
+                subRenderPath->segmentedContour();
             auto contour = segmentedContour.contourPoints();
             auto contours = rive::make_span(&contour, 1);
             m_earcut(contours);
@@ -151,15 +160,25 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath)
                     tess = tessNewTess(nullptr);
                 }
                 subRenderPath->contour(subPath.transform());
-                const SegmentedContour& segmentedContour = subRenderPath->segmentedContour();
+                const SegmentedContour& segmentedContour =
+                    subRenderPath->segmentedContour();
                 auto contour = segmentedContour.contourPoints();
-                tessAddContour(tess, 2, contour.data(), sizeof(float) * 2, contour.size());
+                tessAddContour(tess,
+                               2,
+                               contour.data(),
+                               sizeof(float) * 2,
+                               contour.size());
                 bounds.expand(segmentedContour.bounds());
             }
         }
         if (tess != nullptr)
         {
-            if (tessTesselate(tess, TESS_WINDING_POSITIVE, TESS_POLYGONS, 3, 2, 0))
+            if (tessTesselate(tess,
+                              TESS_WINDING_POSITIVE,
+                              TESS_POLYGONS,
+                              3,
+                              2,
+                              0))
             {
                 auto verts = tessGetVertices(tess);
                 // const int* vinds = tessGetVertexIndices(tess);
@@ -174,7 +193,9 @@ void TessRenderPath::triangulate(TessRenderPath* containerPath)
                 }
 
                 containerPath->addTriangles(
-                    Span<const rive::Vec2D>(reinterpret_cast<const Vec2D*>(verts), nverts),
+                    Span<const rive::Vec2D>(
+                        reinterpret_cast<const Vec2D*>(verts),
+                        nverts),
                     indices);
             }
             tessDeleteTess(tess);
@@ -207,7 +228,11 @@ void TessRenderPath::extrudeStroke(ContourStroke* stroke,
         for (auto& subPath : m_subPaths)
         {
             static_cast<TessRenderPath*>(subPath.path())
-                ->extrudeStroke(stroke, join, cap, strokeWidth, subPath.transform());
+                ->extrudeStroke(stroke,
+                                join,
+                                cap,
+                                strokeWidth,
+                                subPath.transform());
         }
         return;
     }

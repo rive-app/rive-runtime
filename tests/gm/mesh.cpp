@@ -38,7 +38,10 @@ public:
         return (float)(x - std::floor(x));
     }
 
-    float nextF(float min, float max) { return this->nextF() * (max - min) + min; }
+    float nextF(float min, float max)
+    {
+        return this->nextF() * (max - min) + min;
+    }
 };
 
 using namespace rivegm;
@@ -107,12 +110,14 @@ public:
         make_patch(patch.m_Pts, r);
         perterb_patch(patch.m_Pts, 50);
         auto mesh = patch.mesh(TestingWindow::Get()->factory());
-        uint32_t vertexCount = mesh.pts ? rive::math::lossless_numeric_cast<uint32_t>(
-                                              mesh.pts->sizeInBytes() / sizeof(rive::Vec2D))
-                                        : 0;
-        uint32_t indexCount = mesh.indices ? rive::math::lossless_numeric_cast<uint32_t>(
-                                                 mesh.indices->sizeInBytes() / sizeof(uint16_t))
-                                           : 0;
+        uint32_t vertexCount =
+            mesh.pts ? rive::math::lossless_numeric_cast<uint32_t>(
+                           mesh.pts->sizeInBytes() / sizeof(rive::Vec2D))
+                     : 0;
+        uint32_t indexCount =
+            mesh.indices ? rive::math::lossless_numeric_cast<uint32_t>(
+                               mesh.indices->sizeInBytes() / sizeof(uint16_t))
+                         : 0;
 
         ren->scale(.5f, .5f);
 
@@ -121,13 +126,14 @@ public:
                                                   rive::BlendMode::luminosity,
                                                   rive::BlendMode::exclusion};
 
-        // Draw meshes that exercise all variations in the mesh shader: viewMatrix, opacity,
-        // blendMode, clipRect, clip.
+        // Draw meshes that exercise all variations in the mesh shader:
+        // viewMatrix, opacity, blendMode, clipRect, clip.
         for (size_t j = 0; j < 3; ++j)
         {
             if (j == 1)
             {
-                ren->clipPath(PathBuilder::Rect({50, 120, 1600 - 50, 800 - 120}));
+                ren->clipPath(
+                    PathBuilder::Rect({50, 120, 1600 - 50, 800 - 120}));
             }
             ren->drawPath(grid, gray);
             ren->save();

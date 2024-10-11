@@ -12,8 +12,8 @@
 #endif
 
 #ifdef GLSL
-// GLSL has different semantics around precision. Normalize type conversions across
-// languages with "cast_*_to_*()" methods.
+// GLSL has different semantics around precision. Normalize type conversions
+// across languages with "cast_*_to_*()" methods.
 INLINE half cast_float_to_half(float x) { return x; }
 INLINE half cast_uint_to_half(uint x) { return float(x); }
 INLINE half cast_ushort_to_half(ushort x) { return float(x); }
@@ -115,11 +115,17 @@ INLINE uint contour_data_idx(uint contourIDWithFlags)
     return (contourIDWithFlags & CONTOUR_ID_MASK) - 1u;
 }
 
-INLINE float2 unchecked_mix(float2 a, float2 b, float t) { return (b - a) * t + a; }
+INLINE float2 unchecked_mix(float2 a, float2 b, float t)
+{
+    return (b - a) * t + a;
+}
 
 INLINE half id_bits_to_f16(uint idBits, uint pathIDGranularity)
 {
-    return idBits == 0u ? .0 : unpackHalf2x16((idBits + MAX_DENORM_F16) * pathIDGranularity).r;
+    return idBits == 0u
+               ? .0
+               : unpackHalf2x16((idBits + MAX_DENORM_F16) * pathIDGranularity)
+                     .r;
 }
 
 INLINE float atan2(float2 v)
@@ -133,7 +139,10 @@ INLINE float atan2(float2 v)
     return atan(v.y, v.x) + bias;
 }
 
-INLINE half4 premultiply(half4 color) { return make_half4(color.rgb * color.a, color.a); }
+INLINE half4 premultiply(half4 color)
+{
+    return make_half4(color.rgb * color.a, color.a);
+}
 
 INLINE half4 unmultiply(half4 color)
 {
@@ -163,49 +172,59 @@ uint renderTargetWidth;
 uint renderTargetHeight;
 uint colorClearValue;          // Only used if clears are implemented as draws.
 uint coverageClearValue;       // Only used if clears are implemented as draws.
-int4 renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if there is a clear. (LTRB.)
-uint pathIDGranularity;        // Spacing between adjacent path IDs (1 if IEEE compliant).
+int4 renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if there is
+                               // a clear. (LTRB.)
+uint pathIDGranularity;        // Spacing between adjacent path IDs (1 if IEEE
+                               // compliant).
 float vertexDiscardValue;
 UNIFORM_BLOCK_END(uniforms)
 #endif
 
-#define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                                                   \
-    float4((COORD).x* uniforms.renderTargetInverseViewportX - 1.,                                  \
-           (COORD).y * -uniforms.renderTargetInverseViewportY +                                    \
-               sign(uniforms.renderTargetInverseViewportY),                                        \
-           .0,                                                                                     \
+#define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                               \
+    float4((COORD).x* uniforms.renderTargetInverseViewportX - 1.,              \
+           (COORD).y * -uniforms.renderTargetInverseViewportY +                \
+               sign(uniforms.renderTargetInverseViewportY),                    \
+           .0,                                                                 \
            1.)
 
 #ifndef @USING_DEPTH_STENCIL
-// Calculates the Manhattan distance in pixels from the given pixelPosition, to the point at each
-// edge of the clipRect where coverage = 0.
+// Calculates the Manhattan distance in pixels from the given pixelPosition, to
+// the point at each edge of the clipRect where coverage = 0.
 //
-// clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
-// normalized rectangle: [-1, -1, 1, 1].
+// clipRectInverseMatrix transforms from pixel coordinates to a space where the
+// clipRect is the normalized rectangle: [-1, -1, 1, 1].
 INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
                                                 float2 clipRectInverseTranslate,
                                                 float2 pixelPosition)
 {
-    float2 clipRectAAWidth = abs(clipRectInverseMatrix[0]) + abs(clipRectInverseMatrix[1]);
+    float2 clipRectAAWidth =
+        abs(clipRectInverseMatrix[0]) + abs(clipRectInverseMatrix[1]);
     if (clipRectAAWidth.x != .0 && clipRectAAWidth.y != .0)
     {
         float2 r = 1. / clipRectAAWidth;
-        float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) + clipRectInverseTranslate;
-        // When the center of a pixel falls exactly on an edge, coverage should be .5.
+        float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) +
+                               clipRectInverseTranslate;
+        // When the center of a pixel falls exactly on an edge, coverage should
+        // be .5.
         const float coverageWhenDistanceIsZero = .5;
-        return float4(clipRectCoord, -clipRectCoord) * r.xyxy + r.xyxy + coverageWhenDistanceIsZero;
+        return float4(clipRectCoord, -clipRectCoord) * r.xyxy + r.xyxy +
+               coverageWhenDistanceIsZero;
     }
     else
     {
-        // The caller gave us a singular clipRectInverseMatrix. This is a special case where we are
-        // expected to use tx and ty as uniform coverage.
+        // The caller gave us a singular clipRectInverseMatrix. This is a
+        // special case where we are expected to use tx and ty as uniform
+        // coverage.
         return clipRectInverseTranslate.xyxy;
     }
 }
 
 #else // USING_DEPTH_STENCIL
 
-INLINE float normalize_z_index(uint zIndex) { return 1. - float(zIndex) * (2. / 32768.); }
+INLINE float normalize_z_index(uint zIndex)
+{
+    return 1. - float(zIndex) * (2. / 32768.);
+}
 
 #ifdef @ENABLE_CLIP_RECT
 INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
@@ -214,8 +233,8 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
 {
     if (clipRectInverseMatrix != float2x2(0))
     {
-        float2 clipRectCoord =
-            MUL(clipRectInverseMatrix, pixelPosition) + clipRectInverseTranslate.xy;
+        float2 clipRectCoord = MUL(clipRectInverseMatrix, pixelPosition) +
+                               clipRectInverseTranslate.xy;
         gl_ClipDistance[0] = clipRectCoord.x + 1.;
         gl_ClipDistance[1] = clipRectCoord.y + 1.;
         gl_ClipDistance[2] = 1. - clipRectCoord.x;
@@ -226,8 +245,8 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
         // "clipRectInverseMatrix == 0" is a special case:
         //     "clipRectInverseTranslate.x == 1" => all in.
         //     "clipRectInverseTranslate.x == 0" => all out.
-        gl_ClipDistance[0] = gl_ClipDistance[1] = gl_ClipDistance[2] = gl_ClipDistance[3] =
-            clipRectInverseTranslate.x - .5;
+        gl_ClipDistance[0] = gl_ClipDistance[1] = gl_ClipDistance[2] =
+            gl_ClipDistance[3] = clipRectInverseTranslate.x - .5;
     }
 }
 #endif // ENABLE_CLIP_RECT
@@ -241,8 +260,8 @@ float4 viewMatrix;
 float2 translate;
 float opacity;
 float padding;
-// clipRectInverseMatrix transforms from pixel coordinates to a space where the clipRect is the
-// normalized rectangle: [-1, -1, 1, 1].
+// clipRectInverseMatrix transforms from pixel coordinates to a space where the
+// clipRect is the normalized rectangle: [-1, -1, 1, 1].
 float4 clipRectInverseMatrix;
 float2 clipRectInverseTranslate;
 uint clipID;

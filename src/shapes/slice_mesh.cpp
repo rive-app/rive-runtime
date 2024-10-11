@@ -34,7 +34,8 @@ void SliceMesh::draw(Renderer* renderer,
     }
     Image* image = m_nslicer->image();
     renderer->transform(image->worldTransform());
-    renderer->translate(-image->width() * image->originX(), -image->height() * image->originY());
+    renderer->translate(-image->width() * image->originX(),
+                        -image->height() * image->originY());
     renderer->drawImageMesh(renderImage,
                             m_VertexRenderBuffer,
                             m_UVRenderBuffer,
@@ -53,21 +54,24 @@ void SliceMesh::updateBuffers()
 
     // 1. vertex render buffer
     size_t vertexSizeInBytes = m_vertices.size() * sizeof(Vec2D);
-    if (m_VertexRenderBuffer != nullptr && m_VertexRenderBuffer->sizeInBytes() != vertexSizeInBytes)
+    if (m_VertexRenderBuffer != nullptr &&
+        m_VertexRenderBuffer->sizeInBytes() != vertexSizeInBytes)
     {
         m_VertexRenderBuffer = nullptr;
     }
 
     if (m_VertexRenderBuffer == nullptr)
     {
-        m_VertexRenderBuffer = factory->makeRenderBuffer(RenderBufferType::vertex,
-                                                         RenderBufferFlags::none, // optimization?
-                                                         vertexSizeInBytes);
+        m_VertexRenderBuffer =
+            factory->makeRenderBuffer(RenderBufferType::vertex,
+                                      RenderBufferFlags::none, // optimization?
+                                      vertexSizeInBytes);
     }
 
     if (m_VertexRenderBuffer)
     {
-        Vec2D* mappedVertices = reinterpret_cast<Vec2D*>(m_VertexRenderBuffer->map());
+        Vec2D* mappedVertices =
+            reinterpret_cast<Vec2D*>(m_VertexRenderBuffer->map());
         for (auto v : m_vertices)
         {
             *mappedVertices++ = v;
@@ -77,7 +81,8 @@ void SliceMesh::updateBuffers()
 
     // 2. uv render buffer
     size_t uvSizeInBytes = m_uvs.size() * sizeof(Vec2D);
-    if (m_UVRenderBuffer != nullptr && m_UVRenderBuffer->sizeInBytes() != uvSizeInBytes)
+    if (m_UVRenderBuffer != nullptr &&
+        m_UVRenderBuffer->sizeInBytes() != uvSizeInBytes)
     {
         m_UVRenderBuffer = nullptr;
     }
@@ -92,7 +97,8 @@ void SliceMesh::updateBuffers()
     if (m_UVRenderBuffer)
     {
         auto renderImage = m_nslicer->image()->imageAsset()->renderImage();
-        Mat2D uvTransform = renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
+        Mat2D uvTransform =
+            renderImage != nullptr ? renderImage->uvTransform() : Mat2D();
 
         Vec2D* mappedUVs = reinterpret_cast<Vec2D*>(m_UVRenderBuffer->map());
         for (auto uv : m_uvs)
@@ -105,7 +111,8 @@ void SliceMesh::updateBuffers()
 
     // 3. index render buffer
     size_t indexSizeInBytes = m_indices.size() * sizeof(uint16_t);
-    if (m_IndexRenderBuffer != nullptr && m_IndexRenderBuffer->sizeInBytes() != indexSizeInBytes)
+    if (m_IndexRenderBuffer != nullptr &&
+        m_IndexRenderBuffer->sizeInBytes() != indexSizeInBytes)
     {
         m_IndexRenderBuffer = nullptr;
     }
@@ -127,16 +134,18 @@ void SliceMesh::updateBuffers()
 
 std::vector<float> SliceMesh::uvStops(AxisType forAxis)
 {
-    float imageSize =
-        forAxis == AxisType::X ? m_nslicer->image()->width() : m_nslicer->image()->height();
-    float imageScale = std::abs(forAxis == AxisType::X ? m_nslicer->image()->scaleX()
-                                                       : m_nslicer->image()->scaleY());
+    float imageSize = forAxis == AxisType::X ? m_nslicer->image()->width()
+                                             : m_nslicer->image()->height();
+    float imageScale =
+        std::abs(forAxis == AxisType::X ? m_nslicer->image()->scaleX()
+                                        : m_nslicer->image()->scaleY());
     if (imageSize == 0 || imageScale == 0)
     {
         return {};
     }
 
-    const std::vector<Axis*>& axes = (forAxis == AxisType::X) ? m_nslicer->xs() : m_nslicer->ys();
+    const std::vector<Axis*>& axes =
+        (forAxis == AxisType::X) ? m_nslicer->xs() : m_nslicer->ys();
     std::vector<float> result = {0.0};
     for (const Axis* axis : axes)
     {
@@ -155,12 +164,14 @@ std::vector<float> SliceMesh::uvStops(AxisType forAxis)
     return result;
 }
 
-std::vector<float> SliceMesh::vertexStops(const std::vector<float>& normalizedStops,
-                                          AxisType forAxis)
+std::vector<float> SliceMesh::vertexStops(
+    const std::vector<float>& normalizedStops,
+    AxisType forAxis)
 {
     Image* image = m_nslicer->image();
     float imageSize = forAxis == AxisType::X ? image->width() : image->height();
-    float imageScale = std::abs(forAxis == AxisType::X ? image->scaleX() : image->scaleY());
+    float imageScale =
+        std::abs(forAxis == AxisType::X ? image->scaleX() : image->scaleY());
     if (imageSize == 0 || imageScale == 0)
     {
         return {};
@@ -186,16 +197,20 @@ std::vector<float> SliceMesh::vertexStops(const std::vector<float>& normalizedSt
     float scalableSize = imageSize - fixedSize;
 
     float scaleFactor =
-        scalableSize == 0 ? infinity : (imageSize * imageScale - fixedSize) / scalableSize;
+        scalableSize == 0 ? infinity
+                          : (imageSize * imageScale - fixedSize) / scalableSize;
     float emptyScalableSize =
-        numEmptyScaledPatch == 0 ? 0 : ((imageSize - fixedSize / imageScale) / numEmptyScaledPatch);
+        numEmptyScaledPatch == 0
+            ? 0
+            : ((imageSize - fixedSize / imageScale) / numEmptyScaledPatch);
 
     std::vector<float> result;
     float cur = 0.0;
     for (int i = 0; i < (int)normalizedStops.size() - 1; i++)
     {
         result.emplace_back(cur);
-        float segment = imageSize * (normalizedStops[i + 1] - normalizedStops[i]);
+        float segment =
+            imageSize * (normalizedStops[i + 1] - normalizedStops[i]);
         if (isFixedSegment(i))
         {
             cur += segment / imageScale;
@@ -334,9 +349,11 @@ void SliceMesh::calc()
     {
         for (int patchX = 0; patchX < (int)us.size() - 1; patchX++)
         {
-            auto tileModeIt = tileModes.find(m_nslicer->patchIndex(patchX, patchY));
-            auto tileMode =
-                tileModeIt == tileModes.end() ? NSlicerTileModeType::STRETCH : tileModeIt->second;
+            auto tileModeIt =
+                tileModes.find(m_nslicer->patchIndex(patchX, patchY));
+            auto tileMode = tileModeIt == tileModes.end()
+                                ? NSlicerTileModeType::STRETCH
+                                : tileModeIt->second;
 
             // Do nothing if hidden
             if (tileMode == NSlicerTileModeType::HIDDEN)
@@ -364,11 +381,14 @@ void SliceMesh::calc()
 
             if (tileMode == NSlicerTileModeType::REPEAT)
             {
-                vertexIndex += tileRepeat(vertices, m_indices, patchVertices, v0);
+                vertexIndex +=
+                    tileRepeat(vertices, m_indices, patchVertices, v0);
             }
             else
             {
-                vertices.insert(vertices.end(), patchVertices.begin(), patchVertices.end());
+                vertices.insert(vertices.end(),
+                                patchVertices.begin(),
+                                patchVertices.end());
                 for (uint16_t t : triangulation)
                 {
                     m_indices.emplace_back(v0 + t);

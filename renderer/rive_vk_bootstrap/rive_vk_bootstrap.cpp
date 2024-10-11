@@ -14,30 +14,33 @@ vkb::SystemInfo load_vulkan()
 {
     PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr = nullptr;
 #ifdef __APPLE__
-    // The Vulkan SDK on Mac gets installed to /usr/local/lib, which is no longer
-    // on the library search path after Sonoma.
-    if (void* vulkanLib = dlopen("/usr/local/lib/libvulkan.1.dylib", RTLD_NOW | RTLD_LOCAL))
+    // The Vulkan SDK on Mac gets installed to /usr/local/lib, which is no
+    // longer on the library search path after Sonoma.
+    if (void* vulkanLib =
+            dlopen("/usr/local/lib/libvulkan.1.dylib", RTLD_NOW | RTLD_LOCAL))
     {
-        fp_vkGetInstanceProcAddr =
-            reinterpret_cast<PFN_vkGetInstanceProcAddr>(dlsym(vulkanLib, "vkGetInstanceProcAddr"));
+        fp_vkGetInstanceProcAddr = reinterpret_cast<PFN_vkGetInstanceProcAddr>(
+            dlsym(vulkanLib, "vkGetInstanceProcAddr"));
     }
 #endif
-    return VKB_CHECK(vkb::SystemInfo::get_system_info(fp_vkGetInstanceProcAddr));
+    return VKB_CHECK(
+        vkb::SystemInfo::get_system_info(fp_vkGetInstanceProcAddr));
 }
 
 #ifdef DEBUG
-VKAPI_ATTR VkBool32 VKAPI_CALL
-default_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
-                       VkDebugUtilsMessageTypeFlagsEXT messageType,
-                       const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
-                       void* pUserData)
+VKAPI_ATTR VkBool32 VKAPI_CALL default_debug_callback(
+    VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
+    VkDebugUtilsMessageTypeFlagsEXT messageType,
+    const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
+    void* pUserData)
 {
     switch (messageType)
     {
         case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
             if (pCallbackData->messageIdNumber == 0 &&
                 strcmp(pCallbackData->pMessageIdName, "Loader Message") == 0 &&
-                strcmp(pCallbackData->pMessage, "Copying old device 0 into new device 0") == 0)
+                strcmp(pCallbackData->pMessage,
+                       "Copying old device 0 into new device 0") == 0)
             {
                 // Swiftshader generates this error during
                 // vkEnumeratePhysicalDevices. It seems fine to ignore.
@@ -88,10 +91,10 @@ static const char* physical_device_type_name(VkPhysicalDeviceType type)
 // Select a GPU name if it contains the substring 'filter' or '$RIVE_GPU'.
 // Return false if 'filter' and '$RIVE_GPU' are both null.
 // Abort if the filter matches more than one name.
-std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_device(
-    vkb::PhysicalDeviceSelector& selector,
-    FeatureSet featureSet,
-    const char* gpuNameFilter)
+std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures>
+select_physical_device(vkb::PhysicalDeviceSelector& selector,
+                       FeatureSet featureSet,
+                       const char* gpuNameFilter)
 {
     if (const char* rive_gpu = getenv("RIVE_GPU"))
     {
@@ -105,7 +108,8 @@ std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_devic
     }
     else
     {
-        std::vector<std::string> names = VKB_CHECK(selector.select_device_names());
+        std::vector<std::string> names =
+            VKB_CHECK(selector.select_device_names());
         std::vector<std::string> matches;
         for (const std::string& name : names)
         {
@@ -116,7 +120,8 @@ std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_devic
         }
         if (matches.size() != 1)
         {
-            const char* filterName = gpuNameFilter != nullptr ? gpuNameFilter : "<discrete_gpu>";
+            const char* filterName =
+                gpuNameFilter != nullptr ? gpuNameFilter : "<discrete_gpu>";
             const std::vector<std::string>* devicePrintList;
             if (matches.size() > 1)
             {
@@ -138,13 +143,16 @@ std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_devic
             {
                 fprintf(stderr, "  %s\n", name.c_str());
             }
-            fprintf(stderr, "\nPlease update the $RIVE_GPU environment variable\n");
+            fprintf(stderr,
+                    "\nPlease update the $RIVE_GPU environment variable\n");
             abort();
         }
         selector.set_name(matches[0]);
     }
-    auto selectResult = selector.set_minimum_version(1, 0).allow_any_gpu_device_type(false).select(
-        vkb::DeviceSelectionMode::only_fully_suitable);
+    auto selectResult =
+        selector.set_minimum_version(1, 0)
+            .allow_any_gpu_device_type(false)
+            .select(vkb::DeviceSelectionMode::only_fully_suitable);
     if (!selectResult)
     {
         selectResult = selector.allow_any_gpu_device_type(true).select(
@@ -161,8 +169,10 @@ std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_devic
     rive::gpu::VulkanFeatures riveVulkanFeatures = {
         riveVulkanFeatures.vulkanApiVersion = VK_API_VERSION_1_0,
         riveVulkanFeatures.vendorID = physicalDevice.properties.vendorID,
-        riveVulkanFeatures.independentBlend = physicalDevice.features.independentBlend,
-        riveVulkanFeatures.fillModeNonSolid = physicalDevice.features.fillModeNonSolid,
+        riveVulkanFeatures.independentBlend =
+            physicalDevice.features.independentBlend,
+        riveVulkanFeatures.fillModeNonSolid =
+            physicalDevice.features.fillModeNonSolid,
         riveVulkanFeatures.fragmentStoresAndAtomics =
             physicalDevice.features.fragmentStoresAndAtomics,
     };
@@ -179,7 +189,8 @@ std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures> select_physical_devic
                     VK_STRUCTURE_TYPE_PHYSICAL_DEVICE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_FEATURES_EXT,
                 .rasterizationOrderColorAttachmentAccess = VK_TRUE,
             };
-        if (physicalDevice.enable_extension_features_if_present(rasterOrderFeatures))
+        if (physicalDevice.enable_extension_features_if_present(
+                rasterOrderFeatures))
         {
             riveVulkanFeatures.rasterizationOrderColorAttachmentAccess = true;
         }

@@ -16,7 +16,8 @@ private:
     const Artboard* m_Artboard;
 
 public:
-    StateMachineLayerImporter(StateMachineLayer* layer, const Artboard* artboard);
+    StateMachineLayerImporter(StateMachineLayer* layer,
+                              const Artboard* artboard);
     void addState(LayerState* state);
     StatusCode resolve() override;
     bool readNullObject() override;

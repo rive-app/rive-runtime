@@ -8,7 +8,10 @@
 
 using namespace rive;
 
-void ViewModelInstanceList::propertyValueChanged() { addDirt(ComponentDirt::Components); }
+void ViewModelInstanceList::propertyValueChanged()
+{
+    addDirt(ComponentDirt::Components);
+}
 
 void ViewModelInstanceList::addItem(ViewModelInstanceListItem* item)
 {
@@ -16,7 +19,8 @@ void ViewModelInstanceList::addItem(ViewModelInstanceListItem* item)
     propertyValueChanged();
 }
 
-void ViewModelInstanceList::insertItem(int index, ViewModelInstanceListItem* item)
+void ViewModelInstanceList::insertItem(int index,
+                                       ViewModelInstanceListItem* item)
 {
     // TODO: @hernan decide if we want to return a boolean
     if (index < m_ListItems.size())
@@ -38,7 +42,8 @@ void ViewModelInstanceList::removeItem(int index)
 
 void ViewModelInstanceList::removeItem(ViewModelInstanceListItem* listItem)
 {
-    auto noSpaceEnd = std::remove(m_ListItems.begin(), m_ListItems.end(), listItem);
+    auto noSpaceEnd =
+        std::remove(m_ListItems.begin(), m_ListItems.end(), listItem);
     m_ListItems.erase(noSpaceEnd, m_ListItems.end());
     propertyValueChanged();
 }
@@ -56,7 +61,8 @@ void ViewModelInstanceList::swap(uint32_t index1, uint32_t index2)
 {
     if (index1 < m_ListItems.size() && index2 < m_ListItems.size())
     {
-        std::iter_swap(m_ListItems.begin() + index1, m_ListItems.begin() + index2);
+        std::iter_swap(m_ListItems.begin() + index1,
+                       m_ListItems.begin() + index2);
         propertyValueChanged();
     }
 }

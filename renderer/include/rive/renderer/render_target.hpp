@@ -22,11 +22,16 @@ public:
     uint2 size() const { return {m_width, m_height}; }
     IAABB bounds() const
     {
-        return IAABB{0, 0, static_cast<int>(m_width), static_cast<int>(m_height)};
+        return IAABB{0,
+                     0,
+                     static_cast<int>(m_width),
+                     static_cast<int>(m_height)};
     }
 
 protected:
-    RenderTarget(uint32_t width, uint32_t height) : m_width(width), m_height(height) {}
+    RenderTarget(uint32_t width, uint32_t height) :
+        m_width(width), m_height(height)
+    {}
 
 private:
     uint32_t m_width;

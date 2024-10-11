@@ -63,10 +63,13 @@ sk_sp<GrDirectContext> makeSkiaContext()
     // content.
     sokolView.layer.opaque = false;
 
-    return GrDirectContext::MakeMetal((__bridge void*)device, (__bridge void*)commandQueue);
+    return GrDirectContext::MakeMetal((__bridge void*)device,
+                                      (__bridge void*)commandQueue);
 }
 
-sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context, int width, int height)
+sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context,
+                                 int width,
+                                 int height)
 {
     NSView* view = skiaView;
     CAMetalLayer* layer = (CAMetalLayer*)view.layer;
@@ -77,13 +80,18 @@ sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context, int width, int height
     GrBackendRenderTarget renderTarget =
         GrBackendRenderTarget(width, height, 1 /* sample count/MSAA */, fbInfo);
 
-    return SkSurface::MakeFromBackendRenderTarget(
-        context, renderTarget, kTopLeft_GrSurfaceOrigin, kBGRA_8888_SkColorType, nullptr, nullptr);
+    return SkSurface::MakeFromBackendRenderTarget(context,
+                                                  renderTarget,
+                                                  kTopLeft_GrSurfaceOrigin,
+                                                  kBGRA_8888_SkColorType,
+                                                  nullptr,
+                                                  nullptr);
 }
 
 void skiaPresentSurface(sk_sp<SkSurface> surface)
 {
-    id<MTLCommandBuffer> commandBuffer = [(id<MTLCommandQueue>)commandQueue commandBuffer];
+    id<MTLCommandBuffer> commandBuffer =
+        [(id<MTLCommandQueue>)commandQueue commandBuffer];
     commandBuffer.label = @"Present";
     [commandBuffer presentDrawable:(id<CAMetalDrawable>)drawable];
     [commandBuffer commit];

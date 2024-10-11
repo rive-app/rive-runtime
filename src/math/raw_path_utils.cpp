@@ -20,7 +20,9 @@ void rive::quad_subdivide(const rive::Vec2D src[3], float t, rive::Vec2D dst[5])
     dst[4] = src[2];
 }
 
-void rive::cubic_subdivide(const rive::Vec2D src[4], float t, rive::Vec2D dst[7])
+void rive::cubic_subdivide(const rive::Vec2D src[4],
+                           float t,
+                           rive::Vec2D dst[7])
 {
     assert(t >= 0 && t <= 1);
     auto ab = lerp(src[0], src[1], t);
@@ -37,7 +39,10 @@ void rive::cubic_subdivide(const rive::Vec2D src[4], float t, rive::Vec2D dst[7]
     dst[6] = src[3];
 }
 
-void rive::line_extract(const rive::Vec2D src[2], float startT, float endT, rive::Vec2D dst[2])
+void rive::line_extract(const rive::Vec2D src[2],
+                        float startT,
+                        float endT,
+                        rive::Vec2D dst[2])
 {
     assert(startT <= endT);
     assert(startT >= 0 && endT <= 1);
@@ -46,7 +51,10 @@ void rive::line_extract(const rive::Vec2D src[2], float startT, float endT, rive
     dst[1] = lerp(src[0], src[1], endT);
 }
 
-void rive::quad_extract(const rive::Vec2D src[3], float startT, float endT, rive::Vec2D dst[3])
+void rive::quad_extract(const rive::Vec2D src[3],
+                        float startT,
+                        float endT,
+                        rive::Vec2D dst[3])
 {
     assert(startT <= endT);
     assert(startT >= 0 && endT <= 1);
@@ -76,7 +84,10 @@ void rive::quad_extract(const rive::Vec2D src[3], float startT, float endT, rive
     }
 }
 
-void rive::cubic_extract(const rive::Vec2D src[4], float startT, float endT, rive::Vec2D dst[4])
+void rive::cubic_extract(const rive::Vec2D src[4],
+                         float startT,
+                         float endT,
+                         rive::Vec2D dst[4])
 {
     assert(startT <= endT);
     assert(startT >= 0 && endT <= 1);

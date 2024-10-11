@@ -24,7 +24,10 @@ public:
     void addChildBone(Bone* bone);
     Vec2D tipWorldTranslation() const;
     void addPeerConstraint(Constraint* peer);
-    const std::vector<Constraint*>& peerConstraints() const { return m_PeerConstraints; }
+    const std::vector<Constraint*>& peerConstraints() const
+    {
+        return m_PeerConstraints;
+    }
 
 private:
     void lengthChanged() override;

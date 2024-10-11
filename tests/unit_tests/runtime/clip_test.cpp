@@ -36,18 +36,24 @@ public:
     void rewind() override {}
 
     void fillRule(rive::FillRule value) override {}
-    void addPath(rive::CommandPath* path, const rive::Mat2D& transform) override {}
-    void addRenderPath(rive::RenderPath* path, const rive::Mat2D& transform) override {}
+    void addPath(rive::CommandPath* path, const rive::Mat2D& transform) override
+    {}
+    void addRenderPath(rive::RenderPath* path,
+                       const rive::Mat2D& transform) override
+    {}
 
     void moveTo(float x, float y) override {}
     void lineTo(float x, float y) override {}
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override {}
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+        override
+    {}
     void close() override {}
 };
 
 class ClippingFactory : public rive::NoOpFactory
 {
-    rive::rcp<rive::RenderPath> makeRenderPath(rive::RawPath& rawPath, rive::FillRule) override
+    rive::rcp<rive::RenderPath> makeRenderPath(rive::RawPath& rawPath,
+                                               rive::FillRule) override
     {
         return rive::make_rcp<ClipTestRenderPath>(rawPath);
     }
@@ -132,7 +138,8 @@ TEST_CASE("Shape has at least a clipping path visible", "[clipping]")
     REQUIRE(clipResult == rive::ClipResult::clip);
 }
 
-TEST_CASE("Shape returns an empty clip when one clipping shape is empty", "[clipping]")
+TEST_CASE("Shape returns an empty clip when one clipping shape is empty",
+          "[clipping]")
 {
     ClippingFactory factory;
     auto file = ReadRiveFile("assets/clip_tests.riv", &factory);

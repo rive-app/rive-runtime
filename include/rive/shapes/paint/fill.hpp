@@ -13,7 +13,8 @@ public:
               CommandPath* path,
               const RawPath* rawPath,
               RenderPaint* paint) override;
-    void applyTo(RenderPaint* renderPaint, float opacityModifier) const override;
+    void applyTo(RenderPaint* renderPaint,
+                 float opacityModifier) const override;
 };
 } // namespace rive
 

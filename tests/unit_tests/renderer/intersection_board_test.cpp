@@ -8,12 +8,14 @@
 
 namespace rive::gpu
 {
-template <typename T> uint16_t find_standalone_max_group_index(T& impl, int4 ltrb)
+template <typename T>
+uint16_t find_standalone_max_group_index(T& impl, int4 ltrb)
 {
     return simd::reduce_max(impl.findMaxIntersectingGroupIndex(ltrb, 0));
 }
 
-template <typename T> void check_simple_intersections(T& impl, int top, int left)
+template <typename T>
+void check_simple_intersections(T& impl, int top, int left)
 {
     impl.reset(top, left, 0);
     CHECK(find_standalone_max_group_index(impl, int4{-1, -1, 10, 10}) == 0);
@@ -50,27 +52,36 @@ template <typename T> void check_maximal_rectangles(T& impl)
     CHECK(find_standalone_max_group_index(impl, int4{1, 1, 2, 2}) == 7);
     CHECK(find_standalone_max_group_index(impl, int4{0, 0, 255, 255}) == 7);
 
-    CHECK(find_standalone_max_group_index(impl, int4{-999, -999, 999, 999}) == 7);
+    CHECK(find_standalone_max_group_index(impl, int4{-999, -999, 999, 999}) ==
+          7);
     impl.addRectangle(int4{-999, -999, 999, 999}, 6000);
     CHECK(find_standalone_max_group_index(impl, int4{1, 1, 2, 2}) == 6000);
-    CHECK(find_standalone_max_group_index(impl, int4{-999, -999, 999, 999}) == 6000);
+    CHECK(find_standalone_max_group_index(impl, int4{-999, -999, 999, 999}) ==
+          6000);
 }
 
 template <typename T> void check_maximal_group_ids(T& impl)
 {
     impl.reset(0, 0, 32767);
-    CHECK(find_standalone_max_group_index(impl, int4{59, 131, 205, 181}) == 32767);
+    CHECK(find_standalone_max_group_index(impl, int4{59, 131, 205, 181}) ==
+          32767);
 
     impl.reset(0, 0, 32764);
-    CHECK(find_standalone_max_group_index(impl, int4{59, 131, 205, 181}) == 32764);
+    CHECK(find_standalone_max_group_index(impl, int4{59, 131, 205, 181}) ==
+          32764);
     impl.addRectangle(int4{59, 131, 205, 181}, 32765);
-    CHECK(find_standalone_max_group_index(impl, int4{79, -90, 182, 324}) == 32765);
+    CHECK(find_standalone_max_group_index(impl, int4{79, -90, 182, 324}) ==
+          32765);
     impl.addRectangle(int4{79, -90, 182, 324}, 32766);
-    CHECK(find_standalone_max_group_index(impl, int4{145, 93, 166, 214}) == 32766);
+    CHECK(find_standalone_max_group_index(impl, int4{145, 93, 166, 214}) ==
+          32766);
     impl.addRectangle(int4{145, 93, 166, 214}, 32767);
-    CHECK(find_standalone_max_group_index(impl, int4{12, -133, 104, 1}) == 32766);
-    CHECK(find_standalone_max_group_index(impl, int4{12, -133, 104, 328}) == 32766);
-    CHECK(find_standalone_max_group_index(impl, int4{12, -133, 150, 328}) == 32767);
+    CHECK(find_standalone_max_group_index(impl, int4{12, -133, 104, 1}) ==
+          32766);
+    CHECK(find_standalone_max_group_index(impl, int4{12, -133, 104, 328}) ==
+          32766);
+    CHECK(find_standalone_max_group_index(impl, int4{12, -133, 150, 328}) ==
+          32767);
 }
 
 static int rand_range(int min, int max)
@@ -128,8 +139,14 @@ TEST_CASE("IntersectionTile", "IntersectionBoard")
     check_multiple_rectangles(ref, fast, 65, 1000);
     check_multiple_rectangles(ref, fast, 200, 1000);
     check_multiple_rectangles(ref, fast, 255, 1000);
-    check_multiple_rectangles(ref, fast, 500, 1000);  // Exercise maximal rectangles.
-    check_multiple_rectangles(ref, fast, 1000, 1000); // Exercise maximal rectangles.
+    check_multiple_rectangles(ref,
+                              fast,
+                              500,
+                              1000); // Exercise maximal rectangles.
+    check_multiple_rectangles(ref,
+                              fast,
+                              1000,
+                              1000); // Exercise maximal rectangles.
 }
 
 template <typename T> void check_intersection_board_corner_cases(T& impl)
@@ -155,7 +172,8 @@ template <typename T> void check_intersection_board_corner_cases(T& impl)
     CHECK(impl.addRectangle(int4{-10000, 500, 10000, 501}) == 1);
     CHECK(impl.addRectangle(int4{8, -10000, 9, 10000}) == 2);
     CHECK(impl.addRectangle(int4{-10000, 0, 10000, 1}) == 3);
-    CHECK(impl.addRectangle(int4{-999999999, -999999999, 999999999, 999999999}) == 4);
+    CHECK(impl.addRectangle(
+              int4{-999999999, -999999999, 999999999, 999999999}) == 4);
     CHECK(impl.addRectangle(int4{1, 2, 3, 4}) == 5);
 }
 
@@ -188,7 +206,8 @@ void check_intersection_board_random_rectangles2(size_t n)
 
     for (size_t i = 0; i < n; ++i)
     {
-        int4 box = int4{rand(), rand(), rand(), rand()} % int4{3840, 2160, 3840, 2160};
+        int4 box =
+            int4{rand(), rand(), rand(), rand()} % int4{3840, 2160, 3840, 2160};
         int4 ltrb;
         ltrb.xy = simd::min(box.xy, box.zw);
         ltrb.zw = simd::max(box.xy, box.zw);

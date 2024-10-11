@@ -30,24 +30,27 @@ public:
                                                RenderBufferFlags,
                                                size_t sizeInBytes) = 0;
 
-    virtual rcp<RenderShader> makeLinearGradient(float sx,
-                                                 float sy,
-                                                 float ex,
-                                                 float ey,
-                                                 const ColorInt colors[], // [count]
-                                                 const float stops[],     // [count]
-                                                 size_t count) = 0;
+    virtual rcp<RenderShader> makeLinearGradient(
+        float sx,
+        float sy,
+        float ex,
+        float ey,
+        const ColorInt colors[], // [count]
+        const float stops[],     // [count]
+        size_t count) = 0;
 
-    virtual rcp<RenderShader> makeRadialGradient(float cx,
-                                                 float cy,
-                                                 float radius,
-                                                 const ColorInt colors[], // [count]
-                                                 const float stops[],     // [count]
-                                                 size_t count) = 0;
+    virtual rcp<RenderShader> makeRadialGradient(
+        float cx,
+        float cy,
+        float radius,
+        const ColorInt colors[], // [count]
+        const float stops[],     // [count]
+        size_t count) = 0;
 
     // Returns a full-formed RenderPath -- can be treated as immutable
-    // This call might swap out the arrays backing the points and verbs in the given RawPath, so the
-    // caller can expect it to be in an undefined state upon return.
+    // This call might swap out the arrays backing the points and verbs in the
+    // given RawPath, so the caller can expect it to be in an undefined state
+    // upon return.
     virtual rcp<RenderPath> makeRenderPath(RawPath&, FillRule) = 0;
 
     // Deprecated -- working to make RenderPath's immutable

@@ -16,7 +16,9 @@ private:
 
 public:
     VectorBinaryWriter(std::vector<uint8_t>* buffer) :
-        BinaryWriter(this), m_WriteBuffer(buffer), m_Start(m_WriteBuffer->size())
+        BinaryWriter(this),
+        m_WriteBuffer(buffer),
+        m_Start(m_WriteBuffer->size())
     {}
 
     uint8_t* buffer() const { return &(*m_WriteBuffer)[m_Start]; }

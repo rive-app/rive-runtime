@@ -12,13 +12,15 @@ using namespace rive;
 
 StatusCode ListenerInputChange::import(ImportStack& importStack)
 {
-    auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachine::typeKey);
+    auto stateMachineImporter =
+        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
     if (stateMachineImporter == nullptr)
     {
         return StatusCode::MissingObject;
     }
 
-    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    auto artboardImporter =
+        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr)
     {
         return StatusCode::MissingObject;

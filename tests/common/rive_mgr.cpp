@@ -34,28 +34,34 @@ bool RiveMgr::loadArtboard(const char filename[], const char artboard[])
     m_File = RiveMgr::loadFile(filename, m_Factory);
     if (m_File)
     {
-        m_Artboard =
-            (artboard && artboard[0]) ? m_File->artboardNamed(artboard) : m_File->artboardDefault();
+        m_Artboard = (artboard && artboard[0]) ? m_File->artboardNamed(artboard)
+                                               : m_File->artboardDefault();
     }
     return m_Artboard != nullptr;
 }
 
-bool RiveMgr::loadAnimation(const char filename[], const char artboard[], const char animation[])
+bool RiveMgr::loadAnimation(const char filename[],
+                            const char artboard[],
+                            const char animation[])
 {
     if (this->loadArtboard(filename, artboard))
     {
-        m_Scene = (animation && animation[0]) ? m_Artboard->animationNamed(animation)
-                                              : m_Artboard->animationAt(0);
+        m_Scene = (animation && animation[0])
+                      ? m_Artboard->animationNamed(animation)
+                      : m_Artboard->animationAt(0);
     }
     return m_Scene != nullptr;
 }
 
-bool RiveMgr::loadMachine(const char filename[], const char artboard[], const char machine[])
+bool RiveMgr::loadMachine(const char filename[],
+                          const char artboard[],
+                          const char machine[])
 {
     if (this->loadArtboard(filename, artboard))
     {
-        m_Scene = (machine && machine[0]) ? m_Artboard->stateMachineNamed(machine)
-                                          : m_Artboard->stateMachineAt(0);
+        m_Scene = (machine && machine[0])
+                      ? m_Artboard->stateMachineNamed(machine)
+                      : m_Artboard->stateMachineAt(0);
     }
     return m_Scene != nullptr;
 }
@@ -70,7 +76,8 @@ static void log(const char msg[], const char arg[] = nullptr)
     fprintf(stderr, "%s\n", err.c_str());
 }
 
-std::unique_ptr<rive::File> RiveMgr::loadFile(const char filename[], rive::Factory* factory)
+std::unique_ptr<rive::File> RiveMgr::loadFile(const char filename[],
+                                              rive::Factory* factory)
 {
     AutoClose afc(fopen(filename, "rb"));
     FILE* fp = afc.m_File;

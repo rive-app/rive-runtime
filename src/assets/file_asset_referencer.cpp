@@ -15,7 +15,8 @@ FileAssetReferencer::~FileAssetReferencer()
 
 StatusCode FileAssetReferencer::registerReferencer(ImportStack& importStack)
 {
-    auto backboardImporter = importStack.latest<BackboardImporter>(Backboard::typeKey);
+    auto backboardImporter =
+        importStack.latest<BackboardImporter>(Backboard::typeKey);
     if (backboardImporter == nullptr)
     {
         return StatusCode::MissingObject;

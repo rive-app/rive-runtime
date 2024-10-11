@@ -34,8 +34,9 @@ public:
         std::sort(stops, stops + N);
 
         Paint paint;
-        paint->shader(
-            TestingWindow::Get()->factory()->makeLinearGradient(0, 0, W, 0, colors, stops, N));
+        paint->shader(TestingWindow::Get()
+                          ->factory()
+                          ->makeLinearGradient(0, 0, W, 0, colors, stops, N));
 
         Path fullscreen = PathBuilder().addRect({0, 0, W, H}).detach();
 

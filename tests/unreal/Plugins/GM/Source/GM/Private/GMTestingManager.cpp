@@ -15,7 +15,8 @@
 
 AGMTestingManager::AGMTestingManager()
 {
-    StaticMeshComponent = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
+    StaticMeshComponent =
+        CreateDefaultSubobject<UStaticMeshComponent>(TEXT("StaticMesh"));
     RootComponent = StaticMeshComponent;
 }
 
@@ -26,7 +27,8 @@ void AGMTestingManager::StartTesting()
         FString CmdLine = FCommandLine::GetOriginal();
         UE_LOG(GM_Log,
                Display,
-               TEXT("AGMTestingManager::StartTesting() Start testing with command line "
+               TEXT("AGMTestingManager::StartTesting() Start testing with "
+                    "command line "
                     "and %s cwd %s"),
                *CmdLine,
                *FPaths::LaunchDir());
@@ -34,10 +36,11 @@ void AGMTestingManager::StartTesting()
         TArray<FString> CommandLineOptions;
         auto Parsed = CmdLine.ParseIntoArray(CommandLineOptions, TEXT(" "));
 
-        UE_LOG(GM_Log,
-               Display,
-               TEXT("AGMTestingManager::StartTesting() Processing %i arguments"),
-               Parsed);
+        UE_LOG(
+            GM_Log,
+            Display,
+            TEXT("AGMTestingManager::StartTesting() Processing %i arguments"),
+            Parsed);
 
         int argc = 0;
         // all possible values + some padding
@@ -66,29 +69,37 @@ void AGMTestingManager::StartTesting()
             }
             else if (CommandLineOptions[i] == TEXT("-o"))
             {
-                FString output = FPaths::Combine(FPaths::LaunchDir(), CommandLineOptions[++i]);
-                output = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*output);
+                FString output = FPaths::Combine(FPaths::LaunchDir(),
+                                                 CommandLineOptions[++i]);
+                output =
+                    IFileManager::Get()
+                        .ConvertToAbsolutePathForExternalAppForRead(*output);
                 argv[argc++] = "--output";
                 argv[argc++] = TCHAR_TO_ANSI(*output);
             }
             else if (CommandLineOptions[i] == TEXT("--output"))
             {
-                FString output = FPaths::Combine(FPaths::LaunchDir(), CommandLineOptions[++i]);
-                output = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*output);
+                FString output = FPaths::Combine(FPaths::LaunchDir(),
+                                                 CommandLineOptions[++i]);
+                output =
+                    IFileManager::Get()
+                        .ConvertToAbsolutePathForExternalAppForRead(*output);
                 argv[argc++] = "--output";
                 argv[argc++] = TCHAR_TO_ANSI(*output);
             }
             else if (CommandLineOptions[i] == TEXT("-s"))
             {
-                FString src = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(
-                    *CommandLineOptions[++i]);
+                FString src = IFileManager::Get()
+                                  .ConvertToAbsolutePathForExternalAppForRead(
+                                      *CommandLineOptions[++i]);
                 argv[argc++] = "--src";
                 argv[argc++] = TCHAR_TO_ANSI(*src);
             }
             else if (CommandLineOptions[i] == TEXT("--src"))
             {
-                FString src = IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(
-                    *CommandLineOptions[++i]);
+                FString src = IFileManager::Get()
+                                  .ConvertToAbsolutePathForExternalAppForRead(
+                                      *CommandLineOptions[++i]);
                 argv[argc++] = "--src";
                 argv[argc++] = TCHAR_TO_ANSI(*src);
             }
@@ -123,14 +134,16 @@ void AGMTestingManager::StartTesting()
                 ++i;
                 UE_LOG(GM_Log,
                        Warning,
-                       TEXT("Ingoring backend command because it is hardcoded to rhi"));
+                       TEXT("Ingoring backend command because it is hardcoded "
+                            "to rhi"));
             }
             else if (CommandLineOptions[i] == TEXT("-b"))
             {
                 ++i;
                 UE_LOG(GM_Log,
                        Warning,
-                       TEXT("Ingoring backend command because it is hardcoded to rhi"));
+                       TEXT("Ingoring backend command because it is hardcoded "
+                            "to rhi"));
             }
             else if (CommandLineOptions[i] == TEXT("--headless"))
             {
@@ -157,23 +170,28 @@ void AGMTestingManager::StartTesting()
         {
             UE_LOG(GM_Log,
                    Display,
-                   TEXT("AGMTestingManager::InitTesting() gms_main adding test params"));
+                   TEXT("AGMTestingManager::InitTesting() gms_main adding test "
+                        "params"));
 
             argv[argc++] = "--verbose";
 
             FString ProjectDir = FPaths::ProjectDir();
             ProjectDir =
-                IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*ProjectDir);
+                IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(
+                    *ProjectDir);
 
             argv[argc++] = "--output";
-            argv[argc++] = TCHAR_TO_ANSI(*FPaths::Combine(ProjectDir, "output"));
+            argv[argc++] =
+                TCHAR_TO_ANSI(*FPaths::Combine(ProjectDir, "output"));
 
             if (TestingType == EGMTestingType::Golden)
             {
                 FString RivePath =
-                    FPaths::Combine(FPaths::ProjectDir(), "../../../../gold/rivs/Bear.riv");
+                    FPaths::Combine(FPaths::ProjectDir(),
+                                    "../../../../gold/rivs/Bear.riv");
                 RivePath =
-                    IFileManager::Get().ConvertToAbsolutePathForExternalAppForRead(*RivePath);
+                    IFileManager::Get()
+                        .ConvertToAbsolutePathForExternalAppForRead(*RivePath);
 
                 argv[argc++] = "--src";
                 argv[argc++] = TCHAR_TO_ANSI(*RivePath);
@@ -188,7 +206,8 @@ void AGMTestingManager::StartTesting()
 
         UE_LOG(GM_Log,
                Display,
-               TEXT("AGMTestingManager::StartTesting() starting gms with argc %i argv %s"),
+               TEXT("AGMTestingManager::StartTesting() starting gms with argc "
+                    "%i argv %s"),
                argc,
                *ArgLog);
 
@@ -204,17 +223,19 @@ void AGMTestingManager::StartTesting()
                 RunGMs(argc, argv);
                 RunGoldens(argc, argv);
         }
-        // we have to reset this here because both gms and goldens delete the window
+        // we have to reset this here because both gms and goldens delete the
+        // window
         TestingWindow = nullptr;
 
         AsyncTask(ENamedThreads::GameThread, [this]() {
             if (bShouldExitOnFinish)
             {
 #if WITH_EDITOR
-                UKismetSystemLibrary::QuitGame(GetWorld(),
-                                               UGameplayStatics::GetPlayerController(GetWorld(), 0),
-                                               EQuitPreference::Type::Quit,
-                                               false);
+                UKismetSystemLibrary::QuitGame(
+                    GetWorld(),
+                    UGameplayStatics::GetPlayerController(GetWorld(), 0),
+                    EQuitPreference::Type::Quit,
+                    false);
 #else
             FGenericPlatformMisc::RequestExit(false);
 #endif
@@ -229,14 +250,16 @@ void AGMTestingManager::StartTesting()
 
 void AGMTestingManager::DeInitTesting() {}
 
-void AGMTestingManager::SetDMTexture(UTexture2DDynamic* Texture, bool MeshIsVisible)
+void AGMTestingManager::SetDMTexture(UTexture2DDynamic* Texture,
+                                     bool MeshIsVisible)
 {
     check(DM);
     DM->SetTextureParameterValue("texture", Texture);
     StaticMeshComponent->SetHiddenInGame(!MeshIsVisible, true);
 }
 
-void AGMTestingManager::RunGM(UPARAM(ref) FGMData& GM, bool ShouldGenerateDisplayTexture)
+void AGMTestingManager::RunGM(UPARAM(ref) FGMData& GM,
+                              bool ShouldGenerateDisplayTexture)
 {
     TestingWindow->isGoldens = false;
     if (GM.registry_position == nullptr)
@@ -248,7 +271,10 @@ void AGMTestingManager::RunGM(UPARAM(ref) FGMData& GM, bool ShouldGenerateDispla
 
     if (ShouldGenerateDisplayTexture)
     {
-        UE_LOG(GM_Log, Display, TEXT("Generating display texture for gm named %s"), *GM.Name);
+        UE_LOG(GM_Log,
+               Display,
+               TEXT("Generating display texture for gm named %s"),
+               *GM.Name);
         if (GM.Width == 0 || GM.Height == 0)
         {
             size_t width, height;
@@ -259,7 +285,10 @@ void AGMTestingManager::RunGM(UPARAM(ref) FGMData& GM, bool ShouldGenerateDispla
             }
             else
             {
-                UE_LOG(GM_Log, Error, TEXT("Failed to get size of gm named %s"), *GM.Name);
+                UE_LOG(GM_Log,
+                       Error,
+                       TEXT("Failed to get size of gm named %s"),
+                       *GM.Name);
                 return;
             }
         }
@@ -276,7 +305,8 @@ void AGMTestingManager::RunGM(UPARAM(ref) FGMData& GM, bool ShouldGenerateDispla
     }
 }
 
-void AGMTestingManager::RunGolden(FGoldenData& Golden, bool ShouldGenerateDisplayTexture)
+void AGMTestingManager::RunGolden(FGoldenData& Golden,
+                                  bool ShouldGenerateDisplayTexture)
 {
     TestingWindow->isGoldens = true;
 }
@@ -334,7 +364,10 @@ void AGMTestingManager::RiveReady(IRiveRenderer* InRiveRenderer)
             registery_handle = gms_registry_get_next(registery_handle);
         }
 
-        UE_LOG(GM_Log, Display, TEXT("GMs ready for testing with %i GMs"), GMList.Num());
+        UE_LOG(GM_Log,
+               Display,
+               TEXT("GMs ready for testing with %i GMs"),
+               GMList.Num());
     }
 
     UE_LOG(GM_Log, Display, TEXT("GMs ready for testing with"));
@@ -351,14 +384,16 @@ void AGMTestingManager::RunGMs(int argc, const char* argv[])
     {
         UE_LOG(GM_Log,
                Error,
-               TEXT("AGMTestingManager::StartTesting() gms_main failed with error code %i"),
+               TEXT("AGMTestingManager::StartTesting() gms_main failed with "
+                    "error code %i"),
                error);
     }
     else
     {
         UE_LOG(GM_Log,
                Display,
-               TEXT("AGMTestingManager::StartTesting() gms_main finished succefully"));
+               TEXT("AGMTestingManager::StartTesting() gms_main finished "
+                    "succefully"));
     }
 }
 
@@ -371,14 +406,16 @@ void AGMTestingManager::RunGoldens(int argc, const char* argv[])
     {
         UE_LOG(GM_Log,
                Error,
-               TEXT("AGMTestingManager::StartTesting() goldens_main failed with error code %i"),
+               TEXT("AGMTestingManager::StartTesting() goldens_main failed "
+                    "with error code %i"),
                error);
     }
     else
     {
         UE_LOG(GM_Log,
                Display,
-               TEXT("AGMTestingManager::StartTesting() goldens_main finished succefully"));
+               TEXT("AGMTestingManager::StartTesting() goldens_main finished "
+                    "succefully"));
     }
 }
 
@@ -405,8 +442,9 @@ void AGMTestingManager::RunCustomTestManyPaths(int32 NumberOfPathsToRun)
     CustomTestTexture->ResizeRenderTargets(FIntPoint(Size, Size));
 }
 
-void AGMTestingManager::RunCustomTestClear_RenderThread(FRHICommandListImmediate& RHICmdList,
-                                                        FTextureRHIRef& NewResource)
+void AGMTestingManager::RunCustomTestClear_RenderThread(
+    FRHICommandListImmediate& RHICmdList,
+    FTextureRHIRef& NewResource)
 {
     auto context = Renderer->GetRenderContext();
     auto impl = context->static_impl_cast<RenderContextRHIImpl>();
@@ -420,8 +458,9 @@ void AGMTestingManager::RunCustomTestClear_RenderThread(FRHICommandListImmediate
     context->flush({.renderTarget = renderTarget.get()});
 }
 
-void AGMTestingManager::RunCustomTestManyPaths_RenderThread(FRHICommandListImmediate& RHICmdList,
-                                                            FTextureRHIRef& NewResource)
+void AGMTestingManager::RunCustomTestManyPaths_RenderThread(
+    FRHICommandListImmediate& RHICmdList,
+    FTextureRHIRef& NewResource)
 {
     auto context = Renderer->GetRenderContext();
     auto impl = context->static_impl_cast<RenderContextRHIImpl>();
@@ -455,7 +494,8 @@ void AGMTestingManager::RunCustomTestManyPaths_RenderThread(FRHICommandListImmed
                           static_cast<float>(y),
                           static_cast<float>(x + 1),
                           static_cast<float>(y + 1)});
-            auto renderPath = context->makeRenderPath(path, rive::FillRule::nonZero);
+            auto renderPath =
+                context->makeRenderPath(path, rive::FillRule::nonZero);
             renderer->drawPath(renderPath.get(), strokePaint.get());
         }
     }
@@ -463,8 +503,9 @@ void AGMTestingManager::RunCustomTestManyPaths_RenderThread(FRHICommandListImmed
     context->flush({.renderTarget = renderTarget.get()});
 }
 
-void AGMTestingManager::RunSpecificGM_RenderThread(FRHICommandListImmediate& RHICmdList,
-                                                   FTextureRHIRef& NewResource)
+void AGMTestingManager::RunSpecificGM_RenderThread(
+    FRHICommandListImmediate& RHICmdList,
+    FTextureRHIRef& NewResource)
 {
     if (GMToRun == nullptr)
     {
@@ -472,23 +513,36 @@ void AGMTestingManager::RunSpecificGM_RenderThread(FRHICommandListImmediate& RHI
         return;
     }
 
-    // we are already on the render thread so we don't need to enque a new command
+    // we are already on the render thread so we don't need to enque a new
+    // command
     if (!gms_run_gm(GMToRun->registry_position))
     {
-        UE_LOG(GM_Log, Error, TEXT("Failed to run gm named %s"), *GMToRun->Name);
+        UE_LOG(GM_Log,
+               Error,
+               TEXT("Failed to run gm named %s"),
+               *GMToRun->Name);
     }
 
-    AsyncTask(ENamedThreads::GameThread, [this, GM = GMToRun]() { SetDMTexture(GM->RiveTexture); });
+    AsyncTask(ENamedThreads::GameThread,
+              [this, GM = GMToRun]() { SetDMTexture(GM->RiveTexture); });
 
     // null it out since we already ran it
     GMToRun = nullptr;
 }
 
-void UGMDataStatics::ResetGmTexture(FGMData& Data) { Data.RiveTexture = nullptr; }
+void UGMDataStatics::ResetGmTexture(FGMData& Data)
+{
+    Data.RiveTexture = nullptr;
+}
 
-void UGMDataStatics::ResetGoldenTexture(FGoldenData& Data) { Data.RiveTexture = nullptr; }
+void UGMDataStatics::ResetGoldenTexture(FGoldenData& Data)
+{
+    Data.RiveTexture = nullptr;
+}
 
-void UGMDataStatics::MakeGoldenData(FString PathToRiv, FGoldenData& OutGoldenData, bool& Successful)
+void UGMDataStatics::MakeGoldenData(FString PathToRiv,
+                                    FGoldenData& OutGoldenData,
+                                    bool& Successful)
 {
     auto& FileManager = IFileManager::Get();
     if (!FileManager.FileExists(*PathToRiv))
@@ -502,14 +556,20 @@ void UGMDataStatics::MakeGoldenData(FString PathToRiv, FGoldenData& OutGoldenDat
     Successful = true;
 }
 
-void UGMDataStatics::GenerateGoldenForDefaultLocation(TArray<FGoldenData>& OutGoldens)
+void UGMDataStatics::GenerateGoldenForDefaultLocation(
+    TArray<FGoldenData>& OutGoldens)
 {
     auto& FileManager = IFileManager::Get();
 
     const auto ProjectFile = FPaths::GetProjectFilePath();
-    auto RelativePath = FPaths::Combine(ProjectFile, "../../../../../gold/rivs");
-    auto RivDir = FileManager.ConvertToAbsolutePathForExternalAppForRead(*RelativePath);
-    UE_LOG(GM_Log, Display, TEXT("Generating Default Golden List for %s"), *RivDir);
+    auto RelativePath =
+        FPaths::Combine(ProjectFile, "../../../../../gold/rivs");
+    auto RivDir =
+        FileManager.ConvertToAbsolutePathForExternalAppForRead(*RelativePath);
+    UE_LOG(GM_Log,
+           Display,
+           TEXT("Generating Default Golden List for %s"),
+           *RivDir);
     FileManager.IterateDirectoryStat(
         *RivDir,
         [&OutGoldens](const TCHAR* Path, const FFileStatData& Stat) -> bool {

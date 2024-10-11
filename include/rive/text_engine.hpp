@@ -65,12 +65,17 @@ struct GlyphLine
 
     bool operator==(const GlyphLine& o) const
     {
-        return startRunIndex == o.startRunIndex && startGlyphIndex == o.startGlyphIndex &&
+        return startRunIndex == o.startRunIndex &&
+               startGlyphIndex == o.startGlyphIndex &&
                endRunIndex == o.endRunIndex && endGlyphIndex == o.endGlyphIndex;
     }
 
     GlyphLine() :
-        startRunIndex(0), startGlyphIndex(0), endRunIndex(0), endGlyphIndex(0), startX(0.0f)
+        startRunIndex(0),
+        startGlyphIndex(0),
+        endRunIndex(0),
+        endGlyphIndex(0),
+        startX(0.0f)
     {}
     GlyphLine(uint32_t run, uint32_t index) :
         startRunIndex(run),
@@ -80,9 +85,13 @@ struct GlyphLine
         startX(0.0f)
     {}
 
-    bool empty() const { return startRunIndex == endRunIndex && startGlyphIndex == endGlyphIndex; }
+    bool empty() const
+    {
+        return startRunIndex == endRunIndex && startGlyphIndex == endGlyphIndex;
+    }
 
-    static SimpleArray<GlyphLine> BreakLines(Span<const GlyphRun> runs, float width);
+    static SimpleArray<GlyphLine> BreakLines(Span<const GlyphRun> runs,
+                                             float width);
 
     // Compute values for top/baseline/bottom per line
     static void ComputeLineSpacing(bool isFirstLine,
@@ -91,7 +100,8 @@ struct GlyphLine
                                    float width,
                                    TextAlign align);
 
-    static float ComputeMaxWidth(Span<GlyphLine> lines, Span<const GlyphRun> runs);
+    static float ComputeMaxWidth(Span<GlyphLine> lines,
+                                 Span<const GlyphRun> runs);
 };
 
 // A paragraph represents of set of runs that flow in a specific direction. The
@@ -165,7 +175,10 @@ public:
         return withOptions(coords, Span<const Feature>(nullptr, 0));
     }
 
-    rcp<Font> makeAtCoord(Coord c) { return this->makeAtCoords(Span<const Coord>(&c, 1)); }
+    rcp<Font> makeAtCoord(Coord c)
+    {
+        return this->makeAtCoords(Span<const Coord>(&c, 1));
+    }
 
     virtual rcp<Font> withOptions(Span<const Coord> variableAxes,
                                   Span<const Feature> features) const = 0;
@@ -175,29 +188,33 @@ public:
     //
     virtual RawPath getPath(GlyphID) const = 0;
 
-    SimpleArray<Paragraph> shapeText(Span<const Unichar> text, Span<const TextRun> runs) const;
+    SimpleArray<Paragraph> shapeText(Span<const Unichar> text,
+                                     Span<const TextRun> runs) const;
 
     // If the platform can supply fallback font(s), set this function pointer.
     // It will be called with a span of unichars, and the platform attempts to
-    // return a font that can draw (at least some of) them. If no font is available
-    // just return nullptr.
+    // return a font that can draw (at least some of) them. If no font is
+    // available just return nullptr.
 
-    using FallbackProc = rive::rcp<rive::Font> (*)(rive::Span<const rive::Unichar>);
+    using FallbackProc =
+        rive::rcp<rive::Font> (*)(rive::Span<const rive::Unichar>);
     static FallbackProc gFallbackProc;
     static bool gFallbackProcEnabled;
 
 protected:
     Font(const LineMetrics& lm) : m_lineMetrics(lm) {}
 
-    virtual SimpleArray<Paragraph> onShapeText(Span<const Unichar> text,
-                                               Span<const TextRun> runs) const = 0;
+    virtual SimpleArray<Paragraph> onShapeText(
+        Span<const Unichar> text,
+        Span<const TextRun> runs) const = 0;
 
 private:
     /// The font specified line metrics (automatic line metrics).
     const LineMetrics m_lineMetrics;
 };
 
-// A user defined styling guide for a set of unicode codepoints within a larger text string.
+// A user defined styling guide for a set of unicode codepoints within a larger
+// text string.
 struct TextRun
 {
     rcp<Font> font;
@@ -210,9 +227,9 @@ struct TextRun
     TextDirection dir;
 };
 
-// The corresponding system generated run for the user provided TextRuns. GlyphRuns may not match
-// TextRuns if the system needs to split the run (for fallback fonts) or if codepoints get
-// ligated/shaped to a single glyph.
+// The corresponding system generated run for the user provided TextRuns.
+// GlyphRuns may not match TextRuns if the system needs to split the run (for
+// fallback fonts) or if codepoints get ligated/shaped to a single glyph.
 struct GlyphRun
 {
     GlyphRun(size_t glyphCount = 0) :
@@ -228,7 +245,11 @@ struct GlyphRun
              SimpleArray<float> ws,
              SimpleArray<float> xs,
              SimpleArray<rive::Vec2D> offs) :
-        glyphs(glyphIds), textIndices(offsets), advances(ws), xpos(xs), offsets(offs)
+        glyphs(glyphIds),
+        textIndices(offsets),
+        advances(ws),
+        xpos(xs),
+        offsets(offs)
     {}
 
     rcp<Font> font;
@@ -236,32 +257,36 @@ struct GlyphRun
     float lineHeight;
     float letterSpacing;
 
-    // List of glyphs, represented by font specific glyph ids. Length is equal to number of glyphs
-    // in the run.
+    // List of glyphs, represented by font specific glyph ids. Length is equal
+    // to number of glyphs in the run.
     SimpleArray<GlyphID> glyphs;
 
-    // Index in the unicode text array representing the text displayed in this run. Because each
-    // glyph can be composed of multiple unicode values, this index points to the first index in the
-    // unicode text. Length is equal to number of glyphs in the run.
+    // Index in the unicode text array representing the text displayed in this
+    // run. Because each glyph can be composed of multiple unicode values, this
+    // index points to the first index in the unicode text. Length is equal to
+    // number of glyphs in the run.
     SimpleArray<uint32_t> textIndices;
 
-    // X position of each glyph in visual order (xpos is in logical/memory order).
+    // X position of each glyph in visual order (xpos is in logical/memory
+    // order).
     SimpleArray<float> advances;
 
-    // X position of each glyph, with an extra value at the end for the right most extent of the
-    // last glyph.
+    // X position of each glyph, with an extra value at the end for the right
+    // most extent of the last glyph.
     SimpleArray<float> xpos;
 
-    // X and Y offset each glyphs draws at relative to its baseline and advance position.
+    // X and Y offset each glyphs draws at relative to its baseline and advance
+    // position.
     SimpleArray<rive::Vec2D> offsets;
 
-    // List of possible indices to line break at. Has a stride of 2 uint32_ts where each pair marks
-    // the start and end of a word, with the exception of a return character (forced linebreak)
-    // which is represented as a 0 length word (where start/end index is the same).
+    // List of possible indices to line break at. Has a stride of 2 uint32_ts
+    // where each pair marks the start and end of a word, with the exception of
+    // a return character (forced linebreak) which is represented as a 0 length
+    // word (where start/end index is the same).
     SimpleArray<uint32_t> breaks;
 
-    // The unique identifier for the styling (fill/stroke colors, anything not determined by the
-    // font or font size) applied to this run.
+    // The unique identifier for the styling (fill/stroke colors, anything not
+    // determined by the font or font size) applied to this run.
     uint16_t styleId;
 
     // The text direction (LTR = 0/RTL = 1)

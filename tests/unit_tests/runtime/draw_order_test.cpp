@@ -25,7 +25,8 @@ TEST_CASE("draw rules load and sort correctly", "[draw rules]")
 
     // Check that we can advance the ping-pong animation with 1 second duration
     // without a hang.
-    std::unique_ptr<rive::LinearAnimationInstance> animation = artboard->animationAt(0);
+    std::unique_ptr<rive::LinearAnimationInstance> animation =
+        artboard->animationAt(0);
     // Advance and apply some frames.
     int frames = 10;
     float frameDuration = 1.0f;

@@ -22,8 +22,8 @@
 #include "generated/shaders/stencil_draw.glsl.hpp"
 
 #ifdef RIVE_WEBGL
-// In an effort to save space on web, and since web doesn't have ES 3.1 level support, don't include
-// the atomic sources.
+// In an effort to save space on web, and since web doesn't have ES 3.1 level
+// support, don't include the atomic sources.
 namespace rive::gpu::glsl
 {
 const char atomic_draw[] = "";
@@ -37,8 +37,8 @@ const char atomic_draw[] = "";
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 
-// Emscripten has a bug with glTexSubImage2D when a PIXEL_UNPACK_BUFFER is bound. Make the call
-// ourselves directly.
+// Emscripten has a bug with glTexSubImage2D when a PIXEL_UNPACK_BUFFER is
+// bound. Make the call ourselves directly.
 EM_JS(void,
       webgl_texSubImage2DWithOffset,
       (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl,
@@ -53,19 +53,28 @@ EM_JS(void,
        GLintptr offset),
       {
           gl = GL.getContext(gl).GLctx;
-          gl.texSubImage2D(target, level, xoffset, yoffset, width, height, format, type, offset);
+          gl.texSubImage2D(target,
+                           level,
+                           xoffset,
+                           yoffset,
+                           width,
+                           height,
+                           format,
+                           type,
+                           offset);
       });
 #endif
 
-// Offset all PLS texture indices by 1 so we, and others who share our GL context, can use
-// GL_TEXTURE0 as a scratch texture index.
+// Offset all PLS texture indices by 1 so we, and others who share our GL
+// context, can use GL_TEXTURE0 as a scratch texture index.
 constexpr static int kPLSTexIdxOffset = 1;
 
 namespace rive::gpu
 {
-RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
-                                         GLCapabilities capabilities,
-                                         std::unique_ptr<PixelLocalStorageImpl> plsImpl) :
+RenderContextGLImpl::RenderContextGLImpl(
+    const char* rendererString,
+    GLCapabilities capabilities,
+    std::unique_ptr<PixelLocalStorageImpl> plsImpl) :
     m_capabilities(capabilities),
     m_plsImpl(std::move(plsImpl)),
     m_state(make_rcp<GLState>(m_capabilities))
@@ -88,9 +97,9 @@ RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
     }
     if (strstr(rendererString, "Apple") && strstr(rendererString, "Metal"))
     {
-        // In Metal, non-flat varyings preserve their exact value if all vertices in the triangle
-        // emit the same value, and we also see a small (5-10%) improvement from not using flat
-        // varyings.
+        // In Metal, non-flat varyings preserve their exact value if all
+        // vertices in the triangle emit the same value, and we also see a small
+        // (5-10%) improvement from not using flat varyings.
         m_platformFeatures.avoidFlatVaryings = true;
     }
     m_platformFeatures.fragCoordBottomUp = true;
@@ -101,7 +110,9 @@ RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
         generalDefines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
     }
 
-    const char* colorRampSources[] = {glsl::constants, glsl::common, glsl::color_ramp};
+    const char* colorRampSources[] = {glsl::constants,
+                                      glsl::common,
+                                      glsl::color_ramp};
     m_colorRampProgram.compileAndAttachShader(GL_VERTEX_SHADER,
                                               generalDefines.data(),
                                               generalDefines.size(),
@@ -115,15 +126,18 @@ RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
                                               std::size(colorRampSources),
                                               m_capabilities);
     m_colorRampProgram.link();
-    glUniformBlockBinding(m_colorRampProgram,
-                          glGetUniformBlockIndex(m_colorRampProgram, GLSL_FlushUniforms),
-                          FLUSH_UNIFORM_BUFFER_IDX);
+    glUniformBlockBinding(
+        m_colorRampProgram,
+        glGetUniformBlockIndex(m_colorRampProgram, GLSL_FlushUniforms),
+        FLUSH_UNIFORM_BUFFER_IDX);
 
     m_state->bindVAO(m_colorRampVAO);
     glEnableVertexAttribArray(0);
     glVertexAttribDivisor(0, 1);
 
-    const char* tessellateSources[] = {glsl::constants, glsl::common, glsl::tessellate};
+    const char* tessellateSources[] = {glsl::constants,
+                                       glsl::common,
+                                       glsl::tessellate};
     m_tessellateProgram.compileAndAttachShader(GL_VERTEX_SHADER,
                                                generalDefines.data(),
                                                generalDefines.size(),
@@ -138,23 +152,27 @@ RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
                                                m_capabilities);
     m_tessellateProgram.link();
     m_state->bindProgram(m_tessellateProgram);
-    glUniformBlockBinding(m_tessellateProgram,
-                          glGetUniformBlockIndex(m_tessellateProgram, GLSL_FlushUniforms),
-                          FLUSH_UNIFORM_BUFFER_IDX);
+    glUniformBlockBinding(
+        m_tessellateProgram,
+        glGetUniformBlockIndex(m_tessellateProgram, GLSL_FlushUniforms),
+        FLUSH_UNIFORM_BUFFER_IDX);
     if (!m_capabilities.ARB_shader_storage_buffer_object)
     {
-        // Our GL driver doesn't support storage buffers. We polyfill these buffers as textures.
+        // Our GL driver doesn't support storage buffers. We polyfill these
+        // buffers as textures.
         glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_pathBuffer),
                     kPLSTexIdxOffset + PATH_BUFFER_IDX);
-        glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_contourBuffer),
-                    kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
+        glUniform1i(
+            glGetUniformLocation(m_tessellateProgram, GLSL_contourBuffer),
+            kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
     }
 
     m_state->bindVAO(m_tessellateVAO);
     for (int i = 0; i < 4; ++i)
     {
         glEnableVertexAttribArray(i);
-        // Draw two instances per TessVertexSpan: one normal and one optional reflection.
+        // Draw two instances per TessVertexSpan: one normal and one optional
+        // reflection.
         glVertexAttribDivisor(i, 1);
     }
 
@@ -171,13 +189,24 @@ RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
     GeneratePatchBufferData(patchVertices, patchIndices);
 
     m_state->bindBuffer(GL_ARRAY_BUFFER, m_patchVerticesBuffer);
-    glBufferData(GL_ARRAY_BUFFER, sizeof(patchVertices), patchVertices, GL_STATIC_DRAW);
+    glBufferData(GL_ARRAY_BUFFER,
+                 sizeof(patchVertices),
+                 patchVertices,
+                 GL_STATIC_DRAW);
 
     m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_patchIndicesBuffer);
-    glBufferData(GL_ELEMENT_ARRAY_BUFFER, sizeof(patchIndices), patchIndices, GL_STATIC_DRAW);
+    glBufferData(GL_ELEMENT_ARRAY_BUFFER,
+                 sizeof(patchIndices),
+                 patchIndices,
+                 GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(PatchVertex), nullptr);
+    glVertexAttribPointer(0,
+                          4,
+                          GL_FLOAT,
+                          GL_FALSE,
+                          sizeof(PatchVertex),
+                          nullptr);
 
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1,
@@ -200,7 +229,12 @@ RenderContextGLImpl::RenderContextGLImpl(const char* rendererString,
                  GL_STATIC_DRAW);
 
     glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 4, GL_FLOAT, GL_FALSE, sizeof(gpu::ImageRectVertex), nullptr);
+    glVertexAttribPointer(0,
+                          4,
+                          GL_FLOAT,
+                          GL_FALSE,
+                          sizeof(gpu::ImageRectVertex),
+                          nullptr);
 
     m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, m_imageRectIndexBuffer);
     glBufferData(GL_ELEMENT_ARRAY_BUFFER,
@@ -276,10 +310,11 @@ private:
     GLuint m_textureID = 0;
 };
 
-rcp<Texture> RenderContextGLImpl::makeImageTexture(uint32_t width,
-                                                   uint32_t height,
-                                                   uint32_t mipLevelCount,
-                                                   const uint8_t imageDataRGBA[])
+rcp<Texture> RenderContextGLImpl::makeImageTexture(
+    uint32_t width,
+    uint32_t height,
+    uint32_t mipLevelCount,
+    const uint8_t imageDataRGBA[])
 {
     GLuint textureID;
     glGenTextures(1, &textureID);
@@ -308,8 +343,8 @@ rcp<Texture> RenderContextGLImpl::adoptImageTexture(uint32_t width,
     return make_rcp<TextureGLImpl>(width, height, textureID, m_capabilities);
 }
 
-// BufferRingImpl in GL on a given buffer target. In order to support WebGL2, we don't do hardware
-// mapping.
+// BufferRingImpl in GL on a given buffer target. In order to support WebGL2, we
+// don't do hardware mapping.
 class BufferRingGLImpl : public BufferRing
 {
 public:
@@ -319,7 +354,9 @@ public:
     {
         return capacityInBytes != 0
                    ? std::unique_ptr<BufferRingGLImpl>(
-                         new BufferRingGLImpl(target, capacityInBytes, std::move(state)))
+                         new BufferRingGLImpl(target,
+                                              capacityInBytes,
+                                              std::move(state)))
                    : nullptr;
     }
 
@@ -334,7 +371,9 @@ public:
     GLuint submittedBufferID() const { return m_ids[submittedBufferIdx()]; }
 
 protected:
-    BufferRingGLImpl(GLenum target, size_t capacityInBytes, rcp<GLState> state) :
+    BufferRingGLImpl(GLenum target,
+                     size_t capacityInBytes,
+                     rcp<GLState> state) :
         BufferRing(capacityInBytes), m_target(target), m_state(std::move(state))
     {
         glGenBuffers(kBufferRingSize, m_ids);
@@ -355,7 +394,8 @@ protected:
         return glMapBufferRange(m_target,
                                 0,
                                 mapSizeInBytes,
-                                GL_MAP_WRITE_BIT | GL_MAP_INVALIDATE_BUFFER_BIT |
+                                GL_MAP_WRITE_BIT |
+                                    GL_MAP_INVALIDATE_BUFFER_BIT |
                                     GL_MAP_UNSYNCHRONIZED_BIT);
 #endif
     }
@@ -377,7 +417,8 @@ protected:
 };
 
 // GL internalformat to use for a texture that polyfills a storage buffer.
-static GLenum storage_texture_internalformat(gpu::StorageBufferStructure bufferStructure)
+static GLenum storage_texture_internalformat(
+    gpu::StorageBufferStructure bufferStructure)
 {
     switch (bufferStructure)
     {
@@ -392,7 +433,8 @@ static GLenum storage_texture_internalformat(gpu::StorageBufferStructure bufferS
 }
 
 // GL format to use for a texture that polyfills a storage buffer.
-static GLenum storage_texture_format(gpu::StorageBufferStructure bufferStructure)
+static GLenum storage_texture_format(
+    gpu::StorageBufferStructure bufferStructure)
 {
     switch (bufferStructure)
     {
@@ -428,8 +470,8 @@ public:
                             gpu::StorageBufferStructure bufferStructure,
                             rcp<GLState> state) :
         BufferRingGLImpl(
-            // If we don't support storage buffers, instead make a pixel-unpack buffer that
-            // will be used to copy data into the polyfill texture.
+            // If we don't support storage buffers, instead make a pixel-unpack
+            // buffer that will be used to copy data into the polyfill texture.
             GL_SHADER_STORAGE_BUFFER,
             capacityInBytes,
             std::move(state)),
@@ -457,12 +499,15 @@ public:
     TexelBufferRingWebGL(size_t capacityInBytes,
                          gpu::StorageBufferStructure bufferStructure,
                          rcp<GLState> state) :
-        BufferRing(gpu::StorageTextureBufferSize(capacityInBytes, bufferStructure)),
+        BufferRing(
+            gpu::StorageTextureBufferSize(capacityInBytes, bufferStructure)),
         m_bufferStructure(bufferStructure),
         m_state(std::move(state))
     {
-        auto [width, height] = gpu::StorageTextureSize(capacityInBytes, m_bufferStructure);
-        GLenum internalformat = storage_texture_internalformat(m_bufferStructure);
+        auto [width, height] =
+            gpu::StorageTextureSize(capacityInBytes, m_bufferStructure);
+        GLenum internalformat =
+            storage_texture_internalformat(m_bufferStructure);
         glGenTextures(gpu::kBufferRingSize, m_textures);
         glActiveTexture(GL_TEXTURE0);
         for (size_t i = 0; i < gpu::kBufferRingSize; ++i)
@@ -474,10 +519,17 @@ public:
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    ~TexelBufferRingWebGL() { glDeleteTextures(gpu::kBufferRingSize, m_textures); }
+    ~TexelBufferRingWebGL()
+    {
+        glDeleteTextures(gpu::kBufferRingSize, m_textures);
+    }
 
-    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override { return shadowBuffer(); }
-    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override {}
+    void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
+    {
+        return shadowBuffer();
+    }
+    void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
+    {}
 
     void bindToRenderContext(uint32_t bindingIdx,
                              size_t bindingSizeInBytes,
@@ -505,7 +557,8 @@ protected:
     GLuint m_textures[gpu::kBufferRingSize];
 };
 
-std::unique_ptr<BufferRing> RenderContextGLImpl::makeUniformBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> RenderContextGLImpl::makeUniformBufferRing(
+    size_t capacityInBytes)
 {
     return BufferRingGLImpl::Make(capacityInBytes, GL_UNIFORM_BUFFER, m_state);
 }
@@ -520,15 +573,20 @@ std::unique_ptr<BufferRing> RenderContextGLImpl::makeStorageBufferRing(
     }
     else if (m_capabilities.ARB_shader_storage_buffer_object)
     {
-        return std::make_unique<StorageBufferRingGLImpl>(capacityInBytes, bufferStructure, m_state);
+        return std::make_unique<StorageBufferRingGLImpl>(capacityInBytes,
+                                                         bufferStructure,
+                                                         m_state);
     }
     else
     {
-        return std::make_unique<TexelBufferRingWebGL>(capacityInBytes, bufferStructure, m_state);
+        return std::make_unique<TexelBufferRingWebGL>(capacityInBytes,
+                                                      bufferStructure,
+                                                      m_state);
     }
 }
 
-std::unique_ptr<BufferRing> RenderContextGLImpl::makeVertexBufferRing(size_t capacityInBytes)
+std::unique_ptr<BufferRing> RenderContextGLImpl::makeVertexBufferRing(
+    size_t capacityInBytes)
 {
     return BufferRingGLImpl::Make(capacityInBytes, GL_ARRAY_BUFFER, m_state);
 }
@@ -536,7 +594,9 @@ std::unique_ptr<BufferRing> RenderContextGLImpl::makeVertexBufferRing(size_t cap
 std::unique_ptr<BufferRing> RenderContextGLImpl::makeTextureTransferBufferRing(
     size_t capacityInBytes)
 {
-    return BufferRingGLImpl::Make(capacityInBytes, GL_PIXEL_UNPACK_BUFFER, m_state);
+    return BufferRingGLImpl::Make(capacityInBytes,
+                                  GL_PIXEL_UNPACK_BUFFER,
+                                  m_state);
 }
 
 void RenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -562,7 +622,8 @@ void RenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
                            0);
 }
 
-void RenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t height)
+void RenderContextGLImpl::resizeTessellationTexture(uint32_t width,
+                                                    uint32_t height)
 {
     glDeleteTextures(1, &m_tessVertexTexture);
     if (width == 0 || height == 0)
@@ -585,17 +646,19 @@ void RenderContextGLImpl::resizeTessellationTexture(uint32_t width, uint32_t hei
                            0);
 }
 
-RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextImpl,
-                                            GLenum shaderType,
-                                            gpu::DrawType drawType,
-                                            ShaderFeatures shaderFeatures,
-                                            gpu::InterlockMode interlockMode,
-                                            gpu::ShaderMiscFlags shaderMiscFlags)
+RenderContextGLImpl::DrawShader::DrawShader(
+    RenderContextGLImpl* renderContextImpl,
+    GLenum shaderType,
+    gpu::DrawType drawType,
+    ShaderFeatures shaderFeatures,
+    gpu::InterlockMode interlockMode,
+    gpu::ShaderMiscFlags shaderMiscFlags)
 {
 #ifdef DISABLE_PLS_ATOMICS
     if (interlockMode == gpu::InterlockMode::atomics)
     {
-        // Don't draw anything in atomic mode if support for it isn't compiled in.
+        // Don't draw anything in atomic mode if support for it isn't compiled
+        // in.
         return;
     }
 #endif
@@ -603,7 +666,8 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
     std::vector<const char*> defines;
     if (renderContextImpl->m_plsImpl != nullptr)
     {
-        renderContextImpl->m_plsImpl->pushShaderDefines(interlockMode, &defines);
+        renderContextImpl->m_plsImpl->pushShaderDefines(interlockMode,
+                                                        &defines);
     }
     if (interlockMode == gpu::InterlockMode::atomics)
     {
@@ -619,10 +683,12 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
         ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
         if (shaderFeatures & feature)
         {
-            assert((kVertexShaderFeaturesMask & feature) || shaderType == GL_FRAGMENT_SHADER);
+            assert((kVertexShaderFeaturesMask & feature) ||
+                   shaderType == GL_FRAGMENT_SHADER);
             if (interlockMode == gpu::InterlockMode::msaa &&
                 feature == gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
-                renderContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
+                renderContextImpl->m_capabilities
+                    .KHR_blend_equation_advanced_coherent)
             {
                 defines.push_back(GLSL_ENABLE_KHR_BLEND);
             }
@@ -668,8 +734,9 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
             }
             defines.push_back(GLSL_DRAW_PATH);
             sources.push_back(gpu::glsl::draw_path_common);
-            sources.push_back(interlockMode == gpu::InterlockMode::atomics ? gpu::glsl::atomic_draw
-                                                                           : gpu::glsl::draw_path);
+            sources.push_back(interlockMode == gpu::InterlockMode::atomics
+                                  ? gpu::glsl::atomic_draw
+                                  : gpu::glsl::draw_path);
             break;
         case gpu::DrawType::stencilClipReset:
             assert(interlockMode == gpu::InterlockMode::msaa);
@@ -678,8 +745,9 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
         case gpu::DrawType::interiorTriangulation:
             defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
             sources.push_back(gpu::glsl::draw_path_common);
-            sources.push_back(interlockMode == gpu::InterlockMode::atomics ? gpu::glsl::atomic_draw
-                                                                           : gpu::glsl::draw_path);
+            sources.push_back(interlockMode == gpu::InterlockMode::atomics
+                                  ? gpu::glsl::atomic_draw
+                                  : gpu::glsl::draw_path);
             break;
         case gpu::DrawType::imageRect:
             assert(interlockMode == gpu::InterlockMode::atomics);
@@ -698,7 +766,8 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
             assert(interlockMode == gpu::InterlockMode::atomics);
             defines.push_back(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
             defines.push_back(GLSL_RESOLVE_PLS);
-            if (shaderMiscFlags & gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
+            if (shaderMiscFlags &
+                gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
             {
                 assert(shaderType == GL_FRAGMENT_SHADER);
                 defines.push_back(GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER);
@@ -722,11 +791,12 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
                                   renderContextImpl->m_capabilities);
 }
 
-RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* renderContextImpl,
-                                              gpu::DrawType drawType,
-                                              gpu::ShaderFeatures shaderFeatures,
-                                              gpu::InterlockMode interlockMode,
-                                              gpu::ShaderMiscFlags fragmentShaderMiscFlags) :
+RenderContextGLImpl::DrawProgram::DrawProgram(
+    RenderContextGLImpl* renderContextImpl,
+    gpu::DrawType drawType,
+    gpu::ShaderFeatures shaderFeatures,
+    gpu::InterlockMode interlockMode,
+    gpu::ShaderMiscFlags fragmentShaderMiscFlags) :
     m_fragmentShader(renderContextImpl,
                      GL_FRAGMENT_SHADER,
                      drawType,
@@ -735,22 +805,24 @@ RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* renderContext
                      fragmentShaderMiscFlags),
     m_state(renderContextImpl->m_state)
 {
-    // Not every vertex shader is unique. Cache them by just the vertex features and reuse when
-    // possible.
-    ShaderFeatures vertexShaderFeatures = shaderFeatures & kVertexShaderFeaturesMask;
+    // Not every vertex shader is unique. Cache them by just the vertex features
+    // and reuse when possible.
+    ShaderFeatures vertexShaderFeatures =
+        shaderFeatures & kVertexShaderFeaturesMask;
     uint32_t vertexShaderKey = gpu::ShaderUniqueKey(drawType,
                                                     vertexShaderFeatures,
                                                     interlockMode,
                                                     gpu::ShaderMiscFlags::none);
-    const DrawShader& vertexShader = renderContextImpl->m_vertexShaders
-                                         .try_emplace(vertexShaderKey,
-                                                      renderContextImpl,
-                                                      GL_VERTEX_SHADER,
-                                                      drawType,
-                                                      vertexShaderFeatures,
-                                                      interlockMode,
-                                                      gpu::ShaderMiscFlags::none)
-                                         .first->second;
+    const DrawShader& vertexShader =
+        renderContextImpl->m_vertexShaders
+            .try_emplace(vertexShaderKey,
+                         renderContextImpl,
+                         GL_VERTEX_SHADER,
+                         drawType,
+                         vertexShaderFeatures,
+                         interlockMode,
+                         gpu::ShaderMiscFlags::none)
+            .first->second;
 
     m_id = glCreateProgram();
     glAttachShader(m_id, vertexShader.id());
@@ -763,15 +835,17 @@ RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* renderContext
                           FLUSH_UNIFORM_BUFFER_IDX);
     if (drawType == DrawType::imageRect || drawType == DrawType::imageMesh)
     {
-        glUniformBlockBinding(m_id,
-                              glGetUniformBlockIndex(m_id, GLSL_ImageDrawUniforms),
-                              IMAGE_DRAW_UNIFORM_BUFFER_IDX);
+        glUniformBlockBinding(
+            m_id,
+            glGetUniformBlockIndex(m_id, GLSL_ImageDrawUniforms),
+            IMAGE_DRAW_UNIFORM_BUFFER_IDX);
     }
     glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
                 kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
     if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
     {
-        // Our GL driver doesn't support storage buffers. We polyfill these buffers as textures.
+        // Our GL driver doesn't support storage buffers. We polyfill these
+        // buffers as textures.
         glUniform1i(glGetUniformLocation(m_id, GLSL_pathBuffer),
                     kPLSTexIdxOffset + PATH_BUFFER_IDX);
         glUniform1i(glGetUniformLocation(m_id, GLSL_paintBuffer),
@@ -781,7 +855,8 @@ RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* renderContext
         glUniform1i(glGetUniformLocation(m_id, GLSL_contourBuffer),
                     kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
     }
-    glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture), kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+    glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture),
+                kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glUniform1i(glGetUniformLocation(m_id, GLSL_imageTexture),
                 kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
     if (interlockMode == gpu::InterlockMode::msaa &&
@@ -791,19 +866,25 @@ RenderContextGLImpl::DrawProgram::DrawProgram(RenderContextGLImpl* renderContext
         glUniform1i(glGetUniformLocation(m_id, GLSL_dstColorTexture),
                     kPLSTexIdxOffset + DST_COLOR_TEXTURE_IDX);
     }
-    if (!renderContextImpl->m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+    if (!renderContextImpl->m_capabilities
+             .ANGLE_base_vertex_base_instance_shader_builtin)
     {
-        // This uniform is specifically named "SPIRV_Cross_BaseInstance" for compatibility with
-        // SPIRV-Cross sytems.
-        m_spirvCrossBaseInstanceLocation = glGetUniformLocation(m_id, "SPIRV_Cross_BaseInstance");
+        // This uniform is specifically named "SPIRV_Cross_BaseInstance" for
+        // compatibility with SPIRV-Cross sytems.
+        m_spirvCrossBaseInstanceLocation =
+            glGetUniformLocation(m_id, "SPIRV_Cross_BaseInstance");
     }
 }
 
-RenderContextGLImpl::DrawProgram::~DrawProgram() { m_state->deleteProgram(m_id); }
+RenderContextGLImpl::DrawProgram::~DrawProgram()
+{
+    m_state->deleteProgram(m_id);
+}
 
 static GLuint gl_buffer_id(const BufferRing* bufferRing)
 {
-    return static_cast<const BufferRingGLImpl*>(bufferRing)->submittedBufferID();
+    return static_cast<const BufferRingGLImpl*>(bufferRing)
+        ->submittedBufferID();
 }
 
 static void bind_storage_buffer(const GLCapabilities& capabilities,
@@ -817,12 +898,16 @@ static void bind_storage_buffer(const GLCapabilities& capabilities,
     if (capabilities.ARB_shader_storage_buffer_object)
     {
         static_cast<const StorageBufferRingGLImpl*>(bufferRing)
-            ->bindToRenderContext(bindingIdx, bindingSizeInBytes, offsetSizeInBytes);
+            ->bindToRenderContext(bindingIdx,
+                                  bindingSizeInBytes,
+                                  offsetSizeInBytes);
     }
     else
     {
         static_cast<const TexelBufferRingWebGL*>(bufferRing)
-            ->bindToRenderContext(bindingIdx, bindingSizeInBytes, offsetSizeInBytes);
+            ->bindToRenderContext(bindingIdx,
+                                  bindingSizeInBytes,
+                                  offsetSizeInBytes);
     }
 }
 
@@ -831,14 +916,16 @@ void RenderContextGLImpl::PixelLocalStorageImpl::ensureRasterOrderingEnabled(
     const gpu::FlushDescriptor& desc,
     bool enabled)
 {
-    assert(!enabled || supportsRasterOrdering(renderContextImpl->m_capabilities));
+    assert(!enabled ||
+           supportsRasterOrdering(renderContextImpl->m_capabilities));
     auto rasterOrderState = enabled ? gpu::TriState::yes : gpu::TriState::no;
     if (m_rasterOrderingEnabled != rasterOrderState)
     {
         onEnableRasterOrdering(enabled);
         m_rasterOrderingEnabled = rasterOrderState;
-        // We only need a barrier when turning raster ordering OFF, because PLS already inserts the
-        // necessary barriers after draws when it's disabled.
+        // We only need a barrier when turning raster ordering OFF, because PLS
+        // already inserts the necessary barriers after draws when it's
+        // disabled.
         if (m_rasterOrderingEnabled == gpu::TriState::no)
         {
             onBarrier(desc);
@@ -846,8 +933,8 @@ void RenderContextGLImpl::PixelLocalStorageImpl::ensureRasterOrderingEnabled(
     }
 }
 
-// Wraps calls to glDrawElementsInstanced*(), as appropriate for the current platform.
-// Also includes simple helpers for working with stencil.
+// Wraps calls to glDrawElementsInstanced*(), as appropriate for the current
+// platform. Also includes simple helpers for working with stencil.
 class DrawIndexedInstancedHelper
 {
 public:
@@ -856,19 +943,22 @@ public:
                                GLenum primitiveTopology,
                                uint32_t instanceCount,
                                uint32_t baseInstance) :
-        m_hasBaseInstanceInShader(capabilities.ANGLE_base_vertex_base_instance_shader_builtin),
+        m_hasBaseInstanceInShader(
+            capabilities.ANGLE_base_vertex_base_instance_shader_builtin),
         m_spirvCrossBaseInstanceLocation(spirvCrossBaseInstanceLocation),
         m_primitiveTopology(primitiveTopology),
         m_instanceCount(instanceCount),
         m_baseInstance(baseInstance)
     {
-        assert(m_hasBaseInstanceInShader == (m_spirvCrossBaseInstanceLocation < 0));
+        assert(m_hasBaseInstanceInShader ==
+               (m_spirvCrossBaseInstanceLocation < 0));
     }
 
     void setIndexRange(uint32_t indexCount, uint32_t baseIndex)
     {
         m_indexCount = indexCount;
-        m_indexOffset = reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
+        m_indexOffset =
+            reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
     }
 
     void draw() const
@@ -903,7 +993,9 @@ public:
                                  GLenum depthPassStencilPassOp) const
     {
         glStencilFunc(comparator, ref, mask);
-        glStencilOp(stencilFailOp, depthPassStencilFailOp, depthPassStencilPassOp);
+        glStencilOp(stencilFailOp,
+                    depthPassStencilFailOp,
+                    depthPassStencilPassOp);
         draw();
     }
 
@@ -965,7 +1057,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     // Render the complex color ramps into the gradient texture.
     if (desc.complexGradSpanCount > 0)
     {
-        m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(gradSpanBufferRing()));
+        m_state->bindBuffer(GL_ARRAY_BUFFER,
+                            gl_buffer_id(gradSpanBufferRing()));
         m_state->bindVAO(m_colorRampVAO);
         m_state->setCullFace(GL_BACK);
         glVertexAttribIPointer(
@@ -973,23 +1066,31 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             4,
             GL_UNSIGNED_INT,
             0,
-            reinterpret_cast<const void*>(desc.firstComplexGradSpan * sizeof(gpu::GradientSpan)));
-        glViewport(0, desc.complexGradRowsTop, kGradTextureWidth, desc.complexGradRowsHeight);
+            reinterpret_cast<const void*>(desc.firstComplexGradSpan *
+                                          sizeof(gpu::GradientSpan)));
+        glViewport(0,
+                   desc.complexGradRowsTop,
+                   kGradTextureWidth,
+                   desc.complexGradRowsHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
         m_state->bindProgram(m_colorRampProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.complexGradSpanCount);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP,
+                              0,
+                              4,
+                              desc.complexGradSpanCount);
     }
 
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
-        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, gl_buffer_id(simpleColorRampsBufferRing()));
+        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER,
+                            gl_buffer_id(simpleColorRampsBufferRing()));
         glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
 #ifdef RIVE_WEBGL
-        // Emscripten has a bug with glTexSubImage2D when a PIXEL_UNPACK_BUFFER is bound. Make the
-        // call ourselves directly.
+        // Emscripten has a bug with glTexSubImage2D when a PIXEL_UNPACK_BUFFER
+        // is bound. Make the call ourselves directly.
         webgl_texSubImage2DWithOffset(emscripten_webgl_get_current_context(),
                                       GL_TEXTURE_2D,
                                       0,
@@ -1001,25 +1102,28 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                       GL_UNSIGNED_BYTE,
                                       desc.simpleGradDataOffsetInBytes);
 #else
-        glTexSubImage2D(GL_TEXTURE_2D,
-                        0,
-                        0,
-                        0,
-                        desc.simpleGradTexelsWidth,
-                        desc.simpleGradTexelsHeight,
-                        GL_RGBA,
-                        GL_UNSIGNED_BYTE,
-                        reinterpret_cast<const void*>(desc.simpleGradDataOffsetInBytes));
+        glTexSubImage2D(
+            GL_TEXTURE_2D,
+            0,
+            0,
+            0,
+            desc.simpleGradTexelsWidth,
+            desc.simpleGradTexelsHeight,
+            GL_RGBA,
+            GL_UNSIGNED_BYTE,
+            reinterpret_cast<const void*>(desc.simpleGradDataOffsetInBytes));
 #endif
     }
 
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
-        m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(tessSpanBufferRing()));
+        m_state->bindBuffer(GL_ARRAY_BUFFER,
+                            gl_buffer_id(tessSpanBufferRing()));
         m_state->bindVAO(m_tessellateVAO);
         m_state->setCullFace(GL_BACK);
-        size_t tessSpanOffsetInBytes = desc.firstTessVertexSpan * sizeof(gpu::TessVertexSpan);
+        size_t tessSpanOffsetInBytes =
+            desc.firstTessVertexSpan * sizeof(gpu::TessVertexSpan);
         for (GLuint i = 0; i < 3; ++i)
         {
             glVertexAttribPointer(i,
@@ -1027,14 +1131,16 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   GL_FLOAT,
                                   GL_FALSE,
                                   sizeof(TessVertexSpan),
-                                  reinterpret_cast<const void*>(tessSpanOffsetInBytes + i * 4 * 4));
+                                  reinterpret_cast<const void*>(
+                                      tessSpanOffsetInBytes + i * 4 * 4));
         }
         glVertexAttribIPointer(
             3,
             4,
             GL_UNSIGNED_INT,
             sizeof(TessVertexSpan),
-            reinterpret_cast<const void*>(tessSpanOffsetInBytes + offsetof(TessVertexSpan, x0x1)));
+            reinterpret_cast<const void*>(tessSpanOffsetInBytes +
+                                          offsetof(TessVertexSpan, x0x1)));
         glViewport(0, 0, gpu::kTessTextureWidth, desc.tessDataHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
         m_state->bindProgram(m_tessellateProgram);
@@ -1049,19 +1155,22 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 
     // Compile the draw programs before activating pixel local storage.
     // Cache specific compilations by DrawType and ShaderFeatures.
-    // (ANGLE_shader_pixel_local_storage doesn't allow shader compilation while active.)
+    // (ANGLE_shader_pixel_local_storage doesn't allow shader compilation while
+    // active.)
     for (const DrawBatch& batch : *desc.drawList)
     {
         auto shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        auto fragmentShaderMiscFlags = m_plsImpl != nullptr
-                                           ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
-                                           : gpu::ShaderMiscFlags::none;
-        uint32_t fragmentShaderKey = gpu::ShaderUniqueKey(batch.drawType,
-                                                          shaderFeatures,
-                                                          desc.interlockMode,
-                                                          fragmentShaderMiscFlags);
+        auto fragmentShaderMiscFlags =
+            m_plsImpl != nullptr
+                ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
+                : gpu::ShaderMiscFlags::none;
+        uint32_t fragmentShaderKey =
+            gpu::ShaderUniqueKey(batch.drawType,
+                                 shaderFeatures,
+                                 desc.interlockMode,
+                                 fragmentShaderMiscFlags);
         m_drawPrograms.try_emplace(fragmentShaderKey,
                                    this,
                                    batch.drawType,
@@ -1070,11 +1179,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                    fragmentShaderMiscFlags);
     }
 
-    // Bind the currently-submitted buffer in the triangleBufferRing to its vertex array.
+    // Bind the currently-submitted buffer in the triangleBufferRing to its
+    // vertex array.
     if (desc.hasTriangleVertices)
     {
         m_state->bindVAO(m_trianglesVAO);
-        m_state->bindBuffer(GL_ARRAY_BUFFER, gl_buffer_id(triangleBufferRing()));
+        m_state->bindBuffer(GL_ARRAY_BUFFER,
+                            gl_buffer_id(triangleBufferRing()));
         glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 0, nullptr);
     }
 
@@ -1098,7 +1209,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     else
     {
         assert(desc.msaaSampleCount > 0);
-        bool preserveRenderTarget = desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget;
+        bool preserveRenderTarget =
+            desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget;
         bool isFBO0;
         msaaResolveAction = renderTarget->bindMSAAFramebuffer(
             this,
@@ -1134,7 +1246,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         glEnable(GL_STENCIL_TEST);
         glEnable(GL_DEPTH_TEST);
 
-        if (desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND)
+        if (desc.combinedShaderFeatures &
+            gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND)
         {
             if (m_capabilities.KHR_blend_equation_advanced_coherent)
             {
@@ -1142,9 +1255,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             else
             {
-                // Set up an internal texture to copy the framebuffer into, for in-shader blending.
-                renderTarget->bindInternalDstTexture(GL_TEXTURE0 + kPLSTexIdxOffset +
-                                                     DST_COLOR_TEXTURE_IDX);
+                // Set up an internal texture to copy the framebuffer into, for
+                // in-shader blending.
+                renderTarget->bindInternalDstTexture(
+                    GL_TEXTURE0 + kPLSTexIdxOffset + DST_COLOR_TEXTURE_IDX);
             }
         }
     }
@@ -1162,22 +1276,27 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         auto shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        auto fragmentShaderMiscFlags = m_plsImpl != nullptr
-                                           ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
-                                           : gpu::ShaderMiscFlags::none;
-        uint32_t fragmentShaderKey = gpu::ShaderUniqueKey(batch.drawType,
-                                                          shaderFeatures,
-                                                          desc.interlockMode,
-                                                          fragmentShaderMiscFlags);
-        const DrawProgram& drawProgram = m_drawPrograms.find(fragmentShaderKey)->second;
+        auto fragmentShaderMiscFlags =
+            m_plsImpl != nullptr
+                ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
+                : gpu::ShaderMiscFlags::none;
+        uint32_t fragmentShaderKey =
+            gpu::ShaderUniqueKey(batch.drawType,
+                                 shaderFeatures,
+                                 desc.interlockMode,
+                                 fragmentShaderMiscFlags);
+        const DrawProgram& drawProgram =
+            m_drawPrograms.find(fragmentShaderKey)->second;
         if (drawProgram.id() == 0)
         {
-            fprintf(stderr, "WARNING: skipping draw due to missing GL program.\n");
+            fprintf(stderr,
+                    "WARNING: skipping draw due to missing GL program.\n");
             continue;
         }
         m_state->bindProgram(drawProgram.id());
 
-        if (auto imageTextureGL = static_cast<const TextureGLImpl*>(batch.imageTexture))
+        if (auto imageTextureGL =
+                static_cast<const TextureGLImpl*>(batch.imageTexture))
         {
             glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
             glBindTexture(GL_TEXTURE_2D, imageTextureGL->textureID());
@@ -1192,35 +1311,42 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             else if (!(batch.drawContents & gpu::DrawContents::advancedBlend))
             {
-                assert(batch.internalDrawList->blendMode() == BlendMode::srcOver);
+                assert(batch.internalDrawList->blendMode() ==
+                       BlendMode::srcOver);
                 m_state->setBlendEquation(BlendMode::srcOver);
             }
             else if (m_capabilities.KHR_blend_equation_advanced_coherent)
             {
-                // When m_platformFeatures.supportsKHRBlendEquations is true in msaa mode, the
-                // renderContext does not combine draws when they have different blend modes.
+                // When m_platformFeatures.supportsKHRBlendEquations is true in
+                // msaa mode, the renderContext does not combine draws when they
+                // have different blend modes.
                 m_state->setBlendEquation(batch.internalDrawList->blendMode());
             }
             else
             {
-                // Read back the framebuffer where we need a dstColor for blending.
-                renderTarget->bindInternalFramebuffer(GL_DRAW_FRAMEBUFFER,
-                                                      RenderTargetGL::DrawBufferMask::color);
+                // Read back the framebuffer where we need a dstColor for
+                // blending.
+                renderTarget->bindInternalFramebuffer(
+                    GL_DRAW_FRAMEBUFFER,
+                    RenderTargetGL::DrawBufferMask::color);
                 for (const Draw* draw = batch.internalDrawList; draw != nullptr;
                      draw = draw->batchInternalNeighbor())
                 {
                     assert(draw->blendMode() != BlendMode::srcOver);
-                    glutils::BlitFramebuffer(draw->pixelBounds(), renderTarget->height());
+                    glutils::BlitFramebuffer(draw->pixelBounds(),
+                                             renderTarget->height());
                 }
                 renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
                 m_state->disableBlending(); // Blend in the shader instead.
             }
 
             // Set up the next clipRect.
-            bool needsClipPlanes = (shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT);
+            bool needsClipPlanes =
+                (shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT);
             if (needsClipPlanes != clipPlanesEnabled)
             {
-                auto toggleEnableOrDisable = needsClipPlanes ? glEnable : glDisable;
+                auto toggleEnableOrDisable =
+                    needsClipPlanes ? glEnable : glDisable;
                 toggleEnableOrDisable(GL_CLIP_DISTANCE0_EXT);
                 toggleEnableOrDisable(GL_CLIP_DISTANCE1_EXT);
                 toggleEnableOrDisable(GL_CLIP_DISTANCE2_EXT);
@@ -1236,18 +1362,20 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             {
                 // Draw PLS patches that connect the tessellation vertices.
                 m_state->bindVAO(m_drawVAO);
-                DrawIndexedInstancedHelper drawHelper(m_capabilities,
-                                                      drawProgram.spirvCrossBaseInstanceLocation(),
-                                                      GL_TRIANGLES,
-                                                      batch.elementCount,
-                                                      batch.baseElement);
+                DrawIndexedInstancedHelper drawHelper(
+                    m_capabilities,
+                    drawProgram.spirvCrossBaseInstanceLocation(),
+                    GL_TRIANGLES,
+                    batch.elementCount,
+                    batch.baseElement);
 
                 if (desc.interlockMode != gpu::InterlockMode::msaa)
                 {
-                    m_plsImpl->ensureRasterOrderingEnabled(this,
-                                                           desc,
-                                                           desc.interlockMode ==
-                                                               gpu::InterlockMode::rasterOrdering);
+                    m_plsImpl->ensureRasterOrderingEnabled(
+                        this,
+                        desc,
+                        desc.interlockMode ==
+                            gpu::InterlockMode::rasterOrdering);
                     drawHelper.setIndexRange(gpu::PatchIndexCount(drawType),
                                              gpu::PatchBaseIndex(drawType));
                     m_state->setCullFace(GL_BACK);
@@ -1255,59 +1383,78 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     break;
                 }
 
-                // MSAA path draws require different stencil settings, depending on their
-                // drawContents.
-                bool hasActiveClip = ((batch.drawContents & gpu::DrawContents::activeClip));
-                bool isClipUpdate = ((batch.drawContents & gpu::DrawContents::clipUpdate));
+                // MSAA path draws require different stencil settings, depending
+                // on their drawContents.
+                bool hasActiveClip =
+                    ((batch.drawContents & gpu::DrawContents::activeClip));
+                bool isClipUpdate =
+                    ((batch.drawContents & gpu::DrawContents::clipUpdate));
                 bool isNestedClipUpdate =
-                    (batch.drawContents & gpu::kNestedClipUpdateMask) == gpu::kNestedClipUpdateMask;
-                bool isEvenOddFill = (batch.drawContents & gpu::DrawContents::evenOddFill);
-                bool isStroke = (batch.drawContents & gpu::DrawContents::stroke);
+                    (batch.drawContents & gpu::kNestedClipUpdateMask) ==
+                    gpu::kNestedClipUpdateMask;
+                bool isEvenOddFill =
+                    (batch.drawContents & gpu::DrawContents::evenOddFill);
+                bool isStroke =
+                    (batch.drawContents & gpu::DrawContents::stroke);
                 if (isStroke)
                 {
                     // MSAA strokes only use the "border" section of the patch.
                     // (The depth test prevents double hits.)
                     assert(drawType == gpu::DrawType::midpointFanPatches);
-                    drawHelper.setIndexRange(gpu::kMidpointFanPatchBorderIndexCount,
-                                             gpu::kMidpointFanPatchBaseIndex);
+                    drawHelper.setIndexRange(
+                        gpu::kMidpointFanPatchBorderIndexCount,
+                        gpu::kMidpointFanPatchBaseIndex);
                     m_state->setWriteMasks(true, true, 0xff);
                     m_state->setCullFace(GL_BACK);
-                    drawHelper.drawWithStencilSettings(hasActiveClip ? GL_EQUAL : GL_ALWAYS,
-                                                       0x80,
-                                                       0xff,
-                                                       GL_KEEP,
-                                                       GL_KEEP,
-                                                       GL_KEEP);
+                    drawHelper.drawWithStencilSettings(
+                        hasActiveClip ? GL_EQUAL : GL_ALWAYS,
+                        0x80,
+                        0xff,
+                        GL_KEEP,
+                        GL_KEEP,
+                        GL_KEEP);
                     break;
                 }
 
-                // MSAA fills only use the "fan" section of the patch (the don't need AA borders).
+                // MSAA fills only use the "fan" section of the patch (the don't
+                // need AA borders).
                 drawHelper.setIndexRange(gpu::PatchFanIndexCount(drawType),
                                          gpu::PatchFanBaseIndex(drawType));
 
-                // "nonZero" fill rules (that aren't nested clip updates) can be optimized to render
-                // directly instead of using a "stencil then cover" approach.
+                // "nonZero" fill rules (that aren't nested clip updates) can be
+                // optimized to render directly instead of using a "stencil then
+                // cover" approach.
                 if (!isEvenOddFill && !isNestedClipUpdate)
                 {
-                    // Count backward triangle hits (negative coverage) in the stencil buffer.
+                    // Count backward triangle hits (negative coverage) in the
+                    // stencil buffer.
                     m_state->setWriteMasks(false, false, 0x7f);
                     m_state->setCullFace(GL_FRONT);
-                    drawHelper.drawWithStencilSettings(hasActiveClip ? GL_LEQUAL : GL_ALWAYS,
-                                                       0x80,
-                                                       0xff,
-                                                       GL_KEEP,
-                                                       GL_KEEP,
-                                                       GL_INCR_WRAP);
+                    drawHelper.drawWithStencilSettings(
+                        hasActiveClip ? GL_LEQUAL : GL_ALWAYS,
+                        0x80,
+                        0xff,
+                        GL_KEEP,
+                        GL_KEEP,
+                        GL_INCR_WRAP);
 
-                    // (Configure both stencil faces before issuing the next draws, so GL can give
-                    // them the same internal pipeline under the hood.)
+                    // (Configure both stencil faces before issuing the next
+                    // draws, so GL can give them the same internal pipeline
+                    // under the hood.)
                     GLuint stencilReadMask = hasActiveClip ? 0xff : 0x7f;
-                    glStencilFuncSeparate(GL_FRONT, GL_EQUAL, 0x80, stencilReadMask);
-                    glStencilOpSeparate(GL_FRONT,
-                                        GL_DECR, // Don't wrap; 0 must stay 0 outside the clip.
-                                        GL_KEEP,
-                                        isClipUpdate ? GL_REPLACE : GL_KEEP);
-                    glStencilFuncSeparate(GL_BACK, GL_LESS, 0x80, stencilReadMask);
+                    glStencilFuncSeparate(GL_FRONT,
+                                          GL_EQUAL,
+                                          0x80,
+                                          stencilReadMask);
+                    glStencilOpSeparate(
+                        GL_FRONT,
+                        GL_DECR, // Don't wrap; 0 must stay 0 outside the clip.
+                        GL_KEEP,
+                        isClipUpdate ? GL_REPLACE : GL_KEEP);
+                    glStencilFuncSeparate(GL_BACK,
+                                          GL_LESS,
+                                          0x80,
+                                          stencilReadMask);
                     glStencilOpSeparate(GL_BACK,
                                         GL_KEEP,
                                         GL_KEEP,
@@ -1316,37 +1463,45 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                            !isClipUpdate,
                                            isClipUpdate ? 0xff : 0x7f);
 
-                    // Draw forward triangles, clipped by the backward triangle counts.
-                    // (The depth test prevents double hits.)
+                    // Draw forward triangles, clipped by the backward triangle
+                    // counts. (The depth test prevents double hits.)
                     m_state->setCullFace(GL_BACK);
                     drawHelper.draw();
 
-                    // Clean up backward triangles in the stencil buffer, (also filling
-                    // negative winding numbers).
+                    // Clean up backward triangles in the stencil buffer, (also
+                    // filling negative winding numbers).
                     m_state->setCullFace(GL_FRONT);
                     drawHelper.draw();
                     break;
                 }
 
                 // Fall back on stencil-then-cover.
-                glStencilFunc(hasActiveClip ? GL_LEQUAL : GL_ALWAYS, 0x80, 0xff);
+                glStencilFunc(hasActiveClip ? GL_LEQUAL : GL_ALWAYS,
+                              0x80,
+                              0xff);
                 glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
                 glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
-                m_state->setWriteMasks(false, false, isEvenOddFill ? 0x1 : 0x7f);
+                m_state->setWriteMasks(false,
+                                       false,
+                                       isEvenOddFill ? 0x1 : 0x7f);
                 m_state->setCullFace(GL_NONE);
                 drawHelper.draw(); // Stencil the path!
 
-                // Nested clip updates do the "cover" operation during DrawType::stencilClipReset.
+                // Nested clip updates do the "cover" operation during
+                // DrawType::stencilClipReset.
                 if (!isNestedClipUpdate)
                 {
                     assert(isEvenOddFill);
-                    m_state->setWriteMasks(!isClipUpdate, !isClipUpdate, isClipUpdate ? 0xff : 0x1);
-                    drawHelper.drawWithStencilSettings(GL_NOTEQUAL, // Cover the path!
-                                                       0x80,
-                                                       0x7f,
-                                                       GL_KEEP,
-                                                       GL_KEEP,
-                                                       isClipUpdate ? GL_REPLACE : GL_ZERO);
+                    m_state->setWriteMasks(!isClipUpdate,
+                                           !isClipUpdate,
+                                           isClipUpdate ? 0xff : 0x1);
+                    drawHelper.drawWithStencilSettings(
+                        GL_NOTEQUAL, // Cover the path!
+                        0x80,
+                        0x7f,
+                        GL_KEEP,
+                        GL_KEEP,
+                        isClipUpdate ? GL_REPLACE : GL_ZERO);
                 }
                 break;
             }
@@ -1355,12 +1510,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 assert(desc.interlockMode == gpu::InterlockMode::msaa);
                 m_state->bindVAO(m_trianglesVAO);
                 bool isNestedClipUpdate =
-                    (batch.drawContents & gpu::kNestedClipUpdateMask) == gpu::kNestedClipUpdateMask;
+                    (batch.drawContents & gpu::kNestedClipUpdateMask) ==
+                    gpu::kNestedClipUpdateMask;
                 if (isNestedClipUpdate)
                 {
-                    // The nested clip just got stencilled and left in the stencil buffer. Intersect
-                    // it with the existing clip. (Erasing regions of the existing clip that are
-                    // outside the nested clip.)
+                    // The nested clip just got stencilled and left in the
+                    // stencil buffer. Intersect it with the existing clip.
+                    // (Erasing regions of the existing clip that are outside
+                    // the nested clip.)
                     glStencilFunc(GL_LESS, 0x80, 0xff);
                     glStencilOp(GL_ZERO, GL_KEEP, GL_REPLACE);
                 }
@@ -1372,7 +1529,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 }
                 m_state->setWriteMasks(false, false, 0xff);
                 m_state->setCullFace(GL_BACK);
-                glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
+                glDrawArrays(GL_TRIANGLES,
+                             batch.baseElement,
+                             batch.elementCount);
                 break;
             }
             case gpu::DrawType::interiorTriangulation:
@@ -1381,13 +1540,16 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_trianglesVAO);
                 m_state->setCullFace(GL_BACK);
-                glDrawArrays(GL_TRIANGLES, batch.baseElement, batch.elementCount);
+                glDrawArrays(GL_TRIANGLES,
+                             batch.baseElement,
+                             batch.elementCount);
                 break;
             }
             case gpu::DrawType::imageRect:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
-                assert(m_imageRectVAO != 0); // Should have gotten lazily allocated by now.
+                assert(m_imageRectVAO !=
+                       0); // Should have gotten lazily allocated by now.
                 m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_imageRectVAO);
                 glBindBufferRange(GL_UNIFORM_BUFFER,
@@ -1404,15 +1566,23 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             case gpu::DrawType::imageMesh:
             {
-                LITE_RTTI_CAST_OR_BREAK(vertexBuffer, RenderBufferGLImpl*, batch.vertexBuffer);
-                LITE_RTTI_CAST_OR_BREAK(uvBuffer, RenderBufferGLImpl*, batch.uvBuffer);
-                LITE_RTTI_CAST_OR_BREAK(indexBuffer, RenderBufferGLImpl*, batch.indexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
+                                        RenderBufferGLImpl*,
+                                        batch.vertexBuffer);
+                LITE_RTTI_CAST_OR_BREAK(uvBuffer,
+                                        RenderBufferGLImpl*,
+                                        batch.uvBuffer);
+                LITE_RTTI_CAST_OR_BREAK(indexBuffer,
+                                        RenderBufferGLImpl*,
+                                        batch.indexBuffer);
                 m_state->bindVAO(m_imageMeshVAO);
-                m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->frontBufferID());
+                m_state->bindBuffer(GL_ARRAY_BUFFER,
+                                    vertexBuffer->frontBufferID());
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
                 m_state->bindBuffer(GL_ARRAY_BUFFER, uvBuffer->frontBufferID());
                 glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-                m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, indexBuffer->frontBufferID());
+                m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER,
+                                    indexBuffer->frontBufferID());
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                                   gl_buffer_id(imageDrawUniformBufferRing()),
@@ -1420,9 +1590,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   sizeof(gpu::ImageDrawUniforms));
                 if (desc.interlockMode != gpu::InterlockMode::msaa)
                 {
-                    // Try to enable raster ordering for image meshes in rasterOrdering and atomic
-                    // mode both; we have no control over whether the internal geometry has self
-                    // overlaps.
+                    // Try to enable raster ordering for image meshes in
+                    // rasterOrdering and atomic mode both; we have no control
+                    // over whether the internal geometry has self overlaps.
                     m_plsImpl->ensureRasterOrderingEnabled(
                         this,
                         desc,
@@ -1430,8 +1600,11 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 }
                 else
                 {
-                    bool hasActiveClip = ((batch.drawContents & gpu::DrawContents::activeClip));
-                    glStencilFunc(hasActiveClip ? GL_EQUAL : GL_ALWAYS, 0x80, 0xff);
+                    bool hasActiveClip =
+                        ((batch.drawContents & gpu::DrawContents::activeClip));
+                    glStencilFunc(hasActiveClip ? GL_EQUAL : GL_ALWAYS,
+                                  0x80,
+                                  0xff);
                     glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
                     m_state->setWriteMasks(true, true, 0xff);
                 }
@@ -1439,7 +1612,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glDrawElements(GL_TRIANGLES,
                                batch.elementCount,
                                GL_UNSIGNED_SHORT,
-                               reinterpret_cast<const void*>(batch.baseElement * sizeof(uint16_t)));
+                               reinterpret_cast<const void*>(batch.baseElement *
+                                                             sizeof(uint16_t)));
                 break;
             }
             case gpu::DrawType::atomicResolve:
@@ -1457,7 +1631,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 RIVE_UNREACHABLE();
             }
         }
-        if (desc.interlockMode != gpu::InterlockMode::msaa && batch.needsBarrier &&
+        if (desc.interlockMode != gpu::InterlockMode::msaa &&
+            batch.needsBarrier &&
             batch.drawType != gpu::DrawType::imageMesh /*EW!*/)
         {
             m_plsImpl->barrier(desc);
@@ -1471,15 +1646,19 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     else
     {
         // Depth/stencil don't need to be written out.
-        glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER, 2, msaaDepthStencilColor.data());
-        if ((desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
+        glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER,
+                                2,
+                                msaaDepthStencilColor.data());
+        if ((desc.combinedShaderFeatures &
+             gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
             m_capabilities.KHR_blend_equation_advanced_coherent)
         {
             glDisable(GL_BLEND_ADVANCED_COHERENT_KHR);
         }
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_STENCIL_TEST);
-        if (msaaResolveAction == RenderTargetGL::MSAAResolveAction::framebufferBlit)
+        if (msaaResolveAction ==
+            RenderTargetGL::MSAAResolveAction::framebufferBlit)
         {
             renderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
             glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
@@ -1503,13 +1682,16 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 #endif
 }
 
-void RenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
-                                                         const IAABB& bounds,
-                                                         uint32_t renderTargetHeight)
+void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
+    GLuint textureID,
+    const IAABB& bounds,
+    uint32_t renderTargetHeight)
 {
     if (m_blitAsDrawProgram == 0)
     {
-        const char* blitSources[] = {glsl::constants, glsl::common, glsl::blit_texture_as_draw};
+        const char* blitSources[] = {glsl::constants,
+                                     glsl::common,
+                                     glsl::blit_texture_as_draw};
         m_blitAsDrawProgram = glutils::Program();
         m_blitAsDrawProgram.compileAndAttachShader(GL_VERTEX_SHADER,
                                                    nullptr,
@@ -1525,7 +1707,9 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
                                                    m_capabilities);
         m_blitAsDrawProgram.link();
         m_state->bindProgram(m_blitAsDrawProgram);
-        glUniform1i(glGetUniformLocation(m_blitAsDrawProgram, GLSL_blitTextureSource), 0);
+        glUniform1i(
+            glGetUniformLocation(m_blitAsDrawProgram, GLSL_blitTextureSource),
+            0);
     }
 
     m_state->bindProgram(m_blitAsDrawProgram);
@@ -1536,7 +1720,10 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(GLuint textureID,
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, textureID);
     glEnable(GL_SCISSOR_TEST);
-    glScissor(bounds.left, renderTargetHeight - bounds.bottom, bounds.width(), bounds.height());
+    glScissor(bounds.left,
+              renderTargetHeight - bounds.bottom,
+              bounds.width(),
+              bounds.height());
     glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     glDisable(GL_SCISSOR_TEST);
 }
@@ -1593,7 +1780,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         if (!capabilities.isContextVersionAtLeast(3, 0))
         {
             fprintf(stderr,
-                    "OpenGL ES %i.%i not supported. Minimum supported version is 3.0.\n",
+                    "OpenGL ES %i.%i not supported. Minimum supported version "
+                    "is 3.0.\n",
                     capabilities.contextVersionMajor,
                     capabilities.contextVersionMinor);
             return nullptr;
@@ -1604,15 +1792,16 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         if (!capabilities.isContextVersionAtLeast(4, 2))
         {
             fprintf(stderr,
-                    "OpenGL %i.%i not supported. Minimum supported version is 4.2.\n",
+                    "OpenGL %i.%i not supported. Minimum supported version is "
+                    "4.2.\n",
                     capabilities.contextVersionMajor,
                     capabilities.contextVersionMinor);
             return nullptr;
         }
     }
 
-    // Our baseline feature set is GLES 3.0. Capabilities from newer context versions are reported
-    // as extensions.
+    // Our baseline feature set is GLES 3.0. Capabilities from newer context
+    // versions are reported as extensions.
     if (capabilities.isGLES)
     {
         if (capabilities.isContextVersionAtLeast(3, 1))
@@ -1638,8 +1827,10 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
     for (int i = 0; i < extensionCount; ++i)
     {
-        auto* ext = reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
-        if (strcmp(ext, "GL_ANGLE_base_vertex_base_instance_shader_builtin") == 0)
+        auto* ext =
+            reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
+        if (strcmp(ext, "GL_ANGLE_base_vertex_base_instance_shader_builtin") ==
+            0)
         {
             capabilities.ANGLE_base_vertex_base_instance_shader_builtin = true;
         }
@@ -1647,7 +1838,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.ANGLE_shader_pixel_local_storage = true;
         }
-        else if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage_coherent") == 0)
+        else if (strcmp(ext, "GL_ANGLE_shader_pixel_local_storage_coherent") ==
+                 0)
         {
             capabilities.ANGLE_shader_pixel_local_storage_coherent = true;
         }
@@ -1711,7 +1903,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.EXT_shader_pixel_local_storage = true;
         }
-        else if (strcmp(ext, "GL_QCOM_shader_framebuffer_fetch_noncoherent") == 0)
+        else if (strcmp(ext, "GL_QCOM_shader_framebuffer_fetch_noncoherent") ==
+                 0)
         {
             capabilities.QCOM_shader_framebuffer_fetch_noncoherent = true;
         }
@@ -1726,8 +1919,9 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     {
         capabilities.ANGLE_provoking_vertex = true;
     }
-    if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
-                                          "WEBGL_clip_cull_distance"))
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "WEBGL_clip_cull_distance"))
     {
         capabilities.EXT_clip_cull_distance = true;
     }
@@ -1748,12 +1942,13 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     }
 #endif
 
-    // We need four storage buffers in the vertex shader. Disable the extension if this isn't
-    // supported.
+    // We need four storage buffers in the vertex shader. Disable the extension
+    // if this isn't supported.
     if (capabilities.ARB_shader_storage_buffer_object)
     {
         int maxVertexShaderStorageBlocks;
-        glGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS, &maxVertexShaderStorageBlocks);
+        glGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS,
+                      &maxVertexShaderStorageBlocks);
         if (maxVertexShaderStorageBlocks < gpu::kMaxStorageBuffers)
         {
             capabilities.ARB_shader_storage_buffer_object = false;
@@ -1769,24 +1964,29 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 
     GLenum rendererToken = GL_RENDERER;
 #ifdef RIVE_WEBGL
-    if (emscripten_webgl_enable_extension(emscripten_webgl_get_current_context(),
-                                          "WEBGL_debug_renderer_info"))
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "WEBGL_debug_renderer_info"))
     {
         rendererToken = GL_UNMASKED_RENDERER_WEBGL;
     }
 #endif
-    const char* rendererString = reinterpret_cast<const char*>(glGetString(rendererToken));
+    const char* rendererString =
+        reinterpret_cast<const char*>(glGetString(rendererToken));
     if (strstr(rendererString, "Direct3D") != nullptr)
     {
-        // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D. This extension is
-        // polyfilled on D3D anyway, and we need to test our fallback.
+        // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D.
+        // This extension is polyfilled on D3D anyway, and we need to test our
+        // fallback.
         capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
-        // Our use of EXT_multisampled_render_to_texture causes a segfault in the Microsoft WARP
-        // (software) renderer. Just don't use this extension on D3D since it's polyfilled anyway.
+        // Our use of EXT_multisampled_render_to_texture causes a segfault in
+        // the Microsoft WARP (software) renderer. Just don't use this extension
+        // on D3D since it's polyfilled anyway.
         capabilities.EXT_multisampled_render_to_texture = false;
     }
 #ifdef RIVE_ANDROID
-    LoadGLESExtensions(capabilities); // Android doesn't load extension functions for us.
+    LoadGLESExtensions(
+        capabilities); // Android doesn't load extension functions for us.
 #endif
 
     if (!contextOptions.disablePixelLocalStorage)
@@ -1796,13 +1996,15 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             (capabilities.ARM_shader_framebuffer_fetch ||
              capabilities.EXT_shader_framebuffer_fetch))
         {
-            return MakeContext(rendererString, capabilities, MakePLSImplEXTNative(capabilities));
+            return MakeContext(rendererString,
+                               capabilities,
+                               MakePLSImplEXTNative(capabilities));
         }
 
         if (capabilities.EXT_shader_framebuffer_fetch)
         {
-            // EXT_shader_framebuffer_fetch is costly on Qualcomm, with or without the "noncoherent"
-            // extension. Use MSAA on Adreno.
+            // EXT_shader_framebuffer_fetch is costly on Qualcomm, with or
+            // without the "noncoherent" extension. Use MSAA on Adreno.
             if (strstr(rendererString, "Adreno") == nullptr)
             {
                 return MakeContext(rendererString,
@@ -1813,11 +2015,13 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 #else
         if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
         {
-            // EXT_shader_framebuffer_fetch is costly on Qualcomm, with or without the "noncoherent"
-            // extension. Use MSAA on Adreno.
+            // EXT_shader_framebuffer_fetch is costly on Qualcomm, with or
+            // without the "noncoherent" extension. Use MSAA on Adreno.
             if (strstr(rendererString, "Adreno") == nullptr)
             {
-                return MakeContext(rendererString, capabilities, MakePLSImplWebGL());
+                return MakeContext(rendererString,
+                                   capabilities,
+                                   MakePLSImplWebGL());
             }
         }
 #endif
@@ -1825,7 +2029,9 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 #ifdef RIVE_DESKTOP_GL
         if (capabilities.ARB_shader_image_load_store)
         {
-            return MakeContext(rendererString, capabilities, MakePLSImplRWTexture());
+            return MakeContext(rendererString,
+                               capabilities,
+                               MakePLSImplRWTexture());
         }
 #endif
     }
@@ -1839,7 +2045,9 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     std::unique_ptr<PixelLocalStorageImpl> plsImpl)
 {
     auto renderContextImpl = std::unique_ptr<RenderContextGLImpl>(
-        new RenderContextGLImpl(rendererString, capabilities, std::move(plsImpl)));
+        new RenderContextGLImpl(rendererString,
+                                capabilities,
+                                std::move(plsImpl)));
     return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 } // namespace rive::gpu

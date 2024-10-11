@@ -44,27 +44,35 @@ public:
                        BlendMode,
                        float opacity) override;
 
-    // Determines if a path is an axis-aligned rectangle that can be represented by rive::AABB.
+    // Determines if a path is an axis-aligned rectangle that can be represented
+    // by rive::AABB.
     static bool IsAABB(const RawPath&, AABB* result);
 
 #ifdef TESTING
-    bool hasClipRect() const { return m_stack.back().clipRectInverseMatrix != nullptr; }
+    bool hasClipRect() const
+    {
+        return m_stack.back().clipRectInverseMatrix != nullptr;
+    }
     const AABB& getClipRect() const { return m_stack.back().clipRect; }
-    const Mat2D& getClipRectMatrix() const { return m_stack.back().clipRectMatrix; }
+    const Mat2D& getClipRectMatrix() const
+    {
+        return m_stack.back().clipRectMatrix;
+    }
 #endif
 
 private:
     void clipRectImpl(AABB, const RiveRenderPath* originalPath);
     void clipPathImpl(const RiveRenderPath*);
 
-    // Clips and pushes the given draw to m_context. If the clipped draw is too complex to be
-    // supported by the GPU buffers, even after a logical flush, then nothing is drawn.
+    // Clips and pushes the given draw to m_context. If the clipped draw is too
+    // complex to be supported by the GPU buffers, even after a logical flush,
+    // then nothing is drawn.
     void clipAndPushDraw(gpu::DrawUniquePtr);
 
-    // Pushes any necessary clip updates to m_internalDrawBatch and sets the Draw's clipID and
-    // clipRectInverseMatrix, if any.
-    // Returns failure if the operation failed, at which point the caller should issue a logical
-    // flush and try again.
+    // Pushes any necessary clip updates to m_internalDrawBatch and sets the
+    // Draw's clipID and clipRectInverseMatrix, if any. Returns failure if the
+    // operation failed, at which point the caller should issue a logical flush
+    // and try again.
     enum class ApplyClipResult
     {
         success,
@@ -97,8 +105,8 @@ private:
         uint64_t rawPathMutationID;
         AABB pathBounds;
         rcp<const RiveRenderPath> path;
-        FillRule
-            fillRule; // Bc RiveRenderPath fillRule can mutate during the artboard draw process.
+        FillRule fillRule; // Bc RiveRenderPath fillRule can mutate during the
+                           // artboard draw process.
         uint32_t clipID;
     };
     std::vector<ClipElement> m_clipStack;
@@ -110,7 +118,8 @@ private:
     // Path of the rectangle [0, 0, 1, 1]. Used to draw images.
     rcp<RiveRenderPath> m_unitRectPath;
 
-    // Used to build coarse path interiors for the "interior triangulation" algorithm.
+    // Used to build coarse path interiors for the "interior triangulation"
+    // algorithm.
     RawPath m_scratchPath;
 };
 } // namespace rive

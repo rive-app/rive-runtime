@@ -13,7 +13,8 @@ namespace rive
 
 template <typename T> bool fitsIn(intmax_t x)
 {
-    return x >= std::numeric_limits<T>::min() && x <= std::numeric_limits<T>::max();
+    return x >= std::numeric_limits<T>::min() &&
+           x <= std::numeric_limits<T>::max();
 }
 
 template <typename T> T castTo(intmax_t x)

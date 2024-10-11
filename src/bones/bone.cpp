@@ -29,11 +29,15 @@ float Bone::x() const { return parent()->as<Bone>()->length(); }
 
 float Bone::y() const { return 0.0f; }
 
-Vec2D Bone::tipWorldTranslation() const { return worldTransform() * Vec2D(length(), 0); }
+Vec2D Bone::tipWorldTranslation() const
+{
+    return worldTransform() * Vec2D(length(), 0);
+}
 
 void Bone::addPeerConstraint(Constraint* peer)
 {
-    assert(std::find(m_PeerConstraints.begin(), m_PeerConstraints.end(), peer) ==
-           m_PeerConstraints.end());
+    assert(std::find(m_PeerConstraints.begin(),
+                     m_PeerConstraints.end(),
+                     peer) == m_PeerConstraints.end());
     m_PeerConstraints.push_back(peer);
 }

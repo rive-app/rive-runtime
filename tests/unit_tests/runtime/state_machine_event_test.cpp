@@ -79,11 +79,13 @@ TEST_CASE("hit testing via a state machine works", "[file]")
 
     auto stateMachine = artboard->stateMachineAt(0);
     REQUIRE(stateMachine != nullptr);
-    // Advance artboard once so design time state is effectively in the transforms.
+    // Advance artboard once so design time state is effectively in the
+    // transforms.
     artboard->advance(0.0f);
     stateMachine->advance(0.0f);
-    // Don't advance artboard again after applying state machine or our pointerDown will be off. The
-    // coordinates used in this test were from the design-time state.
+    // Don't advance artboard again after applying state machine or our
+    // pointerDown will be off. The coordinates used in this test were from the
+    // design-time state.
 
     auto trigger = stateMachine->getTrigger("Light");
     REQUIRE(trigger != nullptr);
@@ -165,7 +167,8 @@ TEST_CASE("events load correctly on a listener", "[events]")
     REQUIRE(fireEvent1 != nullptr);
     REQUIRE(fireEvent1->is<rive::ListenerFireEvent>());
     REQUIRE(fireEvent1->as<rive::ListenerFireEvent>()->eventId() != 0);
-    auto event = artboard->resolve(fireEvent1->as<rive::ListenerFireEvent>()->eventId());
+    auto event =
+        artboard->resolve(fireEvent1->as<rive::ListenerFireEvent>()->eventId());
     REQUIRE(event->is<rive::Event>());
     REQUIRE(event->as<rive::Event>()->name() == "Footstep");
 
@@ -208,7 +211,8 @@ TEST_CASE("events load correctly on a state and transition", "[events]")
     // No events on transition from entry.
     REQUIRE(transition->events().size() == 0);
     REQUIRE(transition->stateTo()->is<rive::AnimationState>());
-    auto firstAnimationState = transition->stateTo()->as<rive::AnimationState>();
+    auto firstAnimationState =
+        transition->stateTo()->as<rive::AnimationState>();
     REQUIRE(firstAnimationState->events().size() == 2);
     REQUIRE(firstAnimationState->transitionCount() == 1);
     transition = firstAnimationState->transition(0);
@@ -217,22 +221,27 @@ TEST_CASE("events load correctly on a state and transition", "[events]")
 
     // First should've fired as we immediately went to Timeline 1.
     REQUIRE(stateMachineInstance->reportedEventCount() == 1);
-    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() == "First");
+    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() ==
+            "First");
 
     stateMachineInstance->advance(1.0f);
     // Exits after 2 seconds so 1 second in no events should've fired yet
     REQUIRE(stateMachineInstance->reportedEventCount() == 0);
 
     stateMachineInstance->advance(1.0f);
-    // At 2 seconds 2 events should fire, one for exiting the state and for taking the transition.
+    // At 2 seconds 2 events should fire, one for exiting the state and for
+    // taking the transition.
     REQUIRE(stateMachineInstance->reportedEventCount() == 2);
-    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() == "Second");
-    REQUIRE(stateMachineInstance->reportedEventAt(1).event()->name() == "Third");
+    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() ==
+            "Second");
+    REQUIRE(stateMachineInstance->reportedEventAt(1).event()->name() ==
+            "Third");
 
     stateMachineInstance->advance(1.0f);
     // Another second in the transition should complete
     REQUIRE(stateMachineInstance->reportedEventCount() == 1);
-    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() == "Fourth");
+    REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() ==
+            "Fourth");
 }
 
 TEST_CASE("timeline events load correctly and report", "[events]")
@@ -258,10 +267,12 @@ TEST_CASE("timeline events load correctly and report", "[events]")
     REQUIRE(stateMachineInstance->reportedEventAt(0).event()->name() == "Half");
 
     // Event should've occurred right at 0.5 seconds.
-    REQUIRE(stateMachineInstance->reportedEventAt(0).secondsDelay() == Approx(0.1f));
+    REQUIRE(stateMachineInstance->reportedEventAt(0).secondsDelay() ==
+            Approx(0.1f));
 }
 
-TEST_CASE("events from a nested artboard propagate to a listener on a parent", "[events]")
+TEST_CASE("events from a nested artboard propagate to a listener on a parent",
+          "[events]")
 {
     auto file = ReadRiveFile("assets/nested_event_test.riv");
 
@@ -283,8 +294,10 @@ TEST_CASE("events from a nested artboard propagate to a listener on a parent", "
     auto nested = artboard->find<rive::NestedArtboard>();
     REQUIRE(nested.size() == 1);
     auto nestedArtboard = nested[0]->artboardInstance();
-    auto nestedStateMachineInstance =
-        nested[0]->nestedAnimations()[0]->as<rive::NestedStateMachine>()->stateMachineInstance();
+    auto nestedStateMachineInstance = nested[0]
+                                          ->nestedAnimations()[0]
+                                          ->as<rive::NestedStateMachine>()
+                                          ->stateMachineInstance();
     REQUIRE(nestedStateMachineInstance != nullptr);
     auto events = nestedArtboard->find<rive::Event>();
     REQUIRE(events.size() == 1);
@@ -299,7 +312,8 @@ TEST_CASE("events from a nested artboard propagate to a listener on a parent", "
     REQUIRE(fireEvent1 != nullptr);
     REQUIRE(fireEvent1->is<rive::ListenerFireEvent>());
     REQUIRE(fireEvent1->as<rive::ListenerFireEvent>()->eventId() != 0);
-    auto event = nestedArtboard->resolve(fireEvent1->as<rive::ListenerFireEvent>()->eventId());
+    auto event = nestedArtboard->resolve(
+        fireEvent1->as<rive::ListenerFireEvent>()->eventId());
     REQUIRE(event->is<rive::Event>());
     REQUIRE(event->as<rive::Event>()->name() == "NestedEvent");
 

@@ -34,7 +34,9 @@ const Vec2D kLoop[4] = {{635.625f, 614.687f},
                         {1064.62f, 135.688f},
                         {516.625f, 570.187f}};
 
-const Vec2D kQuad[4] = {{460.625f, 557.187f}, {707.121f, 209.688f}, {779.628f, 577.687f}};
+const Vec2D kQuad[4] = {{460.625f, 557.187f},
+                        {707.121f, 209.688f},
+                        {779.628f, 577.687f}};
 
 static void map_pts(const Mat2D& m, Vec2D out[], const Vec2D in[], int n)
 {
@@ -44,17 +46,19 @@ static void map_pts(const Mat2D& m, Vec2D out[], const Vec2D in[], int n)
     }
 }
 
-static float wangs_formula_quadratic_reference_impl(float precision, const Vec2D p[3])
+static float wangs_formula_quadratic_reference_impl(float precision,
+                                                    const Vec2D p[3])
 {
     float k = (2 * 1) / 8.f * precision;
     return sqrtf(k * (p[0] - p[1] * 2 + p[2]).length());
 }
 
-static float wangs_formula_cubic_reference_impl(float precision, const Vec2D p[4])
+static float wangs_formula_cubic_reference_impl(float precision,
+                                                const Vec2D p[4])
 {
     float k = (3 * 2) / 8.f * precision;
-    return sqrtf(k *
-                 std::max((p[0] - p[1] * 2 + p[2]).length(), (p[1] - p[2] * 2 + p[3]).length()));
+    return sqrtf(k * std::max((p[0] - p[1] * 2 + p[2]).length(),
+                              (p[1] - p[2] * 2 + p[3]).length()));
 }
 
 static void chop_quad_at(const Vec2D src[3], Vec2D dst[5], float t)
@@ -94,15 +98,17 @@ static Vec2D eval_quad_at(const Vec2D src[3], float t)
     return vec;
 }
 
-// Returns number of segments for linearized quadratic rational. This is an analogue
-// to Wang's formula, taken from:
+// Returns number of segments for linearized quadratic rational. This is an
+// analogue to Wang's formula, taken from:
 //
 //   J. Zheng, T. Sederberg. "Estimating Tessellation Parameter Intervals for
 //   Rational Curves and Surfaces." ACM Transactions on Graphics 19(1). 2000.
 // See Thm 3, Corollary 1.
 //
 // Input points should be in projected space.
-static float wangs_formula_conic_reference_impl(float precision, const Vec2D P[3], const float w)
+static float wangs_formula_conic_reference_impl(float precision,
+                                                const Vec2D P[3],
+                                                const float w)
 {
     // Compute center of bounding box in projected space
     float min_x = P[0].x, max_x = min_x, min_y = P[0].y, max_y = min_y;
@@ -129,8 +135,8 @@ static float wangs_formula_conic_reference_impl(float precision, const Vec2D P[3
     const float r_minus_eps = std::max(0.f, max_len - eps);
     const float min_w = std::min(w, 1.f);
     const float numer = 4 * min_w * eps;
-    const float denom =
-        (tP[2] - tP[1] * 2 * w + tP[0]).length() + r_minus_eps * std::abs(1 - 2 * w + 1);
+    const float denom = (tP[2] - tP[1] * 2 * w + tP[0]).length() +
+                        r_minus_eps * std::abs(1 - 2 * w + 1);
     const float delta = sqrtf(numer / denom);
 
     // Return corresponding num segments in the interval [tmin,tmax]
@@ -141,7 +147,10 @@ static float wangs_formula_conic_reference_impl(float precision, const Vec2D P[3
 
 static float frand() { return rand() / static_cast<float>(RAND_MAX); }
 
-static float frand_range(float min, float max) { return min + frand() * (max - min); }
+static float frand_range(float min, float max)
+{
+    return min + frand() * (max - min);
+}
 
 static void for_random_matrices(std::function<void(const Mat2D&)> f)
 {
@@ -187,7 +196,8 @@ static void for_random_beziers(int numPoints,
     }
 }
 
-// Ensure the optimized "*_log2" versions return the same value as ceil(std::log2(f)).
+// Ensure the optimized "*_log2" versions return the same value as
+// ceil(std::log2(f)).
 TEST_CASE("wangs_formula_log2", "[wangs_formula]")
 {
     // Constructs a cubic such that the 'length' term in wang's formula == term.
@@ -197,7 +207,8 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
     auto setupCubicLengthTerm = [](int seed, Vec2D pts[], float term) {
         memset(pts, 0, sizeof(Vec2D) * 4);
 
-        Vec2D term2d = (seed & 1) ? Vec2D(term, 0) : Vec2D(.5f, std::sqrt(3) / 2) * term;
+        Vec2D term2d =
+            (seed & 1) ? Vec2D(term, 0) : Vec2D(.5f, std::sqrt(3) / 2) * term;
         seed >>= 1;
 
         if (seed & 1)
@@ -231,13 +242,15 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
         }
     };
 
-    // Constructs a quadratic such that the 'length' term in wang's formula == term.
+    // Constructs a quadratic such that the 'length' term in wang's formula ==
+    // term.
     //
     //     f = sqrt(k * length(p0 - p1*2 + p2));
     auto setupQuadraticLengthTerm = [](int seed, Vec2D pts[], float term) {
         memset(pts, 0, sizeof(Vec2D) * 3);
 
-        Vec2D term2d = (seed & 1) ? Vec2D(term, 0) : Vec2D(.5f, std::sqrt(3) / 2) * term;
+        Vec2D term2d =
+            (seed & 1) ? Vec2D(term, 0) : Vec2D(.5f, std::sqrt(3) / 2) * term;
         seed >>= 1;
 
         if (seed & 1)
@@ -266,9 +279,10 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
         }
     };
 
-    // wangs_formula_cubic and wangs_formula_quadratic both use rsqrt instead of sqrt for speed.
-    // Linearization is all approximate anyway, so as long as we are within ~1/2 tessellation
-    // segment of the reference value we are good enough.
+    // wangs_formula_cubic and wangs_formula_quadratic both use rsqrt instead of
+    // sqrt for speed. Linearization is all approximate anyway, so as long as we
+    // are within ~1/2 tessellation segment of the reference value we are good
+    // enough.
     constexpr static float kTessellationTolerance = 1 / 128.f;
 
     for (int level = 0; level < 30; ++level)
@@ -283,13 +297,15 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
             constexpr static float k = (3 * 2) / (8 * (1.f / kPrecision));
             float x = std::ldexp(1, level * 2) / k;
             setupCubicLengthTerm(level << 1, pts, x - epsilon);
-            float referenceValue = wangs_formula_cubic_reference_impl(kPrecision, pts);
+            float referenceValue =
+                wangs_formula_cubic_reference_impl(kPrecision, pts);
             REQUIRE(std::ceil(std::log2(referenceValue)) == level);
             float c = wangs_formula::cubic(pts, kPrecision);
             REQUIRE(fuzzy_equal(c / referenceValue, 1, kTessellationTolerance));
             REQUIRE(wangs_formula::cubic_log2(pts, kPrecision) == level);
             setupCubicLengthTerm(level << 1, pts, x + epsilon);
-            referenceValue = wangs_formula_cubic_reference_impl(kPrecision, pts);
+            referenceValue =
+                wangs_formula_cubic_reference_impl(kPrecision, pts);
             REQUIRE(std::ceil(std::log2(referenceValue)) == level + 1);
             c = wangs_formula::cubic(pts, kPrecision);
             REQUIRE(fuzzy_equal(c / referenceValue, 1, kTessellationTolerance));
@@ -302,22 +318,26 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
             constexpr static float k = 2 / (8 * (1.f / kPrecision));
             float x = std::ldexp(1, level * 2) / k;
             setupQuadraticLengthTerm(level << 1, pts, x - epsilon);
-            float referenceValue = wangs_formula_quadratic_reference_impl(kPrecision, pts);
+            float referenceValue =
+                wangs_formula_quadratic_reference_impl(kPrecision, pts);
             REQUIRE(std::ceil(std::log2(referenceValue)) == level);
             float q = wangs_formula::quadratic(pts, kPrecision);
             REQUIRE(fuzzy_equal(q / referenceValue, 1, kTessellationTolerance));
             REQUIRE(wangs_formula::quadratic_log2(pts, kPrecision) == level);
             setupQuadraticLengthTerm(level << 1, pts, x + epsilon);
-            referenceValue = wangs_formula_quadratic_reference_impl(kPrecision, pts);
+            referenceValue =
+                wangs_formula_quadratic_reference_impl(kPrecision, pts);
             REQUIRE(std::ceil(std::log2(referenceValue)) == level + 1);
             q = wangs_formula::quadratic(pts, kPrecision);
             REQUIRE(fuzzy_equal(q / referenceValue, 1, kTessellationTolerance));
-            REQUIRE(wangs_formula::quadratic_log2(pts, kPrecision) == level + 1);
+            REQUIRE(wangs_formula::quadratic_log2(pts, kPrecision) ==
+                    level + 1);
         }
     }
 
     auto check_cubic_log2 = [&](const Vec2D* pts) {
-        float f = std::max(1.f, wangs_formula_cubic_reference_impl(kPrecision, pts));
+        float f =
+            std::max(1.f, wangs_formula_cubic_reference_impl(kPrecision, pts));
         int f_log2 = wangs_formula::cubic_log2(pts, kPrecision);
         REQUIRE(ceilf(std::log2(f)) == f_log2);
         float c = std::max(1.f, wangs_formula::cubic(pts, kPrecision));
@@ -325,7 +345,9 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
     };
 
     auto check_quadratic_log2 = [&](const Vec2D* pts) {
-        float f = std::max(1.f, wangs_formula_quadratic_reference_impl(kPrecision, pts));
+        float f =
+            std::max(1.f,
+                     wangs_formula_quadratic_reference_impl(kPrecision, pts));
         int f_log2 = wangs_formula::quadratic_log2(pts, kPrecision);
         REQUIRE(ceilf(std::log2(f)) == f_log2);
         float q = std::max(1.f, wangs_formula::quadratic(pts, kPrecision));
@@ -346,7 +368,8 @@ TEST_CASE("wangs_formula_log2", "[wangs_formula]")
 
     for_random_beziers(4, [&](const Vec2D pts[]) { check_cubic_log2(pts); });
 
-    for_random_beziers(3, [&](const Vec2D pts[]) { check_quadratic_log2(pts); });
+    for_random_beziers(3,
+                       [&](const Vec2D pts[]) { check_quadratic_log2(pts); });
 }
 
 static void check_cubic_log2_with_transform(const Vec2D* pts, const Mat2D& m)
@@ -354,20 +377,26 @@ static void check_cubic_log2_with_transform(const Vec2D* pts, const Mat2D& m)
     Vec2D ptsXformed[4];
     map_pts(m, ptsXformed, pts, 4);
     int expected = wangs_formula::cubic_log2(ptsXformed, kPrecision);
-    int actual = wangs_formula::cubic_log2(pts, kPrecision, wangs_formula::VectorXform(m));
+    int actual = wangs_formula::cubic_log2(pts,
+                                           kPrecision,
+                                           wangs_formula::VectorXform(m));
     REQUIRE(actual == expected);
 };
 
-static void check_quadratic_log2_with_transform(const Vec2D* pts, const Mat2D& m)
+static void check_quadratic_log2_with_transform(const Vec2D* pts,
+                                                const Mat2D& m)
 {
     Vec2D ptsXformed[3];
     map_pts(m, ptsXformed, pts, 3);
     int expected = wangs_formula::quadratic_log2(ptsXformed, kPrecision);
-    int actual = wangs_formula::quadratic_log2(pts, kPrecision, wangs_formula::VectorXform(m));
+    int actual = wangs_formula::quadratic_log2(pts,
+                                               kPrecision,
+                                               wangs_formula::VectorXform(m));
     REQUIRE(actual == expected);
 };
 
-// Ensure using transformations gives the same result as pre-transforming all points.
+// Ensure using transformations gives the same result as pre-transforming all
+// points.
 TEST_CASE("wangs_formula_vectorXforms", "[wangs_formula]")
 {
     for_random_matrices([&](const Mat2D& m) {
@@ -375,10 +404,13 @@ TEST_CASE("wangs_formula_vectorXforms", "[wangs_formula]")
         check_cubic_log2_with_transform(kLoop, m);
         check_quadratic_log2_with_transform(kQuad, m);
 
-        for_random_beziers(4, [&](const Vec2D pts[]) { check_cubic_log2_with_transform(pts, m); });
+        for_random_beziers(4, [&](const Vec2D pts[]) {
+            check_cubic_log2_with_transform(pts, m);
+        });
 
-        for_random_beziers(3,
-                           [&](const Vec2D pts[]) { check_quadratic_log2_with_transform(pts, m); });
+        for_random_beziers(3, [&](const Vec2D pts[]) {
+            check_quadratic_log2_with_transform(pts, m);
+        });
     });
 }
 
@@ -406,15 +438,19 @@ TEST_CASE("wangs_formula_worst_case_cubic", "[wangs_formula]")
             max = simd::max(max, simd::load2f(&pts[i].x));
         }
         float2 size = max - min;
-        float worst = wangs_formula::worst_case_cubic(size.x, size.y, kPrecision);
-        int worst_log2 = wangs_formula::worst_case_cubic_log2(size.x, size.y, kPrecision);
+        float worst =
+            wangs_formula::worst_case_cubic(size.x, size.y, kPrecision);
+        int worst_log2 =
+            wangs_formula::worst_case_cubic_log2(size.x, size.y, kPrecision);
         float actual = wangs_formula_cubic_reference_impl(kPrecision, pts);
         REQUIRE(worst >= actual);
         REQUIRE(std::ceil(std::log2(std::max(1.f, worst))) == worst_log2);
     };
     for (int i = 0; i < 100; ++i)
     {
-        for_random_beziers(4, [&](const Vec2D pts[]) { check_worst_case_cubic(pts); });
+        for_random_beziers(4, [&](const Vec2D pts[]) {
+            check_worst_case_cubic(pts);
+        });
     }
     // Make sure overflow saturates at infinity (not NaN).
     constexpr static float inf = std::numeric_limits<float>::infinity();
@@ -432,8 +468,8 @@ TEST_CASE("wangs_formula_quad_within_tol", "[wangs_formula]")
     for_random_beziers(
         3,
         [](const Vec2D pts[]) {
-            const int nsegs = static_cast<int>(
-                std::ceil(wangs_formula_quadratic_reference_impl(kPrecision, pts)));
+            const int nsegs = static_cast<int>(std::ceil(
+                wangs_formula_quadratic_reference_impl(kPrecision, pts)));
 
             const float tdelta = 1.f / nsegs;
             for (int j = 0; j < nsegs; ++j)
@@ -465,7 +501,9 @@ TEST_CASE("wangs_formula_quad_within_tol", "[wangs_formula]")
                     }
                     else
                     {
-                        chop_quad_at(tmp0 + 2, tmp1, (tmax - tmin) / (1 - tmin));
+                        chop_quad_at(tmp0 + 2,
+                                     tmp1,
+                                     (tmax - tmin) / (1 - tmin));
                         sectionPts = tmp1;
                     }
                 }
@@ -477,7 +515,8 @@ TEST_CASE("wangs_formula_quad_within_tol", "[wangs_formula]")
                 // Get distance of p to baseline
                 const Vec2D n = {sectionPts[2].y - sectionPts[0].y,
                                  sectionPts[0].x - sectionPts[2].x};
-                const float d = std::abs(Vec2D::dot(p - sectionPts[0], n)) / n.length();
+                const float d =
+                    std::abs(Vec2D::dot(p - sectionPts[0], n)) / n.length();
 
                 // Check distance is within specified tolerance
                 REQUIRE(d <= (1.f / kPrecision) + 1e-2f);
@@ -495,22 +534,27 @@ TEST_CASE("wangs_formula_rational_quad_reduces", "[wangs_formula]")
     for (int i = 0; i < 100; ++i)
     {
         for_random_beziers(3, [](const Vec2D pts[]) {
-            const float rational_nsegs = wangs_formula::conic(kPrecision, pts, 1.f);
-            const float integral_nsegs = wangs_formula_quadratic_reference_impl(kPrecision, pts);
-            REQUIRE(fuzzy_equal(rational_nsegs, integral_nsegs, kTessellationTolerance));
+            const float rational_nsegs =
+                wangs_formula::conic(kPrecision, pts, 1.f);
+            const float integral_nsegs =
+                wangs_formula_quadratic_reference_impl(kPrecision, pts);
+            REQUIRE(fuzzy_equal(rational_nsegs,
+                                integral_nsegs,
+                                kTessellationTolerance));
         });
     }
 }
 
-// Ensure the rational quad version (used for conics) produces max error within tolerance.
+// Ensure the rational quad version (used for conics) produces max error within
+// tolerance.
 TEST_CASE("wangs_formula_conic_within_tol", "[wangs_formula]")
 {
     constexpr int maxExponent = 24;
 
     srand(0);
 
-    // Single-precision functions in SkConic/SkGeometry lose too much accuracy with
-    // large-magnitude curves and large weights for this test to pass.
+    // Single-precision functions in SkConic/SkGeometry lose too much accuracy
+    // with large-magnitude curves and large weights for this test to pass.
     using Sk2d = simd::gvec<double, 2>;
     const auto eval_conic = [](const Vec2D pts[3], double w, double t) -> Sk2d {
         const auto eval = [](Sk2d A, Sk2d B, Sk2d C, double t) -> Sk2d {
@@ -534,7 +578,9 @@ TEST_CASE("wangs_formula_conic_within_tol", "[wangs_formula]")
         return a[0] * b[0] + a[1] * b[1];
     };
 
-    const auto length = [](const Sk2d& p) -> double { return sqrt(p[0] * p[0] + p[1] * p[1]); };
+    const auto length = [](const Sk2d& p) -> double {
+        return sqrt(p[0] * p[0] + p[1] * p[1]);
+    };
 
     for (int i = -10; i <= 10; ++i)
     {
@@ -542,7 +588,8 @@ TEST_CASE("wangs_formula_conic_within_tol", "[wangs_formula]")
         for_random_beziers(
             3,
             [&](const Vec2D pts[]) {
-                const int nsegs = static_cast<int>(ceilf(wangs_formula::conic(kPrecision, pts, w)));
+                const int nsegs = static_cast<int>(
+                    ceilf(wangs_formula::conic(kPrecision, pts, w)));
 
                 const float tdelta = 1.f / nsegs;
                 for (int j = 0; j < nsegs; ++j)
@@ -578,29 +625,36 @@ TEST_CASE("wangs_formula_conic_matches_reference", "[wangs_formula]")
     {
         const float w = std::ldexp(1 + frand(), i);
         for_random_beziers(3, [w](const Vec2D pts[]) {
-            const float ref_nsegs = wangs_formula_conic_reference_impl(kPrecision, pts, w);
+            const float ref_nsegs =
+                wangs_formula_conic_reference_impl(kPrecision, pts, w);
             const float nsegs = wangs_formula::conic(kPrecision, pts, w);
 
-            // Because the Gr version may implement the math differently for performance,
-            // allow different slack in the comparison based on the rough scale of the answer.
+            // Because the Gr version may implement the math differently for
+            // performance, allow different slack in the comparison based on the
+            // rough scale of the answer.
             const float cmpThresh = ref_nsegs * (1.f / (1 << 20));
             REQUIRE(fuzzy_equal(ref_nsegs, nsegs, cmpThresh));
         });
     }
 }
 
-// Ensure using transformations gives the same result as pre-transforming all points.
+// Ensure using transformations gives the same result as pre-transforming all
+// points.
 TEST_CASE("wangs_formula_conic_vectorXforms", "[wangs_formula]")
 {
     srand(0);
 
-    auto check_conic_with_transform = [&](const Vec2D* pts, float w, const Mat2D& m) {
-        Vec2D ptsXformed[3];
-        map_pts(m, ptsXformed, pts, 3);
-        float expected = wangs_formula::conic(kPrecision, ptsXformed, w);
-        float actual = wangs_formula::conic(kPrecision, pts, w, wangs_formula::VectorXform(m));
-        REQUIRE(actual == Approx(expected).margin(1e-4));
-    };
+    auto check_conic_with_transform =
+        [&](const Vec2D* pts, float w, const Mat2D& m) {
+            Vec2D ptsXformed[3];
+            map_pts(m, ptsXformed, pts, 3);
+            float expected = wangs_formula::conic(kPrecision, ptsXformed, w);
+            float actual = wangs_formula::conic(kPrecision,
+                                                pts,
+                                                w,
+                                                wangs_formula::VectorXform(m));
+            REQUIRE(actual == Approx(expected).margin(1e-4));
+        };
 
     for (int i = -10; i <= 10; ++i)
     {

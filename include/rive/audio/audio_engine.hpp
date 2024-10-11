@@ -50,7 +50,9 @@ public:
     static rcp<AudioEngine> RuntimeEngine(bool makeWhenNecessary = true);
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
-    bool readAudioFrames(float* frames, uint64_t numFrames, uint64_t* framesRead = nullptr);
+    bool readAudioFrames(float* frames,
+                         uint64_t numFrames,
+                         uint64_t* framesRead = nullptr);
     bool sumAudioFrames(float* frames, uint64_t numFrames);
 #endif
 

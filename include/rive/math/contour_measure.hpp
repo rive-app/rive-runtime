@@ -22,16 +22,23 @@ public:
     // Deliberately making this pack well (12 bytes)
     struct Segment
     {
-        float m_distance;       // total distance up to this point
-        uint32_t m_ptIndex;     // index of the first point for this line/quad/cubic
+        float m_distance;   // total distance up to this point
+        uint32_t m_ptIndex; // index of the first point for this line/quad/cubic
         unsigned m_tValue : 30; // Dot30 t value for the end of this segment
         unsigned m_type : 2;    // [private enum]
 
         float getT() const { return m_tValue * kInvScaleD30; }
 
-        bool operator<(const Segment& other) const { return m_distance < other.m_distance; }
+        bool operator<(const Segment& other) const
+        {
+            return m_distance < other.m_distance;
+        }
 
-        void extract(RawPath* dst, float fromT, float toT, const Vec2D pts[], bool moveTo) const;
+        void extract(RawPath* dst,
+                     float fromT,
+                     float toT,
+                     const Vec2D pts[],
+                     bool moveTo) const;
         void extract(RawPath* dst, const Vec2D pts[]) const;
     };
 
@@ -43,7 +50,10 @@ private:
     const float m_length;
     const bool m_isClosed;
 
-    ContourMeasure(std::vector<Segment>&&, std::vector<Vec2D>&&, float length, bool isClosed);
+    ContourMeasure(std::vector<Segment>&&,
+                   std::vector<Vec2D>&&,
+                   float length,
+                   bool isClosed);
 
     friend class ContourMeasureIter;
 
@@ -66,12 +76,18 @@ public:
 
         PosTanDistance() : distance(0.0f), sqDistanceToPoint(0.0f) {}
         PosTanDistance(PosTan posTan, float dist) :
-            pos(posTan.pos), tan(posTan.tan), distance(dist), sqDistanceToPoint(0.0f)
+            pos(posTan.pos),
+            tan(posTan.tan),
+            distance(dist),
+            sqDistanceToPoint(0.0f)
         {}
     };
     PosTan getPosTan(float distance) const;
 
-    void getSegment(float startDistance, float endDistance, RawPath* dst, bool startWithMove) const;
+    void getSegment(float startDistance,
+                    float endDistance,
+                    RawPath* dst,
+                    bool startWithMove) const;
 
     Vec2D warp(Vec2D src) const
     {
@@ -127,13 +143,14 @@ public:
     //      ... meas can be used, and passed to other objects
     //  }
     //
-    // Each measure object is stand-alone, and can outlive the ContourMeasureIter
-    // that created it. It contains no back pointers to the Iter or to the path.
+    // Each measure object is stand-alone, and can outlive the
+    // ContourMeasureIter that created it. It contains no back pointers to the
+    // Iter or to the path.
     //
     rcp<ContourMeasure> next();
 
-    // Temporary storage used during tryNext(), for counting up how many segments a contour will be
-    // divided into.
+    // Temporary storage used during tryNext(), for counting up how many
+    // segments a contour will be divided into.
     std::vector<uint32_t> m_segmentCounts;
 };
 

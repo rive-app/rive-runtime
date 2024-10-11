@@ -49,8 +49,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
     float lastLength = lastDiff.length();
     Vec2D lastDiffNormalized = lastDiff / lastLength;
 
-    Vec2D perpendicularStrokeDiff =
-        Vec2D(lastDiffNormalized.y * -strokeWidth, lastDiffNormalized.x * strokeWidth);
+    Vec2D perpendicularStrokeDiff = Vec2D(lastDiffNormalized.y * -strokeWidth,
+                                          lastDiffNormalized.x * strokeWidth);
     Vec2D lastA = lastPoint + perpendicularStrokeDiff;
     Vec2D lastB = lastPoint - perpendicularStrokeDiff;
 
@@ -69,7 +69,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
             }
             case StrokeCap::round:
             {
-                Vec2D capDirection = Vec2D(-lastDiffNormalized.y, lastDiffNormalized.x);
+                Vec2D capDirection =
+                    Vec2D(-lastDiffNormalized.y, lastDiffNormalized.x);
                 float arcLength = std::abs(math::PI * strokeWidth);
                 int steps = (int)std::ceil(arcLength / subdivisionArcLength);
                 float angleTo = std::atan2(capDirection.y, capDirection.x);
@@ -79,8 +80,9 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 for (int j = 0; j <= steps; j++)
                 {
                     m_TriangleStrip.push_back(lastPoint);
-                    m_TriangleStrip.push_back(Vec2D(lastPoint.x + std::cos(angle) * strokeWidth,
-                                                    lastPoint.y + std::sin(angle) * strokeWidth));
+                    m_TriangleStrip.push_back(
+                        Vec2D(lastPoint.x + std::cos(angle) * strokeWidth,
+                              lastPoint.y + std::sin(angle) * strokeWidth));
                     angle += inc;
                 }
                 break;
@@ -163,8 +165,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 // miter inner).
                 Vec2D c1 = point + Vec2D(lastDiffNormalized.y * -strokeWidth,
                                          lastDiffNormalized.x * strokeWidth);
-                Vec2D c2 =
-                    point + Vec2D(diffNormalized.y * -strokeWidth, diffNormalized.x * strokeWidth);
+                Vec2D c2 = point + Vec2D(diffNormalized.y * -strokeWidth,
+                                         diffNormalized.x * strokeWidth);
 
                 m_TriangleStrip.push_back(c1);
                 m_TriangleStrip.push_back(d);
@@ -177,8 +179,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 // miter inner).
                 Vec2D d1 = point - Vec2D(lastDiffNormalized.y * -strokeWidth,
                                          lastDiffNormalized.x * strokeWidth);
-                Vec2D d2 =
-                    point - Vec2D(diffNormalized.y * -strokeWidth, diffNormalized.x * strokeWidth);
+                Vec2D d2 = point - Vec2D(diffNormalized.y * -strokeWidth,
+                                         diffNormalized.x * strokeWidth);
 
                 m_TriangleStrip.push_back(c);
                 m_TriangleStrip.push_back(d1);
@@ -188,9 +190,10 @@ void ContourStroke::extrude(const SegmentedContour* contour,
         }
         else
         {
-            Vec2D ldPStroke =
-                Vec2D(lastDiffNormalized.y * -strokeWidth, lastDiffNormalized.x * strokeWidth);
-            Vec2D dPStroke = Vec2D(diffNormalized.y * -strokeWidth, diffNormalized.x * strokeWidth);
+            Vec2D ldPStroke = Vec2D(lastDiffNormalized.y * -strokeWidth,
+                                    lastDiffNormalized.x * strokeWidth);
+            Vec2D dPStroke = Vec2D(diffNormalized.y * -strokeWidth,
+                                   diffNormalized.x * strokeWidth);
             if (cross <= 0)
             {
                 // Bevel the outer (left in this case) edge.
@@ -326,7 +329,8 @@ void ContourStroke::extrude(const SegmentedContour* contour,
             }
             case StrokeCap::round:
             {
-                Vec2D capDirection = Vec2D(-lastDiffNormalized.y, lastDiffNormalized.x);
+                Vec2D capDirection =
+                    Vec2D(-lastDiffNormalized.y, lastDiffNormalized.x);
                 float arcLength = std::abs(math::PI * strokeWidth);
                 int steps = (int)std::ceil(arcLength / subdivisionArcLength);
                 float angleTo = std::atan2(capDirection.y, capDirection.x);
@@ -336,8 +340,9 @@ void ContourStroke::extrude(const SegmentedContour* contour,
                 for (int j = 0; j <= steps; j++)
                 {
                     m_TriangleStrip.push_back(lastPoint);
-                    m_TriangleStrip.push_back(Vec2D(lastPoint.x + std::cos(angle) * strokeWidth,
-                                                    lastPoint.y + std::sin(angle) * strokeWidth));
+                    m_TriangleStrip.push_back(
+                        Vec2D(lastPoint.x + std::cos(angle) * strokeWidth,
+                              lastPoint.y + std::sin(angle) * strokeWidth));
                     angle -= inc;
                 }
                 break;

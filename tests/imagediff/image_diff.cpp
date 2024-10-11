@@ -24,7 +24,10 @@ class WFile
 public:
     WFile(FILE* existingFile) : m_File(existingFile) { m_DoClose = false; }
 
-    WFile(const char path[], const char mode[]) : m_File(fopen(path, mode)) { m_DoClose = true; }
+    WFile(const char path[], const char mode[]) : m_File(fopen(path, mode))
+    {
+        m_DoClose = true;
+    }
 
     ~WFile() { this->close(); }
 
@@ -76,18 +79,23 @@ static sk_sp<SkImage> file_to_image(const char path[])
     return img;
 }
 
-static void write_file(const char dir[], const char name[], const char suffix[], sk_sp<SkImage> img)
+static void write_file(const char dir[],
+                       const char name[],
+                       const char suffix[],
+                       sk_sp<SkImage> img)
 {
-    auto path = std::string(dir) + std::string("/") + std::string(name) + std::string(suffix);
+    auto path = std::string(dir) + std::string("/") + std::string(name) +
+                std::string(suffix);
 
     SkColorInfo colorInfo(kRGBA_8888_SkColorType, kPremul_SkAlphaType, nullptr);
     std::vector<uint8_t> pixels(img->height() * img->width() * 4);
-    img->readPixels(nullptr,
-                    SkPixmap(SkImageInfo::Make({img->width(), img->height()}, colorInfo),
-                             pixels.data(),
-                             img->width() * 4),
-                    0,
-                    0);
+    img->readPixels(
+        nullptr,
+        SkPixmap(SkImageInfo::Make({img->width(), img->height()}, colorInfo),
+                 pixels.data(),
+                 img->width() * 4),
+        0,
+        0);
 
     //    printf("creating %s\n", path.c_str());
     WritePNGFile(pixels.data(),
@@ -104,7 +112,8 @@ void image_diff(const char name[],
                 const char statusPath[],
                 const char diffDir[])
 {
-    WFile status = statusPath && statusPath[0] ? WFile(statusPath, "a") : WFile(stdout);
+    WFile status =
+        statusPath && statusPath[0] ? WFile(statusPath, "a") : WFile(stdout);
     if (!status.isOpen())
     {
         throw "failed to open status file";

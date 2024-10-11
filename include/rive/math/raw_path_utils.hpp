@@ -49,9 +49,18 @@ struct EvalCubic
 extern void quad_subdivide(const Vec2D src[3], float t, Vec2D dst[5]);
 extern void cubic_subdivide(const Vec2D src[4], float t, Vec2D dst[7]);
 
-extern void line_extract(const Vec2D src[2], float startT, float endT, Vec2D dst[2]);
-extern void quad_extract(const Vec2D src[3], float startT, float endT, Vec2D dst[3]);
-extern void cubic_extract(const Vec2D src[4], float startT, float endT, Vec2D dst[4]);
+extern void line_extract(const Vec2D src[2],
+                         float startT,
+                         float endT,
+                         Vec2D dst[2]);
+extern void quad_extract(const Vec2D src[3],
+                         float startT,
+                         float endT,
+                         Vec2D dst[3]);
+extern void cubic_extract(const Vec2D src[4],
+                          float startT,
+                          float endT,
+                          Vec2D dst[4]);
 
 } // namespace rive
 

@@ -12,8 +12,8 @@ protected:
 public:
     static const uint16_t typeKey = 78;
 
-    /// Helper to quickly determine if a core object extends another without RTTI
-    /// at runtime.
+    /// Helper to quickly determine if a core object extends another without
+    /// RTTI at runtime.
     bool isTypeOf(uint16_t typeKey) const override
     {
         switch (typeKey)
@@ -35,7 +35,10 @@ private:
     uint32_t m_ExitBlendAnimationId = -1;
 
 public:
-    inline uint32_t exitBlendAnimationId() const { return m_ExitBlendAnimationId; }
+    inline uint32_t exitBlendAnimationId() const
+    {
+        return m_ExitBlendAnimationId;
+    }
     void exitBlendAnimationId(uint32_t value)
     {
         if (m_ExitBlendAnimationId == value)

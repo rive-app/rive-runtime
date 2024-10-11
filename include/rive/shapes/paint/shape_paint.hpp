@@ -31,9 +31,14 @@ public:
     virtual RenderPaint* initRenderPaint(ShapePaintMutator* mutator);
 
     virtual PathFlags pathFlags() const = 0;
-    bool isFlagged(PathFlags flags) const { return (int)(pathFlags() & flags) != 0x00; }
+    bool isFlagged(PathFlags flags) const
+    {
+        return (int)(pathFlags() & flags) != 0x00;
+    }
 
-    void draw(Renderer* renderer, CommandPath* path, const RawPath* rawPath = nullptr)
+    void draw(Renderer* renderer,
+              CommandPath* path,
+              const RawPath* rawPath = nullptr)
     {
         draw(renderer, path, rawPath, renderPaint());
     }
@@ -52,11 +57,15 @@ public:
     /// RadialGradient.
     Component* paint() const { return m_PaintMutator->component(); }
 
-    bool isTranslucent() const { return !this->isVisible() || m_PaintMutator->isTranslucent(); }
+    bool isTranslucent() const
+    {
+        return !this->isVisible() || m_PaintMutator->isTranslucent();
+    }
 
     /// Apply this ShapePaint to an external RenderPaint and optionally modulate
     /// the opacity by opacityModifer.
-    virtual void applyTo(RenderPaint* renderPaint, float opacityModifier) const = 0;
+    virtual void applyTo(RenderPaint* renderPaint,
+                         float opacityModifier) const = 0;
 };
 } // namespace rive
 

@@ -73,7 +73,10 @@ TEST_CASE("file with state machine be read", "[file]")
     for (int i = 0; i < idleState->transitionCount(); i++)
     {
         auto transition = idleState->transition(i);
-        if (transition->stateTo()->as<rive::AnimationState>()->animation()->name() == "Roll_over")
+        if (transition->stateTo()
+                ->as<rive::AnimationState>()
+                ->animation()
+                ->name() == "Roll_over")
         {
             // Check the condition
             REQUIRE(transition->conditionCount() == 1);
@@ -143,8 +146,9 @@ TEST_CASE("file with blend states loads correctly", "[file]")
 
     REQUIRE(blendStateA->transitionCount() == 1);
     REQUIRE(blendStateA->transition(0)->is<rive::BlendStateTransition>());
-    REQUIRE(blendStateA->transition(0)->as<rive::BlendStateTransition>()->exitBlendAnimation() !=
-            nullptr);
+    REQUIRE(blendStateA->transition(0)
+                ->as<rive::BlendStateTransition>()
+                ->exitBlendAnimation() != nullptr);
 }
 
 TEST_CASE("animation state with no animation doesn't crash", "[file]")
@@ -176,7 +180,8 @@ TEST_CASE("animation state with no animation doesn't crash", "[file]")
     rive::StateMachineInstance(stateMachine, abi.get()).advance(0.0f);
 }
 
-TEST_CASE("1D blend state keeps keepsGoing true even when animations themselves have stopped",
+TEST_CASE("1D blend state keeps keepsGoing true even when animations "
+          "themselves have stopped",
           "[file]")
 {
     auto file = ReadRiveFile("assets/oneshotblend.riv");
@@ -194,15 +199,16 @@ TEST_CASE("1D blend state keeps keepsGoing true even when animations themselves 
     stateMachineInstance->advance(0.5f);
     REQUIRE(stateMachineInstance->needsAdvance() == true);
 
-    // even after advancing past the duration of the animations in the blend states
-    // we need to keep going.
+    // even after advancing past the duration of the animations in the blend
+    // states we need to keep going.
     stateMachineInstance->advance(1.0f);
     REQUIRE(stateMachineInstance->needsAdvance() == true);
 
     delete stateMachineInstance;
 }
 
-TEST_CASE("Transitions with duration completes the state correctly before changing states",
+TEST_CASE("Transitions with duration completes the state correctly before "
+          "changing states",
           "[file]")
 {
     auto file = ReadRiveFile("assets/state_machine_transition.riv");
@@ -234,11 +240,13 @@ TEST_CASE("Transitions with duration completes the state correctly before changi
         new rive::StateMachineInstance(stateMachine, abi.get());
     stateMachineInstance->advanceAndApply(0.1f);
     abi->advance(0.1f);
-    REQUIRE(stateMachineInstance->currentAnimationByIndex(0)->name() == "State-2");
+    REQUIRE(stateMachineInstance->currentAnimationByIndex(0)->name() ==
+            "State-2");
     // After the transition has passed, the color has to be full white.
     stateMachineInstance->advanceAndApply(2.0f);
     abi->advance(2.0f);
-    REQUIRE(stateMachineInstance->currentAnimationByIndex(0)->name() == "State-3");
+    REQUIRE(stateMachineInstance->currentAnimationByIndex(0)->name() ==
+            "State-3");
     REQUIRE(solidColor->colorValue() == white_color);
 
     delete stateMachineInstance;
@@ -333,8 +341,8 @@ TEST_CASE("Blend state animations with reset applied to them.", "[file]")
     abi->advance(0.1f);
     stateMachineInstance->advanceAndApply(0.1f);
     REQUIRE(state4Bool->value() == false);
-    // After switching states mutiple times resources stay at 2 because they are released
-    // and retrieved from the pool
+    // After switching states mutiple times resources stay at 2 because they are
+    // released and retrieved from the pool
     REQUIRE(rive::AnimationResetFactory::resourcesCount() == 2);
     delete stateMachineInstance;
 }
@@ -391,7 +399,8 @@ TEST_CASE("Transitions with reset applied to them.", "[file]")
     // half if the path is 42.69 + (440.21241 - 42.60) = 241.4962
     REQUIRE(ellipse->x() == Approx(241.49992f));
 
-    // Transitions release their instance immediately so it's available for the next instance to use
+    // Transitions release their instance immediately so it's available for the
+    // next instance to use
     REQUIRE(rive::AnimationResetFactory::resourcesCount() == 0);
 
     stateNumber->value(3);
@@ -408,8 +417,8 @@ TEST_CASE("Transitions with reset applied to them.", "[file]")
     abi->advance(0.1f);
     stateMachineInstance->advanceAndApply(1.25f);
 
-    // The last two states don't have a transition with duration set so the instance is released
-    // and available
+    // The last two states don't have a transition with duration set so the
+    // instance is released and available
     REQUIRE(rive::AnimationResetFactory::resourcesCount() == 1);
 
     delete stateMachineInstance;

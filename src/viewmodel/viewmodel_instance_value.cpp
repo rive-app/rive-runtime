@@ -12,7 +12,8 @@ using namespace rive;
 StatusCode ViewModelInstanceValue::import(ImportStack& importStack)
 {
     auto viewModelInstanceImporter =
-        importStack.latest<ViewModelInstanceImporter>(ViewModelInstance::typeKey);
+        importStack.latest<ViewModelInstanceImporter>(
+            ViewModelInstance::typeKey);
     if (viewModelInstanceImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -26,7 +27,10 @@ void ViewModelInstanceValue::viewModelProperty(ViewModelProperty* value)
 {
     m_ViewModelProperty = value;
 }
-ViewModelProperty* ViewModelInstanceValue::viewModelProperty() { return m_ViewModelProperty; }
+ViewModelProperty* ViewModelInstanceValue::viewModelProperty()
+{
+    return m_ViewModelProperty;
+}
 
 void ViewModelInstanceValue::addDependent(DataBind* value)
 {
@@ -38,7 +42,10 @@ void ViewModelInstanceValue::removeDependent(DataBind* value)
     m_DependencyHelper.removeDependent(value);
 }
 
-void ViewModelInstanceValue::addDirt(ComponentDirt value) { m_DependencyHelper.addDirt(value); }
+void ViewModelInstanceValue::addDirt(ComponentDirt value)
+{
+    m_DependencyHelper.addDirt(value);
+}
 
 void ViewModelInstanceValue::setRoot(ViewModelInstance* viewModelInstance)
 {

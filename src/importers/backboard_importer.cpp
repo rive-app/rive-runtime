@@ -119,7 +119,8 @@ void BackboardImporter::addDataConverterReferencer(DataBind* dataBind)
     m_DataConverterReferencers.push_back(dataBind);
 }
 
-void BackboardImporter::addDataConverterGroupItemReferencer(DataConverterGroupItem* dataBind)
+void BackboardImporter::addDataConverterGroupItemReferencer(
+    DataConverterGroupItem* dataBind)
 {
     m_DataConverterGroupItemReferencers.push_back(dataBind);
 }

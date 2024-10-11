@@ -38,7 +38,8 @@ static rcp<Font> loadFont(const char* filename)
 }
 
 static std::vector<rive::rcp<rive::Font>> fallbackFonts;
-static rive::rcp<rive::Font> pickFallbackFont(rive::Span<const rive::Unichar> missing)
+static rive::rcp<rive::Font> pickFallbackFont(
+    rive::Span<const rive::Unichar> missing)
 {
     size_t length = fallbackFonts.size();
     for (size_t i = 0; i < length; i++)
@@ -103,11 +104,13 @@ TEST_CASE("variable axis values can be read", "[text]")
     REQUIRE(font->getAxisValue(2003072104) == 100.0f);
 
     rive::Font::Coord coord = {2003265652, 800.0f};
-    rive::rcp<rive::Font> vfont = font->makeAtCoords(rive::Span<HBFont::Coord>(&coord, 1));
+    rive::rcp<rive::Font> vfont =
+        font->makeAtCoords(rive::Span<HBFont::Coord>(&coord, 1));
     REQUIRE(vfont->getAxisValue(2003265652) == 800.0f);
 
     rive::Font::Coord coord2 = {2003072104, 122.0f};
-    rive::rcp<rive::Font> vfont2 = vfont->makeAtCoords(rive::Span<HBFont::Coord>(&coord2, 1));
+    rive::rcp<rive::Font> vfont2 =
+        vfont->makeAtCoords(rive::Span<HBFont::Coord>(&coord2, 1));
     REQUIRE(vfont2->getAxisValue(2003072104) == 122.0f);
     // Should also still have the first axis value we set.
     REQUIRE(vfont2->getAxisValue(2003265652) == 800.0f);
@@ -125,8 +128,9 @@ static std::string tagToString(uint32_t tag)
 
 static bool hasTag(std::vector<std::string> featureStrings, std::string tag)
 {
-    return std::find(std::begin(featureStrings), std::end(featureStrings), tag) !=
-           std::end(featureStrings);
+    return std::find(std::begin(featureStrings),
+                     std::end(featureStrings),
+                     tag) != std::end(featureStrings);
 }
 
 TEST_CASE("font features load as expected", "[text]")

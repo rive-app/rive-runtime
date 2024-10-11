@@ -26,7 +26,10 @@ constexpr int kPad = 5;     // padding on both sides of the snowflake
 constexpr int kNumSpokes = 6;
 constexpr float kStrokeWidth = 5.0f;
 
-static void draw_fins(Renderer* renderer, const Vec2D& offset, float angle, RenderPaint* paint)
+static void draw_fins(Renderer* renderer,
+                      const Vec2D& offset,
+                      float angle,
+                      RenderPaint* paint)
 {
     float cos, sin;
 
@@ -56,11 +59,12 @@ static void draw_fins(Renderer* renderer, const Vec2D& offset, float angle, Rend
 // draw a snowflake centered at the origin
 static void draw_snowflake(Renderer* renderer, RenderPaint* paint)
 {
-    renderer->clipPath(
-        PathBuilder::Rect({-kRadius - kPad, -kRadius - kPad, kRadius + kPad, kRadius + kPad}));
+    renderer->clipPath(PathBuilder::Rect(
+        {-kRadius - kPad, -kRadius - kPad, kRadius + kPad, kRadius + kPad}));
 
     float sin, cos, angle = 0.0f;
-    for (int i = 0; i < kNumSpokes / 2; ++i, angle += math::PI / (int)(kNumSpokes / 2))
+    for (int i = 0; i < kNumSpokes / 2;
+         ++i, angle += math::PI / (int)(kNumSpokes / 2))
     {
         sin = sinf(angle);
         cos = cosf(angle);
@@ -83,7 +87,9 @@ static void draw_snowflake(Renderer* renderer, RenderPaint* paint)
     }
 }
 
-static void draw_row(Renderer* renderer, RenderPaint* paint, const Mat2D& localMatrix)
+static void draw_row(Renderer* renderer,
+                     RenderPaint* paint,
+                     const Mat2D& localMatrix)
 {
     renderer->translate(kRadius + kPad, 0.0f);
 
@@ -127,16 +133,18 @@ protected:
         {
             // gradient
             ColorInt colors[] = {0xffff0000, 0xff00ff00};
-            Vec2D pts[] = {{-kRadius - kPad, -kRadius - kPad}, {kRadius + kPad, kRadius + kPad}};
+            Vec2D pts[] = {{-kRadius - kPad, -kRadius - kPad},
+                           {kRadius + kPad, kRadius + kPad}};
             float stops[] = {0, 1};
 
-            auto sh = TestingWindow::Get()->factory()->makeLinearGradient(pts[0].x,
-                                                                          pts[0].y,
-                                                                          pts[1].x,
-                                                                          pts[1].y,
-                                                                          colors,
-                                                                          stops,
-                                                                          2);
+            auto sh =
+                TestingWindow::Get()->factory()->makeLinearGradient(pts[0].x,
+                                                                    pts[0].y,
+                                                                    pts[1].x,
+                                                                    pts[1].y,
+                                                                    colors,
+                                                                    stops,
+                                                                    2);
             fPaints[1]->shader(sh);
         }
         // {
@@ -145,7 +153,8 @@ protected:
         //     int intervalCount = (int)SK_ARRAY_COUNT(intervals);
         //     SkPaint p;
         //     p.setColor(SK_ColorWHITE);
-        //     p.setPathEffect(SkDashPathEffect::Make(intervals, intervalCount, kStrokeWidth));
+        //     p.setPathEffect(SkDashPathEffect::Make(intervals, intervalCount,
+        //     kStrokeWidth));
         //
         //     fPaints.push_back(p);
         // }
@@ -162,8 +171,8 @@ protected:
         //
         //     SkPaint p;
         //     p.setShader(
-        //         bm.makeShader(SkTileMode::kRepeat, SkTileMode::kRepeat, SkSamplingOptions(),
-        //         m));
+        //         bm.makeShader(SkTileMode::kRepeat, SkTileMode::kRepeat,
+        //         SkSamplingOptions(), m));
         //     fPaints.push_back(p);
         // }
         // {

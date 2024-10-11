@@ -47,36 +47,70 @@ public:
     std::vector<TestPathCommand> commands;
     void rewind() override
     {
-        commands.emplace_back(
-            TestPathCommand{TestPathCommandType::Reset, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+        commands.emplace_back(TestPathCommand{TestPathCommandType::Reset,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f});
     }
 
     void fillRule(rive::FillRule value) override {}
     void addPath(rive::CommandPath* path, const rive::Mat2D& transform) override
     {
-        commands.emplace_back(
-            TestPathCommand{TestPathCommandType::AddPath, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+        commands.emplace_back(TestPathCommand{TestPathCommandType::AddPath,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f});
     }
-    void addRenderPath(rive::RenderPath* path, const rive::Mat2D& transform) override {}
+    void addRenderPath(rive::RenderPath* path,
+                       const rive::Mat2D& transform) override
+    {}
 
     void moveTo(float x, float y) override
     {
-        commands.emplace_back(
-            TestPathCommand{TestPathCommandType::MoveTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
+        commands.emplace_back(TestPathCommand{TestPathCommandType::MoveTo,
+                                              x,
+                                              y,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f});
     }
     void lineTo(float x, float y) override
     {
-        commands.emplace_back(
-            TestPathCommand{TestPathCommandType::LineTo, x, y, 0.0f, 0.0f, 0.0f, 0.0f});
+        commands.emplace_back(TestPathCommand{TestPathCommandType::LineTo,
+                                              x,
+                                              y,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f});
     }
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+        override
     {
-        commands.emplace_back(TestPathCommand{TestPathCommandType::CubicTo, x, y, ix, iy, ox, oy});
+        commands.emplace_back(TestPathCommand{TestPathCommandType::CubicTo,
+                                              x,
+                                              y,
+                                              ix,
+                                              iy,
+                                              ox,
+                                              oy});
     }
     void close() override
     {
-        commands.emplace_back(
-            TestPathCommand{TestPathCommandType::Close, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f, 0.0f});
+        commands.emplace_back(TestPathCommand{TestPathCommandType::Close,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f,
+                                              0.0f});
     }
 };
 
@@ -270,7 +304,8 @@ TEST_CASE("nested solo with shape expanded and path collapsed", "[path]")
     TestNoOpFactory emptyFactory;
     auto file = ReadRiveFile("assets/solos_collapse_tests.riv", &emptyFactory);
 
-    auto artboard = file->artboard("test-1-shape-with-shape-and-path")->instance();
+    auto artboard =
+        file->artboard("test-1-shape-with-shape-and-path")->instance();
     // Root-Shape
     artboard->advance(0.0f);
     auto rootShape = artboard->children()[0]->as<rive::Shape>();
@@ -292,17 +327,20 @@ TEST_CASE("nested solo with shape expanded and path collapsed", "[path]")
     REQUIRE(path->isCollapsed() == true);
 
     auto pathComposer = rootShape->pathComposer();
-    auto pathComposerPath = static_cast<TestRenderPath*>(pathComposer->localPath());
+    auto pathComposerPath =
+        static_cast<TestRenderPath*>(pathComposer->localPath());
     // Path is skipped and the nested shape forms its own drawable, so size is 0
     REQUIRE(pathComposerPath->commands.size() == 0);
 }
 
-TEST_CASE("nested solo clipping with shape collapsed and path expanded", "[path]")
+TEST_CASE("nested solo clipping with shape collapsed and path expanded",
+          "[path]")
 {
     TestNoOpFactory emptyFactory;
     auto file = ReadRiveFile("assets/solos_collapse_tests.riv", &emptyFactory);
 
-    auto artboard = file->artboard("test-2-clip-with-shape-and-path")->instance();
+    auto artboard =
+        file->artboard("test-2-clip-with-shape-and-path")->instance();
     // Root-Shape
     artboard->advance(0.0f);
     auto rectangleClip = artboard->find<rive::Shape>("Rectangle-clipped");
@@ -325,7 +363,8 @@ TEST_CASE("nested solo clipping with shape collapsed and path expanded", "[path]
 
     auto clippingShape = rectangleClip->clippingShapes()[0];
     REQUIRE(clippingShape != nullptr);
-    auto clippingPath = static_cast<TestRenderPath*>(clippingShape->renderPath());
+    auto clippingPath =
+        static_cast<TestRenderPath*>(clippingShape->renderPath());
     // One path is skipped, otherwise size would be 3
     REQUIRE(clippingPath->commands.size() == 2);
 }
@@ -335,16 +374,19 @@ TEST_CASE("nested solo clipping with animation", "[path]")
     TestNoOpFactory emptyFactory;
     auto file = ReadRiveFile("assets/solos_collapse_tests.riv", &emptyFactory);
 
-    auto artboard = file->artboard("test-5-clip-with-group-and-path-and-shape")->instance();
+    auto artboard =
+        file->artboard("test-5-clip-with-group-and-path-and-shape")->instance();
     artboard->advance(0.0f);
     auto rectangleClip = artboard->find<rive::Shape>("Rectangle-clipped");
     REQUIRE(rectangleClip != nullptr);
     REQUIRE(rectangleClip->name() == "Rectangle-clipped");
     auto clippingShape = rectangleClip->clippingShapes()[0];
     REQUIRE(clippingShape != nullptr);
-    auto clippingPath = static_cast<TestRenderPath*>(clippingShape->renderPath());
+    auto clippingPath =
+        static_cast<TestRenderPath*>(clippingShape->renderPath());
     REQUIRE(clippingPath != nullptr);
-    std::unique_ptr<rive::LinearAnimationInstance> animation = artboard->animationAt(0);
+    std::unique_ptr<rive::LinearAnimationInstance> animation =
+        artboard->animationAt(0);
     // First a single shape is drawn as part of the solo
     REQUIRE(clippingPath->commands[0].command == TestPathCommandType::Reset);
     REQUIRE(clippingPath->commands[1].command == TestPathCommandType::AddPath);
@@ -386,9 +428,11 @@ TEST_CASE("double nested solos clipping with animation", "[path]")
     REQUIRE(rectangleClip->name() == "Rectangle-clipped");
     auto clippingShape = rectangleClip->clippingShapes()[0];
     REQUIRE(clippingShape != nullptr);
-    auto clippingPath = static_cast<TestRenderPath*>(clippingShape->renderPath());
+    auto clippingPath =
+        static_cast<TestRenderPath*>(clippingShape->renderPath());
     REQUIRE(clippingPath != nullptr);
-    std::unique_ptr<rive::LinearAnimationInstance> animation = artboard->animationAt(0);
+    std::unique_ptr<rive::LinearAnimationInstance> animation =
+        artboard->animationAt(0);
     // First a single shape is drawn as part of the solo
     REQUIRE(clippingPath->commands[0].command == TestPathCommandType::Reset);
     REQUIRE(clippingPath->commands[1].command == TestPathCommandType::AddPath);
@@ -407,7 +451,8 @@ TEST_CASE("double nested solos clipping with animation", "[path]")
     // Nothing changes, it hasn't reached any new keyframe
     REQUIRE(clippingPath->commands.size() == 5);
     animation->advanceAndApply(1.0f); // 4.5s in timeline
-    // Outer solo is pointing to inner solo, but inner solo is pointing to empty group
+    // Outer solo is pointing to inner solo, but inner solo is pointing to empty
+    // group
     REQUIRE(clippingPath->commands.size() == 5);
     animation->advanceAndApply(1.0f); // 5.5s in timeline
     // Outer solo is pointing to inner solo, inner solo is pointing to shape

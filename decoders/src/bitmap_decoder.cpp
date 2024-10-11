@@ -12,10 +12,16 @@ Bitmap::Bitmap(uint32_t width,
                uint32_t height,
                PixelFormat pixelFormat,
                std::unique_ptr<const uint8_t[]> bytes) :
-    m_Width(width), m_Height(height), m_PixelFormat(pixelFormat), m_Bytes(std::move(bytes))
+    m_Width(width),
+    m_Height(height),
+    m_PixelFormat(pixelFormat),
+    m_Bytes(std::move(bytes))
 {}
 
-Bitmap::Bitmap(uint32_t width, uint32_t height, PixelFormat pixelFormat, const uint8_t* bytes) :
+Bitmap::Bitmap(uint32_t width,
+               uint32_t height,
+               PixelFormat pixelFormat,
+               const uint8_t* bytes) :
     Bitmap(width, height, pixelFormat, std::unique_ptr<const uint8_t[]>(bytes))
 {}
 
@@ -55,7 +61,8 @@ void Bitmap::pixelFormat(PixelFormat format)
     {
         for (size_t j = 0; j < toBytesPerPixel; j++)
         {
-            nextBytes[writeIndex++] = j < fromBytesPerPixel ? m_Bytes[readIndex++] : 255;
+            nextBytes[writeIndex++] =
+                j < fromBytesPerPixel ? m_Bytes[readIndex++] : 255;
         }
     }
 

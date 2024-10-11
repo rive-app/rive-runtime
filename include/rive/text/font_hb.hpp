@@ -23,16 +23,20 @@ public:
     uint32_t getFeatureValue(uint32_t featureTag) const override;
 
     rive::RawPath getPath(rive::GlyphID) const override;
-    rive::SimpleArray<rive::Paragraph> onShapeText(rive::Span<const rive::Unichar>,
-                                                   rive::Span<const rive::TextRun>) const override;
+    rive::SimpleArray<rive::Paragraph> onShapeText(
+        rive::Span<const rive::Unichar>,
+        rive::Span<const rive::TextRun>) const override;
     rive::SimpleArray<uint32_t> features() const override;
-    rive::rcp<Font> withOptions(rive::Span<const Coord> variableAxes,
-                                rive::Span<const Feature> features) const override;
+    rive::rcp<Font> withOptions(
+        rive::Span<const Coord> variableAxes,
+        rive::Span<const Feature> features) const override;
 
     bool hasGlyph(rive::Span<const rive::Unichar>) const override;
 
     static rive::rcp<rive::Font> Decode(rive::Span<const uint8_t>);
-    static rive::rcp<rive::Font> FromSystem(void* systemFont, uint16_t weight, uint8_t width);
+    static rive::rcp<rive::Font> FromSystem(void* systemFont,
+                                            uint16_t weight,
+                                            uint8_t width);
     hb_font_t* font() const { return m_font; }
 
 private:

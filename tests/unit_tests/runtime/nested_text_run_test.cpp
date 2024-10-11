@@ -16,7 +16,8 @@ TEST_CASE("validate nested text get/set", "[nestedText]")
     REQUIRE(artboard != nullptr);
     REQUIRE(artboard->stateMachineCount() == 1);
 
-    // Test getting/setting TextValueRun view nested artboard path one level deep
+    // Test getting/setting TextValueRun view nested artboard path one level
+    // deep
 
     auto textRunB1 = artboard->getTextRun("ArtboardBRun", "ArtboardB-1");
     REQUIRE(textRunB1->is<rive::TextValueRun>());
@@ -26,21 +27,26 @@ TEST_CASE("validate nested text get/set", "[nestedText]")
     REQUIRE(textRunB2->is<rive::TextValueRun>());
     REQUIRE(textRunB2->text() == "Artboard B Run");
 
-    // Test getting/setting TextValueRun view nested artboard path two level deep
+    // Test getting/setting TextValueRun view nested artboard path two level
+    // deep
 
-    auto textRunB1C1 = artboard->getTextRun("ArtboardCRun", "ArtboardB-1/ArtboardC-1");
+    auto textRunB1C1 =
+        artboard->getTextRun("ArtboardCRun", "ArtboardB-1/ArtboardC-1");
     REQUIRE(textRunB1C1->is<rive::TextValueRun>());
     REQUIRE(textRunB1C1->text() == "Artboard C Run");
 
-    auto textRunB1C2 = artboard->getTextRun("ArtboardCRun", "ArtboardB-1/ArtboardC-2");
+    auto textRunB1C2 =
+        artboard->getTextRun("ArtboardCRun", "ArtboardB-1/ArtboardC-2");
     REQUIRE(textRunB1C2->is<rive::TextValueRun>());
     REQUIRE(textRunB1C2->text() == "Artboard C Run");
 
-    auto textRunB2C1 = artboard->getTextRun("ArtboardCRun", "ArtboardB-2/ArtboardC-1");
+    auto textRunB2C1 =
+        artboard->getTextRun("ArtboardCRun", "ArtboardB-2/ArtboardC-1");
     REQUIRE(textRunB2C1->is<rive::TextValueRun>());
     REQUIRE(textRunB2C1->text() == "Artboard C Run");
 
-    auto textRunB2C2 = artboard->getTextRun("ArtboardCRun", "ArtboardB-2/ArtboardC-2");
+    auto textRunB2C2 =
+        artboard->getTextRun("ArtboardCRun", "ArtboardB-2/ArtboardC-2");
     REQUIRE(textRunB2C2->is<rive::TextValueRun>());
     REQUIRE(textRunB2C2->text() == "Artboard C Run");
 

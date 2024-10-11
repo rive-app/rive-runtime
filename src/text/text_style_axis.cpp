@@ -19,6 +19,12 @@ StatusCode TextStyleAxis::onAddedDirty(CoreContext* context)
     return code;
 }
 
-void TextStyleAxis::tagChanged() { parent()->addDirt(ComponentDirt::TextShape); }
+void TextStyleAxis::tagChanged()
+{
+    parent()->addDirt(ComponentDirt::TextShape);
+}
 
-void TextStyleAxis::axisValueChanged() { parent()->addDirt(ComponentDirt::TextShape); }
+void TextStyleAxis::axisValueChanged()
+{
+    parent()->addDirt(ComponentDirt::TextShape);
+}

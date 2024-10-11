@@ -18,7 +18,8 @@ public:
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
 
-    // Quazi-unique identifier of the underlying GPU texture resource managed by this class.
+    // Quazi-unique identifier of the underlying GPU texture resource managed by
+    // this class.
     uint32_t textureResourceHash() const { return m_textureResourceHash; }
 
 protected:

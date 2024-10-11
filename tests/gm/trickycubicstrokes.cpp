@@ -39,15 +39,33 @@ struct TrickyCubic
 // This is a compilation of cubics that have given strokers grief. Feel free to
 // add more.
 static const TrickyCubic kTrickyCubics[] = {
-    {{{122, 737}, {348, 553}, {403, 761}, {400, 760}}, 4, CellFillMode::kStretch},
-    {{{244, 520}, {244, 518}, {1141, 634}, {394, 688}}, 4, CellFillMode::kStretch},
-    {{{550, 194}, {138, 130}, {1035, 246}, {288, 300}}, 4, CellFillMode::kStretch},
-    {{{226, 733}, {556, 779}, {-43, 471}, {348, 683}}, 4, CellFillMode::kStretch},
-    {{{268, 204}, {492, 304}, {352, 23}, {433, 412}}, 4, CellFillMode::kStretch},
-    {{{172, 480}, {396, 580}, {256, 299}, {338, 677}}, 4, CellFillMode::kStretch},
-    {{{731, 340}, {318, 252}, {1026, -64}, {367, 265}}, 4, CellFillMode::kStretch},
-    {{{475, 708}, {62, 620}, {770, 304}, {220, 659}}, 4, CellFillMode::kStretch},
-    {{{0, 0}, {128, 128}, {128, 0}, {0, 128}}, 4, CellFillMode::kCenter}, // Perfect cusp
+    {{{122, 737}, {348, 553}, {403, 761}, {400, 760}},
+     4,
+     CellFillMode::kStretch},
+    {{{244, 520}, {244, 518}, {1141, 634}, {394, 688}},
+     4,
+     CellFillMode::kStretch},
+    {{{550, 194}, {138, 130}, {1035, 246}, {288, 300}},
+     4,
+     CellFillMode::kStretch},
+    {{{226, 733}, {556, 779}, {-43, 471}, {348, 683}},
+     4,
+     CellFillMode::kStretch},
+    {{{268, 204}, {492, 304}, {352, 23}, {433, 412}},
+     4,
+     CellFillMode::kStretch},
+    {{{172, 480}, {396, 580}, {256, 299}, {338, 677}},
+     4,
+     CellFillMode::kStretch},
+    {{{731, 340}, {318, 252}, {1026, -64}, {367, 265}},
+     4,
+     CellFillMode::kStretch},
+    {{{475, 708}, {62, 620}, {770, 304}, {220, 659}},
+     4,
+     CellFillMode::kStretch},
+    {{{0, 0}, {128, 128}, {128, 0}, {0, 128}},
+     4,
+     CellFillMode::kCenter}, // Perfect cusp
     {{{0, .01f}, {128, 127.999f}, {128, .01f}, {0, 127.99f}},
      4,
      CellFillMode::kCenter}, // Near-cusp
@@ -57,25 +75,44 @@ static const TrickyCubic kTrickyCubics[] = {
     {{{0, 0}, {0, -10}, {0, -10}, {0, 10}},
      4,
      CellFillMode::kCenter,
-     1.098283f},                                                      // Flat line with 180
-    {{{10, 0}, {0, 0}, {20, 0}, {10, 0}}, 4, CellFillMode::kStretch}, // Flat line with 2 180s
+     1.098283f}, // Flat line with 180
+    {{{10, 0}, {0, 0}, {20, 0}, {10, 0}},
+     4,
+     CellFillMode::kStretch}, // Flat line with 2 180s
     {{{39, -39}, {40, -40}, {40, -40}, {0, 0}},
      4,
-     CellFillMode::kStretch},                                            // Flat diagonal with 180
-    {{{40, 40}, {0, 0}, {200, 200}, {0, 0}}, 4, CellFillMode::kStretch}, // Diag w/ an internal 180
-    {{{0, 0}, {1e-2f, 0}, {-1e-2f, 0}, {0, 0}}, 4, CellFillMode::kCenter}, // Circle
-    {{{400.75f, 100.05f}, {400.75f, 100.05f}, {100.05f, 300.95f}, {100.05f, 300.95f}},
+     CellFillMode::kStretch}, // Flat diagonal with 180
+    {{{40, 40}, {0, 0}, {200, 200}, {0, 0}},
      4,
-     CellFillMode::kStretch},                                           // Flat line with no turns
-    {{{0.5f, 0}, {0, 0}, {20, 0}, {10, 0}}, 4, CellFillMode::kStretch}, // Flat line with 2 180s
-    {{{10, 0}, {0, 0}, {10, 0}, {10, 0}}, 4, CellFillMode::kStretch},   // Flat line with a 180
+     CellFillMode::kStretch}, // Diag w/ an internal 180
+    {{{0, 0}, {1e-2f, 0}, {-1e-2f, 0}, {0, 0}},
+     4,
+     CellFillMode::kCenter}, // Circle
+    {{{400.75f, 100.05f},
+      {400.75f, 100.05f},
+      {100.05f, 300.95f},
+      {100.05f, 300.95f}},
+     4,
+     CellFillMode::kStretch}, // Flat line with no turns
+    {{{0.5f, 0}, {0, 0}, {20, 0}, {10, 0}},
+     4,
+     CellFillMode::kStretch}, // Flat line with 2 180s
+    {{{10, 0}, {0, 0}, {10, 0}, {10, 0}},
+     4,
+     CellFillMode::kStretch}, // Flat line with a 180
     {{{1, 1}, {2, 1}, {1, 1}, {1, std::numeric_limits<float>::quiet_NaN()}},
      3,
      CellFillMode::kStretch}, // Flat QUAD with a cusp
-    {{{1, 1}, {100, 1}, {25, 1}, {.3f, std::numeric_limits<float>::quiet_NaN()}},
+    {{{1, 1},
+      {100, 1},
+      {25, 1},
+      {.3f, std::numeric_limits<float>::quiet_NaN()}},
      3,
      CellFillMode::kStretch}, // Flat CONIC with a cusp
-    {{{1, 1}, {70, 1}, {25, 1}, {1.5f, std::numeric_limits<float>::quiet_NaN()}},
+    {{{1, 1},
+      {70, 1},
+      {25, 1},
+      {1.5f, std::numeric_limits<float>::quiet_NaN()}},
      3,
      CellFillMode::kStretch}, // Flat CONIC with a cusp
 };
@@ -85,10 +122,14 @@ static AABB calc_tight_cubic_bounds(const Vec2D P[4], int depth = 5)
     if (0 == depth)
     {
         AABB bounds;
-        bounds.minX = std::min(std::min(P[0].x, P[1].x), std::min(P[2].x, P[3].x));
-        bounds.minY = std::min(std::min(P[0].y, P[1].y), std::min(P[2].y, P[3].y));
-        bounds.maxX = std::max(std::max(P[0].x, P[1].x), std::max(P[2].x, P[3].x));
-        bounds.maxY = std::max(std::max(P[0].y, P[1].y), std::max(P[2].y, P[3].y));
+        bounds.minX =
+            std::min(std::min(P[0].x, P[1].x), std::min(P[2].x, P[3].x));
+        bounds.minY =
+            std::min(std::min(P[0].y, P[1].y), std::min(P[2].y, P[3].y));
+        bounds.maxX =
+            std::max(std::max(P[0].x, P[1].x), std::max(P[2].x, P[3].x));
+        bounds.maxY =
+            std::max(std::max(P[0].y, P[1].y), std::max(P[2].y, P[3].y));
         return bounds;
     }
 
@@ -175,14 +216,18 @@ public:
             Mat2D matrix;
             if (fillMode == CellFillMode::kStretch)
             {
-                matrix =
-                    rive::computeAlignment(Fit::contain, Alignment::center, cellRect, strokeBounds);
+                matrix = rive::computeAlignment(Fit::contain,
+                                                Alignment::center,
+                                                cellRect,
+                                                strokeBounds);
             }
             else
             {
                 matrix = Mat2D::fromTranslate(
-                    cellRect.minX + kStrokeWidth + (cellRect.width() - strokeBounds.width()) / 2,
-                    cellRect.minY + kStrokeWidth + (cellRect.height() - strokeBounds.height()) / 2);
+                    cellRect.minX + kStrokeWidth +
+                        (cellRect.width() - strokeBounds.width()) / 2,
+                    cellRect.minY + kStrokeWidth +
+                        (cellRect.height() - strokeBounds.height()) / 2);
             }
 
             renderer->save();
@@ -212,7 +257,9 @@ private:
     StrokeJoin m_Join;
 };
 
-GMREGISTER(return new TrickyCubicsGM(StrokeCap::butt, StrokeJoin::miter, "trickycubicstrokes"))
+GMREGISTER(return new TrickyCubicsGM(StrokeCap::butt,
+                                     StrokeJoin::miter,
+                                     "trickycubicstrokes"))
 GMREGISTER(return new TrickyCubicsGM(StrokeCap::round,
                                      StrokeJoin::round,
                                      "trickycubicstrokes_roundcaps"))

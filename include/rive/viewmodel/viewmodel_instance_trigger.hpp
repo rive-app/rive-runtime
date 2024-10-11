@@ -6,7 +6,8 @@ namespace rive
 {
 #ifdef WITH_RIVE_TOOLS
 class ViewModelInstanceTrigger;
-typedef void (*ViewModelTriggerChanged)(ViewModelInstanceTrigger* vmi, uint32_t value);
+typedef void (*ViewModelTriggerChanged)(ViewModelInstanceTrigger* vmi,
+                                        uint32_t value);
 #endif
 class ViewModelInstanceTrigger : public ViewModelInstanceTriggerBase
 {
@@ -14,7 +15,10 @@ protected:
     void propertyValueChanged() override;
 #ifdef WITH_RIVE_TOOLS
 public:
-    void onChanged(ViewModelTriggerChanged callback) { m_changedCallback = callback; }
+    void onChanged(ViewModelTriggerChanged callback)
+    {
+        m_changedCallback = callback;
+    }
     ViewModelTriggerChanged m_changedCallback = nullptr;
 #endif
 };

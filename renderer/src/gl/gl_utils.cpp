@@ -14,8 +14,8 @@
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
 
-// Emscripten's shader preprocessor crashes on PLS shaders. This method allows us to bypass
-// Emscripten and set a WebGL shader source directly.
+// Emscripten's shader preprocessor crashes on PLS shaders. This method allows
+// us to bypass Emscripten and set a WebGL shader source directly.
 EM_JS(void,
       webgl_shader_source,
       (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl, GLuint shader, const char* source),
@@ -45,13 +45,19 @@ void CompileAndAttachShader(GLuint program,
                             size_t numInputSources,
                             const GLCapabilities& capabilities)
 {
-    GLuint shader =
-        CompileShader(type, defines, numDefines, inputSources, numInputSources, capabilities);
+    GLuint shader = CompileShader(type,
+                                  defines,
+                                  numDefines,
+                                  inputSources,
+                                  numInputSources,
+                                  capabilities);
     glAttachShader(program, shader);
     glDeleteShader(shader);
 }
 
-GLuint CompileShader(GLuint type, const char* source, const GLCapabilities& capabilities)
+GLuint CompileShader(GLuint type,
+                     const char* source,
+                     const GLCapabilities& capabilities)
 {
     return CompileShader(type, nullptr, 0, &source, 1, capabilities);
 }
@@ -71,9 +77,11 @@ GLuint CompileShader(GLuint type,
         shaderSource << " es";
     }
     shaderSource << '\n';
-    // Create our own "GLSL_VERSION" macro. In "#version 320 es", Qualcomm incorrectly substitutes
+    // Create our own "GLSL_VERSION" macro. In "#version 320 es", Qualcomm
+    // incorrectly substitutes
     // __VERSION__ to 300.
-    shaderSource << "#define " << GLSL_GLSL_VERSION << ' ' << capabilities.contextVersionMajor
+    shaderSource << "#define " << GLSL_GLSL_VERSION << ' '
+                 << capabilities.contextVersionMajor
                  << capabilities.contextVersionMinor << "0\n";
     if (type == GL_VERTEX_SHADER)
     {
@@ -99,13 +107,17 @@ GLuint CompileShader(GLuint type,
 {
     GLuint shader = glCreateShader(shaderType);
 #ifdef BYPASS_EMSCRIPTEN_SHADER_PARSER
-    // Emscripten's shader preprocessor crashes on PLS shaders. Feed Emscripten something very
-    // simple and then hop to WebGL to bypass it and set the real shader source.
-    const char* kMinimalShader = shaderType == GL_VERTEX_SHADER
-                                     ? "#version 300 es\nvoid main() { gl_Position = vec4(0); }"
-                                     : "#version 300 es\nvoid main() {}";
+    // Emscripten's shader preprocessor crashes on PLS shaders. Feed Emscripten
+    // something very simple and then hop to WebGL to bypass it and set the real
+    // shader source.
+    const char* kMinimalShader =
+        shaderType == GL_VERTEX_SHADER
+            ? "#version 300 es\nvoid main() { gl_Position = vec4(0); }"
+            : "#version 300 es\nvoid main() {}";
     glShaderSource(shader, 1, &kMinimalShader, nullptr);
-    webgl_shader_source(emscripten_webgl_get_current_context(), shader, rawGLSL);
+    webgl_shader_source(emscripten_webgl_get_current_context(),
+                        shader,
+                        rawGLSL);
 #else
     glShaderSource(shader, 1, &rawGLSL, nullptr);
 #endif
@@ -182,12 +194,18 @@ void Program::compileAndAttachShader(GLuint type,
                                      const GLCapabilities& capabilities)
 {
     assert(type == GL_VERTEX_SHADER || type == GL_FRAGMENT_SHADER);
-    GLuint& internalShaderID = type == GL_VERTEX_SHADER ? m_vertexShaderID : m_fragmentShaderID;
+    GLuint& internalShaderID =
+        type == GL_VERTEX_SHADER ? m_vertexShaderID : m_fragmentShaderID;
     if (internalShaderID != 0)
     {
         glDeleteShader(internalShaderID);
     }
-    internalShaderID = CompileShader(type, defines, numDefines, sources, numSources, capabilities);
+    internalShaderID = CompileShader(type,
+                                     defines,
+                                     numDefines,
+                                     sources,
+                                     numSources,
+                                     capabilities);
     glAttachShader(m_id, internalShaderID);
 }
 
@@ -199,7 +217,9 @@ void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
 }
 
-void BlitFramebuffer(rive::IAABB bounds, uint32_t renderTargetHeight, GLbitfield mask)
+void BlitFramebuffer(rive::IAABB bounds,
+                     uint32_t renderTargetHeight,
+                     GLbitfield mask)
 {
     // glBlitFramebuffer is oriented bottom-up.
     uint32_t l = bounds.left;

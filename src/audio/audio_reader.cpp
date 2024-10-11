@@ -19,11 +19,13 @@ uint64_t AudioReader::lengthInFrames()
 {
     ma_uint64 length;
 
-    ma_result result = ma_data_source_get_length_in_pcm_frames(&m_decoder, &length);
+    ma_result result =
+        ma_data_source_get_length_in_pcm_frames(&m_decoder, &length);
     if (result != MA_SUCCESS)
     {
         fprintf(stderr,
-                "AudioReader::lengthInFrames - audioSourceLength failed to determine length\n");
+                "AudioReader::lengthInFrames - audioSourceLength failed to "
+                "determine length\n");
         return 0;
     }
     return (uint64_t)length;

@@ -11,7 +11,10 @@ class StateMachineLayerComponent : public StateMachineLayerComponentBase
     friend class StateMachineLayerComponentImporter;
 
 public:
-    const std::vector<StateMachineFireEvent*>& events() const { return m_events; }
+    const std::vector<StateMachineFireEvent*>& events() const
+    {
+        return m_events;
+    }
     ~StateMachineLayerComponent() override;
 
 private:

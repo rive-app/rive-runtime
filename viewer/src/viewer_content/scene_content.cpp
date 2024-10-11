@@ -87,7 +87,8 @@ class SceneContent : public ViewerContent
         m_ArtboardIndex = (index == REQUEST_DEFAULT_SCENE) ? 0 : index;
         m_ArtboardInstance = m_File->artboardAt(m_ArtboardIndex);
         // m_ViewModelInstance = m_File->viewModelInstanceNamed("vm-3");
-        m_ViewModelInstance = m_File->createViewModelInstance(m_ArtboardInstance.get());
+        m_ViewModelInstance =
+            m_File->createViewModelInstance(m_ArtboardInstance.get());
         m_ArtboardInstance->setDataContextFromInstance(m_ViewModelInstance);
 
         m_ArtboardInstance->advance(0.0f);
@@ -191,10 +192,11 @@ public:
     {
         renderer->save();
 
-        auto viewTransform = rive::computeAlignment(rive::Fit::contain,
-                                                    rive::Alignment::center,
-                                                    rive::AABB(0, 0, m_width, m_height),
-                                                    m_ArtboardInstance->bounds());
+        auto viewTransform =
+            rive::computeAlignment(rive::Fit::contain,
+                                   rive::Alignment::center,
+                                   rive::AABB(0, 0, m_width, m_height),
+                                   m_ArtboardInstance->bounds());
         renderer->transform(viewTransform);
         // Store the inverse view so we can later go from screen to world.
         m_InverseViewTransform = viewTransform.invertOrIdentity();
@@ -206,7 +208,8 @@ public:
         }
         else
         {
-            m_ArtboardInstance->draw(renderer); // we're just a still-frame file/artboard
+            m_ArtboardInstance->draw(
+                renderer); // we're just a still-frame file/artboard
         }
 
         renderer->restore();
@@ -245,9 +248,10 @@ public:
 
                     // On that note, let's strip the images.
                     rive::ImportResult stripResult;
-                    auto strippedBytes = rive::File::stripAssets(rivFileBytes,
-                                                                 {rive::ImageAsset::typeKey},
-                                                                 &stripResult);
+                    auto strippedBytes =
+                        rive::File::stripAssets(rivFileBytes,
+                                                {rive::ImageAsset::typeKey},
+                                                &stripResult);
                     if (stripResult != rive::ImportResult::success)
                     {
                         printf("Failed to strip images\n");
@@ -281,7 +285,8 @@ public:
                     "Artboard",
                     &m_ArtboardIndex,
                     [](void* data, int index, const char** name) {
-                        auto& names = *static_cast<std::vector<std::string>*>(data);
+                        auto& names =
+                            *static_cast<std::vector<std::string>*>(data);
                         *name = names[index].c_str();
                         return true;
                     },
@@ -295,7 +300,8 @@ public:
                     "Animations",
                     &m_AnimationIndex,
                     [](void* data, int index, const char** name) {
-                        auto& names = *static_cast<std::vector<std::string>*>(data);
+                        auto& names =
+                            *static_cast<std::vector<std::string>*>(data);
                         *name = names[index].c_str();
                         return true;
                     },
@@ -310,7 +316,8 @@ public:
                     "State Machines",
                     &m_StateMachineIndex,
                     [](void* data, int index, const char** name) {
-                        auto& names = *static_cast<std::vector<std::string>*>(data);
+                        auto& names =
+                            *static_cast<std::vector<std::string>*>(data);
                         *name = names[index].c_str();
                         return true;
                     },
@@ -338,13 +345,15 @@ public:
                         char label[256];
                         snprintf(label, 256, "##%u", i);
 
-                        auto number = static_cast<rive::SMINumber*>(inputInstance);
+                        auto number =
+                            static_cast<rive::SMINumber*>(inputInstance);
                         float v = number->value();
                         ImGui::InputFloat(label, &v, 1.0f, 2.0f, "%.3f");
                         number->value(v);
                         ImGui::NextColumn();
                     }
-                    else if (inputInstance->input()->is<rive::StateMachineTrigger>())
+                    else if (inputInstance->input()
+                                 ->is<rive::StateMachineTrigger>())
                     {
                         // ImGui requires names as id's, use ## to hide the
                         // label but still give it an id.
@@ -352,18 +361,21 @@ public:
                         snprintf(label, 256, "Fire##%u", i);
                         if (ImGui::Button(label))
                         {
-                            auto trigger = static_cast<rive::SMITrigger*>(inputInstance);
+                            auto trigger =
+                                static_cast<rive::SMITrigger*>(inputInstance);
                             trigger->fire();
                         }
                         ImGui::NextColumn();
                     }
-                    else if (inputInstance->input()->is<rive::StateMachineBool>())
+                    else if (inputInstance->input()
+                                 ->is<rive::StateMachineBool>())
                     {
                         // ImGui requires names as id's, use ## to hide the
                         // label but still give it an id.
                         char label[256];
                         snprintf(label, 256, "##%u", i);
-                        auto boolInput = static_cast<rive::SMIBool*>(inputInstance);
+                        auto boolInput =
+                            static_cast<rive::SMIBool*>(inputInstance);
                         bool value = boolInput->value();
 
                         ImGui::Checkbox(label, &value);

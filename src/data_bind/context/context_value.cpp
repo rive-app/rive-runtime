@@ -21,33 +21,36 @@ DataBindContextValue::DataBindContextValue(ViewModelInstanceValue* source,
         switch (m_source->coreType())
         {
             case ViewModelInstanceNumberBase::typeKey:
-                m_dataValue =
-                    new DataValueNumber(m_source->as<ViewModelInstanceNumber>()->propertyValue());
+                m_dataValue = new DataValueNumber(
+                    m_source->as<ViewModelInstanceNumber>()->propertyValue());
                 break;
             case ViewModelInstanceStringBase::typeKey:
-                m_dataValue =
-                    new DataValueString(m_source->as<ViewModelInstanceString>()->propertyValue());
+                m_dataValue = new DataValueString(
+                    m_source->as<ViewModelInstanceString>()->propertyValue());
                 break;
             case ViewModelInstanceColorBase::typeKey:
-                m_dataValue =
-                    new DataValueColor(m_source->as<ViewModelInstanceColor>()->propertyValue());
+                m_dataValue = new DataValueColor(
+                    m_source->as<ViewModelInstanceColor>()->propertyValue());
                 break;
             case ViewModelInstanceBooleanBase::typeKey:
-                m_dataValue =
-                    new DataValueBoolean(m_source->as<ViewModelInstanceBoolean>()->propertyValue());
+                m_dataValue = new DataValueBoolean(
+                    m_source->as<ViewModelInstanceBoolean>()->propertyValue());
                 break;
             case ViewModelInstanceEnumBase::typeKey:
             {
-                auto viewmodelInstanceEnum = m_source->as<ViewModelInstanceEnum>();
+                auto viewmodelInstanceEnum =
+                    m_source->as<ViewModelInstanceEnum>();
                 auto viewModelPropertyEnum =
-                    viewmodelInstanceEnum->viewModelProperty()->as<ViewModelPropertyEnum>();
-                m_dataValue = new DataValueEnum(viewmodelInstanceEnum->propertyValue(),
-                                                viewModelPropertyEnum->dataEnum());
+                    viewmodelInstanceEnum->viewModelProperty()
+                        ->as<ViewModelPropertyEnum>();
+                m_dataValue =
+                    new DataValueEnum(viewmodelInstanceEnum->propertyValue(),
+                                      viewModelPropertyEnum->dataEnum());
             }
             break;
             case ViewModelInstanceTriggerBase::typeKey:
-                m_dataValue =
-                    new DataValueTrigger(m_source->as<ViewModelInstanceTrigger>()->propertyValue());
+                m_dataValue = new DataValueTrigger(
+                    m_source->as<ViewModelInstanceTrigger>()->propertyValue());
                 break;
             default:
                 m_dataValue = new DataValue();
@@ -99,37 +102,48 @@ void DataBindContextValue::applyToSource(Core* component,
         case ViewModelInstanceNumberBase::typeKey:
         {
 
-            auto value = calculateValue<DataValueNumber, float>(targetValue, isMainDirection);
+            auto value =
+                calculateValue<DataValueNumber, float>(targetValue,
+                                                       isMainDirection);
             m_source->as<ViewModelInstanceNumber>()->propertyValue(value);
         }
         break;
         case ViewModelInstanceStringBase::typeKey:
         {
-            auto value = calculateValue<DataValueString, std::string>(targetValue, isMainDirection);
+            auto value =
+                calculateValue<DataValueString, std::string>(targetValue,
+                                                             isMainDirection);
             m_source->as<ViewModelInstanceString>()->propertyValue(value);
         }
         break;
         case ViewModelInstanceColorBase::typeKey:
         {
-            auto value = calculateValue<DataValueColor, int>(targetValue, isMainDirection);
+            auto value = calculateValue<DataValueColor, int>(targetValue,
+                                                             isMainDirection);
             m_source->as<ViewModelInstanceColor>()->propertyValue(value);
         }
         break;
         case ViewModelInstanceBooleanBase::typeKey:
         {
-            auto value = calculateValue<DataValueBoolean, bool>(targetValue, isMainDirection);
+            auto value =
+                calculateValue<DataValueBoolean, bool>(targetValue,
+                                                       isMainDirection);
             m_source->as<ViewModelInstanceBoolean>()->propertyValue(value);
         }
         break;
         case ViewModelInstanceEnumBase::typeKey:
         {
-            auto value = calculateValue<DataValueEnum, uint32_t>(targetValue, isMainDirection);
+            auto value =
+                calculateValue<DataValueEnum, uint32_t>(targetValue,
+                                                        isMainDirection);
             m_source->as<ViewModelInstanceEnum>()->propertyValue(value);
         }
         break;
         case ViewModelInstanceTriggerBase::typeKey:
         {
-            auto value = calculateValue<DataValueTrigger, uint32_t>(targetValue, isMainDirection);
+            auto value =
+                calculateValue<DataValueTrigger, uint32_t>(targetValue,
+                                                           isMainDirection);
             m_source->as<ViewModelInstanceTrigger>()->propertyValue(value);
         }
         break;

@@ -91,8 +91,8 @@ Path ribs_path(const RawPath& path, float radius)
         {
             auto posTan = meas->getPosTan(accum);
             Vec2D pos = posTan.pos;
-            // there appeara to be a bug somewhere that is not normalizing this when it should,
-            // so i am doing it here
+            // there appeara to be a bug somewhere that is not normalizing this
+            // when it should, so i am doing it here
             Vec2D tan = posTan.tan.normalized();
             tan = {tan.y * radius, -tan.x * radius};
 

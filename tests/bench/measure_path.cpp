@@ -10,7 +10,10 @@
 
 using namespace rive;
 
-static Vec2D randpt() { return Vec2D(float(rand()), float(rand())) * 1000 / (float)RAND_MAX; }
+static Vec2D randpt()
+{
+    return Vec2D(float(rand()), float(rand())) * 1000 / (float)RAND_MAX;
+}
 
 // Measure the speed MetricsPath::computeLength().
 class MeasurePath : public Bench

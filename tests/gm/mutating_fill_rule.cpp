@@ -9,8 +9,8 @@
 using namespace rivegm;
 using namespace rive;
 
-// The fill rule is allowed to mutate during the artboard draw process. Make sure this works as
-// expected when renderers defer their drawing.
+// The fill rule is allowed to mutate during the artboard draw process. Make
+// sure this works as expected when renderers defer their drawing.
 class MutatingFillRuleGM : public GM
 {
 public:

@@ -9,8 +9,9 @@ using namespace rive;
 const Mat2D TransformConstraint::targetTransform() const
 {
     AABB bounds = m_Target->localBounds();
-    Mat2D local = Mat2D::fromTranslate(bounds.left() + bounds.width() * originX(),
-                                       bounds.top() + bounds.height() * originY());
+    Mat2D local =
+        Mat2D::fromTranslate(bounds.left() + bounds.width() * originX(),
+                             bounds.top() + bounds.height() * originY());
     return m_Target->worldTransform() * local;
 }
 
@@ -65,8 +66,10 @@ void TransformConstraint::constrain(TransformComponent* component)
     m_ComponentsB.rotation(angleA + diff * t);
     m_ComponentsB.x(m_ComponentsA.x() * ti + m_ComponentsB.x() * t);
     m_ComponentsB.y(m_ComponentsA.y() * ti + m_ComponentsB.y() * t);
-    m_ComponentsB.scaleX(m_ComponentsA.scaleX() * ti + m_ComponentsB.scaleX() * t);
-    m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti + m_ComponentsB.scaleY() * t);
+    m_ComponentsB.scaleX(m_ComponentsA.scaleX() * ti +
+                         m_ComponentsB.scaleX() * t);
+    m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti +
+                         m_ComponentsB.scaleY() * t);
     m_ComponentsB.skew(m_ComponentsA.skew() * ti + m_ComponentsB.skew() * t);
 
     component->mutableWorldTransform() = Mat2D::compose(m_ComponentsB);

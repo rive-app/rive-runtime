@@ -5,7 +5,8 @@
 
 using namespace rive;
 
-bool TransitionNumberCondition::validateInputType(const StateMachineInput* input) const
+bool TransitionNumberCondition::validateInputType(
+    const StateMachineInput* input) const
 {
     // A null input is valid as the StateMachine can attempt to limp along if we
     // introduce new input types that old conditions are expected to handle in
@@ -13,7 +14,8 @@ bool TransitionNumberCondition::validateInputType(const StateMachineInput* input
     return input == nullptr || input->is<StateMachineNumber>();
 }
 
-bool TransitionNumberCondition::evaluate(const StateMachineInstance* stateMachineInstance) const
+bool TransitionNumberCondition::evaluate(
+    const StateMachineInstance* stateMachineInstance) const
 {
     auto inputInstance = stateMachineInstance->input(inputId());
     if (inputInstance == nullptr)

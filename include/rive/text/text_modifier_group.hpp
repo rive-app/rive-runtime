@@ -44,33 +44,39 @@ public:
     {
         return (modifierFlags() &
                 (uint32_t)(TextModifierFlags::modifyTranslation |
-                           TextModifierFlags::modifyRotation | TextModifierFlags::modifyScale |
+                           TextModifierFlags::modifyRotation |
+                           TextModifierFlags::modifyScale |
                            TextModifierFlags::modifyOrigin)) != 0;
     }
 
     bool modifiesOpacity() const
     {
-        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyOpacity) != 0;
+        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyOpacity) !=
+               0;
     }
 
     bool modifiesRotation() const
     {
-        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyRotation) != 0;
+        return (modifierFlags() &
+                (uint32_t)TextModifierFlags::modifyRotation) != 0;
     }
 
     bool modifiesTranslation() const
     {
-        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyTranslation) != 0;
+        return (modifierFlags() &
+                (uint32_t)TextModifierFlags::modifyTranslation) != 0;
     }
 
     bool modifiesScale() const
     {
-        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyScale) != 0;
+        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyScale) !=
+               0;
     }
 
     bool modifiesOrigin() const
     {
-        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyOrigin) != 0;
+        return (modifierFlags() & (uint32_t)TextModifierFlags::modifyOrigin) !=
+               0;
     }
 
     float computeOpacity(float current, float t) const;

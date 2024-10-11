@@ -18,7 +18,10 @@ public:
     StateMachineListener();
     ~StateMachineListener() override;
 
-    ListenerType listenerType() const { return (ListenerType)listenerTypeValue(); }
+    ListenerType listenerType() const
+    {
+        return (ListenerType)listenerTypeValue();
+    }
     size_t actionCount() const { return m_actions.size(); }
 
     const ListenerAction* action(size_t index) const;

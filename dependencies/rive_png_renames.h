@@ -167,7 +167,8 @@
 #define png_icc_check_header rive_png_icc_check_header
 #define png_icc_check_tag_table rive_png_icc_check_tag_table
 #define png_icc_set_sRGB rive_png_icc_set_sRGB
-#define png_colorspace_set_rgb_coefficients rive_png_colorspace_set_rgb_coefficients
+#define png_colorspace_set_rgb_coefficients                                    \
+    rive_png_colorspace_set_rgb_coefficients
 #define png_check_IHDR rive_png_check_IHDR
 #define png_do_check_palette_indexes rive_png_do_check_palette_indexes
 #define png_fixed_error rive_png_fixed_error
@@ -418,10 +419,12 @@
 #define png_set_filter_heuristics_fixed rive_png_set_filter_heuristics_fixed
 #define png_set_flush rive_png_set_flush
 #define png_set_text_compression_level rive_png_set_text_compression_level
-#define png_set_text_compression_mem_level rive_png_set_text_compression_mem_level
+#define png_set_text_compression_mem_level                                     \
+    rive_png_set_text_compression_mem_level
 #define png_set_text_compression_method rive_png_set_text_compression_method
 #define png_set_text_compression_strategy rive_png_set_text_compression_strategy
-#define png_set_text_compression_window_bits rive_png_set_text_compression_window_bits
+#define png_set_text_compression_window_bits                                   \
+    rive_png_set_text_compression_window_bits
 #define png_set_write_status_fn rive_png_set_write_status_fn
 #define png_set_write_user_transform_fn rive_png_set_write_user_transform_fn
 #define png_write_end rive_png_write_end

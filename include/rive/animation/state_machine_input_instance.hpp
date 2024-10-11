@@ -25,7 +25,8 @@ private:
 protected:
     void valueChanged();
 
-    SMIInput(const StateMachineInput* input, StateMachineInstance* machineInstance);
+    SMIInput(const StateMachineInput* input,
+             StateMachineInstance* machineInstance);
 
 public:
     virtual ~SMIInput() {}
@@ -49,7 +50,8 @@ class SMIBool : public SMIInput
 private:
     bool m_Value;
 
-    SMIBool(const StateMachineBool* input, StateMachineInstance* machineInstance);
+    SMIBool(const StateMachineBool* input,
+            StateMachineInstance* machineInstance);
 
 public:
     bool value() const { return m_Value; }
@@ -63,7 +65,8 @@ class SMINumber : public SMIInput
 private:
     float m_Value;
 
-    SMINumber(const StateMachineNumber* input, StateMachineInstance* machineInstance);
+    SMINumber(const StateMachineNumber* input,
+              StateMachineInstance* machineInstance);
 
 public:
     float value() const { return m_Value; }
@@ -78,7 +81,8 @@ class SMITrigger : public SMIInput
 private:
     bool m_fired = false;
 
-    SMITrigger(const StateMachineTrigger* input, StateMachineInstance* machineInstance);
+    SMITrigger(const StateMachineTrigger* input,
+               StateMachineInstance* machineInstance);
     void advanced() override { m_fired = false; }
 
 public:

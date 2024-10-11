@@ -23,7 +23,9 @@ static rive::SkiaFactory skiaFactory;
 #include "GrDirectContext.h"
 
 sk_sp<GrDirectContext> makeSkiaContext();
-sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context, int width, int height);
+sk_sp<SkSurface> makeSkiaSurface(GrDirectContext* context,
+                                 int width,
+                                 int height);
 void skiaPresentSurface(sk_sp<SkSurface> surface);
 
 // Experimental flag, until we complete coregraphics_host
@@ -35,7 +37,11 @@ void skiaPresentSurface(sk_sp<SkSurface> surface);
 #include "cg_factory.hpp"
 #include "cg_renderer.hpp"
 #include "mac_utils.hpp"
-static void render_with_cg(SkCanvas* canvas, int w, int h, ViewerContent* content, double elapsed)
+static void render_with_cg(SkCanvas* canvas,
+                           int w,
+                           int h,
+                           ViewerContent* content,
+                           double elapsed)
 {
     // cons up a CGContext
     auto pixels = SkData::MakeUninitialized(w * h * 4);
@@ -51,8 +57,14 @@ static void render_with_cg(SkCanvas* canvas, int w, int h, ViewerContent* conten
     CGContextFlush(ctx);
 
     // Draw the pixels into the canvas
-    auto img = SkImage::MakeRasterData(SkImageInfo::MakeN32Premul(w, h), pixels, w * 4);
-    canvas->drawImage(img, 0, 0, SkSamplingOptions(SkFilterMode::kNearest), nullptr);
+    auto img = SkImage::MakeRasterData(SkImageInfo::MakeN32Premul(w, h),
+                                       pixels,
+                                       w * 4);
+    canvas->drawImage(img,
+                      0,
+                      0,
+                      SkSamplingOptions(SkFilterMode::kNearest),
+                      nullptr);
 }
 #endif
 
@@ -78,21 +90,28 @@ public:
               0.0 }
         }};
 #elif defined(SK_GL)
-        // Skia commands are issued to the same GL context before Sokol, so we need
-        // to make sure Sokol does not clear the buffer.
-        *action = (sg_pass_action){.colors[0] = {.action = SG_ACTION_DONTCARE }};
+        // Skia commands are issued to the same GL context before Sokol, so we
+        // need to make sure Sokol does not clear the buffer.
+        *action = (sg_pass_action){.colors[0] = {
+            .action = SG_ACTION_DONTCARE
+        }};
 #endif
 
         m_context = makeSkiaContext();
         return m_context != nullptr;
     }
 
-    void handleResize(int width, int height) override { m_dimensions = {width, height}; }
+    void handleResize(int width, int height) override
+    {
+        m_dimensions = {width, height};
+    }
 
     void beforeDefaultPass(ViewerContent* content, double elapsed) override
     {
         m_context->resetContext();
-        auto surf = makeSkiaSurface(m_context.get(), m_dimensions.width(), m_dimensions.height());
+        auto surf = makeSkiaSurface(m_context.get(),
+                                    m_dimensions.width(),
+                                    m_dimensions.height());
         SkCanvas* canvas = surf->getCanvas();
         SkPaint paint;
         paint.setColor(0xFF161616);
@@ -101,14 +120,23 @@ public:
         if (content)
         {
 #ifdef TEST_CG_RENDERER
-            render_with_cg(canvas, m_dimensions.width(), m_dimensions.height(), content, elapsed);
+            render_with_cg(canvas,
+                           m_dimensions.width(),
+                           m_dimensions.height(),
+                           content,
+                           elapsed);
 #elif defined(SW_SKIA_MODE)
-            auto info = SkImageInfo::MakeN32Premul(m_dimensions.width(), m_dimensions.height());
+            auto info = SkImageInfo::MakeN32Premul(m_dimensions.width(),
+                                                   m_dimensions.height());
             auto swsurf = SkSurface::MakeRaster(info);
             rive::SkiaRenderer skiaRenderer(swsurf->getCanvas());
             content->handleDraw(&skiaRenderer, elapsed);
             auto img = swsurf->makeImageSnapshot();
-            canvas->drawImage(img, 0, 0, SkSamplingOptions(SkFilterMode::kNearest), nullptr);
+            canvas->drawImage(img,
+                              0,
+                              0,
+                              SkSamplingOptions(SkFilterMode::kNearest),
+                              nullptr);
 #else
             rive::SkiaRenderer skiaRenderer(canvas);
             content->handleDraw(&skiaRenderer, elapsed);
@@ -121,7 +149,10 @@ public:
     }
 };
 
-std::unique_ptr<ViewerHost> ViewerHost::Make() { return rivestd::make_unique<SkiaViewerHost>(); }
+std::unique_ptr<ViewerHost> ViewerHost::Make()
+{
+    return rivestd::make_unique<SkiaViewerHost>();
+}
 
 rive::Factory* ViewerHost::Factory()
 {

@@ -18,37 +18,49 @@ public:
             "and generates the corresponding png grid image, "
             "storing it in (output).");
 
-        args::HelpFlag help(*m_parser, "help", "Display this help menu", {'h', "help"});
-        args::Group required(*m_parser, "required arguments:", args::Group::Validators::All);
-        args::Group optional(*m_parser, "optional arguments:", args::Group::Validators::DontCare);
+        args::HelpFlag help(*m_parser,
+                            "help",
+                            "Display this help menu",
+                            {'h', "help"});
+        args::Group required(*m_parser,
+                             "required arguments:",
+                             args::Group::Validators::All);
+        args::Group optional(*m_parser,
+                             "optional arguments:",
+                             args::Group::Validators::DontCare);
 
-        args::ValueFlag<std::string> src(optional,
-                                         "src",
-                                         "source src filename (ignored if --test_harness)",
-                                         {'s', "src"});
-        args::ValueFlag<std::string> testHarness(optional,
-                                                 "test_harness",
-                                                 "TCP server address of python test harness",
-                                                 {"test_harness"});
+        args::ValueFlag<std::string> src(
+            optional,
+            "src",
+            "source src filename (ignored if --test_harness)",
+            {'s', "src"});
+        args::ValueFlag<std::string> testHarness(
+            optional,
+            "test_harness",
+            "TCP server address of python test harness",
+            {"test_harness"});
         // no default for windows because /dev/null isnt a thing
-        args::ValueFlag<std::string> output(optional,
-                                            "output",
-                                            "output png directory (ignored if --test_harness)",
-                                            {'o', "output"});
-        args::ValueFlag<std::string> artboard(optional,
-                                              "artboard",
-                                              "artboard to draw from (only when src != '-')",
-                                              {'t', "artboard"});
+        args::ValueFlag<std::string> output(
+            optional,
+            "output",
+            "output png directory (ignored if --test_harness)",
+            {'o', "output"});
+        args::ValueFlag<std::string> artboard(
+            optional,
+            "artboard",
+            "artboard to draw from (only when src != '-')",
+            {'t', "artboard"});
         args::ValueFlag<std::string> stateMachine(
             optional,
             "name",
             "state machine to be played (only when src != '-')",
             {'S', "stateMachine"});
-        args::ValueFlag<std::string> backend(optional,
-                                             "backend",
-                                             "backend type: [gl, metal, angle_gl, angle_d3d, "
-                                             "angle_vk, angle_mtl, coregraphics, skia_raster, rhi]",
-                                             {'b', "backend"});
+        args::ValueFlag<std::string> backend(
+            optional,
+            "backend",
+            "backend type: [gl, metal, angle_gl, angle_d3d, "
+            "angle_vk, angle_mtl, coregraphics, skia_raster, rhi]",
+            {'b', "backend"});
         args::Flag headless(optional,
                             "headless",
                             "perform rendering in an offscreen context",
@@ -61,10 +73,19 @@ public:
                                "interactive",
                                "leave the window open for user interaction",
                                {'i', "interactive"});
-        args::Flag verbose(optional, "verbose", "verbose output", {'v', "verbose"});
+        args::Flag verbose(optional,
+                           "verbose",
+                           "verbose output",
+                           {'v', "verbose"});
 
-        args::ValueFlag<int> rows(optional, "int", "number of rows in the grid", {'r', "rows"});
-        args::ValueFlag<int> cols(optional, "int", "number of columns in the grid", {'c', "cols"});
+        args::ValueFlag<int> rows(optional,
+                                  "int",
+                                  "number of rows in the grid",
+                                  {'r', "rows"});
+        args::ValueFlag<int> cols(optional,
+                                  "int",
+                                  "number of columns in the grid",
+                                  {'c', "cols"});
         args::ValueFlag<int> pngThreads(optional,
                                         "int",
                                         "number of PNG encode threads",

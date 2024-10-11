@@ -2,16 +2,19 @@
  * Copyright 2022 Rive
  */
 
-// The EXT_shader_pixel_local_storage extension does not provide a mechanism to load, store, or
-// clear pixel local storage contents. This shader performs custom load, store, and clear
-// operations via fullscreen draws.
+// The EXT_shader_pixel_local_storage extension does not provide a mechanism to
+// load, store, or clear pixel local storage contents. This shader performs
+// custom load, store, and clear operations via fullscreen draws.
 
 #ifdef @VERTEX
 void main()
 {
     // [-1, -1] .. [+1, +1]
-    gl_Position =
-        vec4(mix(vec2(-1, 1), vec2(1, -1), equal(gl_VertexID & ivec2(1, 2), ivec2(0))), 0, 1);
+    gl_Position = vec4(mix(vec2(-1, 1),
+                           vec2(1, -1),
+                           equal(gl_VertexID & ivec2(1, 2), ivec2(0))),
+                       0,
+                       1);
 }
 #endif
 

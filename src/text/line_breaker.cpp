@@ -9,22 +9,25 @@ using namespace rive;
 
 static bool autowidth(float width) { return width < 0.0f; }
 
-float GlyphLine::ComputeMaxWidth(Span<GlyphLine> lines, Span<const GlyphRun> runs)
+float GlyphLine::ComputeMaxWidth(Span<GlyphLine> lines,
+                                 Span<const GlyphRun> runs)
 {
     float maxLineWidth = 0.0f;
     for (auto& line : lines)
     {
-        maxLineWidth = std::max(maxLineWidth,
-                                runs[line.endRunIndex].xpos[line.endGlyphIndex] -
-                                    runs[line.startRunIndex].xpos[line.startGlyphIndex] -
-                                    runs[line.endRunIndex].letterSpacing);
+        maxLineWidth =
+            std::max(maxLineWidth,
+                     runs[line.endRunIndex].xpos[line.endGlyphIndex] -
+                         runs[line.startRunIndex].xpos[line.startGlyphIndex] -
+                         runs[line.endRunIndex].letterSpacing);
     }
     return maxLineWidth;
 }
 
-static const rive::Font::LineMetrics computeLineMetrics(const rive::Font::LineMetrics& metrics,
-                                                        float customLineHeight,
-                                                        float fontSize)
+static const rive::Font::LineMetrics computeLineMetrics(
+    const rive::Font::LineMetrics& metrics,
+    float customLineHeight,
+    float fontSize)
 {
     if (customLineHeight < 0.0f)
     {
@@ -56,9 +59,11 @@ void GlyphLine::ComputeLineSpacing(bool isFirstLine,
         for (uint32_t i = line.startRunIndex; i <= line.endRunIndex; ++i)
         {
             const auto& run = runs[i];
-            const auto& metrics =
-                computeLineMetrics(run.font->lineMetrics(), run.lineHeight, run.size);
-            realAscent = std::min(realAscent, run.font->lineMetrics().ascent * run.size);
+            const auto& metrics = computeLineMetrics(run.font->lineMetrics(),
+                                                     run.lineHeight,
+                                                     run.size);
+            realAscent =
+                std::min(realAscent, run.font->lineMetrics().ascent * run.size);
             asc = std::min(asc, metrics.ascent);
             des = std::max(des, metrics.descent);
             if (run.lineHeight >= 0.0f)
@@ -130,7 +135,9 @@ class RunIterator
     uint32_t m_index;
 
 public:
-    RunIterator(Span<const GlyphRun> runs, const GlyphRun* run, uint32_t index) :
+    RunIterator(Span<const GlyphRun> runs,
+                const GlyphRun* run,
+                uint32_t index) :
         m_runs(runs), m_run(run), m_index(index)
     {}
 
@@ -150,7 +157,9 @@ public:
             }
             else
             {
-                m_index = m_run->glyphs.size() == 0 ? 0 : (uint32_t)m_run->glyphs.size() - 1;
+                m_index = m_run->glyphs.size() == 0
+                              ? 0
+                              : (uint32_t)m_run->glyphs.size() - 1;
             }
         }
         else
@@ -187,12 +196,17 @@ public:
     const GlyphRun* run() const { return m_run; }
     uint32_t index() const { return m_index; }
 
-    bool operator==(const RunIterator& o) const { return m_run == o.m_run && m_index == o.m_index; }
+    bool operator==(const RunIterator& o) const
+    {
+        return m_run == o.m_run && m_index == o.m_index;
+    }
 };
 
-SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs, float width)
+SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs,
+                                             float width)
 {
-    float maxLineWidth = autowidth(width) ? std::numeric_limits<float>::max() : width;
+    float maxLineWidth =
+        autowidth(width) ? std::numeric_limits<float>::max() : width;
 
     SimpleArrayBuilder<GlyphLine> lines;
 
@@ -254,7 +268,8 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs, float wi
             x = end.run->xpos[breakIndex];
         }
 
-        bool isForcedBreak = breakRun == startBreakRun && breakIndex == startBreakIndex;
+        bool isForcedBreak =
+            breakRun == startBreakRun && breakIndex == startBreakIndex;
 
         if (!isForcedBreak && x > limit)
         {
@@ -262,15 +277,19 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs, float wi
 
             // A whole word overflowed, break until we can no longer break (or
             // it fits).
-            if (line.startRunIndex == startRunIndex && line.startGlyphIndex == startBreakIndex)
+            if (line.startRunIndex == startRunIndex &&
+                line.startGlyphIndex == startBreakIndex)
             {
                 bool canBreakMore = true;
                 while (canBreakMore && x > limit)
                 {
 
                     RunIterator lineStart =
-                        RunIterator(runs, runs.begin() + line.startRunIndex, line.startGlyphIndex);
-                    RunIterator lineEnd = RunIterator(runs, end.run, end.run->breaks[end.index]);
+                        RunIterator(runs,
+                                    runs.begin() + line.startRunIndex,
+                                    line.startGlyphIndex);
+                    RunIterator lineEnd =
+                        RunIterator(runs, end.run, end.run->breaks[end.index]);
                     // Look for the next character that doesn't overflow.
                     while (true)
                     {
@@ -291,7 +310,8 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs, float wi
                             }
                             else
                             {
-                                line.endRunIndex = (uint32_t)(lineEnd.run() - runs.begin());
+                                line.endRunIndex =
+                                    (uint32_t)(lineEnd.run() - runs.begin());
                                 line.endGlyphIndex = lineEnd.index();
                             }
                             break;
@@ -306,7 +326,9 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs, float wi
                             lines.add(line);
                         }
                         // Setup the next line.
-                        line = GlyphLine((uint32_t)(lineEnd.run() - runs.begin()), lineEnd.index());
+                        line =
+                            GlyphLine((uint32_t)(lineEnd.run() - runs.begin()),
+                                      lineEnd.index());
                     }
                 }
             }
@@ -333,9 +355,11 @@ SimpleArray<GlyphLine> GlyphLine::BreakLines(Span<const GlyphRun> runs, float wi
             if (isForcedBreak)
             {
                 lines.add(line);
-                auto startX = start.run->xpos[start.run->breaks[start.index] + 1];
+                auto startX =
+                    start.run->xpos[start.run->breaks[start.index] + 1];
                 limit = startX + maxLineWidth;
-                line = GlyphLine((uint32_t)(start.run - runs.begin()), startBreakIndex + 1);
+                line = GlyphLine((uint32_t)(start.run - runs.begin()),
+                                 startBreakIndex + 1);
             }
         }
     }

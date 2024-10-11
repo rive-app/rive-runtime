@@ -21,7 +21,10 @@ public:
     RiveRenderPaint();
     ~RiveRenderPaint();
 
-    void style(RenderPaintStyle style) override { m_stroked = style == RenderPaintStyle::stroke; }
+    void style(RenderPaintStyle style) override
+    {
+        m_stroked = style == RenderPaintStyle::stroke;
+    }
     void color(ColorInt color) override;
     void thickness(float thickness) override { m_thickness = fabsf(thickness); }
     void join(StrokeJoin join) override { m_join = join; }

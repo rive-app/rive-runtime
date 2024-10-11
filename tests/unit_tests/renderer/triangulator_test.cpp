@@ -439,7 +439,8 @@ CreatePathFn kNonEdgeAAPaths[] = {
         return path;
     },
 
-    // Reduction from crbug.com/843135. Exercises a case where an intersection is missed.
+    // Reduction from crbug.com/843135. Exercises a case where an intersection
+    // is missed.
     // This causes bad ordering in the active edge list.
     []() -> RawPath {
         RawPath path;
@@ -461,7 +462,8 @@ CreatePathFn kNonEdgeAAPaths[] = {
         return path;
     },
 
-    // Another reduction from crbug.com/851409. Exercises two sequential collinear edges.
+    // Another reduction from crbug.com/851409. Exercises two sequential
+    // collinear edges.
     []() -> RawPath {
         RawPath path;
         path.moveTo(2072553216, 0);
@@ -473,7 +475,8 @@ CreatePathFn kNonEdgeAAPaths[] = {
         return path;
     },
 
-    // Reduction from crbug.com/860655. Cause is three collinear edges discovered during
+    // Reduction from crbug.com/860655. Cause is three collinear edges
+    // discovered during
     // sanitize_contours pass, before the vertices have been found coincident.
     []() -> RawPath {
         RawPath path;
@@ -988,7 +991,8 @@ static void add_tri_edges(EdgeMap& edgeMap, const Vec2D pts[3])
 
 static EdgeMap simplify(const EdgeMap& edges, FillRule fillType)
 {
-    // Prune out the edges whose count went to zero, and reverse the edges whose count is negative.
+    // Prune out the edges whose count went to zero, and reverse the edges whose
+    // count is negative.
     EdgeMap simplifiedEdges;
     for (auto [edge, count] : edges)
     {
@@ -1010,28 +1014,37 @@ static EdgeMap simplify(const EdgeMap& edges, FillRule fillType)
     return simplifiedEdges;
 }
 
-static bool isfinite(Vec2D p) { return std::isfinite(p.x) && std::isfinite(p.y); }
+static bool isfinite(Vec2D p)
+{
+    return std::isfinite(p.x) && std::isfinite(p.y);
+}
 
-static void verify_simple_inner_polygons(const char* shapeName, const RawPath& path)
+static void verify_simple_inner_polygons(const char* shapeName,
+                                         const RawPath& path)
 {
     for (auto fillType : {FillRule::nonZero})
     {
         // path.setFillType(fillType);
         TrivialBlockAllocator alloc(GrTriangulator::kArenaDefaultChunkSize);
-        GrInnerFanTriangulator triangulator(path,
-                                            Mat2D(),
-                                            path.bounds().width() > path.bounds().height()
-                                                ? GrTriangulator::Comparator::Direction::kHorizontal
-                                                : GrTriangulator::Comparator::Direction::kVertical,
-                                            fillType,
-                                            &alloc);
+        GrInnerFanTriangulator triangulator(
+            path,
+            Mat2D(),
+            path.bounds().width() > path.bounds().height()
+                ? GrTriangulator::Comparator::Direction::kHorizontal
+                : GrTriangulator::Comparator::Direction::kVertical,
+            fillType,
+            &alloc);
         int pathID = rand() & 0xffff;
-        std::vector<gpu::TriangleVertex> vertexData(triangulator.maxVertexCount());
-        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex> mappedMemory(vertexData.data(),
-                                                                     triangulator.maxVertexCount());
-        size_t vertexCount = triangulator.polysToTriangles(&mappedMemory, pathID);
+        std::vector<gpu::TriangleVertex> vertexData(
+            triangulator.maxVertexCount());
+        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex> mappedMemory(
+            vertexData.data(),
+            triangulator.maxVertexCount());
+        size_t vertexCount =
+            triangulator.polysToTriangles(&mappedMemory, pathID);
         const gpu::TriangleVertex* tris = vertexData.data();
-        const GrInnerFanTriangulator::GroutTriangleList& grouts = triangulator.groutList();
+        const GrInnerFanTriangulator::GroutTriangleList& grouts =
+            triangulator.groutList();
 
         // Count up all the triangulated edges.
         EdgeMap trianglePlusGroutEdges;
@@ -1039,8 +1052,10 @@ static void verify_simple_inner_polygons(const char* shapeName, const RawPath& p
         {
             int plsWeight = tris[i].testing_weight_pathID() >> 16;
             uint16_t plsID = tris[i].testing_weight_pathID();
-            assert(tris[i + 1].testing_weight_pathID() == tris[i].testing_weight_pathID());
-            assert(tris[i + 2].testing_weight_pathID() == tris[i].testing_weight_pathID());
+            assert(tris[i + 1].testing_weight_pathID() ==
+                   tris[i].testing_weight_pathID());
+            assert(tris[i + 2].testing_weight_pathID() ==
+                   tris[i].testing_weight_pathID());
             Vec2D pts[3] = {tris[i].testing_point(),
                             tris[i + 1].testing_point(),
                             tris[i + 2].testing_point()};
@@ -1062,7 +1077,8 @@ static void verify_simple_inner_polygons(const char* shapeName, const RawPath& p
             ++groutCount;
         }
         CHECK(groutCount == grouts.count());
-        // The triangulated + grout edges should cancel out to the inner polygon edges.
+        // The triangulated + grout edges should cancel out to the inner polygon
+        // edges.
         trianglePlusGroutEdges = simplify(trianglePlusGroutEdges, fillType);
 
         // Build the inner polygon edges.
@@ -1119,8 +1135,9 @@ static void verify_simple_inner_polygons(const char* shapeName, const RawPath& p
         add_edge(innerFanEdges, lastPoint, startPoint);
         innerFanEdges = simplify(innerFanEdges, fillType);
 
-        // The triangulated + grout edges should cancel out to the inner polygon edges. First
-        // verify that every inner polygon edge can be found in the triangulation.
+        // The triangulated + grout edges should cancel out to the inner polygon
+        // edges. First verify that every inner polygon edge can be found in the
+        // triangulation.
         for (auto [edge, count] : innerFanEdges)
         {
             auto it = trianglePlusGroutEdges.find(edge);
@@ -1143,22 +1160,24 @@ static void verify_simple_inner_polygons(const char* shapeName, const RawPath& p
                 }
                 continue;
             }
-            printf("error: %s: edge [%g,%g]:[%g,%g] not found in triangulation.",
-                   shapeName,
-                   edge.fP0.x,
-                   edge.fP0.y,
-                   edge.fP1.x,
-                   edge.fP1.y);
+            printf(
+                "error: %s: edge [%g,%g]:[%g,%g] not found in triangulation.",
+                shapeName,
+                edge.fP0.x,
+                edge.fP0.y,
+                edge.fP1.x,
+                edge.fP1.y);
             FAIL();
             return;
         }
         // Now verify that there are no spurious edges in the triangulation.
         //
-        // NOTE: The triangulator's definition of wind isn't always correct for edges that run
-        // exactly parallel to the sweep (either vertical or horizontal edges). This doesn't
-        // actually matter though because T-junction artifacts don't happen on axis-aligned edges.
-        // Tolerate spurious edges that (1) come in pairs of 2, and (2) are either exactly
-        // horizontal or exactly vertical exclusively.
+        // NOTE: The triangulator's definition of wind isn't always correct for
+        // edges that run exactly parallel to the sweep (either vertical or
+        // horizontal edges). This doesn't actually matter though because
+        // T-junction artifacts don't happen on axis-aligned edges. Tolerate
+        // spurious edges that (1) come in pairs of 2, and (2) are either
+        // exactly horizontal or exactly vertical exclusively.
         bool hasSpuriousHorz = false, hasSpuriousVert = false;
         for (auto [edge, count] : trianglePlusGroutEdges)
         {
@@ -1175,7 +1194,8 @@ static void verify_simple_inner_polygons(const char* shapeName, const RawPath& p
                     continue;
                 }
             }
-            printf("error: %s: spurious edge [%g,%g]:[%g,%g] found in triangulation.",
+            printf("error: %s: spurious edge [%g,%g]:[%g,%g] found in "
+                   "triangulation.",
                    shapeName,
                    edge.fP0.x,
                    edge.fP0.y,
@@ -1231,22 +1251,29 @@ RawPath make_star(float sx, float sy, int numPts = 5, int step = 2)
 
 TEST_CASE("GrInnerFanTriangulator", "[triangulator]")
 {
-    verify_simple_inner_polygons("simple triangle", TestPath().lineTo(1, 0).lineTo(0, 1));
-    verify_simple_inner_polygons("simple square",
-                                 TestPath().lineTo(1, 0).lineTo(1, 1).lineTo(0, 1));
+    verify_simple_inner_polygons("simple triangle",
+                                 TestPath().lineTo(1, 0).lineTo(0, 1));
+    verify_simple_inner_polygons(
+        "simple square",
+        TestPath().lineTo(1, 0).lineTo(1, 1).lineTo(0, 1));
     verify_simple_inner_polygons(
         "concave polygon",
         TestPath().lineTo(1, 0).lineTo(.5f, .5f).lineTo(1, 1).lineTo(0, 1));
     verify_simple_inner_polygons(
 
         "double wound triangle",
-        TestPath().lineTo(1, 0).lineTo(0, 1).lineTo(0, 0).lineTo(1, 0).lineTo(0, 1));
-    verify_simple_inner_polygons("self-intersecting bowtie",
-                                 TestPath().lineTo(1, 0).lineTo(0, 1).lineTo(1, 1));
-    verify_simple_inner_polygons("asymmetrical bowtie",
-                                 TestPath().lineTo(1, 0).lineTo(0, 1).lineTo(.1f, -.1f));
-    verify_simple_inner_polygons("bowtie with extremely small section",
-                                 TestPath().lineTo(1, 0).lineTo(0, 1).lineTo(1e-6f, -1e-6f));
+        TestPath().lineTo(1, 0).lineTo(0, 1).lineTo(0, 0).lineTo(1, 0).lineTo(
+            0,
+            1));
+    verify_simple_inner_polygons(
+        "self-intersecting bowtie",
+        TestPath().lineTo(1, 0).lineTo(0, 1).lineTo(1, 1));
+    verify_simple_inner_polygons(
+        "asymmetrical bowtie",
+        TestPath().lineTo(1, 0).lineTo(0, 1).lineTo(.1f, -.1f));
+    verify_simple_inner_polygons(
+        "bowtie with extremely small section",
+        TestPath().lineTo(1, 0).lineTo(0, 1).lineTo(1e-6f, -1e-6f));
     verify_simple_inner_polygons("intersecting squares",
                                  TestPath()
                                      .lineTo(1, 0)
@@ -1280,7 +1307,8 @@ TEST_CASE("GrInnerFanTriangulator", "[triangulator]")
             .moveTo(cosf(0), sinf(0))
             .lineTo(cosf(2 * math::PI / 3), sinf(2 * math::PI / 3))
             .lineTo(cosf(-2 * math::PI / 3), sinf(-2 * math::PI / 3)));
-    verify_simple_inner_polygons("5-point star", ToolUtils::make_star(100, 200));
+    verify_simple_inner_polygons("5-point star",
+                                 ToolUtils::make_star(100, 200));
     verify_simple_inner_polygons("\"pointy\" intersecting triangles",
                                  TestPath()
                                      .moveTo(0, -100)
@@ -1289,26 +1317,28 @@ TEST_CASE("GrInnerFanTriangulator", "[triangulator]")
                                      .moveTo(-100, 0)
                                      .lineTo(100, 1e-6f)
                                      .lineTo(100, -1e-6f));
-    verify_simple_inner_polygons("overlapping rects with vertical collinear edges",
-                                 TestPath()
-                                     .moveTo(0, 0)
-                                     .lineTo(0, 2)
-                                     .lineTo(1, 2)
-                                     .lineTo(1, 0)
-                                     .moveTo(0, 1)
-                                     .lineTo(0, 3)
-                                     .lineTo(1, 3)
-                                     .lineTo(1, 1));
-    verify_simple_inner_polygons("overlapping rects with horizontal collinear edges",
-                                 TestPath()
-                                     .lineTo(2, 0)
-                                     .lineTo(2, 1)
-                                     .lineTo(0, 1)
-                                     .moveTo(1, 0)
-                                     .lineTo(3, 0)
-                                     .lineTo(3, 1)
-                                     .lineTo(1, 1)
-                                     .close());
+    verify_simple_inner_polygons(
+        "overlapping rects with vertical collinear edges",
+        TestPath()
+            .moveTo(0, 0)
+            .lineTo(0, 2)
+            .lineTo(1, 2)
+            .lineTo(1, 0)
+            .moveTo(0, 1)
+            .lineTo(0, 3)
+            .lineTo(1, 3)
+            .lineTo(1, 1));
+    verify_simple_inner_polygons(
+        "overlapping rects with horizontal collinear edges",
+        TestPath()
+            .lineTo(2, 0)
+            .lineTo(2, 1)
+            .lineTo(0, 1)
+            .moveTo(1, 0)
+            .lineTo(3, 0)
+            .lineTo(3, 1)
+            .lineTo(1, 1)
+            .close());
     for (int i = 0; i < (int)std::size(kNonEdgeAAPaths); ++i)
     {
         std::ostringstream s;
@@ -1328,7 +1358,8 @@ TEST_CASE("GrInnerFanTriangulator", "[triangulator]")
     }
 }
 
-// Check that the triangulator throws away nonfinite points without crashing or asserting.
+// Check that the triangulator throws away nonfinite points without crashing or
+// asserting.
 TEST_CASE("nan-triangulator-path", "[triangulator]")
 {
     float nan = std::numeric_limits<float>::quiet_NaN();

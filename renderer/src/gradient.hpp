@@ -20,7 +20,8 @@ public:
 
     GradDataArray(const T data[], size_t count)
     {
-        m_data = count <= m_localData.size() ? m_localData.data() : new T[count];
+        m_data =
+            count <= m_localData.size() ? m_localData.data() : new T[count];
         memcpy(m_data, data, count * sizeof(T));
     }
 
@@ -34,7 +35,8 @@ public:
         else
         {
             m_data = other.m_data;
-            other.m_data = other.m_localData.data(); // Don't delete[] other.m_data.
+            other.m_data =
+                other.m_localData.data(); // Don't delete[] other.m_data.
         }
     }
 

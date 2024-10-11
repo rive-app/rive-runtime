@@ -96,7 +96,8 @@ int main(int argc, char* argv[])
     auto artboard = file->artboardDefault();
     artboard->advance(0.0f);
 
-    sk_sp<SkSurface> rasterSurface = SkSurface::MakeRasterN32Premul(width, height);
+    sk_sp<SkSurface> rasterSurface =
+        SkSurface::MakeRasterN32Premul(width, height);
     SkCanvas* rasterCanvas = rasterSurface->getCanvas();
 
     rive::SkiaRenderer renderer(rasterCanvas);

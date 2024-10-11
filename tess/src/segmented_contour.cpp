@@ -23,12 +23,17 @@ void SegmentedContour::addVertex(Vec2D vertex)
     AABB::expandTo(m_bounds, vertex);
 }
 
-const std::size_t SegmentedContour::contourSize() const { return m_contourPoints.size(); }
+const std::size_t SegmentedContour::contourSize() const
+{
+    return m_contourPoints.size();
+}
 
-const Span<const Vec2D> SegmentedContour::contourPoints(uint32_t endOffset) const
+const Span<const Vec2D> SegmentedContour::contourPoints(
+    uint32_t endOffset) const
 {
     assert(endOffset <= m_contourPoints.size());
-    return Span<const Vec2D>(m_contourPoints.data(), m_contourPoints.size() - endOffset);
+    return Span<const Vec2D>(m_contourPoints.data(),
+                             m_contourPoints.size() - endOffset);
 }
 
 void SegmentedContour::segmentCubic(const Vec2D& from,
@@ -53,8 +58,9 @@ void SegmentedContour::segmentCubic(const Vec2D& from,
     {
         if (Vec2D::distanceSquared(from, to) > m_thresholdSquared)
         {
-            addVertex(Vec2D(CubicUtilities::cubicAt(t2, from.x, fromOut.x, toIn.x, to.x),
-                            CubicUtilities::cubicAt(t2, from.y, fromOut.y, toIn.y, to.y)));
+            addVertex(Vec2D(
+                CubicUtilities::cubicAt(t2, from.x, fromOut.x, toIn.x, to.x),
+                CubicUtilities::cubicAt(t2, from.y, fromOut.y, toIn.y, to.y)));
         }
     }
 }

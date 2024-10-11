@@ -6,7 +6,8 @@
 
 #if !defined(RIVE_ANDROID)
 
-TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow, bool coreFeaturesOnly)
+TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow,
+                                                bool coreFeaturesOnly)
 {
     return nullptr;
 }
@@ -33,23 +34,27 @@ public:
         m_height = ANativeWindow_getHeight(window);
         rive_vkb::load_vulkan();
 
-        m_instance = VKB_CHECK(vkb::InstanceBuilder()
-                                   .set_app_name("path_fiddle")
-                                   .set_engine_name("Rive Renderer")
+        m_instance = VKB_CHECK(
+            vkb::InstanceBuilder()
+                .set_app_name("path_fiddle")
+                .set_engine_name("Rive Renderer")
 #ifdef DEBUG
-                                   .set_debug_callback(rive_vkb::default_debug_callback)
-                                   .enable_validation_layers(true)
+                .set_debug_callback(rive_vkb::default_debug_callback)
+                .enable_validation_layers(true)
 #endif
-                                   .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
-                                   .build());
+                .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
+                .build());
         m_instanceFns = m_instance.make_table();
 
         VkAndroidSurfaceCreateInfoKHR androidSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
             .window = window,
         };
-        auto fp_vkCreateAndroidSurfaceKHR = reinterpret_cast<PFN_vkCreateAndroidSurfaceKHR>(
-            m_instance.fp_vkGetInstanceProcAddr(m_instance, "vkCreateAndroidSurfaceKHR"));
+        auto fp_vkCreateAndroidSurfaceKHR =
+            reinterpret_cast<PFN_vkCreateAndroidSurfaceKHR>(
+                m_instance.fp_vkGetInstanceProcAddr(
+                    m_instance,
+                    "vkCreateAndroidSurfaceKHR"));
         assert(fp_vkCreateAndroidSurfaceKHR);
         VK_CHECK(fp_vkCreateAndroidSurfaceKHR(m_instance,
                                               &androidSurfaceCreateInfo,
@@ -57,23 +62,28 @@ public:
                                               &m_windowSurface));
 
         VulkanFeatures vulkanFeatures;
-        std::tie(m_physicalDevice, vulkanFeatures) = rive_vkb::select_physical_device(
-            vkb::PhysicalDeviceSelector(m_instance).set_surface(m_windowSurface),
-            coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly : rive_vkb::FeatureSet::allAvailable);
+        std::tie(m_physicalDevice, vulkanFeatures) =
+            rive_vkb::select_physical_device(
+                vkb::PhysicalDeviceSelector(m_instance)
+                    .set_surface(m_windowSurface),
+                coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
+                                 : rive_vkb::FeatureSet::allAvailable);
         m_device = VKB_CHECK(vkb::DeviceBuilder(m_physicalDevice).build());
         m_vkbTable = m_device.make_table();
         m_queue = VKB_CHECK(m_device.get_queue(vkb::QueueType::graphics));
-        m_renderContext = RenderContextVulkanImpl::MakeContext(m_instance,
-                                                               m_physicalDevice,
-                                                               m_device,
-                                                               vulkanFeatures,
-                                                               m_instance.fp_vkGetInstanceProcAddr,
-                                                               m_instance.fp_vkGetDeviceProcAddr);
+        m_renderContext = RenderContextVulkanImpl::MakeContext(
+            m_instance,
+            m_physicalDevice,
+            m_device,
+            vulkanFeatures,
+            m_instance.fp_vkGetInstanceProcAddr,
+            m_instance.fp_vkGetDeviceProcAddr);
 
         VkSurfaceCapabilitiesKHR windowCapabilities;
-        VK_CHECK(m_instanceFns.fp_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(m_physicalDevice,
-                                                                            m_windowSurface,
-                                                                            &windowCapabilities));
+        VK_CHECK(m_instanceFns.fp_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
+            m_physicalDevice,
+            m_windowSurface,
+            &windowCapabilities));
         vkb::SwapchainBuilder swapchainBuilder(m_device, m_windowSurface);
         swapchainBuilder
             .set_desired_format({
@@ -86,17 +96,21 @@ public:
             })
             .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
             .add_fallback_present_mode(VK_PRESENT_MODE_FIFO_KHR);
-        if (windowCapabilities.supportedUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+        if (windowCapabilities.supportedUsageFlags &
+            VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
         {
-            printf("Android window supports VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT\n");
-            swapchainBuilder.add_image_usage_flags(VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+            printf("Android window supports "
+                   "VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT\n");
+            swapchainBuilder.add_image_usage_flags(
+                VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
         }
         else
         {
             printf("Android window does NOT support "
                    "VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT. "
                    "Performance will suffer.\n");
-            swapchainBuilder.add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+            swapchainBuilder
+                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
                 .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         }
         m_swapchain = VKB_CHECK(swapchainBuilder.build());
@@ -107,27 +121,32 @@ public:
         m_swapchainImageViews.reserve(m_swapchainImages.size());
         for (VkImage image : m_swapchainImages)
         {
-            m_swapchainImageViews.push_back(
-                vk()->makeExternalTextureView(m_swapchain.image_usage_flags,
-                                              {
-                                                  .image = image,
-                                                  .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                                                  .format = m_swapchain.image_format,
-                                                  .subresourceRange =
-                                                      {
-                                                          .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                                          .levelCount = 1,
-                                                          .layerCount = 1,
-                                                      },
-                                              }));
+            m_swapchainImageViews.push_back(vk()->makeExternalTextureView(
+                m_swapchain.image_usage_flags,
+                {
+                    .image = image,
+                    .viewType = VK_IMAGE_VIEW_TYPE_2D,
+                    .format = m_swapchain.image_format,
+                    .subresourceRange =
+                        {
+                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                            .levelCount = 1,
+                            .layerCount = 1,
+                        },
+                }));
         }
 
-        m_renderTarget = impl()->makeRenderTarget(m_width, m_height, m_swapchain.image_format);
-        m_commandBufferPool = make_rcp<vkutil::ResourcePool<vkutil::CommandBuffer>>(
-            ref_rcp(vk()),
-            *m_device.get_queue_index(vkb::QueueType::graphics));
-        m_semaphorePool = make_rcp<vkutil::ResourcePool<vkutil::Semaphore>>(ref_rcp(vk()));
-        m_fencePool = make_rcp<vkutil::ResourcePool<vkutil::Fence>>(ref_rcp(vk()));
+        m_renderTarget = impl()->makeRenderTarget(m_width,
+                                                  m_height,
+                                                  m_swapchain.image_format);
+        m_commandBufferPool =
+            make_rcp<vkutil::ResourcePool<vkutil::CommandBuffer>>(
+                ref_rcp(vk()),
+                *m_device.get_queue_index(vkb::QueueType::graphics));
+        m_semaphorePool =
+            make_rcp<vkutil::ResourcePool<vkutil::Semaphore>>(ref_rcp(vk()));
+        m_fencePool =
+            make_rcp<vkutil::ResourcePool<vkutil::Fence>>(ref_rcp(vk()));
     }
 
     ~TestingWindowAndroidVulkan()
@@ -160,9 +179,15 @@ public:
 
     Factory* factory() override { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* renderContext() const override { return m_renderContext.get(); }
+    rive::gpu::RenderContext* renderContext() const override
+    {
+        return m_renderContext.get();
+    }
 
-    rive::gpu::RenderTarget* renderTarget() const override { return m_renderTarget.get(); }
+    rive::gpu::RenderTarget* renderTarget() const override
+    {
+        return m_renderTarget.get();
+    }
 
     void resize(int width, int height) override
     {
@@ -177,7 +202,8 @@ public:
         m_renderContext->beginFrame(RenderContext::FrameDescriptor{
             .renderTargetWidth = m_width,
             .renderTargetHeight = m_height,
-            .loadAction = doClear ? gpu::LoadAction::clear : gpu::LoadAction::preserveRenderTarget,
+            .loadAction = doClear ? gpu::LoadAction::clear
+                                  : gpu::LoadAction::preserveRenderTarget,
             .clearColor = clearColor,
             .wireframe = wireframe,
         });
@@ -187,7 +213,8 @@ public:
 
     void flushPLSContext() override
     {
-        fprintf(stderr, "TestingWindowAndroidVulkan::flushPLSContext not supported.");
+        fprintf(stderr,
+                "TestingWindowAndroidVulkan::flushPLSContext not supported.");
         abort();
     }
 
@@ -207,7 +234,9 @@ public:
         };
         m_vkbTable.beginCommandBuffer(*commandBuffer, &commandBufferBeginInfo);
 
-        m_renderTarget->setTargetTextureView(m_swapchainImageViews[m_swapchainImageIndex], {});
+        m_renderTarget->setTargetTextureView(
+            m_swapchainImageViews[m_swapchainImageIndex],
+            {});
 
         rcp<vkutil::Fence> frameFence = m_fencePool->make();
 
@@ -230,7 +259,8 @@ public:
         VK_CHECK(m_vkbTable.endCommandBuffer(*commandBuffer));
 
         auto flushSemaphore = m_semaphorePool->make();
-        VkPipelineStageFlags waitDstStageMask = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
+        VkPipelineStageFlags waitDstStageMask =
+            VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
 
         VkSubmitInfo submitInfo = {
             .sType = VK_STRUCTURE_TYPE_SUBMIT_INFO,
@@ -286,10 +316,12 @@ private:
     rcp<RenderTargetVulkan> m_renderTarget;
 };
 
-TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow, bool coreFeaturesOnly)
+TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow,
+                                                bool coreFeaturesOnly)
 {
-    return new TestingWindowAndroidVulkan(reinterpret_cast<ANativeWindow*>(platformWindow),
-                                          coreFeaturesOnly);
+    return new TestingWindowAndroidVulkan(
+        reinterpret_cast<ANativeWindow*>(platformWindow),
+        coreFeaturesOnly);
 }
 
 #endif

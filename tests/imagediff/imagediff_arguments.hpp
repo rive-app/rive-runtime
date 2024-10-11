@@ -22,11 +22,21 @@ public:
             "writing the status to a status file, "
             "and writing any diff images to a diff directory");
 
-        args::HelpFlag help(*m_Parser, "help", "Display this help menu", {'h', "help"});
-        args::Group required(*m_Parser, "required arguments:", args::Group::Validators::All);
-        args::Group optional(*m_Parser, "optional arguments:", args::Group::Validators::DontCare);
+        args::HelpFlag help(*m_Parser,
+                            "help",
+                            "Display this help menu",
+                            {'h', "help"});
+        args::Group required(*m_Parser,
+                             "required arguments:",
+                             args::Group::Validators::All);
+        args::Group optional(*m_Parser,
+                             "optional arguments:",
+                             args::Group::Validators::DontCare);
 
-        args::ValueFlag<std::string> name(required, "name", "image/test name", {'n', "name"});
+        args::ValueFlag<std::string> name(required,
+                                          "name",
+                                          "image/test name",
+                                          {'n', "name"});
         args::ValueFlag<std::string> golden(required,
                                             "path",
                                             "original file path",
@@ -40,7 +50,10 @@ public:
                                             "path",
                                             "status file to append",
                                             {'s', "status"});
-        args::ValueFlag<std::string> output(optional, "path", "diff directory", {'o', "output"});
+        args::ValueFlag<std::string> output(optional,
+                                            "path",
+                                            "diff directory",
+                                            {'o', "output"});
 
         args::CompletionFlag completion(*m_Parser, {"complete"});
         try

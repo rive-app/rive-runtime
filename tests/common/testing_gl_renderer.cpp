@@ -25,13 +25,15 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
     class RiveRenderer : public TestingGLRenderer
     {
     public:
-        RiveRenderer(TestingWindow::RendererFlags rendererFlags) : m_rendererFlags(rendererFlags)
+        RiveRenderer(TestingWindow::RendererFlags rendererFlags) :
+            m_rendererFlags(rendererFlags)
         {
             if (m_rendererFlags & TestingWindow::RendererFlags::useMSAA)
             {
                 m_contextOptions.disablePixelLocalStorage = true;
             }
-            if (m_rendererFlags & TestingWindow::RendererFlags::disableRasterOrdering)
+            if (m_rendererFlags &
+                TestingWindow::RendererFlags::disableRasterOrdering)
             {
                 m_contextOptions.disableFragmentShaderInterlock = true;
             }
@@ -39,7 +41,8 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
 
         void init(void* getGLProcAddress) override
         {
-            m_renderContext = rive::gpu::RenderContextGLImpl::MakeContext(m_contextOptions);
+            m_renderContext =
+                rive::gpu::RenderContextGLImpl::MakeContext(m_contextOptions);
         }
 
         rive::Factory* factory() override { return m_renderContext.get(); }
@@ -54,38 +57,49 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
                 GLint sampleCount;
                 glBindFramebuffer(GL_FRAMEBUFFER, 0);
                 glGetIntegerv(GL_SAMPLES, &sampleCount);
-                m_renderTarget = rive::make_rcp<rive::gpu::FramebufferRenderTargetGL>(width,
-                                                                                      height,
-                                                                                      0,
-                                                                                      sampleCount);
+                m_renderTarget =
+                    rive::make_rcp<rive::gpu::FramebufferRenderTargetGL>(
+                        width,
+                        height,
+                        0,
+                        sampleCount);
             }
             else
             {
                 // Render to targetTextureID.
-                auto renderTarget = rive::make_rcp<rive::gpu::TextureRenderTargetGL>(width, height);
+                auto renderTarget =
+                    rive::make_rcp<rive::gpu::TextureRenderTargetGL>(width,
+                                                                     height);
                 renderTarget->setTargetTexture(targetTextureID);
                 m_renderTarget = std::move(renderTarget);
             }
             return std::make_unique<rive::RiveRenderer>(m_renderContext.get());
         }
 
-        void beginFrame(rive::ColorInt clearColor, bool doClear, bool wireframe) override
+        void beginFrame(rive::ColorInt clearColor,
+                        bool doClear,
+                        bool wireframe) override
         {
-            // For testing, reset GPU resources to their initial sizes every frame. This will stress
-            // intermediate flushes more, as well as creating more consistency when rendering in
-            // multiple threads and a nondeterministic order.
+            // For testing, reset GPU resources to their initial sizes every
+            // frame. This will stress intermediate flushes more, as well as
+            // creating more consistency when rendering in multiple threads and
+            // a nondeterministic order.
             m_renderContext->releaseResources();
 
             rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
                 .renderTargetWidth = m_renderTarget->width(),
                 .renderTargetHeight = m_renderTarget->height(),
-                .loadAction = doClear ? rive::gpu::LoadAction::clear
-                                      : rive::gpu::LoadAction::preserveRenderTarget,
+                .loadAction = doClear
+                                  ? rive::gpu::LoadAction::clear
+                                  : rive::gpu::LoadAction::preserveRenderTarget,
                 .clearColor = clearColor,
                 .msaaSampleCount =
-                    (m_rendererFlags & TestingWindow::RendererFlags::useMSAA) ? 4 : 0,
+                    (m_rendererFlags & TestingWindow::RendererFlags::useMSAA)
+                        ? 4
+                        : 0,
                 .disableRasterOrdering =
-                    (m_rendererFlags & TestingWindow::RendererFlags::disableRasterOrdering),
+                    (m_rendererFlags &
+                     TestingWindow::RendererFlags::disableRasterOrdering),
                 .wireframe = wireframe,
             };
             m_renderContext->beginFrame(frameDescriptor);
@@ -93,8 +107,14 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
 
         void flush(int dpiScale) override { flushPLSContext(); }
 
-        rive::gpu::RenderContext* renderContext() const override { return m_renderContext.get(); }
-        rive::gpu::RenderTarget* renderTarget() const override { return m_renderTarget.get(); }
+        rive::gpu::RenderContext* renderContext() const override
+        {
+            return m_renderContext.get();
+        }
+        rive::gpu::RenderTarget* renderTarget() const override
+        {
+            return m_renderTarget.get();
+        }
 
         void flushPLSContext() override
         {

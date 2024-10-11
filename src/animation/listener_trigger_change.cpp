@@ -9,7 +9,8 @@
 
 using namespace rive;
 
-bool ListenerTriggerChange::validateInputType(const StateMachineInput* input) const
+bool ListenerTriggerChange::validateInputType(
+    const StateMachineInput* input) const
 {
     // A null input is valid as the StateMachine can attempt to limp along if we
     // introduce new input types that old conditions are expected to handle in
@@ -17,11 +18,13 @@ bool ListenerTriggerChange::validateInputType(const StateMachineInput* input) co
     return input == nullptr || input->is<StateMachineTrigger>();
 }
 
-bool ListenerTriggerChange::validateNestedInputType(const NestedInput* input) const
+bool ListenerTriggerChange::validateNestedInputType(
+    const NestedInput* input) const
 {
-    // A null nested input is valid as the StateMachine can attempt to limp along if we
-    // introduce new input types that old conditions are expected to handle in
-    // newer runtimes. The older runtimes will just evaluate them to true.
+    // A null nested input is valid as the StateMachine can attempt to limp
+    // along if we introduce new input types that old conditions are expected to
+    // handle in newer runtimes. The older runtimes will just evaluate them to
+    // true.
     return input == nullptr || input->is<NestedTrigger>();
 }
 
@@ -31,12 +34,14 @@ void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance,
 {
     if (nestedInputId() != Core::emptyId)
     {
-        auto nestedInputInstance = stateMachineInstance->artboard()->resolve(nestedInputId());
+        auto nestedInputInstance =
+            stateMachineInstance->artboard()->resolve(nestedInputId());
         if (nestedInputInstance == nullptr)
         {
             return;
         }
-        auto nestedTriggerInput = static_cast<NestedTrigger*>(nestedInputInstance);
+        auto nestedTriggerInput =
+            static_cast<NestedTrigger*>(nestedInputInstance);
         if (nestedTriggerInput != nullptr)
         {
             nestedTriggerInput->fire(CallbackData(stateMachineInstance, 0));
@@ -49,7 +54,8 @@ void ListenerTriggerChange::perform(StateMachineInstance* stateMachineInstance,
         {
             return;
         }
-        // If it's not null, it must be our correct type (why we validate at load time).
+        // If it's not null, it must be our correct type (why we validate at
+        // load time).
         auto triggerInput = static_cast<SMITrigger*>(inputInstance);
         if (triggerInput != nullptr)
         {

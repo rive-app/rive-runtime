@@ -44,8 +44,8 @@ StatusCode LayerState::onAddedClean(CoreContext* context)
 
 StatusCode LayerState::import(ImportStack& importStack)
 {
-    auto layerImporter =
-        importStack.latest<StateMachineLayerImporter>(StateMachineLayerBase::typeKey);
+    auto layerImporter = importStack.latest<StateMachineLayerImporter>(
+        StateMachineLayerBase::typeKey);
     if (layerImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -54,9 +54,13 @@ StatusCode LayerState::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
-void LayerState::addTransition(StateTransition* transition) { m_Transitions.push_back(transition); }
+void LayerState::addTransition(StateTransition* transition)
+{
+    m_Transitions.push_back(transition);
+}
 
-std::unique_ptr<StateInstance> LayerState::makeInstance(ArtboardInstance* instance) const
+std::unique_ptr<StateInstance> LayerState::makeInstance(
+    ArtboardInstance* instance) const
 {
     return rivestd::make_unique<SystemStateInstance>(this, instance);
 }

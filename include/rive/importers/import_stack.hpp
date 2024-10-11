@@ -30,7 +30,8 @@ public:
         return static_cast<T*>(itr->second.get());
     }
 
-    StatusCode makeLatest(uint16_t coreType, std::unique_ptr<ImportStackObject> object)
+    StatusCode makeLatest(uint16_t coreType,
+                          std::unique_ptr<ImportStackObject> object)
     {
         // Clean up the old object in the stack.
         auto itr = m_latests.find(coreType);
@@ -39,7 +40,8 @@ public:
             auto stackObject = itr->second.get();
 
             // Remove it from latests.
-            auto lastAddedItr = std::find(m_lastAdded.begin(), m_lastAdded.end(), stackObject);
+            auto lastAddedItr =
+                std::find(m_lastAdded.begin(), m_lastAdded.end(), stackObject);
             if (lastAddedItr != m_lastAdded.end())
             {
                 m_lastAdded.erase(lastAddedItr);

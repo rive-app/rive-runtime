@@ -48,7 +48,8 @@ public:
 
     void draw(Renderer*);
 
-    virtual void setDataContextFromInstance(ViewModelInstance* viewModelInstance);
+    virtual void setDataContextFromInstance(
+        ViewModelInstance* viewModelInstance);
 
     virtual HitResult pointerDown(Vec2D);
     virtual HitResult pointerMove(Vec2D);

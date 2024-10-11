@@ -24,7 +24,8 @@ public:
     constexpr static uint32_t HANDSHAKE_TOKEN = 0xfee1600d;
     constexpr static uint32_t SHUTDOWN_TOKEN = 0xfee1dead;
 
-    static std::unique_ptr<TCPClient> Connect(const char* serverAddress /*server:port*/);
+    static std::unique_ptr<TCPClient> Connect(
+        const char* serverAddress /*server:port*/);
     ~TCPClient();
 
     const char* serverAddress() const { return m_serverAddress.c_str(); }

@@ -28,7 +28,8 @@ AABB RawPath::bounds() const
     }
     else
     {
-        mins = maxes = m_Points.empty() ? float4{0, 0, 0, 0} : simd::load4f(&m_Points[0].x);
+        mins = maxes = m_Points.empty() ? float4{0, 0, 0, 0}
+                                        : simd::load4f(&m_Points[0].x);
         i = 2;
     }
     for (; i < m_Points.size(); i += 2)
@@ -235,24 +236,30 @@ RawPath::Iter RawPath::addPath(const RawPath& src, const Mat2D* mat)
     }
     else
     {
-        m_Points.insert(m_Points.end(), src.m_Points.cbegin(), src.m_Points.cend());
+        m_Points.insert(m_Points.end(),
+                        src.m_Points.cbegin(),
+                        src.m_Points.cend());
     }
 
     // Return an iterator at the beginning of the newly added geometry.
-    return Iter{m_Verbs.data() + initialVerbCount, m_Points.data() + initialPointCount};
+    return Iter{m_Verbs.data() + initialVerbCount,
+                m_Points.data() + initialPointCount};
 }
 
 void RawPath::pruneEmptySegments(Iter start)
 {
     auto dstVerb =
-        m_Verbs.begin() + std::distance<const PathVerb*>(m_Verbs.data(), start.rawVerbsPtr());
+        m_Verbs.begin() +
+        std::distance<const PathVerb*>(m_Verbs.data(), start.rawVerbsPtr());
     auto dstPts =
-        m_Points.begin() + std::distance<const Vec2D*>(m_Points.data(), start.rawPtsPtr());
+        m_Points.begin() +
+        std::distance<const Vec2D*>(m_Points.data(), start.rawPtsPtr());
     decltype(m_Verbs)::const_iterator srcVerb = dstVerb;
     decltype(m_Points)::const_iterator srcPts = dstPts;
 
     int ptsAdvance;
-    for (auto end = m_Verbs.end(); srcVerb != end; ++srcVerb, srcPts += ptsAdvance)
+    for (auto end = m_Verbs.end(); srcVerb != end;
+         ++srcVerb, srcPts += ptsAdvance)
     {
         PathVerb verb = *srcVerb;
         ptsAdvance = Iter::PtsAdvanceAfterVerb(verb);
@@ -460,8 +467,9 @@ static void expandBoundsToCubicPoint(AABB& bounds,
 }
 
 // Based on finding the extremas of the curve as described here:
-// https://pomax.github.io/bezierinfo/#extremities and based on PR we provided to the Flutter team
-// here: https://github.com/flutter/engine/pull/19054 and here:
+// https://pomax.github.io/bezierinfo/#extremities and based on PR we provided
+// to the Flutter team here: https://github.com/flutter/engine/pull/19054 and
+// here:
 // https://github.com/luigi-rosso/engine/blob/9ae3efd7dc6bcb9634402b4b8818d0add096c12d/lib/web_ui/lib/src/engine/surface/path.dart#L892
 static void expandCubicBoundsForAxis(AABB& bounds,
                                      int axis,
@@ -488,8 +496,20 @@ static void expandCubicBoundsForAxis(AABB& bounds,
         float m2 = -a + b;
 
         // First root.
-        expandBoundsToCubicPoint(bounds, axis, -(m1 + m2) / d, start, cp1, cp2, end);
-        expandBoundsToCubicPoint(bounds, axis, -(-m1 + m2) / d, start, cp1, cp2, end);
+        expandBoundsToCubicPoint(bounds,
+                                 axis,
+                                 -(m1 + m2) / d,
+                                 start,
+                                 cp1,
+                                 cp2,
+                                 end);
+        expandBoundsToCubicPoint(bounds,
+                                 axis,
+                                 -(-m1 + m2) / d,
+                                 start,
+                                 cp1,
+                                 cp2,
+                                 end);
     }
     else if (b != c && d == 0)
     {
@@ -508,7 +528,13 @@ static void expandCubicBoundsForAxis(AABB& bounds,
     float d2b = 2.0f * (c - b);
     if (d2a != b)
     {
-        expandBoundsToCubicPoint(bounds, axis, d2a / (d2a - d2b), start, cp1, cp2, end);
+        expandBoundsToCubicPoint(bounds,
+                                 axis,
+                                 d2a / (d2a - d2b),
+                                 start,
+                                 cp1,
+                                 cp2,
+                                 end);
     }
 }
 
@@ -528,8 +554,18 @@ AABB RawPath::preciseBounds() const
                 bounds.expandTo(bounds, pts[1]);
                 break;
             case PathVerb::cubic:
-                expandCubicBoundsForAxis(bounds, 0, pts[0].x, pts[1].x, pts[2].x, pts[3].x);
-                expandCubicBoundsForAxis(bounds, 1, pts[0].y, pts[1].y, pts[2].y, pts[3].y);
+                expandCubicBoundsForAxis(bounds,
+                                         0,
+                                         pts[0].x,
+                                         pts[1].x,
+                                         pts[2].x,
+                                         pts[3].x);
+                expandCubicBoundsForAxis(bounds,
+                                         1,
+                                         pts[0].y,
+                                         pts[1].y,
+                                         pts[2].y,
+                                         pts[3].y);
                 break;
             case PathVerb::close:
                 break;
@@ -539,8 +575,18 @@ AABB RawPath::preciseBounds() const
                 // editor for some cases so we still solve it as a cubic.
                 Vec2D pt1 = Vec2D::lerp(pts[0], pts[1], 2 / 3.f);
                 Vec2D pt2 = Vec2D::lerp(pts[2], pts[1], 2 / 3.f);
-                expandCubicBoundsForAxis(bounds, 0, pts[0].x, pt1.x, pt2.x, pts[2].x);
-                expandCubicBoundsForAxis(bounds, 1, pts[0].y, pt1.y, pt2.y, pts[2].y);
+                expandCubicBoundsForAxis(bounds,
+                                         0,
+                                         pts[0].x,
+                                         pt1.x,
+                                         pt2.x,
+                                         pts[2].x);
+                expandCubicBoundsForAxis(bounds,
+                                         1,
+                                         pts[0].y,
+                                         pt1.y,
+                                         pt2.y,
+                                         pts[2].y);
                 break;
         }
     }

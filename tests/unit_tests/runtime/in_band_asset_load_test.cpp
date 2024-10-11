@@ -68,7 +68,8 @@ TEST_CASE("Load asset with in-band image", "[asset]")
     REQUIRE(firstAsset->as<rive::ImageAsset>()->decodedByteSize == 308);
 }
 
-TEST_CASE("Load asset with in-band image, passing responsibility to loader", "[asset]")
+TEST_CASE("Load asset with in-band image, passing responsibility to loader",
+          "[asset]")
 {
     auto loader = PretendAssetLoader();
 
@@ -99,19 +100,23 @@ TEST_CASE("Load asset with in-band image, passing responsibility to loader", "[a
     REQUIRE(loader.attemptedAsset->cdnUuid().size() == 0);
 
     // default value
-    REQUIRE(loader.attemptedAsset->cdnBaseUrl() == "https://public.rive.app/cdn/uuid");
+    REQUIRE(loader.attemptedAsset->cdnBaseUrl() ==
+            "https://public.rive.app/cdn/uuid");
 
     REQUIRE(loader.attemptedAsset->uniqueFilename() == "1x1-45022.png");
     REQUIRE(loader.attemptedAsset->fileExtension() == "png");
 }
 
-TEST_CASE("Load asset with in-band image, rejecting the loading responsiblity as loader", "[asset]")
+TEST_CASE("Load asset with in-band image, rejecting the loading responsiblity "
+          "as loader",
+          "[asset]")
 {
     auto loader = RejectAssetLoader();
     auto file = ReadRiveFile("assets/in_band_asset.riv", nullptr, &loader);
     auto assets = file->assets();
     auto firstAsset = assets[0];
     REQUIRE(firstAsset->is<rive::ImageAsset>());
-    // our loader does not handle loading the asset, so we load the in band contents.
+    // our loader does not handle loading the asset, so we load the in band
+    // contents.
     REQUIRE(firstAsset->as<rive::ImageAsset>()->decodedByteSize == 308);
 }

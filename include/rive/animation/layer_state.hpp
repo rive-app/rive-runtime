@@ -40,7 +40,8 @@ public:
 
     /// Make an instance of this state that can be advanced and applied by
     /// the state machine when it is active or being transitioned from.
-    virtual std::unique_ptr<StateInstance> makeInstance(ArtboardInstance* instance) const;
+    virtual std::unique_ptr<StateInstance> makeInstance(
+        ArtboardInstance* instance) const;
 };
 } // namespace rive
 

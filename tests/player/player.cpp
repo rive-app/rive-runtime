@@ -39,7 +39,10 @@ int rive_android_main(int argc, const char* const* argv, android_app* app)
     while (!app->destroyRequested && !windowInitialized)
     {
         android_poll_source* source = nullptr;
-        auto result = ALooper_pollOnce(-1, nullptr, nullptr, reinterpret_cast<void**>(&source));
+        auto result = ALooper_pollOnce(-1,
+                                       nullptr,
+                                       nullptr,
+                                       reinterpret_cast<void**>(&source));
         if (result == ALOOPER_POLL_ERROR)
         {
             fprintf(stderr, "ALooper_pollOnce returned an error");
@@ -165,7 +168,9 @@ static void key_pressed(char key)
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int player_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
-static int android_player_main(int argc, const char* const* argv, android_app* app)
+static int android_player_main(int argc,
+                               const char* const* argv,
+                               android_app* app)
 #else
 int main(int argc, const char* argv[])
 #endif
@@ -196,22 +201,26 @@ int main(int argc, const char* argv[])
                 abort();
             }
         }
-        else if (strcmp(argv[i], "--backend") == 0 || strcmp(argv[i], "-b") == 0)
+        else if (strcmp(argv[i], "--backend") == 0 ||
+                 strcmp(argv[i], "-b") == 0)
         {
             backend = TestingWindow::ParseBackend(argv[++i], &gpuNameFilter);
         }
-        else if (argv[i][0] == '-' && argv[i][1] == 'b') // "-bvk" without a space.
+        else if (argv[i][0] == '-' &&
+                 argv[i][1] == 'b') // "-bvk" without a space.
         {
             backend = TestingWindow::ParseBackend(argv[i] + 2, &gpuNameFilter);
         }
-        else if (strcmp(argv[i], "--options") == 0 || strcmp(argv[i], "-k") == 0)
+        else if (strcmp(argv[i], "--options") == 0 ||
+                 strcmp(argv[i], "-k") == 0)
         {
             for (const char* k = argv[++i]; *k; ++k)
             {
                 key_pressed(*k);
             }
         }
-        else if (argv[i][0] == '-' && argv[i][1] == 'k') // "-k1234asdf" without a space.
+        else if (argv[i][0] == '-' &&
+                 argv[i][1] == 'k') // "-k1234asdf" without a space.
         {
             for (const char* k = argv[i] + 2; *k; ++k)
             {
@@ -231,7 +240,9 @@ int main(int argc, const char* argv[])
             }
             rivName = argv[i];
             std::ifstream rivStream(rivName, std::ios::binary);
-            rivBytes = std::vector<uint8_t>(std::istreambuf_iterator<char>(rivStream), {});
+            rivBytes =
+                std::vector<uint8_t>(std::istreambuf_iterator<char>(rivStream),
+                                     {});
         }
     }
 
@@ -241,7 +252,8 @@ int main(int argc, const char* argv[])
 #ifdef RIVE_ANDROID
                         app->window
 #else
-                        reinterpret_cast<void*>(static_cast<intptr_t>(monitorIdx))
+                        reinterpret_cast<void*>(
+                            static_cast<intptr_t>(monitorIdx))
 #endif
     );
 
@@ -275,7 +287,8 @@ int main(int argc, const char* argv[])
     whiteFill->color(0xffffffff);
     std::unique_ptr<rive::RawText> fpsText;
     int fpsFrames = 0;
-    std::chrono::time_point fpsLastTime = std::chrono::high_resolution_clock::now();
+    std::chrono::time_point fpsLastTime =
+        std::chrono::high_resolution_clock::now();
 
     while (!quit && !TestingWindow::Get()->shouldQuit())
     {
@@ -285,8 +298,10 @@ int main(int argc, const char* argv[])
         copiesAbove = std::max(copiesAbove, 0);
         copiesRight = std::max(copiesRight, 0);
         copiesBelow = std::max(copiesBelow, 0);
-        int copyCount = (copiesLeft + 1 + copiesRight) * (copiesAbove + 1 + copiesBelow);
-        if (copyCount != lastReportedCopyCount || paused != lastReportedPauseState)
+        int copyCount =
+            (copiesLeft + 1 + copiesRight) * (copiesAbove + 1 + copiesBelow);
+        if (copyCount != lastReportedCopyCount ||
+            paused != lastReportedPauseState)
         {
             printf("Drawing %i copies of %s%s at %u x %u\n",
                    copyCount,
@@ -298,7 +313,8 @@ int main(int argc, const char* argv[])
             lastReportedPauseState = paused;
         }
 
-        auto renderer = TestingWindow::Get()->beginFrame(0xff303030, true, wireframe);
+        auto renderer =
+            TestingWindow::Get()->beginFrame(0xff303030, true, wireframe);
         renderer->save();
 
         uint32_t width = TestingWindow::Get()->width();
@@ -354,7 +370,9 @@ int main(int argc, const char* argv[])
         ++fpsFrames;
         std::chrono::time_point now = std::chrono::high_resolution_clock::now();
         auto fpsElapsedMS =
-            std::chrono::duration_cast<std::chrono::milliseconds>(now - fpsLastTime).count();
+            std::chrono::duration_cast<std::chrono::milliseconds>(now -
+                                                                  fpsLastTime)
+                .count();
         if (fpsElapsedMS > 2000)
         {
             double fps = 1000.0 * fpsFrames / fpsElapsedMS;
@@ -362,7 +380,8 @@ int main(int argc, const char* argv[])
 
             char fpsRawText[32];
             snprintf(fpsRawText, sizeof(fpsRawText), "   %.1f FPS   ", fps);
-            fpsText = std::make_unique<rive::RawText>(TestingWindow::Get()->factory());
+            fpsText = std::make_unique<rive::RawText>(
+                TestingWindow::Get()->factory());
             fpsText->maxWidth(width);
 #ifdef RIVE_ANDROID
             fpsText->align(rive::TextAlign::center);
@@ -377,14 +396,18 @@ int main(int argc, const char* argv[])
         }
 
         char key;
-        while (TestingWindow::Get()->peekKey(key) || TestHarness::Instance().peekChar(key))
+        while (TestingWindow::Get()->peekKey(key) ||
+               TestHarness::Instance().peekChar(key))
         {
             key_pressed(key);
         }
 
 #ifdef RIVE_ANDROID
         android_poll_source* source = nullptr;
-        ALooper_pollOnce(0, nullptr, nullptr, reinterpret_cast<void**>(&source));
+        ALooper_pollOnce(0,
+                         nullptr,
+                         nullptr,
+                         reinterpret_cast<void**>(&source));
         if (source != nullptr)
         {
             source->process(app, source);
@@ -397,7 +420,8 @@ int main(int argc, const char* argv[])
     }
 
     printf("\nShutting down\n");
-    TestingWindow::Destroy(); // Exercise our PLS teardown process now that we're done.
+    TestingWindow::Destroy(); // Exercise our PLS teardown process now that
+                              // we're done.
     TestHarness::Instance().shutdown();
     return 0;
 }

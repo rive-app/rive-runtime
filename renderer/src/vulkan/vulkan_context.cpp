@@ -30,8 +30,8 @@ VulkanContext::VulkanContext(VkInstance instance,
         .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
         .physicalDevice = physicalDevice,
         .device = device,
-        .pVulkanFunctions =
-            &initVmaVulkanFunctions(fp_vkGetInstanceProcAddr, fp_vkGetDeviceProcAddr),
+        .pVulkanFunctions = &initVmaVulkanFunctions(fp_vkGetInstanceProcAddr,
+                                                    fp_vkGetDeviceProcAddr),
         .instance = instance,
         .vulkanApiVersion = features.vulkanApiVersion,
     }))
@@ -57,8 +57,8 @@ void VulkanContext::onNewFrameBegun()
 {
     ++m_currentFrameIdx;
 
-    // Delete all resources that are no longer referenced by an in-flight command
-    // buffer.
+    // Delete all resources that are no longer referenced by an in-flight
+    // command buffer.
     while (!m_resourcePurgatory.empty() &&
            m_resourcePurgatory.front().expirationFrameIdx <= m_currentFrameIdx)
     {
@@ -66,7 +66,8 @@ void VulkanContext::onNewFrameBegun()
     }
 }
 
-void VulkanContext::onRenderingResourceReleased(const vkutil::RenderingResource* resource)
+void VulkanContext::onRenderingResourceReleased(
+    const vkutil::RenderingResource* resource)
 {
     assert(resource->vulkanContext() == this);
     if (!m_shutdown)
@@ -86,8 +87,8 @@ void VulkanContext::shutdown()
 {
     m_shutdown = true;
 
-    // Validate m_resourcePurgatory: We shouldn't have any resources queued up with
-    // larger expirations than "gpu::kBufferRingSize" frames.
+    // Validate m_resourcePurgatory: We shouldn't have any resources queued up
+    // with larger expirations than "gpu::kBufferRingSize" frames.
     for (size_t i = 0; i < gpu::kBufferRingSize; ++i)
     {
         onNewFrameBegun();
@@ -109,7 +110,8 @@ rcp<vkutil::Texture> VulkanContext::makeTexture(const VkImageCreateInfo& info)
     return rcp(new vkutil::Texture(ref_rcp(this), info));
 }
 
-rcp<vkutil::Framebuffer> VulkanContext::makeFramebuffer(const VkFramebufferCreateInfo& info)
+rcp<vkutil::Framebuffer> VulkanContext::makeFramebuffer(
+    const VkFramebufferCreateInfo& info)
 {
     return rcp(new vkutil::Framebuffer(ref_rcp(this), info));
 }
@@ -121,43 +123,51 @@ static VkImageViewType image_view_type_for_image_type(VkImageType type)
         case VK_IMAGE_TYPE_2D:
             return VK_IMAGE_VIEW_TYPE_2D;
         default:
-            fprintf(stderr,
-                    "vkutil::image_view_type_for_image_type: VkImageType %u is not "
-                    "supported\n",
-                    type);
+            fprintf(
+                stderr,
+                "vkutil::image_view_type_for_image_type: VkImageType %u is not "
+                "supported\n",
+                type);
     }
     RIVE_UNREACHABLE();
 }
 
-rcp<vkutil::TextureView> VulkanContext::makeTextureView(rcp<vkutil::Texture> texture)
+rcp<vkutil::TextureView> VulkanContext::makeTextureView(
+    rcp<vkutil::Texture> texture)
 {
-    return makeTextureView(
-        texture,
-        {
-            .image = *texture,
-            .viewType = image_view_type_for_image_type(texture->info().imageType),
-            .format = texture->info().format,
-            .subresourceRange =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .levelCount = texture->info().mipLevels,
-                    .layerCount = 1,
-                },
-        });
+    return makeTextureView(texture,
+                           {
+                               .image = *texture,
+                               .viewType = image_view_type_for_image_type(
+                                   texture->info().imageType),
+                               .format = texture->info().format,
+                               .subresourceRange =
+                                   {
+                                       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                                       .levelCount = texture->info().mipLevels,
+                                       .layerCount = 1,
+                                   },
+                           });
 }
 
-rcp<vkutil::TextureView> VulkanContext::makeTextureView(rcp<vkutil::Texture> texture,
-                                                        const VkImageViewCreateInfo& info)
+rcp<vkutil::TextureView> VulkanContext::makeTextureView(
+    rcp<vkutil::Texture> texture,
+    const VkImageViewCreateInfo& info)
 {
     assert(texture);
     auto usage = texture->info().usage;
-    return rcp(new vkutil::TextureView(ref_rcp(this), std::move(texture), usage, info));
+    return rcp(new vkutil::TextureView(ref_rcp(this),
+                                       std::move(texture),
+                                       usage,
+                                       info));
 }
 
-rcp<vkutil::TextureView> VulkanContext::makeExternalTextureView(const VkImageUsageFlags flags,
-                                                                const VkImageViewCreateInfo& info)
+rcp<vkutil::TextureView> VulkanContext::makeExternalTextureView(
+    const VkImageUsageFlags flags,
+    const VkImageViewCreateInfo& info)
 {
-    return rcp<vkutil::TextureView>(new vkutil::TextureView(ref_rcp(this), nullptr, flags, info));
+    return rcp<vkutil::TextureView>(
+        new vkutil::TextureView(ref_rcp(this), nullptr, flags, info));
 }
 
 void VulkanContext::updateImageDescriptorSets(
@@ -167,7 +177,8 @@ void VulkanContext::updateImageDescriptorSets(
 {
     writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeSet.dstSet = vkDescriptorSet;
-    writeSet.descriptorCount = math::lossless_numeric_cast<uint32_t>(imageInfos.size());
+    writeSet.descriptorCount =
+        math::lossless_numeric_cast<uint32_t>(imageInfos.size());
     writeSet.pImageInfo = imageInfos.begin();
     UpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
 }
@@ -179,7 +190,8 @@ void VulkanContext::updateBufferDescriptorSets(
 {
     writeSet.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     writeSet.dstSet = vkDescriptorSet;
-    writeSet.descriptorCount = math::lossless_numeric_cast<uint32_t>(bufferInfos.size());
+    writeSet.descriptorCount =
+        math::lossless_numeric_cast<uint32_t>(bufferInfos.size());
     writeSet.pBufferInfo = bufferInfos.begin();
     UpdateDescriptorSets(device, 1, &writeSet, 0, nullptr);
 }
@@ -203,12 +215,13 @@ void VulkanContext::memoryBarrier(VkCommandBuffer commandBuffer,
                        nullptr);
 }
 
-void VulkanContext::imageMemoryBarriers(VkCommandBuffer commandBuffer,
-                                        VkPipelineStageFlags srcStageMask,
-                                        VkPipelineStageFlags dstStageMask,
-                                        VkDependencyFlags dependencyFlags,
-                                        uint32_t count,
-                                        VkImageMemoryBarrier* imageMemoryBarriers)
+void VulkanContext::imageMemoryBarriers(
+    VkCommandBuffer commandBuffer,
+    VkPipelineStageFlags srcStageMask,
+    VkPipelineStageFlags dstStageMask,
+    VkDependencyFlags dependencyFlags,
+    uint32_t count,
+    VkImageMemoryBarrier* imageMemoryBarriers)
 {
     for (uint32_t i = 0; i < count; ++i)
     {
@@ -216,7 +229,8 @@ void VulkanContext::imageMemoryBarriers(VkCommandBuffer commandBuffer,
         imageMemoryBarrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
         if (imageMemoryBarrier.subresourceRange.aspectMask == 0)
         {
-            imageMemoryBarrier.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            imageMemoryBarrier.subresourceRange.aspectMask =
+                VK_IMAGE_ASPECT_COLOR_BIT;
         }
         if (imageMemoryBarrier.subresourceRange.levelCount == 0)
         {
@@ -239,11 +253,12 @@ void VulkanContext::imageMemoryBarriers(VkCommandBuffer commandBuffer,
                        imageMemoryBarriers);
 }
 
-void VulkanContext::bufferMemoryBarrier(VkCommandBuffer commandBuffer,
-                                        VkPipelineStageFlags srcStageMask,
-                                        VkPipelineStageFlags dstStageMask,
-                                        VkDependencyFlags dependencyFlags,
-                                        VkBufferMemoryBarrier bufferMemoryBarrier)
+void VulkanContext::bufferMemoryBarrier(
+    VkCommandBuffer commandBuffer,
+    VkPipelineStageFlags srcStageMask,
+    VkPipelineStageFlags dstStageMask,
+    VkDependencyFlags dependencyFlags,
+    VkBufferMemoryBarrier bufferMemoryBarrier)
 {
     bufferMemoryBarrier.sType = VK_STRUCTURE_TYPE_BUFFER_MEMORY_BARRIER;
     if (bufferMemoryBarrier.size == 0)

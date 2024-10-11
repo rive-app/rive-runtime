@@ -22,12 +22,14 @@ bool RiveRenderer::IsAABB(const RawPath& path, AABB* result)
                                                            PathVerb::line,
                                                            PathVerb::line};
     Span<const PathVerb> verbs = path.verbs();
-    if (verbs.count() < kAABBVerbCount || memcmp(verbs.data(), aabbVerbs, sizeof(aabbVerbs)) != 0)
+    if (verbs.count() < kAABBVerbCount ||
+        memcmp(verbs.data(), aabbVerbs, sizeof(aabbVerbs)) != 0)
     {
         return false;
     }
 
-    // Only accept extra verbs and points if every point after the quadrilateral is equal to p0.
+    // Only accept extra verbs and points if every point after the quadrilateral
+    // is equal to p0.
     Span<const Vec2D> pts = path.points();
     for (size_t i = 4; i < pts.count(); ++i)
     {
@@ -40,9 +42,11 @@ bool RiveRenderer::IsAABB(const RawPath& path, AABB* result)
     // We have a quadrilateral! Now check if it is an axis-aligned rectangle.
     float4 corners = {pts[0].x, pts[0].y, pts[2].x, pts[2].y};
     float4 oppositeCorners = {pts[1].x, pts[1].y, pts[3].x, pts[3].y};
-    if (simd::all(corners == oppositeCorners.zyxw) || simd::all(corners == oppositeCorners.xwzy))
+    if (simd::all(corners == oppositeCorners.zyxw) ||
+        simd::all(corners == oppositeCorners.xwzy))
     {
-        float4 r = simd::join(simd::min(corners.xy, corners.zw), simd::max(corners.xy, corners.zw));
+        float4 r = simd::join(simd::min(corners.xy, corners.zw),
+                              simd::max(corners.xy, corners.zw));
         simd::store(result, r);
         return true;
     }
@@ -73,7 +77,8 @@ void RiveRenderer::ClipElement::reset(const Mat2D& matrix_,
 bool RiveRenderer::ClipElement::isEquivalent(const Mat2D& matrix_,
                                              const RiveRenderPath* path_) const
 {
-    return matrix_ == matrix && path_->getRawPathMutationID() == rawPathMutationID &&
+    return matrix_ == matrix &&
+           path_->getRawPathMutationID() == rawPathMutationID &&
            path_->getFillRule() == fillRule;
 }
 
@@ -83,8 +88,8 @@ RiveRenderer::~RiveRenderer() {}
 
 void RiveRenderer::save()
 {
-    // Copy the back of the stack before pushing, in case the vector grows and invalidates the
-    // reference.
+    // Copy the back of the stack before pushing, in case the vector grows and
+    // invalidates the reference.
     RenderState copy = m_stack.back();
     m_stack.push_back(copy);
 }
@@ -92,7 +97,8 @@ void RiveRenderer::save()
 void RiveRenderer::restore()
 {
     assert(m_stack.size() > 1);
-    assert(m_stack.back().clipStackHeight >= m_stack[m_stack.size() - 2].clipStackHeight);
+    assert(m_stack.back().clipStackHeight >=
+           m_stack[m_stack.size() - 2].clipStackHeight);
     m_stack.pop_back();
 }
 
@@ -120,8 +126,9 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
     {
         return;
     }
-    if (stroked && !(paint->getThickness() > 0)) // Use inverse logic to ensure we abort when stroke
-    {                                            // thickness is NaN.
+    if (stroked && !(paint->getThickness() >
+                     0)) // Use inverse logic to ensure we abort when stroke
+    {                    // thickness is NaN.
         return;
     }
     if (m_stack.back().clipIsEmpty)
@@ -129,11 +136,12 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
         return;
     }
 
-    gpu::DrawUniquePtr cacheDraw = path->getDrawCache(m_stack.back().matrix,
-                                                      paint,
-                                                      path->getFillRule(),
-                                                      &m_context->perFrameAllocator(),
-                                                      m_context->frameInterlockMode());
+    gpu::DrawUniquePtr cacheDraw =
+        path->getDrawCache(m_stack.back().matrix,
+                           paint,
+                           path->getFillRule(),
+                           &m_context->perFrameAllocator(),
+                           m_context->frameInterlockMode());
 
     if (cacheDraw != nullptr)
     {
@@ -170,11 +178,12 @@ void RiveRenderer::clipPath(RenderPath* renderPath)
         return;
     }
 
-    // First try to handle axis-aligned rectangles using the "ENABLE_CLIP_RECT" shader feature.
-    // Multiple axis-aligned rectangles can be intersected into a single rectangle if their matrices
-    // are compatible.
+    // First try to handle axis-aligned rectangles using the "ENABLE_CLIP_RECT"
+    // shader feature. Multiple axis-aligned rectangles can be intersected into
+    // a single rectangle if their matrices are compatible.
     AABB clipRectCandidate;
-    if (m_context->frameSupportsClipRects() && IsAABB(path->getRawPath(), &clipRectCandidate))
+    if (m_context->frameSupportsClipRects() &&
+        IsAABB(path->getRawPath(), &clipRectCandidate))
     {
         clipRectImpl(clipRectCandidate, path);
     }
@@ -207,11 +216,12 @@ static bool transform_rect_to_new_space(AABB* rect,
     float maxScale = fmaxf(fabsf(currentToNew.xx()), fabsf(currentToNew.yy()));
     if (maxSkew > math::EPSILON && maxScale > math::EPSILON)
     {
-        // Transforming this rect to the new view matrix would turn it into something that isn't a
-        // rect.
+        // Transforming this rect to the new view matrix would turn it into
+        // something that isn't a rect.
         return false;
     }
-    Vec2D pts[2] = {{rect->left(), rect->top()}, {rect->right(), rect->bottom()}};
+    Vec2D pts[2] = {{rect->left(), rect->top()},
+                    {rect->right(), rect->bottom()}};
     currentToNew.mapPoints(pts, pts, 2);
     float4 p = simd::load4f(pts);
     float2 topLeft = simd::min(p.xy, p.zw);
@@ -229,12 +239,16 @@ void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
         return;
     }
 
-    // If there already is a clipRect, we can only accept another one by intersecting it with the
-    // existing one. This means the new rect must be axis-aligned with the existing clipRect.
+    // If there already is a clipRect, we can only accept another one by
+    // intersecting it with the existing one. This means the new rect must be
+    // axis-aligned with the existing clipRect.
     if (hasClipRect &&
-        !transform_rect_to_new_space(&rect, m_stack.back().matrix, m_stack.back().clipRectMatrix))
+        !transform_rect_to_new_space(&rect,
+                                     m_stack.back().matrix,
+                                     m_stack.back().clipRectMatrix))
     {
-        // 'rect' is not axis-aligned with the existing clipRect. Fall back to clipPath.
+        // 'rect' is not axis-aligned with the existing clipRect. Fall back to
+        // clipPath.
         clipPathImpl(originalPath);
         return;
     }
@@ -247,16 +261,19 @@ void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
     }
     else
     {
-        // Both rects are in the same space now. Intersect the two geometrically.
+        // Both rects are in the same space now. Intersect the two
+        // geometrically.
         float4 a = simd::load4f(&m_stack.back().clipRect);
         float4 b = simd::load4f(&rect);
-        float4 intersection = simd::join(simd::max(a.xy, b.xy), simd::min(a.zw, b.zw));
+        float4 intersection =
+            simd::join(simd::max(a.xy, b.xy), simd::min(a.zw, b.zw));
         simd::store(&m_stack.back().clipRect, intersection);
     }
 
     m_stack.back().clipRectInverseMatrix =
-        m_context->make<gpu::ClipRectInverseMatrix>(m_stack.back().clipRectMatrix,
-                                                    m_stack.back().clipRect);
+        m_context->make<gpu::ClipRectInverseMatrix>(
+            m_stack.back().clipRectMatrix,
+            m_stack.back().clipRect);
 }
 
 void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
@@ -266,12 +283,14 @@ void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
         m_stack.back().clipIsEmpty = true;
         return;
     }
-    // Only write a new clip element if this path isn't already on the stack from before. e.g.:
+    // Only write a new clip element if this path isn't already on the stack
+    // from before. e.g.:
     //
     //     clipPath(samePath);
     //     restore();
     //     save();
-    //     clipPath(samePath); // <-- reuse the ClipElement (and clipID!) already in m_clipStack.
+    //     clipPath(samePath); // <-- reuse the ClipElement (and clipID!)
+    //     already in m_clipStack.
     //
     const size_t clipStackHeight = m_stack.back().clipStackHeight;
     assert(m_clipStack.size() >= clipStackHeight);
@@ -279,12 +298,16 @@ void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
         !m_clipStack[clipStackHeight].isEquivalent(m_stack.back().matrix, path))
     {
         m_clipStack.resize(clipStackHeight);
-        m_clipStack.emplace_back(m_stack.back().matrix, path, path->getFillRule());
+        m_clipStack.emplace_back(m_stack.back().matrix,
+                                 path,
+                                 path->getFillRule());
     }
     m_stack.back().clipStackHeight = clipStackHeight + 1;
 }
 
-void RiveRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode, float opacity)
+void RiveRenderer::drawImage(const RenderImage* renderImage,
+                             BlendMode blendMode,
+                             float opacity)
 {
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
 
@@ -294,24 +317,27 @@ void RiveRenderer::drawImage(const RenderImage* renderImage, BlendMode blendMode
 
     if (!m_context->frameSupportsImagePaintForPaths())
     {
-        // Fall back on ImageRectDraw if the current frame doesn't support drawing paths with image
-        // paints.
+        // Fall back on ImageRectDraw if the current frame doesn't support
+        // drawing paths with image paints.
         if (!m_stack.back().clipIsEmpty)
         {
             const Mat2D& m = m_stack.back().matrix;
-            auto riveRenderImage = static_cast<const RiveRenderImage*>(renderImage);
-            clipAndPushDraw(gpu::DrawUniquePtr(
-                m_context->make<gpu::ImageRectDraw>(m_context,
-                                                    m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
-                                                    m,
-                                                    blendMode,
-                                                    riveRenderImage->refTexture(),
-                                                    opacity)));
+            auto riveRenderImage =
+                static_cast<const RiveRenderImage*>(renderImage);
+            clipAndPushDraw(
+                gpu::DrawUniquePtr(m_context->make<gpu::ImageRectDraw>(
+                    m_context,
+                    m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
+                    m,
+                    blendMode,
+                    riveRenderImage->refTexture(),
+                    opacity)));
         }
     }
     else
     {
-        // Implement drawImage() as drawPath() with a rectangular path and an image paint.
+        // Implement drawImage() as drawPath() with a rectangular path and an
+        // image paint.
         if (m_unitRectPath == nullptr)
         {
             m_unitRectPath = make_rcp<RiveRenderPath>();
@@ -350,16 +376,16 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
         return;
     }
 
-    clipAndPushDraw(
-        gpu::DrawUniquePtr(m_context->make<gpu::ImageMeshDraw>(gpu::Draw::kFullscreenPixelBounds,
-                                                               m_stack.back().matrix,
-                                                               blendMode,
-                                                               ref_rcp(texture),
-                                                               std::move(vertices_f32),
-                                                               std::move(uvCoords_f32),
-                                                               std::move(indices_u16),
-                                                               indexCount,
-                                                               opacity)));
+    clipAndPushDraw(gpu::DrawUniquePtr(
+        m_context->make<gpu::ImageMeshDraw>(gpu::Draw::kFullscreenPixelBounds,
+                                            m_stack.back().matrix,
+                                            blendMode,
+                                            ref_rcp(texture),
+                                            std::move(vertices_f32),
+                                            std::move(uvCoords_f32),
+                                            std::move(indices_u16),
+                                            indexCount,
+                                            opacity)));
 }
 
 void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
@@ -374,19 +400,24 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
         return;
     }
 
-    // Make two attempts to issue the draw: once on the context as-is and once with a clean flush.
+    // Make two attempts to issue the draw: once on the context as-is and once
+    // with a clean flush.
     for (int i = 0; i < 2; ++i)
     {
-        // Always make sure we begin this loop with the internal draw batch empty, and clear it when
-        // we're done.
+        // Always make sure we begin this loop with the internal draw batch
+        // empty, and clear it when we're done.
         struct AutoResetInternalDrawBatch
         {
         public:
-            AutoResetInternalDrawBatch(RiveRenderer* renderer) : m_renderer(renderer)
+            AutoResetInternalDrawBatch(RiveRenderer* renderer) :
+                m_renderer(renderer)
             {
                 assert(m_renderer->m_internalDrawBatch.empty());
             }
-            ~AutoResetInternalDrawBatch() { m_renderer->m_internalDrawBatch.clear(); }
+            ~AutoResetInternalDrawBatch()
+            {
+                m_renderer->m_internalDrawBatch.clear();
+            }
 
         private:
             RiveRenderer* m_renderer;
@@ -397,7 +428,8 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
         auto applyClipResult = applyClip(draw.get());
         if (applyClipResult == ApplyClipResult::failure)
         {
-            // There wasn't room in the GPU buffers for this path draw. Flush and try again.
+            // There wasn't room in the GPU buffers for this path draw. Flush
+            // and try again.
             m_context->logicalFlush();
             continue;
         }
@@ -407,11 +439,14 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
         }
 
         m_internalDrawBatch.push_back(std::move(draw));
-        if (!m_context->pushDrawBatch(m_internalDrawBatch.data(), m_internalDrawBatch.size()))
+        if (!m_context->pushDrawBatch(m_internalDrawBatch.data(),
+                                      m_internalDrawBatch.size()))
         {
-            // There wasn't room in the GPU buffers for this path draw. Flush and try again.
+            // There wasn't room in the GPU buffers for this path draw. Flush
+            // and try again.
             m_context->logicalFlush();
-            // Reclaim "draw" because we will use it again on the next iteration.
+            // Reclaim "draw" because we will use it again on the next
+            // iteration.
             draw = std::move(m_internalDrawBatch.back());
             assert(draw != nullptr);
             m_internalDrawBatch.pop_back();
@@ -424,7 +459,8 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 
     // We failed to process the draw. Release its refs.
     fprintf(stderr,
-            "RiveRenderer::clipAndPushDraw failed. The draw and/or clip stack are too complex.\n");
+            "RiveRenderer::clipAndPushDraw failed. The draw and/or clip stack "
+            "are too complex.\n");
 }
 
 RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
@@ -442,7 +478,8 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         return ApplyClipResult::success;
     }
 
-    // Find which clip element in the stack (if any) is currently rendered to the clip buffer.
+    // Find which clip element in the stack (if any) is currently rendered to
+    // the clip buffer.
     size_t clipIdxCurrentlyInClipBuffer = -1; // i.e., "none".
     if (m_context->getClipContentID() != 0)
     {
@@ -456,22 +493,25 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         }
     }
 
-    // Draw the necessary updates to the clip buffer (i.e., draw every clip element after
-    // clipIdxCurrentlyInClipBuffer).
-    uint32_t lastClipID = clipIdxCurrentlyInClipBuffer == -1
-                              ? 0 // The next clip to be drawn is not nested.
-                              : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
+    // Draw the necessary updates to the clip buffer (i.e., draw every clip
+    // element after clipIdxCurrentlyInClipBuffer).
+    uint32_t lastClipID =
+        clipIdxCurrentlyInClipBuffer == -1
+            ? 0 // The next clip to be drawn is not nested.
+            : m_clipStack[clipIdxCurrentlyInClipBuffer].clipID;
     if (m_context->frameInterlockMode() == gpu::InterlockMode::msaa)
     {
         if (lastClipID == 0 && m_context->getClipContentID() != 0)
         {
-            // Time for a new stencil clip! Erase the clip currently in the stencil buffer before we
-            // draw the new one.
-            auto stencilClipClear = gpu::DrawUniquePtr(m_context->make<gpu::StencilClipReset>(
-                m_context,
-                m_context->getClipContentID(),
-                gpu::StencilClipReset::ResetAction::clearPreviousClip));
-            if (!m_context->isOutsideCurrentFrame(stencilClipClear->pixelBounds()))
+            // Time for a new stencil clip! Erase the clip currently in the
+            // stencil buffer before we draw the new one.
+            auto stencilClipClear =
+                gpu::DrawUniquePtr(m_context->make<gpu::StencilClipReset>(
+                    m_context,
+                    m_context->getClipContentID(),
+                    gpu::StencilClipReset::ResetAction::clearPreviousClip));
+            if (!m_context->isOutsideCurrentFrame(
+                    stencilClipClear->pixelBounds()))
             {
                 m_internalDrawBatch.push_back(std::move(stencilClipClear));
             }
@@ -486,13 +526,15 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         IAABB clipDrawBounds;
         {
             RiveRenderPaint clipUpdatePaint;
-            clipUpdatePaint.clipUpdate(/*clip THIS clipDraw against:*/ lastClipID);
+            clipUpdatePaint.clipUpdate(
+                /*clip THIS clipDraw against:*/ lastClipID);
 
-            gpu::DrawUniquePtr clipDraw = clip.path->getDrawCache(clip.matrix,
-                                                                  &clipUpdatePaint,
-                                                                  clip.fillRule,
-                                                                  &m_context->perFrameAllocator(),
-                                                                  m_context->frameInterlockMode());
+            gpu::DrawUniquePtr clipDraw =
+                clip.path->getDrawCache(clip.matrix,
+                                        &clipUpdatePaint,
+                                        clip.fillRule,
+                                        &m_context->perFrameAllocator(),
+                                        m_context->frameInterlockMode());
 
             if (clipDraw == nullptr)
             {
@@ -508,19 +550,22 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
                     return ApplyClipResult::clipEmpty;
                 }
 
-                clip.path->setDrawCache(static_cast<gpu::RiveRenderPathDraw*>(clipDraw.get()),
-                                        clip.matrix,
-                                        &clipUpdatePaint);
+                clip.path->setDrawCache(
+                    static_cast<gpu::RiveRenderPathDraw*>(clipDraw.get()),
+                    clip.matrix,
+                    &clipUpdatePaint);
             }
 
             clipDrawBounds = clipDraw->pixelBounds();
-            // Generate a new clipID every time we (re-)render an element to the clip buffer.
-            // (Each embodiment of the element needs its own separate readBounds.)
+            // Generate a new clipID every time we (re-)render an element to the
+            // clip buffer. (Each embodiment of the element needs its own
+            // separate readBounds.)
             clip.clipID = m_context->generateClipID(clipDrawBounds);
             assert(clip.clipID != m_context->getClipContentID());
             if (clip.clipID == 0)
             {
-                return ApplyClipResult::failure; // The context is out of clipIDs. We will flush and
+                return ApplyClipResult::failure; // The context is out of
+                                                 // clipIDs. We will flush and
                                                  // try again.
             }
             clipDraw->setClipID(clip.clipID);
@@ -535,22 +580,26 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
             m_context->addClipReadBounds(lastClipID, clipDrawBounds);
             if (m_context->frameInterlockMode() == gpu::InterlockMode::msaa)
             {
-                // When drawing nested stencil clips, we need to intersect them, which involves
-                // erasing the region of the current clip in the stencil buffer that is outside the
-                // the one we just drew.
+                // When drawing nested stencil clips, we need to intersect them,
+                // which involves erasing the region of the current clip in the
+                // stencil buffer that is outside the the one we just drew.
                 auto stencilClipIntersect =
                     gpu::DrawUniquePtr(m_context->make<gpu::StencilClipReset>(
                         m_context,
                         lastClipID,
-                        gpu::StencilClipReset::ResetAction::intersectPreviousClip));
-                if (!m_context->isOutsideCurrentFrame(stencilClipIntersect->pixelBounds()))
+                        gpu::StencilClipReset::ResetAction::
+                            intersectPreviousClip));
+                if (!m_context->isOutsideCurrentFrame(
+                        stencilClipIntersect->pixelBounds()))
                 {
-                    m_internalDrawBatch.push_back(std::move(stencilClipIntersect));
+                    m_internalDrawBatch.push_back(
+                        std::move(stencilClipIntersect));
                 }
             }
         }
 
-        lastClipID = clip.clipID; // Nest the next clip (if any) inside the one we just rendered.
+        lastClipID = clip.clipID; // Nest the next clip (if any) inside the one
+                                  // we just rendered.
     }
     assert(lastClipID == m_clipStack[clipStackHeight - 1].clipID);
     draw->setClipID(lastClipID);

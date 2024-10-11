@@ -30,9 +30,15 @@ void Stroke::applyTo(RenderPaint* renderPaint, float opacityModifier) const
     m_PaintMutator->applyTo(renderPaint, opacityModifier);
 }
 
-bool Stroke::isVisible() const { return Super::isVisible() && thickness() > 0.0f; }
+bool Stroke::isVisible() const
+{
+    return Super::isVisible() && thickness() > 0.0f;
+}
 
-void Stroke::draw(Renderer* renderer, CommandPath* path, const RawPath* rawPath, RenderPaint* paint)
+void Stroke::draw(Renderer* renderer,
+                  CommandPath* path,
+                  const RawPath* rawPath,
+                  RenderPaint* paint)
 {
     if (!isVisible())
     {

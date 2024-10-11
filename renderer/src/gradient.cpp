@@ -55,16 +55,20 @@ rcp<Gradient> Gradient::MakeLinear(float sx,
     GradDataArray<ColorInt> newColors(colors, count);
     GradDataArray<float> newStops(stops, count);
 
-    // If the stops don't begin and end on 0 and 1, transform the gradient so they do. This allows
-    // us to take full advantage of the gradient's range of pixels in the texture.
+    // If the stops don't begin and end on 0 and 1, transform the gradient so
+    // they do. This allows us to take full advantage of the gradient's range of
+    // pixels in the texture.
     float firstStop = stops[0];
     float lastStop = stops[count - 1];
-    if ((firstStop != 0 || lastStop != 1) && lastStop - firstStop > math::EPSILON)
+    if ((firstStop != 0 || lastStop != 1) &&
+        lastStop - firstStop > math::EPSILON)
     {
-        // Tighten the endpoints to align with the mininum and maximum gradient stops.
-        float4 newEndpoints = simd::precise_mix(start.xyxy,
-                                                end.xyxy,
-                                                float4{firstStop, firstStop, lastStop, lastStop});
+        // Tighten the endpoints to align with the mininum and maximum gradient
+        // stops.
+        float4 newEndpoints =
+            simd::precise_mix(start.xyxy,
+                              end.xyxy,
+                              float4{firstStop, firstStop, lastStop, lastStop});
         start = newEndpoints.xy;
         end = newEndpoints.zw;
         newStops[0] = 0;
@@ -79,8 +83,9 @@ rcp<Gradient> Gradient::MakeLinear(float sx,
                 newStops[i] = stops[i] * m + a;
             }
 
-            // Clamp the interior stops so they remain monotonically increasing. newStops[0] and
-            // newStops[count - 1] are already 0 and 1, so this also ensures they stay within 0..1.
+            // Clamp the interior stops so they remain monotonically increasing.
+            // newStops[0] and newStops[count - 1] are already 0 and 1, so this
+            // also ensures they stay within 0..1.
             for (size_t i = 1; i < count - 1; ++i)
             {
                 newStops[i] = fmaxf(newStops[i - 1], newStops[i]);
@@ -119,11 +124,13 @@ rcp<Gradient> Gradient::MakeRadial(float cx,
     GradDataArray<ColorInt> newColors(colors, count);
     GradDataArray<float> newStops(stops, count);
 
-    // If the stops don't end on 1, scale the gradient so they do. This allows us to take better
-    // advantage of the gradient's full range of pixels in the texture.
+    // If the stops don't end on 1, scale the gradient so they do. This allows
+    // us to take better advantage of the gradient's full range of pixels in the
+    // texture.
     //
-    // TODO: If we want to take full advantage of the gradient texture pixels, we could add an inner
-    // radius that specifies where t=0 begins (instead of assuming it begins at the center).
+    // TODO: If we want to take full advantage of the gradient texture pixels,
+    // we could add an inner radius that specifies where t=0 begins (instead of
+    // assuming it begins at the center).
     float lastStop = stops[count - 1];
     if (lastStop != 1 && lastStop > math::EPSILON)
     {
@@ -142,8 +149,9 @@ rcp<Gradient> Gradient::MakeRadial(float cx,
 
         if (count > 1)
         {
-            // Clamp the stops so they remain monotonically increasing. newStops[count - 1] is
-            // already 1, so this also ensures they stay within 0..1.
+            // Clamp the stops so they remain monotonically increasing.
+            // newStops[count - 1] is already 1, so this also ensures they stay
+            // within 0..1.
             newStops[0] = fmaxf(0, newStops[0]);
             for (size_t i = 1; i < count - 1; ++i)
             {
@@ -176,7 +184,8 @@ bool Gradient::isOpaque() const
         {
             allColors &= m_colors[i];
         }
-        m_isOpaque = colorAlpha(allColors) == 0xff ? gpu::TriState::yes : gpu::TriState::no;
+        m_isOpaque = colorAlpha(allColors) == 0xff ? gpu::TriState::yes
+                                                   : gpu::TriState::no;
     }
     return m_isOpaque == gpu::TriState::yes;
 }

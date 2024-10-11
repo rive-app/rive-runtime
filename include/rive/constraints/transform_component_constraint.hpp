@@ -8,7 +8,10 @@ namespace rive
 class TransformComponentConstraint : public TransformComponentConstraintBase
 {
 public:
-    TransformSpace minMaxSpace() const { return (TransformSpace)minMaxSpaceValue(); }
+    TransformSpace minMaxSpace() const
+    {
+        return (TransformSpace)minMaxSpaceValue();
+    }
 };
 } // namespace rive
 

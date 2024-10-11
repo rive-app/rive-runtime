@@ -7,12 +7,14 @@ using namespace rive;
 
 StatusCode FileAssetContents::import(ImportStack& importStack)
 {
-    auto fileAssetImporter = importStack.latest<FileAssetImporter>(FileAsset::typeKey);
+    auto fileAssetImporter =
+        importStack.latest<FileAssetImporter>(FileAsset::typeKey);
     if (fileAssetImporter == nullptr)
     {
         return StatusCode::MissingObject;
     }
-    fileAssetImporter->onFileAssetContents(std::unique_ptr<FileAssetContents>(this));
+    fileAssetImporter->onFileAssetContents(
+        std::unique_ptr<FileAssetContents>(this));
 
     return Super::import(importStack);
 }

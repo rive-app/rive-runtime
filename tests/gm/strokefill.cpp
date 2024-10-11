@@ -22,7 +22,8 @@ static const float kStdFakeBoldInterpValues[] = {
     1.0f / 24,
     1.0f / 32,
 };
-static_assert(std::size(kStdFakeBoldInterpKeys) == std::size(kStdFakeBoldInterpValues),
+static_assert(std::size(kStdFakeBoldInterpKeys) ==
+                  std::size(kStdFakeBoldInterpValues),
               "mismatched_array_size");
 static const int kStdFakeBoldInterpLength = std::size(kStdFakeBoldInterpKeys);
 
@@ -245,7 +246,10 @@ static Path hiragino_maru_gothic_pro_dash()
 
 float lerp(float a, float b, float t) { return a + t * (b - a); }
 
-float scalarInterpFunc(float searchKey, const float keys[], const float values[], int length)
+float scalarInterpFunc(float searchKey,
+                       const float keys[],
+                       const float values[],
+                       int length)
 {
     assert(length > 0);
     assert(keys != nullptr);
@@ -297,7 +301,10 @@ static void path_bold(Renderer* canvas, const Path& path, float textSize)
     canvas->restore();
 }
 
-static AABB xywh(float x, float y, float w, float h) { return {x, y, x + w, y + h}; }
+static AABB xywh(float x, float y, float w, float h)
+{
+    return {x, y, x + w, y + h};
+}
 
 DEF_SIMPLE_GM(strokefill, 640, 480, canvas)
 {
@@ -307,15 +314,21 @@ DEF_SIMPLE_GM(strokefill, 640, 480, canvas)
     Paint paint;
     paint->thickness(static_cast<float>(5));
 
-    // use paths instead of text to test the path data on all platforms, since the
-    // Mac-specific font may change or is not available everywhere
+    // use paths instead of text to test the path data on all platforms, since
+    // the Mac-specific font may change or is not available everywhere
     path_bold(canvas, papyrus_hello(), 100);
     path_bold(canvas, hiragino_maru_gothic_pro_dash(), 100);
 
     PathBuilder b;
     b.fillRule(FillRule::nonZero);
-    b.addCircle(x, y + static_cast<float>(200), static_cast<float>(50), rivegm::PathDirection::cw);
-    b.addCircle(x, y + static_cast<float>(200), static_cast<float>(40), rivegm::PathDirection::ccw);
+    b.addCircle(x,
+                y + static_cast<float>(200),
+                static_cast<float>(50),
+                rivegm::PathDirection::cw);
+    b.addCircle(x,
+                y + static_cast<float>(200),
+                static_cast<float>(40),
+                rivegm::PathDirection::ccw);
     canvas->drawPath(b.detach(), paint);
 
     b.addCircle(x + static_cast<float>(120),
@@ -379,12 +392,22 @@ DEF_SIMPLE_GM(bug339297, 640, 480, canvas)
 {
     Path path;
     path->moveTo(-469515, -10354890);
-    path->cubicTo(771919.62f, -10411179, 2013360.1f, -10243774, 3195542.8f, -9860664);
+    path->cubicTo(771919.62f,
+                  -10411179,
+                  2013360.1f,
+                  -10243774,
+                  3195542.8f,
+                  -9860664);
     path->lineTo(3195550, -9860655);
     path->lineTo(3195539, -9860652);
     path->lineTo(3195539, -9860652);
     path->lineTo(3195539, -9860652);
-    path->cubicTo(2013358.1f, -10243761, 771919.25f, -10411166, -469513.84f, -10354877);
+    path->cubicTo(2013358.1f,
+                  -10243761,
+                  771919.25f,
+                  -10411166,
+                  -469513.84f,
+                  -10354877);
     path->lineTo(-469515, -10354890);
     path->close();
 
@@ -405,12 +428,22 @@ DEF_SIMPLE_GM(bug339297_as_clip, 640, 480, canvas)
 {
     Path path;
     path->moveTo(-469515, -10354890);
-    path->cubicTo(771919.62f, -10411179, 2013360.1f, -10243774, 3195542.8f, -9860664);
+    path->cubicTo(771919.62f,
+                  -10411179,
+                  2013360.1f,
+                  -10243774,
+                  3195542.8f,
+                  -9860664);
     path->lineTo(3195550, -9860655);
     path->lineTo(3195539, -9860652);
     path->lineTo(3195539, -9860652);
     path->lineTo(3195539, -9860652);
-    path->cubicTo(2013358.1f, -10243761, 771919.25f, -10411166, -469513.84f, -10354877);
+    path->cubicTo(2013358.1f,
+                  -10243761,
+                  771919.25f,
+                  -10411166,
+                  -469513.84f,
+                  -10354877);
     path->lineTo(-469515, -10354890);
     path->close();
 

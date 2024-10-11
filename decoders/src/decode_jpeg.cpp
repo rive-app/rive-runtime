@@ -49,7 +49,8 @@ std::unique_ptr<Bitmap> DecodeJpeg(const uint8_t bytes[], size_t byteCount)
     if (setjmp(jerr.setjmp_buffer))
     {
         // If we get here, the JPEG code has signaled an error.
-        // We need to clean up the JPEG object, close the input file, and return.
+        // We need to clean up the JPEG object, close the input file, and
+        // return.
         jpeg_destroy_decompress(&cinfo);
         return nullptr;
     }
@@ -88,7 +89,10 @@ std::unique_ptr<Bitmap> DecodeJpeg(const uint8_t bytes[], size_t byteCount)
     // Samples per row in output buffer
     row_stride = cinfo.output_width * cinfo.output_components;
     // Make a one-row-high sample array that will go away when done with image
-    buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr)&cinfo, JPOOL_IMAGE, row_stride, 1);
+    buffer = (*cinfo.mem->alloc_sarray)((j_common_ptr)&cinfo,
+                                        JPOOL_IMAGE,
+                                        row_stride,
+                                        1);
 
     // Step 6: while (scan lines remain to be read)
     //           jpeg_read_scanlines(...);

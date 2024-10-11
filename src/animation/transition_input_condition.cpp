@@ -6,7 +6,8 @@ using namespace rive;
 
 StatusCode TransitionInputCondition::import(ImportStack& importStack)
 {
-    auto stateMachineImporter = importStack.latest<StateMachineImporter>(StateMachine::typeKey);
+    auto stateMachineImporter =
+        importStack.latest<StateMachineImporter>(StateMachine::typeKey);
     if (stateMachineImporter == nullptr)
     {
         return StatusCode::MissingObject;
@@ -17,7 +18,8 @@ StatusCode TransitionInputCondition::import(ImportStack& importStack)
     {
         return StatusCode::InvalidObject;
     }
-    if (!validateInputType(stateMachineImporter->stateMachine()->input((size_t)inputId())))
+    if (!validateInputType(
+            stateMachineImporter->stateMachine()->input((size_t)inputId())))
     {
         return StatusCode::InvalidObject;
     }

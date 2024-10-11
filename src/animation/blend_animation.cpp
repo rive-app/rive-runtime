@@ -10,7 +10,8 @@ LinearAnimation BlendAnimation::m_EmptyAnimation;
 
 StatusCode BlendAnimation::import(ImportStack& importStack)
 {
-    auto importer = importStack.latest<LayerStateImporter>(LayerStateBase::typeKey);
+    auto importer =
+        importStack.latest<LayerStateImporter>(LayerStateBase::typeKey);
     if (importer == nullptr)
     {
         return StatusCode::MissingObject;
@@ -20,7 +21,8 @@ StatusCode BlendAnimation::import(ImportStack& importStack)
         return StatusCode::InvalidObject;
     }
 
-    auto artboardImporter = importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+    auto artboardImporter =
+        importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
     if (artboardImporter == nullptr)
     {
         return StatusCode::MissingObject;

@@ -47,7 +47,8 @@ static Path rnd_cubic(RenderPaint* paint, Rand& rand)
     for (int x = 0; x < 2; ++x)
     {
         auto c = rand.f32(W / 4.f, W), d = rand.f32(0, H), e = rand.f32(0, W),
-             f = rand.f32(H / 4.f, H), g = rand.f32(W / 4.f, W), h = rand.f32(H / 4.f, H);
+             f = rand.f32(H / 4.f, H), g = rand.f32(W / 4.f, W),
+             h = rand.f32(H / 4.f, H);
         builder.cubicTo(c, d, e, f, g, h);
     }
     paint->color(rand.u32());

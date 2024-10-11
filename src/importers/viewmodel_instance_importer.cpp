@@ -4,7 +4,8 @@
 
 using namespace rive;
 
-ViewModelInstanceImporter::ViewModelInstanceImporter(ViewModelInstance* viewModelInstance) :
+ViewModelInstanceImporter::ViewModelInstanceImporter(
+    ViewModelInstance* viewModelInstance) :
     m_ViewModelInstance(viewModelInstance)
 {}
 void ViewModelInstanceImporter::addValue(ViewModelInstanceValue* value)

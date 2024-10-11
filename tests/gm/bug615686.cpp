@@ -18,5 +18,7 @@ DEF_SIMPLE_GM(bug615686, 250, 250, renderer)
     Paint p;
     p->style(RenderPaintStyle::stroke);
     p->thickness(20);
-    renderer->drawPath(PathBuilder().moveTo(0, 0).cubicTo(200, 200, 0, 200, 200, 0).detach(), p);
+    renderer->drawPath(
+        PathBuilder().moveTo(0, 0).cubicTo(200, 200, 0, 200, 200, 0).detach(),
+        p);
 }

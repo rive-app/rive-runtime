@@ -61,19 +61,18 @@ TEST_CASE("hittest-mesh", "[hittest]")
         1,
         2,
     };
-    REQUIRE(HitTester::testMesh(area, make_span(verts, 3), make_span(indices, 3)));
+    REQUIRE(
+        HitTester::testMesh(area, make_span(verts, 3), make_span(indices, 3)));
 }
 
 TEST_CASE("hit test on opaque target", "[hittest]")
 {
-    // This artboard has two rects of size 200 x 200, "red-activate" at [0, 0, 200, 200]
-    // and "green-activate" at [0, 100, 200, 300]
-    // "red-activate" is above "green-activate" in drawing order
-    // Both targets are set as opaque for its listeners
-    // "red-activate" sets "toGreen" to false
-    // "green-activate" sets "toGreen" to true
-    // There is also a "gray-activate" above the other 2 that is not opaque so events should
-    // traverse through the other targets
+    // This artboard has two rects of size 200 x 200, "red-activate" at [0, 0,
+    // 200, 200] and "green-activate" at [0, 100, 200, 300] "red-activate" is
+    // above "green-activate" in drawing order Both targets are set as opaque
+    // for its listeners "red-activate" sets "toGreen" to false "green-activate"
+    // sets "toGreen" to true There is also a "gray-activate" above the other 2
+    // that is not opaque so events should traverse through the other targets
     auto file = ReadRiveFile("assets/opaque_hit_test.riv");
 
     auto artboard = file->artboard("main");
@@ -113,8 +112,8 @@ TEST_CASE("hit test on opaque target", "[hittest]")
     stateMachineInstance->pointerDown(rive::Vec2D(100.0f, 110.0f));
     // "gray-activate" is clicked
     REQUIRE(grayToggle->value() == true);
-    // Pointer over "red-activate" and "green-activate", but "red-activate" is opaque and above
-    // so green activate does not trigger
+    // Pointer over "red-activate" and "green-activate", but "red-activate" is
+    // opaque and above so green activate does not trigger
     REQUIRE(toGreenToggle->value() == false);
     delete stateMachineInstance;
 }
@@ -140,14 +139,17 @@ TEST_CASE("hit test on opaque nested artboard", "[hittest]")
         new rive::StateMachineInstance(stateMachine, artboardInstance.get());
 
     auto nestedArtboard =
-        stateMachineInstance->artboard()->find<rive::NestedArtboard>("second-nested");
+        stateMachineInstance->artboard()->find<rive::NestedArtboard>(
+            "second-nested");
     REQUIRE(nestedArtboard != nullptr);
     auto nestedArtboardStateMachine =
         nestedArtboard->nestedAnimations()[0]->as<NestedStateMachine>();
     REQUIRE(nestedArtboardStateMachine != nullptr);
-    auto nestedArtboardStateMachineInstance = nestedArtboardStateMachine->stateMachineInstance();
+    auto nestedArtboardStateMachineInstance =
+        nestedArtboardStateMachine->stateMachineInstance();
 
-    auto secondNestedBoolTarget = nestedArtboardStateMachineInstance->getBool("bool-target");
+    auto secondNestedBoolTarget =
+        nestedArtboardStateMachineInstance->getBool("bool-target");
     REQUIRE(secondNestedBoolTarget != nullptr);
 
     artboardInstance->advance(0.0f);
@@ -163,8 +165,9 @@ TEST_CASE("hit test on opaque nested artboard", "[hittest]")
     REQUIRE(secondGrayToggle->value() == true);
 
     stateMachineInstance->pointerDown(rive::Vec2D(301.0f, 50.0f));
-    // toggle does not change because it is beyond the area of the square by 1 pixel
-    // And the 2px padding is unly used after the coarse grained test passes
+    // toggle does not change because it is beyond the area of the square by 1
+    // pixel And the 2px padding is unly used after the coarse grained test
+    // passes
     REQUIRE(secondGrayToggle->value() == true);
 
     stateMachineInstance->pointerDown(rive::Vec2D(100.0f, 50.0f));
@@ -174,7 +177,8 @@ TEST_CASE("hit test on opaque nested artboard", "[hittest]")
     // nested toggle changes because it's on top of shape
     REQUIRE(secondNestedBoolTarget->value() == true);
 
-    // A timeline switches draw order and the nested artboard is now below the rect
+    // A timeline switches draw order and the nested artboard is now below the
+    // rect
     stateMachineInstance->advanceAndApply(1.0f);
     stateMachineInstance->advance(0.0f);
 

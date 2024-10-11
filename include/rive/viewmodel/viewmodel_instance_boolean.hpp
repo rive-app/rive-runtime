@@ -6,7 +6,8 @@ namespace rive
 {
 #ifdef WITH_RIVE_TOOLS
 class ViewModelInstanceBoolean;
-typedef void (*ViewModelBooleanChanged)(ViewModelInstanceBoolean* vmi, bool value);
+typedef void (*ViewModelBooleanChanged)(ViewModelInstanceBoolean* vmi,
+                                        bool value);
 #endif
 class ViewModelInstanceBoolean : public ViewModelInstanceBooleanBase
 {
@@ -14,7 +15,10 @@ protected:
     void propertyValueChanged() override;
 #ifdef WITH_RIVE_TOOLS
 public:
-    void onChanged(ViewModelBooleanChanged callback) { m_changedCallback = callback; }
+    void onChanged(ViewModelBooleanChanged callback)
+    {
+        m_changedCallback = callback;
+    }
     ViewModelBooleanChanged m_changedCallback = nullptr;
 #endif
 };

@@ -18,7 +18,10 @@ static constexpr float kStrokeWidth = 100;
 static constexpr int kTestWidth = 120 * 4;
 static constexpr int kTestHeight = 120 * 3 + 140;
 
-static void draw_strokes(Renderer* renderer, Rand* rand, RenderPath* path, RenderPath* cubic)
+static void draw_strokes(Renderer* renderer,
+                         Rand* rand,
+                         RenderPath* path,
+                         RenderPath* cubic)
 {
     Paint strokePaint;
     strokePaint->thickness(kStrokeWidth);

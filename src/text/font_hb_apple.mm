@@ -7,7 +7,9 @@
 #include "hb-coretext.h"
 #include "hb-ot.h"
 
-rive::rcp<rive::Font> HBFont::FromSystem(void* systemFont, uint16_t weight, uint8_t width)
+rive::rcp<rive::Font> HBFont::FromSystem(void* systemFont,
+                                         uint16_t weight,
+                                         uint8_t width)
 {
     auto font = hb_coretext_font_create((CTFontRef)systemFont);
     hb_variation_t variation_data[2];

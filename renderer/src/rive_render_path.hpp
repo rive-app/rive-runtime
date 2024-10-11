@@ -27,8 +27,9 @@ public:
             return;
         }
         m_fillRule = rule;
-        // Most cached draws can be used interchangeably with any fill rule, but if there is a
-        // triangulator, it needs to be invalidated when the fill rule changes.
+        // Most cached draws can be used interchangeably with any fill rule, but
+        // if there is a triangulator, it needs to be invalidated when the fill
+        // rule changes.
         if (m_cachedElements[CACHE_FILLED].draw != nullptr &&
             m_cachedElements[CACHE_FILLED].draw->triangulator() != nullptr)
         {
@@ -38,24 +39,30 @@ public:
 
     void moveTo(float x, float y) override;
     void lineTo(float x, float y) override;
-    void cubicTo(float ox, float oy, float ix, float iy, float x, float y) override;
+    void cubicTo(float ox, float oy, float ix, float iy, float x, float y)
+        override;
     void close() override;
 
-    void addPath(CommandPath* p, const Mat2D& m) override { addRenderPath(p->renderPath(), m); }
+    void addPath(CommandPath* p, const Mat2D& m) override
+    {
+        addRenderPath(p->renderPath(), m);
+    }
     void addRenderPath(RenderPath* path, const Mat2D& matrix) override;
 
     const RawPath& getRawPath() const { return m_rawPath; }
     FillRule getFillRule() const { return m_fillRule; }
 
     const AABB& getBounds() const;
-    // Approximates the area of the path by linearizing it with a coarse tolerance of 8px in
-    // artboard space.
-    constexpr static float kCoarseAreaTolerance = 8; // Linearize within 8px of the true curve.
+    // Approximates the area of the path by linearizing it with a coarse
+    // tolerance of 8px in artboard space.
+    constexpr static float kCoarseAreaTolerance =
+        8; // Linearize within 8px of the true curve.
     float getCoarseArea() const;
     uint64_t getRawPathMutationID() const;
 
 #ifdef DEBUG
-    // Allows ref holders to guarantee the rawPath doesn't mutate during a specific time.
+    // Allows ref holders to guarantee the rawPath doesn't mutate during a
+    // specific time.
     void lockRawPathMutations() const { ++m_rawPathMutationLockCount; }
     void unlockRawPathMutations() const
     {
@@ -89,7 +96,10 @@ public:
         invalidateDrawCache(CACHE_FILLED);
     }
 
-    void invalidateDrawCache(int index) const { m_cachedElements[index].draw = nullptr; }
+    void invalidateDrawCache(int index) const
+    {
+        m_cachedElements[index].draw = nullptr;
+    }
 
     void setDrawCache(gpu::RiveRenderPathDraw* drawCache,
                       const Mat2D& mat,

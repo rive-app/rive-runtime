@@ -15,14 +15,15 @@
 /*
  *  RefCnt : Threadsafe shared pointer baseclass.
  *
- *  The reference count is set to one in the constructor, and goes up on every call to ref(), and
- *  down on every call to unref(). When a call to unref() brings the counter to 0, the object is
- *  casted to class "const T*" and deleted. Usage:
+ *  The reference count is set to one in the constructor, and goes up on every
+ * call to ref(), and down on every call to unref(). When a call to unref()
+ * brings the counter to 0, the object is casted to class "const T*" and
+ * deleted. Usage:
  *
  *    class MyClass : public RefCnt<MyClass>
  *
- *  rcp : template wrapper for subclasses of RefCnt, to manage assignment and parameter passing
- *  to safely keep track of shared ownership.
+ *  rcp : template wrapper for subclasses of RefCnt, to manage assignment and
+ * parameter passing to safely keep track of shared ownership.
  *
  *  Both of these inspired by Skia's SkRefCnt and sk_sp
  */
@@ -35,7 +36,10 @@ template <typename T> class RefCnt
 public:
     RefCnt() : m_refcnt(1) {}
 
-    void ref() const { (void)m_refcnt.fetch_add(+1, std::memory_order_relaxed); }
+    void ref() const
+    {
+        (void)m_refcnt.fetch_add(+1, std::memory_order_relaxed);
+    }
 
     void unref() const
     {
@@ -45,11 +49,16 @@ public:
         }
     }
 
-    // not reliable in actual threaded scenarios, but useful (perhaps) for debugging
-    int32_t debugging_refcnt() const { return m_refcnt.load(std::memory_order_relaxed); }
+    // not reliable in actual threaded scenarios, but useful (perhaps) for
+    // debugging
+    int32_t debugging_refcnt() const
+    {
+        return m_refcnt.load(std::memory_order_relaxed);
+    }
 
 protected:
-    // Can be overloaded in the subclass if specialized delete behavior is required.
+    // Can be overloaded in the subclass if specialized delete behavior is
+    // required.
     void onRefCntReachedZero() const { delete static_cast<const T*>(this); }
 
 private:
@@ -92,12 +101,14 @@ public:
     rcp(rcp<T>&& other) : m_ptr(other.release()) {}
 
     template <typename U,
-              typename = typename std::enable_if<std::is_convertible<U*, T*>::value>::type>
+              typename = typename std::enable_if<
+                  std::is_convertible<U*, T*>::value>::type>
     rcp(const rcp<U>& other) : m_ptr(safe_ref(other.get()))
     {}
 
     template <typename U,
-              typename = typename std::enable_if<std::is_convertible<U*, T*>::value>::type>
+              typename = typename std::enable_if<
+                  std::is_convertible<U*, T*>::value>::type>
     rcp(rcp<U>&& other) : m_ptr(other.release())
     {}
 
@@ -173,11 +184,15 @@ template <typename T, typename... Args> rcp<T> inline make_rcp(Args&&... args)
     return rcp<T>(new T(std::forward<Args>(args)...));
 }
 
-template <typename T> rcp<T> inline ref_rcp(T* ptr) { return rcp<T>(safe_ref(ptr)); }
+template <typename T> rcp<T> inline ref_rcp(T* ptr)
+{
+    return rcp<T>(safe_ref(ptr));
+}
 
 template <typename U,
           typename T,
-          typename = typename std::enable_if<std::is_convertible<U*, T*>::value>::type>
+          typename =
+              typename std::enable_if<std::is_convertible<U*, T*>::value>::type>
 rcp<U> static_rcp_cast(rcp<T> ptr)
 {
     return rcp<U>(static_cast<U*>(ptr.release()));
@@ -185,9 +200,16 @@ rcp<U> static_rcp_cast(rcp<T> ptr)
 
 // == variants
 
-template <typename T> inline bool operator==(const rcp<T>& a, std::nullptr_t) { return !a; }
-template <typename T> inline bool operator==(std::nullptr_t, const rcp<T>& b) { return !b; }
-template <typename T, typename U> inline bool operator==(const rcp<T>& a, const rcp<U>& b)
+template <typename T> inline bool operator==(const rcp<T>& a, std::nullptr_t)
+{
+    return !a;
+}
+template <typename T> inline bool operator==(std::nullptr_t, const rcp<T>& b)
+{
+    return !b;
+}
+template <typename T, typename U>
+inline bool operator==(const rcp<T>& a, const rcp<U>& b)
 {
     return a.get() == b.get();
 }
@@ -202,7 +224,8 @@ template <typename T> inline bool operator!=(std::nullptr_t, const rcp<T>& b)
 {
     return static_cast<bool>(b);
 }
-template <typename T, typename U> inline bool operator!=(const rcp<T>& a, const rcp<U>& b)
+template <typename T, typename U>
+inline bool operator!=(const rcp<T>& a, const rcp<U>& b)
 {
     return a.get() != b.get();
 }

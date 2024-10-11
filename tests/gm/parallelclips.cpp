@@ -10,8 +10,8 @@ using namespace rivegm;
 
 namespace rive::gpu
 {
-// Draws non-overlapping clips, which will get reordered and batched together in atomic and msaa
-// modes.
+// Draws non-overlapping clips, which will get reordered and batched together in
+// atomic and msaa modes.
 class ParallelClipsGM : public GM
 {
 public:
@@ -30,8 +30,10 @@ public:
                 renderer->save();
                 {
                     PathBuilder clip;
-                    clip.addRect({10, 10, 110, 110}, rivegm::PathDirection::counterclockwise);
-                    clip.moveTo(cos(math::PI / 2) * 30 + 60, sin(math::PI / 2) * 30 + 60)
+                    clip.addRect({10, 10, 110, 110},
+                                 rivegm::PathDirection::counterclockwise);
+                    clip.moveTo(cos(math::PI / 2) * 30 + 60,
+                                sin(math::PI / 2) * 30 + 60)
                         .lineTo(cos(2 * math::PI / 3 + math::PI / 2) * 30 + 60,
                                 sin(2 * math::PI / 3 + math::PI / 2) * 30 + 60)
                         .lineTo(cos(4 * math::PI / 3 + math::PI / 2) * 30 + 60,
@@ -41,19 +43,24 @@ public:
                 if (nested)
                 {
                     PathBuilder clip;
-                    clip.addRect({10, 10, 110, 110}, rivegm::PathDirection::counterclockwise);
-                    clip.addRect({55, 10, 65, 110}, rivegm::PathDirection::clockwise);
+                    clip.addRect({10, 10, 110, 110},
+                                 rivegm::PathDirection::counterclockwise);
+                    clip.addRect({55, 10, 65, 110},
+                                 rivegm::PathDirection::clockwise);
                     renderer->clipPath(clip.detach());
                 }
                 if (nested)
                 {
                     PathBuilder clip;
-                    clip.addRect({10, 10, 110, 110}, rivegm::PathDirection::counterclockwise);
-                    clip.addRect({10, 55, 110, 65}, rivegm::PathDirection::clockwise);
+                    clip.addRect({10, 10, 110, 110},
+                                 rivegm::PathDirection::counterclockwise);
+                    clip.addRect({10, 55, 110, 65},
+                                 rivegm::PathDirection::clockwise);
                     renderer->clipPath(clip.detach());
                 }
-                renderer->drawPath(PathBuilder::Circle(60, 60, 50),
-                                   Paint(((y * x + 123458383u) * 285018463u) | 0xff808080));
+                renderer->drawPath(
+                    PathBuilder::Circle(60, 60, 50),
+                    Paint(((y * x + 123458383u) * 285018463u) | 0xff808080));
                 renderer->restore();
                 renderer->translate(120, 0);
             }

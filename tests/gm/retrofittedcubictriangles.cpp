@@ -32,7 +32,8 @@ rcp<RiveRenderPath> make_nonempty_placeholder_path()
 class PushRetrofittedTrianglesGMDraw : public RiveRenderPathDraw
 {
 public:
-    PushRetrofittedTrianglesGMDraw(RenderContext* context, const RiveRenderPaint* paint) :
+    PushRetrofittedTrianglesGMDraw(RenderContext* context,
+                                   const RiveRenderPaint* paint) :
         RiveRenderPathDraw(kFullscreenPixelBounds,
                            Mat2D(),
                            make_nonempty_placeholder_path(),
@@ -52,23 +53,28 @@ public:
 
     void pushToRenderContext(RenderContext::LogicalFlush* flush) override
     {
-        // Make sure the rawPath in our path reference hasn't changed since we began holding!
+        // Make sure the rawPath in our path reference hasn't changed since we
+        // began holding!
         assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
         assert(!m_pathRef->getRawPath().empty());
 
-        size_t tessVertexCount = m_type == Type::midpointFanPath
-                                     ? m_resourceCounts.midpointFanTessVertexCount
-                                     : m_resourceCounts.outerCubicTessVertexCount;
+        size_t tessVertexCount =
+            m_type == Type::midpointFanPath
+                ? m_resourceCounts.midpointFanTessVertexCount
+                : m_resourceCounts.outerCubicTessVertexCount;
         if (tessVertexCount > 0)
         {
             // Push a path record.
-            flush->pushPath(this,
-                            m_type == Type::midpointFanPath ? PatchType::midpointFan
-                                                            : PatchType::outerCurves,
-                            math::lossless_numeric_cast<uint32_t>(tessVertexCount));
+            flush->pushPath(
+                this,
+                m_type == Type::midpointFanPath ? PatchType::midpointFan
+                                                : PatchType::outerCurves,
+                math::lossless_numeric_cast<uint32_t>(tessVertexCount));
 
             // PushRetrofittedTrianglesGMDraw specific push to render
-            flush->pushContour({0, 0}, true, 0 /* gpu::kOuterCurvePatchSegmentSpan - 2 */);
+            flush->pushContour({0, 0},
+                               true,
+                               0 /* gpu::kOuterCurvePatchSegmentSpan - 2 */);
             for (const auto& pts : kTris)
             {
                 Vec2D tri[4] = {pts[0], pts[1], {0, 0}, pts[2]};
@@ -94,7 +100,8 @@ protected:
     void onDraw(Renderer* renderer) override
     {
         TestingWindow::Get()->endFrame(nullptr);
-        gpu::RenderContext* renderContext = TestingWindow::Get()->renderContext();
+        gpu::RenderContext* renderContext =
+            TestingWindow::Get()->renderContext();
         if (!renderContext)
         {
             TestingWindow::Get()->beginFrame(0xffff0000, true);
@@ -105,8 +112,11 @@ protected:
             RiveRenderPaint paint;
             paint.color(0xffffffff);
             DrawUniquePtr draw(
-                renderContext->make<PushRetrofittedTrianglesGMDraw>(renderContext, &paint));
-            bool success RIVE_MAYBE_UNUSED = renderContext->pushDrawBatch(&draw, 1);
+                renderContext->make<PushRetrofittedTrianglesGMDraw>(
+                    renderContext,
+                    &paint));
+            bool success RIVE_MAYBE_UNUSED =
+                renderContext->pushDrawBatch(&draw, 1);
             assert(success);
         }
     }

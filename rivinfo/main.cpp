@@ -68,7 +68,10 @@ public:
         printf("%c\n", c);
     }
 
-    void add(const char key[], int value) { this->add(key, std::to_string(value).c_str()); }
+    void add(const char key[], int value)
+    {
+        this->add(key, std::to_string(value).c_str());
+    }
 };
 
 //////////////////////////////////////////////////
@@ -159,7 +162,9 @@ static std::unique_ptr<rive::File> open_file(const char name[])
     return rive::File::import(bytes, &gFactory);
 }
 
-static bool is_arg(const char arg[], const char target[], const char alt[] = nullptr)
+static bool is_arg(const char arg[],
+                   const char target[],
+                   const char alt[] = nullptr)
 {
     return !strcmp(arg, target) || (arg && !strcmp(arg, alt));
 }

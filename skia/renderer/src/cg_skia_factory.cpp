@@ -62,8 +62,13 @@ std::vector<uint8_t> CGSkiaFactory::platformDecode(Span<const uint8_t> span,
     pixels.resize(size);
 
     AutoCF cs = CGColorSpaceCreateDeviceRGB();
-    AutoCF cg =
-        CGBitmapContextCreate(pixels.data(), width, height, bitsPerComponent, rowBytes, cs, cgInfo);
+    AutoCF cg = CGBitmapContextCreate(pixels.data(),
+                                      width,
+                                      height,
+                                      bitsPerComponent,
+                                      rowBytes,
+                                      cs,
+                                      cgInfo);
     if (!cg)
     {
         pixels.clear();

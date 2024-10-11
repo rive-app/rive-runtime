@@ -24,8 +24,8 @@ struct ImageSaveArgs
 };
 
 // Attempts to connect to the python server, and if successful, pipes stdout and
-// stderr to the server. Also provides utilities for encoding & uploading PNGs, and
-// notifying the server when the application crashes.
+// stderr to the server. Also provides utilities for encoding & uploading PNGs,
+// and notifying the server when the application crashes.
 class TestHarness
 {
 public:
@@ -38,7 +38,10 @@ public:
 
     bool hasTCPConnection() const { return m_primaryTCPClient != nullptr; }
 
-    void setPNGCompression(PNGCompression compression) { m_pngCompression = compression; }
+    void setPNGCompression(PNGCompression compression)
+    {
+        m_pngCompression = compression;
+    }
 
     void savePNG(ImageSaveArgs args)
     {
@@ -50,7 +53,8 @@ public:
     // Prevents gms from running more than once in a multi-process execution.
     bool claimGMTest(const std::string&);
 
-    // Downloads the next .riv file to test. (Must only be run on the main thread.)
+    // Downloads the next .riv file to test. (Must only be run on the main
+    // thread.)
     bool fetchRivFile(std::string& name, std::vector<uint8_t>& bytes);
 
     // Returns true if there is an input character to process from the server.
@@ -63,7 +67,8 @@ public:
 private:
     TestHarness();
 
-    // Adheres to a quick-and-dirty protocol for sending a PNG image back to the python harness.
+    // Adheres to a quick-and-dirty protocol for sending a PNG image back to the
+    // python harness.
     void sendImage(const std::string& remoteDestination,
                    uint32_t width,
                    uint32_t height,

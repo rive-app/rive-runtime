@@ -28,7 +28,8 @@
 using namespace rive;
 
 constexpr static char kMoltenVKICD[] =
-    "dependencies/MoltenVK/Package/Release/MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json";
+    "dependencies/MoltenVK/Package/Release/MoltenVK/dynamic/dylib/macOS/"
+    "MoltenVK_icd.json";
 
 constexpr static char kSwiftShaderICD[] = "dependencies/SwiftShader/build/"
 #ifdef __APPLE__
@@ -106,7 +107,8 @@ static void make_scenes(size_t count)
         }
         if (scene == nullptr)
         {
-            // This is a riv without any animations or state machines. Just draw the artboard.
+            // This is a riv without any animations or state machines. Just draw
+            // the artboard.
             scene = std::make_unique<StaticScene>(artboard.get());
         }
         scene->advanceAndApply(scene->durationSeconds() * i / count);
@@ -127,7 +129,10 @@ EM_JS(char*, get_location_hash_str, (), {
 });
 #endif
 
-static void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+static void mouse_button_callback(GLFWwindow* window,
+                                  int button,
+                                  int action,
+                                  int mods)
 {
     double x, y;
     glfwGetCursorPos(window, &x, &y);
@@ -142,7 +147,8 @@ static void mouse_button_callback(GLFWwindow* window, int button, int action, in
         {
             for (int i = 0; i < kNumInteractivePts; ++i)
             {
-                if (simd::all(simd::abs(s_dragLastPos - (s_pts[i] + s_translate)) < 100))
+                if (simd::all(simd::abs(s_dragLastPos -
+                                        (s_pts[i] + s_translate)) < 100))
                 {
                     s_dragIdx = i;
                     break;
@@ -177,7 +183,11 @@ double fpsLastTime = 0;
 int fpsFrames = 0;
 static bool s_needsTitleUpdate = false;
 
-static void key_callback(GLFWwindow* window, int key, int scancode, int action, int mods)
+static void key_callback(GLFWwindow* window,
+                         int key,
+                         int scancode,
+                         int action,
+                         int mods)
 {
     bool shift = mods & GLFW_MOD_SHIFT;
     if (action == GLFW_PRESS)
@@ -195,7 +205,9 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 break;
             case GLFW_KEY_D:
                 printf("static float s_scale = %f;\n", s_scale);
-                printf("static float2 s_translate = {%f, %f};\n", s_translate.x, s_translate.y);
+                printf("static float2 s_translate = {%f, %f};\n",
+                       s_translate.x,
+                       s_translate.y);
                 printf("static float2 s_pts[] = {");
                 for (int i = 0; i < kNumInteractivePts; i++)
                 {
@@ -224,7 +236,8 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 s_wireframe = !s_wireframe;
                 break;
             case GLFW_KEY_C:
-                s_cap = static_cast<StrokeCap>((static_cast<int>(s_cap) + 1) % 3);
+                s_cap =
+                    static_cast<StrokeCap>((static_cast<int>(s_cap) + 1) % 3);
                 break;
             case GLFW_KEY_O:
                 s_doClose = !s_doClose;
@@ -252,7 +265,8 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 break;
             case GLFW_KEY_J:
                 if (!s_rivFile)
-                    s_join = static_cast<StrokeJoin>((static_cast<int>(s_join) + 1) % 3);
+                    s_join = static_cast<StrokeJoin>(
+                        (static_cast<int>(s_join) + 1) % 3);
                 else if (!shift)
                     ++s_downRepeat;
                 else if (s_downRepeat > 0)
@@ -264,8 +278,10 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 s_scale *= 1.25;
                 double x = 0, y = 0;
                 glfwGetCursorPos(window, &x, &y);
-                float2 cursorPos = float2{(float)x, (float)y} * s_fiddleContext->dpiScale(s_window);
-                s_translate = cursorPos + (s_translate - cursorPos) * s_scale / oldScale;
+                float2 cursorPos = float2{(float)x, (float)y} *
+                                   s_fiddleContext->dpiScale(s_window);
+                s_translate =
+                    cursorPos + (s_translate - cursorPos) * s_scale / oldScale;
                 break;
             }
             case GLFW_KEY_DOWN:
@@ -274,8 +290,10 @@ static void key_callback(GLFWwindow* window, int key, int scancode, int action, 
                 s_scale /= 1.25;
                 double x = 0, y = 0;
                 glfwGetCursorPos(window, &x, &y);
-                float2 cursorPos = float2{(float)x, (float)y} * s_fiddleContext->dpiScale(s_window);
-                s_translate = cursorPos + (s_translate - cursorPos) * s_scale / oldScale;
+                float2 cursorPos = float2{(float)x, (float)y} *
+                                   s_fiddleContext->dpiScale(s_window);
+                s_translate =
+                    cursorPos + (s_translate - cursorPos) * s_scale / oldScale;
                 break;
             }
         }
@@ -390,7 +408,8 @@ int main(int argc, const char** argv)
             set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
             api = API::vulkan;
         }
-        else if (!strcmp(argv[i], "--mvkatomic") || !strcmp(argv[i], "--moltenvkatomic"))
+        else if (!strcmp(argv[i], "--mvkatomic") ||
+                 !strcmp(argv[i], "--moltenvkatomic"))
         {
             set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
             api = API::vulkan;
@@ -398,13 +417,16 @@ int main(int argc, const char** argv)
         }
         else if (!strcmp(argv[i], "--sw") || !strcmp(argv[i], "--swiftshader"))
         {
-            // Use the swiftshader built by packages/runtime/renderer/make_swiftshader.sh
+            // Use the swiftshader built by
+            // packages/runtime/renderer/make_swiftshader.sh
             set_environment_variable("VK_ICD_FILENAMES", kSwiftShaderICD);
             api = API::vulkan;
         }
-        else if (!strcmp(argv[i], "--swatomic") || !strcmp(argv[i], "--swiftshaderatomic"))
+        else if (!strcmp(argv[i], "--swatomic") ||
+                 !strcmp(argv[i], "--swiftshaderatomic"))
         {
-            // Use the swiftshader built by packages/runtime/renderer/make_swiftshader.sh
+            // Use the swiftshader built by
+            // packages/runtime/renderer/make_swiftshader.sh
             set_environment_variable("VK_ICD_FILENAMES", kSwiftShaderICD);
             api = API::vulkan;
             s_forceAtomicMode = true;
@@ -426,7 +448,8 @@ int main(int argc, const char** argv)
         {
             api = API::vulkan;
         }
-        else if (!strcmp(argv[i], "--vulkanatomic") || !strcmp(argv[i], "--vkatomic"))
+        else if (!strcmp(argv[i], "--vulkanatomic") ||
+                 !strcmp(argv[i], "--vkatomic"))
         {
             api = API::vulkan;
             s_forceAtomicMode = true;
@@ -434,22 +457,26 @@ int main(int argc, const char** argv)
 #ifdef RIVE_DESKTOP_GL
         else if (!strcmp(argv[i], "--angle_gl"))
         {
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
+            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                         GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
             angle = true;
         }
         else if (!strcmp(argv[i], "--angle_d3d"))
         {
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_D3D11);
+            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                         GLFW_ANGLE_PLATFORM_TYPE_D3D11);
             angle = true;
         }
         else if (!strcmp(argv[i], "--angle_vk"))
         {
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
+            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                         GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
             angle = true;
         }
         else if (!strcmp(argv[i], "--angle_mtl"))
         {
-            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE, GLFW_ANGLE_PLATFORM_TYPE_METAL);
+            glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
+                         GLFW_ANGLE_PLATFORM_TYPE_METAL);
             angle = true;
         }
 #endif
@@ -592,7 +619,8 @@ int main(int argc, const char** argv)
     if (rivName)
     {
         std::ifstream rivStream(rivName, std::ios::binary);
-        std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream), {});
+        std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
+                                      {});
         s_rivFile = File::import(rivBytes, factory);
     }
 
@@ -625,7 +653,10 @@ int main(int argc, const char** argv)
     return 0;
 }
 
-static void update_window_title(double fps, int instances, int width, int height)
+static void update_window_title(double fps,
+                                int instances,
+                                int width,
+                                int height)
 {
     std::ostringstream title;
     if (fps != 0)
@@ -661,10 +692,15 @@ void riveMainLoop()
         int canvasExpectedHeight = windowHeight * devicePixelRatio;
         int canvasWidth, canvasHeight;
         glfwGetFramebufferSize(s_window, &canvasWidth, &canvasHeight);
-        if (canvasWidth != canvasExpectedWidth || canvasHeight != canvasExpectedHeight)
+        if (canvasWidth != canvasExpectedWidth ||
+            canvasHeight != canvasExpectedHeight)
         {
-            glfwSetWindowSize(s_window, canvasExpectedWidth, canvasExpectedHeight);
-            emscripten_set_element_css_size("#canvas", windowWidth, windowHeight);
+            glfwSetWindowSize(s_window,
+                              canvasExpectedWidth,
+                              canvasExpectedHeight);
+            emscripten_set_element_css_size("#canvas",
+                                            windowWidth,
+                                            windowHeight);
         }
     }
 #endif
@@ -725,7 +761,8 @@ void riveMainLoop()
         {
             renderer->save();
             renderer->transform(
-                Mat2D::fromTranslate(-spacing * s_horzRepeat, (j - s_upRepeat) * spacing));
+                Mat2D::fromTranslate(-spacing * s_horzRepeat,
+                                     (j - s_upRepeat) * spacing));
             for (int i = 0; i < s_horzRepeat * 2 + 1; ++i)
             {
                 (*scene++)->draw(renderer.get());
@@ -798,7 +835,8 @@ void riveMainLoop()
         double fpsElapsed = time - fpsLastTime;
         if (fpsElapsed > 2)
         {
-            int instances = (1 + s_horzRepeat * 2) * (1 + s_upRepeat + s_downRepeat);
+            int instances =
+                (1 + s_horzRepeat * 2) * (1 + s_upRepeat + s_downRepeat);
             double fps = fpsLastTime == 0 ? 0 : fpsFrames / fpsElapsed;
             update_window_title(fps, instances, width, height);
             fpsFrames = 0;
