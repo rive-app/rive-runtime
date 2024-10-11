@@ -446,6 +446,103 @@ public:
     bool isConsumed() { return m_isConsumed; }
     bool isHovered() { return m_isHovered; }
     bool prevHovered() { return m_prevIsHovered; }
+
+    bool canEarlyOut(Component* drawable)
+    {
+        auto listenerType = m_listener->listenerType();
+        return !(listenerType == ListenerType::enter || listenerType == ListenerType::exit ||
+                 listenerType == ListenerType::move);
+    }
+
+    bool needsDownListener(Component* drawable)
+    {
+        auto listenerType = m_listener->listenerType();
+        return listenerType == ListenerType::down || listenerType == ListenerType::click;
+    }
+
+    bool needsUpListener(Component* drawable)
+    {
+        auto listenerType = m_listener->listenerType();
+        return listenerType == ListenerType::up || listenerType == ListenerType::click;
+    }
+    // Vec2D position, ListenerType hitType, bool canHit
+    void processEvent(Component* component,
+                      Vec2D position,
+                      ListenerType hitEvent,
+                      bool canHit,
+                      StateMachineInstance* stateMachineInstance)
+    {
+        // Because each group is tested individually for its hover state, a group
+        // could be marked "incorrectly" as hovered at this point.
+        // But once we iterate each element in the drawing order, that group can
+        // be occluded by an opaque target on top  of it.
+        // So although it is hovered in isolation, it shouldn't be considered as
+        // hovered in the full context.
+        // In this case, we unhover the group so it is not marked as previously
+        // hovered.
+        if (!canHit && isHovered())
+        {
+            unhover();
+        }
+
+        bool isGroupHovered = canHit ? isHovered() : false;
+        bool hoverChange = prevHovered() != isGroupHovered;
+        // If hover has changes, it means that the element is hovered for the
+        // first time. Previous positions need to be reset to avoid jumps.
+        if (hoverChange && isGroupHovered)
+        {
+            previousPosition.x = position.x;
+            previousPosition.y = position.y;
+        }
+
+        // Handle click gesture phases. A click gesture has two phases.
+        // First one attached to a pointer down actions, second one attached to a
+        // pointer up action. Both need to act on a shape of the listener group.
+        if (isGroupHovered)
+        {
+            if (hitEvent == ListenerType::down)
+            {
+                clickPhase(GestureClickPhase::down);
+            }
+            else if (hitEvent == ListenerType::up && clickPhase() == GestureClickPhase::down)
+            {
+                clickPhase(GestureClickPhase::clicked);
+            }
+        }
+        else
+        {
+            if (hitEvent == ListenerType::down || hitEvent == ListenerType::up)
+            {
+                clickPhase(GestureClickPhase::out);
+            }
+        }
+        auto _listener = listener();
+        // Always update hover states regardless of which specific listener type
+        // we're trying to trigger.
+        // If hover has changed and:
+        // - it's hovering and the listener is of type enter
+        // - it's not hovering and the listener is of type exit
+        if (hoverChange && ((isGroupHovered && _listener->listenerType() == ListenerType::enter) ||
+                            (!isGroupHovered && _listener->listenerType() == ListenerType::exit)))
+        {
+            _listener->performChanges(stateMachineInstance, position, previousPosition);
+            stateMachineInstance->markNeedsAdvance();
+            consume();
+        }
+        // Perform changes if:
+        // - the click gesture is complete and the listener is of type click
+        // - the event type matches the listener type and it is hovering the group
+        if ((clickPhase() == GestureClickPhase::clicked &&
+             _listener->listenerType() == ListenerType::click) ||
+            (isGroupHovered && hitEvent == _listener->listenerType()))
+        {
+            _listener->performChanges(stateMachineInstance, position, previousPosition);
+            stateMachineInstance->markNeedsAdvance();
+            consume();
+        }
+        previousPosition.x = position.x;
+        previousPosition.y = position.y;
+    }
     void clickPhase(GestureClickPhase value) { m_clickPhase = value; }
     GestureClickPhase clickPhase() { return m_clickPhase; }
     const StateMachineListener* listener() const { return m_listener; };
@@ -465,44 +562,32 @@ private:
     const StateMachineListener* m_listener;
 };
 
-/// Representation of a Shape from the Artboard Instance and all the listeners it
-/// triggers. Allows tracking hover and performing hit detection only once on
-/// shapes that trigger multiple listeners.
-class HitShape : public HitComponent
+class HitDrawable : public HitComponent
 {
 public:
-    HitShape(Component* shape, StateMachineInstance* stateMachineInstance) :
-        HitComponent(shape, stateMachineInstance)
+    HitDrawable(Component* component, StateMachineInstance* stateMachineInstance) :
+        HitComponent(component, stateMachineInstance)
     {
-        if (shape->as<Shape>()->isTargetOpaque())
+        if (component->as<Drawable>()->isTargetOpaque())
         {
             canEarlyOut = false;
         }
     }
+    float hitRadius = 2;
     bool isHovered = false;
     bool canEarlyOut = true;
     bool hasDownListener = false;
     bool hasUpListener = false;
-    float hitRadius = 2;
     std::vector<ListenerGroup*> listeners;
+
+    virtual bool hitTestHelper(Vec2D position) const { return false; }
 
     bool hitTest(Vec2D position) const
 #ifdef WITH_RIVE_TOOLS
         override
 #endif
     {
-        auto shape = m_component->as<Shape>();
-        auto worldBounds = shape->worldBounds();
-        if (!worldBounds.contains(position))
-        {
-            return false;
-        }
-        auto hitArea = AABB(position.x - hitRadius,
-                            position.y - hitRadius,
-                            position.x + hitRadius,
-                            position.y + hitRadius)
-                           .round();
-        return shape->hitTest(hitArea);
+        return hitTestHelper(position);
     }
 
     void prepareEvent(Vec2D position, ListenerType hitType) override
@@ -539,7 +624,7 @@ public:
         {
             return HitResult::none;
         }
-        auto shape = m_component->as<Shape>();
+        auto drawable = m_component->as<Drawable>();
 
         // // iterate all listeners associated with this hit shape
         for (auto listenerGroup : listeners)
@@ -548,109 +633,77 @@ public:
             {
                 continue;
             }
-            // Because each group is tested individually for its hover state, a group
-            // could be marked "incorrectly" as hovered at this point.
-            // But once we iterate each element in the drawing order, that group can
-            // be occluded by an opaque target on top  of it.
-            // So although it is hovered in isolation, it shouldn't be considered as
-            // hovered in the full context.
-            // In this case, we unhover the group so it is not marked as previously
-            // hovered.
-            if (!canHit && listenerGroup->isHovered())
-            {
-                listenerGroup->unhover();
-            }
-
-            bool isGroupHovered = canHit ? listenerGroup->isHovered() : false;
-            bool hoverChange = listenerGroup->prevHovered() != isGroupHovered;
-            // If hover has changes, it means that the element is hovered for the
-            // first time. Previous positions need to be reset to avoid jumps.
-            if (hoverChange && isGroupHovered)
-            {
-                listenerGroup->previousPosition.x = position.x;
-                listenerGroup->previousPosition.y = position.y;
-            }
-
-            // Handle click gesture phases. A click gesture has two phases.
-            // First one attached to a pointer down actions, second one attached to a
-            // pointer up action. Both need to act on a shape of the listener group.
-            if (isGroupHovered)
-            {
-                if (hitType == ListenerType::down)
-                {
-                    listenerGroup->clickPhase(GestureClickPhase::down);
-                }
-                else if (hitType == ListenerType::up &&
-                         listenerGroup->clickPhase() == GestureClickPhase::down)
-                {
-                    listenerGroup->clickPhase(GestureClickPhase::clicked);
-                }
-            }
-            else
-            {
-                if (hitType == ListenerType::down || hitType == ListenerType::up)
-                {
-                    listenerGroup->clickPhase(GestureClickPhase::out);
-                }
-            }
-            auto listener = listenerGroup->listener();
-            // Always update hover states regardless of which specific listener type
-            // we're trying to trigger.
-            // If hover has changed and:
-            // - it's hovering and the listener is of type enter
-            // - it's not hovering and the listener is of type exit
-            if (hoverChange &&
-                ((isGroupHovered && listener->listenerType() == ListenerType::enter) ||
-                 (!isGroupHovered && listener->listenerType() == ListenerType::exit)))
-            {
-                listener->performChanges(m_stateMachineInstance,
-                                         position,
-                                         listenerGroup->previousPosition);
-                m_stateMachineInstance->markNeedsAdvance();
-                listenerGroup->consume();
-            }
-            // Perform changes if:
-            // - the click gesture is complete and the listener is of type click
-            // - the event type matches the listener type and it is hovering the group
-            if ((listenerGroup->clickPhase() == GestureClickPhase::clicked &&
-                 listener->listenerType() == ListenerType::click) ||
-                (isGroupHovered && hitType == listener->listenerType()))
-            {
-                listener->performChanges(m_stateMachineInstance,
-                                         position,
-                                         listenerGroup->previousPosition);
-                m_stateMachineInstance->markNeedsAdvance();
-                listenerGroup->consume();
-            }
-            listenerGroup->previousPosition.x = position.x;
-            listenerGroup->previousPosition.y = position.y;
+            listenerGroup->processEvent(m_component,
+                                        position,
+                                        hitType,
+                                        canHit,
+                                        m_stateMachineInstance);
         }
         return (isHovered && canHit)
-                   ? shape->isTargetOpaque() ? HitResult::hitOpaque : HitResult::hit
+                   ? drawable->isTargetOpaque() ? HitResult::hitOpaque : HitResult::hit
                    : HitResult::none;
     }
 
     void addListener(ListenerGroup* listenerGroup)
     {
-        auto stateMachineListener = listenerGroup->listener();
-        auto listenerType = stateMachineListener->listenerType();
-        if (listenerType == ListenerType::enter || listenerType == ListenerType::exit ||
-            listenerType == ListenerType::move)
+        if (!listenerGroup->canEarlyOut(m_component))
         {
             canEarlyOut = false;
         }
         else
         {
-            if (listenerType == ListenerType::down || listenerType == ListenerType::click)
+            if (listenerGroup->needsDownListener(m_component))
             {
                 hasDownListener = true;
             }
-            if (listenerType == ListenerType::up || listenerType == ListenerType::click)
+            if (listenerGroup->needsUpListener(m_component))
             {
                 hasUpListener = true;
             }
         }
         listeners.push_back(listenerGroup);
+    }
+};
+
+/// Representation of a Shape from the Artboard Instance and all the listeners it
+/// triggers. Allows tracking hover and performing hit detection only once on
+/// shapes that trigger multiple listeners.
+class HitShape : public HitDrawable
+{
+public:
+    HitShape(Component* shape, StateMachineInstance* stateMachineInstance) :
+        HitDrawable(shape, stateMachineInstance)
+    {}
+
+    bool hitTestHelper(Vec2D position) const override
+    {
+        auto shape = m_component->as<Shape>();
+        auto worldBounds = shape->worldBounds();
+        if (!worldBounds.contains(position))
+        {
+            return false;
+        }
+        auto hitArea = AABB(position.x - hitRadius,
+                            position.y - hitRadius,
+                            position.x + hitRadius,
+                            position.y + hitRadius)
+                           .round();
+        return shape->hitTest(hitArea);
+    }
+};
+
+class HitLayout : public HitDrawable
+{
+public:
+    HitLayout(Component* layout, StateMachineInstance* stateMachineInstance) :
+        HitDrawable(layout, stateMachineInstance)
+    {}
+
+    bool hitTestHelper(Vec2D position) const override
+    {
+        auto layout = m_component->as<LayoutComponent>();
+        auto worldBounds = layout->layoutBounds();
+        return worldBounds.contains(position);
     }
 };
 class HitNestedArtboard : public HitComponent
@@ -922,7 +975,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     // Initialize listeners. Store a lookup table of shape id to hit shape
     // representation (an object that stores all the listeners triggered by the
     // shape producing a listener).
-    std::unordered_map<Component*, HitShape*> hitShapeLookup;
+    std::unordered_map<Component*, HitDrawable*> hitShapeLookup;
     for (std::size_t i = 0; i < machine->listenerCount(); i++)
     {
         auto listener = machine->listener(i);
@@ -934,27 +987,48 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         auto target = m_artboardInstance->resolve(listener->targetId());
         if (target != nullptr && target->is<ContainerComponent>())
         {
-            target->as<ContainerComponent>()->forAll([&](Component* component) {
-                if (component->is<Shape>())
+            if (target->is<LayoutComponent>())
+            {
+                auto component = target->as<LayoutComponent>();
+                HitLayout* hitLayout;
+                auto itr = hitShapeLookup.find(component);
+                if (itr == hitShapeLookup.end())
                 {
-                    HitShape* hitShape;
-                    auto itr = hitShapeLookup.find(component);
-                    if (itr == hitShapeLookup.end())
-                    {
-                        component->as<Shape>()->addFlags(PathFlags::neverDeferUpdate);
-                        component->as<Shape>()->addDirt(ComponentDirt::Path, true);
-                        auto hs = rivestd::make_unique<HitShape>(component, this);
-                        hitShapeLookup[component] = hitShape = hs.get();
-                        m_hitComponents.push_back(std::move(hs));
-                    }
-                    else
-                    {
-                        hitShape = itr->second;
-                    }
-                    hitShape->addListener(listenerGroup.get());
+                    auto hs = rivestd::make_unique<HitLayout>(component, this);
+                    hitShapeLookup[component] = hitLayout = hs.get();
+                    m_hitComponents.push_back(std::move(hs));
                 }
-                return true;
-            });
+                else
+                {
+                    hitLayout = static_cast<HitLayout*>(itr->second);
+                }
+                hitLayout->addListener(listenerGroup.get());
+            }
+            else
+            {
+
+                target->as<ContainerComponent>()->forAll([&](Component* component) {
+                    if (component->is<Shape>())
+                    {
+                        HitShape* hitShape;
+                        auto itr = hitShapeLookup.find(component);
+                        if (itr == hitShapeLookup.end())
+                        {
+                            component->as<Shape>()->addFlags(PathFlags::neverDeferUpdate);
+                            component->as<Shape>()->addDirt(ComponentDirt::Path, true);
+                            auto hs = rivestd::make_unique<HitShape>(component, this);
+                            hitShapeLookup[component] = hitShape = hs.get();
+                            m_hitComponents.push_back(std::move(hs));
+                        }
+                        else
+                        {
+                            hitShape = static_cast<HitShape*>(itr->second);
+                        }
+                        hitShape->addListener(listenerGroup.get());
+                    }
+                    return true;
+                });
+            }
         }
         m_listenerGroups.push_back(std::move(listenerGroup));
     }
