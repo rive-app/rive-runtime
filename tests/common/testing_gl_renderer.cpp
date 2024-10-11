@@ -69,7 +69,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
             return std::make_unique<rive::RiveRenderer>(m_renderContext.get());
         }
 
-        void beginFrame(rive::ColorInt clearColor, bool doClear) override
+        void beginFrame(rive::ColorInt clearColor, bool doClear, bool wireframe) override
         {
             // For testing, reset GPU resources to their initial sizes every frame. This will stress
             // intermediate flushes more, as well as creating more consistency when rendering in
@@ -86,6 +86,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
                     (m_rendererFlags & TestingWindow::RendererFlags::useMSAA) ? 4 : 0,
                 .disableRasterOrdering =
                     (m_rendererFlags & TestingWindow::RendererFlags::disableRasterOrdering),
+                .wireframe = wireframe,
             };
             m_renderContext->beginFrame(frameDescriptor);
         }

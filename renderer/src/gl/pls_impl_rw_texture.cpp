@@ -144,7 +144,7 @@ class RenderContextGLImpl::PLSImplRWTexture : public RenderContextGLImpl::PixelL
         {
             if (needs_atomic_fixed_function_color_blend(desc))
             {
-                flags |= gpu::ShaderMiscFlags::fixedFunctionColorBlend;
+                flags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
             }
             if (drawType == gpu::DrawType::atomicResolve &&
                 needs_coalesced_atomic_resolve_and_transfer(desc))

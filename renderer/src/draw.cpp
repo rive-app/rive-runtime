@@ -394,7 +394,6 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
         // Use interior triangulation to draw filled paths if they're large enough to benefit from
         // it.
         // FIXME! Implement interior triangulation in msaa mode.
-
         if (context->frameInterlockMode() != gpu::InterlockMode::msaa &&
             path->getRawPath().verbs().count() < 1000 &&
             gpu::FindTransformedArea(localBounds, matrix) > 512 * 512)

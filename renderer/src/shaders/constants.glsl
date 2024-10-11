@@ -58,11 +58,11 @@
 #define FAN_MIDPOINT_VERTEX 2
 
 // Mirrors pls::PaintType.
-#define SOLID_COLOR_PAINT_TYPE 0u
-#define LINEAR_GRADIENT_PAINT_TYPE 1u
-#define RADIAL_GRADIENT_PAINT_TYPE 2u
-#define IMAGE_PAINT_TYPE 3u
-#define CLIP_UPDATE_PAINT_TYPE 4u
+#define CLIP_UPDATE_PAINT_TYPE 0u
+#define SOLID_COLOR_PAINT_TYPE 1u
+#define LINEAR_GRADIENT_PAINT_TYPE 2u
+#define RADIAL_GRADIENT_PAINT_TYPE 3u
+#define IMAGE_PAINT_TYPE 4u
 
 // Paint flags, found in the x-component value of @paintBuffer.
 #define PAINT_FLAG_EVEN_ODD 0x100u
@@ -135,6 +135,7 @@
 #define FIXED_COVERAGE_FACTOR float(512)
 #define FIXED_COVERAGE_INVERSE_FACTOR float(0.001953125)
 #define FIXED_COVERAGE_ZERO float(1 << 15)
+#define FIXED_COVERAGE_ZERO_UINT (1u << 15)
 #define FIXED_COVERAGE_ONE (FIXED_COVERAGE_FACTOR + FIXED_COVERAGE_ZERO)
 
 // Binding points for storage buffers.

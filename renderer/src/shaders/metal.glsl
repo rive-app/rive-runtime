@@ -38,14 +38,17 @@
 #define float4x2 $float4x2
 #define ushort $ushort
 #define float2x2 $float2x2
-#define half3x4 $half3x4
+#define half3x3 $half3x3
+#define half2x3 $half2x3
 #endif
 
 #define INLINE $inline
 #define OUT(ARG_TYPE) $thread ARG_TYPE&
+#define INOUT(ARG_TYPE) $thread ARG_TYPE&
 
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
+#define lessThan(A, B) ((A) < (B))
 #define greaterThanEqual(A, B) ((A) >= (B))
 #define MUL(A, B) ((A) * (B))
 #define atan $atan2

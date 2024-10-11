@@ -32,7 +32,9 @@ public:
 
     // rive::gpu::RenderTarget* renderTarget() const override { return m_renderTarget.get(); }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor, bool doClear) override
+    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
+                                               bool doClear,
+                                               bool wireframe) override
     {
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
             .renderTargetWidth = m_width,
@@ -40,6 +42,7 @@ public:
             .loadAction = doClear ? rive::gpu::LoadAction::clear
                                   : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = clearColor,
+            .wireframe = wireframe,
         };
         m_renderContext->beginFrame(frameDescriptor);
         m_flushCommandBuffer = [m_queue commandBuffer];

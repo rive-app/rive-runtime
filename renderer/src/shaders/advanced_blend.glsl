@@ -42,8 +42,8 @@
 //    The weighting functions p0, p1, and p2 are defined as follows:
 //
 //      p0(As,Ad) = As*Ad
-//      p1(As,Ad) = As*(1-Ad)
-//      p2(As,Ad) = Ad*(1-As)
+//      p1(As,Ad) = As*(1 - Ad)
+//      p2(As,Ad) = Ad*(1 - As)
 //
 //    In these functions, the A components of the source and destination colors
 //    are taken to indicate the portion of the pixel covered by the fragment
@@ -79,13 +79,12 @@ layout(
 
 #ifdef @ENABLE_ADVANCED_BLEND
 #ifdef @ENABLE_HSL_BLEND_MODES
-// When using one of the HSL blend equations in table X.2 as the blend equation, the RGB color
-// components produced by the function f() are effectively obtained by converting both the
-// non-premultiplied source and destination colors to the HSL (hue, saturation, luminosity) color
-// space, generating a new HSL color by selecting H, S, and L components from the source or
-// destination according to the blend equation, and then converting the result back to RGB. The HSL
-// blend equations are only well defined when the values of the input color components are in the
-// range [0..1].
+// When using one of the HSL blend equations in table X.2 as the blend equation, the blend
+// coefficients are effectively obtained by converting both the non-premultiplied source and
+// destination colors to the HSL (hue, saturation, luminosity) color space, generating a new HSL
+// color by selecting H, S, and L components from the source or destination according to the blend
+// equation, and then converting the result back to RGB. The HSL blend equations are only well
+// defined when the values of the input color components are in the range [0..1].
 half minv3(half3 c) { return min(min(c.r, c.g), c.b); }
 half maxv3(half3 c) { return max(max(c.r, c.g), c.b); }
 half lumv3(half3 c) { return dot(c, make_half3(.30, .59, .11)); }
@@ -137,58 +136,58 @@ half3 set_lum_sat(half3 cbase, half3 csat, half3 clum)
 }
 #endif // ENABLE_HSL_BLEND_MODES
 
-half4 advanced_blend(half4 src, half4 dst, ushort mode)
+// The advanced blend coefficients are generated from un-multiplied RGB values, and
+// control the look of each blend mode.
+half3 advanced_blend_coeffs(half3 src, half3 dst, ushort mode)
 {
-    // The function f() operates on un-multiplied rgb values and dictates the look of the advanced
-    // blend equations.
-    half3 f = make_half3(.0);
+    half3 coeffs;
     switch (mode)
     {
         case BLEND_MODE_MULTIPLY:
-            f = src.rgb * dst.rgb;
+            coeffs = src.rgb * dst.rgb;
             break;
         case BLEND_MODE_SCREEN:
-            f = src.rgb + dst.rgb - src.rgb * dst.rgb;
+            coeffs = src.rgb + dst.rgb - src.rgb * dst.rgb;
             break;
         case BLEND_MODE_OVERLAY:
         {
             for (int i = 0; i < 3; ++i)
             {
                 if (dst[i] <= .5)
-                    f[i] = 2. * src[i] * dst[i];
+                    coeffs[i] = 2. * src[i] * dst[i];
                 else
-                    f[i] = 1. - 2. * (1. - src[i]) * (1. - dst[i]);
+                    coeffs[i] = 1. - 2. * (1. - src[i]) * (1. - dst[i]);
             }
             break;
         }
         case BLEND_MODE_DARKEN:
-            f = min(src.rgb, dst.rgb);
+            coeffs = min(src.rgb, dst.rgb);
             break;
         case BLEND_MODE_LIGHTEN:
-            f = max(src.rgb, dst.rgb);
+            coeffs = max(src.rgb, dst.rgb);
             break;
         case BLEND_MODE_COLORDODGE:
             // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0 results in the
             // appropriately signed IEEE Inf.
-            f = mix(min(dst.rgb / (1. - src.rgb), make_half3(1.)),
-                    make_half3(.0),
-                    lessThanEqual(dst.rgb, make_half3(.0)));
+            coeffs = mix(min(dst.rgb / (1. - src.rgb), make_half3(1.)),
+                         make_half3(.0),
+                         lessThanEqual(dst.rgb, make_half3(.0)));
             break;
         case BLEND_MODE_COLORBURN:
             // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0 results in the
             // appropriately signed IEEE Inf.
-            f = mix(1. - min((1. - dst.rgb) / src.rgb, 1.),
-                    make_half3(1., 1., 1.),
-                    greaterThanEqual(dst.rgb, make_half3(1.)));
+            coeffs = mix(1. - min((1. - dst.rgb) / src.rgb, 1.),
+                         make_half3(1., 1., 1.),
+                         greaterThanEqual(dst.rgb, make_half3(1.)));
             break;
         case BLEND_MODE_HARDLIGHT:
         {
             for (int i = 0; i < 3; ++i)
             {
                 if (src[i] <= .5)
-                    f[i] = 2. * src[i] * dst[i];
+                    coeffs[i] = 2. * src[i] * dst[i];
                 else
-                    f[i] = 1. - 2. * (1. - src[i]) * (1. - dst[i]);
+                    coeffs[i] = 1. - 2. * (1. - src[i]) * (1. - dst[i]);
             }
             break;
         }
@@ -197,20 +196,20 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
             for (int i = 0; i < 3; ++i)
             {
                 if (src[i] <= 0.5)
-                    f[i] = dst[i] - (1. - 2. * src[i]) * dst[i] * (1. - dst[i]);
+                    coeffs[i] = dst[i] - (1. - 2. * src[i]) * dst[i] * (1. - dst[i]);
                 else if (dst[i] <= .25)
-                    f[i] =
+                    coeffs[i] =
                         dst[i] + (2. * src[i] - 1.) * dst[i] * ((16. * dst[i] - 12.) * dst[i] + 3.);
                 else
-                    f[i] = dst[i] + (2. * src[i] - 1.) * (sqrt(dst[i]) - dst[i]);
+                    coeffs[i] = dst[i] + (2. * src[i] - 1.) * (sqrt(dst[i]) - dst[i]);
             }
             break;
         }
         case BLEND_MODE_DIFFERENCE:
-            f = abs(dst.rgb - src.rgb);
+            coeffs = abs(dst.rgb - src.rgb);
             break;
         case BLEND_MODE_EXCLUSION:
-            f = src.rgb + dst.rgb - 2. * src.rgb * dst.rgb;
+            coeffs = src.rgb + dst.rgb - 2. * src.rgb * dst.rgb;
             break;
 #ifdef @ENABLE_HSL_BLEND_MODES
         // The HSL blend equations are only well defined when the values of the input color
@@ -219,51 +218,85 @@ half4 advanced_blend(half4 src, half4 dst, ushort mode)
             if (@ENABLE_HSL_BLEND_MODES)
             {
                 src.rgb = clamp(src.rgb, make_half3(.0), make_half3(1.));
-                f = set_lum_sat(src.rgb, dst.rgb, dst.rgb);
+                coeffs = set_lum_sat(src.rgb, dst.rgb, dst.rgb);
+                break;
             }
-            break;
         case BLEND_MODE_SATURATION:
             if (@ENABLE_HSL_BLEND_MODES)
             {
                 src.rgb = clamp(src.rgb, make_half3(.0), make_half3(1.));
-                f = set_lum_sat(dst.rgb, src.rgb, dst.rgb);
+                coeffs = set_lum_sat(dst.rgb, src.rgb, dst.rgb);
+                break;
             }
-            break;
         case BLEND_MODE_COLOR:
             if (@ENABLE_HSL_BLEND_MODES)
             {
                 src.rgb = clamp(src.rgb, make_half3(.0), make_half3(1.));
-                f = set_lum(src.rgb, dst.rgb);
+                coeffs = set_lum(src.rgb, dst.rgb);
+                break;
             }
-            break;
         case BLEND_MODE_LUMINOSITY:
             if (@ENABLE_HSL_BLEND_MODES)
             {
                 src.rgb = clamp(src.rgb, make_half3(.0), make_half3(1.));
-                f = set_lum(dst.rgb, src.rgb);
+                coeffs = set_lum(dst.rgb, src.rgb);
+                break;
             }
-            break;
 #endif
     }
+    return coeffs;
+}
+
+INLINE half4 advanced_blend(half4 src, half4 dst, ushort mode)
+{
+    half3 coeffs = advanced_blend_coeffs(src.rgb, dst.rgb, mode);
 
     // The weighting functions p0, p1, and p2 are defined as follows:
     //
     //     p0(As,Ad) = As*Ad
-    //     p1(As,Ad) = As*(1-Ad)
-    //     p2(As,Ad) = Ad*(1-As)
+    //     p1(As,Ad) = As*(1 - Ad)
+    //     p2(As,Ad) = Ad*(1 - As)
     //
-    half3 p = make_half3(src.a * dst.a, src.a * (1. - dst.a), (1. - src.a) * dst.a);
+    half sda = src.a * dst.a;
+    half3 p = make_half3(sda, src.a - sda, dst.a - sda);
 
     // When using one of these equations, blending is performed according to the following
     // equations:
     //
-    //     R = f(Rs',Rd')*p0(As,Ad) + Y*Rs'*p1(As,Ad) + Z*Rd'*p2(As,Ad)
-    //     G = f(Gs',Gd')*p0(As,Ad) + Y*Gs'*p1(As,Ad) + Z*Gd'*p2(As,Ad)
-    //     B = f(Bs',Bd')*p0(As,Ad) + Y*Bs'*p1(As,Ad) + Z*Bd'*p2(As,Ad)
-    //     A =          X*p0(As,Ad) +     Y*p1(As,Ad) +     Z*p2(As,Ad)
+    //     R = coeffs(Rs',Rd')*p0(As,Ad) + Y*Rs'*p1(As,Ad) + Z*Rd'*p2(As,Ad)
+    //     G = coeffs(Gs',Gd')*p0(As,Ad) + Y*Gs'*p1(As,Ad) + Z*Gd'*p2(As,Ad)
+    //     B = coeffs(Bs',Bd')*p0(As,Ad) + Y*Bs'*p1(As,Ad) + Z*Bd'*p2(As,Ad)
+    //     A =               X*p0(As,Ad) +     Y*p1(As,Ad) +     Z*p2(As,Ad)
     //
-    // NOTE: (X,Y,Z) always == (1,1,1), so it is ignored in this implementation.
-    return MUL(make_half3x4(f, 1., src.rgb, 1., dst.rgb, 1.), p);
+    // NOTE: (X,Y,Z) always == 1, so it is ignored in this implementation.
+    //       Also, since (X,Y,Z) == 1, alpha simplifies to standard src-over rules:
+    //       A = Ad * (1 - As) + As
+    return make_half4(MUL(make_half3x3(coeffs, src.rgb, dst.rgb), p), dst.a * (1. - src.a) + src.a);
+}
+
+// Returns an intermediate RGB color that won't produce the desired blend mode
+// until *AFTER* being blended into the framebuffer with hardware coefficients of
+// [SRC_ALPHA, ONE_MINUS_SRC_ALPHA].
+//
+// NOTE: Alpha follows standard src-over rules in all blend modes, so the shader
+// can just output the paint's alpha value, unmodified, directly to the blend unit.
+INLINE half3 advanced_color_blend_pre_src_over(half3 src, half4 dst, ushort mode)
+{
+    // The weighting functions p0, p1, and p2 are commented in advanced_blend().
+    //
+    // We make two modifications in this variation to account for the fact that the
+    // color we generate will be subjected to HW blending:
+    //
+    // 1) To cancel the effect of the upcoming src-over blend, we subtract
+    //    "RGBd * (1 - As)" from the final RGB values. This cancels out p2
+    //    entirely.
+    //
+    // 2) Since the caller is expected to premultiply alpha, don't multiply p0 or p1
+    //    by As.
+    //
+    half3 coeffs = advanced_blend_coeffs(src, dst.rgb, mode);
+    half2 p = make_half2(dst.a, 1. - dst.a); // half2 because p2 got cancelled out.
+    return MUL(make_half2x3(coeffs, src), p);
 }
 #endif // ENABLE_ADVANCED_BLEND
 

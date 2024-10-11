@@ -465,10 +465,12 @@ public:
         m_height = height;
     }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor, bool doClear) override
+    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
+                                               bool doClear,
+                                               bool wireframe) override
     {
         auto renderer = m_renderer->reset(m_width, m_height, m_headlessRenderTexture);
-        m_renderer->beginFrame(clearColor, doClear);
+        m_renderer->beginFrame(clearColor, doClear, wireframe);
         return renderer;
     }
 

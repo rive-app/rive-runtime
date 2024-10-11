@@ -31,7 +31,9 @@ public:
         m_height = h;
     }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor, bool doClear) override
+    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
+                                               bool doClear,
+                                               bool wireframe) override
     {
         CGContextFlush(m_ctx);
         if (doClear)

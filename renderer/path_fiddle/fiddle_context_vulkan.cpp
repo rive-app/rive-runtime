@@ -143,11 +143,15 @@ public:
         vkb::SwapchainBuilder swapchainBuilder(m_device, m_windowSurface);
         swapchainBuilder
             .set_desired_format({
-                .format = VK_FORMAT_B8G8R8A8_UNORM,
+                // Swap the target format in "vkcore" mode, just for fun so we test both
+                // configurations.
+                .format = m_options.coreFeaturesOnly ? VK_FORMAT_B8G8R8A8_UNORM
+                                                     : VK_FORMAT_R8G8B8A8_UNORM,
                 .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
             })
             .add_fallback_format({
-                .format = VK_FORMAT_R8G8B8A8_UNORM,
+                .format = m_options.coreFeaturesOnly ? VK_FORMAT_R8G8B8A8_UNORM
+                                                     : VK_FORMAT_B8G8R8A8_UNORM,
                 .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
             })
             .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)

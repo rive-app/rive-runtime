@@ -260,7 +260,9 @@ public:
         }
     }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor, bool doClear) override
+    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
+                                               bool doClear,
+                                               bool wireframe) override
     {
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
             .renderTargetWidth = static_cast<uint32_t>(m_width),
@@ -269,6 +271,7 @@ public:
                                   : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = clearColor,
             .msaaSampleCount = m_msaaSampleCount,
+            .wireframe = wireframe,
         };
         m_fiddleContext->begin(std::move(frameDescriptor));
         return m_fiddleContext->makeRenderer(m_width, m_height);

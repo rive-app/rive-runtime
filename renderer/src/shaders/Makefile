@@ -91,11 +91,11 @@ SPIRV_INPUTS := $(wildcard spirv/*.main)
 SPIRV_OUTPUTS := \
     $(addprefix $(OUT)/, $(patsubst %.main, %.vert.h, $(SPIRV_INPUTS))) \
     $(addprefix $(OUT)/, $(patsubst %.main, %.frag.h, $(SPIRV_INPUTS))) \
-    $(OUT)/spirv/atomic_draw_image_mesh.fixedblend_frag.h \
-    $(OUT)/spirv/atomic_draw_image_rect.fixedblend_frag.h \
-    $(OUT)/spirv/atomic_draw_interior_triangles.fixedblend_frag.h \
-    $(OUT)/spirv/atomic_draw_path.fixedblend_frag.h \
-    $(OUT)/spirv/atomic_resolve_pls.fixedblend_frag.h \
+    $(OUT)/spirv/atomic_draw_image_mesh.fixedcolor_frag.h \
+    $(OUT)/spirv/atomic_draw_image_rect.fixedcolor_frag.h \
+    $(OUT)/spirv/atomic_draw_interior_triangles.fixedcolor_frag.h \
+    $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.h \
+    $(OUT)/spirv/atomic_resolve_pls.fixedcolor_frag.h \
 
 ## Compile *.main into vertex shaders.
 $(OUT)/spirv/%.vert.h: spirv/%.main $(MINIFY_STAMP)
@@ -107,10 +107,10 @@ $(OUT)/spirv/%.frag.h: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
 	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V --vn $(subst .main,_frag,$(notdir $<)) -o $@ $<
 
-## Compile atomic fragment shaders again with FIXED_FUNCTION_COLOR_BLEND defined.
-$(OUT)/spirv/%.fixedblend_frag.h: spirv/%.main $(MINIFY_STAMP)
+## Compile atomic fragment shaders again with FIXED_FUNCTION_COLOR_OUTPUT defined.
+$(OUT)/spirv/%.fixedcolor_frag.h: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DFIXED_FUNCTION_COLOR_BLEND -I$(OUT) -V --vn $(subst .main,_fixedblend_frag,$(notdir $<)) -o $@ $<
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DFIXED_FUNCTION_COLOR_OUTPUT -I$(OUT) -V --vn $(subst .main,_fixedcolor_frag,$(notdir $<)) -o $@ $<
 
 spirv: $(SPIRV_OUTPUTS)
 

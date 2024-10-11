@@ -74,6 +74,7 @@ static int rotations90 = 0;
 static int zoomLevel = 0;
 static int spacing = 0;
 static int monitorIdx = 0;
+static bool wireframe = false;
 static bool paused = false;
 static bool quit = false;
 static void key_pressed(char key)
@@ -114,13 +115,13 @@ static void key_pressed(char key)
         case 'J':
             update_parameter(copiesBelow, multiplier, key, seenBang);
             break;
-        case 'w':
-        case 'W':
+        case 'x':
+        case 'X':
             update_parameter(copiesLeft, multiplier, key, seenBang);
             update_parameter(copiesRight, multiplier, key, seenBang);
             break;
-        case 'e':
-        case 'E':
+        case 'y':
+        case 'Y':
             update_parameter(copiesAbove, multiplier, key, seenBang);
             update_parameter(copiesBelow, multiplier, key, seenBang);
             break;
@@ -138,6 +139,9 @@ static void key_pressed(char key)
             break;
         case 'm':
             monitorIdx += multiplier;
+            break;
+        case 'w':
+            wireframe = !wireframe;
             break;
         case 'p':
             paused = !paused;
@@ -192,26 +196,42 @@ int main(int argc, const char* argv[])
                 abort();
             }
         }
-        else if (strcmp(argv[i], "--backend") == 0)
+        else if (strcmp(argv[i], "--backend") == 0 || strcmp(argv[i], "-b") == 0)
         {
             backend = TestingWindow::ParseBackend(argv[++i], &gpuNameFilter);
         }
-        else if (strcmp(argv[i], "--options") == 0)
+        else if (argv[i][0] == '-' && argv[i][1] == 'b') // "-bvk" without a space.
+        {
+            backend = TestingWindow::ParseBackend(argv[i] + 2, &gpuNameFilter);
+        }
+        else if (strcmp(argv[i], "--options") == 0 || strcmp(argv[i], "-k") == 0)
         {
             for (const char* k = argv[++i]; *k; ++k)
             {
                 key_pressed(*k);
             }
         }
-        else if (strcmp(argv[i], "--src") == 0 || strcmp(argv[i], "-s") == 0)
+        else if (argv[i][0] == '-' && argv[i][1] == 'k') // "-k1234asdf" without a space.
         {
-            rivName = argv[++i];
-            std::ifstream rivStream(rivName, std::ios::binary);
-            rivBytes = std::vector<uint8_t>(std::istreambuf_iterator<char>(rivStream), {});
+            for (const char* k = argv[i] + 2; *k; ++k)
+            {
+                key_pressed(*k);
+            }
         }
         else if (strcmp(argv[i], "--window") == 0 || strcmp(argv[i], "-w") == 0)
         {
             visibility = TestingWindow::Visibility::window;
+        }
+        else
+        {
+            // No argument name defaults to the source riv.
+            if (strcmp(argv[i], "--src") == 0 || strcmp(argv[i], "-s") == 0)
+            {
+                ++i;
+            }
+            rivName = argv[i];
+            std::ifstream rivStream(rivName, std::ios::binary);
+            rivBytes = std::vector<uint8_t>(std::istreambuf_iterator<char>(rivStream), {});
         }
     }
 
@@ -278,7 +298,7 @@ int main(int argc, const char* argv[])
             lastReportedPauseState = paused;
         }
 
-        auto renderer = TestingWindow::Get()->beginFrame(0xff303030);
+        auto renderer = TestingWindow::Get()->beginFrame(0xff303030, true, wireframe);
         renderer->save();
 
         uint32_t width = TestingWindow::Get()->width();

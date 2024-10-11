@@ -297,11 +297,11 @@ void ClipRectInverseMatrix::reset(const Mat2D& clipMatrix, const AABB& clipRect)
 static uint32_t paint_type_to_glsl_id(PaintType paintType)
 {
     return static_cast<uint32_t>(paintType);
+    static_assert((int)PaintType::clipUpdate == CLIP_UPDATE_PAINT_TYPE);
     static_assert((int)PaintType::solidColor == SOLID_COLOR_PAINT_TYPE);
     static_assert((int)PaintType::linearGradient == LINEAR_GRADIENT_PAINT_TYPE);
     static_assert((int)PaintType::radialGradient == RADIAL_GRADIENT_PAINT_TYPE);
     static_assert((int)PaintType::image == IMAGE_PAINT_TYPE);
-    static_assert((int)PaintType::clipUpdate == CLIP_UPDATE_PAINT_TYPE);
 }
 
 uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode)

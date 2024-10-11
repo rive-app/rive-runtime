@@ -2,6 +2,7 @@
 #define ENABLE_INSTANCE_INDEX
 #define PLS_IMPL_SUBPASS_LOAD
 #define USING_PLS_STORAGE_TEXTURES
+#define PLS_BLEND_SRC_OVER
 #define OPTIONALLY_FLAT flat
 #include "glsl.minified.glsl"
 #include "constants.minified.glsl"

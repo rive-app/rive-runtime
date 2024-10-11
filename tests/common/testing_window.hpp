@@ -269,7 +269,8 @@ public:
         m_height = height;
     }
     virtual std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
-                                                       bool doClear = true) = 0;
+                                                       bool doClear = true,
+                                                       bool wireframe = false) = 0;
     virtual void endFrame(std::vector<uint8_t>* pixelData = nullptr) = 0;
 
     // For testing directly on RenderContext.
@@ -313,7 +314,7 @@ private:
                                             const char* gpuNameFilter,
                                             void* platformWindow);
     static TestingWindow* MakeVulkanTexture(bool coreFeaturesOnly, const char* gpuNameFilter);
-    static TestingWindow* MakeAndroidVulkan(void* platformWindow);
+    static TestingWindow* MakeAndroidVulkan(void* platformWindow, bool coreFeaturesOnly);
 };
 
 RIVE_MAKE_ENUM_BITSET(TestingWindow::RendererFlags);

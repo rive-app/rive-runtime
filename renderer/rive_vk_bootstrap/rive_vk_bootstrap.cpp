@@ -25,6 +25,7 @@ vkb::SystemInfo load_vulkan()
     return VKB_CHECK(vkb::SystemInfo::get_system_info(fp_vkGetInstanceProcAddr));
 }
 
+#ifdef DEBUG
 VKAPI_ATTR VkBool32 VKAPI_CALL
 default_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                        VkDebugUtilsMessageTypeFlagsEXT messageType,
@@ -63,8 +64,9 @@ default_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
                     pCallbackData->pMessage);
             break;
     }
-    return VK_FALSE;
+    return VK_TRUE;
 }
+#endif
 
 static const char* physical_device_type_name(VkPhysicalDeviceType type)
 {

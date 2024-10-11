@@ -208,7 +208,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
 #ifdef RIVE_ANDROID
             if (platformWindow != nullptr)
             {
-                s_TestingWindow = TestingWindow::MakeAndroidVulkan(platformWindow);
+                s_TestingWindow = TestingWindow::MakeAndroidVulkan(platformWindow, IsCore(backend));
                 break;
             }
 #endif

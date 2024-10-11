@@ -22,7 +22,8 @@
 #define half2 mediump vec2
 #define half3 mediump vec3
 #define half4 mediump vec4
-#define half3x4 mediump mat3x4
+#define half3x3 mediump mat3x3
+#define half2x3 mediump mat2x3
 
 #define int2 ivec2
 #define int3 ivec3
@@ -46,6 +47,7 @@
 
 #define INLINE
 #define OUT(ARG_TYPE) out ARG_TYPE
+#define INOUT(ARG_TYPE) inout ARG_TYPE
 
 #ifdef GL_ANGLE_base_vertex_base_instance_shader_builtin
 #extension GL_ANGLE_base_vertex_base_instance_shader_builtin : require
@@ -328,9 +330,11 @@
 #ifdef @PLS_IMPL_SUBPASS_LOAD
 
 #define PLS_BLOCK_BEGIN
-#define PLS_DECL4F(IDX, NAME)                                                                      \
+#define PLS_DECL4F_READONLY(IDX, NAME)                                                             \
     layout(input_attachment_index = IDX, binding = IDX, set = PLS_TEXTURE_BINDINGS_SET)            \
-        uniform lowp subpassInput _in_##NAME;                                                      \
+        uniform lowp subpassInput _in_##NAME;
+#define PLS_DECL4F(IDX, NAME)                                                                      \
+    PLS_DECL4F_READONLY(IDX, NAME);                                                                \
     layout(location = IDX) out lowp vec4 NAME
 #define PLS_DECLUI(IDX, NAME)                                                                      \
     layout(input_attachment_index = IDX, binding = IDX, set = PLS_TEXTURE_BINDINGS_SET)            \

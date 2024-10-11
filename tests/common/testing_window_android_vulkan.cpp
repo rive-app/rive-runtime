@@ -6,7 +6,10 @@
 
 #if !defined(RIVE_ANDROID)
 
-TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow) { return nullptr; }
+TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow, bool coreFeaturesOnly)
+{
+    return nullptr;
+}
 
 #else
 
@@ -24,7 +27,7 @@ using namespace rive::gpu;
 class TestingWindowAndroidVulkan : public TestingWindow
 {
 public:
-    TestingWindowAndroidVulkan(ANativeWindow* window)
+    TestingWindowAndroidVulkan(ANativeWindow* window, bool coreFeaturesOnly)
     {
         m_width = ANativeWindow_getWidth(window);
         m_height = ANativeWindow_getHeight(window);
@@ -56,7 +59,7 @@ public:
         VulkanFeatures vulkanFeatures;
         std::tie(m_physicalDevice, vulkanFeatures) = rive_vkb::select_physical_device(
             vkb::PhysicalDeviceSelector(m_instance).set_surface(m_windowSurface),
-            rive_vkb::FeatureSet::allAvailable);
+            coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly : rive_vkb::FeatureSet::allAvailable);
         m_device = VKB_CHECK(vkb::DeviceBuilder(m_physicalDevice).build());
         m_vkbTable = m_device.make_table();
         m_queue = VKB_CHECK(m_device.get_queue(vkb::QueueType::graphics));
@@ -167,13 +170,16 @@ public:
         abort();
     }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor, bool doClear) override
+    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
+                                               bool doClear,
+                                               bool wireframe) override
     {
         m_renderContext->beginFrame(RenderContext::FrameDescriptor{
             .renderTargetWidth = m_width,
             .renderTargetHeight = m_height,
             .loadAction = doClear ? gpu::LoadAction::clear : gpu::LoadAction::preserveRenderTarget,
             .clearColor = clearColor,
+            .wireframe = wireframe,
         });
 
         return std::make_unique<RiveRenderer>(m_renderContext.get());
@@ -280,9 +286,10 @@ private:
     rcp<RenderTargetVulkan> m_renderTarget;
 };
 
-TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow)
+TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow, bool coreFeaturesOnly)
 {
-    return new TestingWindowAndroidVulkan(reinterpret_cast<ANativeWindow*>(platformWindow));
+    return new TestingWindowAndroidVulkan(reinterpret_cast<ANativeWindow*>(platformWindow),
+                                          coreFeaturesOnly);
 }
 
 #endif

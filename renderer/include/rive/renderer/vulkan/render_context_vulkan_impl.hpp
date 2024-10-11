@@ -58,9 +58,9 @@ public:
     // getters that lazy load if needed.
 
     vkutil::TextureView* ensureOffscreenColorTextureView();
-    vkutil::TextureView* ensureCoverageTextureView();
     vkutil::TextureView* ensureClipTextureView();
     vkutil::TextureView* ensureScratchColorTextureView();
+    vkutil::TextureView* ensureCoverageTextureView();
     vkutil::TextureView* ensureCoverageAtomicTextureView();
 
 private:

@@ -46,6 +46,13 @@ INLINE half2 make_half2(half x, half y)
     return ret;
 }
 
+INLINE half2 make_half2(half x)
+{
+    half2 ret;
+    ret.x = x, ret.y = x;
+    return ret;
+}
+
 INLINE half3 make_half3(half x, half y, half z)
 {
     half3 ret;
@@ -82,12 +89,20 @@ INLINE half4 make_half4(half x)
     return ret;
 }
 
-INLINE half3x4 make_half3x4(half3 a, half b, half3 c, half d, half3 e, half f)
+INLINE half3x3 make_half3x3(half3 a, half3 b, half3 c)
 {
-    half3x4 ret;
-    ret[0] = make_half4(a, b);
-    ret[1] = make_half4(c, d);
-    ret[2] = make_half4(e, f);
+    half3x3 ret;
+    ret[0] = a;
+    ret[1] = b;
+    ret[2] = c;
+    return ret;
+}
+
+INLINE half2x3 make_half2x3(half3 a, half3 b)
+{
+    half2x3 ret;
+    ret[0] = a;
+    ret[1] = b;
     return ret;
 }
 

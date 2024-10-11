@@ -31,8 +31,10 @@ public:
                                    .set_app_name("rive_tools")
                                    .set_engine_name("Rive Renderer")
                                    .set_headless(true)
+#ifdef DEBUG
                                    .enable_validation_layers()
                                    .set_debug_callback(rive_vkb::default_debug_callback)
+#endif
                                    .build());
 
         VulkanFeatures vulkanFeatures;
@@ -86,7 +88,9 @@ public:
 
     rive::gpu::RenderContext* renderContext() const override { return m_renderContext.get(); }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor, bool doClear) override
+    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
+                                               bool doClear,
+                                               bool wireframe) override
     {
         if (m_lastFrameFence != nullptr)
         {
@@ -106,6 +110,7 @@ public:
             .loadAction = doClear ? rive::gpu::LoadAction::clear
                                   : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = clearColor,
+            .wireframe = wireframe,
         };
         m_renderContext->beginFrame(frameDescriptor);
         return std::make_unique<RiveRenderer>(m_renderContext.get());

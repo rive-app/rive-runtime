@@ -165,7 +165,7 @@ public:
                 case gpu::InterlockMode::atomics:
                     // In atomic mode, the PLS planes are accessed as device buffers. We only use
                     // the "framebuffer" attachment configured above.
-                    if (shaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorBlend)
+                    if (shaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput)
                     {
                         // The shader expectes a "src-over" blend function in order to to implement
                         // antialiasing and opacity.
@@ -798,7 +798,7 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
         // In atomic mode, the PLS planes are buffers that we need to bind separately.
         // Since the PLS plane indices collide with other buffer bindings, offset the binding
         // indices of these buffers by DEFAULT_BINDINGS_SET_SIZE.
-        if (!(baselineShaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorBlend))
+        if (!(baselineShaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput))
         {
             [encoder setFragmentBuffer:renderTarget->colorAtomicBuffer()
                                 offset:0
@@ -957,9 +957,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         pass.colorAttachments[CLIP_PLANE_IDX].texture = renderTarget->m_clipMemorylessTexture;
         pass.colorAttachments[CLIP_PLANE_IDX].loadAction = MTLLoadActionClear;
         pass.colorAttachments[CLIP_PLANE_IDX].clearColor = MTLClearColorMake(0, 0, 0, 0);
-        pass.colorAttachments[CLIP_PLANE_IDX].storeAction =
-            desc.interlockMode == gpu::InterlockMode::atomics ? MTLStoreActionStore
-                                                              : MTLStoreActionDontCare;
+        pass.colorAttachments[CLIP_PLANE_IDX].storeAction = MTLStoreActionDontCare;
 
         pass.colorAttachments[SCRATCH_COLOR_PLANE_IDX].texture =
             renderTarget->m_scratchColorMemorylessTexture;
@@ -971,14 +969,12 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         pass.colorAttachments[COVERAGE_PLANE_IDX].loadAction = MTLLoadActionClear;
         pass.colorAttachments[COVERAGE_PLANE_IDX].clearColor =
             MTLClearColorMake(desc.coverageClearValue, 0, 0, 0);
-        pass.colorAttachments[COVERAGE_PLANE_IDX].storeAction =
-            desc.interlockMode == gpu::InterlockMode::atomics ? MTLStoreActionStore
-                                                              : MTLStoreActionDontCare;
+        pass.colorAttachments[COVERAGE_PLANE_IDX].storeAction = MTLStoreActionDontCare;
     }
     else if (!(desc.combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND))
     {
         assert(desc.interlockMode == gpu::InterlockMode::atomics);
-        baselineShaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorBlend;
+        baselineShaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
     }
     else if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget)
     {
@@ -1019,7 +1015,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                                  ? desc.combinedShaderFeatures
                                                  : batch.shaderFeatures;
         gpu::ShaderMiscFlags batchMiscFlags = baselineShaderMiscFlags;
-        if (!(batchMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorBlend))
+        if (!(batchMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput))
         {
             if (batch.drawType == gpu::DrawType::atomicResolve)
             {

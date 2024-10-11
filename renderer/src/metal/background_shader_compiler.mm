@@ -108,7 +108,7 @@ void BackgroundShaderCompiler::threadMain()
             }
             if (!(shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND))
             {
-                defines[@GLSL_FIXED_FUNCTION_COLOR_BLEND] = @"";
+                defines[@GLSL_FIXED_FUNCTION_COLOR_OUTPUT] = @"";
             }
         }
 

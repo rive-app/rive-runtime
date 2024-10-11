@@ -966,9 +966,9 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(DrawType drawType,
         {
             s << "#define " << GLSL_ENABLE_MIN_16_PRECISION << '\n';
         }
-        if (pixelShaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorBlend)
+        if (pixelShaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput)
         {
-            s << "#define " << GLSL_FIXED_FUNCTION_COLOR_BLEND << '\n';
+            s << "#define " << GLSL_FIXED_FUNCTION_COLOR_OUTPUT << '\n';
         }
         if (pixelShaderMiscFlags & gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
         {
@@ -1482,7 +1482,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 : gpu::ShaderMiscFlags::none;
         if (renderDirectToRasterPipeline)
         {
-            pixelShaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorBlend;
+            pixelShaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
         }
         setPipelineLayoutAndShaders(drawType,
                                     shaderFeatures,

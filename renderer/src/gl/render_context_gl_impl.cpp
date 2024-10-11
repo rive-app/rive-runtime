@@ -610,9 +610,9 @@ RenderContextGLImpl::DrawShader::DrawShader(RenderContextGLImpl* renderContextIm
         // Atomics are currently always done on storage textures.
         defines.push_back(GLSL_USING_PLS_STORAGE_TEXTURES);
     }
-    if (shaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorBlend)
+    if (shaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput)
     {
-        defines.push_back(GLSL_FIXED_FUNCTION_COLOR_BLEND);
+        defines.push_back(GLSL_FIXED_FUNCTION_COLOR_OUTPUT);
     }
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {

@@ -27,10 +27,12 @@ T vkb_check(vkb::Result<T> result, const char* code, int line, const char* file)
 
 vkb::SystemInfo load_vulkan();
 
+#ifdef DEBUG
 VKAPI_ATTR VkBool32 VKAPI_CALL default_debug_callback(VkDebugUtilsMessageSeverityFlagBitsEXT,
                                                       VkDebugUtilsMessageTypeFlagsEXT,
                                                       const VkDebugUtilsMessengerCallbackDataEXT*,
                                                       void* pUserData);
+#endif
 
 enum class FeatureSet
 {

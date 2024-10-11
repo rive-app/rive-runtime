@@ -270,11 +270,11 @@ constexpr uint16_t kImageRectIndices[14 * 3] = {
 
 enum class PaintType : uint32_t
 {
+    clipUpdate, // Update the clip buffer instead of drawing to the framebuffer.
     solidColor,
     linearGradient,
     radialGradient,
     image,
-    clipUpdate, // Update the clip buffer instead of drawing to the framebuffer.
 };
 
 // Specifies the location of a simple or complex horizontal color ramp within the gradient texture.
@@ -637,10 +637,9 @@ enum class ShaderMiscFlags : uint32_t
 {
     none = 0,
 
-    // InterlockMode::atomics only. Render color to a standard attachment instead of PLS. The
-    // backend implementation is responsible to turn on src-over blending. In atomic mode, we don't
-    // need to read the color buffer when advanced blend is not used.
-    fixedFunctionColorBlend = 1 << 0,
+    // InterlockMode::atomics only (without advanced blend). Render color to a standard attachment
+    // instead of PLS. The backend implementation is responsible to turn on src-over blending.
+    fixedFunctionColorOutput = 1 << 0,
 
     // DrawType::atomicInitialize only. Also store the color clear value to PLS when drawing a
     // clear, in addition to clearing the other PLS planes.

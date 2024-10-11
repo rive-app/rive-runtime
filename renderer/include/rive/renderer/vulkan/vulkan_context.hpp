@@ -65,6 +65,7 @@ public:
     F(CmdDraw)                                                                                     \
     F(CmdDrawIndexed)                                                                              \
     F(CmdEndRenderPass)                                                                            \
+    F(CmdNextSubpass)                                                                              \
     F(CmdPipelineBarrier)                                                                          \
     F(CmdSetScissor)                                                                               \
     F(CmdSetViewport)                                                                              \

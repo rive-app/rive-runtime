@@ -1850,7 +1850,6 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(Draw* draw,
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
         case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
         case DrawType::stencilClipReset:
             needsNewBatch =
                 m_drawList.empty() || m_drawList.tail().drawType != drawType ||
@@ -1860,6 +1859,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(Draw* draw,
         case DrawType::interiorTriangulation:
         case DrawType::imageRect:
         case DrawType::imageMesh:
+        case DrawType::atomicResolve:
             // We can't combine interior triangulations or image draws yet.
             needsNewBatch = true;
             break;
