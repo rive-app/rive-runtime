@@ -26,13 +26,22 @@ ViewModelInstanceValue* DataContext::getViewModelProperty(
         ViewModelInstance* instance = m_ViewModelInstance;
         for (it = path.begin() + 1; it != path.end() - 1; it++)
         {
-            instance = instance->propertyValue(*it)
-                           ->as<ViewModelInstanceViewModel>()
-                           ->referenceViewModelInstance();
+            auto viewModelInstanceValue = instance->propertyValue(*it);
+            if (viewModelInstanceValue != nullptr &&
+                viewModelInstanceValue->is<ViewModelInstanceViewModel>())
+            {
+                instance = viewModelInstanceValue->as<ViewModelInstanceViewModel>()
+                               ->referenceViewModelInstance();
+            }
+            else
+            {
+                goto skip_path;
+            }
         }
         ViewModelInstanceValue* value = instance->propertyValue(*it++);
         return value;
     }
+skip_path:
     if (m_Parent != nullptr)
     {
         return m_Parent->getViewModelProperty(path);
@@ -54,16 +63,25 @@ ViewModelInstance* DataContext::getViewModelInstance(
         ViewModelInstance* instance = m_ViewModelInstance;
         for (it = path.begin() + 1; it != path.end(); it++)
         {
-            instance = instance->propertyValue(*it)
-                           ->as<ViewModelInstanceViewModel>()
-                           ->referenceViewModelInstance();
+            auto viewModelInstanceValue = instance->propertyValue(*it);
+            if (viewModelInstanceValue != nullptr &&
+                viewModelInstanceValue->is<ViewModelInstanceViewModel>())
+            {
+                instance = viewModelInstanceValue->as<ViewModelInstanceViewModel>()
+                               ->referenceViewModelInstance();
+            }
+            else
+            {
+                instance = nullptr;
+            }
             if (instance == nullptr)
             {
-                return instance;
+                goto skip_path;
             }
         }
         return instance;
     }
+skip_path:
     if (m_Parent != nullptr)
     {
         return m_Parent->getViewModelInstance(path);
