@@ -13,7 +13,8 @@
       "key": {
         "int": 89,
         "string": "length"
-      }
+      },
+      "bindable": true
     }
   }
 }

@@ -14,7 +14,8 @@
       "key": {
         "int": 299,
         "string": "x"
-      }
+      },
+      "bindable": true
     },
     "y": {
       "type": "double",
@@ -24,7 +25,8 @@
       "key": {
         "int": 300,
         "string": "y"
-      }
+      },
+      "bindable": true
     },
     "posX": {
       "type": "double",
@@ -32,7 +34,8 @@
       "key": {
         "int": 303,
         "string": "posx"
-      }
+      },
+      "bindable": true
     },
     "posY": {
       "type": "double",
@@ -40,7 +43,8 @@
       "key": {
         "int": 304,
         "string": "posy"
-      }
+      },
+      "bindable": true
     },
     "originX": {
       "type": "double",
@@ -66,7 +70,8 @@
       "key": {
         "int": 305,
         "string": "width"
-      }
+      },
+      "bindable": true
     },
     "height": {
       "type": "double",
@@ -74,7 +79,8 @@
       "key": {
         "int": 306,
         "string": "height"
-      }
+      },
+      "bindable": true
     },
     "xId": {
       "type": "Id",

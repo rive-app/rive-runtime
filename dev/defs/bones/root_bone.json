@@ -15,7 +15,8 @@
       "key": {
         "int": 90,
         "string": "x"
-      }
+      },
+      "bindable": true
     },
     "y": {
       "type": "double",
@@ -26,7 +27,8 @@
       "key": {
         "int": 91,
         "string": "y"
-      }
+      },
+      "bindable": true
     }
   }
 }
