@@ -44,7 +44,8 @@
 #define float4x2 $float4x2
 #define ushort $ushort
 #define float2x2 $float2x2
-#define half3x4 $half3x4
+#define half3x3 $half3x3
+#define half2x3 $half2x3
 #endif
 
 $typedef float3 packed_float3;
@@ -63,6 +64,7 @@ $typedef $uint ushort;
 
 #define INLINE $inline
 #define OUT(ARG_TYPE) out ARG_TYPE
+#define INOUT(ARG_TYPE) inout ARG_TYPE
 
 #define ATTR_BLOCK_BEGIN(NAME)                                                 \
     struct NAME                                                                \
@@ -274,6 +276,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define inversesqrt $rsqrt
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
+#define lessThan(A, B) ((A) < (B))
 #define greaterThanEqual(A, B) ((A) >= (B))
 
 // HLSL matrices are stored in row-major order, and therefore transposed from
