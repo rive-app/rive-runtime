@@ -171,6 +171,7 @@ RenderContext::LogicalFlush::LogicalFlush(RenderContext* parent) : m_ctx(parent)
 void RenderContext::LogicalFlush::rewind()
 {
     m_resourceCounts = Draw::ResourceCounters();
+    m_drawSubpassCount = 0;
     m_simpleGradients.clear();
     m_pendingSimpleGradientWrites.clear();
     m_complexGradients.clear();
@@ -197,8 +198,6 @@ void RenderContext::LogicalFlush::rewind()
     m_drawList.reset();
     m_combinedShaderFeatures = gpu::ShaderFeatures::NONE;
 
-    m_currentPathIsStroked = false;
-    m_currentPathContourDirections = gpu::ContourDirections::none;
     m_currentPathID = 0;
     m_currentContourID = 0;
     m_currentContourPaddingVertexCount = 0;
@@ -348,21 +347,16 @@ bool RenderContext::LogicalFlush::pushDrawBatch(DrawUniquePtr draws[],
 {
     assert(!m_hasDoneLayout);
 
-    if (m_flushDesc.interlockMode == gpu::InterlockMode::atomics &&
-        m_drawList.count() + drawCount > kMaxReorderedDrawCount)
-    {
-        // We can only reorder 64k draws at a time since the sort key addresses
-        // them with a 16-bit index.
-        return false;
-    }
-
     auto countsVector = m_resourceCounts.toVec();
+    uint32_t subpassCountInBatch = 0;
     for (size_t i = 0; i < drawCount; ++i)
     {
         assert(!draws[i]->pixelBounds().empty());
         assert(m_ctx->frameSupportsClipRects() ||
                draws[i]->clipRectInverseMatrix() == nullptr);
+        assert(draws[i]->subpassCount() > 0);
         countsVector += draws[i]->resourceCounts().toVec();
+        subpassCountInBatch += draws[i]->subpassCount();
     }
     Draw::ResourceCounters countsWithNewBatch = countsVector;
 
@@ -388,6 +382,15 @@ bool RenderContext::LogicalFlush::pushDrawBatch(DrawUniquePtr draws[],
         }
     }
 
+    // We can only reorder 64k draws at a time in atomic and msaa modes since
+    // the sort key addresses them with a 16-bit index. Make sure we don't
+    // exceed that limit.
+    if (m_ctx->frameInterlockMode() != gpu::InterlockMode::rasterOrdering &&
+        m_drawSubpassCount + subpassCountInBatch > kMaxReorderedDrawCount)
+    {
+        return false;
+    }
+
     for (size_t i = 0; i < drawCount; ++i)
     {
         m_draws.push_back(std::move(draws[i]));
@@ -396,6 +399,7 @@ bool RenderContext::LogicalFlush::pushDrawBatch(DrawUniquePtr draws[],
     }
 
     m_resourceCounts = countsWithNewBatch;
+    m_drawSubpassCount += subpassCountInBatch;
     return true;
 }
 
@@ -1014,17 +1018,22 @@ void RenderContext::LogicalFlush::writeResources()
     {
         for (const DrawUniquePtr& draw : m_draws)
         {
-            draw->pushToRenderContext(this);
+            assert(draw->subpassCount() > 0);
+            for (uint32_t i = 0; i < draw->subpassCount(); ++i)
+            {
+                draw->pushToRenderContext(this, i);
+            }
         }
     }
     else
     {
-        assert(m_draws.size() <= kMaxReorderedDrawCount);
+        assert(m_drawSubpassCount <= kMaxReorderedDrawCount);
 
         // Sort the draw list to optimize batching, since we can only batch
         // non-overlapping draws.
         std::vector<int64_t>& indirectDrawList = m_ctx->m_indirectDrawList;
-        indirectDrawList.resize(m_draws.size());
+        indirectDrawList.clear();
+        indirectDrawList.reserve(m_drawSubpassCount);
 
         if (m_ctx->m_intersectionBoard == nullptr)
         {
@@ -1041,15 +1050,17 @@ void RenderContext::LogicalFlush::writeResources()
         constexpr static int kDrawTypeShift = 45;
         constexpr static int64_t kDrawTypeMask RIVE_MAYBE_UNUSED =
             7llu << kDrawTypeShift;
-        constexpr static int kTextureHashShift = 26;
-        constexpr static int64_t kTextureHashMask = 0x7ffffllu
+        constexpr static int kTextureHashShift = 27;
+        constexpr static int64_t kTextureHashMask = 0x3ffffllu
                                                     << kTextureHashShift;
-        constexpr static int kBlendModeShift = 22;
+        constexpr static int kBlendModeShift = 23;
         constexpr static int kBlendModeMask = 0xf << kBlendModeShift;
-        constexpr static int kDrawContentsShift = 16;
+        constexpr static int kDrawContentsShift = 17;
         constexpr static int64_t kDrawContentsMask = 0x3fllu
                                                      << kDrawContentsShift;
         constexpr static int64_t kDrawIndexMask = 0xffff;
+        constexpr static int kDrawIndexShift = 1;
+        constexpr static int64_t kSubpassIndexMask = 0x1;
         for (size_t i = 0; i < m_draws.size(); ++i)
         {
             Draw* draw = m_draws[i].get();
@@ -1068,7 +1079,9 @@ void RenderContext::LogicalFlush::writeResources()
             // Our top priority in re-ordering is to group non-overlapping draws
             // together, in order to maximize batching while preserving
             // correctness.
-            int64_t drawGroupIdx = intersectionBoard->addRectangle(drawBounds);
+            int16_t drawGroupIdx =
+                intersectionBoard->addRectangle(drawBounds,
+                                                draw->subpassCount());
             assert(drawGroupIdx > 0);
             if (m_flushDesc.interlockMode == gpu::InterlockMode::msaa &&
                 draw->isOpaque())
@@ -1084,10 +1097,10 @@ void RenderContext::LogicalFlush::writeResources()
                                             gpu::DrawContents::clipUpdate);
                 if (!usesClipping)
                 {
-                    drawGroupIdx = -drawGroupIdx;
+                    drawGroupIdx = 1 - draw->subpassCount() - drawGroupIdx;
                 }
             }
-            int64_t key = drawGroupIdx << kDrawGroupShift;
+            int64_t key = static_cast<int64_t>(drawGroupIdx) << kDrawGroupShift;
 
             // Within sub-groups of non-overlapping draws, sort similar draw
             // types together.
@@ -1118,10 +1131,10 @@ void RenderContext::LogicalFlush::writeResources()
             assert(drawContents <= kDrawContentsMask >> kDrawContentsShift);
             key |= drawContents << kDrawContentsShift;
 
-            // Draw index goes at the bottom of the key so we know which Draw it
-            // corresponds to.
-            assert(i <= kDrawIndexMask);
-            key |= i;
+            // Draw and subpass indices go at the bottom of the key so we can
+            // reference them again after sorting without affecting the order.
+            assert(i <= kDrawIndexMask >> kDrawIndexShift);
+            key |= i << kDrawIndexShift;
 
             assert((key & kDrawGroupMask) >> kDrawGroupShift == drawGroupIdx);
             assert((key & kDrawTypeMask) >> kDrawTypeShift == drawType);
@@ -1130,10 +1143,27 @@ void RenderContext::LogicalFlush::writeResources()
             assert((key & kBlendModeMask) >> kBlendModeShift == blendMode);
             assert((key & kDrawContentsMask) >> kDrawContentsShift ==
                    drawContents);
-            assert((key & kDrawIndexMask) == i);
+            assert((key & kDrawIndexMask) >> kDrawIndexShift == i);
 
-            indirectDrawList[i] = key;
+            // Add the first subpass.
+            assert(draw->subpassCount() > 0);
+            indirectDrawList.push_back(key);
+
+            // Add additional subpasses, if any.
+            for (uint32_t i = 1; i < draw->subpassCount(); ++i)
+            {
+                // Increment the drawGroupIdx and i both at once. (The
+                // intersectionBoard already reserved subpassCount layers of
+                // drawGroupIndices for us.)
+                key += (1ll << kDrawGroupShift) + 1;
+                assert((key & kDrawGroupMask) >> kDrawGroupShift ==
+                       drawGroupIdx + i);
+                assert((key & kSubpassIndexMask) == i);
+
+                indirectDrawList.push_back(key);
+            }
         }
+        assert(indirectDrawList.size() == m_drawSubpassCount);
 
         // Re-order the draws!!
         std::sort(indirectDrawList.begin(), indirectDrawList.end());
@@ -1182,7 +1212,9 @@ void RenderContext::LogicalFlush::writeResources()
             // positive.
             m_currentZIndex = math::lossless_numeric_cast<uint32_t>(
                 abs(key >> static_cast<int64_t>(kDrawGroupShift)));
-            m_draws[key & kDrawIndexMask]->pushToRenderContext(this);
+            uint32_t drawIndex = (key >> kDrawIndexShift) & kDrawIndexMask;
+            uint32_t subpassIndex = key & kSubpassIndexMask;
+            m_draws[drawIndex]->pushToRenderContext(this, subpassIndex);
             priorKey = key;
         }
 
@@ -1593,17 +1625,15 @@ void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation,
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
 }
 
-void RenderContext::LogicalFlush::pushPath(RiveRenderPathDraw* draw,
-                                           gpu::PatchType patchType,
-                                           uint32_t tessVertexCount)
+uint32_t RenderContext::LogicalFlush::pushPath(RiveRenderPathDraw* draw,
+                                               gpu::PatchType patchType,
+                                               uint32_t tessVertexCount)
 {
     assert(m_hasDoneLayout);
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
     assert(m_pathMirroredTessLocation ==
            m_expectedPathMirroredTessLocationAtEndOfPath);
 
-    m_currentPathIsStroked = draw->strokeRadius() != 0;
-    m_currentPathContourDirections = draw->contourDirections();
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_ctx->m_maxPathID);
 
@@ -1661,21 +1691,19 @@ void RenderContext::LogicalFlush::pushPath(RiveRenderPathDraw* draw,
     assert(baseInstance * patchSize ==
            tessLocation); // flush() is responsible for alignment.
 
-    if (m_currentPathContourDirections ==
-        gpu::ContourDirections::reverseAndForward)
+    if (draw->contourDirections() == gpu::ContourDirections::reverseAndForward)
     {
         assert(tessVertexCount % 2 == 0);
         m_pathTessLocation = m_pathMirroredTessLocation =
             tessLocation + tessVertexCount / 2;
     }
-    else if (m_currentPathContourDirections == gpu::ContourDirections::forward)
+    else if (draw->contourDirections() == gpu::ContourDirections::forward)
     {
         m_pathTessLocation = m_pathMirroredTessLocation = tessLocation;
     }
     else
     {
-        assert(m_currentPathContourDirections ==
-               gpu::ContourDirections::reverse);
+        assert(draw->contourDirections() == gpu::ContourDirections::reverse);
         m_pathTessLocation = m_pathMirroredTessLocation =
             tessLocation + tessVertexCount;
     }
@@ -1684,28 +1712,31 @@ void RenderContext::LogicalFlush::pushPath(RiveRenderPathDraw* draw,
     assert(instanceCount * patchSize ==
            tessVertexCount); // flush() is responsible for alignment.
     pushPathDraw(draw, drawType, instanceCount, baseInstance);
+
+    return m_currentPathID;
 }
 
-void RenderContext::LogicalFlush::pushContour(Vec2D midpoint,
+void RenderContext::LogicalFlush::pushContour(RiveRenderPathDraw* draw,
+                                              Vec2D midpoint,
                                               bool closed,
                                               uint32_t paddingVertexCount)
 {
     assert(m_hasDoneLayout);
     assert(m_ctx->m_pathData.bytesWritten() > 0);
-    assert(m_currentPathIsStroked || closed);
-    assert(m_currentPathID != 0); // pathID can't be zero.
+    assert(draw->pathID() != 0); // pathID can't be zero.
+    assert(draw->isStroked() || closed);
 
-    if (m_currentPathIsStroked)
+    if (draw->isStroked())
     {
         midpoint.x = closed ? 1 : 0;
     }
     // If the contour is closed, the shader needs a vertex to wrap back around
     // to at the end of it.
     uint32_t vertexIndex0 =
-        m_currentPathContourDirections & gpu::ContourDirections::forward
+        draw->contourDirections() & gpu::ContourDirections::forward
             ? m_pathTessLocation
             : m_pathMirroredTessLocation - 1;
-    m_ctx->m_contourData.emplace_back(midpoint, m_currentPathID, vertexIndex0);
+    m_ctx->m_contourData.emplace_back(midpoint, draw->pathID(), vertexIndex0);
     ++m_currentContourID;
     assert(0 < m_currentContourID && m_currentContourID <= gpu::kMaxContourID);
     assert(m_flushDesc.firstContour + m_currentContourID ==
@@ -1718,12 +1749,14 @@ void RenderContext::LogicalFlush::pushContour(Vec2D midpoint,
     m_currentContourPaddingVertexCount = paddingVertexCount;
 }
 
-void RenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
-                                            Vec2D joinTangent,
-                                            uint32_t additionalContourFlags,
-                                            uint32_t parametricSegmentCount,
-                                            uint32_t polarSegmentCount,
-                                            uint32_t joinSegmentCount)
+void RenderContext::LogicalFlush::pushCubic(
+    const Vec2D pts[4],
+    gpu::ContourDirections contourDirections,
+    Vec2D joinTangent,
+    uint32_t additionalContourFlags,
+    uint32_t parametricSegmentCount,
+    uint32_t polarSegmentCount,
+    uint32_t joinSegmentCount)
 {
     assert(m_hasDoneLayout);
     assert(0 <= parametricSegmentCount &&
@@ -1744,8 +1777,7 @@ void RenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
     // Only the first curve of a contour gets padding vertices.
     m_currentContourPaddingVertexCount = 0;
 
-    if (m_currentPathContourDirections ==
-        gpu::ContourDirections::reverseAndForward)
+    if (contourDirections == gpu::ContourDirections::reverseAndForward)
     {
         pushMirroredAndForwardTessellationSpans(pts,
                                                 joinTangent,
@@ -1756,7 +1788,7 @@ void RenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
                                                 m_currentContourID |
                                                     additionalContourFlags);
     }
-    else if (m_currentPathContourDirections == gpu::ContourDirections::forward)
+    else if (contourDirections == gpu::ContourDirections::forward)
     {
         pushTessellationSpans(pts,
                               joinTangent,
@@ -1768,8 +1800,7 @@ void RenderContext::LogicalFlush::pushCubic(const Vec2D pts[4],
     }
     else
     {
-        assert(m_currentPathContourDirections ==
-               gpu::ContourDirections::reverse);
+        assert(contourDirections == gpu::ContourDirections::reverse);
         pushMirroredTessellationSpans(pts,
                                       joinTangent,
                                       totalVertexCount,
@@ -1943,7 +1974,7 @@ void RenderContext::LogicalFlush::pushInteriorTriangulation(
         m_ctx->m_triangleVertexData.elementsWritten());
     size_t actualVertexCount =
         draw->triangulator()->polysToTriangles(&m_ctx->m_triangleVertexData,
-                                               m_currentPathID);
+                                               draw->pathID());
     assert(actualVertexCount <= draw->triangulator()->maxVertexCount());
     DrawBatch& batch =
         pushPathDraw(draw,

@@ -5,7 +5,6 @@
 #pragma once
 
 #include "rive/math/raw_path.hpp"
-#include "rive/math/wangs_formula.hpp"
 #include "rive/renderer/gpu.hpp"
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/fixed_queue.hpp"
@@ -91,6 +90,11 @@ public:
     using ResourceCounters = RenderContext::LogicalFlush::ResourceCounters;
     const ResourceCounters& resourceCounts() const { return m_resourceCounts; }
 
+    // Number of low-level draws required to render this object. The
+    // renderContext will call pushToRenderContext() this many times,
+    // potentially with other non-overlapping draws in between.
+    uint32_t subpassCount() const { return m_subpassCount; }
+
     // Linked list of all Draws within a gpu::DrawBatch.
     void setBatchInternalNeighbor(const Draw* neighbor)
     {
@@ -109,9 +113,14 @@ public:
     bool allocateGradientIfNeeded(RenderContext::LogicalFlush*,
                                   ResourceCounters*);
 
-    // Pushes the data for this draw to the render context. Called once the GPU
-    // buffers have been counted and allocated, and the draws have been sorted.
-    virtual void pushToRenderContext(RenderContext::LogicalFlush*) = 0;
+    // Pushes the data for the given subpassIndex of this draw to the
+    // renderContext. Called once the GPU buffers have been counted and
+    // allocated, and the draws have been sorted.
+    //
+    // NOTE: Subpasses are not necessarily rendered one after the other.
+    // Separate, non-overlapping draws may have gotten sorted between subpasses.
+    virtual void pushToRenderContext(RenderContext::LogicalFlush*,
+                                     uint32_t subpassIndex) = 0;
 
     // We can't have a destructor because we're block-allocated. Instead, the
     // client calls this method before clearing the drawList to release all our
@@ -133,6 +142,10 @@ protected:
 
     // Filled in by the subclass constructor.
     ResourceCounters m_resourceCounts;
+
+    // Number of low-level draws required to render this object. Set by the
+    // subclass constructor if not 1.
+    uint32_t m_subpassCount = 1;
 
     // Gradient data used by some draws. Stored in the base class so
     // allocateGradientIfNeeded() doesn't have to be virtual.
@@ -161,19 +174,6 @@ public:
                               const RiveRenderPaint*,
                               RawPath* scratchPath);
 
-    FillRule fillRule() const { return m_fillRule; }
-    gpu::PaintType paintType() const { return m_paintType; }
-    float strokeRadius() const { return m_strokeRadius; }
-    gpu::ContourDirections contourDirections() const
-    {
-        return m_contourDirections;
-    }
-
-    void pushToRenderContext(RenderContext::LogicalFlush*) override;
-
-    void releaseRefs() override;
-
-public:
     RiveRenderPathDraw(AABB,
                        const Mat2D&,
                        rcp<const RiveRenderPath>,
@@ -191,24 +191,58 @@ public:
                        const RiveRenderPaint* paint,
                        gpu::InterlockMode);
 
-    void onPushToRenderContext(RenderContext::LogicalFlush*);
+    FillRule fillRule() const { return m_fillRule; }
+    gpu::PaintType paintType() const { return m_paintType; }
+    float strokeRadius() const { return m_strokeRadius; }
+    gpu::ContourDirections contourDirections() const
+    {
+        return m_contourDirections;
+    }
+    GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
 
-    const RiveRenderPath* const m_pathRef;
-    const FillRule m_fillRule; // Bc RiveRenderPath fillRule can mutate during
-                               // the artboard draw process.
-    const gpu::PaintType m_paintType;
-    float m_strokeRadius = 0;
-    gpu::ContourDirections m_contourDirections;
+    // Unique ID used by shaders for the current frame.
+    uint32_t pathID() const { return m_pathID; }
 
-    // Used to guarantee m_pathRef doesn't change for the entire time we hold
-    // it.
-    RIVE_DEBUG_CODE(uint64_t m_rawPathMutationID;)
+    void pushToRenderContext(RenderContext::LogicalFlush*,
+                             uint32_t subpassIndex) override;
 
-public:
-    // Midpoint path draw
+    void releaseRefs() override;
+
+protected:
+    // Prepares to draw the path by tessellating a fan around its midpoint.
     void initForMidpointFan(RenderContext*, const RiveRenderPaint*);
 
-private:
+    enum class TriangulatorAxis
+    {
+        horizontal,
+        vertical,
+        dontCare,
+    };
+
+    // Prepares to draw the path by triangulating the interior into
+    // non-overlapping triangles and tessellating the outer cubics.
+    void initForInteriorTriangulation(RenderContext*,
+                                      RawPath*,
+                                      TriangulatorAxis);
+
+    enum class InteriorTriangulationOp : bool
+    {
+        countDataAndTriangulate,
+        submitOuterCubics,
+    };
+
+    // Called to processes the interior triangulation both during initialization
+    // and submission. For now, we just iterate and subdivide the path twice
+    // (once for each enum in InteriorTriangulationOp). Since we only do this
+    // for large paths, and since we're triangulating the path interior anyway,
+    // adding complexity to only run Wang's formula and chop once would save
+    // about ~5% of the total CPU time. (And large paths are GPU-bound anyway.)
+    void iterateInteriorTriangulation(InteriorTriangulationOp op,
+                                      TrivialBlockAllocator*,
+                                      RawPath* scratchPath,
+                                      TriangulatorAxis,
+                                      RenderContext::LogicalFlush*);
+
     // Draws a path by fanning tessellation patches around the midpoint of each
     // contour. Emulates a stroke cap before the given cubic by pushing a copy
     // of the cubic, reversed, with 0 tessellation segments leading up to the
@@ -218,6 +252,14 @@ private:
                                                 const Vec2D cubic[],
                                                 uint32_t emulatedCapAsJoinFlags,
                                                 uint32_t strokeCapSegmentCount);
+
+    const RiveRenderPath* const m_pathRef;
+    const FillRule m_fillRule; // Bc RiveRenderPath fillRule can mutate during
+                               // the artboard draw process.
+    const gpu::PaintType m_paintType;
+    float m_strokeRadius = 0;
+    gpu::ContourDirections m_contourDirections;
+    GrInnerFanTriangulator* m_triangulator = nullptr;
 
     float m_strokeMatrixMaxScale;
     StrokeJoin m_strokeJoin;
@@ -247,7 +289,14 @@ private:
     uint32_t* m_polarSegmentCounts = nullptr;
     uint32_t* m_parametricSegmentCounts = nullptr;
 
-    // Consistency checks for onPushToRenderContext().
+    // Unique ID used by shaders for the current frame.
+    uint32_t m_pathID = 0;
+
+    // Used to guarantee m_pathRef doesn't change for the entire time we hold
+    // it.
+    RIVE_DEBUG_CODE(uint64_t m_rawPathMutationID;)
+
+    // Consistency checks for pushToRenderContext().
     RIVE_DEBUG_CODE(size_t m_pendingLineCount;)
     RIVE_DEBUG_CODE(size_t m_pendingCurveCount;)
     RIVE_DEBUG_CODE(size_t m_pendingRotationCount;)
@@ -256,42 +305,6 @@ private:
     // Counts how many additional curves were pushed by
     // pushEmulatedStrokeCapAsJoinBeforeCubic().
     RIVE_DEBUG_CODE(size_t m_pendingEmptyStrokeCountForCaps;)
-
-public:
-    // Draws a path by triangulating the interior into non-overlapping triangles
-    // and tessellating the outer curves.
-    enum class TriangulatorAxis
-    {
-        horizontal,
-        vertical,
-        dontCare,
-    };
-
-    // Interior Triangulation path draw
-    void initForInteriorTriangulation(RenderContext*,
-                                      RawPath*,
-                                      TriangulatorAxis);
-    GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
-
-private:
-    enum class PathOp : bool
-    {
-        countDataAndTriangulate,
-        submitOuterCubics,
-    };
-
-    // For now, we just iterate and subdivide the path twice (once for each enum
-    // in PathOp). Since we only do this for large paths, and since we're
-    // triangulating the path interior anyway, adding complexity to only run
-    // Wang's formula and chop once would save about ~5% of the total CPU time.
-    // (And large paths are GPU-bound anyway.)
-    void processPath(PathOp op,
-                     TrivialBlockAllocator*,
-                     RawPath* scratchPath,
-                     TriangulatorAxis,
-                     RenderContext::LogicalFlush*);
-
-    GrInnerFanTriangulator* m_triangulator = nullptr;
 };
 
 // Pushes an imageRect to the render context.
@@ -309,7 +322,8 @@ public:
 
     float opacity() const { return m_opacity; }
 
-    void pushToRenderContext(RenderContext::LogicalFlush*) override;
+    void pushToRenderContext(RenderContext::LogicalFlush*,
+                             uint32_t subpassIndex) override;
 
 protected:
     const float m_opacity;
@@ -335,7 +349,8 @@ public:
     uint32_t indexCount() const { return m_indexCount; }
     float opacity() const { return m_opacity; }
 
-    void pushToRenderContext(RenderContext::LogicalFlush*) override;
+    void pushToRenderContext(RenderContext::LogicalFlush*,
+                             uint32_t subpassIndex) override;
 
     void releaseRefs() override;
 
@@ -363,7 +378,8 @@ public:
 
     uint32_t previousClipID() const { return m_previousClipID; }
 
-    void pushToRenderContext(RenderContext::LogicalFlush*) override;
+    void pushToRenderContext(RenderContext::LogicalFlush*,
+                             uint32_t subpassIndex) override;
 
 protected:
     const uint32_t m_previousClipID;

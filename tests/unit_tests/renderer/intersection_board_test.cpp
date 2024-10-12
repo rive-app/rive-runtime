@@ -192,7 +192,13 @@ void check_intersection_board_random_rectangles(int maxSize, size_t n)
         int l = rand_range(-width + 1, 3840 - 1);
         int t = rand_range(-height + 1, 2160 - 1);
         int4 ltrb = {l, t, l + width, t + height};
-        CHECK(ref.addRectangle(ltrb) == fast.addRectangle(ltrb));
+        int16_t layerCount = rand() % 5 + 1;
+        int16_t refIdx = ref.addRectangle(ltrb);
+        for (int16_t i = 1; i < layerCount; ++i)
+        {
+            ref.addRectangle(ltrb);
+        }
+        CHECK(refIdx == fast.addRectangle(ltrb, layerCount));
     }
 }
 
@@ -239,5 +245,23 @@ TEST_CASE("IntersectionBoard", "IntersectionBoard")
     check_intersection_board_random_rectangles(1000, 1000);
     check_intersection_board_random_rectangles(10000, 1000);
     check_intersection_board_random_rectangles2(1000);
+}
+
+// Check inserting rectangles that have more than one layer.
+TEST_CASE("layerCount", "IntersectionBoard")
+{
+    IntersectionBoard board;
+    board.resizeAndReset(800, 600);
+    CHECK(board.addRectangle(int4{254, 254, 256, 256}, 7) == 1);
+
+    // Since the previous rect had 7 layers, the next group index is 8.
+    CHECK(board.addRectangle(int4{254, 254, 255, 255}, 1) == 8);
+    CHECK(board.addRectangle(int4{255, 0, 510, 255}, 2) == 8);
+    CHECK(board.addRectangle(int4{255, 255, 256, 510}, 3) == 8);
+    CHECK(board.addRectangle(int4{0, 255, 255, 256}, 4) == 8);
+
+    CHECK(board.addRectangle(int4{0, 254, 800, 255}) == 10);
+    CHECK(board.addRectangle(int4{0, 255, 800, 256}) == 12);
+    CHECK(board.addRectangle(int4{0, 0, 800, 600}) == 13);
 }
 } // namespace rive::gpu

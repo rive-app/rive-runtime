@@ -232,7 +232,7 @@ void IntersectionBoard::resizeAndReset(uint32_t viewportWidth,
     }
 }
 
-int16_t IntersectionBoard::addRectangle(int4 ltrb)
+int16_t IntersectionBoard::addRectangle(int4 ltrb, int16_t layerCount)
 {
     // Discard empty, negative, or offscreen rectangles.
     if (simd::any(ltrb.xy >= m_viewportSize || ltrb.zw <= 0 ||
@@ -264,23 +264,24 @@ int16_t IntersectionBoard::addRectangle(int4 ltrb)
     }
 
     // Find the absolute max group index this rectangle intersects with.
-    int16_t maxGroupIndex = simd::reduce_max(maxGroupIndices);
+    int16_t maxIntersectingGroupIndex = simd::reduce_max(maxGroupIndices);
     // It is the caller's responsibility to not insert more rectangles than can
     // fit in a signed 16-bit integer.
-    assert(maxGroupIndex < std::numeric_limits<int16_t>::max());
+    assert(maxIntersectingGroupIndex <=
+           std::numeric_limits<int16_t>::max() - layerCount);
 
     // Add the rectangle and its newly-found groupIndex to each tile it touches.
-    int16_t nextGroupIndex = maxGroupIndex + 1;
+    int16_t finalLayerGroupIndex = maxIntersectingGroupIndex + layerCount;
     for (int y = span.y; y <= span.w; ++y)
     {
         auto tileIter = m_tiles.begin() + y * m_cols + span.x;
         for (int x = span.x; x <= span.z; ++x)
         {
-            tileIter->addRectangle(ltrb, nextGroupIndex);
+            tileIter->addRectangle(ltrb, finalLayerGroupIndex);
             ++tileIter;
         }
     }
 
-    return nextGroupIndex;
+    return maxIntersectingGroupIndex + 1;
 }
 } // namespace rive::gpu

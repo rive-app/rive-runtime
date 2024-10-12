@@ -51,12 +51,18 @@ public:
                 : gpu::kOuterCurvePatchSegmentSpan * kNumTriangles;
     }
 
-    void pushToRenderContext(RenderContext::LogicalFlush* flush) override
+    void pushToRenderContext(RenderContext::LogicalFlush* flush,
+                             uint32_t subpassIndex) override
     {
         // Make sure the rawPath in our path reference hasn't changed since we
         // began holding!
         assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
         assert(!m_pathRef->getRawPath().empty());
+
+        if (subpassIndex != 0)
+        {
+            return;
+        }
 
         size_t tessVertexCount =
             m_type == Type::midpointFanPath
@@ -65,20 +71,22 @@ public:
         if (tessVertexCount > 0)
         {
             // Push a path record.
-            flush->pushPath(
+            m_pathID = flush->pushPath(
                 this,
                 m_type == Type::midpointFanPath ? PatchType::midpointFan
                                                 : PatchType::outerCurves,
                 math::lossless_numeric_cast<uint32_t>(tessVertexCount));
 
             // PushRetrofittedTrianglesGMDraw specific push to render
-            flush->pushContour({0, 0},
+            flush->pushContour(this,
+                               {0, 0},
                                true,
                                0 /* gpu::kOuterCurvePatchSegmentSpan - 2 */);
             for (const auto& pts : kTris)
             {
                 Vec2D tri[4] = {pts[0], pts[1], {0, 0}, pts[2]};
                 flush->pushCubic(tri,
+                                 m_contourDirections,
                                  {0, 0},
                                  RETROFITTED_TRIANGLE_CONTOUR_FLAG,
                                  gpu::kOuterCurvePatchSegmentSpan - 1,

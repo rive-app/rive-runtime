@@ -547,21 +547,24 @@ private:
         // buffers.
         void writeResources();
 
-        // Pushes a record to the GPU for the given path, which will be
-        // referenced by future calls to pushContour() and pushCubic().
-        void pushPath(RiveRenderPathDraw*,
-                      gpu::PatchType,
-                      uint32_t tessVertexCount);
+        // Allocates and initializes a record on the GPU for the given path.
+        // Returns a unique 16-bit "pathID" handle for this specific record.
+        // Updates the RiveRenderPathDraw's batchInternalNeighbor if it got
+        // combined into a batch.
+        [[nodiscard]] uint32_t pushPath(RiveRenderPathDraw*,
+                                        gpu::PatchType,
+                                        uint32_t tessVertexCount);
 
         // Pushes a contour record to the GPU for the given contour, which
-        // references the most-recently pushed path and will be referenced by
-        // future calls to pushCubic().
+        // references the given path and will be referenced by future calls to
+        // pushCubic().
         //
         // The first curve of the contour will be pre-padded with
         // 'paddingVertexCount' tessellation vertices, colocated at T=0. The
         // caller must use this argument to align the end of the contour on a
         // boundary of the patch size. (See gpu::PaddingToAlignUp().)
-        void pushContour(Vec2D midpoint,
+        void pushContour(RiveRenderPathDraw*,
+                         Vec2D midpoint,
                          bool closed,
                          uint32_t paddingVertexCount);
 
@@ -581,6 +584,7 @@ private:
         // "joinTangent" is the ending tangent of the join that follows the
         // cubic.
         void pushCubic(const Vec2D pts[4],
+                       gpu::ContourDirections,
                        Vec2D joinTangent,
                        uint32_t additionalContourFlags,
                        uint32_t parametricSegmentCount,
@@ -668,6 +672,9 @@ private:
         // draws.
         ResourceCounters m_resourceCounts;
 
+        // Running count of combined subpasses from every draw in m_draws.
+        uint32_t m_drawSubpassCount = 0;
+
         // Simple gradients have one stop at t=0 and one stop at t=1. They're
         // implemented with 2 texels.
         std::unordered_map<uint64_t, uint32_t>
@@ -708,8 +715,6 @@ private:
         gpu::ShaderFeatures m_combinedShaderFeatures;
 
         // Most recent path and contour state.
-        bool m_currentPathIsStroked;
-        gpu::ContourDirections m_currentPathContourDirections;
         uint32_t m_currentPathID;
         uint32_t m_currentContourID;
         uint32_t m_currentContourPaddingVertexCount; // Padding to add to the

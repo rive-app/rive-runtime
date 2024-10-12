@@ -58,17 +58,17 @@ class IntersectionBoard
 public:
     void resizeAndReset(uint32_t viewportWidth, uint32_t viewportHeight);
 
-    // Adds a rectangle to the internal set and assigns it a groupIndex that is
-    // one larger than the max groupIndex in the set of existing rectangles it
-    // intersects.
+    // Adds a rectangle to the internal set and assigns it "layerCount"
+    // contiguous group indices, beginning one larger than the max groupIndex in
+    // the set of existing rectangles it intersects.
     //
-    // Returns the newly assigned groupIndex for the added rectangle.
+    // Returns the first newly assigned groupIndex for the added rectangle.
     // If it does not intersect with any other rectangles, this groupIndex is 1.
     //
     // It is the caller's responsibility to not insert more rectangles than can
     // fit in a signed 16-bit integer. (The result is signed because SSE doesn't
     // have an unsigned max instruction.)
-    int16_t addRectangle(int4 ltrb);
+    int16_t addRectangle(int4 ltrb, int16_t layerCount = 1);
 
 private:
     int2 m_viewportSize;
