@@ -15,7 +15,8 @@
         "int": 498,
         "string": "gaphorizontal"
       },
-      "description": "Horizontal gap between children in layout component"
+      "description": "Horizontal gap between children in layout component",
+      "bindable": true
     },
     "gapVertical": {
       "type": "double",
@@ -26,7 +27,8 @@
         "int": 499,
         "string": "gapvertical"
       },
-      "description": "Vertical gap between children in layout component"
+      "description": "Vertical gap between children in layout component",
+      "bindable": true
     },
     "maxWidth": {
       "type": "double",
@@ -37,7 +39,8 @@
         "int": 500,
         "string": "maxwidth"
       },
-      "description": "Max width of the item."
+      "description": "Max width of the item.",
+      "bindable": true
     },
     "maxHeight": {
       "type": "double",
@@ -48,7 +51,8 @@
         "int": 501,
         "string": "maxheight"
       },
-      "description": "Max height of the item."
+      "description": "Max height of the item.",
+      "bindable": true
     },
     "minWidth": {
       "type": "double",
@@ -59,7 +63,8 @@
         "int": 502,
         "string": "minwidth"
       },
-      "description": "Min width of the item."
+      "description": "Min width of the item.",
+      "bindable": true
     },
     "minHeight": {
       "type": "double",
@@ -70,7 +75,8 @@
         "int": 503,
         "string": "minheight"
       },
-      "description": "Min height of the item."
+      "description": "Min height of the item.",
+      "bindable": true
     },
     "borderLeft": {
       "type": "double",
@@ -81,7 +87,8 @@
         "int": 504,
         "string": "borderleft"
       },
-      "description": "Left border value."
+      "description": "Left border value.",
+      "bindable": true
     },
     "borderRight": {
       "type": "double",
@@ -92,7 +99,8 @@
         "int": 505,
         "string": "borderright"
       },
-      "description": "Right border value."
+      "description": "Right border value.",
+      "bindable": true
     },
     "borderTop": {
       "type": "double",
@@ -103,7 +111,8 @@
         "int": 506,
         "string": "bordertop"
       },
-      "description": "Top border value."
+      "description": "Top border value.",
+      "bindable": true
     },
     "borderBottom": {
       "type": "double",
@@ -114,7 +123,8 @@
         "int": 507,
         "string": "borderbottom"
       },
-      "description": "Bottom border value."
+      "description": "Bottom border value.",
+      "bindable": true
     },
     "marginLeft": {
       "type": "double",
@@ -125,7 +135,8 @@
         "int": 508,
         "string": "marginleft"
       },
-      "description": "Left margin value."
+      "description": "Left margin value.",
+      "bindable": true
     },
     "marginRight": {
       "type": "double",
@@ -136,7 +147,8 @@
         "int": 509,
         "string": "marginright"
       },
-      "description": "Right margin value."
+      "description": "Right margin value.",
+      "bindable": true
     },
     "marginTop": {
       "type": "double",
@@ -147,7 +159,8 @@
         "int": 510,
         "string": "margintop"
       },
-      "description": "Top margin value."
+      "description": "Top margin value.",
+      "bindable": true
     },
     "marginBottom": {
       "type": "double",
@@ -158,7 +171,8 @@
         "int": 511,
         "string": "marginbottom"
       },
-      "description": "Bottom margin value."
+      "description": "Bottom margin value.",
+      "bindable": true
     },
     "paddingLeft": {
       "type": "double",
@@ -169,7 +183,8 @@
         "int": 512,
         "string": "paddingleft"
       },
-      "description": "Left padding value."
+      "description": "Left padding value.",
+      "bindable": true
     },
     "paddingRight": {
       "type": "double",
@@ -180,7 +195,8 @@
         "int": 513,
         "string": "paddingright"
       },
-      "description": "Right padding value."
+      "description": "Right padding value.",
+      "bindable": true
     },
     "paddingTop": {
       "type": "double",
@@ -191,7 +207,8 @@
         "int": 514,
         "string": "paddingtop"
       },
-      "description": "Top padding value."
+      "description": "Top padding value.",
+      "bindable": true
     },
     "paddingBottom": {
       "type": "double",
@@ -202,7 +219,8 @@
         "int": 515,
         "string": "paddingbottom"
       },
-      "description": "Bottom padding value."
+      "description": "Bottom padding value.",
+      "bindable": true
     },
     "positionLeft": {
       "type": "double",
@@ -213,7 +231,8 @@
         "int": 516,
         "string": "positionleft"
       },
-      "description": "Left position value."
+      "description": "Left position value.",
+      "bindable": true
     },
     "positionRight": {
       "type": "double",
@@ -224,7 +243,8 @@
         "int": 517,
         "string": "positionright"
       },
-      "description": "Right position value."
+      "description": "Right position value.",
+      "bindable": true
     },
     "positionTop": {
       "type": "double",
@@ -235,7 +255,8 @@
         "int": 518,
         "string": "positiontop"
       },
-      "description": "Top position value."
+      "description": "Top position value.",
+      "bindable": true
     },
     "positionBottom": {
       "type": "double",
@@ -246,7 +267,8 @@
         "int": 519,
         "string": "positionbottom"
       },
-      "description": "Bottom position value."
+      "description": "Bottom position value.",
+      "bindable": true
     },
     "flex": {
       "type": "double",
@@ -256,7 +278,8 @@
         "int": 520,
         "string": "flex"
       },
-      "description": "Flex value."
+      "description": "Flex value.",
+      "bindable": true
     },
     "flexGrow": {
       "type": "double",
@@ -266,7 +289,8 @@
         "int": 521,
         "string": "flexgrow"
       },
-      "description": "Flex grow value."
+      "description": "Flex grow value.",
+      "bindable": true
     },
     "flexShrink": {
       "type": "double",
@@ -276,7 +300,8 @@
         "int": 522,
         "string": "flexshrink"
       },
-      "description": "Flex shrink value."
+      "description": "Flex shrink value.",
+      "bindable": true
     },
     "flexBasis": {
       "type": "double",
@@ -286,7 +311,8 @@
         "int": 523,
         "string": "flexbasis"
       },
-      "description": "Flex basis value."
+      "description": "Flex basis value.",
+      "bindable": true
     },
     "aspectRatio": {
       "type": "double",
@@ -296,17 +322,8 @@
         "int": 524,
         "string": "aspectratio"
       },
-      "description": "Aspect ratio value."
-    },
-    "showUnitToggle": {
-      "type": "bool",
-      "initialValue": "false",
-      "key": {
-        "int": 542,
-        "string": "showunittoggle"
-      },
-      "description": "Show layout unit toggle in inspector position widget. Editor only.",
-      "runtime": false
+      "description": "Aspect ratio value.",
+      "bindable": true
     },
     "edgeConstraints": {
       "type": "uint",
@@ -320,6 +337,7 @@
     "layoutWidthScaleType": {
       "type": "uint",
       "initialValue": "0",
+      "animates": true,
       "key": {
         "int": 655,
         "string": "layoutwidthscaletype"
@@ -328,6 +346,7 @@
     "layoutHeightScaleType": {
       "type": "uint",
       "initialValue": "0",
+      "animates": true,
       "key": {
         "int": 656,
         "string": "layoutheightscaletype"
@@ -392,6 +411,7 @@
     "positionTypeValue": {
       "type": "uint",
       "initialValue": "1",
+      "animates": true,
       "key": {
         "int": 597,
         "string": "positiontypevalue"
@@ -486,7 +506,8 @@
         "int": 606,
         "string": "intrinsicallysizedvalue"
       },
-      "description": ""
+      "description": "",
+      "bindable": true
     },
     "widthUnitsValue": {
       "type": "uint",
@@ -743,7 +764,8 @@
         "int": 640,
         "string": "cornerradiustl"
       },
-      "description": "Top left radius of the corners of this layout"
+      "description": "Top left radius of the corners of this layout",
+      "bindable": true
     },
     "cornerRadiusTR": {
       "type": "double",
@@ -753,7 +775,8 @@
         "int": 641,
         "string": "cornerradiustr"
       },
-      "description": "Top right radius of the corners of this layout"
+      "description": "Top right radius of the corners of this layout",
+      "bindable": true
     },
     "cornerRadiusBL": {
       "type": "double",
@@ -763,7 +786,8 @@
         "int": 642,
         "string": "cornerradiusbl"
       },
-      "description": "Bottom left radius of the corners of this layout"
+      "description": "Bottom left radius of the corners of this layout",
+      "bindable": true
     },
     "cornerRadiusBR": {
       "type": "double",
@@ -773,7 +797,8 @@
         "int": 643,
         "string": "cornerradiusbr"
       },
-      "description": "Bottom right radius of the corners of this layout"
+      "description": "Bottom right radius of the corners of this layout",
+      "bindable": true
     }
   }
 }

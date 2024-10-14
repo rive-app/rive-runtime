@@ -1,5 +1,6 @@
 #ifndef _RIVE_LAYOUT_COMPONENT_HPP_
 #define _RIVE_LAYOUT_COMPONENT_HPP_
+#include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/drawable.hpp"
 #include "rive/generated/layout_component_base.hpp"
 #include "rive/layout/layout_component_style.hpp"
@@ -36,7 +37,8 @@ struct LayoutAnimationData
 
 class LayoutComponent : public LayoutComponentBase,
                         public ProxyDrawing,
-                        public ShapePaintContainer
+                        public ShapePaintContainer,
+                        public InterpolatorHost
 {
 protected:
     LayoutComponentStyle* m_style = nullptr;
@@ -130,6 +132,7 @@ public:
     virtual bool canHaveOverrides() { return false; }
     bool mainAxisIsRow();
     bool mainAxisIsColumn();
+    bool overridesKeyedInterpolation(int propertyKey) override;
 
 #ifdef WITH_RIVE_LAYOUT
     LayoutComponent() :
@@ -161,6 +164,8 @@ public:
         float inheritedInterpolationTime);
     void clearInheritedInterpolation();
     bool isLeaf();
+    void positionTypeChanged();
+    void scaleTypeChanged();
 #else
     LayoutComponent() :
         m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())),

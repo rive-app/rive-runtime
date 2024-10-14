@@ -4,6 +4,15 @@
 #include <stdio.h>
 namespace rive
 {
+
+class InterpolatorHost
+{
+public:
+    virtual ~InterpolatorHost() {}
+    virtual bool overridesKeyedInterpolation(int propertyKey) = 0;
+    static InterpolatorHost* from(Core* component);
+};
+
 class KeyFrameInterpolator : public KeyFrameInterpolatorBase
 {
 public:

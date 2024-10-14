@@ -173,6 +173,24 @@ void LayoutComponent::heightIntrinsicallySizeOverride(bool intrinsic)
     markLayoutNodeDirty();
 }
 
+bool LayoutComponent::overridesKeyedInterpolation(int propertyKey)
+{
+#ifdef WITH_RIVE_LAYOUT
+    if (animates())
+    {
+        switch (propertyKey)
+        {
+            case LayoutComponentBase::widthPropertyKey:
+            case LayoutComponentBase::heightPropertyKey:
+                return true;
+            default:
+                return false;
+        }
+    }
+#endif
+    return false;
+}
+
 #ifdef WITH_RIVE_LAYOUT
 StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
 {
@@ -961,6 +979,55 @@ void LayoutComponent::markLayoutStyleDirty()
     {
         artboard()->markLayoutStyleDirty();
     }
+}
+
+void LayoutComponent::positionTypeChanged()
+{
+    if (m_style == nullptr)
+    {
+        return;
+    }
+    if (m_style->positionType() == YGPositionTypeAbsolute)
+    {
+        m_style->positionLeft(layoutBounds().left());
+        m_style->positionTop(layoutBounds().top());
+        m_style->positionRight(0);
+        m_style->positionBottom(0);
+        m_style->positionLeftUnitsValue(YGUnitPoint);
+        m_style->positionTopUnitsValue(YGUnitPoint);
+        m_style->positionRightUnitsValue(YGUnitUndefined);
+        m_style->positionBottomUnitsValue(YGUnitUndefined);
+    }
+    else
+    {
+        m_style->positionLeft(0);
+        m_style->positionTop(0);
+        m_style->positionRight(0);
+        m_style->positionBottom(0);
+        m_style->positionLeftUnitsValue(YGUnitUndefined);
+        m_style->positionTopUnitsValue(YGUnitUndefined);
+        m_style->positionRightUnitsValue(YGUnitUndefined);
+        m_style->positionBottomUnitsValue(YGUnitUndefined);
+    }
+    markLayoutNodeDirty();
+}
+
+void LayoutComponent::scaleTypeChanged()
+{
+    if (m_style == nullptr)
+    {
+        return;
+    }
+    m_style->widthUnitsValue(m_style->widthScaleType() == LayoutScaleType::fixed
+                                 ? YGUnitPoint
+                                 : YGUnitAuto);
+    m_style->heightUnitsValue(
+        m_style->heightScaleType() == LayoutScaleType::fixed ? YGUnitPoint
+                                                             : YGUnitAuto);
+    m_style->intrinsicallySizedValue(
+        m_style->widthScaleType() == LayoutScaleType::hug ||
+        m_style->heightScaleType() == LayoutScaleType::hug);
+    markLayoutNodeDirty();
 }
 #else
 Vec2D LayoutComponent::measureLayout(float width,
