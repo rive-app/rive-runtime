@@ -709,8 +709,8 @@ void LayoutComponent::updateLayoutBounds()
             m_animationData.fromBounds =
                 AABB(m_layoutLocationX,
                      m_layoutLocationY,
-                     m_layoutLocationX + this->width(),
-                     m_layoutLocationY + this->height());
+                     m_layoutLocationX + m_layoutSizeWidth,
+                     m_layoutLocationY + m_layoutSizeHeight);
             m_animationData.toBounds =
                 AABB(left, top, left + width, top + height);
             if (m_animationData.elapsedSeconds > 0.1)
