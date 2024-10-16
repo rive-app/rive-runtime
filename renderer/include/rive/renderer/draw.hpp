@@ -95,16 +95,17 @@ public:
     // potentially with other non-overlapping draws in between.
     uint32_t subpassCount() const { return m_subpassCount; }
 
-    // Linked list of all Draws within a gpu::DrawBatch.
-    void setBatchInternalNeighbor(const Draw* neighbor)
+    // When shaders don't have a mechanism to read the framebuffer (e.g.,
+    // WebGL msaa), this is a linked list of all the draws from a single batch
+    // whose bounding boxes needs to be blitted to the "dstRead" texture before
+    // drawing.
+    const Draw* addToDstReadList(const Draw* head) const
     {
-        assert(m_batchInternalNeighbor == nullptr);
-        m_batchInternalNeighbor = neighbor;
+        assert(m_nextDstRead == nullptr);
+        m_nextDstRead = head;
+        return this;
     };
-    const Draw* batchInternalNeighbor() const
-    {
-        return m_batchInternalNeighbor;
-    }
+    const Draw* nextDstRead() const { return m_nextDstRead; }
 
     // Adds the gradient (if any) for this draw to the render context's gradient
     // texture. Returns false if this draw needed a gradient but there wasn't
@@ -152,8 +153,11 @@ protected:
     const Gradient* m_gradientRef = nullptr;
     gpu::SimplePaintValue m_simplePaintValue;
 
-    // Linked list of all Draws within a gpu::DrawBatch.
-    const Draw* m_batchInternalNeighbor = nullptr;
+    // When shaders don't have a mechanism to read the framebuffer (e.g.,
+    // WebGL msaa), this is a linked list of all the draws from a single batch
+    // whose bounding boxes needs to be blitted to the "dstRead" texture before
+    // drawing.
+    const Draw mutable* m_nextDstRead = nullptr;
 };
 
 // Implement DrawReleaseRefs (defined in pls_render_context.hpp) now that Draw

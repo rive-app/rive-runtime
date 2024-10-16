@@ -1311,8 +1311,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             else if (!(batch.drawContents & gpu::DrawContents::advancedBlend))
             {
-                assert(batch.internalDrawList->blendMode() ==
-                       BlendMode::srcOver);
+                assert(batch.firstBlendMode == BlendMode::srcOver);
                 m_state->setBlendEquation(BlendMode::srcOver);
             }
             else if (m_capabilities.KHR_blend_equation_advanced_coherent)
@@ -1320,23 +1319,27 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 // When m_platformFeatures.supportsKHRBlendEquations is true in
                 // msaa mode, the renderContext does not combine draws when they
                 // have different blend modes.
-                m_state->setBlendEquation(batch.internalDrawList->blendMode());
+                m_state->setBlendEquation(batch.firstBlendMode);
             }
             else
             {
-                // Read back the framebuffer where we need a dstColor for
-                // blending.
-                renderTarget->bindInternalFramebuffer(
-                    GL_DRAW_FRAMEBUFFER,
-                    RenderTargetGL::DrawBufferMask::color);
-                for (const Draw* draw = batch.internalDrawList; draw != nullptr;
-                     draw = draw->batchInternalNeighbor())
+                if (batch.dstReadList != nullptr)
                 {
-                    assert(draw->blendMode() != BlendMode::srcOver);
-                    glutils::BlitFramebuffer(draw->pixelBounds(),
-                                             renderTarget->height());
+                    // Read back the framebuffer where we need a dstColor for
+                    // blending.
+                    renderTarget->bindInternalFramebuffer(
+                        GL_DRAW_FRAMEBUFFER,
+                        RenderTargetGL::DrawBufferMask::color);
+                    for (const Draw* draw = batch.dstReadList; draw != nullptr;
+                         draw = draw->nextDstRead())
+                    {
+                        assert(draw->blendMode() != BlendMode::srcOver);
+                        glutils::BlitFramebuffer(draw->pixelBounds(),
+                                                 renderTarget->height());
+                    }
+                    renderTarget->bindMSAAFramebuffer(this,
+                                                      desc.msaaSampleCount);
                 }
-                renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
                 m_state->disableBlending(); // Blend in the shader instead.
             }
 
@@ -1543,13 +1546,21 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glDrawArrays(GL_TRIANGLES,
                              batch.baseElement,
                              batch.elementCount);
+                if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
+                {
+                    // We turned off raster ordering even though we're in
+                    // "rasterOrdering" mode because it improves performance and
+                    // we know the interior triangles don't overlap. But now we
+                    // have to insert a barrier before we draw anything else.
+                    m_plsImpl->barrier(desc);
+                }
                 break;
             }
             case gpu::DrawType::imageRect:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
-                assert(m_imageRectVAO !=
-                       0); // Should have gotten lazily allocated by now.
+                // m_imageRectVAO should have gotten lazily allocated by now.
+                assert(m_imageRectVAO != 0);
                 m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_imageRectVAO);
                 glBindBufferRange(GL_UNIFORM_BUFFER,
@@ -1632,9 +1643,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
         }
         if (desc.interlockMode != gpu::InterlockMode::msaa &&
-            batch.needsBarrier &&
-            batch.drawType != gpu::DrawType::imageMesh /*EW!*/)
+            batch.needsBarrier)
         {
+            assert(desc.interlockMode == gpu::InterlockMode::atomics);
             m_plsImpl->barrier(desc);
         }
     }

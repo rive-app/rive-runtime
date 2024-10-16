@@ -549,9 +549,9 @@ private:
 
         // Allocates and initializes a record on the GPU for the given path.
         // Returns a unique 16-bit "pathID" handle for this specific record.
-        // Updates the RiveRenderPathDraw's batchInternalNeighbor if it got
-        // combined into a batch.
-        [[nodiscard]] uint32_t pushPath(RiveRenderPathDraw*,
+        // Also adds the RiveRenderPathDraw to a dstRead list if one is
+        // required, and if this is the path's first subpass.
+        [[nodiscard]] uint32_t pushPath(const RiveRenderPathDraw*,
                                         gpu::PatchType,
                                         uint32_t tessVertexCount);
 
@@ -563,7 +563,7 @@ private:
         // 'paddingVertexCount' tessellation vertices, colocated at T=0. The
         // caller must use this argument to align the end of the contour on a
         // boundary of the patch size. (See gpu::PaddingToAlignUp().)
-        void pushContour(RiveRenderPathDraw*,
+        void pushContour(const RiveRenderPathDraw*,
                          Vec2D midpoint,
                          bool closed,
                          uint32_t paddingVertexCount);
@@ -593,7 +593,7 @@ private:
 
         // Pushes triangles to be drawn using the data records from the most
         // recent calls to pushPath() and pushPaint().
-        void pushInteriorTriangulation(RiveRenderPathDraw*);
+        void pushInteriorTriangulation(const RiveRenderPathDraw*);
 
         // Pushes an imageRect to the draw list.
         // This should only be used when we in atomic mode. Otherwise, images
@@ -655,11 +655,11 @@ private:
         // Either appends a new drawBatch to m_drawList or merges into
         // m_drawList.tail(). Updates the batch's ShaderFeatures according to
         // the passed parameters.
-        DrawBatch& pushPathDraw(RiveRenderPathDraw*,
+        DrawBatch& pushPathDraw(const RiveRenderPathDraw*,
                                 DrawType,
                                 uint32_t vertexCount,
                                 uint32_t baseVertex);
-        DrawBatch& pushDraw(Draw*,
+        DrawBatch& pushDraw(const Draw*,
                             DrawType,
                             gpu::PaintType,
                             uint32_t elementCount,

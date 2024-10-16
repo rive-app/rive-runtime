@@ -3310,9 +3310,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 RIVE_UNREACHABLE();
         }
 
-        needsBarrierBeforeNextDraw =
-            desc.interlockMode == gpu::InterlockMode::atomics &&
-            batch.needsBarrier;
+        needsBarrierBeforeNextDraw = batch.needsBarrier;
     }
 
     m_vk->CmdEndRenderPass(commandBuffer);

@@ -1175,9 +1175,9 @@ void RenderContext::LogicalFlush::writeResources()
         {
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                     DrawType::atomicInitialize,
-                                    nullptr,
                                     1,
-                                    0);
+                                    0,
+                                    BlendMode::srcOver);
             pushBarrier();
         }
 
@@ -1224,9 +1224,9 @@ void RenderContext::LogicalFlush::writeResources()
             pushBarrier();
             m_drawList.emplace_back(m_ctx->perFrameAllocator(),
                                     DrawType::atomicResolve,
-                                    nullptr,
                                     1,
-                                    0);
+                                    0,
+                                    BlendMode::srcOver);
             m_drawList.tail().shaderFeatures = m_combinedShaderFeatures;
         }
     }
@@ -1625,7 +1625,7 @@ void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation,
     assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
 }
 
-uint32_t RenderContext::LogicalFlush::pushPath(RiveRenderPathDraw* draw,
+uint32_t RenderContext::LogicalFlush::pushPath(const RiveRenderPathDraw* draw,
                                                gpu::PatchType patchType,
                                                uint32_t tessVertexCount)
 {
@@ -1716,7 +1716,7 @@ uint32_t RenderContext::LogicalFlush::pushPath(RiveRenderPathDraw* draw,
     return m_currentPathID;
 }
 
-void RenderContext::LogicalFlush::pushContour(RiveRenderPathDraw* draw,
+void RenderContext::LogicalFlush::pushContour(const RiveRenderPathDraw* draw,
                                               Vec2D midpoint,
                                               bool closed,
                                               uint32_t paddingVertexCount)
@@ -1964,7 +1964,7 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
 }
 
 void RenderContext::LogicalFlush::pushInteriorTriangulation(
-    RiveRenderPathDraw* draw)
+    const RiveRenderPathDraw* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -1976,14 +1976,10 @@ void RenderContext::LogicalFlush::pushInteriorTriangulation(
         draw->triangulator()->polysToTriangles(&m_ctx->m_triangleVertexData,
                                                draw->pathID());
     assert(actualVertexCount <= draw->triangulator()->maxVertexCount());
-    DrawBatch& batch =
-        pushPathDraw(draw,
-                     DrawType::interiorTriangulation,
-                     math::lossless_numeric_cast<uint32_t>(actualVertexCount),
-                     baseVertex);
-    // Interior triangulations are allowed to disable raster ordering since they
-    // are guaranteed to not overlap.
-    batch.needsBarrier = true;
+    pushPathDraw(draw,
+                 DrawType::interiorTriangulation,
+                 math::lossless_numeric_cast<uint32_t>(actualVertexCount),
+                 baseVertex);
 }
 
 void RenderContext::LogicalFlush::pushImageRect(ImageRectDraw* draw)
@@ -2069,7 +2065,7 @@ void RenderContext::LogicalFlush::pushBarrier()
 }
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
-    RiveRenderPathDraw* draw,
+    const RiveRenderPathDraw* draw,
     DrawType drawType,
     uint32_t vertexCount,
     uint32_t baseVertex)
@@ -2113,7 +2109,7 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_images(
     return currentDrawTexture == nextDrawTexture;
 }
 
-gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(Draw* draw,
+gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(const Draw* draw,
                                                       DrawType drawType,
                                                       gpu::PaintType paintType,
                                                       uint32_t elementCount,
@@ -2121,68 +2117,54 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(Draw* draw,
 {
     assert(m_hasDoneLayout);
 
-    bool needsNewBatch;
+    bool canMergeWithLastBatch;
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
         case DrawType::outerCurvePatches:
-        case DrawType::atomicInitialize:
-        case DrawType::stencilClipReset:
-            needsNewBatch =
-                m_drawList.empty() || m_drawList.tail().drawType != drawType ||
-                m_drawList.tail().needsBarrier ||
-                !can_combine_draw_images(m_drawList.tail().imageTexture,
-                                         draw->imageTexture());
-            break;
         case DrawType::interiorTriangulation:
+        case DrawType::stencilClipReset:
+            canMergeWithLastBatch =
+                !m_drawList.empty() && m_drawList.tail().drawType == drawType &&
+                !m_drawList.tail().needsBarrier &&
+                can_combine_draw_images(m_drawList.tail().imageTexture,
+                                        draw->imageTexture());
+            break;
+        // Image draws can't be combined for now because they each have their
+        // own unique uniforms.
         case DrawType::imageRect:
         case DrawType::imageMesh:
+        case DrawType::atomicInitialize:
         case DrawType::atomicResolve:
-            // We can't combine interior triangulations or image draws yet.
-            needsNewBatch = true;
+            canMergeWithLastBatch = false;
             break;
     }
 
-    DrawBatch& batch = needsNewBatch
-                           ? m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                                     drawType,
-                                                     draw,
-                                                     elementCount,
-                                                     baseElement)
-                           : m_drawList.tail();
-    if (!needsNewBatch)
+    DrawBatch* batch;
+    if (canMergeWithLastBatch)
     {
-        assert(batch.drawType == drawType);
-        assert(
-            can_combine_draw_images(batch.imageTexture, draw->imageTexture()));
-        assert(!batch.needsBarrier);
-        if (m_flushDesc.interlockMode == gpu::InterlockMode::msaa)
-        {
-            // msaa can't mix drawContents in a batch.
-            assert(batch.drawContents == draw->drawContents());
-            assert((batch.shaderFeatures &
-                    gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
-                   (draw->blendMode() != BlendMode::srcOver));
-            // If using KHR_blend_equation_advanced, we can't mix blend modes in
-            // a batch.
-            assert(!m_ctx->platformFeatures().supportsKHRBlendEquations ||
-                   batch.internalDrawList->blendMode() == draw->blendMode());
-        }
-        assert(batch.baseElement + batch.elementCount == baseElement);
-        draw->setBatchInternalNeighbor(batch.internalDrawList);
-        batch.internalDrawList = draw;
-        batch.elementCount += elementCount;
+        batch = &m_drawList.tail();
+
+        // Since draw data is always uploaded in order, we're guaranteed that
+        // the data for this draw is contiguous with the batch we're merging
+        // into.
+        assert(batch->baseElement + batch->elementCount == baseElement);
+        batch->elementCount += elementCount;
+    }
+    else
+    {
+        batch = &m_drawList.emplace_back(m_ctx->perFrameAllocator(),
+                                         drawType,
+                                         elementCount,
+                                         baseElement,
+                                         draw->blendMode());
     }
 
-    if (paintType == PaintType::image)
-    {
-        assert(draw->imageTexture() != nullptr);
-        if (batch.imageTexture == nullptr)
-        {
-            batch.imageTexture = draw->imageTexture();
-        }
-        assert(batch.imageTexture == draw->imageTexture());
-    }
+    // If the batch was merged into a previous one, this ensures it was a valid
+    // merge.
+    assert(batch->drawType == drawType);
+    assert(can_combine_draw_images(batch->imageTexture, draw->imageTexture()));
+    assert(!batch->needsBarrier);
 
     auto shaderFeatures = ShaderFeatures::NONE;
     if (draw->clipID() != 0)
@@ -2220,13 +2202,55 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(Draw* draw,
                 break;
         }
     }
-    batch.shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
-    m_combinedShaderFeatures |= batch.shaderFeatures;
-    batch.drawContents |= draw->drawContents();
+    batch->shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
+    m_combinedShaderFeatures |= batch->shaderFeatures;
+    batch->drawContents |= draw->drawContents();
     assert(
-        (batch.shaderFeatures &
+        (batch->shaderFeatures &
          gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
-        batch.shaderFeatures);
-    return batch;
+        batch->shaderFeatures);
+
+    if (paintType == PaintType::image)
+    {
+        assert(draw->imageTexture() != nullptr);
+        if (batch->imageTexture == nullptr)
+        {
+            batch->imageTexture = draw->imageTexture();
+        }
+        assert(batch->imageTexture == draw->imageTexture());
+    }
+
+    if (m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa)
+    {
+        // msaa can't mix drawContents in a batch.
+        assert(batch->drawContents == draw->drawContents());
+        // msaa does't mix src-over draws with advanced blend draws.
+        assert((batch->shaderFeatures &
+                gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) ==
+               (draw->blendMode() != BlendMode::srcOver));
+        // If using KHR_blend_equation_advanced, we can't mix blend modes in a
+        // batch.
+        assert(!m_ctx->platformFeatures().supportsKHRBlendEquations ||
+               batch->firstBlendMode == draw->blendMode());
+        if (draw->blendMode() != BlendMode::srcOver &&
+            !m_ctx->platformFeatures().supportsKHRBlendEquations)
+        {
+            // Build up a list of "dstReads" in the batch. In msaa mode, we
+            // don't have a mechanism for shaders to read the framebuffer, so
+            // the backend will blit their bounding boxes to a "dstReadTexture"
+            // that mirrors the framebuffer.
+            //
+            // If the draw already has a neighbor, do nothing. It means an
+            // earlier subpass will already sync this region of the framebuffer
+            // for us. Since nothing that overlaps will be ordered between that
+            // first subpass and us, that first read is all we need.
+            if (draw->nextDstRead() == nullptr)
+            {
+                batch->dstReadList = draw->addToDstReadList(batch->dstReadList);
+            }
+        }
+    }
+
+    return *batch;
 }
 } // namespace rive::gpu

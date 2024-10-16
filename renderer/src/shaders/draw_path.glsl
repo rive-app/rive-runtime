@@ -536,7 +536,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
                                cast_half_to_ushort(v_blendMode));
     }
     else
-#endif // !ENABLE_ADVANCED_BLEND
+#endif // ENABLE_ADVANCED_BLEND
     {
         color = premultiply(color);
     }

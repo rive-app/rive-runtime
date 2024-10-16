@@ -756,19 +756,19 @@ constexpr static gpu::DrawContents kNestedClipUpdateMask =
 struct DrawBatch
 {
     DrawBatch(DrawType drawType_,
-              const Draw* internalDrawList_,
               uint32_t elementCount_,
-              uint32_t baseElement_) :
+              uint32_t baseElement_,
+              rive::BlendMode blendMode) :
         drawType(drawType_),
-        internalDrawList(internalDrawList_),
         elementCount(elementCount_),
-        baseElement(baseElement_)
+        baseElement(baseElement_),
+        firstBlendMode(blendMode)
     {}
 
     const DrawType drawType;
-    const Draw* internalDrawList;
     uint32_t elementCount; // Vertex, index, or instance count.
     uint32_t baseElement;  // Base vertex, index, or instance.
+    rive::BlendMode firstBlendMode;
     DrawContents drawContents = DrawContents::none;
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
     bool needsBarrier = false; // Pixel-local-storage barrier required after
@@ -782,6 +782,12 @@ struct DrawBatch
     RenderBuffer* vertexBuffer;
     RenderBuffer* uvBuffer;
     RenderBuffer* indexBuffer;
+
+    // When shaders don't have a mechanism to read the framebuffer (e.g.,
+    // WebGL msaa), this is a linked list of all the draws in the batch whose
+    // bounding boxes needs to be blitted to the "dstRead" texture before
+    // drawing.
+    const Draw* dstReadList = nullptr;
 };
 
 // Simple gradients only have 2 texels, so we write them to mapped texture

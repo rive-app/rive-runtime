@@ -1303,9 +1303,9 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 RIVE_UNREACHABLE();
             }
         }
-        if (desc.interlockMode == gpu::InterlockMode::atomics &&
-            batch.needsBarrier)
+        if (batch.needsBarrier)
         {
+            assert(desc.interlockMode == gpu::InterlockMode::atomics);
             switch (m_metalFeatures.atomicBarrierType)
             {
                 case AtomicBarrierType::memoryBarrier:
