@@ -374,6 +374,9 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 
     // Convert coverageCount to coverage.
+#ifdef @CLOCKWISE_FILL
+    half coverage = clamp(coverageCount, make_half(.0), make_half(1.));
+#else
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
     if (@ENABLE_EVEN_ODD && v_pathID < .0 /*even-odd*/)
@@ -381,9 +384,9 @@ PLS_MAIN(@drawFragmentMain)
         coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
     }
 #endif
-    coverage =
-        min(coverage,
-            make_half(1.)); // This also caps stroke coverage, which can be >1.
+    // This also caps stroke coverage, which can be >1.
+    coverage = min(coverage, make_half(1.));
+#endif // !CLOCKWISE_FILL
 
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.

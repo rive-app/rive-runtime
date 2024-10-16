@@ -141,6 +141,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
                            paint,
                            path->getFillRule(),
                            &m_context->perFrameAllocator(),
+                           m_context->frameDescriptor(),
                            m_context->frameInterlockMode());
 
     if (cacheDraw != nullptr)
@@ -534,6 +535,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
                                         &clipUpdatePaint,
                                         clip.fillRule,
                                         &m_context->perFrameAllocator(),
+                                        m_context->frameDescriptor(),
                                         m_context->frameInterlockMode());
 
             if (clipDraw == nullptr)

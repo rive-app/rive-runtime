@@ -1111,6 +1111,10 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
             s << "#define " << GLSL_COLOR_PLANE_IDX_OVERRIDE << ' '
               << COALESCED_OFFSCREEN_COLOR_PLANE_IDX << '\n';
         }
+        if (pixelShaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
+        {
+            s << "#define " << GLSL_CLOCKWISE_FILL << '\n';
+        }
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
@@ -1698,6 +1702,10 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         {
             pixelShaderMiscFlags |=
                 gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+        }
+        if (desc.clockwiseFill)
+        {
+            pixelShaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
         setPipelineLayoutAndShaders(drawType,
                                     shaderFeatures,

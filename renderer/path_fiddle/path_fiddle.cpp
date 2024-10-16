@@ -47,6 +47,7 @@ static bool s_forceAtomicMode = false;
 static bool s_wireframe = false;
 static bool s_disableFill = false;
 static bool s_disableStroke = false;
+static bool s_clockwiseFill = false;
 
 static std::unique_ptr<FiddleContext> s_fiddleContext;
 
@@ -248,6 +249,9 @@ static void key_callback(GLFWwindow* window,
             case GLFW_KEY_F:
                 s_disableFill = !s_disableFill;
                 break;
+            case GLFW_KEY_X:
+                s_clockwiseFill = !s_clockwiseFill;
+                break;
             case GLFW_KEY_P:
                 s_paused = !s_paused;
                 break;
@@ -394,9 +398,20 @@ int main(int argc, const char** argv)
             api = API::gl;
             s_forceAtomicMode = true;
         }
+        else if (!strcmp(argv[i], "--glcw"))
+        {
+            api = API::gl;
+            s_forceAtomicMode = true;
+            s_clockwiseFill = true;
+        }
         else if (!strcmp(argv[i], "--metal"))
         {
             api = API::metal;
+        }
+        else if (!strcmp(argv[i], "--metalcw"))
+        {
+            api = API::metal;
+            s_clockwiseFill = true;
         }
         else if (!strcmp(argv[i], "--metalatomic"))
         {
@@ -457,24 +472,28 @@ int main(int argc, const char** argv)
 #ifdef RIVE_DESKTOP_GL
         else if (!strcmp(argv[i], "--angle_gl"))
         {
+            api = API::gl;
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
                          GLFW_ANGLE_PLATFORM_TYPE_OPENGL);
             angle = true;
         }
         else if (!strcmp(argv[i], "--angle_d3d"))
         {
+            api = API::gl;
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
                          GLFW_ANGLE_PLATFORM_TYPE_D3D11);
             angle = true;
         }
         else if (!strcmp(argv[i], "--angle_vk"))
         {
+            api = API::gl;
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
                          GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
             angle = true;
         }
         else if (!strcmp(argv[i], "--angle_mtl"))
         {
+            api = API::gl;
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
                          GLFW_ANGLE_PLATFORM_TYPE_METAL);
             angle = true;
@@ -731,6 +750,7 @@ void riveMainLoop()
         .wireframe = s_wireframe,
         .fillsDisabled = s_disableFill,
         .strokesDisabled = s_disableStroke,
+        .clockwiseFill = s_clockwiseFill,
     });
 
     int instances = 1;

@@ -184,6 +184,7 @@ public:
                        FillRule,
                        const RiveRenderPaint*,
                        Type,
+                       const RenderContext::FrameDescriptor&,
                        gpu::InterlockMode);
 
     // Copy constructor
@@ -193,6 +194,7 @@ public:
                        rcp<const RiveRenderPath>,
                        FillRule fillRule,
                        const RiveRenderPaint* paint,
+                       const RenderContext::FrameDescriptor&,
                        gpu::InterlockMode);
 
     FillRule fillRule() const { return m_fillRule; }
@@ -254,8 +256,8 @@ protected:
     // cap.
     void pushEmulatedStrokeCapAsJoinBeforeCubic(RenderContext::LogicalFlush*,
                                                 const Vec2D cubic[],
-                                                uint32_t emulatedCapAsJoinFlags,
-                                                uint32_t strokeCapSegmentCount);
+                                                uint32_t strokeCapSegmentCount,
+                                                uint32_t contourIDWithFlags);
 
     const RiveRenderPath* const m_pathRef;
     const FillRule m_fillRule; // Bc RiveRenderPath fillRule can mutate during
@@ -263,6 +265,7 @@ protected:
     const gpu::PaintType m_paintType;
     float m_strokeRadius = 0;
     gpu::ContourDirections m_contourDirections;
+    uint32_t m_contourFlags = 0;
     GrInnerFanTriangulator* m_triangulator = nullptr;
 
     float m_strokeMatrixMaxScale;

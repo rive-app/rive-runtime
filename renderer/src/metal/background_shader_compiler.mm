@@ -110,10 +110,15 @@ void BackgroundShaderCompiler::threadMain()
             {
                 defines[@GLSL_PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED] = @"";
             }
-            if (!(shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND))
+            if (shaderMiscFlags &
+                gpu::ShaderMiscFlags::fixedFunctionColorOutput)
             {
                 defines[@GLSL_FIXED_FUNCTION_COLOR_OUTPUT] = @"";
             }
+        }
+        if (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
+        {
+            defines[@GLSL_CLOCKWISE_FILL] = @"";
         }
 
         auto source =

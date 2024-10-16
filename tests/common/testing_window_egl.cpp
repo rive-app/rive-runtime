@@ -568,6 +568,7 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
     switch (backend)
     {
         case Backend::glatomic:
+        case Backend::glcw:
             rendererFlags |= RendererFlags::disableRasterOrdering;
             break;
         case Backend::glmsaa:
@@ -595,6 +596,7 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
         case Backend::d3d:
         case Backend::d3datomic:
         case Backend::metal:
+        case Backend::metalcw:
         case Backend::metalatomic:
         case Backend::vk:
         case Backend::vkcore:

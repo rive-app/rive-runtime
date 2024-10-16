@@ -38,10 +38,12 @@ public:
     {
         gl,
         glatomic,
+        glcw,
         glmsaa,
         d3d,
         d3datomic,
         metal,
+        metalcw,
         metalatomic,
 
         // System default Vulkan driver.
@@ -74,6 +76,7 @@ public:
         {
             case Backend::gl:
             case Backend::glatomic:
+            case Backend::glcw:
             case Backend::glmsaa:
             case Backend::angle:
             case Backend::anglemsaa:
@@ -81,6 +84,7 @@ public:
             case Backend::d3d:
             case Backend::d3datomic:
             case Backend::metal:
+            case Backend::metalcw:
             case Backend::metalatomic:
             case Backend::vk:
             case Backend::vkcore:
@@ -105,10 +109,12 @@ public:
                 return true;
             case Backend::gl:
             case Backend::glatomic:
+            case Backend::glcw:
             case Backend::glmsaa:
             case Backend::d3d:
             case Backend::d3datomic:
             case Backend::metal:
+            case Backend::metalcw:
             case Backend::metalatomic:
             case Backend::vk:
             case Backend::vkcore:
@@ -137,10 +143,12 @@ public:
                 return true;
             case Backend::gl:
             case Backend::glatomic:
+            case Backend::glcw:
             case Backend::glmsaa:
             case Backend::d3d:
             case Backend::d3datomic:
             case Backend::metal:
+            case Backend::metalcw:
             case Backend::metalatomic:
             case Backend::dawn:
             case Backend::coregraphics:
@@ -157,6 +165,7 @@ public:
         switch (backend)
         {
             case Backend::glatomic:
+            case Backend::glcw:
             case Backend::d3datomic:
             case Backend::metalatomic:
             case Backend::rhi:
@@ -168,6 +177,7 @@ public:
             case Backend::glmsaa:
             case Backend::d3d:
             case Backend::metal:
+            case Backend::metalcw:
             case Backend::vk:
             case Backend::moltenvk:
             case Backend::swiftshader:
@@ -189,12 +199,14 @@ public:
             case Backend::swiftshadercore:
                 return true;
             case Backend::glatomic:
+            case Backend::glcw:
             case Backend::d3datomic:
             case Backend::metalatomic:
             case Backend::gl:
             case Backend::glmsaa:
             case Backend::d3d:
             case Backend::metal:
+            case Backend::metalcw:
             case Backend::vk:
             case Backend::moltenvk:
             case Backend::swiftshader:
@@ -216,6 +228,37 @@ public:
             case Backend::anglemsaa:
                 return true;
             case Backend::glatomic:
+            case Backend::glcw:
+            case Backend::d3datomic:
+            case Backend::metalatomic:
+            case Backend::vkcore:
+            case Backend::moltenvkcore:
+            case Backend::swiftshadercore:
+            case Backend::gl:
+            case Backend::d3d:
+            case Backend::metal:
+            case Backend::metalcw:
+            case Backend::vk:
+            case Backend::moltenvk:
+            case Backend::swiftshader:
+            case Backend::angle:
+            case Backend::dawn:
+            case Backend::coregraphics:
+            case Backend::rhi:
+                return false;
+        }
+        RIVE_UNREACHABLE();
+    }
+
+    constexpr static bool IsClockwiseFill(Backend backend)
+    {
+        switch (backend)
+        {
+            case Backend::glcw:
+            case Backend::metalcw:
+                return true;
+            case Backend::glatomic:
+            case Backend::glmsaa:
             case Backend::d3datomic:
             case Backend::metalatomic:
             case Backend::vkcore:
@@ -228,6 +271,7 @@ public:
             case Backend::moltenvk:
             case Backend::swiftshader:
             case Backend::angle:
+            case Backend::anglemsaa:
             case Backend::dawn:
             case Backend::coregraphics:
             case Backend::rhi:

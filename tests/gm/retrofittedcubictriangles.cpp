@@ -40,6 +40,7 @@ public:
                            FillRule::nonZero,
                            paint,
                            Type::interiorTriangulationPath,
+                           context->frameDescriptor(),
                            context->frameInterlockMode())
     {
         m_resourceCounts.pathCount = 1;
@@ -78,20 +79,21 @@ public:
                 math::lossless_numeric_cast<uint32_t>(tessVertexCount));
 
             // PushRetrofittedTrianglesGMDraw specific push to render
-            flush->pushContour(this,
-                               {0, 0},
-                               true,
-                               0 /* gpu::kOuterCurvePatchSegmentSpan - 2 */);
+            uint32_t contourID = flush->pushContour(
+                this,
+                {0, 0},
+                true,
+                0 /* gpu::kOuterCurvePatchSegmentSpan - 2 */);
             for (const auto& pts : kTris)
             {
                 Vec2D tri[4] = {pts[0], pts[1], {0, 0}, pts[2]};
                 flush->pushCubic(tri,
                                  m_contourDirections,
                                  {0, 0},
-                                 RETROFITTED_TRIANGLE_CONTOUR_FLAG,
                                  gpu::kOuterCurvePatchSegmentSpan - 1,
                                  1,
-                                 1);
+                                 1,
+                                 contourID | RETROFITTED_TRIANGLE_CONTOUR_FLAG);
             }
         }
     }

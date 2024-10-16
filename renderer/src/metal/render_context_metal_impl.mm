@@ -755,10 +755,11 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     }
     shaderFeatures &= fullyFeaturedPipelineFeatures;
 
-    // Fully-featured "rasterOrdering" pipelines should have already been
-    // pre-loaded from the static library.
+    // Fully-featured "rasterOrdering" pipelines without miscFlags should have
+    // already been pre-loaded from the static library.
     assert(shaderFeatures != fullyFeaturedPipelineFeatures ||
-           interlockMode != gpu::InterlockMode::rasterOrdering);
+           interlockMode != gpu::InterlockMode::rasterOrdering ||
+           shaderMiscFlags != ShaderMiscFlags::none);
 
     // Poll to see if the shader is actually done compiling, but only wait if
     // it's a fully-feature pipeline. Otherwise, we can fall back on the
@@ -1074,7 +1075,9 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
     }
     pass.colorAttachments[COLOR_PLANE_IDX].storeAction = MTLStoreActionStore;
 
-    auto baselineShaderMiscFlags = gpu::ShaderMiscFlags::none;
+    auto baselineShaderMiscFlags = desc.clockwiseFill
+                                       ? gpu::ShaderMiscFlags::clockwiseFill
+                                       : gpu::ShaderMiscFlags::none;
 
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {

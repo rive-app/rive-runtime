@@ -8,7 +8,6 @@
 #include "rive/renderer.hpp"
 #include "rive/renderer/draw.hpp"
 #include "rive_render_paint.hpp"
-#include "../renderer/src/rive_render_path.hpp"
 
 namespace rive
 {
@@ -55,9 +54,10 @@ public:
     const AABB& getBounds() const;
     // Approximates the area of the path by linearizing it with a coarse
     // tolerance of 8px in artboard space.
-    constexpr static float kCoarseAreaTolerance =
-        8; // Linearize within 8px of the true curve.
+    constexpr static float kCoarseAreaTolerance = 8;
     float getCoarseArea() const;
+    // Determine if the path's signed, post-transform area is positive.
+    bool isClockwiseDominant(const Mat2D& viewMatrix) const;
     uint64_t getRawPathMutationID() const;
 
 #ifdef DEBUG
@@ -109,6 +109,7 @@ public:
                                     const RiveRenderPaint* paint,
                                     FillRule fillRule,
                                     TrivialBlockAllocator* allocator,
+                                    const gpu::RenderContext::FrameDescriptor&,
                                     gpu::InterlockMode interlockMode) const;
 
 private:

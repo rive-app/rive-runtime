@@ -44,6 +44,8 @@ public:
         }
     }
 
+    void negateWinding() { m_shouldNegateWinding = !m_shouldNegateWinding; }
+
     FillRule fillRule() const { return fFillRule; }
 
     size_t maxVertexCount() const { return m_maxVertexCount; }
@@ -61,6 +63,7 @@ public:
                                                 m_maxVertexCount,
                                                 pathID,
                                                 m_shouldReverseTriangles,
+                                                m_shouldNegateWinding,
                                                 bufferRing);
     }
 
@@ -70,6 +73,7 @@ private:
     // We reverse triangles whe using a left-handed view matrix, in order to
     // ensure we always emit clockwise triangles.
     bool m_shouldReverseTriangles;
+    bool m_shouldNegateWinding = false;
     Poly* m_polys = nullptr;
     size_t m_maxVertexCount = 0;
 };

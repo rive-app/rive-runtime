@@ -383,6 +383,9 @@ INLINE void resolve_paint(uint pathID,
                               FRAGMENT_CONTEXT_DECL PLS_CONTEXT_DECL)
 {
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
+#ifdef @CLOCKWISE_FILL
+    half coverage = clamp(coverageCount, make_half(.0), make_half(1.));
+#else
     half coverage = abs(coverageCount);
 #ifdef @ENABLE_EVEN_ODD
     if (@ENABLE_EVEN_ODD && (paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
@@ -390,9 +393,9 @@ INLINE void resolve_paint(uint pathID,
         coverage = 1. - abs(fract(coverage * .5) * 2. + -1.);
     }
 #endif
-    coverage =
-        min(coverage,
-            make_half(1.)); // This also caps stroke coverage, which can be >1.
+    // This also caps stroke coverage, which can be >1.
+    coverage = min(coverage, make_half(1.));
+#endif // !CLOCKWISE_FILL
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING)
     {

@@ -468,9 +468,15 @@ void GrTriangulator::emitMonotonePoly(
     const MonotonePoly* monotonePoly,
     uint16_t pathID,
     bool reverseTriangles,
+    bool negateWinding,
     gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
 {
-    assert(monotonePoly->fWinding != 0);
+    int winding = monotonePoly->fWinding;
+    assert(winding != 0);
+    if (negateWinding)
+    {
+        winding = -winding;
+    }
     Edge* e = monotonePoly->fFirstEdge;
     VertexList vertices;
     vertices.append(e->fTop);
@@ -502,7 +508,7 @@ void GrTriangulator::emitMonotonePoly(
             return emitTriangle(prev,
                                 curr,
                                 next,
-                                monotonePoly->fWinding,
+                                winding,
                                 pathID,
                                 reverseTriangles,
                                 mappedMemory);
@@ -516,7 +522,7 @@ void GrTriangulator::emitMonotonePoly(
             emitTriangle(prev,
                          curr,
                          next,
-                         monotonePoly->fWinding,
+                         winding,
                          pathID,
                          reverseTriangles,
                          mappedMemory);
@@ -639,6 +645,7 @@ void GrTriangulator::emitPoly(
     const Poly* poly,
     uint16_t pathID,
     bool reverseTriangles,
+    bool negateWinding,
     gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
 {
     if (poly->fCount < 3)
@@ -648,8 +655,11 @@ void GrTriangulator::emitPoly(
     TESS_LOG("emit() %d, size %d\n", poly->fID, poly->fCount);
     for (MonotonePoly* m = poly->fHead; m != nullptr; m = m->fNext)
     {
-        emitMonotonePoly(m, pathID, reverseTriangles, mappedMemory);
-        ;
+        emitMonotonePoly(m,
+                         pathID,
+                         reverseTriangles,
+                         negateWinding,
+                         mappedMemory);
     }
 }
 
@@ -2449,13 +2459,18 @@ void GrTriangulator::polysToTriangles(
     FillRule overrideFillType,
     uint16_t pathID,
     bool reverseTriangles,
+    bool negateWinding,
     gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
 {
     for (Poly* poly = polys; poly; poly = poly->fNext)
     {
         if (apply_fill_type(overrideFillType, poly))
         {
-            emitPoly(poly, pathID, reverseTriangles, mappedMemory);
+            emitPoly(poly,
+                     pathID,
+                     reverseTriangles,
+                     negateWinding,
+                     mappedMemory);
         }
     }
 }
@@ -2545,6 +2560,7 @@ size_t GrTriangulator::polysToTriangles(
     uint64_t maxVertexCount,
     uint16_t pathID,
     bool reverseTriangles,
+    bool negateWinding,
     gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
 {
     if (0 == maxVertexCount ||
@@ -2562,7 +2578,12 @@ size_t GrTriangulator::polysToTriangles(
 #endif
 
     size_t start = mappedMemory->bytesWritten();
-    polysToTriangles(polys, fFillRule, pathID, reverseTriangles, mappedMemory);
+    polysToTriangles(polys,
+                     fFillRule,
+                     pathID,
+                     reverseTriangles,
+                     negateWinding,
+                     mappedMemory);
     size_t actualCount = (mappedMemory->bytesWritten() - start) / vertexStride;
     assert(actualCount <= maxVertexCount * vertexStride);
     return actualCount;

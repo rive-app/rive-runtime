@@ -124,6 +124,7 @@ protected:
         FillRule overrideFillRule,
         uint16_t pathID,
         bool reverseTriangles,
+        bool negateWinding,
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
     // The vertex sorting in step (3) is a merge sort, since it plays well with
@@ -184,6 +185,7 @@ protected:
         const MonotonePoly*,
         uint16_t pathID,
         bool reverseTriangles,
+        bool negateWinding,
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
     void emitTriangle(Vertex* prev,
                       Vertex* curr,
@@ -195,6 +197,7 @@ protected:
     void emitPoly(const Poly*,
                   uint16_t pathID,
                   bool reverseTriangles,
+                  bool negateWinding,
                   gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
     Poly* makePoly(Poly** head, Vertex* v, int winding) const;
@@ -294,6 +297,7 @@ protected:
         uint64_t maxVertexCount,
         uint16_t pathID,
         bool reverseTriangles,
+        bool negateWinding,
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
     Comparator::Direction fDirection;

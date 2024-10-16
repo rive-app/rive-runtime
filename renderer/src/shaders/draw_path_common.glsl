@@ -99,8 +99,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         tessVertexIdx += localVertexID - vertexIDOnContour;
         uint4 replacementTessVertexData =
             TEXEL_FETCH(@tessVertexTexture, tess_texel_coord(tessVertexIdx));
-        if ((replacementTessVertexData.w & 0xffffu) !=
-            (contourIDWithFlags & 0xffffu))
+        if ((replacementTessVertexData.w &
+             (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
+            (contourIDWithFlags & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
         {
             // We crossed over into a new contour. Either wrap to the first
             // vertex in the contour or leave it clamped at the final vertex of
@@ -121,7 +122,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // MIRRORED_CONTOUR_CONTOUR_FLAG is not preserved at vertexIndex0.
         // Preserve it here. By not preserving this flag, the normal and
         // mirrored contour can both share the same contour record.
-        contourIDWithFlags = tessVertexData.w | mirroredContourFlag;
+        contourIDWithFlags =
+            (tessVertexData.w & ~MIRRORED_CONTOUR_CONTOUR_FLAG) |
+            mirroredContourFlag;
     }
 
     // Finish unpacking tessVertexData.
@@ -296,8 +299,11 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         postTransformVertexOffset =
             sign(MUL(outset * norm, inverse(M))) * AA_RADIUS;
 
-        if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
+        if (bool(contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) !=
+            bool(contourIDWithFlags & NEGATE_PATH_FILL_COVERAGE_FLAG))
+        {
             fillCoverage = -fillCoverage;
+        }
 
 #ifndef @USING_DEPTH_STENCIL
         // "o_edgeDistance.y < 0" indicates to the fragment shader that this is

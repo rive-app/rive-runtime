@@ -405,14 +405,18 @@ enum class PatchType
 // reverse, or BOTH.
 enum class ContourDirections
 {
-    none = 0,
-    forward = 1 << 0,
-    reverse = 1 << 1,
-    reverseAndForward =
-        reverse |
-        forward, // Generate two sets of triangles: reverse then forward.
+    forward,
+    reverse,
+    // Generate two tessellations of the contour: reverse first, then forward.
+    reverseThenForward,
+    // Generate two tessellations of the contour: forward first, then reverse.
+    forwardThenReverse,
 };
-RIVE_MAKE_ENUM_BITSET(ContourDirections)
+constexpr static bool ContourDirectionsAreDoubleSided(
+    ContourDirections contourDirections)
+{
+    return contourDirections >= ContourDirections::reverseThenForward;
+}
 
 struct PatchVertex
 {
@@ -718,6 +722,11 @@ enum class ShaderMiscFlags : uint32_t
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
     coalescedResolveAndTransfer = 1 << 3,
+
+    // Override all paths' fill rules (winding or even/odd) with an experimental
+    // "clockwise" fill rule, where only regions with a positive winding number
+    // get filled.
+    clockwiseFill = 1 << 4,
 };
 RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
 
@@ -879,8 +888,14 @@ struct FlushDescriptor
     gpu::CommandBufferCompletionFence* frameCompletionFence = nullptr;
 
     bool hasTriangleVertices = false;
-    bool wireframe = false;
     bool isFinalFlushOfFrame = false;
+
+    // Testing flags.
+    bool wireframe = false;
+    // Override all paths' fill rules (winding or even/odd) with an experimental
+    // "clockwise" fill rule, where only regions with a positive winding number
+    // get filled.
+    bool clockwiseFill = false; // (0 unless interlockMode is msaa.)
 };
 
 // Returns the smallest number that can be added to 'value', such that 'value %

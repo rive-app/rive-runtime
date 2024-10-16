@@ -41,12 +41,16 @@
 // limit to 1 for miter-clip joins.
 #define EMULATED_STROKE_CAP_CONTOUR_FLAG (1u << 27u)
 
+// Flip the sign on interpolated fragment coverage for fills. Ignored on
+// strokes. This is used when reversing the winding direction of a path.
+#define NEGATE_PATH_FILL_COVERAGE_FLAG (1u << 26u)
+
 // Internal contour flags.
-#define MIRRORED_CONTOUR_CONTOUR_FLAG (1u << 26u)
-#define JOIN_TANGENT_0_CONTOUR_FLAG (1u << 25u)
-#define JOIN_TANGENT_INNER_CONTOUR_FLAG (1u << 24u)
-#define LEFT_JOIN_CONTOUR_FLAG (1u << 23u)
-#define RIGHT_JOIN_CONTOUR_FLAG (1u << 22u)
+#define MIRRORED_CONTOUR_CONTOUR_FLAG (1u << 25u)
+#define JOIN_TANGENT_0_CONTOUR_FLAG (1u << 24u)
+#define JOIN_TANGENT_INNER_CONTOUR_FLAG (1u << 23u)
+#define LEFT_JOIN_CONTOUR_FLAG (1u << 22u)
+#define RIGHT_JOIN_CONTOUR_FLAG (1u << 21u)
 #define CONTOUR_ID_MASK 0xffffu
 
 // Says which part of the patch a vertex belongs to.

@@ -23,6 +23,8 @@ const char* TestingWindow::BackendName(Backend backend)
             return "gl";
         case TestingWindow::Backend::glatomic:
             return "glatomic";
+        case TestingWindow::Backend::glcw:
+            return "glcw";
         case TestingWindow::Backend::glmsaa:
             return "glmsaa";
         case TestingWindow::Backend::d3d:
@@ -31,6 +33,8 @@ const char* TestingWindow::BackendName(Backend backend)
             return "d3datomic";
         case TestingWindow::Backend::metal:
             return "metal";
+        case TestingWindow::Backend::metalcw:
+            return "metalcw";
         case TestingWindow::Backend::metalatomic:
             return "metalatomic";
         case TestingWindow::Backend::vk:
@@ -88,6 +92,8 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         return Backend::gl;
     if (nameStr == "glatomic")
         return Backend::glatomic;
+    if (nameStr == "glcw")
+        return Backend::glcw;
     if (nameStr == "glmsaa")
         return Backend::glmsaa;
     if (nameStr == "d3d")
@@ -96,6 +102,8 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         return Backend::d3datomic;
     if (nameStr == "metal")
         return Backend::metal;
+    if (nameStr == "metalcw")
+        return Backend::metalcw;
     if (nameStr == "metalatomic")
         return Backend::metalatomic;
     if (nameStr == "vulkan" || nameStr == "vk")
@@ -158,6 +166,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
     {
         case Backend::gl:
         case Backend::glatomic:
+        case Backend::glcw:
         case Backend::glmsaa:
         case Backend::angle:
         case Backend::anglemsaa:
@@ -235,6 +244,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
             }
             break;
         case Backend::metal:
+        case Backend::metalcw:
         case Backend::metalatomic:
 #if defined(__APPLE__) && defined(RIVE_TOOLS_NO_GLFW)
             s_TestingWindow = TestingWindow::MakeMetalTexture();

@@ -162,6 +162,13 @@ float RiveRenderPath::getCoarseArea() const
     return m_coarseArea;
 }
 
+bool RiveRenderPath::isClockwiseDominant(const Mat2D& viewMatrix) const
+{
+    float matrixDeterminant =
+        viewMatrix[0] * viewMatrix[3] - viewMatrix[2] * viewMatrix[1];
+    return getCoarseArea() * matrixDeterminant >= 0;
+}
+
 uint64_t RiveRenderPath::getRawPathMutationID() const
 {
     static std::atomic<uint64_t> uniqueIDCounter = 0;
@@ -201,6 +208,7 @@ gpu::DrawUniquePtr RiveRenderPath::getDrawCache(
     const RiveRenderPaint* paint,
     FillRule fillRule,
     TrivialBlockAllocator* allocator,
+    const gpu::RenderContext::FrameDescriptor& frameDesc,
     gpu::InterlockMode interlockMode) const
 {
     const CacheElements& cache =
@@ -242,6 +250,7 @@ gpu::DrawUniquePtr RiveRenderPath::getDrawCache(
                                                  ref_rcp(this),
                                                  fillRule,
                                                  paint,
+                                                 frameDesc,
                                                  interlockMode));
 }
 } // namespace rive

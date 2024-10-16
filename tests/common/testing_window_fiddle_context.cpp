@@ -140,6 +140,8 @@ public:
             glfwWindowHint(GLFW_STENCIL_BITS, 8);
             glfwWindowHint(GLFW_DEPTH_BITS, 24);
         }
+        m_clockwiseFill = IsClockwiseFill(backend);
+
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
         if (visibility == Visibility::headless)
         {
@@ -208,6 +210,7 @@ public:
                 break;
             case Backend::gl:
             case Backend::glatomic:
+            case Backend::glcw:
             case Backend::glmsaa:
             case Backend::angle:
             case Backend::anglemsaa:
@@ -218,6 +221,7 @@ public:
                 m_fiddleContext = FiddleContext::MakeD3DPLS(fiddleOptions);
                 break;
             case Backend::metal:
+            case Backend::metalcw:
             case Backend::metalatomic:
                 m_fiddleContext = FiddleContext::MakeMetalPLS(fiddleOptions);
                 break;
@@ -286,6 +290,7 @@ public:
             .clearColor = clearColor,
             .msaaSampleCount = m_msaaSampleCount,
             .wireframe = wireframe,
+            .clockwiseFill = m_clockwiseFill,
         };
         m_fiddleContext->begin(std::move(frameDescriptor));
         return m_fiddleContext->makeRenderer(m_width, m_height);
@@ -345,6 +350,7 @@ public:
 private:
     GLFWwindow* m_glfwWindow = nullptr;
     int m_msaaSampleCount = 0;
+    bool m_clockwiseFill = false;
     std::unique_ptr<FiddleContext> m_fiddleContext;
 };
 

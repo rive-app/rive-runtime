@@ -442,6 +442,7 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
         paint,
         doTriangulation ? Type::interiorTriangulationPath
                         : Type::midpointFanPath,
+        context->frameDescriptor(),
         context->frameInterlockMode());
     if (doTriangulation)
     {
@@ -460,20 +461,27 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
     return DrawUniquePtr(draw);
 }
 
-RiveRenderPathDraw::RiveRenderPathDraw(AABB bounds,
-                                       const Mat2D& matrix,
-                                       rcp<const RiveRenderPath> path,
-                                       FillRule fillRule,
-                                       const RiveRenderPaint* paint,
-                                       Type type,
-                                       gpu::InterlockMode frameInterlockMode) :
+RiveRenderPathDraw::RiveRenderPathDraw(
+    AABB bounds,
+    const Mat2D& matrix,
+    rcp<const RiveRenderPath> path,
+    FillRule fillRule,
+    const RiveRenderPaint* paint,
+    Type type,
+    const RenderContext::FrameDescriptor& frameDesc,
+    gpu::InterlockMode frameInterlockMode) :
     Draw(bounds,
          matrix,
          paint->getBlendMode(),
          ref_rcp(paint->getImageTexture()),
          type),
     m_pathRef(path.release()),
-    m_fillRule(paint->getIsStroked() ? FillRule::nonZero : fillRule),
+    m_fillRule(paint->getIsStroked() || frameDesc.clockwiseFill
+                   // Fill rule is irrelevant for stroking and clockwiseFill,
+                   // but override it to nonZero so the triangulator doesn't do
+                   // evenOdd optimizations in "clockwiseFill" mode.
+                   ? FillRule::nonZero
+                   : fillRule),
     m_paintType(paint->getType())
 {
     assert(m_pathRef != nullptr);
@@ -516,7 +524,18 @@ RiveRenderPathDraw::RiveRenderPathDraw(AABB bounds,
     else if (frameInterlockMode != gpu::InterlockMode::msaa)
     {
         // atomic and rasterOrdering fills need reverse AND forward triangles.
-        m_contourDirections = gpu::ContourDirections::reverseAndForward;
+        if (frameDesc.clockwiseFill && !m_pathRef->isClockwiseDominant(matrix))
+        {
+            // For clockwiseFill, this is also our opportunity to logically
+            // reverse the winding of the path, if it is predominantly
+            // counterclockwise.
+            m_contourDirections = gpu::ContourDirections::forwardThenReverse;
+            m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG;
+        }
+        else
+        {
+            m_contourDirections = gpu::ContourDirections::reverseThenForward;
+        }
     }
     else if (m_fillRule != FillRule::evenOdd)
     {
@@ -524,11 +543,9 @@ RiveRenderPathDraw::RiveRenderPathDraw(AABB bounds,
         // triangle winding area is always clockwise. This maximizes pixel
         // throughput since we will draw counterclockwise triangles twice and
         // clockwise only once.
-        float matrixDeterminant = matrix[0] * matrix[3] - matrix[2] * matrix[1];
-        m_contourDirections =
-            m_pathRef->getCoarseArea() * matrixDeterminant >= 0
-                ? gpu::ContourDirections::forward
-                : gpu::ContourDirections::reverse;
+        m_contourDirections = m_pathRef->isClockwiseDominant(matrix)
+                                  ? gpu::ContourDirections::forward
+                                  : gpu::ContourDirections::reverse;
     }
     else
     {
@@ -543,13 +560,15 @@ RiveRenderPathDraw::RiveRenderPathDraw(AABB bounds,
     assert(isStroked() == (strokeRadius() > 0));
 }
 
-RiveRenderPathDraw::RiveRenderPathDraw(const RiveRenderPathDraw& from,
-                                       float tx,
-                                       float ty,
-                                       rcp<const RiveRenderPath> path,
-                                       FillRule fillRule,
-                                       const RiveRenderPaint* paint,
-                                       gpu::InterlockMode frameInterlockMode) :
+RiveRenderPathDraw::RiveRenderPathDraw(
+    const RiveRenderPathDraw& from,
+    float tx,
+    float ty,
+    rcp<const RiveRenderPath> path,
+    FillRule fillRule,
+    const RiveRenderPaint* paint,
+    const RenderContext::FrameDescriptor& frameDesc,
+    gpu::InterlockMode frameInterlockMode) :
     RiveRenderPathDraw(
         from.m_bounds.offset(tx - from.m_matrix.tx(), ty - from.m_matrix.ty()),
         from.m_matrix.translate(
@@ -558,6 +577,7 @@ RiveRenderPathDraw::RiveRenderPathDraw(const RiveRenderPathDraw& from,
         fillRule,
         paint,
         from.m_type,
+        frameDesc,
         frameInterlockMode)
 
 {
@@ -1147,7 +1167,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
         m_resourceCounts.maxTessellatedSegmentCount =
             lineCount + unpaddedCurveCount + emptyStrokeCountForCaps;
         m_resourceCounts.midpointFanTessVertexCount =
-            m_contourDirections == gpu::ContourDirections::reverseAndForward
+            gpu::ContourDirectionsAreDoubleSided(m_contourDirections)
                 ? tessVertexCount * 2
                 : tessVertexCount;
     }
@@ -1267,10 +1287,11 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
         }
 
         // Make a data record for this current contour on the GPU.
-        flush->pushContour(this,
-                           contour.midpoint,
-                           contour.closed,
-                           contour.paddingVertexCount);
+        uint32_t contourIDWithFlags =
+            m_contourFlags | flush->pushContour(this,
+                                                contour.midpoint,
+                                                contour.closed,
+                                                contour.paddingVertexCount);
 
         // Convert all curves in the contour to cubics and push them to the GPU.
         const int styleFlags = style_flags(isStroked(), roundJoinStroked);
@@ -1348,17 +1369,17 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         pushEmulatedStrokeCapAsJoinBeforeCubic(
                             flush,
                             cubic.data(),
-                            emulatedCapAsJoinFlags,
-                            contour.strokeCapSegmentCount);
+                            contour.strokeCapSegmentCount,
+                            contourIDWithFlags | emulatedCapAsJoinFlags);
                         needsFirstEmulatedCapAsJoin = false;
                     }
                     flush->pushCubic(cubic.data(),
                                      m_contourDirections,
                                      joinTangent,
-                                     joinTypeFlags,
                                      1,
                                      1,
-                                     joinSegmentCount);
+                                     joinSegmentCount,
+                                     contourIDWithFlags | joinTypeFlags);
                     RIVE_DEBUG_CODE(--m_pendingLineCount;)
                     break;
                 }
@@ -1425,8 +1446,8 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         pushEmulatedStrokeCapAsJoinBeforeCubic(
                             flush,
                             p,
-                            emulatedCapAsJoinFlags,
-                            contour.strokeCapSegmentCount);
+                            contour.strokeCapSegmentCount,
+                            contourIDWithFlags | emulatedCapAsJoinFlags);
                         needsFirstEmulatedCapAsJoin = false;
                     }
                     // Push chops before the final one.
@@ -1440,10 +1461,10 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         flush->pushCubic(p,
                                          m_contourDirections,
                                          joinTangent,
-                                         joinTypeFlags,
                                          parametricSegmentCount,
                                          polarSegmentCount,
-                                         1);
+                                         1,
+                                         contourIDWithFlags | joinTypeFlags);
                         RIVE_DEBUG_CODE(--m_pendingCurveCount;)
                         RIVE_DEBUG_CODE(--m_pendingRotationCount;)
                     }
@@ -1486,10 +1507,10 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                     flush->pushCubic(p,
                                      m_contourDirections,
                                      joinTangent,
-                                     joinTypeFlags,
                                      parametricSegmentCount,
                                      polarSegmentCount,
-                                     joinSegmentCount);
+                                     joinSegmentCount,
+                                     contourIDWithFlags | joinTypeFlags);
                     RIVE_DEBUG_CODE(--m_pendingCurveCount;)
                     break;
                 }
@@ -1500,10 +1521,10 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                     flush->pushCubic(iter.cubicPts(),
                                      m_contourDirections,
                                      Vec2D{},
-                                     0,
                                      parametricSegmentCount,
                                      1,
-                                     1);
+                                     1,
+                                     contourIDWithFlags);
                     RIVE_DEBUG_CODE(--m_pendingCurveCount;)
                     break;
                 }
@@ -1518,13 +1539,13 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
             pushEmulatedStrokeCapAsJoinBeforeCubic(
                 flush,
                 std::array{p0, right, right, right}.data(),
-                emulatedCapAsJoinFlags,
-                contour.strokeCapSegmentCount);
+                contour.strokeCapSegmentCount,
+                contourIDWithFlags | emulatedCapAsJoinFlags);
             pushEmulatedStrokeCapAsJoinBeforeCubic(
                 flush,
                 std::array{p0, left, left, left}.data(),
-                emulatedCapAsJoinFlags,
-                contour.strokeCapSegmentCount);
+                contour.strokeCapSegmentCount,
+                contourIDWithFlags | emulatedCapAsJoinFlags);
         }
         else if (contour.closed)
         {
@@ -1556,10 +1577,10 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                 flush->pushCubic(cubic.data(),
                                  m_contourDirections,
                                  joinTangent,
-                                 joinTypeFlags,
                                  1,
                                  1,
-                                 joinSegmentCount);
+                                 joinSegmentCount,
+                                 contourIDWithFlags | joinTypeFlags);
                 RIVE_DEBUG_CODE(--m_pendingLineCount;)
             }
         }
@@ -1582,8 +1603,8 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
 void RiveRenderPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     RenderContext::LogicalFlush* flush,
     const Vec2D cubic[],
-    uint32_t emulatedCapAsJoinFlags,
-    uint32_t strokeCapSegmentCount)
+    uint32_t strokeCapSegmentCount,
+    uint32_t contourIDWithFlags)
 {
     // Reverse the cubic and push it with zero parametric and polar segments,
     // and a 180-degree join tangent. This results in a solitary join,
@@ -1593,10 +1614,10 @@ void RiveRenderPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     flush->pushCubic(std::array{cubic[3], cubic[2], cubic[1], cubic[0]}.data(),
                      m_contourDirections,
                      find_cubic_tan0(cubic),
-                     emulatedCapAsJoinFlags,
                      0,
                      0,
-                     strokeCapSegmentCount);
+                     strokeCapSegmentCount,
+                     contourIDWithFlags);
     RIVE_DEBUG_CODE(--m_pendingStrokeCapCount;)
     RIVE_DEBUG_CODE(--m_pendingEmptyStrokeCountForCaps;)
 }
@@ -1621,6 +1642,8 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
     {
         scratchPath->rewind();
     }
+    // Used with InteriorTriangulationOp::submitOuterCubics.
+    uint32_t contourIDWithFlags = 0;
     for (const auto [verb, pts] : rawPath)
     {
         switch (verb)
@@ -1634,10 +1657,11 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                             convert_line_to_cubic(pts[-1], p0).data(),
                             m_contourDirections,
                             {0, 0},
-                            CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
                             kPatchSegmentCountExcludingJoin,
                             1,
-                            kJoinSegmentCount);
+                            kJoinSegmentCount,
+                            contourIDWithFlags |
+                                CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                     }
                     ++patchCount;
                 }
@@ -1647,7 +1671,9 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                 }
                 else
                 {
-                    flush->pushContour(this, {0, 0}, true, 0);
+                    contourIDWithFlags =
+                        m_contourFlags |
+                        flush->pushContour(this, {0, 0}, true, 0);
                 }
                 p0 = pts[0];
                 ++contourCount;
@@ -1663,10 +1689,11 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                         convert_line_to_cubic(pts).data(),
                         m_contourDirections,
                         {0, 0},
-                        CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
                         kPatchSegmentCountExcludingJoin,
                         1,
-                        kJoinSegmentCount);
+                        kJoinSegmentCount,
+                        contourIDWithFlags |
+                            CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                 }
                 ++patchCount;
                 break;
@@ -1688,10 +1715,11 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                             pts,
                             m_contourDirections,
                             {0, 0},
-                            CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
                             kPatchSegmentCountExcludingJoin,
                             1,
-                            kJoinSegmentCount);
+                            kJoinSegmentCount,
+                            contourIDWithFlags |
+                                CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                     }
                 }
                 else
@@ -1716,10 +1744,11 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                                 chop,
                                 m_contourDirections,
                                 {0, 0},
-                                CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
                                 kPatchSegmentCountExcludingJoin,
                                 1,
-                                kJoinSegmentCount);
+                                kJoinSegmentCount,
+                                contourIDWithFlags |
+                                    CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
                         }
                         chop += 3;
                     }
@@ -1736,13 +1765,15 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
     {
         if (op == InteriorTriangulationOp::submitOuterCubics)
         {
-            flush->pushCubic(convert_line_to_cubic(lastPt, p0).data(),
-                             m_contourDirections,
-                             {0, 0},
-                             CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG,
-                             kPatchSegmentCountExcludingJoin,
-                             1,
-                             kJoinSegmentCount);
+            flush->pushCubic(
+                convert_line_to_cubic(lastPt, p0).data(),
+                m_contourDirections,
+                {0, 0},
+                kPatchSegmentCountExcludingJoin,
+                1,
+                kJoinSegmentCount,
+                contourIDWithFlags |
+                    CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG);
         }
         ++patchCount;
     }
@@ -1759,6 +1790,10 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                 : GrTriangulator::Comparator::Direction::kVertical,
             m_fillRule,
             allocator);
+        if (m_contourFlags & NEGATE_PATH_FILL_COVERAGE_FLAG)
+        {
+            m_triangulator->negateWinding();
+        }
         // We also draw each "grout" triangle using an outerCubic patch.
         patchCount += m_triangulator->groutList().count();
 
@@ -1773,7 +1808,7 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
             // outerCubic patches emit their tessellated geometry twice: once
             // forward and once mirrored.
             m_resourceCounts.outerCubicTessVertexCount =
-                m_contourDirections == gpu::ContourDirections::reverseAndForward
+                gpu::ContourDirectionsAreDoubleSided(m_contourDirections)
                     ? patchCount * kOuterCurvePatchSegmentSpan * 2
                     : patchCount * kOuterCurvePatchSegmentSpan;
             m_resourceCounts.maxTriangleVertexCount =
@@ -1794,10 +1829,11 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
             flush->pushCubic(triangleAsCubic,
                              m_contourDirections,
                              {0, 0},
-                             RETROFITTED_TRIANGLE_CONTOUR_FLAG,
                              kPatchSegmentCountExcludingJoin,
                              1,
-                             kJoinSegmentCount);
+                             kJoinSegmentCount,
+                             contourIDWithFlags |
+                                 RETROFITTED_TRIANGLE_CONTOUR_FLAG);
             ++patchCount;
         }
         assert(contourCount == m_resourceCounts.contourCount);

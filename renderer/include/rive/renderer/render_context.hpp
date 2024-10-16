@@ -105,17 +105,20 @@ public:
         uint32_t renderTargetHeight = 0;
         LoadAction loadAction = LoadAction::clear;
         ColorInt clearColor = 0;
-        int msaaSampleCount =
-            0; // If nonzero, the number of MSAA samples to use.
-               // Setting this to a nonzero value forces msaa mode.
-        bool disableRasterOrdering =
-            false; // Use atomic mode in place of rasterOrdering, even if
-                   // rasterOrdering is supported.
+        // If nonzero, the number of MSAA samples to use.
+        // Setting this to a nonzero value forces msaa mode.
+        int msaaSampleCount = 0;
+        // Use atomic mode (preferred) or msaa instead of rasterOrdering.
+        bool disableRasterOrdering = false;
 
         // Testing flags.
         bool wireframe = false;
         bool fillsDisabled = false;
         bool strokesDisabled = false;
+        // Override all paths' fill rules (winding or even/odd) with an
+        // experimental "clockwise" fill rule, where only regions with a
+        // positive winding number get filled.
+        bool clockwiseFill = false;
     };
 
     // Called at the beginning of a frame and establishes where and how it will
@@ -556,21 +559,27 @@ private:
                                         uint32_t tessVertexCount);
 
         // Pushes a contour record to the GPU for the given contour, which
-        // references the given path and will be referenced by future calls to
-        // pushCubic().
+        // references the given path.
+        //
+        // Returns a unique 16-bit "contourID" handle for this specific record.
+        // This ID may be or-ed with '*_CONTOUR_FLAG' bits from constants.glsl.
         //
         // The first curve of the contour will be pre-padded with
         // 'paddingVertexCount' tessellation vertices, colocated at T=0. The
         // caller must use this argument to align the end of the contour on a
         // boundary of the patch size. (See gpu::PaddingToAlignUp().)
-        void pushContour(const RiveRenderPathDraw*,
-                         Vec2D midpoint,
-                         bool closed,
-                         uint32_t paddingVertexCount);
+        [[nodiscard]] uint32_t pushContour(const RiveRenderPathDraw*,
+                                           Vec2D midpoint,
+                                           bool closed,
+                                           uint32_t paddingVertexCount);
 
-        // Appends a cubic curve and join to the most-recently pushed contour,
-        // and reserves the appropriate number of tessellated vertices in the
-        // tessellation texture.
+        // Appends a cubic curve and join to the current contour and reserves
+        // the appropriate number of tessellated vertices in the tessellation
+        // texture.
+        //
+        // The bottom 16 bits of contourIDWithFlags must match the most recent
+        // contourID returned by pushContour(), but it may also have extra
+        // '*_CONTOUR_FLAG' bits from constants.glsl
         //
         // An instance consists of a cubic curve with "parametricSegmentCount +
         // polarSegmentCount" segments, followed by a join with
@@ -586,10 +595,10 @@ private:
         void pushCubic(const Vec2D pts[4],
                        gpu::ContourDirections,
                        Vec2D joinTangent,
-                       uint32_t additionalContourFlags,
                        uint32_t parametricSegmentCount,
                        uint32_t polarSegmentCount,
-                       uint32_t joinSegmentCount);
+                       uint32_t joinSegmentCount,
+                       uint32_t contourIDWithFlags);
 
         // Pushes triangles to be drawn using the data records from the most
         // recent calls to pushPath() and pushPaint().
@@ -643,7 +652,7 @@ private:
         // Functionally equivalent to "pushMirroredTessellationSpans();
         // pushTessellationSpans();", but packs each forward and mirrored pair
         // into a single gpu::TessVertexSpan.
-        RIVE_ALWAYS_INLINE void pushMirroredAndForwardTessellationSpans(
+        RIVE_ALWAYS_INLINE void pushDoubleSidedTessellationSpans(
             const Vec2D pts[4],
             Vec2D joinTangent,
             uint32_t totalVertexCount,

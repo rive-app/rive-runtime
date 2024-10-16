@@ -678,6 +678,10 @@ RenderContextGLImpl::DrawShader::DrawShader(
     {
         defines.push_back(GLSL_FIXED_FUNCTION_COLOR_OUTPUT);
     }
+    if (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
+    {
+        defines.push_back(GLSL_CLOCKWISE_FILL);
+    }
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
         ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
@@ -1166,6 +1170,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             m_plsImpl != nullptr
                 ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
                 : gpu::ShaderMiscFlags::none;
+        if (desc.clockwiseFill)
+        {
+            fragmentShaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
+        }
         uint32_t fragmentShaderKey =
             gpu::ShaderUniqueKey(batch.drawType,
                                  shaderFeatures,
@@ -1280,6 +1288,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             m_plsImpl != nullptr
                 ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
                 : gpu::ShaderMiscFlags::none;
+        if (desc.clockwiseFill)
+        {
+            fragmentShaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
+        }
         uint32_t fragmentShaderKey =
             gpu::ShaderUniqueKey(batch.drawType,
                                  shaderFeatures,

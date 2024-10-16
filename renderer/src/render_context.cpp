@@ -856,9 +856,11 @@ void RenderContext::LogicalFlush::layoutResources(
     {
         m_flushDesc.frameCompletionFence = flushResources.frameCompletionFence;
     }
-
-    m_flushDesc.wireframe = frameDescriptor.wireframe;
     m_flushDesc.isFinalFlushOfFrame = isFinalFlushOfFrame;
+
+    // Testing flags.
+    m_flushDesc.wireframe = frameDescriptor.wireframe;
+    m_flushDesc.clockwiseFill = frameDescriptor.clockwiseFill;
 
     *runningFrameResourceCounts =
         runningFrameResourceCounts->toVec() + m_resourceCounts.toVec();
@@ -1688,38 +1690,51 @@ uint32_t RenderContext::LogicalFlush::pushPath(const RiveRenderPathDraw* draw,
     uint32_t patchSize = PatchSegmentSpan(drawType);
     uint32_t baseInstance =
         math::lossless_numeric_cast<uint32_t>(tessLocation / patchSize);
-    assert(baseInstance * patchSize ==
-           tessLocation); // flush() is responsible for alignment.
+    // flush() is responsible for alignment.
+    assert(baseInstance * patchSize == tessLocation);
 
-    if (draw->contourDirections() == gpu::ContourDirections::reverseAndForward)
+    switch (draw->contourDirections())
     {
-        assert(tessVertexCount % 2 == 0);
-        m_pathTessLocation = m_pathMirroredTessLocation =
-            tessLocation + tessVertexCount / 2;
+        case gpu::ContourDirections::forward:
+            m_pathTessLocation = m_pathMirroredTessLocation = tessLocation;
+            break;
+        case gpu::ContourDirections::reverse:
+            m_pathTessLocation = m_pathMirroredTessLocation =
+                tessLocation + tessVertexCount;
+            break;
+        case gpu::ContourDirections::reverseThenForward:
+            assert(tessVertexCount % 2 == 0);
+            m_pathTessLocation = m_pathMirroredTessLocation =
+                tessLocation + tessVertexCount / 2;
+            break;
+        case gpu::ContourDirections::forwardThenReverse:
+            assert(tessVertexCount % 2 == 0);
+            m_pathTessLocation = tessLocation;
+            m_pathMirroredTessLocation = tessLocation + tessVertexCount;
+            RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath =
+                                m_expectedPathMirroredTessLocationAtEndOfPath =
+                                    tessLocation + tessVertexCount / 2);
+            break;
     }
-    else if (draw->contourDirections() == gpu::ContourDirections::forward)
-    {
-        m_pathTessLocation = m_pathMirroredTessLocation = tessLocation;
-    }
-    else
-    {
-        assert(draw->contourDirections() == gpu::ContourDirections::reverse);
-        m_pathTessLocation = m_pathMirroredTessLocation =
-            tessLocation + tessVertexCount;
-    }
+    assert(m_pathTessLocation >= 0);
+    assert(m_pathMirroredTessLocation <= kMaxTessellationVertexCount);
+    assert(m_expectedPathMirroredTessLocationAtEndOfPath >= 0);
+    assert(m_expectedPathTessLocationAtEndOfPath <=
+           kMaxTessellationVertexCount);
 
     uint32_t instanceCount = tessVertexCount / patchSize;
-    assert(instanceCount * patchSize ==
-           tessVertexCount); // flush() is responsible for alignment.
+    // flush() is responsible for alignment.
+    assert(instanceCount * patchSize == tessVertexCount);
     pushPathDraw(draw, drawType, instanceCount, baseInstance);
 
     return m_currentPathID;
 }
 
-void RenderContext::LogicalFlush::pushContour(const RiveRenderPathDraw* draw,
-                                              Vec2D midpoint,
-                                              bool closed,
-                                              uint32_t paddingVertexCount)
+uint32_t RenderContext::LogicalFlush::pushContour(
+    const RiveRenderPathDraw* draw,
+    Vec2D midpoint,
+    bool closed,
+    uint32_t paddingVertexCount)
 {
     assert(m_hasDoneLayout);
     assert(m_ctx->m_pathData.bytesWritten() > 0);
@@ -1732,8 +1747,10 @@ void RenderContext::LogicalFlush::pushContour(const RiveRenderPathDraw* draw,
     }
     // If the contour is closed, the shader needs a vertex to wrap back around
     // to at the end of it.
+    // For double sided tessellations, the forward or mirrored vertex0 would
+    // both work equally fine, so just go with forward unless it doesn't exist.
     uint32_t vertexIndex0 =
-        draw->contourDirections() & gpu::ContourDirections::forward
+        draw->contourDirections() != gpu::ContourDirections::reverse
             ? m_pathTessLocation
             : m_pathMirroredTessLocation - 1;
     m_ctx->m_contourData.emplace_back(midpoint, draw->pathID(), vertexIndex0);
@@ -1747,23 +1764,26 @@ void RenderContext::LogicalFlush::pushContour(const RiveRenderPathDraw* draw,
     // must use this argument align the end of the contour on a boundary of the
     // patch size. (See gpu::PaddingToAlignUp().)
     m_currentContourPaddingVertexCount = paddingVertexCount;
+
+    return m_currentContourID;
 }
 
 void RenderContext::LogicalFlush::pushCubic(
     const Vec2D pts[4],
     gpu::ContourDirections contourDirections,
     Vec2D joinTangent,
-    uint32_t additionalContourFlags,
     uint32_t parametricSegmentCount,
     uint32_t polarSegmentCount,
-    uint32_t joinSegmentCount)
+    uint32_t joinSegmentCount,
+    uint32_t contourIDWithFlags)
 {
     assert(m_hasDoneLayout);
     assert(0 <= parametricSegmentCount &&
            parametricSegmentCount <= kMaxParametricSegments);
     assert(0 <= polarSegmentCount && polarSegmentCount <= kMaxPolarSegments);
     assert(joinSegmentCount > 0);
-    assert(m_currentContourID != 0); // contourID can't be zero.
+    assert((contourIDWithFlags & 0xffff) == (m_currentContourID & 0xffff));
+    assert((contourIDWithFlags & 0xffff) != 0); // contourID can't be zero.
 
     // Polar and parametric segments share the same beginning and ending
     // vertices, so the merged *vertex* count is equal to the sum of polar and
@@ -1777,38 +1797,39 @@ void RenderContext::LogicalFlush::pushCubic(
     // Only the first curve of a contour gets padding vertices.
     m_currentContourPaddingVertexCount = 0;
 
-    if (contourDirections == gpu::ContourDirections::reverseAndForward)
+    switch (contourDirections)
     {
-        pushMirroredAndForwardTessellationSpans(pts,
-                                                joinTangent,
-                                                totalVertexCount,
-                                                parametricSegmentCount,
-                                                polarSegmentCount,
-                                                joinSegmentCount,
-                                                m_currentContourID |
-                                                    additionalContourFlags);
-    }
-    else if (contourDirections == gpu::ContourDirections::forward)
-    {
-        pushTessellationSpans(pts,
-                              joinTangent,
-                              totalVertexCount,
-                              parametricSegmentCount,
-                              polarSegmentCount,
-                              joinSegmentCount,
-                              m_currentContourID | additionalContourFlags);
-    }
-    else
-    {
-        assert(contourDirections == gpu::ContourDirections::reverse);
-        pushMirroredTessellationSpans(pts,
-                                      joinTangent,
-                                      totalVertexCount,
-                                      parametricSegmentCount,
-                                      polarSegmentCount,
-                                      joinSegmentCount,
-                                      m_currentContourID |
-                                          additionalContourFlags);
+        case gpu::ContourDirections::forward:
+            pushTessellationSpans(pts,
+                                  joinTangent,
+                                  totalVertexCount,
+                                  parametricSegmentCount,
+                                  polarSegmentCount,
+                                  joinSegmentCount,
+                                  contourIDWithFlags);
+            break;
+        case gpu::ContourDirections::reverse:
+            pushMirroredTessellationSpans(pts,
+                                          joinTangent,
+                                          totalVertexCount,
+                                          parametricSegmentCount,
+                                          polarSegmentCount,
+                                          joinSegmentCount,
+                                          contourIDWithFlags);
+            break;
+        case gpu::ContourDirections::reverseThenForward:
+        case gpu::ContourDirections::forwardThenReverse:
+            // m_pathTessLocation and m_pathMirroredTessLocation were already
+            // configured in pushPath(), so at ths point we don't need to handle
+            // reverseThenForward or forwardThenReverse differently.
+            pushDoubleSidedTessellationSpans(pts,
+                                             joinTangent,
+                                             totalVertexCount,
+                                             parametricSegmentCount,
+                                             polarSegmentCount,
+                                             joinSegmentCount,
+                                             contourIDWithFlags);
+            break;
     }
 
     RIVE_DEBUG_CODE(++m_pathCurveCount;)
@@ -1903,13 +1924,13 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
 }
 
 RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
-    pushMirroredAndForwardTessellationSpans(const Vec2D pts[4],
-                                            Vec2D joinTangent,
-                                            uint32_t totalVertexCount,
-                                            uint32_t parametricSegmentCount,
-                                            uint32_t polarSegmentCount,
-                                            uint32_t joinSegmentCount,
-                                            uint32_t contourIDWithFlags)
+    pushDoubleSidedTessellationSpans(const Vec2D pts[4],
+                                     Vec2D joinTangent,
+                                     uint32_t totalVertexCount,
+                                     uint32_t parametricSegmentCount,
+                                     uint32_t polarSegmentCount,
+                                     uint32_t joinSegmentCount,
+                                     uint32_t contourIDWithFlags)
 {
     assert(m_hasDoneLayout);
     assert(totalVertexCount > 0);
