@@ -107,6 +107,17 @@ void LayoutComponent::updateRenderPath()
     clipPath.addPath(m_backgroundRect->rawPath(), &m_WorldTransform);
     m_clipPath =
         artboard()->factory()->makeRenderPath(clipPath, FillRule::nonZero);
+    for (auto shapePaint : m_ShapePaints)
+    {
+        if (!shapePaint->isVisible())
+        {
+            continue;
+        }
+        if (shapePaint->is<Stroke>())
+        {
+            shapePaint->as<Stroke>()->invalidateEffects();
+        }
+    }
 }
 
 void LayoutComponent::update(ComponentDirt value)
