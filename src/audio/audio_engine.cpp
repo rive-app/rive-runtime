@@ -438,6 +438,9 @@ AudioEngine::~AudioEngine()
     }
     m_completedSounds.clear();
 
+    ma_engine_uninit(m_engine);
+    delete m_engine;
+
 #if (TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE) &&  \
     !defined(MA_NO_DEVICE_IO)
     // m_context is only set when Core Audio is available
@@ -448,9 +451,6 @@ AudioEngine::~AudioEngine()
         m_context = nullptr;
     }
 #endif
-
-    ma_engine_uninit(m_engine);
-    delete m_engine;
 
 #ifdef WITH_RIVE_AUDIO_TOOLS
     if (m_levelMonitor != nullptr)
