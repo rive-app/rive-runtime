@@ -122,6 +122,14 @@ public:
                               m_layoutSizeWidth,
                               m_layoutSizeHeight);
     }
+    AABB worldBounds() const
+    {
+        auto transform = worldTransform();
+        return AABB::fromLTWH(transform[4],
+                              transform[5],
+                              m_layoutSizeWidth,
+                              m_layoutSizeHeight);
+    }
 
     // We provide a way for nested artboards (or other objects) to override this
     // layout's width/height and unit values.

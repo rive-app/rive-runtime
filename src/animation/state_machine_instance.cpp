@@ -758,7 +758,7 @@ public:
     bool hitTestHelper(Vec2D position) const override
     {
         auto layout = m_component->as<LayoutComponent>();
-        auto worldBounds = layout->layoutBounds();
+        auto worldBounds = layout->worldBounds();
         return worldBounds.contains(position);
     }
 };
