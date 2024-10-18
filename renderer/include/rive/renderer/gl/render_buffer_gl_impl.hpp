@@ -15,7 +15,7 @@ class GLState;
 
 // OpenGL backend implementation of rive::RenderBuffer.
 class RenderBufferGLImpl
-    : public lite_rtti_override<RiveRenderBuffer, RenderBufferGLImpl>
+    : public LITE_RTTI_OVERRIDE(RiveRenderBuffer, RenderBufferGLImpl)
 {
 public:
     RenderBufferGLImpl(RenderBufferType,

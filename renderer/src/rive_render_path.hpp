@@ -12,7 +12,7 @@
 namespace rive
 {
 // RenderPath implementation for Rive's pixel local storage renderer.
-class RiveRenderPath : public lite_rtti_override<RenderPath, RiveRenderPath>
+class RiveRenderPath : public LITE_RTTI_OVERRIDE(RenderPath, RiveRenderPath)
 {
 public:
     RiveRenderPath() = default;

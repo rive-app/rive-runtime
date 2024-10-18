@@ -58,7 +58,7 @@ private:
 };
 
 // RenderShader implementation for Rive's pixel local storage renderer.
-class Gradient : public lite_rtti_override<RenderShader, Gradient>
+class Gradient : public LITE_RTTI_OVERRIDE(RenderShader, Gradient)
 {
 public:
     static rcp<Gradient> MakeLinear(float sx,

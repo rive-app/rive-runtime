@@ -44,7 +44,7 @@ enum class RenderBufferFlags
 RIVE_MAKE_ENUM_BITSET(RenderBufferFlags)
 
 class RenderBuffer : public RefCnt<RenderBuffer>,
-                     public enable_lite_rtti<RenderBuffer>
+                     public ENABLE_LITE_RTTI(RenderBuffer)
 {
 public:
     RenderBuffer(RenderBufferType, RenderBufferFlags, size_t sizeInBytes);
@@ -98,7 +98,7 @@ enum class RenderPaintStyle
  * CTM.
  */
 class RenderShader : public RefCnt<RenderShader>,
-                     public enable_lite_rtti<RenderShader>
+                     public ENABLE_LITE_RTTI(RenderShader)
 {
 public:
     RenderShader();
@@ -106,7 +106,7 @@ public:
 };
 
 class RenderPaint : public RefCnt<RenderPaint>,
-                    public enable_lite_rtti<RenderPaint>
+                    public ENABLE_LITE_RTTI(RenderPaint)
 {
 public:
     RenderPaint();
@@ -123,7 +123,7 @@ public:
 };
 
 class RenderImage : public RefCnt<RenderImage>,
-                    public enable_lite_rtti<RenderImage>
+                    public ENABLE_LITE_RTTI(RenderImage)
 {
 protected:
     int m_Width = 0;
@@ -140,7 +140,7 @@ public:
     const Mat2D& uvTransform() const { return m_uvTransform; }
 };
 
-class RenderPath : public CommandPath, public enable_lite_rtti<RenderPath>
+class RenderPath : public CommandPath, public ENABLE_LITE_RTTI(RenderPath)
 {
 public:
     RenderPath();

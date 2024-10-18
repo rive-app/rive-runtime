@@ -15,7 +15,7 @@ namespace rive::gpu
 class RenderContextGLImpl;
 
 class RenderTargetGL : public RenderTarget,
-                       public enable_lite_rtti<RenderTargetGL>
+                       public ENABLE_LITE_RTTI(RenderTargetGL)
 {
 public:
     // Bind a framebuffer whose color attachment is the final rendering
@@ -99,7 +99,7 @@ RIVE_MAKE_ENUM_BITSET(RenderTargetGL::DrawBufferMask);
 //
 // Client must call setTargetTexture() before using this render target.
 class TextureRenderTargetGL
-    : public lite_rtti_override<RenderTargetGL, TextureRenderTargetGL>
+    : public LITE_RTTI_OVERRIDE(RenderTargetGL, TextureRenderTargetGL)
 {
 public:
     TextureRenderTargetGL(uint32_t width, uint32_t height) :
@@ -164,7 +164,7 @@ private:
 // client. Since the external FBO is immutable and usually not readable either,
 // it is almost always better to use TextureRenderTargetGL if possible.
 class FramebufferRenderTargetGL
-    : public lite_rtti_override<RenderTargetGL, FramebufferRenderTargetGL>
+    : public LITE_RTTI_OVERRIDE(RenderTargetGL, FramebufferRenderTargetGL)
 {
 public:
     FramebufferRenderTargetGL(uint32_t width,

@@ -13,7 +13,7 @@ namespace rive
 // Generic subclass of RenderBuffer that just stores the data on the cpu.
 //
 class DataRenderBuffer
-    : public lite_rtti_override<RenderBuffer, DataRenderBuffer>
+    : public LITE_RTTI_OVERRIDE(RenderBuffer, DataRenderBuffer)
 {
 public:
     DataRenderBuffer(RenderBufferType type,

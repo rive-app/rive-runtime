@@ -61,7 +61,7 @@ static VkBufferUsageFlagBits render_buffer_usage_flags(
 }
 
 class RenderBufferVulkanImpl
-    : public lite_rtti_override<RiveRenderBuffer, RenderBufferVulkanImpl>
+    : public LITE_RTTI_OVERRIDE(RiveRenderBuffer, RenderBufferVulkanImpl)
 {
 public:
     RenderBufferVulkanImpl(rcp<VulkanContext> vk,

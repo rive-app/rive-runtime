@@ -31,7 +31,7 @@ public:
 // stored in sub-region of an actual graphics device image
 // (SokolRenderImageResource).
 class SokolRenderImage
-    : public lite_rtti_override<RenderImage, SokolRenderImage>
+    : public LITE_RTTI_OVERRIDE(RenderImage, SokolRenderImage)
 {
 private:
     rcp<SokolRenderImageResource> m_gpuImage;

@@ -10,7 +10,7 @@
 using namespace rive;
 
 class AtlasRenderImage
-    : public lite_rtti_override<RenderImage, AtlasRenderImage>
+    : public LITE_RTTI_OVERRIDE(RenderImage, AtlasRenderImage)
 {
 private:
     std::vector<uint8_t> m_Pixels;

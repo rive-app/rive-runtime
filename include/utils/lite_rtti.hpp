@@ -15,47 +15,36 @@
 
 #pragma once
 
+#include "utils/compile_time_string_hash.hpp"
 #include "rive/refcnt.hpp"
 #include <stdint.h>
 #include <type_traits>
 
 namespace rive
 {
-// Derive type IDs based on the unique address of a static placeholder value.
-template <typename T>
-typename std::enable_if<!std::is_const<T>::value, uintptr_t>::type lite_type_id()
-{
-    static int placeholderForUniqueAddress;
-    return reinterpret_cast<uintptr_t>(&placeholderForUniqueAddress);
-}
-
-// Type IDs for const-qualified types should match their non-const counterparts.
-template <typename T>
-typename std::enable_if<std::is_const<T>::value, uintptr_t>::type lite_type_id()
-{
-    return lite_type_id<typename std::remove_const<T>::type>();
-}
 
 // Enable lite rtti on the root of a class hierarchy.
-template <class Root> class enable_lite_rtti
+template <class Root, unsigned int ID> class enable_lite_rtti
 {
 public:
-    uintptr_t liteTypeID() const { return m_liteTypeID; }
+    unsigned int liteTypeID() const { return m_liteTypeId; }
 
 protected:
-    uintptr_t m_liteTypeID = lite_type_id<Root>();
+    unsigned int m_liteTypeId = ID;
 };
 
 // Override the lite rtti type ID on subsequent classes of a class hierarchy.
-template <class Base, class Derived> class lite_rtti_override : public Base
+template <class Base, class Derived, unsigned int ID>
+class lite_rtti_override : public Base
 {
 public:
-    lite_rtti_override() { Base::m_liteTypeID = lite_type_id<Derived>(); }
+    constexpr static uint32_t LITE_RTTI_TYPE_ID = ID;
+    lite_rtti_override() { Base::m_liteTypeId = ID; }
 
     template <typename... Args>
     lite_rtti_override(Args&&... args) : Base(std::forward<Args>(args)...)
     {
-        Base::m_liteTypeID = lite_type_id<Derived>();
+        Base::m_liteTypeId = ID;
     }
 };
 
@@ -63,8 +52,7 @@ public:
 template <class U, class T> U lite_rtti_cast(T* t)
 {
     if (t != nullptr &&
-        t->liteTypeID() ==
-            lite_type_id<typename std::remove_pointer<U>::type>())
+        t->liteTypeID() == std::remove_pointer<U>::type::LITE_RTTI_TYPE_ID)
     {
         return static_cast<U>(t);
     }
@@ -73,7 +61,8 @@ template <class U, class T> U lite_rtti_cast(T* t)
 
 template <class U, class T> rcp<U> lite_rtti_rcp_cast(rcp<T> t)
 {
-    if (t != nullptr && t->liteTypeID() == lite_type_id<U>())
+    if (t != nullptr &&
+        t->liteTypeID() == std::remove_pointer<U>::type::LITE_RTTI_TYPE_ID)
     {
         return static_rcp_cast<U>(t);
     }
@@ -82,6 +71,10 @@ template <class U, class T> rcp<U> lite_rtti_rcp_cast(rcp<T> t)
 
 // Different versions of clang-format disagree on how to formate these.
 // clang-format off
+
+#define ENABLE_LITE_RTTI(ROOT) enable_lite_rtti<ROOT, CONST_ID(ROOT)>
+#define LITE_RTTI_OVERRIDE(BASE, DERRIVED) lite_rtti_override<BASE, DERRIVED, CONST_ID(DERRIVED)>
+
 #define LITE_RTTI_CAST_OR_RETURN(NAME, TYPE, POINTER)                                              \
     auto NAME = rive::lite_rtti_cast<TYPE>(POINTER);                                                     \
     if (NAME == nullptr)                                                                           \

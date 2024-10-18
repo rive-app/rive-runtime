@@ -25,7 +25,7 @@ using namespace rive;
 const SkSamplingOptions gSampling(SkFilterMode::kLinear,
                                   SkMipmapMode::kNearest);
 
-class SkiaRenderPath : public lite_rtti_override<RenderPath, SkiaRenderPath>
+class SkiaRenderPath : public LITE_RTTI_OVERRIDE(RenderPath, SkiaRenderPath)
 {
 private:
     SkPath m_Path;
@@ -46,7 +46,7 @@ public:
     virtual void close() override;
 };
 
-class SkiaRenderPaint : public lite_rtti_override<RenderPaint, SkiaRenderPaint>
+class SkiaRenderPaint : public LITE_RTTI_OVERRIDE(RenderPaint, SkiaRenderPaint)
 {
 private:
     SkPaint m_Paint;
@@ -66,7 +66,7 @@ public:
     void invalidateStroke() override {}
 };
 
-class SkiaRenderImage : public lite_rtti_override<RenderImage, SkiaRenderImage>
+class SkiaRenderImage : public LITE_RTTI_OVERRIDE(RenderImage, SkiaRenderImage)
 {
 private:
     sk_sp<SkImage> m_SkImage;
@@ -78,7 +78,7 @@ public:
 };
 
 class SkiaRenderShader
-    : public lite_rtti_override<RenderShader, SkiaRenderShader>
+    : public LITE_RTTI_OVERRIDE(RenderShader, SkiaRenderShader)
 {
 public:
     SkiaRenderShader(sk_sp<SkShader> sh) : shader(std::move(sh)) {}

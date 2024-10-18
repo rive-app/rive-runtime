@@ -15,7 +15,7 @@ class Gradient;
 namespace rive
 {
 // RenderPaint implementation for Rive's pixel local storage renderer.
-class RiveRenderPaint : public lite_rtti_override<RenderPaint, RiveRenderPaint>
+class RiveRenderPaint : public LITE_RTTI_OVERRIDE(RenderPaint, RiveRenderPaint)
 {
 public:
     RiveRenderPaint();

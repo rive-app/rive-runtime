@@ -541,7 +541,7 @@ rcp<RenderTargetMetal> RenderContextMetalImpl::makeRenderTarget(
 }
 
 class RenderBufferMetalImpl
-    : public lite_rtti_override<RiveRenderBuffer, RenderBufferMetalImpl>
+    : public LITE_RTTI_OVERRIDE(RiveRenderBuffer, RenderBufferMetalImpl)
 {
 public:
     RenderBufferMetalImpl(RenderBufferType renderBufferType,

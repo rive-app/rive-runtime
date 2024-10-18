@@ -8,7 +8,7 @@
 
 namespace rive
 {
-class RiveRenderImage : public lite_rtti_override<RenderImage, RiveRenderImage>
+class RiveRenderImage : public LITE_RTTI_OVERRIDE(RenderImage, RiveRenderImage)
 {
 public:
     RiveRenderImage(rcp<gpu::Texture> texture) :

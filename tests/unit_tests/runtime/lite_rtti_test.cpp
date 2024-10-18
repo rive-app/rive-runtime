@@ -5,28 +5,32 @@ using namespace rive;
 
 TEST_CASE("lite rtti behaves correctly", "[lite_rtti]")
 {
-    class A : public enable_lite_rtti<A>
+    // make sure strings that only differ by 1 value
+    // at the end or begnining are result in
+    // different hashed values
+    CHECK(CONST_ID(abcd) != CONST_ID(abcc));
+    CHECK(CONST_ID(abcd) != CONST_ID(bbcd));
+
+    class A : public ENABLE_LITE_RTTI(A)
     {};
     A a;
-    CHECK(lite_type_id<A>() == lite_type_id<A>());
-    CHECK(lite_type_id<const A>() == lite_type_id<A>());
-    CHECK(lite_type_id<const A>() == a.liteTypeID());
+    CHECK(CONST_ID(A) == a.liteTypeID());
 
-    class B : public lite_rtti_override<A, B>
+    class B : public LITE_RTTI_OVERRIDE(A, B)
     {};
     B b;
-    CHECK(lite_type_id<B>() != lite_type_id<A>());
+    CHECK(CONST_ID(B) != CONST_ID(A));
     CHECK(b.liteTypeID() != a.liteTypeID());
-    CHECK(b.liteTypeID() == lite_type_id<const B>());
+    CHECK(b.liteTypeID() == CONST_ID(B));
 
-    class C : public lite_rtti_override<B, C>
+    class C : public LITE_RTTI_OVERRIDE(B, C)
     {};
     const C c;
-    CHECK(lite_type_id<C>() != lite_type_id<A>());
-    CHECK(lite_type_id<C>() != lite_type_id<B>());
+    CHECK(CONST_ID(C) != CONST_ID(A));
+    CHECK(CONST_ID(C) != CONST_ID(B));
     CHECK(c.liteTypeID() != a.liteTypeID());
     CHECK(c.liteTypeID() != b.liteTypeID());
-    CHECK(c.liteTypeID() == lite_type_id<C>());
+    CHECK(c.liteTypeID() == CONST_ID(C));
 
     A* pA = &a;
     A* pA_b = &b;
@@ -50,7 +54,7 @@ TEST_CASE("lite rtti behaves correctly", "[lite_rtti]")
     CHECK(lite_rtti_cast<const C*>(nil) == nullptr);
 
     // Check constructor arguments.
-    struct D : public enable_lite_rtti<D>
+    struct D : public ENABLE_LITE_RTTI(D)
     {
         D() = delete;
         D(float x_, int y_) : x(x_), y(y_) {}
@@ -58,25 +62,25 @@ TEST_CASE("lite rtti behaves correctly", "[lite_rtti]")
         int y;
     };
 
-    struct E : public lite_rtti_override<D, E>
+    struct E : public LITE_RTTI_OVERRIDE(D, E)
     {
         E(float x_, int y_) : lite_rtti_override(x_, y_) {}
     };
 
     D* pD_e = new E(4.5f, 6);
     E* pE = lite_rtti_cast<E*>(pD_e);
-    CHECK(pD_e->liteTypeID() == lite_type_id<const E>());
+    CHECK(pD_e->liteTypeID() == CONST_ID(E));
     REQUIRE(pE != nullptr);
     CHECK(pE->x == 4.5f);
     CHECK(pE->y == 6);
     delete pD_e;
 
     // Check rcp
-    class F : public RefCnt<F>, public enable_lite_rtti<F>
+    class F : public RefCnt<F>, public ENABLE_LITE_RTTI(F)
     {};
-    class G : public lite_rtti_override<F, G>
+    class G : public LITE_RTTI_OVERRIDE(F, G)
     {};
-    class H : public lite_rtti_override<F, H>
+    class H : public LITE_RTTI_OVERRIDE(F, H)
     {};
     rcp<F> pF_g = make_rcp<G>();
     rcp<G> pG = lite_rtti_rcp_cast<G>(pF_g);

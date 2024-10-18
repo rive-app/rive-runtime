@@ -16,7 +16,7 @@ static void fillColorBuffer(float* buffer, ColorInt value)
 }
 
 class SokolRenderPath
-    : public lite_rtti_override<TessRenderPath, SokolRenderPath>
+    : public LITE_RTTI_OVERRIDE(TessRenderPath, SokolRenderPath)
 {
 public:
     SokolRenderPath() {}
@@ -158,7 +158,7 @@ rcp<RenderPath> SokolFactory::makeEmptyRenderPath()
     return make_rcp<SokolRenderPath>();
 }
 
-class SokolBuffer : public lite_rtti_override<RenderBuffer, SokolBuffer>
+class SokolBuffer : public LITE_RTTI_OVERRIDE(RenderBuffer, SokolBuffer)
 {
 public:
     SokolBuffer(RenderBufferType type,
@@ -666,7 +666,7 @@ void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
     sg_draw(0, indexCount, 1);
 }
 
-class SokolGradient : public lite_rtti_override<RenderShader, SokolGradient>
+class SokolGradient : public LITE_RTTI_OVERRIDE(RenderShader, SokolGradient)
 {
 private:
     Vec2D m_start;
@@ -769,7 +769,7 @@ rcp<RenderShader> SokolFactory::makeRadialGradient(
 }
 
 class SokolRenderPaint
-    : public lite_rtti_override<RenderPaint, SokolRenderPaint>
+    : public LITE_RTTI_OVERRIDE(RenderPaint, SokolRenderPaint)
 {
 private:
     fs_path_uniforms_t m_uniforms = {0};

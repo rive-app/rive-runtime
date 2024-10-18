@@ -2,7 +2,7 @@
 
 using namespace rive;
 
-class NoOpRenderPaint : public lite_rtti_override<RenderPaint, NoOpRenderPaint>
+class NoOpRenderPaint : public LITE_RTTI_OVERRIDE(RenderPaint, NoOpRenderPaint)
 {
 public:
     void color(unsigned int value) override {}
@@ -15,7 +15,7 @@ public:
     void invalidateStroke() override {}
 };
 
-class NoOpRenderPath : public lite_rtti_override<RenderPath, NoOpRenderPath>
+class NoOpRenderPath : public LITE_RTTI_OVERRIDE(RenderPath, NoOpRenderPath)
 {
 public:
     void rewind() override {}

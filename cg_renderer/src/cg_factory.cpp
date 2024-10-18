@@ -81,7 +81,7 @@ static void convertColor(ColorInt c, CGFloat rgba[])
     rgba[3] = colorAlpha(c) * kByteToUnit;
 }
 
-class CGRenderPath : public lite_rtti_override<RenderPath, CGRenderPath>
+class CGRenderPath : public LITE_RTTI_OVERRIDE(RenderPath, CGRenderPath)
 {
 private:
     AutoCF<CGMutablePathRef> m_path = CGPathCreateMutable();
@@ -169,7 +169,7 @@ public:
     void close() override { CGPathCloseSubpath(m_path); }
 };
 
-class CGRenderShader : public lite_rtti_override<RenderShader, CGRenderShader>
+class CGRenderShader : public LITE_RTTI_OVERRIDE(RenderShader, CGRenderShader)
 {
 public:
     CGRenderShader() {}
@@ -180,7 +180,7 @@ public:
     virtual void draw(CGContextRef) {}
 };
 
-class CGRenderPaint : public lite_rtti_override<RenderPaint, CGRenderPaint>
+class CGRenderPaint : public LITE_RTTI_OVERRIDE(RenderPaint, CGRenderPaint)
 {
 private:
     bool m_isStroke = false;
@@ -331,7 +331,7 @@ public:
     }
 };
 
-class CGRenderImage : public lite_rtti_override<RenderImage, CGRenderImage>
+class CGRenderImage : public LITE_RTTI_OVERRIDE(RenderImage, CGRenderImage)
 {
 public:
     AutoCF<CGImageRef> m_image;

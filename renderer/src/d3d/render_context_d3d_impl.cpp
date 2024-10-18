@@ -508,7 +508,7 @@ ComPtr<ID3DBlob> RenderContextD3DImpl::compileSourceToBlob(
 }
 
 class RenderBufferD3DImpl
-    : public lite_rtti_override<RenderBuffer, RenderBufferD3DImpl>
+    : public LITE_RTTI_OVERRIDE(RenderBuffer, RenderBufferD3DImpl)
 {
 public:
     RenderBufferD3DImpl(RenderBufferType renderBufferType,
