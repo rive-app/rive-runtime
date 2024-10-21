@@ -38,6 +38,7 @@ struct LayoutAnimationData
 class LayoutComponent : public LayoutComponentBase,
                         public ProxyDrawing,
                         public ShapePaintContainer,
+                        public AdvancingComponent,
                         public InterpolatorHost
 {
 protected:
@@ -90,7 +91,7 @@ protected:
     YGStyle& layoutStyle() { return m_layoutData->style; }
     void syncLayoutChildren();
     void propagateSizeToChildren(ContainerComponent* component);
-    bool applyInterpolation(double elapsedSeconds);
+    bool applyInterpolation(double elapsedSeconds, bool animate = true);
 
 protected:
     void calculateLayout();
@@ -141,6 +142,7 @@ public:
     bool mainAxisIsRow();
     bool mainAxisIsColumn();
     bool overridesKeyedInterpolation(int propertyKey) override;
+    bool advanceComponent(double elapsedSeconds, bool animate = true) override;
 
 #ifdef WITH_RIVE_LAYOUT
     LayoutComponent() :
@@ -152,11 +154,10 @@ public:
     ~LayoutComponent() { delete m_backgroundRect; }
     void syncStyle();
     virtual void propagateSize();
-    void updateLayoutBounds();
+    void updateLayoutBounds(bool animate = true);
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
 
-    bool advance(double elapsedSeconds);
     bool animates();
     LayoutAnimationStyle animationStyle();
     KeyFrameInterpolator* interpolator();
@@ -171,6 +172,7 @@ public:
         KeyFrameInterpolator* inheritedInterpolator,
         float inheritedInterpolationTime);
     void clearInheritedInterpolation();
+    void interruptAnimation();
     bool isLeaf();
     void positionTypeChanged();
     void scaleTypeChanged();

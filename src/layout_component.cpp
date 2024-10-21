@@ -123,6 +123,13 @@ void LayoutComponent::updateRenderPath()
 void LayoutComponent::update(ComponentDirt value)
 {
     Super::update(value);
+#ifdef WITH_RIVE_LAYOUT
+    if (value == ComponentDirt::Filthy)
+    {
+        // Use this to prevent layout animation on startup
+        interruptAnimation();
+    }
+#endif
     if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
         propagateOpacity(childOpacity());
@@ -688,7 +695,7 @@ void LayoutComponent::onDirty(ComponentDirt value)
     }
 }
 
-void LayoutComponent::updateLayoutBounds()
+void LayoutComponent::updateLayoutBounds(bool animate)
 {
     auto node = &layoutNode();
     auto left = YGNodeLayoutGetLeft(node);
@@ -711,7 +718,7 @@ void LayoutComponent::updateLayoutBounds()
         return;
     }
 #endif
-    if (animates())
+    if (animate && animates())
     {
         auto toBounds = m_animationData.toBounds;
         if (left != toBounds.left() || top != toBounds.top() ||
@@ -746,15 +753,17 @@ void LayoutComponent::updateLayoutBounds()
         m_layoutLocationY = top;
         m_layoutSizeWidth = width;
         m_layoutSizeHeight = height;
+        m_animationData.toBounds = AABB(left, top, left + width, top + height);
 
         propagateSize();
         markWorldTransformDirty();
     }
 }
 
-bool LayoutComponent::advance(double elapsedSeconds)
+bool LayoutComponent::advanceComponent(double elapsedSeconds, bool animate)
 {
-    return applyInterpolation(elapsedSeconds);
+    updateLayoutBounds(animate);
+    return applyInterpolation(elapsedSeconds, animate);
 }
 
 bool LayoutComponent::animates()
@@ -876,9 +885,9 @@ void LayoutComponent::clearInheritedInterpolation()
     m_inheritedInterpolationTime = 0;
 }
 
-bool LayoutComponent::applyInterpolation(double elapsedSeconds)
+bool LayoutComponent::applyInterpolation(double elapsedSeconds, bool animate)
 {
-    if (!animates() || m_style == nullptr ||
+    if (!animate || !animates() || m_style == nullptr ||
         m_animationData.toBounds == layoutBounds())
     {
         return false;
@@ -976,6 +985,19 @@ bool LayoutComponent::applyInterpolation(double elapsedSeconds)
     return needsAdvance;
 }
 
+void LayoutComponent::interruptAnimation()
+{
+    if (animates())
+    {
+        auto toBounds = m_animationData.toBounds;
+        m_layoutLocationX = toBounds.left();
+        m_layoutLocationY = toBounds.top();
+        m_layoutSizeWidth = toBounds.width();
+        m_layoutSizeHeight = toBounds.height();
+        propagateSize();
+    }
+}
+
 void LayoutComponent::markLayoutNodeDirty()
 {
     layoutNode().markDirtyAndPropagate();
@@ -1047,6 +1069,11 @@ Vec2D LayoutComponent::measureLayout(float width,
                                      LayoutMeasureMode heightMode)
 {
     return Vec2D();
+}
+
+bool LayoutComponent::advanceComponent(double elapsedSeconds, bool animate)
+{
+    return false;
 }
 
 void LayoutComponent::markLayoutNodeDirty() {}

@@ -4,6 +4,7 @@
 #include "rive/core_context.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/import_stack.hpp"
+#include "rive/layout_component.hpp"
 #include <algorithm>
 
 using namespace rive;
@@ -93,4 +94,16 @@ bool Component::collapse(bool value)
     onDirty(m_Dirt);
     m_DependencyHelper.onComponentDirty(this);
     return true;
+}
+
+AdvancingComponent* AdvancingComponent::from(Component* component)
+{
+    switch (component->coreType())
+    {
+        case LayoutComponent::typeKey:
+            return component->as<LayoutComponent>();
+        case Artboard::typeKey:
+            return component->as<Artboard>();
+    }
+    return nullptr;
 }

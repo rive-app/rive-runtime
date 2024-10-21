@@ -91,7 +91,7 @@ class SceneContent : public ViewerContent
             m_File->createViewModelInstance(m_ArtboardInstance.get());
         m_ArtboardInstance->setDataContextFromInstance(m_ViewModelInstance);
 
-        m_ArtboardInstance->advance(0.0f);
+        m_ArtboardInstance->advance(0.0f, true, false);
         loadNames(m_ArtboardInstance.get());
 
         initStateMachine(REQUEST_DEFAULT_SCENE);
@@ -103,7 +103,7 @@ class SceneContent : public ViewerContent
         m_AnimationIndex = -1;
         m_CurrentScene = nullptr;
 
-        m_ArtboardInstance->advance(0.0f);
+        m_ArtboardInstance->advance(0.0f, true, false);
 
         if (index < 0)
         {
@@ -138,7 +138,7 @@ class SceneContent : public ViewerContent
         m_AnimationIndex = -1;
         m_CurrentScene = nullptr;
 
-        m_ArtboardInstance->advance(0.0f);
+        m_ArtboardInstance->advance(0.0f, true, false);
 
         if (index >= 0 && index < m_ArtboardInstance->animationCount())
         {

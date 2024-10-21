@@ -140,10 +140,13 @@ public:
     bool syncStyleChanges();
     bool canHaveOverrides() override { return true; }
 
-    bool advance(double elapsedSeconds, bool nested = true);
+    bool advance(double elapsedSeconds,
+                 bool nested = true,
+                 bool animate = true);
     bool advanceInternal(double elapsedSeconds,
                          bool isRoot,
-                         bool nested = true);
+                         bool nested = true,
+                         bool animate = true);
     bool hasChangedDrawOrderInLastUpdate()
     {
         return m_HasChangedDrawOrderInLastUpdate;

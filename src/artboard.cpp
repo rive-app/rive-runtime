@@ -762,7 +762,10 @@ bool Artboard::syncStyleChanges()
     return updated;
 }
 
-bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot, bool nested)
+bool Artboard::advanceInternal(double elapsedSeconds,
+                               bool isRoot,
+                               bool nested,
+                               bool animate)
 {
     bool didUpdate = false;
     m_HasChangedDrawOrderInLastUpdate = false;
@@ -774,15 +777,10 @@ bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot, bool nested)
 
     for (auto dep : m_DependencyOrder)
     {
-        if (dep->is<LayoutComponent>())
+        auto adv = AdvancingComponent::from(dep);
+        if (adv != nullptr && adv->advanceComponent(elapsedSeconds, animate))
         {
-            auto layout = dep->as<LayoutComponent>();
-            layout->updateLayoutBounds();
-            if ((dep == this && Super::advance(elapsedSeconds)) ||
-                (dep != this && layout->advance(elapsedSeconds)))
-            {
-                didUpdate = true;
-            }
+            didUpdate = true;
         }
     }
 
@@ -841,9 +839,9 @@ bool Artboard::advanceInternal(double elapsedSeconds, bool isRoot, bool nested)
     return didUpdate;
 }
 
-bool Artboard::advance(double elapsedSeconds, bool nested)
+bool Artboard::advance(double elapsedSeconds, bool nested, bool animate)
 {
-    return advanceInternal(elapsedSeconds, true, nested);
+    return advanceInternal(elapsedSeconds, true, nested, animate);
 }
 
 Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
