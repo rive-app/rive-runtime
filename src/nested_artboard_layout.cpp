@@ -41,9 +41,9 @@ void* NestedArtboardLayout::layoutNode()
 
 void NestedArtboardLayout::markNestedLayoutDirty()
 {
-    if (artboardInstance() != nullptr)
+    if (artboard() != nullptr)
     {
-        artboardInstance()->markLayoutNodeDirty();
+        artboard()->markLayoutNodeDirty();
     }
 }
 
