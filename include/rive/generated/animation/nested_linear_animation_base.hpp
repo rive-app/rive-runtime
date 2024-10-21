@@ -32,7 +32,7 @@ public:
 
     static const uint16_t mixPropertyKey = 200;
 
-private:
+protected:
     float m_Mix = 1.0f;
 
 public:

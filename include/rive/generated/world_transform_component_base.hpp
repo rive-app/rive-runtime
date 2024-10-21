@@ -31,7 +31,7 @@ public:
 
     static const uint16_t opacityPropertyKey = 18;
 
-private:
+protected:
     float m_Opacity = 1.0f;
 
 public:

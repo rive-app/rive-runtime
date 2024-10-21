@@ -32,7 +32,7 @@ public:
 
     static const uint16_t assetIdPropertyKey = 408;
 
-private:
+protected:
     uint32_t m_AssetId = -1;
 
 public:

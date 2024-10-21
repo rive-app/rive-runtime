@@ -37,7 +37,7 @@ public:
 
     static const uint16_t innerRadiusPropertyKey = 127;
 
-private:
+protected:
     float m_InnerRadius = 0.5f;
 
 public:

@@ -31,7 +31,7 @@ public:
 
     static const uint16_t valuePropertyKey = 631;
 
-private:
+protected:
     uint32_t m_Value = 0;
 
 public:

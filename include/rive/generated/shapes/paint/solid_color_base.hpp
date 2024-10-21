@@ -30,7 +30,7 @@ public:
 
     static const uint16_t colorValuePropertyKey = 37;
 
-private:
+protected:
     int m_ColorValue = 0xFF747474;
 
 public:

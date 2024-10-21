@@ -37,7 +37,7 @@ public:
     static const uint16_t txPropertyKey = 100;
     static const uint16_t tyPropertyKey = 101;
 
-private:
+protected:
     uint32_t m_BoneId = -1;
     float m_Xx = 1.0f;
     float m_Yx = 0.0f;

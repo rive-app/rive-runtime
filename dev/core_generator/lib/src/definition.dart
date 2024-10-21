@@ -190,7 +190,7 @@ class Definition {
         }
       }
       if (storedProperties.any((prop) => !prop.isEncoded)) {
-        code.writeln('private:');
+        code.writeln('protected:');
       }
 
       // Write fields.

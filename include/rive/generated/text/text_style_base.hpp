@@ -35,7 +35,7 @@ public:
     static const uint16_t letterSpacingPropertyKey = 390;
     static const uint16_t fontAssetIdPropertyKey = 279;
 
-private:
+protected:
     float m_FontSize = 12.0f;
     float m_LineHeight = -1.0f;
     float m_LetterSpacing = 0.0f;

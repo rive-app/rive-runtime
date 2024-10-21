@@ -30,7 +30,7 @@ public:
 
     static const uint16_t defaultInstanceIdPropertyKey = 564;
 
-private:
+protected:
     uint32_t m_DefaultInstanceId = -1;
 
 public:

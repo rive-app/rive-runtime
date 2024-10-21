@@ -32,7 +32,7 @@ public:
     static const uint16_t heightPropertyKey = 207;
     static const uint16_t widthPropertyKey = 208;
 
-private:
+protected:
     float m_Height = 0.0f;
     float m_Width = 0.0f;
 

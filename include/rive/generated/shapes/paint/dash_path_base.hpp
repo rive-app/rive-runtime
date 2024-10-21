@@ -33,7 +33,7 @@ public:
     static const uint16_t offsetPropertyKey = 690;
     static const uint16_t offsetIsPercentagePropertyKey = 691;
 
-private:
+protected:
     float m_Offset = 0.0f;
     bool m_OffsetIsPercentage = false;
 

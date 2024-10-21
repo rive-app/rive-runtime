@@ -38,7 +38,7 @@ public:
     static const uint16_t pointsPropertyKey = 125;
     static const uint16_t cornerRadiusPropertyKey = 126;
 
-private:
+protected:
     uint32_t m_Points = 5;
     float m_CornerRadius = 0.0f;
 

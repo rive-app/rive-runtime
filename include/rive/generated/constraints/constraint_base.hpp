@@ -30,7 +30,7 @@ public:
 
     static const uint16_t strengthPropertyKey = 172;
 
-private:
+protected:
     float m_Strength = 1.0f;
 
 public:

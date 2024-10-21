@@ -29,7 +29,7 @@ public:
 
     static const uint16_t framePropertyKey = 67;
 
-private:
+protected:
     uint32_t m_Frame = 0;
 
 public:

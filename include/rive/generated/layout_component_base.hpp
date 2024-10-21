@@ -40,8 +40,8 @@ public:
     static const uint16_t heightPropertyKey = 8;
     static const uint16_t styleIdPropertyKey = 494;
 
-private:
-    bool m_Clip = true;
+protected:
+    bool m_Clip = false;
     float m_Width = 0.0f;
     float m_Height = 0.0f;
     uint32_t m_StyleId = -1;

@@ -31,7 +31,7 @@ public:
 
     static const uint16_t speedPropertyKey = 292;
 
-private:
+protected:
     float m_Speed = 1.0f;
 
 public:

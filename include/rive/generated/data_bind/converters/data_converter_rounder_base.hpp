@@ -30,7 +30,7 @@ public:
 
     static const uint16_t decimalsPropertyKey = 669;
 
-private:
+protected:
     uint32_t m_Decimals = 0;
 
 public:

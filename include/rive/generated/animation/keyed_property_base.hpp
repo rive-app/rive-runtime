@@ -29,7 +29,7 @@ public:
 
     static const uint16_t propertyKeyPropertyKey = 53;
 
-private:
+protected:
     uint32_t m_PropertyKey = Core::invalidPropertyKey;
 
 public:

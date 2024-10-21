@@ -33,7 +33,7 @@ public:
     static const uint16_t uPropertyKey = 215;
     static const uint16_t vPropertyKey = 216;
 
-private:
+protected:
     float m_U = 0.0f;
     float m_V = 0.0f;
 

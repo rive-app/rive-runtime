@@ -31,7 +31,7 @@ public:
 
     static const uint16_t nestedValuePropertyKey = 238;
 
-private:
+protected:
     bool m_NestedValue = false;
 
 public:

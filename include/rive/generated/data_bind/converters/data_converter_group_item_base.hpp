@@ -29,7 +29,7 @@ public:
 
     static const uint16_t converterIdPropertyKey = 679;
 
-private:
+protected:
     uint32_t m_ConverterId = -1;
 
 public:

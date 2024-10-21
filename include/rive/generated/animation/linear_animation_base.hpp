@@ -39,7 +39,7 @@ public:
     static const uint16_t enableWorkAreaPropertyKey = 62;
     static const uint16_t quantizePropertyKey = 376;
 
-private:
+protected:
     uint32_t m_Fps = 60;
     uint32_t m_Duration = 60;
     float m_Speed = 1.0f;

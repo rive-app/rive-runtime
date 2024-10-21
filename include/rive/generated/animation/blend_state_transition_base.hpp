@@ -31,7 +31,7 @@ public:
 
     static const uint16_t exitBlendAnimationIdPropertyKey = 171;
 
-private:
+protected:
     uint32_t m_ExitBlendAnimationId = -1;
 
 public:

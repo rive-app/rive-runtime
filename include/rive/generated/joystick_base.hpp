@@ -42,7 +42,7 @@ public:
     static const uint16_t joystickFlagsPropertyKey = 312;
     static const uint16_t handleSourceIdPropertyKey = 313;
 
-private:
+protected:
     float m_X = 0.0f;
     float m_Y = 0.0f;
     float m_PosX = 0.0f;

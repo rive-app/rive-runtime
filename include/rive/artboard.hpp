@@ -99,7 +99,7 @@ public:
 private:
 #ifdef TESTING
 public:
-    Artboard(Factory* factory) : m_Factory(factory) {}
+    Artboard(Factory* factory) : m_Factory(factory) { m_Clip = true; }
 #endif
     void addObject(Core* object);
     void addAnimation(LinearAnimation* object);

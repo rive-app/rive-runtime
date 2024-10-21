@@ -38,7 +38,7 @@ public:
     static const uint16_t originXPropertyKey = 123;
     static const uint16_t originYPropertyKey = 124;
 
-private:
+protected:
     float m_Width = 0.0f;
     float m_Height = 0.0f;
     float m_OriginX = 0.5f;

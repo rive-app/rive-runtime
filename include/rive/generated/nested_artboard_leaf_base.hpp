@@ -39,7 +39,7 @@ public:
     static const uint16_t alignmentXPropertyKey = 644;
     static const uint16_t alignmentYPropertyKey = 645;
 
-private:
+protected:
     uint32_t m_Fit = 0;
     float m_AlignmentX = 0.0f;
     float m_AlignmentY = 0.0f;

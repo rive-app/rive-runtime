@@ -37,6 +37,8 @@ using namespace rive;
 
 Artboard::Artboard()
 {
+    // Artboards need to override default clip value to true.
+    m_Clip = true;
 #ifdef WITH_RIVE_TOOLS
     callbackUserData = this;
 #endif

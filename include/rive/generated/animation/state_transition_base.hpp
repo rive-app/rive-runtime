@@ -36,7 +36,7 @@ public:
     static const uint16_t interpolatorIdPropertyKey = 350;
     static const uint16_t randomWeightPropertyKey = 537;
 
-private:
+protected:
     uint32_t m_StateToId = -1;
     uint32_t m_Flags = 0;
     uint32_t m_Duration = 0;

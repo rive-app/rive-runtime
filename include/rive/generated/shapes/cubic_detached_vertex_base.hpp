@@ -37,7 +37,7 @@ public:
     static const uint16_t outRotationPropertyKey = 86;
     static const uint16_t outDistancePropertyKey = 87;
 
-private:
+protected:
     float m_InRotation = 0.0f;
     float m_InDistance = 0.0f;
     float m_OutRotation = 0.0f;

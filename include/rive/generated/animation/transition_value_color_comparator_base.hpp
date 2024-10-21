@@ -31,7 +31,7 @@ public:
 
     static const uint16_t valuePropertyKey = 651;
 
-private:
+protected:
     int m_Value = 0xFF1D1D1D;
 
 public:

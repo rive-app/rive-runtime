@@ -32,7 +32,7 @@ public:
     static const uint16_t offsetPropertyKey = 675;
     static const uint16_t normalizedPropertyKey = 676;
 
-private:
+protected:
     float m_Offset = 0.0f;
     bool m_Normalized = false;
 

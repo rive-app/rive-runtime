@@ -31,7 +31,7 @@ public:
     static const uint16_t tagPropertyKey = 356;
     static const uint16_t featureValuePropertyKey = 357;
 
-private:
+protected:
     uint32_t m_Tag = 0;
     uint32_t m_FeatureValue = 1;
 

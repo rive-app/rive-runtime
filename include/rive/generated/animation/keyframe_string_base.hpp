@@ -32,7 +32,7 @@ public:
 
     static const uint16_t valuePropertyKey = 280;
 
-private:
+protected:
     std::string m_Value = "";
 
 public:

@@ -35,7 +35,7 @@ public:
     static const uint16_t blendModeValuePropertyKey = 23;
     static const uint16_t drawableFlagsPropertyKey = 129;
 
-private:
+protected:
     uint32_t m_BlendModeValue = 3;
     uint32_t m_DrawableFlags = 0;
 

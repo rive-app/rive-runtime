@@ -42,7 +42,7 @@ public:
     static const uint16_t instanceWidthScaleTypePropertyKey = 667;
     static const uint16_t instanceHeightScaleTypePropertyKey = 668;
 
-private:
+protected:
     float m_InstanceWidth = -1.0f;
     float m_InstanceHeight = -1.0f;
     uint32_t m_InstanceWidthUnitsValue = 1;

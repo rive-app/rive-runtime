@@ -31,7 +31,7 @@ public:
     static const uint16_t inputIdPropertyKey = 227;
     static const uint16_t nestedInputIdPropertyKey = 400;
 
-private:
+protected:
     uint32_t m_InputId = -1;
     uint32_t m_NestedInputId = -1;
 

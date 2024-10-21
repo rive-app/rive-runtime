@@ -33,7 +33,7 @@ public:
     static const uint16_t fillRulePropertyKey = 93;
     static const uint16_t isVisiblePropertyKey = 94;
 
-private:
+protected:
     uint32_t m_SourceId = -1;
     uint32_t m_FillRule = 0;
     bool m_IsVisible = true;

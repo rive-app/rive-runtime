@@ -31,7 +31,7 @@ public:
 
     static const uint16_t propertyValuePropertyKey = 243;
 
-private:
+protected:
     float m_PropertyValue = 0.0f;
 
 public:

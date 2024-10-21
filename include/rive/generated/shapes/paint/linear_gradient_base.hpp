@@ -35,7 +35,7 @@ public:
     static const uint16_t endYPropertyKey = 35;
     static const uint16_t opacityPropertyKey = 46;
 
-private:
+protected:
     float m_StartX = 0.0f;
     float m_StartY = 0.0f;
     float m_EndX = 0.0f;

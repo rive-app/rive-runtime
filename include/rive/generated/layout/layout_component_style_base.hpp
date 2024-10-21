@@ -105,7 +105,7 @@ public:
     static const uint16_t cornerRadiusBLPropertyKey = 642;
     static const uint16_t cornerRadiusBRPropertyKey = 643;
 
-private:
+protected:
     float m_GapHorizontal = 0.0f;
     float m_GapVertical = 0.0f;
     float m_MaxWidth = 0.0f;

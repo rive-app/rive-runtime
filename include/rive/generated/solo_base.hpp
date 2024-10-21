@@ -34,7 +34,7 @@ public:
 
     static const uint16_t activeComponentIdPropertyKey = 296;
 
-private:
+protected:
     uint32_t m_ActiveComponentId = 0;
 
 public:

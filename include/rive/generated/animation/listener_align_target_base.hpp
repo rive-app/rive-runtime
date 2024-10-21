@@ -32,7 +32,7 @@ public:
     static const uint16_t targetIdPropertyKey = 240;
     static const uint16_t preserveOffsetPropertyKey = 541;
 
-private:
+protected:
     uint32_t m_TargetId = -1;
     bool m_PreserveOffset = false;
 

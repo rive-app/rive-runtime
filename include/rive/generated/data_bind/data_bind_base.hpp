@@ -31,7 +31,7 @@ public:
     static const uint16_t flagsPropertyKey = 587;
     static const uint16_t converterIdPropertyKey = 660;
 
-private:
+protected:
     uint32_t m_PropertyKey = Core::invalidPropertyKey;
     uint32_t m_Flags = 0;
     uint32_t m_ConverterId = -1;

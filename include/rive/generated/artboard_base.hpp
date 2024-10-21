@@ -40,7 +40,7 @@ public:
     static const uint16_t defaultStateMachineIdPropertyKey = 236;
     static const uint16_t viewModelIdPropertyKey = 583;
 
-private:
+protected:
     float m_OriginX = 0.0f;
     float m_OriginY = 0.0f;
     uint32_t m_DefaultStateMachineId = -1;

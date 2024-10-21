@@ -35,7 +35,7 @@ public:
     static const uint16_t urlPropertyKey = 248;
     static const uint16_t targetValuePropertyKey = 249;
 
-private:
+protected:
     std::string m_Url = "";
     uint32_t m_TargetValue = 0;
 

@@ -31,7 +31,7 @@ public:
 
     static const uint16_t enumIdPropertyKey = 574;
 
-private:
+protected:
     uint32_t m_EnumId = -1;
 
 public:

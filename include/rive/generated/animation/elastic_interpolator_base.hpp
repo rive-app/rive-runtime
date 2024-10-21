@@ -33,7 +33,7 @@ public:
     static const uint16_t amplitudePropertyKey = 406;
     static const uint16_t periodPropertyKey = 407;
 
-private:
+protected:
     uint32_t m_EasingValue = 1;
     float m_Amplitude = 1.0f;
     float m_Period = 1.0f;

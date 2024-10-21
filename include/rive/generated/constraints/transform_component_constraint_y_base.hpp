@@ -40,7 +40,7 @@ public:
     static const uint16_t minYPropertyKey = 193;
     static const uint16_t maxYPropertyKey = 194;
 
-private:
+protected:
     float m_CopyFactorY = 1.0f;
     float m_MinValueY = 0.0f;
     float m_MaxValueY = 0.0f;

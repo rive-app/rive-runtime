@@ -30,7 +30,7 @@ public:
 
     static const uint16_t propertyValuePropertyKey = 555;
 
-private:
+protected:
     int m_PropertyValue = 0xFF1D1D1D;
 
 public:

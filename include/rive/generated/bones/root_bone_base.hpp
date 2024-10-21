@@ -36,7 +36,7 @@ public:
     static const uint16_t xPropertyKey = 90;
     static const uint16_t yPropertyKey = 91;
 
-private:
+protected:
     float m_X = 0.0f;
     float m_Y = 0.0f;
 

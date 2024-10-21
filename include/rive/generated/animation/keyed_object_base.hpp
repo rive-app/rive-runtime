@@ -29,7 +29,7 @@ public:
 
     static const uint16_t objectIdPropertyKey = 51;
 
-private:
+protected:
     uint32_t m_ObjectId = 0;
 
 public:

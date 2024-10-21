@@ -43,7 +43,7 @@ public:
     static const uint16_t offsetPropertyKey = 319;
     static const uint16_t runIdPropertyKey = 378;
 
-private:
+protected:
     float m_ModifyFrom = 0.0f;
     float m_ModifyTo = 1.0f;
     float m_Strength = 1.0f;

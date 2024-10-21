@@ -31,7 +31,7 @@ public:
 
     static const uint16_t animationIdPropertyKey = 198;
 
-private:
+protected:
     uint32_t m_AnimationId = -1;
 
 public:

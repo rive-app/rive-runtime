@@ -32,7 +32,7 @@ public:
     static const uint16_t listenerTypeValuePropertyKey = 225;
     static const uint16_t eventIdPropertyKey = 399;
 
-private:
+protected:
     uint32_t m_TargetId = 0;
     uint32_t m_ListenerTypeValue = 0;
     uint32_t m_EventId = -1;

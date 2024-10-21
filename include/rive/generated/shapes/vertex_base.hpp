@@ -32,7 +32,7 @@ public:
     static const uint16_t xPropertyKey = 24;
     static const uint16_t yPropertyKey = 25;
 
-private:
+protected:
     float m_X = 0.0f;
     float m_Y = 0.0f;
 

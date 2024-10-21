@@ -36,7 +36,7 @@ public:
     static const uint16_t cdnUuidPropertyKey = 359;
     static const uint16_t cdnBaseUrlPropertyKey = 362;
 
-private:
+protected:
     uint32_t m_AssetId = 0;
     std::string m_CdnBaseUrl = "https://public.rive.app/cdn/uuid";
 

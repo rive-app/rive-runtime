@@ -9,6 +9,7 @@
     "clip": {
       "type": "bool",
       "initialValue": "true",
+      "initialValueRuntime": "false",
       "key": {
         "int": 196,
         "string": "clip"

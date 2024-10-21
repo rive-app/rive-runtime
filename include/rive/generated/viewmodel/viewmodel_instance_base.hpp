@@ -30,7 +30,7 @@ public:
 
     static const uint16_t viewModelIdPropertyKey = 566;
 
-private:
+protected:
     uint32_t m_ViewModelId = 0;
 
 public:

@@ -31,7 +31,7 @@ public:
     static const uint16_t patchIndexPropertyKey = 672;
     static const uint16_t stylePropertyKey = 673;
 
-private:
+protected:
     uint32_t m_PatchIndex = 0;
     uint32_t m_Style = 0;
 

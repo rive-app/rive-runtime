@@ -31,7 +31,7 @@ public:
 
     static const uint16_t nestedValuePropertyKey = 239;
 
-private:
+protected:
     float m_NestedValue = 0.0f;
 
 public:

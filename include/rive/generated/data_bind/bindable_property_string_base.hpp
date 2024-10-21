@@ -31,7 +31,7 @@ public:
 
     static const uint16_t propertyValuePropertyKey = 635;
 
-private:
+protected:
     std::string m_PropertyValue = "";
 
 public:

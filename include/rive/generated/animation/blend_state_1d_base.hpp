@@ -32,7 +32,7 @@ public:
 
     static const uint16_t inputIdPropertyKey = 167;
 
-private:
+protected:
     uint32_t m_InputId = -1;
 
 public:

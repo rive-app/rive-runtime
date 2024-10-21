@@ -33,7 +33,7 @@ public:
 
     static const uint16_t radiusPropertyKey = 26;
 
-private:
+protected:
     float m_Radius = 0.0f;
 
 public:

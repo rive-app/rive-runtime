@@ -41,7 +41,7 @@ public:
     static const uint16_t cornerRadiusBLPropertyKey = 162;
     static const uint16_t cornerRadiusBRPropertyKey = 163;
 
-private:
+protected:
     bool m_LinkCornerRadius = true;
     float m_CornerRadiusTL = 0.0f;
     float m_CornerRadiusTR = 0.0f;

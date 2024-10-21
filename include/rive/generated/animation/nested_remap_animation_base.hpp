@@ -33,7 +33,7 @@ public:
 
     static const uint16_t timePropertyKey = 202;
 
-private:
+protected:
     float m_Time = 0.0f;
 
 public:

@@ -32,7 +32,7 @@ public:
     static const uint16_t namePropertyKey = 4;
     static const uint16_t parentIdPropertyKey = 5;
 
-private:
+protected:
     std::string m_Name = "";
     uint32_t m_ParentId = 0;
 

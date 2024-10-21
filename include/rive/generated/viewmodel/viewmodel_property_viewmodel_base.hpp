@@ -31,7 +31,7 @@ public:
 
     static const uint16_t viewModelReferenceIdPropertyKey = 565;
 
-private:
+protected:
     uint32_t m_ViewModelReferenceId = 0;
 
 public:

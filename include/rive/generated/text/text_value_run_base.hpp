@@ -33,7 +33,7 @@ public:
     static const uint16_t styleIdPropertyKey = 272;
     static const uint16_t textPropertyKey = 268;
 
-private:
+protected:
     uint32_t m_StyleId = -1;
     std::string m_Text = "";
 

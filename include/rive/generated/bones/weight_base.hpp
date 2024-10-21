@@ -31,7 +31,7 @@ public:
     static const uint16_t valuesPropertyKey = 102;
     static const uint16_t indicesPropertyKey = 103;
 
-private:
+protected:
     uint32_t m_Values = 255;
     uint32_t m_Indices = 1;
 

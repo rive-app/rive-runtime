@@ -30,7 +30,7 @@ public:
 
     static const uint16_t flagsPropertyKey = 536;
 
-private:
+protected:
     uint32_t m_Flags = 0;
 
 public:

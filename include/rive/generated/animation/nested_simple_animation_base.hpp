@@ -35,7 +35,7 @@ public:
     static const uint16_t speedPropertyKey = 199;
     static const uint16_t isPlayingPropertyKey = 201;
 
-private:
+protected:
     float m_Speed = 1.0f;
     bool m_IsPlaying = false;
 

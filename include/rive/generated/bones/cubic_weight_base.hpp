@@ -34,7 +34,7 @@ public:
     static const uint16_t outValuesPropertyKey = 112;
     static const uint16_t outIndicesPropertyKey = 113;
 
-private:
+protected:
     uint32_t m_InValues = 255;
     uint32_t m_InIndices = 1;
     uint32_t m_OutValues = 255;

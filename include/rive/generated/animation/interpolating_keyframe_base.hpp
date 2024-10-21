@@ -31,7 +31,7 @@ public:
     static const uint16_t interpolationTypePropertyKey = 68;
     static const uint16_t interpolatorIdPropertyKey = 69;
 
-private:
+protected:
     uint32_t m_InterpolationType = 0;
     uint32_t m_InterpolatorId = -1;
 

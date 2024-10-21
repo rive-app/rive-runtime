@@ -32,7 +32,7 @@ public:
     static const uint16_t valuePropertyKey = 681;
     static const uint16_t operationTypePropertyKey = 682;
 
-private:
+protected:
     float m_Value = 1.0f;
     uint32_t m_OperationType = 0;
 

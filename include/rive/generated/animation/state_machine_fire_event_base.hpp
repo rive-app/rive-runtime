@@ -30,7 +30,7 @@ public:
     static const uint16_t eventIdPropertyKey = 392;
     static const uint16_t occursValuePropertyKey = 393;
 
-private:
+protected:
     uint32_t m_EventId = -1;
     uint32_t m_OccursValue = 0;
 

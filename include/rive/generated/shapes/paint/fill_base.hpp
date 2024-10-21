@@ -32,7 +32,7 @@ public:
 
     static const uint16_t fillRulePropertyKey = 40;
 
-private:
+protected:
     uint32_t m_FillRule = 0;
 
 public:

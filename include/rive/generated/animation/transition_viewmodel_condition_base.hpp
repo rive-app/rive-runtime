@@ -32,7 +32,7 @@ public:
     static const uint16_t rightComparatorIdPropertyKey = 649;
     static const uint16_t opValuePropertyKey = 650;
 
-private:
+protected:
     uint32_t m_LeftComparatorId = -1;
     uint32_t m_RightComparatorId = -1;
     uint32_t m_OpValue = 0;

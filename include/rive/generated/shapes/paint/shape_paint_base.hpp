@@ -31,7 +31,7 @@ public:
 
     static const uint16_t isVisiblePropertyKey = 41;
 
-private:
+protected:
     bool m_IsVisible = true;
 
 public:

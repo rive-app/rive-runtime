@@ -34,7 +34,7 @@ public:
     static const uint16_t axisTagPropertyKey = 320;
     static const uint16_t axisValuePropertyKey = 321;
 
-private:
+protected:
     uint32_t m_AxisTag = 0;
     float m_AxisValue = 0.0f;
 

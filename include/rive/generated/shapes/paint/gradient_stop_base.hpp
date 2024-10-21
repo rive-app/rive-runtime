@@ -32,7 +32,7 @@ public:
     static const uint16_t colorValuePropertyKey = 38;
     static const uint16_t positionPropertyKey = 39;
 
-private:
+protected:
     int m_ColorValue = 0xFFFFFFFF;
     float m_Position = 0.0f;
 

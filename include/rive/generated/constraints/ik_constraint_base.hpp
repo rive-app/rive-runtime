@@ -34,7 +34,7 @@ public:
     static const uint16_t invertDirectionPropertyKey = 174;
     static const uint16_t parentBoneCountPropertyKey = 175;
 
-private:
+protected:
     bool m_InvertDirection = false;
     uint32_t m_ParentBoneCount = 0;
 

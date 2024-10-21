@@ -37,7 +37,7 @@ public:
     static const uint16_t joinPropertyKey = 49;
     static const uint16_t transformAffectsStrokePropertyKey = 50;
 
-private:
+protected:
     float m_Thickness = 1.0f;
     uint32_t m_Cap = 0;
     uint32_t m_Join = 0;

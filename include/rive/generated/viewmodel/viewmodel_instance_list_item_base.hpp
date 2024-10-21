@@ -33,7 +33,7 @@ public:
     static const uint16_t viewModelInstanceIdPropertyKey = 550;
     static const uint16_t artboardIdPropertyKey = 551;
 
-private:
+protected:
     bool m_UseLinkedArtboard = true;
     uint32_t m_ViewModelId = -1;
     uint32_t m_ViewModelInstanceId = -1;

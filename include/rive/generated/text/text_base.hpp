@@ -46,7 +46,7 @@ public:
     static const uint16_t wrapValuePropertyKey = 683;
     static const uint16_t verticalAlignValuePropertyKey = 685;
 
-private:
+protected:
     uint32_t m_AlignValue = 0;
     uint32_t m_SizingValue = 0;
     uint32_t m_OverflowValue = 0;

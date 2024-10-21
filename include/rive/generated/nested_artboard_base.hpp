@@ -38,7 +38,7 @@ public:
     static const uint16_t artboardIdPropertyKey = 197;
     static const uint16_t dataBindPathIdsPropertyKey = 582;
 
-private:
+protected:
     uint32_t m_ArtboardId = -1;
 
 public:

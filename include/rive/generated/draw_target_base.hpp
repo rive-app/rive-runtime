@@ -31,7 +31,7 @@ public:
     static const uint16_t drawableIdPropertyKey = 119;
     static const uint16_t placementValuePropertyKey = 120;
 
-private:
+protected:
     uint32_t m_DrawableId = -1;
     uint32_t m_PlacementValue = 0;
 

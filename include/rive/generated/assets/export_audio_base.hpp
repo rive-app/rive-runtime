@@ -31,7 +31,7 @@ public:
 
     static const uint16_t volumePropertyKey = 530;
 
-private:
+protected:
     float m_Volume = 1.0f;
 
 public:

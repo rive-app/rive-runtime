@@ -34,7 +34,7 @@ public:
     static const uint16_t offsetPropertyKey = 116;
     static const uint16_t modeValuePropertyKey = 117;
 
-private:
+protected:
     float m_Start = 0.0f;
     float m_End = 0.0f;
     float m_Offset = 0.0f;

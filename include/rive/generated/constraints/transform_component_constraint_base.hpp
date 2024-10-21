@@ -42,7 +42,7 @@ public:
     static const uint16_t minPropertyKey = 190;
     static const uint16_t maxPropertyKey = 191;
 
-private:
+protected:
     uint32_t m_MinMaxSpaceValue = 0;
     float m_CopyFactor = 1.0f;
     float m_MinValue = 0.0f;

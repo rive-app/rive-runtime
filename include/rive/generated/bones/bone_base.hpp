@@ -34,7 +34,7 @@ public:
 
     static const uint16_t lengthPropertyKey = 89;
 
-private:
+protected:
     float m_Length = 0.0f;
 
 public:

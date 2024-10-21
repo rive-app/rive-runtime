@@ -35,7 +35,7 @@ public:
 
     static const uint16_t isClosedPropertyKey = 32;
 
-private:
+protected:
     bool m_IsClosed = false;
 
 public:

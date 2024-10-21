@@ -30,7 +30,7 @@ public:
 
     static const uint16_t namePropertyKey = 662;
 
-private:
+protected:
     std::string m_Name = "";
 
 public:

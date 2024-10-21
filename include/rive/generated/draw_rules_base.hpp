@@ -31,7 +31,7 @@ public:
 
     static const uint16_t drawTargetIdPropertyKey = 121;
 
-private:
+protected:
     uint32_t m_DrawTargetId = -1;
 
 public:

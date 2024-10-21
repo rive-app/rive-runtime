@@ -32,7 +32,7 @@ public:
     static const uint16_t lengthPropertyKey = 692;
     static const uint16_t lengthIsPercentagePropertyKey = 693;
 
-private:
+protected:
     float m_Length = 0.0f;
     bool m_LengthIsPercentage = false;
 
