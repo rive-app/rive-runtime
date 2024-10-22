@@ -20,11 +20,7 @@ StatusCode LinearGradient::onAddedDirty(CoreContext* context)
         return code;
     }
 
-    if (!initPaintMutator(this))
-    {
-        return StatusCode::MissingObject;
-    }
-    return StatusCode::Ok;
+    return initPaintMutator(this);
 }
 
 void LinearGradient::buildDependencies()

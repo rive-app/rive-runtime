@@ -1,6 +1,8 @@
 #ifndef _RIVE_SHAPE_PAINT_MUTATOR_HPP_
 #define _RIVE_SHAPE_PAINT_MUTATOR_HPP_
 
+#include "rive/status_code.hpp"
+
 namespace rive
 {
 class Component;
@@ -16,7 +18,7 @@ private:
 protected:
     /// Hook up this paint mutator as the mutator for the shape paint
     /// expected to be the parent.
-    bool initPaintMutator(Component* component);
+    StatusCode initPaintMutator(Component* component);
     virtual void renderOpacityChanged() = 0;
 
     RenderPaint* renderPaint() const { return m_RenderPaint; }

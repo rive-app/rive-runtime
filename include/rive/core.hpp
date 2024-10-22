@@ -5,6 +5,12 @@
 #include "rive/core/binary_reader.hpp"
 #include "rive/status_code.hpp"
 
+#ifdef DEBUG
+#define DEBUG_PRINT(msg) fprintf(stderr, msg "\n");
+#else
+#define DEBUG_PRINT(msg)
+#endif
+
 namespace rive
 {
 class CoreContext;

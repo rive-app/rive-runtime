@@ -12,12 +12,12 @@ StatusCode SolidColor::onAddedDirty(CoreContext* context)
     {
         return code;
     }
-    if (!initPaintMutator(this))
+    if ((code = initPaintMutator(this)) == StatusCode::Ok)
     {
-        return StatusCode::MissingObject;
+        renderOpacityChanged();
     }
-    renderOpacityChanged();
-    return StatusCode::Ok;
+
+    return code;
 }
 
 void SolidColor::renderOpacityChanged()
