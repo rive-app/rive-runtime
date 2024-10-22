@@ -625,8 +625,8 @@ void LayoutComponent::syncStyle()
 
 void LayoutComponent::syncLayoutChildren()
 {
-    auto ourNode = &layoutNode();
-    YGNodeRemoveAllChildren(ourNode);
+    YGNode& ourNode = layoutNode();
+    YGNodeRemoveAllChildren(&ourNode);
     int index = 0;
     for (auto child : children())
     {
@@ -643,10 +643,9 @@ void LayoutComponent::syncLayoutChildren()
         }
         if (node != nullptr)
         {
-            // YGNodeInsertChild(ourNode, node, index++);
-            ourNode->insertChild(node, index++);
-            node->setOwner(ourNode);
-            ourNode->markDirtyAndPropagate();
+            ourNode.insertChild(node, index++);
+            node->setOwner(&ourNode);
+            ourNode.markDirtyAndPropagate();
         }
     }
     markLayoutNodeDirty();
@@ -695,31 +694,33 @@ void LayoutComponent::onDirty(ComponentDirt value)
     }
 }
 
+Layout::Layout(const YGLayout& layout) :
+    m_left(layout.position[YGEdgeLeft]),
+    m_top(layout.position[YGEdgeTop]),
+    m_width(layout.dimensions[YGDimensionWidth]),
+    m_height(layout.dimensions[YGDimensionHeight])
+{}
+
 void LayoutComponent::updateLayoutBounds(bool animate)
 {
-    auto node = &layoutNode();
-    auto left = YGNodeLayoutGetLeft(node);
-    auto top = YGNodeLayoutGetTop(node);
-    auto width = YGNodeLayoutGetWidth(node);
-    auto height = YGNodeLayoutGetHeight(node);
-
-    Layout newLayout(left, top, width, height);
-
-#ifdef DEBUG
-    // Temporarily here to keep track of an issue.
-    if (left != left || top != top || width != width || height != height)
+    YGNode& node = layoutNode();
+    bool updated = node.getHasNewLayout();
+    if (!updated)
     {
-        fprintf(stderr,
-                "Layout returned nan: %f %f %f %f | %p %s\n",
-                left,
-                top,
-                width,
-                height,
-                YGNodeGetParent(node),
-                name().c_str());
         return;
     }
-#endif
+    node.setHasNewLayout(false);
+
+    for (auto child : children())
+    {
+        if (child->is<LayoutComponent>())
+        {
+            child->as<LayoutComponent>()->updateLayoutBounds(animate);
+        }
+    }
+
+    Layout newLayout(node.getLayout());
+
     if (animate && animates())
     {
         auto animationData = currentAnimationData();
@@ -748,7 +749,8 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     }
     else if (newLayout != m_layout)
     {
-        if (m_layout.width() != width || m_layout.height() != height)
+        if (m_layout.width() != newLayout.width() ||
+            m_layout.height() != newLayout.height())
         {
             // Width changed, we need to rebuild the path.
             addDirt(ComponentDirt::Path);
@@ -762,7 +764,6 @@ void LayoutComponent::updateLayoutBounds(bool animate)
 
 bool LayoutComponent::advanceComponent(float elapsedSeconds, bool animate)
 {
-    updateLayoutBounds(animate);
     return applyInterpolation(elapsedSeconds, animate);
 }
 

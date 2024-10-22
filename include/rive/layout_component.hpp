@@ -35,6 +35,9 @@ public:
     Layout(float left, float top, float width, float height) :
         m_left(left), m_top(top), m_width(width), m_height(height)
     {}
+#ifdef WITH_RIVE_LAYOUT
+    Layout(const YGLayout& layout);
+#endif
 
     bool operator==(const Layout& o) const
     {

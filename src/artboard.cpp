@@ -766,6 +766,7 @@ bool Artboard::advanceInternal(float elapsedSeconds,
     if (syncStyleChanges() && m_updatesOwnLayout)
     {
         calculateLayout();
+        updateLayoutBounds(animate);
     }
 
     for (auto dep : m_DependencyOrder)
