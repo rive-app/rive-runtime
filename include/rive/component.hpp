@@ -68,7 +68,7 @@ public:
 class AdvancingComponent
 {
 public:
-    virtual bool advanceComponent(double elapsedSeconds,
+    virtual bool advanceComponent(float elapsedSeconds,
                                   bool animate = true) = 0;
     static AdvancingComponent* from(Component* component);
 };

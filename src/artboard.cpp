@@ -103,8 +103,7 @@ StatusCode Artboard::initialize()
     // these will be re-built in update() -- are they needed here?
     m_backgroundPath = factory()->makeEmptyRenderPath();
     m_clipPath = factory()->makeEmptyRenderPath();
-    m_layoutSizeWidth = width();
-    m_layoutSizeHeight = height();
+    m_layout = Layout(0.0f, 0.0f, width(), height());
 
 #ifdef WITH_RIVE_LAYOUT
     markLayoutDirty(this);
@@ -355,11 +354,6 @@ StatusCode Artboard::initialize()
     {
         m_DrawTargets.push_back(static_cast<DrawTarget*>(*itr++));
     }
-
-    // Some default layout dimensions.
-    m_layoutSizeWidth = width();
-    m_layoutSizeHeight = height();
-
     return StatusCode::Ok;
 }
 
@@ -571,7 +565,7 @@ Artboard* Artboard::parentArtboard() const
 float Artboard::layoutWidth() const
 {
 #ifdef WITH_RIVE_LAYOUT
-    return m_layoutSizeWidth;
+    return m_layout.width();
 #else
     return width();
 #endif
@@ -580,7 +574,7 @@ float Artboard::layoutWidth() const
 float Artboard::layoutHeight() const
 {
 #ifdef WITH_RIVE_LAYOUT
-    return m_layoutSizeHeight;
+    return m_layout.height();
 #else
     return height();
 #endif
@@ -589,7 +583,7 @@ float Artboard::layoutHeight() const
 float Artboard::layoutX() const
 {
 #ifdef WITH_RIVE_LAYOUT
-    return m_layoutLocationX;
+    return m_layout.left();
 #else
     return 0.0f;
 #endif
@@ -598,7 +592,7 @@ float Artboard::layoutX() const
 float Artboard::layoutY() const
 {
 #ifdef WITH_RIVE_LAYOUT
-    return m_layoutLocationY;
+    return m_layout.top();
 #else
     return 0.0f;
 #endif
@@ -761,7 +755,7 @@ bool Artboard::syncStyleChanges()
     return updated;
 }
 
-bool Artboard::advanceInternal(double elapsedSeconds,
+bool Artboard::advanceInternal(float elapsedSeconds,
                                bool isRoot,
                                bool nested,
                                bool animate)
@@ -829,7 +823,7 @@ bool Artboard::advanceInternal(double elapsedSeconds,
     {
         for (auto nestedArtboard : m_NestedArtboards)
         {
-            if (nestedArtboard->advance((float)elapsedSeconds))
+            if (nestedArtboard->advance(elapsedSeconds))
             {
                 didUpdate = true;
             }
@@ -838,7 +832,7 @@ bool Artboard::advanceInternal(double elapsedSeconds,
     return didUpdate;
 }
 
-bool Artboard::advance(double elapsedSeconds, bool nested, bool animate)
+bool Artboard::advance(float elapsedSeconds, bool nested, bool animate)
 {
     return advanceInternal(elapsedSeconds, true, nested, animate);
 }

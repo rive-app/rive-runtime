@@ -77,10 +77,10 @@ public:
     }
     bool operator!=(const AABB& o) const { return !(*this == o); }
 
-    float left() const { return minX; }
-    float top() const { return minY; }
-    float right() const { return maxX; }
-    float bottom() const { return maxY; }
+    inline float left() const { return minX; }
+    inline float top() const { return minY; }
+    inline float right() const { return maxX; }
+    inline float bottom() const { return maxY; }
 
     float width() const { return maxX - minX; }
     float height() const { return maxY - minY; }

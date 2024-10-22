@@ -91,8 +91,8 @@ Core* LayoutComponent::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
 void LayoutComponent::updateRenderPath()
 {
-    m_backgroundRect->width(m_layoutSizeWidth);
-    m_backgroundRect->height(m_layoutSizeHeight);
+    m_backgroundRect->width(m_layout.width());
+    m_backgroundRect->height(m_layout.height());
     m_backgroundRect->linkCornerRadius(style()->linkCornerRadius());
     m_backgroundRect->cornerRadiusTL(style()->cornerRadiusTL());
     m_backgroundRect->cornerRadiusTR(style()->cornerRadiusTR());
@@ -140,7 +140,7 @@ void LayoutComponent::update(ComponentDirt value)
             parent()->is<WorldTransformComponent>()
                 ? (parent()->as<WorldTransformComponent>())->worldTransform()
                 : Mat2D();
-        auto location = Vec2D(m_layoutLocationX, m_layoutLocationY);
+        auto location = Vec2D(m_layout.left(), m_layout.top());
         if (parent()->is<Artboard>())
         {
             auto art = parent()->as<Artboard>();
@@ -667,7 +667,7 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
         if (sizeableChild != nullptr)
         {
             sizeableChild->controlSize(
-                Vec2D(m_layoutSizeWidth, m_layoutSizeHeight));
+                Vec2D(m_layout.width(), m_layout.height()));
         }
         if (child->is<ContainerComponent>())
         {
@@ -703,6 +703,8 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     auto width = YGNodeLayoutGetWidth(node);
     auto height = YGNodeLayoutGetHeight(node);
 
+    Layout newLayout(left, top, width, height);
+
 #ifdef DEBUG
     // Temporarily here to keep track of an issue.
     if (left != left || top != top || width != width || height != height)
@@ -720,47 +722,45 @@ void LayoutComponent::updateLayoutBounds(bool animate)
 #endif
     if (animate && animates())
     {
-        auto toBounds = m_animationData.toBounds;
-        if (left != toBounds.left() || top != toBounds.top() ||
-            width != toBounds.width() || height != toBounds.height())
+        auto animationData = currentAnimationData();
+        if (newLayout != animationData->to)
         {
-            m_animationData.fromBounds =
-                AABB(m_layoutLocationX,
-                     m_layoutLocationY,
-                     m_layoutLocationX + m_layoutSizeWidth,
-                     m_layoutLocationY + m_layoutSizeHeight);
-            m_animationData.toBounds =
-                AABB(left, top, left + width, top + height);
-            if (m_animationData.elapsedSeconds > 0.1)
+            if (animationData->elapsedSeconds != 0.0f)
             {
-                m_animationData.elapsedSeconds = 0;
+                if (m_isSmoothingAnimation)
+                {
+                    // we were already smoothening.
+                    m_animationDataA.copy(m_animationDataB);
+                }
+                m_isSmoothingAnimation = true;
             }
+            else
+            {
+                m_isSmoothingAnimation = false;
+            }
+            animationData = currentAnimationData();
+            animationData->from = m_layout;
+            animationData->to = newLayout;
+            animationData->elapsedSeconds = 0.0f;
             propagateSize();
             markWorldTransformDirty();
         }
     }
-    else
-
-        if (left != m_layoutLocationX || top != m_layoutLocationY ||
-            width != m_layoutSizeWidth || height != m_layoutSizeHeight)
+    else if (newLayout != m_layout)
     {
-        if (m_layoutSizeWidth != width || m_layoutSizeHeight != height)
+        if (m_layout.width() != width || m_layout.height() != height)
         {
             // Width changed, we need to rebuild the path.
             addDirt(ComponentDirt::Path);
         }
-        m_layoutLocationX = left;
-        m_layoutLocationY = top;
-        m_layoutSizeWidth = width;
-        m_layoutSizeHeight = height;
-        m_animationData.toBounds = AABB(left, top, left + width, top + height);
+        m_animationDataA.to = m_layout = newLayout;
 
         propagateSize();
         markWorldTransformDirty();
     }
 }
 
-bool LayoutComponent::advanceComponent(double elapsedSeconds, bool animate)
+bool LayoutComponent::advanceComponent(float elapsedSeconds, bool animate)
 {
     updateLayoutBounds(animate);
     return applyInterpolation(elapsedSeconds, animate);
@@ -885,115 +885,116 @@ void LayoutComponent::clearInheritedInterpolation()
     m_inheritedInterpolationTime = 0;
 }
 
-bool LayoutComponent::applyInterpolation(double elapsedSeconds, bool animate)
+LayoutAnimationData* LayoutComponent::currentAnimationData()
 {
+    return m_isSmoothingAnimation ? &m_animationDataB : &m_animationDataA;
+}
+
+void LayoutAnimationData::copy(const LayoutAnimationData& source)
+{
+    from = source.from;
+    to = source.to;
+    elapsedSeconds = source.elapsedSeconds;
+}
+
+bool LayoutComponent::applyInterpolation(float elapsedSeconds, bool animate)
+{
+    auto animationData = currentAnimationData();
     if (!animate || !animates() || m_style == nullptr ||
-        m_animationData.toBounds == layoutBounds())
+        animationData->to == m_layout)
     {
         return false;
     }
-
-    if (m_animationData.elapsedSeconds >= interpolationTime())
+    if (m_isSmoothingAnimation)
     {
-        m_layoutLocationX = m_animationData.toBounds.left();
-        m_layoutLocationY = m_animationData.toBounds.top();
+        float f = std::fmin(1.0f,
+                            interpolationTime() > 0.0f
+                                ? m_animationDataA.elapsedSeconds /
+                                      interpolationTime()
+                                : 1.0f);
 
-        float width = m_animationData.toBounds.width();
-        float height = m_animationData.toBounds.height();
-        if (width != m_layoutSizeWidth || height != m_layoutSizeHeight)
+        if (interpolation() != LayoutStyleInterpolation::linear &&
+            interpolator() != nullptr)
+        {
+            f = interpolator()->transform(f);
+        }
+        m_animationDataB.from = m_animationDataA.interpolate(f);
+        if (f == 1.0f)
+        {
+            m_animationDataA.copy(m_animationDataB);
+            m_isSmoothingAnimation = false;
+        }
+        else
+        {
+            m_animationDataA.elapsedSeconds += elapsedSeconds;
+        }
+    }
+
+    if ((animationData = currentAnimationData())->elapsedSeconds >=
+        interpolationTime())
+    {
+        Layout newLayout = animationData->to;
+        if (m_layout.width() != newLayout.width() ||
+            m_layout.height() != newLayout.height())
         {
             addDirt(ComponentDirt::Path);
         }
-        m_layoutSizeWidth = width;
-        m_layoutSizeHeight = height;
+        m_layout = animationData->to;
 
-        m_animationData.elapsedSeconds = 0;
+        if (m_isSmoothingAnimation)
+        {
+            m_isSmoothingAnimation = false;
+            m_animationDataA.copy(m_animationDataB);
+            m_animationDataA.elapsedSeconds = m_animationDataB.elapsedSeconds =
+                0.0f;
+        }
+        else
+        {
+            m_animationDataA.elapsedSeconds = 0.0f;
+        }
         propagateSize();
         markWorldTransformDirty();
 
         return false;
     }
-    float f = 1;
-    if (interpolationTime() > 0)
+    float f =
+        std::fmin(1.0f,
+                  interpolationTime() > 0
+                      ? animationData->elapsedSeconds / interpolationTime()
+                      : 1.0f);
+    if (interpolation() != LayoutStyleInterpolation::linear &&
+        interpolator() != nullptr)
     {
-        f = m_animationData.elapsedSeconds / interpolationTime();
+        f = interpolator()->transform(f);
     }
-    bool needsAdvance = false;
-    auto fromBounds = m_animationData.fromBounds;
-    auto toBounds = m_animationData.toBounds;
-    auto left = m_layoutLocationX;
-    auto top = m_layoutLocationY;
-    auto width = m_layoutSizeWidth;
-    auto height = m_layoutSizeHeight;
-    if (toBounds.left() != left || toBounds.top() != top)
+
+    auto current = animationData->interpolate(f);
+    if (m_layout != current)
     {
-        if (interpolation() == LayoutStyleInterpolation::linear)
+        bool sizeChanged = m_layout.width() != current.width() ||
+                           m_layout.height() != current.height();
+        m_layout = current;
+        if (sizeChanged)
         {
-            left =
-                fromBounds.left() + f * (toBounds.left() - fromBounds.left());
-            top = fromBounds.top() + f * (toBounds.top() - fromBounds.top());
+            propagateSize();
         }
-        else
-        {
-            if (interpolator() != nullptr)
-            {
-                left = interpolator()->transformValue(fromBounds.left(),
-                                                      toBounds.left(),
-                                                      f);
-                top = interpolator()->transformValue(fromBounds.top(),
-                                                     toBounds.top(),
-                                                     f);
-            }
-        }
-        needsAdvance = true;
-        m_layoutLocationX = left;
-        m_layoutLocationY = top;
-    }
-    if (toBounds.width() != width || toBounds.height() != height)
-    {
-        if (interpolation() == LayoutStyleInterpolation::linear)
-        {
-            width = fromBounds.width() +
-                    f * (toBounds.width() - fromBounds.width());
-            height = fromBounds.height() +
-                     f * (toBounds.height() - fromBounds.height());
-        }
-        else
-        {
-            if (interpolator() != nullptr)
-            {
-                width = interpolator()->transformValue(fromBounds.width(),
-                                                       toBounds.width(),
-                                                       f);
-                height = interpolator()->transformValue(fromBounds.height(),
-                                                        toBounds.height(),
-                                                        f);
-            }
-        }
-        needsAdvance = true;
-        m_layoutSizeWidth = width;
-        m_layoutSizeHeight = height;
-        addDirt(ComponentDirt::Path);
-    }
-    m_animationData.elapsedSeconds =
-        m_animationData.elapsedSeconds + (float)elapsedSeconds;
-    if (needsAdvance)
-    {
-        propagateSize();
         markWorldTransformDirty();
     }
-    return needsAdvance;
+
+    animationData->elapsedSeconds += elapsedSeconds;
+    if (f != 1)
+    {
+        markLayoutNodeDirty();
+        return true;
+    }
+    return false;
 }
 
 void LayoutComponent::interruptAnimation()
 {
     if (animates())
     {
-        auto toBounds = m_animationData.toBounds;
-        m_layoutLocationX = toBounds.left();
-        m_layoutLocationY = toBounds.top();
-        m_layoutSizeWidth = toBounds.width();
-        m_layoutSizeHeight = toBounds.height();
+        m_layout = currentAnimationData()->to;
         propagateSize();
     }
 }
@@ -1071,7 +1072,7 @@ Vec2D LayoutComponent::measureLayout(float width,
     return Vec2D();
 }
 
-bool LayoutComponent::advanceComponent(double elapsedSeconds, bool animate)
+bool LayoutComponent::advanceComponent(float elapsedSeconds, bool animate)
 {
     return false;
 }

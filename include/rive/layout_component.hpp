@@ -28,11 +28,49 @@ struct LayoutData
 #endif
 };
 
+class Layout
+{
+public:
+    Layout() : m_left(0.0f), m_top(0.0f), m_width(0.0f), m_height(0.0f) {}
+    Layout(float left, float top, float width, float height) :
+        m_left(left), m_top(top), m_width(width), m_height(height)
+    {}
+
+    bool operator==(const Layout& o) const
+    {
+        return m_left == o.m_left && m_top == o.m_top && m_width == o.m_width &&
+               m_height == o.m_height;
+    }
+    bool operator!=(const Layout& o) const { return !(*this == o); }
+
+    static Layout lerp(const Layout& from, const Layout& to, float f)
+    {
+        float fi = 1.0f - f;
+        return Layout(to.m_left * f + from.m_left * fi,
+                      to.m_top * f + from.m_top * fi,
+                      to.m_width * f + from.m_width * fi,
+                      to.m_height * f + from.m_height * fi);
+    }
+
+    float left() const { return m_left; }
+    float top() const { return m_top; }
+    float width() const { return m_width; }
+    float height() const { return m_height; }
+
+private:
+    float m_left;
+    float m_top;
+    float m_width;
+    float m_height;
+};
+
 struct LayoutAnimationData
 {
-    float elapsedSeconds = 0;
-    AABB fromBounds = AABB();
-    AABB toBounds = AABB();
+    float elapsedSeconds = 0.0f;
+    Layout from;
+    Layout to;
+    Layout interpolate(float f) const { return Layout::lerp(from, to, f); }
+    void copy(const LayoutAnimationData& from);
 };
 
 class LayoutComponent : public LayoutComponentBase,
@@ -45,12 +83,11 @@ protected:
     LayoutComponentStyle* m_style = nullptr;
     std::unique_ptr<LayoutData> m_layoutData;
 
-    float m_layoutSizeWidth = 0;
-    float m_layoutSizeHeight = 0;
-    float m_layoutLocationX = 0;
-    float m_layoutLocationY = 0;
+    Layout m_layout;
 
-    LayoutAnimationData m_animationData;
+    LayoutAnimationData m_animationDataA;
+    LayoutAnimationData m_animationDataB;
+    bool m_isSmoothingAnimation = false;
     KeyFrameInterpolator* m_inheritedInterpolator;
     LayoutStyleInterpolation m_inheritedInterpolation =
         LayoutStyleInterpolation::hold;
@@ -61,6 +98,7 @@ protected:
     DrawableProxy m_proxy;
 
     Artboard* getArtboard() override { return artboard(); }
+    LayoutAnimationData* currentAnimationData();
 
     LayoutComponent* layoutParent()
     {
@@ -91,7 +129,7 @@ protected:
     YGStyle& layoutStyle() { return m_layoutData->style; }
     void syncLayoutChildren();
     void propagateSizeToChildren(ContainerComponent* component);
-    bool applyInterpolation(double elapsedSeconds, bool animate = true);
+    bool applyInterpolation(float elapsedSeconds, bool animate = true);
 
 protected:
     void calculateLayout();
@@ -111,25 +149,22 @@ public:
     void onDirty(ComponentDirt value) override;
     AABB layoutBounds()
     {
-        return AABB::fromLTWH(m_layoutLocationX,
-                              m_layoutLocationY,
-                              m_layoutSizeWidth,
-                              m_layoutSizeHeight);
+        return AABB::fromLTWH(m_layout.left(),
+                              m_layout.top(),
+                              m_layout.width(),
+                              m_layout.height());
     }
     AABB localBounds() const override
     {
-        return AABB::fromLTWH(0.0f,
-                              0.0f,
-                              m_layoutSizeWidth,
-                              m_layoutSizeHeight);
+        return AABB::fromLTWH(0.0f, 0.0f, m_layout.width(), m_layout.height());
     }
     AABB worldBounds() const
     {
         auto transform = worldTransform();
         return AABB::fromLTWH(transform[4],
                               transform[5],
-                              m_layoutSizeWidth,
-                              m_layoutSizeHeight);
+                              m_layout.width(),
+                              m_layout.height());
     }
 
     // We provide a way for nested artboards (or other objects) to override this
@@ -142,7 +177,7 @@ public:
     bool mainAxisIsRow();
     bool mainAxisIsColumn();
     bool overridesKeyedInterpolation(int propertyKey) override;
-    bool advanceComponent(double elapsedSeconds, bool animate = true) override;
+    bool advanceComponent(float elapsedSeconds, bool animate = true) override;
 
 #ifdef WITH_RIVE_LAYOUT
     LayoutComponent() :
@@ -157,7 +192,7 @@ public:
     void updateLayoutBounds(bool animate = true);
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
-
+    bool advance(float elapsedSeconds);
     bool animates();
     LayoutAnimationStyle animationStyle();
     KeyFrameInterpolator* interpolator();
