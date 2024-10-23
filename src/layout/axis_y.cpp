@@ -1,5 +1,6 @@
+#include "rive/container_component.hpp"
 #include "rive/layout/axis_y.hpp"
-#include "rive/layout/n_slicer.hpp"
+#include "rive/layout/n_slicer_details.hpp"
 
 using namespace rive;
 
@@ -10,6 +11,7 @@ StatusCode AxisY::onAddedDirty(CoreContext* context)
     {
         return code;
     }
-    parent()->as<NSlicer>()->addAxisY(this);
+
+    NSlicerDetails::from(parent())->addAxisY(this);
     return StatusCode::Ok;
 }

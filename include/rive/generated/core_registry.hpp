@@ -140,6 +140,7 @@
 #include "rive/layout/axis_x.hpp"
 #include "rive/layout/axis_y.hpp"
 #include "rive/layout/layout_component_style.hpp"
+#include "rive/layout/n_sliced_node.hpp"
 #include "rive/layout/n_slicer.hpp"
 #include "rive/layout/n_slicer_tile_mode.hpp"
 #include "rive/layout_component.hpp"
@@ -308,6 +309,8 @@ public:
                 return new AxisX();
             case NSlicerBase::typeKey:
                 return new NSlicer();
+            case NSlicedNodeBase::typeKey:
+                return new NSlicedNode();
             case ListenerFireEventBase::typeKey:
                 return new ListenerFireEvent();
             case TransitionValueTriggerComparatorBase::typeKey:
@@ -1498,6 +1501,18 @@ public:
             case LayoutComponentStyleBase::cornerRadiusBRPropertyKey:
                 object->as<LayoutComponentStyleBase>()->cornerRadiusBR(value);
                 break;
+            case NSlicedNodeBase::initialWidthPropertyKey:
+                object->as<NSlicedNodeBase>()->initialWidth(value);
+                break;
+            case NSlicedNodeBase::initialHeightPropertyKey:
+                object->as<NSlicedNodeBase>()->initialHeight(value);
+                break;
+            case NSlicedNodeBase::widthPropertyKey:
+                object->as<NSlicedNodeBase>()->width(value);
+                break;
+            case NSlicedNodeBase::heightPropertyKey:
+                object->as<NSlicedNodeBase>()->height(value);
+                break;
             case NestedLinearAnimationBase::mixPropertyKey:
                 object->as<NestedLinearAnimationBase>()->mix(value);
                 break;
@@ -2547,6 +2562,14 @@ public:
                 return object->as<LayoutComponentStyleBase>()->cornerRadiusBL();
             case LayoutComponentStyleBase::cornerRadiusBRPropertyKey:
                 return object->as<LayoutComponentStyleBase>()->cornerRadiusBR();
+            case NSlicedNodeBase::initialWidthPropertyKey:
+                return object->as<NSlicedNodeBase>()->initialWidth();
+            case NSlicedNodeBase::initialHeightPropertyKey:
+                return object->as<NSlicedNodeBase>()->initialHeight();
+            case NSlicedNodeBase::widthPropertyKey:
+                return object->as<NSlicedNodeBase>()->width();
+            case NSlicedNodeBase::heightPropertyKey:
+                return object->as<NSlicedNodeBase>()->height();
             case NestedLinearAnimationBase::mixPropertyKey:
                 return object->as<NestedLinearAnimationBase>()->mix();
             case NestedSimpleAnimationBase::speedPropertyKey:
@@ -3083,6 +3106,10 @@ public:
             case LayoutComponentStyleBase::cornerRadiusTRPropertyKey:
             case LayoutComponentStyleBase::cornerRadiusBLPropertyKey:
             case LayoutComponentStyleBase::cornerRadiusBRPropertyKey:
+            case NSlicedNodeBase::initialWidthPropertyKey:
+            case NSlicedNodeBase::initialHeightPropertyKey:
+            case NSlicedNodeBase::widthPropertyKey:
+            case NSlicedNodeBase::heightPropertyKey:
             case NestedLinearAnimationBase::mixPropertyKey:
             case NestedSimpleAnimationBase::speedPropertyKey:
             case AdvanceableStateBase::speedPropertyKey:
@@ -3794,6 +3821,14 @@ public:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::cornerRadiusBRPropertyKey:
                 return object->is<LayoutComponentStyleBase>();
+            case NSlicedNodeBase::initialWidthPropertyKey:
+                return object->is<NSlicedNodeBase>();
+            case NSlicedNodeBase::initialHeightPropertyKey:
+                return object->is<NSlicedNodeBase>();
+            case NSlicedNodeBase::widthPropertyKey:
+                return object->is<NSlicedNodeBase>();
+            case NSlicedNodeBase::heightPropertyKey:
+                return object->is<NSlicedNodeBase>();
             case NestedLinearAnimationBase::mixPropertyKey:
                 return object->is<NestedLinearAnimationBase>();
             case NestedSimpleAnimationBase::speedPropertyKey:

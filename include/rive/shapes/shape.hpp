@@ -13,6 +13,20 @@ namespace rive
 class Path;
 class PathComposer;
 class HitTester;
+class RawPath;
+
+class ShapeDeformer
+{
+public:
+    static ShapeDeformer* from(Component* component);
+    virtual void deformLocalRenderPath(RawPath& path,
+                                       const Mat2D& worldTransform,
+                                       const Mat2D& inverseWorld) const = 0;
+    virtual void deformWorldRenderPath(RawPath& path) const = 0;
+
+    virtual ~ShapeDeformer() {}
+};
+
 class Shape : public ShapeBase, public ShapePaintContainer
 {
 private:
@@ -21,6 +35,7 @@ private:
     AABB m_WorldBounds;
 
     bool m_WantDifferencePath = false;
+    ShapeDeformer* m_deformer = nullptr;
 
     Artboard* getArtboard() override { return artboard(); }
 
@@ -43,10 +58,13 @@ public:
     const PathComposer* pathComposer() const { return &m_PathComposer; }
     PathComposer* pathComposer() { return &m_PathComposer; }
 
+    const ShapeDeformer* deformer() const { return m_deformer; }
+
     void pathChanged();
     void addFlags(PathFlags flags);
     bool isFlagged(PathFlags flags) const;
     StatusCode onAddedDirty(CoreContext* context) override;
+    StatusCode onAddedClean(CoreContext* context) override;
     bool isEmpty();
     void pathCollapseChanged();
 

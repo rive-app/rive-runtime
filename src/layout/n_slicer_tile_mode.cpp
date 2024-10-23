@@ -1,5 +1,6 @@
+#include "rive/container_component.hpp"
 #include "rive/layout/n_slicer_tile_mode.hpp"
-#include "rive/layout/n_slicer.hpp"
+#include "rive/layout/n_slicer_details.hpp"
 
 using namespace rive;
 
@@ -11,11 +12,12 @@ StatusCode NSlicerTileMode::onAddedDirty(CoreContext* context)
         return code;
     }
 
-    if (!parent()->is<NSlicer>())
+    NSlicerDetails* container = NSlicerDetails::from(parent());
+    if (container == nullptr)
     {
         return StatusCode::MissingObject;
     }
-    parent()->as<NSlicer>()->addTileMode(patchIndex(),
-                                         NSlicerTileModeType(style()));
+
+    container->addTileMode(patchIndex(), NSlicerTileModeType(style()));
     return StatusCode::Ok;
 }

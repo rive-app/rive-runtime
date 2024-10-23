@@ -1,5 +1,6 @@
 #include "rive/constraints/constraint.hpp"
 #include "rive/hittest_command_path.hpp"
+#include "rive/layout/n_sliced_node.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/points_path.hpp"
 #include "rive/shapes/shape.hpp"
@@ -12,6 +13,16 @@
 #include <algorithm>
 
 using namespace rive;
+
+ShapeDeformer* ShapeDeformer::from(Component* component)
+{
+    switch (component->coreType())
+    {
+        case NSlicedNode::typeKey:
+            return component->as<NSlicedNode>();
+    }
+    return nullptr;
+}
 
 Shape::Shape() : m_PathComposer(this) {}
 
@@ -220,6 +231,30 @@ StatusCode Shape::onAddedDirty(CoreContext* context)
     }
     // This ensures context propagates to path composer too.
     return m_PathComposer.onAddedDirty(context);
+}
+
+StatusCode Shape::onAddedClean(CoreContext* context)
+{
+    StatusCode code = Super::onAddedClean(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+
+    // Find the deformer, if any.
+    m_deformer = nullptr;
+    for (auto currentParent = parent(); currentParent != nullptr;
+         currentParent = currentParent->parent())
+    {
+        ShapeDeformer* deformer = ShapeDeformer::from(currentParent);
+        if (deformer)
+        {
+            m_deformer = deformer;
+            return StatusCode::Ok;
+        }
+    }
+
+    return StatusCode::Ok;
 }
 
 bool Shape::isEmpty()

@@ -1,5 +1,6 @@
+#include "rive/container_component.hpp"
 #include "rive/layout/axis.hpp"
-#include "rive/layout/n_slicer.hpp"
+#include "rive/layout/n_slicer_details.hpp"
 
 using namespace rive;
 
@@ -11,7 +12,7 @@ StatusCode Axis::onAddedDirty(CoreContext* context)
         return code;
     }
 
-    if (!parent()->is<NSlicer>())
+    if (NSlicerDetails::from(parent()) == nullptr)
     {
         return StatusCode::MissingObject;
     }
@@ -19,4 +20,4 @@ StatusCode Axis::onAddedDirty(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void Axis::offsetChanged() { parent()->as<NSlicer>()->axisChanged(); }
+void Axis::offsetChanged() { NSlicerDetails::from(parent())->axisChanged(); }

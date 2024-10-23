@@ -67,6 +67,13 @@ void PathComposer::update(ComponentDirt value)
                 }
             }
 
+            if (const ShapeDeformer* deformer = m_shape->deformer())
+            {
+                deformer->deformLocalRenderPath(m_localRawPath,
+                                                world,
+                                                inverseWorld);
+            }
+
             // TODO: add a CommandPath::copy(RawPath)
             m_localRawPath.addTo(m_localPath.get());
         }
@@ -89,6 +96,12 @@ void PathComposer::update(ComponentDirt value)
                     m_worldRawPath.addPath(path->rawPath(), &transform);
                 }
             }
+
+            if (const ShapeDeformer* deformer = m_shape->deformer())
+            {
+                deformer->deformWorldRenderPath(m_worldRawPath);
+            }
+
             // TODO: add a CommandPath::copy(RawPath)
             m_worldRawPath.addTo(m_worldPath.get());
         }

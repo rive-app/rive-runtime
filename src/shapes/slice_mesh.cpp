@@ -5,12 +5,11 @@
 #include "rive/layout/n_slicer.hpp"
 #include "rive/layout/n_slicer_tile_mode.hpp"
 #include "rive/math/math_types.hpp"
+#include "rive/math/n_slicer_helpers.hpp"
 #include "rive/shapes/image.hpp"
 #include "rive/shapes/slice_mesh.hpp"
 
 using namespace rive;
-
-bool SliceMesh::isFixedSegment(int i) const { return i % 2 == 0; }
 
 const Corner SliceMesh::patchCorners[] = {
     {0, 0},
@@ -29,6 +28,10 @@ void SliceMesh::draw(Renderer* renderer,
                      float opacity)
 {
     if (m_nslicer == nullptr || m_nslicer->image() == nullptr)
+    {
+        return;
+    }
+    if (!m_VertexRenderBuffer || !m_UVRenderBuffer || !m_IndexRenderBuffer)
     {
         return;
     }
@@ -60,7 +63,7 @@ void SliceMesh::updateBuffers()
         m_VertexRenderBuffer = nullptr;
     }
 
-    if (m_VertexRenderBuffer == nullptr)
+    if (m_VertexRenderBuffer == nullptr && vertexSizeInBytes != 0)
     {
         m_VertexRenderBuffer =
             factory->makeRenderBuffer(RenderBufferType::vertex,
@@ -87,7 +90,7 @@ void SliceMesh::updateBuffers()
         m_UVRenderBuffer = nullptr;
     }
 
-    if (m_UVRenderBuffer == nullptr)
+    if (m_UVRenderBuffer == nullptr && uvSizeInBytes != 0)
     {
         m_UVRenderBuffer = factory->makeRenderBuffer(RenderBufferType::vertex,
                                                      RenderBufferFlags::none,
@@ -117,7 +120,7 @@ void SliceMesh::updateBuffers()
         m_IndexRenderBuffer = nullptr;
     }
 
-    if (m_IndexRenderBuffer == nullptr)
+    if (m_IndexRenderBuffer == nullptr && indexSizeInBytes != 0)
     {
         m_IndexRenderBuffer = factory->makeRenderBuffer(RenderBufferType::index,
                                                         RenderBufferFlags::none,
@@ -146,22 +149,8 @@ std::vector<float> SliceMesh::uvStops(AxisType forAxis)
 
     const std::vector<Axis*>& axes =
         (forAxis == AxisType::X) ? m_nslicer->xs() : m_nslicer->ys();
-    std::vector<float> result = {0.0};
-    for (const Axis* axis : axes)
-    {
-        if (axis != nullptr && axis->normalized())
-        {
-            result.emplace_back(math::clamp(axis->offset(), 0, 1));
-        }
-        else
-        {
-            result.emplace_back(math::clamp(axis->offset() / imageSize, 0, 1));
-        }
-    }
-    result.emplace_back(1.0);
-    std::sort(result.begin(), result.end());
 
-    return result;
+    return NSlicerHelpers::uvStops(axes, imageSize);
 }
 
 std::vector<float> SliceMesh::vertexStops(
@@ -170,6 +159,9 @@ std::vector<float> SliceMesh::vertexStops(
 {
     Image* image = m_nslicer->image();
     float imageSize = forAxis == AxisType::X ? image->width() : image->height();
+
+    // When doing calcualtions, we assume scale is always non-negative to keep
+    // everything in image space.
     float imageScale =
         std::abs(forAxis == AxisType::X ? image->scaleX() : image->scaleY());
     if (imageSize == 0 || imageScale == 0)
@@ -177,59 +169,36 @@ std::vector<float> SliceMesh::vertexStops(
         return {};
     }
 
-    auto infinity = std::numeric_limits<float>::infinity();
-    float fixedPct = 0.0;
-    int numEmptyScaledPatch = 0;
-    for (int i = 0; i < (int)normalizedStops.size() - 1; i++)
-    {
-        float range = normalizedStops[i + 1] - normalizedStops[i];
-        if (isFixedSegment(i))
-        {
-            fixedPct += range;
-        }
-        else
-        {
-            numEmptyScaledPatch += (range == 0);
-        }
-    }
+    ScaleInfo scaleInfo =
+        NSlicerHelpers::analyzeUVStops(normalizedStops, imageSize, imageScale);
 
-    float fixedSize = fixedPct * imageSize;
-    float scalableSize = imageSize - fixedSize;
-
-    float scaleFactor =
-        scalableSize == 0 ? infinity
-                          : (imageSize * imageScale - fixedSize) / scalableSize;
-    float emptyScalableSize =
-        numEmptyScaledPatch == 0
-            ? 0
-            : ((imageSize - fixedSize / imageScale) / numEmptyScaledPatch);
-
-    std::vector<float> result;
+    std::vector<float> vertices;
     float cur = 0.0;
     for (int i = 0; i < (int)normalizedStops.size() - 1; i++)
     {
-        result.emplace_back(cur);
-        float segment =
-            imageSize * (normalizedStops[i + 1] - normalizedStops[i]);
-        if (isFixedSegment(i))
+        vertices.emplace_back(cur);
+        float segment = imageSize *
+                        (normalizedStops[i + 1] - normalizedStops[i]) /
+                        imageScale;
+        if (NSlicerHelpers::isFixedSegment(i))
         {
-            cur += segment / imageScale;
+            cur += segment;
         }
         else
         {
-            if (scalableSize == 0)
+            if (scaleInfo.useScale)
             {
-                cur += emptyScalableSize;
+                cur += segment * scaleInfo.scaleFactor;
             }
             else
             {
-                cur += segment * scaleFactor / imageScale;
+                cur += scaleInfo.fallbackSize;
             }
         }
         cur = math::clamp(cur, 0, imageSize);
     }
-    result.emplace_back(cur);
-    return result;
+    vertices.emplace_back(cur);
+    return vertices;
 }
 
 uint16_t SliceMesh::tileRepeat(std::vector<SliceMeshVertex>& vertices,
