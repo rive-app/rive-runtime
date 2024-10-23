@@ -29,7 +29,7 @@
         "int": 287,
         "string": "overflowvalue"
       },
-      "description": "One of visible, hidden, clipped, ellipsis."
+      "description": "One of visible, hidden, clipped, ellipsis, fit."
     },
     "width": {
       "type": "double",
@@ -120,6 +120,14 @@
       "key": {
         "int": 685,
         "string": "verticalalignvalue"
+      }
+    },
+    "fitFromBaseline": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 703,
+        "string": "fitfrombaseline"
       }
     }
   }

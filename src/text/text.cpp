@@ -630,7 +630,7 @@ skipLines:
                        maxWidth > m_bounds.width())
                           ? m_bounds.width() / maxWidth
                           : 1;
-        auto baseline = m_lines[0][0].baseline;
+        auto baseline = fitFromBaseline() ? m_lines[0][0].baseline : 0;
         auto yScale =
             (effectiveSizing() == TextSizing::fixed &&
              totalHeight > m_bounds.height())

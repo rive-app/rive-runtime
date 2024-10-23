@@ -674,6 +674,9 @@ public:
             case TextModifierRangeBase::clampPropertyKey:
                 object->as<TextModifierRangeBase>()->clamp(value);
                 break;
+            case TextBase::fitFromBaselinePropertyKey:
+                object->as<TextBase>()->fitFromBaseline(value);
+                break;
         }
     }
     static void setUint(Core* object, int propertyKey, uint32_t value)
@@ -1946,6 +1949,8 @@ public:
                     ->propertyValue();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->as<TextModifierRangeBase>()->clamp();
+            case TextBase::fitFromBaselinePropertyKey:
+                return object->as<TextBase>()->fitFromBaseline();
         }
         return false;
     }
@@ -2823,6 +2828,7 @@ public:
             case LayoutComponentBase::clipPropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
+            case TextBase::fitFromBaselinePropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
@@ -3290,6 +3296,8 @@ public:
                 return object->is<BindablePropertyBooleanBase>();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->is<TextModifierRangeBase>();
+            case TextBase::fitFromBaselinePropertyKey:
+                return object->is<TextBase>();
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
                 return object->is<ViewModelInstanceListItemBase>();
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
