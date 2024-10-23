@@ -720,6 +720,10 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         {
             child->as<LayoutComponent>()->updateLayoutBounds(animate);
         }
+        else if (child->is<NestedArtboardLayout>())
+        {
+            child->as<NestedArtboardLayout>()->updateLayoutBounds(animate);
+        }
     }
 
     Layout newLayout(node.getLayout());

@@ -86,6 +86,17 @@ StatusCode NestedArtboardLayout::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
+void NestedArtboardLayout::updateLayoutBounds(bool animate)
+{
+#ifdef WITH_RIVE_LAYOUT
+    if (artboardInstance() == nullptr)
+    {
+        return;
+    }
+    artboardInstance()->updateLayoutBounds(animate);
+#endif
+}
+
 void NestedArtboardLayout::updateWidthOverride()
 {
     if (artboardInstance() == nullptr)
@@ -113,6 +124,7 @@ void NestedArtboardLayout::updateWidthOverride()
     {
         artboardInstance()->widthIntrinsicallySizeOverride(true);
     }
+    markNestedLayoutDirty();
 }
 
 void NestedArtboardLayout::updateHeightOverride()
@@ -142,6 +154,7 @@ void NestedArtboardLayout::updateHeightOverride()
     {
         artboardInstance()->heightIntrinsicallySizeOverride(true);
     }
+    markNestedLayoutDirty();
 }
 
 void NestedArtboardLayout::instanceWidthChanged() { updateWidthOverride(); }

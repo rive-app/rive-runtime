@@ -17,6 +17,7 @@ public:
 
     float actualInstanceWidth();
     float actualInstanceHeight();
+    void updateLayoutBounds(bool animate);
 
 protected:
     void instanceWidthChanged() override;
