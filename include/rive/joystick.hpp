@@ -31,6 +31,7 @@ public:
                         float height,
                         LayoutMeasureMode heightMode) override;
     void controlSize(Vec2D size) override;
+    bool shouldPropagateSizeToChildren() override { return false; }
 
 protected:
     void buildDependencies() override;

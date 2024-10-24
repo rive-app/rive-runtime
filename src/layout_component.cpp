@@ -676,8 +676,11 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
             sizeableChild->controlSize(
                 Vec2D(m_layout.width(), m_layout.height()));
 
-            // Do not propagate to its children
-            continue;
+            if (!sizeableChild->shouldPropagateSizeToChildren())
+            {
+                // Do not propagate to its children
+                continue;
+            }
         }
         if (child->is<ContainerComponent>())
         {

@@ -37,7 +37,7 @@ public:
     static const uint16_t widthPropertyKey = 699;
     static const uint16_t heightPropertyKey = 700;
 
-private:
+protected:
     float m_InitialWidth = 0.0f;
     float m_InitialHeight = 0.0f;
     float m_Width = 0.0f;

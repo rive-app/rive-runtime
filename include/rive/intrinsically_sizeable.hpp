@@ -20,6 +20,7 @@ public:
     }
 
     virtual void controlSize(Vec2D size) {}
+    virtual bool shouldPropagateSizeToChildren() { return true; }
     static IntrinsicallySizeable* from(Component* component);
 };
 } // namespace rive
