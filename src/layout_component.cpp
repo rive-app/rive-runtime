@@ -413,6 +413,10 @@ void LayoutComponent::syncStyle()
                 ygStyle.flexGrow() = YGFloatOptional(0);
                 ygStyle.flexShrink() = YGFloatOptional(0);
             }
+            else
+            {
+                ygStyle.alignSelf() = YGAlignAuto;
+            }
             break;
         case LayoutScaleType::fill:
             if (parentIsRow)
@@ -447,6 +451,10 @@ void LayoutComponent::syncStyle()
             {
                 ygStyle.flexGrow() = YGFloatOptional(0);
                 ygStyle.flexShrink() = YGFloatOptional(0);
+            }
+            else
+            {
+                ygStyle.alignSelf() = YGAlignAuto;
             }
             break;
         case LayoutScaleType::fill:
