@@ -1,9 +1,24 @@
 #!/usr/bin/python
 
-from genericpath import exists
-import sys
+# get opencv dependency if needed. We do it here for imageDiff 
+# because we spawn multiple processes so we would have a race condition with each one trying to check and download opencv
 import subprocess
+from venv import create
 import os.path
+import sys
+
+# create venv here and then install package
+VENV_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".pyenv"))
+if sys.platform.startswith('win32'):
+    PYTHON = os.path.join(VENV_DIR, "Scripts", "python.exe")
+else:
+    PYTHON = os.path.join(VENV_DIR, "bin", "python")
+
+if not os.path.exists(VENV_DIR):
+    create(VENV_DIR, with_pip=True)
+    subprocess.check_call([PYTHON, "-m", "pip", "install", "opencv-python-headless"])
+
+from genericpath import exists
 import argparse
 import glob
 import csv
@@ -117,8 +132,8 @@ def remove_suffix(name, oldsuffix):
         name = name[:-len(oldsuffix)]
     return name
 
-def call_imagediff(filename, tool, golden, candidate, output, parent_pid):
-    cmd = [tool,
+def call_imagediff(filename, golden, candidate, output, parent_pid):
+    cmd = [PYTHON, "image_diff.py",
            "-n", remove_suffix(filename, ".png"),
            "-g", os.path.join(golden, filename),
            "-c", os.path.join(candidate, filename),
@@ -126,6 +141,8 @@ def call_imagediff(filename, tool, golden, candidate, output, parent_pid):
            "-s", "%s_%i_%i.txt" % (status_filename_base, parent_pid, os.getpid())]
     if output is not None:
         cmd.extend(["-o", output])
+    if args.verbose:
+        cmd.extend(["-v", "-l"])
     
     if show_commands:
         str = ""
@@ -337,7 +354,7 @@ def write_min_csv(columns, csv_path):
         csv_writer.writerow({'type':'mesh', 'total_issues' : str(total_mesh), 'serious_issues' : str(total_mesh_issues)})
         csv_writer.writerow({'type':'text', 'total_issues' : str(total_text), 'serious_issues' : str(total_text_issues)})
 
-def diff_directory_shallow(tool_path, candidates_path, output_path):
+def diff_directory_shallow(candidates_path, output_path):
     original_filenames = set((file.name for file in os.scandir(candidates_path) if file.is_file()))
     candidate_filenames = set(os.listdir(args.goldens))
     intersect_filenames = original_filenames.intersection(candidate_filenames)
@@ -357,13 +374,12 @@ def diff_directory_shallow(tool_path, candidates_path, output_path):
 
 #   generate the diffs (if any) and write to the status file
     f = partial(call_imagediff,
-                tool=tool_path,
                 golden=args.goldens,
                 candidate=candidates_path,
                 output=output_path,
                 parent_pid=os.getpid())
+    
     Pool(args.jobs).map(f, intersect_filenames)
-
     (total_lines, diff_lines, success) = parse_status(candidates_path)
     
     print(f'finished with Succes:{success} and {total_lines} lines')
@@ -382,7 +398,7 @@ def diff_directory_shallow(tool_path, candidates_path, output_path):
 
     return (diff_lines, missing_candidates, success)
 
-def diff_directory_deep(tool_path, candidates_path, output_path):
+def diff_directory_deep(candidates_path, output_path):
     if args.pack:
         new_golden_path = os.path.join(output_path, "golden")
         os.makedirs(new_golden_path, exist_ok=True)
@@ -404,7 +420,7 @@ def diff_directory_deep(tool_path, candidates_path, output_path):
                     browserstack_details = json.load(file)
                 os.remove(browserstack_details_path)
             
-            (diff_lines, _, _) = diff_directory_shallow(tool_path, folder.path, output)
+            (diff_lines, _, _) = diff_directory_shallow(folder.path, output)
             
             if args.pack:
                 shallow_copy_images(folder.path, output)
@@ -436,31 +452,28 @@ def column_sorter(in_item):
     rows = in_item[1]['diff_lines']
     return max([x[2] for x in rows])
 
-def main(argv=None):
-    tool = "out/" + args.build + "/imagediff"
-    if args.verbose:
-        print("Using '" + tool + "'")
-    
+def main(argv=None):    
     if not os.path.exists(args.goldens):
         print("Can't find goldens " + args.goldens)
-        return -1;
+        return -1
     if not os.path.exists(args.candidates):
         print("Can't find candidates " + args.candidates)
-        return -1;
+        return -1
 
     # delete output dir if exists
     shutil.rmtree(args.output, ignore_errors=True)
-    # remake output dir
-    os.mkdir(args.output)
+    # remake output dir, this will make it correctly
+    # even if it requires creating mulltiple directories
+    os.makedirs(args.output, exist_ok=True)
 
 #   reset our scratch files
     for status_filename in glob.iglob(status_filename_pattern):
         os.remove(status_filename)
 
     if args.recursive:
-        diff_directory_deep(tool, args.candidates, args.output)
+        diff_directory_deep(args.candidates, args.output)
     else:
-        (diff_lines, missing_candidates, success) = diff_directory_shallow(tool, args.candidates, args.output)
+        (diff_lines, missing_candidates, success) = diff_directory_shallow(args.candidates, args.output)
         if len(diff_lines) > 0:
             write_html(diff_lines, args.goldens, args.candidates, args.output)
             # note could add these to the html output but w/e

@@ -2,8 +2,6 @@ dofile('rive_build_config.lua')
 
 RIVE_RUNTIME_DIR = path.getabsolute('..')
 RIVE_PLS_DIR = path.getabsolute('../renderer')
-SKIA_DIR_NAME = 'skia'
-SKIA_OUT_NAME = os.target() == 'android' and _OPTIONS['arch'] or 'static'
 
 dofile(RIVE_RUNTIME_DIR .. '/premake5_v2.lua')
 dofile(RIVE_RUNTIME_DIR .. '/cg_renderer/premake5.lua')
