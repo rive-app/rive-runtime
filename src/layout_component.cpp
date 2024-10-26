@@ -412,6 +412,7 @@ void LayoutComponent::syncStyle()
             {
                 ygStyle.flexGrow() = YGFloatOptional(0);
                 ygStyle.flexShrink() = YGFloatOptional(0);
+                ygStyle.flexBasis() = YGValue{m_style->flexBasis(), YGUnitAuto};
             }
             else
             {
@@ -421,8 +422,10 @@ void LayoutComponent::syncStyle()
         case LayoutScaleType::fill:
             if (parentIsRow)
             {
-                ygStyle.flexGrow() = YGFloatOptional(1);
-                ygStyle.flexShrink() = YGFloatOptional(1);
+                ygStyle.flexGrow() = YGFloatOptional(fractionalWidth());
+                ygStyle.flexShrink() = YGFloatOptional(fractionalWidth());
+                ygStyle.flexBasis() =
+                    YGValue{m_style->flexBasis(), m_style->flexBasisUnits()};
             }
             else
             {
@@ -434,6 +437,7 @@ void LayoutComponent::syncStyle()
             {
                 ygStyle.flexGrow() = YGFloatOptional(0);
                 ygStyle.flexShrink() = YGFloatOptional(0);
+                ygStyle.flexBasis() = YGValue{m_style->flexBasis(), YGUnitAuto};
             }
             else
             {
@@ -451,6 +455,7 @@ void LayoutComponent::syncStyle()
             {
                 ygStyle.flexGrow() = YGFloatOptional(0);
                 ygStyle.flexShrink() = YGFloatOptional(0);
+                ygStyle.flexBasis() = YGValue{m_style->flexBasis(), YGUnitAuto};
             }
             else
             {
@@ -460,8 +465,10 @@ void LayoutComponent::syncStyle()
         case LayoutScaleType::fill:
             if (!parentIsRow)
             {
-                ygStyle.flexGrow() = YGFloatOptional(1);
-                ygStyle.flexShrink() = YGFloatOptional(1);
+                ygStyle.flexGrow() = YGFloatOptional(fractionalHeight());
+                ygStyle.flexShrink() = YGFloatOptional(fractionalHeight());
+                ygStyle.flexBasis() =
+                    YGValue{m_style->flexBasis(), m_style->flexBasisUnits()};
             }
             else
             {
@@ -473,6 +480,7 @@ void LayoutComponent::syncStyle()
             {
                 ygStyle.flexGrow() = YGFloatOptional(0);
                 ygStyle.flexShrink() = YGFloatOptional(0);
+                ygStyle.flexBasis() = YGValue{m_style->flexBasis(), YGUnitAuto};
             }
             else
             {
@@ -1108,3 +1116,5 @@ void LayoutComponent::clipChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::widthChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::heightChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::styleIdChanged() { markLayoutNodeDirty(); }
+void LayoutComponent::fractionalWidthChanged() { markLayoutNodeDirty(); }
+void LayoutComponent::fractionalHeightChanged() { markLayoutNodeDirty(); }

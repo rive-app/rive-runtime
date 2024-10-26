@@ -228,6 +228,8 @@ public:
     void widthChanged() override;
     void heightChanged() override;
     void styleIdChanged() override;
+    void fractionalWidthChanged() override;
+    void fractionalHeightChanged() override;
 
     Vec2D measureLayout(float width,
                         LayoutMeasureMode widthMode,

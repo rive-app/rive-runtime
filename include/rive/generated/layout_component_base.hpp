@@ -39,12 +39,16 @@ public:
     static const uint16_t widthPropertyKey = 7;
     static const uint16_t heightPropertyKey = 8;
     static const uint16_t styleIdPropertyKey = 494;
+    static const uint16_t fractionalWidthPropertyKey = 706;
+    static const uint16_t fractionalHeightPropertyKey = 707;
 
 protected:
     bool m_Clip = false;
     float m_Width = 0.0f;
     float m_Height = 0.0f;
     uint32_t m_StyleId = -1;
+    float m_FractionalWidth = 1.0f;
+    float m_FractionalHeight = 1.0f;
 
 public:
     inline bool clip() const { return m_Clip; }
@@ -91,6 +95,28 @@ public:
         styleIdChanged();
     }
 
+    inline float fractionalWidth() const { return m_FractionalWidth; }
+    void fractionalWidth(float value)
+    {
+        if (m_FractionalWidth == value)
+        {
+            return;
+        }
+        m_FractionalWidth = value;
+        fractionalWidthChanged();
+    }
+
+    inline float fractionalHeight() const { return m_FractionalHeight; }
+    void fractionalHeight(float value)
+    {
+        if (m_FractionalHeight == value)
+        {
+            return;
+        }
+        m_FractionalHeight = value;
+        fractionalHeightChanged();
+    }
+
     Core* clone() const override;
     void copy(const LayoutComponentBase& object)
     {
@@ -98,6 +124,8 @@ public:
         m_Width = object.m_Width;
         m_Height = object.m_Height;
         m_StyleId = object.m_StyleId;
+        m_FractionalWidth = object.m_FractionalWidth;
+        m_FractionalHeight = object.m_FractionalHeight;
         Drawable::copy(object);
     }
 
@@ -117,6 +145,12 @@ public:
             case styleIdPropertyKey:
                 m_StyleId = CoreUintType::deserialize(reader);
                 return true;
+            case fractionalWidthPropertyKey:
+                m_FractionalWidth = CoreDoubleType::deserialize(reader);
+                return true;
+            case fractionalHeightPropertyKey:
+                m_FractionalHeight = CoreDoubleType::deserialize(reader);
+                return true;
         }
         return Drawable::deserialize(propertyKey, reader);
     }
@@ -126,6 +160,8 @@ protected:
     virtual void widthChanged() {}
     virtual void heightChanged() {}
     virtual void styleIdChanged() {}
+    virtual void fractionalWidthChanged() {}
+    virtual void fractionalHeightChanged() {}
 };
 } // namespace rive
 

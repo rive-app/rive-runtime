@@ -24,7 +24,8 @@
         "int": 7,
         "string": "w"
       },
-      "description": "Initial width of the item."
+      "description": "Initial width of the item.",
+      "bindable": true
     },
     "height": {
       "type": "double",
@@ -34,7 +35,8 @@
         "int": 8,
         "string": "h"
       },
-      "description": "Initial height of the item."
+      "description": "Initial height of the item.",
+      "bindable": true
     },
     "styleId": {
       "type": "Id",
@@ -46,6 +48,28 @@
         "string": "styleid"
       },
       "description": "LayoutStyle that defines the styling for this LayoutComponent"
+    },
+    "fractionalWidth": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 706,
+        "string": "fractionalwidth"
+      },
+      "description": "Initial fractional width of the item when using scaleType fill.",
+      "bindable": true
+    },
+    "fractionalHeight": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 707,
+        "string": "fractionalheight"
+      },
+      "description": "Initial fractional height of the item when using scaleType fill.",
+      "bindable": true
     }
   }
 }

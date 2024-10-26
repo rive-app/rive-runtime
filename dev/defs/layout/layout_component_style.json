@@ -305,7 +305,7 @@
     },
     "flexBasis": {
       "type": "double",
-      "initialValue": "1",
+      "initialValue": "0",
       "animates": true,
       "key": {
         "int": 523,
@@ -313,6 +313,16 @@
       },
       "description": "Flex basis value.",
       "bindable": true
+    },
+    "flexBasisUnitsValue": {
+      "type": "uint",
+      "initialValue": "3",
+      "group": "flexbasis",
+      "key": {
+        "int": 705,
+        "string": "flexbasisunitsvalue"
+      },
+      "description": "Flex basis unit value"
     },
     "aspectRatio": {
       "type": "double",

@@ -792,6 +792,10 @@ public:
             case NSlicerTileModeBase::stylePropertyKey:
                 object->as<NSlicerTileModeBase>()->style(value);
                 break;
+            case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
+                object->as<LayoutComponentStyleBase>()->flexBasisUnitsValue(
+                    value);
+                break;
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
                 object->as<LayoutComponentStyleBase>()->layoutWidthScaleType(
                     value);
@@ -1702,6 +1706,12 @@ public:
             case LayoutComponentBase::heightPropertyKey:
                 object->as<LayoutComponentBase>()->height(value);
                 break;
+            case LayoutComponentBase::fractionalWidthPropertyKey:
+                object->as<LayoutComponentBase>()->fractionalWidth(value);
+                break;
+            case LayoutComponentBase::fractionalHeightPropertyKey:
+                object->as<LayoutComponentBase>()->fractionalHeight(value);
+                break;
             case ArtboardBase::originXPropertyKey:
                 object->as<ArtboardBase>()->originX(value);
                 break;
@@ -2050,6 +2060,9 @@ public:
                 return object->as<NSlicerTileModeBase>()->patchIndex();
             case NSlicerTileModeBase::stylePropertyKey:
                 return object->as<NSlicerTileModeBase>()->style();
+            case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
+                return object->as<LayoutComponentStyleBase>()
+                    ->flexBasisUnitsValue();
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
                 return object->as<LayoutComponentStyleBase>()
                     ->layoutWidthScaleType();
@@ -2697,6 +2710,10 @@ public:
                 return object->as<LayoutComponentBase>()->width();
             case LayoutComponentBase::heightPropertyKey:
                 return object->as<LayoutComponentBase>()->height();
+            case LayoutComponentBase::fractionalWidthPropertyKey:
+                return object->as<LayoutComponentBase>()->fractionalWidth();
+            case LayoutComponentBase::fractionalHeightPropertyKey:
+                return object->as<LayoutComponentBase>()->fractionalHeight();
             case ArtboardBase::originXPropertyKey:
                 return object->as<ArtboardBase>()->originX();
             case ArtboardBase::originYPropertyKey:
@@ -2885,6 +2902,7 @@ public:
             case NestedArtboardLayoutBase::instanceHeightScaleTypePropertyKey:
             case NSlicerTileModeBase::patchIndexPropertyKey:
             case NSlicerTileModeBase::stylePropertyKey:
+            case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
             case LayoutComponentStyleBase::layoutAlignmentTypePropertyKey:
@@ -3173,6 +3191,8 @@ public:
             case CubicDetachedVertexBase::outDistancePropertyKey:
             case LayoutComponentBase::widthPropertyKey:
             case LayoutComponentBase::heightPropertyKey:
+            case LayoutComponentBase::fractionalWidthPropertyKey:
+            case LayoutComponentBase::fractionalHeightPropertyKey:
             case ArtboardBase::originXPropertyKey:
             case ArtboardBase::originYPropertyKey:
             case JoystickBase::xPropertyKey:
@@ -3388,6 +3408,8 @@ public:
                 return object->is<NSlicerTileModeBase>();
             case NSlicerTileModeBase::stylePropertyKey:
                 return object->is<NSlicerTileModeBase>();
+            case LayoutComponentStyleBase::flexBasisUnitsValuePropertyKey:
+                return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::layoutWidthScaleTypePropertyKey:
                 return object->is<LayoutComponentStyleBase>();
             case LayoutComponentStyleBase::layoutHeightScaleTypePropertyKey:
@@ -3954,6 +3976,10 @@ public:
             case LayoutComponentBase::widthPropertyKey:
                 return object->is<LayoutComponentBase>();
             case LayoutComponentBase::heightPropertyKey:
+                return object->is<LayoutComponentBase>();
+            case LayoutComponentBase::fractionalWidthPropertyKey:
+                return object->is<LayoutComponentBase>();
+            case LayoutComponentBase::fractionalHeightPropertyKey:
                 return object->is<LayoutComponentBase>();
             case ArtboardBase::originXPropertyKey:
                 return object->is<ArtboardBase>();

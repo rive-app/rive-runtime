@@ -195,10 +195,16 @@ YGUnit LayoutComponentStyle::minWidthUnits()
 {
     return YGUnit(minWidthUnitsValue());
 }
+
 YGUnit LayoutComponentStyle::minHeightUnits()
 {
     return YGUnit(minHeightUnitsValue());
 }
+YGUnit LayoutComponentStyle::flexBasisUnits()
+{
+    return YGUnit(flexBasisUnitsValue());
+}
+
 void LayoutComponentStyle::markLayoutNodeDirty()
 {
     if (parent()->is<LayoutComponent>())

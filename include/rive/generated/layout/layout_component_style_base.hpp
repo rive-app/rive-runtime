@@ -56,6 +56,7 @@ public:
     static const uint16_t flexGrowPropertyKey = 521;
     static const uint16_t flexShrinkPropertyKey = 522;
     static const uint16_t flexBasisPropertyKey = 523;
+    static const uint16_t flexBasisUnitsValuePropertyKey = 705;
     static const uint16_t aspectRatioPropertyKey = 524;
     static const uint16_t layoutWidthScaleTypePropertyKey = 655;
     static const uint16_t layoutHeightScaleTypePropertyKey = 656;
@@ -131,7 +132,8 @@ protected:
     float m_Flex = 0.0f;
     float m_FlexGrow = 0.0f;
     float m_FlexShrink = 1.0f;
-    float m_FlexBasis = 1.0f;
+    float m_FlexBasis = 0.0f;
+    uint32_t m_FlexBasisUnitsValue = 3;
     float m_AspectRatio = 0.0f;
     uint32_t m_LayoutWidthScaleType = 0;
     uint32_t m_LayoutHeightScaleType = 0;
@@ -466,6 +468,20 @@ public:
         }
         m_FlexBasis = value;
         flexBasisChanged();
+    }
+
+    inline uint32_t flexBasisUnitsValue() const
+    {
+        return m_FlexBasisUnitsValue;
+    }
+    void flexBasisUnitsValue(uint32_t value)
+    {
+        if (m_FlexBasisUnitsValue == value)
+        {
+            return;
+        }
+        m_FlexBasisUnitsValue = value;
+        flexBasisUnitsValueChanged();
     }
 
     inline float aspectRatio() const { return m_AspectRatio; }
@@ -1100,6 +1116,7 @@ public:
         m_FlexGrow = object.m_FlexGrow;
         m_FlexShrink = object.m_FlexShrink;
         m_FlexBasis = object.m_FlexBasis;
+        m_FlexBasisUnitsValue = object.m_FlexBasisUnitsValue;
         m_AspectRatio = object.m_AspectRatio;
         m_LayoutWidthScaleType = object.m_LayoutWidthScaleType;
         m_LayoutHeightScaleType = object.m_LayoutHeightScaleType;
@@ -1232,6 +1249,9 @@ public:
                 return true;
             case flexBasisPropertyKey:
                 m_FlexBasis = CoreDoubleType::deserialize(reader);
+                return true;
+            case flexBasisUnitsValuePropertyKey:
+                m_FlexBasisUnitsValue = CoreUintType::deserialize(reader);
                 return true;
             case aspectRatioPropertyKey:
                 m_AspectRatio = CoreDoubleType::deserialize(reader);
@@ -1408,6 +1428,7 @@ protected:
     virtual void flexGrowChanged() {}
     virtual void flexShrinkChanged() {}
     virtual void flexBasisChanged() {}
+    virtual void flexBasisUnitsValueChanged() {}
     virtual void aspectRatioChanged() {}
     virtual void layoutWidthScaleTypeChanged() {}
     virtual void layoutHeightScaleTypeChanged() {}

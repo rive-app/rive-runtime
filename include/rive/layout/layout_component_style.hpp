@@ -103,6 +103,7 @@ public:
     YGUnit maxHeightUnits();
     YGUnit minWidthUnits();
     YGUnit minHeightUnits();
+    YGUnit flexBasisUnits();
 #endif
 
     void markLayoutNodeDirty();
