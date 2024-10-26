@@ -107,6 +107,8 @@ void Image::setAsset(FileAsset* asset)
         {
             m_Mesh->onAssetLoaded(imageAsset()->renderImage());
         }
+        asset->as<ImageAsset>()->onImageReady([&]() { updateImageScale(); });
+        updateImageScale();
     }
 }
 
@@ -189,14 +191,31 @@ Vec2D Image::measureLayout(float width,
 
 void Image::controlSize(Vec2D size)
 {
-    auto renderImage = imageAsset()->renderImage();
-    auto newScaleX = size.x / renderImage->width();
-    auto newScaleY = size.y / renderImage->height();
-    if (newScaleX != scaleX() || newScaleY != scaleY())
+    // We store layout width/height because the image asset may not be available
+    // yet (referenced images) and we have defer controlling its size
+    if (m_layoutWidth != size.x || m_layoutHeight != size.y)
     {
-        scaleX(newScaleX);
-        scaleY(newScaleY);
-        addDirt(ComponentDirt::WorldTransform, false);
+        m_layoutWidth = size.x;
+        m_layoutHeight = size.y;
+
+        updateImageScale();
+    }
+}
+
+void Image::updateImageScale()
+{
+    if (imageAsset() != nullptr && imageAsset()->renderImage() != nullptr &&
+        !std::isnan(m_layoutWidth) && !std::isnan(m_layoutHeight))
+    {
+        auto renderImage = imageAsset()->renderImage();
+        auto newScaleX = m_layoutWidth / renderImage->width();
+        auto newScaleY = m_layoutHeight / renderImage->height();
+        if (newScaleX != scaleX() || newScaleY != scaleY())
+        {
+            scaleX(newScaleX);
+            scaleY(newScaleY);
+            addDirt(ComponentDirt::WorldTransform, false);
+        }
     }
 }
 

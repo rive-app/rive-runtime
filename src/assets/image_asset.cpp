@@ -12,6 +12,10 @@ bool ImageAsset::decode(SimpleArray<uint8_t>& data, Factory* factory)
     decodedByteSize = data.size();
 #endif
     renderImage(factory->decodeImage(data));
+    if (m_imageReadyCallback != nullptr)
+    {
+        m_imageReadyCallback();
+    }
     return m_RenderImage != nullptr;
 }
 
