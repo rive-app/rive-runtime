@@ -2137,6 +2137,9 @@ void RenderContextVulkanImpl::prepareToMapBuffers()
     // buffers.
     m_vk->onNewFrameBegun();
 
+    // Clean expired resources in our pool of descriptor set pools.
+    m_descriptorSetPoolPool->cleanExcessExpiredResources();
+
     // Synchronize buffer sizes in the buffer rings.
     m_flushUniformBufferRing.synchronizeSizeAt(m_bufferRingIdx);
     m_imageDrawUniformBufferRing.synchronizeSizeAt(m_bufferRingIdx);

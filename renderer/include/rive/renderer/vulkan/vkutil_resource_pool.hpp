@@ -73,6 +73,7 @@ public:
             resource = ref_rcp(m_releasedResources.front().resource.release());
             m_releasedResources.pop_front();
             resource->reset();
+            cleanExcessExpiredResources();
         }
         else
         {
@@ -89,18 +90,24 @@ public:
         assert(mutableResource->debugging_refcnt() == 0);
         assert(mutableResource->m_pool.get() == this);
 
-        if (m_releasedResources.size() < MaxResourcesInPool)
-        {
-            // Recycle the resource!
-            m_releasedResources.emplace_back(
-                mutableResource,
-                m_factory.vulkanContext()->currentFrameIdx());
-            // Do this last in case it deletes our "this".
-            mutableResource->m_pool = nullptr;
-            return;
-        }
+        // Recycle the resource!
+        m_releasedResources.emplace_back(
+            mutableResource,
+            m_factory.vulkanContext()->currentFrameIdx());
+        // Do this last in case it deletes our "this".
+        mutableResource->m_pool = nullptr;
 
-        delete resource;
+        cleanExcessExpiredResources();
+    }
+
+    void cleanExcessExpiredResources()
+    {
+        while (m_releasedResources.size() > MaxResourcesInPool &&
+               m_factory.vulkanContext()->currentFrameIdx() >=
+                   m_releasedResources.front().expirationFrameIdx)
+        {
+            m_releasedResources.pop_front();
+        }
     }
 
 protected:
