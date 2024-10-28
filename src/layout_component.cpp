@@ -93,11 +93,14 @@ void LayoutComponent::updateRenderPath()
 {
     m_backgroundRect->width(m_layout.width());
     m_backgroundRect->height(m_layout.height());
-    m_backgroundRect->linkCornerRadius(style()->linkCornerRadius());
-    m_backgroundRect->cornerRadiusTL(style()->cornerRadiusTL());
-    m_backgroundRect->cornerRadiusTR(style()->cornerRadiusTR());
-    m_backgroundRect->cornerRadiusBL(style()->cornerRadiusBL());
-    m_backgroundRect->cornerRadiusBR(style()->cornerRadiusBR());
+    if (style() != nullptr)
+    {
+        m_backgroundRect->linkCornerRadius(style()->linkCornerRadius());
+        m_backgroundRect->cornerRadiusTL(style()->cornerRadiusTL());
+        m_backgroundRect->cornerRadiusTR(style()->cornerRadiusTR());
+        m_backgroundRect->cornerRadiusBL(style()->cornerRadiusBL());
+        m_backgroundRect->cornerRadiusBR(style()->cornerRadiusBR());
+    }
     m_backgroundRect->update(ComponentDirt::Path);
 
     m_backgroundPath->rewind();
@@ -289,12 +292,20 @@ Vec2D LayoutComponent::measureLayout(float width,
 
 bool LayoutComponent::mainAxisIsRow()
 {
+    if (style() == nullptr)
+    {
+        return true;
+    }
     return style()->flexDirection() == YGFlexDirectionRow ||
            style()->flexDirection() == YGFlexDirectionRowReverse;
 }
 
 bool LayoutComponent::mainAxisIsColumn()
 {
+    if (style() == nullptr)
+    {
+        return false;
+    }
     return style()->flexDirection() == YGFlexDirectionColumn ||
            style()->flexDirection() == YGFlexDirectionColumnReverse;
 }
