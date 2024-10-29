@@ -246,7 +246,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
         case Backend::metal:
         case Backend::metalcw:
         case Backend::metalatomic:
-#if defined(__APPLE__) && defined(RIVE_TOOLS_NO_GLFW)
+#if defined(__APPLE__) && defined(RIVE_TOOLS_NO_GLFW) && !defined(RIVE_UNREAL)
             s_TestingWindow = TestingWindow::MakeMetalTexture();
             break;
 #endif
@@ -260,9 +260,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
                                                                platformWindow);
             break;
         case Backend::coregraphics:
-#ifdef RIVE_MACOSX
             s_TestingWindow = MakeCoreGraphics();
-#endif
             break;
         case Backend::rhi:
             break;

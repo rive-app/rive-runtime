@@ -110,13 +110,6 @@ if _OPTIONS['raw_shaders'] then
     minify_flags = minify_flags .. ' --human-readable'
 end
 
-local minified_extension = 'glsl'
-
-if _OPTIONS['for_unreal'] then
-    minified_extension = 'ush'
-end
-
-minify_flags = minify_flags .. ' --minified-extension=' .. minified_extension
 makecommand = makecommand .. ' FLAGS="' .. minify_flags .. '"'
 
 if os.host() == 'macosx' then

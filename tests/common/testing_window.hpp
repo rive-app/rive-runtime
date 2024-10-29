@@ -352,12 +352,10 @@ private:
 #ifdef _WIN32
     static TestingWindow* MakeD3D(Visibility);
 #endif
-#ifdef __APPLE__
+#if defined(__APPLE__) && !defined(RIVE_UNREAL)
     static TestingWindow* MakeMetalTexture();
 #endif
-#ifdef RIVE_MACOSX
     static TestingWindow* MakeCoreGraphics();
-#endif
     static TestingWindow* MakeFiddleContext(Backend,
                                             Visibility,
                                             const char* gpuNameFilter,

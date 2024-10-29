@@ -5,7 +5,11 @@
 #include "testing_window.hpp"
 #include "rive/rive_types.hpp"
 
-#if !defined(TESTING) && defined(RIVE_MACOSX)
+#if !defined(RIVE_MACOSX) || defined(RIVE_UNREAL)
+
+TestingWindow* TestingWindow::MakeCoreGraphics() { return nullptr; }
+
+#else
 
 #include "cg_factory.hpp"
 #include "cg_renderer.hpp"
@@ -28,7 +32,11 @@ public:
     {
         m_pixels.resize(w * h);
 
-        auto info = kCGBitmapByteOrder32Big | kCGImageAlphaPremultipliedLast;
+        // They must be static casted individually otherwise the compiler
+        // complains that we are using bitwise operations on different enum
+        // types
+        auto info = static_cast<uint32_t>(kCGBitmapByteOrder32Big) |
+                    static_cast<uint32_t>(kCGImageAlphaPremultipliedLast);
         m_ctx.reset(CGBitmapContextCreate(m_pixels.data(),
                                           w,
                                           h,

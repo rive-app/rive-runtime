@@ -4,7 +4,7 @@
 
 #include "testing_window.hpp"
 
-#if defined(__APPLE__) && !defined(TESTING)
+#if defined(__APPLE__) && !defined(TESTING) && !defined(RIVE_UNREAL)
 
 #include "rive/renderer/metal/render_context_metal_impl.h"
 #include "rive/renderer/rive_renderer.hpp"
