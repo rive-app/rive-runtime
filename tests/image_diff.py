@@ -64,7 +64,9 @@ def main():
             # instead of getting the max of each pixel and deviding that by the size we get the sum
             # of candidate and devide that by the sum of the golden. This seems more accurate as an average
             # and is easier to do in numpy / opencv
-            avg = candidate.sum() / golden.sum()
+            # this could be a value of grater then 1 if 
+            # candidate is brighter then golden. What we really want is the distance from 1 (when they are the same)
+            avg = abs(1.0 - (candidate.sum() / golden.sum()))
     except Exception as E:
         print(f"Failed to load and process images {E}")
 
