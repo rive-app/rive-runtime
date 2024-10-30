@@ -102,11 +102,6 @@ float NSlicerHelpers::mapValue(const std::vector<float>& stops,
                                const ScaleInfo& scaleInfo,
                                float value)
 {
-    if (value < (stops.front() - 0.001) || value > (stops.back() + 0.001))
-    {
-        return value;
-    }
-
     float result = 0;
     for (int i = 0; i < (int)stops.size() - 1; i++)
     {
