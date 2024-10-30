@@ -181,6 +181,7 @@ public:
     bool mainAxisIsColumn();
     bool overridesKeyedInterpolation(int propertyKey) override;
     bool advanceComponent(float elapsedSeconds, bool animate = true) override;
+    Drawable* hittableComponent() override { return nullptr; }
 
 #ifdef WITH_RIVE_LAYOUT
     LayoutComponent() :

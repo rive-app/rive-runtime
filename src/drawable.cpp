@@ -1,6 +1,5 @@
 #include "rive/drawable.hpp"
 #include "rive/artboard.hpp"
-#include "rive/layout_component.hpp"
 #include "rive/shapes/clipping_shape.hpp"
 #include "rive/shapes/path_composer.hpp"
 #include "rive/shapes/shape.hpp"
@@ -89,4 +88,9 @@ bool Drawable::isChildOfLayout(LayoutComponent* layout)
         }
     }
     return false;
+}
+
+Drawable* DrawableProxy::hittableComponent()
+{
+    return static_cast<LayoutComponent*>(proxyDrawing());
 }

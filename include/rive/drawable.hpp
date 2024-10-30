@@ -54,6 +54,8 @@ public:
     bool isChildOfLayout(LayoutComponent* layout);
 
     StatusCode onAddedDirty(CoreContext* context) override;
+
+    virtual Drawable* hittableComponent() { return this; }
 };
 
 class ProxyDrawing
@@ -78,7 +80,11 @@ public:
 
     bool isHidden() const override { return m_proxyDrawing->isProxyHidden(); }
 
+    Drawable* hittableComponent() override;
+
     Core* hitTest(HitInfo*, const Mat2D&) override { return nullptr; }
+
+    ProxyDrawing* proxyDrawing() const { return m_proxyDrawing; }
 };
 } // namespace rive
 

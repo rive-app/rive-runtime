@@ -1191,22 +1191,27 @@ void StateMachineInstance::sortHitComponents()
     auto currentSortedIndex = 0;
     for (auto drawable = last; drawable; drawable = drawable->next)
     {
-        for (size_t i = currentSortedIndex; i < hitShapesCount; i++)
+        auto hittableComponent = drawable->hittableComponent();
+        if (hittableComponent != nullptr)
         {
-            if (m_hitComponents[i]->component() == drawable)
+            for (size_t i = currentSortedIndex; i < hitShapesCount; i++)
             {
-                if (currentSortedIndex != i)
+                if (m_hitComponents[i]->component() == hittableComponent)
                 {
-                    std::iter_swap(m_hitComponents.begin() + currentSortedIndex,
-                                   m_hitComponents.begin() + i);
+                    if (currentSortedIndex != i)
+                    {
+                        std::iter_swap(m_hitComponents.begin() +
+                                           currentSortedIndex,
+                                       m_hitComponents.begin() + i);
+                    }
+                    currentSortedIndex++;
+                    break;
                 }
-                currentSortedIndex++;
+            }
+            if (currentSortedIndex == hitShapesCount)
+            {
                 break;
             }
-        }
-        if (currentSortedIndex == hitShapesCount)
-        {
-            break;
         }
     }
 }
