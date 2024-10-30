@@ -200,12 +200,6 @@ void RenderContext::LogicalFlush::rewind()
 
     m_currentPathID = 0;
     m_currentContourID = 0;
-    m_currentContourPaddingVertexCount = 0;
-    m_pathTessLocation = 0;
-    m_pathMirroredTessLocation = 0;
-    RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath = 0;)
-    RIVE_DEBUG_CODE(m_expectedPathMirroredTessLocationAtEndOfPath = 0;)
-    RIVE_DEBUG_CODE(m_pathCurveCount = 0;)
 
     m_currentZIndex = 0;
 
@@ -335,15 +329,15 @@ void RenderContext::LogicalFlush::addClipReadBounds(uint32_t clipID,
     clipInfo.readBounds = clipInfo.readBounds.join(bounds);
 }
 
-bool RenderContext::pushDrawBatch(DrawUniquePtr draws[], size_t drawCount)
+bool RenderContext::pushDraws(DrawUniquePtr draws[], size_t drawCount)
 {
     assert(m_didBeginFrame);
     assert(!m_logicalFlushes.empty());
-    return m_logicalFlushes.back()->pushDrawBatch(draws, drawCount);
+    return m_logicalFlushes.back()->pushDraws(draws, drawCount);
 }
 
-bool RenderContext::LogicalFlush::pushDrawBatch(DrawUniquePtr draws[],
-                                                size_t drawCount)
+bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
+                                            size_t drawCount)
 {
     assert(!m_hasDoneLayout);
 
@@ -998,20 +992,20 @@ void RenderContext::LogicalFlush::writeResources()
     if (m_flushDesc.tessDataHeight > 0)
     {
         // Padding at the beginning of the tessellation texture.
-        pushPaddingVertices(0, gpu::kMidpointFanPatchSegmentSpan);
+        pushPaddingVertices(gpu::kMidpointFanPatchSegmentSpan, 0);
         // Padding between patch types in the tessellation texture.
         if (m_outerCubicTessVertexIdx > m_midpointFanTessEndLocation)
         {
-            pushPaddingVertices(m_midpointFanTessEndLocation,
-                                m_outerCubicTessVertexIdx -
-                                    m_midpointFanTessEndLocation);
+            pushPaddingVertices(m_outerCubicTessVertexIdx -
+                                    m_midpointFanTessEndLocation,
+                                m_midpointFanTessEndLocation);
         }
         // The final vertex of the final patch of each contour crosses over into
         // the next contour. (This is how we wrap around back to the beginning.)
         // Therefore, the final contour of the flush needs an out-of-contour
         // vertex to cross into as well, so we emit a padding vertex here at the
         // end.
-        pushPaddingVertices(m_outerCubicTessEndLocation, 1);
+        pushPaddingVertices(1, m_outerCubicTessEndLocation);
     }
 
     // Write out all the data for our high level draws, and build up a low-level
@@ -1256,10 +1250,6 @@ void RenderContext::LogicalFlush::writeResources()
            m_flushDesc.firstComplexGradSpan +
                m_resourceCounts.complexGradientSpanCount +
                m_gradSpanPaddingCount);
-
-    assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
-    assert(m_pathMirroredTessLocation ==
-           m_expectedPathMirroredTessLocationAtEndOfPath);
     assert(m_midpointFanTessVertexIdx == m_midpointFanTessEndLocation);
     assert(m_outerCubicTessVertexIdx == m_outerCubicTessEndLocation);
 
@@ -1600,41 +1590,27 @@ void RenderContext::unmapResourceBuffers()
     }
 }
 
-void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t tessLocation,
-                                                      uint32_t count)
+uint32_t RenderContext::LogicalFlush::allocateMidpointFanTessVertices(
+    uint32_t count)
 {
-    assert(m_hasDoneLayout);
-    assert(count > 0);
-
-    constexpr static Vec2D kEmptyCubic[4]{};
-    // This is guaranteed to not collide with a neighboring contour ID.
-    constexpr static uint32_t kInvalidContourID = 0;
-    assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
-    assert(m_pathMirroredTessLocation ==
-           m_expectedPathMirroredTessLocationAtEndOfPath);
-    m_pathTessLocation = tessLocation;
-    RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath =
-                        m_pathTessLocation + count;)
-    assert(m_expectedPathTessLocationAtEndOfPath <=
-           kMaxTessellationVertexCount);
-    pushTessellationSpans(kEmptyCubic,
-                          {0, 0},
-                          count,
-                          0,
-                          0,
-                          1,
-                          kInvalidContourID);
-    assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
+    uint32_t location = m_midpointFanTessVertexIdx;
+    m_midpointFanTessVertexIdx += count;
+    assert(m_midpointFanTessVertexIdx <= m_midpointFanTessEndLocation);
+    return location;
 }
 
-uint32_t RenderContext::LogicalFlush::pushPath(const RiveRenderPathDraw* draw,
-                                               gpu::PatchType patchType,
-                                               uint32_t tessVertexCount)
+uint32_t RenderContext::LogicalFlush::allocateOuterCubicTessVertices(
+    uint32_t count)
+{
+    uint32_t location = m_outerCubicTessVertexIdx;
+    m_outerCubicTessVertexIdx += count;
+    assert(m_outerCubicTessVertexIdx <= m_outerCubicTessEndLocation);
+    return location;
+}
+
+uint32_t RenderContext::LogicalFlush::pushPath(const RiveRenderPathDraw* draw)
 {
     assert(m_hasDoneLayout);
-    assert(m_pathTessLocation == m_expectedPathTessLocationAtEndOfPath);
-    assert(m_pathMirroredTessLocation ==
-           m_expectedPathMirroredTessLocationAtEndOfPath);
 
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_ctx->m_maxPathID);
@@ -1665,110 +1641,88 @@ uint32_t RenderContext::LogicalFlush::pushPath(const RiveRenderPathDraw* draw,
     assert(m_flushDesc.firstPaintAux + m_currentPathID + 1 ==
            m_ctx->m_paintAuxData.elementsWritten());
 
-    gpu::DrawType drawType;
-    uint32_t tessLocation;
-    if (patchType == PatchType::midpointFan)
-    {
-        drawType = DrawType::midpointFanPatches;
-        tessLocation = m_midpointFanTessVertexIdx;
-        m_midpointFanTessVertexIdx += tessVertexCount;
-    }
-    else
-    {
-        drawType = DrawType::outerCurvePatches;
-        tessLocation = m_outerCubicTessVertexIdx;
-        m_outerCubicTessVertexIdx += tessVertexCount;
-    }
-
-    RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath =
-                        tessLocation + tessVertexCount);
-    RIVE_DEBUG_CODE(m_expectedPathMirroredTessLocationAtEndOfPath =
-                        tessLocation);
-    assert(m_expectedPathTessLocationAtEndOfPath <=
-           kMaxTessellationVertexCount);
-
-    uint32_t patchSize = PatchSegmentSpan(drawType);
-    uint32_t baseInstance =
-        math::lossless_numeric_cast<uint32_t>(tessLocation / patchSize);
-    // flush() is responsible for alignment.
-    assert(baseInstance * patchSize == tessLocation);
-
-    switch (draw->contourDirections())
-    {
-        case gpu::ContourDirections::forward:
-            m_pathTessLocation = m_pathMirroredTessLocation = tessLocation;
-            break;
-        case gpu::ContourDirections::reverse:
-            m_pathTessLocation = m_pathMirroredTessLocation =
-                tessLocation + tessVertexCount;
-            break;
-        case gpu::ContourDirections::reverseThenForward:
-            assert(tessVertexCount % 2 == 0);
-            m_pathTessLocation = m_pathMirroredTessLocation =
-                tessLocation + tessVertexCount / 2;
-            break;
-        case gpu::ContourDirections::forwardThenReverse:
-            assert(tessVertexCount % 2 == 0);
-            m_pathTessLocation = tessLocation;
-            m_pathMirroredTessLocation = tessLocation + tessVertexCount;
-            RIVE_DEBUG_CODE(m_expectedPathTessLocationAtEndOfPath =
-                                m_expectedPathMirroredTessLocationAtEndOfPath =
-                                    tessLocation + tessVertexCount / 2);
-            break;
-    }
-    assert(m_pathTessLocation >= 0);
-    assert(m_pathMirroredTessLocation <= kMaxTessellationVertexCount);
-    assert(m_expectedPathMirroredTessLocationAtEndOfPath >= 0);
-    assert(m_expectedPathTessLocationAtEndOfPath <=
-           kMaxTessellationVertexCount);
-
-    uint32_t instanceCount = tessVertexCount / patchSize;
-    // flush() is responsible for alignment.
-    assert(instanceCount * patchSize == tessVertexCount);
-    pushPathDraw(draw, drawType, instanceCount, baseInstance);
-
     return m_currentPathID;
 }
 
-uint32_t RenderContext::LogicalFlush::pushContour(
-    const RiveRenderPathDraw* draw,
-    Vec2D midpoint,
-    bool closed,
-    uint32_t paddingVertexCount)
+RenderContext::TessellationWriter::TessellationWriter(
+    LogicalFlush* flush,
+    uint32_t pathID,
+    gpu::ContourDirections contourDirections,
+    uint32_t forwardTessVertexCount,
+    uint32_t forwardTessLocation,
+    uint32_t mirroredTessVertexCount,
+    uint32_t mirroredTessLocation) :
+    m_flush(flush),
+    m_tessSpanData(m_flush->m_ctx->m_tessSpanData),
+    m_pathID(pathID),
+    m_contourDirections(contourDirections),
+    m_pathTessLocation(forwardTessLocation),
+    m_pathMirroredTessLocation(mirroredTessLocation)
 {
-    assert(m_hasDoneLayout);
-    assert(m_ctx->m_pathData.bytesWritten() > 0);
-    assert(draw->pathID() != 0); // pathID can't be zero.
-    assert(draw->isStroked() || closed);
+    RIVE_DEBUG_CODE(m_expectedPathTessEndLocation =
+                        m_pathTessLocation + forwardTessVertexCount;)
+    RIVE_DEBUG_CODE(m_expectedPathMirroredTessEndLocation =
+                        m_pathMirroredTessLocation - mirroredTessVertexCount;)
+    assert(m_flush->m_hasDoneLayout);
+    assert(m_flush->m_ctx->m_pathData.elementsWritten() > 0);
+    assert(forwardTessVertexCount == 0 || mirroredTessVertexCount == 0 ||
+           forwardTessVertexCount == mirroredTessVertexCount);
+    assert(!gpu::ContourDirectionsAreDoubleSided(m_contourDirections) ||
+           forwardTessVertexCount == mirroredTessVertexCount);
+    assert(m_pathTessLocation >= 0);
+    assert(m_pathMirroredTessLocation <= kMaxTessellationVertexCount);
+    assert(m_expectedPathTessEndLocation <= kMaxTessellationVertexCount);
+    assert(m_expectedPathMirroredTessEndLocation >= 0);
+}
 
-    if (draw->isStroked())
+RenderContext::TessellationWriter::~TessellationWriter()
+{
+    assert(m_pathTessLocation == m_expectedPathTessEndLocation);
+    assert(m_pathMirroredTessLocation == m_expectedPathMirroredTessEndLocation);
+}
+
+uint32_t RenderContext::LogicalFlush::pushContour(uint32_t pathID,
+                                                  RenderPaintStyle style,
+                                                  Vec2D midpoint,
+                                                  bool closed,
+                                                  uint32_t vertexIndex0)
+{
+    assert(pathID != 0);
+    assert(style == RenderPaintStyle::stroke || closed);
+
+    if (style == RenderPaintStyle::stroke)
     {
         midpoint.x = closed ? 1 : 0;
     }
-    // If the contour is closed, the shader needs a vertex to wrap back around
-    // to at the end of it.
-    // For double sided tessellations, the forward or mirrored vertex0 would
-    // both work equally fine, so just go with forward unless it doesn't exist.
-    uint32_t vertexIndex0 =
-        draw->contourDirections() != gpu::ContourDirections::reverse
-            ? m_pathTessLocation
-            : m_pathMirroredTessLocation - 1;
-    m_ctx->m_contourData.emplace_back(midpoint, draw->pathID(), vertexIndex0);
+    m_ctx->m_contourData.emplace_back(midpoint, pathID, vertexIndex0);
+
     ++m_currentContourID;
     assert(0 < m_currentContourID && m_currentContourID <= gpu::kMaxContourID);
     assert(m_flushDesc.firstContour + m_currentContourID ==
            m_ctx->m_contourData.elementsWritten());
+    return m_currentContourID;
+}
 
+uint32_t RenderContext::TessellationWriter::pushContour(
+    RenderPaintStyle renderPaintStyle,
+    Vec2D midpoint,
+    bool closed,
+    uint32_t paddingVertexCount)
+{
     // The first curve of the contour will be pre-padded with
     // 'paddingVertexCount' tessellation vertices, colocated at T=0. The caller
     // must use this argument align the end of the contour on a boundary of the
     // patch size. (See gpu::PaddingToAlignUp().)
-    m_currentContourPaddingVertexCount = paddingVertexCount;
+    m_nextCubicPaddingVertexCount = paddingVertexCount;
 
-    return m_currentContourID;
+    return m_flush->pushContour(m_pathID,
+                                renderPaintStyle,
+                                midpoint,
+                                closed,
+                                nextVertexIndex());
 }
 
-void RenderContext::LogicalFlush::pushCubic(
+void RenderContext::TessellationWriter::pushCubic(
     const Vec2D pts[4],
     gpu::ContourDirections contourDirections,
     Vec2D joinTangent,
@@ -1777,12 +1731,12 @@ void RenderContext::LogicalFlush::pushCubic(
     uint32_t joinSegmentCount,
     uint32_t contourIDWithFlags)
 {
-    assert(m_hasDoneLayout);
     assert(0 <= parametricSegmentCount &&
            parametricSegmentCount <= kMaxParametricSegments);
     assert(0 <= polarSegmentCount && polarSegmentCount <= kMaxPolarSegments);
     assert(joinSegmentCount > 0);
-    assert((contourIDWithFlags & 0xffff) == (m_currentContourID & 0xffff));
+    assert((contourIDWithFlags & 0xffff) ==
+           (m_flush->m_currentContourID & 0xffff));
     assert((contourIDWithFlags & 0xffff) != 0); // contourID can't be zero.
 
     // Polar and parametric segments share the same beginning and ending
@@ -1791,11 +1745,11 @@ void RenderContext::LogicalFlush::pushCubic(
     uint32_t curveMergedVertexCount =
         parametricSegmentCount + polarSegmentCount;
     // -1 because the curve and join share an ending/beginning vertex.
-    uint32_t totalVertexCount = m_currentContourPaddingVertexCount +
+    uint32_t totalVertexCount = m_nextCubicPaddingVertexCount +
                                 curveMergedVertexCount + joinSegmentCount - 1;
 
     // Only the first curve of a contour gets padding vertices.
-    m_currentContourPaddingVertexCount = 0;
+    m_nextCubicPaddingVertexCount = 0;
 
     switch (contourDirections)
     {
@@ -1819,8 +1773,8 @@ void RenderContext::LogicalFlush::pushCubic(
             break;
         case gpu::ContourDirections::reverseThenForward:
         case gpu::ContourDirections::forwardThenReverse:
-            // m_pathTessLocation and m_pathMirroredTessLocation were already
-            // configured in pushPath(), so at ths point we don't need to handle
+            // m_pathTessLocation and m_pathMirroredTessLocation are already
+            // configured, so at ths point we don't need to handle
             // reverseThenForward or forwardThenReverse differently.
             pushDoubleSidedTessellationSpans(pts,
                                              joinTangent,
@@ -1831,20 +1785,17 @@ void RenderContext::LogicalFlush::pushCubic(
                                              contourIDWithFlags);
             break;
     }
-
-    RIVE_DEBUG_CODE(++m_pathCurveCount;)
 }
 
-RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::pushTessellationSpans(
-    const Vec2D pts[4],
-    Vec2D joinTangent,
-    uint32_t totalVertexCount,
-    uint32_t parametricSegmentCount,
-    uint32_t polarSegmentCount,
-    uint32_t joinSegmentCount,
-    uint32_t contourIDWithFlags)
+RIVE_ALWAYS_INLINE void RenderContext::TessellationWriter::
+    pushTessellationSpans(const Vec2D pts[4],
+                          Vec2D joinTangent,
+                          uint32_t totalVertexCount,
+                          uint32_t parametricSegmentCount,
+                          uint32_t polarSegmentCount,
+                          uint32_t joinSegmentCount,
+                          uint32_t contourIDWithFlags)
 {
-    assert(m_hasDoneLayout);
     assert(totalVertexCount > 0);
 
     uint32_t y = m_pathTessLocation / kTessTextureWidth;
@@ -1852,15 +1803,15 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::pushTessellationSpans(
     int32_t x1 = x0 + totalVertexCount;
     for (;;)
     {
-        m_ctx->m_tessSpanData.set_back(pts,
-                                       joinTangent,
-                                       static_cast<float>(y),
-                                       x0,
-                                       x1,
-                                       parametricSegmentCount,
-                                       polarSegmentCount,
-                                       joinSegmentCount,
-                                       contourIDWithFlags);
+        m_tessSpanData.set_back(pts,
+                                joinTangent,
+                                static_cast<float>(y),
+                                x0,
+                                x1,
+                                parametricSegmentCount,
+                                polarSegmentCount,
+                                joinSegmentCount,
+                                contourIDWithFlags);
         if (x1 > static_cast<int32_t>(kTessTextureWidth))
         {
             // The span was too long to fit on the current line. Wrap and draw
@@ -1877,10 +1828,10 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::pushTessellationSpans(
            (m_pathTessLocation + totalVertexCount - 1) / kTessTextureWidth);
 
     m_pathTessLocation += totalVertexCount;
-    assert(m_pathTessLocation <= m_expectedPathTessLocationAtEndOfPath);
+    assert(m_pathTessLocation <= m_expectedPathTessEndLocation);
 }
 
-RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
+RIVE_ALWAYS_INLINE void RenderContext::TessellationWriter::
     pushMirroredTessellationSpans(const Vec2D pts[4],
                                   Vec2D joinTangent,
                                   uint32_t totalVertexCount,
@@ -1889,7 +1840,6 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
                                   uint32_t joinSegmentCount,
                                   uint32_t contourIDWithFlags)
 {
-    assert(m_hasDoneLayout);
     assert(totalVertexCount > 0);
 
     uint32_t reflectionY = (m_pathMirroredTessLocation - 1) / kTessTextureWidth;
@@ -1899,15 +1849,15 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
 
     for (;;)
     {
-        m_ctx->m_tessSpanData.set_back(pts,
-                                       joinTangent,
-                                       static_cast<float>(reflectionY),
-                                       reflectionX0,
-                                       reflectionX1,
-                                       parametricSegmentCount,
-                                       polarSegmentCount,
-                                       joinSegmentCount,
-                                       contourIDWithFlags);
+        m_tessSpanData.set_back(pts,
+                                joinTangent,
+                                static_cast<float>(reflectionY),
+                                reflectionX0,
+                                reflectionX1,
+                                parametricSegmentCount,
+                                polarSegmentCount,
+                                joinSegmentCount,
+                                contourIDWithFlags);
         if (reflectionX1 < 0)
         {
             --reflectionY;
@@ -1919,11 +1869,10 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
     }
 
     m_pathMirroredTessLocation -= totalVertexCount;
-    assert(m_pathMirroredTessLocation >=
-           m_expectedPathMirroredTessLocationAtEndOfPath);
+    assert(m_pathMirroredTessLocation >= m_expectedPathMirroredTessEndLocation);
 }
 
-RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
+RIVE_ALWAYS_INLINE void RenderContext::TessellationWriter::
     pushDoubleSidedTessellationSpans(const Vec2D pts[4],
                                      Vec2D joinTangent,
                                      uint32_t totalVertexCount,
@@ -1932,7 +1881,6 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
                                      uint32_t joinSegmentCount,
                                      uint32_t contourIDWithFlags)
 {
-    assert(m_hasDoneLayout);
     assert(totalVertexCount > 0);
 
     int32_t y = m_pathTessLocation / kTessTextureWidth;
@@ -1946,18 +1894,18 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
 
     for (;;)
     {
-        m_ctx->m_tessSpanData.set_back(pts,
-                                       joinTangent,
-                                       static_cast<float>(y),
-                                       x0,
-                                       x1,
-                                       static_cast<float>(reflectionY),
-                                       reflectionX0,
-                                       reflectionX1,
-                                       parametricSegmentCount,
-                                       polarSegmentCount,
-                                       joinSegmentCount,
-                                       contourIDWithFlags);
+        m_tessSpanData.set_back(pts,
+                                joinTangent,
+                                static_cast<float>(y),
+                                x0,
+                                x1,
+                                static_cast<float>(reflectionY),
+                                reflectionX0,
+                                reflectionX1,
+                                parametricSegmentCount,
+                                polarSegmentCount,
+                                joinSegmentCount,
+                                contourIDWithFlags);
         if (x1 > static_cast<int32_t>(kTessTextureWidth) || reflectionX1 < 0)
         {
             // Either the span or its reflection was too long to fit on the
@@ -1977,17 +1925,85 @@ RIVE_ALWAYS_INLINE void RenderContext::LogicalFlush::
     }
 
     m_pathTessLocation += totalVertexCount;
-    assert(m_pathTessLocation <= m_expectedPathTessLocationAtEndOfPath);
+    assert(m_pathTessLocation <= m_expectedPathTessEndLocation);
 
     m_pathMirroredTessLocation -= totalVertexCount;
-    assert(m_pathMirroredTessLocation >=
-           m_expectedPathMirroredTessLocationAtEndOfPath);
+    assert(m_pathMirroredTessLocation >= m_expectedPathMirroredTessEndLocation);
 }
 
-void RenderContext::LogicalFlush::pushInteriorTriangulation(
-    const RiveRenderPathDraw* draw)
+void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t count,
+                                                      uint32_t tessLocation)
 {
     assert(m_hasDoneLayout);
+    assert(count > 0);
+
+    constexpr static Vec2D kEmptyCubic[4]{};
+    // This is guaranteed to not collide with a neighboring contour ID.
+    constexpr static uint32_t kInvalidContourID = 0;
+    TessellationWriter(this,
+                       /*pathID=*/0,
+                       gpu::ContourDirections::forward,
+                       count,
+                       tessLocation)
+        .pushTessellationSpans(kEmptyCubic,
+                               {0, 0},
+                               count,
+                               0,
+                               0,
+                               1,
+                               kInvalidContourID);
+}
+
+void RenderContext::LogicalFlush::pushMidpointFanDraw(
+    const RiveRenderPathDraw* draw,
+    uint32_t tessVertexCount,
+    uint32_t tessLocation)
+{
+    assert(m_hasDoneLayout);
+
+    uint32_t baseInstance = math::lossless_numeric_cast<uint32_t>(
+        tessLocation / kMidpointFanPatchSegmentSpan);
+    // flush() is responsible for alignment.
+    assert(baseInstance * kMidpointFanPatchSegmentSpan == tessLocation);
+
+    uint32_t instanceCount = tessVertexCount / kMidpointFanPatchSegmentSpan;
+    // flush() is responsible for alignment.
+    assert(instanceCount * kMidpointFanPatchSegmentSpan == tessVertexCount);
+
+    pushPathDraw(draw,
+                 gpu::DrawType::midpointFanPatches,
+                 instanceCount,
+                 baseInstance);
+}
+
+void RenderContext::LogicalFlush::pushOuterCubicsDraw(
+    const RiveRenderPathDraw* draw,
+    uint32_t tessVertexCount,
+    uint32_t tessLocation)
+{
+    assert(m_hasDoneLayout);
+
+    uint32_t baseInstance = math::lossless_numeric_cast<uint32_t>(
+        tessLocation / kOuterCurvePatchSegmentSpan);
+    // flush() is responsible for alignment.
+    assert(baseInstance * kOuterCurvePatchSegmentSpan == tessLocation);
+
+    uint32_t instanceCount = tessVertexCount / kOuterCurvePatchSegmentSpan;
+    // flush() is responsible for alignment.
+    assert(instanceCount * kOuterCurvePatchSegmentSpan == tessVertexCount);
+
+    pushPathDraw(draw,
+                 gpu::DrawType::outerCurvePatches,
+                 instanceCount,
+                 baseInstance);
+}
+
+void RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
+    const RiveRenderPathDraw* draw,
+    uint32_t pathID)
+{
+    assert(m_hasDoneLayout);
+    assert(pathID != 0);
 
     assert(m_ctx->m_triangleVertexData.hasRoomFor(
         draw->triangulator()->maxVertexCount()));
@@ -1995,7 +2011,7 @@ void RenderContext::LogicalFlush::pushInteriorTriangulation(
         m_ctx->m_triangleVertexData.elementsWritten());
     size_t actualVertexCount =
         draw->triangulator()->polysToTriangles(&m_ctx->m_triangleVertexData,
-                                               draw->pathID());
+                                               pathID);
     assert(actualVertexCount <= draw->triangulator()->maxVertexCount());
     pushPathDraw(draw,
                  DrawType::interiorTriangulation,
@@ -2003,7 +2019,7 @@ void RenderContext::LogicalFlush::pushInteriorTriangulation(
                  baseVertex);
 }
 
-void RenderContext::LogicalFlush::pushImageRect(ImageRectDraw* draw)
+void RenderContext::LogicalFlush::pushImageRectDraw(ImageRectDraw* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -2025,7 +2041,7 @@ void RenderContext::LogicalFlush::pushImageRect(ImageRectDraw* draw)
         math::lossless_numeric_cast<uint32_t>(imageDrawDataOffset);
 }
 
-void RenderContext::LogicalFlush::pushImageMesh(ImageMeshDraw* draw)
+void RenderContext::LogicalFlush::pushImageMeshDraw(ImageMeshDraw* draw)
 {
 
     assert(m_hasDoneLayout);
@@ -2050,7 +2066,8 @@ void RenderContext::LogicalFlush::pushImageMesh(ImageMeshDraw* draw)
         math::lossless_numeric_cast<uint32_t>(imageDrawDataOffset);
 }
 
-void RenderContext::LogicalFlush::pushStencilClipReset(StencilClipReset* draw)
+void RenderContext::LogicalFlush::pushStencilClipResetDraw(
+    StencilClipReset* draw)
 {
     assert(m_hasDoneLayout);
 

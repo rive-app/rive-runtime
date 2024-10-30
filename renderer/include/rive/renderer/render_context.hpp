@@ -67,23 +67,6 @@ using DrawUniquePtr = std::unique_ptr<Draw, DrawReleaseRefs>;
 // Top-level, API agnostic rendering context for RiveRenderer. This class
 // manages all the GPU buffers, context state, and other resources required for
 // Rive's pixel local storage path rendering algorithm.
-//
-// Intended usage pattern of this class:
-//
-//   context->beginFrame(...);
-//   for (path : paths)
-//   {
-//       context->pushPath(...);
-//       for (contour : path.contours)
-//       {
-//           context->pushContour(...);
-//           for (cubic : contour.cubics)
-//           {
-//               context->pushCubic(...);
-//           }
-//       }
-//   }
-//   context->flush();
 class RenderContext : public RiveRenderFactory
 {
 public:
@@ -205,7 +188,7 @@ public:
     // Returns false if the draws don't fit within the current resource
     // constraints, at which point the caller must issue a logical flush and try
     // again.
-    [[nodiscard]] bool pushDrawBatch(DrawUniquePtr draws[], size_t drawCount);
+    [[nodiscard]] bool pushDraws(DrawUniquePtr draws[], size_t drawCount);
 
     // Records a "logical" flush, in that it builds up commands to break up the
     // render pass and re-render the resource textures, but it won't submit any
@@ -401,6 +384,8 @@ private:
         m_parametricSegmentCountsAllocator{
             kIntermediateDataInitialFillCurves}; // 4 bytes per fill curve.
 
+    class TessellationWriter;
+
     // Manages a list of high-level Draws and their required resources.
     //
     // Since textures have hard size limits, we can't always fit an entire frame
@@ -472,8 +457,7 @@ private:
         // Returns false if the draws don't fit within the current resource
         // constraints, at which point the context must append a new logical
         // flush and try again.
-        [[nodiscard]] bool pushDrawBatch(DrawUniquePtr draws[],
-                                         size_t drawCount);
+        [[nodiscard]] bool pushDraws(DrawUniquePtr draws[], size_t drawCount);
 
         // Running counts of data records required by Draws that need to be
         // allocated in the render context's various GPU buffers.
@@ -501,8 +485,8 @@ private:
             size_t outerCubicTessVertexCount = 0;
             size_t pathCount = 0;
             size_t contourCount = 0;
-            size_t maxTessellatedSegmentCount =
-                0; // lines, curves, lone joins, emulated caps, etc.
+            // lines, curves, lone joins, emulated caps, etc.
+            size_t maxTessellatedSegmentCount = 0;
             size_t maxTriangleVertexCount = 0;
             size_t imageDrawCount = 0; // imageRect or imageMesh.
             size_t complexGradientSpanCount = 0;
@@ -550,116 +534,97 @@ private:
         // buffers.
         void writeResources();
 
-        // Allocates and initializes a record on the GPU for the given path.
-        // Returns a unique 16-bit "pathID" handle for this specific record.
-        // Also adds the RiveRenderPathDraw to a dstRead list if one is
-        // required, and if this is the path's first subpass.
-        [[nodiscard]] uint32_t pushPath(const RiveRenderPathDraw*,
-                                        gpu::PatchType,
-                                        uint32_t tessVertexCount);
+        // Reserves a span of "count" vertices from the "midpointFanPatches"
+        // section of the tessellation texture.
+        //
+        // This method must be called for a total count of precisely
+        // "m_resourceCounts.midpointFanTessVertexCount" vertices.
+        //
+        // The caller must fill these vertices in with TessellationWriter.
+        //
+        // Returns the index of the first vertex in the newly allocated span.
+        uint32_t allocateMidpointFanTessVertices(uint32_t count);
 
-        // Pushes a contour record to the GPU for the given contour, which
-        // references the given path.
+        // Reserves a span of "count" vertices from the "outerCurvePatches"
+        // section of the tessellation texture.
+        //
+        // This method must be called for a total count of precisely
+        // "m_resourceCounts.outerCubicTessVertexCount" vertices.
+        //
+        // The caller must fill these vertices in with TessellationWriter.
+        //
+        // Returns the index of the first vertex in the newly allocated span.
+        uint32_t allocateOuterCubicTessVertices(uint32_t count);
+
+        // Allocates and initializes a record on the GPU for the given path.
+        //
+        // Returns a unique 16-bit "pathID" handle for this specific record.
+        //
+        // This method does not add the path to the draw list. The caller must
+        // define that draw specifically with a separate call to
+        // pushMidpointFanDraw() or pushOuterCubicsDraw().
+        [[nodiscard]] uint32_t pushPath(const RiveRenderPathDraw* draw);
+
+        // Pushes a contour record to the GPU that references the given path.
+        //
+        // "vertexIndex0" is the index within the tessellation where the first
+        // vertex of the contour resides. Shaders need this when the contour is
+        // closed.
         //
         // Returns a unique 16-bit "contourID" handle for this specific record.
         // This ID may be or-ed with '*_CONTOUR_FLAG' bits from constants.glsl.
-        //
-        // The first curve of the contour will be pre-padded with
-        // 'paddingVertexCount' tessellation vertices, colocated at T=0. The
-        // caller must use this argument to align the end of the contour on a
-        // boundary of the patch size. (See gpu::PaddingToAlignUp().)
-        [[nodiscard]] uint32_t pushContour(const RiveRenderPathDraw*,
+        [[nodiscard]] uint32_t pushContour(uint32_t pathID,
+                                           RenderPaintStyle,
                                            Vec2D midpoint,
                                            bool closed,
-                                           uint32_t paddingVertexCount);
+                                           uint32_t vertexIndex0);
 
-        // Appends a cubic curve and join to the current contour and reserves
-        // the appropriate number of tessellated vertices in the tessellation
-        // texture.
-        //
-        // The bottom 16 bits of contourIDWithFlags must match the most recent
-        // contourID returned by pushContour(), but it may also have extra
-        // '*_CONTOUR_FLAG' bits from constants.glsl
-        //
-        // An instance consists of a cubic curve with "parametricSegmentCount +
-        // polarSegmentCount" segments, followed by a join with
-        // "joinSegmentCount" segments, for a grand total of
-        // "parametricSegmentCount + polarSegmentCount + joinSegmentCount - 1"
-        // vertices.
-        //
-        // If a cubic has already been pushed to the current contour, pts[0]
-        // must be equal to the former cubic's pts[3].
-        //
-        // "joinTangent" is the ending tangent of the join that follows the
-        // cubic.
-        void pushCubic(const Vec2D pts[4],
-                       gpu::ContourDirections,
-                       Vec2D joinTangent,
-                       uint32_t parametricSegmentCount,
-                       uint32_t polarSegmentCount,
-                       uint32_t joinSegmentCount,
-                       uint32_t contourIDWithFlags);
+        // Writes padding vertices to the tessellation texture, with an invalid
+        // contour ID that is guaranteed to not be the same ID as any neighbors.
+        void pushPaddingVertices(uint32_t count, uint32_t tessLocation);
 
-        // Pushes triangles to be drawn using the data records from the most
-        // recent calls to pushPath() and pushPaint().
-        void pushInteriorTriangulation(const RiveRenderPathDraw*);
+        // Pushes a "midpointFanPatches" draw to the list. Path, contour, and
+        // cubic data are pushed separately.
+        //
+        // Also adds the RiveRenderPathDraw to a dstRead list if one is
+        // required, and if this is the path's first subpass.
+        void pushMidpointFanDraw(const RiveRenderPathDraw*,
+                                 uint32_t tessVertexCount,
+                                 uint32_t tessLocation);
 
-        // Pushes an imageRect to the draw list.
+        // Pushes an "outerCurvePatches" draw to the list. Path, contour, and
+        // cubic data are pushed separately.
+        //
+        // Also adds the RiveRenderPathDraw to a dstRead list if one is
+        // required, and if this is the path's first subpass.
+        void pushOuterCubicsDraw(const RiveRenderPathDraw*,
+                                 uint32_t tessVertexCount,
+                                 uint32_t tessLocation);
+
+        // Pushes an "interiorTriangulation" draw to the list.
+        void pushInteriorTriangulationDraw(const RiveRenderPathDraw*,
+                                           uint32_t pathID);
+
+        // Pushes an "imageRect" to the draw list.
         // This should only be used when we in atomic mode. Otherwise, images
         // should be drawn as rectangular paths with an image paint.
-        void pushImageRect(ImageRectDraw*);
+        void pushImageRectDraw(ImageRectDraw*);
 
-        void pushImageMesh(ImageMeshDraw*);
+        // Pushes an "imageMesh" draw to the list.
+        void pushImageMeshDraw(ImageMeshDraw*);
 
-        void pushStencilClipReset(StencilClipReset*);
+        // Pushes a "stencilClipReset" draw to the list.
+        void pushStencilClipResetDraw(StencilClipReset*);
+
+    private:
+        friend class TessellationWriter;
+
+        ClipInfo& getWritableClipInfo(uint32_t clipID);
 
         // Adds a barrier to the end of the draw list that prevents further
         // combining/batching and instructs the backend to issue a graphics
         // barrier, if necessary.
         void pushBarrier();
-
-    private:
-        ClipInfo& getWritableClipInfo(uint32_t clipID);
-
-        // Writes padding vertices to the tessellation texture, with an invalid
-        // contour ID that is guaranteed to not be the same ID as any neighbors.
-        void pushPaddingVertices(uint32_t tessLocation, uint32_t count);
-
-        // Allocates a (potentially wrapped) span in the tessellation texture
-        // and pushes an instance to render it. If the span does wraps, pushes
-        // multiple instances to render each horizontal segment.
-        RIVE_ALWAYS_INLINE void pushTessellationSpans(
-            const Vec2D pts[4],
-            Vec2D joinTangent,
-            uint32_t totalVertexCount,
-            uint32_t parametricSegmentCount,
-            uint32_t polarSegmentCount,
-            uint32_t joinSegmentCount,
-            uint32_t contourIDWithFlags);
-
-        // Same as pushTessellationSpans(), but pushes a reflection of the span,
-        // rendered right to left, whose triangles have reverse winding
-        // directions and negated coverage.
-        RIVE_ALWAYS_INLINE void pushMirroredTessellationSpans(
-            const Vec2D pts[4],
-            Vec2D joinTangent,
-            uint32_t totalVertexCount,
-            uint32_t parametricSegmentCount,
-            uint32_t polarSegmentCount,
-            uint32_t joinSegmentCount,
-            uint32_t contourIDWithFlags);
-
-        // Functionally equivalent to "pushMirroredTessellationSpans();
-        // pushTessellationSpans();", but packs each forward and mirrored pair
-        // into a single gpu::TessVertexSpan.
-        RIVE_ALWAYS_INLINE void pushDoubleSidedTessellationSpans(
-            const Vec2D pts[4],
-            Vec2D joinTangent,
-            uint32_t totalVertexCount,
-            uint32_t parametricSegmentCount,
-            uint32_t polarSegmentCount,
-            uint32_t joinSegmentCount,
-            uint32_t contourIDWithFlags);
 
         // Either appends a new drawBatch to m_drawList or merges into
         // m_drawList.tail(). Updates the batch's ShaderFeatures according to
@@ -726,14 +691,6 @@ private:
         // Most recent path and contour state.
         uint32_t m_currentPathID;
         uint32_t m_currentContourID;
-        uint32_t m_currentContourPaddingVertexCount; // Padding to add to the
-                                                     // first curve.
-        uint32_t m_pathTessLocation;
-        uint32_t m_pathMirroredTessLocation; // Used for back-face culling and
-                                             // mirrored patches.
-        RIVE_DEBUG_CODE(uint32_t m_expectedPathTessLocationAtEndOfPath;)
-        RIVE_DEBUG_CODE(uint32_t m_expectedPathMirroredTessLocationAtEndOfPath;)
-        RIVE_DEBUG_CODE(uint32_t m_pathCurveCount;)
 
         // Stateful Z index of the current draw being pushed. Used by msaa mode
         // to avoid double hits and to reverse-sort opaque paths front to back.
@@ -743,5 +700,129 @@ private:
     };
 
     std::vector<std::unique_ptr<LogicalFlush>> m_logicalFlushes;
+
+    // Writes out TessVertexSpans that are used to tessellate the vertices
+    // in a path.
+    class TessellationWriter
+    {
+    public:
+        // forwardTessLocation & mirroredTessLocation are allocated by
+        // allocate*TessVertices().
+        //
+        // forwardTessLocation starts at the beginning of the vertex span
+        // and advances forward.
+        //
+        // mirroredTessLocation starts at the end of the vertex span and
+        // advances backward.
+        //
+        // If the ContourDirections are double sided, forwardTessVertexCount
+        // & mirroredTessVertexCount must both be equal, and
+        // forwardTessLocation & mirroredTessLocation must both be valid.
+        // Otherwise, one span or the other may be empty.
+        TessellationWriter(LogicalFlush* flush,
+                           uint32_t pathID,
+                           gpu::ContourDirections,
+                           uint32_t forwardTessVertexCount,
+                           uint32_t forwardTessLocation,
+                           uint32_t mirroredTessVertexCount = 0,
+                           uint32_t mirroredTessLocation = 0);
+
+        ~TessellationWriter();
+
+        // Returns the index of the next vertex to be written.
+        //
+        // In the case of double-sided tessellations the next vertex gets
+        // tessellated twice, and either index will be identical. So we just
+        // return the next *forward* tessellation index when it's double sided.
+        uint32_t nextVertexIndex()
+        {
+            return m_contourDirections != gpu::ContourDirections::reverse
+                       ? m_pathTessLocation
+                       : m_pathMirroredTessLocation - 1;
+        }
+
+        // Wrapper around LogicalFlush::pushContour(), with an additional
+        // padding option.
+        //
+        // The first curve of the contour will be pre-padded with
+        // 'paddingVertexCount' tessellation vertices, colocated at T=0. The
+        // caller must use this argument to align the end of the contour on
+        // a boundary of the patch size. (See gpu::PaddingToAlignUp().)
+        [[nodiscard]] uint32_t pushContour(RenderPaintStyle,
+                                           Vec2D midpoint,
+                                           bool closed,
+                                           uint32_t paddingVertexCount);
+
+        // Wites out (potentially wrapped) TessVertexSpan(s) that tessellate
+        // a cubic curve & join at the current tessellation location(s).
+        // Advances the tessellation location(s).
+        //
+        // The bottom 16 bits of contourIDWithFlags must match the most
+        // recent contourID returned by pushContour(), but it may also have
+        // extra '*_CONTOUR_FLAG' bits from constants.glsl
+        //
+        // An instance consists of a cubic curve with
+        // "parametricSegmentCount + polarSegmentCount" segments, followed
+        // by a join with "joinSegmentCount" segments, for a grand total of
+        // "parametricSegmentCount + polarSegmentCount + joinSegmentCount -
+        // 1" vertices.
+        //
+        // If a cubic has already been pushed to the current contour, pts[0]
+        // must be equal to the former cubic's pts[3].
+        //
+        // "joinTangent" is the ending tangent of the join that follows the
+        // cubic.
+        void pushCubic(const Vec2D pts[4],
+                       gpu::ContourDirections,
+                       Vec2D joinTangent,
+                       uint32_t parametricSegmentCount,
+                       uint32_t polarSegmentCount,
+                       uint32_t joinSegmentCount,
+                       uint32_t contourIDWithFlags);
+
+        // pushCubic() impl for forward tessellations.
+        RIVE_ALWAYS_INLINE void pushTessellationSpans(
+            const Vec2D pts[4],
+            Vec2D joinTangent,
+            uint32_t totalVertexCount,
+            uint32_t parametricSegmentCount,
+            uint32_t polarSegmentCount,
+            uint32_t joinSegmentCount,
+            uint32_t contourIDWithFlags);
+
+        // pushCubic() impl for mirrored tessellations.
+        RIVE_ALWAYS_INLINE void pushMirroredTessellationSpans(
+            const Vec2D pts[4],
+            Vec2D joinTangent,
+            uint32_t totalVertexCount,
+            uint32_t parametricSegmentCount,
+            uint32_t polarSegmentCount,
+            uint32_t joinSegmentCount,
+            uint32_t contourIDWithFlags);
+
+        // Functionally equivalent to "pushMirroredTessellationSpans();
+        // pushTessellationSpans();", but packs each forward and mirrored
+        // pair into a single gpu::TessVertexSpan.
+        RIVE_ALWAYS_INLINE void pushDoubleSidedTessellationSpans(
+            const Vec2D pts[4],
+            Vec2D joinTangent,
+            uint32_t totalVertexCount,
+            uint32_t parametricSegmentCount,
+            uint32_t polarSegmentCount,
+            uint32_t joinSegmentCount,
+            uint32_t contourIDWithFlags);
+
+    private:
+        LogicalFlush* const m_flush;
+        WriteOnlyMappedMemory<gpu::TessVertexSpan>& m_tessSpanData;
+        const uint32_t m_pathID;
+        const gpu::ContourDirections m_contourDirections;
+        uint32_t m_pathTessLocation;
+        uint32_t m_pathMirroredTessLocation;
+        // Padding to add to the next curve.
+        uint32_t m_nextCubicPaddingVertexCount = 0;
+        RIVE_DEBUG_CODE(uint32_t m_expectedPathTessEndLocation;)
+        RIVE_DEBUG_CODE(uint32_t m_expectedPathMirroredTessEndLocation;)
+    };
 };
 } // namespace rive::gpu

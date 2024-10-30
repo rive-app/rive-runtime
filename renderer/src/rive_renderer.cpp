@@ -440,8 +440,8 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
         }
 
         m_internalDrawBatch.push_back(std::move(draw));
-        if (!m_context->pushDrawBatch(m_internalDrawBatch.data(),
-                                      m_internalDrawBatch.size()))
+        if (!m_context->pushDraws(m_internalDrawBatch.data(),
+                                  m_internalDrawBatch.size()))
         {
             // There wasn't room in the GPU buffers for this path draw. Flush
             // and try again.

@@ -3,6 +3,7 @@
  */
 
 #include "gm.hpp"
+#include "gr_inner_fan_triangulator.hpp"
 #include "common/testing_window.hpp"
 #include "rive/renderer.hpp"
 #include "rive/renderer/draw.hpp"
@@ -50,6 +51,12 @@ public:
             context->frameInterlockMode() != gpu::InterlockMode::msaa
                 ? gpu::kOuterCurvePatchSegmentSpan * kNumTriangles * 2
                 : gpu::kOuterCurvePatchSegmentSpan * kNumTriangles;
+        m_triangulator = context->make<GrInnerFanTriangulator>(
+            RawPath(),
+            Mat2D(),
+            GrTriangulator::Comparator::Direction::kHorizontal,
+            FillRule::nonZero,
+            &context->perFrameAllocator());
     }
 
     void pushToRenderContext(RenderContext::LogicalFlush* flush,
@@ -65,36 +72,61 @@ public:
             return;
         }
 
-        size_t tessVertexCount =
-            m_type == Type::midpointFanPath
-                ? m_resourceCounts.midpointFanTessVertexCount
-                : m_resourceCounts.outerCubicTessVertexCount;
+        uint32_t tessVertexCount = math::lossless_numeric_cast<uint32_t>(
+            m_resourceCounts.outerCubicTessVertexCount);
         if (tessVertexCount > 0)
         {
-            // Push a path record.
-            m_pathID = flush->pushPath(
-                this,
-                m_type == Type::midpointFanPath ? PatchType::midpointFan
-                                                : PatchType::outerCurves,
-                math::lossless_numeric_cast<uint32_t>(tessVertexCount));
+            m_pathID = flush->pushPath(this);
+
+            uint32_t tessLocation =
+                flush->allocateOuterCubicTessVertices(tessVertexCount);
+            uint32_t forwardTessVertexCount, forwardTessLocation,
+                mirroredTessVertexCount, mirroredTessLocation;
+            if (m_contourDirections ==
+                gpu::ContourDirections::reverseThenForward)
+            {
+                forwardTessVertexCount = mirroredTessVertexCount =
+                    tessVertexCount / 2;
+                forwardTessLocation = mirroredTessLocation =
+                    tessLocation + tessVertexCount / 2;
+            }
+            else
+            {
+                assert(m_contourDirections == gpu::ContourDirections::forward);
+                forwardTessVertexCount = tessVertexCount;
+                forwardTessLocation = tessLocation;
+                mirroredTessVertexCount = mirroredTessLocation = 0;
+            }
+
+            RenderContext::TessellationWriter tessWriter(
+                flush,
+                m_pathID,
+                m_contourDirections,
+                forwardTessVertexCount,
+                forwardTessLocation,
+                mirroredTessVertexCount,
+                mirroredTessLocation);
 
             // PushRetrofittedTrianglesGMDraw specific push to render
-            uint32_t contourID = flush->pushContour(
-                this,
+            uint32_t contourID = tessWriter.pushContour(
+                renderPaintStyle(),
                 {0, 0},
                 true,
                 0 /* gpu::kOuterCurvePatchSegmentSpan - 2 */);
             for (const auto& pts : kTris)
             {
                 Vec2D tri[4] = {pts[0], pts[1], {0, 0}, pts[2]};
-                flush->pushCubic(tri,
-                                 m_contourDirections,
-                                 {0, 0},
-                                 gpu::kOuterCurvePatchSegmentSpan - 1,
-                                 1,
-                                 1,
-                                 contourID | RETROFITTED_TRIANGLE_CONTOUR_FLAG);
+                tessWriter.pushCubic(tri,
+                                     m_contourDirections,
+                                     {0, 0},
+                                     gpu::kOuterCurvePatchSegmentSpan - 1,
+                                     1,
+                                     1,
+                                     contourID |
+                                         RETROFITTED_TRIANGLE_CONTOUR_FLAG);
             }
+
+            flush->pushOuterCubicsDraw(this, tessVertexCount, tessLocation);
         }
     }
 };
@@ -125,8 +157,7 @@ protected:
                 renderContext->make<PushRetrofittedTrianglesGMDraw>(
                     renderContext,
                     &paint));
-            bool success RIVE_MAYBE_UNUSED =
-                renderContext->pushDrawBatch(&draw, 1);
+            bool success RIVE_MAYBE_UNUSED = renderContext->pushDraws(&draw, 1);
             assert(success);
         }
     }

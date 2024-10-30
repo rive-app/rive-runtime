@@ -59,6 +59,10 @@ public:
     {
         return m_drawContents & gpu::DrawContents::stroke;
     }
+    RenderPaintStyle renderPaintStyle() const
+    {
+        return isStroked() ? RenderPaintStyle::stroke : RenderPaintStyle::fill;
+    }
     bool isEvenOddFill() const
     {
         return m_drawContents & gpu::DrawContents::evenOddFill;
@@ -206,9 +210,6 @@ public:
     }
     GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
 
-    // Unique ID used by shaders for the current frame.
-    uint32_t pathID() const { return m_pathID; }
-
     void pushToRenderContext(RenderContext::LogicalFlush*,
                              uint32_t subpassIndex) override;
 
@@ -231,10 +232,28 @@ protected:
                                       RawPath*,
                                       TriangulatorAxis);
 
+    // Pushes the contours and cubics to the renderContext for a
+    // "midpointFanPatches" draw.
+    void pushMidpointFanTessellationData(RenderContext::TessellationWriter*);
+
+    // Emulates a stroke cap before the given cubic by pushing a copy of the
+    // cubic, reversed, with 0 tessellation segments leading up to the join
+    // section, and a 180-degree join that looks like the desired stroke cap.
+    void pushEmulatedStrokeCapAsJoinBeforeCubic(
+        RenderContext::TessellationWriter*,
+        const Vec2D cubic[],
+        uint32_t strokeCapSegmentCount,
+        uint32_t contourIDWithFlags);
+
     enum class InteriorTriangulationOp : bool
     {
+        // Fills in m_resourceCounts and runs a GrInnerFanTriangulator on the
+        // path's interior polygon.
         countDataAndTriangulate,
-        submitOuterCubics,
+
+        // Pushes the contours and cubics to the renderContext for an
+        // "outerCurvePatches" draw.
+        pushOuterCubicData,
     };
 
     // Called to processes the interior triangulation both during initialization
@@ -247,17 +266,7 @@ protected:
                                       TrivialBlockAllocator*,
                                       RawPath* scratchPath,
                                       TriangulatorAxis,
-                                      RenderContext::LogicalFlush*);
-
-    // Draws a path by fanning tessellation patches around the midpoint of each
-    // contour. Emulates a stroke cap before the given cubic by pushing a copy
-    // of the cubic, reversed, with 0 tessellation segments leading up to the
-    // join section, and a 180-degree join that looks like the desired stroke
-    // cap.
-    void pushEmulatedStrokeCapAsJoinBeforeCubic(RenderContext::LogicalFlush*,
-                                                const Vec2D cubic[],
-                                                uint32_t strokeCapSegmentCount,
-                                                uint32_t contourIDWithFlags);
+                                      RenderContext::TessellationWriter*);
 
     const RiveRenderPath* const m_pathRef;
     const FillRule m_fillRule; // Bc RiveRenderPath fillRule can mutate during

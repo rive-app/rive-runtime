@@ -1199,48 +1199,104 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
     assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
     assert(!m_pathRef->getRawPath().empty());
 
-    size_t tessVertexCount = m_type == Type::midpointFanPath
-                                 ? m_resourceCounts.midpointFanTessVertexCount
-                                 : m_resourceCounts.outerCubicTessVertexCount;
-    if (tessVertexCount == 0)
+    if ((m_resourceCounts.midpointFanTessVertexCount |
+         m_resourceCounts.outerCubicTessVertexCount) == 0)
     {
         return;
     }
 
     if (subpassIndex == 0)
     {
-        // Push a path record and update m_pathID.
-        m_pathID = flush->pushPath(
-            this,
-            m_type == Type::midpointFanPath ? PatchType::midpointFan
-                                            : PatchType::outerCurves,
-            math::lossless_numeric_cast<uint32_t>(tessVertexCount));
-    }
-    assert(m_pathID != 0);
+        // Write out a path record.
+        m_pathID = flush->pushPath(this);
 
-    if (type() == Type::interiorTriangulationPath)
-    {
-        if (subpassIndex == 0)
+        // Allocate tessellation vertices and push a draw for the path.
+        uint32_t tessVertexCount, tessLocation;
+        if (m_triangulator != nullptr)
         {
-            iterateInteriorTriangulation(
-                InteriorTriangulationOp::submitOuterCubics,
-                nullptr,
-                nullptr,
-                TriangulatorAxis::dontCare,
-                flush);
+            tessVertexCount = math::lossless_numeric_cast<uint32_t>(
+                m_resourceCounts.outerCubicTessVertexCount);
+            tessLocation =
+                flush->allocateOuterCubicTessVertices(tessVertexCount);
+            flush->pushOuterCubicsDraw(this, tessVertexCount, tessLocation);
         }
         else
         {
-            assert(subpassIndex == 1);
-            flush->pushInteriorTriangulation(this);
+            tessVertexCount = math::lossless_numeric_cast<uint32_t>(
+                m_resourceCounts.midpointFanTessVertexCount);
+            tessLocation =
+                flush->allocateMidpointFanTessVertices(tessVertexCount);
+            flush->pushMidpointFanDraw(this, tessVertexCount, tessLocation);
         }
-        return;
+
+        // Determine where the forward and mirrored tessellations go.
+        uint32_t forwardTessVertexCount, forwardTessLocation,
+            mirroredTessVertexCount, mirroredTessLocation;
+        switch (m_contourDirections)
+        {
+            case gpu::ContourDirections::forward:
+                forwardTessVertexCount = tessVertexCount;
+                forwardTessLocation = tessLocation;
+                mirroredTessLocation = tessLocation;
+                mirroredTessVertexCount = 0;
+                break;
+            case gpu::ContourDirections::reverse:
+                forwardTessVertexCount = 0;
+                forwardTessLocation = tessLocation + tessVertexCount;
+                mirroredTessVertexCount = tessVertexCount;
+                mirroredTessLocation = tessLocation + tessVertexCount;
+                break;
+            case gpu::ContourDirections::reverseThenForward:
+                assert(tessVertexCount % 2 == 0);
+                forwardTessVertexCount = mirroredTessVertexCount =
+                    tessVertexCount / 2;
+                forwardTessLocation = mirroredTessLocation =
+                    tessLocation + tessVertexCount / 2;
+                break;
+            case gpu::ContourDirections::forwardThenReverse:
+                assert(tessVertexCount % 2 == 0);
+                forwardTessVertexCount = mirroredTessVertexCount =
+                    tessVertexCount / 2;
+                forwardTessLocation = tessLocation;
+                mirroredTessLocation = tessLocation + tessVertexCount;
+                break;
+        }
+
+        // Write out the TessVertexSpans and path contours.
+        RenderContext::TessellationWriter tessWriter(flush,
+                                                     m_pathID,
+                                                     m_contourDirections,
+                                                     forwardTessVertexCount,
+                                                     forwardTessLocation,
+                                                     mirroredTessVertexCount,
+                                                     mirroredTessLocation);
+
+        if (m_triangulator != nullptr)
+        {
+            iterateInteriorTriangulation(
+                InteriorTriangulationOp::pushOuterCubicData,
+                nullptr,
+                nullptr,
+                TriangulatorAxis::dontCare,
+                &tessWriter);
+        }
+        else
+        {
+            pushMidpointFanTessellationData(&tessWriter);
+        }
     }
+    else
+    {
+        // The interior triangles comes in a separate subpass.
+        assert(m_triangulator != nullptr);
+        assert(subpassIndex == 1);
+        flush->pushInteriorTriangulationDraw(this, m_pathID);
+    }
+}
 
-    assert(type() == Type::midpointFanPath);
-    assert(subpassIndex == 0);
-
-    // Midpoint Fan Case
+void RiveRenderPathDraw::pushMidpointFanTessellationData(
+    RenderContext::TessellationWriter* tessWriter)
+{
     const RawPath& rawPath = m_pathRef->getRawPath();
     RawPath::Iter startOfContour = rawPath.begin();
     for (size_t i = 0; i < m_resourceCounts.contourCount; ++i)
@@ -1260,8 +1316,8 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
         const RawPath::Iter end = contour.endOfContour;
         uint32_t joinTypeFlags = 0;
         bool roundJoinStroked = false;
-        bool needsFirstEmulatedCapAsJoin =
-            false; // Emit a starting cap before the next cubic?
+        // Emit a starting cap before the next cubic?
+        bool needsFirstEmulatedCapAsJoin = false;
         uint32_t emulatedCapAsJoinFlags = 0;
         if (isStroked())
         {
@@ -1288,10 +1344,11 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
 
         // Make a data record for this current contour on the GPU.
         uint32_t contourIDWithFlags =
-            m_contourFlags | flush->pushContour(this,
-                                                contour.midpoint,
-                                                contour.closed,
-                                                contour.paddingVertexCount);
+            m_contourFlags |
+            tessWriter->pushContour(renderPaintStyle(),
+                                    contour.midpoint,
+                                    contour.closed,
+                                    contour.paddingVertexCount);
 
         // Convert all curves in the contour to cubics and push them to the GPU.
         const int styleFlags = style_flags(isStroked(), roundJoinStroked);
@@ -1367,19 +1424,19 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         // Emulate the start cap as a 180-degree join before the
                         // first stroke.
                         pushEmulatedStrokeCapAsJoinBeforeCubic(
-                            flush,
+                            tessWriter,
                             cubic.data(),
                             contour.strokeCapSegmentCount,
                             contourIDWithFlags | emulatedCapAsJoinFlags);
                         needsFirstEmulatedCapAsJoin = false;
                     }
-                    flush->pushCubic(cubic.data(),
-                                     m_contourDirections,
-                                     joinTangent,
-                                     1,
-                                     1,
-                                     joinSegmentCount,
-                                     contourIDWithFlags | joinTypeFlags);
+                    tessWriter->pushCubic(cubic.data(),
+                                          m_contourDirections,
+                                          joinTangent,
+                                          1,
+                                          1,
+                                          joinSegmentCount,
+                                          contourIDWithFlags | joinTypeFlags);
                     RIVE_DEBUG_CODE(--m_pendingLineCount;)
                     break;
                 }
@@ -1444,7 +1501,7 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         // Emulate the start cap as a 180-degree join before the
                         // first stroke.
                         pushEmulatedStrokeCapAsJoinBeforeCubic(
-                            flush,
+                            tessWriter,
                             p,
                             contour.strokeCapSegmentCount,
                             contourIDWithFlags | emulatedCapAsJoinFlags);
@@ -1458,13 +1515,14 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                             m_parametricSegmentCounts[curveIdx];
                         uint32_t polarSegmentCount =
                             m_polarSegmentCounts[rotationIdx];
-                        flush->pushCubic(p,
-                                         m_contourDirections,
-                                         joinTangent,
-                                         parametricSegmentCount,
-                                         polarSegmentCount,
-                                         1,
-                                         contourIDWithFlags | joinTypeFlags);
+                        tessWriter->pushCubic(p,
+                                              m_contourDirections,
+                                              joinTangent,
+                                              parametricSegmentCount,
+                                              polarSegmentCount,
+                                              1,
+                                              contourIDWithFlags |
+                                                  joinTypeFlags);
                         RIVE_DEBUG_CODE(--m_pendingCurveCount;)
                         RIVE_DEBUG_CODE(--m_pendingRotationCount;)
                     }
@@ -1504,13 +1562,13 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                         joinSegmentCount = contour.strokeCapSegmentCount;
                         RIVE_DEBUG_CODE(--m_pendingStrokeCapCount;)
                     }
-                    flush->pushCubic(p,
-                                     m_contourDirections,
-                                     joinTangent,
-                                     parametricSegmentCount,
-                                     polarSegmentCount,
-                                     joinSegmentCount,
-                                     contourIDWithFlags | joinTypeFlags);
+                    tessWriter->pushCubic(p,
+                                          m_contourDirections,
+                                          joinTangent,
+                                          parametricSegmentCount,
+                                          polarSegmentCount,
+                                          joinSegmentCount,
+                                          contourIDWithFlags | joinTypeFlags);
                     RIVE_DEBUG_CODE(--m_pendingCurveCount;)
                     break;
                 }
@@ -1518,13 +1576,13 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                 {
                     uint32_t parametricSegmentCount =
                         m_parametricSegmentCounts[curveIdx++];
-                    flush->pushCubic(iter.cubicPts(),
-                                     m_contourDirections,
-                                     Vec2D{},
-                                     parametricSegmentCount,
-                                     1,
-                                     1,
-                                     contourIDWithFlags);
+                    tessWriter->pushCubic(iter.cubicPts(),
+                                          m_contourDirections,
+                                          Vec2D{},
+                                          parametricSegmentCount,
+                                          1,
+                                          1,
+                                          contourIDWithFlags);
                     RIVE_DEBUG_CODE(--m_pendingCurveCount;)
                     break;
                 }
@@ -1537,12 +1595,12 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
             Vec2D p0 = pts[0], left = {p0.x - 1, p0.y},
                   right = {p0.x + 1, p0.y};
             pushEmulatedStrokeCapAsJoinBeforeCubic(
-                flush,
+                tessWriter,
                 std::array{p0, right, right, right}.data(),
                 contour.strokeCapSegmentCount,
                 contourIDWithFlags | emulatedCapAsJoinFlags);
             pushEmulatedStrokeCapAsJoinBeforeCubic(
-                flush,
+                tessWriter,
                 std::array{p0, left, left, left}.data(),
                 contour.strokeCapSegmentCount,
                 contourIDWithFlags | emulatedCapAsJoinFlags);
@@ -1574,13 +1632,13 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                     joinSegmentCount = kNumSegmentsInMiterOrBevelJoin;
                     RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                 }
-                flush->pushCubic(cubic.data(),
-                                 m_contourDirections,
-                                 joinTangent,
-                                 1,
-                                 1,
-                                 joinSegmentCount,
-                                 contourIDWithFlags | joinTypeFlags);
+                tessWriter->pushCubic(cubic.data(),
+                                      m_contourDirections,
+                                      joinTangent,
+                                      1,
+                                      1,
+                                      joinSegmentCount,
+                                      contourIDWithFlags | joinTypeFlags);
                 RIVE_DEBUG_CODE(--m_pendingLineCount;)
             }
         }
@@ -1601,7 +1659,7 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
 }
 
 void RiveRenderPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
-    RenderContext::LogicalFlush* flush,
+    RenderContext::TessellationWriter* tessWriter,
     const Vec2D cubic[],
     uint32_t strokeCapSegmentCount,
     uint32_t contourIDWithFlags)
@@ -1611,13 +1669,14 @@ void RiveRenderPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     // positioned immediately before the provided cubic, that looks like the
     // desired stroke cap.
     assert(strokeCapSegmentCount >= 2);
-    flush->pushCubic(std::array{cubic[3], cubic[2], cubic[1], cubic[0]}.data(),
-                     m_contourDirections,
-                     find_cubic_tan0(cubic),
-                     0,
-                     0,
-                     strokeCapSegmentCount,
-                     contourIDWithFlags);
+    tessWriter->pushCubic(
+        std::array{cubic[3], cubic[2], cubic[1], cubic[0]}.data(),
+        m_contourDirections,
+        find_cubic_tan0(cubic),
+        0,
+        0,
+        strokeCapSegmentCount,
+        contourIDWithFlags);
     RIVE_DEBUG_CODE(--m_pendingStrokeCapCount;)
     RIVE_DEBUG_CODE(--m_pendingEmptyStrokeCountForCaps;)
 }
@@ -1627,7 +1686,7 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
     TrivialBlockAllocator* allocator,
     RawPath* scratchPath,
     TriangulatorAxis triangulatorAxis,
-    RenderContext::LogicalFlush* flush)
+    RenderContext::TessellationWriter* tessWriter)
 {
     assert(type() == Type::interiorTriangulationPath);
 
@@ -1642,7 +1701,7 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
     {
         scratchPath->rewind();
     }
-    // Used with InteriorTriangulationOp::submitOuterCubics.
+    // Used with InteriorTriangulationOp::pushOuterCubicData.
     uint32_t contourIDWithFlags = 0;
     for (const auto [verb, pts] : rawPath)
     {
@@ -1651,9 +1710,9 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
             case PathVerb::move:
                 if (contourCount != 0 && pts[-1] != p0)
                 {
-                    if (op == InteriorTriangulationOp::submitOuterCubics)
+                    if (op == InteriorTriangulationOp::pushOuterCubicData)
                     {
-                        flush->pushCubic(
+                        tessWriter->pushCubic(
                             convert_line_to_cubic(pts[-1], p0).data(),
                             m_contourDirections,
                             {0, 0},
@@ -1673,7 +1732,10 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                 {
                     contourIDWithFlags =
                         m_contourFlags |
-                        flush->pushContour(this, {0, 0}, true, 0);
+                        tessWriter->pushContour(renderPaintStyle(),
+                                                {0, 0},
+                                                true,
+                                                0);
                 }
                 p0 = pts[0];
                 ++contourCount;
@@ -1685,7 +1747,7 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                 }
                 else
                 {
-                    flush->pushCubic(
+                    tessWriter->pushCubic(
                         convert_line_to_cubic(pts).data(),
                         m_contourDirections,
                         {0, 0},
@@ -1711,7 +1773,7 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                     }
                     else
                     {
-                        flush->pushCubic(
+                        tessWriter->pushCubic(
                             pts,
                             m_contourDirections,
                             {0, 0},
@@ -1740,7 +1802,7 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                         }
                         else
                         {
-                            flush->pushCubic(
+                            tessWriter->pushCubic(
                                 chop,
                                 m_contourDirections,
                                 {0, 0},
@@ -1763,9 +1825,9 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
     Vec2D lastPt = rawPath.points().back();
     if (contourCount != 0 && lastPt != p0)
     {
-        if (op == InteriorTriangulationOp::submitOuterCubics)
+        if (op == InteriorTriangulationOp::pushOuterCubicData)
         {
-            flush->pushCubic(
+            tessWriter->pushCubic(
                 convert_line_to_cubic(lastPt, p0).data(),
                 m_contourDirections,
                 {0, 0},
@@ -1826,14 +1888,14 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                                         node->fPts[1],
                                         {0, 0},
                                         node->fPts[2]};
-            flush->pushCubic(triangleAsCubic,
-                             m_contourDirections,
-                             {0, 0},
-                             kPatchSegmentCountExcludingJoin,
-                             1,
-                             kJoinSegmentCount,
-                             contourIDWithFlags |
-                                 RETROFITTED_TRIANGLE_CONTOUR_FLAG);
+            tessWriter->pushCubic(triangleAsCubic,
+                                  m_contourDirections,
+                                  {0, 0},
+                                  kPatchSegmentCountExcludingJoin,
+                                  1,
+                                  kJoinSegmentCount,
+                                  contourIDWithFlags |
+                                      RETROFITTED_TRIANGLE_CONTOUR_FLAG);
             ++patchCount;
         }
         assert(contourCount == m_resourceCounts.contourCount);
@@ -1868,7 +1930,7 @@ void ImageRectDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                                         uint32_t subpassIndex)
 {
     assert(subpassIndex == 0);
-    flush->pushImageRect(this);
+    flush->pushImageRectDraw(this);
 }
 
 ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
@@ -1901,7 +1963,7 @@ void ImageMeshDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
                                         uint32_t subpassIndex)
 {
     assert(subpassIndex == 0);
-    flush->pushImageMesh(this);
+    flush->pushImageMeshDraw(this);
 }
 
 void ImageMeshDraw::releaseRefs()
@@ -1938,6 +2000,6 @@ void StencilClipReset::pushToRenderContext(RenderContext::LogicalFlush* flush,
                                            uint32_t subpassIndex)
 {
     assert(subpassIndex == 0);
-    flush->pushStencilClipReset(this);
+    flush->pushStencilClipResetDraw(this);
 }
 } // namespace rive::gpu
