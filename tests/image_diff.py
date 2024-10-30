@@ -40,6 +40,7 @@ def main():
         os.makedirs("tmp", exist_ok=True)
 
     size_match = False
+    failed = False
     try:
         verbose_log(f"loading {args.candidate}")
         candidate = cv.imread(args.candidate)
@@ -59,16 +60,13 @@ def main():
             # get the total number of different pixels
             total_diff_count = cv.countNonZero(grey_diff)
             # get the max channel independent difference
-            max = int(diff.max())
+            max_diff = int(diff.max())
             # get average pixel diff, this result is slitely different then imageDiff but its very close.
-            # instead of getting the max of each pixel and deviding that by the size we get the sum
-            # of candidate and devide that by the sum of the golden. This seems more accurate as an average
-            # and is easier to do in numpy / opencv
-            # this could be a value of grater then 1 if 
-            # candidate is brighter then golden. What we really want is the distance from 1 (when they are the same)
-            avg = abs(1.0 - (candidate.sum() / golden.sum()))
+            # the only difference is that we first convert the diff to grey scale rather than adding the max of every channel
+            avg = grey_diff.sum() / (grey_diff.shape[0]*grey_diff.shape[1]*255)
     except Exception as E:
         print(f"Failed to load and process images {E}")
+        failed = True
 
     # make path to stats file if neccecary
     if os.path.dirname(args.status):
@@ -77,7 +75,7 @@ def main():
     verbose_log(f"making status file {args.status}")
     with open(args.status, "a") as status:
         status.write(args.name + "\t");
-        if candidate is None or golden is None:
+        if (candidate is None or golden is None) or failed:
             status.write("failed\n")
             verbose_log("failed to load golden or candidate")
             return
@@ -89,10 +87,11 @@ def main():
             status.write("sizemismatch\n")
             verbose_log("files are not the same size")
             return
-        status.write(str(max)+"\t")
-        status.write(str(avg)+"\t")
+        status.write(str(max_diff)+"\t")
+        # prevent python from wirting out in scientific notation
+        status.write(f"{float(avg):.5f}\t")
         status.write(str(total_diff_count)+"\t")
-        status.write(str(diff.shape[0]*diff.shape[1]))
+        status.write(str(diff.shape[0]*diff.shape[1])+"\n")
     verbose_log("status file finished")
     # save the output file if location provided
     if args.outdir:
