@@ -56,6 +56,7 @@
 #include "rive/viewmodel/viewmodel_property_string.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_enum.hpp"
+#include "rive/viewmodel/viewmodel_property_enum_custom.hpp"
 #include "rive/viewmodel/viewmodel_property_list.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 
@@ -272,9 +273,9 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     m_Enums.push_back(de);
                     break;
                 }
-                case ViewModelPropertyEnum::typeKey:
+                case ViewModelPropertyEnumCustom::typeKey:
                 {
-                    auto vme = object->as<ViewModelPropertyEnum>();
+                    auto vme = object->as<ViewModelPropertyEnumCustom>();
                     if (vme->enumId() < m_Enums.size())
                     {
                         vme->dataEnum(m_Enums[vme->enumId()]);

@@ -1,7 +1,7 @@
 {
   "name": "DataEnum",
   "key": {
-    "int": 438,
+    "int": 510,
     "string": "dataenum"
   },
   "properties": {
@@ -14,26 +14,6 @@
         "string": "order"
       },
       "description": "Order value for sorting data enums.",
-      "runtime": false
-    },
-    "splitKeyValues": {
-      "type": "bool",
-      "initialValue": "false",
-      "key": {
-        "int": 571,
-        "string": "splitkeyvalues"
-      },
-      "description": "Whether the user can edit keys and values separately.",
-      "runtime": false
-    },
-    "name": {
-      "type": "String",
-      "initialValue": "''",
-      "key": {
-        "int": 572,
-        "string": "name"
-      },
-      "description": "Non-unique identifier, used to give friendly names to enums.",
       "runtime": false
     }
   }

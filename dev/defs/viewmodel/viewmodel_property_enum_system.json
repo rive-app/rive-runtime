@@ -1,0 +1,18 @@
+{
+  "name": "ViewModelPropertyEnumSystem",
+  "key": {
+    "int": 511,
+    "string": "viewmodelpropertyenumsystem"
+  },
+  "extends": "viewmodel/viewmodel_property_enum.json",
+  "properties": {
+    "enumType": {
+      "type": "uint",
+      "key": {
+        "int": 708,
+        "string": "enumtype"
+      },
+      "description": "The enum system type."
+    }
+  }
+}

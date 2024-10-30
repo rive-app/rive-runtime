@@ -1,15 +1,15 @@
-#ifndef _RIVE_DATA_ENUM_BASE_HPP_
-#define _RIVE_DATA_ENUM_BASE_HPP_
-#include "rive/core.hpp"
+#ifndef _RIVE_DATA_ENUM_CUSTOM_BASE_HPP_
+#define _RIVE_DATA_ENUM_CUSTOM_BASE_HPP_
+#include "rive/viewmodel/data_enum.hpp"
 namespace rive
 {
-class DataEnumBase : public Core
+class DataEnumCustomBase : public DataEnum
 {
 protected:
-    typedef Core Super;
+    typedef DataEnum Super;
 
 public:
-    static const uint16_t typeKey = 510;
+    static const uint16_t typeKey = 438;
 
     /// Helper to quickly determine if a core object extends another without
     /// RTTI at runtime.
@@ -17,6 +17,7 @@ public:
     {
         switch (typeKey)
         {
+            case DataEnumCustomBase::typeKey:
             case DataEnumBase::typeKey:
                 return true;
             default:
@@ -27,12 +28,6 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     Core* clone() const override;
-    void copy(const DataEnumBase& object) {}
-
-    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
-    {
-        return false;
-    }
 
 protected:
 };

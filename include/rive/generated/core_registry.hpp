@@ -194,6 +194,8 @@
 #include "rive/text/text_variation_modifier.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/viewmodel/data_enum.hpp"
+#include "rive/viewmodel/data_enum_custom.hpp"
+#include "rive/viewmodel/data_enum_system.hpp"
 #include "rive/viewmodel/data_enum_value.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
@@ -212,6 +214,8 @@
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
 #include "rive/viewmodel/viewmodel_property_color.hpp"
 #include "rive/viewmodel/viewmodel_property_enum.hpp"
+#include "rive/viewmodel/viewmodel_property_enum_custom.hpp"
+#include "rive/viewmodel/viewmodel_property_enum_system.hpp"
 #include "rive/viewmodel/viewmodel_property_list.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_string.hpp"
@@ -235,6 +239,14 @@ public:
                 return new ViewModelComponent();
             case ViewModelPropertyBase::typeKey:
                 return new ViewModelProperty();
+            case ViewModelPropertyEnumBase::typeKey:
+                return new ViewModelPropertyEnum();
+            case ViewModelPropertyEnumCustomBase::typeKey:
+                return new ViewModelPropertyEnumCustom();
+            case DataEnumBase::typeKey:
+                return new DataEnum();
+            case DataEnumCustomBase::typeKey:
+                return new DataEnumCustom();
             case ViewModelPropertyNumberBase::typeKey:
                 return new ViewModelPropertyNumber();
             case ViewModelInstanceEnumBase::typeKey:
@@ -243,18 +255,18 @@ public:
                 return new ViewModelInstanceString();
             case ViewModelPropertyListBase::typeKey:
                 return new ViewModelPropertyList();
+            case ViewModelPropertyEnumSystemBase::typeKey:
+                return new ViewModelPropertyEnumSystem();
             case ViewModelBase::typeKey:
                 return new ViewModel();
+            case DataEnumSystemBase::typeKey:
+                return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
             case ViewModelInstanceBase::typeKey:
                 return new ViewModelInstance();
             case ViewModelPropertyBooleanBase::typeKey:
                 return new ViewModelPropertyBoolean();
-            case DataEnumBase::typeKey:
-                return new DataEnum();
-            case ViewModelPropertyEnumBase::typeKey:
-                return new ViewModelPropertyEnum();
             case ViewModelPropertyColorBase::typeKey:
                 return new ViewModelPropertyColor();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -700,11 +712,20 @@ public:
                 object->as<ViewModelInstanceValueBase>()->viewModelPropertyId(
                     value);
                 break;
+            case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
+                object->as<ViewModelPropertyEnumCustomBase>()->enumId(value);
+                break;
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceEnumBase>()->propertyValue(value);
                 break;
+            case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
+                object->as<ViewModelPropertyEnumSystemBase>()->enumType(value);
+                break;
             case ViewModelBase::defaultInstanceIdPropertyKey:
                 object->as<ViewModelBase>()->defaultInstanceId(value);
+                break;
+            case DataEnumSystemBase::enumTypePropertyKey:
+                object->as<DataEnumSystemBase>()->enumType(value);
                 break;
             case ViewModelPropertyViewModelBase::
                 viewModelReferenceIdPropertyKey:
@@ -716,9 +737,6 @@ public:
                 break;
             case ViewModelInstanceBase::viewModelIdPropertyKey:
                 object->as<ViewModelInstanceBase>()->viewModelId(value);
-                break;
-            case ViewModelPropertyEnumBase::enumIdPropertyKey:
-                object->as<ViewModelPropertyEnumBase>()->enumId(value);
                 break;
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceTriggerBase>()->propertyValue(
@@ -1995,10 +2013,17 @@ public:
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
                 return object->as<ViewModelInstanceValueBase>()
                     ->viewModelPropertyId();
+            case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
+                return object->as<ViewModelPropertyEnumCustomBase>()->enumId();
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceEnumBase>()->propertyValue();
+            case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
+                return object->as<ViewModelPropertyEnumSystemBase>()
+                    ->enumType();
             case ViewModelBase::defaultInstanceIdPropertyKey:
                 return object->as<ViewModelBase>()->defaultInstanceId();
+            case DataEnumSystemBase::enumTypePropertyKey:
+                return object->as<DataEnumSystemBase>()->enumType();
             case ViewModelPropertyViewModelBase::
                 viewModelReferenceIdPropertyKey:
                 return object->as<ViewModelPropertyViewModelBase>()
@@ -2007,8 +2032,6 @@ public:
                 return object->as<ComponentBase>()->parentId();
             case ViewModelInstanceBase::viewModelIdPropertyKey:
                 return object->as<ViewModelInstanceBase>()->viewModelId();
-            case ViewModelPropertyEnumBase::enumIdPropertyKey:
-                return object->as<ViewModelPropertyEnumBase>()->enumId();
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceTriggerBase>()
                     ->propertyValue();
@@ -2874,13 +2897,15 @@ public:
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
             case ViewModelInstanceListItemBase::artboardIdPropertyKey:
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
+            case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
+            case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
             case ViewModelBase::defaultInstanceIdPropertyKey:
+            case DataEnumSystemBase::enumTypePropertyKey:
             case ViewModelPropertyViewModelBase::
                 viewModelReferenceIdPropertyKey:
             case ComponentBase::parentIdPropertyKey:
             case ViewModelInstanceBase::viewModelIdPropertyKey:
-            case ViewModelPropertyEnumBase::enumIdPropertyKey:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
             case DrawTargetBase::drawableIdPropertyKey:
@@ -3353,10 +3378,16 @@ public:
                 return object->is<ViewModelInstanceListItemBase>();
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
                 return object->is<ViewModelInstanceValueBase>();
+            case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
+                return object->is<ViewModelPropertyEnumCustomBase>();
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceEnumBase>();
+            case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
+                return object->is<ViewModelPropertyEnumSystemBase>();
             case ViewModelBase::defaultInstanceIdPropertyKey:
                 return object->is<ViewModelBase>();
+            case DataEnumSystemBase::enumTypePropertyKey:
+                return object->is<DataEnumSystemBase>();
             case ViewModelPropertyViewModelBase::
                 viewModelReferenceIdPropertyKey:
                 return object->is<ViewModelPropertyViewModelBase>();
@@ -3364,8 +3395,6 @@ public:
                 return object->is<ComponentBase>();
             case ViewModelInstanceBase::viewModelIdPropertyKey:
                 return object->is<ViewModelInstanceBase>();
-            case ViewModelPropertyEnumBase::enumIdPropertyKey:
-                return object->is<ViewModelPropertyEnumBase>();
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceTriggerBase>();
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
