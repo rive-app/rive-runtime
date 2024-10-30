@@ -173,31 +173,33 @@ std::vector<float> SliceMesh::vertexStops(
         NSlicerHelpers::analyzeUVStops(normalizedStops, imageSize, imageScale);
 
     std::vector<float> vertices;
-    float cur = 0.0;
+    float vertex = 0.0;
+    float vertexInBounds = 0.0;
+
     for (int i = 0; i < (int)normalizedStops.size() - 1; i++)
     {
-        vertices.emplace_back(cur);
+        vertices.emplace_back(vertexInBounds);
         float segment = imageSize *
                         (normalizedStops[i + 1] - normalizedStops[i]) /
                         imageScale;
         if (NSlicerHelpers::isFixedSegment(i))
         {
-            cur += segment;
+            vertex += segment;
         }
         else
         {
             if (scaleInfo.useScale)
             {
-                cur += segment * scaleInfo.scaleFactor;
+                vertex += segment * scaleInfo.scaleFactor;
             }
             else
             {
-                cur += scaleInfo.fallbackSize;
+                vertex += scaleInfo.fallbackSize;
             }
         }
-        cur = math::clamp(cur, 0, imageSize);
+        vertexInBounds = math::clamp(vertex, 0, imageSize);
     }
-    vertices.emplace_back(cur);
+    vertices.emplace_back(vertexInBounds);
     return vertices;
 }
 
