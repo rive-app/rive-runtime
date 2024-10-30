@@ -10,7 +10,8 @@ enum class Fit : unsigned char
     fitWidth,
     fitHeight,
     none,
-    scaleDown
+    scaleDown,
+    layout
 };
 
 class Alignment

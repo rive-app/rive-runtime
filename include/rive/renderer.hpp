@@ -26,7 +26,11 @@ class Vec2D;
 
 // Helper that computes a matrix to "align" content (source) to fit inside frame
 // (destination).
-Mat2D computeAlignment(Fit, Alignment, const AABB& frame, const AABB& content);
+Mat2D computeAlignment(Fit,
+                       Alignment,
+                       const AABB& frame,
+                       const AABB& content,
+                       const float scaleFactor = 1.0f);
 
 enum class RenderBufferType
 {
@@ -183,9 +187,11 @@ public:
     void align(Fit fit,
                Alignment alignment,
                const AABB& frame,
-               const AABB& content)
+               const AABB& content,
+               const float scaleFactor = 1.0f)
     {
-        transform(computeAlignment(fit, alignment, frame, content));
+        transform(
+            computeAlignment(fit, alignment, frame, content, scaleFactor));
     }
 };
 } // namespace rive

@@ -7,7 +7,8 @@ using namespace rive;
 Mat2D rive::computeAlignment(Fit fit,
                              Alignment alignment,
                              const AABB& frame,
-                             const AABB& content)
+                             const AABB& content,
+                             const float scaleFactor)
 {
     float contentWidth = content.width();
     float contentHeight = content.height();
@@ -51,6 +52,10 @@ Mat2D rive::computeAlignment(Fit fit,
             float minScale = frame.width() / contentWidth;
             scaleX = scaleY = minScale;
             break;
+        }
+        case Fit::layout:
+        {
+            return Mat2D::fromScale(scaleFactor, scaleFactor);
         }
         case Fit::none:
         {
