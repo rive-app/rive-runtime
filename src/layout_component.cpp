@@ -37,91 +37,7 @@ void LayoutComponent::buildDependencies()
     }
 }
 
-void LayoutComponent::drawProxy(Renderer* renderer)
-{
-    if (clip())
-    {
-        renderer->save();
-        renderer->clipPath(m_clipPath.get());
-    }
-    renderer->save();
-    renderer->transform(worldTransform());
-    for (auto shapePaint : m_ShapePaints)
-    {
-        if (!shapePaint->isVisible())
-        {
-            continue;
-        }
-        if (shapePaint->is<Fill>())
-        {
-            shapePaint->draw(renderer,
-                             m_backgroundPath.get(),
-                             &m_backgroundRect->rawPath());
-        }
-    }
-    renderer->restore();
-}
-
-void LayoutComponent::draw(Renderer* renderer)
-{
-    // Restore clip before drawing stroke so we don't clip the stroke
-    if (clip())
-    {
-        renderer->restore();
-    }
-    renderer->save();
-    renderer->transform(worldTransform());
-    for (auto shapePaint : m_ShapePaints)
-    {
-        if (!shapePaint->isVisible())
-        {
-            continue;
-        }
-        if (shapePaint->is<Stroke>())
-        {
-            shapePaint->draw(renderer,
-                             m_backgroundPath.get(),
-                             &m_backgroundRect->rawPath());
-        }
-    }
-    renderer->restore();
-}
-
 Core* LayoutComponent::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
-
-void LayoutComponent::updateRenderPath()
-{
-    m_backgroundRect->width(m_layout.width());
-    m_backgroundRect->height(m_layout.height());
-    if (style() != nullptr)
-    {
-        m_backgroundRect->linkCornerRadius(style()->linkCornerRadius());
-        m_backgroundRect->cornerRadiusTL(style()->cornerRadiusTL());
-        m_backgroundRect->cornerRadiusTR(style()->cornerRadiusTR());
-        m_backgroundRect->cornerRadiusBL(style()->cornerRadiusBL());
-        m_backgroundRect->cornerRadiusBR(style()->cornerRadiusBR());
-    }
-    m_backgroundRect->update(ComponentDirt::Path);
-
-    m_backgroundPath->rewind();
-    m_backgroundRect->rawPath().addTo(m_backgroundPath.get());
-
-    RawPath clipPath;
-    clipPath.addPath(m_backgroundRect->rawPath(), &m_WorldTransform);
-    m_clipPath =
-        artboard()->factory()->makeRenderPath(clipPath, FillRule::nonZero);
-    for (auto shapePaint : m_ShapePaints)
-    {
-        if (!shapePaint->isVisible())
-        {
-            continue;
-        }
-        if (shapePaint->is<Stroke>())
-        {
-            shapePaint->as<Stroke>()->invalidateEffects();
-        }
-    }
-}
 
 void LayoutComponent::update(ComponentDirt value)
 {
@@ -247,6 +163,90 @@ StatusCode LayoutComponent::onAddedClean(CoreContext* context)
     m_backgroundRect->originY(0);
     syncLayoutChildren();
     return StatusCode::Ok;
+}
+
+void LayoutComponent::drawProxy(Renderer* renderer)
+{
+    if (clip())
+    {
+        renderer->save();
+        renderer->clipPath(m_clipPath.get());
+    }
+    renderer->save();
+    renderer->transform(worldTransform());
+    for (auto shapePaint : m_ShapePaints)
+    {
+        if (!shapePaint->isVisible())
+        {
+            continue;
+        }
+        if (shapePaint->is<Fill>())
+        {
+            shapePaint->draw(renderer,
+                             m_backgroundPath.get(),
+                             &m_backgroundRect->rawPath());
+        }
+    }
+    renderer->restore();
+}
+
+void LayoutComponent::draw(Renderer* renderer)
+{
+    // Restore clip before drawing stroke so we don't clip the stroke
+    if (clip())
+    {
+        renderer->restore();
+    }
+    renderer->save();
+    renderer->transform(worldTransform());
+    for (auto shapePaint : m_ShapePaints)
+    {
+        if (!shapePaint->isVisible())
+        {
+            continue;
+        }
+        if (shapePaint->is<Stroke>())
+        {
+            shapePaint->draw(renderer,
+                             m_backgroundPath.get(),
+                             &m_backgroundRect->rawPath());
+        }
+    }
+    renderer->restore();
+}
+
+void LayoutComponent::updateRenderPath()
+{
+    m_backgroundRect->width(m_layout.width());
+    m_backgroundRect->height(m_layout.height());
+    if (style() != nullptr)
+    {
+        m_backgroundRect->linkCornerRadius(style()->linkCornerRadius());
+        m_backgroundRect->cornerRadiusTL(style()->cornerRadiusTL());
+        m_backgroundRect->cornerRadiusTR(style()->cornerRadiusTR());
+        m_backgroundRect->cornerRadiusBL(style()->cornerRadiusBL());
+        m_backgroundRect->cornerRadiusBR(style()->cornerRadiusBR());
+    }
+    m_backgroundRect->update(ComponentDirt::Path);
+
+    m_backgroundPath->rewind();
+    m_backgroundRect->rawPath().addTo(m_backgroundPath.get());
+
+    RawPath clipPath;
+    clipPath.addPath(m_backgroundRect->rawPath(), &m_WorldTransform);
+    m_clipPath =
+        artboard()->factory()->makeRenderPath(clipPath, FillRule::nonZero);
+    for (auto shapePaint : m_ShapePaints)
+    {
+        if (!shapePaint->isVisible())
+        {
+            continue;
+        }
+        if (shapePaint->is<Stroke>())
+        {
+            shapePaint->as<Stroke>()->invalidateEffects();
+        }
+    }
 }
 
 static YGSize measureFunc(YGNode* node,
@@ -1102,6 +1102,12 @@ void LayoutComponent::scaleTypeChanged()
     markLayoutNodeDirty();
 }
 #else
+void LayoutComponent::drawProxy(Renderer* renderer) {}
+
+void LayoutComponent::draw(Renderer* renderer) {}
+
+void LayoutComponent::updateRenderPath() {}
+
 Vec2D LayoutComponent::measureLayout(float width,
                                      LayoutMeasureMode widthMode,
                                      float height,
