@@ -1,6 +1,6 @@
 require('setup_compiler')
 local dependency = require('dependency')
-harfbuzz = dependency.github('rive-app/harfbuzz', 'rive_8.3.0')
+harfbuzz = dependency.github('rive-app/harfbuzz', 'rive_10.0.1_coretext')
 
 workspace('rive')
 configurations({ 'debug', 'release' })
@@ -353,6 +353,6 @@ do
     filter('system:macosx or system:ios')
     do
         defines({ 'HAVE_CORETEXT' })
-        files({ harfbuzz .. '/src/hb-coretext.cc' })
+        files({ harfbuzz .. '/src/hb-coretext-shape.cc', harfbuzz .. '/src/hb-coretext-font.cc' })
     end
 end

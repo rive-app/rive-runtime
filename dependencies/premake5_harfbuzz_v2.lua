@@ -1,7 +1,7 @@
 dofile('rive_build_config.lua')
 
 local dependency = require('dependency')
-harfbuzz = dependency.github('rive-app/harfbuzz', 'rive_8.4.0')
+harfbuzz = dependency.github('rive-app/harfbuzz', 'rive_10.0.1_coretext')
 
 newoption({
     trigger = 'no-harfbuzz-renames',
@@ -278,6 +278,6 @@ do
     filter('system:macosx or system:ios')
     do
         defines({ 'HAVE_CORETEXT' })
-        files({ harfbuzz .. '/src/hb-coretext.cc' })
+        files({ harfbuzz .. '/src/hb-coretext-shape.cc', harfbuzz .. '/src/hb-coretext-font.cc' })
     end
 end
