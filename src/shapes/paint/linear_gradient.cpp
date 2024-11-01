@@ -4,8 +4,10 @@
 #include "rive/factory.hpp"
 #include "rive/node.hpp"
 #include "rive/renderer.hpp"
+#include "rive/shapes/deformer.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/shapes/paint/gradient_stop.hpp"
+#include "rive/shapes/shape.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include <algorithm>
@@ -54,6 +56,24 @@ void LinearGradient::buildDependencies()
             grandParent->addDependent(this);
         }
     }
+    updateDeformer();
+}
+
+void LinearGradient::updateDeformer()
+{
+    if (!m_ShapePaintContainer)
+    {
+        return;
+    }
+    if (m_ShapePaintContainer->is<Shape>())
+    {
+        if (RenderPathDeformer* deformer =
+                m_ShapePaintContainer->as<Shape>()->deformer())
+        {
+            Component* component = deformer->asComponent();
+            m_deformer = PointDeformer::from(component);
+        }
+    }
 }
 
 void LinearGradient::addStop(GradientStop* stop) { m_Stops.push_back(stop); }
@@ -78,7 +98,7 @@ void LinearGradient::update(ComponentDirt value)
     bool rebuildGradient =
         hasDirt(value,
                 ComponentDirt::Paint | ComponentDirt::RenderOpacity |
-                    ComponentDirt::Transform) ||
+                    ComponentDirt::Transform | ComponentDirt::NSlicer) ||
         (
             // paints in world space
             parent()->as<ShapePaint>()->isFlagged(PathFlags::world) &&
@@ -107,6 +127,25 @@ void LinearGradient::applyTo(RenderPaint* renderPaint,
         const Mat2D& world = m_ShapePaintContainer->worldTransform();
         start = world * start;
         end = world * end;
+        if (m_deformer)
+        {
+            start = m_deformer->deformWorldPoint(start);
+            end = m_deformer->deformWorldPoint(end);
+        }
+    }
+    else
+    {
+        if (m_deformer)
+        {
+            const Mat2D& world = m_ShapePaintContainer->worldTransform();
+            Mat2D inverseWorld;
+            if (world.invert(&inverseWorld))
+            {
+                start =
+                    m_deformer->deformLocalPoint(start, world, inverseWorld);
+                end = m_deformer->deformLocalPoint(end, world, inverseWorld);
+            }
+        }
     }
 
     // build up the color and positions lists

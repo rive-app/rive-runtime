@@ -65,6 +65,10 @@ enum class ComponentDirt : unsigned short
     /// Used by data binds to track the value has changed.
     Bindings = 1 << 12,
 
+    /// Set when components deformed by an NSlicer need to recalculate
+    /// their render paths, mesh, points, etc.
+    NSlicer = 1 << 13,
+
     /// All dirty. Every flag (apart from Collapsed) is set.
     Filthy = 0xFFFE
 };

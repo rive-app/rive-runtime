@@ -1,6 +1,6 @@
 #include "rive/constraints/constraint.hpp"
 #include "rive/hittest_command_path.hpp"
-#include "rive/layout/n_sliced_node.hpp"
+#include "rive/shapes/deformer.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/points_path.hpp"
 #include "rive/shapes/shape.hpp"
@@ -13,16 +13,6 @@
 #include <algorithm>
 
 using namespace rive;
-
-ShapeDeformer* ShapeDeformer::from(Component* component)
-{
-    switch (component->coreType())
-    {
-        case NSlicedNode::typeKey:
-            return component->as<NSlicedNode>();
-    }
-    return nullptr;
-}
 
 Shape::Shape() : m_PathComposer(this) {}
 
@@ -246,7 +236,7 @@ StatusCode Shape::onAddedClean(CoreContext* context)
     for (auto currentParent = parent(); currentParent != nullptr;
          currentParent = currentParent->parent())
     {
-        ShapeDeformer* deformer = ShapeDeformer::from(currentParent);
+        RenderPathDeformer* deformer = RenderPathDeformer::from(currentParent);
         if (deformer)
         {
             m_deformer = deformer;

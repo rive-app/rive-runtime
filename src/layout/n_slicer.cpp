@@ -40,11 +40,11 @@ void NSlicer::buildDependencies()
     parent()->addDependent(this);
 }
 
-void NSlicer::axisChanged() { addDirt(ComponentDirt::Path); }
+void NSlicer::axisChanged() { addDirt(ComponentDirt::NSlicer); }
 
 void NSlicer::update(ComponentDirt value)
 {
-    if (hasDirt(value, ComponentDirt::Path) ||
+    if (hasDirt(value, ComponentDirt::NSlicer) ||
         hasDirt(value, ComponentDirt::WorldTransform))
     {
         if (m_sliceMesh != nullptr)

@@ -1,6 +1,7 @@
 #include "rive/shapes/path_composer.hpp"
 #include "rive/artboard.hpp"
 #include "rive/renderer.hpp"
+#include "rive/shapes/deformer.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/factory.hpp"
@@ -34,7 +35,7 @@ void PathComposer::onDirty(ComponentDirt dirt)
 
 void PathComposer::update(ComponentDirt value)
 {
-    if (hasDirt(value, ComponentDirt::Path))
+    if (hasDirt(value, ComponentDirt::Path | ComponentDirt::NSlicer))
     {
         if (m_shape->canDeferPathUpdate())
         {
@@ -67,7 +68,7 @@ void PathComposer::update(ComponentDirt value)
                 }
             }
 
-            if (const ShapeDeformer* deformer = m_shape->deformer())
+            if (const RenderPathDeformer* deformer = m_shape->deformer())
             {
                 deformer->deformLocalRenderPath(m_localRawPath,
                                                 world,
@@ -97,7 +98,7 @@ void PathComposer::update(ComponentDirt value)
                 }
             }
 
-            if (const ShapeDeformer* deformer = m_shape->deformer())
+            if (const RenderPathDeformer* deformer = m_shape->deformer())
             {
                 deformer->deformWorldRenderPath(m_worldRawPath);
             }
