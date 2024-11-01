@@ -41,6 +41,7 @@ constexpr static uint32_t kVendorARM = 0x13B5;
 constexpr static uint32_t kVendorQualcomm = 0x5143;
 constexpr static uint32_t kVendorINTEL = 0x8086;
 
+constexpr static VkColorComponentFlags kColorWriteMaskNone = 0;
 constexpr static VkColorComponentFlags kColorWriteMaskRGBA =
     VK_COLOR_COMPONENT_R_BIT | VK_COLOR_COMPONENT_G_BIT |
     VK_COLOR_COMPONENT_B_BIT | VK_COLOR_COMPONENT_A_BIT;

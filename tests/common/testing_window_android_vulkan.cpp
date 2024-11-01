@@ -7,7 +7,8 @@
 #if !defined(RIVE_ANDROID)
 
 TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow,
-                                                bool coreFeaturesOnly)
+                                                bool coreFeaturesOnly,
+                                                bool clockwiseFill)
 {
     return nullptr;
 }
@@ -28,7 +29,10 @@ using namespace rive::gpu;
 class TestingWindowAndroidVulkan : public TestingWindow
 {
 public:
-    TestingWindowAndroidVulkan(ANativeWindow* window, bool coreFeaturesOnly)
+    TestingWindowAndroidVulkan(ANativeWindow* window,
+                               bool coreFeaturesOnly,
+                               bool clockwiseFill) :
+        m_clockwiseFill(clockwiseFill)
     {
         m_width = ANativeWindow_getWidth(window);
         m_height = ANativeWindow_getHeight(window);
@@ -206,6 +210,7 @@ public:
                                   : gpu::LoadAction::preserveRenderTarget,
             .clearColor = clearColor,
             .wireframe = wireframe,
+            .clockwiseFill = m_clockwiseFill,
         });
 
         return std::make_unique<RiveRenderer>(m_renderContext.get());
@@ -295,6 +300,7 @@ private:
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
+    bool m_clockwiseFill;
     vkb::Instance m_instance;
     vkb::InstanceDispatchTable m_instanceFns;
     vkb::PhysicalDevice m_physicalDevice;
@@ -317,11 +323,13 @@ private:
 };
 
 TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow,
-                                                bool coreFeaturesOnly)
+                                                bool coreFeaturesOnly,
+                                                bool clockwiseFill)
 {
     return new TestingWindowAndroidVulkan(
         reinterpret_cast<ANativeWindow*>(platformWindow),
-        coreFeaturesOnly);
+        coreFeaturesOnly,
+        clockwiseFill);
 }
 
 #endif

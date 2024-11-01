@@ -24,6 +24,9 @@ struct VulkanFeatures
 
     // EXT_rasterization_order_attachment_access.
     bool rasterizationOrderColorAttachmentAccess = false;
+
+    // VkPhysicalDeviceLimits.
+    uint32_t maxStorageBufferRange = 1 << 27;
 };
 
 // Wraps a VkDevice, function dispatch table, and VMA library instance.
@@ -66,6 +69,7 @@ public:
     F(CmdDraw)                                                                 \
     F(CmdDrawIndexed)                                                          \
     F(CmdEndRenderPass)                                                        \
+    F(CmdFillBuffer)                                                           \
     F(CmdNextSubpass)                                                          \
     F(CmdPipelineBarrier)                                                      \
     F(CmdSetScissor)                                                           \

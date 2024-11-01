@@ -183,6 +183,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
+    void resizeCoverageBuffer(size_t sizeInBytes) override;
 
     // Wraps a VkDescriptorPool created specifically for a PLS flush, and tracks
     // its allocated descriptor sets.
@@ -251,12 +252,15 @@ private:
     rcp<vkutil::TextureView> m_tessVertexTextureView;
     rcp<vkutil::Framebuffer> m_tessTextureFramebuffer;
 
+    // Coverage buffer used by shaders in clockwiseAtomic mode.
+    rcp<vkutil::Buffer> m_coverageBuffer;
+
     // A pipeline for each
     // [rasterOrdering, atomics] x [all DrawPipelineLayoutOptions permutations].
     class DrawPipelineLayout;
     constexpr static int kDrawPipelineLayoutOptionCount = 1;
     std::array<std::unique_ptr<DrawPipelineLayout>,
-               2 * (1 << kDrawPipelineLayoutOptionCount)>
+               gpu::kInterlockModeCount * (1 << kDrawPipelineLayoutOptionCount)>
         m_drawPipelineLayouts;
 
     class DrawShader;

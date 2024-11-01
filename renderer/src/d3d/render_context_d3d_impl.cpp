@@ -1348,6 +1348,7 @@ static void blit_sub_rect(ID3D11DeviceContext* gpuContext,
 
 void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
+    assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
     auto renderTarget = static_cast<RenderTargetD3D*>(desc.renderTarget);
 
     m_gpuContext->ClearState();

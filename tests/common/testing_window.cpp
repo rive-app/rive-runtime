@@ -41,6 +41,8 @@ const char* TestingWindow::BackendName(Backend backend)
             return "vk";
         case TestingWindow::Backend::vkcore:
             return "vkcore";
+        case TestingWindow::Backend::vkcw:
+            return "vkcw";
         case TestingWindow::Backend::moltenvk:
             return "moltenvk";
         case TestingWindow::Backend::moltenvkcore:
@@ -110,6 +112,8 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         return Backend::vk;
     if (nameStr == "vulkancore" || nameStr == "vkcore")
         return Backend::vkcore;
+    if (nameStr == "vulkancw" || nameStr == "vkcw")
+        return Backend::vkcw;
     if (nameStr == "moltenvk" || nameStr == "mvk")
         return Backend::moltenvk;
     if (nameStr == "moltenvkcore" || nameStr == "mvkcore")
@@ -187,6 +191,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
             break;
         case Backend::vk:
         case Backend::vkcore:
+        case Backend::vkcw:
         case Backend::moltenvk:
         case Backend::moltenvkcore:
         case Backend::swiftshader:
@@ -224,7 +229,8 @@ TestingWindow* TestingWindow::Init(Backend backend,
             {
                 s_TestingWindow =
                     TestingWindow::MakeAndroidVulkan(platformWindow,
-                                                     IsCore(backend));
+                                                     IsCore(backend),
+                                                     IsClockwiseFill(backend));
                 break;
             }
 #endif
@@ -232,6 +238,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
             {
                 s_TestingWindow =
                     TestingWindow::MakeVulkanTexture(IsCore(backend),
+                                                     IsClockwiseFill(backend),
                                                      gpuNameFilter);
             }
             else

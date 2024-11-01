@@ -34,7 +34,10 @@ void Buffer::resizeImmediately(size_t sizeInBytes)
     {
         if (m_vmaAllocation != VK_NULL_HANDLE)
         {
-            vmaUnmapMemory(m_vk->vmaAllocator, m_vmaAllocation);
+            if (m_mappability != Mappability::none)
+            {
+                vmaUnmapMemory(m_vk->vmaAllocator, m_vmaAllocation);
+            }
             vmaDestroyBuffer(m_vk->vmaAllocator, m_vkBuffer, m_vmaAllocation);
         }
         m_info.size = sizeInBytes;
@@ -72,10 +75,17 @@ void Buffer::init()
                                  &m_vmaAllocation,
                                  nullptr));
 
-        // Leave the buffer constantly mapped and let the OS/drivers handle the
-        // rest.
-        VK_CHECK(
-            vmaMapMemory(m_vk->vmaAllocator, m_vmaAllocation, &m_contents));
+        if (m_mappability != Mappability::none)
+        {
+            // Leave the buffer constantly mapped and let the OS/drivers handle
+            // the rest.
+            VK_CHECK(
+                vmaMapMemory(m_vk->vmaAllocator, m_vmaAllocation, &m_contents));
+        }
+        else
+        {
+            m_contents = nullptr;
+        }
     }
     else
     {

@@ -154,12 +154,11 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
         // Wang's formula to figure out how many segments we actually need, and
         // make any excess segments degenerate by co-locating their vertices at
         // T=0.
-        uint pathIDBits =
-            STORAGE_BUFFER_LOAD4(@contourBuffer,
-                                 contour_data_idx(contourIDWithFlags))
-                .z;
-        float2x2 mat = make_float2x2(uintBitsToFloat(
-            STORAGE_BUFFER_LOAD4(@pathBuffer, pathIDBits * 2u)));
+        uint pathID = STORAGE_BUFFER_LOAD4(@contourBuffer,
+                                           contour_data_idx(contourIDWithFlags))
+                          .z;
+        float2x2 mat = make_float2x2(
+            uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u)));
         float2 d0 = MUL(mat, -2. * p1 + p2 + p0);
 
         float2 d1 = MUL(mat, -2. * p2 + p3 + p1);

@@ -223,8 +223,14 @@
         float4 _values[];                                                      \
     }                                                                          \
     NAME
+#define STORAGE_BUFFER_U32_ATOMIC(IDX, GLSL_STRUCT_NAME, NAME)                 \
+    layout(std430, binding = IDX) buffer GLSL_STRUCT_NAME { uint _values[]; }  \
+    NAME
 #define STORAGE_BUFFER_LOAD4(NAME, I) NAME._values[I]
 #define STORAGE_BUFFER_LOAD2(NAME, I) NAME._values[I]
+#define STORAGE_BUFFER_LOAD(NAME, I) NAME._values[I]
+#define STORAGE_BUFFER_ATOMIC_MAX(NAME, I, X) atomicMax(NAME._values[I], X)
+#define STORAGE_BUFFER_ATOMIC_ADD(NAME, I, X) atomicAdd(NAME._values[I], X)
 
 #endif // DISABLE_SHADER_STORAGE_BUFFERS
 

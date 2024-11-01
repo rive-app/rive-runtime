@@ -463,6 +463,11 @@ int main(int argc, const char** argv)
         {
             api = API::vulkan;
         }
+        else if (!strcmp(argv[i], "--vkcw"))
+        {
+            api = API::vulkan;
+            s_clockwiseFill = true;
+        }
         else if (!strcmp(argv[i], "--vulkanatomic") ||
                  !strcmp(argv[i], "--vkatomic"))
         {
@@ -816,7 +821,7 @@ void riveMainLoop()
 
         auto fillPaint = factory->makeRenderPaint();
         fillPaint->style(RenderPaintStyle::fill);
-        fillPaint->color(-1);
+        fillPaint->color(0xd0ffffff);
 
         auto strokePaint = factory->makeRenderPaint();
         strokePaint->style(RenderPaintStyle::stroke);

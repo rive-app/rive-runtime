@@ -227,6 +227,7 @@ public:
                 break;
             case Backend::vk:
             case Backend::vkcore:
+            case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::moltenvkcore:
             case Backend::swiftshader:

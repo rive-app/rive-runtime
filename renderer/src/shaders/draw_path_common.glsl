@@ -66,13 +66,13 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         STORAGE_BUFFER_LOAD4(@contourBuffer,
                              contour_data_idx(contourIDWithFlags));
     float2 midpoint = uintBitsToFloat(contourData.xy);
-    o_pathID = cast_uint_to_ushort(contourData.z & 0xffffu);
+    uint pathID = cast_uint_to_ushort(contourData.z & 0xffffu);
     uint vertexIndex0 = contourData.w;
 
     // Fetch and unpack the path.
     float2x2 M = make_float2x2(
-        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u)));
-    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u + 1u);
+        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u)));
+    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u);
     float2 translate = uintBitsToFloat(pathData.xy);
 
     float strokeRadius = uintBitsToFloat(pathData.z);
@@ -318,6 +318,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             return false;
     }
 
+    o_pathID = cast_uint_to_ushort(pathID);
     o_vertexPosition = MUL(M, origin) + postTransformVertexOffset + translate;
     return true;
 }
@@ -329,13 +330,13 @@ unpack_interior_triangle_vertex(float3 triangleVertex,
                                 OUT(ushort) o_pathID,
                                 OUT(half) o_windingWeight VERTEX_CONTEXT_DECL)
 {
-    o_pathID = cast_uint_to_ushort(floatBitsToUint(triangleVertex.z) & 0xffffu);
+    uint pathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
     float2x2 M = make_float2x2(
-        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u)));
-    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, o_pathID * 2u + 1u);
+        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u)));
+    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u);
     float2 translate = uintBitsToFloat(pathData.xy);
-    o_windingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16) *
-                      sign(determinant(M));
+    o_pathID = cast_uint_to_ushort(pathID);
+    o_windingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
     return MUL(M, triangleVertex.xy) + translate;
 }
 #endif // @DRAW_INTERIOR_TRIANGLES

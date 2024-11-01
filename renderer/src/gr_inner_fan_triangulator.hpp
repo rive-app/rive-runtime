@@ -51,8 +51,9 @@ public:
     size_t maxVertexCount() const { return m_maxVertexCount; }
 
     size_t polysToTriangles(
-        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* bufferRing,
-        uint16_t pathID) const
+        uint16_t pathID,
+        gpu::WindingFaces windingFaces,
+        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>* mappedMemory) const
 
     {
         if (m_polys == nullptr || m_maxVertexCount == 0)
@@ -64,7 +65,8 @@ public:
                                                 pathID,
                                                 m_shouldReverseTriangles,
                                                 m_shouldNegateWinding,
-                                                bufferRing);
+                                                windingFaces,
+                                                mappedMemory);
     }
 
     const GroutTriangleList& groutList() const { return fBreadcrumbList; }

@@ -403,6 +403,7 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_colorClearValue(SwizzleRiveColorToRGBAPremul(flushDesc.clearColor)),
     m_coverageClearValue(flushDesc.coverageClearValue),
     m_renderTargetUpdateBounds(flushDesc.renderTargetUpdateBounds),
+    m_coverageBufferPrefix(flushDesc.coverageBufferPrefix),
     m_pathIDGranularity(platformFeatures.pathIDGranularity)
 {}
 
@@ -420,6 +421,18 @@ void PathData::set(const Mat2D& m, float strokeRadius, uint32_t zIndex)
     write_matrix(m_matrix, m);
     m_strokeRadius = strokeRadius; // 0 if the path is filled.
     m_zIndex = zIndex;
+}
+
+void PathData::set(const Mat2D& m,
+                   float strokeRadius,
+                   uint32_t zIndex,
+                   const CoverageBufferRange& coverageBufferRange)
+{
+    set(m, strokeRadius, zIndex);
+    m_coverageBufferRange.offset = coverageBufferRange.offset;
+    m_coverageBufferRange.pitch = coverageBufferRange.pitch;
+    m_coverageBufferRange.offsetX = coverageBufferRange.offsetX;
+    m_coverageBufferRange.offsetY = coverageBufferRange.offsetY;
 }
 
 void PaintData::set(FillRule fillRule,

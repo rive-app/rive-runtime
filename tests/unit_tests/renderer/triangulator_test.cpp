@@ -1024,185 +1024,252 @@ static void verify_simple_inner_polygons(const char* shapeName,
 {
     for (auto fillType : {FillRule::nonZero})
     {
-        // path.setFillType(fillType);
-        TrivialBlockAllocator alloc(GrTriangulator::kArenaDefaultChunkSize);
-        GrInnerFanTriangulator triangulator(
-            path,
-            Mat2D(),
-            path.bounds().width() > path.bounds().height()
-                ? GrTriangulator::Comparator::Direction::kHorizontal
-                : GrTriangulator::Comparator::Direction::kVertical,
-            fillType,
-            &alloc);
-        int pathID = rand() & 0xffff;
-        std::vector<gpu::TriangleVertex> vertexData(
-            triangulator.maxVertexCount());
-        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex> mappedMemory(
-            vertexData.data(),
-            triangulator.maxVertexCount());
-        size_t vertexCount =
-            triangulator.polysToTriangles(&mappedMemory, pathID);
-        const gpu::TriangleVertex* tris = vertexData.data();
-        const GrInnerFanTriangulator::GroutTriangleList& grouts =
-            triangulator.groutList();
-
-        // Count up all the triangulated edges.
-        EdgeMap trianglePlusGroutEdges;
-        for (size_t i = 0; i < vertexCount; i += 3)
+        size_t lastVertexCount = 0;
+        for (int faceOrdering = 0; faceOrdering < 4; ++faceOrdering)
         {
-            int plsWeight = tris[i].testing_weight_pathID() >> 16;
-            uint16_t plsID = tris[i].testing_weight_pathID();
-            assert(tris[i + 1].testing_weight_pathID() ==
-                   tris[i].testing_weight_pathID());
-            assert(tris[i + 2].testing_weight_pathID() ==
-                   tris[i].testing_weight_pathID());
-            Vec2D pts[3] = {tris[i].testing_point(),
-                            tris[i + 1].testing_point(),
-                            tris[i + 2].testing_point()};
-            if (plsWeight < 0)
+            // path.setFillType(fillType);
+            TrivialBlockAllocator alloc(GrTriangulator::kArenaDefaultChunkSize);
+            GrInnerFanTriangulator triangulator(
+                path,
+                Mat2D(),
+                path.bounds().width() > path.bounds().height()
+                    ? GrTriangulator::Comparator::Direction::kHorizontal
+                    : GrTriangulator::Comparator::Direction::kVertical,
+                fillType,
+                &alloc);
+            int pathID = rand() & 0xffff;
+            std::vector<gpu::TriangleVertex> vertexData(
+                triangulator.maxVertexCount());
+            size_t vertexCount;
+            switch (faceOrdering)
             {
-                std::swap(pts[0], pts[1]);
-            }
-            for (int i = 0; i < abs(plsWeight); ++i)
-            {
-                add_tri_edges(trianglePlusGroutEdges, pts);
-            }
-            CHECK(plsID == pathID);
-        }
-        // Count up all the grout edges.
-        int groutCount = 0;
-        for (const auto* node = grouts.head(); node; node = node->fNext)
-        {
-            add_tri_edges(trianglePlusGroutEdges, node->fPts);
-            ++groutCount;
-        }
-        CHECK(groutCount == grouts.count());
-        // The triangulated + grout edges should cancel out to the inner polygon
-        // edges.
-        trianglePlusGroutEdges = simplify(trianglePlusGroutEdges, fillType);
-
-        // Build the inner polygon edges.
-        EdgeMap innerFanEdges;
-        Vec2D startPoint{}, lastPoint{};
-        bool hasStartPoint = false;
-        for (auto [verb, pts] : path)
-        {
-            switch (verb)
-            {
-                case PathVerb::move:
-                    if (hasStartPoint)
-                    {
-                        add_edge(innerFanEdges, lastPoint, startPoint);
-                    }
-                    if (isfinite(pts[0]))
-                    {
-                        lastPoint = startPoint = pts[0];
-                        hasStartPoint = true;
-                    }
-                    else
-                    {
-                        hasStartPoint = false;
-                    }
+                case 0:
+                {
+                    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>
+                        mappedMemory(vertexData.data(),
+                                     triangulator.maxVertexCount());
+                    vertexCount =
+                        triangulator.polysToTriangles(pathID,
+                                                      gpu::WindingFaces::all,
+                                                      &mappedMemory);
+                    CHECK(mappedMemory.elementsWritten() == vertexCount);
+                    lastVertexCount = vertexCount;
                     break;
-                case PathVerb::close:
-                    if (hasStartPoint)
-                    {
-                        add_edge(innerFanEdges, lastPoint, startPoint);
-                        lastPoint = startPoint;
-                    }
+                }
+                case 1:
+                {
+                    assert(lastVertexCount <= triangulator.maxVertexCount());
+                    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>
+                        mappedMemory(vertexData.data(), lastVertexCount);
+                    vertexCount = triangulator.polysToTriangles(
+                        pathID,
+                        gpu::WindingFaces::negative,
+                        &mappedMemory);
+                    vertexCount += triangulator.polysToTriangles(
+                        pathID,
+                        gpu::WindingFaces::positive,
+                        &mappedMemory);
+                    CHECK(vertexCount == lastVertexCount);
+                    CHECK(!mappedMemory.hasRoomFor(1));
                     break;
-                case PathVerb::line:
-                    if (!isfinite(pts[1]))
-                    {
+                }
+                case 2:
+                {
+                    assert(lastVertexCount <= triangulator.maxVertexCount());
+                    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>
+                        mappedMemory(vertexData.data(), lastVertexCount);
+                    vertexCount = triangulator.polysToTriangles(
+                        pathID,
+                        gpu::WindingFaces::positive,
+                        &mappedMemory);
+                    vertexCount += triangulator.polysToTriangles(
+                        pathID,
+                        gpu::WindingFaces::negative,
+                        &mappedMemory);
+                    CHECK(vertexCount == lastVertexCount);
+                    CHECK(!mappedMemory.hasRoomFor(1));
+                    break;
+                }
+                case 3:
+                {
+                    assert(lastVertexCount <= triangulator.maxVertexCount());
+                    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>
+                        mappedMemory(vertexData.data(), lastVertexCount);
+                    vertexCount = triangulator.polysToTriangles(
+                        pathID,
+                        gpu::WindingFaces::positive,
+                        &mappedMemory);
+                    vertexCount += triangulator.polysToTriangles(
+                        pathID,
+                        gpu::WindingFaces::negative,
+                        &mappedMemory);
+                    CHECK(vertexCount == lastVertexCount);
+                    CHECK(!mappedMemory.hasRoomFor(1));
+                    break;
+                }
+            }
+            const gpu::TriangleVertex* tris = vertexData.data();
+            const GrInnerFanTriangulator::GroutTriangleList& grouts =
+                triangulator.groutList();
+
+            // Count up all the triangulated edges.
+            EdgeMap trianglePlusGroutEdges;
+            for (size_t i = 0; i < vertexCount; i += 3)
+            {
+                int plsWeight = tris[i].testing_weight_pathID() >> 16;
+                uint16_t plsID = tris[i].testing_weight_pathID();
+                assert(tris[i + 1].testing_weight_pathID() ==
+                       tris[i].testing_weight_pathID());
+                assert(tris[i + 2].testing_weight_pathID() ==
+                       tris[i].testing_weight_pathID());
+                Vec2D pts[3] = {tris[i].testing_point(),
+                                tris[i + 1].testing_point(),
+                                tris[i + 2].testing_point()};
+                if (plsWeight < 0)
+                {
+                    std::swap(pts[0], pts[1]);
+                }
+                for (int i = 0; i < abs(plsWeight); ++i)
+                {
+                    add_tri_edges(trianglePlusGroutEdges, pts);
+                }
+                CHECK(plsID == pathID);
+            }
+            // Count up all the grout edges.
+            int groutCount = 0;
+            for (const auto* node = grouts.head(); node; node = node->fNext)
+            {
+                add_tri_edges(trianglePlusGroutEdges, node->fPts);
+                ++groutCount;
+            }
+            CHECK(groutCount == grouts.count());
+            // The triangulated + grout edges should cancel out to the inner
+            // polygon edges.
+            trianglePlusGroutEdges = simplify(trianglePlusGroutEdges, fillType);
+
+            // Build the inner polygon edges.
+            EdgeMap innerFanEdges;
+            Vec2D startPoint{}, lastPoint{};
+            bool hasStartPoint = false;
+            for (auto [verb, pts] : path)
+            {
+                switch (verb)
+                {
+                    case PathVerb::move:
+                        if (hasStartPoint)
+                        {
+                            add_edge(innerFanEdges, lastPoint, startPoint);
+                        }
+                        if (isfinite(pts[0]))
+                        {
+                            lastPoint = startPoint = pts[0];
+                            hasStartPoint = true;
+                        }
+                        else
+                        {
+                            hasStartPoint = false;
+                        }
                         break;
-                    }
-                    if (hasStartPoint)
-                    {
-                        add_edge(innerFanEdges, lastPoint, pts[1]);
-                        lastPoint = pts[1];
-                    }
-                    else
-                    {
-                        startPoint = lastPoint = pts[1];
-                        hasStartPoint = true;
-                    }
-                    break;
-                case PathVerb::quad:
-                case PathVerb::cubic:
-                    RIVE_UNREACHABLE();
+                    case PathVerb::close:
+                        if (hasStartPoint)
+                        {
+                            add_edge(innerFanEdges, lastPoint, startPoint);
+                            lastPoint = startPoint;
+                        }
+                        break;
+                    case PathVerb::line:
+                        if (!isfinite(pts[1]))
+                        {
+                            break;
+                        }
+                        if (hasStartPoint)
+                        {
+                            add_edge(innerFanEdges, lastPoint, pts[1]);
+                            lastPoint = pts[1];
+                        }
+                        else
+                        {
+                            startPoint = lastPoint = pts[1];
+                            hasStartPoint = true;
+                        }
+                        break;
+                    case PathVerb::quad:
+                    case PathVerb::cubic:
+                        RIVE_UNREACHABLE();
+                }
             }
-        }
-        add_edge(innerFanEdges, lastPoint, startPoint);
-        innerFanEdges = simplify(innerFanEdges, fillType);
+            add_edge(innerFanEdges, lastPoint, startPoint);
+            innerFanEdges = simplify(innerFanEdges, fillType);
 
-        // The triangulated + grout edges should cancel out to the inner polygon
-        // edges. First verify that every inner polygon edge can be found in the
-        // triangulation.
-        for (auto [edge, count] : innerFanEdges)
-        {
-            auto it = trianglePlusGroutEdges.find(edge);
-            if (it != trianglePlusGroutEdges.end())
+            // The triangulated + grout edges should cancel out to the inner
+            // polygon edges. First verify that every inner polygon edge can be
+            // found in the triangulation.
+            for (auto [edge, count] : innerFanEdges)
             {
-                it->second -= count;
-                if (it->second == 0)
+                auto it = trianglePlusGroutEdges.find(edge);
+                if (it != trianglePlusGroutEdges.end())
                 {
-                    trianglePlusGroutEdges.erase(it);
-                }
-                continue;
-            }
-            it = trianglePlusGroutEdges.find(edge.reverse());
-            if (it != trianglePlusGroutEdges.end())
-            {
-                it->second += count;
-                if (it->second == 0)
-                {
-                    trianglePlusGroutEdges.erase(it);
-                }
-                continue;
-            }
-            printf(
-                "error: %s: edge [%g,%g]:[%g,%g] not found in triangulation.",
-                shapeName,
-                edge.fP0.x,
-                edge.fP0.y,
-                edge.fP1.x,
-                edge.fP1.y);
-            FAIL();
-            return;
-        }
-        // Now verify that there are no spurious edges in the triangulation.
-        //
-        // NOTE: The triangulator's definition of wind isn't always correct for
-        // edges that run exactly parallel to the sweep (either vertical or
-        // horizontal edges). This doesn't actually matter though because
-        // T-junction artifacts don't happen on axis-aligned edges. Tolerate
-        // spurious edges that (1) come in pairs of 2, and (2) are either
-        // exactly horizontal or exactly vertical exclusively.
-        bool hasSpuriousHorz = false, hasSpuriousVert = false;
-        for (auto [edge, count] : trianglePlusGroutEdges)
-        {
-            if (count % 2 == 0)
-            {
-                if (edge.fP0.x == edge.fP1.x && !hasSpuriousVert)
-                {
-                    hasSpuriousHorz = true;
+                    it->second -= count;
+                    if (it->second == 0)
+                    {
+                        trianglePlusGroutEdges.erase(it);
+                    }
                     continue;
                 }
-                if (edge.fP0.y == edge.fP1.y && !hasSpuriousHorz)
+                it = trianglePlusGroutEdges.find(edge.reverse());
+                if (it != trianglePlusGroutEdges.end())
                 {
-                    hasSpuriousVert = true;
+                    it->second += count;
+                    if (it->second == 0)
+                    {
+                        trianglePlusGroutEdges.erase(it);
+                    }
                     continue;
                 }
+                printf("error: %s: edge [%g,%g]:[%g,%g] not found in "
+                       "triangulation.",
+                       shapeName,
+                       edge.fP0.x,
+                       edge.fP0.y,
+                       edge.fP1.x,
+                       edge.fP1.y);
+                FAIL();
+                return;
             }
-            printf("error: %s: spurious edge [%g,%g]:[%g,%g] found in "
-                   "triangulation.",
-                   shapeName,
-                   edge.fP0.x,
-                   edge.fP0.y,
-                   edge.fP1.x,
-                   edge.fP1.y);
-            FAIL();
-            return;
+            // Now verify that there are no spurious edges in the triangulation.
+            //
+            // NOTE: The triangulator's definition of wind isn't always correct
+            // for edges that run exactly parallel to the sweep (either vertical
+            // or horizontal edges). This doesn't actually matter though because
+            // T-junction artifacts don't happen on axis-aligned edges. Tolerate
+            // spurious edges that (1) come in pairs of 2, and (2) are either
+            // exactly horizontal or exactly vertical exclusively.
+            bool hasSpuriousHorz = false, hasSpuriousVert = false;
+            for (auto [edge, count] : trianglePlusGroutEdges)
+            {
+                if (count % 2 == 0)
+                {
+                    if (edge.fP0.x == edge.fP1.x && !hasSpuriousVert)
+                    {
+                        hasSpuriousHorz = true;
+                        continue;
+                    }
+                    if (edge.fP0.y == edge.fP1.y && !hasSpuriousHorz)
+                    {
+                        hasSpuriousVert = true;
+                        continue;
+                    }
+                }
+                printf("error: %s: spurious edge [%g,%g]:[%g,%g] found in "
+                       "triangulation.",
+                       shapeName,
+                       edge.fP0.x,
+                       edge.fP0.y,
+                       edge.fP1.x,
+                       edge.fP1.y);
+                FAIL();
+                return;
+            }
         }
     }
 }

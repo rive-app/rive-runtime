@@ -81,7 +81,6 @@ public:
     {
         return m_simplePaintValue;
     }
-    const Gradient* gradient() const { return m_gradientRef; }
 
     // Clipping setup.
     void setClipID(uint32_t clipID);
@@ -94,10 +93,16 @@ public:
     using ResourceCounters = RenderContext::LogicalFlush::ResourceCounters;
     const ResourceCounters& resourceCounts() const { return m_resourceCounts; }
 
-    // Number of low-level draws required to render this object. The
-    // renderContext will call pushToRenderContext() this many times,
-    // potentially with other non-overlapping draws in between.
-    uint32_t subpassCount() const { return m_subpassCount; }
+    // Combined number of low-level draws required to render this object. The
+    // renderContext will call pushToRenderContext() "prepassCount() +
+    // subpassCount()" times, potentially with other non-overlapping draws in
+    // between.
+    //
+    // All prepasses from all draws are rendered first, before drawing any
+    // subpasses. Prepasses are rendered in front-to-back order and subpasses
+    // are drawn back-to-front.
+    int prepassCount() const { return m_prepassCount; }
+    int subpassCount() const { return m_subpassCount; }
 
     // When shaders don't have a mechanism to read the framebuffer (e.g.,
     // WebGL msaa), this is a linked list of all the draws from a single batch
@@ -111,12 +116,20 @@ public:
     };
     const Draw* nextDstRead() const { return m_nextDstRead; }
 
-    // Adds the gradient (if any) for this draw to the render context's gradient
-    // texture. Returns false if this draw needed a gradient but there wasn't
-    // room for it in the texture, at which point the gradient texture will need
-    // to be re-rendered mid flight.
-    bool allocateGradientIfNeeded(RenderContext::LogicalFlush*,
-                                  ResourceCounters*);
+    // Allocates any remaining resources necessary for the draw (gradients,
+    // coverage buffer ranges, etc.), and finalizes m_prepassCount and
+    // m_subpassCount.
+    //
+    // Returns false if any allocation failed due to resource constraints, at
+    // which point the caller will have to issue a logical flush and try again.
+    virtual bool allocateResourcesAndSubpasses(RenderContext::LogicalFlush*)
+    {
+        // The subclass must set m_prepassCount and m_subpassCount in this call
+        // if they are not 0 & 1.
+        assert(m_prepassCount == 0);
+        assert(m_subpassCount == 1);
+        return true;
+    }
 
     // Pushes the data for the given subpassIndex of this draw to the
     // renderContext. Called once the GPU buffers have been counted and
@@ -125,7 +138,7 @@ public:
     // NOTE: Subpasses are not necessarily rendered one after the other.
     // Separate, non-overlapping draws may have gotten sorted between subpasses.
     virtual void pushToRenderContext(RenderContext::LogicalFlush*,
-                                     uint32_t subpassIndex) = 0;
+                                     int subpassIndex) = 0;
 
     // We can't have a destructor because we're block-allocated. Instead, the
     // client calls this method before clearing the drawList to release all our
@@ -148,13 +161,22 @@ protected:
     // Filled in by the subclass constructor.
     ResourceCounters m_resourceCounts;
 
-    // Number of low-level draws required to render this object. Set by the
-    // subclass constructor if not 1.
-    uint32_t m_subpassCount = 1;
+    // Before issuing the main draws, the renderContext may do a front-to-back
+    // pass. Any draw who wants to participate in front-to-back rendering can
+    // register a positive prepass count during allocateResourcesAndSubpasses().
+    //
+    // For prepasses, pushToRenderContext() gets called with subpassIndex
+    // values: [-m_prepassCount, .., -1].
+    int m_prepassCount = 0;
 
-    // Gradient data used by some draws. Stored in the base class so
-    // allocateGradientIfNeeded() doesn't have to be virtual.
-    const Gradient* m_gradientRef = nullptr;
+    // This is the number of low-level draws that the draw requires during main
+    // (back-to-front) rendering. A draw can register the number of subpasses it
+    // requires during allocateResourcesAndSubpasses().
+    //
+    // For subpasses, pushToRenderContext() gets called with subpassIndex
+    // values: [0, .., m_subpassCount - 1].
+    int m_subpassCount = 1;
+
     gpu::SimplePaintValue m_simplePaintValue;
 
     // When shaders don't have a mechanism to read the framebuffer (e.g.,
@@ -201,6 +223,7 @@ public:
                        const RenderContext::FrameDescriptor&,
                        gpu::InterlockMode);
 
+    const Gradient* gradient() const { return m_gradientRef; }
     FillRule fillRule() const { return m_fillRule; }
     gpu::PaintType paintType() const { return m_paintType; }
     float strokeRadius() const { return m_strokeRadius; }
@@ -208,10 +231,16 @@ public:
     {
         return m_contourDirections;
     }
+    const gpu::CoverageBufferRange& coverageBufferRange() const
+    {
+        return m_coverageBufferRange;
+    }
     GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
 
+    bool allocateResourcesAndSubpasses(RenderContext::LogicalFlush*) override;
+
     void pushToRenderContext(RenderContext::LogicalFlush*,
-                             uint32_t subpassIndex) override;
+                             int subpassIndex) override;
 
     void releaseRefs() override;
 
@@ -231,6 +260,17 @@ protected:
     void initForInteriorTriangulation(RenderContext*,
                                       RawPath*,
                                       TriangulatorAxis);
+
+    // Implements pushToRenderContext() for paths that use rasterOrdering or
+    // atomics.
+    void pushToRenderContextImpl(RenderContext::LogicalFlush*,
+                                 int subpassIndex,
+                                 uint32_t tessVertexCount);
+
+    // Implements pushToRenderContext() for paths that use MSAA.
+    void pushToRenderContextImplMSAA(RenderContext::LogicalFlush*,
+                                     int subpassIndex,
+                                     uint32_t tessVertexCount);
 
     // Pushes the contours and cubics to the renderContext for a
     // "midpointFanPatches" draw.
@@ -253,7 +293,7 @@ protected:
 
         // Pushes the contours and cubics to the renderContext for an
         // "outerCurvePatches" draw.
-        pushOuterCubicData,
+        pushOuterCubicTessellationData,
     };
 
     // Called to processes the interior triangulation both during initialization
@@ -269,12 +309,14 @@ protected:
                                       RenderContext::TessellationWriter*);
 
     const RiveRenderPath* const m_pathRef;
+    const Gradient* m_gradientRef;
     const FillRule m_fillRule; // Bc RiveRenderPath fillRule can mutate during
                                // the artboard draw process.
     const gpu::PaintType m_paintType;
     float m_strokeRadius = 0;
     gpu::ContourDirections m_contourDirections;
     uint32_t m_contourFlags = 0;
+    gpu::CoverageBufferRange m_coverageBufferRange; // clockwiseAtomic only.
     GrInnerFanTriangulator* m_triangulator = nullptr;
 
     float m_strokeMatrixMaxScale;
@@ -308,6 +350,11 @@ protected:
     // Unique ID used by shaders for the current frame.
     uint32_t m_pathID = 0;
 
+    // Used in clockwiseAtomic mode. The negative triangles get rendered in a
+    // separate prepass, and their tessellations need to be allocated before the
+    // main subpass pushes the path to the renderContext.
+    uint32_t m_prepassTessLocation = 0;
+
     // Used to guarantee m_pathRef doesn't change for the entire time we hold
     // it.
     RIVE_DEBUG_CODE(uint64_t m_rawPathMutationID;)
@@ -321,6 +368,7 @@ protected:
     // Counts how many additional curves were pushed by
     // pushEmulatedStrokeCapAsJoinBeforeCubic().
     RIVE_DEBUG_CODE(size_t m_pendingEmptyStrokeCountForCaps;)
+    RIVE_DEBUG_CODE(size_t m_numInteriorTriangleVerticesPushed = 0;)
 };
 
 // Pushes an imageRect to the render context.
@@ -339,7 +387,7 @@ public:
     float opacity() const { return m_opacity; }
 
     void pushToRenderContext(RenderContext::LogicalFlush*,
-                             uint32_t subpassIndex) override;
+                             int subpassIndex) override;
 
 protected:
     const float m_opacity;
@@ -366,7 +414,7 @@ public:
     float opacity() const { return m_opacity; }
 
     void pushToRenderContext(RenderContext::LogicalFlush*,
-                             uint32_t subpassIndex) override;
+                             int subpassIndex) override;
 
     void releaseRefs() override;
 
@@ -395,7 +443,7 @@ public:
     uint32_t previousClipID() const { return m_previousClipID; }
 
     void pushToRenderContext(RenderContext::LogicalFlush*,
-                             uint32_t subpassIndex) override;
+                             int subpassIndex) override;
 
 protected:
     const uint32_t m_previousClipID;

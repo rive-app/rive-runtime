@@ -7,6 +7,7 @@
 #ifndef RIVE_VULKAN
 
 TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly,
+                                                bool clockwiseFill,
                                                 const char* gpuNameFilter)
 {
     return nullptr;
@@ -24,7 +25,10 @@ namespace rive::gpu
 class TestingWindowVulkanTexture : public TestingWindow
 {
 public:
-    TestingWindowVulkanTexture(bool coreFeaturesOnly, const char* gpuNameFilter)
+    TestingWindowVulkanTexture(bool coreFeaturesOnly,
+                               bool clockwiseFill,
+                               const char* gpuNameFilter) :
+        m_clockwiseFill(clockwiseFill)
     {
         rive_vkb::load_vulkan();
 
@@ -124,6 +128,7 @@ public:
                                   : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = clearColor,
             .wireframe = wireframe,
+            .clockwiseFill = m_clockwiseFill,
         };
         m_renderContext->beginFrame(frameDescriptor);
         return std::make_unique<RiveRenderer>(m_renderContext.get());
@@ -271,6 +276,7 @@ private:
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
+    bool m_clockwiseFill;
     vkb::Instance m_instance;
     vkb::PhysicalDevice m_physicalDevice;
     vkb::Device m_device;
@@ -291,9 +297,11 @@ private:
 }; // namespace rive::gpu
 
 TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly,
+                                                bool clockwiseFill,
                                                 const char* gpuNameFilter)
 {
     return new rive::gpu::TestingWindowVulkanTexture(coreFeaturesOnly,
+                                                     clockwiseFill,
                                                      gpuNameFilter);
 }
 

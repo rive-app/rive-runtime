@@ -40,6 +40,7 @@ public:
         kLeft_Side,
         kRight_Side
     } Side;
+
     enum class EdgeType
     {
         kInner,
@@ -119,12 +120,13 @@ protected:
                                                const Comparator&);
 
     // 6) Triangulate the monotone polygons directly into a vertex buffer:
-    void polysToTriangles(
+    size_t polysToTriangles(
         Poly* polys,
         FillRule overrideFillRule,
         uint16_t pathID,
         bool reverseTriangles,
         bool negateWinding,
+        gpu::WindingFaces,
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
     // The vertex sorting in step (3) is a merge sort, since it plays well with
@@ -181,24 +183,26 @@ protected:
     // counterclockwise, rather that transposing.
 
     // Additional helpers and driver functions.
-    void emitMonotonePoly(
+    size_t emitMonotonePoly(
         const MonotonePoly*,
         uint16_t pathID,
         bool reverseTriangles,
         bool negateWinding,
+        gpu::WindingFaces,
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
-    void emitTriangle(Vertex* prev,
-                      Vertex* curr,
-                      Vertex* next,
-                      int winding,
-                      uint16_t pathID,
-                      bool reverseTriangles,
-                      gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
-    void emitPoly(const Poly*,
-                  uint16_t pathID,
-                  bool reverseTriangles,
-                  bool negateWinding,
-                  gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+    size_t emitTriangle(Vertex* prev,
+                        Vertex* curr,
+                        Vertex* next,
+                        int16_t riveWeight,
+                        uint16_t pathID,
+                        bool reverseTriangles,
+                        gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
+    size_t emitPoly(const Poly*,
+                    uint16_t pathID,
+                    bool reverseTriangles,
+                    bool negateWinding,
+                    gpu::WindingFaces,
+                    gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
     Poly* makePoly(Poly** head, Vertex* v, int winding) const;
     void appendPointToContour(const Vec2D& p, VertexList* contour) const;
@@ -292,12 +296,14 @@ protected:
                                         bool* isLinear);
     static int64_t CountPoints(Poly* polys, FillRule overrideFillRule);
     size_t countMaxTriangleVertices(Poly*) const;
+
     size_t polysToTriangles(
         Poly*,
         uint64_t maxVertexCount,
         uint16_t pathID,
         bool reverseTriangles,
         bool negateWinding,
+        gpu::WindingFaces,
         gpu::WriteOnlyMappedMemory<gpu::TriangleVertex>*) const;
 
     Comparator::Direction fDirection;

@@ -14,12 +14,178 @@
 #include "rive/math/math_types.hpp"
 #include "common/rand.hpp"
 #include "path_utils.hpp"
-#include <cassert>
 
 using namespace rivegm;
 using namespace rive;
 using namespace rive::math;
 using namespace rive::pathutils;
+
+static Vec2D SkFindBisector(Vec2D a, Vec2D b)
+{
+    std::array<Vec2D, 2> v;
+    if (Vec2D::dot(a, b) >= 0)
+    {
+        // a,b are within +/-90 degrees apart.
+        v = {a, b};
+    }
+    else if (Vec2D::cross(a, b) >= 0)
+    {
+        // a,b are >90 degrees apart. Find the bisector of their interior
+        // normals instead. (Above 90 degrees, the original vectors start
+        // cancelling each other out which eventually becomes unstable.)
+        v[0] = {-a.y, +a.x};
+        v[1] = {+b.y, -b.x};
+    }
+    else
+    {
+        // a,b are <-90 degrees apart. Find the bisector of their interior
+        // normals instead. (Below -90 degrees, the original vectors start
+        // cancelling each other out which eventually becomes unstable.)
+        v[0] = {+a.y, -a.x};
+        v[1] = {-b.y, +b.x};
+    }
+    // Return "normalize(v[0]) + normalize(v[1])".
+    float2 x0_x1{v[0].x, v[1].x};
+    float2 y0_y1{v[0].y, v[1].y};
+    auto invLengths = 1.0f / simd::sqrt(x0_x1 * x0_x1 + y0_y1 * y0_y1);
+    x0_x1 *= invLengths;
+    y0_y1 *= invLengths;
+    return Vec2D{x0_x1[0] + x0_x1[1], y0_y1[0] + y0_y1[1]};
+}
+
+static float SkFindQuadMidTangent(const Vec2D src[3])
+{
+    // Tangents point in the direction of increasing T, so tan0 and -tan1 both
+    // point toward the midtangent. The bisector of tan0 and -tan1 is orthogonal
+    // to the midtangent:
+    //
+    //     n dot midtangent = 0
+    //
+    Vec2D tan0 = src[1] - src[0];
+    Vec2D tan1 = src[2] - src[1];
+    Vec2D bisector = SkFindBisector(tan0, -tan1);
+
+    // The midtangent can be found where (F' dot bisector) = 0:
+    //
+    //   0 = (F'(T) dot bisector) = |2*T 1| * |p0 - 2*p1 + p2| * |bisector.x|
+    //                                        |-2*p0 + 2*p1  |   |bisector.y|
+    //
+    //                     = |2*T 1| * |tan1 - tan0| * |nx|
+    //                                 |2*tan0     |   |ny|
+    //
+    //                     = 2*T * ((tan1 - tan0) dot bisector) + (2*tan0 dot
+    //                     bisector)
+    //
+    //   T = (tan0 dot bisector) / ((tan0 - tan1) dot bisector)
+    float T = Vec2D::dot(tan0, bisector) / Vec2D::dot(tan0 - tan1, bisector);
+    if (!(T > 0 && T < 1))
+    {           // Use "!(positive_logic)" so T=nan will take this branch.
+        T = .5; // The quadratic was a line or near-line. Just chop at .5.
+    }
+
+    return T;
+}
+
+// Finds the root nearest 0.5. Returns 0.5 if the roots are undefined or outside
+// 0..1.
+static float solve_quadratic_equation_for_midtangent(float a,
+                                                     float b,
+                                                     float c,
+                                                     float discr)
+{
+    // Quadratic formula from Numerical Recipes in C:
+    float q = -.5f * (b + copysignf(sqrtf(discr), b));
+    // The roots are q/a and c/q. Pick the midtangent closer to T=.5.
+    float _5qa = -.5f * q * a;
+    float T = fabsf(q * q + _5qa) < fabsf(a * c + _5qa) ? q / a : c / q;
+    if (!(T > 0 && T < 1))
+    { // Use "!(positive_logic)" so T=NaN will take this branch.
+        // Either the curve is a flat line with no rotation or FP precision
+        // failed us. Chop at .5.
+        T = .5;
+    }
+    return T;
+}
+
+static float4 fma(float4 f, float4 m, float4 a) { return f * m + a; }
+
+float SkFindCubicMidTangent(const Vec2D src[4])
+{
+    // Tangents point in the direction of increasing T, so tan0 and -tan1 both
+    // point toward the midtangent. The bisector of tan0 and -tan1 is orthogonal
+    // to the midtangent:
+    //
+    //     bisector dot midtangent == 0
+    //
+    Vec2D tan0 = (src[0] == src[1]) ? src[2] - src[0] : src[1] - src[0];
+    Vec2D tan1 = (src[2] == src[3]) ? src[3] - src[1] : src[3] - src[2];
+    Vec2D bisector = SkFindBisector(tan0, -tan1);
+
+    // Find the T value at the midtangent. This is a simple quadratic equation:
+    //
+    //     midtangent dot bisector == 0, or using a tangent matrix C' in power
+    //     basis form:
+    //
+    //                   |C'x  C'y|
+    //     |T^2  T  1| * |.    .  | * |bisector.x| == 0
+    //                   |.    .  |   |bisector.y|
+    //
+    // The coeffs for the quadratic equation we need to solve are therefore:  C'
+    // * bisector
+    static const float4 kM[3] = {float4{-1, 2, -1, 0},
+                                 float4{3, -4, 1, 0},
+                                 float4{-3, 2, 0, 0}};
+    auto C_x = fma(
+        kM[0],
+        src[0].x,
+        fma(kM[1], src[1].x, fma(kM[2], src[2].x, float4{src[3].x, 0, 0, 0})));
+    auto C_y = fma(
+        kM[0],
+        src[0].y,
+        fma(kM[1], src[1].y, fma(kM[2], src[2].y, float4{src[3].y, 0, 0, 0})));
+    auto coeffs = C_x * bisector.x + C_y * bisector.y;
+
+    // Now solve the quadratic for T.
+    float T = 0;
+    float a = coeffs[0], b = coeffs[1], c = coeffs[2];
+    float discr = b * b - 4 * a * c;
+    if (discr > 0)
+    { // This will only be false if the curve is a line.
+        return solve_quadratic_equation_for_midtangent(a, b, c, discr);
+    }
+    else
+    {
+        // This is a 0- or 360-degree flat line. It doesn't have single points
+        // of midtangent. (tangent == midtangent at every point on the curve
+        // except the cusp points.) Chop in between both cusps instead, if any.
+        // There can be up to two cusps on a flat line, both where the tangent
+        // is perpendicular to the starting tangent:
+        //
+        //     tangent dot tan0 == 0
+        //
+        coeffs = C_x * tan0.x + C_y * tan0.y;
+        a = coeffs[0];
+        b = coeffs[1];
+        if (a != 0)
+        {
+            // We want the point in between both cusps. The midpoint of:
+            //
+            //     (-b +/- sqrt(b^2 - 4*a*c)) / (2*a)
+            //
+            // Is equal to:
+            //
+            //     -b / (2*a)
+            T = -b / (2 * a);
+        }
+        if (!(T > 0 && T < 1))
+        { // Use "!(positive_logic)" so T=NaN will take this branch.
+            // Either the curve is a flat line with no rotation or FP precision
+            // failed us. Chop at .5.
+            T = .5;
+        }
+        return T;
+    }
+}
 
 // Slices paths into sliver-size contours shaped like ice cream cones.
 class MandolineSlicer
@@ -45,7 +211,7 @@ public:
             fLastPt = pt;
             return;
         }
-        float T = this->chooseChopT(numSubdivisions);
+        float T = .5f;
         if (0 == T)
         {
             return;
@@ -71,7 +237,8 @@ public:
             fLastPt = p2;
             return;
         }
-        float T = this->chooseChopT(numSubdivisions);
+        float T = SkFindQuadMidTangent(
+            std::array<Vec2D, 3>{fAnchorPt, p1, p2}.data());
         if (0 == T)
         {
             return;
@@ -98,7 +265,8 @@ public:
             fLastPt = p3;
             return;
         }
-        float T = this->chooseChopT(numSubdivisions);
+        float T = SkFindCubicMidTangent(
+            std::array<Vec2D, 4>{fAnchorPt, p1, p2, p3}.data());
         if (0 == T)
         {
             return;
@@ -112,19 +280,6 @@ public:
     rive::RenderPath* path() const { return fPath; }
 
 private:
-    float chooseChopT(int numSubdivisions)
-    {
-        assert(numSubdivisions > 0);
-        if (numSubdivisions > 1)
-        {
-            return .5f;
-        }
-        float T =
-            (0 == fRand.u32() % 10) ? 0 : scalbnf(1, -(int)fRand.u32(10, 149));
-        assert(T >= 0 && T < 1);
-        return T;
-    }
-
     Rand fRand;
     Path fPath;
     Vec2D fAnchorPt;
@@ -146,11 +301,13 @@ protected:
                 TestingWindow::Get()->renderContext())
         {
             if (renderContext->frameInterlockMode() ==
-                gpu::InterlockMode::atomics)
+                    gpu::InterlockMode::atomics ||
+                renderContext->frameInterlockMode() ==
+                    gpu::InterlockMode::clockwiseAtomic)
             {
-                // Atomic mode uses 7:9 fixed point, so the winding number
-                // breaks if a shape has more than 128 levels of self overlap at
-                // any point.
+                // Atomic mode uses 7:9 fixed point and clockwiseAtomic uses
+                // 7:8, so the winding number breaks if a shape has more than
+                // +/-64 levels of self overlap at any point.
                 subdivisions = 4;
             }
         }

@@ -98,9 +98,8 @@ public:
         bool wireframe = false;
         bool fillsDisabled = false;
         bool strokesDisabled = false;
-        // Override all paths' fill rules (winding or even/odd) with an
-        // experimental "clockwise" fill rule, where only regions with a
-        // positive winding number get filled.
+        // Override all paths' fill rules (winding or even/odd) to emulate
+        // clockwiseAtomic mode.
         bool clockwiseFill = false;
     };
 
@@ -282,12 +281,12 @@ private:
     // LogicalFlush::LayoutCounters.
     struct ResourceAllocationCounts
     {
-        constexpr static int kNumElements = 12;
-        using VecType = simd::gvec<size_t, kNumElements>;
+        constexpr static int NUM_ELEMENTS = 13;
+        using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
         RIVE_ALWAYS_INLINE VecType toVec() const
         {
-            static_assert(sizeof(*this) == sizeof(size_t) * kNumElements);
+            static_assert(sizeof(*this) == sizeof(size_t) * NUM_ELEMENTS);
             static_assert(sizeof(VecType) >= sizeof(*this));
             VecType vec;
             RIVE_INLINE_MEMCPY(&vec, this, sizeof(*this));
@@ -296,7 +295,7 @@ private:
 
         RIVE_ALWAYS_INLINE ResourceAllocationCounts(const VecType& vec)
         {
-            static_assert(sizeof(*this) == sizeof(size_t) * kNumElements);
+            static_assert(sizeof(*this) == sizeof(size_t) * NUM_ELEMENTS);
             static_assert(sizeof(VecType) >= sizeof(*this));
             RIVE_INLINE_MEMCPY(this, &vec, sizeof(*this));
         }
@@ -315,6 +314,7 @@ private:
         size_t triangleVertexBufferCount = 0;
         size_t gradTextureHeight = 0;
         size_t tessTextureHeight = 0;
+        size_t coverageBufferLength = 0; // clockwiseAtomic mode only.
     };
 
     // Reallocates GPU resources and updates m_currentResourceAllocations.
@@ -324,6 +324,12 @@ private:
 
     void mapResourceBuffers(const ResourceAllocationCounts&);
     void unmapResourceBuffers();
+
+    // Returns the next coverage buffer prefix to use in a logical flush.
+    // Sets needsCoverageBufferClear if the coverage buffer must be cleared in
+    // order to support the returned coverage buffer prefix.
+    // (clockwiseAtomic mode only.)
+    uint32_t incrementCoverageBufferPrefix(bool* needsCoverageBufferClear);
 
     const std::unique_ptr<RenderContextImpl> m_impl;
     const size_t m_maxPathID;
@@ -340,6 +346,16 @@ private:
 
     // Clipping state.
     uint32_t m_clipContentID = 0;
+
+    // Monotonically increasing prefix that gets appended to the most
+    // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
+    // values.
+    //
+    // Increasing this prefix implicitly clears the entire coverage buffer to
+    // zero.
+    //
+    // (clockwiseAtomic mode only.)
+    uint32_t m_coverageBufferPrefix = 0;
 
     // Used by LogicalFlushes for re-ordering high level draws.
     std::vector<int64_t> m_indirectDrawList;
@@ -406,6 +422,15 @@ private:
         // growth.
         void resetContainers();
 
+        const FrameDescriptor& frameDescriptor() const
+        {
+            return m_ctx->frameDescriptor();
+        }
+        gpu::InterlockMode interlockMode() const
+        {
+            return m_ctx->frameInterlockMode();
+        }
+
         // Access this flush's gpu::FlushDescriptor (which is not valid until
         // layoutResources()). NOTE: Some fields in the FlushDescriptor
         // (tessVertexSpanCount, hasTriangleVertices, drawList, and
@@ -463,11 +488,13 @@ private:
         // allocated in the render context's various GPU buffers.
         struct ResourceCounters
         {
-            using VecType = simd::gvec<size_t, 8>;
+            constexpr static int NUM_ELEMENTS = 7;
+            using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
             VecType toVec() const
             {
-                static_assert(sizeof(VecType) == sizeof(*this));
+                static_assert(sizeof(*this) == sizeof(size_t) * NUM_ELEMENTS);
+                static_assert(sizeof(VecType) >= sizeof(*this));
                 VecType vec;
                 RIVE_INLINE_MEMCPY(&vec, this, sizeof(VecType));
                 return vec;
@@ -475,7 +502,8 @@ private:
 
             ResourceCounters(const VecType& vec)
             {
-                static_assert(sizeof(*this) == sizeof(VecType));
+                static_assert(sizeof(*this) == sizeof(size_t) * NUM_ELEMENTS);
+                static_assert(sizeof(VecType) >= sizeof(*this));
                 RIVE_INLINE_MEMCPY(this, &vec, sizeof(*this));
             }
 
@@ -489,7 +517,6 @@ private:
             size_t maxTessellatedSegmentCount = 0;
             size_t maxTriangleVertexCount = 0;
             size_t imageDrawCount = 0; // imageRect or imageMesh.
-            size_t complexGradientSpanCount = 0;
         };
 
         // Additional counters for layout state that don't need to be tracked by
@@ -501,9 +528,11 @@ private:
             uint32_t paintAuxPaddingCount = 0;
             uint32_t contourPaddingCount = 0;
             uint32_t simpleGradCount = 0;
+            uint32_t complexGradSpanCount = 0;
             uint32_t gradSpanPaddingCount = 0;
             uint32_t maxGradTextureHeight = 0;
             uint32_t maxTessTextureHeight = 0;
+            size_t maxCoverageBufferLength = 0;
         };
 
         // Allocates a horizontal span of texels in the gradient texture and
@@ -516,8 +545,17 @@ private:
         // Returns false if the gradient texture is out of space, at which point
         // the caller must issue a logical flush and try again.
         [[nodiscard]] bool allocateGradient(const Gradient*,
-                                            ResourceCounters*,
                                             gpu::ColorRampLocation*);
+
+        // Reserves a range within the coverage buffer for a path to use in
+        // clockwiseAtomic mode.
+        //
+        // "length" is the length in pixels of this allocation and must be a
+        // multiple of 32*32, in order to support 32x32 tiling.
+        //
+        // Returns the offset of the allocated range within the coverage buffer,
+        // or -1 if there was not room.
+        size_t allocateCoverageBufferRange(size_t length);
 
         // Carves out space for this specific flush within the total frame's
         // resource buffers and lays out the flush-specific resource textures.
@@ -588,22 +626,31 @@ private:
         //
         // Also adds the RiveRenderPathDraw to a dstRead list if one is
         // required, and if this is the path's first subpass.
-        void pushMidpointFanDraw(const RiveRenderPathDraw*,
-                                 uint32_t tessVertexCount,
-                                 uint32_t tessLocation);
+        void pushMidpointFanDraw(
+            const RiveRenderPathDraw*,
+            uint32_t tessVertexCount,
+            uint32_t tessLocation,
+            gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
 
         // Pushes an "outerCurvePatches" draw to the list. Path, contour, and
         // cubic data are pushed separately.
         //
         // Also adds the RiveRenderPathDraw to a dstRead list if one is
         // required, and if this is the path's first subpass.
-        void pushOuterCubicsDraw(const RiveRenderPathDraw*,
-                                 uint32_t tessVertexCount,
-                                 uint32_t tessLocation);
+        void pushOuterCubicsDraw(
+            const RiveRenderPathDraw*,
+            uint32_t tessVertexCount,
+            uint32_t tessLocation,
+            gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
 
-        // Pushes an "interiorTriangulation" draw to the list.
-        void pushInteriorTriangulationDraw(const RiveRenderPathDraw*,
-                                           uint32_t pathID);
+        // Writes out triangle verties for the desired WindingFaces and pushes
+        // an "interiorTriangulation" draw to the list.
+        // Returns the number of vertices actually written.
+        size_t pushInteriorTriangulationDraw(
+            const RiveRenderPathDraw*,
+            uint32_t pathID,
+            gpu::WindingFaces,
+            gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
 
         // Pushes an "imageRect" to the draw list.
         // This should only be used when we in atomic mode. Otherwise, images
@@ -631,10 +678,12 @@ private:
         // the passed parameters.
         DrawBatch& pushPathDraw(const RiveRenderPathDraw*,
                                 DrawType,
+                                gpu::ShaderMiscFlags,
                                 uint32_t vertexCount,
                                 uint32_t baseVertex);
         DrawBatch& pushDraw(const Draw*,
                             DrawType,
+                            gpu::ShaderMiscFlags,
                             gpu::PaintType,
                             uint32_t elementCount,
                             uint32_t baseElement);
@@ -646,8 +695,9 @@ private:
         // draws.
         ResourceCounters m_resourceCounts;
 
-        // Running count of combined subpasses from every draw in m_draws.
-        uint32_t m_drawSubpassCount = 0;
+        // Running count of combined prepasses and subpasses from every draw in
+        // m_draws.
+        int m_drawPassCount;
 
         // Simple gradients have one stop at t=0 and one stop at t=1. They're
         // implemented with 2 texels.
@@ -662,6 +712,7 @@ private:
         std::unordered_map<GradientContentKey, uint16_t, DeepHashGradient>
             m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
         std::vector<const Gradient*> m_pendingComplexColorRampDraws;
+        size_t m_pendingComplexGradSpanCount;
 
         std::vector<ClipInfo> m_clips;
 
@@ -682,8 +733,8 @@ private:
         uint32_t m_midpointFanTessVertexIdx;
 
         gpu::FlushDescriptor m_flushDesc;
-        gpu::GradTextureLayout
-            m_gradTextureLayout; // Not determined until writeResources().
+        // Not determined until writeResources().
+        gpu::GradTextureLayout m_gradTextureLayout;
 
         BlockAllocatedLinkedList<DrawBatch> m_drawList;
         gpu::ShaderFeatures m_combinedShaderFeatures;
@@ -691,6 +742,10 @@ private:
         // Most recent path and contour state.
         uint32_t m_currentPathID;
         uint32_t m_currentContourID;
+
+        // Total coverage allocated via allocateCoverageBufferRange().
+        // (clockwiseAtomic mode only.)
+        uint32_t m_coverageBufferLength = 0;
 
         // Stateful Z index of the current draw being pushed. Used by msaa mode
         // to avoid double hits and to reverse-sort opaque paths front to back.

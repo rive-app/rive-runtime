@@ -90,8 +90,10 @@
 #define FLUSH_UNIFORM_BUFFER_IDX 7
 #define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX 8
 #define IMAGE_DRAW_UNIFORM_BUFFER_IDX 9
-#define DST_COLOR_TEXTURE_IDX 10
-#define DEFAULT_BINDINGS_SET_SIZE 11
+// Coverage buffer used in coverageAtomic mode.
+#define COVERAGE_BUFFER_IDX 10
+#define DST_COLOR_TEXTURE_IDX 11
+#define DEFAULT_BINDINGS_SET_SIZE 12
 
 // Samplers are accessed at the same index as their corresponding texture, so we
 // put them in a separate binding set.
@@ -136,7 +138,7 @@
 #define BLEND_MODE_COLOR 14u
 #define BLEND_MODE_LUMINOSITY 15u
 
-// Fixed-point coverage values for the experimental atomic mode.
+// Fixed-point coverage values for atomic mode.
 // Atomic mode uses 7:9 fixed point, so the winding number breaks if a shape has
 // more than 64 levels of self overlap in either winding direction at any point.
 #define FIXED_COVERAGE_FACTOR float(512)
@@ -144,6 +146,14 @@
 #define FIXED_COVERAGE_ZERO float(1 << 15)
 #define FIXED_COVERAGE_ZERO_UINT (1u << 15)
 #define FIXED_COVERAGE_ONE (FIXED_COVERAGE_FACTOR + FIXED_COVERAGE_ZERO)
+
+// Fixed-point coverage values for clockwiseAtomic mode.
+// clockwiseAtomic mode uses 5:8 fixed point, so the winding number breaks if a
+// shape has more than 16 levels of self overlap in either winding direction at
+// any point.
+#define CLOCKWISE_COVERAGE_BIT_COUNT 15u
+#define CLOCKWISE_COVERAGE_MASK (0x7fffu)
+#define CLOCKWISE_FILL_ZERO_VALUE (1u << 14)
 
 // Binding points for storage buffers.
 #define PAINT_STORAGE_BUFFER_IDX 8
@@ -160,4 +170,5 @@
 #define EVEN_ODD_SPECIALIZATION_IDX 3
 #define NESTED_CLIPPING_SPECIALIZATION_IDX 4
 #define HSL_BLEND_MODES_SPECIALIZATION_IDX 5
-#define SPECIALIZATION_COUNT 6
+#define BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX 6
+#define SPECIALIZATION_COUNT 7

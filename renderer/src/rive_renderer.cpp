@@ -168,6 +168,13 @@ void RiveRenderer::clipPath(RenderPath* renderPath)
 {
     LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
 
+    if (m_context->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
+    {
+        // Just discard clips in clockwiseAtomic mode for now.
+        // TODO: Implement clipping in clockwiseAtomic mode.
+        return;
+    }
+
     if (m_stack.back().clipIsEmpty)
     {
         return;

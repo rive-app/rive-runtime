@@ -20,6 +20,7 @@ RenderContextNULL::RenderContextNULL()
 {
     m_platformFeatures.supportsRasterOrdering = true;
     m_platformFeatures.supportsFragmentShaderAtomics = true;
+    m_platformFeatures.supportsClockwiseAtomicRendering = true;
 }
 
 class BufferRingNULL : public BufferRing

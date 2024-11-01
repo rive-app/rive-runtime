@@ -39,6 +39,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override {}
     void resizeTessellationTexture(uint32_t width, uint32_t height) override {}
+    void resizeCoverageBuffer(size_t) override {}
 
     void flush(const rive::gpu::FlushDescriptor&) override {}
 };

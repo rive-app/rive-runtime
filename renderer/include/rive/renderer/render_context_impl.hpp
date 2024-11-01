@@ -85,10 +85,15 @@ public:
     virtual void unmapTessVertexSpanBuffer() = 0;
     virtual void unmapTriangleVertexBuffer() = 0;
 
-    // Allocate textures that the implementation is responsible to update during
-    // flush().
+    // Allocate resources that are updated and used during flush().
     virtual void resizeGradientTexture(uint32_t width, uint32_t height) = 0;
     virtual void resizeTessellationTexture(uint32_t width, uint32_t height) = 0;
+    virtual void resizeCoverageBuffer(size_t sizeInBytes)
+    {
+        // Override this method to support the experimental clockwiseAtomic
+        // mode.
+        assert(sizeInBytes == 0);
+    }
 
     // Perform rendering in three steps:
     //

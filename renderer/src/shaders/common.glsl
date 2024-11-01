@@ -160,8 +160,6 @@ INLINE half min_value(half4 min4)
 
 INLINE float manhattan_width(float2 x) { return abs(x.x) + abs(x.y); }
 
-#ifdef @VERTEX
-
 #ifndef $UNIFORM_DEFINITIONS_AUTO_GENERATED
 UNIFORM_BLOCK_BEGIN(FLUSH_UNIFORM_BUFFER_IDX, @FlushUniforms)
 float gradInverseViewportY;
@@ -174,11 +172,14 @@ uint colorClearValue;          // Only used if clears are implemented as draws.
 uint coverageClearValue;       // Only used if clears are implemented as draws.
 int4 renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if there is
                                // a clear. (LTRB.)
-uint pathIDGranularity;        // Spacing between adjacent path IDs (1 if IEEE
-                               // compliant).
+uint coverageBufferPrefix;
+uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE
+                        // compliant).
 float vertexDiscardValue;
 UNIFORM_BLOCK_END(uniforms)
 #endif
+
+#ifdef @VERTEX
 
 #define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                               \
     float4((COORD).x* uniforms.renderTargetInverseViewportX - 1.,              \

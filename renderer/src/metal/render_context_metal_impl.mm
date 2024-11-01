@@ -181,6 +181,7 @@ public:
                     desc.colorAttachments[COVERAGE_PLANE_IDX].pixelFormat =
                         MTLPixelFormatR32Uint;
                     break;
+
                 case gpu::InterlockMode::atomics:
                     // In atomic mode, the PLS planes are accessed as device
                     // buffers. We only use the "framebuffer" attachment
@@ -218,6 +219,8 @@ public:
                         framebuffer.writeMask = MTLColorWriteMaskNone;
                     }
                     break;
+
+                case gpu::InterlockMode::clockwiseAtomic:
                 case gpu::InterlockMode::msaa:
                     RIVE_UNREACHABLE();
             }
@@ -927,6 +930,7 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
 
 void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 {
+    assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
     assert(desc.interlockMode != gpu::InterlockMode::msaa); // TODO: msaa.
 
     auto* renderTarget = static_cast<RenderTargetMetal*>(desc.renderTarget);

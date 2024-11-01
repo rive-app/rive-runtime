@@ -1,0 +1,14 @@
+#version 460
+#extension GL_GOOGLE_include_directive : require
+#extension GL_EXT_samplerless_texture_functions : require
+#define ENABLE_INSTANCE_INDEX
+#define PLS_IMPL_SUBPASS_LOAD
+#define OPTIONALLY_FLAT flat
+#define DRAW_PATH
+#include "glsl.minified.glsl"
+#include "constants.minified.glsl"
+#include "specialization.minified.glsl"
+#include "common.minified.glsl"
+#include "draw_path_common.minified.glsl"
+#include "advanced_blend.minified.glsl"
+#include "draw_clockwise_path.minified.glsl"

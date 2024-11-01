@@ -196,6 +196,9 @@ select_physical_device(vkb::PhysicalDeviceSelector& selector,
         }
     }
 
+    riveVulkanFeatures.maxStorageBufferRange =
+        physicalDevice.properties.limits.maxStorageBufferRange;
+
     printf("==== Vulkan GPU (%s): %s [ ",
            physical_device_type_name(physicalDevice.properties.deviceType),
            physicalDevice.properties.deviceName);

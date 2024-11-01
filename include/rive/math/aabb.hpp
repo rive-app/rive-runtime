@@ -19,6 +19,7 @@ struct IAABB
     {
         return {left + dx, top + dy, right - dx, bottom - dy};
     }
+    IAABB outset(int dx, int dy) const { return inset(-dx, -dy); }
     IAABB offset(int dx, int dy) const
     {
         return {left + dx, top + dy, right + dx, bottom + dy};
@@ -104,6 +105,7 @@ public:
         assert(r.height() >= 0);
         return r;
     }
+    AABB outset(float dx, float dy) const { return inset(-dx, -dy); }
     AABB offset(float dx, float dy) const
     {
         return {minX + dx, minY + dy, maxX + dx, maxY + dy};

@@ -59,18 +59,26 @@ public:
             &context->perFrameAllocator());
     }
 
+    bool allocateResourcesAndSubpasses(
+        RenderContext::LogicalFlush* flush) override
+    {
+        if (!RiveRenderPathDraw::allocateResourcesAndSubpasses(flush))
+        {
+            return false;
+        }
+        m_prepassCount = 0;
+        m_subpassCount = 1;
+        return true;
+    }
+
     void pushToRenderContext(RenderContext::LogicalFlush* flush,
-                             uint32_t subpassIndex) override
+                             int subpassIndex) override
     {
         // Make sure the rawPath in our path reference hasn't changed since we
         // began holding!
         assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
         assert(!m_pathRef->getRawPath().empty());
-
-        if (subpassIndex != 0)
-        {
-            return;
-        }
+        assert(subpassIndex == 0);
 
         uint32_t tessVertexCount = math::lossless_numeric_cast<uint32_t>(
             m_resourceCounts.outerCubicTessVertexCount);

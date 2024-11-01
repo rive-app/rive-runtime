@@ -1015,6 +1015,7 @@ private:
 
 void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 {
+    assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
     auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
 
     m_state->setWriteMasks(true, true, 0xff);

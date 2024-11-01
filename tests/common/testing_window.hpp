@@ -49,6 +49,7 @@ public:
         // System default Vulkan driver.
         vk,
         vkcore, // Vulkan with as few features enabled as possible.
+        vkcw,
 
         // Vulkan on Metal, aka MoltenVK.
         // (defaults to /usr/local/share/vulkan/icd.d/MoltenVK_icd.json if
@@ -88,6 +89,7 @@ public:
             case Backend::metalatomic:
             case Backend::vk:
             case Backend::vkcore:
+            case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::moltenvkcore:
             case Backend::swiftshader:
@@ -118,6 +120,7 @@ public:
             case Backend::metalatomic:
             case Backend::vk:
             case Backend::vkcore:
+            case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::moltenvkcore:
             case Backend::swiftshader:
@@ -136,6 +139,7 @@ public:
         {
             case Backend::vk:
             case Backend::vkcore:
+            case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::moltenvkcore:
             case Backend::swiftshader:
@@ -170,6 +174,7 @@ public:
             case Backend::metalatomic:
             case Backend::rhi:
             case Backend::vkcore:
+            case Backend::vkcw:
             case Backend::moltenvkcore:
             case Backend::swiftshadercore:
                 return true;
@@ -208,6 +213,7 @@ public:
             case Backend::metal:
             case Backend::metalcw:
             case Backend::vk:
+            case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::swiftshader:
             case Backend::angle:
@@ -232,6 +238,7 @@ public:
             case Backend::d3datomic:
             case Backend::metalatomic:
             case Backend::vkcore:
+            case Backend::vkcw:
             case Backend::moltenvkcore:
             case Backend::swiftshadercore:
             case Backend::gl:
@@ -256,6 +263,7 @@ public:
         {
             case Backend::glcw:
             case Backend::metalcw:
+            case Backend::vkcw:
                 return true;
             case Backend::glatomic:
             case Backend::glmsaa:
@@ -361,9 +369,11 @@ private:
                                             const char* gpuNameFilter,
                                             void* platformWindow);
     static TestingWindow* MakeVulkanTexture(bool coreFeaturesOnly,
+                                            bool clockwiseFill,
                                             const char* gpuNameFilter);
     static TestingWindow* MakeAndroidVulkan(void* platformWindow,
-                                            bool coreFeaturesOnly);
+                                            bool coreFeaturesOnly,
+                                            bool clockwiseFill);
 };
 
 RIVE_MAKE_ENUM_BITSET(TestingWindow::RendererFlags);

@@ -99,28 +99,36 @@ constexpr static uint32_t kGradTextureWidthInSimpleRamps =
 // Backend-specific capabilities/workarounds and fine tuning.
 struct PlatformFeatures
 {
-    bool supportsRasterOrdering = false; // InterlockMode::rasterOrdering.
-    bool supportsFragmentShaderAtomics = false; // InterlockMode::atomics.
-    bool supportsKHRBlendEquations =
-        false; // Use KHR_blend_equation_advanced in msaa mode?
-    bool supportsClipPlanes =
-        false; // Required for @ENABLE_CLIP_RECT in msaa mode.
+    // InterlockMode::rasterOrdering.
+    bool supportsRasterOrdering = false;
+    // InterlockMode::atomics.
+    bool supportsFragmentShaderAtomics = false;
+    // Experimental rendering mode selected by InterlockMode::clockwiseAtomic.
+    bool supportsClockwiseAtomicRendering = false;
+    // Use KHR_blend_equation_advanced in msaa mode?
+    bool supportsKHRBlendEquations = false;
+    // Required for @ENABLE_CLIP_RECT in msaa mode.
+    bool supportsClipPlanes = false;
     bool avoidFlatVaryings = false;
-    bool invertOffscreenY =
-        false; // Invert Y when drawing to offscreen render targets? (Gradient
-               // and tessellation textures.)
-    bool uninvertOnScreenY =
-        false; // Specifies whether the graphics layer appends a negation of Y
-               // to on-screen vertex shaders that needs to be undone.
-    bool fragCoordBottomUp = false; // Does the built-in pixel coordinate in the
-                                    // fragment shader go bottom-up or top-down?
-    bool atomicPLSMustBeInitializedAsDraw =
-        false; // Backend cannot initialize PLS with typical
-               // clear/load APIs in atomic mode. Issue a
-               // "DrawType::atomicInitialize" draw instead.
-    uint8_t pathIDGranularity =
-        1; // Workaround for precision issues. Determines how far apart we
-           // space unique path IDs.
+    // Invert Y when drawing to offscreen render targets? (Gradient and
+    // tessellation textures.)
+    bool invertOffscreenY = false;
+    // Specifies whether the graphics layer appends a negation of Y to on-screen
+    // vertex shaders that needs to be undone.
+    bool uninvertOnScreenY = false;
+    // Does the built-in pixel coordinate in the fragment shader go bottom-up or
+    // top-down?
+    bool fragCoordBottomUp = false;
+    // Backend cannot initialize PLS with typical clear/load APIs in atomic
+    // mode. Issue a "DrawType::atomicInitialize" draw instead.
+    bool atomicPLSMustBeInitializedAsDraw = false;
+    // Workaround for precision issues. Determines how far apart we space unique
+    // path IDs when they will be bit-casted to fp16.
+    uint8_t pathIDGranularity = 1;
+    // Maximum length (in 32-bit uints) of the coverage buffer used for paths in
+    // clockwiseFill/atomic mode. 2^27 bytes is the minimum storage buffer size
+    // requirement in the Vulkan, GL, and D3D11 specs. Metal guarantees 256 MB.
+    size_t maxCoverageBufferLength = (1 << 27) / sizeof(uint32_t);
 };
 
 // Gradient color stops are implemented as a horizontal span of pixels in a
@@ -610,8 +618,14 @@ enum class InterlockMode
 {
     rasterOrdering,
     atomics,
+    // Use an experimental path rendering algorithm that utilizes atomics
+    // without barriers. This requires that we override all paths' fill rules
+    // (winding or even/odd) with a "clockwise" fill rule, where only regions
+    // with a positive winding number get filled.
+    clockwiseAtomic,
     msaa,
 };
+constexpr static size_t kInterlockModeCount = 4;
 
 // "Uber shader" features that can be #defined in a draw shader.
 // This set is strictly limited to switches that don't *change* the behavior of
@@ -649,6 +663,10 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             return kAllShaderFeatures;
         case InterlockMode::atomics:
             return kAllShaderFeatures & ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
+        case InterlockMode::clockwiseAtomic:
+            // TODO: shaders features aren't yet implemented in clockwiseAtomic
+            // mode.
+            return ShaderFeatures::NONE;
         case InterlockMode::msaa:
             return ShaderFeatures::ENABLE_CLIP_RECT |
                    ShaderFeatures::ENABLE_ADVANCED_BLEND |
@@ -695,8 +713,9 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     return mask & ShaderFeaturesMaskFor(interlockMode);
 }
 
-// Miscellaneous switches that *do* affect the behavior of a shader. A backend
-// can add these to a shader key if it wants to implement the behavior.
+// Miscellaneous switches that *do* affect the behavior of the fragment shader.
+// The renderContext may add some of these, and a backend may also add them to a
+// shader key if it wants to implement the behavior.
 enum class ShaderMiscFlags : uint32_t
 {
     none = 0,
@@ -706,14 +725,24 @@ enum class ShaderMiscFlags : uint32_t
     // responsible to turn on src-over blending.
     fixedFunctionColorOutput = 1 << 0,
 
+    // Override all paths' fill rules (winding or even/odd) with an experimental
+    // "clockwise" fill rule, where only regions with a positive winding number
+    // get filled.
+    clockwiseFill = 1 << 1,
+
+    // clockwiseAtomic mode only. This shader is a prepass that only subtracts
+    // (counterclockwise) borrowed coverage from the coverage buffer. It doesn't
+    // output color or clip.
+    borrowedCoveragePrepass = 1 << 2,
+
     // DrawType::atomicInitialize only. Also store the color clear value to PLS
     // when drawing a clear, in addition to clearing the other PLS planes.
-    storeColorClear = 1 << 1,
+    storeColorClear = 1 << 3,
 
     // DrawType::atomicInitialize only. Swizzle the existing framebuffer
     // contents from BGRA to RGBA. (For when this data had to get copied from a
     // BGRA target.)
-    swizzleColorBGRAToRGBA = 1 << 2,
+    swizzleColorBGRAToRGBA = 1 << 4,
 
     // DrawType::atomicResolve only. Optimization for when rendering to an
     // offscreen texture.
@@ -721,12 +750,7 @@ enum class ShaderMiscFlags : uint32_t
     // It renders the final "resolve" operation directly to the renderTarget in
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
-    coalescedResolveAndTransfer = 1 << 3,
-
-    // Override all paths' fill rules (winding or even/odd) with an experimental
-    // "clockwise" fill rule, where only regions with a positive winding number
-    // get filled.
-    clockwiseFill = 1 << 4,
+    coalescedResolveAndTransfer = 1 << 5,
 };
 RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
 
@@ -765,16 +789,19 @@ constexpr static gpu::DrawContents kNestedClipUpdateMask =
 struct DrawBatch
 {
     DrawBatch(DrawType drawType_,
+              gpu::ShaderMiscFlags shaderMiscFlags_,
               uint32_t elementCount_,
               uint32_t baseElement_,
               rive::BlendMode blendMode) :
         drawType(drawType_),
+        shaderMiscFlags(shaderMiscFlags_),
         elementCount(elementCount_),
         baseElement(baseElement_),
         firstBlendMode(blendMode)
     {}
 
     const DrawType drawType;
+    const ShaderMiscFlags shaderMiscFlags;
     uint32_t elementCount; // Vertex, index, or instance count.
     uint32_t baseElement;  // Base vertex, index, or instance.
     rive::BlendMode firstBlendMode;
@@ -858,6 +885,21 @@ struct FlushDescriptor
     IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
                                     // loadAction == LoadAction::clear.
 
+    // Monotonically increasing prefix that gets appended to the most
+    // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
+    // values.
+    //
+    // The coverage buffer is used in clockwiseAtomic mode.
+    //
+    // Increasing this prefix implicitly clears the entire coverage buffer to
+    // zero.
+    uint32_t coverageBufferPrefix = 0;
+
+    // (clockwiseAtomic mode only.) We usually don't have to clear the coverage
+    // buffer because of coverageBufferPrefix, but when this value is true, the
+    // entire coverage buffer must be cleared to zero before rendering.
+    bool needsCoverageBufferClear = false;
+
     size_t flushUniformDataOffsetInBytes = 0;
     uint32_t pathCount = 0;
     size_t firstPath = 0;
@@ -875,7 +917,10 @@ struct FlushDescriptor
     uint32_t complexGradRowsTop = 0;
     uint32_t complexGradRowsHeight = 0;
     uint32_t tessDataHeight = 0;
-    const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
+    bool clockwiseFill = false; // Override path fill rules with "clockwise".
+    bool hasTriangleVertices = false;
+    bool wireframe = false;
+    bool isFinalFlushOfFrame = false;
 
     // Command buffer that rendering commands will be added to.
     //  - VkCommandBuffer on Vulkan.
@@ -887,15 +932,7 @@ struct FlushDescriptor
     // executing the entire frame. (Null if isFinalFlushOfFrame is false.)
     gpu::CommandBufferCompletionFence* frameCompletionFence = nullptr;
 
-    bool hasTriangleVertices = false;
-    bool isFinalFlushOfFrame = false;
-
-    // Testing flags.
-    bool wireframe = false;
-    // Override all paths' fill rules (winding or even/odd) with an experimental
-    // "clockwise" fill rule, where only regions with a positive winding number
-    // get filled.
-    bool clockwiseFill = false; // (0 unless interlockMode is msaa.)
+    const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
 };
 
 // Returns the smallest number that can be added to 'value', such that 'value %
@@ -962,29 +999,30 @@ private:
         InverseViewports(const FlushDescriptor&, const PlatformFeatures&);
 
     private:
-        WRITEONLY float m_vals[4]; // [complexGradientsY, tessDataY,
-                                   // renderTargetX,  renderTargetY]
+        // [complexGradientsY, tessDataY, renderTargetX,  renderTargetY]
+        WRITEONLY float m_vals[4];
     };
 
     WRITEONLY InverseViewports m_inverseViewports;
     WRITEONLY uint32_t m_renderTargetWidth = 0;
     WRITEONLY uint32_t m_renderTargetHeight = 0;
-    WRITEONLY uint32_t
-        m_colorClearValue; // Only used if clears are implemented as draws.
-    WRITEONLY uint32_t
-        m_coverageClearValue; // Only used if clears are implemented as draws.
-    WRITEONLY IAABB
-        m_renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
-                                    // there is a clear. (Used by the
-                                    // "@RESOLVE_PLS" step in
-                                    // InterlockMode::atomics.)
-    WRITEONLY uint32_t m_pathIDGranularity = 0; // Spacing between adjacent path
-                                                // IDs (1 if IEEE compliant).
+    // Only used if clears are implemented as draws.
+    WRITEONLY uint32_t m_colorClearValue;
+    // Only used if clears are implemented as draws.
+    WRITEONLY uint32_t m_coverageClearValue;
+    // drawBounds, or renderTargetBounds if there is a clear. (Used by the
+    // "@RESOLVE_PLS" step in InterlockMode::atomics.)
+    WRITEONLY IAABB m_renderTargetUpdateBounds;
+    // Monotonically increasing prefix that gets appended to the most
+    // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
+    // values. (clockwiseAtomic mode only.)
+    WRITEONLY uint32_t m_coverageBufferPrefix;
+    // Spacing between adjacent path IDs (1 if IEEE compliant).
+    WRITEONLY uint32_t m_pathIDGranularity = 0;
     WRITEONLY float m_vertexDiscardValue =
         std::numeric_limits<float>::quiet_NaN();
-    WRITEONLY uint8_t
-        m_padTo256Bytes[256 - 56]; // Uniform blocks must be multiples of 256
-                                   // bytes in size.
+    // Uniform blocks must be multiples of 256 bytes in size.
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 60];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
@@ -1016,6 +1054,21 @@ constexpr static uint32_t StorageBufferElementSizeInBytes(
     RIVE_UNREACHABLE();
 }
 
+// Defines a sub-allocation for a path's coverage data within the
+// renderContext's coverage buffer. (clockwiseAtomic mode only.)
+struct CoverageBufferRange
+{
+    // Index of the first pixel of this allocation within the coverage buffer.
+    // Must be a multiple of 32*32.
+    uint32_t offset;
+    // Line width in pixels of the image in this coverage allocation.
+    // Must be a multiple of 32.
+    uint32_t pitch;
+    // Offset from screen space to image coords within the coverage allocation.
+    float offsetX;
+    float offsetY;
+};
+
 // High level structure of the "path" storage buffer. Each path has a unique
 // data record on the GPU that is accessed from the vertex shader.
 struct PathData
@@ -1025,15 +1078,23 @@ public:
         StorageBufferStructure::uint32x4;
 
     void set(const Mat2D&, float strokeRadius, uint32_t zIndex);
+    void set(const Mat2D&,
+             float strokeRadius,
+             uint32_t zIndex,
+             const CoverageBufferRange&);
 
 private:
     WRITEONLY float m_matrix[6];
-    WRITEONLY float
-        m_strokeRadius; // "0" indicates that the path is filled, not stroked.
-    WRITEONLY uint32_t m_zIndex; // gpu::InterlockMode::msaa only.
+    // "0" indicates that the path is filled, not stroked.
+    WRITEONLY float m_strokeRadius;
+    // InterlockMode::msaa.
+    WRITEONLY uint32_t m_zIndex;
+    // InterlockMode::clockwiseAtomic.
+    WRITEONLY CoverageBufferRange m_coverageBufferRange;
+    WRITEONLY uint32_t pad[4];
 };
 static_assert(sizeof(PathData) ==
-              StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 2);
+              StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 4);
 static_assert(256 % sizeof(PathData) == 0);
 constexpr static size_t kPathBufferAlignmentInElements = 256 / sizeof(PathData);
 
@@ -1209,6 +1270,16 @@ std::tuple<uint32_t, uint32_t> StorageTextureSize(size_t bufferSizeInBytes,
 // texture update.
 size_t StorageTextureBufferSize(size_t bufferSizeInBytes,
                                 StorageBufferStructure);
+
+// Should the triangulator emit triangles with negative winding, positive
+// winding, or both?
+enum class WindingFaces
+{
+    negative = 1 << 0,
+    positive = 1 << 1,
+    all = negative | positive,
+};
+RIVE_MAKE_ENUM_BITSET(WindingFaces)
 
 // Represents a block of mapped GPU memory. Since it can be extremely expensive
 // to read mapped memory, we use this class to enforce the write-only nature of

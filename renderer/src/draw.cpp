@@ -357,20 +357,7 @@ void Draw::setClipID(uint32_t clipID)
     }
 }
 
-bool Draw::allocateGradientIfNeeded(RenderContext::LogicalFlush* flush,
-                                    ResourceCounters* counters)
-{
-    return m_gradientRef == nullptr ||
-           flush->allocateGradient(m_gradientRef,
-                                   counters,
-                                   &m_simplePaintValue.colorRampLocation);
-}
-
-void Draw::releaseRefs()
-{
-    safe_unref(m_imageTextureRef);
-    safe_unref(m_gradientRef);
-}
+void Draw::releaseRefs() { safe_unref(m_imageTextureRef); }
 
 DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
                                        const Mat2D& matrix,
@@ -382,18 +369,18 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
     assert(path != nullptr);
     assert(paint != nullptr);
     AABB mappedBounds;
-    if (context->frameInterlockMode() == gpu::InterlockMode::atomics)
+    if (context->frameInterlockMode() == gpu::InterlockMode::rasterOrdering)
     {
-        // In atomic mode, find a tighter bounding box in order to maximize
-        // reordering.
-        mappedBounds =
-            matrix.mapBoundingBox(path->getRawPath().points().data(),
-                                  path->getRawPath().points().count());
+        // In rasterOrdering mode we can use a looser bounding box since we
+        // don't do reordering.
+        mappedBounds = matrix.mapBoundingBox(path->getBounds());
     }
     else
     {
-        // Otherwise we can get away with just mapping the path's bounding box.
-        mappedBounds = matrix.mapBoundingBox(path->getBounds());
+        // Otherwise find a tight bounding box in order to maximize reordering.
+        mappedBounds =
+            matrix.mapBoundingBox(path->getRawPath().points().data(),
+                                  path->getRawPath().points().count());
     }
     assert(mappedBounds.width() >= 0);
     assert(mappedBounds.height() >= 0);
@@ -411,8 +398,12 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
         }
         AABB strokePixelOutset =
             matrix.mapBoundingBox({0, 0, strokeOutset, strokeOutset});
-        mappedBounds = mappedBounds.inset(-strokePixelOutset.width(),
-                                          -strokePixelOutset.height());
+        // Add an extra pixel to the stroke outset radius to account for:
+        //   * Butt caps and bevel joins bleed out 1/2 AA width.
+        //   * With Manhattan sytle AA, an AA width can be as large as sqrt(2).
+        //   * The diagonal of that sqrt(2)/2 bleed is 1px in length.
+        mappedBounds = mappedBounds.outset(strokePixelOutset.width() + 1,
+                                           strokePixelOutset.height() + 1);
     }
     IAABB pixelBounds = mappedBounds.roundOut();
     bool doTriangulation = false;
@@ -428,7 +419,7 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
         // FIXME! Implement interior triangulation in msaa mode.
         if (context->frameInterlockMode() != gpu::InterlockMode::msaa &&
             path->getRawPath().verbs().count() < 1000 &&
-            gpu::FindTransformedArea(localBounds, matrix) > 512 * 512)
+            gpu::FindTransformedArea(localBounds, matrix) > 512.f * 512.f)
         {
             doTriangulation = true;
         }
@@ -469,13 +460,14 @@ RiveRenderPathDraw::RiveRenderPathDraw(
     const RiveRenderPaint* paint,
     Type type,
     const RenderContext::FrameDescriptor& frameDesc,
-    gpu::InterlockMode frameInterlockMode) :
+    gpu::InterlockMode interlockMode) :
     Draw(bounds,
          matrix,
          paint->getBlendMode(),
          ref_rcp(paint->getImageTexture()),
          type),
     m_pathRef(path.release()),
+    m_gradientRef(safe_ref(paint->getGradient())),
     m_fillRule(paint->getIsStroked() || frameDesc.clockwiseFill
                    // Fill rule is irrelevant for stroking and clockwiseFill,
                    // but override it to nonZero so the triangulator doesn't do
@@ -521,7 +513,7 @@ RiveRenderPathDraw::RiveRenderPathDraw(
         // Stroke triangles are always forward.
         m_contourDirections = gpu::ContourDirections::forward;
     }
-    else if (frameInterlockMode != gpu::InterlockMode::msaa)
+    else if (interlockMode != gpu::InterlockMode::msaa)
     {
         // atomic and rasterOrdering fills need reverse AND forward triangles.
         if (frameDesc.clockwiseFill && !m_pathRef->isClockwiseDominant(matrix))
@@ -554,7 +546,6 @@ RiveRenderPathDraw::RiveRenderPathDraw(
     }
 
     m_simplePaintValue = paint->getSimpleValue();
-    m_gradientRef = safe_ref(paint->getGradient());
     RIVE_DEBUG_CODE(m_pathRef->lockRawPathMutations();)
     RIVE_DEBUG_CODE(m_rawPathMutationID = m_pathRef->getRawPathMutationID();)
     assert(isStroked() == (strokeRadius() > 0));
@@ -568,7 +559,7 @@ RiveRenderPathDraw::RiveRenderPathDraw(
     FillRule fillRule,
     const RiveRenderPaint* paint,
     const RenderContext::FrameDescriptor& frameDesc,
-    gpu::InterlockMode frameInterlockMode) :
+    gpu::InterlockMode interlockMode) :
     RiveRenderPathDraw(
         from.m_bounds.offset(tx - from.m_matrix.tx(), ty - from.m_matrix.ty()),
         from.m_matrix.translate(
@@ -578,11 +569,10 @@ RiveRenderPathDraw::RiveRenderPathDraw(
         paint,
         from.m_type,
         frameDesc,
-        frameInterlockMode)
+        interlockMode)
 
 {
     m_resourceCounts = from.m_resourceCounts;
-    m_subpassCount = from.m_subpassCount;
     m_strokeMatrixMaxScale = from.m_strokeMatrixMaxScale;
 
     if (isStroked())
@@ -614,6 +604,7 @@ void RiveRenderPathDraw::releaseRefs()
     Draw::releaseRefs();
     RIVE_DEBUG_CODE(m_pathRef->unlockRawPathMutations();)
     m_pathRef->unref();
+    safe_unref(m_gradientRef);
 }
 
 void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
@@ -643,7 +634,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
     size_t maxRotations = 0;
     // Reserve enough space to record all the info we might need for this path.
     assert(rawPath.verbs()[0] == PathVerb::move);
-    // Every path has at least 1 (non-curve) move.
+    // Every path has at least 1 (non-cubic) move.
     size_t pathMaxLinesOrCurvesBeforeChops = rawPath.verbs().size() - 1;
     // Stroked cubics can be chopped into a maximum of 5 segments.
     size_t pathMaxLinesOrCurvesAfterChops =
@@ -945,10 +936,10 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
     assert(contourCount > 0);
     assert(curveIdx <= maxPaddedCurves);
     assert(rotationIdx <= maxPaddedRotations);
-    assert(curveIdx % 4 ==
-           0); // Because we write parametric segment counts in batches of 4.
-    assert(rotationIdx % 4 ==
-           0); // Because we write polar segment counts in batches of 4.
+    // Because we write parametric segment counts in batches of 4.
+    assert(curveIdx % 4 == 0);
+    // Because we write polar segment counts in batches of 4.
+    assert(rotationIdx % 4 == 0);
     assert(isStroked() || maxPaddedRotations == 0);
     assert(isStroked() || rotationIdx == 0);
 
@@ -1182,116 +1173,366 @@ void RiveRenderPathDraw::initForInteriorTriangulation(
     assert(simd::all(m_resourceCounts.toVec() == 0)); // Only call init() once.
     assert(!isStroked());
     assert(m_strokeRadius == 0);
+
+    // Every path has at least 1 (non-cubic) move.
+    size_t originalNumChopsSize = m_pathRef->getRawPath().verbs().size() - 1;
+    m_numChops.reset(context->numChopsAllocator(), originalNumChopsSize);
     iterateInteriorTriangulation(
         InteriorTriangulationOp::countDataAndTriangulate,
         &context->perFrameAllocator(),
         scratchPath,
         triangulatorAxis,
         nullptr);
-    m_subpassCount = 2;
+    m_numChops.shrinkToFit(context->numChopsAllocator(), originalNumChopsSize);
+}
+
+bool RiveRenderPathDraw::allocateResourcesAndSubpasses(
+    RenderContext::LogicalFlush* flush)
+{
+    // Allocate a coverage buffer range if in clockwiseAtomic mode.
+    if (flush->interlockMode() == gpu::InterlockMode::clockwiseAtomic)
+    {
+        // We don't need any coverage space for areas outside the viewport.
+        // TODO: Account for active scissor as well once we have it.
+        IAABB renderTargetBounds = {
+            0,
+            0,
+            static_cast<int32_t>(flush->frameDescriptor().renderTargetWidth),
+            static_cast<int32_t>(flush->frameDescriptor().renderTargetHeight),
+        };
+        IAABB visiblePaddedBounds =
+            renderTargetBounds.intersect(m_pixelBounds.outset(1, 1));
+
+        // Round up width and height to multiples of 32 for tiling.
+        uint32_t coverageWidth =
+            math::round_up_to_multiple_of<32>(visiblePaddedBounds.width());
+        uint32_t coverageHeight =
+            math::round_up_to_multiple_of<32>(visiblePaddedBounds.height());
+
+        // Get our coverage allocation.
+        size_t offset =
+            flush->allocateCoverageBufferRange(coverageHeight * coverageWidth);
+        if (offset == -1)
+        {
+            return false; // There wasn't room for our coverage buffer.
+        }
+        m_coverageBufferRange.offset =
+            math::lossless_numeric_cast<uint32_t>(offset);
+        m_coverageBufferRange.pitch = coverageWidth;
+        m_coverageBufferRange.offsetX = -visiblePaddedBounds.left;
+        m_coverageBufferRange.offsetY = -visiblePaddedBounds.top;
+    }
+
+    // Allocate a gradient if needed.
+    if (m_gradientRef != nullptr &&
+        !flush->allocateGradient(m_gradientRef,
+                                 &m_simplePaintValue.colorRampLocation))
+    {
+        return false;
+    }
+
+    // Interior triangulation has two subpasses: outer cubics and interior
+    // triangles.
+    m_subpassCount = m_triangulator != nullptr ? 2 : 1;
+    m_prepassCount = 0;
+
+    if (flush->interlockMode() == gpu::InterlockMode::clockwiseAtomic &&
+        !isStroked())
+    {
+        // clockwiseAtomic fills need a prepass to render their borrowed
+        // coverage.
+        m_prepassCount = m_subpassCount;
+    }
+    else if (flush->interlockMode() == gpu::InterlockMode::msaa && isOpaque())
+    {
+        // In msaa mode we can draw opaque paths front-to-back by converting
+        // them to a prepass. This takes advantage of early Z culling.
+        //
+        // FIXME: To keep things simple initially, we don't reverse-sort draws
+        // that use clipping.
+        bool usesClipping = drawContents() & (gpu::DrawContents::activeClip |
+                                              gpu::DrawContents::clipUpdate);
+        if (!usesClipping)
+        {
+            // Render this path front-to-back instead of back-to-front.
+            assert(m_prepassCount == 0);
+            std::swap(m_subpassCount, m_prepassCount);
+        }
+    }
+
+    return true;
 }
 
 void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                             uint32_t subpassIndex)
+                                             int subpassIndex)
 {
     // Make sure the rawPath in our path reference hasn't changed since we began
     // holding!
     assert(m_rawPathMutationID == m_pathRef->getRawPathMutationID());
     assert(!m_pathRef->getRawPath().empty());
 
-    if ((m_resourceCounts.midpointFanTessVertexCount |
-         m_resourceCounts.outerCubicTessVertexCount) == 0)
+    uint32_t tessVertexCount = math::lossless_numeric_cast<uint32_t>(
+        m_triangulator != nullptr
+            ? m_resourceCounts.outerCubicTessVertexCount
+            : m_resourceCounts.midpointFanTessVertexCount);
+    if (tessVertexCount == 0)
     {
         return;
     }
 
-    if (subpassIndex == 0)
+    if (m_pathID == 0)
     {
-        // Write out a path record.
+        // Reserve our pathID and write out a path record.
         m_pathID = flush->pushPath(this);
+    }
 
-        // Allocate tessellation vertices and push a draw for the path.
-        uint32_t tessVertexCount, tessLocation;
-        if (m_triangulator != nullptr)
-        {
-            tessVertexCount = math::lossless_numeric_cast<uint32_t>(
-                m_resourceCounts.outerCubicTessVertexCount);
-            tessLocation =
-                flush->allocateOuterCubicTessVertices(tessVertexCount);
-            flush->pushOuterCubicsDraw(this, tessVertexCount, tessLocation);
-        }
-        else
-        {
-            tessVertexCount = math::lossless_numeric_cast<uint32_t>(
-                m_resourceCounts.midpointFanTessVertexCount);
-            tessLocation =
-                flush->allocateMidpointFanTessVertices(tessVertexCount);
-            flush->pushMidpointFanDraw(this, tessVertexCount, tessLocation);
-        }
-
-        // Determine where the forward and mirrored tessellations go.
-        uint32_t forwardTessVertexCount, forwardTessLocation,
-            mirroredTessVertexCount, mirroredTessLocation;
-        switch (m_contourDirections)
-        {
-            case gpu::ContourDirections::forward:
-                forwardTessVertexCount = tessVertexCount;
-                forwardTessLocation = tessLocation;
-                mirroredTessLocation = tessLocation;
-                mirroredTessVertexCount = 0;
-                break;
-            case gpu::ContourDirections::reverse:
-                forwardTessVertexCount = 0;
-                forwardTessLocation = tessLocation + tessVertexCount;
-                mirroredTessVertexCount = tessVertexCount;
-                mirroredTessLocation = tessLocation + tessVertexCount;
-                break;
-            case gpu::ContourDirections::reverseThenForward:
-                assert(tessVertexCount % 2 == 0);
-                forwardTessVertexCount = mirroredTessVertexCount =
-                    tessVertexCount / 2;
-                forwardTessLocation = mirroredTessLocation =
-                    tessLocation + tessVertexCount / 2;
-                break;
-            case gpu::ContourDirections::forwardThenReverse:
-                assert(tessVertexCount % 2 == 0);
-                forwardTessVertexCount = mirroredTessVertexCount =
-                    tessVertexCount / 2;
-                forwardTessLocation = tessLocation;
-                mirroredTessLocation = tessLocation + tessVertexCount;
-                break;
-        }
-
-        // Write out the TessVertexSpans and path contours.
-        RenderContext::TessellationWriter tessWriter(flush,
-                                                     m_pathID,
-                                                     m_contourDirections,
-                                                     forwardTessVertexCount,
-                                                     forwardTessLocation,
-                                                     mirroredTessVertexCount,
-                                                     mirroredTessLocation);
-
-        if (m_triangulator != nullptr)
-        {
-            iterateInteriorTriangulation(
-                InteriorTriangulationOp::pushOuterCubicData,
-                nullptr,
-                nullptr,
-                TriangulatorAxis::dontCare,
-                &tessWriter);
-        }
-        else
-        {
-            pushMidpointFanTessellationData(&tessWriter);
-        }
+    if (flush->desc().interlockMode != gpu::InterlockMode::msaa)
+    {
+        pushToRenderContextImpl(flush, subpassIndex, tessVertexCount);
     }
     else
     {
-        // The interior triangles comes in a separate subpass.
-        assert(m_triangulator != nullptr);
-        assert(subpassIndex == 1);
-        flush->pushInteriorTriangulationDraw(this, m_pathID);
+        pushToRenderContextImplMSAA(flush, subpassIndex, tessVertexCount);
     }
+}
+
+void RiveRenderPathDraw::pushToRenderContextImpl(
+    RenderContext::LogicalFlush* flush,
+    int subpassIndex,
+    uint32_t tessVertexCount)
+{
+    assert(flush->desc().interlockMode == gpu::InterlockMode::rasterOrdering ||
+           flush->desc().interlockMode == gpu::InterlockMode::atomics ||
+           flush->desc().interlockMode == gpu::InterlockMode::clockwiseAtomic);
+    assert(m_pathID != 0);
+
+    bool clockwiseAtomicFill =
+        !isStroked() &&
+        flush->desc().interlockMode == gpu::InterlockMode::clockwiseAtomic;
+
+    if (clockwiseAtomicFill)
+    {
+        // In clockwiseAtomic mode, we draw paths in two separate passes -- once
+        // backwards for borrowed coverage, and a separate forward pass.
+        assert(tessVertexCount % 2 == 0);
+        tessVertexCount /= 2;
+    }
+
+    switch (subpassIndex)
+    {
+        case -2: // Borrowed coverage prepass for interior triangulation.
+        {
+            assert(clockwiseAtomicFill);
+            assert(m_triangulator != nullptr);
+            size_t actualCount RIVE_MAYBE_UNUSED =
+                flush->pushInteriorTriangulationDraw(
+                    this,
+                    m_pathID,
+                    gpu::WindingFaces::negative,
+                    gpu::ShaderMiscFlags::borrowedCoveragePrepass);
+            RIVE_DEBUG_CODE(m_numInteriorTriangleVerticesPushed += actualCount;)
+            assert(m_numInteriorTriangleVerticesPushed <=
+                   m_triangulator->maxVertexCount());
+            break;
+        }
+
+        case -1: // Borrowed coverage prepass for path tessellation.
+        {
+            assert(clockwiseAtomicFill);
+            // Allocate tessellation vertices and push a draw for the prepass.
+            // The tessellation vertices get filled in later by the main
+            // subpass.
+            if (m_triangulator != nullptr)
+            {
+                m_prepassTessLocation =
+                    flush->allocateOuterCubicTessVertices(tessVertexCount);
+                flush->pushOuterCubicsDraw(
+                    this,
+                    tessVertexCount,
+                    m_prepassTessLocation,
+                    gpu::ShaderMiscFlags::borrowedCoveragePrepass);
+            }
+            else
+            {
+                m_prepassTessLocation =
+                    flush->allocateMidpointFanTessVertices(tessVertexCount);
+                flush->pushMidpointFanDraw(
+                    this,
+                    tessVertexCount,
+                    m_prepassTessLocation,
+                    gpu::ShaderMiscFlags::borrowedCoveragePrepass);
+            }
+            break;
+        }
+
+        case 0: // Main subpass for path tessellation.
+        {
+            // Allocate tessellation vertices and push a path draw.
+            uint32_t tessLocation;
+            if (m_triangulator != nullptr)
+            {
+                tessLocation =
+                    flush->allocateOuterCubicTessVertices(tessVertexCount);
+                flush->pushOuterCubicsDraw(this, tessVertexCount, tessLocation);
+            }
+            else
+            {
+                tessLocation =
+                    flush->allocateMidpointFanTessVertices(tessVertexCount);
+                flush->pushMidpointFanDraw(this, tessVertexCount, tessLocation);
+            }
+
+            // Determine where to fill in forward and mirrored tessellations.
+            uint32_t forwardTessVertexCount, forwardTessLocation,
+                mirroredTessVertexCount, mirroredTessLocation;
+            if (isStroked())
+            {
+                // Strokes use a single forward tessellation.
+                assert(m_contourDirections == gpu::ContourDirections::forward);
+                forwardTessVertexCount = tessVertexCount;
+                forwardTessLocation = tessLocation;
+                mirroredTessLocation = mirroredTessVertexCount = 0;
+            }
+            else if (clockwiseAtomicFill)
+            {
+                // The tessellation for borrowed coverage was allocated at a
+                // different location than the forward tessellation, both with
+                // "tessVertexCount" vertices.
+                if (m_contourDirections ==
+                    gpu::ContourDirections::reverseThenForward)
+                {
+                    forwardTessVertexCount = mirroredTessVertexCount =
+                        tessVertexCount;
+                    forwardTessLocation = tessLocation;
+                    mirroredTessLocation =
+                        m_prepassTessLocation + tessVertexCount;
+                }
+                else
+                {
+                    assert(m_contourDirections ==
+                           gpu::ContourDirections::forwardThenReverse);
+                    forwardTessVertexCount = mirroredTessVertexCount =
+                        tessVertexCount;
+                    forwardTessLocation = m_prepassTessLocation;
+                    mirroredTessLocation = tessLocation + tessVertexCount;
+                }
+            }
+            else
+            {
+                // The reverse and forward tessellations are allocated
+                // contiguously, with a combined vertex count of
+                // "tessVertexCount". (tessVertexCount/2 vertices each.)
+                if (m_contourDirections ==
+                    gpu::ContourDirections::reverseThenForward)
+                {
+                    assert(tessVertexCount % 2 == 0);
+                    forwardTessVertexCount = mirroredTessVertexCount =
+                        tessVertexCount / 2;
+                    forwardTessLocation = mirroredTessLocation =
+                        tessLocation + tessVertexCount / 2;
+                }
+                else
+                {
+                    assert(m_contourDirections ==
+                           gpu::ContourDirections::forwardThenReverse);
+                    assert(tessVertexCount % 2 == 0);
+                    forwardTessVertexCount = mirroredTessVertexCount =
+                        tessVertexCount / 2;
+                    forwardTessLocation = tessLocation;
+                    mirroredTessLocation = tessLocation + tessVertexCount;
+                }
+            }
+
+            // Write out the TessVertexSpans and path contours.
+            RenderContext::TessellationWriter tessWriter(
+                flush,
+                m_pathID,
+                m_contourDirections,
+                forwardTessVertexCount,
+                forwardTessLocation,
+                mirroredTessVertexCount,
+                mirroredTessLocation);
+
+            if (m_triangulator != nullptr)
+            {
+                iterateInteriorTriangulation(
+                    InteriorTriangulationOp::pushOuterCubicTessellationData,
+                    nullptr,
+                    nullptr,
+                    TriangulatorAxis::dontCare,
+                    &tessWriter);
+            }
+            else
+            {
+                pushMidpointFanTessellationData(&tessWriter);
+            }
+            break;
+        }
+
+        case 1: // Main subpass for interior triangulation.
+        {
+            assert(m_triangulator != nullptr);
+            size_t actualCount RIVE_MAYBE_UNUSED =
+                flush->pushInteriorTriangulationDraw(
+                    this,
+                    m_pathID,
+                    // In clockwiseAtomic mode, the negative triangles get
+                    // written out in a separate prepass.
+                    clockwiseAtomicFill ? gpu::WindingFaces::positive
+                                        : gpu::WindingFaces::all);
+            RIVE_DEBUG_CODE(m_numInteriorTriangleVerticesPushed += actualCount;)
+            assert(m_numInteriorTriangleVerticesPushed <=
+                   m_triangulator->maxVertexCount());
+            break;
+        }
+
+        default:
+            RIVE_UNREACHABLE();
+    }
+}
+
+void RiveRenderPathDraw::pushToRenderContextImplMSAA(
+    RenderContext::LogicalFlush* flush,
+    int subpassIndex,
+    uint32_t tessVertexCount)
+{
+    assert(flush->desc().interlockMode == gpu::InterlockMode::msaa);
+    assert(m_pathID != 0);
+    assert(m_triangulator == nullptr);
+    assert(m_prepassCount + m_subpassCount == 1);
+    assert(subpassIndex == 0 || subpassIndex == -1);
+
+    // Allocate tessellation vertices and push a draw for the path.
+    uint32_t tessLocation =
+        flush->allocateMidpointFanTessVertices(tessVertexCount);
+    flush->pushMidpointFanDraw(this, tessVertexCount, tessLocation);
+
+    // Push the path data.
+    uint32_t forwardTessVertexCount, forwardTessLocation,
+        mirroredTessVertexCount, mirroredTessLocation;
+    if (m_contourDirections == gpu::ContourDirections::forward)
+    {
+        forwardTessVertexCount = tessVertexCount;
+        forwardTessLocation = tessLocation;
+        mirroredTessLocation = mirroredTessVertexCount = 0;
+    }
+    else
+    {
+        assert(m_contourDirections == gpu::ContourDirections::reverse);
+        forwardTessVertexCount = forwardTessLocation = 0;
+        mirroredTessVertexCount = tessVertexCount;
+        mirroredTessLocation = tessLocation + tessVertexCount;
+    }
+
+    RenderContext::TessellationWriter tessWriter(flush,
+                                                 m_pathID,
+                                                 m_contourDirections,
+                                                 forwardTessVertexCount,
+                                                 forwardTessLocation,
+                                                 mirroredTessVertexCount,
+                                                 mirroredTessLocation);
+
+    pushMidpointFanTessellationData(&tessWriter);
 }
 
 void RiveRenderPathDraw::pushMidpointFanTessellationData(
@@ -1710,7 +1951,8 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
             case PathVerb::move:
                 if (contourCount != 0 && pts[-1] != p0)
                 {
-                    if (op == InteriorTriangulationOp::pushOuterCubicData)
+                    if (op ==
+                        InteriorTriangulationOp::pushOuterCubicTessellationData)
                     {
                         tessWriter->pushCubic(
                             convert_line_to_cubic(pts[-1], p0).data(),
@@ -1763,8 +2005,16 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                 RIVE_UNREACHABLE();
             case PathVerb::cubic:
             {
-                uint32_t numSubdivisions =
-                    FindSubdivisionCount(pts, vectorXform);
+                uint32_t numSubdivisions;
+                if (op == InteriorTriangulationOp::countDataAndTriangulate)
+                {
+                    numSubdivisions = FindSubdivisionCount(pts, vectorXform);
+                    m_numChops.push_back(numSubdivisions);
+                }
+                else
+                {
+                    numSubdivisions = m_numChops.pop_front();
+                }
                 if (numSubdivisions == 1)
                 {
                     if (op == InteriorTriangulationOp::countDataAndTriangulate)
@@ -1825,7 +2075,7 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
     Vec2D lastPt = rawPath.points().back();
     if (contourCount != 0 && lastPt != p0)
     {
-        if (op == InteriorTriangulationOp::pushOuterCubicData)
+        if (op == InteriorTriangulationOp::pushOuterCubicTessellationData)
         {
             tessWriter->pushCubic(
                 convert_line_to_cubic(lastPt, p0).data(),
@@ -1852,7 +2102,10 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                 : GrTriangulator::Comparator::Direction::kVertical,
             m_fillRule,
             allocator);
-        if (m_contourFlags & NEGATE_PATH_FILL_COVERAGE_FLAG)
+        float matrixDeterminant =
+            m_matrix[0] * m_matrix[3] - m_matrix[2] * m_matrix[1];
+        if ((matrixDeterminant < 0) !=
+            static_cast<bool>(m_contourFlags & NEGATE_PATH_FILL_COVERAGE_FLAG))
         {
             m_triangulator->negateWinding();
         }
@@ -1927,7 +2180,7 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
 }
 
 void ImageRectDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                        uint32_t subpassIndex)
+                                        int subpassIndex)
 {
     assert(subpassIndex == 0);
     flush->pushImageRectDraw(this);
@@ -1960,7 +2213,7 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
 }
 
 void ImageMeshDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                        uint32_t subpassIndex)
+                                        int subpassIndex)
 {
     assert(subpassIndex == 0);
     flush->pushImageMeshDraw(this);
@@ -1997,7 +2250,7 @@ StencilClipReset::StencilClipReset(RenderContext* context,
 }
 
 void StencilClipReset::pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                           uint32_t subpassIndex)
+                                           int subpassIndex)
 {
     assert(subpassIndex == 0);
     flush->pushStencilClipResetDraw(this);
