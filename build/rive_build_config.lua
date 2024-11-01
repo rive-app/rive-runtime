@@ -458,27 +458,22 @@ end
 
 filter({})
 
-if os.host() == 'macosx' then
+if _OPTIONS['os'] == 'ios' then
     iphoneos_sysroot = os.outputof('xcrun --sdk iphoneos --show-sdk-path')
     if iphoneos_sysroot == nil then
         error(
-            'Unable to locate iphoneos sdk. Please ensure Xcode Command Line Tools are installed.'
+            'Unable to locate iPhoneOS SDK. Please ensure Xcode and its iOS component are installed. Additionally, ensure Xcode Command Line Tools are pointing to that Xcode location with `xcode-select -p`.'
         )
     end
 
     iphonesimulator_sysroot = os.outputof('xcrun --sdk iphonesimulator --show-sdk-path')
     if iphonesimulator_sysroot == nil then
         error(
-            'Unable to locate iphonesimulator sdk. Please ensure Xcode Command Line Tools are installed.'
+            'Unable to locate iPhone simulator SDK. Please ensure Xcode and its iOS component are installed.  Additionally, ensure Xcode Command Line Tools are pointing to that Xcode location with `xcode-select -p`.'
         )
     end
 
-    filter('system:ios')
-    do
-        buildoptions({ '-fembed-bitcode ' })
-    end
-
-    filter({ 'system:ios', 'options:variant=system' })
+    filter('options:variant=system')
     do
         buildoptions({
             '--target=arm64-apple-ios13.0.0',
@@ -487,13 +482,22 @@ if os.host() == 'macosx' then
         })
     end
 
-    filter({ 'system:ios', 'options:variant=emulator' })
+    filter('options:variant=emulator')
     do
         buildoptions({
             '--target=arm64-apple-ios13.0.0-simulator',
             '-mios-version-min=13.0.0',
             '-isysroot ' .. iphonesimulator_sysroot,
         })
+    end
+
+    filter({})
+end
+
+if os.host() == 'macosx' then
+    filter('system:ios')
+    do
+        buildoptions({ '-fembed-bitcode ' })
     end
 
     filter('system:macosx or system:ios')
