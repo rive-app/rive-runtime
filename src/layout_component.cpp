@@ -646,6 +646,7 @@ void LayoutComponent::syncStyle()
     ygStyle.flex() = YGFloatOptional(m_style->flex());
     ygStyle.flexDirection() = m_style->flexDirection();
     ygStyle.flexWrap() = m_style->flexWrap();
+    ygStyle.overflow() = YGOverflowScroll;
 
     ygNode.setStyle(ygStyle);
 }
