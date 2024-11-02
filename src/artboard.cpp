@@ -96,6 +96,54 @@ static bool canContinue(StatusCode code)
     return code != StatusCode::InvalidObject;
 }
 
+bool Artboard::validateObjects()
+{
+    auto size = m_Objects.size();
+    std::vector<bool> valid(size);
+
+    // Max iterations..
+    for (int cycle = 0; cycle < 100; cycle++)
+    {
+        bool changed = false;
+        for (size_t i = 1; i < size; i++)
+        {
+            auto object = m_Objects[i];
+            if (object == nullptr)
+            {
+                // objects can be null if they were not understood by this
+                // runtime.
+                continue;
+            }
+            bool wasValid = valid[i];
+            bool isValid = object->validate(this);
+            if (wasValid != isValid)
+            {
+                changed = true;
+                valid[i] = isValid;
+            }
+        }
+        if (changed)
+        {
+            // Delete invalid objects.
+            for (size_t i = 1; i < size; i++)
+            {
+                if (valid[i])
+                {
+                    continue;
+                }
+                delete m_Objects[i];
+                m_Objects[i] = nullptr;
+            }
+        }
+        else
+        {
+            break;
+        }
+    }
+
+    return true;
+}
+
 StatusCode Artboard::initialize()
 {
     StatusCode code;

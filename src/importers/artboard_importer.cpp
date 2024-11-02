@@ -31,7 +31,14 @@ void ArtboardImporter::addDataBind(DataBind* dataBind)
     m_Artboard->addDataBind(dataBind);
 }
 
-StatusCode ArtboardImporter::resolve() { return m_Artboard->initialize(); }
+StatusCode ArtboardImporter::resolve()
+{
+    if (!m_Artboard->validateObjects())
+    {
+        return StatusCode::InvalidObject;
+    }
+    return m_Artboard->initialize();
+}
 
 bool ArtboardImporter::readNullObject()
 {

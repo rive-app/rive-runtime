@@ -46,6 +46,9 @@ public:
         return static_cast<const T*>(this);
     }
 
+    /// Called to validate the object can be used at runtime.
+    virtual bool validate(CoreContext* context) { return true; }
+
     /// Called when the object is first added to the context, other objects
     /// may not have resolved their dependencies yet. This is an opportunity
     /// to look up objects referenced by id, but not assume that they in

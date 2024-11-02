@@ -12,6 +12,8 @@ protected:
 
 public:
     void buildDependencies() override;
+
+    bool validate(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
 };
 } // namespace rive

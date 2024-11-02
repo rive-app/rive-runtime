@@ -4,6 +4,16 @@
 
 using namespace rive;
 
+bool TargetedConstraint::validate(CoreContext* context)
+{
+    if (!Super::validate(context))
+    {
+        return false;
+    }
+    auto coreObject = context->resolve(targetId());
+    return coreObject != nullptr && coreObject->is<TransformComponent>();
+}
+
 StatusCode TargetedConstraint::onAddedDirty(CoreContext* context)
 {
     StatusCode code = Super::onAddedDirty(context);
@@ -11,13 +21,7 @@ StatusCode TargetedConstraint::onAddedDirty(CoreContext* context)
     {
         return code;
     }
-    auto coreObject = context->resolve(targetId());
-    if (coreObject == nullptr || !coreObject->is<TransformComponent>())
-    {
-        return StatusCode::MissingObject;
-    }
-
-    m_Target = static_cast<TransformComponent*>(coreObject);
+    m_Target = context->resolve(targetId())->as<TransformComponent>();
 
     return StatusCode::Ok;
 }
@@ -26,8 +30,5 @@ void TargetedConstraint::buildDependencies()
 {
     // Targeted constraints must have their constrained component (parent)
     // update after the target.
-    if (m_Target != nullptr)
-    {
-        m_Target->addDependent(parent());
-    }
+    m_Target->addDependent(parent());
 }

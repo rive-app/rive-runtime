@@ -61,6 +61,7 @@ private:
 class NestedAnimation : public NestedAnimationBase
 {
 public:
+    bool validate(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
 
     // Advance animations and apply them to the artboard.

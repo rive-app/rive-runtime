@@ -108,6 +108,7 @@ public:
 public:
     Artboard();
     ~Artboard() override;
+    bool validateObjects();
     StatusCode initialize();
 
     Core* resolve(uint32_t id) const override;
