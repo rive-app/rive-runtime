@@ -1033,19 +1033,21 @@ Vec2D Text::measure(Vec2D maxSize)
             y += paragraphSpace;
         }
     doneMeasuring:
-
+        Vec2D bounds;
         switch (sizing())
         {
             case TextSizing::autoWidth:
-                return Vec2D(maxWidth, std::max(minY, computedHeight));
+                bounds = Vec2D(maxWidth, std::max(minY, computedHeight));
                 break;
             case TextSizing::autoHeight:
-                return Vec2D(width(), std::max(minY, computedHeight));
+                bounds = Vec2D(width(), std::max(minY, computedHeight));
                 break;
             case TextSizing::fixed:
-                return Vec2D(width(), minY + height());
+                bounds = Vec2D(width(), minY + height());
                 break;
         }
+        return Vec2D(std::min(maxSize.x, bounds.x),
+                     std::min(maxSize.y, bounds.y));
     }
     return Vec2D();
 }
