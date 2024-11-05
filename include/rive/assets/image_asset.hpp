@@ -10,10 +10,13 @@
 namespace rive
 {
 class ImageAsset : public ImageAssetBase
+#if defined(__EMSCRIPTEN__)
+    ,
+                   public RenderImageDelegate
+#endif
 {
 private:
     rcp<RenderImage> m_RenderImage;
-    std::function<void()> m_imageReadyCallback = nullptr;
 
 public:
     ImageAsset() {}
@@ -26,10 +29,9 @@ public:
     std::string fileExtension() const override;
     RenderImage* renderImage() const { return m_RenderImage.get(); }
     void renderImage(rcp<RenderImage> renderImage);
-    void onImageReady(std::function<void()> callback)
-    {
-        m_imageReadyCallback = callback;
-    }
+#if defined(__EMSCRIPTEN__)
+    void decodedAsync() override;
+#endif
 };
 } // namespace rive
 

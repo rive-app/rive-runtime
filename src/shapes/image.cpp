@@ -107,9 +107,14 @@ void Image::setAsset(FileAsset* asset)
         {
             m_Mesh->onAssetLoaded(imageAsset()->renderImage());
         }
-        asset->as<ImageAsset>()->onImageReady([&]() { updateImageScale(); });
         updateImageScale();
     }
+}
+
+void Image::assetUpdated()
+{
+    updateImageScale();
+    markWorldTransformDirty();
 }
 
 Core* Image::clone() const

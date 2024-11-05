@@ -24,7 +24,7 @@ public:
     virtual bool decode(SimpleArray<uint8_t>&, Factory*) = 0;
     virtual std::string fileExtension() const = 0;
     StatusCode import(ImportStack& importStack) override;
-    const std::vector<FileAssetReferencer*> fileAssetReferencers()
+    const std::vector<FileAssetReferencer*>& fileAssetReferencers()
     {
         return m_fileAssetReferencers;
     }

@@ -17,6 +17,7 @@ public:
     virtual void setAsset(FileAsset* asset);
     virtual uint32_t assetId() = 0;
     StatusCode registerReferencer(ImportStack& importStack);
+    virtual void assetUpdated() {}
 };
 } // namespace rive
 

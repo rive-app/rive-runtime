@@ -38,6 +38,7 @@ public:
     void controlSize(Vec2D size) override;
     float width() const;
     float height() const;
+    void assetUpdated() override;
 
 #ifdef TESTING
     Mesh* mesh() const;

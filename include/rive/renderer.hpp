@@ -126,6 +126,14 @@ public:
     virtual void invalidateStroke() = 0;
 };
 
+#if defined(__EMSCRIPTEN__)
+class RenderImageDelegate
+{
+public:
+    virtual void decodedAsync() = 0;
+};
+#endif
+
 class RenderImage : public RefCnt<RenderImage>,
                     public ENABLE_LITE_RTTI(RenderImage)
 {
@@ -142,6 +150,20 @@ public:
     int width() const { return m_Width; }
     int height() const { return m_Height; }
     const Mat2D& uvTransform() const { return m_uvTransform; }
+
+#if defined(__EMSCRIPTEN__)
+    void delegate(RenderImageDelegate* delegate) { m_delegate = delegate; }
+    void decodedAsync() const
+    {
+        if (m_delegate != nullptr)
+        {
+            m_delegate->decodedAsync();
+        }
+    }
+
+private:
+    RenderImageDelegate* m_delegate = nullptr;
+#endif
 };
 
 class RenderPath : public CommandPath, public ENABLE_LITE_RTTI(RenderPath)
