@@ -212,8 +212,8 @@ void Image::updateImageScale()
     if (imageAsset() != nullptr && imageAsset()->renderImage() != nullptr &&
         !std::isnan(m_layoutWidth) && !std::isnan(m_layoutHeight))
     {
-        auto newScaleX = m_layoutWidth / imageAsset()->width();
-        auto newScaleY = m_layoutHeight / imageAsset()->height();
+        auto newScaleX = m_layoutWidth / imageAsset()->renderImage()->width();
+        auto newScaleY = m_layoutHeight / imageAsset()->renderImage()->height();
         if (newScaleX != scaleX() || newScaleY != scaleY())
         {
             scaleX(newScaleX);
