@@ -77,7 +77,9 @@ public:
     void markNeedsAdvance();
     // Advance the state machine by the specified time. Returns true if the
     // state machine will continue to animate after this advance.
-    bool advance(float seconds);
+    bool advance(float seconds, bool newFrame);
+
+    bool advance(float seconds) { return advance(seconds, true); }
 
     // Returns true when the StateMachineInstance has more data to process.
     bool needsAdvance() const;
@@ -183,6 +185,7 @@ private:
     std::unordered_map<BindableProperty*, BindableProperty*>
         m_bindablePropertyInstances;
     std::unordered_map<BindableProperty*, DataBind*> m_bindableDataBinds;
+    bool tryChangeState();
 
 #ifdef WITH_RIVE_TOOLS
 public:

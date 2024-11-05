@@ -21,7 +21,6 @@ TEST_CASE("collapsed nested artboards do not advance", "[solo]")
     REQUIRE(solos.size() == 1);
     auto stateMachine = artboard->stateMachineAt(0);
     stateMachine->advanceAndApply(0.0f);
-    REQUIRE(stateMachine->needsAdvance() == true);
     artboard->advance(0.75f);
     // Testing whether the squares have moved in the artboard is an indirect way
     // if checking whether the time of each artboard has advanced
@@ -53,11 +52,11 @@ TEST_CASE("nested artboards with looping animations will keep main "
     REQUIRE(stateMachine->advanceAndApply(1.0f) == true);
     REQUIRE(stateMachine->advanceAndApply(1.0f) == true);
 }
+
 TEST_CASE("nested artboards with one shot animations will not main "
           "advanceAndApply advancing",
           "[nested]")
 {
-
     auto file = ReadRiveFile("assets/ball_test.riv");
     auto artboard = file->artboard("Artboard 2")->instance();
     artboard->advance(0.0f);

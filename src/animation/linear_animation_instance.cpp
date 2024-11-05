@@ -51,11 +51,12 @@ bool LinearAnimationInstance::advance(float elapsedSeconds,
 {
     const LinearAnimation& animation = *m_animation;
     float deltaSeconds = elapsedSeconds * animation.speed() * m_direction;
+
     m_spilledTime = 0.0f;
     if (deltaSeconds == 0)
     {
         m_didLoop = false;
-        return true;
+        return false;
     }
 
     m_lastTotalTime = m_totalTime;

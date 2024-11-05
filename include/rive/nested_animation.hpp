@@ -65,7 +65,7 @@ public:
     StatusCode onAddedDirty(CoreContext* context) override;
 
     // Advance animations and apply them to the artboard.
-    virtual bool advance(float elapsedSeconds) = 0;
+    virtual bool advance(float elapsedSeconds, bool newFrame) = 0;
 
     // Initialize the animation (make instances as necessary) from the
     // source artboard.

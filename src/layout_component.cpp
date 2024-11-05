@@ -799,7 +799,9 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     }
 }
 
-bool LayoutComponent::advanceComponent(float elapsedSeconds, bool animate)
+bool LayoutComponent::advanceComponent(float elapsedSeconds,
+                                       bool animate,
+                                       bool newFrame)
 {
     return applyInterpolation(elapsedSeconds, animate);
 }
@@ -1022,6 +1024,7 @@ bool LayoutComponent::applyInterpolation(float elapsedSeconds, bool animate)
     animationData->elapsedSeconds += elapsedSeconds;
     if (f != 1)
     {
+        // Do we really need to mark the layout node dirty!!??
         markLayoutNodeDirty();
         return true;
     }
@@ -1116,7 +1119,9 @@ Vec2D LayoutComponent::measureLayout(float width,
     return Vec2D();
 }
 
-bool LayoutComponent::advanceComponent(float elapsedSeconds, bool animate)
+bool LayoutComponent::advanceComponent(float elapsedSeconds,
+                                       bool animate,
+                                       bool newFrame)
 {
     return false;
 }

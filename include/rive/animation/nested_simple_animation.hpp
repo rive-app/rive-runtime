@@ -7,7 +7,7 @@ namespace rive
 class NestedSimpleAnimation : public NestedSimpleAnimationBase
 {
 public:
-    bool advance(float elapsedSeconds) override;
+    bool advance(float elapsedSeconds, bool newFrame) override;
 };
 } // namespace rive
 

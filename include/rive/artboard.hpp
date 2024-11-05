@@ -127,6 +127,10 @@ public:
 
     /// Update components that depend on each other in DAG order.
     bool updateComponents();
+
+    // Update layouts and components. Returns true if it updated something.
+    bool updatePass(bool isRoot);
+
     void onDirty(ComponentDirt dirt) override;
 
     // Artboards don't update their world transforms in the same way
@@ -141,11 +145,15 @@ public:
     bool syncStyleChanges();
     bool canHaveOverrides() override { return true; }
 
-    bool advance(float elapsedSeconds, bool nested = true, bool animate = true);
+    bool advance(float elapsedSeconds,
+                 bool nested = true,
+                 bool animate = true,
+                 bool newFrame = true);
     bool advanceInternal(float elapsedSeconds,
                          bool isRoot,
                          bool nested = true,
-                         bool animate = true);
+                         bool animate = true,
+                         bool newFrame = true);
     bool hasChangedDrawOrderInLastUpdate()
     {
         return m_HasChangedDrawOrderInLastUpdate;

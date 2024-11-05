@@ -6,6 +6,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/hit_info.hpp"
 #include "rive/span.hpp"
+#include "rive/advancing_component.hpp"
 #include <stdio.h>
 
 namespace rive
@@ -16,7 +17,7 @@ class NestedAnimation;
 class NestedInput;
 class NestedStateMachine;
 class StateMachineInstance;
-class NestedArtboard : public NestedArtboardBase
+class NestedArtboard : public NestedArtboardBase, public AdvancingComponent
 {
 protected:
     Artboard* m_Artboard = nullptr; // might point to m_Instance, and might not
@@ -39,7 +40,6 @@ public:
 
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;
-    bool advance(float elapsedSeconds);
     void update(ComponentDirt value) override;
 
     bool hasNestedStateMachines() const;
@@ -68,6 +68,10 @@ public:
                                     DataContext* parent);
     void internalDataContext(DataContext* dataContext);
     void clearDataContext();
+
+    bool advanceComponent(float elapsedSeconds,
+                          bool animate = true,
+                          bool newFrame = true) override;
 };
 } // namespace rive
 

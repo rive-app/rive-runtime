@@ -1229,16 +1229,32 @@ void StateMachineInstance::updateDataBinds()
     }
 }
 
-bool StateMachineInstance::advance(float seconds)
+bool StateMachineInstance::tryChangeState()
+{
+    bool hasChangedState = false;
+    for (size_t i = 0; i < m_layerCount; i++)
+    {
+        if (m_layers[i].updateState(true))
+        {
+            hasChangedState = true;
+        }
+    }
+    return hasChangedState;
+}
+
+bool StateMachineInstance::advance(float seconds, bool newFrame)
 {
     updateDataBinds();
     if (m_artboardInstance->hasChangedDrawOrderInLastUpdate())
     {
         sortHitComponents();
     }
-    this->notifyEventListeners(m_reportedEvents, nullptr);
-    m_reportedEvents.clear();
-    m_needsAdvance = false;
+    if (newFrame)
+    {
+        this->notifyEventListeners(m_reportedEvents, nullptr);
+        m_reportedEvents.clear();
+        m_needsAdvance = false;
+    }
     for (size_t i = 0; i < m_layerCount; i++)
     {
         if (m_layers[i].advance(seconds))
@@ -1252,14 +1268,41 @@ bool StateMachineInstance::advance(float seconds)
         inst->advanced();
     }
 
-    return m_needsAdvance;
+    return m_needsAdvance || !m_reportedEvents.empty();
 }
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
-    bool keepGoing = this->advance(seconds);
-    keepGoing = m_artboardInstance->advance(seconds) || keepGoing;
-    return keepGoing;
+    bool keepGoing = m_artboardInstance->advanceInternal(seconds, true);
+    if (this->advance(seconds, true))
+    {
+        keepGoing = true;
+    }
+
+    for (int outerOptionC = 0; outerOptionC < 5; outerOptionC++)
+    {
+        if (m_artboardInstance->updatePass(true))
+        {
+            keepGoing = true;
+        }
+
+        if (m_artboardInstance->advanceInternal(0.0f, true))
+        {
+            keepGoing = true;
+        }
+        // Advance all animations.
+        if (this->tryChangeState())
+        {
+            this->advance(0.0f, false);
+            keepGoing = true;
+        }
+
+        if (!m_artboardInstance->hasDirt(ComponentDirt::Components))
+        {
+            break;
+        }
+    }
+    return keepGoing || !m_reportedEvents.empty();
 }
 
 void StateMachineInstance::markNeedsAdvance() { m_needsAdvance = true; }

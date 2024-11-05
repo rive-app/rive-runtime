@@ -246,7 +246,8 @@ TEST_CASE("LinearAnimationInstance loop <- work area", "[animation]")
     // is expected to return continue playing true regardless
     bool continuePlaying = linearAnimationInstance->advance(0.0);
 
-    REQUIRE(continuePlaying == true);
+    // We no longer expect advance 0 to continue playing as of Option C day.
+    REQUIRE(continuePlaying == false);
     REQUIRE(linearAnimationInstance->direction() == -1);
     REQUIRE(linearAnimationInstance->time() == 2.0);
     REQUIRE(linearAnimationInstance->totalTime() == 0.0);

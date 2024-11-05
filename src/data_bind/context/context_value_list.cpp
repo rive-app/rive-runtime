@@ -37,7 +37,7 @@ std::unique_ptr<StateMachineInstance> DataBindContextValueList::
     if (artboard != nullptr)
     {
         auto stateMachineInstance = artboard->stateMachineAt(0);
-        stateMachineInstance->advance(0.0f);
+        stateMachineInstance->advance(0.0f, true);
         return stateMachineInstance;
     }
     return nullptr;

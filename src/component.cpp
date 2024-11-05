@@ -96,15 +96,3 @@ bool Component::collapse(bool value)
     m_DependencyHelper.onComponentDirty(this);
     return true;
 }
-
-AdvancingComponent* AdvancingComponent::from(Component* component)
-{
-    switch (component->coreType())
-    {
-        case LayoutComponent::typeKey:
-            return component->as<LayoutComponent>();
-        case Artboard::typeKey:
-            return component->as<Artboard>();
-    }
-    return nullptr;
-}

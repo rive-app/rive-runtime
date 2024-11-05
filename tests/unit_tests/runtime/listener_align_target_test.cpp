@@ -35,7 +35,6 @@ TEST_CASE("align target with preserve offset off test", "[listener_align]")
 
     artboardInstance->advance(0.0f);
     stateMachineInstance->advanceAndApply(0.0f);
-    REQUIRE(stateMachineInstance->needsAdvance() == true);
     stateMachineInstance->advance(0.0f);
     auto circle = stateMachineInstance->artboard()->find<rive::Shape>("circle");
     REQUIRE(circle != nullptr);
@@ -68,7 +67,6 @@ TEST_CASE("align target preserve offset test", "[listener_align]")
 
     artboardInstance->advance(0.0f);
     stateMachineInstance->advanceAndApply(0.0f);
-    REQUIRE(stateMachineInstance->needsAdvance() == true);
     stateMachineInstance->advance(0.0f);
     auto circle = stateMachineInstance->artboard()->find<rive::Shape>("circle");
     REQUIRE(circle != nullptr);

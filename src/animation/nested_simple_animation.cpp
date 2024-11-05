@@ -3,7 +3,7 @@
 
 using namespace rive;
 
-bool NestedSimpleAnimation::advance(float elapsedSeconds)
+bool NestedSimpleAnimation::advance(float elapsedSeconds, bool newFrame)
 {
     bool keepGoing = false;
     if (m_AnimationInstance != nullptr)

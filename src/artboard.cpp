@@ -702,43 +702,43 @@ void Artboard::updateDataBinds()
 
 bool Artboard::updateComponents()
 {
-    if (hasDirt(ComponentDirt::Components))
+    if (!hasDirt(ComponentDirt::Components))
     {
-        const int maxSteps = 100;
-        int step = 0;
-        auto count = m_DependencyOrder.size();
-        while (hasDirt(ComponentDirt::Components) && step < maxSteps)
-        {
-            m_Dirt = m_Dirt & ~ComponentDirt::Components;
-
-            // Track dirt depth here so that if something else marks
-            // dirty, we restart.
-            for (unsigned int i = 0; i < count; i++)
-            {
-                auto component = m_DependencyOrder[i];
-                m_DirtDepth = i;
-                auto d = component->m_Dirt;
-                if (d == ComponentDirt::None ||
-                    (d & ComponentDirt::Collapsed) == ComponentDirt::Collapsed)
-                {
-                    continue;
-                }
-                component->m_Dirt = ComponentDirt::None;
-                component->update(d);
-
-                // If the update changed the dirt depth by adding dirt
-                // to something before us (in the DAG), early out and
-                // re-run the update.
-                if (m_DirtDepth < i)
-                {
-                    break;
-                }
-            }
-            step++;
-        }
-        return true;
+        return false;
     }
-    return false;
+    const int maxSteps = 100;
+    int step = 0;
+    auto count = m_DependencyOrder.size();
+    while (hasDirt(ComponentDirt::Components) && step < maxSteps)
+    {
+        m_Dirt = m_Dirt & ~ComponentDirt::Components;
+
+        // Track dirt depth here so that if something else marks
+        // dirty, we restart.
+        for (unsigned int i = 0; i < count; i++)
+        {
+            auto component = m_DependencyOrder[i];
+            m_DirtDepth = i;
+            auto d = component->m_Dirt;
+            if (d == ComponentDirt::None ||
+                (d & ComponentDirt::Collapsed) == ComponentDirt::Collapsed)
+            {
+                continue;
+            }
+            component->m_Dirt = ComponentDirt::None;
+            component->update(d);
+
+            // If the update changed the dirt depth by adding dirt
+            // to something before us (in the DAG), early out and
+            // re-run the update.
+            if (m_DirtDepth < i)
+            {
+                break;
+            }
+        }
+        step++;
+    }
+    return true;
 }
 
 void* Artboard::takeLayoutNode()
@@ -803,10 +803,7 @@ bool Artboard::syncStyleChanges()
     return updated;
 }
 
-bool Artboard::advanceInternal(float elapsedSeconds,
-                               bool isRoot,
-                               bool nested,
-                               bool animate)
+bool Artboard::updatePass(bool isRoot)
 {
     bool didUpdate = false;
     m_HasChangedDrawOrderInLastUpdate = false;
@@ -814,18 +811,9 @@ bool Artboard::advanceInternal(float elapsedSeconds,
     if (syncStyleChanges() && m_updatesOwnLayout)
     {
         calculateLayout();
-        updateLayoutBounds(animate);
+        updateLayoutBounds(/*animation*/ true); // maybe use a static to allow
+                                                // the editor to set this.
     }
-
-    for (auto dep : m_DependencyOrder)
-    {
-        auto adv = AdvancingComponent::from(dep);
-        if (adv != nullptr && adv->advanceComponent(elapsedSeconds, animate))
-        {
-            didUpdate = true;
-        }
-    }
-
 #endif
     if (m_JoysticksApplyBeforeUpdate)
     {
@@ -868,22 +856,42 @@ bool Artboard::advanceInternal(float elapsedSeconds,
             didUpdate = true;
         }
     }
-    if (nested)
-    {
-        for (auto nestedArtboard : m_NestedArtboards)
-        {
-            if (nestedArtboard->advance(elapsedSeconds))
-            {
-                didUpdate = true;
-            }
-        }
-    }
     return didUpdate;
 }
 
-bool Artboard::advance(float elapsedSeconds, bool nested, bool animate)
+bool Artboard::advanceInternal(float elapsedSeconds,
+                               bool isRoot,
+                               bool nested,
+                               bool animate,
+                               bool newFrame)
 {
-    return advanceInternal(elapsedSeconds, true, nested, animate);
+    bool didUpdate = false;
+
+    for (auto dep : m_DependencyOrder)
+    {
+        auto adv = AdvancingComponent::from(dep);
+        if (adv != nullptr &&
+            adv->advanceComponent(elapsedSeconds, animate && nested))
+        {
+            didUpdate = true;
+        }
+    }
+
+    return didUpdate;
+}
+
+bool Artboard::advance(float elapsedSeconds,
+                       bool nested,
+                       bool animate,
+                       bool newFrame)
+{
+    bool didUpdate =
+        advanceInternal(elapsedSeconds, true, nested, animate, newFrame);
+    if (updatePass(true))
+    {
+        didUpdate = true;
+    }
+    return didUpdate || hasDirt(ComponentDirt::Components);
 }
 
 Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D& xform)

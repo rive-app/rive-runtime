@@ -134,26 +134,23 @@ StatusCode NestedArtboard::onAddedClean(CoreContext* context)
     return Super::onAddedClean(context);
 }
 
-bool NestedArtboard::advance(float elapsedSeconds)
-{
-    bool keepGoing = false;
-    if (m_Artboard == nullptr || isCollapsed())
-    {
-        return keepGoing;
-    }
-    for (auto animation : m_NestedAnimations)
-    {
-        keepGoing = animation->advance(elapsedSeconds) || keepGoing;
-    }
-    return m_Artboard->advanceInternal(elapsedSeconds, false) || keepGoing;
-}
-
 void NestedArtboard::update(ComponentDirt value)
 {
     Super::update(value);
-    if (hasDirt(value, ComponentDirt::RenderOpacity) && m_Artboard != nullptr)
+    if (m_Artboard == nullptr)
+    {
+        return;
+    }
+    if (hasDirt(value, ComponentDirt::RenderOpacity))
     {
         m_Artboard->opacity(renderOpacity());
+    }
+    if (hasDirt(value, ComponentDirt::Components))
+    {
+        // We intentionally discard whether or not this updated because by the
+        // end of the pass all the dirt is removed and only another advance of
+        // animations/statemachines can re-add it.
+        m_Artboard->updatePass(false);
     }
 }
 
@@ -320,4 +317,36 @@ void NestedArtboard::setDataContextFromInstance(
                 artboardInstance()->dataContext());
         }
     }
+}
+
+bool NestedArtboard::advanceComponent(float elapsedSeconds,
+                                      bool animate,
+                                      bool newFrame)
+{
+    if (m_Artboard == nullptr || isCollapsed())
+    {
+        return false;
+    }
+    bool keepGoing = false;
+    if (animate)
+    {
+        for (auto animation : m_NestedAnimations)
+        {
+            if (animation->advance(elapsedSeconds, newFrame))
+            {
+                keepGoing = true;
+            }
+        }
+    }
+
+    if (m_Artboard
+            ->advanceInternal(elapsedSeconds, false, true, animate, newFrame) ||
+        m_Artboard->hasDirt(ComponentDirt::Components))
+    {
+        // The animation(s) caused the artboard to need an update.
+        addDirt(ComponentDirt::Components);
+        keepGoing = true;
+    }
+
+    return keepGoing;
 }

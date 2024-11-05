@@ -19,7 +19,7 @@ void NestedRemapAnimation::initializeAnimation(ArtboardInstance* artboard)
     timeChanged();
 }
 
-bool NestedRemapAnimation::advance(float elapsedSeconds)
+bool NestedRemapAnimation::advance(float elapsedSeconds, bool newFrame)
 {
     bool keepGoing = false;
     if (m_AnimationInstance != nullptr && mix() != 0.0f)

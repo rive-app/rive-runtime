@@ -106,7 +106,7 @@ TEST_CASE("LinearAnimation reports when to keep going correctly", "[animation]")
     auto animationInstance =
         rive::LinearAnimationInstance(linearAnimation, abi.get());
 
-    REQUIRE(animationInstance.advance(0.0f));
+    REQUIRE(!animationInstance.advance(0.0f));
     REQUIRE(animationInstance.time() == 0.5f);
     REQUIRE(animationInstance.advance(0.1f));
     REQUIRE(animationInstance.time() == 0.6f);

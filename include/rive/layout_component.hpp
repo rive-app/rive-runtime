@@ -8,6 +8,7 @@
 #include "rive/math/raw_path.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
+#include "rive/advancing_component.hpp"
 #ifdef WITH_RIVE_LAYOUT
 #include "yoga/YGNode.h"
 #include "yoga/YGStyle.h"
@@ -180,8 +181,10 @@ public:
     bool mainAxisIsRow();
     bool mainAxisIsColumn();
     bool overridesKeyedInterpolation(int propertyKey) override;
-    bool advanceComponent(float elapsedSeconds, bool animate = true) override;
     Drawable* hittableComponent() override { return nullptr; }
+    bool advanceComponent(float elapsedSeconds,
+                          bool animate = true,
+                          bool newFrame = true) override;
 
 #ifdef WITH_RIVE_LAYOUT
     LayoutComponent() :
