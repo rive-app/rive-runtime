@@ -3,6 +3,7 @@
 #include "rive/factory.hpp"
 #include "rive/component.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/foreground_layout_drawable.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text_style.hpp"
@@ -21,6 +22,8 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component)
             return component->as<Shape>();
         case TextStyle::typeKey:
             return component->as<TextStyle>();
+        case ForegroundLayoutDrawable::typeKey:
+            return component->as<ForegroundLayoutDrawable>();
     }
     return nullptr;
 }

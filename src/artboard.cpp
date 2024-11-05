@@ -16,6 +16,7 @@
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/foreground_layout_drawable.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_leaf.hpp"
 #include "rive/nested_artboard_layout.hpp"
@@ -289,6 +290,24 @@ StatusCode Artboard::initialize()
         {
             Drawable* drawable = object->as<Drawable>();
             m_Drawables.push_back(drawable);
+            // Move the foreground drawable before its parent. We traverse the
+            // added list of drawables and swap their positions with the
+            // foreground drawable until we find the parent
+            if (drawable->is<ForegroundLayoutDrawable>())
+            {
+                auto parent = drawable->parent();
+                auto index = m_Drawables.size() - 1;
+                while (index >= 1)
+                {
+                    auto swappingDrawable = m_Drawables[index - 1];
+                    std::swap(m_Drawables[index - 1], m_Drawables[index]);
+                    if (swappingDrawable == parent)
+                    {
+                        break;
+                    }
+                    index--;
+                }
+            }
 
             for (ContainerComponent* parent = drawable; parent != nullptr;
                  parent = parent->parent())
@@ -323,8 +342,11 @@ StatusCode Artboard::initialize()
             // child of the layout, so we insert a proxy before it
             do
             {
-                m_Drawables.insert(m_Drawables.begin() + i,
-                                   currentLayout->proxy());
+                if (currentLayout->clip() || currentLayout->hasShapePaints())
+                {
+                    m_Drawables.insert(m_Drawables.begin() + i,
+                                       currentLayout->proxy());
+                }
                 layouts.pop_back();
                 if (!layouts.empty())
                 {
@@ -342,7 +364,10 @@ StatusCode Artboard::initialize()
     while (!layouts.empty())
     {
         auto layout = layouts.back();
-        m_Drawables.push_back(layout->proxy());
+        if (layout->clip() || layout->hasShapePaints())
+        {
+            m_Drawables.push_back(layout->proxy());
+        }
         layouts.pop_back();
     }
 

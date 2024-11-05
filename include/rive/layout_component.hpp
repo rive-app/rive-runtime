@@ -182,6 +182,9 @@ public:
     bool mainAxisIsColumn();
     bool overridesKeyedInterpolation(int propertyKey) override;
     Drawable* hittableComponent() override { return nullptr; }
+    bool hasShapePaints() const { return m_ShapePaints.size() > 0; }
+    Rectangle* backgroundRect() const { return m_backgroundRect; }
+    RenderPath* backgroundPath() const { return m_backgroundPath.get(); }
     bool advanceComponent(float elapsedSeconds,
                           bool animate = true,
                           bool newFrame = true) override;

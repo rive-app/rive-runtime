@@ -180,6 +180,12 @@ void LayoutComponent::drawProxy(Renderer* renderer)
         {
             continue;
         }
+        if (shapePaint->is<Stroke>())
+        {
+            shapePaint->draw(renderer,
+                             m_backgroundPath.get(),
+                             &m_backgroundRect->rawPath());
+        }
         if (shapePaint->is<Fill>())
         {
             shapePaint->draw(renderer,
@@ -197,22 +203,6 @@ void LayoutComponent::draw(Renderer* renderer)
     {
         renderer->restore();
     }
-    renderer->save();
-    renderer->transform(worldTransform());
-    for (auto shapePaint : m_ShapePaints)
-    {
-        if (!shapePaint->isVisible())
-        {
-            continue;
-        }
-        if (shapePaint->is<Stroke>())
-        {
-            shapePaint->draw(renderer,
-                             m_backgroundPath.get(),
-                             &m_backgroundRect->rawPath());
-        }
-    }
-    renderer->restore();
 }
 
 void LayoutComponent::updateRenderPath()

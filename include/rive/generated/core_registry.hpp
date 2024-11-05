@@ -135,6 +135,7 @@
 #include "rive/draw_target.hpp"
 #include "rive/drawable.hpp"
 #include "rive/event.hpp"
+#include "rive/foreground_layout_drawable.hpp"
 #include "rive/joystick.hpp"
 #include "rive/layout/axis.hpp"
 #include "rive/layout/axis_x.hpp"
@@ -305,6 +306,8 @@ public:
                 return new RotationConstraint();
             case NodeBase::typeKey:
                 return new Node();
+            case ForegroundLayoutDrawableBase::typeKey:
+                return new ForegroundLayoutDrawable();
             case NestedArtboardBase::typeKey:
                 return new NestedArtboard();
             case SoloBase::typeKey:
