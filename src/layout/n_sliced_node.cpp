@@ -98,12 +98,6 @@ void NSlicedNode::updateMapWorldPoint()
 
         // 3. Map it to the bounds space
         Vec2D boundsP = boundsTransform() * slicedP;
-        boundsP.x = math::clamp(boundsP.x,
-                                std::min(0.0f, width()),
-                                std::max(0.0f, width()));
-        boundsP.y = math::clamp(boundsP.y,
-                                std::min(0.0f, height()),
-                                std::max(0.0f, height()));
 
         // 4. Finally to world space
         worldP = world * boundsP;
