@@ -346,13 +346,13 @@ StatusCode Artboard::initialize()
                 {
                     m_Drawables.insert(m_Drawables.begin() + i,
                                        currentLayout->proxy());
+                    i += 1;
                 }
                 layouts.pop_back();
                 if (!layouts.empty())
                 {
                     currentLayout = layouts.back();
                 }
-                i += 1;
             } while (!layouts.empty() &&
                      !drawable->isChildOfLayout(currentLayout));
         }
