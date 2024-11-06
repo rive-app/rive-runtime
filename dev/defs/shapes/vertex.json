@@ -16,7 +16,8 @@
         "int": 24,
         "string": "x"
       },
-      "description": "X value for the translation of the vertex."
+      "description": "X value for the translation of the vertex.",
+      "bindable": true
     },
     "y": {
       "type": "double",
@@ -27,7 +28,8 @@
         "int": 25,
         "string": "y"
       },
-      "description": "Y value for the translation of the vertex."
+      "description": "Y value for the translation of the vertex.",
+      "bindable": true
     }
   }
 }

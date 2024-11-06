@@ -15,7 +15,8 @@
         "int": 26,
         "string": "radius"
       },
-      "description": "Radius of the vertex"
+      "description": "Radius of the vertex",
+      "bindable": true
     }
   }
 }

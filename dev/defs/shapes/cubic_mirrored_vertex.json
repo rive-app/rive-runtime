@@ -14,7 +14,8 @@
         "int": 82,
         "string": "rotation"
       },
-      "description": "The control points' angle."
+      "description": "The control points' angle.",
+      "bindable": true
     },
     "distance": {
       "type": "double",
@@ -24,7 +25,8 @@
         "int": 83,
         "string": "distance"
       },
-      "description": "The control points' distance from the translation of the point."
+      "description": "The control points' distance from the translation of the point.",
+      "bindable": true
     }
   }
 }
