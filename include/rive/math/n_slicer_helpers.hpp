@@ -29,6 +29,7 @@ struct NSlicerHelpers
 
     static float mapValue(const std::vector<float>& stops,
                           const ScaleInfo& scaleInfo,
+                          float size,
                           float value);
 
     static bool isFixedSegment(int i) { return i % 2 == 0; };

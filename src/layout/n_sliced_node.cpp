@@ -58,11 +58,6 @@ void NSlicedNode::updateMapWorldPoint()
     Vec2D size = Vec2D(initialWidth(), initialHeight());
     Vec2D scale = scaleForNSlicer();
 
-    // When doing calculations, we assume scale is always non-negative to keep
-    // everything in the NSlicer space.
-    scale.x = std::abs(scale.x);
-    scale.y = std::abs(scale.y);
-
     std::vector<float> xPxStops = NSlicerHelpers::pxStops(xs(), size.x);
     std::vector<float> yPxStops = NSlicerHelpers::pxStops(ys(), size.y);
 
@@ -70,9 +65,9 @@ void NSlicedNode::updateMapWorldPoint()
     std::vector<float> yUVStops = NSlicerHelpers::uvStops(ys(), size.y);
 
     ScaleInfo xScaleInfo =
-        NSlicerHelpers::analyzeUVStops(xUVStops, size.x, scale.x);
+        NSlicerHelpers::analyzeUVStops(xUVStops, size.x, std::abs(scale.x));
     ScaleInfo yScaleInfo =
-        NSlicerHelpers::analyzeUVStops(yUVStops, size.x, scale.y);
+        NSlicerHelpers::analyzeUVStops(yUVStops, size.x, std::abs(scale.y));
 
     mapWorldPoint = [this,
                      world,
@@ -86,21 +81,22 @@ void NSlicedNode::updateMapWorldPoint()
         Vec2D localP = inverseWorld * worldP;
 
         // 2. N-Slice it in the NSlicer's space
-        Vec2D slicedP = Vec2D(
-            scale.x == 0
-                ? 0.0
-                : NSlicerHelpers::mapValue(xPxStops, xScaleInfo, localP.x) /
-                      scale.x,
-            scale.y == 0
-                ? 0.0
-                : NSlicerHelpers::mapValue(yPxStops, yScaleInfo, localP.y) /
-                      scale.y);
+        Vec2D slicedP =
+            Vec2D(scale.x == 0 ? 0.0
+                               : NSlicerHelpers::mapValue(xPxStops,
+                                                          xScaleInfo,
+                                                          std::abs(width()),
+                                                          localP.x) *
+                                     std::copysign(1.0f, scale.x),
+                  scale.y == 0 ? 0.0
+                               : NSlicerHelpers::mapValue(yPxStops,
+                                                          yScaleInfo,
+                                                          std::abs(height()),
+                                                          localP.y) *
+                                     std::copysign(1.0f, scale.y));
 
-        // 3. Map it to the bounds space
-        Vec2D boundsP = boundsTransform() * slicedP;
-
-        // 4. Finally to world space
-        worldP = world * boundsP;
+        // 3. Back to world space
+        worldP = world * slicedP;
     };
 }
 
@@ -138,14 +134,6 @@ Vec2D NSlicedNode::deformWorldPoint(Vec2D point) const
 Vec2D NSlicedNode::scaleForNSlicer() const
 {
     return Vec2D(width() / initialWidth(), height() / initialHeight());
-}
-
-Mat2D NSlicedNode::boundsTransform() const
-{
-    Mat2D transform = Mat2D();
-    Vec2D scale = scaleForNSlicer();
-    transform.scaleByValues(scale.x, scale.y);
-    return transform;
 }
 
 // We are telling a Layout what our size is

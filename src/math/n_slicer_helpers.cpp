@@ -100,11 +100,17 @@ ScaleInfo NSlicerHelpers::analyzeUVStops(const std::vector<float>& uvs,
 
 float NSlicerHelpers::mapValue(const std::vector<float>& stops,
                                const ScaleInfo& scaleInfo,
+                               float size,
                                float value)
 {
-    if (value < (stops.front() - 0.01) || value > (stops.back() + 0.01))
+    if (value < (stops.front() - 0.01))
     {
         return value;
+    }
+
+    if (value > (stops.back() + 0.01))
+    {
+        return value - stops.back() + size;
     }
 
     float result = 0;
