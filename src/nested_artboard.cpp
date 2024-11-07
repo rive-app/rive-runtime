@@ -326,10 +326,9 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
         return false;
     }
     bool keepGoing = false;
-    bool animate = (flags & AdvanceFlags::Animate) == AdvanceFlags::Animate;
     bool advanceNested =
         (flags & AdvanceFlags::AdvanceNested) == AdvanceFlags::AdvanceNested;
-    if (animate && advanceNested)
+    if (advanceNested)
     {
         bool newFrame =
             (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame;
@@ -342,7 +341,8 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
         }
     }
 
-    auto advancingFlags = flags | AdvanceFlags::AdvanceNested;
+    auto advancingFlags =
+        flags | AdvanceFlags::AdvanceNested & ~AdvanceFlags::IsRoot;
     if (m_Artboard->advanceInternal(elapsedSeconds, advancingFlags) ||
         m_Artboard->hasDirt(ComponentDirt::Components))
     {

@@ -792,7 +792,10 @@ void LayoutComponent::updateLayoutBounds(bool animate)
 bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
     return applyInterpolation(elapsedSeconds,
-                              (flags & AdvanceFlags::Animate) != 0);
+                              (flags & AdvanceFlags::Animate) ==
+                                      AdvanceFlags::Animate ||
+                                  (flags & AdvanceFlags::AdvanceNested) ==
+                                      AdvanceFlags::AdvanceNested);
 }
 
 bool LayoutComponent::animates()

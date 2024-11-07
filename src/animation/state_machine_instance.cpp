@@ -1292,7 +1292,7 @@ bool StateMachineInstance::advanceAndApply(float seconds)
         if (m_artboardInstance->advanceInternal(
                 0.0f,
                 AdvanceFlags::IsRoot | AdvanceFlags::Animate |
-                    AdvanceFlags::AdvanceNested | AdvanceFlags::NewFrame))
+                    AdvanceFlags::AdvanceNested))
         {
             keepGoing = true;
         }
