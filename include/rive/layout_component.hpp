@@ -1,5 +1,6 @@
 #ifndef _RIVE_LAYOUT_COMPONENT_HPP_
 #define _RIVE_LAYOUT_COMPONENT_HPP_
+#include "rive/advance_flags.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/drawable.hpp"
 #include "rive/generated/layout_component_base.hpp"
@@ -186,8 +187,8 @@ public:
     Rectangle* backgroundRect() const { return m_backgroundRect; }
     RenderPath* backgroundPath() const { return m_backgroundPath.get(); }
     bool advanceComponent(float elapsedSeconds,
-                          bool animate = true,
-                          bool newFrame = true) override;
+                          AdvanceFlags flags = AdvanceFlags::Animate |
+                                               AdvanceFlags::NewFrame) override;
 
 #ifdef WITH_RIVE_LAYOUT
     LayoutComponent() :

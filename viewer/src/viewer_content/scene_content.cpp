@@ -2,6 +2,7 @@
  * Copyright 2022 Rive
  */
 
+#include "rive/advance_flags.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
@@ -91,7 +92,9 @@ class SceneContent : public ViewerContent
             m_File->createViewModelInstance(m_ArtboardInstance.get());
         m_ArtboardInstance->setDataContextFromInstance(m_ViewModelInstance);
 
-        m_ArtboardInstance->advance(0.0f, true, false);
+        m_ArtboardInstance->advance(0.0f,
+                                    rive::AdvanceFlags::AdvanceNested |
+                                        rive::AdvanceFlags::NewFrame);
         loadNames(m_ArtboardInstance.get());
 
         initStateMachine(REQUEST_DEFAULT_SCENE);
@@ -103,7 +106,9 @@ class SceneContent : public ViewerContent
         m_AnimationIndex = -1;
         m_CurrentScene = nullptr;
 
-        m_ArtboardInstance->advance(0.0f, true, false);
+        m_ArtboardInstance->advance(0.0f,
+                                    rive::AdvanceFlags::AdvanceNested |
+                                        rive::AdvanceFlags::NewFrame);
 
         if (index < 0)
         {
@@ -138,7 +143,9 @@ class SceneContent : public ViewerContent
         m_AnimationIndex = -1;
         m_CurrentScene = nullptr;
 
-        m_ArtboardInstance->advance(0.0f, true, false);
+        m_ArtboardInstance->advance(0.0f,
+                                    rive::AdvanceFlags::AdvanceNested |
+                                        rive::AdvanceFlags::NewFrame);
 
         if (index >= 0 && index < m_ArtboardInstance->animationCount())
         {

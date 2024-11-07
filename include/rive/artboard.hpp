@@ -1,6 +1,7 @@
 #ifndef _RIVE_ARTBOARD_HPP_
 #define _RIVE_ARTBOARD_HPP_
 
+#include "rive/advance_flags.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/core_context.hpp"
@@ -146,14 +147,13 @@ public:
     bool canHaveOverrides() override { return true; }
 
     bool advance(float elapsedSeconds,
-                 bool nested = true,
-                 bool animate = true,
-                 bool newFrame = true);
+                 AdvanceFlags flags = AdvanceFlags::AdvanceNested |
+                                      AdvanceFlags::Animate |
+                                      AdvanceFlags::NewFrame);
     bool advanceInternal(float elapsedSeconds,
-                         bool isRoot,
-                         bool nested = true,
-                         bool animate = true,
-                         bool newFrame = true);
+                         AdvanceFlags flags = AdvanceFlags::AdvanceNested |
+                                              AdvanceFlags::Animate |
+                                              AdvanceFlags::NewFrame);
     bool hasChangedDrawOrderInLastUpdate()
     {
         return m_HasChangedDrawOrderInLastUpdate;

@@ -22,7 +22,7 @@ std::unique_ptr<ArtboardInstance> DataBindContextValueList::createArtboard(
         auto mainArtboard = target->artboard();
         auto dataContext = mainArtboard->dataContext();
         auto artboardCopy = artboard->instance();
-        artboardCopy->advanceInternal(0.0f, false);
+        artboardCopy->advanceInternal(0.0f);
         artboardCopy->setDataContextFromInstance(listItem->viewModelInstance(),
                                                  dataContext,
                                                  false);

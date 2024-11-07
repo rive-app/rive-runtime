@@ -1273,7 +1273,10 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
-    bool keepGoing = m_artboardInstance->advanceInternal(seconds, true);
+    bool keepGoing = m_artboardInstance->advanceInternal(
+        seconds,
+        AdvanceFlags::IsRoot | AdvanceFlags::Animate |
+            AdvanceFlags::AdvanceNested | AdvanceFlags::NewFrame);
     if (this->advance(seconds, true))
     {
         keepGoing = true;
@@ -1286,7 +1289,10 @@ bool StateMachineInstance::advanceAndApply(float seconds)
             keepGoing = true;
         }
 
-        if (m_artboardInstance->advanceInternal(0.0f, true))
+        if (m_artboardInstance->advanceInternal(
+                0.0f,
+                AdvanceFlags::IsRoot | AdvanceFlags::Animate |
+                    AdvanceFlags::AdvanceNested | AdvanceFlags::NewFrame))
         {
             keepGoing = true;
         }

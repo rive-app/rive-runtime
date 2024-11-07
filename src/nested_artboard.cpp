@@ -319,17 +319,20 @@ void NestedArtboard::setDataContextFromInstance(
     }
 }
 
-bool NestedArtboard::advanceComponent(float elapsedSeconds,
-                                      bool animate,
-                                      bool newFrame)
+bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
     if (m_Artboard == nullptr || isCollapsed())
     {
         return false;
     }
     bool keepGoing = false;
-    if (animate)
+    bool animate = (flags & AdvanceFlags::Animate) == AdvanceFlags::Animate;
+    bool advanceNested =
+        (flags & AdvanceFlags::AdvanceNested) == AdvanceFlags::AdvanceNested;
+    if (animate && advanceNested)
     {
+        bool newFrame =
+            (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame;
         for (auto animation : m_NestedAnimations)
         {
             if (animation->advance(elapsedSeconds, newFrame))
@@ -339,8 +342,8 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds,
         }
     }
 
-    if (m_Artboard
-            ->advanceInternal(elapsedSeconds, false, true, animate, newFrame) ||
+    auto advancingFlags = flags | AdvanceFlags::AdvanceNested;
+    if (m_Artboard->advanceInternal(elapsedSeconds, advancingFlags) ||
         m_Artboard->hasDirt(ComponentDirt::Components))
     {
         // The animation(s) caused the artboard to need an update.

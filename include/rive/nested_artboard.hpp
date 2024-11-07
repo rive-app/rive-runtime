@@ -70,8 +70,8 @@ public:
     void clearDataContext();
 
     bool advanceComponent(float elapsedSeconds,
-                          bool animate = true,
-                          bool newFrame = true) override;
+                          AdvanceFlags flags = AdvanceFlags::Animate |
+                                               AdvanceFlags::NewFrame) override;
 };
 } // namespace rive
 

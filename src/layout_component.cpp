@@ -789,11 +789,10 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     }
 }
 
-bool LayoutComponent::advanceComponent(float elapsedSeconds,
-                                       bool animate,
-                                       bool newFrame)
+bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
-    return applyInterpolation(elapsedSeconds, animate);
+    return applyInterpolation(elapsedSeconds,
+                              (flags & AdvanceFlags::Animate) != 0);
 }
 
 bool LayoutComponent::animates()
@@ -1109,9 +1108,7 @@ Vec2D LayoutComponent::measureLayout(float width,
     return Vec2D();
 }
 
-bool LayoutComponent::advanceComponent(float elapsedSeconds,
-                                       bool animate,
-                                       bool newFrame)
+bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 {
     return false;
 }

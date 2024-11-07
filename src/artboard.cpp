@@ -884,19 +884,14 @@ bool Artboard::updatePass(bool isRoot)
     return didUpdate;
 }
 
-bool Artboard::advanceInternal(float elapsedSeconds,
-                               bool isRoot,
-                               bool nested,
-                               bool animate,
-                               bool newFrame)
+bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 {
     bool didUpdate = false;
 
     for (auto dep : m_DependencyOrder)
     {
         auto adv = AdvancingComponent::from(dep);
-        if (adv != nullptr &&
-            adv->advanceComponent(elapsedSeconds, animate && nested))
+        if (adv != nullptr && adv->advanceComponent(elapsedSeconds, flags))
         {
             didUpdate = true;
         }
@@ -905,13 +900,11 @@ bool Artboard::advanceInternal(float elapsedSeconds,
     return didUpdate;
 }
 
-bool Artboard::advance(float elapsedSeconds,
-                       bool nested,
-                       bool animate,
-                       bool newFrame)
+bool Artboard::advance(float elapsedSeconds, AdvanceFlags flags)
 {
-    bool didUpdate =
-        advanceInternal(elapsedSeconds, true, nested, animate, newFrame);
+    AdvanceFlags advancingFlags = flags;
+    advancingFlags |= AdvanceFlags::IsRoot;
+    bool didUpdate = advanceInternal(elapsedSeconds, advancingFlags);
     if (updatePass(true))
     {
         didUpdate = true;
