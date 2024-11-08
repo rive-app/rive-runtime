@@ -14,8 +14,8 @@ ATTR_BLOCK_END
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, half2, v_edgeDistance);
 FLAT VARYING(1, ushort, v_pathID);
-FLAT VARYING(2, uint2, v_atlasPlacement);
-VARYING(3, float2, v_atlasCoord);
+FLAT VARYING(2, uint2, v_coveragePlacement);
+VARYING(3, float2, v_coverageCoord);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
@@ -26,8 +26,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     VARYING_INIT(v_edgeDistance, half2);
     VARYING_INIT(v_pathID, ushort);
-    VARYING_INIT(v_atlasPlacement, uint2);
-    VARYING_INIT(v_atlasCoord, float2);
+    VARYING_INIT(v_coveragePlacement, uint2);
+    VARYING_INIT(v_coverageCoord, float2);
 
     float4 pos;
     float2 vertexPosition;
@@ -38,9 +38,10 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                        vertexPosition,
                                        v_edgeDistance VERTEX_CONTEXT_UNPACK))
     {
-        uint4 atlasData = STORAGE_BUFFER_LOAD4(@pathBuffer, v_pathID * 4u + 2u);
-        v_atlasPlacement = atlasData.xy;
-        v_atlasCoord = vertexPosition + uintBitsToFloat(atlasData.zw);
+        uint4 coverageData =
+            STORAGE_BUFFER_LOAD4(@pathBuffer, v_pathID * 4u + 2u);
+        v_coveragePlacement = coverageData.xy;
+        v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
     }
     else
@@ -53,8 +54,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     VARYING_PACK(v_edgeDistance);
     VARYING_PACK(v_pathID);
-    VARYING_PACK(v_atlasPlacement);
-    VARYING_PACK(v_atlasCoord);
+    VARYING_PACK(v_coveragePlacement);
+    VARYING_PACK(v_coverageCoord);
     EMIT_VERTEX(pos);
 }
 #endif // VERTEX
@@ -70,8 +71,8 @@ ATTR_BLOCK_END
 VARYING_BLOCK_BEGIN
 @OPTIONALLY_FLAT VARYING(0, half, v_windingWeight);
 FLAT VARYING(1, ushort, v_pathID);
-FLAT VARYING(2, uint2, v_atlasPlacement);
-VARYING(3, float2, v_atlasCoord);
+FLAT VARYING(2, uint2, v_coveragePlacement);
+VARYING(3, float2, v_coverageCoord);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
@@ -81,22 +82,22 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     VARYING_INIT(v_windingWeight, half);
     VARYING_INIT(v_pathID, ushort);
-    VARYING_INIT(v_atlasPlacement, uint2);
-    VARYING_INIT(v_atlasCoord, float2);
+    VARYING_INIT(v_coveragePlacement, uint2);
+    VARYING_INIT(v_coverageCoord, float2);
 
     float2 vertexPosition =
         unpack_interior_triangle_vertex(@a_triangleVertex,
                                         v_pathID,
                                         v_windingWeight VERTEX_CONTEXT_UNPACK);
-    uint4 atlasData = STORAGE_BUFFER_LOAD4(@pathBuffer, v_pathID * 4u + 2u);
-    v_atlasPlacement = atlasData.xy;
-    v_atlasCoord = vertexPosition + uintBitsToFloat(atlasData.zw);
+    uint4 coverageData = STORAGE_BUFFER_LOAD4(@pathBuffer, v_pathID * 4u + 2u);
+    v_coveragePlacement = coverageData.xy;
+    v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
     VARYING_PACK(v_windingWeight);
     VARYING_PACK(v_pathID);
-    VARYING_PACK(v_atlasPlacement);
-    VARYING_PACK(v_atlasCoord);
+    VARYING_PACK(v_coveragePlacement);
+    VARYING_PACK(v_coverageCoord);
     EMIT_VERTEX(pos);
 }
 #endif // VERTEX
@@ -277,8 +278,8 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
     VARYING_UNPACK(v_edgeDistance, half2);
     VARYING_UNPACK(v_pathID, ushort);
-    VARYING_UNPACK(v_atlasPlacement, uint2);
-    VARYING_UNPACK(v_atlasCoord, float2);
+    VARYING_UNPACK(v_coveragePlacement, uint2);
+    VARYING_UNPACK(v_coverageCoord, float2);
 
     half4 paintColor;
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, v_pathID);
@@ -327,16 +328,16 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 
     // Swizzle the coverage buffer in a tiled format, starting with 32x32
     // row-major tiles.
-    uint coverageIndex = v_atlasPlacement.x;
-    uint coveragePitch = v_atlasPlacement.y;
-    uint2 atlasCoord = uint2(floor(v_atlasCoord));
-    coverageIndex += (atlasCoord.y >> 5) * (coveragePitch << 5) +
-                     (atlasCoord.x >> 5) * (32 << 5);
+    uint coverageIndex = v_coveragePlacement.x;
+    uint coveragePitch = v_coveragePlacement.y;
+    uint2 coverageCoord = uint2(floor(v_coverageCoord));
+    coverageIndex += (coverageCoord.y >> 5) * (coveragePitch << 5) +
+                     (coverageCoord.x >> 5) * (32 << 5);
     // Subdivide each main tile into 4x4 column-major tiles.
-    coverageIndex += ((atlasCoord.x & 0x1f) >> 2) * (32 << 2) +
-                     ((atlasCoord.y & 0x1f) >> 2) * (4 << 2);
+    coverageIndex += ((coverageCoord.x & 0x1f) >> 2) * (32 << 2) +
+                     ((coverageCoord.y & 0x1f) >> 2) * (4 << 2);
     // Let the 4x4 tiles be row-major.
-    coverageIndex += (atlasCoord.y & 0x3) * 4 + (atlasCoord.x & 0x3);
+    coverageIndex += (coverageCoord.y & 0x3) * 4 + (coverageCoord.x & 0x3);
 
 #ifdef @BORROWED_COVERAGE_PREPASS
     if (@BORROWED_COVERAGE_PREPASS)
