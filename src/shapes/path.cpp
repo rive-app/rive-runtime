@@ -2,6 +2,7 @@
 #include "rive/renderer.hpp"
 #include "rive/shapes/cubic_vertex.hpp"
 #include "rive/shapes/cubic_detached_vertex.hpp"
+#include "rive/shapes/deformer.hpp"
 #include "rive/shapes/path_vertex.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/shapes/straight_vertex.hpp"
@@ -26,6 +27,15 @@ static float computeIdealControlPointDistance(const Vec2D& toPrev,
         (4.0f / 3.0f) * tan(math::PI / (2.0f * ((2.0f * math::PI) / angle))) *
             radius *
             (angle < math::PI / 2 ? 1 + cos(angle) : 2.0f - sin(angle)));
+}
+
+RenderPathDeformer* Path::deformer() const
+{
+    if (m_Shape != nullptr)
+    {
+        return m_Shape->deformer();
+    }
+    return nullptr;
 }
 
 StatusCode Path::onAddedClean(CoreContext* context)
@@ -252,6 +262,14 @@ void Path::buildPath(RawPath& rawPath) const
         }
         rawPath.close();
     }
+
+    RenderPathDeformer* pathDeformer = deformer();
+    if (pathDeformer != nullptr)
+    {
+        Mat2D transform = pathTransform();
+        Mat2D inverse = transform.invertOrIdentity();
+        pathDeformer->deformLocalRenderPath(rawPath, transform, inverse);
+    }
 }
 
 void Path::markPathDirty(bool sendToLayout)
@@ -279,7 +297,10 @@ void Path::update(ComponentDirt value)
 {
     Super::update(value);
 
-    if (hasDirt(value, ComponentDirt::Path))
+    bool pathChanged = hasDirt(value, ComponentDirt::Path);
+    bool worldTransformChanged = hasDirt(value, ComponentDirt::WorldTransform);
+
+    if (pathChanged || (deformer() != nullptr && worldTransformChanged))
     {
         if (canDeferPathUpdate())
         {

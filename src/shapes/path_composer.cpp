@@ -1,7 +1,6 @@
 #include "rive/shapes/path_composer.hpp"
 #include "rive/artboard.hpp"
 #include "rive/renderer.hpp"
-#include "rive/shapes/deformer.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/factory.hpp"
@@ -68,13 +67,6 @@ void PathComposer::update(ComponentDirt value)
                 }
             }
 
-            if (const RenderPathDeformer* deformer = m_shape->deformer())
-            {
-                deformer->deformLocalRenderPath(m_localRawPath,
-                                                world,
-                                                inverseWorld);
-            }
-
             // TODO: add a CommandPath::copy(RawPath)
             m_localRawPath.addTo(m_localPath.get());
         }
@@ -96,11 +88,6 @@ void PathComposer::update(ComponentDirt value)
                     const Mat2D& transform = path->pathTransform();
                     m_worldRawPath.addPath(path->rawPath(), &transform);
                 }
-            }
-
-            if (const RenderPathDeformer* deformer = m_shape->deformer())
-            {
-                deformer->deformWorldRenderPath(m_worldRawPath);
             }
 
             // TODO: add a CommandPath::copy(RawPath)
