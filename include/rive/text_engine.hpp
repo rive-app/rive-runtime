@@ -111,7 +111,11 @@ struct GlyphLine
 struct Paragraph
 {
     SimpleArray<GlyphRun> runs;
-    TextDirection baseDirection;
+    uint8_t level;
+    TextDirection baseDirection() const
+    {
+        return level & 1 ? TextDirection::rtl : TextDirection::ltr;
+    }
 };
 
 // An abstraction for interfacing with an individual font.
@@ -189,7 +193,8 @@ public:
     virtual RawPath getPath(GlyphID) const = 0;
 
     SimpleArray<Paragraph> shapeText(Span<const Unichar> text,
-                                     Span<const TextRun> runs) const;
+                                     Span<const TextRun> runs,
+                                     int textDirectionFlag = -1) const;
 
     // If the platform can supply fallback font(s), set this function pointer.
     // It will be called with a span of unichars, and the platform attempts to
@@ -204,9 +209,9 @@ public:
 protected:
     Font(const LineMetrics& lm) : m_lineMetrics(lm) {}
 
-    virtual SimpleArray<Paragraph> onShapeText(
-        Span<const Unichar> text,
-        Span<const TextRun> runs) const = 0;
+    virtual SimpleArray<Paragraph> onShapeText(Span<const Unichar> text,
+                                               Span<const TextRun> runs,
+                                               int textDirectionFlag) const = 0;
 
 private:
     /// The font specified line metrics (automatic line metrics).
@@ -224,7 +229,7 @@ struct TextRun
     uint32_t unicharCount;
     uint32_t script;
     uint16_t styleId;
-    TextDirection dir;
+    uint8_t level;
 };
 
 // The corresponding system generated run for the user provided TextRuns.
@@ -289,8 +294,13 @@ struct GlyphRun
     // determined by the font or font size) applied to this run.
     uint16_t styleId;
 
-    // The text direction (LTR = 0/RTL = 1)
-    TextDirection dir;
+    // Bidi level (even is LTR, odd is RTL)
+    uint8_t level;
+
+    TextDirection dir() const
+    {
+        return level & 1 ? TextDirection::rtl : TextDirection::ltr;
+    }
 };
 
 } // namespace rive

@@ -25,7 +25,8 @@ public:
     rive::RawPath getPath(rive::GlyphID) const override;
     rive::SimpleArray<rive::Paragraph> onShapeText(
         rive::Span<const rive::Unichar>,
-        rive::Span<const rive::TextRun>) const override;
+        rive::Span<const rive::TextRun>,
+        int textDirectionFlag) const override;
     rive::SimpleArray<uint32_t> features() const override;
     rive::rcp<Font> withOptions(
         rive::Span<const Coord> variableAxes,

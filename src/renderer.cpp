@@ -140,7 +140,8 @@ RenderPath::~RenderPath() {}
 bool rive::isWhiteSpace(Unichar c) { return c <= ' ' || c == 0x2028; }
 
 SimpleArray<Paragraph> Font::shapeText(Span<const Unichar> text,
-                                       Span<const TextRun> runs) const
+                                       Span<const TextRun> runs,
+                                       int textDirectionFlag) const
 {
 #ifdef DEBUG
     size_t count = 0;
@@ -152,7 +153,8 @@ SimpleArray<Paragraph> Font::shapeText(Span<const Unichar> text,
     assert(count <= text.size());
 #endif
 
-    SimpleArray<Paragraph> paragraphs = onShapeText(text, runs);
+    SimpleArray<Paragraph> paragraphs =
+        onShapeText(text, runs, textDirectionFlag);
     bool wantWhiteSpace = false;
     GlyphRun* lastRun = nullptr;
     size_t reserveSize = text.size() / 4;

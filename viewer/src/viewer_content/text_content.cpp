@@ -30,7 +30,7 @@ static float drawrun(rive::Factory* factory,
     float x = origin.x;
     assert(startIndex >= 0 && endIndex <= run.glyphs.size());
     int i, end, inc;
-    if (run.dir == rive::TextDirection::rtl)
+    if (run.dir() == rive::TextDirection::rtl)
     {
         i = endIndex - 1;
         end = startIndex - 1;
@@ -67,7 +67,7 @@ static float drawpara(rive::Factory* factory,
 
         float x = line.startX + origin.x;
         int runIndex, endRun, runInc;
-        if (paragraph.baseDirection == rive::TextDirection::rtl)
+        if (paragraph.baseDirection() == rive::TextDirection::rtl)
         {
             runIndex = line.endRunIndex;
             endRun = line.startRunIndex - 1;

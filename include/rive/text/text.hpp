@@ -148,7 +148,9 @@ public:
     const GlyphRun* lastRun() const { return m_runs.back(); }
     uint32_t startGlyphIndex(const GlyphRun* run) const
     {
-        switch (run->dir)
+        TextDirection dir =
+            run->level & 1 ? TextDirection::rtl : TextDirection::ltr;
+        switch (dir)
         {
             case TextDirection::ltr:
                 return m_startLogical == run ? m_startGlyphIndex : 0;
@@ -161,7 +163,9 @@ public:
     }
     uint32_t endGlyphIndex(const GlyphRun* run) const
     {
-        switch (run->dir)
+        TextDirection dir =
+            run->level & 1 ? TextDirection::rtl : TextDirection::ltr;
+        switch (dir)
         {
             case TextDirection::ltr:
                 return m_endLogical == run ? m_endGlyphIndex

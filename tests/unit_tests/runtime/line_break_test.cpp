@@ -279,7 +279,7 @@ TEST_CASE("shaper separates paragraphs", "[shaper]")
     {
         const auto& paragraph = paragraphs.front();
         REQUIRE(paragraph.runs.size() == 1);
-        REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+        REQUIRE(paragraph.baseDirection() == rive::TextDirection::ltr);
 
         auto lines = GlyphLine::BreakLines(paragraph.runs, 300.0f);
         REQUIRE(lines.size() == 2);
@@ -287,7 +287,7 @@ TEST_CASE("shaper separates paragraphs", "[shaper]")
     {
         const auto& paragraph = paragraphs.back();
         REQUIRE(paragraph.runs.size() == 1);
-        REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+        REQUIRE(paragraph.baseDirection() == rive::TextDirection::ltr);
 
         auto lines = GlyphLine::BreakLines(paragraph.runs, 300.0f);
         REQUIRE(lines.size() == 1);
@@ -307,7 +307,7 @@ TEST_CASE("shaper handles RTL", "[shaper]")
     auto paragraphs = font->shapeText(unichars, truns);
     REQUIRE(paragraphs.size() == 1);
     const auto& paragraph = paragraphs.front();
-    REQUIRE(paragraph.baseDirection == rive::TextDirection::rtl);
+    REQUIRE(paragraph.baseDirection() == rive::TextDirection::rtl);
     {
         auto lines = GlyphLine::BreakLines(paragraph.runs, 300.0f);
         REQUIRE(lines.size() == 1);
@@ -338,7 +338,7 @@ TEST_CASE("shaper handles empty space", "[shaper]")
     auto paragraphs = font->shapeText(unichars, truns);
     REQUIRE(paragraphs.size() == 1);
     const auto& paragraph = paragraphs.front();
-    REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+    REQUIRE(paragraph.baseDirection() == rive::TextDirection::ltr);
     {
         auto lines = GlyphLine::BreakLines(paragraph.runs, 300.0f);
         REQUIRE(lines.size() == 1);
@@ -358,7 +358,7 @@ TEST_CASE("line breaker deals with empty paragraphs", "[line break]")
     REQUIRE(paragraphs.size() == 2);
     {
         const auto& paragraph = paragraphs.front();
-        REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+        REQUIRE(paragraph.baseDirection() == rive::TextDirection::ltr);
         {
             auto lines = GlyphLine::BreakLines(paragraph.runs, -1.0f);
             REQUIRE(lines.size() == 1);
@@ -366,7 +366,7 @@ TEST_CASE("line breaker deals with empty paragraphs", "[line break]")
     }
     {
         const auto& paragraph = paragraphs.back();
-        REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+        REQUIRE(paragraph.baseDirection() == rive::TextDirection::ltr);
         {
             auto lines = GlyphLine::BreakLines(paragraph.runs, -1.0f);
             REQUIRE(lines.size() == 1);
@@ -395,7 +395,7 @@ TEST_CASE("line breaker deals with space only lines", "[line break]")
     REQUIRE(paragraphs.size() == 1);
     {
         const auto& paragraph = paragraphs.front();
-        REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+        REQUIRE(paragraph.baseDirection() == rive::TextDirection::ltr);
         {
             auto lines = GlyphLine::BreakLines(paragraph.runs, -1.0f);
             REQUIRE(lines.size() == 2);
@@ -416,7 +416,7 @@ TEST_CASE("line breaker deals with empty lines", "[line break]")
     REQUIRE(paragraphs.size() == 1);
     {
         const auto& paragraph = paragraphs.front();
-        REQUIRE(paragraph.baseDirection == rive::TextDirection::ltr);
+        REQUIRE(paragraph.baseDirection() == rive::TextDirection::ltr);
         {
             auto lines = GlyphLine::BreakLines(paragraph.runs, -1.0f);
             REQUIRE(lines.size() == 1);

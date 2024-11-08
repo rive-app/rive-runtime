@@ -33,9 +33,24 @@ void GlyphItr::tryAdvanceRun()
 GlyphItr& GlyphItr::operator++()
 {
     auto run = *m_run;
-    m_glyphIndex += run->dir == TextDirection::ltr ? 1 : -1;
+    m_glyphIndex += run->dir() == TextDirection::ltr ? 1 : -1;
     tryAdvanceRun();
     return *this;
+}
+
+static void reverseRuns(const GlyphRun** runs, int count)
+{
+    int halfCount = count / 2;
+    int finalIndex = count - 1;
+
+    for (int index = 0; index < halfCount; index++)
+    {
+        int tieIndex = finalIndex - index;
+
+        const GlyphRun* tempRun = runs[index];
+        runs[index] = runs[tieIndex];
+        runs[tieIndex] = tempRun;
+    }
 }
 
 OrderedLine::OrderedLine(const Paragraph& paragraph,
@@ -68,41 +83,32 @@ OrderedLine::OrderedLine(const Paragraph& paragraph,
         }
     }
 
-    // Now sort the runs visually.
-    if (paragraph.baseDirection == TextDirection::ltr || logicalRuns.empty())
+    uint8_t maxLevel = 0;
+    for (auto run : logicalRuns)
     {
-        m_runs = std::move(logicalRuns);
-    }
-    else
-    {
-        std::vector<const GlyphRun*> visualRuns;
-        visualRuns.reserve(logicalRuns.size());
-
-        auto itr = logicalRuns.rbegin();
-        auto end = logicalRuns.rend();
-        const GlyphRun* first = *itr;
-        visualRuns.push_back(first);
-        size_t ltrIndex = 0;
-        TextDirection previousDirection = first->dir;
-        while (++itr != end)
+        if (run->level > maxLevel)
         {
-            const GlyphRun* run = *itr;
-            if (run->dir == TextDirection::ltr && previousDirection == run->dir)
-            {
-                visualRuns.insert(visualRuns.begin() + ltrIndex, run);
-            }
-            else
-            {
-                if (run->dir == TextDirection::ltr)
-                {
-                    ltrIndex = visualRuns.size();
-                }
-                visualRuns.push_back(run);
-            }
-            previousDirection = run->dir;
+            maxLevel = run->level;
         }
-        m_runs = std::move(visualRuns);
     }
+    for (uint8_t newLevel = maxLevel; newLevel > 0; newLevel--)
+    {
+        for (int start = (int)(logicalRuns.size()) - 1; start >= 0; start--)
+        {
+            if (logicalRuns[start]->level >= newLevel)
+            {
+                int count = 1;
+                for (; start > 0 && logicalRuns[start - 1]->level >= newLevel;
+                     start--)
+                {
+                    count++;
+                }
+                reverseRuns(logicalRuns.data() + start, count);
+            }
+        }
+    }
+
+    m_runs = std::move(logicalRuns);
 }
 
 static void appendUnicode(std::vector<rive::Unichar>& unichars,

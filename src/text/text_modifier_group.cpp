@@ -211,7 +211,7 @@ static TextRun copyRun(const TextRun& source, uint32_t unicharCount)
         unicharCount,
         source.script,
         source.styleId,
-        source.dir,
+        source.level,
     };
 }
 
@@ -250,7 +250,7 @@ TextRun TextModifierGroup::modifyShape(const Text& text,
             run.unicharCount,
             run.script,
             run.styleId,
-            run.dir,
+            run.level,
         };
     }
     else
