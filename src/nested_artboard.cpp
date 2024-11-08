@@ -334,17 +334,39 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
             (flags & AdvanceFlags::NewFrame) == AdvanceFlags::NewFrame;
         for (auto animation : m_NestedAnimations)
         {
-            if (animation->advance(elapsedSeconds, newFrame))
+            // If it is not a new frame, we only advance state machines. And we
+            // first validate whether their state has changed. Then and only
+            // then we advance the state machine. This avoids triggering dirt
+            // from advances that make intermediate value changes but finally
+            // settle in the same value
+            if (!newFrame)
             {
-                keepGoing = true;
+                if (animation->is<NestedStateMachine>())
+                {
+                    if (animation->as<NestedStateMachine>()->tryChangeState())
+                    {
+                        if (animation->advance(elapsedSeconds, newFrame))
+                        {
+                            keepGoing = true;
+                        }
+                    }
+                }
+            }
+            else
+            {
+
+                if (animation->advance(elapsedSeconds, newFrame))
+                {
+                    keepGoing = true;
+                }
             }
         }
     }
 
     auto advancingFlags =
         flags | AdvanceFlags::AdvanceNested & ~AdvanceFlags::IsRoot;
-    if (m_Artboard->advanceInternal(elapsedSeconds, advancingFlags) ||
-        m_Artboard->hasDirt(ComponentDirt::Components))
+    m_Artboard->advanceInternal(elapsedSeconds, advancingFlags);
+    if (m_Artboard->hasDirt(ComponentDirt::Components))
     {
         // The animation(s) caused the artboard to need an update.
         addDirt(ComponentDirt::Components);

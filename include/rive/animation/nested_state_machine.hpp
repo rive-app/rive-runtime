@@ -28,6 +28,7 @@ public:
     HitResult pointerDown(Vec2D position);
     HitResult pointerUp(Vec2D position);
     HitResult pointerExit(Vec2D position);
+    bool tryChangeState();
 #ifdef WITH_RIVE_TOOLS
     bool hitTest(Vec2D position) const;
 #endif

@@ -114,6 +114,7 @@ public:
     HitResult pointerDown(Vec2D position) override;
     HitResult pointerUp(Vec2D position) override;
     HitResult pointerExit(Vec2D position) override;
+    bool tryChangeState();
 #ifdef WITH_RIVE_TOOLS
     bool hitTest(Vec2D position) const;
 #endif
@@ -185,7 +186,6 @@ private:
     std::unordered_map<BindableProperty*, BindableProperty*>
         m_bindablePropertyInstances;
     std::unordered_map<BindableProperty*, DataBind*> m_bindableDataBinds;
-    bool tryChangeState();
 
 #ifdef WITH_RIVE_TOOLS
 public:

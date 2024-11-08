@@ -128,3 +128,12 @@ void NestedStateMachine::dataContext(DataContext* dataContext)
         m_StateMachineInstance->dataContext(dataContext);
     }
 }
+
+bool NestedStateMachine::tryChangeState()
+{
+    if (m_StateMachineInstance != nullptr)
+    {
+        return m_StateMachineInstance->tryChangeState();
+    }
+    return false;
+}
