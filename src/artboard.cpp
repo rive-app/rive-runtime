@@ -789,6 +789,7 @@ void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
     {
         m_host->as<NestedArtboardLayout>()->markNestedLayoutDirty();
     }
+    addDirt(ComponentDirt::Components);
 }
 
 bool Artboard::syncStyleChanges()

@@ -365,12 +365,14 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 
     auto advancingFlags =
         flags | AdvanceFlags::AdvanceNested & ~AdvanceFlags::IsRoot;
-    m_Artboard->advanceInternal(elapsedSeconds, advancingFlags);
+    if (m_Artboard->advanceInternal(elapsedSeconds, advancingFlags))
+    {
+        keepGoing = true;
+    }
     if (m_Artboard->hasDirt(ComponentDirt::Components))
     {
         // The animation(s) caused the artboard to need an update.
         addDirt(ComponentDirt::Components);
-        keepGoing = true;
     }
 
     return keepGoing;

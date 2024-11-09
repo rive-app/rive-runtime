@@ -70,7 +70,9 @@ void LayoutComponent::update(ComponentDirt value)
         m_WorldTransform = Mat2D::multiply(parentWorld, transform);
         updateConstraints();
     }
-    if (hasDirt(value, ComponentDirt::Path))
+    if (hasDirt(value,
+                ComponentDirt::Path | ComponentDirt::WorldTransform |
+                    ComponentDirt::LayoutStyle))
     {
         updateRenderPath();
     }
