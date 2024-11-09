@@ -4,32 +4,19 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/drawable.hpp"
 #include "rive/generated/layout_component_base.hpp"
-#include "rive/layout/layout_component_style.hpp"
 #include "rive/layout/layout_measure_mode.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/advancing_component.hpp"
-#ifdef WITH_RIVE_LAYOUT
-#include "yoga/YGNode.h"
-#include "yoga/YGStyle.h"
-#include "yoga/Yoga.h"
-#endif
+#include "rive/layout/layout_enums.hpp"
 
 namespace rive
 {
-
 class AABB;
 class KeyFrameInterpolator;
-
-struct LayoutData
-{
-#ifdef WITH_RIVE_LAYOUT
-    YGNode node;
-    YGStyle style;
-#endif
-};
-
+struct LayoutData;
+class LayoutComponentStyle;
 class Layout
 {
 public:
@@ -37,9 +24,6 @@ public:
     Layout(float left, float top, float width, float height) :
         m_left(left), m_top(top), m_width(width), m_height(height)
     {}
-#ifdef WITH_RIVE_LAYOUT
-    Layout(const YGLayout& layout);
-#endif
 
     bool operator==(const Layout& o) const
     {
@@ -86,7 +70,7 @@ class LayoutComponent : public LayoutComponentBase,
 {
 protected:
     LayoutComponentStyle* m_style = nullptr;
-    std::unique_ptr<LayoutData> m_layoutData;
+    LayoutData* m_layoutData;
 
     Layout m_layout;
 
@@ -97,7 +81,7 @@ protected:
     LayoutStyleInterpolation m_inheritedInterpolation =
         LayoutStyleInterpolation::hold;
     float m_inheritedInterpolationTime = 0;
-    Rectangle* m_backgroundRect = new Rectangle();
+    Rectangle m_backgroundRect;
     rcp<RenderPath> m_backgroundPath;
     rcp<RenderPath> m_clipPath;
     DrawableProxy m_proxy;
@@ -130,8 +114,6 @@ private:
 
 #ifdef WITH_RIVE_LAYOUT
 protected:
-    YGNode& layoutNode() { return m_layoutData->node; }
-    YGStyle& layoutStyle() { return m_layoutData->style; }
     void syncLayoutChildren();
     void propagateSizeToChildren(ContainerComponent* component);
     bool applyInterpolation(float elapsedSeconds, bool animate = true);
@@ -184,20 +166,16 @@ public:
     bool overridesKeyedInterpolation(int propertyKey) override;
     Drawable* hittableComponent() override { return nullptr; }
     bool hasShapePaints() const { return m_ShapePaints.size() > 0; }
-    Rectangle* backgroundRect() const { return m_backgroundRect; }
+    const Rectangle* backgroundRect() const { return &m_backgroundRect; }
     RenderPath* backgroundPath() const { return m_backgroundPath.get(); }
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
 
+    LayoutComponent();
+    ~LayoutComponent();
 #ifdef WITH_RIVE_LAYOUT
-    LayoutComponent() :
-        m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())),
-        m_proxy(this)
-    {
-        layoutNode().getConfig()->setPointScaleFactor(0);
-    }
-    ~LayoutComponent() { delete m_backgroundRect; }
+
     void syncStyle();
     virtual void propagateSize();
     void updateLayoutBounds(bool animate = true);
@@ -222,11 +200,6 @@ public:
     bool isLeaf();
     void positionTypeChanged();
     void scaleTypeChanged();
-#else
-    LayoutComponent() :
-        m_layoutData(std::unique_ptr<LayoutData>(new LayoutData())),
-        m_proxy(this)
-    {}
 #endif
     void buildDependencies() override;
 

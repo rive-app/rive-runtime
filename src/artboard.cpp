@@ -31,6 +31,7 @@
 #include "rive/text/text_value_run.hpp"
 #include "rive/event.hpp"
 #include "rive/assets/audio_asset.hpp"
+#include "rive/layout/layout_data.hpp"
 
 #include <unordered_map>
 
@@ -770,7 +771,7 @@ void* Artboard::takeLayoutNode()
 {
 #ifdef WITH_RIVE_LAYOUT
     m_updatesOwnLayout = false;
-    return static_cast<void*>(&layoutNode());
+    return static_cast<void*>(&m_layoutData->node);
 #else
     return nullptr;
 #endif

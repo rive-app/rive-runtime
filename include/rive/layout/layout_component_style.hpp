@@ -1,49 +1,14 @@
 #ifndef _RIVE_LAYOUT_COMPONENT_STYLE_HPP_
 #define _RIVE_LAYOUT_COMPONENT_STYLE_HPP_
 #include "rive/generated/layout/layout_component_style_base.hpp"
+#include "rive/layout/layout_enums.hpp"
+#include "rive/internal/assert_internal_only.hpp"
 #ifdef WITH_RIVE_LAYOUT
 #include "yoga/Yoga.h"
 #endif
 #include <stdio.h>
 namespace rive
 {
-enum class LayoutAnimationStyle : uint8_t
-{
-    none,
-    inherit,
-    custom
-};
-
-enum class LayoutStyleInterpolation : uint8_t
-{
-    hold,
-    linear,
-    cubic,
-    elastic
-};
-
-enum class LayoutAlignmentType : uint8_t
-{
-    topLeft,
-    topCenter,
-    topRight,
-    centerLeft,
-    center,
-    centerRight,
-    bottomLeft,
-    bottomCenter,
-    bottomRight,
-    spaceBetweenStart,
-    spaceBetweenCenter,
-    spaceBetweenEnd
-};
-
-enum class LayoutScaleType : uint8_t
-{
-    fixed,
-    fill,
-    hug
-};
 
 class KeyFrameInterpolator;
 class LayoutComponentStyle : public LayoutComponentStyleBase

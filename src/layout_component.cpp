@@ -12,6 +12,8 @@
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/nested_artboard_layout.hpp"
+#include "rive/layout/layout_data.hpp"
+#include "rive/layout/layout_component_style.hpp"
 #ifdef WITH_RIVE_LAYOUT
 #include "rive/transform_component.hpp"
 #include "yoga/YGEnums.h"
@@ -131,6 +133,13 @@ bool LayoutComponent::overridesKeyedInterpolation(int propertyKey)
 }
 
 #ifdef WITH_RIVE_LAYOUT
+
+LayoutComponent::LayoutComponent() :
+    m_layoutData(new LayoutData()), m_proxy(this)
+{
+    m_layoutData->node.getConfig()->setPointScaleFactor(0);
+}
+
 StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
 {
     auto code = Super::onAddedDirty(context);
@@ -161,8 +170,8 @@ StatusCode LayoutComponent::onAddedClean(CoreContext* context)
     markLayoutStyleDirty();
     m_backgroundPath = artboard()->factory()->makeEmptyRenderPath();
     m_clipPath = artboard()->factory()->makeEmptyRenderPath();
-    m_backgroundRect->originX(0);
-    m_backgroundRect->originY(0);
+    m_backgroundRect.originX(0);
+    m_backgroundRect.originY(0);
     syncLayoutChildren();
     return StatusCode::Ok;
 }
@@ -186,13 +195,13 @@ void LayoutComponent::drawProxy(Renderer* renderer)
         {
             shapePaint->draw(renderer,
                              m_backgroundPath.get(),
-                             &m_backgroundRect->rawPath());
+                             &m_backgroundRect.rawPath());
         }
         if (shapePaint->is<Fill>())
         {
             shapePaint->draw(renderer,
                              m_backgroundPath.get(),
-                             &m_backgroundRect->rawPath());
+                             &m_backgroundRect.rawPath());
         }
     }
     renderer->restore();
@@ -209,23 +218,23 @@ void LayoutComponent::draw(Renderer* renderer)
 
 void LayoutComponent::updateRenderPath()
 {
-    m_backgroundRect->width(m_layout.width());
-    m_backgroundRect->height(m_layout.height());
+    m_backgroundRect.width(m_layout.width());
+    m_backgroundRect.height(m_layout.height());
     if (style() != nullptr)
     {
-        m_backgroundRect->linkCornerRadius(style()->linkCornerRadius());
-        m_backgroundRect->cornerRadiusTL(style()->cornerRadiusTL());
-        m_backgroundRect->cornerRadiusTR(style()->cornerRadiusTR());
-        m_backgroundRect->cornerRadiusBL(style()->cornerRadiusBL());
-        m_backgroundRect->cornerRadiusBR(style()->cornerRadiusBR());
+        m_backgroundRect.linkCornerRadius(style()->linkCornerRadius());
+        m_backgroundRect.cornerRadiusTL(style()->cornerRadiusTL());
+        m_backgroundRect.cornerRadiusTR(style()->cornerRadiusTR());
+        m_backgroundRect.cornerRadiusBL(style()->cornerRadiusBL());
+        m_backgroundRect.cornerRadiusBR(style()->cornerRadiusBR());
     }
-    m_backgroundRect->update(ComponentDirt::Path);
+    m_backgroundRect.update(ComponentDirt::Path);
 
     m_backgroundPath->rewind();
-    m_backgroundRect->rawPath().addTo(m_backgroundPath.get());
+    m_backgroundRect.rawPath().addTo(m_backgroundPath.get());
 
     RawPath clipPath;
-    clipPath.addPath(m_backgroundRect->rawPath(), &m_WorldTransform);
+    clipPath.addPath(m_backgroundRect.rawPath(), &m_WorldTransform);
     m_clipPath =
         artboard()->factory()->makeRenderPath(clipPath, FillRule::nonZero);
     for (auto shapePaint : m_ShapePaints)
@@ -320,8 +329,8 @@ void LayoutComponent::syncStyle()
     {
         return;
     }
-    YGNode& ygNode = layoutNode();
-    YGStyle& ygStyle = layoutStyle();
+    YGNode& ygNode = m_layoutData->node;
+    YGStyle& ygStyle = m_layoutData->style;
     if (m_style->intrinsicallySized() && isLeaf())
     {
         ygNode.setContext(this);
@@ -644,7 +653,7 @@ void LayoutComponent::syncStyle()
 
 void LayoutComponent::syncLayoutChildren()
 {
-    YGNode& ourNode = layoutNode();
+    YGNode& ourNode = m_layoutData->node;
     YGNodeRemoveAllChildren(&ourNode);
     int index = 0;
     for (auto child : children())
@@ -653,7 +662,7 @@ void LayoutComponent::syncLayoutChildren()
         switch (child->coreType())
         {
             case LayoutComponentBase::typeKey:
-                node = &child->as<LayoutComponent>()->layoutNode();
+                node = &child->as<LayoutComponent>()->m_layoutData->node;
                 break;
             case NestedArtboardLayoutBase::typeKey:
                 node = static_cast<YGNode*>(
@@ -702,7 +711,7 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
 
 void LayoutComponent::calculateLayout()
 {
-    YGNodeCalculateLayout(&layoutNode(),
+    YGNodeCalculateLayout(&m_layoutData->node,
                           width(),
                           height(),
                           YGDirection::YGDirectionInherit);
@@ -719,16 +728,17 @@ void LayoutComponent::onDirty(ComponentDirt value)
     }
 }
 
-Layout::Layout(const YGLayout& layout) :
-    m_left(layout.position[YGEdgeLeft]),
-    m_top(layout.position[YGEdgeTop]),
-    m_width(layout.dimensions[YGDimensionWidth]),
-    m_height(layout.dimensions[YGDimensionHeight])
-{}
+static Layout layoutFromYoga(const YGLayout& layout)
+{
+    return Layout(layout.position[YGEdgeLeft],
+                  layout.position[YGEdgeTop],
+                  layout.dimensions[YGDimensionWidth],
+                  layout.dimensions[YGDimensionHeight]);
+}
 
 void LayoutComponent::updateLayoutBounds(bool animate)
 {
-    YGNode& node = layoutNode();
+    YGNode& node = m_layoutData->node;
     bool updated = node.getHasNewLayout();
     if (!updated)
     {
@@ -748,7 +758,7 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         }
     }
 
-    Layout newLayout(node.getLayout());
+    Layout newLayout = layoutFromYoga(node.getLayout());
 
     if (animate && animates())
     {
@@ -1036,7 +1046,7 @@ void LayoutComponent::interruptAnimation()
 
 void LayoutComponent::markLayoutNodeDirty()
 {
-    layoutNode().markDirtyAndPropagate();
+    m_layoutData->node.markDirtyAndPropagate();
     artboard()->markLayoutDirty(this);
 }
 
@@ -1099,6 +1109,10 @@ void LayoutComponent::scaleTypeChanged()
     markLayoutNodeDirty();
 }
 #else
+LayoutComponent::LayoutComponent() :
+    m_layoutData(new LayoutData()), m_proxy(this)
+{}
+
 void LayoutComponent::drawProxy(Renderer* renderer) {}
 
 void LayoutComponent::draw(Renderer* renderer) {}
@@ -1125,6 +1139,8 @@ bool LayoutComponent::mainAxisIsRow() { return true; }
 
 bool LayoutComponent::mainAxisIsColumn() { return false; }
 #endif
+
+LayoutComponent::~LayoutComponent() { delete m_layoutData; }
 
 void LayoutComponent::clipChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::widthChanged() { markLayoutNodeDirty(); }

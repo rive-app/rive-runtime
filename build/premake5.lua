@@ -50,7 +50,7 @@ do
         yoga,
     })
 
-    defines({ 'YOGA_EXPORT=' })
+    defines({ 'YOGA_EXPORT=', '_RIVE_INTERNAL_' })
 
     files({ '../src/**.cpp' })
 
