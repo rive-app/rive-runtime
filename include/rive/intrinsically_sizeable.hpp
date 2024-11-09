@@ -3,6 +3,7 @@
 
 #include <stdint.h>
 #include "rive/component.hpp"
+#include "rive/layout/layout_enums.hpp"
 #include "rive/layout/layout_measure_mode.hpp"
 #include "rive/math/vec2d.hpp"
 
@@ -19,7 +20,10 @@ public:
         return Vec2D();
     }
 
-    virtual void controlSize(Vec2D size) {}
+    virtual void controlSize(Vec2D size,
+                             LayoutScaleType widthScaleType,
+                             LayoutScaleType heightScaleType)
+    {}
     virtual bool shouldPropagateSizeToChildren() { return true; }
     static IntrinsicallySizeable* from(Component* component);
 };

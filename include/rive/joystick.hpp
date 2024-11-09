@@ -30,7 +30,9 @@ public:
                         LayoutMeasureMode widthMode,
                         float height,
                         LayoutMeasureMode heightMode) override;
-    void controlSize(Vec2D size) override;
+    void controlSize(Vec2D size,
+                     LayoutScaleType widthScaleType,
+                     LayoutScaleType heightScaleType) override;
     bool shouldPropagateSizeToChildren() override { return false; }
 
 protected:

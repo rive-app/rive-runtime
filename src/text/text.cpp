@@ -261,7 +261,6 @@ Vec2D Text::measureLayout(float width,
                           float height,
                           LayoutMeasureMode heightMode)
 {
-    m_layoutMeasured = true;
     return measure(Vec2D(widthMode == LayoutMeasureMode::undefined
                              ? std::numeric_limits<float>::max()
                              : width,
@@ -270,23 +269,31 @@ Vec2D Text::measureLayout(float width,
                              : height));
 }
 
-void Text::controlSize(Vec2D size)
+void Text::controlSize(Vec2D size,
+                       LayoutScaleType widthScaleType,
+                       LayoutScaleType heightScaleType)
 {
-    if (m_layoutWidth != size.x || m_layoutHeight != size.y)
+    if (m_layoutWidth != size.x || m_layoutHeight != size.y ||
+        m_layoutWidthScaleType != (uint8_t)widthScaleType ||
+        m_layoutHeightScaleType != (uint8_t)heightScaleType)
     {
         m_layoutWidth = size.x;
         m_layoutHeight = size.y;
+        m_layoutWidthScaleType = (uint8_t)widthScaleType;
+        m_layoutHeightScaleType = (uint8_t)heightScaleType;
         markShapeDirty(false);
     }
 }
 
 TextSizing Text::effectiveSizing() const
 {
-    if (!std::isnan(m_layoutHeight) && !m_layoutMeasured)
+    if (m_layoutWidthScaleType == std::numeric_limits<uint8_t>::max() ||
+        m_layoutWidthScaleType == (uint8_t)LayoutScaleType::hug ||
+        m_layoutHeightScaleType == (uint8_t)LayoutScaleType::hug)
     {
-        return TextSizing::fixed;
+        return sizing();
     }
-    return sizing();
+    return TextSizing::fixed;
 }
 
 void Text::buildRenderStyles()
@@ -972,7 +979,6 @@ void Text::update(ComponentDirt value)
             style->propagateOpacity(renderOpacity());
         }
     }
-    m_layoutMeasured = false;
 }
 
 Vec2D Text::measure(Vec2D maxSize)
@@ -1124,5 +1130,8 @@ Vec2D Text::measureLayout(float width,
 {
     return Vec2D();
 }
-void Text::controlSize(Vec2D size) {}
+void Text::controlSize(Vec2D size,
+                       LayoutScaleType widthScaleType,
+                       LayoutScaleType heightScaleType)
+{}
 #endif

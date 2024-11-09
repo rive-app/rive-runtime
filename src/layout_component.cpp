@@ -691,10 +691,14 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
             continue;
         }
         auto sizeableChild = IntrinsicallySizeable::from(child);
-        if (sizeableChild != nullptr)
+        if (sizeableChild != nullptr && m_style != nullptr)
         {
+            LayoutScaleType widthScaleType = m_style->widthScaleType();
+            LayoutScaleType heightScaleType = m_style->heightScaleType();
             sizeableChild->controlSize(
-                Vec2D(m_layout.width(), m_layout.height()));
+                Vec2D(m_layout.width(), m_layout.height()),
+                widthScaleType,
+                heightScaleType);
 
             if (!sizeableChild->shouldPropagateSizeToChildren())
             {

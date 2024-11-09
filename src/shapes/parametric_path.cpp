@@ -21,7 +21,9 @@ Vec2D ParametricPath::measureLayout(float width,
                           ParametricPath::height()));
 }
 
-void ParametricPath::controlSize(Vec2D size)
+void ParametricPath::controlSize(Vec2D size,
+                                 LayoutScaleType widthScaleType,
+                                 LayoutScaleType heightScaleType)
 {
     width(size.x);
     height(size.y);

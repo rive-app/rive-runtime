@@ -212,7 +212,9 @@ public:
                         LayoutMeasureMode widthMode,
                         float height,
                         LayoutMeasureMode heightMode) override;
-    void controlSize(Vec2D size) override;
+    void controlSize(Vec2D size,
+                     LayoutScaleType widthScaleType,
+                     LayoutScaleType heightScaleType) override;
     float effectiveWidth()
     {
         return std::isnan(m_layoutWidth) ? width() : m_layoutWidth;
@@ -291,9 +293,8 @@ private:
 #endif
     float m_layoutWidth = NAN;
     float m_layoutHeight = NAN;
-    // If set to true, it means the parent LayoutComponent is set to hug
-    // and has called measureLayout() on this text component
-    bool m_layoutMeasured = false;
+    uint8_t m_layoutWidthScaleType = std::numeric_limits<uint8_t>::max();
+    uint8_t m_layoutHeightScaleType = std::numeric_limits<uint8_t>::max();
     Vec2D measure(Vec2D maxSize);
 };
 } // namespace rive
