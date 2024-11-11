@@ -268,6 +268,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                     break;
                 }
                 case DataEnum::typeKey:
+                case DataEnumCustom::typeKey:
                 {
                     auto de = object->as<DataEnum>();
                     m_Enums.push_back(de);
@@ -305,9 +306,9 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackObject = rivestd::make_unique<ArtboardImporter>(
                     object->as<Artboard>());
                 break;
-            case DataEnum::typeKey:
-                stackObject =
-                    rivestd::make_unique<EnumImporter>(object->as<DataEnum>());
+            case DataEnumCustom::typeKey:
+                stackObject = rivestd::make_unique<EnumImporter>(
+                    object->as<DataEnumCustom>());
                 break;
             case LinearAnimation::typeKey:
                 stackObject = rivestd::make_unique<LinearAnimationImporter>(
