@@ -15,6 +15,25 @@
         "string": "isVisible"
       },
       "virtual": true
+    },
+    "version": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 710,
+        "string": "version"
+      },
+      "runtime": false
+    },
+    "feather": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 712,
+        "string": "feather"
+      },
+      "bindable": true
     }
   }
 }

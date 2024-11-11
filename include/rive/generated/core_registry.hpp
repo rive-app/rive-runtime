@@ -1607,6 +1607,9 @@ public:
             case BlendAnimation1DBase::valuePropertyKey:
                 object->as<BlendAnimation1DBase>()->value(value);
                 break;
+            case ShapePaintBase::featherPropertyKey:
+                object->as<ShapePaintBase>()->feather(value);
+                break;
             case DashPathBase::offsetPropertyKey:
                 object->as<DashPathBase>()->offset(value);
                 break;
@@ -2656,6 +2659,8 @@ public:
                 return object->as<NestedRemapAnimationBase>()->time();
             case BlendAnimation1DBase::valuePropertyKey:
                 return object->as<BlendAnimation1DBase>()->value();
+            case ShapePaintBase::featherPropertyKey:
+                return object->as<ShapePaintBase>()->feather();
             case DashPathBase::offsetPropertyKey:
                 return object->as<DashPathBase>()->offset();
             case LinearGradientBase::startXPropertyKey:
@@ -3179,6 +3184,7 @@ public:
             case NestedNumberBase::nestedValuePropertyKey:
             case NestedRemapAnimationBase::timePropertyKey:
             case BlendAnimation1DBase::valuePropertyKey:
+            case ShapePaintBase::featherPropertyKey:
             case DashPathBase::offsetPropertyKey:
             case LinearGradientBase::startXPropertyKey:
             case LinearGradientBase::startYPropertyKey:
@@ -3929,6 +3935,8 @@ public:
                 return object->is<NestedRemapAnimationBase>();
             case BlendAnimation1DBase::valuePropertyKey:
                 return object->is<BlendAnimation1DBase>();
+            case ShapePaintBase::featherPropertyKey:
+                return object->is<ShapePaintBase>();
             case DashPathBase::offsetPropertyKey:
                 return object->is<DashPathBase>();
             case LinearGradientBase::startXPropertyKey:
