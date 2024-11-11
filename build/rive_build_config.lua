@@ -228,6 +228,9 @@ filter({ 'system:windows', 'options:for_unreal' })
 do
     staticruntime('off')
     runtime('Release')
+    -- this is the prefered MSVC redist unreal uses (not the windows sdk version which is a different thing.) we require this to build rive
+    -- since not having it can cause linkerer errors
+    toolsversion "14.38.33130"
 end
 
 filter({ 'system:windows', 'options:toolset=clang' })

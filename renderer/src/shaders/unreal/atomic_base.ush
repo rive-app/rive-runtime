@@ -4,6 +4,7 @@
 #define UNIFORM_DEFINITIONS_AUTO_GENERATED 1
 #define OPTIONALLY_FLAT flat
 
+#include "/Engine/Private/Common.ush"
 #include "/Engine/Generated/GeneratedUniformBuffers.ush"
 #include "parse_environment.ush"
 #include "Generated/rhi.minified.ush"

@@ -2,7 +2,7 @@
  * Copyright 2024 Rive
  */
 
-#ifdef RIVE_ANDROID
+#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
 
 #include <android/native_app_glue/android_native_app_glue.h>
 #include <vector>

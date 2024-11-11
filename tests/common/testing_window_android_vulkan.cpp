@@ -4,7 +4,7 @@
 
 #include "testing_window.hpp"
 
-#if !defined(RIVE_ANDROID)
+#if !defined(RIVE_ANDROID) || !defined(RIVE_VULKAN)
 
 TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow,
                                                 bool coreFeaturesOnly,

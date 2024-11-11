@@ -14,9 +14,9 @@ function rive_tools_project(name, project_kind)
     cppdialect('C++17')
     if project_kind == 'RiveTool' then
         kind(
+            _OPTIONS['for_unreal'] and 'StaticLib' or
             _OPTIONS['os'] == 'android' and 'SharedLib'
                 or _OPTIONS['os'] == 'ios' and 'StaticLib'
-                or _OPTIONS['for_unreal'] and 'StaticLib'
                 or 'ConsoleApp'
         )
     else

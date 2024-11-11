@@ -165,12 +165,12 @@ private:
     std::unique_ptr<rive::Scene> m_scene;
 };
 
-#if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
+#if defined(RIVE_UNREAL)
+int goldens_main(int argc, const char* argv[])
+#elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int goldens_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
 int rive_android_main(int argc, const char* const* argv, struct android_app*)
-#elif defined(RIVE_UNREAL)
-int goldens_main(int argc, const char* argv[])
 #else
 int main(int argc, const char* argv[])
 #endif
