@@ -5,11 +5,18 @@
 #include <stdio.h>
 namespace rive
 {
+class DataBind;
 class DataConverter : public DataConverterBase
 {
 public:
-    virtual DataValue* convert(DataValue* value) { return value; };
-    virtual DataValue* reverseConvert(DataValue* value) { return value; };
+    virtual DataValue* convert(DataValue* value, DataBind* dataBind)
+    {
+        return value;
+    };
+    virtual DataValue* reverseConvert(DataValue* value, DataBind* dataBind)
+    {
+        return value;
+    };
     virtual DataType outputType() { return DataType::none; };
     StatusCode import(ImportStack& importStack) override;
 };

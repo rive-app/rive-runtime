@@ -11,8 +11,7 @@ class DataBindContextValueList : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueList(ViewModelInstanceValue* source,
-                             DataConverter* converter);
+    DataBindContextValueList(DataBind* m_dataBind);
     void apply(Core* component,
                uint32_t propertyKey,
                bool isMainDirection) override;

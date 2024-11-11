@@ -7,8 +7,7 @@ class DataBindContextValueNumber : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueNumber(ViewModelInstanceValue* source,
-                               DataConverter* converter);
+    DataBindContextValueNumber(DataBind* m_dataBind);
     void apply(Core* component,
                uint32_t propertyKey,
                bool isMainDirection) override;

@@ -112,45 +112,39 @@ DataType DataBind::outputType()
     return DataType::none;
 }
 
+DataBind::~DataBind()
+{
+    delete m_ContextValue;
+    m_ContextValue = nullptr;
+}
+
 void DataBind::bind()
 {
+    delete m_ContextValue;
+    m_ContextValue = nullptr;
     switch (outputType())
     {
         case DataType::number:
-            m_ContextValue =
-                rivestd::make_unique<DataBindContextValueNumber>(m_Source,
-                                                                 converter());
+            m_ContextValue = new DataBindContextValueNumber(this);
             break;
         case DataType::string:
-            m_ContextValue =
-                rivestd::make_unique<DataBindContextValueString>(m_Source,
-                                                                 converter());
+            m_ContextValue = new DataBindContextValueString(this);
             break;
         case DataType::boolean:
-            m_ContextValue =
-                rivestd::make_unique<DataBindContextValueBoolean>(m_Source,
-                                                                  converter());
+            m_ContextValue = new DataBindContextValueBoolean(this);
             break;
         case DataType::color:
-            m_ContextValue =
-                rivestd::make_unique<DataBindContextValueColor>(m_Source,
-                                                                converter());
+            m_ContextValue = new DataBindContextValueColor(this);
             break;
         case DataType::enumType:
-            m_ContextValue =
-                rivestd::make_unique<DataBindContextValueEnum>(m_Source,
-                                                               converter());
+            m_ContextValue = new DataBindContextValueEnum(this);
             break;
         case DataType::list:
-            m_ContextValue =
-                rivestd::make_unique<DataBindContextValueList>(m_Source,
-                                                               converter());
+            m_ContextValue = new DataBindContextValueList(this);
             m_ContextValue->update(m_target);
             break;
         case DataType::trigger:
-            m_ContextValue =
-                rivestd::make_unique<DataBindContextValueTrigger>(m_Source,
-                                                                  converter());
+            m_ContextValue = new DataBindContextValueTrigger(this);
             break;
         default:
             break;

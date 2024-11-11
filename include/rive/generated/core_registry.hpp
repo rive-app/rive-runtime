@@ -127,6 +127,8 @@
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_operation.hpp"
 #include "rive/data_bind/converters/data_converter_rounder.hpp"
+#include "rive/data_bind/converters/data_converter_system_degs_to_rads.hpp"
+#include "rive/data_bind/converters/data_converter_system_normalizer.hpp"
 #include "rive/data_bind/converters/data_converter_to_string.hpp"
 #include "rive/data_bind/converters/data_converter_trigger.hpp"
 #include "rive/data_bind/data_bind.hpp"
@@ -512,6 +514,12 @@ public:
                 return new BindablePropertyBoolean();
             case DataBindBase::typeKey:
                 return new DataBind();
+            case DataConverterOperationBase::typeKey:
+                return new DataConverterOperation();
+            case DataConverterSystemDegsToRadsBase::typeKey:
+                return new DataConverterSystemDegsToRads();
+            case DataConverterSystemNormalizerBase::typeKey:
+                return new DataConverterSystemNormalizer();
             case DataConverterGroupItemBase::typeKey:
                 return new DataConverterGroupItem();
             case DataConverterGroupBase::typeKey:
@@ -520,8 +528,6 @@ public:
                 return new DataConverterRounder();
             case DataConverterTriggerBase::typeKey:
                 return new DataConverterTrigger();
-            case DataConverterOperationBase::typeKey:
-                return new DataConverterOperation();
             case DataConverterToStringBase::typeKey:
                 return new DataConverterToString();
             case DataBindContextBase::typeKey:
@@ -1180,14 +1186,14 @@ public:
             case DataBindBase::converterIdPropertyKey:
                 object->as<DataBindBase>()->converterId(value);
                 break;
+            case DataConverterOperationBase::operationTypePropertyKey:
+                object->as<DataConverterOperationBase>()->operationType(value);
+                break;
             case DataConverterGroupItemBase::converterIdPropertyKey:
                 object->as<DataConverterGroupItemBase>()->converterId(value);
                 break;
             case DataConverterRounderBase::decimalsPropertyKey:
                 object->as<DataConverterRounderBase>()->decimals(value);
-                break;
-            case DataConverterOperationBase::operationTypePropertyKey:
-                object->as<DataConverterOperationBase>()->operationType(value);
                 break;
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 object->as<BindablePropertyEnumBase>()->propertyValue(value);
@@ -2353,13 +2359,13 @@ public:
                 return object->as<DataBindBase>()->flags();
             case DataBindBase::converterIdPropertyKey:
                 return object->as<DataBindBase>()->converterId();
+            case DataConverterOperationBase::operationTypePropertyKey:
+                return object->as<DataConverterOperationBase>()
+                    ->operationType();
             case DataConverterGroupItemBase::converterIdPropertyKey:
                 return object->as<DataConverterGroupItemBase>()->converterId();
             case DataConverterRounderBase::decimalsPropertyKey:
                 return object->as<DataConverterRounderBase>()->decimals();
-            case DataConverterOperationBase::operationTypePropertyKey:
-                return object->as<DataConverterOperationBase>()
-                    ->operationType();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyEnumBase>()->propertyValue();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -3045,9 +3051,9 @@ public:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
             case DataBindBase::converterIdPropertyKey:
+            case DataConverterOperationBase::operationTypePropertyKey:
             case DataConverterGroupItemBase::converterIdPropertyKey:
             case DataConverterRounderBase::decimalsPropertyKey:
-            case DataConverterOperationBase::operationTypePropertyKey:
             case BindablePropertyEnumBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::fitPropertyKey:
             case WeightBase::valuesPropertyKey:
@@ -3665,12 +3671,12 @@ public:
                 return object->is<DataBindBase>();
             case DataBindBase::converterIdPropertyKey:
                 return object->is<DataBindBase>();
+            case DataConverterOperationBase::operationTypePropertyKey:
+                return object->is<DataConverterOperationBase>();
             case DataConverterGroupItemBase::converterIdPropertyKey:
                 return object->is<DataConverterGroupItemBase>();
             case DataConverterRounderBase::decimalsPropertyKey:
                 return object->is<DataConverterRounderBase>();
-            case DataConverterOperationBase::operationTypePropertyKey:
-                return object->is<DataConverterOperationBase>();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyEnumBase>();
             case NestedArtboardLeafBase::fitPropertyKey:

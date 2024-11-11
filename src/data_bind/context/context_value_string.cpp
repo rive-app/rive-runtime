@@ -4,10 +4,8 @@
 
 using namespace rive;
 
-DataBindContextValueString::DataBindContextValueString(
-    ViewModelInstanceValue* source,
-    DataConverter* converter) :
-    DataBindContextValue(source, converter)
+DataBindContextValueString::DataBindContextValueString(DataBind* dataBind) :
+    DataBindContextValue(dataBind)
 {}
 
 void DataBindContextValueString::apply(Core* target,
@@ -16,7 +14,8 @@ void DataBindContextValueString::apply(Core* target,
 {
     updateSourceValue();
     auto value = calculateValue<DataValueString, std::string>(m_dataValue,
-                                                              isMainDirection);
+                                                              isMainDirection,
+                                                              m_dataBind);
     CoreRegistry::setString(target, propertyKey, value);
 }
 

@@ -4,10 +4,8 @@
 
 using namespace rive;
 
-DataBindContextValueTrigger::DataBindContextValueTrigger(
-    ViewModelInstanceValue* source,
-    DataConverter* converter) :
-    DataBindContextValue(source, converter)
+DataBindContextValueTrigger::DataBindContextValueTrigger(DataBind* dataBind) :
+    DataBindContextValue(dataBind)
 {}
 
 void DataBindContextValueTrigger::apply(Core* target,
@@ -16,7 +14,8 @@ void DataBindContextValueTrigger::apply(Core* target,
 {
     updateSourceValue();
     auto value = calculateValue<DataValueTrigger, uint32_t>(m_dataValue,
-                                                            isMainDirection);
+                                                            isMainDirection,
+                                                            m_dataBind);
     CoreRegistry::setUint(target, propertyKey, value);
 }
 

@@ -4,10 +4,8 @@
 
 using namespace rive;
 
-DataBindContextValueColor::DataBindContextValueColor(
-    ViewModelInstanceValue* source,
-    DataConverter* converter) :
-    DataBindContextValue(source, converter)
+DataBindContextValueColor::DataBindContextValueColor(DataBind* dataBind) :
+    DataBindContextValue(dataBind)
 {}
 
 void DataBindContextValueColor::apply(Core* target,
@@ -15,8 +13,9 @@ void DataBindContextValueColor::apply(Core* target,
                                       bool isMainDirection)
 {
     updateSourceValue();
-    auto value =
-        calculateValue<DataValueColor, int>(m_dataValue, isMainDirection);
+    auto value = calculateValue<DataValueColor, int>(m_dataValue,
+                                                     isMainDirection,
+                                                     m_dataBind);
     CoreRegistry::setColor(target, propertyKey, value);
 }
 

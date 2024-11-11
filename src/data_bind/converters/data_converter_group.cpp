@@ -10,22 +10,23 @@ void DataConverterGroup::addItem(DataConverterGroupItem* item)
     m_items.push_back(item);
 }
 
-DataValue* DataConverterGroup::convert(DataValue* input)
+DataValue* DataConverterGroup::convert(DataValue* input, DataBind* dataBind)
 {
     DataValue* value = input;
     for (auto item : m_items)
     {
-        value = item->converter()->convert(value);
+        value = item->converter()->convert(value, dataBind);
     }
     return value;
 }
 
-DataValue* DataConverterGroup::reverseConvert(DataValue* input)
+DataValue* DataConverterGroup::reverseConvert(DataValue* input,
+                                              DataBind* dataBind)
 {
     DataValue* value = input;
     for (auto it = m_items.rbegin(); it != m_items.rend(); ++it)
     {
-        value = (*it)->converter()->reverseConvert(value);
+        value = (*it)->converter()->reverseConvert(value, dataBind);
     }
     return value;
 }

@@ -4,7 +4,7 @@
 
 using namespace rive;
 
-DataValue* DataConverterRounder::convert(DataValue* input)
+DataValue* DataConverterRounder::convert(DataValue* input, DataBind* dataBind)
 {
     auto output = new DataValueNumber();
     if (input->is<DataValueNumber>())

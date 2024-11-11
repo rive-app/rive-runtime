@@ -4,7 +4,7 @@
 
 using namespace rive;
 
-DataValue* DataConverterTrigger::convert(DataValue* input)
+DataValue* DataConverterTrigger::convert(DataValue* input, DataBind* dataBind)
 {
     auto output = new DataValueTrigger();
     if (input->is<DataValueTrigger>())

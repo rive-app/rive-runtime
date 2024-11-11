@@ -5,10 +5,8 @@
 
 using namespace rive;
 
-DataBindContextValueList::DataBindContextValueList(
-    ViewModelInstanceValue* source,
-    DataConverter* converter) :
-    DataBindContextValue(source, converter)
+DataBindContextValueList::DataBindContextValueList(DataBind* dataBind) :
+    DataBindContextValue(dataBind)
 {}
 
 std::unique_ptr<ArtboardInstance> DataBindContextValueList::createArtboard(
@@ -82,7 +80,8 @@ void DataBindContextValueList::update(Core* target)
 {
     if (target != nullptr)
     {
-        auto sourceList = m_source->as<ViewModelInstanceList>();
+        auto source = m_dataBind->source();
+        auto sourceList = source->as<ViewModelInstanceList>();
         auto listItems = sourceList->listItems();
 
         int listIndex = 0;

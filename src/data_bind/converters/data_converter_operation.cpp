@@ -4,7 +4,7 @@
 
 using namespace rive;
 
-DataValue* DataConverterOperation::convert(DataValue* input)
+DataValue* DataConverterOperation::convert(DataValue* input, DataBind* dataBind)
 {
     auto output = new DataValueNumber();
     if (input->is<DataValueNumber>())
@@ -34,7 +34,8 @@ DataValue* DataConverterOperation::convert(DataValue* input)
     return output;
 }
 
-DataValue* DataConverterOperation::reverseConvert(DataValue* input)
+DataValue* DataConverterOperation::reverseConvert(DataValue* input,
+                                                  DataBind* dataBind)
 {
     auto output = new DataValueNumber();
     if (input->is<DataValueNumber>())

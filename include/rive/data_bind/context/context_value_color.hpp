@@ -7,8 +7,7 @@ class DataBindContextValueColor : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueColor(ViewModelInstanceValue* source,
-                              DataConverter* converter);
+    DataBindContextValueColor(DataBind* m_dataBind);
     void apply(Core* component,
                uint32_t propertyKey,
                bool isMainDirection) override;

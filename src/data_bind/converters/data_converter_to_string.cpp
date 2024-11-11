@@ -6,7 +6,7 @@
 
 using namespace rive;
 
-DataValue* DataConverterToString::convert(DataValue* input)
+DataValue* DataConverterToString::convert(DataValue* input, DataBind* dataBind)
 {
     auto output = new DataValueString();
     if (input->is<DataValueNumber>())

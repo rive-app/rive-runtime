@@ -7,8 +7,7 @@ class DataBindContextValueEnum : public DataBindContextValue
 {
 
 public:
-    DataBindContextValueEnum(ViewModelInstanceValue* source,
-                             DataConverter* converter);
+    DataBindContextValueEnum(DataBind* m_dataBind);
     void apply(Core* component,
                uint32_t propertyKey,
                bool isMainDirection) override;

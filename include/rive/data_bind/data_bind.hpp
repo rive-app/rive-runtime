@@ -3,13 +3,13 @@
 #include "rive/component_dirt.hpp"
 #include "rive/generated/data_bind/data_bind_base.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
-#include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/data_context.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 #include <stdio.h>
 namespace rive
 {
+class DataBindContextValue;
 #ifdef WITH_RIVE_TOOLS
 class DataBind;
 typedef void (*DataBindChanged)();
@@ -17,6 +17,7 @@ typedef void (*DataBindChanged)();
 class DataBind : public DataBindBase
 {
 public:
+    ~DataBind();
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode import(ImportStack& importStack) override;
     virtual void updateSourceBinding();
@@ -30,12 +31,13 @@ public:
     bool addDirt(ComponentDirt value, bool recurse);
     DataConverter* converter() const { return m_dataConverter; };
     void converter(DataConverter* value) { m_dataConverter = value; };
+    ViewModelInstanceValue* source() const { return m_Source; };
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;
     Core* m_target;
     ViewModelInstanceValue* m_Source;
-    std::unique_ptr<DataBindContextValue> m_ContextValue;
+    DataBindContextValue* m_ContextValue = nullptr;
     DataConverter* m_dataConverter;
     DataType outputType();
 #ifdef WITH_RIVE_TOOLS

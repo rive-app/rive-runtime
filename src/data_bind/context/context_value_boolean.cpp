@@ -4,10 +4,8 @@
 
 using namespace rive;
 
-DataBindContextValueBoolean::DataBindContextValueBoolean(
-    ViewModelInstanceValue* source,
-    DataConverter* converter) :
-    DataBindContextValue(source, converter)
+DataBindContextValueBoolean::DataBindContextValueBoolean(DataBind* dataBind) :
+    DataBindContextValue(dataBind)
 {}
 
 void DataBindContextValueBoolean::apply(Core* target,
@@ -15,8 +13,9 @@ void DataBindContextValueBoolean::apply(Core* target,
                                         bool isMainDirection)
 {
     updateSourceValue();
-    auto value =
-        calculateValue<DataValueBoolean, bool>(m_dataValue, isMainDirection);
+    auto value = calculateValue<DataValueBoolean, bool>(m_dataValue,
+                                                        isMainDirection,
+                                                        m_dataBind);
     CoreRegistry::setBool(target, propertyKey, value);
 }
 
