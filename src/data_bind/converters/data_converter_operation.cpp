@@ -4,13 +4,13 @@
 
 using namespace rive;
 
-DataValue* DataConverterOperation::convert(DataValue* input, DataBind* dataBind)
+DataValue* DataConverterOperation::convertValue(DataValue* input, float value)
 {
     auto output = new DataValueNumber();
     if (input->is<DataValueNumber>())
     {
         float inputValue = input->as<DataValueNumber>()->value();
-        float resultValue = value();
+        float resultValue = value;
         switch (op())
         {
             case ArithmeticOperation::add:
@@ -34,14 +34,14 @@ DataValue* DataConverterOperation::convert(DataValue* input, DataBind* dataBind)
     return output;
 }
 
-DataValue* DataConverterOperation::reverseConvert(DataValue* input,
-                                                  DataBind* dataBind)
+DataValue* DataConverterOperation::reverseConvertValue(DataValue* input,
+                                                       float value)
 {
     auto output = new DataValueNumber();
     if (input->is<DataValueNumber>())
     {
         float inputValue = input->as<DataValueNumber>()->value();
-        float resultValue = value();
+        float resultValue = value;
         switch (op())
         {
             case ArithmeticOperation::add:

@@ -1,20 +1,11 @@
 {
   "name": "DataConverterOperation",
   "key": {
-    "int": 500,
+    "int": 516,
     "string": "dataconverteroperation"
   },
   "extends": "data_bind/converters/data_converter.json",
   "properties": {
-    "value": {
-      "type": "double",
-      "initialValue": "1",
-      "key": {
-        "int": 681,
-        "string": "value"
-      },
-      "description": "Number to multiply the input to"
-    },
     "operationType": {
       "type": "uint",
       "initialValue": "0",

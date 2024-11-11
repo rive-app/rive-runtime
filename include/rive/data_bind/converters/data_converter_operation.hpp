@@ -9,13 +9,15 @@ namespace rive
 class DataConverterOperation : public DataConverterOperationBase
 {
 public:
-    DataValue* convert(DataValue* value, DataBind* dataBind) override;
-    DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
     DataType outputType() override { return DataType::number; };
     ArithmeticOperation op() const
     {
         return (ArithmeticOperation)operationType();
     }
+
+protected:
+    DataValue* convertValue(DataValue* input, float value);
+    DataValue* reverseConvertValue(DataValue* input, float value);
 };
 } // namespace rive
 

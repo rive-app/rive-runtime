@@ -126,6 +126,8 @@
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_operation.hpp"
+#include "rive/data_bind/converters/data_converter_operation_value.hpp"
+#include "rive/data_bind/converters/data_converter_operation_viewmodel.hpp"
 #include "rive/data_bind/converters/data_converter_rounder.hpp"
 #include "rive/data_bind/converters/data_converter_system_degs_to_rads.hpp"
 #include "rive/data_bind/converters/data_converter_system_normalizer.hpp"
@@ -516,6 +518,8 @@ public:
                 return new DataBind();
             case DataConverterOperationBase::typeKey:
                 return new DataConverterOperation();
+            case DataConverterOperationValueBase::typeKey:
+                return new DataConverterOperationValue();
             case DataConverterSystemDegsToRadsBase::typeKey:
                 return new DataConverterSystemDegsToRads();
             case DataConverterSystemNormalizerBase::typeKey:
@@ -528,6 +532,8 @@ public:
                 return new DataConverterRounder();
             case DataConverterTriggerBase::typeKey:
                 return new DataConverterTrigger();
+            case DataConverterOperationViewModelBase::typeKey:
+                return new DataConverterOperationViewModel();
             case DataConverterToStringBase::typeKey:
                 return new DataConverterToString();
             case DataBindContextBase::typeKey:
@@ -1772,8 +1778,8 @@ public:
             case JoystickBase::heightPropertyKey:
                 object->as<JoystickBase>()->height(value);
                 break;
-            case DataConverterOperationBase::valuePropertyKey:
-                object->as<DataConverterOperationBase>()->value(value);
+            case DataConverterOperationValueBase::valuePropertyKey:
+                object->as<DataConverterOperationValueBase>()->value(value);
                 break;
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 object->as<BindablePropertyNumberBase>()->propertyValue(value);
@@ -2771,8 +2777,8 @@ public:
                 return object->as<JoystickBase>()->width();
             case JoystickBase::heightPropertyKey:
                 return object->as<JoystickBase>()->height();
-            case DataConverterOperationBase::valuePropertyKey:
-                return object->as<DataConverterOperationBase>()->value();
+            case DataConverterOperationValueBase::valuePropertyKey:
+                return object->as<DataConverterOperationValueBase>()->value();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyNumberBase>()
                     ->propertyValue();
@@ -3243,7 +3249,7 @@ public:
             case JoystickBase::originYPropertyKey:
             case JoystickBase::widthPropertyKey:
             case JoystickBase::heightPropertyKey:
-            case DataConverterOperationBase::valuePropertyKey:
+            case DataConverterOperationValueBase::valuePropertyKey:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::alignmentXPropertyKey:
             case NestedArtboardLeafBase::alignmentYPropertyKey:
@@ -3292,6 +3298,7 @@ public:
                 return CoreDoubleType::id;
             case NestedArtboardBase::dataBindPathIdsPropertyKey:
             case MeshBase::triangleIndexBytesPropertyKey:
+            case DataConverterOperationViewModelBase::sourcePathIdsPropertyKey:
             case DataBindContextBase::sourcePathIdsPropertyKey:
             case FileAssetBase::cdnUuidPropertyKey:
             case FileAssetContentsBase::bytesPropertyKey:
@@ -4047,8 +4054,8 @@ public:
                 return object->is<JoystickBase>();
             case JoystickBase::heightPropertyKey:
                 return object->is<JoystickBase>();
-            case DataConverterOperationBase::valuePropertyKey:
-                return object->is<DataConverterOperationBase>();
+            case DataConverterOperationValueBase::valuePropertyKey:
+                return object->is<DataConverterOperationValueBase>();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyNumberBase>();
             case NestedArtboardLeafBase::alignmentXPropertyKey:

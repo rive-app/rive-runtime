@@ -10,8 +10,13 @@ namespace rive
 {
 class DataBindContext : public DataBindContextBase
 {
+private:
+    void addConverterDependencies(DataConverter* converter,
+                                  DataContext* dataContext);
+
 protected:
     std::vector<uint32_t> m_SourcePathIdsBuffer;
+    DataContext* m_dataContext;
 
 public:
     void decodeSourcePathIds(Span<const uint8_t> value) override;
@@ -19,6 +24,7 @@ public:
     void unbind() override;
     void bindFromContext(DataContext* dataContext);
     ViewModelInstanceValue* source() { return m_Source; };
+    DataContext* dataContext() const { return m_dataContext; };
 };
 } // namespace rive
 

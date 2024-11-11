@@ -20,6 +20,7 @@ public:
         };
         return Super::outputType();
     }
+    const std::vector<DataConverterGroupItem*>& items() { return m_items; }
 
 private:
     std::vector<DataConverterGroupItem*> m_items;

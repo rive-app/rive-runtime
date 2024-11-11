@@ -4,5 +4,5 @@
     "int": 514,
     "string": "dataconvertersystemdegstorads"
   },
-  "extends": "data_bind/converters/data_converter_operation.json"
+  "extends": "data_bind/converters/data_converter_operation_value.json"
 }
