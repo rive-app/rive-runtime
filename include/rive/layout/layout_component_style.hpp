@@ -73,6 +73,7 @@ public:
 
     void markLayoutNodeDirty();
     void markLayoutStyleDirty();
+    void scaleTypeChanged();
 
     void layoutAlignmentTypeChanged() override;
     void layoutWidthScaleTypeChanged() override;

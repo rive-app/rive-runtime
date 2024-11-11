@@ -221,6 +221,14 @@ void LayoutComponentStyle::markLayoutStyleDirty()
     }
 }
 
+void LayoutComponentStyle::scaleTypeChanged()
+{
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->scaleTypeChanged();
+    }
+}
+
 StatusCode LayoutComponentStyle::onAddedDirty(CoreContext* context)
 {
     auto code = Super::onAddedDirty(context);
@@ -239,19 +247,17 @@ StatusCode LayoutComponentStyle::onAddedDirty(CoreContext* context)
 #else
 void LayoutComponentStyle::markLayoutNodeDirty() {}
 void LayoutComponentStyle::markLayoutStyleDirty() {}
+void LayoutComponentStyle::scaleTypeChanged() {}
 #endif
 
 void LayoutComponentStyle::layoutAlignmentTypeChanged()
 {
     markLayoutNodeDirty();
 }
-void LayoutComponentStyle::layoutWidthScaleTypeChanged()
-{
-    markLayoutNodeDirty();
-}
+void LayoutComponentStyle::layoutWidthScaleTypeChanged() { scaleTypeChanged(); }
 void LayoutComponentStyle::layoutHeightScaleTypeChanged()
 {
-    markLayoutNodeDirty();
+    scaleTypeChanged();
 }
 void LayoutComponentStyle::displayValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::positionTypeValueChanged() { markLayoutNodeDirty(); }
