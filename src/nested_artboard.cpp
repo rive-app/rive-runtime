@@ -366,8 +366,7 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
         }
     }
 
-    auto advancingFlags =
-        flags | AdvanceFlags::AdvanceNested & ~AdvanceFlags::IsRoot;
+    auto advancingFlags = flags & ~AdvanceFlags::IsRoot;
     if (m_Artboard->advanceInternal(elapsedSeconds, advancingFlags))
     {
         keepGoing = true;
