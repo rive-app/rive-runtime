@@ -57,8 +57,9 @@
 #extension GL_KHR_blend_equation_advanced : require
 #endif
 
-#if defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT) &&             \
-    defined(GL_ES)
+// clang-format off
+#if defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT) && defined(GL_ES)
+// clang-format on
 #ifdef GL_EXT_clip_cull_distance
 #extension GL_EXT_clip_cull_distance : require
 #elif defined(GL_ANGLE_clip_cull_distance)
@@ -451,13 +452,10 @@
 
 #define IMAGE_RECT_VERTEX_MAIN VERTEX_MAIN
 
-#define IMAGE_MESH_VERTEX_MAIN(NAME,                                           \
-                               PositionAttr,                                   \
-                               position,                                       \
-                               UVAttr,                                         \
-                               uv,                                             \
-                               _vertexID)                                      \
+// clang-format off
+#define IMAGE_MESH_VERTEX_MAIN(NAME, PositionAttr, position, UVAttr, uv, _vertexID) \
     VERTEX_MAIN(NAME, PositionAttr, position, _vertexID, _instanceID)
+// clang-format on
 
 #define VARYING_INIT(NAME, TYPE)
 #define VARYING_PACK(NAME)
