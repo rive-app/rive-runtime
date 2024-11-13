@@ -11,6 +11,9 @@ private:
     TransformComponents m_ComponentsA;
     TransformComponents m_ComponentsB;
 
+protected:
+    bool requiresTarget() override { return false; }
+
 public:
     void constrain(TransformComponent* component) override;
 };

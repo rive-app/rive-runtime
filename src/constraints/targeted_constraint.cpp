@@ -11,7 +11,13 @@ bool TargetedConstraint::validate(CoreContext* context)
         return false;
     }
     auto coreObject = context->resolve(targetId());
-    return coreObject != nullptr && coreObject->is<TransformComponent>();
+    // If core object is not null and is not a TransformComponent it should
+    // always be invalid
+    if (coreObject != nullptr && !coreObject->is<TransformComponent>())
+    {
+        return false;
+    }
+    return !requiresTarget() || coreObject != nullptr;
 }
 
 StatusCode TargetedConstraint::onAddedDirty(CoreContext* context)
@@ -21,7 +27,13 @@ StatusCode TargetedConstraint::onAddedDirty(CoreContext* context)
     {
         return code;
     }
-    m_Target = context->resolve(targetId())->as<TransformComponent>();
+    auto coreObject = context->resolve(targetId());
+    if (requiresTarget() && coreObject == nullptr)
+    {
+        return StatusCode::MissingObject;
+    }
+
+    m_Target = static_cast<TransformComponent*>(coreObject);
 
     return StatusCode::Ok;
 }
@@ -30,5 +42,8 @@ void TargetedConstraint::buildDependencies()
 {
     // Targeted constraints must have their constrained component (parent)
     // update after the target.
-    m_Target->addDependent(parent());
+    if (m_Target != nullptr)
+    {
+        m_Target->addDependent(parent());
+    }
 }
