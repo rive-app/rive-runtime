@@ -64,6 +64,8 @@ TEST_CASE("nested artboards with one shot animations will not main "
     REQUIRE(stateMachine->advanceAndApply(0.0f) == true);
     REQUIRE(stateMachine->advanceAndApply(0.9f) == true);
     REQUIRE(stateMachine->advanceAndApply(0.1f) == true);
-    // nested artboards animation is 1s long
+    // nested artboards animation is 1s long but has an event to complete
+    REQUIRE(stateMachine->advanceAndApply(0.1f) == true);
+    // animation has ended and no events to report
     REQUIRE(stateMachine->advanceAndApply(0.1f) == false);
 }
