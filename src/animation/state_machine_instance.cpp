@@ -108,8 +108,11 @@ public:
 
         apply();
 
+        bool changedState = false;
+
         for (int i = 0; updateState(i != 0); i++)
         {
+            changedState = true;
             apply();
 
             if (i == maxIterations)
@@ -121,7 +124,7 @@ public:
 
         m_currentState->clearSpilledTime();
 
-        return m_mix != 1.0f || m_waitingForExit ||
+        return changedState || m_mix != 1.0f || m_waitingForExit ||
                (m_currentState != nullptr && m_currentState->keepGoing());
     }
 
