@@ -81,6 +81,8 @@ parser.add_argument("-S", "--server_only",
 parser.add_argument("-r", "--remote",
                     action='store_true',
                     help="target is remote; serve from host IP instead of localhost")
+parser.add_argument("--build-only", action='store_true',
+                    help="only build, don't deploy")
 parser.add_argument("--no-rebuild", action='store_true',
                     help="don't rebuild the native tools in builddir")
 parser.add_argument("-n", "--no-install", action='store_true',
@@ -520,13 +522,14 @@ def main():
     if args.server_only:
         args.jobs_per_tool = 1 # Only print the command for each job once.
 
-    # Build the native tools.
     rive_tools_dir = os.path.dirname(os.path.realpath(__file__))
     if "ios" in args.target:
         # ios links statically, so we need to build every tool every time.
         build_targets = ["gms", "goldens", "player"]
     else:
         build_targets = args.tools
+
+    # Build the native code.
     if not args.no_rebuild and not args.no_install:
         build_rive = [os.path.join(rive_tools_dir, "../build/build_rive.sh")]
         if os.name == "nt":
@@ -538,6 +541,7 @@ def main():
                 build_rive[0] = os.path.splitext(build_rive[0])[0] + '.bat'
         subprocess.check_call(build_rive + ["rebuild", args.builddir] + build_targets)
 
+    # Build the wrapper app, if applicable
     if not args.no_install:
         if args.target == "android":
             # Copy the native libraries into the android_tests project.
@@ -565,17 +569,32 @@ def main():
             os.chdir(os.path.join(rive_tools_dir, "android_tests"))
             subprocess.check_call(["./gradlew" if os.name != "nt" else "gradlew.bat",
                                    ":app:assembleDebug"])
-            # Install the android_tests wrapper app.
-            force_stop_android_tests_apk()
-            subprocess.check_call(["adb", "install", "-r", "app/build/outputs/apk/debug/app-debug.apk"])
             os.chdir(cwd)
-            print()
         elif args.target == "ios":
             # Build the ios_tests wrapper app.
             subprocess.check_call(["xcodebuild",
                                    "-destination", "generic/platform=iOS",
                                    "-config", "Debug",
                                    "build", "-project", "ios_tests/ios_tests.xcodeproj"])
+        elif args.target == "iossim":
+            # Build the ios_tests wrapper app for the simulator.
+            subprocess.check_call(["xcodebuild",
+                                   "-destination", "generic/platform=iOS Simulator",
+                                   "-config", "Debug",
+                                   "-sdk", "iphonesimulator",
+                                   "build", "-project", "ios_tests/ios_tests.xcodeproj"])
+
+    if args.build_only:
+        return 0
+
+    # Install the wrapper app, if applicable.
+    if not args.no_install:
+        if args.target == "android":
+            # Install the android_tests wrapper app.
+            force_stop_android_tests_apk()
+            subprocess.check_call(["adb", "install", "-r", "android_tests/app/build/outputs/apk/debug/app-debug.apk"])
+            print()
+        elif args.target == "ios":
             # Install the ios_tests wrapper app on the device.
             if target_info["ios_version"] >= 17:
                 # ios-deploy is no longer supported after iOS 17.
@@ -587,12 +606,6 @@ def main():
                                        "ios_tests/build/Debug-iphoneos/rive_ios_tests.app"])
             print()
         elif args.target == "iossim":
-            # Build the ios_tests wrapper app for the simulator.
-            subprocess.check_call(["xcodebuild",
-                                   "-destination", "generic/platform=iOS Simulator",
-                                   "-config", "Debug",
-                                   "-sdk", "iphonesimulator",
-                                   "build", "-project", "ios_tests/ios_tests.xcodeproj"])
             # Install the ios_tests wrapper app on the simulator.
             subprocess.check_call(["xcrun", "simctl", "install", args.ios_udid,
                                    "ios_tests/build/Debug-iphonesimulator/rive_ios_tests.app"])

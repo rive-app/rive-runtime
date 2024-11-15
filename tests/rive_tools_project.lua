@@ -19,6 +19,21 @@ function rive_tools_project(name, project_kind)
                 or _OPTIONS['os'] == 'ios' and 'StaticLib'
                 or 'ConsoleApp'
         )
+
+        dependson({
+            'tools_common',
+            'rive_pls_renderer',
+            'rive_cg_renderer',
+            'rive_decoders',
+            'rive',
+            'libpng',
+            'zlib',
+            'libjpeg',
+            'libwebp',
+            'rive_yoga',
+            'rive_harfbuzz',
+            'rive_sheenbidi',
+        })
     else
         kind(project_kind)
     end
