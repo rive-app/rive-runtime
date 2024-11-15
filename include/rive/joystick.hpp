@@ -18,6 +18,12 @@ public:
     void apply(Artboard* artboard) const;
     StatusCode onAddedClean(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
+    void xChanged() override;
+    void yChanged() override;
+    void posXChanged() override;
+    void posYChanged() override;
+    void widthChanged() override;
+    void heightChanged() override;
 
     bool isJoystickFlagged(JoystickFlags flag) const
     {
