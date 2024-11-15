@@ -257,7 +257,7 @@ class Definition {
                         '}');
           } else {
             code.writeln(
-                'virtual void ${property.name}(${property.type.cppName} value) = 0;');
+                '''virtual void ${property.name}(${property.type.cppName} value) = 0;''');
           }
         }
 
@@ -576,6 +576,7 @@ class Definition {
     ctxCode.writeln('default:return false;');
     ctxCode.writeln('}}');
 
+    // ignore: lines_longer_than_80_chars
     // static bool objectSupportsProperty(Core* object, uint32_t propertyKey) { return true; }
     ctxCode.writeln('''
       static bool objectSupportsProperty(Core* object, uint32_t propertyKey) {
