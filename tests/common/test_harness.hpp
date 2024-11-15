@@ -46,7 +46,10 @@ public:
     void savePNG(ImageSaveArgs args)
     {
         assert(m_initialized);
-        m_encodeQueue.push(std::move(args));
+        if (!m_encodeThreads.empty())
+        {
+            m_encodeQueue.push(std::move(args));
+        }
     }
 
     // Only returns true the on the first server request for a given name.
@@ -66,6 +69,10 @@ public:
 
 private:
     TestHarness();
+
+    // Pipe stdout & stderr and spin off a thread that forwards them to the test
+    // harness and, on Android, the Android logs.
+    void initStdioThread();
 
     // Adheres to a quick-and-dirty protocol for sending a PNG image back to the
     // python harness.

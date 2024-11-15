@@ -97,25 +97,8 @@ void TestHarness::init(std::unique_ptr<TCPClient> tcpClient,
     m_initialized = true;
 
     m_primaryTCPClient = std::move(tcpClient);
-    if (!m_primaryTCPClient)
-    {
-        fprintf(stderr, "null TCPClient");
-        abort();
-    }
 
-#ifndef _WIN32
-    // Make stdout & stderr line buffered. (This is not supported on Windows.)
-    setvbuf(stdout, NULL, _IOLBF, 0);
-    setvbuf(stderr, NULL, _IOLBF, 0);
-#endif
-
-    // Pipe stdout and sterr back to the server.
-    m_savedStdout = dup(1);
-    m_savedStderr = dup(2);
-    pipe(m_stdioPipe.data());
-    dup2(m_stdioPipe[1], 1);
-    dup2(m_stdioPipe[1], 2);
-    m_stdioThread = std::thread(MonitorStdIOThread, this);
+    initStdioThread();
 
     for (size_t i = 0; i < pngThreadCount; ++i)
     {
@@ -129,32 +112,64 @@ void TestHarness::init(std::filesystem::path outputDir, size_t pngThreadCount)
     m_initialized = true;
     m_outputDir = outputDir;
 
+#ifdef RIVE_ANDROID
+    // Still pipe stdout and sterr to the android logs.
+    initStdioThread();
+#endif
+
     for (size_t i = 0; i < pngThreadCount; ++i)
     {
         m_encodeThreads.emplace_back(EncodePNGThread, this);
     }
 }
 
+void TestHarness::initStdioThread()
+{
+#ifndef _WIN32
+    // Make stdout & stderr line buffered. (This is not supported on Windows.)
+    setvbuf(stdout, NULL, _IOLBF, 0);
+    setvbuf(stderr, NULL, _IOLBF, 0);
+#endif
+
+    // Pipe stdout and sterr back to the server.
+    m_savedStdout = dup(1);
+    m_savedStderr = dup(2);
+    pipe(m_stdioPipe.data());
+    dup2(m_stdioPipe[1], 1);
+    dup2(m_stdioPipe[1], 2);
+    m_stdioThread = std::thread(MonitorStdIOThread, this);
+}
+
 void TestHarness::monitorStdIOThread()
 {
     assert(m_initialized);
-    assert(m_primaryTCPClient != nullptr);
-    std::unique_ptr<TCPClient> threadTCPClient = m_primaryTCPClient->clone();
+
+    std::unique_ptr<TCPClient> threadTCPClient;
+    if (m_primaryTCPClient != nullptr)
+    {
+        threadTCPClient = m_primaryTCPClient->clone();
+    }
 
     char buff[1024];
     size_t readSize;
     while ((readSize = read(m_stdioPipe[0], buff, std::size(buff) - 1)) > 0)
     {
         buff[readSize] = '\0';
-        threadTCPClient->send4(REQUEST_TYPE_PRINT_MESSAGE);
-        threadTCPClient->sendString(buff);
+        if (threadTCPClient != nullptr)
+        {
+            threadTCPClient->send4(REQUEST_TYPE_PRINT_MESSAGE);
+            threadTCPClient->sendString(buff);
+        }
 #ifdef RIVE_ANDROID
         __android_log_write(ANDROID_LOG_DEBUG, "rive_android_tests", buff);
 #endif
     }
 
-    threadTCPClient->send4(REQUEST_TYPE_DISCONNECT);
-    threadTCPClient->send4(false /* Don't shutdown the server yet */);
+    if (threadTCPClient != nullptr)
+    {
+        threadTCPClient->send4(REQUEST_TYPE_DISCONNECT);
+        threadTCPClient->send4(false /* Don't shutdown the server yet */);
+    }
 }
 
 void send_png_data_chunk(png_structp png, png_bytep data, png_size_t length)
@@ -327,6 +342,12 @@ bool TestHarness::fetchRivFile(std::string& name, std::vector<uint8_t>& bytes)
 void TestHarness::inputPumpThread()
 {
     assert(m_initialized);
+
+    if (m_primaryTCPClient == nullptr)
+    {
+        return;
+    }
+
     std::unique_ptr<TCPClient> threadTCPClient = m_primaryTCPClient->clone();
 
     for (std::vector<char> keys; m_initialized;)
@@ -424,11 +445,11 @@ void TestHarness::onApplicationCrash(const char* message)
 {
     if (m_primaryTCPClient != nullptr)
     {
-// Buy monitorStdIOThread() some time to finish pumping any messages
-// related to this abort.
+        // Buy monitorStdIOThread() some time to finish pumping any messages
+        // related to this abort.
 
-// std::this_thread::sleep_for causes weird link issues in unreal. just use
-// sleep instead
+        // std::this_thread::sleep_for causes weird link issues in unreal. just
+        // use sleep instead
 #if defined(RIVE_UNREAL) && defined(_WIN32)
         Sleep(100);
 #else

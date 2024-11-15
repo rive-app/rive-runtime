@@ -17,46 +17,7 @@
 #include <fstream>
 
 #ifdef RIVE_ANDROID
-#include <android/native_app_glue/android_native_app_glue.h>
-
-// Called after the window has been initialized.
-static int android_player_main(int argc, const char* const* argv, android_app*);
-
-int rive_android_main(int argc, const char* const* argv, android_app* app)
-{
-    bool windowInitialized = false;
-    app->userData = &windowInitialized;
-    app->onAppCmd = [](android_app* app, int32_t cmd) {
-        // Wait until the window is initialized to call android_player_main.
-        if (cmd == APP_CMD_INIT_WINDOW)
-        {
-            bool* windowInitialized = static_cast<bool*>(app->userData);
-            *windowInitialized = true;
-        }
-    };
-
-    // Pump messages until the window is initialized.
-    while (!app->destroyRequested && !windowInitialized)
-    {
-        android_poll_source* source = nullptr;
-        auto result = ALooper_pollOnce(-1,
-                                       nullptr,
-                                       nullptr,
-                                       reinterpret_cast<void**>(&source));
-        if (result == ALOOPER_POLL_ERROR)
-        {
-            fprintf(stderr, "ALooper_pollOnce returned an error");
-            abort();
-        }
-
-        if (source != nullptr)
-        {
-            source->process(app, source);
-        }
-    }
-
-    return windowInitialized ? android_player_main(argc, argv, app) : 0;
-}
+#include "common/rive_android_app.hpp"
 #endif
 
 static void update_parameter(int& val, int multiplier, char key, bool seenBang)
@@ -168,9 +129,7 @@ static void key_pressed(char key)
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int player_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
-static int android_player_main(int argc,
-                               const char* const* argv,
-                               android_app* app)
+int rive_android_main(int argc, const char* const* argv)
 #else
 int main(int argc, const char* argv[])
 #endif
@@ -250,7 +209,7 @@ int main(int argc, const char* argv[])
                         visibility,
                         gpuNameFilter,
 #ifdef RIVE_ANDROID
-                        app->window
+                        rive_android_app_wait_for_window()
 #else
                         reinterpret_cast<void*>(
                             static_cast<intptr_t>(monitorIdx))
@@ -403,16 +362,7 @@ int main(int argc, const char* argv[])
         }
 
 #ifdef RIVE_ANDROID
-        android_poll_source* source = nullptr;
-        ALooper_pollOnce(0,
-                         nullptr,
-                         nullptr,
-                         reinterpret_cast<void**>(&source));
-        if (source != nullptr)
-        {
-            source->process(app, source);
-        }
-        if (app->destroyRequested)
+        if (!rive_android_app_poll_once())
         {
             break;
         }

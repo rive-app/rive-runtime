@@ -11,6 +11,10 @@
 #include "common/testing_window.hpp"
 #include "common/test_harness.hpp"
 
+#ifdef RIVE_ANDROID
+#include "common/rive_android_app.hpp"
+#endif
+
 using namespace rivegm;
 
 static bool verbose = false;
@@ -73,6 +77,12 @@ static void dumpGMs(const std::string& match, bool interactive)
             // Wait for any key if in interactive mode.
             TestingWindow::Get()->getKey();
         }
+#ifdef RIVE_ANDROID
+        if (!rive_android_app_poll_once())
+        {
+            return;
+        }
+#endif
     }
 }
 
@@ -164,7 +174,7 @@ int gms_main(int argc, const char* argv[])
 #elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int gms_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
-int rive_android_main(int argc, const char* const* argv, struct android_app*)
+int rive_android_main(int argc, const char* const* argv)
 #else
 int main(int argc, const char* argv[])
 #endif
@@ -235,7 +245,31 @@ int main(int argc, const char* argv[])
         return 1;
     }
 
-    TestingWindow::Init(backend, visibility, gpuNameFilter);
+    void* platformWindow = nullptr;
+#ifdef RIVE_ANDROID
+    if (!TestHarness::Instance().initialized())
+    {
+        // Make sure the testing window gets initialized on Android so we always
+        // pipe stdout & stderr to the android log.
+        TestHarness::Instance().init(std::filesystem::path("/sdcard/Pictures"),
+                                     4);
+        // When the app is launched with no test harness, presumably via tap or
+        // some other automation process, always do verbose output.
+        verbose = true;
+    }
+    if (TestingWindow::IsGL(backend))
+    {
+        // Android GMs can render directly to the main window in GL.
+        // TOOD: add this support to TestingWindowAndroidVulkan as well.
+        platformWindow = rive_android_app_wait_for_window();
+        if (platformWindow != nullptr)
+        {
+            visibility = TestingWindow::Visibility::fullscreen;
+        }
+    }
+#endif
+    TestingWindow::Init(backend, visibility, gpuNameFilter, platformWindow);
+
     dumpGMs(std::string(match), interactive);
 
     TestingWindow::Destroy(); // Exercise our PLS teardown process now that
