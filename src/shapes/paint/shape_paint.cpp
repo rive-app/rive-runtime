@@ -13,7 +13,14 @@ StatusCode ShapePaint::onAddedClean(CoreContext* context)
     {
         return StatusCode::MissingObject;
     }
-    container->addPaint(this);
+
+    // If the paint mutator wasn't compatible with this runtime it's possible we
+    // get a ShapePaint with no mutator (not children).
+    if (m_PaintMutator != nullptr)
+    {
+        container->addPaint(this);
+    }
+
     return StatusCode::Ok;
 }
 
