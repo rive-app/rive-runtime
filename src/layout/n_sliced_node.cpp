@@ -9,7 +9,6 @@ void NSlicedNode::markPathDirtyRecursive(bool sendToLayout)
 {
     // Tell all Shape descendants to re-render when the n slicer changes (e.g.
     // when axis offset animates).
-    addDirt(ComponentDirt::Path, true);
     addDirt(ComponentDirt::NSlicer, true);
 
 #ifdef WITH_RIVE_LAYOUT

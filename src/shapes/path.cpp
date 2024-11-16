@@ -283,7 +283,9 @@ void Path::markPathDirty(bool sendToLayout)
 
 void Path::onDirty(ComponentDirt value)
 {
-    if (hasDirt(value, ComponentDirt::WorldTransform) && m_Shape != nullptr)
+    if (hasDirt(value,
+                ComponentDirt::WorldTransform | ComponentDirt::NSlicer) &&
+        m_Shape != nullptr)
     {
         m_Shape->pathChanged();
     }
@@ -299,8 +301,10 @@ void Path::update(ComponentDirt value)
 
     bool pathChanged = hasDirt(value, ComponentDirt::Path);
     bool worldTransformChanged = hasDirt(value, ComponentDirt::WorldTransform);
+    bool deformerChanged = hasDirt(value, ComponentDirt::NSlicer);
 
-    if (pathChanged || (deformer() != nullptr && worldTransformChanged))
+    if (pathChanged ||
+        (deformer() != nullptr && (worldTransformChanged || deformerChanged)))
     {
         if (canDeferPathUpdate())
         {

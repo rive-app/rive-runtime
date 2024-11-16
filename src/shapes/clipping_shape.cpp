@@ -89,7 +89,9 @@ void ClippingShape::buildDependencies()
 static Mat2D identity;
 void ClippingShape::update(ComponentDirt value)
 {
-    if (hasDirt(value, ComponentDirt::Path | ComponentDirt::WorldTransform))
+    if (hasDirt(value,
+                ComponentDirt::Path | ComponentDirt::WorldTransform |
+                    ComponentDirt::NSlicer))
     {
         m_RenderPath->rewind();
 
