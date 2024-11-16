@@ -154,7 +154,7 @@ end
 execute_and_check(makecommand)
 
 -- Save the make command for incremental shader builds.
-execute_and_check('echo ' .. makecommand .. ' > ' .. makecommand_filename)
+execute_and_check('echo \'' .. makecommand .. '\' > ' .. makecommand_filename)
 
 newoption({
     trigger = 'nop-obj-c',

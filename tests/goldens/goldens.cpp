@@ -19,11 +19,16 @@
 #include <filesystem>
 #include <fstream>
 #include <iostream>
+
+#ifdef RIVE_ANDROID
+#include "common/rive_android_app.hpp"
+#endif
+
 constexpr static int kWindowTargetSize = 1600;
 
 GoldensArguments s_args;
 
-static void render_and_dump_png(int cellSize,
+static bool render_and_dump_png(int cellSize,
                                 const char* rivName,
                                 rive::Scene* scene)
 {
@@ -105,6 +110,12 @@ static void render_and_dump_png(int cellSize,
             // Wait for any key if in interactive mode.
             TestingWindow::Get()->getKey();
         }
+#ifdef RIVE_ANDROID
+        if (!rive_android_app_poll_once())
+        {
+            return false;
+        }
+#endif
     }
     catch (const char* msg)
     {
@@ -116,6 +127,7 @@ static void render_and_dump_png(int cellSize,
         fprintf(stderr, "error rendering %s\n", rivName);
         abort();
     }
+    return true;
 }
 
 class RIVLoader
@@ -193,7 +205,20 @@ int main(int argc, const char* argv[])
         auto visibility = s_args.headless()
                               ? TestingWindow::Visibility::headless
                               : TestingWindow::Visibility::window;
-        TestingWindow::Init(backend, visibility, gpuNameFilter);
+        void* platformWindow = nullptr;
+#ifdef RIVE_ANDROID
+        if (TestingWindow::IsGL(backend))
+        {
+            // Android can render directly to the main window in GL.
+            // TOOD: add this support to TestingWindowAndroidVulkan as well.
+            platformWindow = rive_android_app_wait_for_window();
+            if (platformWindow != nullptr)
+            {
+                visibility = TestingWindow::Visibility::fullscreen;
+            }
+        }
+#endif
+        TestingWindow::Init(backend, visibility, gpuNameFilter, platformWindow);
 
         if (!s_args.testHarness().empty())
         {
@@ -228,9 +253,12 @@ int main(int argc, const char* argv[])
                 RIVLoader riv(rivBytes,
                               nullptr /*default artboard*/,
                               nullptr /*default state machine*/);
-                render_and_dump_png(cellSize,
-                                    rivName.c_str(),
-                                    riv.stateMachine());
+                if (!render_and_dump_png(cellSize,
+                                         rivName.c_str(),
+                                         riv.stateMachine()))
+                {
+                    return 0;
+                }
             }
         }
         else
@@ -246,9 +274,12 @@ int main(int argc, const char* argv[])
                                      {}),
                 s_args.artboard().c_str(),
                 s_args.stateMachine().c_str());
-            render_and_dump_png(cellSize,
-                                s_args.src().c_str(),
-                                riv.stateMachine());
+            if (!render_and_dump_png(cellSize,
+                                     s_args.src().c_str(),
+                                     riv.stateMachine()))
+            {
+                return 0;
+            }
         }
     }
     catch (const args::Completion&)

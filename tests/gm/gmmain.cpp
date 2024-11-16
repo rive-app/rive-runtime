@@ -251,15 +251,16 @@ int main(int argc, const char* argv[])
     {
         // Make sure the testing window gets initialized on Android so we always
         // pipe stdout & stderr to the android log.
-        TestHarness::Instance().init(std::filesystem::path("/sdcard/Pictures"),
-                                     4);
+        TestHarness::Instance().init(
+            std::filesystem::path("/sdcard/Pictures/rive_gms"),
+            4);
         // When the app is launched with no test harness, presumably via tap or
         // some other automation process, always do verbose output.
         verbose = true;
     }
     if (TestingWindow::IsGL(backend))
     {
-        // Android GMs can render directly to the main window in GL.
+        // Android can render directly to the main window in GL.
         // TOOD: add this support to TestingWindowAndroidVulkan as well.
         platformWindow = rive_android_app_wait_for_window();
         if (platformWindow != nullptr)

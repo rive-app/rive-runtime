@@ -527,6 +527,22 @@ public:
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
         m_renderer->flush();
+        if (m_headlessRenderTexture != 0 && !m_window->isOffscreen())
+        {
+            // Copy the offscreen texture back to the main window for
+            // visualization purposes.
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, 0);
+            glBlitFramebuffer(0,
+                              0,
+                              m_width,
+                              m_height,
+                              0,
+                              0,
+                              m_width,
+                              m_height,
+                              GL_COLOR_BUFFER_BIT,
+                              GL_NEAREST);
+        }
         if (pixelData)
         {
             pixelData->resize(m_height * m_width * 4);

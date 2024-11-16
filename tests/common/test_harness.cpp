@@ -111,6 +111,7 @@ void TestHarness::init(std::filesystem::path outputDir, size_t pngThreadCount)
     assert(!m_initialized);
     m_initialized = true;
     m_outputDir = outputDir;
+    std::filesystem::create_directory(m_outputDir);
 
 #ifdef RIVE_ANDROID
     // Still pipe stdout and sterr to the android logs.
