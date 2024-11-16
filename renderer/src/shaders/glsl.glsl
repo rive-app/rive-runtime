@@ -541,3 +541,14 @@ INLINE half4 unpackUnorm4x8(uint u)
     return float4(vals) * (1. / 255.);
 }
 #endif
+
+// clang-format off
+#if @GLSL_VERSION >= 310 && defined(@VERTEX) && defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT)
+out gl_PerVertex
+{
+    // Redeclare gl_ClipDistance with exactly 4 clip planes.
+    float gl_ClipDistance[4];
+    float4 gl_Position;
+};
+#endif
+// clang-format on

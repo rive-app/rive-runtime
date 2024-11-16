@@ -419,9 +419,10 @@ public:
         }
 #endif
 
-        printf("==== EGL GPU: OpenGL %s %s ====\n",
+        printf("==== EGL GPU: OpenGL %s; %s; %s ====\n",
                glGetString(GL_VENDOR),
-               glGetString(GL_RENDERER));
+               glGetString(GL_RENDERER),
+               glGetString(GL_VERSION));
 
         int extensionCount;
         glGetIntegerv(GL_NUM_EXTENSIONS, &extensionCount);
