@@ -496,7 +496,7 @@ private:
                 static_assert(sizeof(*this) == sizeof(size_t) * NUM_ELEMENTS);
                 static_assert(sizeof(VecType) >= sizeof(*this));
                 VecType vec;
-                RIVE_INLINE_MEMCPY(&vec, this, sizeof(VecType));
+                RIVE_INLINE_MEMCPY(&vec, this, sizeof(*this));
                 return vec;
             }
 
