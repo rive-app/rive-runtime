@@ -58,21 +58,21 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @ENABLE_CLIP_RECT
     if (@ENABLE_CLIP_RECT)
     {
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
         v_clipRect = find_clip_rect_coverage_distances(
             make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
             imageDrawUniforms.clipRectInverseTranslate,
             vertexPosition);
-#else  // USING_DEPTH_STENCIL
+#else  // RENDER_MODE_MSAA
         set_clip_rect_plane_distances(
             make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
             imageDrawUniforms.clipRectInverseTranslate,
             vertexPosition);
-#endif // USING_DEPTH_STENCIL
+#endif // RENDER_MODE_MSAA
     }
 #endif // ENABLE_CLIP_RECT
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
-#ifdef @USING_DEPTH_STENCIL
+#ifdef @RENDER_MODE_MSAA
     pos.z = normalize_z_index(imageDrawUniforms.zIndex);
 #endif
 
@@ -90,7 +90,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-#ifdef @USING_DEPTH_STENCIL
+#ifdef @RENDER_MODE_MSAA
 #ifdef @ENABLE_ADVANCED_BLEND
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
 #endif
@@ -102,7 +102,7 @@ SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
 
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
 
 PLS_BLOCK_BEGIN
 PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
@@ -175,7 +175,7 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     EMIT_PLS;
 }
 
-#else // USING_DEPTH_STENCIL
+#else // RENDER_MODE_MSAA
 
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
@@ -202,5 +202,5 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     EMIT_FRAG_DATA(color);
 }
 
-#endif // USING_DEPTH_STENCIL
+#endif // RENDER_MODE_MSAA
 #endif // FRAGMENT

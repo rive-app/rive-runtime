@@ -58,14 +58,14 @@
 #endif
 
 // clang-format off
-#if defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT) && defined(GL_ES)
+#if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_CLIP_RECT) && defined(GL_ES)
 // clang-format on
 #ifdef GL_EXT_clip_cull_distance
 #extension GL_EXT_clip_cull_distance : require
 #elif defined(GL_ANGLE_clip_cull_distance)
 #extension GL_ANGLE_clip_cull_distance : require
 #endif
-#endif // USING_DEPTH_STENCIL && ENABLE_CLIP_RECT
+#endif // RENDER_MODE_MSAA && ENABLE_CLIP_RECT
 
 #if @GLSL_VERSION >= 310
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                         \
@@ -543,7 +543,7 @@ INLINE half4 unpackUnorm4x8(uint u)
 #endif
 
 // clang-format off
-#if @GLSL_VERSION >= 310 && defined(@VERTEX) && defined(@USING_DEPTH_STENCIL) && defined(@ENABLE_CLIP_RECT)
+#if @GLSL_VERSION >= 310 && defined(@VERTEX) && defined(@RENDER_MODE_MSAA) && defined(@ENABLE_CLIP_RECT)
 out gl_PerVertex
 {
     // Redeclare gl_ClipDistance with exactly 4 clip planes.

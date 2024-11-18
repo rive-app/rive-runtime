@@ -5,7 +5,7 @@
 // Common functions shared by multiple shaders.
 #define PI float(3.141592653589793238)
 
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
 #define AA_RADIUS float(.5)
 #else
 #define AA_RADIUS float(.0)
@@ -188,7 +188,7 @@ UNIFORM_BLOCK_END(uniforms)
            .0,                                                                 \
            1.)
 
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
 // Calculates the Manhattan distance in pixels from the given pixelPosition, to
 // the point at each edge of the clipRect where coverage = 0.
 //
@@ -220,7 +220,7 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
     }
 }
 
-#else // USING_DEPTH_STENCIL
+#else // RENDER_MODE_MSAA
 
 INLINE float normalize_z_index(uint zIndex)
 {
@@ -251,7 +251,7 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
     }
 }
 #endif // ENABLE_CLIP_RECT
-#endif // USING_DEPTH_STENCIL
+#endif // RENDER_MODE_MSAA
 #endif // VERTEX
 
 #ifdef @DRAW_IMAGE

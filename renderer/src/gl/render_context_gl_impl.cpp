@@ -704,7 +704,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
     }
     if (interlockMode == gpu::InterlockMode::msaa)
     {
-        defines.push_back(GLSL_USING_DEPTH_STENCIL);
+        defines.push_back(GLSL_RENDER_MODE_MSAA);
     }
 
     std::vector<const char*> sources;

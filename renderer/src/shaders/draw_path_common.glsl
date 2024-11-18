@@ -38,7 +38,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                            int _instanceID,
                                            OUT(ushort) o_pathID,
                                            OUT(float2) o_vertexPosition
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
                                            ,
                                            OUT(half2) o_edgeDistance
 #else
@@ -76,7 +76,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     float2 translate = uintBitsToFloat(pathData.xy);
 
     float strokeRadius = uintBitsToFloat(pathData.z);
-#ifdef @USING_DEPTH_STENCIL
+#ifdef @RENDER_MODE_MSAA
     o_pathZIndex = cast_uint_to_ushort(pathData.w);
 #endif
 
@@ -160,7 +160,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         float2 vertexOffset =
             MUL(norm, strokeRadius + aaRadius); // Bloat stroke width for AA.
 
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
         // Calculate the AA distance to both the outset and inset edges of the
         // stroke. The fragment shader will use whichever is lesser.
         float x = outset * (strokeRadius + aaRadius);
@@ -266,7 +266,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             float2 pt = abs(outset) * vertexOffset;
             float clipDistance = (clipAARadius - dot(pt, bisector)) /
                                  (bisectPixelWidth * (AA_RADIUS * 2.));
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
             if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
                 o_edgeDistance.y = cast_float_to_half(clipDistance);
             else
@@ -274,7 +274,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 #endif
         }
 
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
         o_edgeDistance *= globalCoverage;
 
         // Bias o_edgeDistance.y slightly upwards in order to guarantee
@@ -305,7 +305,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             fillCoverage = -fillCoverage;
         }
 
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
         // "o_edgeDistance.y < 0" indicates to the fragment shader that this is
         // a fill.
         o_edgeDistance = make_half2(fillCoverage, -1.);

@@ -17,7 +17,7 @@ ATTR_BLOCK_END
 
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float4, v_paint);
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
 #ifdef @DRAW_INTERIOR_TRIANGLES
 @OPTIONALLY_FLAT VARYING(1, half, v_windingWeight);
 #else
@@ -30,7 +30,7 @@ NO_PERSPECTIVE VARYING(2, half2, v_edgeDistance);
 #ifdef @ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
 #endif
-#endif // !USING_DEPTH_STENCIL
+#endif // !RENDER_MODE_MSAA
 #ifdef @ENABLE_ADVANCED_BLEND
 @OPTIONALLY_FLAT VARYING(6, half, v_blendMode);
 #endif
@@ -47,7 +47,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
     VARYING_INIT(v_paint, float4);
-#ifndef USING_DEPTH_STENCIL
+#ifndef RENDER_MODE_MSAA
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_INIT(v_windingWeight, half);
 #else
@@ -60,7 +60,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
 #endif
-#endif // !USING_DEPTH_STENCIL
+#endif // !RENDER_MODE_MSAA
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_INIT(v_blendMode, half);
 #endif
@@ -68,7 +68,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     bool shouldDiscardVertex = false;
     ushort pathID;
     float2 vertexPosition;
-#ifdef @USING_DEPTH_STENCIL
+#ifdef @RENDER_MODE_MSAA
     ushort pathZIndex;
 #endif
 
@@ -84,7 +84,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                         _instanceID,
                                         pathID,
                                         vertexPosition
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
                                         ,
                                         v_edgeDistance
 #else
@@ -96,7 +96,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
 
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
     // Encode the integral pathID as a "half" that we know the hardware will see
     // as a unique value in the fragment shader.
     v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
@@ -104,7 +104,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     // Indicate even-odd fill rule by making pathID negative.
     if ((paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
         v_pathID = -v_pathID;
-#endif // !USING_DEPTH_STENCIL
+#endif // !RENDER_MODE_MSAA
 
     uint paintType = paintData.x & 0xfu;
 #ifdef @ENABLE_CLIPPING
@@ -143,16 +143,16 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 2u));
         float4 clipRectInverseTranslate =
             STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 3u);
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
         v_clipRect =
             find_clip_rect_coverage_distances(clipRectInverseMatrix,
                                               clipRectInverseTranslate.xy,
                                               fragCoord);
-#else  // USING_DEPTH_STENCIL
+#else  // RENDER_MODE_MSAA
         set_clip_rect_plane_distances(clipRectInverseMatrix,
                                       clipRectInverseTranslate.xy,
                                       fragCoord);
-#endif // USING_DEPTH_STENCIL
+#endif // RENDER_MODE_MSAA
     }
 #endif // ENABLE_CLIP_RECT
 
@@ -231,7 +231,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     if (!shouldDiscardVertex)
     {
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
-#ifdef @USING_DEPTH_STENCIL
+#ifdef @RENDER_MODE_MSAA
         pos.z = normalize_z_index(pathZIndex);
 #endif
     }
@@ -244,7 +244,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     VARYING_PACK(v_paint);
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_PACK(v_windingWeight);
 #else
@@ -257,7 +257,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
 #endif
-#endif // !USING_DEPTH_STENCIL
+#endif // !RENDER_MODE_MSAA
 #ifdef @ENABLE_ADVANCED_BLEND
     VARYING_PACK(v_blendMode);
 #endif
@@ -269,7 +269,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-#ifdef @USING_DEPTH_STENCIL
+#ifdef @RENDER_MODE_MSAA
 #ifdef @ENABLE_ADVANCED_BLEND
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
 #endif
@@ -318,7 +318,7 @@ INLINE half4 find_paint_color(float4 paint FRAGMENT_CONTEXT_DECL)
     }
 }
 
-#ifndef @USING_DEPTH_STENCIL
+#ifndef @RENDER_MODE_MSAA
 
 PLS_BLOCK_BEGIN
 PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
@@ -518,7 +518,7 @@ PLS_MAIN(@drawFragmentMain)
     EMIT_PLS;
 }
 
-#else // USING_DEPTH_STENCIL
+#else // RENDER_MODE_MSAA
 
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
@@ -546,6 +546,6 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     EMIT_FRAG_DATA(color);
 }
 
-#endif // !USING_DEPTH_STENCIL
+#endif // !RENDER_MODE_MSAA
 
 #endif // FRAGMENT
