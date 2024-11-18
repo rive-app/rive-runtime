@@ -9,6 +9,7 @@
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
+#include "rive/data_bind/converters/data_converter_range_mapper.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include <unordered_set>
 
@@ -106,6 +107,19 @@ StatusCode BackboardImporter::resolve()
         }
         referencer->converter(m_DataConverters[index]);
     }
+    for (auto converter : m_DataConverters)
+    {
+        if (converter->is<DataConverterRangeMapper>())
+        {
+            size_t converterId =
+                converter->as<DataConverterRangeMapper>()->interpolatorId();
+            if (converterId != -1 && converterId < m_interpolators.size())
+            {
+                converter->as<DataConverterRangeMapper>()->interpolator(
+                    m_interpolators[converterId]);
+            }
+        }
+    }
     return StatusCode::Ok;
 }
 
@@ -123,4 +137,12 @@ void BackboardImporter::addDataConverterGroupItemReferencer(
     DataConverterGroupItem* dataBind)
 {
     m_DataConverterGroupItemReferencers.push_back(dataBind);
+}
+
+void BackboardImporter::addInterpolator(KeyFrameInterpolator* interpolator)
+{
+    // Since these interpolators do not belong to an artboard, we have to
+    // initialize them
+    interpolator->initialize();
+    m_interpolators.push_back(interpolator);
 }

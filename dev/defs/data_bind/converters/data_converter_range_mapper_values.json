@@ -1,0 +1,46 @@
+{
+  "name": "DataConverterRangeMapperValues",
+  "key": {
+    "int": 519,
+    "string": "dataconverterrangemappervalues"
+  },
+  "extends": "data_bind/converters/data_converter_range_mapper.json",
+  "properties": {
+    "minInput": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 716,
+        "string": "mininput"
+      },
+      "description": "Min value the input will map from"
+    },
+    "maxInput": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 717,
+        "string": "maxinput"
+      },
+      "description": "Max value the input will map from"
+    },
+    "minOutput": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 718,
+        "string": "minoutput"
+      },
+      "description": "Min value the output will map to"
+    },
+    "maxOutput": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 719,
+        "string": "maxoutput"
+      },
+      "description": "Max value the output will map to"
+    }
+  }
+}

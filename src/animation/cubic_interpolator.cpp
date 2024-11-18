@@ -7,3 +7,5 @@ StatusCode CubicInterpolator::onAddedDirty(CoreContext* context)
     m_solver.build(x1(), x2());
     return StatusCode::Ok;
 }
+
+void CubicInterpolator::initialize() { m_solver.build(x1(), x2()); }

@@ -13,7 +13,7 @@ public:
     void converter(DataConverter* value) { m_dataConverter = value; };
 
 protected:
-    DataConverter* m_dataConverter;
+    DataConverter* m_dataConverter = nullptr;
 };
 } // namespace rive
 

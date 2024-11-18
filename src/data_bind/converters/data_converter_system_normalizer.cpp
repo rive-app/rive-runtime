@@ -10,9 +10,9 @@ DataValue* DataConverterSystemNormalizer::convert(DataValue* input,
     auto flagsValue = static_cast<DataBindFlags>(dataBind->flags());
     if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToSource))
     {
-        return DataConverterOperation::reverseConvert(input, dataBind);
+        return DataConverterOperationValue::reverseConvert(input, dataBind);
     }
-    return DataConverterOperation::convert(input, dataBind);
+    return DataConverterOperationValue::convert(input, dataBind);
 }
 
 DataValue* DataConverterSystemNormalizer::reverseConvert(DataValue* input,
@@ -21,7 +21,7 @@ DataValue* DataConverterSystemNormalizer::reverseConvert(DataValue* input,
     auto flagsValue = static_cast<DataBindFlags>(dataBind->flags());
     if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToTarget))
     {
-        return DataConverterOperation::convert(input, dataBind);
+        return DataConverterOperationValue::convert(input, dataBind);
     }
-    return DataConverterOperation::reverseConvert(input, dataBind);
+    return DataConverterOperationValue::reverseConvert(input, dataBind);
 }

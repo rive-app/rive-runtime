@@ -25,6 +25,8 @@ public:
     virtual float transform(float factor) const = 0;
 
     StatusCode import(ImportStack& importStack) override;
+
+    virtual void initialize(){};
 };
 } // namespace rive
 

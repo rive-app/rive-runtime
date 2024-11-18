@@ -4,9 +4,14 @@ using namespace rive;
 
 ElasticInterpolator::ElasticInterpolator() : m_elastic(1.0f, 0.5f) {}
 
-StatusCode ElasticInterpolator::onAddedDirty(CoreContext* context)
+void ElasticInterpolator::initialize()
 {
     m_elastic = ElasticEase(amplitude(), period() == 0.0f ? 0.5f : period());
+}
+
+StatusCode ElasticInterpolator::onAddedDirty(CoreContext* context)
+{
+    initialize();
     return StatusCode::Ok;
 }
 
