@@ -220,17 +220,6 @@ public:
                     size_t j) override
     {
         size_t imageCount = std::size(m_images);
-#ifndef RIVE_TOOLS_NO_GL
-        if (auto* plsGLImpl = TestingWindow::Get()->renderContextGLImpl())
-        {
-            if (plsGLImpl->capabilities().isANGLEOrWebGL)
-            {
-                // This test takes too long on ANGLE with all the images. Draw
-                // fewer images instead.
-                imageCount = 16;
-            }
-        }
-#endif
         auto& image = m_images[(j * kCols + i) % imageCount];
         if (image == nullptr)
         {
@@ -259,4 +248,4 @@ public:
 private:
     rive::rcp<rive::RenderImage> m_images[512];
 };
-GMREGISTER(return new LotsOfImagesGM)
+GMREGISTER_SLOW(return new LotsOfImagesGM)

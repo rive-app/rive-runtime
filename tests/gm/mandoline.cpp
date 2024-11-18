@@ -200,9 +200,9 @@ public:
         fLastPt = fAnchorPt = anchorPt;
     }
 
-    void sliceLine(Vec2D pt, int numSubdivisions)
+    void sliceLine(Vec2D pt, int subdivisionDepth)
     {
-        if (numSubdivisions <= 0)
+        if (subdivisionDepth <= 0)
         {
             fPath->moveTo(fAnchorPt.x, fAnchorPt.y);
             fPath->lineTo(fLastPt.x, fLastPt.y);
@@ -217,13 +217,13 @@ public:
             return;
         }
         Vec2D midpt = fLastPt * (1 - T) + pt * T;
-        this->sliceLine(midpt, numSubdivisions - 1);
-        this->sliceLine(pt, numSubdivisions - 1);
+        this->sliceLine(midpt, subdivisionDepth - 1);
+        this->sliceLine(pt, subdivisionDepth - 1);
     }
 
-    void sliceQuadratic(Vec2D p1, Vec2D p2, int numSubdivisions)
+    void sliceQuadratic(Vec2D p1, Vec2D p2, int subdivisionDepth)
     {
-        if (numSubdivisions <= 0)
+        if (subdivisionDepth <= 0)
         {
             fPath->moveTo(fAnchorPt.x, fAnchorPt.y);
             fPath->lineTo(fLastPt.x, fLastPt.y);
@@ -250,13 +250,13 @@ public:
               PP[7];
         ChopCubicAt(P, PP, T);
 
-        this->sliceCubic(PP[1], PP[2], PP[3], numSubdivisions - 1);
-        this->sliceCubic(PP[4], PP[5], PP[6], numSubdivisions - 1);
+        this->sliceCubic(PP[1], PP[2], PP[3], subdivisionDepth - 1);
+        this->sliceCubic(PP[4], PP[5], PP[6], subdivisionDepth - 1);
     }
 
-    void sliceCubic(Vec2D p1, Vec2D p2, Vec2D p3, int numSubdivisions)
+    void sliceCubic(Vec2D p1, Vec2D p2, Vec2D p3, int subdivisionDepth)
     {
-        if (numSubdivisions <= 0)
+        if (subdivisionDepth <= 0)
         {
             fPath->moveTo(fAnchorPt.x, fAnchorPt.y);
             fPath->lineTo(fLastPt.x, fLastPt.y);
@@ -273,8 +273,8 @@ public:
         }
         Vec2D P[4] = {fLastPt, p1, p2, p3}, PP[7];
         ChopCubicAt(P, PP, T);
-        this->sliceCubic(PP[1], PP[2], PP[3], numSubdivisions - 1);
-        this->sliceCubic(PP[4], PP[5], PP[6], numSubdivisions - 1);
+        this->sliceCubic(PP[1], PP[2], PP[3], subdivisionDepth - 1);
+        this->sliceCubic(PP[4], PP[5], PP[6], subdivisionDepth - 1);
     }
 
     rive::RenderPath* path() const { return fPath; }
@@ -296,37 +296,29 @@ protected:
 
     void onDraw(Renderer* renderer) override
     {
-        int subdivisions = 12;
-        if (gpu::RenderContext* renderContext =
-                TestingWindow::Get()->renderContext())
-        {
-            if (renderContext->frameInterlockMode() ==
-                    gpu::InterlockMode::atomics ||
-                renderContext->frameInterlockMode() ==
-                    gpu::InterlockMode::clockwiseAtomic)
-            {
-                // Atomic mode uses 7:9 fixed point and clockwiseAtomic uses
-                // 7:8, so the winding number breaks if a shape has more than
-                // +/-64 levels of self overlap at any point.
-                subdivisions = 4;
-            }
-        }
+        // Atomic mode uses 7:9 fixed point and clockwiseAtomic uses 7:8, so the
+        // winding number breaks if a shape has more than +/-64 [ == +/-2^(7-1)]
+        // levels of self overlap at any point.
+        constexpr int SUBDIVISION_DEPTH = 4;
 
         Paint paint;
         paint->color(0xc0c0c0c0);
 
         MandolineSlicer mandoline({41, 43});
-        mandoline.sliceCubic({5, 277}, {381, -74}, {243, 162}, subdivisions);
-        mandoline.sliceLine({41, 43}, subdivisions);
+        mandoline.sliceCubic({5, 277},
+                             {381, -74},
+                             {243, 162},
+                             SUBDIVISION_DEPTH);
+        mandoline.sliceLine({41, 43}, SUBDIVISION_DEPTH);
         renderer->drawPath(mandoline.path(), paint);
 
         mandoline.reset({357.049988f, 446.049988f});
         mandoline.sliceCubic({472.750000f, -71.950012f},
                              {639.750000f, 531.950012f},
                              {309.049988f, 347.950012f},
-                             subdivisions);
-        mandoline.sliceLine({309.049988f, 419}, subdivisions);
-        mandoline.sliceLine({357.049988f, 446.049988f}, subdivisions);
+                             SUBDIVISION_DEPTH);
+        mandoline.sliceLine({309.049988f, 419}, SUBDIVISION_DEPTH);
+        mandoline.sliceLine({357.049988f, 446.049988f}, SUBDIVISION_DEPTH);
         renderer->drawPath(mandoline.path(), paint);
 
         renderer->save();
@@ -337,15 +329,15 @@ protected:
         mandoline.sliceQuadratic(
             {-2, 0},
             {-cosf(degreesToRadians(60)), sinf(degreesToRadians(60))},
-            subdivisions);
+            SUBDIVISION_DEPTH);
         mandoline.sliceQuadratic(
             {-cosf(degreesToRadians(120)) * 2, sinf(degreesToRadians(120)) * 2},
             {1, 0},
-            subdivisions);
-        mandoline.sliceLine({0, 0}, subdivisions);
+            SUBDIVISION_DEPTH);
+        mandoline.sliceLine({0, 0}, SUBDIVISION_DEPTH);
         mandoline.sliceLine(
             {-cosf(degreesToRadians(-60)), sinf(degreesToRadians(-60))},
-            subdivisions);
+            SUBDIVISION_DEPTH);
         renderer->drawPath(mandoline.path(), paint);
         renderer->restore();
 
@@ -360,7 +352,7 @@ protected:
             float theta2 = 2 * PI / nquads * (i + 1);
             mandoline.sliceQuadratic({cosf(theta1) * 2, sinf(theta1) * 2},
                                      {cosf(theta2), sinf(theta2)},
-                                     subdivisions);
+                                     SUBDIVISION_DEPTH);
         }
         renderer->drawPath(mandoline.path(), paint);
         renderer->restore();
