@@ -13,6 +13,7 @@
 
 #ifdef RIVE_ANDROID
 #include "common/rive_android_app.hpp"
+#include <sys/system_properties.h>
 #endif
 
 using namespace rivegm;
@@ -247,13 +248,20 @@ int main(int argc, const char* argv[])
 
     void* platformWindow = nullptr;
 #ifdef RIVE_ANDROID
+    // Make sure the testing harness always gets initialized on Android so we
+    // pipe stdout & stderr to the android log always get pngs.
     if (!TestHarness::Instance().initialized())
     {
-        // Make sure the testing window gets initialized on Android so we always
-        // pipe stdout & stderr to the android log.
-        TestHarness::Instance().init(
-            std::filesystem::path("/sdcard/Pictures/rive_gms"),
-            4);
+        // Android introduced a lot of changes to external storage at v11. We
+        // need to dump the pngs to different locations pre and post 11.
+        char androidOSVersion[PROP_VALUE_MAX + 1] = {0};
+        __system_property_get("ro.build.version.release", androidOSVersion);
+        int androidOSVersionMajor = atoi(androidOSVersion);
+        const char* pngLocation =
+            androidOSVersionMajor >= 11
+                ? "/sdcard/Pictures/rive_gms"
+                : "/sdcard/Android/data/app.rive.android_tests/files/data/gms";
+        TestHarness::Instance().init(std::filesystem::path(pngLocation), 4);
         // When the app is launched with no test harness, presumably via tap or
         // some other automation process, always do verbose output.
         verbose = true;

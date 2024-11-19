@@ -160,11 +160,12 @@ RenderContextGLImpl::RenderContextGLImpl(
     {
         // Our GL driver doesn't support storage buffers. We polyfill these
         // buffers as textures.
-        glUniform1i(glGetUniformLocation(m_tessellateProgram, GLSL_pathBuffer),
-                    kPLSTexIdxOffset + PATH_BUFFER_IDX);
-        glUniform1i(
-            glGetUniformLocation(m_tessellateProgram, GLSL_contourBuffer),
-            kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
+        glutils::Uniform1iByName(m_tessellateProgram,
+                                 GLSL_pathBuffer,
+                                 kPLSTexIdxOffset + PATH_BUFFER_IDX);
+        glutils::Uniform1iByName(m_tessellateProgram,
+                                 GLSL_contourBuffer,
+                                 kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
     }
 
     m_state->bindVAO(m_tessellateVAO);
@@ -837,38 +838,75 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     glUniformBlockBinding(m_id,
                           glGetUniformBlockIndex(m_id, GLSL_FlushUniforms),
                           FLUSH_UNIFORM_BUFFER_IDX);
-    if (drawType == DrawType::imageRect || drawType == DrawType::imageMesh)
+
+    const bool isImageDraw = gpu::DrawTypeIsImageDraw(drawType);
+    const bool isTessellationDraw =
+        drawType == gpu::DrawType::midpointFanPatches ||
+        drawType == gpu::DrawType::outerCurvePatches;
+    const bool isPathDraw =
+        isTessellationDraw || drawType == gpu::DrawType::interiorTriangulation;
+    if (isImageDraw)
     {
         glUniformBlockBinding(
             m_id,
             glGetUniformBlockIndex(m_id, GLSL_ImageDrawUniforms),
             IMAGE_DRAW_UNIFORM_BUFFER_IDX);
     }
-    glUniform1i(glGetUniformLocation(m_id, GLSL_tessVertexTexture),
-                kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+    if (isTessellationDraw)
+    {
+        glutils::Uniform1iByName(m_id,
+                                 GLSL_tessVertexTexture,
+                                 kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+    }
+    // Since atomic mode emits the color of the *previous* path, it needs the
+    // gradient texture bound for every draw.
+    if (isPathDraw || interlockMode == gpu::InterlockMode::atomics)
+    {
+        glutils::Uniform1iByName(m_id,
+                                 GLSL_gradTexture,
+                                 kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+    }
+    // Atomic mode doesn't support image paints on paths.
+    if (isImageDraw ||
+        (isPathDraw && interlockMode != gpu::InterlockMode::atomics))
+    {
+        glutils::Uniform1iByName(m_id,
+                                 GLSL_imageTexture,
+                                 kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
+    }
     if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
     {
         // Our GL driver doesn't support storage buffers. We polyfill these
         // buffers as textures.
-        glUniform1i(glGetUniformLocation(m_id, GLSL_pathBuffer),
-                    kPLSTexIdxOffset + PATH_BUFFER_IDX);
-        glUniform1i(glGetUniformLocation(m_id, GLSL_paintBuffer),
-                    kPLSTexIdxOffset + PAINT_BUFFER_IDX);
-        glUniform1i(glGetUniformLocation(m_id, GLSL_paintAuxBuffer),
-                    kPLSTexIdxOffset + PAINT_AUX_BUFFER_IDX);
-        glUniform1i(glGetUniformLocation(m_id, GLSL_contourBuffer),
-                    kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
+        if (isPathDraw)
+        {
+            glutils::Uniform1iByName(m_id,
+                                     GLSL_pathBuffer,
+                                     kPLSTexIdxOffset + PATH_BUFFER_IDX);
+        }
+        if (isPathDraw || interlockMode == gpu::InterlockMode::atomics)
+        {
+            glutils::Uniform1iByName(m_id,
+                                     GLSL_paintBuffer,
+                                     kPLSTexIdxOffset + PAINT_BUFFER_IDX);
+            glutils::Uniform1iByName(m_id,
+                                     GLSL_paintAuxBuffer,
+                                     kPLSTexIdxOffset + PAINT_AUX_BUFFER_IDX);
+        }
+        if (isTessellationDraw)
+        {
+            glutils::Uniform1iByName(m_id,
+                                     GLSL_contourBuffer,
+                                     kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
+        }
     }
-    glUniform1i(glGetUniformLocation(m_id, GLSL_gradTexture),
-                kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
-    glUniform1i(glGetUniformLocation(m_id, GLSL_imageTexture),
-                kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
     if (interlockMode == gpu::InterlockMode::msaa &&
         (shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
         !renderContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
     {
-        glUniform1i(glGetUniformLocation(m_id, GLSL_dstColorTexture),
-                    kPLSTexIdxOffset + DST_COLOR_TEXTURE_IDX);
+        glutils::Uniform1iByName(m_id,
+                                 GLSL_dstColorTexture,
+                                 kPLSTexIdxOffset + DST_COLOR_TEXTURE_IDX);
     }
     if (!renderContextImpl->m_capabilities
              .ANGLE_base_vertex_base_instance_shader_builtin)
@@ -1731,9 +1769,9 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
                                                    m_capabilities);
         m_blitAsDrawProgram.link();
         m_state->bindProgram(m_blitAsDrawProgram);
-        glUniform1i(
-            glGetUniformLocation(m_blitAsDrawProgram, GLSL_blitTextureSource),
-            0);
+        glutils::Uniform1iByName(m_blitAsDrawProgram,
+                                 GLSL_blitTextureSource,
+                                 0);
     }
 
     m_state->bindProgram(m_blitAsDrawProgram);

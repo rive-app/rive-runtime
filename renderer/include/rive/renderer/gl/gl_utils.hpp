@@ -195,4 +195,6 @@ void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter);
 void BlitFramebuffer(rive::IAABB bounds,
                      uint32_t renderTargetHeight,
                      GLbitfield mask = GL_COLOR_BUFFER_BIT);
+
+void Uniform1iByName(GLuint programID, const char* name, GLint value);
 } // namespace glutils

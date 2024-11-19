@@ -228,4 +228,15 @@ void BlitFramebuffer(rive::IAABB bounds,
     uint32_t t = renderTargetHeight - bounds.top;
     glBlitFramebuffer(l, b, r, t, l, b, r, t, mask, GL_NEAREST);
 }
+
+void Uniform1iByName(GLuint programID, const char* name, GLint value)
+{
+    GLint location = glGetUniformLocation(programID, name);
+    // Don't allow non-existent uniforms. glUniform1i() is supposed to silently
+    // ignore -1, but Moto G7 Play throws an error. We also just shouldn't be
+    // querying uniform locations we know aren't going to exist anyway for
+    // performance reasons.
+    assert(location != -1);
+    glUniform1i(location, value);
+}
 } // namespace glutils
