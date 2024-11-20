@@ -242,7 +242,7 @@ uint16_t SliceMesh::tileRepeat(std::vector<SliceMeshVertex>& vertices,
     float curY = startY;
     int curV = start;
 
-    int escape = 1000;
+    int escape = 10000;
     while (curY < endY && escape > 0)
     {
         escape--;
