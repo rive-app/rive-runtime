@@ -115,9 +115,7 @@ public:
     HitResult pointerUp(Vec2D position) override;
     HitResult pointerExit(Vec2D position) override;
     bool tryChangeState();
-#ifdef WITH_RIVE_TOOLS
     bool hitTest(Vec2D position) const;
-#endif
 
     float durationSeconds() const override { return -1; }
     Loop loop() const override { return Loop::oneShot; }
@@ -211,9 +209,7 @@ public:
                                    ListenerType hitType,
                                    bool canHit) = 0;
     virtual void prepareEvent(Vec2D position, ListenerType hitType) = 0;
-#ifdef WITH_RIVE_TOOLS
     virtual bool hitTest(Vec2D position) const = 0;
-#endif
 #ifdef TESTING
     int earlyOutCount = 0;
 #endif

@@ -29,9 +29,7 @@ public:
     HitResult pointerUp(Vec2D position);
     HitResult pointerExit(Vec2D position);
     bool tryChangeState();
-#ifdef WITH_RIVE_TOOLS
     bool hitTest(Vec2D position) const;
-#endif
 
     void addNestedInput(NestedInput* input);
     size_t inputCount() { return m_nestedInputs.size(); }

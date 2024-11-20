@@ -636,10 +636,7 @@ public:
 
     virtual bool hitTestHelper(Vec2D position) const { return false; }
 
-    bool hitTest(Vec2D position) const
-#ifdef WITH_RIVE_TOOLS
-        override
-#endif
+    bool hitTest(Vec2D position) const override
     {
         return hitTestHelper(position);
     }
@@ -774,7 +771,6 @@ public:
     {}
     ~HitNestedArtboard() override {}
 
-#ifdef WITH_RIVE_TOOLS
     bool hitTest(Vec2D position) const override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
@@ -803,7 +799,6 @@ public:
         }
         return false;
     }
-#endif
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
                            bool canHit) override
@@ -916,7 +911,6 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
                         : HitResult::none;
 }
 
-#ifdef WITH_RIVE_TOOLS
 bool StateMachineInstance::hitTest(Vec2D position) const
 {
     if (m_artboardInstance->frameOrigin())
@@ -937,7 +931,6 @@ bool StateMachineInstance::hitTest(Vec2D position) const
     }
     return false;
 }
-#endif
 
 HitResult StateMachineInstance::pointerMove(Vec2D position)
 {
