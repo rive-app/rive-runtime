@@ -280,7 +280,8 @@ void TextModifierGroup::applyShapeModifiers(const Text& text,
         // values.
         uint32_t end = index + run.unicharCount;
 
-        while (index < end)
+        auto coverageSize = m_coverage.size();
+        while (index < end && index < coverageSize)
         {
             float coverage = m_coverage[index];
             if (coverage != lastCoverage)
