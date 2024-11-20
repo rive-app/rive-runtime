@@ -38,11 +38,15 @@ static rcp<Font> loadFont(const char* filename)
 }
 
 static std::vector<rive::rcp<rive::Font>> fallbackFonts;
-static rive::rcp<rive::Font> pickFallbackFont(
-    rive::Span<const rive::Unichar> missing)
+static rive::rcp<rive::Font> pickFallbackFont(const rive::Unichar missing,
+                                              const uint32_t fallbackIndex)
 {
+    if (fallbackIndex > 0)
+    {
+        return nullptr;
+    }
     size_t length = fallbackFonts.size();
-    for (size_t i = 0; i < length; i++)
+    for (size_t i = fallbackIndex; i < length; i++)
     {
         HBFont* font = static_cast<HBFont*>(fallbackFonts[i].get());
         if (font->hasGlyph(missing))

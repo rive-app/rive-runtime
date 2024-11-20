@@ -32,12 +32,14 @@ public:
         rive::Span<const Coord> variableAxes,
         rive::Span<const Feature> features) const override;
 
-    bool hasGlyph(rive::Span<const rive::Unichar>) const override;
+    bool hasGlyph(const rive::Unichar) const override;
 
     static rive::rcp<rive::Font> Decode(rive::Span<const uint8_t>);
     static rive::rcp<rive::Font> FromSystem(void* systemFont,
+                                            bool useSystemShaper,
                                             uint16_t weight,
                                             uint8_t width);
+
     hb_font_t* font() const { return m_font; }
 
 private:
@@ -48,6 +50,13 @@ private:
 
 public:
     hb_font_t* m_font;
+    virtual void shapeFallbackRun(
+        rive::SimpleArrayBuilder<rive::GlyphRun>& gruns,
+        const rive::Unichar text[],
+        const unsigned textStart,
+        const rive::TextRun& textRun,
+        const rive::TextRun& originalTextRun,
+        const uint32_t fallbackIndex);
 
     // The features list to pass directly to Harfbuzz.
     std::vector<hb_feature_t> m_features;

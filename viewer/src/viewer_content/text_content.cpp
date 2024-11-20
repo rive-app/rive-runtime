@@ -102,9 +102,13 @@ static float drawpara(rive::Factory* factory,
 
 ////////////////////////////////////////////////////////////////////////////////////
 std::vector<rive::rcp<rive::Font>> fallbackFonts;
-static rive::rcp<rive::Font> pickFallbackFont(
-    rive::Span<const rive::Unichar> missing)
+static rive::rcp<rive::Font> pickFallbackFont(const rive::Unichar missing,
+                                              const uint32_t fallbackIndex)
 {
+    if (fallbackIndex > 0)
+    {
+        return nullptr;
+    }
     size_t length = fallbackFonts.size();
     for (size_t i = 0; i < length; i++)
     {
