@@ -23,6 +23,7 @@ parser.add_argument("-s", "--status", type=str, required=True, help="output stat
 parser.add_argument("-o", "--outdir", type=str, help="output directory to store image diffs, if not provided then no output image is saved")
 parser.add_argument("-v", "--verbose", action='store_true', help="enable verbose logging")
 parser.add_argument("-l", "--log", action='store_true', help="redirect all verbose logging to a file with --name")
+parser.add_argument("-H", "--histogram", action='store_true', help="compare images using histograms as an additional method for ruling out 'same' images. This should prevent subtle differences in the image that should not be visible from preventing a passing result")
 
 args = parser.parse_args()
 
@@ -64,11 +65,36 @@ def main():
             # get average pixel diff, this result is slitely different then imageDiff but its very close.
             # the only difference is that we first convert the diff to grey scale rather than adding the max of every channel
             avg = grey_diff.sum() / (grey_diff.shape[0]*grey_diff.shape[1]*255)
+
+            if args.histogram:
+                # convert to HSV
+                hsv_candidate = cv.cvtColor(candidate, cv.COLOR_BGR2HSV)
+                hsv_golden = cv.cvtColor(golden, cv.COLOR_BGR2HSV)
+
+                # down sample to 32x32 for the histogram
+                h_bins = 32
+                s_bins = 32
+                histSize = [h_bins, s_bins]
+
+                # available range for hue and saturation
+                h_ranges = [0, 180]
+                s_ranges = [0, 256]
+                ranges = h_ranges + s_ranges
+
+                # get our histograms
+                hist_candidate = cv.calcHist(hsv_candidate, [0,1], None, histSize, ranges, accumulate=False)
+                hist_golden = cv.calcHist(hsv_golden, [0,1], None, histSize, ranges, accumulate=False)
+
+                # compare using CORREL histogram algorithm. the different options are detailed here 
+                # https://docs.opencv.org/3.4/d6/dc7/group__imgproc__hist.html#ga994f53817d621e2e4228fc646342d386
+                # a hist_result of 1.0 means identical with this method. any variance results in a number less then 1.0
+                hist_result = cv.compareHist(hist_candidate, hist_golden, cv.HISTCMP_CORREL)
+                
     except Exception as E:
         print(f"Failed to load and process images {E}")
         failed = True
 
-    # make path to stats file if neccecary
+    # make path to stats file if necessary
     if os.path.dirname(args.status):
         verbose_log(f"making status file path {os.path.dirname(args.status)}")
         os.makedirs(os.path.dirname(args.status), exist_ok=True)
@@ -81,17 +107,23 @@ def main():
             return
         if total_diff_count == 0:
             status.write("identical\n")
-            verbose_log("files are identitcal")
+            verbose_log("files are identical")
             return
         if not size_match:
             status.write("sizemismatch\n")
             verbose_log("files are not the same size")
             return
         status.write(str(max_diff)+"\t")
-        # prevent python from wirting out in scientific notation
+        # prevent python from writing out in scientific notation
         status.write(f"{float(avg):.5f}\t")
         status.write(str(total_diff_count)+"\t")
-        status.write(str(diff.shape[0]*diff.shape[1])+"\n")
+        status.write(str(diff.shape[0]*diff.shape[1]))
+        # add our histogram result as the last value of the status file or write a new line to say we are finished with this status
+        if args.histogram:
+            status.write(f"\t{float(hist_result):.5f}\n")
+        else:
+            status.write("\n")
+
     verbose_log("status file finished")
     # save the output file if location provided
     if args.outdir:

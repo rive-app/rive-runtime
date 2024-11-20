@@ -7,16 +7,19 @@ from venv import create
 import os.path
 import sys
 
-# create venv here and then install package
-VENV_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".pyenv"))
-if sys.platform.startswith('win32'):
-    PYTHON = os.path.join(VENV_DIR, "Scripts", "python.exe")
-else:
-    PYTHON = os.path.join(VENV_DIR, "bin", "python")
+if not "NO_VENV" in os.environ.keys():
+    # create venv here and then install package
+    VENV_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".pyenv"))
+    if sys.platform.startswith('win32'):
+        PYTHON = os.path.join(VENV_DIR, "Scripts", "python.exe")
+    else:
+        PYTHON = os.path.join(VENV_DIR, "bin", "python")
 
-if not os.path.exists(VENV_DIR):
-    create(VENV_DIR, with_pip=True)
-    subprocess.check_call([PYTHON, "-m", "pip", "install", "opencv-python-headless"])
+    if not os.path.exists(VENV_DIR):
+        create(VENV_DIR, with_pip=True)
+        subprocess.check_call([PYTHON, "-m", "pip", "install", "opencv-python-headless"])
+else:
+    PYTHON = os.path.realpath(sys.executable)
 
 from genericpath import exists
 import argparse
@@ -41,6 +44,7 @@ parser.add_argument("-j", "--jobs", default=1, type=int, help="number of jobs to
 parser.add_argument("-r", "--recursive", action='store_true', help="recursively diffs images in \"--candidates\" sub folders against \"--goldens\"")
 parser.add_argument("-p", "--pack", action='store_true', help="copy candidates and goldens into output folder along with results")
 parser.add_argument("-x", "--clean", action='store_true', help="delete golden and candidate images that are identical")
+parser.add_argument("-H", "--histogram_compare", action='store_true', help="Use histogram compare method to determine if candidate matches gold")
 args = parser.parse_args()
 
 # _winapi.WaitForMultipleObjects only supports 64 handles, which we exceed if we span >61 diff jobs.
@@ -143,6 +147,8 @@ def call_imagediff(filename, golden, candidate, output, parent_pid):
         cmd.extend(["-o", output])
     if args.verbose:
         cmd.extend(["-v", "-l"])
+    if args.histogram_compare:
+        cmd.extend(["-H"])
     
     if show_commands:
         str = ""
@@ -193,7 +199,7 @@ def write_image(html_element: HtmlElement, path, height):
         #a.tail = '&nbsp;'
 
 def write_row(html_element: HtmlElement, name, origpath, candidatepath, diff_path, height, max_component_diff, ave_component_diff,
-              pixel_diffcount, pixeldiff_percent):
+              pixel_diffcount, pixeldiff_percent, histogram_result = None):
     with html_element('h3') as b:
         b.text = name
     
@@ -204,6 +210,9 @@ def write_row(html_element: HtmlElement, name, origpath, candidatepath, diff_pat
             br.tail = f"Avg RGB mismatch: {ave_component_diff}"
         with p('br') as br:
             br.tail = f"# of different pixels: {pixel_diffcount} ({pixeldiff_percent}%)"
+        if histogram_result is not None:
+            with p('br') as br:
+                br.tail = f"histogram result: {histogram_result}"
         p('br')
         
     html_element('br')
@@ -255,14 +264,22 @@ def write_html(rows, origpath, candidatepath, diffpath):
     origpath = os.path.relpath(origpath, diffpath)
     candidatepath = os.path.relpath(candidatepath, diffpath)
 
-    # Sort the rows by ave_component_diff -- larger diffs first.
-    rows.sort(reverse=True, key=lambda row: row[2])
+    # if we have a histogram result, sort by the distance of that value from 1
+    if args.histogram_compare:
+        rows.sort(reverse=True, key=lambda row: abs(1.0 - float(row[5])))
+    else:
+        # Otherwise sort the rows by ave_component_diff -- larger diffs first.
+        rows.sort(reverse=True, key=lambda row: row[2])
 
     height = '256'
     with HtmlDoc(os.path.join(diffpath, "index.html"), True) as f:
         for row in rows:
-            write_row(f, row[0], origpath, candidatepath, "", height, row[1], row[2], row[3],
-                    "{:.2f}".format(float(row[3]) * 100 / float(row[4])))
+            if args.histogram_compare:
+                write_row(f, row[0], origpath, candidatepath, "", height, row[1], row[2], row[3],
+                        "{:.2f}".format(float(row[3]) * 100 / float(row[4])), row[5])
+            else:
+                write_row(f, row[0], origpath, candidatepath, "", height, row[1], row[2], row[3],
+                        "{:.2f}".format(float(row[3]) * 100 / float(row[4])))
             
 def write_column(html, device, rows, origpath, candidatepath, browserstack_details:dict=None):
     with html('h2') as h:
@@ -277,6 +294,9 @@ def write_column(html, device, rows, origpath, candidatepath, browserstack_detai
         if len(row) == 5:
             write_row(html, row[0], origpath, candidatepath, device, height, row[1], row[2], row[3],
                     "{:.2f}".format(float(row[3]) * 100 / float(row[4])))
+        elif len(row) == 6:
+            write_row(html, row[0], origpath, candidatepath, device, height, row[1], row[2], row[3],
+                    "{:.2f}".format(float(row[3]) * 100 / float(row[4])), row[5])
         else:
             write_row_identical(html, row[0], origpath, candidatepath, device, height)
 
@@ -288,35 +308,66 @@ def write_csv(rows, origpath, candidatepath, diffpath, missing_candidates):
 
     with open(os.path.join(diffpath, "data.csv"), "w") as csvfile:
         fieldnames = ['file_name','original', 'candidate',  'max_rgb', 'avg_rgb', 'pixel_diff_count', 'pixel_diff_percent', 'color_diff', 'pixel_diff']
+        if args.histogram_compare:
+            fieldnames.extend(['hist_result'])
         writer = csv.DictWriter(csvfile, fieldnames=fieldnames)
         writer.writeheader()
         for name in missing_candidates:
-            writer.writerow({
-                'file_name': name.split('.')[0],
-                'original': os.path.join(origpath, name), 
-                'candidate': '',
-                'max_rgb':255,
-                'avg_rgb':255,
-                # i guess its all of em, not 1 of em, but whatever
-                'pixel_diff_count': 1,
-                'pixel_diff_percent': '100',
-                'color_diff': '',
-                'pixel_diff': ''
-            })
+            if args.histogram_compare:
+                writer.writerow({
+                    'file_name': name.split('.')[0],
+                    'original': os.path.join(origpath, name), 
+                    'candidate': '',
+                    'max_rgb':255,
+                    'avg_rgb':255,
+                    # i guess its all of em, not 1 of em, but whatever
+                    'pixel_diff_count': 1,
+                    'pixel_diff_percent': '100',
+                    'hist_result' : 1.0,
+                    'color_diff': '',
+                    'pixel_diff': ''
+                })
+            else:
+                writer.writerow({
+                    'file_name': name.split('.')[0],
+                    'original': os.path.join(origpath, name), 
+                    'candidate': '',
+                    'max_rgb':255,
+                    'avg_rgb':255,
+                    # i guess its all of em, not 1 of em, but whatever
+                    'pixel_diff_count': 1,
+                    'pixel_diff_percent': '100',
+                    'color_diff': '',
+                    'pixel_diff': ''
+                })
 
         for row in rows:
             name = row[0]
-            writer.writerow({
-                'file_name': name,
-                'original': os.path.join(origpath, name + ".png") , 
-                'candidate': os.path.join(candidatepath, name + ".png"),
-                'max_rgb':row[1],
-                'avg_rgb':row[2],
-                'pixel_diff_count': row[3],
-                'pixel_diff_percent': "{:.2f}".format(float(row[3]) * 100 / float(row[4])),
-                'color_diff': name + ".diff0.png",
-                'pixel_diff': name + ".diff1.png"
-            })
+            if args.histogram_compare:
+                writer.writerow({
+                    'file_name': name,
+                    'original': os.path.join(origpath, name + ".png") , 
+                    'candidate': os.path.join(candidatepath, name + ".png"),
+                    'max_rgb':row[1],
+                    'avg_rgb':row[2],
+                    'pixel_diff_count': row[3],
+                    'pixel_diff_percent': "{:.2f}".format(float(row[3]) * 100 / float(row[4])),
+                    "hist_result": row[5],
+                    'color_diff': name + ".diff0.png",
+                    'pixel_diff': name + ".diff1.png"
+                })
+            else:
+                writer.writerow({
+                    'file_name': name,
+                    'original': os.path.join(origpath, name + ".png") , 
+                    'candidate': os.path.join(candidatepath, name + ".png"),
+                    'max_rgb':row[1],
+                    'avg_rgb':row[2],
+                    'pixel_diff_count': row[3],
+                    'pixel_diff_percent': "{:.2f}".format(float(row[3]) * 100 / float(row[4])),
+                    'color_diff': name + ".diff0.png",
+                    'pixel_diff': name + ".diff1.png"
+                })
 
 def write_min_csv(columns, csv_path):
 
