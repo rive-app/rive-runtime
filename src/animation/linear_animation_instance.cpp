@@ -42,8 +42,11 @@ bool LinearAnimationInstance::advanceAndApply(float seconds)
 {
     bool more = this->advance(seconds, this);
     this->apply();
-    m_artboardInstance->advance(seconds);
-    return more;
+    if (m_artboardInstance->advance(seconds))
+    {
+        more = true;
+    }
+    return more || keepGoing();
 }
 
 bool LinearAnimationInstance::advance(float elapsedSeconds,
