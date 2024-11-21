@@ -1,0 +1,40 @@
+<h2 href={url}><b class="white_text">{name}</b></h2>
+<table class="entry_table_values">
+    <thead> 
+        <tr> 
+            <th>maxRGB mismatch </th>
+            <th>AvgRGB mismatch</th>
+            <th># of different pixels</th>
+            <th>% of different pixels</th>
+            <th>histogram</th>
+        </tr>
+    </thead>
+    <tbody> 
+        <tr> 
+            <td>{max}</td>
+            <td>{avg}</td>
+            <td>{total_diff}</td>
+            <td>{percent}</td>
+            <td>{histogram}</td>
+        </tr>
+    </tbody>
+</table>
+<table class="entry_table_images">
+    <thead> 
+        <tr> 
+            <th>golden</th>
+            <th>candidate </th>
+            <th>color diff</th>
+            <th>pixel diff</th>
+        </tr>
+    </thead>
+    <tbody> 
+        <tr> 
+            <td> <a href={golden}><img src={golden} height="192"></a></td>
+            <td> <a href={candidate}><img src={candidate} height="192"></a></td>
+            <td> <a href={diff0}><img src={diff0} height="192"></a></td>
+            <td> <a href={diff1}><img src={diff1} height="192"></a></td>
+
+        </tr>
+    </tbody>
+</table>

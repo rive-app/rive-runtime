@@ -3,11 +3,11 @@
 # get opencv dependency if needed. We do it here for imageDiff 
 # because we spawn multiple processes so we would have a race condition with each one trying to check and download opencv
 import subprocess
-from venv import create
 import os.path
 import sys
 
 if not "NO_VENV" in os.environ.keys():
+    from venv import create
     # create venv here and then install package
     VENV_DIR = os.path.realpath(os.path.join(os.path.dirname(__file__), ".pyenv"))
     if sys.platform.startswith('win32'):
@@ -21,6 +21,8 @@ if not "NO_VENV" in os.environ.keys():
 else:
     PYTHON = os.path.realpath(sys.executable)
 
+TEMPLATE_PATH = os.path.join(os.path.dirname(__file__), "template")
+
 from genericpath import exists
 import argparse
 import glob
@@ -31,8 +33,6 @@ from xml.etree import ElementTree as ET
 from typing import TypeVar
 import shutil
 import json
-
-_HtmlElement = TypeVar('_HtmlElement', bound='HtmlElement')
 
 parser = argparse.ArgumentParser(description="Compare two directories of images")
 parser.add_argument("--goldens", "-g", required=True, help="INPUT directory of correct images")
@@ -45,86 +45,125 @@ parser.add_argument("-r", "--recursive", action='store_true', help="recursively 
 parser.add_argument("-p", "--pack", action='store_true', help="copy candidates and goldens into output folder along with results")
 parser.add_argument("-x", "--clean", action='store_true', help="delete golden and candidate images that are identical")
 parser.add_argument("-H", "--histogram_compare", action='store_true', help="Use histogram compare method to determine if candidate matches gold")
+parser.add_argument("-t", "--histogram_threshold", default=0.01, type=float, help="Threshold used for histogram pass result")
+
 args = parser.parse_args()
 
 # _winapi.WaitForMultipleObjects only supports 64 handles, which we exceed if we span >61 diff jobs.
 args.jobs = min(args.jobs, 61)
 
-class HtmlElement(object):
-    def __init__(self, tag):
-        self.element = ET.Element(tag)
-
-    def __call__(self, tag) -> _HtmlElement:
-        return self.__new_element__(tag)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exception_type, exception_value, exception_traceback):
-        pass
-
-    def __new_element__(self, tag) -> _HtmlElement:
-        element = HtmlElement(tag)
-        self.element.append(element.element)
-        return element
-
-    @property
-    def text(self):
-        return self.element.text
-
-    @text.setter
-    def text(self, text):
-        self.element.text = text
-
-    @property
-    def tail(self):
-        return self.element.tail
-    
-    @tail.setter
-    def tail(self, value):
-        self.element.tail = value
-
-    def add_strong_top_text(self, text):
-        with self('strong') as s:
-            s.add_attribute("style", "vertical-align:top;horizontal-align:right")
-            s.text = text
-
-    def add_attribute(self, attribute_key, attribute_value):
-        self.element.attrib[attribute_key] = attribute_value
-
-class HtmlDoc(object):
-    def __init__(self, file_path, force_html_entity=False):
-        self.root = HtmlElement("html")
-        self.file_path = file_path
-        self.force_html_entity = force_html_entity
-
-    def __call__(self, tag):
-        return self.root.__new_element__(tag)
-
-    def __enter__(self):
-        return self
-
-    def __exit__(self, exception_type, exception_value, exception_traceback):
-        ET.indent(self.root.element)
-        html_string = ET.tostring(self.root.element, method='html')
-        if self.force_html_entity:
-            html_string = html_string.replace(b'&amp;', b'&')
-        with open(self.file_path, 'wb') as f:
-            f.write(html_string)
-
 status_filename_base = "_imagediff_status"
 status_filename_pattern = f"{status_filename_base}_%i_*.txt" % os.getpid()
 show_commands = False
 
-class Usage(Exception):
-    def __init__(self, msg):
-        self.msg = msg
+class TestEntry(object):
+    pass_entry_template:str = None
+    error_entry_template:str = None
+    identical_entry_template:str = None
 
-def is_arg(arg, list):
-    for item in list:
-        if arg == item:
-            return True
-    return False
+    @classmethod
+    def load_templates(cls, path):
+        with open(os.path.join(path, "error_entry.html")) as t:
+            cls.error_entry_template = t.read()
+        with open(os.path.join(path, "pass_entry.html")) as t:
+            cls.pass_entry_template = t.read()
+        with open(os.path.join(path, "identical_entry.html")) as t:
+            cls.identical_entry_template = t.read()
+
+    def __init__(self, words, candidates_path, golden_path, output_path, device_name=None, browserstack_details=None):
+        self.device = device_name
+        self.browserstack_details = browserstack_details
+        self.name = words[0]
+        self.candidates_path = os.path.relpath(os.path.join(candidates_path, f"{self.name}.png"), output_path)
+        self.golden_path = os.path.relpath(os.path.join(golden_path, f"{self.name}.png"), output_path)
+        if len(words) == 2:
+            self.type = words[1]
+        else:    
+            self.max_diff = int(words[1])
+            self.avg = float(words[2])
+            self.total_diff_count = int(words[3])
+            self.total_pixels = int(words[4])
+            if device_name is not None:
+                self.diff0_path = os.path.relpath(os.path.join(output_path, device_name, f"{self.name}.diff0.png"), output_path)
+                self.diff1_path = os.path.relpath(os.path.join(output_path, device_name, f"{self.name}.diff1.png"), output_path)
+            else:
+                self.diff0_path = os.path.relpath(os.path.join(output_path, f"{self.name}.diff0.png"), output_path)
+                self.diff1_path = os.path.relpath(os.path.join(output_path, f"{self.name}.diff1.png"), output_path)
+            if len(words) == 6:
+                self.histogram = float(words[5])
+                if self.histogram < (1.0-args.histogram_threshold):
+                    self.type = "failed"
+                else:
+                    self.type = "pass"
+            else:
+                self.histogram = None
+                self.type = "failed"
+
+    def __lt__(self, other):
+         if self.type == "pass" or self.type == "pass":
+            if self.histogram is None:
+                return self.avg < other.avg
+            else:
+                return self.histogram < other.histogram
+
+    def __str__(self):
+        vals = dict()
+        vals['name'] = f"{self.name} ({self.device})" if self.device is not None else self.name
+        vals['url'] = self.browserstack_details['browser_url'] if self.browserstack_details is not None else ' '
+        vals['golden'] = self.golden_path
+        vals['candidate'] = self.candidates_path
+        
+        if self.type == "pass" or self.type == "failed":
+            vals['max'] = self.max_diff
+            vals['avg'] = self.avg
+            vals['total_diff'] = self.total_diff_count
+            vals['percent'] = float(self.total_diff_count) / float(self.total_pixels)
+            vals['histogram'] = self.histogram if self.histogram is not None else 'None'
+            vals['diff0'] = self.diff0_path
+            vals['diff1'] = self.diff1_path
+
+            if self.type == 'pass':
+                return self.pass_entry_template.format_map(vals)
+            else:
+                return self.error_entry_template.format_map(vals)
+
+        if self.type == 'identical':
+            return self.identical_entry_template.format_map(vals)
+        
+        return ''
+
+    @property
+    def success(self):
+        return self.type == "pass" or self.type == "identical"
+    
+    @property
+    def csv_dict(self):
+        val = dict()
+
+        val['file_name'] = self.name
+        val['original'] = self.golden_path
+        val['candidate'] = self.candidates_path
+        if self.type == "pass" or self.type == "failed":
+            val['max_rgb'] = str(self.max_diff)
+            val['avg_rgb'] = str(self.avg)
+            val['pixel_diff_count'] = str(self.total_diff_count)
+            val['pixel_diff_percent'] = '100'
+            if self.histogram is not None:
+                val['hist_result'] = str(self.histogram)
+            val['color_diff'] = self.diff0_path
+            val['pixel_diff'] = self.diff1_path
+        elif self.type == 'identical':
+            val['max_rgb'] = '0'
+            val['avg_rgb'] = '0'
+            val['pixel_diff_count'] = '0'
+            val['pixel_diff_percent'] = '100'
+            if args.histogram_compare:
+                val['hist_result'] = '1.0'
+            val['color_diff'] = ''
+            val['pixel_diff'] = ''
+
+        return val
+    
 
 def shallow_copy_images(src, dest):
     file_names = [file for file in os.scandir(src) if file.is_file() and '.png' in file.name]
@@ -136,171 +175,7 @@ def remove_suffix(name, oldsuffix):
         name = name[:-len(oldsuffix)]
     return name
 
-def call_imagediff(filename, golden, candidate, output, parent_pid):
-    cmd = [PYTHON, "image_diff.py",
-           "-n", remove_suffix(filename, ".png"),
-           "-g", os.path.join(golden, filename),
-           "-c", os.path.join(candidate, filename),
-           # Each process writes its own status file in order to avoid race conditions.
-           "-s", "%s_%i_%i.txt" % (status_filename_base, parent_pid, os.getpid())]
-    if output is not None:
-        cmd.extend(["-o", output])
-    if args.verbose:
-        cmd.extend(["-v", "-l"])
-    if args.histogram_compare:
-        cmd.extend(["-H"])
-    
-    if show_commands:
-        str = ""
-        for c in cmd:
-            str += c + " "
-        print(str)
-    
-    if 0 != subprocess.call(cmd):
-        print("Error calling " + cmd[0])
-        return -1
-
-def parse_status(candidates_path):
-    total_lines = 0
-    diff_lines = []
-    success = True
-    status_files = glob.glob(status_filename_pattern)
-    if not status_files:
-        print('Not a single status file got written, are you just starting new?')
-    for status_filename in status_files:
-        for line in open(status_filename, "r").readlines():
-            total_lines += 1
-            words = line.rstrip().split('\t')
-            name = words[0]
-            if words[1] == "failed":
-                print("Failed to compare " + name)
-                success = False
-            elif words[1] == "identical":
-                if args.clean:
-                    for path in [candidates_path, args.goldens]:
-                        identical_file = "%s/%s.png" % (path, name)
-                        if args.verbose:
-                            print("deleting identical file " + identical_file)
-                        os.remove(identical_file)
-            elif words[1] == "sizemismatch":
-                print("Dimensions mismatch for " + name)
-                success = False
-            else:
-                diff_lines.append(words)
-                success = False
-    return (total_lines, diff_lines, success)
-
-def write_image(html_element: HtmlElement, path, height):
-    with html_element('a') as a:
-        a.add_attribute("href", path)
-        with a('img') as img:
-            img.add_attribute('src', path)
-            img.add_attribute('height', height)
-        #a.tail = '&nbsp;'
-
-def write_row(html_element: HtmlElement, name, origpath, candidatepath, diff_path, height, max_component_diff, ave_component_diff,
-              pixel_diffcount, pixeldiff_percent, histogram_result = None):
-    with html_element('h3') as b:
-        b.text = name
-    
-    with html_element("p") as p:
-        p.text = f"Max RGB mismatch: {max_component_diff}"
-        p.tail = None
-        with p('br') as br:
-            br.tail = f"Avg RGB mismatch: {ave_component_diff}"
-        with p('br') as br:
-            br.tail = f"# of different pixels: {pixel_diffcount} ({pixeldiff_percent}%)"
-        if histogram_result is not None:
-            with p('br') as br:
-                br.tail = f"histogram result: {histogram_result}"
-        p('br')
-        
-    html_element('br')
-    with html_element('table') as table:
-        table.add_attribute("style", "border-spacing: 10px 0; background-color: #EEE;")
-        with table('tr') as tr:
-            tr.add_attribute("height", "10px")
-        with table('tr') as tr:
-            with tr('td') as td:
-                td('h4').text = "golden"
-            with tr('td') as td:
-                td('h4').text = "candidate"
-            with tr('td') as td:
-                td('h4').text = "color diff"
-            with tr('td') as td:
-                td('h4').text = "pixel diff"
-        with table('tr') as tr:
-            with tr('td') as td:
-                write_image(td, os.path.join(origpath, name + ".png"), height)
-            with tr('td') as td:
-                write_image(td, os.path.join(candidatepath, name + ".png"), height)
-            with tr('td') as td:
-                write_image(td, os.path.join(diff_path, name + ".diff0.png"), height)
-            with tr('td') as td:
-                write_image(td, os.path.join(diff_path, name + ".diff1.png"), height)
-        with table('tr') as tr:
-            tr.add_attribute("height", "10px")
-
-def write_row_identical(html_element: HtmlElement, name, origpath, candidatepath, diff_path, height):
-    with html_element('h3') as b:
-        b.text = name
-    
-    with html_element("p") as p:
-        p.text = f"Golden and Conadidate are identical"
-        
-    html_element('br')
-    with html_element('div') as outer:
-        outer.add_attribute("style", "overflow: hidden;background-color: #EEEEEE; overflow:auto;")
-        with outer('div') as div:
-            div.add_attribute("style", "width: 25%; float: left; margin: auto")
-            div('h4').text = "golden"
-            write_image(div, os.path.join(origpath, name + ".png"), height)
-        with outer('div') as div:
-            div.add_attribute("style", "width: 25%; float: left; margin: auto")
-            div('h4').text = "candidate"
-            write_image(div, os.path.join(candidatepath, name + ".png"), height)
-
-def write_html(rows, origpath, candidatepath, diffpath):
-    origpath = os.path.relpath(origpath, diffpath)
-    candidatepath = os.path.relpath(candidatepath, diffpath)
-
-    # if we have a histogram result, sort by the distance of that value from 1
-    if args.histogram_compare:
-        rows.sort(reverse=True, key=lambda row: abs(1.0 - float(row[5])))
-    else:
-        # Otherwise sort the rows by ave_component_diff -- larger diffs first.
-        rows.sort(reverse=True, key=lambda row: row[2])
-
-    height = '256'
-    with HtmlDoc(os.path.join(diffpath, "index.html"), True) as f:
-        for row in rows:
-            if args.histogram_compare:
-                write_row(f, row[0], origpath, candidatepath, "", height, row[1], row[2], row[3],
-                        "{:.2f}".format(float(row[3]) * 100 / float(row[4])), row[5])
-            else:
-                write_row(f, row[0], origpath, candidatepath, "", height, row[1], row[2], row[3],
-                        "{:.2f}".format(float(row[3]) * 100 / float(row[4])))
-            
-def write_column(html, device, rows, origpath, candidatepath, browserstack_details:dict=None):
-    with html('h2') as h:
-        h.text = device
-    if browserstack_details is not None and 'browser_url' in browserstack_details.keys():
-        with html('a') as a:
-            a.text = 'BrowserStack Link'
-            a.add_attribute('href', browserstack_details['browser_url'])
-    height = '256'
-    rows.sort(reverse=True, key=lambda row: row[2])
-    for row in rows:
-        if len(row) == 5:
-            write_row(html, row[0], origpath, candidatepath, device, height, row[1], row[2], row[3],
-                    "{:.2f}".format(float(row[3]) * 100 / float(row[4])))
-        elif len(row) == 6:
-            write_row(html, row[0], origpath, candidatepath, device, height, row[1], row[2], row[3],
-                    "{:.2f}".format(float(row[3]) * 100 / float(row[4])), row[5])
-        else:
-            write_row_identical(html, row[0], origpath, candidatepath, device, height)
-
-def write_csv(rows, origpath, candidatepath, diffpath, missing_candidates):
+def write_csv(entries, origpath, candidatepath, diffpath, missing_candidates):
     origpath = os.path.relpath(origpath, diffpath)
     candidatepath = os.path.relpath(candidatepath, diffpath)
 
@@ -341,71 +216,65 @@ def write_csv(rows, origpath, candidatepath, diffpath, missing_candidates):
                     'pixel_diff': ''
                 })
 
-        for row in rows:
-            name = row[0]
-            if args.histogram_compare:
-                writer.writerow({
-                    'file_name': name,
-                    'original': os.path.join(origpath, name + ".png") , 
-                    'candidate': os.path.join(candidatepath, name + ".png"),
-                    'max_rgb':row[1],
-                    'avg_rgb':row[2],
-                    'pixel_diff_count': row[3],
-                    'pixel_diff_percent': "{:.2f}".format(float(row[3]) * 100 / float(row[4])),
-                    "hist_result": row[5],
-                    'color_diff': name + ".diff0.png",
-                    'pixel_diff': name + ".diff1.png"
-                })
-            else:
-                writer.writerow({
-                    'file_name': name,
-                    'original': os.path.join(origpath, name + ".png") , 
-                    'candidate': os.path.join(candidatepath, name + ".png"),
-                    'max_rgb':row[1],
-                    'avg_rgb':row[2],
-                    'pixel_diff_count': row[3],
-                    'pixel_diff_percent': "{:.2f}".format(float(row[3]) * 100 / float(row[4])),
-                    'color_diff': name + ".diff0.png",
-                    'pixel_diff': name + ".diff1.png"
-                })
+        for entry in entries:
+            writer.writerow(entry.csv_dict)
+            
 
-def write_min_csv(columns, csv_path):
-
+def write_min_csv(total_passing, total_failing, total_identical, total_entries, csv_path):
     # delete and old data
     if os.path.exists(csv_path):
         os.remove(csv_path)
-    
-    total_vector = 0
-    total_vector_issues = 0
-
-    total_mesh = 0
-    total_mesh_issues = 0
-
-    total_text = 0
-    total_text_issues = 0
-
-    for column in columns.values():
-        for row in column['diff_lines']:
-            if row[0] == 'vector':
-                total_vector += 1
-                if float(row[2]) > 0.01:
-                    total_vector_issues += 1
-            if row[0] == 'mesh':
-                total_mesh += 1
-                if float(row[2]) > 0.01:
-                    total_mesh_issues += 1
-            if row[0] == 'text':
-                total_text += 1
-                if float(row[2]) > 0.01:
-                    total_text_issues += 1
 
     with open(csv_path, 'w', newline='') as csv_file:
-        csv_writer = csv.DictWriter(csv_file, fieldnames=['type', 'total_issues', "serious_issues"])
-        csv_writer.writerow({'type':'vector', 'total_issues' : str(total_vector), 'serious_issues' : str(total_vector_issues)})
-        csv_writer.writerow({'type':'mesh', 'total_issues' : str(total_mesh), 'serious_issues' : str(total_mesh_issues)})
-        csv_writer.writerow({'type':'text', 'total_issues' : str(total_text), 'serious_issues' : str(total_text_issues)})
+        csv_writer = csv.DictWriter(csv_file, fieldnames=['type', 'number'])
+        csv_writer.writerow({'type':'failed', 'number' : str(total_failing)})
+        csv_writer.writerow({'type':'pass', 'number' : str(total_passing)})
+        csv_writer.writerow({'type':'identical', 'number' : str(total_identical)})
+        csv_writer.writerow({'type':'total', 'number' : str(total_entries)})
 
-def diff_directory_shallow(candidates_path, output_path):
+def call_imagediff(filename, golden, candidate, output, parent_pid):
+    cmd = [PYTHON, "image_diff.py",
+           "-n", remove_suffix(filename, ".png"),
+           "-g", os.path.join(golden, filename),
+           "-c", os.path.join(candidate, filename),
+           # Each process writes its own status file in order to avoid race conditions.
+           "-s", "%s_%i_%i.txt" % (status_filename_base, parent_pid, os.getpid())]
+    if output is not None:
+        cmd.extend(["-o", output])
+    if args.verbose:
+        cmd.extend(["-v", "-l"])
+    if args.histogram_compare:
+        cmd.extend(["-H"])
+    
+    if show_commands:
+        str = ""
+        for c in cmd:
+            str += c + " "
+        print(str)
+    
+    if 0 != subprocess.call(cmd):
+        print("Error calling " + cmd[0])
+        return -1
+
+def parse_status(candidates_path, golden_path, output_path, device_name, browserstack_details):
+    total_lines = 0
+    test_entries = []
+    success = True
+    status_files = glob.glob(status_filename_pattern)
+    if not status_files:
+        print('Not a single status file got written, are you just starting new?')
+    for status_filename in status_files:
+        for line in open(status_filename, "r").readlines():
+            total_lines += 1
+            words = line.rstrip().split('\t')
+            entry = TestEntry(words, candidates_path, golden_path, output_path, device_name, browserstack_details)
+            test_entries.append(entry)
+            if not entry.success:
+                success = False
+
+    return (total_lines, test_entries, success)
+
+def diff_directory_shallow(candidates_path, output_path, device_name=None, browserstack_details=None):
     original_filenames = set((file.name for file in os.scandir(candidates_path) if file.is_file()))
     candidate_filenames = set(os.listdir(args.goldens))
     intersect_filenames = original_filenames.intersection(candidate_filenames)
@@ -431,7 +300,7 @@ def diff_directory_shallow(candidates_path, output_path):
                 parent_pid=os.getpid())
     
     Pool(args.jobs).map(f, intersect_filenames)
-    (total_lines, diff_lines, success) = parse_status(candidates_path)
+    (total_lines, entires, success) = parse_status(candidates_path, args.goldens, output_path, device_name, browserstack_details)
     
     print(f'finished with Succes:{success} and {total_lines} lines')
 
@@ -447,7 +316,35 @@ def diff_directory_shallow(candidates_path, output_path):
     for status_filename in glob.iglob(status_filename_pattern):
         os.remove(status_filename)
 
-    return (diff_lines, missing_candidates, success)
+    return (entires, missing_candidates, success)
+
+def sort_entries(entries):
+    identical_entires = [entry for entry in entries if entry.type == "identical"]
+    pass_entires = [entry for entry in entries if entry.type == "pass"]
+    failed_entires = [entry for entry in entries if entry.type == "failed"]
+
+    sorted_failed_entires = sorted(failed_entires, reverse=True)
+    sorted_passed_entires = sorted(pass_entires, reverse=True)
+
+    sorted_failed_str = [str(entry) for entry in sorted_failed_entires]
+    sorted_passed_str = [str(entry) for entry in sorted_passed_entires]
+    identical_str = [str(entry) for entry in identical_entires]
+
+    return (sorted_failed_str, sorted_passed_str, identical_str)
+
+def write_html(templates_path, failed_entries, passing_entries, identical_entries, output_path):
+    with open(os.path.join(templates_path, "index.html")) as t:
+        index_template = t.read()
+    
+    html = index_template.format(identical=identical_entries, passing=passing_entries,
+                                 failed=failed_entries, failed_number=len(failed_entries),
+                                 passing_number=len(passing_entries), identical_number=len(identical_entries))
+
+    with open(os.path.join(output_path, "index.html"), "w") as file:
+        file.write(html)
+    
+    #copy our icon to the output folder
+    shutil.copyfile(os.path.join(TEMPLATE_PATH, "favicon.ico"), os.path.join(output_path, "favicon.ico"))
 
 def diff_directory_deep(candidates_path, output_path):
     if args.pack:
@@ -456,7 +353,7 @@ def diff_directory_deep(candidates_path, output_path):
         shallow_copy_images(args.goldens, new_golden_path)
         args.goldens = new_golden_path
     
-    diff_columns = {}
+    all_entries = []
 
     for folder in os.scandir(candidates_path):
         if folder.is_dir():
@@ -471,37 +368,22 @@ def diff_directory_deep(candidates_path, output_path):
                     browserstack_details = json.load(file)
                 os.remove(browserstack_details_path)
             
-            (diff_lines, _, _) = diff_directory_shallow(folder.path, output)
+            (entries, _, _) = diff_directory_shallow(folder.path, output, folder.name, browserstack_details)
             
+            all_entries.extend(entries)
+
             if args.pack:
                 shallow_copy_images(folder.path, output)
-                if diff_lines:
-                    diff_columns[folder.name] = {'diff_lines': diff_lines, 'input_path': folder.name, 'session_details' : browserstack_details}
-            else:
-                if diff_lines:
-                    diff_columns[folder.name] = {'diff_lines': diff_lines, 'input_path': folder.path, 'session_details' : browserstack_details}
     
-
-
-    diff_list = sorted(diff_columns.items(), key = column_sorter, reverse=True)
-
     if args.pack:
         args.goldens = 'golden'
 
-    with HtmlDoc(output_path + "/index.html", True) as html:
-        html('header')
-        with html('body') as body:
-            body.add_attribute('style', 'background-color: ##e6e6e6')
-            for device in diff_list:
-                write_column(body, device[0], device[1]['diff_lines'], args.goldens, device[1]['input_path'], device[1]['session_details'])
-            
+    (failed, passed, identical) = sort_entries(all_entries)
 
-    print(f"total columns {len(diff_columns)}")
-    write_min_csv(diff_columns, output_path + "/issues.csv")
+    write_html(TEMPLATE_PATH, failed, passed, identical, output_path)
 
-def column_sorter(in_item):
-    rows = in_item[1]['diff_lines']
-    return max([x[2] for x in rows])
+    print(f"total entires {len(all_entries)}")
+    write_min_csv(len(passed), len(failed), len(identical), len(all_entries), output_path + "/issues.csv")
 
 def main(argv=None):    
     if not os.path.exists(args.goldens):
@@ -521,15 +403,18 @@ def main(argv=None):
     for status_filename in glob.iglob(status_filename_pattern):
         os.remove(status_filename)
 
+    TestEntry.load_templates(TEMPLATE_PATH)
+
     if args.recursive:
         diff_directory_deep(args.candidates, args.output)
     else:
-        (diff_lines, missing_candidates, success) = diff_directory_shallow(args.candidates, args.output)
-        if len(diff_lines) > 0:
-            write_html(diff_lines, args.goldens, args.candidates, args.output)
+        (entires, missing_candidates, success) = diff_directory_shallow(args.candidates, args.output)
+        if len(entires) > 0:
+            (failed, passed, identical) = sort_entries(entires)
+            write_html(TEMPLATE_PATH, failed, passed, identical, args.output)
             # note could add these to the html output but w/e
-            write_csv(diff_lines, args.goldens, args.candidates, args.output, missing_candidates)
-            print("Found " + str(len(diff_lines)) + " differences.")
+            write_csv(entires, args.goldens, args.candidates, args.output, missing_candidates)
+            print("Found " + str(len(entires)) + " differences.")
         if not success:
             # if there were diffs, its gotta fail
             print("FAILED.")
