@@ -1090,7 +1090,7 @@ void RenderContext::LogicalFlush::writeResources()
         // Build a list of sort keys that determine the final draw order.
         constexpr static int kDrawGroupShift =
             48; // Where in the key does the draw group begin?
-        constexpr static int64_t kDrawGroupMask = 0xffffllu << kDrawGroupShift;
+        constexpr static int64_t kDrawGroupMask = 0x7fffllu << kDrawGroupShift;
         constexpr static int kDrawTypeShift = 45;
         constexpr static int64_t kDrawTypeMask RIVE_MAYBE_UNUSED =
             7llu << kDrawTypeShift;
@@ -1102,8 +1102,8 @@ void RenderContext::LogicalFlush::writeResources()
         constexpr static int kDrawContentsShift = 17;
         constexpr static int64_t kDrawContentsMask = 0x3fllu
                                                      << kDrawContentsShift;
-        constexpr static int64_t kDrawIndexMask = 0xffff;
         constexpr static int kDrawIndexShift = 1;
+        constexpr static int64_t kDrawIndexMask = 0x7fff << kDrawIndexShift;
         constexpr static int64_t kSubpassIndexMask = 0x1;
         for (size_t i = 0; i < m_draws.size(); ++i)
         {
@@ -1286,7 +1286,7 @@ void RenderContext::LogicalFlush::writeResources()
                 pushBarrier();
             }
             int64_t key = abs(signedKey);
-            uint32_t drawIndex = (key >> kDrawIndexShift) & kDrawIndexMask;
+            uint32_t drawIndex = (key & kDrawIndexMask) >> kDrawIndexShift;
             int subpassIndex = key & kSubpassIndexMask;
             if (signedKey < 0)
             {
