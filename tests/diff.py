@@ -74,8 +74,12 @@ class TestEntry(object):
         self.device = device_name
         self.browserstack_details = browserstack_details
         self.name = words[0]
-        self.candidates_path = os.path.relpath(os.path.join(candidates_path, f"{self.name}.png"), output_path)
-        self.golden_path = os.path.relpath(os.path.join(golden_path, f"{self.name}.png"), output_path)
+        if args.pack and device_name is not None:
+            self.candidates_path = os.path.join(device_name, f"{self.name}.png")
+            self.golden_path = os.path.join("golden", f"{self.name}.png")
+        else:
+            self.candidates_path = os.path.relpath(os.path.join(candidates_path, f"{self.name}.png"), output_path)
+            self.golden_path = os.path.relpath(os.path.join(golden_path, f"{self.name}.png"), output_path)
         if len(words) == 2:
             self.type = words[1]
         else:    
@@ -84,8 +88,8 @@ class TestEntry(object):
             self.total_diff_count = int(words[3])
             self.total_pixels = int(words[4])
             if device_name is not None:
-                self.diff0_path = os.path.relpath(os.path.join(output_path, device_name, f"{self.name}.diff0.png"), output_path)
-                self.diff1_path = os.path.relpath(os.path.join(output_path, device_name, f"{self.name}.diff1.png"), output_path)
+                self.diff0_path = os.path.join(device_name, f"{self.name}.diff0.png")
+                self.diff1_path = os.path.join(device_name, f"{self.name}.diff1.png")
             else:
                 self.diff0_path = os.path.relpath(os.path.join(output_path, f"{self.name}.diff0.png"), output_path)
                 self.diff1_path = os.path.relpath(os.path.join(output_path, f"{self.name}.diff1.png"), output_path)
@@ -274,9 +278,9 @@ def parse_status(candidates_path, golden_path, output_path, device_name, browser
 
     return (total_lines, test_entries, success)
 
-def diff_directory_shallow(candidates_path, output_path, device_name=None, browserstack_details=None):
+def diff_directory_shallow(candidates_path, output_path, golden_path, device_name=None, browserstack_details=None):
     original_filenames = set((file.name for file in os.scandir(candidates_path) if file.is_file()))
-    candidate_filenames = set(os.listdir(args.goldens))
+    candidate_filenames = set(os.listdir(golden_path))
     intersect_filenames = original_filenames.intersection(candidate_filenames)
 
     missing_candidates = []
@@ -294,13 +298,13 @@ def diff_directory_shallow(candidates_path, output_path, device_name=None, brows
 
 #   generate the diffs (if any) and write to the status file
     f = partial(call_imagediff,
-                golden=args.goldens,
+                golden=golden_path,
                 candidate=candidates_path,
                 output=output_path,
                 parent_pid=os.getpid())
     
     Pool(args.jobs).map(f, intersect_filenames)
-    (total_lines, entires, success) = parse_status(candidates_path, args.goldens, output_path, device_name, browserstack_details)
+    (total_lines, entires, success) = parse_status(candidates_path, golden_path, output_path, device_name, browserstack_details)
     
     print(f'finished with Succes:{success} and {total_lines} lines')
 
@@ -347,11 +351,12 @@ def write_html(templates_path, failed_entries, passing_entries, identical_entrie
     shutil.copyfile(os.path.join(TEMPLATE_PATH, "favicon.ico"), os.path.join(output_path, "favicon.ico"))
 
 def diff_directory_deep(candidates_path, output_path):
+    golden_path = args.goldens
     if args.pack:
         new_golden_path = os.path.join(output_path, "golden")
         os.makedirs(new_golden_path, exist_ok=True)
         shallow_copy_images(args.goldens, new_golden_path)
-        args.goldens = new_golden_path
+        golden_path = new_golden_path
     
     all_entries = []
 
@@ -368,15 +373,12 @@ def diff_directory_deep(candidates_path, output_path):
                     browserstack_details = json.load(file)
                 os.remove(browserstack_details_path)
             
-            (entries, _, _) = diff_directory_shallow(folder.path, output, folder.name, browserstack_details)
+            (entries, _, _) = diff_directory_shallow(folder.path, output, golden_path, folder.name, browserstack_details)
             
             all_entries.extend(entries)
 
             if args.pack:
                 shallow_copy_images(folder.path, output)
-    
-    if args.pack:
-        args.goldens = 'golden'
 
     (failed, passed, identical) = sort_entries(all_entries)
 
@@ -408,7 +410,7 @@ def main(argv=None):
     if args.recursive:
         diff_directory_deep(args.candidates, args.output)
     else:
-        (entires, missing_candidates, success) = diff_directory_shallow(args.candidates, args.output)
+        (entires, missing_candidates, success) = diff_directory_shallow(args.candidates, args.output, args.goldens)
         if len(entires) > 0:
             (failed, passed, identical) = sort_entries(entires)
             write_html(TEMPLATE_PATH, failed, passed, identical, args.output)
