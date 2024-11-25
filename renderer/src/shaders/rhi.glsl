@@ -76,19 +76,6 @@ $typedef $uint ushort;
 #define ATTR_LOAD(T, A, N, I)
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE) TYPE NAME = attrs.NAME
 
-#define UNIFORM_BUFFER_REGISTER(IDX) $register(SPLAT($b, IDX))
-
-#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                         \
-    $cbuffer NAME : UNIFORM_BUFFER_REGISTER(IDX)                               \
-    {                                                                          \
-        struct                                                                 \
-        {
-
-#define UNIFORM_BLOCK_END(NAME)                                                \
-    }                                                                          \
-    NAME;                                                                      \
-    }
-
 #define VARYING_BLOCK_BEGIN                                                    \
     struct Varyings                                                            \
     {
@@ -117,17 +104,13 @@ $typedef $uint ushort;
 #define FRAG_TEXTURE_BLOCK_END
 #endif
 
-#define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
-    uniform $Texture2D<uint4> NAME : $register(SPLAT($t, IDX))
-#define TEXTURE_RGBA32F(SET, IDX, NAME)                                        \
-    uniform $Texture2D<float4> NAME : $register(SPLAT($t, IDX))
-#define TEXTURE_RGBA8(SET, IDX, NAME)                                          \
-    uniform $Texture2D<$unorm float4> NAME : $register(SPLAT($t, IDX))
+#define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform $Texture2D<uint4> NAME
+#define TEXTURE_RGBA32F(SET, IDX, NAME) uniform $Texture2D<float4> NAME
+#define TEXTURE_RGBA8(SET, IDX, NAME) uniform $Texture2D<$unorm float4> NAME
 
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler
 // parameters are defined at the API level.
-#define SAMPLER(TEXTURE_IDX, NAME)                                             \
-    $SamplerState NAME : $register(SPLAT($s, TEXTURE_IDX));
+#define SAMPLER(TEXTURE_IDX, NAME) $SamplerState NAME;
 #define SAMPLER_LINEAR SAMPLER
 #define SAMPLER_MIPMAP SAMPLER
 
@@ -150,14 +133,11 @@ $typedef $uint ushort;
 
 #define PLS_BLOCK_BEGIN
 #ifdef @ENABLE_TYPED_UAV_LOAD_STORE
-#define PLS_DECL4F(IDX, NAME)                                                  \
-    uniform PLS_TEX2D<$unorm half4> NAME : $register($SPLAT(u, IDX))
+#define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<$unorm half4> NAME
 #else
-#define PLS_DECL4F(IDX, NAME)                                                  \
-    uniform PLS_TEX2D<uint> NAME : $register(SPLAT($u, IDX))
+#define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<uint> NAME
 #endif
-#define PLS_DECLUI(IDX, NAME)                                                  \
-    uniform PLS_TEX2D<uint> NAME : $register(SPLAT($u, IDX))
+#define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME
 #define PLS_DECLUI_ATOMIC PLS_DECLUI
 #define PLS_LOADUI_ATOMIC PLS_LOADUI
 #define PLS_STOREUI_ATOMIC PLS_STOREUI
@@ -291,11 +271,11 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define FRAG_STORAGE_BUFFER_BLOCK_END
 
 #define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                      \
-    $StructuredBuffer<uint2> NAME : $register(SPLAT($t, IDX))
+    $StructuredBuffer<uint2> NAME
 #define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
-    $StructuredBuffer<uint4> NAME : $register(SPLAT($t, IDX))
+    $StructuredBuffer<uint4> NAME
 #define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
-    $StructuredBuffer<float4> NAME : $register(SPLAT($t, IDX))
+    $StructuredBuffer<float4> NAME
 
 #define STORAGE_BUFFER_LOAD4(NAME, I) NAME[I]
 #define STORAGE_BUFFER_LOAD2(NAME, I) NAME[I]

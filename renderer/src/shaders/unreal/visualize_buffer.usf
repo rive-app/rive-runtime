@@ -1,0 +1,23 @@
+#include "/Engine/Public/Platform.ush"
+StructuredBuffer<uint2> SourceBuffer;
+
+uint2 ViewSize;
+uint BufferSize;
+
+inline float usin(uint v)
+{
+    return (sin(float(v)) + 1.0) / 2.0;
+}
+
+inline float ucos(uint v)
+{
+    return (cos(float(v)) + 1.0) / 2.0;
+}
+
+void FragmentMain( in float4 Position : SV_Position,
+    out float4 OutColor : SV_Target0)
+{
+    float index = (((Position.y * ViewSize.g) + Position.y) / (ViewSize.r * ViewSize.g)) * BufferSize;
+    uint2 Result = SourceBuffer[index];
+    OutColor = float4( ucos(Result.r), usin(Result.g), 0, 1.0 );
+}
