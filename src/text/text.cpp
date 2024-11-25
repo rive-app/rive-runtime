@@ -905,18 +905,22 @@ void Text::update(ComponentDirt value)
         // We have modifiers that need shaping we'll need to compute the
         // coverage right before we build the actual shape.
         bool precomputeModifierCoverage = modifierRangesNeedShape();
+        bool parentIsLayoutNotArtboard =
+            parent()->is<LayoutComponent>() && !parent()->is<Artboard>();
         if (precomputeModifierCoverage)
         {
             makeStyled(m_modifierStyledText, false);
             auto runs = m_modifierStyledText.runs();
             m_modifierShape =
                 runs[0].font->shapeText(m_modifierStyledText.unichars(), runs);
-            m_modifierLines = BreakLines(
-                m_modifierShape,
-                effectiveSizing() == TextSizing::autoWidth ? -1.0f
-                                                           : effectiveWidth(),
-                (TextAlign)alignValue(),
-                wrap());
+            m_modifierLines =
+                BreakLines(m_modifierShape,
+                           (effectiveSizing() == TextSizing::autoWidth &&
+                            !parentIsLayoutNotArtboard)
+                               ? -1.0f
+                               : effectiveWidth(),
+                           (TextAlign)alignValue(),
+                           wrap());
             m_glyphLookup.compute(m_modifierStyledText.unichars(),
                                   m_modifierShape);
             uint32_t textSize =
@@ -934,8 +938,10 @@ void Text::update(ComponentDirt value)
         {
             auto runs = m_styledText.runs();
             m_shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
+
             m_lines = BreakLines(m_shape,
-                                 effectiveSizing() == TextSizing::autoWidth
+                                 (effectiveSizing() == TextSizing::autoWidth &&
+                                  !parentIsLayoutNotArtboard)
                                      ? -1.0f
                                      : effectiveWidth(),
                                  (TextAlign)alignValue(),
@@ -988,12 +994,10 @@ Vec2D Text::measure(Vec2D maxSize)
         const float paragraphSpace = paragraphSpacing();
         auto runs = m_styledText.runs();
         auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
-        auto lines = BreakLines(
-            shape,
-            std::min(maxSize.x,
-                     sizing() == TextSizing::autoWidth ? -1.0f : width()),
-            (TextAlign)alignValue(),
-            wrap());
+        auto lines = BreakLines(shape,
+                                std::min(maxSize.x, width()),
+                                (TextAlign)alignValue(),
+                                wrap());
         float y = 0;
         float computedHeight = 0.0f;
         float minY = 0;
