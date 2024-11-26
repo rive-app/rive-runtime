@@ -13,7 +13,8 @@
       "key": {
         "int": 246,
         "string": "value"
-      }
+      },
+      "bindable": true
     }
   }
 }

@@ -5,5 +5,25 @@
     "string": "customproperty"
   },
   "abstract": true,
-  "extends": "component.json"
+  "extends": "component.json",
+  "properties": {
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 720,
+        "string": "x"
+      },
+      "runtime": false
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 721,
+        "string": "y"
+      },
+      "runtime": false
+    }
+  }
 }
