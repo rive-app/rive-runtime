@@ -994,10 +994,24 @@ Vec2D Text::measure(Vec2D maxSize)
         const float paragraphSpace = paragraphSpacing();
         auto runs = m_styledText.runs();
         auto shape = runs[0].font->shapeText(m_styledText.unichars(), runs);
+        auto measuringWidth = 0.0f;
+        switch (effectiveSizing())
+        {
+            case TextSizing::autoHeight:
+            case TextSizing::fixed:
+                measuringWidth = width();
+                break;
+            default:
+                measuringWidth = std::numeric_limits<float>::max();
+                break;
+        }
+        auto measuringWrap = maxSize.x == std::numeric_limits<float>::max()
+                                 ? TextWrap::noWrap
+                                 : wrap();
         auto lines = BreakLines(shape,
-                                std::min(maxSize.x, width()),
+                                std::min(maxSize.x, measuringWidth),
                                 (TextAlign)alignValue(),
-                                wrap());
+                                measuringWrap);
         float y = 0;
         float computedHeight = 0.0f;
         float minY = 0;
