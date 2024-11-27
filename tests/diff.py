@@ -4,6 +4,7 @@
 # because we spawn multiple processes so we would have a race condition with each one trying to check and download opencv
 import subprocess
 import os.path
+import pathlib
 import sys
 
 if not "NO_VENV" in os.environ.keys():
@@ -78,8 +79,8 @@ class TestEntry(object):
             self.candidates_path = os.path.join(device_name, f"{self.name}.png")
             self.golden_path = os.path.join("golden", f"{self.name}.png")
         else:
-            self.candidates_path = os.path.relpath(os.path.join(candidates_path, f"{self.name}.png"), output_path)
-            self.golden_path = os.path.relpath(os.path.join(golden_path, f"{self.name}.png"), output_path)
+            self.candidates_path = pathlib.Path(candidates_path).joinpath(f"{self.name}.png").relative_to(output_path, walk_up=True).as_posix()
+            self.golden_path = pathlib.Path(golden_path).joinpath(f"{self.name}.png").relative_to(output_path, walk_up=True).as_posix()
         if len(words) == 2:
             self.type = words[1]
         else:    
