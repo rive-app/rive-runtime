@@ -567,6 +567,18 @@ def main():
             # Build the android_tests wrapper app.
             cwd = os.getcwd()
             os.chdir(os.path.join(rive_tools_dir, "android_tests"))
+
+            # Check for Java availability
+            if subprocess.run(["java", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+                print("Error: Java is required to run Android Gradle tests. Please ensure the $JAVA_HOME environment variable is set. You may use Android Studio's JDK (the path can be found at Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JDK).")
+                return -1
+
+            # Check for $ANDROID_HOME
+            if not os.getenv("ANDROID_HOME"):
+                print("Error: $ANDROID_HOME is not set. Please set it to the path of your Android SDK. You may use Android Studio's SDK (the path can be found at Settings > Languages & Frameworks > Android SDK > Android SDK Location).")
+                return -1
+
+            # Call gradlew to build the android_tests wrapper app.
             subprocess.check_call(["./gradlew" if os.name != "nt" else "gradlew.bat",
                                    ":app:assembleDebug"])
             os.chdir(cwd)
