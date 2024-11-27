@@ -21,6 +21,8 @@ public:
     uint16_t getAxisCount() const override;
     float getAxisValue(uint32_t axisTag) const override;
     uint32_t getFeatureValue(uint32_t featureTag) const override;
+    uint16_t getWeight() const override;
+    bool isItalic() const override;
 
     rive::RawPath getPath(rive::GlyphID) const override;
     rive::SimpleArray<rive::Paragraph> onShapeText(
@@ -39,7 +41,7 @@ public:
                                             bool useSystemShaper,
                                             uint16_t weight,
                                             uint8_t width);
-
+    static float GetStyle(hb_font_t*, uint32_t);
     hb_font_t* font() const { return m_font; }
 
 private:

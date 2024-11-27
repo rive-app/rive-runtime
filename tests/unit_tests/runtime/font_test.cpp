@@ -3,6 +3,8 @@
 #include "rive/text_engine.hpp"
 #include "rive/text/font_hb.hpp"
 #include "rive/text/utf.hpp"
+#include "hb.h"
+#include "hb-ot.h"
 #include <string>
 
 using namespace rive;
@@ -39,7 +41,8 @@ static rcp<Font> loadFont(const char* filename)
 
 static std::vector<rive::rcp<rive::Font>> fallbackFonts;
 static rive::rcp<rive::Font> pickFallbackFont(const rive::Unichar missing,
-                                              const uint32_t fallbackIndex)
+                                              const uint32_t fallbackIndex,
+                                              const rive::Font*)
 {
     if (fallbackIndex > 0)
     {
@@ -57,7 +60,37 @@ static rive::rcp<rive::Font> pickFallbackFont(const rive::Unichar missing,
     return nullptr;
 }
 
-TEST_CASE("fallback glyphs are found", "[text]")
+TEST_CASE("Inspect Font Styles", "[text_styles]")
+{
+    struct TestCaseData
+    {
+        const char* fontPath;
+        uint16_t expectedWeight;
+        bool expectedItalic;
+    };
+
+    std::vector<TestCaseData> testCases = {
+        {"assets/fonts/AdventPro-VariableFont_wdth,wght.ttf", 400, false},
+        {"assets/fonts/Inter_18pt-Regular.ttf", 400, false},
+        {"assets/fonts/Inter_28pt-Bold.ttf", 700, false},
+        {"assets/fonts/OpenSans-Italic.ttf", 400, true},
+        {"assets/fonts/OpenSans-ExtraBoldItalic.ttf", 800, true},
+    };
+
+    for (const auto& testCase : testCases)
+    {
+        SECTION(testCase.fontPath)
+        {
+            rive::rcp<Font> font = loadFont(testCase.fontPath);
+            HBFont* hbFont = static_cast<HBFont*>(font.get());
+
+            REQUIRE(hbFont->getWeight() == testCase.expectedWeight);
+            REQUIRE(hbFont->isItalic() == testCase.expectedItalic);
+        }
+    }
+}
+
+TEST_CASE("fallback glyphs are found", "[text_fallback]")
 {
     REQUIRE(fallbackFonts.empty());
     auto font = loadFont("assets/RobotoFlex.ttf");

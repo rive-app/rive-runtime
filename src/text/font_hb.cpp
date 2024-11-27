@@ -58,7 +58,11 @@ rive::rcp<rive::Font> HBFont::FromSystem(void* systemFont,
 }
 #endif
 
-///////////////
+float HBFont::GetStyle(hb_font_t* font, uint32_t styleTag)
+{
+    return hb_style_get_value(font, (hb_style_tag_t)styleTag);
+}
+//////////////
 
 constexpr int kStdScale = 2048;
 constexpr float gInvScale = 1.0f / kStdScale;
@@ -321,6 +325,20 @@ uint32_t HBFont::getFeatureValue(uint32_t featureTag) const
     return (uint32_t)-1;
 }
 
+uint16_t HBFont::getWeight() const
+{
+    uint32_t tag = HB_TAG('w', 'g', 'h', 't');
+    float res = HBFont::GetStyle(m_font, tag);
+    return static_cast<uint16_t>(res);
+}
+
+bool HBFont::isItalic() const
+{
+    uint32_t tag = HB_TAG('i', 't', 'a', 'l');
+    float res = HBFont::GetStyle(m_font, tag);
+    return res != 0.0;
+}
+
 rive::rcp<rive::Font> HBFont::withOptions(
     rive::Span<const Coord> coords,
     rive::Span<const Feature> features) const
@@ -514,7 +532,7 @@ void HBFont::shapeFallbackRun(rive::SimpleArrayBuilder<rive::GlyphRun>& gruns,
         // font-fallback
         size_t index = iter - gr.glyphs.begin();
         rive::Unichar missing = text[gr.textIndices[index]];
-        auto fallback = HBFont::gFallbackProc(missing, fallbackIndex);
+        auto fallback = HBFont::gFallbackProc(missing, fallbackIndex, this);
         if (fallback && fallback.get() != this)
         {
             perform_fallback(fallback,
@@ -694,9 +712,8 @@ rive::SimpleArray<rive::Paragraph> HBFont::onShapeText(
                 // font-fallback
                 size_t index = iter - gr.glyphs.begin();
                 rive::Unichar missing = text[gr.textIndices[index]];
-                // todo: consider sending more chars if that helps choose a
-                // font
-                auto fallback = gFallbackProc(missing, 0);
+                // todo: consider sending more chars if that helps choose a font
+                auto fallback = gFallbackProc(missing, 0, this);
                 if (fallback)
                 {
                     perform_fallback(fallback, gruns, text.data(), gr, tr, 1);

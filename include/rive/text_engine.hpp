@@ -157,6 +157,12 @@ public:
     // will be used. Otherwise the default value for the axis will be returned.
     virtual float getAxisValue(uint32_t axisTag) const = 0;
 
+    // Returns the current font value as a numeric value [1, 1000]
+    virtual uint16_t getWeight() const = 0;
+
+    // Whether this font is italic or not.
+    virtual bool isItalic() const = 0;
+
     // Font feature.
     struct Feature
     {
@@ -201,11 +207,12 @@ public:
     // return a font that can draw (at least some of) them. If no font is
     // available just return nullptr.
 
-    using FallbackProc =
-        rive::rcp<rive::Font> (*)(const rive::Unichar,
-                                  const uint32_t fallbackIndex);
+    using FallbackProc = rive::rcp<rive::Font> (*)(const rive::Unichar missing,
+                                                   const uint32_t fallbackIndex,
+                                                   const rive::Font*);
     static FallbackProc gFallbackProc;
     static bool gFallbackProcEnabled;
+    static constexpr unsigned kRegularWeight = 400;
 
 protected:
     Font(const LineMetrics& lm) : m_lineMetrics(lm) {}

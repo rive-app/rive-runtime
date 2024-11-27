@@ -30,6 +30,7 @@ do
         '../../decoders/include',
         '../../renderer/include',
         '../../renderer/src',
+        harfbuzz .. '/src',
         miniaudio,
         yoga,
     })

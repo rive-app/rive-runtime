@@ -220,6 +220,8 @@ do
         harfbuzz .. '/src/hb-paint.cc',
         harfbuzz .. '/src/hb-paint-extents.cc',
         harfbuzz .. '/src/hb-outline.cc',
+        harfbuzz .. '/src/hb-style.h',
+        harfbuzz .. '/src/hb-style.cc',
     })
 
     warnings('Off')
@@ -237,7 +239,6 @@ do
         'HB_NO_BUFFER_VERIFY',
         'HB_NO_BUFFER_MESSAGE',
         'HB_NO_SETLOCALE',
-        'HB_NO_STYLE',
         'HB_NO_VERTICAL',
         'HB_NO_LAYOUT_COLLECT_GLYPHS',
         'HB_NO_LAYOUT_RARELY_USED',

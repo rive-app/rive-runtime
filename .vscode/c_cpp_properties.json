@@ -4,15 +4,18 @@
             "name": "Mac",
             "includePath": [
                 "${workspaceFolder}/**",
-                "${workspaceFolder}/dev/test/include",
                 "${workspaceFolder}/include"
             ],
-            "defines": [],
+            "defines": [
+                "WITH_RIVE_TEXT",
+                "WITH_RIVE_AUDIO",
+                "WITH_RIVE_LAYOUT"
+            ],
             "macFrameworkPath": [],
-            "compilerPath": "/usr/local/bin/arm-none-eabi-gcc",
-            "cStandard": "gnu11",
-            "cppStandard": "gnu++14",
-            "intelliSenseMode": "clang-x64"
+            "compilerPath": "/usr/bin/clang",
+            "cStandard": "c11",
+            "cppStandard": "c++17",
+            "intelliSenseMode": "clang-arm64"
         }
     ],
     "version": 4
