@@ -403,6 +403,7 @@
     "interpolationTime": {
       "type": "double",
       "initialValue": "0",
+      "animates": true,
       "key": {
         "int": 592,
         "string": "interpolationtime"
@@ -412,6 +413,7 @@
     "displayValue": {
       "type": "uint",
       "initialValue": "0",
+      "animates": true,
       "key": {
         "int": 596,
         "string": "displayvalue"

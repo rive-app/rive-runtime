@@ -132,6 +132,50 @@ bool LayoutComponent::overridesKeyedInterpolation(int propertyKey)
     return false;
 }
 
+bool LayoutComponent::isHidden() const
+{
+    return Super::isHidden() || isDisplayHidden();
+}
+
+bool LayoutComponent::isDisplayHidden() const
+{
+#ifdef WITH_RIVE_LAYOUT
+    if (m_style != nullptr && m_style->display() == YGDisplayNone)
+    {
+        return true;
+    }
+    auto p = parent();
+    while (p != nullptr)
+    {
+        if (p->is<LayoutComponent>())
+        {
+            auto layout = p->as<LayoutComponent>();
+            if (layout->style() != nullptr &&
+                layout->style()->display() == YGDisplayNone)
+            {
+                return true;
+            }
+        }
+        p = p->parent();
+    }
+    return false;
+#endif
+    return false;
+}
+
+bool LayoutComponent::isCollapsed() const
+{
+    return Super::isCollapsed() || isDisplayHidden();
+}
+
+void LayoutComponent::propagateCollapse(bool collapse)
+{
+    for (Component* child : children())
+    {
+        child->collapse(collapse);
+    }
+}
+
 #ifdef WITH_RIVE_LAYOUT
 
 LayoutComponent::LayoutComponent() :
@@ -803,6 +847,11 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         propagateSize();
         markWorldTransformDirty();
     }
+    if (m_displayChanged)
+    {
+        propagateCollapse(isCollapsed());
+        m_displayChanged = false;
+    }
 }
 
 bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
@@ -1110,6 +1159,16 @@ void LayoutComponent::scaleTypeChanged()
     m_style->intrinsicallySizedValue(
         m_style->widthScaleType() == LayoutScaleType::hug ||
         m_style->heightScaleType() == LayoutScaleType::hug);
+    markLayoutNodeDirty();
+}
+
+void LayoutComponent::displayChanged()
+{
+    if (m_style == nullptr)
+    {
+        return;
+    }
+    m_displayChanged = true;
     markLayoutNodeDirty();
 }
 #else

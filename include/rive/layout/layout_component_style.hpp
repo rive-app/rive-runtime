@@ -74,7 +74,9 @@ public:
     void markLayoutNodeDirty();
     void markLayoutStyleDirty();
     void scaleTypeChanged();
+    void displayChanged();
 
+    void interpolationTimeChanged() override;
     void layoutAlignmentTypeChanged() override;
     void layoutWidthScaleTypeChanged() override;
     void layoutHeightScaleTypeChanged() override;

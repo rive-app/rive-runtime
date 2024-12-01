@@ -85,6 +85,7 @@ protected:
     rcp<RenderPath> m_backgroundPath;
     rcp<RenderPath> m_clipPath;
     DrawableProxy m_proxy;
+    bool m_displayChanged = false;
 
     Artboard* getArtboard() override { return artboard(); }
     LayoutAnimationData* currentAnimationData();
@@ -102,6 +103,9 @@ protected:
         }
         return nullptr;
     }
+    bool isDisplayHidden() const;
+    bool isCollapsed() const override;
+    void propagateCollapse(bool collapse);
 
 private:
     float m_widthOverride = NAN;
@@ -171,6 +175,7 @@ public:
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
+    bool isHidden() const override;
 
     LayoutComponent();
     ~LayoutComponent();
@@ -200,6 +205,7 @@ public:
     bool isLeaf();
     void positionTypeChanged();
     void scaleTypeChanged();
+    void displayChanged();
 #endif
     void buildDependencies() override;
 

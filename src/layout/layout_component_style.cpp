@@ -229,6 +229,14 @@ void LayoutComponentStyle::scaleTypeChanged()
     }
 }
 
+void LayoutComponentStyle::displayChanged()
+{
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->displayChanged();
+    }
+}
+
 StatusCode LayoutComponentStyle::onAddedDirty(CoreContext* context)
 {
     auto code = Super::onAddedDirty(context);
@@ -248,8 +256,10 @@ StatusCode LayoutComponentStyle::onAddedDirty(CoreContext* context)
 void LayoutComponentStyle::markLayoutNodeDirty() {}
 void LayoutComponentStyle::markLayoutStyleDirty() {}
 void LayoutComponentStyle::scaleTypeChanged() {}
+void LayoutComponentStyle::displayChanged() {}
 #endif
 
+void LayoutComponentStyle::interpolationTimeChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::layoutAlignmentTypeChanged()
 {
     markLayoutNodeDirty();
@@ -259,7 +269,7 @@ void LayoutComponentStyle::layoutHeightScaleTypeChanged()
 {
     scaleTypeChanged();
 }
-void LayoutComponentStyle::displayValueChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::displayValueChanged() { displayChanged(); }
 void LayoutComponentStyle::positionTypeValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::overflowValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::intrinsicallySizedValueChanged()

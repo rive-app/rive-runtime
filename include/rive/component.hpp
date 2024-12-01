@@ -60,7 +60,7 @@ public:
 
     StatusCode import(ImportStack& importStack) override;
 
-    bool isCollapsed() const
+    virtual bool isCollapsed() const
     {
         return (m_Dirt & ComponentDirt::Collapsed) == ComponentDirt::Collapsed;
     }
