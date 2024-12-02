@@ -33,5 +33,9 @@ DataValue* DataConverterToString::convert(DataValue* input, DataBind* dataBind)
         auto enumValue = dataEnum->value(index);
         output->value(enumValue);
     }
+    else if (input->is<DataValueString>())
+    {
+        output->value(input->as<DataValueString>()->value());
+    }
     return output;
 }
