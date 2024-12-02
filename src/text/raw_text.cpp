@@ -162,8 +162,7 @@ void RawText::update()
             const GlyphRun& endRun = paragraph.runs[line.endRunIndex];
             const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
             float width = endRun.xpos[line.endGlyphIndex] -
-                          startRun.xpos[line.startGlyphIndex] -
-                          endRun.letterSpacing;
+                          startRun.xpos[line.startGlyphIndex];
             if (width > measuredWidth)
             {
                 measuredWidth = width;

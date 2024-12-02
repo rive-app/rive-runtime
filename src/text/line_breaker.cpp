@@ -18,8 +18,7 @@ float GlyphLine::ComputeMaxWidth(Span<GlyphLine> lines,
         maxLineWidth =
             std::max(maxLineWidth,
                      runs[line.endRunIndex].xpos[line.endGlyphIndex] -
-                         runs[line.startRunIndex].xpos[line.startGlyphIndex] -
-                         runs[line.endRunIndex].letterSpacing);
+                         runs[line.startRunIndex].xpos[line.startGlyphIndex]);
     }
     return maxLineWidth;
 }
@@ -90,8 +89,7 @@ void GlyphLine::ComputeLineSpacing(bool isFirstLine,
         line.bottom = Y;
 
         auto lineWidth = runs[line.endRunIndex].xpos[line.endGlyphIndex] -
-                         runs[line.startRunIndex].xpos[line.startGlyphIndex] -
-                         runs[line.endRunIndex].letterSpacing;
+                         runs[line.startRunIndex].xpos[line.startGlyphIndex];
         switch (align)
         {
             case TextAlign::right:

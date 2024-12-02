@@ -339,8 +339,7 @@ void Text::buildRenderStyles()
             const GlyphRun& endRun = paragraph.runs[line.endRunIndex];
             const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
             float width = endRun.xpos[line.endGlyphIndex] -
-                          startRun.xpos[line.startGlyphIndex] -
-                          endRun.letterSpacing;
+                          startRun.xpos[line.startGlyphIndex];
             if (width > maxWidth)
             {
                 maxWidth = width;
@@ -1037,8 +1036,7 @@ Vec2D Text::measure(Vec2D maxSize)
                 const GlyphRun& endRun = paragraph.runs[line.endRunIndex];
                 const GlyphRun& startRun = paragraph.runs[line.startRunIndex];
                 float width = endRun.xpos[line.endGlyphIndex] -
-                              startRun.xpos[line.startGlyphIndex] -
-                              endRun.letterSpacing;
+                              startRun.xpos[line.startGlyphIndex];
                 if (width > maxWidth)
                 {
                     maxWidth = width;
