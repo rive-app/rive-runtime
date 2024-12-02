@@ -34,6 +34,7 @@ public:
     {
         return parent()->parent()->as<LayoutComponent>();
     }
+    bool validate(CoreContext* context) override;
 };
 } // namespace rive
 

@@ -104,8 +104,12 @@ public:
     {
         for (auto& keyedObjectData : keyedObjectsData)
         {
-            auto object =
-                artboard->resolve(keyedObjectData->objectId)->as<Component>();
+            auto object = artboard->resolve(keyedObjectData->objectId);
+            if (object == nullptr)
+            {
+                continue;
+            }
+            auto component = object->as<Component>();
             auto propertiesData = keyedObjectData->keyedPropertiesData;
             if (propertiesData.size() > 0)
             {
@@ -133,7 +137,7 @@ public:
                             else
                             {
                                 animationReset->writePropertyValue(
-                                    CoreRegistry::getDouble(object,
+                                    CoreRegistry::getDouble(component,
                                                             propertyKey));
                             }
                             break;
@@ -154,7 +158,7 @@ public:
                             else
                             {
                                 animationReset->writePropertyValue(
-                                    CoreRegistry::getColor(object,
+                                    CoreRegistry::getColor(component,
                                                            propertyKey));
                             }
                             break;

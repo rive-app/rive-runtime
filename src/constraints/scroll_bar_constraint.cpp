@@ -187,3 +187,9 @@ void ScrollBarConstraint::dragThumb(Vec2D delta)
                         0));
     }
 }
+
+bool ScrollBarConstraint::validate(CoreContext* context)
+{
+    auto coreObject = context->resolve(scrollConstraintId());
+    return coreObject != nullptr && coreObject->is<ContainerComponent>();
+}
