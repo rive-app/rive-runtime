@@ -14,7 +14,7 @@ project('rive_decoders')
 do
     dependson('libpng', 'zlib', 'libjpeg', 'libwebp')
     kind('StaticLib')
-    flags({ 'FatalWarnings' })
+    flags({ 'FatalCompileWarnings' })
 
     includedirs({ 'include', '../include', libpng, libjpeg, libwebp .. '/src' })
 

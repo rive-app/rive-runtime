@@ -251,7 +251,7 @@ do
 
     filter('toolset:clang')
     do
-        flags({ 'FatalWarnings' })
+        flags({ 'FatalCompileWarnings' })
         buildoptions({
             '-Werror=format',
             '-Wimplicit-int-conversion',

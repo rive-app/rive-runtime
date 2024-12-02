@@ -178,7 +178,7 @@ do
         '../include',
         pls_generated_headers,
     })
-    flags({ 'FatalWarnings' })
+    flags({ 'FatalCompileWarnings' })
 
     files({ 'src/*.cpp', 'renderer/decoding/*.cpp' })
 

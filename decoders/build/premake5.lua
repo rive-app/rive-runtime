@@ -14,7 +14,7 @@ language('C++')
 cppdialect('C++17')
 targetdir('%{cfg.buildcfg}')
 objdir('obj/%{cfg.buildcfg}')
-flags({ 'FatalWarnings' })
+flags({ 'FatalCompileWarnings' })
 
 includedirs({ '../include', '../../include', libpng })
 
