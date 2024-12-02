@@ -1,0 +1,19 @@
+{
+  "name": "ScrollConstraint",
+  "key": {
+    "int": 521,
+    "string": "scrollconstraint"
+  },
+  "extends": "constraints/draggable_constraint.json",
+  "properties": {
+    "snap": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 724,
+        "string": "snap"
+      },
+      "description": "Whether the scrolling content should snap to the nearest child"
+    }
+  }
+}

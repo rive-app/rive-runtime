@@ -11,6 +11,7 @@ enum class ListenerType : int
     move = 4,
     event = 5,
     click = 6,
+    draggableConstraint = 7,
 };
 }
 #endif

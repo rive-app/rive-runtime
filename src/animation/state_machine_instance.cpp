@@ -24,6 +24,7 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine_fire_event.hpp"
+#include "rive/constraints/draggable_constraint.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/event_report.hpp"
 #include "rive/gesture_click_phase.hpp"
@@ -470,6 +471,7 @@ class ListenerGroup
 public:
     ListenerGroup(const StateMachineListener* listener) : m_listener(listener)
     {}
+    virtual ~ListenerGroup() {}
     void consume() { m_isConsumed = true; }
     //
     void hover() { m_isHovered = true; }
@@ -488,7 +490,7 @@ public:
     bool isHovered() { return m_isHovered; }
     bool prevHovered() { return m_prevIsHovered; }
 
-    bool canEarlyOut(Component* drawable)
+    virtual bool canEarlyOut(Component* drawable)
     {
         auto listenerType = m_listener->listenerType();
         return !(listenerType == ListenerType::enter ||
@@ -496,25 +498,25 @@ public:
                  listenerType == ListenerType::move);
     }
 
-    bool needsDownListener(Component* drawable)
+    virtual bool needsDownListener(Component* drawable)
     {
         auto listenerType = m_listener->listenerType();
         return listenerType == ListenerType::down ||
                listenerType == ListenerType::click;
     }
 
-    bool needsUpListener(Component* drawable)
+    virtual bool needsUpListener(Component* drawable)
     {
         auto listenerType = m_listener->listenerType();
         return listenerType == ListenerType::up ||
                listenerType == ListenerType::click;
     }
     // Vec2D position, ListenerType hitType, bool canHit
-    void processEvent(Component* component,
-                      Vec2D position,
-                      ListenerType hitEvent,
-                      bool canHit,
-                      StateMachineInstance* stateMachineInstance)
+    virtual void processEvent(Component* component,
+                              Vec2D position,
+                              ListenerType hitEvent,
+                              bool canHit,
+                              StateMachineInstance* stateMachineInstance)
     {
         // Because each group is tested individually for its hover state, a
         // group could be marked "incorrectly" as hovered at this point. But
@@ -615,13 +617,70 @@ private:
     const StateMachineListener* m_listener;
 };
 
+class DraggableConstraintListenerGroup : public ListenerGroup
+{
+public:
+    DraggableConstraintListenerGroup(const StateMachineListener* listener,
+                                     DraggableConstraint* constraint,
+                                     DraggableProxy* draggable) :
+        ListenerGroup(listener),
+        m_constraint(constraint),
+        m_draggable(draggable)
+    {}
+    virtual ~DraggableConstraintListenerGroup() {}
+
+    DraggableConstraint* constraint() { return m_constraint; }
+
+    bool canEarlyOut(Component* drawable) override { return false; }
+
+    bool needsDownListener(Component* drawable) override { return true; }
+
+    bool needsUpListener(Component* drawable) override { return true; }
+    // Vec2D position, ListenerType hitType, bool canHit
+    void processEvent(Component* component,
+                      Vec2D position,
+                      ListenerType hitEvent,
+                      bool canHit,
+                      StateMachineInstance* stateMachineInstance) override
+    {
+        auto prevPhase = clickPhase();
+        ListenerGroup::processEvent(component,
+                                    position,
+                                    hitEvent,
+                                    canHit,
+                                    stateMachineInstance);
+        if (prevPhase == GestureClickPhase::down &&
+            (clickPhase() == GestureClickPhase::clicked ||
+             clickPhase() == GestureClickPhase::out))
+        {
+            m_draggable->endDrag(position);
+        }
+        else if (prevPhase != GestureClickPhase::down &&
+                 clickPhase() == GestureClickPhase::down)
+        {
+            m_draggable->startDrag(position);
+        }
+        else if (hitEvent == ListenerType::move &&
+                 clickPhase() == GestureClickPhase::down)
+        {
+            m_draggable->drag(position);
+        }
+    }
+
+private:
+    DraggableConstraint* m_constraint;
+    DraggableProxy* m_draggable;
+};
+
 class HitDrawable : public HitComponent
 {
 public:
     HitDrawable(Component* component,
-                StateMachineInstance* stateMachineInstance) :
+                StateMachineInstance* stateMachineInstance,
+                bool isOpaque) :
         HitComponent(component, stateMachineInstance)
     {
+        this->isOpaque = isOpaque;
         if (component->as<Drawable>()->isTargetOpaque())
         {
             canEarlyOut = false;
@@ -632,6 +691,7 @@ public:
     bool canEarlyOut = true;
     bool hasDownListener = false;
     bool hasUpListener = false;
+    bool isOpaque = false;
     std::vector<ListenerGroup*> listeners;
 
     virtual bool hitTestHelper(Vec2D position) const { return false; }
@@ -694,7 +754,7 @@ public:
                                         canHit,
                                         m_stateMachineInstance);
         }
-        return (isHovered && canHit) ? drawable->isTargetOpaque()
+        return (isHovered && canHit) ? isOpaque || drawable->isTargetOpaque()
                                            ? HitResult::hitOpaque
                                            : HitResult::hit
                                      : HitResult::none;
@@ -727,8 +787,10 @@ public:
 class HitShape : public HitDrawable
 {
 public:
-    HitShape(Component* shape, StateMachineInstance* stateMachineInstance) :
-        HitDrawable(shape, stateMachineInstance)
+    HitShape(Component* shape,
+             StateMachineInstance* stateMachineInstance,
+             bool isOpaque = false) :
+        HitDrawable(shape, stateMachineInstance, isOpaque)
     {}
 
     bool hitTestHelper(Vec2D position) const override
@@ -751,15 +813,22 @@ public:
 class HitLayout : public HitDrawable
 {
 public:
-    HitLayout(Component* layout, StateMachineInstance* stateMachineInstance) :
-        HitDrawable(layout, stateMachineInstance)
+    HitLayout(Component* layout,
+              StateMachineInstance* stateMachineInstance,
+              bool isOpaque = false) :
+        HitDrawable(layout, stateMachineInstance, isOpaque)
     {}
 
     bool hitTestHelper(Vec2D position) const override
     {
+        Mat2D inverseWorld;
         auto layout = m_component->as<LayoutComponent>();
-        auto worldBounds = layout->worldBounds();
-        return worldBounds.contains(position);
+        if (layout->worldTransform().invert(&inverseWorld))
+        {
+            auto localWorld = inverseWorld * position;
+            return layout->localBounds().contains(localWorld);
+        }
+        return false;
     }
 };
 class HitNestedArtboard : public HitComponent
@@ -842,6 +911,7 @@ public:
                         case ListenerType::exit:
                         case ListenerType::event:
                         case ListenerType::click:
+                        case ListenerType::draggableConstraint:
                             break;
                     }
                 }
@@ -858,6 +928,7 @@ public:
                         case ListenerType::exit:
                         case ListenerType::event:
                         case ListenerType::click:
+                        case ListenerType::draggableConstraint:
                             break;
                     }
                 }
@@ -1111,6 +1182,93 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             }
         }
         m_listenerGroups.push_back(std::move(listenerGroup));
+    }
+
+    std::unordered_map<Component*, HitDrawable*> hitScrollLookup;
+    std::vector<DraggableConstraint*> draggableConstraints;
+    for (auto core : m_artboardInstance->objects())
+    {
+        if (core == nullptr)
+        {
+            continue;
+        }
+        if (core->is<DraggableConstraint>())
+        {
+            draggableConstraints.push_back(core->as<DraggableConstraint>());
+        }
+    }
+    for (auto constraint : draggableConstraints)
+    {
+        auto draggables = constraint->draggables();
+        for (auto dragProxy : draggables)
+        {
+            auto listener = new StateMachineListener();
+            listener->listenerTypeValue(
+                static_cast<uint32_t>(ListenerType::draggableConstraint));
+            auto listenerGroup =
+                rivestd::make_unique<DraggableConstraintListenerGroup>(
+                    listener,
+                    constraint,
+                    dragProxy);
+            auto hittable = dragProxy->hittable();
+            if (hittable == nullptr)
+            {
+                continue;
+            }
+            if (hittable->is<LayoutComponent>())
+            {
+                auto component = hittable->as<LayoutComponent>();
+                HitLayout* hitLayout;
+                auto itr = hitScrollLookup.find(component);
+                if (itr == hitScrollLookup.end())
+                {
+                    auto hs =
+                        rivestd::make_unique<HitLayout>(component,
+                                                        this,
+                                                        dragProxy->isOpaque());
+                    hitScrollLookup[component] = hitLayout = hs.get();
+                    m_hitComponents.push_back(std::move(hs));
+                }
+                else
+                {
+                    hitLayout = static_cast<HitLayout*>(itr->second);
+                }
+                hitLayout->addListener(listenerGroup.get());
+            }
+            else
+            {
+                hittable->as<ContainerComponent>()->forAll(
+                    [&](Component* component) {
+                        if (component->is<Shape>())
+                        {
+                            HitShape* hitShape;
+                            auto itr = hitScrollLookup.find(component);
+                            if (itr == hitScrollLookup.end())
+                            {
+                                component->as<Shape>()->addFlags(
+                                    PathFlags::neverDeferUpdate);
+                                component->as<Shape>()->addDirt(
+                                    ComponentDirt::Path,
+                                    true);
+                                auto hs = rivestd::make_unique<HitShape>(
+                                    component,
+                                    this,
+                                    dragProxy->isOpaque());
+                                hitScrollLookup[component] = hitShape =
+                                    hs.get();
+                                m_hitComponents.push_back(std::move(hs));
+                            }
+                            else
+                            {
+                                hitShape = static_cast<HitShape*>(itr->second);
+                            }
+                            hitShape->addListener(listenerGroup.get());
+                        }
+                        return true;
+                    });
+            }
+            m_listenerGroups.push_back(std::move(listenerGroup));
+        }
     }
 
     for (auto nestedArtboard : instance->nestedArtboards())

@@ -1,4 +1,5 @@
 #include "rive/component.hpp"
+#include "rive/constraints/scroll_constraint.hpp"
 #include "rive/artboard.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/nested_artboard.hpp"
@@ -19,6 +20,8 @@ AdvancingComponent* AdvancingComponent::from(Component* component)
             return component->as<LayoutComponent>();
         case Artboard::typeKey:
             return component->as<Artboard>();
+        case ScrollConstraint::typeKey:
+            return component->as<ScrollConstraint>();
     }
     return nullptr;
 }

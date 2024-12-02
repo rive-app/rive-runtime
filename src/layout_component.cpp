@@ -1,5 +1,6 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard.hpp"
+#include "rive/constraints/layout_constraint.hpp"
 #include "rive/drawable.hpp"
 #include "rive/factory.hpp"
 #include "rive/intrinsically_sizeable.hpp"
@@ -112,6 +113,40 @@ void LayoutComponent::heightIntrinsicallySizeOverride(bool intrinsic)
     // otherwise set to points
     m_heightUnitValueOverride = intrinsic ? 3 : 1;
     markLayoutNodeDirty();
+}
+
+void LayoutComponent::forcedWidth(float width)
+{
+    m_forcedWidth = width;
+    markLayoutStyleDirty();
+    markLayoutNodeDirty();
+}
+
+void LayoutComponent::forcedHeight(float height)
+{
+    m_forcedHeight = height;
+    markLayoutStyleDirty();
+    markLayoutNodeDirty();
+}
+
+void LayoutComponent::updateConstraints()
+{
+    if (m_layoutConstraints.size() > 0)
+    {
+        for (auto parentConstraint : m_layoutConstraints)
+        {
+            parentConstraint->constrainChild(this);
+        }
+    }
+    Super::updateConstraints();
+}
+
+void LayoutComponent::addLayoutConstraint(LayoutConstraint* constraint)
+{
+    assert(std::find(m_layoutConstraints.begin(),
+                     m_layoutConstraints.end(),
+                     constraint) == m_layoutConstraints.end());
+    m_layoutConstraints.push_back(constraint);
 }
 
 bool LayoutComponent::overridesKeyedInterpolation(int propertyKey)
@@ -457,9 +492,26 @@ void LayoutComponent::syncStyle()
             }
         }
     }
-    ygStyle.dimensions()[YGDimensionWidth] = YGValue{realWidth, realWidthUnits};
-    ygStyle.dimensions()[YGDimensionHeight] =
-        YGValue{realHeight, realHeightUnits};
+    if (!std::isnan(m_forcedWidth))
+    {
+        ygStyle.dimensions()[YGDimensionWidth] =
+            YGValue{m_forcedWidth, YGUnitPoint};
+    }
+    else
+    {
+        ygStyle.dimensions()[YGDimensionWidth] =
+            YGValue{realWidth, realWidthUnits};
+    }
+    if (!std::isnan(m_forcedHeight))
+    {
+        ygStyle.dimensions()[YGDimensionHeight] =
+            YGValue{m_forcedHeight, YGUnitPoint};
+    }
+    else
+    {
+        ygStyle.dimensions()[YGDimensionHeight] =
+            YGValue{realHeight, realHeightUnits};
+    }
 
     switch (realWidthScaleType)
     {
@@ -784,6 +836,14 @@ static Layout layoutFromYoga(const YGLayout& layout)
                   layout.dimensions[YGDimensionHeight]);
 }
 
+static LayoutPadding layoutPaddingFromYoga(const YGLayout& layout)
+{
+    return LayoutPadding(layout.padding[YGEdgeLeft],
+                         layout.padding[YGEdgeTop],
+                         layout.padding[YGEdgeRight],
+                         layout.padding[YGEdgeBottom]);
+}
+
 void LayoutComponent::updateLayoutBounds(bool animate)
 {
     YGNode& node = m_layoutData->node;
@@ -806,7 +866,9 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         }
     }
 
-    Layout newLayout = layoutFromYoga(node.getLayout());
+    auto yogaLayout = node.getLayout();
+    Layout newLayout = layoutFromYoga(yogaLayout);
+    m_layoutPadding = layoutPaddingFromYoga(yogaLayout);
 
     if (animate && animates())
     {

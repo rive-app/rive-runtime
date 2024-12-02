@@ -17,6 +17,7 @@ class AABB;
 class KeyFrameInterpolator;
 struct LayoutData;
 class LayoutComponentStyle;
+class LayoutConstraint;
 class Layout
 {
 public:
@@ -53,6 +54,34 @@ private:
     float m_height;
 };
 
+class LayoutPadding
+{
+public:
+    LayoutPadding() : m_left(0.0f), m_top(0.0f), m_right(0.0f), m_bottom(0.0f)
+    {}
+    LayoutPadding(float left, float top, float right, float bottom) :
+        m_left(left), m_top(top), m_right(right), m_bottom(bottom)
+    {}
+
+    bool operator==(const LayoutPadding& o) const
+    {
+        return m_left == o.m_left && m_top == o.m_top && m_right == o.m_right &&
+               m_bottom == o.m_bottom;
+    }
+    bool operator!=(const LayoutPadding& o) const { return !(*this == o); }
+
+    float left() const { return m_left; }
+    float top() const { return m_top; }
+    float right() const { return m_right; }
+    float bottom() const { return m_bottom; }
+
+private:
+    float m_left;
+    float m_top;
+    float m_right;
+    float m_bottom;
+};
+
 struct LayoutAnimationData
 {
     float elapsedSeconds = 0.0f;
@@ -73,6 +102,7 @@ protected:
     LayoutData* m_layoutData;
 
     Layout m_layout;
+    LayoutPadding m_layoutPadding;
 
     LayoutAnimationData m_animationDataA;
     LayoutAnimationData m_animationDataB;
@@ -86,6 +116,7 @@ protected:
     rcp<RenderPath> m_clipPath;
     DrawableProxy m_proxy;
     bool m_displayChanged = false;
+    std::vector<LayoutConstraint*> m_layoutConstraints;
 
     Artboard* getArtboard() override { return artboard(); }
     LayoutAnimationData* currentAnimationData();
@@ -115,6 +146,8 @@ private:
     bool m_parentIsRow = true;
     bool m_widthIntrinsicallySizeOverride = false;
     bool m_heightIntrinsicallySizeOverride = false;
+    float m_forcedWidth = NAN;
+    float m_forcedHeight = NAN;
 
 #ifdef WITH_RIVE_LAYOUT
 protected:
@@ -158,6 +191,25 @@ public:
                               m_layout.height());
     }
 
+    float layoutX() { return m_layout.left(); }
+    float layoutY() { return m_layout.top(); }
+    float layoutWidth() { return m_layout.width(); }
+    float layoutHeight() { return m_layout.height(); }
+    float innerWidth()
+    {
+        return m_layout.width() - m_layoutPadding.left() -
+               m_layoutPadding.right();
+    }
+    float innerHeight()
+    {
+        return m_layout.height() - m_layoutPadding.top() -
+               m_layoutPadding.bottom();
+    }
+    float paddingLeft() { return m_layoutPadding.left(); }
+    float paddingRight() { return m_layoutPadding.right(); }
+    float paddingTop() { return m_layoutPadding.top(); }
+    float paddingBottom() { return m_layoutPadding.bottom(); }
+
     // We provide a way for nested artboards (or other objects) to override this
     // layout's width/height and unit values.
     void widthOverride(float width, int unitValue = 1, bool isRow = true);
@@ -176,6 +228,12 @@ public:
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
     bool isHidden() const override;
+    float forcedWidth() { return m_forcedWidth; }
+    float forcedHeight() { return m_forcedHeight; }
+    void forcedWidth(float width);
+    void forcedHeight(float height);
+    void updateConstraints() override;
+    void addLayoutConstraint(LayoutConstraint* constraint);
 
     LayoutComponent();
     ~LayoutComponent();

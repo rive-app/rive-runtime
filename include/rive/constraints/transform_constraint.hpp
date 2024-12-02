@@ -17,6 +17,13 @@ public:
     void constrain(TransformComponent* component) override;
     void originXChanged() override;
     void originYChanged() override;
+
+    static void constrainWorld(TransformComponent* component,
+                               Mat2D from,
+                               TransformComponents componentsFrom,
+                               Mat2D to,
+                               TransformComponents componentsTo,
+                               float strength);
 };
 } // namespace rive
 

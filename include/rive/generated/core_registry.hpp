@@ -100,10 +100,13 @@
 #include "rive/component.hpp"
 #include "rive/constraints/constraint.hpp"
 #include "rive/constraints/distance_constraint.hpp"
+#include "rive/constraints/draggable_constraint.hpp"
 #include "rive/constraints/follow_path_constraint.hpp"
 #include "rive/constraints/ik_constraint.hpp"
 #include "rive/constraints/rotation_constraint.hpp"
 #include "rive/constraints/scale_constraint.hpp"
+#include "rive/constraints/scroll_bar_constraint.hpp"
+#include "rive/constraints/scroll_constraint.hpp"
 #include "rive/constraints/targeted_constraint.hpp"
 #include "rive/constraints/transform_component_constraint.hpp"
 #include "rive/constraints/transform_component_constraint_y.hpp"
@@ -306,8 +309,12 @@ public:
                 return new TranslationConstraint();
             case TransformConstraintBase::typeKey:
                 return new TransformConstraint();
+            case ScrollConstraintBase::typeKey:
+                return new ScrollConstraint();
             case ScaleConstraintBase::typeKey:
                 return new ScaleConstraint();
+            case ScrollBarConstraintBase::typeKey:
+                return new ScrollBarConstraint();
             case RotationConstraintBase::typeKey:
                 return new RotationConstraint();
             case NodeBase::typeKey:
@@ -640,6 +647,9 @@ public:
             case FollowPathConstraintBase::offsetPropertyKey:
                 object->as<FollowPathConstraintBase>()->offset(value);
                 break;
+            case ScrollConstraintBase::snapPropertyKey:
+                object->as<ScrollConstraintBase>()->snap(value);
+                break;
             case AxisBase::normalizedPropertyKey:
                 object->as<AxisBase>()->normalized(value);
                 break;
@@ -791,6 +801,13 @@ public:
                 break;
             case IKConstraintBase::parentBoneCountPropertyKey:
                 object->as<IKConstraintBase>()->parentBoneCount(value);
+                break;
+            case DraggableConstraintBase::directionValuePropertyKey:
+                object->as<DraggableConstraintBase>()->directionValue(value);
+                break;
+            case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
+                object->as<ScrollBarConstraintBase>()->scrollConstraintId(
+                    value);
                 break;
             case DrawableBase::blendModeValuePropertyKey:
                 object->as<DrawableBase>()->blendModeValue(value);
@@ -1993,6 +2010,8 @@ public:
                 return object->as<FollowPathConstraintBase>()->orient();
             case FollowPathConstraintBase::offsetPropertyKey:
                 return object->as<FollowPathConstraintBase>()->offset();
+            case ScrollConstraintBase::snapPropertyKey:
+                return object->as<ScrollConstraintBase>()->snap();
             case AxisBase::normalizedPropertyKey:
                 return object->as<AxisBase>()->normalized();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
@@ -2106,6 +2125,11 @@ public:
                     ->minMaxSpaceValue();
             case IKConstraintBase::parentBoneCountPropertyKey:
                 return object->as<IKConstraintBase>()->parentBoneCount();
+            case DraggableConstraintBase::directionValuePropertyKey:
+                return object->as<DraggableConstraintBase>()->directionValue();
+            case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
+                return object->as<ScrollBarConstraintBase>()
+                    ->scrollConstraintId();
             case DrawableBase::blendModeValuePropertyKey:
                 return object->as<DrawableBase>()->blendModeValue();
             case DrawableBase::drawableFlagsPropertyKey:
@@ -2940,6 +2964,7 @@ public:
             case IKConstraintBase::invertDirectionPropertyKey:
             case FollowPathConstraintBase::orientPropertyKey:
             case FollowPathConstraintBase::offsetPropertyKey:
+            case ScrollConstraintBase::snapPropertyKey:
             case AxisBase::normalizedPropertyKey:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
             case LayoutComponentStyleBase::linkCornerRadiusPropertyKey:
@@ -2987,6 +3012,8 @@ public:
             case TransformSpaceConstraintBase::destSpaceValuePropertyKey:
             case TransformComponentConstraintBase::minMaxSpaceValuePropertyKey:
             case IKConstraintBase::parentBoneCountPropertyKey:
+            case DraggableConstraintBase::directionValuePropertyKey:
+            case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
             case DrawableBase::blendModeValuePropertyKey:
             case DrawableBase::drawableFlagsPropertyKey:
             case NestedArtboardBase::artboardIdPropertyKey:
@@ -3404,6 +3431,8 @@ public:
                 return object->is<FollowPathConstraintBase>();
             case FollowPathConstraintBase::offsetPropertyKey:
                 return object->is<FollowPathConstraintBase>();
+            case ScrollConstraintBase::snapPropertyKey:
+                return object->is<ScrollConstraintBase>();
             case AxisBase::normalizedPropertyKey:
                 return object->is<AxisBase>();
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
@@ -3495,6 +3524,10 @@ public:
                 return object->is<TransformComponentConstraintBase>();
             case IKConstraintBase::parentBoneCountPropertyKey:
                 return object->is<IKConstraintBase>();
+            case DraggableConstraintBase::directionValuePropertyKey:
+                return object->is<DraggableConstraintBase>();
+            case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
+                return object->is<ScrollBarConstraintBase>();
             case DrawableBase::blendModeValuePropertyKey:
                 return object->is<DrawableBase>();
             case DrawableBase::drawableFlagsPropertyKey:

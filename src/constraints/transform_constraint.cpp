@@ -45,11 +45,26 @@ void TransformConstraint::constrain(TransformComponent* component)
         transformB = targetParentWorld * transformB;
     }
 
-    m_ComponentsA = transformA.decompose();
-    m_ComponentsB = transformB.decompose();
+    TransformConstraint::constrainWorld(component,
+                                        transformA,
+                                        m_ComponentsA,
+                                        transformB,
+                                        m_ComponentsB,
+                                        strength());
+}
 
-    float angleA = std::fmod(m_ComponentsA.rotation(), math::PI * 2);
-    float angleB = std::fmod(m_ComponentsB.rotation(), math::PI * 2);
+void TransformConstraint::constrainWorld(TransformComponent* component,
+                                         Mat2D from,
+                                         TransformComponents componentsFrom,
+                                         Mat2D to,
+                                         TransformComponents componentsTo,
+                                         float strength)
+{
+    componentsFrom = from.decompose();
+    componentsTo = to.decompose();
+
+    float angleA = std::fmod(componentsFrom.rotation(), math::PI * 2);
+    float angleB = std::fmod(componentsTo.rotation(), math::PI * 2);
     float diff = angleB - angleA;
     if (diff > math::PI)
     {
@@ -60,17 +75,17 @@ void TransformConstraint::constrain(TransformComponent* component)
         diff += math::PI * 2;
     }
 
-    float t = strength();
+    float t = strength;
     float ti = 1.0f - t;
 
-    m_ComponentsB.rotation(angleA + diff * t);
-    m_ComponentsB.x(m_ComponentsA.x() * ti + m_ComponentsB.x() * t);
-    m_ComponentsB.y(m_ComponentsA.y() * ti + m_ComponentsB.y() * t);
-    m_ComponentsB.scaleX(m_ComponentsA.scaleX() * ti +
-                         m_ComponentsB.scaleX() * t);
-    m_ComponentsB.scaleY(m_ComponentsA.scaleY() * ti +
-                         m_ComponentsB.scaleY() * t);
-    m_ComponentsB.skew(m_ComponentsA.skew() * ti + m_ComponentsB.skew() * t);
+    componentsTo.rotation(angleA + diff * t);
+    componentsTo.x(componentsFrom.x() * ti + componentsTo.x() * t);
+    componentsTo.y(componentsFrom.y() * ti + componentsTo.y() * t);
+    componentsTo.scaleX(componentsFrom.scaleX() * ti +
+                        componentsTo.scaleX() * t);
+    componentsTo.scaleY(componentsFrom.scaleY() * ti +
+                        componentsTo.scaleY() * t);
+    componentsTo.skew(componentsFrom.skew() * ti + componentsTo.skew() * t);
 
-    component->mutableWorldTransform() = Mat2D::compose(m_ComponentsB);
+    component->mutableWorldTransform() = Mat2D::compose(componentsTo);
 }

@@ -21,7 +21,7 @@ protected:
     std::vector<Constraint*> m_Constraints;
 
 protected:
-    void updateConstraints();
+    virtual void updateConstraints();
 
 public:
     bool collapse(bool value) override;
