@@ -16,7 +16,8 @@
         "int": 200,
         "string": "mix"
       },
-      "description": "Value to mix the animation in."
+      "description": "Value to mix the animation in.",
+      "bindable": true
     }
   }
 }

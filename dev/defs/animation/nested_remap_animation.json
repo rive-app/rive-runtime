@@ -14,7 +14,8 @@
         "int": 202,
         "string": "time"
       },
-      "description": "Time value in seconds for the nested linear animation."
+      "description": "Time value in seconds for the nested linear animation.",
+      "bindable": true
     }
   }
 }

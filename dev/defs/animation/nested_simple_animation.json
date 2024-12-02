@@ -14,7 +14,8 @@
         "int": 199,
         "string": "speed"
       },
-      "description": "Speed to play the nested animation at."
+      "description": "Speed to play the nested animation at.",
+      "bindable": true
     },
     "isPlaying": {
       "type": "bool",
@@ -24,7 +25,8 @@
         "int": 201,
         "string": "is_playing"
       },
-      "description": "Enumerated backing value for playback state."
+      "description": "Enumerated backing value for playback state.",
+      "bindable": true
     }
   }
 }
