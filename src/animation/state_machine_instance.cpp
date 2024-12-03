@@ -946,9 +946,9 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
 {
     if (m_artboardInstance->frameOrigin())
     {
-        position -=
-            Vec2D(m_artboardInstance->originX() * m_artboardInstance->width(),
-                  m_artboardInstance->originY() * m_artboardInstance->height());
+        position -= Vec2D(
+            m_artboardInstance->originX() * m_artboardInstance->layoutWidth(),
+            m_artboardInstance->originY() * m_artboardInstance->layoutHeight());
     }
     // First reset all listener groups before processing the events
     for (const auto& listenerGroup : m_listenerGroups)
@@ -986,9 +986,9 @@ bool StateMachineInstance::hitTest(Vec2D position) const
 {
     if (m_artboardInstance->frameOrigin())
     {
-        position -=
-            Vec2D(m_artboardInstance->originX() * m_artboardInstance->width(),
-                  m_artboardInstance->originY() * m_artboardInstance->height());
+        position -= Vec2D(
+            m_artboardInstance->originX() * m_artboardInstance->layoutWidth(),
+            m_artboardInstance->originY() * m_artboardInstance->layoutHeight());
     }
 
     for (const auto& hitShape : m_hitComponents)
