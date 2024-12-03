@@ -168,6 +168,13 @@ newoption({
     default = 'default',
 })
 
+newoption({
+    trigger= "toolsversion",
+    value="msvc_toolsversion",
+    description = "specify the version of the compiler tool. On windows thats the msvc version which affects both clang and msvc outputs.",
+    default= 'latest'
+})
+
 -- This is just to match our old windows config. Rive Native specifically sets
 -- static/dynamic and maybe we should do the same elsewhere.
 filter({ 'system:windows', 'options:windows_runtime=default', 'options:not for_unreal' })
@@ -228,9 +235,13 @@ filter({ 'system:windows', 'options:for_unreal' })
 do
     staticruntime('off')
     runtime('Release')
-    -- this is the prefered MSVC redist unreal uses (not the windows sdk version which is a different thing.) we require this to build rive
-    -- since not having it can cause linkerer errors
-    toolsversion "14.38.33130"
+end
+
+-- for latest builds we leave toolsversion unset so that it automatically chooses the latest version
+filter({"options:toolsversion != latest"})
+do
+    -- this is because unreal "prefers" certain msvc versions so we try to match it from the python build script
+    toolsversion(_OPTIONS["toolsversion"])
 end
 
 filter({ 'system:windows', 'options:toolset=clang' })

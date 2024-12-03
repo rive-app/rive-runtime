@@ -1,6 +1,6 @@
 #include "fiddle_context.hpp"
 
-#ifndef _WIN32
+#if !defined(_WIN32) || defined(RIVE_UNREAL)
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions)
 {
