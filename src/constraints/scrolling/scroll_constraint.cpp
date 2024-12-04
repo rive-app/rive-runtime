@@ -61,7 +61,7 @@ void ScrollConstraint::runPhysics()
 bool ScrollConstraint::advanceComponent(float elapsedSeconds,
                                         AdvanceFlags flags)
 {
-    if ((flags & AdvanceFlags::Animate) != AdvanceFlags::Animate)
+    if ((flags & AdvanceFlags::AdvanceNested) != AdvanceFlags::AdvanceNested)
     {
         return false;
     }
