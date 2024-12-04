@@ -79,8 +79,8 @@ class TestEntry(object):
             self.candidates_path = os.path.join(device_name, f"{self.name}.png")
             self.golden_path = os.path.join("golden", f"{self.name}.png")
         else:
-            self.candidates_path = pathlib.Path(candidates_path).joinpath(f"{self.name}.png").relative_to(output_path, walk_up=True).as_posix()
-            self.golden_path = pathlib.Path(golden_path).joinpath(f"{self.name}.png").relative_to(output_path, walk_up=True).as_posix()
+            self.candidates_path = pathlib.Path(os.path.relpath(os.path.join(candidates_path, f"{self.name}.png"), output_path)).as_posix()
+            self.golden_path = pathlib.Path(os.path.relpath(os.path.join(golden_path, f"{self.name}.png"), output_path)).as_posix()
         if len(words) == 2:
             self.type = words[1]
         else:    
@@ -105,11 +105,10 @@ class TestEntry(object):
                 self.type = "failed"
 
     def __lt__(self, other):
-         if self.type == "pass" or self.type == "pass":
-            if self.histogram is None:
-                return self.avg < other.avg
-            else:
-                return self.histogram < other.histogram
+        if self.histogram is None:
+            return self.avg < other.avg
+        else:
+            return self.histogram < other.histogram
 
     def __str__(self):
         vals = dict()
