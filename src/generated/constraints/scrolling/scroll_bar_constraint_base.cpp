@@ -1,5 +1,5 @@
-#include "rive/generated/constraints/scroll_bar_constraint_base.hpp"
-#include "rive/constraints/scroll_bar_constraint.hpp"
+#include "rive/generated/constraints/scrolling/scroll_bar_constraint_base.hpp"
+#include "rive/constraints/scrolling/scroll_bar_constraint.hpp"
 
 using namespace rive;
 

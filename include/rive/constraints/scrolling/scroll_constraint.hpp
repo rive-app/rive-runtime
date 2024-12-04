@@ -1,21 +1,17 @@
 #ifndef _RIVE_SCROLL_CONSTRAINT_HPP_
 #define _RIVE_SCROLL_CONSTRAINT_HPP_
-#include "rive/generated/constraints/scroll_constraint_base.hpp"
+#include "rive/generated/constraints/scrolling/scroll_constraint_base.hpp"
 #include "rive/advance_flags.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/constraints/layout_constraint.hpp"
-#include "rive/constraints/scroll_physics.hpp"
+#include "rive/constraints/scrolling/scroll_physics.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/math/transform_components.hpp"
 #include <stdio.h>
 namespace rive
 {
-enum class ScrollPhysicsType : uint8_t
-{
-    mela,
-    defaultPhysics
-};
+
 class ScrollConstraint : public ScrollConstraintBase,
                          public AdvancingComponent,
                          public LayoutConstraint
@@ -25,14 +21,15 @@ private:
     TransformComponents m_componentsB;
     float m_offsetX = 0;
     float m_offsetY = 0;
-    ScrollPhysics* m_physicsX;
-    ScrollPhysics* m_physicsY;
+    ScrollPhysics* m_physics;
     Mat2D m_scrollTransform;
 
 public:
     void constrain(TransformComponent* component) override;
     std::vector<DraggableProxy*> draggables() override;
     void buildDependencies() override;
+    StatusCode import(ImportStack& importStack) override;
+    Core* clone() const override;
     void dragView(Vec2D delta);
     void runPhysics();
     void constrainChild(LayoutComponent* component) override;
@@ -40,11 +37,14 @@ public:
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
 
-    ScrollPhysics* physicsX() { return m_physicsX; }
-    ScrollPhysics* physicsY() { return m_physicsY; }
-    void physicsX(ScrollPhysics* physics) { m_physicsX = physics; }
-    void physicsY(ScrollPhysics* physics) { m_physicsY = physics; }
+    ScrollPhysics* physics() const { return m_physics; }
+    void physics(ScrollPhysics* physics) { m_physics = physics; }
     void initPhysics();
+
+    ScrollPhysicsType physicsType() const
+    {
+        return ScrollPhysicsType(physicsTypeValue());
+    }
 
     LayoutComponent* content() { return parent()->as<LayoutComponent>(); }
     LayoutComponent* viewport()
@@ -86,19 +86,15 @@ public:
     }
     float maxOffsetX()
     {
-        if (contentWidth() == 0)
-        {
-            return 0;
-        }
-        return viewportWidth() - contentWidth() - viewport()->paddingRight();
+        return std::min(0.0f,
+                        viewportWidth() - contentWidth() -
+                            viewport()->paddingRight());
     }
     float maxOffsetY()
     {
-        if (contentHeight() == 0)
-        {
-            return 0;
-        }
-        return viewportHeight() - contentHeight() - viewport()->paddingBottom();
+        return std::min(0.0f,
+                        viewportHeight() - contentHeight() -
+                            viewport()->paddingBottom());
     }
     float clampedOffsetX()
     {
@@ -106,9 +102,12 @@ public:
         {
             return 0;
         }
-        if (m_physicsX != nullptr)
+        if (m_physics != nullptr && m_physics->enabled())
         {
-            return m_physicsX->clamp(maxOffsetX(), m_offsetX);
+            return m_physics
+                ->clamp(Vec2D(maxOffsetX(), maxOffsetY()),
+                        Vec2D(m_offsetX, m_offsetY))
+                .x;
         }
         return math::clamp(m_offsetX, maxOffsetX(), 0);
     }
@@ -118,9 +117,12 @@ public:
         {
             return 0;
         }
-        if (m_physicsY != nullptr)
+        if (m_physics != nullptr && m_physics->enabled())
         {
-            return m_physicsY->clamp(maxOffsetY(), m_offsetY);
+            return m_physics
+                ->clamp(Vec2D(maxOffsetX(), maxOffsetY()),
+                        Vec2D(m_offsetX, m_offsetY))
+                .y;
         }
         return math::clamp(m_offsetY, maxOffsetY(), 0);
     }

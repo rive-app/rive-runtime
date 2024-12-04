@@ -16,6 +16,7 @@ class FileAssetReferencer;
 class DataConverter;
 class DataBind;
 class DataConverterGroupItem;
+class ScrollPhysics;
 class BackboardImporter : public ImportStackObject
 {
 private:
@@ -28,6 +29,7 @@ private:
     std::vector<DataBind*> m_DataConverterReferencers;
     std::vector<DataConverterGroupItem*> m_DataConverterGroupItemReferencers;
     std::vector<KeyFrameInterpolator*> m_interpolators;
+    std::vector<ScrollPhysics*> m_physics;
     int m_NextArtboardId;
 
 public:
@@ -42,6 +44,8 @@ public:
     void addDataConverterGroupItemReferencer(
         DataConverterGroupItem* referencer);
     void addInterpolator(KeyFrameInterpolator* interpolator);
+    void addPhysics(ScrollPhysics* physics);
+    std::vector<ScrollPhysics*> physics() { return m_physics; }
 
     StatusCode resolve() override;
     const Backboard* backboard() const { return m_Backboard; }

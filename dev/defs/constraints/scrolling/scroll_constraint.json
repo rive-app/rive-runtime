@@ -1,0 +1,39 @@
+{
+  "name": "ScrollConstraint",
+  "key": {
+    "int": 521,
+    "string": "scrollconstraint"
+  },
+  "extends": "constraints/draggable_constraint.json",
+  "properties": {
+    "snap": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 724,
+        "string": "snap"
+      },
+      "description": "Whether the scrolling content should snap to the nearest child"
+    },
+    "physicsTypeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 727,
+        "string": "physicstypevalue"
+      },
+      "description": "The type of physics to apply to the scroll constraint."
+    },
+    "physicsId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 726,
+        "string": "physicsid"
+      },
+      "description": "Identifier used to track the Scroll physics."
+    }
+  }
+}

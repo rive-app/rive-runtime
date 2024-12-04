@@ -1,7 +1,6 @@
 #include "rive/constraints/draggable_constraint.hpp"
-#include "rive/constraints/scroll_constraint.hpp"
-#include "rive/constraints/scroll_bar_constraint.hpp"
-#include "rive/constraints/scroll_bar_constraint_proxy.hpp"
+#include "rive/constraints/scrolling/scroll_bar_constraint.hpp"
+#include "rive/constraints/scrolling/scroll_bar_constraint_proxy.hpp"
 #include "rive/constraints/transform_constraint.hpp"
 #include "rive/core_context.hpp"
 #include "rive/layout_component.hpp"
@@ -191,5 +190,5 @@ void ScrollBarConstraint::dragThumb(Vec2D delta)
 bool ScrollBarConstraint::validate(CoreContext* context)
 {
     auto coreObject = context->resolve(scrollConstraintId());
-    return coreObject != nullptr && coreObject->is<ContainerComponent>();
+    return coreObject != nullptr && coreObject->is<ScrollConstraint>();
 }

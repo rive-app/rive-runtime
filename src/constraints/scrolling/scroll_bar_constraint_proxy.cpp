@@ -1,5 +1,5 @@
-#include "rive/constraints/scroll_bar_constraint.hpp"
-#include "rive/constraints/scroll_bar_constraint_proxy.hpp"
+#include "rive/constraints/scrolling/scroll_bar_constraint.hpp"
+#include "rive/constraints/scrolling/scroll_bar_constraint_proxy.hpp"
 #include "rive/math/vec2d.hpp"
 
 using namespace rive;

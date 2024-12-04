@@ -1,5 +1,5 @@
 #include "rive/component.hpp"
-#include "rive/constraints/scroll_constraint.hpp"
+#include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/artboard.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/nested_artboard.hpp"

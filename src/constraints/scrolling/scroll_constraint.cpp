@@ -1,6 +1,7 @@
-#include "rive/constraints/scroll_constraint.hpp"
-#include "rive/constraints/scroll_constraint_proxy.hpp"
+#include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/constraints/scrolling/scroll_constraint_proxy.hpp"
 #include "rive/constraints/transform_constraint.hpp"
+#include "rive/core_context.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/math/mat2d.hpp"
 
@@ -27,13 +28,9 @@ void ScrollConstraint::constrainChild(LayoutComponent* component)
 
 void ScrollConstraint::dragView(Vec2D delta)
 {
-    if (m_physicsX != nullptr)
+    if (m_physics != nullptr)
     {
-        m_physicsX->accumulate(delta.x);
-    }
-    if (m_physicsY != nullptr)
-    {
-        m_physicsY->accumulate(delta.y);
+        m_physics->accumulate(delta);
     }
     offsetX(offsetX() + delta.x);
     offsetY(offsetY() + delta.y);
@@ -41,8 +38,7 @@ void ScrollConstraint::dragView(Vec2D delta)
 
 void ScrollConstraint::runPhysics()
 {
-    std::vector<float> snappingPoints;
-    bool isHorizontal = content()->mainAxisIsRow();
+    std::vector<Vec2D> snappingPoints;
     if (snap())
     {
         for (auto child : content()->children())
@@ -50,24 +46,15 @@ void ScrollConstraint::runPhysics()
             if (child->is<LayoutComponent>())
             {
                 auto c = child->as<LayoutComponent>();
-                snappingPoints.push_back(isHorizontal ? c->layoutX()
-                                                      : c->layoutY());
+                snappingPoints.push_back(Vec2D(c->layoutX(), c->layoutY()));
             }
         }
     }
-    if (m_physicsX != nullptr)
+    if (m_physics != nullptr)
     {
-        m_physicsX->run(maxOffsetX(),
-                        offsetX(),
-                        (snap() && isHorizontal) ? snappingPoints
-                                                 : std::vector<float>());
-    }
-    if (m_physicsY != nullptr)
-    {
-        m_physicsY->run(maxOffsetY(),
-                        offsetY(),
-                        (snap() && !isHorizontal) ? snappingPoints
-                                                  : std::vector<float>());
+        m_physics->run(Vec2D(maxOffsetX(), maxOffsetY()),
+                       Vec2D(offsetX(), offsetY()),
+                       snap() ? snappingPoints : std::vector<Vec2D>());
     }
 }
 
@@ -78,29 +65,17 @@ bool ScrollConstraint::advanceComponent(float elapsedSeconds,
     {
         return false;
     }
-    auto physicsX = m_physicsX;
-    auto physicsY = m_physicsY;
-    if (physicsX == nullptr && physicsY == nullptr)
+    if (m_physics == nullptr)
     {
         return false;
     }
-    if (physicsX != nullptr && physicsX->isRunning())
+    if (m_physics->isRunning())
     {
-        offsetX(physicsX->advance(elapsedSeconds));
-        if (physicsX->isRunning() != true)
-        {
-            m_physicsX = nullptr;
-        }
+        auto offset = m_physics->advance(elapsedSeconds);
+        offsetX(offset.x);
+        offsetY(offset.y);
     }
-    if (physicsY != nullptr && physicsY->isRunning())
-    {
-        offsetY(physicsY->advance(elapsedSeconds));
-        if (physicsY->isRunning() != true)
-        {
-            m_physicsY = nullptr;
-        }
-    }
-    return m_physicsX != nullptr || m_physicsY != nullptr;
+    return m_physics->enabled();
 }
 
 std::vector<DraggableProxy*> ScrollConstraint::draggables()
@@ -124,14 +99,47 @@ void ScrollConstraint::buildDependencies()
     }
 }
 
+Core* ScrollConstraint::clone() const
+{
+    auto cloned = ScrollConstraintBase::clone();
+    if (physics() != nullptr)
+    {
+        auto constraint = cloned->as<ScrollConstraint>();
+        auto clonedPhysics = physics()->clone()->as<ScrollPhysics>();
+        constraint->physics(clonedPhysics);
+    }
+    return cloned;
+}
+
+StatusCode ScrollConstraint::import(ImportStack& importStack)
+{
+    auto backboardImporter =
+        importStack.latest<BackboardImporter>(BackboardBase::typeKey);
+    if (backboardImporter != nullptr)
+    {
+        std::vector<ScrollPhysics*> physicsObjects =
+            backboardImporter->physics();
+        if (physicsId() != -1 && physicsId() < physicsObjects.size())
+        {
+            auto phys = physicsObjects[physicsId()];
+            if (phys != nullptr)
+            {
+                auto cloned = phys->clone()->as<ScrollPhysics>();
+                physics(cloned);
+            }
+        }
+    }
+    else
+    {
+        return StatusCode::MissingObject;
+    }
+    return Super::import(importStack);
+}
+
 void ScrollConstraint::initPhysics()
 {
-    if (constrainsHorizontal())
+    if (m_physics != nullptr)
     {
-        physicsX(new MelaScrollPhysics());
-    }
-    if (constrainsVertical())
-    {
-        physicsY(new MelaScrollPhysics());
+        m_physics->prepare(direction());
     }
 }

@@ -1,8 +1,8 @@
 #ifndef _RIVE_SCROLL_BAR_CONSTRAINT_HPP_
 #define _RIVE_SCROLL_BAR_CONSTRAINT_HPP_
-#include "rive/constraints/scroll_constraint.hpp"
+#include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/math/transform_components.hpp"
-#include "rive/generated/constraints/scroll_bar_constraint_base.hpp"
+#include "rive/generated/constraints/scrolling/scroll_bar_constraint_base.hpp"
 #include <stdio.h>
 namespace rive
 {

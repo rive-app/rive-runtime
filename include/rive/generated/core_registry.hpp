@@ -105,8 +105,11 @@
 #include "rive/constraints/ik_constraint.hpp"
 #include "rive/constraints/rotation_constraint.hpp"
 #include "rive/constraints/scale_constraint.hpp"
-#include "rive/constraints/scroll_bar_constraint.hpp"
-#include "rive/constraints/scroll_constraint.hpp"
+#include "rive/constraints/scrolling/clamped_scroll_physics.hpp"
+#include "rive/constraints/scrolling/elastic_scroll_physics.hpp"
+#include "rive/constraints/scrolling/scroll_bar_constraint.hpp"
+#include "rive/constraints/scrolling/scroll_constraint.hpp"
+#include "rive/constraints/scrolling/scroll_physics.hpp"
 #include "rive/constraints/targeted_constraint.hpp"
 #include "rive/constraints/transform_component_constraint.hpp"
 #include "rive/constraints/transform_component_constraint_y.hpp"
@@ -307,14 +310,18 @@ public:
                 return new FollowPathConstraint();
             case TranslationConstraintBase::typeKey:
                 return new TranslationConstraint();
-            case TransformConstraintBase::typeKey:
-                return new TransformConstraint();
+            case ClampedScrollPhysicsBase::typeKey:
+                return new ClampedScrollPhysics();
             case ScrollConstraintBase::typeKey:
                 return new ScrollConstraint();
-            case ScaleConstraintBase::typeKey:
-                return new ScaleConstraint();
+            case ElasticScrollPhysicsBase::typeKey:
+                return new ElasticScrollPhysics();
             case ScrollBarConstraintBase::typeKey:
                 return new ScrollBarConstraint();
+            case TransformConstraintBase::typeKey:
+                return new TransformConstraint();
+            case ScaleConstraintBase::typeKey:
+                return new ScaleConstraint();
             case RotationConstraintBase::typeKey:
                 return new RotationConstraint();
             case NodeBase::typeKey:
@@ -802,8 +809,17 @@ public:
             case IKConstraintBase::parentBoneCountPropertyKey:
                 object->as<IKConstraintBase>()->parentBoneCount(value);
                 break;
+            case ScrollPhysicsBase::constraintIdPropertyKey:
+                object->as<ScrollPhysicsBase>()->constraintId(value);
+                break;
             case DraggableConstraintBase::directionValuePropertyKey:
                 object->as<DraggableConstraintBase>()->directionValue(value);
+                break;
+            case ScrollConstraintBase::physicsTypeValuePropertyKey:
+                object->as<ScrollConstraintBase>()->physicsTypeValue(value);
+                break;
+            case ScrollConstraintBase::physicsIdPropertyKey:
+                object->as<ScrollConstraintBase>()->physicsId(value);
                 break;
             case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
                 object->as<ScrollBarConstraintBase>()->scrollConstraintId(
@@ -1437,6 +1453,15 @@ public:
                 break;
             case FollowPathConstraintBase::distancePropertyKey:
                 object->as<FollowPathConstraintBase>()->distance(value);
+                break;
+            case ElasticScrollPhysicsBase::frictionPropertyKey:
+                object->as<ElasticScrollPhysicsBase>()->friction(value);
+                break;
+            case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
+                object->as<ElasticScrollPhysicsBase>()->speedMultiplier(value);
+                break;
+            case ElasticScrollPhysicsBase::elasticFactorPropertyKey:
+                object->as<ElasticScrollPhysicsBase>()->elasticFactor(value);
                 break;
             case TransformConstraintBase::originXPropertyKey:
                 object->as<TransformConstraintBase>()->originX(value);
@@ -2125,8 +2150,14 @@ public:
                     ->minMaxSpaceValue();
             case IKConstraintBase::parentBoneCountPropertyKey:
                 return object->as<IKConstraintBase>()->parentBoneCount();
+            case ScrollPhysicsBase::constraintIdPropertyKey:
+                return object->as<ScrollPhysicsBase>()->constraintId();
             case DraggableConstraintBase::directionValuePropertyKey:
                 return object->as<DraggableConstraintBase>()->directionValue();
+            case ScrollConstraintBase::physicsTypeValuePropertyKey:
+                return object->as<ScrollConstraintBase>()->physicsTypeValue();
+            case ScrollConstraintBase::physicsIdPropertyKey:
+                return object->as<ScrollConstraintBase>()->physicsId();
             case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
                 return object->as<ScrollBarConstraintBase>()
                     ->scrollConstraintId();
@@ -2590,6 +2621,13 @@ public:
                     ->maxValueY();
             case FollowPathConstraintBase::distancePropertyKey:
                 return object->as<FollowPathConstraintBase>()->distance();
+            case ElasticScrollPhysicsBase::frictionPropertyKey:
+                return object->as<ElasticScrollPhysicsBase>()->friction();
+            case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
+                return object->as<ElasticScrollPhysicsBase>()
+                    ->speedMultiplier();
+            case ElasticScrollPhysicsBase::elasticFactorPropertyKey:
+                return object->as<ElasticScrollPhysicsBase>()->elasticFactor();
             case TransformConstraintBase::originXPropertyKey:
                 return object->as<TransformConstraintBase>()->originX();
             case TransformConstraintBase::originYPropertyKey:
@@ -3012,7 +3050,10 @@ public:
             case TransformSpaceConstraintBase::destSpaceValuePropertyKey:
             case TransformComponentConstraintBase::minMaxSpaceValuePropertyKey:
             case IKConstraintBase::parentBoneCountPropertyKey:
+            case ScrollPhysicsBase::constraintIdPropertyKey:
             case DraggableConstraintBase::directionValuePropertyKey:
+            case ScrollConstraintBase::physicsTypeValuePropertyKey:
+            case ScrollConstraintBase::physicsIdPropertyKey:
             case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
             case DrawableBase::blendModeValuePropertyKey:
             case DrawableBase::drawableFlagsPropertyKey:
@@ -3205,6 +3246,9 @@ public:
             case TransformComponentConstraintYBase::minValueYPropertyKey:
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
             case FollowPathConstraintBase::distancePropertyKey:
+            case ElasticScrollPhysicsBase::frictionPropertyKey:
+            case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
+            case ElasticScrollPhysicsBase::elasticFactorPropertyKey:
             case TransformConstraintBase::originXPropertyKey:
             case TransformConstraintBase::originYPropertyKey:
             case WorldTransformComponentBase::opacityPropertyKey:
@@ -3524,8 +3568,14 @@ public:
                 return object->is<TransformComponentConstraintBase>();
             case IKConstraintBase::parentBoneCountPropertyKey:
                 return object->is<IKConstraintBase>();
+            case ScrollPhysicsBase::constraintIdPropertyKey:
+                return object->is<ScrollPhysicsBase>();
             case DraggableConstraintBase::directionValuePropertyKey:
                 return object->is<DraggableConstraintBase>();
+            case ScrollConstraintBase::physicsTypeValuePropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::physicsIdPropertyKey:
+                return object->is<ScrollConstraintBase>();
             case ScrollBarConstraintBase::scrollConstraintIdPropertyKey:
                 return object->is<ScrollBarConstraintBase>();
             case DrawableBase::blendModeValuePropertyKey:
@@ -3903,6 +3953,12 @@ public:
                 return object->is<TransformComponentConstraintYBase>();
             case FollowPathConstraintBase::distancePropertyKey:
                 return object->is<FollowPathConstraintBase>();
+            case ElasticScrollPhysicsBase::frictionPropertyKey:
+                return object->is<ElasticScrollPhysicsBase>();
+            case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
+                return object->is<ElasticScrollPhysicsBase>();
+            case ElasticScrollPhysicsBase::elasticFactorPropertyKey:
+                return object->is<ElasticScrollPhysicsBase>();
             case TransformConstraintBase::originXPropertyKey:
                 return object->is<TransformConstraintBase>();
             case TransformConstraintBase::originYPropertyKey:

@@ -5,6 +5,7 @@
 #include "rive/backboard.hpp"
 #include "rive/assets/file_asset_referencer.hpp"
 #include "rive/assets/file_asset.hpp"
+#include "rive/constraints/scrolling/scroll_physics.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
@@ -145,4 +146,9 @@ void BackboardImporter::addInterpolator(KeyFrameInterpolator* interpolator)
     // initialize them
     interpolator->initialize();
     m_interpolators.push_back(interpolator);
+}
+
+void BackboardImporter::addPhysics(ScrollPhysics* physics)
+{
+    m_physics.push_back(physics);
 }
