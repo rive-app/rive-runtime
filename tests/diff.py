@@ -305,7 +305,7 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
                 parent_pid=os.getpid())
     
     Pool(args.jobs).map(f, intersect_filenames)
-    (total_lines, entires, success) = parse_status(candidates_path, golden_path, output_path, device_name, browserstack_details)
+    (total_lines, entries, success) = parse_status(candidates_path, golden_path, output_path, device_name, browserstack_details)
     
     print(f'finished with Succes:{success} and {total_lines} lines')
 
@@ -321,7 +321,7 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
     for status_filename in glob.iglob(status_filename_pattern):
         os.remove(status_filename)
 
-    return (entires, missing_candidates, success)
+    return (entries, missing_candidates, success)
 
 def sort_entries(entries):
     identical_entires = [entry for entry in entries if entry.type == "identical"]
@@ -385,7 +385,7 @@ def diff_directory_deep(candidates_path, output_path):
 
     write_html(TEMPLATE_PATH, failed, passed, identical, output_path)
 
-    print(f"total entires {len(all_entries)}")
+    print(f"total entries {len(all_entries)}")
     write_min_csv(len(passed), len(failed), len(identical), len(all_entries), output_path + "/issues.csv")
 
 def main(argv=None):    
@@ -411,13 +411,14 @@ def main(argv=None):
     if args.recursive:
         diff_directory_deep(args.candidates, args.output)
     else:
-        (entires, missing_candidates, success) = diff_directory_shallow(args.candidates, args.output, args.goldens)
-        if len(entires) > 0:
-            (failed, passed, identical) = sort_entries(entires)
+        (entries, missing_candidates, success) = diff_directory_shallow(args.candidates, args.output, args.goldens)
+        if len(entries) > 0:
+            (failed, passed, identical) = sort_entries(entries)
+            assert(len(failed) + len(passed) + len(identical) == len(entries))
             write_html(TEMPLATE_PATH, failed, passed, identical, args.output)
             # note could add these to the html output but w/e
-            write_csv(entires, args.goldens, args.candidates, args.output, missing_candidates)
-            print("Found " + str(len(entires)) + " differences.")
+            write_csv(entries, args.goldens, args.candidates, args.output, missing_candidates)
+            print("Found", len(entries) - len(identical), "differences.")
         if not success:
             # if there were diffs, its gotta fail
             print("FAILED.")
