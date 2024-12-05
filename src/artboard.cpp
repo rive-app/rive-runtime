@@ -433,7 +433,10 @@ StatusCode Artboard::initialize()
 
 void Artboard::sortDrawOrder()
 {
-    m_HasChangedDrawOrderInLastUpdate = true;
+    m_drawOrderChangeCounter =
+        m_drawOrderChangeCounter == std::numeric_limits<uint8_t>::max()
+            ? 0
+            : m_drawOrderChangeCounter + 1;
     for (auto target : m_DrawTargets)
     {
         target->first = target->last = nullptr;
@@ -832,7 +835,6 @@ bool Artboard::syncStyleChanges()
 
 bool Artboard::updatePass(bool isRoot)
 {
-    m_HasChangedDrawOrderInLastUpdate = false;
     bool didUpdate = false;
 #ifdef WITH_RIVE_LAYOUT
     if (syncStyleChanges() && m_updatesOwnLayout)

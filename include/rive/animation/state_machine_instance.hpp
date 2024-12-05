@@ -184,6 +184,7 @@ private:
     std::unordered_map<BindableProperty*, BindableProperty*>
         m_bindablePropertyInstances;
     std::unordered_map<BindableProperty*, DataBind*> m_bindableDataBinds;
+    uint8_t m_drawOrderChangeCounter = 0;
 
 #ifdef WITH_RIVE_TOOLS
 public:

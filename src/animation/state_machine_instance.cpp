@@ -1475,8 +1475,10 @@ bool StateMachineInstance::tryChangeState()
 bool StateMachineInstance::advance(float seconds, bool newFrame)
 {
     updateDataBinds();
-    if (m_artboardInstance->hasChangedDrawOrderInLastUpdate())
+    if (m_drawOrderChangeCounter !=
+        m_artboardInstance->drawOrderChangeCounter())
     {
+        m_drawOrderChangeCounter = m_artboardInstance->drawOrderChangeCounter();
         sortHitComponents();
     }
     if (newFrame)

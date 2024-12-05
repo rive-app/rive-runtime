@@ -67,7 +67,6 @@ private:
     std::vector<DataBind*> m_AllDataBinds;
     DataContext* m_DataContext = nullptr;
     bool m_JoysticksApplyBeforeUpdate = true;
-    bool m_HasChangedDrawOrderInLastUpdate = false;
 
     unsigned int m_DirtDepth = 0;
     RawPath m_backgroundRawPath;
@@ -82,6 +81,11 @@ private:
     Artboard* parentArtboard() const;
     NestedArtboard* m_host = nullptr;
     bool sharesLayoutWithHost() const;
+
+    // Variable that tracks whenever the draw order changes. It is used by the
+    // state machine controllers to sort their hittable components when they are
+    // out of sync
+    uint8_t m_drawOrderChangeCounter = 0;
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     rcp<AudioEngine> m_audioEngine;
@@ -154,10 +158,7 @@ public:
                          AdvanceFlags flags = AdvanceFlags::AdvanceNested |
                                               AdvanceFlags::Animate |
                                               AdvanceFlags::NewFrame);
-    bool hasChangedDrawOrderInLastUpdate()
-    {
-        return m_HasChangedDrawOrderInLastUpdate;
-    };
+    uint8_t drawOrderChangeCounter() { return m_drawOrderChangeCounter; }
     Drawable* firstDrawable() { return m_FirstDrawable; };
 
     enum class DrawOption
