@@ -265,11 +265,6 @@
 
 #extension GL_EXT_shader_pixel_local_storage : enable
 
-// We need one of the framebuffer fetch extensions for the shader that loads the
-// framebuffer.
-#extension GL_ARM_shader_framebuffer_fetch : enable
-#extension GL_EXT_shader_framebuffer_fetch : enable
-
 #define PLS_BLOCK_BEGIN                                                        \
     __pixel_localEXT PLS                                                       \
     {

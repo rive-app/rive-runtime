@@ -20,9 +20,12 @@ void main()
 
 #ifdef @FRAGMENT
 
-#extension GL_EXT_shader_pixel_local_storage : enable
-#extension GL_ARM_shader_framebuffer_fetch : enable
-#extension GL_EXT_shader_framebuffer_fetch : enable
+#extension GL_EXT_shader_pixel_local_storage : require
+#ifdef GL_ARM_shader_framebuffer_fetch
+#extension GL_ARM_shader_framebuffer_fetch : require
+#else
+#extension GL_EXT_shader_framebuffer_fetch : require
+#endif
 
 #ifdef @CLEAR_COLOR
 #if __VERSION__ >= 310
@@ -42,9 +45,7 @@ __pixel_local_outEXT PLS
 #endif
 {
     layout(rgba8) mediump vec4 colorBuffer;
-#ifdef @ENABLE_CLIPPING
     layout(r32ui) highp uint clipBuffer;
-#endif
     layout(rgba8) mediump vec4 scratchColorBuffer;
     layout(r32ui) highp uint coverageCountBuffer;
 };

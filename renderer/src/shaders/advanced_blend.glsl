@@ -183,7 +183,7 @@ half3 advanced_blend_coeffs(half3 src, half3 dst, ushort mode)
             // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0
             // results in the appropriately signed IEEE Inf.
             coeffs = mix(1. - min((1. - dst.rgb) / src.rgb, 1.),
-                         make_half3(1., 1., 1.),
+                         make_half3(1.),
                          greaterThanEqual(dst.rgb, make_half3(1.)));
             break;
         case BLEND_MODE_HARDLIGHT:

@@ -322,9 +322,7 @@ INLINE half4 find_paint_color(float4 paint FRAGMENT_CONTEXT_DECL)
 
 PLS_BLOCK_BEGIN
 PLS_DECL4F(COLOR_PLANE_IDX, colorBuffer);
-#if defined(@ENABLE_CLIPPING) || defined(@PLS_IMPL_ANGLE)
 PLS_DECLUI(CLIP_PLANE_IDX, clipBuffer);
-#endif
 PLS_DECL4F(SCRATCH_COLOR_PLANE_IDX, scratchColorBuffer);
 PLS_DECLUI(COVERAGE_PLANE_IDX, coverageCountBuffer);
 PLS_BLOCK_END

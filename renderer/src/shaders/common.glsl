@@ -146,8 +146,16 @@ INLINE half4 premultiply(half4 color)
 
 INLINE half4 unmultiply(half4 color)
 {
-    if (color.a != .0)
-        color.rgb *= 1.0 / color.a;
+    if (.0 < color.a && color.a < 1.)
+    {
+        float inverseAlpha = 1. / color.a;
+        // Since multiplying by the reciprocal isn't exact, and to handle
+        // invalid premultiplied data, take extra steps to ensure
+        // color * 1/alpha == 1 when color >= alpha.
+        color.rgb = mix(make_half3(1.),
+                        color.rgb * inverseAlpha,
+                        lessThan(color.rgb, make_half3(color.a)));
+    }
     return color;
 }
 
