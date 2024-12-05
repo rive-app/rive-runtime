@@ -42,8 +42,9 @@ void ScrollBarConstraint::constrain(TransformComponent* component)
         auto thumbWidth = innerWidth * m_scrollConstraint->visibleWidthRatio();
         auto maxThumbOffset = innerWidth - thumbWidth;
 
-        thumbOffsetX = m_scrollConstraint->clampedOffsetX() /
-                       m_scrollConstraint->maxOffsetX() * maxThumbOffset;
+        auto offsetX = m_scrollConstraint->maxOffsetX() * maxThumbOffset;
+        thumbOffsetX =
+            offsetX == 0 ? 0 : m_scrollConstraint->clampedOffsetX() / offsetX;
         if (thumbOffsetX < 0)
         {
             thumbWidth += thumbOffsetX;
@@ -62,8 +63,9 @@ void ScrollBarConstraint::constrain(TransformComponent* component)
             innerHeight * m_scrollConstraint->visibleHeightRatio();
         auto maxThumbOffset = innerHeight - thumbHeight;
 
-        thumbOffsetY = m_scrollConstraint->clampedOffsetY() /
-                       m_scrollConstraint->maxOffsetY() * maxThumbOffset;
+        auto offsetY = m_scrollConstraint->maxOffsetY() * maxThumbOffset;
+        thumbOffsetY =
+            offsetY == 0 ? 0 : m_scrollConstraint->clampedOffsetY() / offsetY;
         if (thumbOffsetY < 0)
         {
             thumbHeight += thumbOffsetY;
