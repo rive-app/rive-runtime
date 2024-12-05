@@ -105,7 +105,7 @@ class TestEntry(object):
                 self.type = "failed"
 
     def __lt__(self, other):
-        if self.histogram is None:
+        if self.histogram is None or self.histogram == other.histogram:
             return self.avg < other.avg
         else:
             return self.histogram < other.histogram
