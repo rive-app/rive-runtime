@@ -15,14 +15,15 @@ std::vector<DraggableProxy*> ScrollBarConstraint::draggables()
     if (parent()->is<LayoutComponent>())
     {
         items.push_back(
-            new ThumbDraggableProxy(this, parent()->as<LayoutComponent>()));
+            new ThumbDraggableProxy(this,
+                                    parent()->as<LayoutComponent>()->proxy()));
     }
     if (parent()->parent() != nullptr &&
         parent()->parent()->is<LayoutComponent>())
     {
-        items.push_back(
-            new TrackDraggableProxy(this,
-                                    parent()->parent()->as<LayoutComponent>()));
+        items.push_back(new TrackDraggableProxy(
+            this,
+            parent()->parent()->as<LayoutComponent>()->proxy()));
     }
     return items;
 }

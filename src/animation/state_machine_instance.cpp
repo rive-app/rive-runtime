@@ -1279,9 +1279,10 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             {
                 continue;
             }
-            if (hittable->is<LayoutComponent>())
+            if (hittable->is<LayoutComponent>() ||
+                hittable->is<DrawableProxy>())
             {
-                auto component = hittable->as<LayoutComponent>();
+                auto component = hittable->as<Drawable>();
                 HitLayout* hitLayout;
                 auto itr = hitScrollLookup.find(component);
                 if (itr == hitScrollLookup.end())
