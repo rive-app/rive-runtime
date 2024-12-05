@@ -239,3 +239,4 @@
 #define YGNodeStyleSetWidthPercent rive_YGNodeStyleSetWidthPercent
 #define YGNodeSwapChild rive_YGNodeSwapChild
 #define YGRoundValueToPixelGrid rive_YGRoundValueToPixelGrid
+#define facebook rive_facebook

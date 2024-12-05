@@ -52,6 +52,11 @@ do
 
     defines({ 'YOGA_EXPORT=', '_RIVE_INTERNAL_' })
 
+    includedirs({
+        '../dependencies/',
+    })
+    forceincludes({ 'rive_yoga_renames.h' })
+
     files({ '../src/**.cpp' })
 
     flags({ 'FatalCompileWarnings' })

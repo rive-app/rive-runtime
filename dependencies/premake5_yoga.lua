@@ -31,6 +31,9 @@ do
         yoga .. '/yoga/log.cpp',
     })
 
+    includedirs({ './' })
+    forceincludes({ 'rive_yoga_renames.h' })
+
     buildoptions({ '-Wall', '-pedantic' })
 
     linkoptions({ '-r' })
