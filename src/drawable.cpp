@@ -94,3 +94,8 @@ Drawable* DrawableProxy::hittableComponent()
 {
     return static_cast<LayoutComponent*>(proxyDrawing());
 }
+
+bool DrawableProxy::isTargetOpaque()
+{
+    return hittableComponent()->isTargetOpaque();
+}

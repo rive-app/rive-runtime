@@ -20,7 +20,7 @@ public:
         m_hittable = hittable;
     }
     ~ViewportDraggableProxy() {}
-    bool isOpaque() override { return true; }
+    bool isOpaque() override { return false; }
     void startDrag(Vec2D mousePosition) override;
     void drag(Vec2D mousePosition) override;
     void endDrag(Vec2D mousePosition) override;

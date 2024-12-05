@@ -82,6 +82,8 @@ public:
 
     Drawable* hittableComponent() override;
 
+    bool isTargetOpaque();
+
     Core* hitTest(HitInfo*, const Mat2D&) override { return nullptr; }
 
     ProxyDrawing* proxyDrawing() const { return m_proxyDrawing; }

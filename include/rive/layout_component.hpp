@@ -220,7 +220,6 @@ public:
     bool mainAxisIsRow();
     bool mainAxisIsColumn();
     bool overridesKeyedInterpolation(int propertyKey) override;
-    Drawable* hittableComponent() override { return nullptr; }
     bool hasShapePaints() const { return m_ShapePaints.size() > 0; }
     const Rectangle* backgroundRect() const { return &m_backgroundRect; }
     RenderPath* backgroundPath() const { return m_backgroundPath.get(); }

@@ -832,8 +832,8 @@ bool Artboard::syncStyleChanges()
 
 bool Artboard::updatePass(bool isRoot)
 {
-    bool didUpdate = false;
     m_HasChangedDrawOrderInLastUpdate = false;
+    bool didUpdate = false;
 #ifdef WITH_RIVE_LAYOUT
     if (syncStyleChanges() && m_updatesOwnLayout)
     {

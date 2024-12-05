@@ -29,6 +29,7 @@
 #include "rive/event_report.hpp"
 #include "rive/gesture_click_phase.hpp"
 #include "rive/hit_result.hpp"
+#include "rive/process_event_result.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/hit_test.hpp"
 #include "rive/nested_animation.hpp"
@@ -512,11 +513,12 @@ public:
                listenerType == ListenerType::click;
     }
     // Vec2D position, ListenerType hitType, bool canHit
-    virtual void processEvent(Component* component,
-                              Vec2D position,
-                              ListenerType hitEvent,
-                              bool canHit,
-                              StateMachineInstance* stateMachineInstance)
+    virtual ProcessEventResult processEvent(
+        Component* component,
+        Vec2D position,
+        ListenerType hitEvent,
+        bool canHit,
+        StateMachineInstance* stateMachineInstance)
     {
         // Because each group is tested individually for its hover state, a
         // group could be marked "incorrectly" as hovered at this point. But
@@ -596,6 +598,7 @@ public:
         }
         previousPosition.x = position.x;
         previousPosition.y = position.y;
+        return ProcessEventResult::pointer;
     }
     void clickPhase(GestureClickPhase value) { m_clickPhase = value; }
     GestureClickPhase clickPhase() { return m_clickPhase; }
@@ -637,11 +640,12 @@ public:
 
     bool needsUpListener(Component* drawable) override { return true; }
     // Vec2D position, ListenerType hitType, bool canHit
-    void processEvent(Component* component,
-                      Vec2D position,
-                      ListenerType hitEvent,
-                      bool canHit,
-                      StateMachineInstance* stateMachineInstance) override
+    ProcessEventResult processEvent(
+        Component* component,
+        Vec2D position,
+        ListenerType hitEvent,
+        bool canHit,
+        StateMachineInstance* stateMachineInstance) override
     {
         auto prevPhase = clickPhase();
         ListenerGroup::processEvent(component,
@@ -654,22 +658,32 @@ public:
              clickPhase() == GestureClickPhase::out))
         {
             m_draggable->endDrag(position);
+            if (hasScrolled)
+            {
+                return ProcessEventResult::scroll;
+                hasScrolled = false;
+            }
         }
         else if (prevPhase != GestureClickPhase::down &&
                  clickPhase() == GestureClickPhase::down)
         {
             m_draggable->startDrag(position);
+            hasScrolled = false;
         }
         else if (hitEvent == ListenerType::move &&
                  clickPhase() == GestureClickPhase::down)
         {
             m_draggable->drag(position);
+            hasScrolled = true;
+            return ProcessEventResult::scroll;
         }
+        return ProcessEventResult::none;
     }
 
 private:
     DraggableConstraint* m_constraint;
     DraggableProxy* m_draggable;
+    bool hasScrolled = false;
 };
 
 class HitDrawable : public HitComponent
@@ -699,6 +713,43 @@ public:
     bool hitTest(Vec2D position) const override
     {
         return hitTestHelper(position);
+    }
+
+    virtual bool testBounds(ContainerComponent* component,
+                            Vec2D position,
+                            bool skipOnUnclipped) const
+    {
+        if (component == nullptr)
+        {
+            return true;
+        }
+        if (component->is<Drawable>())
+        {
+            component = component->as<Drawable>()->hittableComponent();
+        }
+        if (component == nullptr || !component->is<LayoutComponent>())
+        {
+            return true;
+        }
+        Mat2D inverseWorld;
+        auto layout = component->as<LayoutComponent>();
+
+        if (layout->worldTransform().invert(&inverseWorld))
+        {
+            // If the layout is not clipped and skipOnUnclipped is true, we
+            // don't care about whether it contains the position
+            auto canSkip = skipOnUnclipped && !layout->clip();
+            if (!canSkip)
+            {
+                auto localWorld = inverseWorld * position;
+                if (!layout->localBounds().contains(localWorld))
+                {
+                    return false;
+                }
+            }
+            return testBounds(layout->parent(), position, true);
+        }
+        return false;
     }
 
     void prepareEvent(Vec2D position, ListenerType hitType) override
@@ -740,7 +791,7 @@ public:
             return HitResult::none;
         }
         auto drawable = m_component->as<Drawable>();
-
+        bool isBlockingEvent = false;
         // // iterate all listeners associated with this hit shape
         for (auto listenerGroup : listeners)
         {
@@ -748,16 +799,21 @@ public:
             {
                 continue;
             }
-            listenerGroup->processEvent(m_component,
-                                        position,
-                                        hitType,
-                                        canHit,
-                                        m_stateMachineInstance);
+            if (listenerGroup->processEvent(m_component,
+                                            position,
+                                            hitType,
+                                            canHit,
+                                            m_stateMachineInstance) ==
+                ProcessEventResult::scroll)
+            {
+                isBlockingEvent = true;
+            }
         }
-        return (isHovered && canHit) ? isOpaque || drawable->isTargetOpaque()
-                                           ? HitResult::hitOpaque
-                                           : HitResult::hit
-                                     : HitResult::none;
+        return (isHovered && canHit)
+                   ? (isOpaque || drawable->isTargetOpaque() || isBlockingEvent)
+                         ? HitResult::hitOpaque
+                         : HitResult::hit
+                   : HitResult::none;
     }
 
     void addListener(ListenerGroup* listenerGroup)
@@ -787,6 +843,32 @@ public:
 class HitShape : public HitDrawable
 {
 public:
+    bool testBounds(ContainerComponent* component,
+                    Vec2D position,
+                    bool skipOnUnclipped) const override
+    {
+        if (component != nullptr && component->is<Shape>())
+        {
+            auto shape = component->as<Shape>();
+            auto worldBounds = shape->worldBounds();
+            if (worldBounds.contains(position) &&
+                HitDrawable::testBounds(component->parent(), position, true))
+            {
+                auto hitArea = AABB(position.x - hitRadius,
+                                    position.y - hitRadius,
+                                    position.x + hitRadius,
+                                    position.y + hitRadius)
+                                   .round();
+                return shape->hitTest(hitArea);
+            }
+        }
+        else
+        {
+            return HitDrawable::testBounds(component, position, true);
+        }
+        return false;
+    }
+
     HitShape(Component* shape,
              StateMachineInstance* stateMachineInstance,
              bool isOpaque = false) :
@@ -795,18 +877,7 @@ public:
 
     bool hitTestHelper(Vec2D position) const override
     {
-        auto shape = m_component->as<Shape>();
-        auto worldBounds = shape->worldBounds();
-        if (!worldBounds.contains(position))
-        {
-            return false;
-        }
-        auto hitArea = AABB(position.x - hitRadius,
-                            position.y - hitRadius,
-                            position.x + hitRadius,
-                            position.y + hitRadius)
-                           .round();
-        return shape->hitTest(hitArea);
+        return testBounds(m_component->as<Shape>(), position, true);
     }
 };
 
@@ -821,14 +892,7 @@ public:
 
     bool hitTestHelper(Vec2D position) const override
     {
-        Mat2D inverseWorld;
-        auto layout = m_component->as<LayoutComponent>();
-        if (layout->worldTransform().invert(&inverseWorld))
-        {
-            auto localWorld = inverseWorld * position;
-            return layout->localBounds().contains(localWorld);
-        }
-        return false;
+        return testBounds(m_component->as<Drawable>(), position, false);
     }
 };
 class HitNestedArtboard : public HitComponent
@@ -1134,7 +1198,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         {
             if (target->is<LayoutComponent>())
             {
-                auto component = target->as<LayoutComponent>();
+                auto component = target->as<LayoutComponent>()->proxy();
                 HitLayout* hitLayout;
                 auto itr = hitShapeLookup.find(component);
                 if (itr == hitShapeLookup.end())
@@ -1332,6 +1396,25 @@ void StateMachineInstance::onDataBindChanged(DataBindChanged callback)
 
 void StateMachineInstance::sortHitComponents()
 {
+    auto hitShapesCount = m_hitComponents.size();
+    auto currentSortedIndex = 0;
+    auto count = 0;
+    // Since the Artboard is not a drawable, we move all hit components pointing
+    // to the artboard to the front of the list
+    for (auto& comp : m_hitComponents)
+    {
+        if (comp->component() != nullptr && comp->component()->is<Artboard>())
+        {
+            if (currentSortedIndex != count)
+            {
+
+                std::iter_swap(m_hitComponents.begin() + currentSortedIndex,
+                               m_hitComponents.begin() + count);
+            }
+            currentSortedIndex++;
+        }
+        count++;
+    }
     Drawable* last = m_artboardInstance->firstDrawable();
     if (last)
     {
@@ -1341,31 +1424,24 @@ void StateMachineInstance::sortHitComponents()
             last = last->prev;
         }
     }
-    auto hitShapesCount = m_hitComponents.size();
-    auto currentSortedIndex = 0;
     for (auto drawable = last; drawable; drawable = drawable->next)
     {
-        auto hittableComponent = drawable->hittableComponent();
-        if (hittableComponent != nullptr)
+        for (size_t i = currentSortedIndex; i < hitShapesCount; i++)
         {
-            for (size_t i = currentSortedIndex; i < hitShapesCount; i++)
+            if (m_hitComponents[i]->component() == drawable)
             {
-                if (m_hitComponents[i]->component() == hittableComponent)
+                if (currentSortedIndex != i)
                 {
-                    if (currentSortedIndex != i)
-                    {
-                        std::iter_swap(m_hitComponents.begin() +
-                                           currentSortedIndex,
-                                       m_hitComponents.begin() + i);
-                    }
-                    currentSortedIndex++;
-                    break;
+                    std::iter_swap(m_hitComponents.begin() + currentSortedIndex,
+                                   m_hitComponents.begin() + i);
                 }
-            }
-            if (currentSortedIndex == hitShapesCount)
-            {
+                currentSortedIndex++;
                 break;
             }
+        }
+        if (currentSortedIndex == hitShapesCount)
+        {
+            break;
         }
     }
 }
