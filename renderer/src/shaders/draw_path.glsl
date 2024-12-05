@@ -66,7 +66,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
     bool shouldDiscardVertex = false;
-    ushort pathID;
+    uint pathID;
     float2 vertexPosition;
 #ifdef @RENDER_MODE_MSAA
     ushort pathZIndex;
@@ -187,8 +187,11 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             //   - 2 if the gradient ramp spans an entire row.
             //   - x0 of the gradient ramp in normalized space, if it's a simple
             //   2-texel ramp.
-            if (paintTranslate.z >
-                .9) // paintTranslate.z is either ~1 or ~1/GRAD_TEXTURE_WIDTH.
+            float gradientSpan = paintTranslate.z;
+            // gradientSpan is either ~1 (complex gradients span the whole width
+            // of the texture minus 1px), or 1/GRAD_TEXTURE_WIDTH (simple
+            // gradients span 1px).
+            if (gradientSpan > .9)
             {
                 // Complex ramps span an entire row. Set it to 2 to convey this.
                 v_paint.b = 2.;

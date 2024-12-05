@@ -27,14 +27,16 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     VARYING_INIT(v_pathID, ushort);
 
     float4 pos;
+    uint pathID;
     float2 vertexPosition;
     if (unpack_tessellated_path_vertex(@a_patchVertexData,
                                        @a_mirroredVertexData,
                                        _instanceID,
-                                       v_pathID,
+                                       pathID,
                                        vertexPosition,
                                        v_edgeDistance VERTEX_CONTEXT_UNPACK))
     {
+        v_pathID = cast_uint_to_ushort(pathID);
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
     }
     else
@@ -72,10 +74,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     VARYING_INIT(v_windingWeight, half);
     VARYING_INIT(v_pathID, ushort);
 
+    uint pathID;
     float2 vertexPosition =
         unpack_interior_triangle_vertex(@a_triangleVertex,
-                                        v_pathID,
+                                        pathID,
                                         v_windingWeight VERTEX_CONTEXT_UNPACK);
+    v_pathID = cast_uint_to_ushort(pathID);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
     VARYING_PACK(v_windingWeight);

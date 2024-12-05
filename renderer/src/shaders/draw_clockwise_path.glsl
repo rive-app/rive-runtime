@@ -30,16 +30,18 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     VARYING_INIT(v_coverageCoord, float2);
 
     float4 pos;
+    uint pathID;
     float2 vertexPosition;
     if (unpack_tessellated_path_vertex(@a_patchVertexData,
                                        @a_mirroredVertexData,
                                        _instanceID,
-                                       v_pathID,
+                                       pathID,
                                        vertexPosition,
                                        v_edgeDistance VERTEX_CONTEXT_UNPACK))
     {
         uint4 coverageData =
-            STORAGE_BUFFER_LOAD4(@pathBuffer, v_pathID * 4u + 2u);
+            STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u);
+        v_pathID = pathID;
         v_coveragePlacement = coverageData.xy;
         v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -85,11 +87,13 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     VARYING_INIT(v_coveragePlacement, uint2);
     VARYING_INIT(v_coverageCoord, float2);
 
+    uint pathID;
     float2 vertexPosition =
         unpack_interior_triangle_vertex(@a_triangleVertex,
-                                        v_pathID,
+                                        pathID,
                                         v_windingWeight VERTEX_CONTEXT_UNPACK);
-    uint4 coverageData = STORAGE_BUFFER_LOAD4(@pathBuffer, v_pathID * 4u + 2u);
+    uint4 coverageData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u);
+    v_pathID = pathID;
     v_coveragePlacement = coverageData.xy;
     v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -282,7 +286,8 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     VARYING_UNPACK(v_coverageCoord, float2);
 
     half4 paintColor;
-    uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, v_pathID);
+    uint pathID = v_pathID;
+    uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
     uint paintType = paintData.x & 0xfu;
     if (paintType <= SOLID_COLOR_PAINT_TYPE) // CLIP_UPDATE_PAINT_TYPE or
                                              // SOLID_COLOR_PAINT_TYPE
@@ -294,9 +299,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
          // IMAGE_PAINT_TYPE
     {
         float2x2 M =
-            make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, v_pathID * 4u));
+            make_float2x2(STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u));
         float4 translate =
-            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, v_pathID * 4u + 1u);
+            STORAGE_BUFFER_LOAD4(@paintAuxBuffer, pathID * 4u + 1u);
         float2 paintCoord = MUL(M, _fragCoord) + translate.xy;
         if (paintType != IMAGE_PAINT_TYPE)
         {

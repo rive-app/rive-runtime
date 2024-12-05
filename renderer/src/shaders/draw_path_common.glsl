@@ -36,14 +36,14 @@ INLINE float manhattan_pixel_width(float2x2 M, float2 normalized)
 INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                            float4 mirroredVertexData,
                                            int _instanceID,
-                                           OUT(ushort) o_pathID,
-                                           OUT(float2) o_vertexPosition
+                                           OUT(uint) outPathID,
+                                           OUT(float2) outVertexPosition
 #ifndef @RENDER_MODE_MSAA
                                            ,
-                                           OUT(half2) o_edgeDistance
+                                           OUT(half2) outEdgeDistance
 #else
                                            ,
-                                           OUT(ushort) o_pathZIndex
+                                           OUT(ushort) outPathZIndex
 #endif
                                                VERTEX_CONTEXT_DECL)
 {
@@ -66,18 +66,18 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         STORAGE_BUFFER_LOAD4(@contourBuffer,
                              contour_data_idx(contourIDWithFlags));
     float2 midpoint = uintBitsToFloat(contourData.xy);
-    uint pathID = cast_uint_to_ushort(contourData.z & 0xffffu);
+    outPathID = contourData.z & 0xffffu;
     uint vertexIndex0 = contourData.w;
 
     // Fetch and unpack the path.
     float2x2 M = make_float2x2(
-        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u)));
-    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u);
+        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
+    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
     float2 translate = uintBitsToFloat(pathData.xy);
 
     float strokeRadius = uintBitsToFloat(pathData.z);
 #ifdef @RENDER_MODE_MSAA
-    o_pathZIndex = cast_uint_to_ushort(pathData.w);
+    outPathZIndex = cast_uint_to_ushort(pathData.w);
 #endif
 
     // Fix the tessellation vertex if we fetched the wrong one in order to
@@ -164,7 +164,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // Calculate the AA distance to both the outset and inset edges of the
         // stroke. The fragment shader will use whichever is lesser.
         float x = outset * (strokeRadius + aaRadius);
-        o_edgeDistance = cast_float2_to_half2(
+        outEdgeDistance = cast_float2_to_half2(
             (1. / (aaRadius * 2.)) * (float2(x, -x) + strokeRadius) + .5);
 #endif
 
@@ -268,19 +268,19 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                  (bisectPixelWidth * (AA_RADIUS * 2.));
 #ifndef @RENDER_MODE_MSAA
             if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
-                o_edgeDistance.y = cast_float_to_half(clipDistance);
+                outEdgeDistance.y = cast_float_to_half(clipDistance);
             else
-                o_edgeDistance.x = cast_float_to_half(clipDistance);
+                outEdgeDistance.x = cast_float_to_half(clipDistance);
 #endif
         }
 
 #ifndef @RENDER_MODE_MSAA
-        o_edgeDistance *= globalCoverage;
+        outEdgeDistance *= globalCoverage;
 
-        // Bias o_edgeDistance.y slightly upwards in order to guarantee
-        // o_edgeDistance.y is >= 0 at every pixel. "o_edgeDistance.y < 0" is
+        // Bias outEdgeDistance.y slightly upwards in order to guarantee
+        // outEdgeDistance.y is >= 0 at every pixel. "outEdgeDistance.y < 0" is
         // used to differentiate between strokes and fills.
-        o_edgeDistance.y = max(o_edgeDistance.y, make_half(1e-4));
+        outEdgeDistance.y = max(outEdgeDistance.y, make_half(1e-4));
 #endif
 
         postTransformVertexOffset = MUL(M, outset * vertexOffset);
@@ -306,9 +306,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         }
 
 #ifndef @RENDER_MODE_MSAA
-        // "o_edgeDistance.y < 0" indicates to the fragment shader that this is
+        // "outEdgeDistance.y < 0" indicates to the fragment shader that this is
         // a fill.
-        o_edgeDistance = make_half2(fillCoverage, -1.);
+        outEdgeDistance = make_half2(fillCoverage, -1.);
 #endif
 
         // If we're actually just drawing a triangle, throw away the entire
@@ -318,8 +318,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             return false;
     }
 
-    o_pathID = cast_uint_to_ushort(pathID);
-    o_vertexPosition = MUL(M, origin) + postTransformVertexOffset + translate;
+    outVertexPosition = MUL(M, origin) + postTransformVertexOffset + translate;
     return true;
 }
 #endif // @DRAW_PATH
@@ -327,16 +326,15 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 #ifdef @DRAW_INTERIOR_TRIANGLES
 INLINE float2
 unpack_interior_triangle_vertex(float3 triangleVertex,
-                                OUT(ushort) o_pathID,
-                                OUT(half) o_windingWeight VERTEX_CONTEXT_DECL)
+                                OUT(uint) outPathID,
+                                OUT(half) outWindingWeight VERTEX_CONTEXT_DECL)
 {
-    uint pathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
+    outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
     float2x2 M = make_float2x2(
-        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u)));
-    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u);
+        uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
+    uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
     float2 translate = uintBitsToFloat(pathData.xy);
-    o_pathID = cast_uint_to_ushort(pathID);
-    o_windingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
+    outWindingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
     return MUL(M, triangleVertex.xy) + translate;
 }
 #endif // @DRAW_INTERIOR_TRIANGLES
