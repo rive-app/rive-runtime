@@ -19,7 +19,5 @@ void ViewportDraggableProxy::startDrag(Vec2D mousePosition)
 
 void ViewportDraggableProxy::endDrag(Vec2D mousePosition)
 {
-    m_constraint->dragView(mousePosition - m_lastPosition);
-    m_lastPosition = mousePosition;
     m_constraint->runPhysics();
 }
