@@ -1437,7 +1437,6 @@ void StateMachineInstance::sortHitComponents()
                                    m_hitComponents.begin() + i);
                 }
                 currentSortedIndex++;
-                break;
             }
         }
         if (currentSortedIndex == hitShapesCount)
