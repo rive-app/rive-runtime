@@ -44,9 +44,12 @@ parser.add_argument("--build", "-b", default='release', choices=['debug', 'relea
 parser.add_argument("-j", "--jobs", default=1, type=int, help="number of jobs to run in parallel")
 parser.add_argument("-r", "--recursive", action='store_true', help="recursively diffs images in \"--candidates\" sub folders against \"--goldens\"")
 parser.add_argument("-p", "--pack", action='store_true', help="copy candidates and goldens into output folder along with results")
-parser.add_argument("-x", "--clean", action='store_true', help="delete golden and candidate images that are identical")
 parser.add_argument("-H", "--histogram_compare", action='store_true', help="Use histogram compare method to determine if candidate matches gold")
 parser.add_argument("-t", "--histogram_threshold", default=0.01, type=float, help="Threshold used for histogram pass result")
+
+clean_mode = parser.add_mutually_exclusive_group(required=False)
+clean_mode.add_argument("-x", "--clean", action='store_true', help="delete golden and candidate images that are identical, also dont add identical images to index.html")
+clean_mode.add_argument("-f", "--fails_only", action='store_true', help="delete images of all tests except for fails, also only adds failing tests to index.html, acts the same as -x if histogram_compare is false")
 
 args = parser.parse_args()
 
@@ -72,15 +75,22 @@ class TestEntry(object):
             cls.identical_entry_template = t.read()
 
     def __init__(self, words, candidates_path, golden_path, output_path, device_name=None, browserstack_details=None):
+        self.diff0_path_abs = None
+        self.diff1_path_abs = None
         self.device = device_name
         self.browserstack_details = browserstack_details
         self.name = words[0]
+        self.candidates_path_abs = os.path.join(candidates_path, f"{self.name}.png")
         if args.pack and device_name is not None:
             self.candidates_path = os.path.join(device_name, f"{self.name}.png")
             self.golden_path = os.path.join("golden", f"{self.name}.png")
+        elif args.recursive:
+            self.candidates_path = pathlib.Path(os.path.relpath(os.path.join(candidates_path, f"{self.name}.png"),  pathlib.Path(output_path).parent.absolute())).as_posix()
+            self.golden_path = pathlib.Path(os.path.relpath(os.path.join(golden_path, f"{self.name}.png"), pathlib.Path(output_path).parent.absolute())).as_posix()
         else:
             self.candidates_path = pathlib.Path(os.path.relpath(os.path.join(candidates_path, f"{self.name}.png"), output_path)).as_posix()
             self.golden_path = pathlib.Path(os.path.relpath(os.path.join(golden_path, f"{self.name}.png"), output_path)).as_posix()
+
         if len(words) == 2:
             self.type = words[1]
         else:    
@@ -88,6 +98,8 @@ class TestEntry(object):
             self.avg = float(words[2])
             self.total_diff_count = int(words[3])
             self.total_pixels = int(words[4])
+            self.diff0_path_abs = os.path.join(output_path, f"{self.name}.diff0.png")
+            self.diff1_path_abs = os.path.join(output_path, f"{self.name}.diff1.png")
             if device_name is not None:
                 self.diff0_path = os.path.join(device_name, f"{self.name}.diff0.png")
                 self.diff1_path = os.path.join(device_name, f"{self.name}.diff1.png")
@@ -104,6 +116,15 @@ class TestEntry(object):
                 self.histogram = None
                 self.type = "failed"
 
+    # this is equivalent of implementing == we are comparing by name for when we check against the correct golds to delete
+    def __eq__(self, other):
+        return self.name == other.name
+
+    # hash by name so that when we create a set out of entry list we condense it down to the number of goldens since we only care about them
+    def __hash__(self):
+        return hash(self.name)
+
+    # this is equivalent of implementing < operator. We use this for sorted and sort functions
     def __lt__(self, other):
         if self.histogram is None or self.histogram == other.histogram:
             return self.avg < other.avg
@@ -135,6 +156,22 @@ class TestEntry(object):
             return self.identical_entry_template.format_map(vals)
         
         return ''
+
+    def clean(self):
+        if args.verbose:
+            print(f"cleaning TestEntry {self.name} - {self.device}")
+        # removes image files to save space, this is done for clean and fails only arguments
+        os.remove(self.candidates_path_abs)
+        # if we are packing the files, also delete the packed ones
+        if args.pack:
+            os.remove(os.path.join(args.output, self.candidates_path))
+        # if we have diff files, delete those too
+        if self.diff0_path_abs is not None:
+            os.remove(self.diff0_path_abs)
+        # this should always be true if diff0 is not none but just to be safe we do a separate check
+        if self.diff1_path_abs is not None:
+            os.remove(self.diff1_path_abs)
+
 
     @property
     def success(self):
@@ -322,19 +359,36 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
 
     return (entries, missing_candidates, success)
 
+# returns entries sorted into identical, passing and failing as well as html str list of each
+# based on arguments passed, we may or may not return all of the string lists, but we always return the object lists
 def sort_entries(entries):
-    identical_entires = [entry for entry in entries if entry.type == "identical"]
-    pass_entires = [entry for entry in entries if entry.type == "pass"]
+    
     failed_entires = [entry for entry in entries if entry.type == "failed"]
+    pass_entires = [entry for entry in entries if entry.type == "pass"]
+    identical_entires = [entry for entry in entries if entry.type == "identical"]
 
     sorted_failed_entires = sorted(failed_entires, reverse=True)
-    sorted_passed_entires = sorted(pass_entires, reverse=True)
 
     sorted_failed_str = [str(entry) for entry in sorted_failed_entires]
+    
+    # if we are only doing fails then only sort those and return empty html lists for "pass" and "identical" we still build and return
+    # identical and pass object lists for cleaning, but we dont bother sorting them
+    if args.fails_only:
+        return (sorted_failed_entires, pass_entires, identical_entires, sorted_failed_str, [], [])
+
+    
+    # now sort passed entires and build the html list
+    sorted_passed_entires = sorted(pass_entires, reverse=True)
     sorted_passed_str = [str(entry) for entry in sorted_passed_entires]
+
+    # if we are cleaning then return empty html list for identical. do everything else the same
+    if args.clean:
+         return (sorted_failed_entires, sorted_passed_entires, identical_entires, sorted_failed_str, sorted_passed_str, [])
+
+    # otherwise build identical html entry list and include it in the return
     identical_str = [str(entry) for entry in identical_entires]
 
-    return (sorted_failed_str, sorted_passed_str, identical_str)
+    return (sorted_failed_entires, sorted_passed_entires, identical_entires, sorted_failed_str, sorted_passed_str, identical_str)
 
 def write_html(templates_path, failed_entries, passing_entries, identical_entries, output_path):
     with open(os.path.join(templates_path, "index.html")) as t:
@@ -380,9 +434,36 @@ def diff_directory_deep(candidates_path, output_path):
             if args.pack:
                 shallow_copy_images(folder.path, output)
 
-    (failed, passed, identical) = sort_entries(all_entries)
+    (failed, passed, identical, failed_str, passed_str, identical_str) = sort_entries(all_entries)
 
-    write_html(TEMPLATE_PATH, failed, passed, identical, output_path)
+    to_clean = []
+    to_check = []
+    # choose who to clean and who to check against
+    if args.clean:
+        to_clean = identical
+        to_check = failed + passed
+
+    if args.fails_only:
+        to_clean = identical + passed
+        to_check = failed
+
+    # clean them
+    for obj in to_clean:
+        obj.clean()
+
+    # only remove goldens that are in to_clean and not to_check so that we keep goldens that are still used
+    # this part is why we needed __eq__ and __hash__ in our TestEntry class
+    for obj in set(to_clean) - set(to_check):
+        golden_file = os.path.join(golden_path, f"{obj.name}.png")
+        if args.verbose:
+            print("deleting orphaned golden " + golden_file)
+        os.remove(golden_file)
+        if args.pack:
+            # remember to remove the original if we packed it
+            os.remove(os.path.join(args.goldens, f"{obj.name}.png"))
+
+
+    write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, output_path)
 
     print(f"total entries {len(all_entries)}")
     write_min_csv(len(passed), len(failed), len(identical), len(all_entries), output_path + "/issues.csv")
@@ -412,13 +493,39 @@ def main(argv=None):
     else:
         (entries, missing_candidates, success) = diff_directory_shallow(args.candidates, args.output, args.goldens)
         if len(entries) > 0:
-            (failed, passed, identical) = sort_entries(entries)
+            (failed, passed, identical, failed_str, passed_str, identical_str) = sort_entries(entries)
             assert(len(failed) + len(passed) + len(identical) == len(entries))
-            write_html(TEMPLATE_PATH, failed, passed, identical, args.output)
+            write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, args.output)
             # note could add these to the html output but w/e
             write_csv(entries, args.goldens, args.candidates, args.output, missing_candidates)
             print("Found", len(entries) - len(identical), "differences.")
-        if not success:
+
+            # here we have to do a lot less work than the diff_directory_deep since we know goldens are not shared with other TestEntries
+            if args.fails_only:
+                for obj in identical+passed:
+                    obj.clean()
+                    golden_path = os.path.join(args.goldens, f"{obj.name}.png")
+                    if args.verbose:
+                        print(f"deleting orphaned golden {golden_path}")
+                    os.remove(golden_path)
+                    
+            elif args.clean:
+                for obj in identical:
+                    obj.clean()
+                    golden_path = os.path.join(args.goldens, f"{obj.name}.png")
+                    if args.verbose:
+                        print(f"deleting orphaned golden {golden_path}")
+                    os.remove(golden_path)
+                    
+            
+        # if we are in fail only mode than make it succesful when there are only "passing" entries
+        if args.fails_only:
+            if failed:
+                # if there were diffs, its gotta fail
+                print("FAILED.")
+                return -1
+        # otherwise fail like normal
+        elif not success:
             # if there were diffs, its gotta fail
             print("FAILED.")
             return -1
