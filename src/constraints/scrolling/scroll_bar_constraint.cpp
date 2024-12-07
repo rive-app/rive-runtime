@@ -9,6 +9,25 @@
 
 using namespace rive;
 
+float ScrollBarConstraint::computedThumbWidth()
+{
+    if (autoSize() && m_scrollConstraint != nullptr)
+    {
+        return track()->innerWidth() * m_scrollConstraint->visibleWidthRatio();
+    }
+    return thumb()->layoutWidth();
+}
+
+float ScrollBarConstraint::computedThumbHeight()
+{
+    if (autoSize() && m_scrollConstraint != nullptr)
+    {
+        return track()->innerHeight() *
+               m_scrollConstraint->visibleHeightRatio();
+    }
+    return thumb()->layoutHeight();
+}
+
 std::vector<DraggableProxy*> ScrollBarConstraint::draggables()
 {
     std::vector<DraggableProxy*> items;
@@ -40,7 +59,7 @@ void ScrollBarConstraint::constrain(TransformComponent* component)
     if (constrainsHorizontal())
     {
         auto innerWidth = track()->innerWidth();
-        auto thumbWidth = innerWidth * m_scrollConstraint->visibleWidthRatio();
+        auto thumbWidth = computedThumbWidth();
         auto maxThumbOffset = innerWidth - thumbWidth;
         thumbOffsetX = (m_scrollConstraint->maxOffsetX() == 0)
                            ? 0
@@ -55,14 +74,17 @@ void ScrollBarConstraint::constrain(TransformComponent* component)
         else if (thumbOffsetX > maxThumbOffset)
         {
             thumbWidth -= thumbOffsetX - maxThumbOffset;
+            thumbOffsetX = autoSize() ? thumbOffsetX : maxThumbOffset;
         }
-        thumb()->forcedWidth(thumbWidth);
+        if (autoSize())
+        {
+            thumb()->forcedWidth(thumbWidth);
+        }
     }
     if (constrainsVertical())
     {
         auto innerHeight = track()->innerHeight();
-        auto thumbHeight =
-            innerHeight * m_scrollConstraint->visibleHeightRatio();
+        auto thumbHeight = computedThumbHeight();
         auto maxThumbOffset = innerHeight - thumbHeight;
         thumbOffsetY = (m_scrollConstraint->maxOffsetY() == 0)
                            ? 0
@@ -77,8 +99,12 @@ void ScrollBarConstraint::constrain(TransformComponent* component)
         else if (thumbOffsetY > maxThumbOffset)
         {
             thumbHeight -= thumbOffsetY - maxThumbOffset;
+            thumbOffsetY = autoSize() ? thumbOffsetY : maxThumbOffset;
         }
-        thumb()->forcedHeight(thumbHeight);
+        if (autoSize())
+        {
+            thumb()->forcedHeight(thumbHeight);
+        }
     }
     auto targetTransform =
         Mat2D::multiply(component->worldTransform(),
@@ -129,7 +155,7 @@ void ScrollBarConstraint::hitTrack(Vec2D worldPosition)
     {
         localPosition.x -= track()->paddingLeft();
         auto innerWidth = track()->innerWidth();
-        auto thumbWidth = innerWidth * m_scrollConstraint->visibleWidthRatio();
+        auto thumbWidth = computedThumbWidth();
         auto trackRange = innerWidth - thumbWidth;
         auto maxOffsetX = m_scrollConstraint->maxOffsetX();
         m_scrollConstraint->offsetX(
@@ -141,8 +167,7 @@ void ScrollBarConstraint::hitTrack(Vec2D worldPosition)
     {
         localPosition.y -= track()->paddingTop();
         auto innerHeight = track()->innerHeight();
-        auto thumbHeight =
-            innerHeight * m_scrollConstraint->visibleHeightRatio();
+        auto thumbHeight = computedThumbHeight();
         auto trackRange = innerHeight - thumbHeight;
         auto maxOffsetY = m_scrollConstraint->maxOffsetY();
         m_scrollConstraint->offsetY(
@@ -162,8 +187,11 @@ void ScrollBarConstraint::dragThumb(Vec2D delta)
     if (constrainsHorizontal())
     {
         auto innerWidth = track()->innerWidth();
-        auto thumbWidth = innerWidth * m_scrollConstraint->visibleWidthRatio();
-        thumb()->forcedWidth(thumbWidth);
+        auto thumbWidth = computedThumbWidth();
+        if (autoSize())
+        {
+            thumb()->forcedWidth(thumbWidth);
+        }
 
         auto trackRange = innerWidth - thumbWidth;
         auto maxOffsetX = m_scrollConstraint->maxOffsetX();
@@ -177,9 +205,11 @@ void ScrollBarConstraint::dragThumb(Vec2D delta)
     if (constrainsVertical())
     {
         auto innerHeight = track()->innerHeight();
-        auto thumbHeight =
-            innerHeight * m_scrollConstraint->visibleHeightRatio();
-        thumb()->forcedHeight(thumbHeight);
+        auto thumbHeight = computedThumbHeight();
+        if (autoSize())
+        {
+            thumb()->forcedHeight(thumbHeight);
+        }
 
         auto trackRange = innerHeight - thumbHeight;
         auto maxOffsetY = m_scrollConstraint->maxOffsetY();

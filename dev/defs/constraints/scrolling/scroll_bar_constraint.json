@@ -16,6 +16,15 @@
         "string": "scrollconstraintid"
       },
       "description": "Identifier used to track the Scroll Constraint this scroll bar drives."
+    },
+    "autoSize": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 734,
+        "string": "autosize"
+      },
+      "description": "Whether the scroll bar should automatically adjust its size to reflect content size"
     }
   }
 }

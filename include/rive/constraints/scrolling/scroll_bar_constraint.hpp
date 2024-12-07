@@ -34,6 +34,8 @@ public:
     {
         return parent()->parent()->as<LayoutComponent>();
     }
+    float computedThumbWidth();
+    float computedThumbHeight();
     bool validate(CoreContext* context) override;
 };
 } // namespace rive
