@@ -12,10 +12,13 @@ void ScrollPhysics::accumulate(Vec2D delta)
                   now.time_since_epoch())
                   .count();
     float elapsedSeconds = (ms - m_lastTime) / 1000000.0f;
-    auto lastSpeed = m_speed;
-    m_speed = Vec2D(delta.x / elapsedSeconds, delta.y / elapsedSeconds);
-    m_acceleration = Vec2D((lastSpeed.x + m_speed.x) / elapsedSeconds,
-                           (lastSpeed.y + m_speed.y) / elapsedSeconds);
+    if (elapsedSeconds > 0)
+    {
+        auto lastSpeed = m_speed;
+        m_speed = Vec2D(delta.x / elapsedSeconds, delta.y / elapsedSeconds);
+        m_acceleration = Vec2D((lastSpeed.x + m_speed.x) / elapsedSeconds,
+                               (lastSpeed.y + m_speed.y) / elapsedSeconds);
+    }
     m_lastTime = ms;
 }
 
