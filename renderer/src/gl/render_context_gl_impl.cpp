@@ -22,6 +22,9 @@
 #include "generated/shaders/stencil_draw.glsl.hpp"
 
 #ifdef RIVE_WEBGL
+#include <emscripten/emscripten.h>
+#include <emscripten/html5.h>
+
 // In an effort to save space on web, and since web doesn't have ES 3.1 level
 // support, don't include the atomic sources.
 namespace rive::gpu::glsl
@@ -31,38 +34,6 @@ const char atomic_draw[] = "";
 #define DISABLE_PLS_ATOMICS
 #else
 #include "generated/shaders/atomic_draw.glsl.hpp"
-#endif
-
-#ifdef RIVE_WEBGL
-#include <emscripten/emscripten.h>
-#include <emscripten/html5.h>
-
-// Emscripten has a bug with glTexSubImage2D when a PIXEL_UNPACK_BUFFER is
-// bound. Make the call ourselves directly.
-EM_JS(void,
-      webgl_texSubImage2DWithOffset,
-      (EMSCRIPTEN_WEBGL_CONTEXT_HANDLE gl,
-       GLenum target,
-       GLint level,
-       GLint xoffset,
-       GLint yoffset,
-       GLsizei width,
-       GLsizei height,
-       GLenum format,
-       GLenum type,
-       GLintptr offset),
-      {
-          gl = GL.getContext(gl).GLctx;
-          gl.texSubImage2D(target,
-                           level,
-                           xoffset,
-                           yoffset,
-                           width,
-                           height,
-                           format,
-                           type,
-                           offset);
-      });
 #endif
 
 // Offset all PLS texture indices by 1 so we, and others who share our GL
@@ -279,7 +250,6 @@ void RenderContextGLImpl::unbindGLInternalResources()
     m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER, 0);
     m_state->bindBuffer(GL_ARRAY_BUFFER, 0);
     m_state->bindBuffer(GL_UNIFORM_BUFFER, 0);
-    m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
     for (int i = 0; i <= CONTOUR_BUFFER_IDX; ++i)
     {
@@ -322,7 +292,6 @@ rcp<Texture> RenderContextGLImpl::makeImageTexture(
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, textureID);
     glTexStorage2D(GL_TEXTURE_2D, mipLevelCount, GL_RGBA8, width, height);
-    m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     glTexSubImage2D(GL_TEXTURE_2D,
                     0,
                     0,
@@ -538,7 +507,6 @@ public:
     {
         auto [updateWidth, updateHeight] =
             gpu::StorageTextureSize(bindingSizeInBytes, m_bufferStructure);
-        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
         glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + bindingIdx);
         glBindTexture(GL_TEXTURE_2D, m_textures[submittedBufferIdx()]);
         glTexSubImage2D(GL_TEXTURE_2D,
@@ -595,9 +563,7 @@ std::unique_ptr<BufferRing> RenderContextGLImpl::makeVertexBufferRing(
 std::unique_ptr<BufferRing> RenderContextGLImpl::makeTextureTransferBufferRing(
     size_t capacityInBytes)
 {
-    return BufferRingGLImpl::Make(capacityInBytes,
-                                  GL_PIXEL_UNPACK_BUFFER,
-                                  m_state);
+    return std::make_unique<HeapBufferRing>(capacityInBytes);
 }
 
 void RenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
@@ -929,6 +895,11 @@ static GLuint gl_buffer_id(const BufferRing* bufferRing)
         ->submittedBufferID();
 }
 
+static const uint8_t* heap_buffer_contents(const BufferRing* bufferRing)
+{
+    return static_cast<const HeapBufferRing*>(bufferRing)->contents();
+}
+
 static void bind_storage_buffer(const GLCapabilities& capabilities,
                                 const BufferRing* bufferRing,
                                 uint32_t bindingIdx,
@@ -1128,34 +1099,17 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     // Copy the simple color ramps to the gradient texture.
     if (desc.simpleGradTexelsHeight > 0)
     {
-        m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER,
-                            gl_buffer_id(simpleColorRampsBufferRing()));
         glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
-#ifdef RIVE_WEBGL
-        // Emscripten has a bug with glTexSubImage2D when a PIXEL_UNPACK_BUFFER
-        // is bound. Make the call ourselves directly.
-        webgl_texSubImage2DWithOffset(emscripten_webgl_get_current_context(),
-                                      GL_TEXTURE_2D,
-                                      0,
-                                      0,
-                                      0,
-                                      desc.simpleGradTexelsWidth,
-                                      desc.simpleGradTexelsHeight,
-                                      GL_RGBA,
-                                      GL_UNSIGNED_BYTE,
-                                      desc.simpleGradDataOffsetInBytes);
-#else
-        glTexSubImage2D(
-            GL_TEXTURE_2D,
-            0,
-            0,
-            0,
-            desc.simpleGradTexelsWidth,
-            desc.simpleGradTexelsHeight,
-            GL_RGBA,
-            GL_UNSIGNED_BYTE,
-            reinterpret_cast<const void*>(desc.simpleGradDataOffsetInBytes));
-#endif
+        glTexSubImage2D(GL_TEXTURE_2D,
+                        0,
+                        0,
+                        0,
+                        desc.simpleGradTexelsWidth,
+                        desc.simpleGradTexelsHeight,
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                        heap_buffer_contents(simpleColorRampsBufferRing()) +
+                            desc.simpleGradDataOffsetInBytes);
     }
 
     // Tessellate all curves into vertices in the tessellation texture.

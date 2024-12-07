@@ -48,7 +48,6 @@ private:
     GLuint m_boundVAO;
     GLuint m_boundArrayBufferID;
     GLuint m_boundUniformBufferID;
-    GLuint m_boundPixelUnpackBufferID;
 
     struct
     {

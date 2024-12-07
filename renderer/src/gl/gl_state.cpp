@@ -64,6 +64,7 @@ void GLState::invalidate()
     glPixelStorei(GL_PACK_SKIP_ROWS, 0);
     glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
+    glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
 constexpr static GLenum blend_mode_to_gl_equation(BlendMode blendMode)
@@ -239,15 +240,6 @@ void GLState::bindBuffer(GLenum target, GLuint bufferID)
                 m_validState.boundUniformBufferID = true;
             }
             break;
-        case GL_PIXEL_UNPACK_BUFFER:
-            if (!m_validState.boundPixelUnpackBufferID ||
-                bufferID != m_boundPixelUnpackBufferID)
-            {
-                glBindBuffer(GL_PIXEL_UNPACK_BUFFER, bufferID);
-                m_boundPixelUnpackBufferID = bufferID;
-                m_validState.boundPixelUnpackBufferID = true;
-            }
-            break;
     }
 }
 
@@ -272,8 +264,5 @@ void GLState::deleteBuffer(GLuint bufferID)
         m_boundArrayBufferID = 0;
     if (m_validState.boundUniformBufferID && m_boundUniformBufferID == bufferID)
         m_boundUniformBufferID = 0;
-    if (m_validState.boundPixelUnpackBufferID &&
-        m_boundPixelUnpackBufferID == bufferID)
-        m_boundPixelUnpackBufferID = 0;
 }
 } // namespace rive::gpu
