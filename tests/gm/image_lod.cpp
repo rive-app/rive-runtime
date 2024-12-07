@@ -19,7 +19,10 @@ public:
         rive::AABB r = {0, 0, 442, 412};
         renderer->save();
         auto img = LoadImage(assets::batdude_png());
-        assert(img != nullptr);
+        if (img == nullptr)
+        {
+            return;
+        }
 
         renderer->translate(10, 10);
 

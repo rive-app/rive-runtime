@@ -6,6 +6,7 @@
 #define _RIVE_BITMAP_DECODER_HPP_
 
 #include <memory>
+#include <vector>
 
 /// Bitmap will always take ownership of the bytes it is constructed with.
 class Bitmap
@@ -45,6 +46,27 @@ public:
     size_t byteSize() const;
     size_t byteSize(PixelFormat format) const;
     size_t bytesPerPixel(PixelFormat format) const;
+
+    enum class ImageType
+    {
+        png,
+        jpeg,
+        webp,
+    };
+
+    using BitmapDecoder = std::unique_ptr<Bitmap> (*)(const uint8_t bytes[],
+                                                      size_t byteCount);
+
+    struct ImageFormat
+    {
+        const char* name;
+        ImageType type;
+        std::vector<uint8_t> fingerprint;
+        BitmapDecoder decodeImage;
+    };
+
+    static const ImageFormat* RecognizeImageFormat(const uint8_t bytes[],
+                                                   size_t byteCount);
 
     static std::unique_ptr<Bitmap> decode(const uint8_t bytes[],
                                           size_t byteCount);

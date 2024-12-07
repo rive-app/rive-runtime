@@ -34,14 +34,20 @@ do
         'rive',
         'rive_pls_renderer',
         'rive_decoders',
-        'libpng',
-        'zlib',
-        'libjpeg',
         'libwebp',
         'rive_harfbuzz',
         'rive_sheenbidi',
         'rive_yoga',
     })
+    filter({ 'options:not no_rive_png' })
+    do
+        links({ 'zlib', 'libpng' })
+    end
+    filter({ 'options:not no_rive_jpeg' })
+    do
+        links({ 'libjpeg' })
+    end
+    filter({})
 
     if _OPTIONS['with_vulkan'] then
         dofile('rive_vk_bootstrap/bootstrap_project.lua')

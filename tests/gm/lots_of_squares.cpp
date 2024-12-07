@@ -238,6 +238,10 @@ public:
                                   imagePixels.data(),
                                   PNGCompression::fast_rle);
             image = factory->decodeImage(rive::Span<uint8_t>(encodedData));
+            if (image == nullptr)
+            {
+                return;
+            }
         }
 
         AutoRestore ar(renderer, /*doSave=*/true);

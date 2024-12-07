@@ -3,51 +3,57 @@
  */
 
 #include "rive/decoders/bitmap_decoder.hpp"
-#include "rive/rive_types.hpp"
 #include <stdio.h>
 #include <string.h>
 #include <vector>
 
+#ifdef RIVE_PNG
 std::unique_ptr<Bitmap> DecodePng(const uint8_t bytes[], size_t byteCount);
+#endif
+#ifdef RIVE_JPEG
 std::unique_ptr<Bitmap> DecodeJpeg(const uint8_t bytes[], size_t byteCount);
+#endif
 std::unique_ptr<Bitmap> DecodeWebP(const uint8_t bytes[], size_t byteCount);
 
-using BitmapDecoder = std::unique_ptr<Bitmap> (*)(const uint8_t bytes[],
-                                                  size_t byteCount);
-struct ImageFormat
-{
-    const char* name;
-    std::vector<uint8_t> fingerprint;
-    BitmapDecoder decodeImage;
+static Bitmap::ImageFormat _formats[] = {
+    {
+        "png",
+        Bitmap::ImageType::png,
+        {0x89, 0x50, 0x4E, 0x47},
+#ifdef RIVE_PNG
+        DecodePng,
+#else
+        nullptr,
+#endif
+    },
+    {
+        "jpeg",
+        Bitmap::ImageType::jpeg,
+        {0xFF, 0xD8, 0xFF},
+#ifdef RIVE_JPEG
+        DecodeJpeg,
+#else
+        nullptr,
+#endif
+    },
+    {
+        "webp",
+        Bitmap::ImageType::webp,
+        {0x52, 0x49, 0x46},
+        DecodeWebP,
+    },
 };
 
-std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
+const Bitmap::ImageFormat* Bitmap::RecognizeImageFormat(const uint8_t bytes[],
+                                                        size_t byteCount)
 {
-    static ImageFormat decoders[] = {
-        {
-            "png",
-            {0x89, 0x50, 0x4E, 0x47},
-            DecodePng,
-        },
-        {
-            "jpeg",
-            {0xFF, 0xD8, 0xFF},
-            DecodeJpeg,
-        },
-        {
-            "webp",
-            {0x52, 0x49, 0x46},
-            DecodeWebP,
-        },
-    };
-
-    for (auto recognizer : decoders)
+    for (const ImageFormat& format : _formats)
     {
-        auto& fingerprint = recognizer.fingerprint;
+        auto& fingerprint = format.fingerprint;
 
         // Immediately discard decoders with fingerprints that are longer than
         // the file buffer.
-        if (recognizer.fingerprint.size() > byteCount)
+        if (format.fingerprint.size() > byteCount)
         {
             continue;
         }
@@ -59,12 +65,24 @@ std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
             continue;
         }
 
-        auto bitmap = recognizer.decodeImage(bytes, byteCount);
+        return &format;
+    }
+    return nullptr;
+}
+
+std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
+{
+    const ImageFormat* format = RecognizeImageFormat(bytes, byteCount);
+    if (format != nullptr)
+    {
+        auto bitmap = format->decodeImage != nullptr
+                          ? format->decodeImage(bytes, byteCount)
+                          : nullptr;
         if (!bitmap)
         {
             fprintf(stderr,
                     "Bitmap::decode - failed to decode a %s.\n",
-                    recognizer.name);
+                    format->name);
         }
         return bitmap;
     }

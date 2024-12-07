@@ -85,10 +85,6 @@ public:
     void onDraw(rive::Renderer* ren) override
     {
         auto img = LoadImage(assets::nomoon_png());
-        if (!img)
-        {
-            return;
-        }
 
         constexpr float kGridCellSize = 20;
         Path grid;
@@ -147,14 +143,17 @@ public:
                 {
                     ren->clipPath(PathBuilder::Circle(200, 200, 150));
                 }
-                ren->drawImageMesh(img.get(),
-                                   mesh.pts,
-                                   mesh.uvs,
-                                   mesh.indices,
-                                   vertexCount,
-                                   indexCount,
-                                   blendModes[i],
-                                   1.f - .1f * (i + 1));
+                if (img != nullptr)
+                {
+                    ren->drawImageMesh(img.get(),
+                                       mesh.pts,
+                                       mesh.uvs,
+                                       mesh.indices,
+                                       vertexCount,
+                                       indexCount,
+                                       blendModes[i],
+                                       1.f - .1f * (i + 1));
+                }
                 ren->restore();
                 ren->translate(400, 0);
             }
