@@ -11,6 +11,7 @@ private:
     ViewModelInstance* m_referenceViewModelInstance;
 
 public:
+    ~ViewModelInstanceViewModel();
     void referenceViewModelInstance(ViewModelInstance* value)
     {
         m_referenceViewModelInstance = value;

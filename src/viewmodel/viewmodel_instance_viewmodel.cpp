@@ -6,6 +6,11 @@
 
 using namespace rive;
 
+ViewModelInstanceViewModel::~ViewModelInstanceViewModel()
+{
+    delete m_referenceViewModelInstance;
+}
+
 void ViewModelInstanceViewModel::setRoot(ViewModelInstance* value)
 {
     Super::setRoot(value);

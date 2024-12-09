@@ -11,6 +11,14 @@
 
 using namespace rive;
 
+ViewModelInstance::~ViewModelInstance()
+{
+    for (auto value : m_PropertyValues)
+    {
+        delete value;
+    }
+}
+
 void ViewModelInstance::addValue(ViewModelInstanceValue* value)
 {
     m_PropertyValues.push_back(value);

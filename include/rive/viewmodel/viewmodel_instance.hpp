@@ -14,6 +14,7 @@ private:
     ViewModel* m_ViewModel;
 
 public:
+    ~ViewModelInstance();
     void addValue(ViewModelInstanceValue* value);
     ViewModelInstanceValue* propertyValue(const uint32_t id);
     ViewModelInstanceValue* propertyValue(const std::string& name);
