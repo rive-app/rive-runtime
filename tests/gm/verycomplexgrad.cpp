@@ -29,7 +29,7 @@ public:
         for (size_t i = 0; i < N; ++i)
         {
             colors[i] = rand.u32() | 0xff808080;
-            stops[i] = rand.f32();
+            stops[i] = std::round(rand.f32() * W) / W;
         }
         std::sort(stops, stops + N);
 
