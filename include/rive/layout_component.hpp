@@ -191,8 +191,10 @@ public:
                               m_layout.height());
     }
 
-    float layoutX() { return m_layout.left(); }
-    float layoutY() { return m_layout.top(); }
+    float x() const override { return layoutX(); }
+    float y() const override { return layoutY(); }
+    float layoutX() const { return m_layout.left(); }
+    float layoutY() const { return m_layout.top(); }
     float layoutWidth() { return m_layout.width(); }
     float layoutHeight() { return m_layout.height(); }
     float innerWidth()
