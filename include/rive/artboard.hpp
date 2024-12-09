@@ -324,7 +324,13 @@ public:
                         auto dataBindClone =
                             static_cast<DataBind*>(dataBind->clone());
                         dataBindClone->target(cloneObjects.back());
-                        dataBindClone->converter(dataBind->converter());
+                        if (dataBind->converter() != nullptr)
+                        {
+
+                            dataBindClone->converter(dataBind->converter()
+                                                         ->clone()
+                                                         ->as<DataConverter>());
+                        }
                         artboardClone->m_DataBinds.push_back(dataBindClone);
                     }
                 }

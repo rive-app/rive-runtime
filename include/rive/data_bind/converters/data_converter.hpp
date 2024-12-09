@@ -2,6 +2,7 @@
 #define _RIVE_DATA_CONVERTER_HPP_
 #include "rive/generated/data_bind/converters/data_converter_base.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
+#include "rive/data_bind/data_context.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -18,6 +19,8 @@ public:
         return value;
     };
     virtual DataType outputType() { return DataType::none; };
+    virtual void bindFromContext(DataContext* dataContext,
+                                 DataBind* dataBind){};
     StatusCode import(ImportStack& importStack) override;
 };
 } // namespace rive

@@ -25,6 +25,9 @@ protected:
 public:
     void interpolator(KeyFrameInterpolator* interpolator);
     DataType outputType() override { return DataType::number; };
+
+private:
+    DataValueNumber m_output;
 };
 } // namespace rive
 

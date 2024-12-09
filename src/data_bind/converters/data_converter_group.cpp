@@ -5,6 +5,14 @@
 
 using namespace rive;
 
+DataConverterGroup::~DataConverterGroup()
+{
+    for (auto item : m_items)
+    {
+        delete item;
+    }
+}
+
 void DataConverterGroup::addItem(DataConverterGroupItem* item)
 {
     m_items.push_back(item);
@@ -29,4 +37,15 @@ DataValue* DataConverterGroup::reverseConvert(DataValue* input,
         value = (*it)->converter()->reverseConvert(value, dataBind);
     }
     return value;
+}
+
+Core* DataConverterGroup::clone() const
+{
+    auto cloned = DataConverterGroupBase::clone()->as<DataConverterGroup>();
+    for (auto item : m_items)
+    {
+        auto clonedItem = item->clone()->as<DataConverterGroupItem>();
+        cloned->addItem(clonedItem);
+    }
+    return cloned;
 }

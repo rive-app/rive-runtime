@@ -6,14 +6,17 @@ using namespace rive;
 
 DataValue* DataConverterRounder::convert(DataValue* input, DataBind* dataBind)
 {
-    auto output = new DataValueNumber();
     if (input->is<DataValueNumber>())
     {
         float value = input->as<DataValueNumber>()->value();
         auto numberOfPlaces = decimals();
         // TODO: @hernan review this way of rounding
         float rounder = pow(10.0f, (float)numberOfPlaces);
-        output->value(std::round(value * rounder) / rounder);
+        m_output.value(std::round(value * rounder) / rounder);
     }
-    return output;
+    else
+    {
+        m_output.value(DataValueNumber::defaultValue);
+    }
+    return &m_output;
 }

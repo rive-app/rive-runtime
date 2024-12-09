@@ -6,7 +6,6 @@ using namespace rive;
 
 DataValue* DataConverterOperation::convertValue(DataValue* input, float value)
 {
-    auto output = new DataValueNumber();
     if (input->is<DataValueNumber>())
     {
         float inputValue = input->as<DataValueNumber>()->value();
@@ -29,9 +28,13 @@ DataValue* DataConverterOperation::convertValue(DataValue* input, float value)
                 resultValue = fmodf(inputValue, resultValue);
                 break;
         }
-        output->value(resultValue);
+        m_output.value(resultValue);
     }
-    return output;
+    else
+    {
+        m_output.value(DataValueNumber::defaultValue);
+    }
+    return &m_output;
 }
 
 DataValue* DataConverterOperation::reverseConvertValue(DataValue* input,

@@ -59,7 +59,6 @@ Artboard::~Artboard()
         audioEngine->stop(this);
     }
 #endif
-
     for (auto object : m_Objects)
     {
         // First object is artboard

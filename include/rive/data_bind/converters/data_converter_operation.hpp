@@ -3,6 +3,7 @@
 #include "rive/generated/data_bind/converters/data_converter_operation_base.hpp"
 #include "rive/animation/arithmetic_operation.hpp"
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/data_bind/data_values/data_value_number.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -18,6 +19,7 @@ public:
 protected:
     DataValue* convertValue(DataValue* input, float value);
     DataValue* reverseConvertValue(DataValue* input, float value);
+    DataValueNumber m_output;
 };
 } // namespace rive
 

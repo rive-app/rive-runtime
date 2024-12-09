@@ -90,15 +90,6 @@ StatusCode BackboardImporter::resolve()
         auto asset = m_FileAssets[index];
         referencer->setAsset(asset);
     }
-    for (auto referencer : m_DataConverterReferencers)
-    {
-        auto index = (size_t)referencer->converterId();
-        if (index >= m_DataConverters.size() || index < 0)
-        {
-            continue;
-        }
-        referencer->converter(m_DataConverters[index]);
-    }
     for (auto referencer : m_DataConverterGroupItemReferencers)
     {
         auto index = (size_t)referencer->converterId();
@@ -107,6 +98,16 @@ StatusCode BackboardImporter::resolve()
             continue;
         }
         referencer->converter(m_DataConverters[index]);
+    }
+    for (auto referencer : m_DataConverterReferencers)
+    {
+        auto index = (size_t)referencer->converterId();
+        if (index >= m_DataConverters.size() || index < 0)
+        {
+            continue;
+        }
+        referencer->converter(
+            m_DataConverters[index]->clone()->as<DataConverter>());
     }
     for (auto converter : m_DataConverters)
     {

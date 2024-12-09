@@ -8,9 +8,11 @@ namespace rive
 class DataConverterGroupItem : public DataConverterGroupItemBase
 {
 public:
+    ~DataConverterGroupItem();
     StatusCode import(ImportStack& importStack) override;
     DataConverter* converter() const { return m_dataConverter; };
     void converter(DataConverter* value) { m_dataConverter = value; };
+    Core* clone() const override;
 
 protected:
     DataConverter* m_dataConverter = nullptr;

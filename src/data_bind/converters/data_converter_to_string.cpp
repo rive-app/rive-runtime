@@ -8,7 +8,6 @@ using namespace rive;
 
 DataValue* DataConverterToString::convert(DataValue* input, DataBind* dataBind)
 {
-    auto output = new DataValueString();
     if (input->is<DataValueNumber>())
     {
         float value = input->as<DataValueNumber>()->value();
@@ -24,18 +23,22 @@ DataValue* DataConverterToString::convert(DataValue* input, DataBind* dataBind)
                 str = str.substr(0, str.size() - 1);
             }
         }
-        output->value(str);
+        m_output.value(str);
     }
     else if (input->is<DataValueEnum>())
     {
         auto dataEnum = input->as<DataValueEnum>()->dataEnum();
         auto index = input->as<DataValueEnum>()->value();
         auto enumValue = dataEnum->value(index);
-        output->value(enumValue);
+        m_output.value(enumValue);
     }
     else if (input->is<DataValueString>())
     {
-        output->value(input->as<DataValueString>()->value());
+        m_output.value(input->as<DataValueString>()->value());
     }
-    return output;
+    else
+    {
+        m_output.value(DataValueString::defaultValue);
+    }
+    return &m_output;
 }

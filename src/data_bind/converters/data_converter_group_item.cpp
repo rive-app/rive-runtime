@@ -7,6 +7,8 @@
 
 using namespace rive;
 
+DataConverterGroupItem::~DataConverterGroupItem() { delete m_dataConverter; }
+
 StatusCode DataConverterGroupItem::import(ImportStack& importStack)
 {
     auto backboardImporter =
@@ -25,4 +27,15 @@ StatusCode DataConverterGroupItem::import(ImportStack& importStack)
     }
     dataConveterGroupImporter->group()->addItem(this);
     return Super::import(importStack);
+}
+
+Core* DataConverterGroupItem::clone() const
+{
+    auto cloned =
+        DataConverterGroupItemBase::clone()->as<DataConverterGroupItem>();
+    if (converter() != nullptr)
+    {
+        cloned->converter(converter()->clone()->as<DataConverter>());
+    }
+    return cloned;
 }

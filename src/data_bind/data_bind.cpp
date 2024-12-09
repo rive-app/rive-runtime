@@ -116,6 +116,8 @@ DataBind::~DataBind()
 {
     delete m_ContextValue;
     m_ContextValue = nullptr;
+    delete m_dataConverter;
+    m_dataConverter = nullptr;
 }
 
 void DataBind::bind()

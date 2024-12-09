@@ -35,10 +35,10 @@ public:
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;
-    Core* m_target;
-    ViewModelInstanceValue* m_Source;
+    Core* m_target = nullptr;
+    ViewModelInstanceValue* m_Source = nullptr;
     DataBindContextValue* m_ContextValue = nullptr;
-    DataConverter* m_dataConverter;
+    DataConverter* m_dataConverter = nullptr;
     DataType outputType();
 #ifdef WITH_RIVE_TOOLS
 public:

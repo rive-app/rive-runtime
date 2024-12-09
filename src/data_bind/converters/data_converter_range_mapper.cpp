@@ -11,12 +11,11 @@ DataValueNumber* DataConverterRangeMapper::calculateRange(DataValue* input,
                                                           float minOutput,
                                                           float maxOutput)
 {
-    auto output = new DataValueNumber();
     if (input->is<DataValueNumber>())
     {
         if (minOutput == maxOutput)
         {
-            output->value(minOutput);
+            m_output.value(minOutput);
         }
         else
         {
@@ -49,11 +48,11 @@ DataValueNumber* DataConverterRangeMapper::calculateRange(DataValue* input,
             }
             if (value < minInput)
             {
-                output->value(minOutput);
+                m_output.value(minOutput);
             }
             else if (value > maxInput)
             {
-                output->value(maxOutput);
+                m_output.value(maxOutput);
             }
             else
             {
@@ -74,11 +73,15 @@ DataValueNumber* DataConverterRangeMapper::calculateRange(DataValue* input,
                 {
                     perc = m_interpolator->transform(perc);
                 }
-                output->value(perc * maxOutput + (1 - perc) * minOutput);
+                m_output.value(perc * maxOutput + (1 - perc) * minOutput);
             }
         }
     }
-    return output;
+    else
+    {
+        m_output.value(DataValueNumber::defaultValue);
+    }
+    return &m_output;
 }
 
 DataValueNumber* DataConverterRangeMapper::calculateReverseRange(

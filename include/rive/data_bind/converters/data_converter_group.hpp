@@ -9,6 +9,7 @@ namespace rive
 class DataConverterGroup : public DataConverterGroupBase
 {
 public:
+    ~DataConverterGroup();
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
     void addItem(DataConverterGroupItem* item);
@@ -21,6 +22,7 @@ public:
         return Super::outputType();
     }
     const std::vector<DataConverterGroupItem*>& items() { return m_items; }
+    Core* clone() const override;
 
 private:
     std::vector<DataConverterGroupItem*> m_items;

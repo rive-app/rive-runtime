@@ -6,11 +6,14 @@ using namespace rive;
 
 DataValue* DataConverterTrigger::convert(DataValue* input, DataBind* dataBind)
 {
-    auto output = new DataValueTrigger();
     if (input->is<DataValueTrigger>())
     {
         uint32_t inputValue = input->as<DataValueTrigger>()->value();
-        output->value(inputValue + 1);
+        m_output.value(inputValue + 1);
     }
-    return output;
+    else
+    {
+        m_output.value(DataValueTrigger::defaultValue);
+    }
+    return &m_output;
 }
