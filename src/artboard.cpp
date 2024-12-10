@@ -709,6 +709,19 @@ void Artboard::update(ComponentDirt value)
         cascadeAnimationStyle(interpolation(),
                               interpolator(),
                               interpolationTime());
+        // TODO: Explore whether we can remove the syncStyleChanges call in
+        // updatePass. Since updatePass calls updateComponents, where the first
+        // component is the artboard itself, hence calling update, we end up
+        // calling this twice. Although it is safe, because syncStyleChanges
+        // checks for the list of dirty layouts that would be empty at this
+        // point, it seems redundant.
+        if (syncStyleChanges() && m_updatesOwnLayout)
+        {
+            calculateLayout();
+            updateLayoutBounds(
+                /*animation*/ true); // maybe use a static to allow
+                                     // the editor to set this.
+        }
     }
 #endif
 }
