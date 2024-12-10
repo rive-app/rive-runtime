@@ -13,6 +13,16 @@
         "string": "enumtype"
       },
       "description": "The enum system type."
+    },
+    "enumId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 735,
+        "string": "enumid"
+      },
+      "description": "The id of the enum.",
+      "runtime": false
     }
   }
 }
