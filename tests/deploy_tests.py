@@ -569,7 +569,9 @@ def main():
             os.chdir(os.path.join(rive_tools_dir, "android_tests"))
 
             # Check for Java availability
-            if subprocess.run(["java", "-version"], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL).returncode != 0:
+            if (os.getenv("JAVA_HOME") is None and
+                subprocess.run(["java", "-version"], stdout=subprocess.DEVNULL,
+                               stderr=subprocess.DEVNULL).returncode != 0):
                 print("Error: Java is required to run Android Gradle tests. Please ensure the $JAVA_HOME environment variable is set. You may use Android Studio's JDK (the path can be found at Settings > Build, Execution, Deployment > Build Tools > Gradle > Gradle JDK).")
                 return -1
 
