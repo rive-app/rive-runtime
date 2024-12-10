@@ -101,7 +101,15 @@ def main():
     verbose_log(f"making status file {args.status}")
     with open(args.status, "a") as status:
         status.write(args.name + "\t");
-        if (candidate is None or golden is None) or failed:
+        if candidate is None:
+            status.write("missing_candidate\n")
+            verbose_log("missing golden for", args.name)
+            return
+        if golden is None:
+            status.write("missing_golden\n")
+            verbose_log("missing golden for", args.name)
+            return
+        if failed:
             status.write("failed\n")
             verbose_log("failed to load golden or candidate")
             return

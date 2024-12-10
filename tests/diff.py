@@ -92,6 +92,8 @@ class TestEntry(object):
             self.golden_path = pathlib.Path(os.path.relpath(os.path.join(golden_path, f"{self.name}.png"), output_path)).as_posix()
 
         if len(words) == 2:
+            self.avg = None
+            self.histogram = None
             self.type = words[1]
         else:    
             self.max_diff = int(words[1])
@@ -126,10 +128,12 @@ class TestEntry(object):
 
     # this is equivalent of implementing < operator. We use this for sorted and sort functions
     def __lt__(self, other):
-        if self.histogram is None or self.histogram == other.histogram:
-            return self.avg < other.avg
-        else:
+        if (self.histogram is not None and
+            other.histogram is not None and
+            self.histogram != other.histogram):
             return self.histogram < other.histogram
+        else:
+            return self.avg < other.avg
 
     def __str__(self):
         vals = dict()
