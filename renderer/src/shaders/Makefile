@@ -41,6 +41,10 @@ $(DRAW_COMBINATIONS_METAL): metal/generate_draw_combinations.py
 rive_pls_macosx_metallib: $(OUT)/rive_pls_macosx.metallib.c
 rive_pls_ios_metallib: $(OUT)/rive_pls_ios.metallib.c
 rive_pls_ios_simulator_metallib: $(OUT)/rive_pls_ios_simulator.metallib.c
+rive_renderer_xros_metallib: $(OUT)/rive_renderer_xros.metallib.c
+rive_renderer_xros_simulator_metallib: $(OUT)/rive_renderer_xros_simulator.metallib.c
+rive_renderer_appletvos_metallib: $(OUT)/rive_renderer_appletvos.metallib.c
+rive_renderer_appletvsimulator_metallib: $(OUT)/rive_renderer_appletvsimulator.metallib.c
 
 ## The source files all get regenerated in a batch, so there's no need to separate out separate
 ## rules for each intermediate file.
@@ -84,6 +88,58 @@ $(OUT)/ios/rive_pls_ios_simulator.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUT
 
 $(OUT)/rive_pls_ios_simulator.metallib.c: $(OUT)/ios/rive_pls_ios_simulator.metallib
 	xxd -i -n rive_pls_ios_simulator_metallib $(OUT)/ios/rive_pls_ios_simulator.metallib $(OUT)/rive_pls_ios_simulator.metallib.c
+
+$(OUT)/ios/rive_renderer_xros.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
+	@mkdir -p $(OUT)/ios
+	$(foreach FILE, $(METAL_INPUTS), \
+		xcrun -sdk xros metal -std=metal3.1 \
+		-I$(OUT) --target=air64-apple-xros1.0 -ffast-math -ffp-contract=fast -fpreserve-invariance \
+		-fvisibility=hidden \
+		-c $(FILE) \
+		-o $(patsubst metal/%.metal, $(OUT)/ios/%.air, $(FILE));)
+	xcrun -sdk xros metallib $(METAL_IOS_AIR_OUTPUTS) -o $(OUT)/ios/rive_renderer_xros.metallib
+
+$(OUT)/rive_renderer_xros.metallib.c: $(OUT)/ios/rive_renderer_xros.metallib
+	xxd -i -n rive_renderer_xros_metallib $(OUT)/ios/rive_renderer_xros.metallib $(OUT)/rive_renderer_xros.metallib.c
+
+$(OUT)/ios/rive_renderer_xros_simulator.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
+	@mkdir -p $(OUT)/ios
+	$(foreach FILE, $(METAL_INPUTS), \
+		xcrun -sdk xrsimulator metal -std=metal3.1 \
+		-I$(OUT) --target=air64-apple-xros1.0-simulator -ffast-math -ffp-contract=fast -fpreserve-invariance \
+		-fvisibility=hidden \
+		-c $(FILE) \
+		-o $(patsubst metal/%.metal, $(OUT)/ios/%.air, $(FILE));)
+	xcrun -sdk xrsimulator metallib $(METAL_IOS_AIR_OUTPUTS) -o $(OUT)/ios/rive_renderer_xros_simulator.metallib
+
+$(OUT)/rive_renderer_xros_simulator.metallib.c: $(OUT)/ios/rive_renderer_xros_simulator.metallib
+	xxd -i -n rive_renderer_xros_simulator_metallib $(OUT)/ios/rive_renderer_xros_simulator.metallib $(OUT)/rive_renderer_xros_simulator.metallib.c
+
+$(OUT)/ios/rive_renderer_appletvos.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
+	@mkdir -p $(OUT)/ios
+	$(foreach FILE, $(METAL_INPUTS), \
+		xcrun -sdk appletvos metal -std=metal3.0 \
+		-I$(OUT) -mappletvos-version-min=16.0 -ffast-math -ffp-contract=fast -fpreserve-invariance \
+		-fvisibility=hidden \
+		-c $(FILE) \
+		-o $(patsubst metal/%.metal, $(OUT)/ios/%.air, $(FILE));)
+	xcrun -sdk appletvos metallib $(METAL_IOS_AIR_OUTPUTS) -o $(OUT)/ios/rive_renderer_appletvos.metallib
+
+$(OUT)/rive_renderer_appletvos.metallib.c: $(OUT)/ios/rive_renderer_appletvos.metallib
+	xxd -i -n rive_renderer_appletvos_metallib $(OUT)/ios/rive_renderer_appletvos.metallib $(OUT)/rive_renderer_appletvos.metallib.c
+
+$(OUT)/ios/rive_renderer_appletvsimulator.metallib: $(MINIFY_GLSL_OUTPUTS) $(METAL_INPUTS) $(DRAW_COMBINATIONS_METAL)
+	@mkdir -p $(OUT)/ios
+	$(foreach FILE, $(METAL_INPUTS), \
+		xcrun -sdk appletvsimulator metal -std=metal3.0 \
+		-I$(OUT) -mappletvsimulator-version-min=16.0 -ffast-math -ffp-contract=fast -fpreserve-invariance \
+		-fvisibility=hidden \
+		-c $(FILE) \
+		-o $(patsubst metal/%.metal, $(OUT)/ios/%.air, $(FILE));)
+	xcrun -sdk appletvsimulator metallib $(METAL_IOS_AIR_OUTPUTS) -o $(OUT)/ios/rive_renderer_appletvsimulator.metallib
+
+$(OUT)/rive_renderer_appletvsimulator.metallib.c: $(OUT)/ios/rive_renderer_appletvsimulator.metallib
+	xxd -i -n rive_renderer_appletvsimulator_metallib $(OUT)/ios/rive_renderer_appletvsimulator.metallib $(OUT)/rive_renderer_appletvsimulator.metallib.c
 
 
 ## SPIRV compilation.

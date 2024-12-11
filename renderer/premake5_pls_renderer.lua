@@ -32,19 +32,9 @@ do
     defines({ 'RIVE_DESKTOP_GL' })
 end
 
-filter('system:macosx')
-do
-    defines({ 'RIVE_MACOSX' })
-end
-
 filter('system:android')
 do
     defines({ 'RIVE_ANDROID' })
-end
-
-filter({ 'system:ios', 'options:variant=system' })
-do
-    defines({ 'RIVE_IOS' })
 end
 
 newoption({
@@ -63,11 +53,6 @@ newoption({
 filter({ 'options:with-webgpu' })
 do
     defines({ 'RIVE_WEBGPU' })
-end
-
-filter({ 'system:ios', 'options:variant=emulator' })
-do
-    defines({ 'RIVE_IOS_SIMULATOR' })
 end
 
 filter('system:emscripten')
@@ -117,6 +102,14 @@ if os.host() == 'macosx' then
         makecommand = makecommand .. ' rive_pls_ios_metallib'
     elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'emulator' then
         makecommand = makecommand .. ' rive_pls_ios_simulator_metallib'
+    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'xros' then
+        makecommand = makecommand .. ' rive_renderer_xros_metallib'
+    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'xrsimulator' then
+        makecommand = makecommand .. ' rive_renderer_xros_simulator_metallib'
+    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'appletvos' then
+        makecommand = makecommand .. ' rive_renderer_appletvos_metallib'
+    elseif _OPTIONS['os'] == 'ios' and _OPTIONS['variant'] == 'appletvsimulator' then
+        makecommand = makecommand .. ' rive_renderer_appletvsimulator_metallib'
     else
         makecommand = makecommand .. ' rive_pls_macosx_metallib'
     end

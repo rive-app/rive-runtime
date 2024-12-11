@@ -143,6 +143,52 @@ do
         objdir('%{cfg.system}_sim/obj/%{cfg.buildcfg}')
     end
 
+    filter({ 'system:ios', 'options:variant=xros' })
+    do
+        buildoptions({
+            '--target=arm64-apple-xros1.0',
+            '-fembed-bitcode -arch arm64 -isysroot '
+                .. (os.getenv('XROS_SYSROOT') or ''),
+        })
+        targetdir('xros/bin/%{cfg.buildcfg}')
+        objdir('xros/obj/%{cfg.buildcfg}')
+    end
+
+    filter({ 'system:ios', 'options:variant=xrsimulator' })
+    do
+        buildoptions({
+            '--target=arm64-apple-xros1.0-simulator',
+            '-arch arm64 -arch x86_64 -isysroot '
+                .. (os.getenv('XROS_SYSROOT') or ''),
+        })
+        targetdir('xrsimulator/bin/%{cfg.buildcfg}')
+        objdir('xrsimulator/obj/%{cfg.buildcfg}')
+    end
+
+    filter({ 'system:ios', 'options:variant=appletvos' })
+    do
+        buildoptions({
+            '--target=arm64-apple-tvos',
+            '-mappletvos-version-min=16.0',
+            '-fembed-bitcode -arch arm64 -isysroot '
+                .. (os.getenv('APPLETVOS_SYSROOT') or ''),
+        })
+        targetdir('appletvos/bin/%{cfg.buildcfg}')
+        objdir('appletvos/obj/%{cfg.buildcfg}')
+    end
+
+    filter({ 'system:ios', 'options:variant=appletvsimulator' })
+    do
+        buildoptions({
+            '--target=arm64-apple-tvos-simulator',
+            '-mappletvsimulator-version-min=16.0',
+            '-arch arm64 -arch x86_64 -isysroot '
+                .. (os.getenv('APPLETVOS_SYSROOT') or ''),
+        })
+        targetdir('appletvsimulator/bin/%{cfg.buildcfg}')
+        objdir('appletvsimulator/obj/%{cfg.buildcfg}')
+    end
+
     filter('system:macosx or system:ios')
     do
         files({ '../src/text/font_hb_apple.mm' })
@@ -208,6 +254,10 @@ newoption({
             'runtime',
             'Build the static library specifically targeting our runtimes',
         },
+        { 'xros', 'Builds for Apple Vision Pro' },
+        { 'xrsimulator', 'Builds for Apple Vision Pro simulator' },
+        { 'appletvos', 'Builds for Apple TV' },
+        { 'appletvsimulator', 'Builds for Apple TV simulator' },
     },
     default = 'system',
 })

@@ -38,9 +38,19 @@ do
         forceincludes({ 'rive_libjpeg_renames.h' })
     end
 
-    filter({ 'system:macosx or system:ios' })
+    filter({ 'system:macosx or system:ios', 'not options:variant=appletvos', 'not options:variant=appletvsimulator' })
     do
         files({ 'src/**.mm' })
+    end
+
+    filter({ 'system:ios' , 'options:variant=appletvos or options:variant=appletvsimulator' })
+    do
+        files({
+            'src/bitmap_decoder_thirdparty.cpp',
+            'src/decode_webp.cpp',
+            'src/decode_jpeg.cpp',
+            'src/decode_png.cpp',
+        })
     end
 
     filter({ 'system:not macosx', 'system:not ios' })

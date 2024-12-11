@@ -109,6 +109,52 @@ do
         objdir('%{cfg.system}_sim/cache/obj/%{cfg.buildcfg}')
     end
 
+    filter({ 'system:ios', 'options:variant=xros' })
+    do
+        buildoptions({
+            '--target=arm64-apple-xros1.0',
+            '-fembed-bitcode -arch arm64 -isysroot '
+                .. (os.getenv('XROS_SYSROOT') or ''),
+        })
+        targetdir('xros/cache/bin/%{cfg.buildcfg}')
+        objdir('xros/cache/obj/%{cfg.buildcfg}')
+    end
+
+    filter({ 'system:ios', 'options:variant=xrsimulator' })
+    do
+        buildoptions({
+            '--target=arm64-apple-xros1.0-simulator',
+            '-arch arm64 -arch x86_64 -isysroot '
+                .. (os.getenv('XROS_SYSROOT') or ''),
+        })
+        targetdir('xrsimulator/cache/bin/%{cfg.buildcfg}')
+        objdir('xrsimulator/cache/obj/%{cfg.buildcfg}')
+    end
+
+    filter({ 'system:ios', 'options:variant=appletvos' })
+    do
+        buildoptions({
+            '--target=arm64-apple-tvos',
+            '-mappletvos-version-min=16.0',
+            '-fembed-bitcode -arch arm64 -isysroot '
+                .. (os.getenv('APPLETVOS_SYSROOT') or ''),
+        })
+        targetdir('appletvos/cache/bin/%{cfg.buildcfg}')
+        objdir('appletvos/cache/obj/%{cfg.buildcfg}')
+    end
+
+    filter({ 'system:ios', 'options:variant=appletvsimulator' })
+    do
+        buildoptions({
+            '--target=arm64-apple-tvos-simulator',
+            '-mappletvos-version-min=16.0',
+            '-arch arm64 -arch x86_64 -isysroot '
+                .. (os.getenv('APPLETVOS_SYSROOT') or ''),
+        })
+        targetdir('appletvsimulator/cache/bin/%{cfg.buildcfg}')
+        objdir('appletvsimulator/cache/obj/%{cfg.buildcfg}')
+    end
+
     filter({ 'system:android', 'configurations:release' })
     do
         buildoptions({ '-flto=full' })

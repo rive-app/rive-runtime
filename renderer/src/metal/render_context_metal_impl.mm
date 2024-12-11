@@ -14,16 +14,24 @@
 #include "generated/shaders/color_ramp.exports.h"
 #include "generated/shaders/tessellate.exports.h"
 
-#ifdef RIVE_IOS_SIMULATOR
+#if defined(RIVE_IOS_SIMULATOR)
 #import <mach-o/arch.h>
 #endif
 
 namespace rive::gpu
 {
-#ifdef RIVE_IOS
+#if defined(RIVE_IOS)
 #include "generated/shaders/rive_pls_ios.metallib.c"
 #elif defined(RIVE_IOS_SIMULATOR)
 #include "generated/shaders/rive_pls_ios_simulator.metallib.c"
+#elif defined(RIVE_XROS)
+#include "generated/shaders/rive_renderer_xros.metallib.c"
+#elif defined(RIVE_XROS_SIMULATOR)
+#include "generated/shaders/rive_renderer_xros_simulator.metallib.c"
+#elif defined(RIVE_APPLETVOS)
+#include "generated/shaders/rive_renderer_appletvos.metallib.c"
+#elif defined(RIVE_APPLETVOS_SIMULATOR)
+#include "generated/shaders/rive_renderer_appletvsimulator.metallib.c"
 #else
 #include "generated/shaders/rive_pls_macosx.metallib.c"
 #endif
@@ -260,10 +268,10 @@ private:
     id<MTLRenderPipelineState> m_pipelineStateBGRA8;
 };
 
-#ifdef RIVE_IOS
-static bool is_apple_ios_silicon(id<MTLDevice> gpu)
+#if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS)
+static bool is_apple_silicon(id<MTLDevice> gpu)
 {
-    if (@available(iOS 13, *))
+    if (@available(iOS 13, tvOS 13, visionOS 1, *))
     {
         return [gpu supportsFamily:MTLGPUFamilyApple4];
     }
@@ -327,17 +335,18 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     // IDs on any Apple device, and it's faster not to.
     m_platformFeatures.avoidFlatVaryings = true;
     m_platformFeatures.invertOffscreenY = true;
-#ifdef RIVE_IOS
+#if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS)
     m_platformFeatures.supportsRasterOrdering = true;
     m_platformFeatures.supportsFragmentShaderAtomics = false;
-    if (!is_apple_ios_silicon(m_gpu))
+    if (!is_apple_silicon(m_gpu))
     {
         // The PowerVR GPU, at least on A10, has fp16 precision issues. We can't
         // use the the bottom 3 bits of the path and clip IDs in order for our
         // equality testing to work.
         m_platformFeatures.pathIDGranularity = 8;
     }
-#elif defined(RIVE_IOS_SIMULATOR)
+#elif defined(RIVE_IOS_SIMULATOR) || defined(RIVE_XROS_SIMULATOR) ||           \
+    defined(RIVE_APPLETVOS_SIMULATOR)
     // The simulator does not support framebuffer reads. Fall back on atomic
     // mode.
     m_platformFeatures.supportsRasterOrdering = false;
@@ -350,7 +359,8 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 #endif
     m_platformFeatures.atomicPLSMustBeInitializedAsDraw = true;
 
-#ifdef RIVE_IOS
+#if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_XROS_SIMULATOR) || \
+    defined(RIVE_APPLETVOS) || defined(RIVE_APPLETVOS_SIMULATOR)
     // Atomic barriers are never used on iOS, but if we ever did need them, we
     // would use rasterOrderGroups.
     m_metalFeatures.atomicBarrierType = AtomicBarrierType::rasterOrderGroup;
@@ -396,12 +406,24 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 
     // Load the precompiled shaders.
     dispatch_data_t metallibData = dispatch_data_create(
-#ifdef RIVE_IOS
+#if defined(RIVE_IOS)
         rive_pls_ios_metallib,
         rive_pls_ios_metallib_len,
 #elif defined(RIVE_IOS_SIMULATOR)
         rive_pls_ios_simulator_metallib,
         rive_pls_ios_simulator_metallib_len,
+#elif defined(RIVE_XROS)
+        rive_renderer_xros_metallib,
+        rive_renderer_xros_metallib_len,
+#elif defined(RIVE_XROS_SIMULATOR)
+        rive_renderer_xros_simulator_metallib,
+        rive_renderer_xros_simulator_metallib_len,
+#elif defined(RIVE_APPLETVOS)
+        rive_renderer_appletvos_metallib,
+        rive_renderer_appletvos_metallib_len,
+#elif defined(RIVE_APPLETVOS_SIMULATOR)
+        rive_renderer_appletvsimulator_metallib,
+        rive_renderer_appletvsimulator_metallib_len,
 #else
         rive_pls_macosx_metallib,
         rive_pls_macosx_metallib_len,
@@ -1317,7 +1339,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             {
                 case AtomicBarrierType::memoryBarrier:
                 {
-#if !defined(RIVE_IOS) && !defined(RIVE_IOS_SIMULATOR)
+#if defined(RIVE_MACOSX)
                     if (@available(macOS 10.14, *))
                     {
                         [encoder

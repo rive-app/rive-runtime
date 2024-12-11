@@ -146,7 +146,7 @@ do
         })
     end
 
-    filter({ 'system:ios' })
+    filter( 'system:ios' )
     do
         buildoptions({ '-flto=full', '-Wno-implicit-int-conversion' })
         files({ 'src/audio/audio_engine.m' })
@@ -163,21 +163,6 @@ do
         files({ 'src/text/font_hb_apple.mm' })
     end
 end
-
-newoption({
-    trigger = 'variant',
-    value = 'type',
-    description = 'Choose a particular variant to build',
-    allowed = {
-        { 'system', 'Builds the static library for the provided system' },
-        { 'emulator', 'Builds for an emulator/simulator for the provided system' },
-        {
-            'runtime',
-            'Build the static library specifically targeting our runtimes',
-        },
-    },
-    default = 'system',
-})
 
 newoption({
     trigger = 'with_rive_tools',

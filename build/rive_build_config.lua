@@ -68,6 +68,14 @@ newoption({
     allowed = {
         { 'system', 'Builds the static library for the provided system' },
         { 'emulator', 'Builds for a simulator for the provided system' },
+        { 'xros', 'Builds for Apple Vision Pro' },
+        { 'xrsimulator', 'Builds for Apple Vision Pro simulator' },
+        { 'appletvos', 'Builds for Apple TV' },
+        { 'appletvsimulator', 'Builds for Apple TV simulator' },
+        {
+            'runtime',
+            'Build the static library specifically targeting our runtimes',
+        }
     },
     default = 'system',
 })
@@ -472,36 +480,95 @@ end
 
 filter({})
 
+filter('system:macosx')
+do
+    defines({ 'RIVE_MACOSX' })
+end
+
+filter({})
+
 if _OPTIONS['os'] == 'ios' then
-    iphoneos_sysroot = os.outputof('xcrun --sdk iphoneos --show-sdk-path')
-    if iphoneos_sysroot == nil then
-        error(
-            'Unable to locate iPhoneOS SDK. Please ensure Xcode and its iOS component are installed. Additionally, ensure Xcode Command Line Tools are pointing to that Xcode location with `xcode-select -p`.'
-        )
-    end
+    if _OPTIONS['variant'] == 'system' then
+        iphoneos_sysroot = os.outputof('xcrun --sdk iphoneos --show-sdk-path')
+        if iphoneos_sysroot == nil then
+            error(
+                'Unable to locate iPhoneOS SDK. Please ensure Xcode and its iOS component are installed. Additionally, ensure Xcode Command Line Tools are pointing to that Xcode location with `xcode-select -p`.'
+            )
+        end
 
-    iphonesimulator_sysroot = os.outputof('xcrun --sdk iphonesimulator --show-sdk-path')
-    if iphonesimulator_sysroot == nil then
-        error(
-            'Unable to locate iPhone simulator SDK. Please ensure Xcode and its iOS component are installed.  Additionally, ensure Xcode Command Line Tools are pointing to that Xcode location with `xcode-select -p`.'
-        )
-    end
-
-    filter('options:variant=system')
-    do
+        defines({ 'RIVE_IOS' })
         buildoptions({
             '--target=arm64-apple-ios13.0.0',
             '-mios-version-min=13.0.0',
             '-isysroot ' .. iphoneos_sysroot,
         })
-    end
+    elseif _OPTIONS['variant'] == 'emulator' then
+        iphonesimulator_sysroot = os.outputof('xcrun --sdk iphonesimulator --show-sdk-path')
+        if iphonesimulator_sysroot == nil then
+            error(
+                'Unable to locate iPhone simulator SDK. Please ensure Xcode and its iOS component are installed.  Additionally, ensure Xcode Command Line Tools are pointing to that Xcode location with `xcode-select -p`.'
+            )
+        end
 
-    filter('options:variant=emulator')
-    do
+        defines({ 'RIVE_IOS_SIMULATOR' })
         buildoptions({
             '--target=arm64-apple-ios13.0.0-simulator',
             '-mios-version-min=13.0.0',
             '-isysroot ' .. iphonesimulator_sysroot,
+        })
+    elseif _OPTIONS['variant'] == 'xros' then
+        xros_sysroot = os.outputof('xcrun --sdk xros --show-sdk-path')
+        if xros_sysroot == nil then
+            error(
+                'Unable to locate xros sdk. Please ensure Xcode Command Line Tools are installed, as well as the visionOS SDK.'
+            )
+        end
+
+        defines({ 'RIVE_XROS' })
+        buildoptions({
+            '--target=arm64-apple-xros1.0',
+            '-isysroot ' .. xros_sysroot,
+        })
+    elseif _OPTIONS['variant'] == 'xrsimulator' then
+        xrsimulator_sysroot = os.outputof('xcrun --sdk xrsimulator --show-sdk-path')
+        if xrsimulator_sysroot == nil then
+            error(
+                'Unable to locate xrsimulator sdk. Please ensure Xcode Command Line Tools are installed, as well as the visionOS SDK.'
+            )
+        end
+
+        defines({ 'RIVE_XROS_SIMULATOR' })
+        buildoptions({
+            '--target=arm64-apple-xros1.0-simulator',
+            '-isysroot ' .. xrsimulator_sysroot,
+        })
+    elseif _OPTIONS['variant'] == 'appletvos' then
+        appletvos_sysroot = os.outputof('xcrun --sdk appletvos --show-sdk-path')
+        if appletvos_sysroot == nil then
+            error(
+                'Unable to locate appletvos sdk. Please ensure Xcode Command Line Tools are installed, as well as the tvOS SDK.'
+            )
+        end
+
+        defines({ 'RIVE_APPLETVOS' })
+        buildoptions({
+            '--target=arm64-apple-tvos',
+            '-mappletvos-version-min=16.0',
+            '-isysroot ' .. appletvos_sysroot,
+        })
+    elseif _OPTIONS['variant'] == 'appletvsimulator' then
+        appletvsimulator_sysroot = os.outputof('xcrun --sdk appletvsimulator --show-sdk-path')
+        if appletvsimulator_sysroot == nil then
+            error(
+                'Unable to locate appletvsimulator sdk. Please ensure Xcode Command Line Tools are installed, as well as the tvOS SDK.'
+            )
+        end
+
+        defines({ 'RIVE_APPLETVOS_SIMULATOR' })
+        buildoptions({
+            '--target=arm64-apple-tvos-simulator',
+            '-mappletvsimulator-version-min=16.0',
+            '-isysroot ' .. appletvsimulator_sysroot,
         })
     end
 
@@ -557,7 +624,7 @@ if os.host() == 'macosx' then
 
     filter({
         'system:ios',
-        'options:variant=emulator',
+        'options:variant=emulator or variant=xrsimulator or variant=appletvsimulator',
         'options:arch=x64 or arch=universal',
     })
     do
@@ -566,7 +633,7 @@ if os.host() == 'macosx' then
 
     filter({
         'system:ios',
-        'options:variant=emulator',
+        'options:variant=emulator or variant=xrsimulator or variant=appletvsimulator',
         'options:arch=arm64 or arch=universal',
     })
     do

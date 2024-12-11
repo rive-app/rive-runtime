@@ -55,8 +55,41 @@ else
         fi
         ;;
     ios_sim)
+        echo "Building for iOS Simulator"
         export IOS_SYSROOT=$(xcrun --sdk iphonesimulator --show-sdk-path)
         build "--os=ios --variant=emulator"
+        if [ "$OPTION" = "clean" ]; then
+            exit
+        fi
+        ;;
+    xros)
+        echo "Building for visionOS"
+        export XROS_SYSROOT=$(xcrun --sdk xros --show-sdk-path)
+        build "--os=ios --variant=xros"
+        if [ "$OPTION" = "clean" ]; then
+            exit
+        fi
+        ;;
+    xrsimulator)
+        echo "Building for visionOS Simulator"
+        export XROS_SYSROOT=$(xcrun --sdk xrsimulator --show-sdk-path)
+        build "--os=ios --variant=xrsimulator"
+        if [ "$OPTION" = "clean" ]; then
+            exit
+        fi
+        ;;
+    appletvos)
+        echo "Building for tvOS"
+        export APPLETVOS_SYSROOT=$(xcrun --sdk appletvos --show-sdk-path)
+        build "--os=ios --variant=appletvos"
+        if [ "$OPTION" = "clean" ]; then
+            exit
+        fi
+        ;;
+    appletvsimulator)
+        echo "Building for tvOS Simulator"
+        export APPLETVOS_SYSROOT=$(xcrun --sdk appletvsimulator --show-sdk-path)
+        build "--os=ios --variant=appletvsimulator"
         if [ "$OPTION" = "clean" ]; then
             exit
         fi
