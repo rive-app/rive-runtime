@@ -64,6 +64,7 @@ class TestEntry(object):
     pass_entry_template:str = None
     error_entry_template:str = None
     identical_entry_template:str = None
+    missing_file_entry_template:str = None
 
     @classmethod
     def load_templates(cls, path):
@@ -73,6 +74,8 @@ class TestEntry(object):
             cls.pass_entry_template = t.read()
         with open(os.path.join(path, "identical_entry.html")) as t:
             cls.identical_entry_template = t.read()
+        with open(os.path.join(path, "missing_file_entry.html")) as t:
+            cls.missing_file_entry_template = t.read()
 
     def __init__(self, words, candidates_path, golden_path, output_path, device_name=None, browserstack_details=None):
         self.diff0_path_abs = None
@@ -139,6 +142,16 @@ class TestEntry(object):
         vals = dict()
         vals['name'] = f"{self.name} ({self.device})" if self.device is not None else self.name
         vals['url'] = self.browserstack_details['browser_url'] if self.browserstack_details is not None else ' '
+        if self.type == 'missing_golden':
+            # show candidate, since golden is missing
+            vals['image'] = self.candidates_path
+            return self.missing_file_entry_template.format_map(vals)
+        
+        elif self.type == 'missing_candidate':
+            # show golden, since candidate is missing
+            vals['image'] = self.golden_path
+            return self.missing_file_entry_template.format_map(vals)
+
         vals['golden'] = self.golden_path
         vals['candidate'] = self.candidates_path
         
@@ -324,13 +337,15 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
     candidate_filenames = set(os.listdir(golden_path))
     intersect_filenames = original_filenames.intersection(candidate_filenames)
 
-    missing_candidates = []
+    missing = []
     for file in original_filenames.difference(candidate_filenames):
         print(f'Candidate file {file} missing in goldens.')
-        missing_candidates.append(file)
+        missing.append(TestEntry([file.split('.')[0], 'missing_golden'], candidates_path, golden_path, output_path, device_name, browserstack_details))
 
     for file in candidate_filenames.difference(original_filenames):
         print(f'Golden file {file} missing in candidates.')
+        missing.append(TestEntry([file.split('.')[0], 'missing_candidate'], candidates_path, golden_path, output_path, device_name, browserstack_details))
+
     if args.jobs > 1:
         print("Diffing %i candidates in %i processes..." % (len(intersect_filenames), args.jobs))
     else:
@@ -347,6 +362,8 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
     Pool(args.jobs).map(f, intersect_filenames)
     (total_lines, entries, success) = parse_status(candidates_path, golden_path, output_path, device_name, browserstack_details)
     
+    entries.extend(missing)
+
     print(f'finished with Succes:{success} and {total_lines} lines')
 
     if total_lines != len(intersect_filenames):
@@ -361,12 +378,15 @@ def diff_directory_shallow(candidates_path, output_path, golden_path, device_nam
     for status_filename in glob.iglob(status_filename_pattern):
         os.remove(status_filename)
 
-    return (entries, missing_candidates, success)
+    return (entries, missing, success)
 
 # returns entries sorted into identical, passing and failing as well as html str list of each
 # based on arguments passed, we may or may not return all of the string lists, but we always return the object lists
 def sort_entries(entries):
-    
+    # we dont need an intermediate object list because we never sort ot clean these, so direct to html
+    missing_golden_str = [str(entry) for entry in entries if entry.type == "missing_golden"]
+    missing_candidate_str = [str(entry) for entry in entries if entry.type == "missing_candidate"]
+
     failed_entires = [entry for entry in entries if entry.type == "failed"]
     pass_entires = [entry for entry in entries if entry.type == "pass"]
     identical_entires = [entry for entry in entries if entry.type == "identical"]
@@ -378,7 +398,7 @@ def sort_entries(entries):
     # if we are only doing fails then only sort those and return empty html lists for "pass" and "identical" we still build and return
     # identical and pass object lists for cleaning, but we dont bother sorting them
     if args.fails_only:
-        return (sorted_failed_entires, pass_entires, identical_entires, sorted_failed_str, [], [])
+        return (sorted_failed_entires, pass_entires, identical_entires, sorted_failed_str, [], [], missing_golden_str, missing_candidate_str)
 
     
     # now sort passed entires and build the html list
@@ -387,20 +407,22 @@ def sort_entries(entries):
 
     # if we are cleaning then return empty html list for identical. do everything else the same
     if args.clean:
-         return (sorted_failed_entires, sorted_passed_entires, identical_entires, sorted_failed_str, sorted_passed_str, [])
+         return (sorted_failed_entires, sorted_passed_entires, identical_entires, sorted_failed_str, sorted_passed_str, [], missing_golden_str, missing_candidate_str)
 
     # otherwise build identical html entry list and include it in the return
     identical_str = [str(entry) for entry in identical_entires]
 
-    return (sorted_failed_entires, sorted_passed_entires, identical_entires, sorted_failed_str, sorted_passed_str, identical_str)
+    return (sorted_failed_entires, sorted_passed_entires, identical_entires, sorted_failed_str, sorted_passed_str, identical_str, missing_golden_str, missing_candidate_str)
 
-def write_html(templates_path, failed_entries, passing_entries, identical_entries, output_path):
+def write_html(templates_path, failed_entries, passing_entries, identical_entries, missing_golden_entries, missing_candidate_entries, output_path):
     with open(os.path.join(templates_path, "index.html")) as t:
         index_template = t.read()
     
     html = index_template.format(identical=identical_entries, passing=passing_entries,
                                  failed=failed_entries, failed_number=len(failed_entries),
-                                 passing_number=len(passing_entries), identical_number=len(identical_entries))
+                                 passing_number=len(passing_entries), identical_number=len(identical_entries),
+                                 missing_candidate=missing_candidate_entries, missing_candidate_number=len(missing_candidate_entries),
+                                 missing_golden=missing_golden_entries, missing_golden_number=len(missing_golden_entries))
 
     with open(os.path.join(output_path, "index.html"), "w") as file:
         file.write(html)
@@ -438,7 +460,7 @@ def diff_directory_deep(candidates_path, output_path):
             if args.pack:
                 shallow_copy_images(folder.path, output)
 
-    (failed, passed, identical, failed_str, passed_str, identical_str) = sort_entries(all_entries)
+    (failed, passed, identical, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str) = sort_entries(all_entries)
 
     to_clean = []
     to_check = []
@@ -467,7 +489,7 @@ def diff_directory_deep(candidates_path, output_path):
             os.remove(os.path.join(args.goldens, f"{obj.name}.png"))
 
 
-    write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, output_path)
+    write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str, output_path)
 
     print(f"total entries {len(all_entries)}")
     write_min_csv(len(passed), len(failed), len(identical), len(all_entries), output_path + "/issues.csv")
@@ -495,12 +517,13 @@ def main(argv=None):
     if args.recursive:
         diff_directory_deep(args.candidates, args.output)
     else:
-        (entries, missing_candidates, success) = diff_directory_shallow(args.candidates, args.output, args.goldens)
+        (entries, missing, success) = diff_directory_shallow(args.candidates, args.output, args.goldens)
         if len(entries) > 0:
-            (failed, passed, identical, failed_str, passed_str, identical_str) = sort_entries(entries)
-            assert(len(failed) + len(passed) + len(identical) == len(entries))
-            write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, args.output)
+            (failed, passed, identical, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str) = sort_entries(entries)
+            assert(len(failed) + len(passed) + len(identical) + len(missing_candidate_str) + len(missing_golden_str) == len(entries))
+            write_html(TEMPLATE_PATH, failed_str, passed_str, identical_str, missing_golden_str, missing_candidate_str, args.output)
             # note could add these to the html output but w/e
+            missing_candidates = [os.path.basename(entry.candidates_path_abs) for entry in missing if entry.type == 'missing_candidate']
             write_csv(entries, args.goldens, args.candidates, args.output, missing_candidates)
             print("Found", len(entries) - len(identical), "differences.")
 
