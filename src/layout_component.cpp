@@ -495,22 +495,22 @@ void LayoutComponent::syncStyle()
     if (!std::isnan(m_forcedWidth))
     {
         ygStyle.dimensions()[YGDimensionWidth] =
-            YGValue{m_forcedWidth, YGUnitPoint};
+            YGValue{std::max(0.0f, m_forcedWidth), YGUnitPoint};
     }
     else
     {
         ygStyle.dimensions()[YGDimensionWidth] =
-            YGValue{realWidth, realWidthUnits};
+            YGValue{std::max(0.0f, realWidth), realWidthUnits};
     }
     if (!std::isnan(m_forcedHeight))
     {
         ygStyle.dimensions()[YGDimensionHeight] =
-            YGValue{m_forcedHeight, YGUnitPoint};
+            YGValue{std::max(0.0f, m_forcedHeight), YGUnitPoint};
     }
     else
     {
         ygStyle.dimensions()[YGDimensionHeight] =
-            YGValue{realHeight, realHeightUnits};
+            YGValue{std::max(0.0f, realHeight), realHeightUnits};
     }
 
     switch (realWidthScaleType)
