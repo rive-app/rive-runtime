@@ -155,6 +155,7 @@ public:
     BindableProperty* bindablePropertyInstance(
         BindableProperty* bindableProperty) const;
     DataBind* bindableDataBind(BindableProperty* bindableProperty);
+    bool hasListeners() { return m_hitComponents.size() > 0; }
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };
     HitComponent* hitComponent(size_t index)
