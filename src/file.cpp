@@ -31,7 +31,8 @@
 #include "rive/animation/entry_state.hpp"
 #include "rive/animation/exit_state.hpp"
 #include "rive/animation/animation_state.hpp"
-#include "rive/animation/blend_state_1d.hpp"
+#include "rive/animation/blend_state_1d_input.hpp"
+#include "rive/animation/blend_state_1d_viewmodel.hpp"
 #include "rive/animation/blend_state_direct.hpp"
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/data_bind/bindable_property.hpp"
@@ -354,7 +355,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case ExitState::typeKey:
             case AnyState::typeKey:
             case AnimationState::typeKey:
-            case BlendState1D::typeKey:
+            case BlendState1DViewModel::typeKey:
+            case BlendState1DInput::typeKey:
             case BlendStateDirect::typeKey:
                 stackObject = rivestd::make_unique<LayerStateImporter>(
                     object->as<LayerState>());

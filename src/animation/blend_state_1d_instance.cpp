@@ -1,5 +1,8 @@
+#include "rive/animation/blend_state_1d_input.hpp"
 #include "rive/animation/blend_state_1d_instance.hpp"
+#include "rive/animation/blend_state_1d_viewmodel.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"
+#include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/animation/layer_state_flags.hpp"
 
 using namespace rive;
@@ -77,14 +80,31 @@ void BlendState1DInstance::advance(float seconds,
         seconds,
         stateMachineInstance);
 
-    auto blendState = state()->as<BlendState1D>();
     float value = 0.0f;
-    if (blendState->hasValidInputId())
+    if (state()->is<BlendState1DInput>())
     {
-        // TODO: https://github.com/rive-app/rive-cpp/issues/229
-        auto inputInstance = stateMachineInstance->input(blendState->inputId());
-        auto numberInput = static_cast<const SMINumber*>(inputInstance);
-        value = numberInput->value();
+        auto blendState = state()->as<BlendState1DInput>();
+
+        if (blendState->hasValidInputId())
+        {
+            // TODO: https://github.com/rive-app/rive-cpp/issues/229
+            auto inputInstance =
+                stateMachineInstance->input(blendState->inputId());
+            auto numberInput = static_cast<const SMINumber*>(inputInstance);
+            value = numberInput->value();
+        }
+    }
+    else if (state()->is<BlendState1DViewModel>())
+    {
+        auto blendState = state()->as<BlendState1DViewModel>();
+        auto bindablePropertyInstance =
+            stateMachineInstance->bindablePropertyInstance(
+                blendState->bindableProperty());
+        if (bindablePropertyInstance->is<BindablePropertyNumber>())
+        {
+            value = bindablePropertyInstance->as<BindablePropertyNumber>()
+                        ->propertyValue();
+        }
     }
     int index = animationIndex(value);
     auto animationsCount = static_cast<int>(m_AnimationInstances.size());

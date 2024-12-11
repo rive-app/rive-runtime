@@ -26,6 +26,16 @@
       },
       "description": "Direct mix value for this animation."
     },
+    "bindablePropertyId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 736,
+        "string": "bindablepropertyid"
+      },
+      "description": "Direct mix value for this animation.",
+      "runtime": false
+    },
     "blendSource": {
       "type": "uint",
       "initialValue": "0",
@@ -33,7 +43,7 @@
         "int": 298,
         "string": "blendsource"
       },
-      "description": "Source to use when establishing the mix value for the animation. 0 means look at the input, 1 look at the mixValue."
+      "description": "Source to use when establishing the mix value for the animation. 0 means look at the input, 1 look at the mixValue, 2 look at the bindableProperty."
     }
   }
 }

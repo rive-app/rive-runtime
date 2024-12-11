@@ -1,7 +1,8 @@
 #include "rive/artboard.hpp"
 #include "rive/animation/blend_state_transition.hpp"
 #include "rive/animation/blend_state_instance.hpp"
-#include "rive/animation/blend_state_1d.hpp"
+#include "rive/animation/blend_state_1d_input.hpp"
+#include "rive/animation/blend_state_1d_viewmodel.hpp"
 #include "rive/animation/blend_state_direct.hpp"
 #include "rive/animation/blend_state_1d_instance.hpp"
 #include "rive/animation/blend_state_direct_instance.hpp"
@@ -15,7 +16,8 @@ const LinearAnimationInstance* BlendStateTransition::exitTimeAnimationInstance(
     {
         switch (from->state()->coreType())
         {
-            case BlendState1D::typeKey:
+            case BlendState1DInput::typeKey:
+            case BlendState1DViewModel::typeKey:
 
                 return static_cast<const BlendState1DInstance*>(from)
                     ->animationInstance(m_ExitBlendAnimation);
