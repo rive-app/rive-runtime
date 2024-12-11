@@ -23,6 +23,8 @@ public:
     }
     const std::vector<DataConverterGroupItem*>& items() { return m_items; }
     Core* clone() const override;
+    void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
+    void update() override;
 
 private:
     std::vector<DataConverterGroupItem*> m_items;

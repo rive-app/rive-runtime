@@ -98,3 +98,23 @@ void DataConverterRangeMapper::interpolator(KeyFrameInterpolator* interpolator)
 {
     m_interpolator = interpolator;
 }
+
+DataValue* DataConverterRangeMapper::convert(DataValue* input,
+                                             DataBind* dataBind)
+{
+    return calculateRange(input,
+                          minInput(),
+                          maxInput(),
+                          minOutput(),
+                          maxOutput());
+}
+
+DataValue* DataConverterRangeMapper::reverseConvert(DataValue* input,
+                                                    DataBind* dataBind)
+{
+    return calculateReverseRange(input,
+                                 minInput(),
+                                 maxInput(),
+                                 minOutput(),
+                                 maxOutput());
+}

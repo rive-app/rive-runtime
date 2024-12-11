@@ -49,3 +49,28 @@ Core* DataConverterGroup::clone() const
     }
     return cloned;
 }
+
+void DataConverterGroup::bindFromContext(DataContext* dataContext,
+                                         DataBind* dataBind)
+{
+    for (auto item : m_items)
+    {
+        auto converter = item->converter();
+        if (converter != nullptr)
+        {
+            converter->bindFromContext(dataContext, dataBind);
+        }
+    }
+}
+
+void DataConverterGroup::update()
+{
+    for (auto item : m_items)
+    {
+        auto converter = item->converter();
+        if (converter != nullptr)
+        {
+            converter->update();
+        }
+    }
+}

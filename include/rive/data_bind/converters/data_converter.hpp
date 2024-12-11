@@ -10,6 +10,7 @@ class DataBind;
 class DataConverter : public DataConverterBase
 {
 public:
+    ~DataConverter();
     virtual DataValue* convert(DataValue* value, DataBind* dataBind)
     {
         return value;
@@ -19,9 +20,17 @@ public:
         return value;
     };
     virtual DataType outputType() { return DataType::none; };
-    virtual void bindFromContext(DataContext* dataContext,
-                                 DataBind* dataBind){};
+    virtual void bindFromContext(DataContext* dataContext, DataBind* dataBind);
     StatusCode import(ImportStack& importStack) override;
+    void addDataBind(DataBind* dataBind);
+    std::vector<DataBind*> dataBinds() const { return m_dataBinds; }
+    void addDirt(ComponentDirt dirt);
+    virtual void update();
+    void copy(const DataConverter& object);
+
+private:
+    std::vector<DataBind*> m_dataBinds;
+    DataBind* m_parentDataBind;
 };
 } // namespace rive
 

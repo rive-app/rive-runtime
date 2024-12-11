@@ -25,6 +25,8 @@ protected:
 public:
     void interpolator(KeyFrameInterpolator* interpolator);
     DataType outputType() override { return DataType::number; };
+    DataValue* convert(DataValue* value, DataBind* dataBind) override;
+    DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
 
 private:
     DataValueNumber m_output;

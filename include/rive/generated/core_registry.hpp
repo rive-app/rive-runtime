@@ -135,7 +135,6 @@
 #include "rive/data_bind/converters/data_converter_operation_value.hpp"
 #include "rive/data_bind/converters/data_converter_operation_viewmodel.hpp"
 #include "rive/data_bind/converters/data_converter_range_mapper.hpp"
-#include "rive/data_bind/converters/data_converter_range_mapper_values.hpp"
 #include "rive/data_bind/converters/data_converter_rounder.hpp"
 #include "rive/data_bind/converters/data_converter_system_degs_to_rads.hpp"
 #include "rive/data_bind/converters/data_converter_system_normalizer.hpp"
@@ -538,6 +537,8 @@ public:
                 return new DataConverterOperationValue();
             case DataConverterSystemDegsToRadsBase::typeKey:
                 return new DataConverterSystemDegsToRads();
+            case DataConverterRangeMapperBase::typeKey:
+                return new DataConverterRangeMapper();
             case DataConverterSystemNormalizerBase::typeKey:
                 return new DataConverterSystemNormalizer();
             case DataConverterGroupItemBase::typeKey:
@@ -548,8 +549,6 @@ public:
                 return new DataConverterRounder();
             case DataConverterTriggerBase::typeKey:
                 return new DataConverterTrigger();
-            case DataConverterRangeMapperValuesBase::typeKey:
-                return new DataConverterRangeMapperValues();
             case DataConverterOperationViewModelBase::typeKey:
                 return new DataConverterOperationViewModel();
             case DataConverterToStringBase::typeKey:
@@ -1841,21 +1840,17 @@ public:
             case DataConverterOperationValueBase::valuePropertyKey:
                 object->as<DataConverterOperationValueBase>()->value(value);
                 break;
-            case DataConverterRangeMapperValuesBase::minInputPropertyKey:
-                object->as<DataConverterRangeMapperValuesBase>()->minInput(
-                    value);
+            case DataConverterRangeMapperBase::minInputPropertyKey:
+                object->as<DataConverterRangeMapperBase>()->minInput(value);
                 break;
-            case DataConverterRangeMapperValuesBase::maxInputPropertyKey:
-                object->as<DataConverterRangeMapperValuesBase>()->maxInput(
-                    value);
+            case DataConverterRangeMapperBase::maxInputPropertyKey:
+                object->as<DataConverterRangeMapperBase>()->maxInput(value);
                 break;
-            case DataConverterRangeMapperValuesBase::minOutputPropertyKey:
-                object->as<DataConverterRangeMapperValuesBase>()->minOutput(
-                    value);
+            case DataConverterRangeMapperBase::minOutputPropertyKey:
+                object->as<DataConverterRangeMapperBase>()->minOutput(value);
                 break;
-            case DataConverterRangeMapperValuesBase::maxOutputPropertyKey:
-                object->as<DataConverterRangeMapperValuesBase>()->maxOutput(
-                    value);
+            case DataConverterRangeMapperBase::maxOutputPropertyKey:
+                object->as<DataConverterRangeMapperBase>()->maxOutput(value);
                 break;
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 object->as<BindablePropertyNumberBase>()->propertyValue(value);
@@ -2885,18 +2880,14 @@ public:
                 return object->as<JoystickBase>()->height();
             case DataConverterOperationValueBase::valuePropertyKey:
                 return object->as<DataConverterOperationValueBase>()->value();
-            case DataConverterRangeMapperValuesBase::minInputPropertyKey:
-                return object->as<DataConverterRangeMapperValuesBase>()
-                    ->minInput();
-            case DataConverterRangeMapperValuesBase::maxInputPropertyKey:
-                return object->as<DataConverterRangeMapperValuesBase>()
-                    ->maxInput();
-            case DataConverterRangeMapperValuesBase::minOutputPropertyKey:
-                return object->as<DataConverterRangeMapperValuesBase>()
-                    ->minOutput();
-            case DataConverterRangeMapperValuesBase::maxOutputPropertyKey:
-                return object->as<DataConverterRangeMapperValuesBase>()
-                    ->maxOutput();
+            case DataConverterRangeMapperBase::minInputPropertyKey:
+                return object->as<DataConverterRangeMapperBase>()->minInput();
+            case DataConverterRangeMapperBase::maxInputPropertyKey:
+                return object->as<DataConverterRangeMapperBase>()->maxInput();
+            case DataConverterRangeMapperBase::minOutputPropertyKey:
+                return object->as<DataConverterRangeMapperBase>()->minOutput();
+            case DataConverterRangeMapperBase::maxOutputPropertyKey:
+                return object->as<DataConverterRangeMapperBase>()->maxOutput();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyNumberBase>()
                     ->propertyValue();
@@ -3381,10 +3372,10 @@ public:
             case JoystickBase::widthPropertyKey:
             case JoystickBase::heightPropertyKey:
             case DataConverterOperationValueBase::valuePropertyKey:
-            case DataConverterRangeMapperValuesBase::minInputPropertyKey:
-            case DataConverterRangeMapperValuesBase::maxInputPropertyKey:
-            case DataConverterRangeMapperValuesBase::minOutputPropertyKey:
-            case DataConverterRangeMapperValuesBase::maxOutputPropertyKey:
+            case DataConverterRangeMapperBase::minInputPropertyKey:
+            case DataConverterRangeMapperBase::maxInputPropertyKey:
+            case DataConverterRangeMapperBase::minOutputPropertyKey:
+            case DataConverterRangeMapperBase::maxOutputPropertyKey:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::alignmentXPropertyKey:
             case NestedArtboardLeafBase::alignmentYPropertyKey:
@@ -4217,14 +4208,14 @@ public:
                 return object->is<JoystickBase>();
             case DataConverterOperationValueBase::valuePropertyKey:
                 return object->is<DataConverterOperationValueBase>();
-            case DataConverterRangeMapperValuesBase::minInputPropertyKey:
-                return object->is<DataConverterRangeMapperValuesBase>();
-            case DataConverterRangeMapperValuesBase::maxInputPropertyKey:
-                return object->is<DataConverterRangeMapperValuesBase>();
-            case DataConverterRangeMapperValuesBase::minOutputPropertyKey:
-                return object->is<DataConverterRangeMapperValuesBase>();
-            case DataConverterRangeMapperValuesBase::maxOutputPropertyKey:
-                return object->is<DataConverterRangeMapperValuesBase>();
+            case DataConverterRangeMapperBase::minInputPropertyKey:
+                return object->is<DataConverterRangeMapperBase>();
+            case DataConverterRangeMapperBase::maxInputPropertyKey:
+                return object->is<DataConverterRangeMapperBase>();
+            case DataConverterRangeMapperBase::minOutputPropertyKey:
+                return object->is<DataConverterRangeMapperBase>();
+            case DataConverterRangeMapperBase::maxOutputPropertyKey:
+                return object->is<DataConverterRangeMapperBase>();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyNumberBase>();
             case NestedArtboardLeafBase::alignmentXPropertyKey:
