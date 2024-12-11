@@ -126,3 +126,11 @@ ViewModelInstanceValue* ViewModelInstance::propertyFromPath(
     }
     return nullptr;
 }
+
+void ViewModelInstance::advanced()
+{
+    for (auto value : m_PropertyValues)
+    {
+        value->advanced();
+    }
+}

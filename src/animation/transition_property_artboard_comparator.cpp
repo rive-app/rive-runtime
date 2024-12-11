@@ -37,7 +37,8 @@ float TransitionPropertyArtboardComparator::propertyValue(
 bool TransitionPropertyArtboardComparator::compare(
     TransitionComparator* comparand,
     TransitionConditionOp operation,
-    const StateMachineInstance* stateMachineInstance)
+    const StateMachineInstance* stateMachineInstance,
+    bool ignoreTriggers)
 {
     auto value = propertyValue(stateMachineInstance);
     if (comparand->is<TransitionPropertyViewModelComparator>())

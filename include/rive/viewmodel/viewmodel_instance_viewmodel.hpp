@@ -21,6 +21,7 @@ public:
         return m_referenceViewModelInstance;
     }
     void setRoot(ViewModelInstance* value) override;
+    void advanced() override;
 };
 } // namespace rive
 

@@ -1507,9 +1507,17 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     return m_needsAdvance || !m_reportedEvents.empty();
 }
 
+void StateMachineInstance::advancedDataContext()
+{
+    if (m_DataContext != nullptr)
+    {
+        m_DataContext->viewModelInstance()->advanced();
+    }
+}
+
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
-
+    advancedDataContext();
     bool keepGoing = this->advance(seconds, true);
     if (m_artboardInstance->advanceInternal(
             seconds,

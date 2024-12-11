@@ -156,8 +156,7 @@ AllowTransition StateTransition::allowed(
 
     for (auto condition : m_Conditions)
     {
-        if ((ignoreTriggers && condition->is<TransitionTriggerCondition>()) ||
-            !condition->evaluate(stateMachineInstance))
+        if (!condition->evaluate(stateMachineInstance, ignoreTriggers))
         {
             return AllowTransition::no;
         }

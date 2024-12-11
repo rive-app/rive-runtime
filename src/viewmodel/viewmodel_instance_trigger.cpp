@@ -17,3 +17,5 @@ void ViewModelInstanceTrigger::propertyValueChanged()
     }
 #endif
 }
+
+void ViewModelInstanceTrigger::advanced() { propertyValue(0); }

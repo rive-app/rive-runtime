@@ -127,7 +127,8 @@ bool TransitionComparator::compareColors(int left,
 bool TransitionComparator::compare(
     TransitionComparator* comparand,
     TransitionConditionOp operation,
-    const StateMachineInstance* stateMachineInstance)
+    const StateMachineInstance* stateMachineInstance,
+    bool ignoreTriggers)
 {
     return false;
 }

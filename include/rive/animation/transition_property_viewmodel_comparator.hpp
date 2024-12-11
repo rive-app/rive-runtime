@@ -13,7 +13,8 @@ public:
     StatusCode import(ImportStack& importStack) override;
     bool compare(TransitionComparator* comparand,
                  TransitionConditionOp operation,
-                 const StateMachineInstance* stateMachineInstance) override;
+                 const StateMachineInstance* stateMachineInstance,
+                 bool ignoreTriggers) override;
     template <typename T = BindableProperty, typename U>
     U value(const StateMachineInstance* stateMachineInstance)
     {

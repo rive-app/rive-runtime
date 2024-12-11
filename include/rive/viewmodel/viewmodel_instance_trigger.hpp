@@ -13,8 +13,10 @@ class ViewModelInstanceTrigger : public ViewModelInstanceTriggerBase
 {
 protected:
     void propertyValueChanged() override;
-#ifdef WITH_RIVE_TOOLS
+
 public:
+    void advanced() override;
+#ifdef WITH_RIVE_TOOLS
     void onChanged(ViewModelTriggerChanged callback)
     {
         m_changedCallback = callback;

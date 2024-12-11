@@ -10,8 +10,8 @@ protected:
     bool validateInputType(const StateMachineInput* input) const override;
 
 public:
-    bool evaluate(
-        const StateMachineInstance* stateMachineInstance) const override;
+    bool evaluate(const StateMachineInstance* stateMachineInstance,
+                  bool ignoreTriggers) const override;
 };
 } // namespace rive
 

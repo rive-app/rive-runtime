@@ -28,6 +28,7 @@ public:
     void setRoot(ViewModelInstance* value);
     Core* clone() const override;
     StatusCode import(ImportStack& importStack) override;
+    void advanced();
 };
 } // namespace rive
 

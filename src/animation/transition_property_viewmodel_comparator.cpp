@@ -34,7 +34,8 @@ StatusCode TransitionPropertyViewModelComparator::import(
 bool TransitionPropertyViewModelComparator::compare(
     TransitionComparator* comparand,
     TransitionConditionOp operation,
-    const StateMachineInstance* stateMachineInstance)
+    const StateMachineInstance* stateMachineInstance,
+    bool ignoreTriggers)
 {
     switch (m_bindableProperty->coreType())
     {
@@ -151,6 +152,10 @@ bool TransitionPropertyViewModelComparator::compare(
             }
             break;
         case BindablePropertyTrigger::typeKey:
+            if (ignoreTriggers)
+            {
+                return false;
+            }
             if (comparand->is<TransitionPropertyViewModelComparator>())
             {
                 auto rightValue =
@@ -164,20 +169,12 @@ bool TransitionPropertyViewModelComparator::compare(
             }
             else if (comparand->is<TransitionValueTriggerComparator>())
             {
-                auto rightValue =
-                    comparand->as<TransitionValueTriggerComparator>()->value();
                 auto leftValue = value<BindablePropertyTrigger, uint32_t>(
                     stateMachineInstance);
-                auto result = compareTriggers(leftValue, rightValue, operation);
-                // For trigger comparisons, the comparand is reset to the
-                // last propertyValue of the view model instance so it doesn't
-                // trigger more than once.
-                if (result)
+                if (leftValue != 0)
                 {
-                    comparand->as<TransitionValueTriggerComparator>()->value(
-                        leftValue);
+                    return true;
                 }
-                return result;
             }
             break;
     }

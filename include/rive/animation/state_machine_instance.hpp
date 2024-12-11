@@ -66,7 +66,7 @@ private:
                                           bool ignoreTriggers);
     StateTransition* findAllowedTransition(StateInstance* stateFromInstance,
                                            bool ignoreTriggers);
-    DataContext* m_DataContext;
+    DataContext* m_DataContext = nullptr;
 
 public:
     StateMachineInstance(const StateMachine* machine,
@@ -109,6 +109,7 @@ public:
     const LayerState* stateChangedByIndex(size_t index) const;
 
     bool advanceAndApply(float secs) override;
+    void advancedDataContext();
     std::string name() const override;
     HitResult pointerMove(Vec2D position) override;
     HitResult pointerDown(Vec2D position) override;

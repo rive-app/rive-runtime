@@ -16,3 +16,11 @@ void ViewModelInstanceViewModel::setRoot(ViewModelInstance* value)
     Super::setRoot(value);
     referenceViewModelInstance()->setRoot(value);
 }
+
+void ViewModelInstanceViewModel::advanced()
+{
+    if (referenceViewModelInstance() != nullptr)
+    {
+        referenceViewModelInstance()->advanced();
+    }
+}

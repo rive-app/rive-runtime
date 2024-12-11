@@ -15,7 +15,8 @@ bool TransitionBoolCondition::validateInputType(
 }
 
 bool TransitionBoolCondition::evaluate(
-    const StateMachineInstance* stateMachineInstance) const
+    const StateMachineInstance* stateMachineInstance,
+    bool ignoreTriggers) const
 {
     auto inputInstance = stateMachineInstance->input(inputId());
     if (inputInstance == nullptr)

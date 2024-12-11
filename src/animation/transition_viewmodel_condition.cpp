@@ -9,13 +9,15 @@
 using namespace rive;
 
 bool TransitionViewModelCondition::evaluate(
-    const StateMachineInstance* stateMachineInstance) const
+    const StateMachineInstance* stateMachineInstance,
+    bool ignoreTriggers) const
 {
     if (leftComparator() != nullptr && rightComparator() != nullptr)
     {
         return leftComparator()->compare(rightComparator(),
                                          op(),
-                                         stateMachineInstance);
+                                         stateMachineInstance,
+                                         ignoreTriggers);
     }
     return false;
 }

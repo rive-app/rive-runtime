@@ -5,7 +5,8 @@ using namespace rive;
 bool TransitionValueNumberComparator::compare(
     TransitionComparator* comparand,
     TransitionConditionOp operation,
-    const StateMachineInstance* stateMachineInstance)
+    const StateMachineInstance* stateMachineInstance,
+    bool ignoreTriggers)
 {
     if (comparand->is<TransitionValueNumberComparator>())
     {
