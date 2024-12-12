@@ -173,7 +173,9 @@ else
         RIVE_OUT="out/$RIVE_OUT"
     fi
 
-    if [[ "$HOST_MACHINE" = "windows" ]]; then
+    if [[ $RIVE_OS = "android" ]] || [[ $RIVE_ARCH = "wasm" ]]; then
+        RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-ninja}"
+    elif [[ "$HOST_MACHINE" = "windows" ]]; then
         RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-vs2022}"
     else
         RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-gmake2}"
@@ -226,12 +228,14 @@ fi
 
 # Setup emscripten.
 if [[ $RIVE_ARCH = "wasm" ]]; then
-    if [ ! -d emsdk ]; then
-        git clone https://github.com/emscripten-core/emsdk.git
-        emsdk/emsdk install 3.1.61
-        emsdk/emsdk activate 3.1.61
+    RIVE_EMSDK_VERSION="${RIVE_EMSDK_VERSION:-3.1.61}"
+    if [ ! -d "emsdk_${RIVE_EMSDK_VERSION}" ]; then
+        echo Installing emsdk ${RIVE_EMSDK_VERSION}...
+        git clone https://github.com/emscripten-core/emsdk.git emsdk_${RIVE_EMSDK_VERSION}
+        "emsdk_${RIVE_EMSDK_VERSION}/emsdk" install ${RIVE_EMSDK_VERSION}
+        "emsdk_${RIVE_EMSDK_VERSION}/emsdk" activate ${RIVE_EMSDK_VERSION}
     fi
-    source emsdk/emsdk_env.sh
+    source "emsdk_${RIVE_EMSDK_VERSION}/emsdk_env.sh"
 fi
 
 popd > /dev/null # leave "$SCRIPT_DIR/dependencies"
