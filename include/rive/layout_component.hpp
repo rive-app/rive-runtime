@@ -135,7 +135,6 @@ protected:
         return nullptr;
     }
     bool isDisplayHidden() const;
-    bool isCollapsed() const override;
     void propagateCollapse(bool collapse);
 
 private:

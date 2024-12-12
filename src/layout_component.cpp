@@ -198,16 +198,11 @@ bool LayoutComponent::isDisplayHidden() const
     return false;
 }
 
-bool LayoutComponent::isCollapsed() const
-{
-    return Super::isCollapsed() || isDisplayHidden();
-}
-
 void LayoutComponent::propagateCollapse(bool collapse)
 {
     for (Component* child : children())
     {
-        child->collapse(collapse);
+        child->collapse(collapse || isDisplayHidden());
     }
 }
 
@@ -252,6 +247,7 @@ StatusCode LayoutComponent::onAddedClean(CoreContext* context)
     m_backgroundRect.originX(0);
     m_backgroundRect.originY(0);
     syncLayoutChildren();
+    propagateCollapse(isCollapsed());
     return StatusCode::Ok;
 }
 
