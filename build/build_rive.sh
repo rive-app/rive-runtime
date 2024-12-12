@@ -195,7 +195,7 @@ pushd "$SCRIPT_DIR/dependencies" > /dev/null
 # Setup premake5.
 if [ ! -d premake-core ]; then
     echo Building Premake...
-    git clone https://github.com/premake/premake-core.git
+    git clone -b v5.0.0-beta3 https://github.com/premake/premake-core.git
     pushd premake-core > /dev/null
     case "$HOST_MACHINE" in
         mac_arm64) make -f Bootstrap.mak osx PLATFORM=ARM ;;
