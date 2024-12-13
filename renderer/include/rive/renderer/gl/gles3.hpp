@@ -120,6 +120,7 @@ struct GLCapabilities
     int contextVersionMinor;
     bool isGLES : 1;
     bool isANGLEOrWebGL : 1;
+    bool isPowerVR : 1;
     bool ANGLE_base_vertex_base_instance_shader_builtin : 1;
     bool ANGLE_shader_pixel_local_storage : 1;
     bool ANGLE_shader_pixel_local_storage_coherent : 1;
