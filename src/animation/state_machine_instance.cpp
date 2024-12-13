@@ -742,6 +742,16 @@ public:
             if (!canSkip)
             {
                 auto localWorld = inverseWorld * position;
+                if (layout->is<Artboard>())
+                {
+                    auto artboard = layout->as<Artboard>();
+                    if (artboard->frameOrigin())
+                    {
+                        localWorld += Vec2D(
+                            artboard->originX() * artboard->layoutWidth(),
+                            artboard->originY() * artboard->layoutHeight());
+                    }
+                }
                 if (!layout->localBounds().contains(localWorld))
                 {
                     return false;

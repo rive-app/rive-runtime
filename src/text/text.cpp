@@ -1020,7 +1020,7 @@ Vec2D Text::measure(Vec2D maxSize)
         if (textOrigin() == TextOrigin::baseline && !lines.empty() &&
             !lines[0].empty())
         {
-            y -= m_lines[0][0].baseline;
+            y -= lines[0][0].baseline;
             minY = y;
         }
         int ellipsisLine = -1;
