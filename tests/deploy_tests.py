@@ -67,6 +67,9 @@ parser.add_argument("-t", "--target",
                     default="host",
                     choices=["host", "android", "ios", "iossim", "unreal"],
                     help="which platform to run on")
+parser.add_argument("-a", "--android-arch",
+                    default="arm64",
+                    choices=["arm", "arm64"])
 parser.add_argument("-u", "--ios_udid",
                     type=str,
                     default=None,
@@ -467,7 +470,7 @@ def main():
     if args.target == "android":
         args.jobs_per_tool = 1 # Android can only launch one process at a time.
         if args.builddir == None:
-            args.builddir = "out/android_arm64_debug"
+            args.builddir = f"out/android_{args.android_arch}_debug"
         if args.backend == None:
             args.backend = "gl"
     elif args.target == "ios":
@@ -545,25 +548,35 @@ def main():
     if not args.no_install:
         if args.target == "android":
             # Copy the native libraries into the android_tests project.
-            jni_dir = os.path.join("android_tests", "app", "src", "main", "jniLibs")
-            android_arch = "arm64-v8a" # TODO: support more android architectures if needed.
-            os.makedirs(os.path.join(jni_dir, android_arch), exist_ok=True)
+            jnidir = os.path.join("android_tests", "app", "src", "main", "jniLibs")
+            shutil.rmtree(jnidir, ignore_errors=True)
+            if args.android_arch == "arm64":
+                arch_full_name = "arm64-v8a"
+            else:
+                assert(args.android_arch == "arm")
+                arch_full_name = "armeabi-v7a"
+            os.makedirs(os.path.join(jnidir, arch_full_name))
             for tool in build_targets:
                 sharedlib = "lib%s.so" % tool
-                shutil.copy(os.path.join(args.builddir, sharedlib), os.path.join(jni_dir, android_arch))
-            layerpath = os.path.join(jni_dir, android_arch, "libVkLayer_khronos_validation.so")
-            if args.backend in ["vk", "vulkan", "sw", "swiftshader"] and not os.path.exists(layerpath):
-                # Download & bundle the Vulkan validation layers.
-                print("Downloading Android Vulkan validation layers...", flush=True)
-                url = "https://github.com/KhronosGroup/Vulkan-ValidationLayers/releases/download/"\
-                      "vulkan-sdk-1.3.290.0/android-binaries-1.3.290.0.zip"
-                zipfile.ZipFile(urllib.request.urlretrieve(url)[0], 'r').extractall()
-                for lib in glob.glob("android-binaries-1.3.290.0/**/*.so", recursive=True):
-                    dst = lib.replace("android-binaries-1.3.290.0", jni_dir)
+                shutil.copy(os.path.join(args.builddir, sharedlib),
+                            os.path.join(jnidir, arch_full_name))
+            if args.backend in ["vk", "vulkan", "sw", "swiftshader"]:
+                layerpath = os.path.join("dependencies", "Vulkan-ValidationLayers")
+                if not os.path.exists(layerpath):
+                    # Download the Vulkan validation layers.
+                    print("Downloading Android Vulkan validation layers...", flush=True)
+                    url = "https://github.com/KhronosGroup/Vulkan-ValidationLayers/releases/download/"\
+                          "vulkan-sdk-1.3.290.0/android-binaries-1.3.290.0.zip"
+                    zipfile.ZipFile(urllib.request.urlretrieve(url)[0], 'r').extractall(path=layerpath)
+                # Bundle the Vulkan validation layers.
+                for lib in glob.glob(os.path.join(layerpath,
+                                                  "android-binaries-1.3.290.0",
+                                                  arch_full_name,
+                                                  "*.so")):
+                    dst = os.path.join(jnidir, arch_full_name, os.path.basename(lib))
                     print("  bundling %s -> %s" % (lib, dst), flush=True)
-                    os.makedirs(os.path.dirname(dst), exist_ok=True)
-                    shutil.move(lib, dst)
-                shutil.rmtree("android-binaries-1.3.290.0")
+                    shutil.copy(lib, dst)
+
             # Build the android_tests wrapper app.
             cwd = os.getcwd()
             os.chdir(os.path.join(rive_tools_dir, "android_tests"))

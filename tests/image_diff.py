@@ -103,11 +103,11 @@ def main():
         status.write(args.name + "\t");
         if candidate is None:
             status.write("missing_candidate\n")
-            verbose_log("missing golden for", args.name)
+            verbose_log("missing golden for " + args.name)
             return
         if golden is None:
             status.write("missing_golden\n")
-            verbose_log("missing golden for", args.name)
+            verbose_log("missing golden for " + args.name)
             return
         if failed:
             status.write("failed\n")

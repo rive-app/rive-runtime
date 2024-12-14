@@ -419,9 +419,11 @@ public:
         }
 #endif
 
+        auto rendererStr =
+            reinterpret_cast<const char*>(glGetString(GL_RENDERER));
         printf("==== EGL GPU: OpenGL %s; %s; %s ====\n",
                glGetString(GL_VENDOR),
-               glGetString(GL_RENDERER),
+               rendererStr,
                glGetString(GL_VERSION));
 
         int extensionCount;
@@ -431,7 +433,10 @@ public:
         {
             auto* ext =
                 reinterpret_cast<const char*>(glGetStringi(GL_EXTENSIONS, i));
-            if (strcmp(ext, "GL_KHR_debug") == 0)
+            if (strcmp(ext, "GL_KHR_debug") == 0 &&
+                // Our shader compiles can take over 30 SECONDS on PowerVR when
+                // debug output is enabled. Just don't use it.
+                !strstr(rendererStr, "PowerVR"))
             {
                 glEnable(GL_DEBUG_OUTPUT_KHR);
                 glEnable(GL_DEBUG_OUTPUT_SYNCHRONOUS_KHR);

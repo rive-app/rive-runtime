@@ -257,6 +257,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
 #define lessThan(A, B) ((A) < (B))
+#define greaterThan(A, B) ((A) > (B))
 #define greaterThanEqual(A, B) ((A) >= (B))
 
 // HLSL matrices are stored in row-major order, and therefore transposed from

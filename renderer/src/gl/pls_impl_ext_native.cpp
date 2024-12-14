@@ -34,10 +34,6 @@ public:
         std::ostringstream glsl;
         glsl << "#version 300 es\n";
         glsl << "#define " GLSL_FRAGMENT "\n";
-        if (combinedShaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING)
-        {
-            glsl << "#define " GLSL_ENABLE_CLIPPING "\n";
-        }
         BuildLoadStoreEXTGLSL(glsl, actions);
         GLuint fragmentShader =
             glutils::CompileRawGLSL(GL_FRAGMENT_SHADER, glsl.str().c_str());

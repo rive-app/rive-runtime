@@ -134,8 +134,10 @@ class TestEntry(object):
         if (self.histogram is not None and
             other.histogram is not None and
             self.histogram != other.histogram):
-            return self.histogram < other.histogram
+            # LOWER histogram values mean worse matches. Sort the bad matches first.
+            return self.histogram > other.histogram
         else:
+            # HIGHER avg values mean worse matches. Sort the bad matches first.
             return self.avg < other.avg
 
     def __str__(self):

@@ -49,6 +49,7 @@
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
 #define lessThan(A, B) ((A) < (B))
+#define greaterThan(A, B) ((A) > (B))
 #define greaterThanEqual(A, B) ((A) >= (B))
 #define MUL(A, B) ((A) * (B))
 #define atan $atan2

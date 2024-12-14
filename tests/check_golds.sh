@@ -8,7 +8,13 @@ elif [[ "$OSTYPE" == "msys" ]]; then
 else
     DEFAULT_BACKEND=gl
 fi
-ARGS=
+
+NUMBER_OF_PROCESSORS="${NUMBER_OF_PROCESSORS:-$(nproc 2>/dev/null || sysctl -n hw.physicalcpu)}"
+if [[ $NUMBER_OF_PROCESSORS > 20 ]]; then
+    ARGS=-j6
+else
+    ARGS=-j4
+fi
 
 while :; do
     case $1 in
@@ -29,10 +35,13 @@ while :; do
             UDID="$(xcrun simctl list devices | grep '(Booted)' | sed 's/^[^(]*(\([A-Z0-9\-]*\)) (Booted).*$/\1/')"
             shift
         ;;
-        -a)
+        -a|-a32)
             TARGET="android"
             DEFAULT_BACKEND=gl
             SERIAL="$(adb get-serialno)"
+            if [[ "$1" == "-a32" ]]; then
+                ARGS="--android-arch arm"
+            fi
             shift
         ;;
         -R)
@@ -85,23 +94,16 @@ do
         ID="android_$SERIAL/$BACKEND"
     fi
     
-    NUMBER_OF_PROCESSORS="${NUMBER_OF_PROCESSORS:-$(nproc 2>/dev/null || sysctl -n hw.physicalcpu)}"
-    if [[ $NUMBER_OF_PROCESSORS > 20 ]]; then
-        GOLDEN_JOBS=6
-    else
-        GOLDEN_JOBS=4
-    fi
-    
     if [ "$REBASELINE" == true ]; then
         echo
         echo "Rebaselining $ID..."
         rm -fr .gold/$ID
-        python3 deploy_tests.py gms goldens -j$GOLDEN_JOBS $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD
+        python3 deploy_tests.py gms goldens $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD
     else
         echo
         echo "Checking $ID..."
         rm -fr .gold/candidates/$ID
-        python3 deploy_tests.py gms goldens -j$GOLDEN_JOBS $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
+        python3 deploy_tests.py gms goldens $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
         
         echo
         echo "Checking $ID..."

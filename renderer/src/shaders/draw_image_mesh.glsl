@@ -164,9 +164,8 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     }
 
     PLS_STORE4F(colorBuffer, color);
-#ifdef @ENABLE_CLIPPING
     PLS_PRESERVE_UI(clipBuffer);
-#endif
+    PLS_PRESERVE_UI(coverageCountBuffer);
 
     PLS_INTERLOCK_END;
 

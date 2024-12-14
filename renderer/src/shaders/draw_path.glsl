@@ -361,6 +361,7 @@ PLS_MAIN(@drawFragmentMain)
 
 #ifdef @DRAW_INTERIOR_TRIANGLES
     coverageCount += v_windingWeight;
+    PLS_PRESERVE_UI(coverageCountBuffer);
 #else
     if (v_edgeDistance.y >= .0) // Stroke.
         coverageCount =
@@ -456,7 +457,6 @@ PLS_MAIN(@drawFragmentMain)
                                ? min(clipData.r, coverage)
                                : make_half(.0);
             }
-            PLS_PRESERVE_UI(clipBuffer);
         }
 #endif
 #ifdef @ENABLE_CLIP_RECT
@@ -509,6 +509,7 @@ PLS_MAIN(@drawFragmentMain)
         }
 
         PLS_STORE4F(colorBuffer, color);
+        PLS_PRESERVE_UI(clipBuffer);
     }
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
