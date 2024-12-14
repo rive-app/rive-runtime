@@ -84,6 +84,17 @@ public:
             copyFrameDescriptor.clearColor = 0xffff0000;
             renderContext->beginFrame(std::move(copyFrameDescriptor));
             originalRenderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
+            if (plsImplGL->capabilities().isAndroidANGLE)
+            {
+                // Some android devices shipping with ANGLE have a
+                // syncronization issue drawing this texture into the main
+                // framebuffer. glFinish is a very heavy handed workaround, but
+                // it's the only one so far to work.
+                // Sadly, we can't incorporate a workaround this heavy into the
+                // main GL runtime. Apps that run into it will have to come up
+                // with the best workaround for them.
+                glFinish();
+            }
             plsImplGL->blitTextureToFramebufferAsDraw(m_offscreenTex,
                                                       {0, 0, 256, 256},
                                                       256);

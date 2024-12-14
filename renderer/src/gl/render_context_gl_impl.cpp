@@ -1683,10 +1683,24 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
     else
     {
-        // Depth/stencil don't need to be written out.
-        glInvalidateFramebuffer(GL_DRAW_FRAMEBUFFER,
+        // Depth/stencil can be discarded.
+        glInvalidateFramebuffer(GL_FRAMEBUFFER,
                                 2,
                                 msaaDepthStencilColor.data());
+        if (msaaResolveAction ==
+            RenderTargetGL::MSAAResolveAction::framebufferBlit)
+        {
+            renderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
+            glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
+                                     renderTarget->height(),
+                                     GL_COLOR_BUFFER_BIT);
+            // Now that color is resolved elsewhere we can discard the MSAA
+            // color buffer as well.
+            glInvalidateFramebuffer(GL_READ_FRAMEBUFFER,
+                                    1,
+                                    msaaDepthStencilColor.data() + 2);
+        }
+
         if ((desc.combinedShaderFeatures &
              gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
             m_capabilities.KHR_blend_equation_advanced_coherent)
@@ -1695,14 +1709,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
         glDisable(GL_DEPTH_TEST);
         glDisable(GL_STENCIL_TEST);
-        if (msaaResolveAction ==
-            RenderTargetGL::MSAAResolveAction::framebufferBlit)
-        {
-            renderTarget->bindDestinationFramebuffer(GL_DRAW_FRAMEBUFFER);
-            glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                     renderTarget->height(),
-                                     GL_COLOR_BUFFER_BIT);
-        }
         if (clipPlanesEnabled)
         {
             glDisable(GL_CLIP_DISTANCE0_EXT);
@@ -1779,10 +1785,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 #endif
     if (capabilities.isGLES)
     {
-#ifdef RIVE_WEBGL
-        capabilities.isANGLEOrWebGL = true;
-#else
-        capabilities.isANGLEOrWebGL = strstr(glVersionStr, "ANGLE") != NULL;
+#ifdef RIVE_ANDROID
+        capabilities.isAndroidANGLE = strstr(glVersionStr, "ANGLE") != NULL;
 #endif
 #ifdef _MSC_VER
         sscanf_s(
@@ -1796,7 +1800,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     }
     else
     {
-        capabilities.isANGLEOrWebGL = false;
 #ifdef _MSC_VER
         sscanf_s(
 #else
@@ -1924,7 +1927,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         // this extension but then doesn't support gl_ClipDistance in the
         // shader. Only use clip planes on ANGLE if ANGLE_clip_cull_distance is
         // supported.
-        else if (!capabilities.isANGLEOrWebGL &&
+        else if (!capabilities.isAndroidANGLE &&
                  strcmp(ext, "GL_EXT_clip_cull_distance") == 0)
         {
             capabilities.EXT_clip_cull_distance = true;
