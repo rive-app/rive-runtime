@@ -3,6 +3,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <string>
 
 namespace rive
 {
@@ -25,6 +26,7 @@ public:
     void writeDouble(double value);
     void write(uint16_t value);
     void write(uint32_t value);
+    void write(std::string value);
     void clear();
 };
 } // namespace rive

@@ -142,4 +142,11 @@ void BinaryWriter::write(uint32_t value)
     m_Stream->write((const uint8_t*)&value, 4);
 }
 
+void BinaryWriter::write(std::string value)
+{
+    auto length = value.size();
+    writeVarUint((uint64_t)length);
+    write((uint8_t*)value.c_str(), length);
+}
+
 void BinaryWriter::clear() { m_Stream->clear(); }
