@@ -1293,8 +1293,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             {
                 continue;
             }
-            if (hittable->is<LayoutComponent>() ||
-                hittable->is<DrawableProxy>())
+            if (hittable->is<LayoutComponent>() || hittable->isProxy())
             {
                 auto component = hittable->as<Drawable>();
                 HitLayout* hitLayout;

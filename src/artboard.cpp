@@ -342,12 +342,9 @@ StatusCode Artboard::initialize()
             // child of the layout, so we insert a proxy before it
             do
             {
-                if (currentLayout->clip() || currentLayout->hasShapePaints())
-                {
-                    m_Drawables.insert(m_Drawables.begin() + i,
-                                       currentLayout->proxy());
-                    i += 1;
-                }
+                m_Drawables.insert(m_Drawables.begin() + i,
+                                   currentLayout->proxy());
+                i += 1;
                 layouts.pop_back();
                 if (!layouts.empty())
                 {
@@ -364,10 +361,7 @@ StatusCode Artboard::initialize()
     while (!layouts.empty())
     {
         auto layout = layouts.back();
-        if (layout->clip() || layout->hasShapePaints())
-        {
-            m_Drawables.push_back(layout->proxy());
-        }
+        m_Drawables.push_back(layout->proxy());
         layouts.pop_back();
     }
 

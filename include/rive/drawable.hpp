@@ -51,6 +51,8 @@ public:
                 DrawableFlag::Opaque) == DrawableFlag::Opaque;
     }
 
+    virtual bool isProxy() { return false; }
+
     bool isChildOfLayout(LayoutComponent* layout);
 
     StatusCode onAddedDirty(CoreContext* context) override;
@@ -85,6 +87,8 @@ public:
     bool isTargetOpaque();
 
     Core* hitTest(HitInfo*, const Mat2D&) override { return nullptr; }
+
+    bool isProxy() override { return true; }
 
     ProxyDrawing* proxyDrawing() const { return m_proxyDrawing; }
 };
