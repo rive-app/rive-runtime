@@ -3,6 +3,7 @@
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/artboard.hpp"
+#include "rive/hittest_command_path.hpp"
 #include "rive/importers/artboard_importer.hpp"
 
 using namespace rive;
@@ -12,6 +13,8 @@ void TextValueRun::textChanged()
     m_length = -1;
     parent()->as<Text>()->markShapeDirty();
 }
+
+Text* TextValueRun::textComponent() const { return parent()->as<Text>(); }
 
 StatusCode TextValueRun::onAddedClean(CoreContext* context)
 {
@@ -76,4 +79,64 @@ uint32_t TextValueRun::offset() const
 #else
     return 0;
 #endif
+}
+
+bool TextValueRun::canHitTest() const
+{
+    return (m_isHitTarget && textComponent() != nullptr &&
+            !m_localBounds.isEmptyOrNaN());
+}
+
+void TextValueRun::resetHitTest()
+{
+    m_contours.clear();
+    m_localBounds = AABB::forExpansion();
+}
+
+bool TextValueRun::hitTestAABB(const Vec2D& position)
+{
+    if (!canHitTest())
+    {
+        return false;
+    }
+
+    Mat2D inverseWorld;
+    if (textComponent()->worldTransform().invert(&inverseWorld))
+    {
+        auto localWorld = inverseWorld * position;
+        if (textComponent()->overflow() == TextOverflow::visible)
+        {
+            return m_localBounds.contains(localWorld);
+        }
+        return textComponent()->localBounds().contains(localWorld);
+    }
+
+    return false;
+}
+
+bool TextValueRun::hitTestHiFi(const Vec2D& position, float hitRadius)
+{
+    if (!canHitTest())
+    {
+        return false;
+    }
+
+    auto hitArea = AABB(position.x - hitRadius,
+                        position.y - hitRadius,
+                        position.x + hitRadius,
+                        position.y + hitRadius)
+                       .round();
+    HitTestCommandPath tester(hitArea);
+
+    tester.setXform(textComponent()->worldTransform());
+    for (const std::vector<Vec2D>& contour : m_contours)
+    {
+        tester.moveTo(contour[0].x, contour[0].y);
+        for (auto i = 1; i < contour.size(); i++)
+        {
+            tester.lineTo(contour[i].x, contour[i].y);
+        }
+        tester.close();
+    }
+    return tester.wasHit();
 }

@@ -36,6 +36,7 @@ class KeyedProperty;
 class EventReport;
 class DataBind;
 class BindableProperty;
+class HitDrawable;
 
 #ifdef WITH_RIVE_TOOLS
 class StateMachineInstance;
@@ -67,6 +68,11 @@ private:
     StateTransition* findAllowedTransition(StateInstance* stateFromInstance,
                                            bool ignoreTriggers);
     DataContext* m_DataContext = nullptr;
+    void addToHitLookup(Component* target,
+                        bool isLayoutComponent,
+                        std::unordered_map<Component*, HitDrawable*>& hitLookup,
+                        ListenerGroup* listenerGroup,
+                        bool isOpaque);
 
 public:
     StateMachineInstance(const StateMachine* machine,

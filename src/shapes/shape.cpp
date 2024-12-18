@@ -127,9 +127,19 @@ void Shape::draw(Renderer* renderer)
     }
 }
 
-bool Shape::hitTest(const IAABB& area) const
+bool Shape::hitTestAABB(const Vec2D& position)
 {
-    HitTestCommandPath tester(area);
+    return worldBounds().contains(position);
+}
+
+bool Shape::hitTestHiFi(const Vec2D& position, float hitRadius)
+{
+    auto hitArea = AABB(position.x - hitRadius,
+                        position.y - hitRadius,
+                        position.x + hitRadius,
+                        position.y + hitRadius)
+                       .round();
+    HitTestCommandPath tester(hitArea);
 
     for (auto path : m_Paths)
     {

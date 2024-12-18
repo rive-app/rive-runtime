@@ -3,6 +3,7 @@ using namespace rive;
 #ifdef WITH_RIVE_TEXT
 #include "rive/text_engine.hpp"
 #include "rive/component_dirt.hpp"
+#include "rive/math/rectangles_to_contour.hpp"
 #include "rive/text/utf.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_value_run.hpp"
@@ -12,6 +13,7 @@ using namespace rive;
 #include "rive/factory.hpp"
 #include "rive/clip_result.hpp"
 #include <limits>
+#include <unordered_map>
 
 void GlyphItr::tryAdvanceRun()
 {
@@ -308,6 +310,18 @@ void Text::buildRenderStyles()
         m_bounds = AABB(0.0f, 0.0f, 0.0f, 0.0f);
         return;
     }
+
+    std::unordered_map<uint16_t, std::vector<Rect>> textValueRunToRects;
+    for (uint16_t i = 0; i < m_runs.size(); i++)
+    {
+        TextValueRun* textValueRun = m_runs[i];
+        textValueRun->resetHitTest();
+        if (textValueRun->m_isHitTarget)
+        {
+            textValueRunToRects[i] = {};
+        }
+    }
+
     const float paragraphSpace = paragraphSpacing();
 
     // Build up ordered runs as we go.
@@ -585,10 +599,9 @@ void Text::buildRenderStyles()
                                                 renderY + offset.y));
                 }
 
-                x += advance;
-
                 assert(run->styleId < m_runs.size());
-                TextStyle* style = m_runs[run->styleId]->style();
+                TextValueRun* textValueRun = m_runs[run->styleId];
+                TextStyle* style = textValueRun->style();
                 // TextValueRun::onAddedDirty botches loading if it cannot
                 // resolve a style, so we're confident we have a style here.
                 assert(style != nullptr);
@@ -610,7 +623,6 @@ void Text::buildRenderStyles()
                 }
                 if (drawLine)
                 {
-
                     if (style->addPath(path, opacity))
                     {
                         // This was the first path added to the style, so let's
@@ -618,7 +630,23 @@ void Text::buildRenderStyles()
                         m_renderStyles.push_back(style);
                         style->propagateOpacity(renderOpacity());
                     }
+
+                    // Bounds of the glyph
+                    auto rectsItr = textValueRunToRects.find(run->styleId);
+                    if (rectsItr != textValueRunToRects.end())
+                    {
+                        Vec2D topLeft = Vec2D(x, y + line.top);
+                        Vec2D bottomRight = Vec2D(x + advance, y + line.bottom);
+                        AABB::expandTo(textValueRun->m_localBounds, topLeft);
+                        AABB::expandTo(textValueRun->m_localBounds,
+                                       bottomRight);
+                        rectsItr->second.emplace_back(topLeft.x,
+                                                      topLeft.y,
+                                                      bottomRight.x,
+                                                      bottomRight.y);
+                    }
                 }
+                x += advance;
             }
             if (lineIndex == ellipsisLine)
             {
@@ -687,6 +715,12 @@ skipLines:
 #ifdef WITH_RIVE_LAYOUT
     markLayoutNodeDirty();
 #endif
+    for (auto it = textValueRunToRects.begin(); it != textValueRunToRects.end();
+         ++it)
+    {
+        m_runs[it->first]->m_contours =
+            RectanglesToContour::makeSelectionContours(it->second);
+    }
 }
 
 const TextStyle* Text::styleFromShaperId(uint16_t id) const

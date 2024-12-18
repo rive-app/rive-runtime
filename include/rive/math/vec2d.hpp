@@ -108,4 +108,19 @@ inline bool operator!=(const Vec2D& a, const Vec2D& b)
 Vec2D Vec2D::lerp(Vec2D a, Vec2D b, float t) { return a + (b - a) * t; }
 
 } // namespace rive
+
+namespace std
+{
+template <> struct hash<rive::Vec2D>
+{
+    size_t operator()(const rive::Vec2D& v) const
+    {
+        // Combine the hashes of x and y to produce a hash for Vec2D
+        size_t h1 = std::hash<float>()(v.x); // Hash for x component
+        size_t h2 = std::hash<float>()(v.y); // Hash for y component
+        return h1 ^ (h2 << 1); // Combine them with bitwise XOR and shift
+    }
+};
+} // namespace std
+
 #endif

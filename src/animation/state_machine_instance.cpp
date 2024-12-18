@@ -35,6 +35,7 @@
 #include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/shapes/shape.hpp"
+#include "rive/text/text.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/audio_event.hpp"
 #include <unordered_map>
@@ -686,16 +687,21 @@ private:
     bool hasScrolled = false;
 };
 
+/// Representation of a Component from the Artboard Instance and all the
+/// listeners it triggers. Allows tracking hover and performing hit detection
+/// only once on components that trigger multiple listeners.
 class HitDrawable : public HitComponent
 {
 public:
-    HitDrawable(Component* component,
+    HitDrawable(Drawable* drawable,
+                Component* component,
                 StateMachineInstance* stateMachineInstance,
                 bool isOpaque) :
         HitComponent(component, stateMachineInstance)
     {
+        this->m_drawable = drawable;
         this->isOpaque = isOpaque;
-        if (component->as<Drawable>()->isTargetOpaque())
+        if (drawable->isTargetOpaque())
         {
             canEarlyOut = false;
         }
@@ -706,6 +712,7 @@ public:
     bool hasDownListener = false;
     bool hasUpListener = false;
     bool isOpaque = false;
+    Drawable* m_drawable;
     std::vector<ListenerGroup*> listeners;
 
     virtual bool hitTestHelper(Vec2D position) const { return false; }
@@ -715,7 +722,7 @@ public:
         return hitTestHelper(position);
     }
 
-    virtual bool testBounds(ContainerComponent* component,
+    virtual bool testBounds(Component* component,
                             Vec2D position,
                             bool skipOnUnclipped) const
     {
@@ -723,43 +730,51 @@ public:
         {
             return true;
         }
+
         if (component->is<Drawable>())
         {
             component = component->as<Drawable>()->hittableComponent();
-        }
-        if (component == nullptr || !component->is<LayoutComponent>())
-        {
-            return true;
-        }
-        Mat2D inverseWorld;
-        auto layout = component->as<LayoutComponent>();
-
-        if (layout->worldTransform().invert(&inverseWorld))
-        {
-            // If the layout is not clipped and skipOnUnclipped is true, we
-            // don't care about whether it contains the position
-            auto canSkip = skipOnUnclipped && !layout->clip();
-            if (!canSkip)
+            if (component == nullptr)
             {
-                auto localWorld = inverseWorld * position;
-                if (layout->is<Artboard>())
+                return true;
+            }
+        }
+
+        if (component->is<LayoutComponent>())
+        {
+            Mat2D inverseWorld;
+            auto layout = component->as<LayoutComponent>();
+
+            if (layout->worldTransform().invert(&inverseWorld))
+            {
+                // If the layout is not clipped and skipOnUnclipped is true, we
+                // don't care about whether it contains the position
+                auto canSkip = skipOnUnclipped && !layout->clip();
+                if (!canSkip)
                 {
-                    auto artboard = layout->as<Artboard>();
-                    if (artboard->frameOrigin())
+                    auto localWorld = inverseWorld * position;
+                    if (layout->is<Artboard>())
                     {
-                        localWorld += Vec2D(
-                            artboard->originX() * artboard->layoutWidth(),
-                            artboard->originY() * artboard->layoutHeight());
+                        auto artboard = layout->as<Artboard>();
+                        if (artboard->frameOrigin())
+                        {
+                            localWorld += Vec2D(
+                                artboard->originX() * artboard->layoutWidth(),
+                                artboard->originY() * artboard->layoutHeight());
+                        }
+                    }
+                    if (!layout->localBounds().contains(localWorld))
+                    {
+                        return false;
                     }
                 }
-                if (!layout->localBounds().contains(localWorld))
-                {
-                    return false;
-                }
+                return testBounds(layout->parent(), position, true);
             }
-            return testBounds(layout->parent(), position, true);
+            return false;
         }
-        return false;
+
+        // Keep going
+        return testBounds(component->parent(), position, skipOnUnclipped);
     }
 
     void prepareEvent(Vec2D position, ListenerType hitType) override
@@ -800,7 +815,6 @@ public:
         {
             return HitResult::none;
         }
-        auto drawable = m_component->as<Drawable>();
         bool isBlockingEvent = false;
         // // iterate all listeners associated with this hit shape
         for (auto listenerGroup : listeners)
@@ -820,7 +834,8 @@ public:
             }
         }
         return (isHovered && canHit)
-                   ? (isOpaque || drawable->isTargetOpaque() || isBlockingEvent)
+                   ? (isOpaque || m_drawable->isTargetOpaque() ||
+                      isBlockingEvent)
                          ? HitResult::hitOpaque
                          : HitResult::hit
                    : HitResult::none;
@@ -847,64 +862,84 @@ public:
     }
 };
 
-/// Representation of a Shape from the Artboard Instance and all the listeners
-/// it triggers. Allows tracking hover and performing hit detection only once on
-/// shapes that trigger multiple listeners.
-class HitShape : public HitDrawable
+/// Representation of a HitDrawable with a Hittable component
+class HitExpandable : public HitDrawable
 {
 public:
-    bool testBounds(ContainerComponent* component,
+    bool testBounds(Component* component,
                     Vec2D position,
                     bool skipOnUnclipped) const override
     {
-        if (component != nullptr && component->is<Shape>())
+        Hittable* hittable = component ? Hittable::from(component) : nullptr;
+        if (hittable != nullptr)
         {
-            auto shape = component->as<Shape>();
-            auto worldBounds = shape->worldBounds();
-            if (worldBounds.contains(position) &&
+            if (hittable->hitTestAABB(position) &&
                 HitDrawable::testBounds(component->parent(), position, true))
             {
-                auto hitArea = AABB(position.x - hitRadius,
-                                    position.y - hitRadius,
-                                    position.x + hitRadius,
-                                    position.y + hitRadius)
-                                   .round();
-                return shape->hitTest(hitArea);
+                return hittable->hitTestHiFi(position, hitRadius);
             }
+            return false;
         }
-        else
-        {
-            return HitDrawable::testBounds(component, position, true);
-        }
-        return false;
+        return HitDrawable::testBounds(component, position, true);
     }
 
-    HitShape(Component* shape,
-             StateMachineInstance* stateMachineInstance,
-             bool isOpaque = false) :
-        HitDrawable(shape, stateMachineInstance, isOpaque)
+    HitExpandable(Drawable* drawable,
+                  Component* component,
+                  StateMachineInstance* stateMachineInstance,
+                  bool isOpaque = false) :
+        HitDrawable(drawable, component, stateMachineInstance, isOpaque)
     {}
 
     bool hitTestHelper(Vec2D position) const override
     {
-        return testBounds(m_component->as<Shape>(), position, true);
+        return testBounds(m_component, position, true);
+    }
+};
+
+// Wrapper around HitExpandable to garbage collect text run contours.
+class HitTextRun : public HitExpandable
+{
+public:
+    TextValueRun* m_textValueRun;
+
+    HitTextRun(Drawable* drawable,
+               TextValueRun* component,
+               StateMachineInstance* stateMachineInstance,
+               bool isOpaque = false) :
+        HitExpandable(drawable, component, stateMachineInstance, isOpaque)
+    {
+        m_textValueRun = component;
+        if (m_textValueRun)
+        {
+            m_textValueRun->m_isHitTarget = true;
+        }
+    }
+
+    ~HitTextRun()
+    {
+        if (m_textValueRun != nullptr)
+        {
+            m_textValueRun->m_isHitTarget = false;
+            m_textValueRun->resetHitTest();
+        }
     }
 };
 
 class HitLayout : public HitDrawable
 {
 public:
-    HitLayout(Component* layout,
+    HitLayout(Drawable* layout,
               StateMachineInstance* stateMachineInstance,
               bool isOpaque = false) :
-        HitDrawable(layout, stateMachineInstance, isOpaque)
+        HitDrawable(layout, layout, stateMachineInstance, isOpaque)
     {}
 
     bool hitTestHelper(Vec2D position) const override
     {
-        return testBounds(m_component->as<Drawable>(), position, false);
+        return testBounds(m_component, position, false);
     }
 };
+
 class HitNestedArtboard : public HitComponent
 {
 public:
@@ -1105,6 +1140,91 @@ const LayerState* StateMachineInstance::layerState(size_t index)
 }
 #endif
 
+void StateMachineInstance::addToHitLookup(
+    Component* target,
+    bool isLayoutComponent,
+    std::unordered_map<Component*, HitDrawable*>& hitLookup,
+    ListenerGroup* listenerGroup,
+    bool isOpaque)
+{
+    // target could either be a LayoutComponent or a DrawableProxy
+    if (isLayoutComponent)
+    {
+        HitLayout* hitLayout;
+        auto itr = hitLookup.find(target);
+        if (itr == hitLookup.end())
+        {
+            auto hs = rivestd::make_unique<HitLayout>(target->as<Drawable>(),
+                                                      this,
+                                                      isOpaque);
+            hitLookup[target] = hitLayout = hs.get();
+            m_hitComponents.push_back(std::move(hs));
+        }
+        else
+        {
+            hitLayout = static_cast<HitLayout*>(itr->second);
+        }
+        hitLayout->addListener(listenerGroup);
+        return;
+    }
+
+    if (target->is<Shape>())
+    {
+        HitExpandable* hitShape;
+        auto itr = hitLookup.find(target);
+        if (itr == hitLookup.end())
+        {
+            Shape* shape = target->as<Shape>();
+            shape->addFlags(PathFlags::neverDeferUpdate);
+            shape->addDirt(ComponentDirt::Path, true);
+            auto hs = rivestd::make_unique<HitExpandable>(shape, shape, this);
+            hitLookup[target] = hitShape = hs.get();
+            m_hitComponents.push_back(std::move(hs));
+        }
+        else
+        {
+            hitShape = static_cast<HitExpandable*>(itr->second);
+        }
+        hitShape->addListener(listenerGroup);
+        return;
+    }
+
+    if (target->is<TextValueRun>())
+    {
+        HitTextRun* hitTextRun;
+        auto itr = hitLookup.find(target);
+        if (itr == hitLookup.end())
+        {
+            TextValueRun* run = target->as<TextValueRun>();
+            run->textComponent()->addDirt(ComponentDirt::Path, true);
+            auto hs = rivestd::make_unique<HitTextRun>(run->textComponent(),
+                                                       run,
+                                                       this);
+            hitLookup[target] = hitTextRun = hs.get();
+            m_hitComponents.push_back(std::move(hs));
+        }
+        else
+        {
+            hitTextRun = static_cast<HitTextRun*>(itr->second);
+        }
+        hitTextRun->addListener(listenerGroup);
+        return;
+    }
+
+    if (target->is<ContainerComponent>())
+    {
+        target->as<ContainerComponent>()->forEachChild([&](Component* child) {
+            addToHitLookup(child,
+                           child->is<LayoutComponent>(),
+                           hitLookup,
+                           listenerGroup,
+                           isOpaque);
+            return true;
+        });
+        return;
+    }
+}
+
 StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                                            ArtboardInstance* instance) :
     Scene(instance), m_machine(machine)
@@ -1198,7 +1318,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
     // Initialize listeners. Store a lookup table of shape id to hit shape
     // representation (an object that stores all the listeners triggered by the
     // shape producing a listener).
-    std::unordered_map<Component*, HitDrawable*> hitShapeLookup;
+    std::unordered_map<Component*, HitDrawable*> hitLookup;
     for (std::size_t i = 0; i < machine->listenerCount(); i++)
     {
         auto listener = machine->listener(i);
@@ -1208,56 +1328,19 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         }
         auto listenerGroup = rivestd::make_unique<ListenerGroup>(listener);
         auto target = m_artboardInstance->resolve(listener->targetId());
-        if (target != nullptr && target->is<ContainerComponent>())
+        if (target != nullptr && target->is<Component>())
         {
+            bool isLayoutComponent = false;
             if (target->is<LayoutComponent>())
             {
-                auto component = target->as<LayoutComponent>()->proxy();
-                HitLayout* hitLayout;
-                auto itr = hitShapeLookup.find(component);
-                if (itr == hitShapeLookup.end())
-                {
-                    auto hs = rivestd::make_unique<HitLayout>(component, this);
-                    hitShapeLookup[component] = hitLayout = hs.get();
-                    m_hitComponents.push_back(std::move(hs));
-                }
-                else
-                {
-                    hitLayout = static_cast<HitLayout*>(itr->second);
-                }
-                hitLayout->addListener(listenerGroup.get());
+                isLayoutComponent = true;
+                target = target->as<LayoutComponent>()->proxy();
             }
-            else
-            {
-
-                target->as<ContainerComponent>()->forAll(
-                    [&](Component* component) {
-                        if (component->is<Shape>())
-                        {
-                            HitShape* hitShape;
-                            auto itr = hitShapeLookup.find(component);
-                            if (itr == hitShapeLookup.end())
-                            {
-                                component->as<Shape>()->addFlags(
-                                    PathFlags::neverDeferUpdate);
-                                component->as<Shape>()->addDirt(
-                                    ComponentDirt::Path,
-                                    true);
-                                auto hs =
-                                    rivestd::make_unique<HitShape>(component,
-                                                                   this);
-                                hitShapeLookup[component] = hitShape = hs.get();
-                                m_hitComponents.push_back(std::move(hs));
-                            }
-                            else
-                            {
-                                hitShape = static_cast<HitShape*>(itr->second);
-                            }
-                            hitShape->addListener(listenerGroup.get());
-                        }
-                        return true;
-                    });
-            }
+            addToHitLookup(target->as<Component>(),
+                           isLayoutComponent,
+                           hitLookup,
+                           listenerGroup.get(),
+                           false);
         }
         m_listenerGroups.push_back(std::move(listenerGroup));
     }
@@ -1289,61 +1372,14 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                     constraint,
                     dragProxy);
             auto hittable = dragProxy->hittable();
-            if (hittable == nullptr)
+            if (hittable != nullptr && hittable->is<Component>())
             {
-                continue;
-            }
-            if (hittable->is<LayoutComponent>() || hittable->isProxy())
-            {
-                auto component = hittable->as<Drawable>();
-                HitLayout* hitLayout;
-                auto itr = hitScrollLookup.find(component);
-                if (itr == hitScrollLookup.end())
-                {
-                    auto hs =
-                        rivestd::make_unique<HitLayout>(component,
-                                                        this,
-                                                        dragProxy->isOpaque());
-                    hitScrollLookup[component] = hitLayout = hs.get();
-                    m_hitComponents.push_back(std::move(hs));
-                }
-                else
-                {
-                    hitLayout = static_cast<HitLayout*>(itr->second);
-                }
-                hitLayout->addListener(listenerGroup.get());
-            }
-            else
-            {
-                hittable->as<ContainerComponent>()->forAll(
-                    [&](Component* component) {
-                        if (component->is<Shape>())
-                        {
-                            HitShape* hitShape;
-                            auto itr = hitScrollLookup.find(component);
-                            if (itr == hitScrollLookup.end())
-                            {
-                                component->as<Shape>()->addFlags(
-                                    PathFlags::neverDeferUpdate);
-                                component->as<Shape>()->addDirt(
-                                    ComponentDirt::Path,
-                                    true);
-                                auto hs = rivestd::make_unique<HitShape>(
-                                    component,
-                                    this,
-                                    dragProxy->isOpaque());
-                                hitScrollLookup[component] = hitShape =
-                                    hs.get();
-                                m_hitComponents.push_back(std::move(hs));
-                            }
-                            else
-                            {
-                                hitShape = static_cast<HitShape*>(itr->second);
-                            }
-                            hitShape->addListener(listenerGroup.get());
-                        }
-                        return true;
-                    });
+                addToHitLookup(hittable->as<Component>(),
+                               hittable->is<LayoutComponent>() ||
+                                   hittable->isProxy(),
+                               hitLookup,
+                               listenerGroup.get(),
+                               dragProxy->isOpaque());
             }
             m_listenerGroups.push_back(std::move(listenerGroup));
         }
@@ -1413,8 +1449,8 @@ void StateMachineInstance::sortHitComponents()
     auto hitShapesCount = m_hitComponents.size();
     auto currentSortedIndex = 0;
     auto count = 0;
-    // Since the Artboard is not a drawable, we move all hit components pointing
-    // to the artboard to the front of the list
+    // Since the Artboard is not a drawable, we move all hit components
+    // pointing to the artboard to the front of the list
     for (auto& comp : m_hitComponents)
     {
         if (comp->component() != nullptr && comp->component()->is<Artboard>())
@@ -1732,17 +1768,19 @@ void StateMachineInstance::notifyEventListeners(
                                               ? artboard()
                                               : source->artboardInstance();
 
-                    // listener->eventId() can point to an id from an event in
-                    // the context of this artboard or the context of a nested
-                    // artboard. Because those ids belong to different contexts,
-                    // they can have the same value. So when the eventId is
-                    // resolved within one context, but actually pointing to the
-                    // other, it can return the wrong event object. If, by
-                    // chance, that event exists in the other context, and is
-                    // being reported, it will trigger the wrong set of actions.
-                    // This validation makes sure that a listener must be
-                    // targetting the current artboard to disambiguate between
-                    // external and internal events.
+                    // listener->eventId() can point to an id from an
+                    // event in the context of this artboard or the
+                    // context of a nested artboard. Because those ids
+                    // belong to different contexts, they can have the
+                    // same value. So when the eventId is resolved
+                    // within one context, but actually pointing to the
+                    // other, it can return the wrong event object. If,
+                    // by chance, that event exists in the other
+                    // context, and is being reported, it will trigger
+                    // the wrong set of actions. This validation makes
+                    // sure that a listener must be targetting the
+                    // current artboard to disambiguate between external
+                    // and internal events.
                     if (source == nullptr &&
                         sourceArtboard->resolve(listener->targetId()) !=
                             artboard())
@@ -1759,7 +1797,8 @@ void StateMachineInstance::notifyEventListeners(
                 }
             }
         }
-        // Bubble the event up to parent artboard state machines immediately
+        // Bubble the event up to parent artboard state machines
+        // immediately
         for (auto listener : nestedEventListeners())
         {
             listener->notify(events, nestedArtboard());
