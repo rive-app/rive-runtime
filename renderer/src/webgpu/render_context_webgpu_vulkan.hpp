@@ -52,6 +52,7 @@ private:
                                 baselinePlatformFeatures)
     {
         assert(contextOptions.plsType == PixelLocalStorageType::subpassLoad);
+        m_platformFeatures.supportsRasterOrdering = true;
     }
 
     EmJsHandle m_plsTextureBindGroupJSHandle;

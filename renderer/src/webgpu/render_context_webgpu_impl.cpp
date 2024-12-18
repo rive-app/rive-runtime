@@ -823,6 +823,9 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
         std::make_unique<TessellatePipeline>(m_device, m_contextOptions))
 {
     m_platformFeatures = baselinePlatformFeatures;
+    // All backends currently use raster ordered shaders.
+    // TODO: update this flag once we have msaa and atomic modes.
+    m_platformFeatures.supportsRasterOrdering = true;
     m_platformFeatures.invertOffscreenY = true;
 
     if (m_contextOptions.plsType ==
