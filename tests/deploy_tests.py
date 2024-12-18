@@ -132,6 +132,9 @@ def cancel_input():
         input_cancelled = True
         input_received_cond.notify_all()
 
+class text_colors:
+    ERROR = '\033[91m'
+    ENDCOL = '\033[0m'
 
 # Launch a process in a separate thread and crash if it fails.
 class CheckProcess(threading.Thread):
@@ -142,7 +145,10 @@ class CheckProcess(threading.Thread):
             self.cmd = ["echo", "\n    <command> "] + ['"%s"' % arg for arg in self.cmd]
         if args.verbose:
             print(' '.join(self.cmd), flush=True)
-        self.proc = subprocess.Popen(self.cmd)
+        if shutil.which(self.cmd[0]) is None:
+            print(f'{text_colors.ERROR}' + self.cmd[0] + ' does not exist!' + f'{text_colors.ENDCOL}')
+        else:
+            self.proc = subprocess.Popen(self.cmd)
 
     def run(self):
         self.proc.wait()
