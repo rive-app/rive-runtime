@@ -29,27 +29,27 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    static const uint16_t valuePropertyKey = 681;
+    static const uint16_t operationValuePropertyKey = 681;
 
 protected:
-    float m_Value = 1.0f;
+    float m_OperationValue = 1.0f;
 
 public:
-    inline float value() const { return m_Value; }
-    void value(float value)
+    inline float operationValue() const { return m_OperationValue; }
+    void operationValue(float value)
     {
-        if (m_Value == value)
+        if (m_OperationValue == value)
         {
             return;
         }
-        m_Value = value;
-        valueChanged();
+        m_OperationValue = value;
+        operationValueChanged();
     }
 
     Core* clone() const override;
     void copy(const DataConverterOperationValueBase& object)
     {
-        m_Value = object.m_Value;
+        m_OperationValue = object.m_OperationValue;
         DataConverterOperation::copy(object);
     }
 
@@ -57,15 +57,15 @@ public:
     {
         switch (propertyKey)
         {
-            case valuePropertyKey:
-                m_Value = CoreDoubleType::deserialize(reader);
+            case operationValuePropertyKey:
+                m_OperationValue = CoreDoubleType::deserialize(reader);
                 return true;
         }
         return DataConverterOperation::deserialize(propertyKey, reader);
     }
 
 protected:
-    virtual void valueChanged() {}
+    virtual void operationValueChanged() {}
 };
 } // namespace rive
 

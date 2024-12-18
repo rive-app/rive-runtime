@@ -6,14 +6,15 @@
   },
   "extends": "data_bind/converters/data_converter_operation.json",
   "properties": {
-    "value": {
+    "operationValue": {
       "type": "double",
       "initialValue": "1",
       "key": {
         "int": 681,
         "string": "value"
       },
-      "description": "Number to multiply the input to"
+      "description": "Number to multiply the input to",
+      "bindable": true
     }
   }
 }

@@ -7,11 +7,11 @@ using namespace rive;
 DataValue* DataConverterOperationValue::convert(DataValue* input,
                                                 DataBind* dataBind)
 {
-    return convertValue(input, value());
+    return convertValue(input, operationValue());
 }
 
 DataValue* DataConverterOperationValue::reverseConvert(DataValue* input,
                                                        DataBind* dataBind)
 {
-    return reverseConvertValue(input, value());
+    return reverseConvertValue(input, operationValue());
 }

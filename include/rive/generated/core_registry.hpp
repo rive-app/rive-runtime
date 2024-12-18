@@ -1841,8 +1841,9 @@ public:
             case JoystickBase::heightPropertyKey:
                 object->as<JoystickBase>()->height(value);
                 break;
-            case DataConverterOperationValueBase::valuePropertyKey:
-                object->as<DataConverterOperationValueBase>()->value(value);
+            case DataConverterOperationValueBase::operationValuePropertyKey:
+                object->as<DataConverterOperationValueBase>()->operationValue(
+                    value);
                 break;
             case DataConverterRangeMapperBase::minInputPropertyKey:
                 object->as<DataConverterRangeMapperBase>()->minInput(value);
@@ -2882,8 +2883,9 @@ public:
                 return object->as<JoystickBase>()->width();
             case JoystickBase::heightPropertyKey:
                 return object->as<JoystickBase>()->height();
-            case DataConverterOperationValueBase::valuePropertyKey:
-                return object->as<DataConverterOperationValueBase>()->value();
+            case DataConverterOperationValueBase::operationValuePropertyKey:
+                return object->as<DataConverterOperationValueBase>()
+                    ->operationValue();
             case DataConverterRangeMapperBase::minInputPropertyKey:
                 return object->as<DataConverterRangeMapperBase>()->minInput();
             case DataConverterRangeMapperBase::maxInputPropertyKey:
@@ -3375,7 +3377,7 @@ public:
             case JoystickBase::originYPropertyKey:
             case JoystickBase::widthPropertyKey:
             case JoystickBase::heightPropertyKey:
-            case DataConverterOperationValueBase::valuePropertyKey:
+            case DataConverterOperationValueBase::operationValuePropertyKey:
             case DataConverterRangeMapperBase::minInputPropertyKey:
             case DataConverterRangeMapperBase::maxInputPropertyKey:
             case DataConverterRangeMapperBase::minOutputPropertyKey:
@@ -4210,7 +4212,7 @@ public:
                 return object->is<JoystickBase>();
             case JoystickBase::heightPropertyKey:
                 return object->is<JoystickBase>();
-            case DataConverterOperationValueBase::valuePropertyKey:
+            case DataConverterOperationValueBase::operationValuePropertyKey:
                 return object->is<DataConverterOperationValueBase>();
             case DataConverterRangeMapperBase::minInputPropertyKey:
                 return object->is<DataConverterRangeMapperBase>();
