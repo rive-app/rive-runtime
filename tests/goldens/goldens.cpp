@@ -177,6 +177,26 @@ private:
     std::unique_ptr<rive::Scene> m_scene;
 };
 
+static bool process_single_golden_file(const std::string file, int cellSize)
+{
+    std::ifstream stream(file, std::ios::binary);
+    if (!stream.good())
+    {
+        throw "Bad file";
+    }
+
+    RIVLoader riv(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        s_args.artboard().c_str(),
+        s_args.stateMachine().c_str());
+    return render_and_dump_png(cellSize, file.c_str(), riv.stateMachine());
+}
+
+static bool is_riv_file(const std::filesystem::path& file)
+{
+    return strcmp(file.extension().string().c_str(), ".riv") == 0;
+}
+
 #if defined(RIVE_UNREAL)
 int goldens_main(int argc, const char* argv[])
 #elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
@@ -263,22 +283,40 @@ int main(int argc, const char* argv[])
         }
         else
         {
-            // Render a single .riv file.
-            std::ifstream stream(s_args.src().c_str(), std::ios::binary);
-            if (!stream.good())
+            const std::filesystem::path& srcPath =
+                std::filesystem::path(s_args.src().c_str());
+            if (is_riv_file(srcPath))
             {
-                throw "Bad file";
+                // Render a single .riv file.
+                if (!process_single_golden_file(s_args.src().c_str(), cellSize))
+                {
+                    return 0;
+                }
             }
-            RIVLoader riv(
-                std::vector<uint8_t>(std::istreambuf_iterator<char>(stream),
-                                     {}),
-                s_args.artboard().c_str(),
-                s_args.stateMachine().c_str());
-            if (!render_and_dump_png(cellSize,
-                                     s_args.src().c_str(),
-                                     riv.stateMachine()))
+            else
             {
-                return 0;
+                // Try to process every riv in the src path dir
+                try
+                {
+                    for (const std::filesystem::directory_entry& file :
+                         std::filesystem::directory_iterator(s_args.src()))
+                    {
+                        const std::filesystem::path& filePath = file.path();
+                        if (is_riv_file(filePath))
+                        {
+                            if (!process_single_golden_file(filePath.string(),
+                                                            cellSize))
+                            {
+                                return 0;
+                            }
+                        }
+                    }
+                }
+                catch (...)
+                {
+                    // Not a directory
+                    throw "Bad src path";
+                }
             }
         }
     }

@@ -28,30 +28,53 @@ vkb::SystemInfo load_vulkan()
 }
 
 #ifdef DEBUG
+static std::array<const char*, 2> s_ignoredValidationMsgList = {
+    // Swiftshader generates this error during
+    // vkEnumeratePhysicalDevices. It seems fine to ignore.
+    "Copying old device 0 into new device 0",
+    // Cirrus Ubuntu runner w/ Nvidia gpu reports this but it seems harmless.
+    "terminator_CreateInstance: Received return code -3 from call to "
+    "vkCreateInstance in ICD /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so. "
+    "Skipping this driver.",
+};
+
 VKAPI_ATTR VkBool32 VKAPI_CALL default_debug_callback(
     VkDebugUtilsMessageSeverityFlagBitsEXT messageSeverity,
     VkDebugUtilsMessageTypeFlagsEXT messageType,
     const VkDebugUtilsMessengerCallbackDataEXT* pCallbackData,
     void* pUserData)
 {
+    bool shouldAbort = true;
+
     switch (messageType)
     {
         case VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT:
-            if (pCallbackData->messageIdNumber == 0 &&
-                strcmp(pCallbackData->pMessageIdName, "Loader Message") == 0 &&
-                strcmp(pCallbackData->pMessage,
-                       "Copying old device 0 into new device 0") == 0)
+            for (const char* msg : s_ignoredValidationMsgList)
             {
-                // Swiftshader generates this error during
-                // vkEnumeratePhysicalDevices. It seems fine to ignore.
-                break;
+                if (strcmp(pCallbackData->pMessage, msg) == 0)
+                {
+                    shouldAbort = false;
+                    break;
+                }
+            }
+
+            fprintf(stderr, "Rive Vulkan error");
+            if (!shouldAbort)
+            {
+                fprintf(stderr, " (error ignored)");
             }
             fprintf(stderr,
-                    "Rive Vulkan error: %i: %s: %s\n",
+                    ": %i: %s: %s\n",
                     pCallbackData->messageIdNumber,
                     pCallbackData->pMessageIdName,
                     pCallbackData->pMessage);
-            abort();
+
+            if (shouldAbort)
+            {
+                abort();
+            }
+            break;
+
         case VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT:
             fprintf(stderr,
                     "Rive Vulkan Validation error: %i: %s: %s\n",
