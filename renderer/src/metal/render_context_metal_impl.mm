@@ -104,7 +104,8 @@ public:
     // qualified name of the desired function, including its namespace.
     static NSString* GetPrecompiledFunctionName(
         DrawType drawType,
-        ShaderFeatures shaderFeatures,
+        gpu::ShaderFeatures shaderFeatures,
+        gpu::ShaderMiscFlags shaderMiscFlags,
         id<MTLLibrary> precompiledLibrary,
         const char* functionBaseName)
     {
@@ -138,7 +139,10 @@ public:
             case DrawType::midpointFanPatches:
             case DrawType::outerCurvePatches:
             case DrawType::interiorTriangulation:
-                namespacePrefix = 'p';
+                namespacePrefix =
+                    (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
+                        ? 'c'
+                        : 'p';
                 break;
             case DrawType::imageRect:
                 RIVE_UNREACHABLE();
@@ -461,30 +465,37 @@ RenderContextMetalImpl::RenderContextMetalImpl(
                               DrawType::interiorTriangulation,
                               DrawType::imageMesh})
         {
-            gpu::ShaderFeatures allShaderFeatures = gpu::ShaderFeaturesMaskFor(
-                drawType, gpu::InterlockMode::rasterOrdering);
-            uint32_t pipelineKey =
-                ShaderUniqueKey(drawType,
-                                allShaderFeatures,
-                                gpu::InterlockMode::rasterOrdering,
-                                gpu::ShaderMiscFlags::none);
-            m_drawPipelines[pipelineKey] = std::make_unique<DrawPipeline>(
-                m_gpu,
-                m_plsPrecompiledLibrary,
-                DrawPipeline::GetPrecompiledFunctionName(
-                    drawType,
-                    allShaderFeatures & gpu::kVertexShaderFeaturesMask,
+            for (auto shaderMiscFlags : {gpu::ShaderMiscFlags::none,
+                                         gpu::ShaderMiscFlags::clockwiseFill})
+            {
+                gpu::ShaderFeatures allShaderFeatures =
+                    gpu::ShaderFeaturesMaskFor(
+                        drawType, gpu::InterlockMode::rasterOrdering);
+                uint32_t pipelineKey =
+                    ShaderUniqueKey(drawType,
+                                    allShaderFeatures,
+                                    gpu::InterlockMode::rasterOrdering,
+                                    shaderMiscFlags);
+                m_drawPipelines[pipelineKey] = std::make_unique<DrawPipeline>(
+                    m_gpu,
                     m_plsPrecompiledLibrary,
-                    GLSL_drawVertexMain),
-                DrawPipeline::GetPrecompiledFunctionName(
+                    DrawPipeline::GetPrecompiledFunctionName(
+                        drawType,
+                        allShaderFeatures & gpu::kVertexShaderFeaturesMask,
+                        gpu::ShaderMiscFlags::none,
+                        m_plsPrecompiledLibrary,
+                        GLSL_drawVertexMain),
+                    DrawPipeline::GetPrecompiledFunctionName(
+                        drawType,
+                        allShaderFeatures,
+                        shaderMiscFlags,
+                        m_plsPrecompiledLibrary,
+                        GLSL_drawFragmentMain),
                     drawType,
+                    gpu::InterlockMode::rasterOrdering,
                     allShaderFeatures,
-                    m_plsPrecompiledLibrary,
-                    GLSL_drawFragmentMain),
-                drawType,
-                gpu::InterlockMode::rasterOrdering,
-                allShaderFeatures,
-                gpu::ShaderMiscFlags::none);
+                    shaderMiscFlags);
+            }
         }
     }
 
@@ -780,11 +791,10 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     }
     shaderFeatures &= fullyFeaturedPipelineFeatures;
 
-    // Fully-featured "rasterOrdering" pipelines without miscFlags should have
-    // already been pre-loaded from the static library.
+    // Fully-featured "rasterOrdering" pipelines should have already been
+    // pre-loaded from the static library.
     assert(shaderFeatures != fullyFeaturedPipelineFeatures ||
-           interlockMode != gpu::InterlockMode::rasterOrdering ||
-           shaderMiscFlags != ShaderMiscFlags::none);
+           interlockMode != gpu::InterlockMode::rasterOrdering);
 
     // Poll to see if the shader is actually done compiling, but only wait if
     // it's a fully-feature pipeline. Otherwise, we can fall back on the
@@ -1101,10 +1111,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
     }
     pass.colorAttachments[COLOR_PLANE_IDX].storeAction = MTLStoreActionStore;
 
-    auto baselineShaderMiscFlags = desc.clockwiseFill
-                                       ? gpu::ShaderMiscFlags::clockwiseFill
-                                       : gpu::ShaderMiscFlags::none;
-
+    auto baselineShaderMiscFlags = gpu::ShaderMiscFlags::none;
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {
         // In rasterOrdering mode, the PLS planes are accessed as color
@@ -1185,6 +1192,11 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 ? desc.combinedShaderFeatures
                 : batch.shaderFeatures;
         gpu::ShaderMiscFlags batchMiscFlags = baselineShaderMiscFlags;
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+            (batch.drawContents & gpu::DrawContents::clockwiseFill))
+        {
+            batchMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
+        }
         if (!(batchMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput))
         {
             if (batch.drawType == gpu::DrawType::atomicResolve)

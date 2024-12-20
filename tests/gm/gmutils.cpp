@@ -5,6 +5,7 @@
 #include "gmutils.hpp"
 
 #include "rive/math/mat2d.hpp"
+#include "rive/math/math_types.hpp"
 
 #include <chrono>
 #include <vector>
@@ -255,6 +256,19 @@ PathBuilder& PathBuilder::polylineTo(const std::vector<rive::Vec2D>& pts)
 rive::rcp<rive::RenderImage> LoadImage(rive::Span<uint8_t> bytes)
 {
     return TestingWindow::Get()->factory()->decodeImage(bytes);
+}
+
+void path_add_star(Path& path, int count, float anglePhase, float dir)
+{
+    assert(count & 1);
+    float da = 2 * rive::math::PI * (count >> 1) / count;
+    float angle = anglePhase;
+    for (int i = 0; i < count; ++i)
+    {
+        rive::Vec2D p = {cosf(angle), sinf(angle)};
+        i == 0 ? path->move(p) : path->line(p);
+        angle += da * dir;
+    }
 }
 
 } // namespace rivegm

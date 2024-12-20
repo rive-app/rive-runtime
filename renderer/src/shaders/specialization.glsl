@@ -10,6 +10,8 @@ layout(constant_id = NESTED_CLIPPING_SPECIALIZATION_IDX) const
     bool kEnableNestedClipping = false;
 layout(constant_id = HSL_BLEND_MODES_SPECIALIZATION_IDX) const
     bool kEnableHSLBlendModes = false;
+layout(constant_id = CLOCKWISE_FILL_SPECIALIZATION_IDX) const
+    bool kClockwiseFill = false;
 layout(constant_id = BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX) const
     bool kBorrowedCoveragePrepass = false;
 
@@ -19,4 +21,5 @@ layout(constant_id = BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX) const
 #define @ENABLE_EVEN_ODD kEnableEvenOdd
 #define @ENABLE_NESTED_CLIPPING kEnableNestedClipping
 #define @ENABLE_HSL_BLEND_MODES kEnableHSLBlendModes
+#define @CLOCKWISE_FILL kClockwiseFill
 #define @BORROWED_COVERAGE_PREPASS kBorrowedCoveragePrepass

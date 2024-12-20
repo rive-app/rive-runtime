@@ -1659,6 +1659,7 @@ public:
             shaderFeatures & gpu::ShaderFeatures::ENABLE_EVEN_ODD,
             shaderFeatures & gpu::ShaderFeatures::ENABLE_NESTED_CLIPPING,
             shaderFeatures & gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES,
+            shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill,
             shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass,
         };
         static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
@@ -1667,8 +1668,9 @@ public:
         static_assert(EVEN_ODD_SPECIALIZATION_IDX == 3);
         static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 4);
         static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 5);
-        static_assert(BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX == 6);
-        static_assert(SPECIALIZATION_COUNT == 7);
+        static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 6);
+        static_assert(BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX == 7);
+        static_assert(SPECIALIZATION_COUNT == 8);
 
         VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
         for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)
@@ -3366,6 +3368,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         if (fixedFunctionColorOutput)
         {
             shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+        }
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+            (batch.drawContents & gpu::DrawContents::clockwiseFill))
+        {
+            shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
         uint32_t pipelineKey = gpu::ShaderUniqueKey(drawType,
                                                     shaderFeatures,

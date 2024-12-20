@@ -1113,7 +1113,7 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
         }
         if (pixelShaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
         {
-            s << "#define " << GLSL_CLOCKWISE_FILL << '\n';
+            s << "#define " << GLSL_CLOCKWISE_FILL << " 1\n";
         }
         switch (drawType)
         {
@@ -1704,7 +1704,8 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             pixelShaderMiscFlags |=
                 gpu::ShaderMiscFlags::fixedFunctionColorOutput;
         }
-        if (desc.clockwiseFill)
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+            (batch.drawContents & gpu::DrawContents::clockwiseFill))
         {
             pixelShaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }

@@ -118,7 +118,7 @@ void BackgroundShaderCompiler::threadMain()
         }
         if (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
         {
-            defines[@GLSL_CLOCKWISE_FILL] = @"";
+            defines[@GLSL_CLOCKWISE_FILL] = @"1";
         }
 
         auto source =

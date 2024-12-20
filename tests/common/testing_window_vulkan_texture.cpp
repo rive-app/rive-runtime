@@ -128,7 +128,7 @@ public:
                                   : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = clearColor,
             .wireframe = wireframe,
-            .clockwiseFill = m_clockwiseFill,
+            .clockwiseFillOverride = m_clockwiseFill,
         };
         m_renderContext->beginFrame(frameDescriptor);
         return std::make_unique<RiveRenderer>(m_renderContext.get());

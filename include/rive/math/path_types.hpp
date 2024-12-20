@@ -14,6 +14,7 @@ enum class FillRule
 {
     nonZero,
     evenOdd,
+    clockwise,
 };
 
 enum class PathDirection

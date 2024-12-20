@@ -8,40 +8,39 @@
 
 using namespace rivegm;
 
-static void make_star(Path& path, int count, float anglePhase, float dir)
-{
-    assert(count & 1);
-    float da = 2 * rive::math::PI * (count >> 1) / count;
-    float angle = anglePhase;
-    for (int i = 0; i < count; ++i)
-    {
-        rive::Vec2D p = {cosf(angle), sinf(angle)};
-        i == 0 ? path->move(p) : path->line(p);
-        angle += da * dir;
-    }
-}
-
 static void add_star(Path& path, int count, float dir)
 {
     if (count & 1)
     {
-        make_star(path, count, 0, dir);
+        path_add_star(path, count, 0, dir);
     }
     else
     {
         count >>= 1;
-        make_star(path, count, 0, dir);
-        make_star(path,
-                  count,
-                  rive::math::PI,
-                  1); // always wind one on the 2nd contour
+        path_add_star(path, count, 0, dir);
+        path_add_star(path,
+                      count,
+                      rive::math::PI,
+                      1); // always wind one on the 2nd contour
     }
 }
 
 static std::string fillrule_to_name(rive::FillRule fr)
 {
-    return std::string("poly_") +
-           (fr == rive::FillRule::nonZero ? "nonZero" : "evenOdd");
+    std::string polyName("poly_");
+    switch (fr)
+    {
+        case rive::FillRule::nonZero:
+            polyName += "nonZero";
+            break;
+        case rive::FillRule::evenOdd:
+            polyName += "evenOdd";
+            break;
+        case rive::FillRule::clockwise:
+            polyName += "clockwise";
+            break;
+    }
+    return polyName;
 }
 
 class PolyGM : public GM
@@ -80,3 +79,7 @@ GMREGISTER(return new PolyGM(rive::FillRule::nonZero))
 
 // Expect all to have a hole
 GMREGISTER(return new PolyGM(rive::FillRule::evenOdd))
+
+// Expect all to be filled but the black-6-pointer, and the black-6-pointer will
+// also be missing half the triangle tips.
+GMREGISTER(return new PolyGM(rive::FillRule::clockwise))

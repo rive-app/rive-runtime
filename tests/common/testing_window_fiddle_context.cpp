@@ -291,7 +291,7 @@ public:
             .clearColor = clearColor,
             .msaaSampleCount = m_msaaSampleCount,
             .wireframe = wireframe,
-            .clockwiseFill = m_clockwiseFill,
+            .clockwiseFillOverride = m_clockwiseFill,
         };
         m_fiddleContext->begin(std::move(frameDescriptor));
         return m_fiddleContext->makeRenderer(m_width, m_height);

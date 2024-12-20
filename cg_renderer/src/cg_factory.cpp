@@ -23,8 +23,8 @@ static CGAffineTransform convert(const Mat2D& m)
 
 static CGPathDrawingMode convert(FillRule rule)
 {
-    return (rule == FillRule::nonZero) ? CGPathDrawingMode::kCGPathFill
-                                       : CGPathDrawingMode::kCGPathEOFill;
+    return (rule == FillRule::evenOdd) ? CGPathDrawingMode::kCGPathEOFill
+                                       : CGPathDrawingMode::kCGPathFill;
 }
 
 static CGLineJoin convert(StrokeJoin j)

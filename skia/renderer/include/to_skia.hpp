@@ -40,7 +40,8 @@ public:
         static SkPathFillType convert(FillRule value) {
             switch (value) {
                 case FillRule::evenOdd: return SkPathFillType::kEvenOdd;
-                case FillRule::nonZero: return SkPathFillType::kWinding;
+                case FillRule::nonZero:
+                case FillRule::clockwise: return SkPathFillType::kWinding;
             }
             assert(false);
             return SkPathFillType::kWinding;

@@ -71,8 +71,9 @@
 #define IMAGE_PAINT_TYPE 4u
 
 // Paint flags, found in the x-component value of @paintBuffer.
-#define PAINT_FLAG_EVEN_ODD 0x100u
-#define PAINT_FLAG_HAS_CLIP_RECT 0x200u
+#define PAINT_FLAG_NON_ZERO_FILL 0x100u
+#define PAINT_FLAG_EVEN_ODD_FILL 0x200u
+#define PAINT_FLAG_HAS_CLIP_RECT 0x400u
 
 // PLS draw resources are either updated per flush or per draw. They go into set
 // 0 or set 1, depending on how often they are updated.
@@ -170,5 +171,6 @@
 #define EVEN_ODD_SPECIALIZATION_IDX 3
 #define NESTED_CLIPPING_SPECIALIZATION_IDX 4
 #define HSL_BLEND_MODES_SPECIALIZATION_IDX 5
-#define BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX 6
-#define SPECIALIZATION_COUNT 7
+#define CLOCKWISE_FILL_SPECIALIZATION_IDX 6
+#define BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX 7
+#define SPECIALIZATION_COUNT 8

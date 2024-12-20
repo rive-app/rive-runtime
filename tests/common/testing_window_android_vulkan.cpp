@@ -210,7 +210,7 @@ public:
                                   : gpu::LoadAction::preserveRenderTarget,
             .clearColor = clearColor,
             .wireframe = wireframe,
-            .clockwiseFill = m_clockwiseFill,
+            .clockwiseFillOverride = m_clockwiseFill,
         });
 
         return std::make_unique<RiveRenderer>(m_renderContext.get());

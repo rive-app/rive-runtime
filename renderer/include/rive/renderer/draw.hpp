@@ -224,7 +224,6 @@ public:
                        gpu::InterlockMode);
 
     const Gradient* gradient() const { return m_gradientRef; }
-    FillRule fillRule() const { return m_fillRule; }
     gpu::PaintType paintType() const { return m_paintType; }
     float strokeRadius() const { return m_strokeRadius; }
     gpu::ContourDirections contourDirections() const
@@ -310,8 +309,6 @@ protected:
 
     const RiveRenderPath* const m_pathRef;
     const Gradient* m_gradientRef;
-    const FillRule m_fillRule; // Bc RiveRenderPath fillRule can mutate during
-                               // the artboard draw process.
     const gpu::PaintType m_paintType;
     float m_strokeRadius = 0;
     gpu::ContourDirections m_contourDirections;

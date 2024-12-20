@@ -435,7 +435,7 @@ void PathData::set(const Mat2D& m,
     m_coverageBufferRange.offsetY = coverageBufferRange.offsetY;
 }
 
-void PaintData::set(FillRule fillRule,
+void PaintData::set(DrawContents singleDrawContents,
                     PaintType paintType,
                     SimplePaintValue simplePaintValue,
                     GradTextureLayout gradTextureLayout,
@@ -483,9 +483,13 @@ void PaintData::set(FillRule fillRule,
             break;
         }
     }
-    if (fillRule == FillRule::evenOdd)
+    if (singleDrawContents & gpu::DrawContents::nonZeroFill)
     {
-        localParams |= PAINT_FLAG_EVEN_ODD;
+        localParams |= PAINT_FLAG_NON_ZERO_FILL;
+    }
+    else if (singleDrawContents & gpu::DrawContents::evenOddFill)
+    {
+        localParams |= PAINT_FLAG_EVEN_ODD_FILL;
     }
     if (hasClipRect)
     {

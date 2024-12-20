@@ -158,6 +158,8 @@ private:
     float m_LastY = 0;
 };
 
+void path_add_star(Path& path, int count, float anglePhase, float dir);
+
 } // namespace rivegm
 
 #endif

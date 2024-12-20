@@ -56,8 +56,9 @@ def is_image_mesh_feature_set(feature_set):
 
 ShaderType = Enum('ShaderType', ['VERTEX', 'FRAGMENT'])
 DrawType = Enum('DrawType', ['PATH', 'IMAGE_MESH'])
+FillType = Enum('FillType', ['CLOCKWISE', 'LEGACY'])
 
-def emit_shader(out, shader_type, draw_type, feature_set):
+def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
     assert(is_valid_feature_set(feature_set))
     if shader_type == ShaderType.VERTEX:
         assert(is_unique_vertex_feature_set(feature_set))
@@ -71,8 +72,12 @@ def emit_shader(out, shader_type, draw_type, feature_set):
         namespace_id[feature.index] = '1'
     for feature in feature_set:
         out.write('#define %s 1\n' % feature.name)
+    if fill_type == FillType.CLOCKWISE:
+        out.write('#define CLOCKWISE_FILL 1\n')
     if draw_type == DrawType.PATH:
-        out.write('namespace p%s\n' % ''.join(namespace_id))
+        out.write('namespace %s%s\n' %
+                  ('c' if fill_type == FillType.CLOCKWISE else 'p',
+                   ''.join(namespace_id)))
         out.write('{\n')
         out.write('#include "draw_path.minified.glsl"\n')
         out.write('}\n')
@@ -87,6 +92,8 @@ def emit_shader(out, shader_type, draw_type, feature_set):
         out.write('#undef VERTEX\n')
     else:
         out.write('#undef FRAGMENT\n')
+    if fill_type == FillType.CLOCKWISE:
+        out.write('#undef CLOCKWISE_FILL\n')
     out.write('\n')
 
 # Organize all combinations of valid features into their own namespace.
@@ -95,15 +102,21 @@ out = open(sys.argv[1], 'w', newline='\n')
 # Precompile the bare minimum set of shaders required to draw everything. We can compile more
 # specialized shaders in the background at runtime, and use the fully-featured (slower) shaders
 # while waiting for the compilations to complete.
-emit_shader(out, ShaderType.VERTEX, DrawType.PATH, whole_program_features)
-emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, all_features)
-emit_shader(out, ShaderType.VERTEX, DrawType.PATH,
+emit_shader(out, ShaderType.VERTEX, DrawType.PATH, FillType.LEGACY,
+            whole_program_features)
+emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.LEGACY, all_features)
+emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.CLOCKWISE, all_features)
+
+emit_shader(out, ShaderType.VERTEX, DrawType.PATH, FillType.LEGACY,
             whole_program_features.difference({DRAW_INTERIOR_TRIANGLES}))
-emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH,
+emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.LEGACY,
             all_features.difference({DRAW_INTERIOR_TRIANGLES}))
-emit_shader(out, ShaderType.VERTEX, DrawType.IMAGE_MESH,
+emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.CLOCKWISE,
+            all_features.difference({DRAW_INTERIOR_TRIANGLES}))
+
+emit_shader(out, ShaderType.VERTEX, DrawType.IMAGE_MESH, FillType.LEGACY,
             whole_program_features.difference(non_image_mesh_features))
-emit_shader(out, ShaderType.FRAGMENT, DrawType.IMAGE_MESH,
+emit_shader(out, ShaderType.FRAGMENT, DrawType.IMAGE_MESH, FillType.LEGACY,
             all_features.difference(non_image_mesh_features))
 
 # If we wanted to emit all combos...

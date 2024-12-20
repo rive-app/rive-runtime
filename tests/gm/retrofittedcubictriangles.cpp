@@ -38,7 +38,9 @@ public:
         RiveRenderPathDraw(kFullscreenPixelBounds,
                            Mat2D(),
                            make_nonempty_placeholder_path(),
-                           FillRule::nonZero,
+                           context->frameDescriptor().clockwiseFillOverride
+                               ? FillRule::clockwise
+                               : FillRule::nonZero,
                            paint,
                            Type::interiorTriangulationPath,
                            context->frameDescriptor(),
@@ -134,7 +136,15 @@ public:
                                          RETROFITTED_TRIANGLE_CONTOUR_FLAG);
             }
 
-            flush->pushOuterCubicsDraw(this, tessVertexCount, tessLocation);
+            auto shaderMiscFlags = gpu::ShaderMiscFlags::none;
+            if (flush->frameDescriptor().clockwiseFillOverride)
+            {
+                m_drawContents |= gpu::DrawContents::clockwiseFill;
+            }
+            flush->pushOuterCubicsDraw(this,
+                                       tessVertexCount,
+                                       tessLocation,
+                                       shaderMiscFlags);
         }
     }
 };

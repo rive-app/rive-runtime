@@ -773,10 +773,12 @@ enum class DrawContents
     none = 0,
     opaquePaint = 1 << 0,
     stroke = 1 << 1,
-    evenOddFill = 1 << 2,
-    activeClip = 1 << 3,
-    clipUpdate = 1 << 4,
-    advancedBlend = 1 << 5,
+    clockwiseFill = 1 << 2,
+    nonZeroFill = 1 << 3,
+    evenOddFill = 1 << 4,
+    activeClip = 1 << 5,
+    clipUpdate = 1 << 6,
+    advancedBlend = 1 << 7,
 };
 RIVE_MAKE_ENUM_BITSET(DrawContents)
 
@@ -917,7 +919,8 @@ struct FlushDescriptor
     uint32_t complexGradRowsTop = 0;
     uint32_t complexGradRowsHeight = 0;
     uint32_t tessDataHeight = 0;
-    bool clockwiseFill = false; // Override path fill rules with "clockwise".
+    // Override path fill rules with "clockwise".
+    bool clockwiseFillOverride = false;
     bool hasTriangleVertices = false;
     bool wireframe = false;
     bool isFinalFlushOfFrame = false;
@@ -1108,7 +1111,7 @@ public:
     constexpr static StorageBufferStructure kBufferStructure =
         StorageBufferStructure::uint32x2;
 
-    void set(FillRule,
+    void set(DrawContents singleDrawContents,
              PaintType,
              SimplePaintValue,
              GradTextureLayout,

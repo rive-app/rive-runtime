@@ -102,7 +102,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
 
     // Indicate even-odd fill rule by making pathID negative.
-    if ((paintData.x & PAINT_FLAG_EVEN_ODD) != 0u)
+    if ((paintData.x & PAINT_FLAG_EVEN_ODD_FILL) != 0u)
         v_pathID = -v_pathID;
 #endif // !RENDER_MODE_MSAA
 
@@ -376,19 +376,25 @@ PLS_MAIN(@drawFragmentMain)
 #endif
 
     // Convert coverageCount to coverage.
+    half coverage;
 #ifdef @CLOCKWISE_FILL
-    half coverage = clamp(coverageCount, make_half(.0), make_half(1.));
-#else
-    half coverage = abs(coverageCount);
-#ifdef @ENABLE_EVEN_ODD
-    if (@ENABLE_EVEN_ODD && v_pathID < .0 /*even-odd*/)
+    if (@CLOCKWISE_FILL)
     {
-        coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
+        coverage = clamp(coverageCount, make_half(.0), make_half(1.));
     }
+    else
+#endif // CLOCKWISE_FILL
+    {
+        coverage = abs(coverageCount);
+#ifdef @ENABLE_EVEN_ODD
+        if (@ENABLE_EVEN_ODD && v_pathID < .0 /*even-odd*/)
+        {
+            coverage = 1. - make_half(abs(fract(coverage * .5) * 2. + -1.));
+        }
 #endif
-    // This also caps stroke coverage, which can be >1.
-    coverage = min(coverage, make_half(1.));
-#endif // !CLOCKWISE_FILL
+        // This also caps stroke coverage, which can be >1.
+        coverage = min(coverage, make_half(1.));
+    }
 
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.

@@ -259,7 +259,7 @@ void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
     {
         m_frameInterlockMode = gpu::InterlockMode::rasterOrdering;
     }
-    else if (frameDescriptor.clockwiseFill &&
+    else if (frameDescriptor.clockwiseFillOverride &&
              platformFeatures().supportsClockwiseAtomicRendering)
     {
         assert(platformFeatures().supportsFragmentShaderAtomics);
@@ -887,7 +887,7 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.complexGradRowsHeight =
         math::lossless_numeric_cast<uint32_t>(m_complexGradients.size());
     m_flushDesc.tessDataHeight = tessDataHeight;
-    m_flushDesc.clockwiseFill = frameDescriptor.clockwiseFill;
+    m_flushDesc.clockwiseFillOverride = frameDescriptor.clockwiseFillOverride;
     m_flushDesc.wireframe = frameDescriptor.wireframe;
     m_flushDesc.isFinalFlushOfFrame = isFinalFlushOfFrame;
 
@@ -1022,7 +1022,7 @@ void RenderContext::LogicalFlush::writeResources()
     gpu::SimplePaintValue clearColorValue;
     clearColorValue.color = m_ctx->frameDescriptor().clearColor;
     m_ctx->m_pathData.skip_back();
-    m_ctx->m_paintData.set_back(FillRule::nonZero,
+    m_ctx->m_paintData.set_back(gpu::DrawContents::none,
                                 PaintType::solidColor,
                                 clearColorValue,
                                 GradTextureLayout(),
@@ -1094,13 +1094,13 @@ void RenderContext::LogicalFlush::writeResources()
         constexpr static int kDrawTypeShift = 45;
         constexpr static int64_t kDrawTypeMask RIVE_MAYBE_UNUSED =
             7llu << kDrawTypeShift;
-        constexpr static int kTextureHashShift = 27;
-        constexpr static int64_t kTextureHashMask = 0x3ffffllu
+        constexpr static int kTextureHashShift = 29;
+        constexpr static int64_t kTextureHashMask = 0xffffllu
                                                     << kTextureHashShift;
-        constexpr static int kBlendModeShift = 23;
+        constexpr static int kBlendModeShift = 25;
         constexpr static int kBlendModeMask = 0xf << kBlendModeShift;
         constexpr static int kDrawContentsShift = 17;
-        constexpr static int64_t kDrawContentsMask = 0x3fllu
+        constexpr static int64_t kDrawContentsMask = 0xffllu
                                                      << kDrawContentsShift;
         constexpr static int kDrawIndexShift = 1;
         constexpr static int64_t kDrawIndexMask = 0x7fff << kDrawIndexShift;
@@ -1777,7 +1777,7 @@ uint32_t RenderContext::LogicalFlush::pushPath(const RiveRenderPathDraw* draw)
                                    draw->coverageBufferRange());
     }
 
-    m_ctx->m_paintData.set_back(draw->fillRule(),
+    m_ctx->m_paintData.set_back(draw->drawContents(),
                                 draw->paintType(),
                                 draw->simplePaintValue(),
                                 m_gradTextureLayout,
@@ -2293,10 +2293,11 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
                                 draw->paintType(),
                                 vertexCount,
                                 baseVertex);
+
     if (!(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass))
     {
         auto pathShaderFeatures = gpu::ShaderFeatures::NONE;
-        if (draw->fillRule() == FillRule::evenOdd)
+        if (draw->isEvenOddFill())
         {
             pathShaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
         }
@@ -2316,6 +2317,28 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     assert(!(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass) ||
            batch.shaderFeatures == gpu::ShaderFeatures::NONE);
     return batch;
+}
+
+RIVE_ALWAYS_INLINE static bool can_combine_draw_contents(
+    gpu::InterlockMode interlockMode,
+    gpu::DrawContents batchContents,
+    const Draw* draw)
+{
+    constexpr static auto ANY_FILL = gpu::DrawContents::clockwiseFill |
+                                     gpu::DrawContents::evenOddFill |
+                                     gpu::DrawContents::nonZeroFill;
+    // Raster ordering uses a different shader for clockwise fills, so we
+    // can't combine both legacy and clockwise fills into the same draw.
+    if (interlockMode == gpu::InterlockMode::rasterOrdering &&
+        // Anything can be combined if either the existing batch or the new draw
+        // don't have fills yet.
+        (batchContents & ANY_FILL) && (draw->drawContents() & ANY_FILL))
+    {
+        assert(!draw->isStroked());
+        return (batchContents & gpu::DrawContents::clockwiseFill).bits() ==
+               (draw->drawContents() & gpu::DrawContents::clockwiseFill).bits();
+    }
+    return true;
 }
 
 RIVE_ALWAYS_INLINE static bool can_combine_draw_images(
@@ -2350,13 +2373,22 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::stencilClipReset:
-            canMergeWithPreviousBatch =
-                !m_drawList.empty() && m_drawList.tail().drawType == drawType &&
-                m_drawList.tail().shaderMiscFlags == shaderMiscFlags &&
-                !m_drawList.tail().needsBarrier &&
-                can_combine_draw_images(m_drawList.tail().imageTexture,
-                                        draw->imageTexture());
-            break;
+            if (!m_drawList.empty())
+            {
+                const DrawBatch& currentBatch = m_drawList.tail();
+                canMergeWithPreviousBatch =
+                    currentBatch.drawType == drawType &&
+                    currentBatch.shaderMiscFlags == shaderMiscFlags &&
+                    !currentBatch.needsBarrier &&
+                    can_combine_draw_contents(m_ctx->frameInterlockMode(),
+                                              currentBatch.drawContents,
+                                              draw) &&
+                    can_combine_draw_images(currentBatch.imageTexture,
+                                            draw->imageTexture());
+                break;
+            }
+            [[fallthrough]];
+
         // Image draws can't be combined for now because they each have their
         // own unique uniforms.
         case DrawType::imageRect:

@@ -456,7 +456,7 @@ RiveRenderPathDraw::RiveRenderPathDraw(
     AABB bounds,
     const Mat2D& matrix,
     rcp<const RiveRenderPath> path,
-    FillRule fillRule,
+    FillRule initialFillRule,
     const RiveRenderPaint* paint,
     Type type,
     const RenderContext::FrameDescriptor& frameDesc,
@@ -468,12 +468,6 @@ RiveRenderPathDraw::RiveRenderPathDraw(
          type),
     m_pathRef(path.release()),
     m_gradientRef(safe_ref(paint->getGradient())),
-    m_fillRule(paint->getIsStroked() || frameDesc.clockwiseFill
-                   // Fill rule is irrelevant for stroking and clockwiseFill,
-                   // but override it to nonZero so the triangulator doesn't do
-                   // evenOdd optimizations in "clockwiseFill" mode.
-                   ? FillRule::nonZero
-                   : fillRule),
     m_paintType(paint->getType())
 {
     assert(m_pathRef != nullptr);
@@ -495,7 +489,16 @@ RiveRenderPathDraw::RiveRenderPathDraw(
                                              // RiveRenderer::drawPath().
         assert(m_strokeRadius > 0);
     }
-    else if (m_fillRule == FillRule::evenOdd)
+    else if (initialFillRule == FillRule::clockwise ||
+             frameDesc.clockwiseFillOverride)
+    {
+        m_drawContents |= gpu::DrawContents::clockwiseFill;
+    }
+    else if (initialFillRule == FillRule::nonZero)
+    {
+        m_drawContents |= gpu::DrawContents::nonZeroFill;
+    }
+    else if (initialFillRule == FillRule::evenOdd)
     {
         m_drawContents |= gpu::DrawContents::evenOddFill;
     }
@@ -513,10 +516,32 @@ RiveRenderPathDraw::RiveRenderPathDraw(
         // Stroke triangles are always forward.
         m_contourDirections = gpu::ContourDirections::forward;
     }
+    else if (initialFillRule == FillRule::clockwise)
+    {
+        // Clockwise paths need to be reversed when the matrix is left-handed,
+        // so that the intended forward triangles remain clockwise.
+        float det = matrix.xx() * matrix.yy() - matrix.yx() * matrix.xy();
+        if (det < 0)
+        {
+            m_contourDirections =
+                interlockMode == gpu::InterlockMode::msaa
+                    ? gpu::ContourDirections::reverse
+                    : gpu::ContourDirections::forwardThenReverse;
+            m_contourFlags |= NEGATE_PATH_FILL_COVERAGE_FLAG; // ignored by msaa
+        }
+        else
+        {
+            m_contourDirections =
+                interlockMode == gpu::InterlockMode::msaa
+                    ? gpu::ContourDirections::forward
+                    : gpu::ContourDirections::reverseThenForward;
+        }
+    }
     else if (interlockMode != gpu::InterlockMode::msaa)
     {
         // atomic and rasterOrdering fills need reverse AND forward triangles.
-        if (frameDesc.clockwiseFill && !m_pathRef->isClockwiseDominant(matrix))
+        if (frameDesc.clockwiseFillOverride &&
+            !m_pathRef->isClockwiseDominant(matrix))
         {
             // For clockwiseFill, this is also our opportunity to logically
             // reverse the winding of the path, if it is predominantly
@@ -529,20 +554,25 @@ RiveRenderPathDraw::RiveRenderPathDraw(
             m_contourDirections = gpu::ContourDirections::reverseThenForward;
         }
     }
-    else if (m_fillRule != FillRule::evenOdd)
-    {
-        // Emit "nonZero" msaa fills in a direction such that the dominant
-        // triangle winding area is always clockwise. This maximizes pixel
-        // throughput since we will draw counterclockwise triangles twice and
-        // clockwise only once.
-        m_contourDirections = m_pathRef->isClockwiseDominant(matrix)
-                                  ? gpu::ContourDirections::forward
-                                  : gpu::ContourDirections::reverse;
-    }
     else
     {
-        // "evenOdd" msaa fills just get drawn twice, so any direction is fine.
-        m_contourDirections = gpu::ContourDirections::forward;
+        if (initialFillRule == FillRule::nonZero ||
+            frameDesc.clockwiseFillOverride)
+        {
+            // Emit "nonZero" msaa fills in a direction such that the dominant
+            // triangle winding area is always clockwise. This maximizes pixel
+            // throughput since we will draw counterclockwise triangles twice
+            // and clockwise only once.
+            m_contourDirections = m_pathRef->isClockwiseDominant(matrix)
+                                      ? gpu::ContourDirections::forward
+                                      : gpu::ContourDirections::reverse;
+        }
+        else
+        {
+            // "evenOdd" msaa fills just get drawn twice, so any direction is
+            // fine.
+            m_contourDirections = gpu::ContourDirections::forward;
+        }
     }
 
     m_simplePaintValue = paint->getSimpleValue();
@@ -2100,7 +2130,10 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
             triangulatorAxis == TriangulatorAxis::horizontal
                 ? GrTriangulator::Comparator::Direction::kHorizontal
                 : GrTriangulator::Comparator::Direction::kVertical,
-            m_fillRule,
+            // clockwise and nonZero paths both get triangulated as nonZero,
+            // because clockwise fill still needs the backwards triangles for
+            // borrowed coverage.
+            isEvenOddFill() ? FillRule::evenOdd : FillRule::nonZero,
             allocator);
         float matrixDeterminant =
             m_matrix[0] * m_matrix[3] - m_matrix[2] * m_matrix[1];

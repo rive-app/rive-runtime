@@ -755,7 +755,7 @@ void riveMainLoop()
         .wireframe = s_wireframe,
         .fillsDisabled = s_disableFill,
         .strokesDisabled = s_disableStroke,
-        .clockwiseFill = s_clockwiseFill,
+        .clockwiseFillOverride = s_clockwiseFill,
     });
 
     int instances = 1;

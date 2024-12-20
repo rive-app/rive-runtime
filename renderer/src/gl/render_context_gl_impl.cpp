@@ -1185,7 +1185,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             m_plsImpl != nullptr
                 ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
                 : gpu::ShaderMiscFlags::none;
-        if (desc.clockwiseFill)
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+            (batch.drawContents & gpu::DrawContents::clockwiseFill))
         {
             fragmentShaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
@@ -1303,7 +1304,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             m_plsImpl != nullptr
                 ? m_plsImpl->shaderMiscFlags(desc, batch.drawType)
                 : gpu::ShaderMiscFlags::none;
-        if (desc.clockwiseFill)
+        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+            (batch.drawContents & gpu::DrawContents::clockwiseFill))
         {
             fragmentShaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
@@ -1499,8 +1501,17 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     drawHelper.draw();
 
                     // Clean up backward triangles in the stencil buffer, (also
-                    // filling negative winding numbers).
+                    // filling negative winding numbers for nonZero fill).
                     m_state->setCullFace(GL_FRONT);
+                    if (batch.drawContents & gpu::DrawContents::clockwiseFill)
+                    {
+                        // For clockwise fill, disable the color mask when
+                        // cleaning up backward triangles. This mode only fills
+                        // in forward triangles.
+                        m_state->setWriteMasks(false,
+                                               false,
+                                               isClipUpdate ? 0xff : 0x7f);
+                    }
                     drawHelper.draw();
                     break;
                 }

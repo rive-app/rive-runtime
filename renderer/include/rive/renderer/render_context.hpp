@@ -100,7 +100,7 @@ public:
         bool strokesDisabled = false;
         // Override all paths' fill rules (winding or even/odd) to emulate
         // clockwiseAtomic mode.
-        bool clockwiseFill = false;
+        bool clockwiseFillOverride = false;
     };
 
     // Called at the beginning of a frame and establishes where and how it will
