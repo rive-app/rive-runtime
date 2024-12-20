@@ -176,6 +176,7 @@ bool OrderedLine::buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
 
     bool ellipsisOverflowed = false;
     startGIndex = line.startGlyphIndex;
+    x = 0.0f;
 
     for (uint32_t i = line.startRunIndex; i < line.endRunIndex + 1; i++)
     {
@@ -189,11 +190,15 @@ bool OrderedLine::buildEllipsisRuns(std::vector<const GlyphRun*>& logicalRuns,
 
             // Get the next shape so we can check if it fits, otherwise keep
             // using the last one.
-            TextRun ellipsisRuns[] = {{ellipsisFont,
-                                       ellipsisFontSize,
-                                       run.lineHeight,
-                                       run.letterSpacing,
-                                       (uint32_t)ellipsisCodePoints.size()}};
+            TextRun ellipsisRuns[] = {{
+                ellipsisFont,
+                ellipsisFontSize,
+                run.lineHeight,
+                run.letterSpacing,
+                (uint32_t)ellipsisCodePoints.size(),
+                0, // default, TextRun.script
+                run.styleId,
+            }};
             auto nextEllipsisShape =
                 ellipsisFont->shapeText(ellipsisCodePoints,
                                         Span<TextRun>(ellipsisRuns, 1));
