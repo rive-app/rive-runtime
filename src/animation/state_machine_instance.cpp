@@ -756,7 +756,8 @@ public:
                     if (layout->is<Artboard>())
                     {
                         auto artboard = layout->as<Artboard>();
-                        if (artboard->frameOrigin())
+                        if (artboard->originX() != 0 ||
+                            artboard->originY() != 0)
                         {
                             localWorld += Vec2D(
                                 artboard->originX() * artboard->layoutWidth(),
