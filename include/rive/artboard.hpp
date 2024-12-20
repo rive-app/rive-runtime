@@ -211,7 +211,7 @@ public:
     void setDataContextFromInstance(ViewModelInstance* viewModelInstance);
     void addDataBind(DataBind* dataBind);
     void populateDataBinds(std::vector<DataBind*>* dataBinds);
-    void sortDataBinds(std::vector<DataBind*> dataBinds);
+    void sortDataBinds();
     void collectDataBinds();
 
     bool hasAudio() const;

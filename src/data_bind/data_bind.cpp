@@ -194,9 +194,7 @@ void DataBind::update(ComponentDirt value)
             // not set for certain modes, we might be able to skip the mode
             // validation.
             auto flagsValue = static_cast<DataBindFlags>(flags());
-            if (((flagsValue & DataBindFlags::Direction) ==
-                 DataBindFlags::ToTarget) ||
-                ((flagsValue & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
+            if (toTarget())
             {
                 m_ContextValue->apply(m_target,
                                       propertyKey(),
@@ -210,8 +208,7 @@ void DataBind::update(ComponentDirt value)
 void DataBind::updateSourceBinding()
 {
     auto flagsValue = static_cast<DataBindFlags>(flags());
-    if (((flagsValue & DataBindFlags::Direction) == DataBindFlags::ToSource) ||
-        ((flagsValue & DataBindFlags::TwoWay) == DataBindFlags::TwoWay))
+    if (toSource())
     {
         if (m_ContextValue != nullptr)
         {
@@ -244,4 +241,24 @@ bool DataBind::addDirt(ComponentDirt value, bool recurse)
         target()->as<DataConverter>()->addDirt(value);
     }
     return true;
+}
+
+bool DataBind::bindsOnce()
+{
+    auto flagsValue = static_cast<DataBindFlags>(flags());
+    return (flagsValue & DataBindFlags::Once) == DataBindFlags::Once;
+}
+
+bool DataBind::toSource()
+{
+    auto flagsValue = static_cast<DataBindFlags>(flags());
+    return (flagsValue & (DataBindFlags::TwoWay | DataBindFlags::ToSource)) !=
+           0;
+}
+
+bool DataBind::toTarget()
+{
+    auto flagsValue = static_cast<DataBindFlags>(flags());
+    return (flagsValue & DataBindFlags::TwoWay) != 0 ||
+           (flagsValue & DataBindFlags::ToSource) == 0;
 }

@@ -34,7 +34,10 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
         auto value = dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
         if (value != nullptr)
         {
-            value->addDependent(this);
+            if (!bindsOnce())
+            {
+                value->addDependent(this);
+            }
             m_Source = value;
             bind();
         }

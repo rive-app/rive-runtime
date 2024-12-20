@@ -1324,11 +1324,21 @@ void Artboard::clearDataContext()
     }
 }
 
-void Artboard::sortDataBinds(std::vector<DataBind*> dataBinds)
+void Artboard::sortDataBinds()
 {
-    for (auto dataBind : dataBinds)
+    size_t currentToSourceIndex = 0;
+    for (size_t i = 0; i < m_AllDataBinds.size(); i++)
     {
-        m_AllDataBinds.push_back(dataBind->as<DataBind>());
+        if (m_AllDataBinds[i]->toSource())
+        {
+            if (i != currentToSourceIndex)
+            {
+
+                std::iter_swap(m_AllDataBinds.begin() + currentToSourceIndex,
+                               m_AllDataBinds.begin() + i);
+            }
+            currentToSourceIndex += 1;
+        }
     }
 }
 
@@ -1364,9 +1374,8 @@ void Artboard::populateDataBinds(std::vector<DataBind*>* dataBinds)
 void Artboard::collectDataBinds()
 {
     m_AllDataBinds.clear();
-    std::vector<DataBind*> dataBinds;
-    populateDataBinds(&dataBinds);
-    sortDataBinds(dataBinds);
+    populateDataBinds(&m_AllDataBinds);
+    sortDataBinds();
 }
 
 void Artboard::addDataBind(DataBind* dataBind)
