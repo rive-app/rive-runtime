@@ -536,4 +536,21 @@ TEST_CASE("FindCubicConvex180Chops", "[pathutils]")
                      math::bit_cast<Vec2D>(p[5])};
     CHECK(pathutils::FindCubicConvex180Chops(cubic, T, &areCusps) == 0);
 }
+
+// Check that flat lines with ordered points never get detected as cusps.
+TEST_CASE("FindCubicConvex180Chops_lines", "[pathutils]")
+{
+    Vec2D p0 = {123, 200}, p3 = {223, 432};
+    for (float t0 = 0; t0 < 1; t0 += .12f)
+    {
+        for (float t1 = t0 + .097f; t0 < 1; t0 += .097f)
+        {
+            Vec2D line[4] = {p0, lerp(p0, p3, t0), lerp(p0, p3, t1), p3};
+            float _[2];
+            bool areCusps = true;
+            pathutils::FindCubicConvex180Chops(line, _, &areCusps);
+            CHECK_FALSE(areCusps);
+        }
+    }
+}
 } // namespace rive

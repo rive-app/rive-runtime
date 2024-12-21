@@ -213,9 +213,14 @@ int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
     float2 B = D - C;
     float2 A = -3.f * D + E;
 
-    // Now find the cubic's inflection function. There are inflections where F'
-    // x F'' == 0. We formulate this as a quadratic equation:  F' x F'' == aT^2
-    // + bT + c == 0. See:
+    // Now find the cubic's inflection function.
+    // There are inflections where F' x F'' == 0.
+    //
+    // We formulate this as a quadratic equation:
+    //
+    //     F' x F'' == aT^2 + bT + c == 0.
+    //
+    // See:
     // https://www.microsoft.com/en-us/research/wp-content/uploads/2005/01/p1000-loop.pdf
     // NOTE: We only need the roots, so a uniform scale factor does not affect
     // the solution.
@@ -239,8 +244,9 @@ int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
         //
         //      Tangent_Direction(T) x tan0 == 0
         //      (AT^2 x tan0) + (2BT x tan0) + (C x tan0) == 0
-        //      (A x C)T^2 + (2B x C)T + (C x C) == 0  [[because tan0 == P1 - P0
-        //      == C]] bT^2 + 2cT + 0 == 0  [[because A x C == b, B x C == c]]
+        //      (A x C)T^2 + (2B x C)T + (C x C) == 0
+        //          [[because tan0 == P1 - P0 == C]]
+        //      bT^2 + 2cT + 0 == 0  [[because A x C == b, B x C == c]]
         //      T = [0, -2c/b]
         //
         // NOTE: if C == 0, then C != tan0. But this is fine because the curve
@@ -274,13 +280,27 @@ int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
                 T[0] = root;
                 return 1;
             }
+            *areCusps = false;
             return 0;
         }
 
-        // The curve is a flat line. The standard inflection function doesn't
-        // detect cusps from flat lines. Find cusps by searching instead for
-        // points where the tangent is perpendicular to tan0. This will find any
-        // cusp point.
+        // The curve is a flat line. If the points are ordered, there are no
+        // inflections.
+        float2 base = p3 - p0;
+        float4 pX = {pts[0].x, pts[1].x, pts[2].x, pts[3].x};
+        float4 pY = {pts[0].y, pts[1].y, pts[2].y, pts[3].y};
+        float4 dotProds = pX * base.x + pY * base.y;
+        if (simd::all(dotProds.yzw > dotProds.xyz))
+        {
+            // Flat line with no cusps.
+            *areCusps = false;
+            return 0;
+        }
+
+        // The curve is a flat line with inflections. The standard inflection
+        // function doesn't detect cusps from flat lines. Find cusps by
+        // searching instead for points where the tangent is perpendicular to
+        // tan0. This will find any cusp point.
         //
         //     dot(tan0, Tangent_Direction(T)) == 0
         //
