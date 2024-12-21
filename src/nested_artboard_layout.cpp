@@ -47,6 +47,12 @@ void NestedArtboardLayout::markNestedLayoutDirty()
     }
 }
 
+void NestedArtboardLayout::markLayoutNodeDirty()
+{
+    updateWidthOverride();
+    updateHeightOverride();
+}
+
 void NestedArtboardLayout::update(ComponentDirt value)
 {
     Super::update(value);

@@ -12,6 +12,7 @@ public:
 #endif
     Core* clone() const override;
     void markNestedLayoutDirty();
+    void markLayoutNodeDirty();
     void update(ComponentDirt value) override;
     StatusCode onAddedClean(CoreContext* context) override;
 

@@ -1229,6 +1229,22 @@ void LayoutComponent::displayChanged()
     m_displayChanged = true;
     markLayoutNodeDirty();
 }
+
+void LayoutComponent::flexDirectionChanged()
+{
+    markLayoutNodeDirty();
+    for (Component* child : children())
+    {
+        if (child->is<LayoutComponent>())
+        {
+            child->as<LayoutComponent>()->markLayoutNodeDirty();
+        }
+        else if (child->is<NestedArtboardLayout>())
+        {
+            child->as<NestedArtboardLayout>()->markLayoutNodeDirty();
+        }
+    }
+}
 #else
 LayoutComponent::LayoutComponent() :
     m_layoutData(new LayoutData()), m_proxy(this)

@@ -264,6 +264,7 @@ public:
     void positionTypeChanged();
     void scaleTypeChanged();
     void displayChanged();
+    void flexDirectionChanged();
 #endif
     void buildDependencies() override;
 
