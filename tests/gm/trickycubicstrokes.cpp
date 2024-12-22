@@ -8,9 +8,9 @@
 
 #include "gm.hpp"
 #include "gmutils.hpp"
+#include "rive/math/bezier_utils.hpp"
 #include "rive/renderer.hpp"
 #include "common/rand.hpp"
-#include "path_utils.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -134,7 +134,7 @@ static AABB calc_tight_cubic_bounds(const Vec2D P[4], int depth = 5)
     }
 
     Vec2D chopped[7];
-    pathutils::ChopCubicAt(P, chopped, .5f);
+    math::chop_cubic_at(P, chopped, .5f);
     AABB bounds0 = calc_tight_cubic_bounds(chopped, depth - 1);
     AABB bounds1 = calc_tight_cubic_bounds(chopped + 3, depth - 1);
     if (bounds1.isEmptyOrNaN())

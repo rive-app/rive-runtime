@@ -10,14 +10,15 @@
  * Copyright 2022 Rive
  */
 
-#include "path_utils.hpp"
+#include "rive/math/bezier_utils.hpp"
 
 #include "rive/math/math_types.hpp"
-#include "rive/math/simd.hpp"
 
-namespace rive::pathutils
+namespace rive
 {
-Vec2D EvalCubicAt(const Vec2D p[4], float t)
+namespace math
+{
+Vec2D eval_cubic_at(const Vec2D p[4], float t)
 {
     float2 p0 = simd::load2f(p + 0);
     float2 p1 = simd::load2f(p + 1);
@@ -30,7 +31,7 @@ Vec2D EvalCubicAt(const Vec2D p[4], float t)
     return math::bit_cast<Vec2D>(((a * t + b) * t + c) * t + d);
 }
 
-void ChopCubicAt(const Vec2D src[4], Vec2D dst[7], float t)
+void chop_cubic_at(const Vec2D src[4], Vec2D dst[7], float t)
 {
     assert(0 <= t && t <= 1);
 
@@ -60,13 +61,13 @@ void ChopCubicAt(const Vec2D src[4], Vec2D dst[7], float t)
     simd::store(dst + 6, p2p3.zw);
 }
 
-void ChopCubicAt(const Vec2D src[4], Vec2D dst[10], float t0, float t1)
+void chop_cubic_at(const Vec2D src[4], Vec2D dst[10], float t0, float t1)
 {
     assert(0 <= t0 && t0 <= t1 && t1 <= 1);
 
     if (t1 == 1)
     {
-        ChopCubicAt(src, dst, t0);
+        chop_cubic_at(src, dst, t0);
         dst[7] = dst[8] = dst[9] = src[3];
         return;
     }
@@ -100,10 +101,10 @@ void ChopCubicAt(const Vec2D src[4], Vec2D dst[10], float t0, float t1)
     simd::store(dst + 9, p33.zw);
 }
 
-void ChopCubicAt(const Vec2D src[4],
-                 Vec2D dst[],
-                 const float tValues[],
-                 int tCount)
+void chop_cubic_at(const Vec2D src[4],
+                   Vec2D dst[],
+                   const float tValues[],
+                   int tCount)
 {
     assert(tValues == nullptr ||
            std::all_of(tValues, tValues + tCount, [](float t) {
@@ -138,7 +139,7 @@ void ChopCubicAt(const Vec2D src[4],
                 {
                     tt = float2{1, 2} / static_cast<float>(tCount + 1 - i);
                 }
-                ChopCubicAt(src, dst, tt[0], tt[1]);
+                chop_cubic_at(src, dst, tt[0], tt[1]);
                 src = dst = dst + 6;
             }
             if (i < tCount)
@@ -151,13 +152,13 @@ void ChopCubicAt(const Vec2D src[4],
                         0,
                         1)
                         .x;
-                ChopCubicAt(src, dst, t);
+                chop_cubic_at(src, dst, t);
             }
         }
     }
 }
 
-float MeasureAngleBetweenVectors(Vec2D a, Vec2D b)
+float measure_angle_between_vectors(Vec2D a, Vec2D b)
 {
     float cosTheta =
         math::ieee_float_divide(Vec2D::dot(a, b),
@@ -168,7 +169,7 @@ float MeasureAngleBetweenVectors(Vec2D a, Vec2D b)
     return acosf(cosTheta);
 }
 
-int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
+int find_cubic_convex_180_chops(const Vec2D pts[], float T[2], bool* areCusps)
 {
     assert(pts);
     assert(T);
@@ -344,202 +345,5 @@ int FindCubicConvex180Chops(const Vec2D pts[], float T[2], bool* areCusps)
     }
     return 0;
 }
-
-#if 0
-namespace
-{
-// This value only protects us against getting stuck in infinite recursion due to fp32 precision
-// issues. Mathematically, every curve should reduce to manageable visible sections in O(log N)
-// chops, where N is the the magnitude of its control points.
-//
-// But, to define a protective upper bound, a cubic can enter or exit the viewport as many as 6
-// times. So we may need to refine the curve (via binary search chopping at T=.5) up to 6 times.
-//
-// Furthermore, chopping a cubic at T=.5 may only reduce its length by 1/8 (.5^3), so we may require
-// up to 6 chops in order to reduce the length by 1/2.
-constexpr static int kMaxChopsPerCurve = 128 /*magnitude of +fp32_max - -fp32_max*/ *
-                                         6 /*max number of chops to reduce the length by half*/ *
-                                         6 /*max number of viewport boundary crosses*/;
-
-// Writes a new path, chopping as necessary so no verbs require more segments than
-// kMaxTessellationSegmentsPerCurve. Curves completely outside the viewport are flattened into
-// lines.
-class PathChopper
-{
-public:
-    PathChopper(float tessellationPrecision, const SkMatrix& matrix, const SkRect& viewport) :
-        fTessellationPrecision(tessellationPrecision),
-        fCullTest(viewport, matrix),
-        fVectorXform(matrix)
-    {
-        fPath.setIsVolatile(true);
-    }
-
-    SkPath path() const { return fPath; }
-
-    void moveTo(SkPoint p) { fPath.moveTo(p); }
-    void lineTo(const SkPoint p[2]) { fPath.lineTo(p[1]); }
-    void close() { fPath.close(); }
-
-    void quadTo(const SkPoint quad[3])
-    {
-        assert(fPointStack.empty());
-        // Use a heap stack to recursively chop the quad into manageable, on-screen segments.
-        fPointStack.push_back_n(3, quad);
-        int numChops = 0;
-        while (!fPointStack.empty())
-        {
-            const SkPoint* p = fPointStack.end() - 3;
-            if (!fCullTest.areVisible3(p))
-            {
-                fPath.lineTo(p[2]);
-            }
-            else
-            {
-                float n4 = wangs_formula::quadratic_p4(fTessellationPrecision, p, fVectorXform);
-                if (n4 > kMaxSegmentsPerCurve_p4 && numChops < kMaxChopsPerCurve)
-                {
-                    SkPoint chops[5];
-                    SkChopQuadAtHalf(p, chops);
-                    fPointStack.pop_back_n(3);
-                    fPointStack.push_back_n(3, chops + 2);
-                    fPointStack.push_back_n(3, chops);
-                    ++numChops;
-                    continue;
-                }
-                fPath.quadTo(p[1], p[2]);
-            }
-            fPointStack.pop_back_n(3);
-        }
-    }
-
-    void conicTo(const SkPoint conic[3], float weight)
-    {
-        assert(fPointStack.empty());
-        assert(fWeightStack.empty());
-        // Use a heap stack to recursively chop the conic into manageable, on-screen segments.
-        fPointStack.push_back_n(3, conic);
-        fWeightStack.push_back(weight);
-        int numChops = 0;
-        while (!fPointStack.empty())
-        {
-            const SkPoint* p = fPointStack.end() - 3;
-            float w = fWeightStack.back();
-            if (!fCullTest.areVisible3(p))
-            {
-                fPath.lineTo(p[2]);
-            }
-            else
-            {
-                float n2 = wangs_formula::conic_p2(fTessellationPrecision, p, w, fVectorXform);
-                if (n2 > kMaxSegmentsPerCurve_p2 && numChops < kMaxChopsPerCurve)
-                {
-                    SkConic chops[2];
-                    if (!SkConic(p, w).chopAt(.5, chops))
-                    {
-                        SkPoint line[2] = {p[0], p[2]};
-                        this->lineTo(line);
-                        continue;
-                    }
-                    fPointStack.pop_back_n(3);
-                    fWeightStack.pop_back();
-                    fPointStack.push_back_n(3, chops[1].fPts);
-                    fWeightStack.push_back(chops[1].fW);
-                    fPointStack.push_back_n(3, chops[0].fPts);
-                    fWeightStack.push_back(chops[0].fW);
-                    ++numChops;
-                    continue;
-                }
-                fPath.conicTo(p[1], p[2], w);
-            }
-            fPointStack.pop_back_n(3);
-            fWeightStack.pop_back();
-        }
-        assert(fWeightStack.empty());
-    }
-
-    void cubicTo(const SkPoint cubic[4])
-    {
-        assert(fPointStack.empty());
-        // Use a heap stack to recursively chop the cubic into manageable, on-screen segments.
-        fPointStack.push_back_n(4, cubic);
-        int numChops = 0;
-        while (!fPointStack.empty())
-        {
-            SkPoint* p = fPointStack.end() - 4;
-            if (!fCullTest.areVisible4(p))
-            {
-                fPath.lineTo(p[3]);
-            }
-            else
-            {
-                float n4 = wangs_formula::cubic_p4(fTessellationPrecision, p, fVectorXform);
-                if (n4 > kMaxSegmentsPerCurve_p4 && numChops < kMaxChopsPerCurve)
-                {
-                    SkPoint chops[7];
-                    SkChopCubicAtHalf(p, chops);
-                    fPointStack.pop_back_n(4);
-                    fPointStack.push_back_n(4, chops + 3);
-                    fPointStack.push_back_n(4, chops);
-                    ++numChops;
-                    continue;
-                }
-                fPath.cubicTo(p[1], p[2], p[3]);
-            }
-            fPointStack.pop_back_n(4);
-        }
-    }
-
-private:
-    const float fTessellationPrecision;
-    const CullTest fCullTest;
-    const wangs_formula::VectorXform fVectorXform;
-    SkPath fPath;
-
-    // Used for stack-based recursion (instead of using the runtime stack).
-    SkSTArray<8, SkPoint> fPointStack;
-    SkSTArray<2, float> fWeightStack;
-};
-} // namespace
-
-SkPath PreChopPathCurves(float tessellationPrecision,
-                         const SkPath& path,
-                         const SkMatrix& matrix,
-                         const SkRect& viewport)
-{
-    // If the viewport is exceptionally large, we could end up blowing out memory with an unbounded
-    // number of of chops. Therefore, we require that the viewport is manageable enough that a fully
-    // contained curve can be tessellated in kMaxTessellationSegmentsPerCurve or fewer. (Any larger
-    // and that amount of pixels wouldn't fit in memory anyway.)
-    assert(wangs_formula::worst_case_cubic(tessellationPrecision,
-                                             viewport.width(),
-                                             viewport.height()) <= kMaxSegmentsPerCurve);
-    PathChopper chopper(tessellationPrecision, matrix, viewport);
-    for (auto [verb, p, w] : SkPathPriv::Iterate(path))
-    {
-        switch (verb)
-        {
-            case SkPathVerb::kMove:
-                chopper.moveTo(p[0]);
-                break;
-            case SkPathVerb::kLine:
-                chopper.lineTo(p);
-                break;
-            case SkPathVerb::kQuad:
-                chopper.quadTo(p);
-                break;
-            case SkPathVerb::kConic:
-                chopper.conicTo(p, *w);
-                break;
-            case SkPathVerb::kCubic:
-                chopper.cubicTo(p);
-                break;
-            case SkPathVerb::kClose:
-                chopper.close();
-                break;
-        }
-    }
-    return chopper.path();
-}
-#endif
-} // namespace rive::pathutils
+} // namespace math
+} // namespace rive

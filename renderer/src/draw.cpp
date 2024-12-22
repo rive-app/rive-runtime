@@ -5,9 +5,9 @@
 #include "rive/renderer/draw.hpp"
 
 #include "gr_inner_fan_triangulator.hpp"
-#include "path_utils.hpp"
 #include "rive_render_path.hpp"
 #include "rive_render_paint.hpp"
+#include "rive/math/bezier_utils.hpp"
 #include "rive/math/wangs_formula.hpp"
 #include "rive/renderer/texture.hpp"
 #include "gradient.hpp"
@@ -163,13 +163,13 @@ static void chop_cubic_around_cusps(const Vec2D p[4],
         t[i * 2 + 0] = fmaxf(cuspT[i] - math::EPSILON, minT);
         t[i * 2 + 1] = fminf(cuspT[i] + math::EPSILON, maxT);
     }
-    pathutils::ChopCubicAt(p, dst, t, n * 2);
+    math::chop_cubic_at(p, dst, t, n * 2);
     for (int i = 0; i < n; ++i)
     {
         // Find the three chops at this cusp.
         Vec2D* chops = dst + i * 6;
         // Correct the chops to fall on the actual cusp point.
-        Vec2D cusp = pathutils::EvalCubicAt(p, cuspT[i]);
+        Vec2D cusp = math::eval_cubic_at(p, cuspT[i]);
         chops[3] = chops[6] = cusp;
         // The only purpose of the middle cubic is to capture the cusp's
         // 180-degree rotation. Implement it as a sub-pixel 180-degree pivot.
@@ -887,7 +887,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                 float t[2];
                 bool areCusps;
                 uint8_t numChops =
-                    pathutils::FindCubicConvex180Chops(p, t, &areCusps);
+                    math::find_cubic_convex_180_chops(p, t, &areCusps);
                 uint8_t chopKey = chop_key(areCusps, numChops);
                 m_numChops.push_back(chopKey);
                 Vec2D localChopBuffer[16];
@@ -910,12 +910,12 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                         break;
                     case simple_chop_key(2): // 2 non-cusp chops
                         m_chopVertices.push_back() = {t[0], t[1]};
-                        pathutils::ChopCubicAt(p, localChopBuffer, t[0], t[1]);
+                        math::chop_cubic_at(p, localChopBuffer, t[0], t[1]);
                         p = localChopBuffer;
                         break;
                     case simple_chop_key(1): // 1 non-cusp chop
                     {
-                        pathutils::ChopCubicAt(p, localChopBuffer, t[0]);
+                        math::chop_cubic_at(p, localChopBuffer, t[0]);
                         p = localChopBuffer;
                         memcpy(m_chopVertices.push_back_n(5),
                                p + 1,
@@ -1027,7 +1027,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
             // curve and round join.
             const float r_ = m_strokeRadius * m_strokeMatrixMaxScale;
             const float polarSegmentsPerRad =
-                pathutils::CalcPolarSegmentsPerRadian<kPolarPrecision>(r_);
+                math::calc_polar_segments_per_radian<kPolarPrecision>(r_);
             for (j = contour->firstRotationIdx; j < contour->endRotationIdx;
                  j += 4)
             {
@@ -1750,7 +1750,7 @@ void RiveRenderPathDraw::pushMidpointFanTessellationData(
                             // content. Just re-chop the curve this time around
                             // as well.
                             auto [t0, t1] = m_chopVertices.pop_front();
-                            pathutils::ChopCubicAt(p, localChopBuffer, t0, t1);
+                            math::chop_cubic_at(p, localChopBuffer, t0, t1);
                             p = localChopBuffer;
                             numChops = 2;
                             break;
@@ -2068,10 +2068,10 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                 {
                     // Passing nullptr for the 'tValues' causes it to chop the
                     // cubic uniformly in T.
-                    pathutils::ChopCubicAt(pts,
-                                           chops,
-                                           nullptr,
-                                           numSubdivisions - 1);
+                    math::chop_cubic_at(pts,
+                                        chops,
+                                        nullptr,
+                                        numSubdivisions - 1);
                     const Vec2D* chop = chops;
                     for (size_t i = 0; i < numSubdivisions; ++i)
                     {

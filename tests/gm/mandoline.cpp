@@ -9,16 +9,14 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
-#include "rive/renderer/render_context.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/math/bezier_utils.hpp"
 #include "rive/math/math_types.hpp"
 #include "common/rand.hpp"
-#include "path_utils.hpp"
 
 using namespace rivegm;
 using namespace rive;
 using namespace rive::math;
-using namespace rive::pathutils;
 
 static Vec2D SkFindBisector(Vec2D a, Vec2D b)
 {
@@ -248,7 +246,7 @@ public:
                       Vec2D::lerp(p2, p1, 2 / 3.f),
                       p2},
               PP[7];
-        ChopCubicAt(P, PP, T);
+        math::chop_cubic_at(P, PP, T);
 
         this->sliceCubic(PP[1], PP[2], PP[3], subdivisionDepth - 1);
         this->sliceCubic(PP[4], PP[5], PP[6], subdivisionDepth - 1);
@@ -272,7 +270,7 @@ public:
             return;
         }
         Vec2D P[4] = {fLastPt, p1, p2, p3}, PP[7];
-        ChopCubicAt(P, PP, T);
+        math::chop_cubic_at(P, PP, T);
         this->sliceCubic(PP[1], PP[2], PP[3], subdivisionDepth - 1);
         this->sliceCubic(PP[4], PP[5], PP[6], subdivisionDepth - 1);
     }

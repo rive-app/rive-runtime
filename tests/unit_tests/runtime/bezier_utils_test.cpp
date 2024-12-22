@@ -5,12 +5,14 @@
  * found in the LICENSE file.
  */
 
-#include "path_utils.hpp"
 #include "rive/math/math_types.hpp"
+#include "rive/math/bezier_utils.hpp"
 #include "rive/math/simd.hpp"
 #include <catch.hpp>
 
 namespace rive
+{
+namespace math
 {
 constexpr static float kEpsilon = 1.f / (1 << 12);
 
@@ -22,29 +24,8 @@ static bool fuzzy_equal(float a, float b, float tolerance = kEpsilon)
 
 static float frand() { return rand() / static_cast<float>(RAND_MAX); }
 
-TEST_CASE("ChopCubicAt", "[pathutils]")
+TEST_CASE("chop_cubic_at", "[bezier_utils]")
 {
-#if 0
-    /*
-        Inspired by this test, which used to assert that the tValues had dups
-
-        <path stroke="#202020" d="M0,0 C0,0 1,1 2190,5130 C2190,5070 2220,5010 2205,4980" />
-     */
-    const Vec2D src[] = {
-        {2190, 5130},
-        {2190, 5070},
-        {2220, 5010},
-        {2205, 4980},
-    };
-    Vec2D dst[13];
-    float tValues[3];
-    // make sure we don't assert internally
-    int count = SkChopCubicAtMaxCurvature(src, dst, tValues);
-    if ((false))
-    { // avoid bit rot, suppress warning
-        CHECK(count);
-    }
-#endif
     // Make sure src and dst can be the same pointer.
     {
         Vec2D pts[7];
@@ -52,7 +33,7 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
         {
             pts[i] = {(float)i, (float)i};
         }
-        pathutils::ChopCubicAt(pts, pts, .5f);
+        math::chop_cubic_at(pts, pts, .5f);
         for (int i = 0; i < 7; ++i)
         {
             CHECK(pts[i].x == pts[i].y);
@@ -81,13 +62,13 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
                         {frand(), frand()}};
 
         Vec2D allChops[4 + std::size(chopTs) * 3];
-        pathutils::ChopCubicAt(pts, allChops, chopTs, std::size(chopTs));
+        math::chop_cubic_at(pts, allChops, chopTs, std::size(chopTs));
         int i = 3;
         for (float chopT : chopTs)
         {
             // Ensure we chop at approximately the correct points when we chop
             // an entire list.
-            Vec2D expectedPt = pathutils::EvalCubicAt(pts, chopT);
+            Vec2D expectedPt = math::eval_cubic_at(pts, chopT);
             CHECK(fuzzy_equal(allChops[i].x, expectedPt.x));
             CHECK(fuzzy_equal(allChops[i].y, expectedPt.y));
             if (chopT == 0)
@@ -103,7 +84,7 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
             // Ensure the middle is exactly degenerate when we chop at two equal
             // points.
             Vec2D localChops[10];
-            pathutils::ChopCubicAt(pts, localChops, chopT, chopT);
+            math::chop_cubic_at(pts, localChops, chopT, chopT);
             CHECK(localChops[3] == localChops[4]);
             CHECK(localChops[3] == localChops[5]);
             CHECK(localChops[3] == localChops[6]);
@@ -129,7 +110,7 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
         // Now test what happens when SkChopCubicAt does 0/0 and gets NaN
         // values.
         Vec2D oneChops[4 + std::size(ones) * 3];
-        pathutils::ChopCubicAt(pts, oneChops, ones, std::size(ones));
+        math::chop_cubic_at(pts, oneChops, ones, std::size(ones));
         CHECK(oneChops[0] == pts[0]);
         CHECK(oneChops[1] == pts[1]);
         CHECK(oneChops[2] == pts[2]);
@@ -140,7 +121,7 @@ TEST_CASE("ChopCubicAt", "[pathutils]")
     }
 }
 
-TEST_CASE("ChopCubicAt(tValues=null)", "[pathutils]")
+TEST_CASE("chop_cubic_at(tValues=null)", "[bezier_utils]")
 {
     constexpr int kMaxNumChops = 20;
     float chopT[kMaxNumChops];
@@ -158,8 +139,8 @@ TEST_CASE("ChopCubicAt(tValues=null)", "[pathutils]")
         {
             chopT[i] = t += stepT;
         }
-        pathutils::ChopCubicAt(pts, chopTChops, chopT, numChops);
-        pathutils::ChopCubicAt(pts, nullTChops, nullptr, numChops);
+        math::chop_cubic_at(pts, chopTChops, chopT, numChops);
+        math::chop_cubic_at(pts, nullTChops, nullptr, numChops);
         size_t numChoptPts = numChops * 3 + 1;
         for (size_t i = 0; i <= numChoptPts; ++i)
         {
@@ -176,24 +157,24 @@ static float SkMeasureNonInflectCubicRotation(const Vec2D pts[4])
     Vec2D c = pts[3] - pts[2];
     if (a == Vec2D())
     {
-        return pathutils::MeasureAngleBetweenVectors(b, c);
+        return math::measure_angle_between_vectors(b, c);
     }
     if (b == Vec2D())
     {
-        return pathutils::MeasureAngleBetweenVectors(a, c);
+        return math::measure_angle_between_vectors(a, c);
     }
     if (c == Vec2D())
     {
-        return pathutils::MeasureAngleBetweenVectors(a, b);
+        return math::measure_angle_between_vectors(a, b);
     }
     // Postulate: When no points are colocated and there are no inflection
     // points in T=0..1, the rotation is: 360 degrees, minus the angle
     // [p0,p1,p2], minus the angle [p1,p2,p3].
-    return 2 * math::PI - pathutils::MeasureAngleBetweenVectors(a, -b) -
-           pathutils::MeasureAngleBetweenVectors(b, -c);
+    return 2 * math::PI - math::measure_angle_between_vectors(a, -b) -
+           math::measure_angle_between_vectors(b, -c);
 }
 
-TEST_CASE("SkMeasureNonInflectCubicRotation", "[pathutils]")
+TEST_CASE("SkMeasureNonInflectCubicRotation", "[bezier_utils]")
 {
     static Vec2D kFlatCubic[4] = {{0, 0}, {0, 1}, {0, 2}, {0, 3}};
     CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic), 0));
@@ -372,7 +353,7 @@ static void check_cubic_convex_180(const Vec2D p[4])
         // The curve has inflections. FindCubicConvex180Chops should return the
         // inflection points.
         int convex180N =
-            pathutils::FindCubicConvex180Chops(p, convex180T, &areCusps);
+            math::find_cubic_convex_180_chops(p, convex180T, &areCusps);
         REQUIRE(inflectN == convex180N);
         if (!areCusps)
         {
@@ -388,9 +369,9 @@ static void check_cubic_convex_180(const Vec2D p[4])
     {
         float totalRotation = SkMeasureNonInflectCubicRotation(p);
         int convex180N =
-            pathutils::FindCubicConvex180Chops(p, convex180T, &areCusps);
+            math::find_cubic_convex_180_chops(p, convex180T, &areCusps);
         Vec2D chops[10];
-        pathutils::ChopCubicAt(p, chops, convex180T, convex180N);
+        math::chop_cubic_at(p, chops, convex180T, convex180N);
         float radsSum = 0;
         if (areCusps)
         {
@@ -401,10 +382,10 @@ static void check_cubic_convex_180(const Vec2D p[4])
                 // Rechop, this time straddling the cusp, to avoid fp32
                 // precision issues from crossover.
                 Vec2D straddleChops[10];
-                pathutils::ChopCubicAt(p,
-                                       straddleChops,
-                                       std::max(convex180T[0] - math::PI, 0.f),
-                                       std::min(convex180T[0] + math::PI, 1.f));
+                math::chop_cubic_at(p,
+                                    straddleChops,
+                                    std::max(convex180T[0] - math::PI, 0.f),
+                                    std::min(convex180T[0] + math::PI, 1.f));
                 memcpy(chops + 1, straddleChops + 1, 2 * sizeof(Vec2D));
                 memcpy(chops + 4, straddleChops + 7, 2 * sizeof(Vec2D));
             }
@@ -453,7 +434,7 @@ static void check_cubic_convex_180(const Vec2D p[4])
     }
 }
 
-TEST_CASE("FindCubicConvex180Chops", "[pathutils]")
+TEST_CASE("find_cubic_convex_180_chops", "[bezier_utils]")
 {
     // Test all combinations of corners from the square [0,0,1,1]. This covers
     // every cubic type as well as a wide variety of special cases for cusps,
@@ -486,11 +467,11 @@ TEST_CASE("FindCubicConvex180Chops", "[pathutils]")
     Vec2D quad[4] = {{0, 0}, {2, 2}, {4, 2}, {6, 0}};
     float T[2];
     bool areCusps;
-    CHECK(pathutils::FindCubicConvex180Chops(quad, T, &areCusps) == 0);
+    CHECK(math::find_cubic_convex_180_chops(quad, T, &areCusps) == 0);
 
     // Now test that cusps and near-cusps get flagged as cusps.
     Vec2D cusp[4] = {{0, 0}, {1, 1}, {1, 0}, {0, 1}};
-    CHECK(pathutils::FindCubicConvex180Chops(cusp, T, &areCusps) == 1);
+    CHECK(math::find_cubic_convex_180_chops(cusp, T, &areCusps) == 1);
     CHECK(areCusps == true);
 
     // Find the height of the right side of "cusp" at which the distance between
@@ -508,14 +489,14 @@ TEST_CASE("FindCubicConvex180Chops", "[pathutils]")
     // flagged as cusps.
     cusp[1].y = (float)(1 - 4 * dy);
     cusp[2].y = (float)(0 + 4 * dy);
-    CHECK(pathutils::FindCubicConvex180Chops(cusp, T, &areCusps) == 2);
+    CHECK(math::find_cubic_convex_180_chops(cusp, T, &areCusps) == 2);
     CHECK(areCusps == false);
 
     // Ensure two inflection points barely less than epsilon apart do get
     // flagged as cusps.
     cusp[1].y = (float)(1 - .9 * dy);
     cusp[2].y = (float)(0 + .9 * dy);
-    CHECK(pathutils::FindCubicConvex180Chops(cusp, T, &areCusps) == 1);
+    CHECK(math::find_cubic_convex_180_chops(cusp, T, &areCusps) == 1);
     CHECK(areCusps == true);
 
     // Ensure fast floatingpoint is not enbled.
@@ -534,11 +515,11 @@ TEST_CASE("FindCubicConvex180Chops", "[pathutils]")
                      math::bit_cast<Vec2D>(c0),
                      math::bit_cast<Vec2D>(c1),
                      math::bit_cast<Vec2D>(p[5])};
-    CHECK(pathutils::FindCubicConvex180Chops(cubic, T, &areCusps) == 0);
+    CHECK(math::find_cubic_convex_180_chops(cubic, T, &areCusps) == 0);
 }
 
 // Check that flat lines with ordered points never get detected as cusps.
-TEST_CASE("FindCubicConvex180Chops_lines", "[pathutils]")
+TEST_CASE("find_cubic_convex_180_chops_lines", "[bezier_utils]")
 {
     Vec2D p0 = {123, 200}, p3 = {223, 432};
     for (float t0 = 0; t0 < 1; t0 += .12f)
@@ -548,9 +529,62 @@ TEST_CASE("FindCubicConvex180Chops_lines", "[pathutils]")
             Vec2D line[4] = {p0, lerp(p0, p3, t0), lerp(p0, p3, t1), p3};
             float _[2];
             bool areCusps = true;
-            pathutils::FindCubicConvex180Chops(line, _, &areCusps);
+            math::find_cubic_convex_180_chops(line, _, &areCusps);
             CHECK_FALSE(areCusps);
         }
     }
 }
+
+float pow2(float x) { return x * x; }
+float pow3(float x) { return x * x * x; }
+Vec2D eval_cubic(const Vec2D* p, float t)
+{
+    return pow3(1 - t) * p[0] + 3 * pow2(1 - t) * t * p[1] +
+           3 * (1 - t) * pow2(t) * p[2] + pow3(t) * p[3];
+}
+
+void check_eval_cubic(const EvalCubic& evalCubic,
+                      const Vec2D* cubic,
+                      float t0,
+                      float t1)
+{
+    float4 pp = evalCubic(float4{t0, t0, t1, t1});
+    Vec2D p0ref = eval_cubic(cubic, t0);
+    Vec2D p1ref = eval_cubic(cubic, t1);
+    CHECK(pp.x == Approx(p0ref.x).margin(1e-3f));
+    CHECK(pp.y == Approx(p0ref.y).margin(1e-3f));
+    CHECK(pp.z == Approx(p1ref.x).margin(1e-3f));
+    CHECK(pp.w == Approx(p1ref.y).margin(1e-3f));
+    float2 p0 = evalCubic(t0);
+    float2 p1 = evalCubic(t1);
+    CHECK(p0.x == Approx(p0ref.x).margin(1e-3f));
+    CHECK(p0.y == Approx(p0ref.y).margin(1e-3f));
+    CHECK(p1.x == Approx(p1ref.x).margin(1e-3f));
+    CHECK(p1.y == Approx(p1ref.y).margin(1e-3f));
+}
+
+TEST_CASE("EvalCubic", "[bezier_utils]")
+{
+    Vec2D cubics[][4] = {
+        {{199, 1225}, {197, 943}, {349, 607}, {549, 427}},
+        {{549, 427}, {349, 607}, {197, 943}, {199, 1225}},
+        {{460, 1060}, {403, -320}, {60, 660}, {1181, 634}},
+        {{1181, 634}, {60, 660}, {403, -320}, {460, 1060}},
+        {{0, 0}, {0, 0}, {0, 0}, {0, 0}},
+        {{0, 0}, {0, 0}, {0, 0}, {100, 100}},
+        {{0, 0}, {0, 0}, {100, 100}, {100, 100}},
+        {{0, 0}, {100, 100}, {100, 100}, {0, 0}},
+        {{-100, -100}, {100, 100}, {100, -100}, {-100, 100}}, // Cusp
+    };
+    for (auto cubic : cubics)
+    {
+        math::EvalCubic evalCubic(cubic);
+        check_eval_cubic(evalCubic, cubic, 0, 1);
+        for (float t = 0; t <= 1; t += 1e-2f)
+        {
+            check_eval_cubic(evalCubic, cubic, t, t + 3e-3f);
+        }
+    }
+}
+} // namespace math
 } // namespace rive
