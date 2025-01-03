@@ -16,6 +16,8 @@ else
     ARGS=-j4
 fi
 
+DIFF_ARGS=
+
 while :; do
     case $1 in
         -u)
@@ -58,6 +60,10 @@ while :; do
         ;;
         -n)
             ARGS="$ARGS --no-rebuild --no-install"
+            shift
+        ;;
+        -H)
+            DIFF_ARGS="$DIFF_ARGS -H"
             shift
         ;;
         *)
@@ -108,7 +114,7 @@ do
         echo
         echo "Checking $ID..."
         rm -fr .gold/diffs/$ID && mkdir -p .gold/diffs/$ID
-        python3 diff.py -g .gold/$ID -c .gold/candidates/$ID -j$NUMBER_OF_PROCESSORS -o .gold/diffs/$ID \
+        python3 diff.py $DIFF_ARGS -g .gold/$ID -c .gold/candidates/$ID -j$NUMBER_OF_PROCESSORS -o .gold/diffs/$ID \
             || open_file .gold/diffs/$ID/index.html
     fi
     
