@@ -63,6 +63,8 @@ bool ScrollConstraint::advanceComponent(float elapsedSeconds,
 {
     if ((flags & AdvanceFlags::AdvanceNested) != AdvanceFlags::AdvanceNested)
     {
+        offsetX(0);
+        offsetY(0);
         return false;
     }
     if (m_physics == nullptr)
