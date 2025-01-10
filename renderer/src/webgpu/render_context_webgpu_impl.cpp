@@ -210,8 +210,8 @@ public:
         std::ostringstream glsl;
         glsl << "#version 310 es\n";
         glsl << "#pragma shader_stage(fragment)\n";
-        glsl << "#define " GLSL_FRAGMENT "\n";
-        glsl << "#define " GLSL_ENABLE_CLIPPING "\n";
+        glsl << "#define " GLSL_FRAGMENT " true\n";
+        glsl << "#define " GLSL_ENABLE_CLIPPING " true\n";
         BuildLoadStoreEXTGLSL(glsl, actions);
         fragmentShader =
             m_fragmentShaderHandle.compileShaderModule(context->m_device,
@@ -456,9 +456,10 @@ public:
             std::ostringstream vertexGLSL;
             vertexGLSL << "#version 460\n";
             vertexGLSL << "#pragma shader_stage(vertex)\n";
-            vertexGLSL << "#define " GLSL_VERTEX "\n";
-            vertexGLSL << "#define " GLSL_DISABLE_SHADER_STORAGE_BUFFERS "\n";
-            vertexGLSL << "#define " GLSL_TARGET_VULKAN "\n";
+            vertexGLSL << "#define " GLSL_VERTEX " true\n";
+            vertexGLSL << "#define " GLSL_DISABLE_SHADER_STORAGE_BUFFERS
+                          " true\n";
+            vertexGLSL << "#define " GLSL_TARGET_VULKAN " true\n";
             vertexGLSL
                 << "#extension GL_EXT_samplerless_texture_functions : enable\n";
             vertexGLSL << glsl::glsl << "\n";
@@ -593,7 +594,7 @@ public:
 
             std::ostringstream glsl;
             auto addDefine = [&glsl](const char* name) {
-                glsl << "#define " << name << "\n";
+                glsl << "#define " << name << " true\n";
             };
             if (plsType ==
                 PixelLocalStorageType::EXT_shader_pixel_local_storage)
@@ -709,7 +710,7 @@ public:
             std::ostringstream vertexGLSL;
             vertexGLSL << versionString << "\n";
             vertexGLSL << "#pragma shader_stage(vertex)\n";
-            vertexGLSL << "#define " GLSL_VERTEX "\n";
+            vertexGLSL << "#define " GLSL_VERTEX " true\n";
             vertexGLSL << glsl.str();
             vertexShader = m_vertexShaderHandle.compileShaderModule(
                 context->m_device,
@@ -719,7 +720,7 @@ public:
             std::ostringstream fragmentGLSL;
             fragmentGLSL << versionString << "\n";
             fragmentGLSL << "#pragma shader_stage(fragment)\n";
-            fragmentGLSL << "#define " GLSL_FRAGMENT "\n";
+            fragmentGLSL << "#define " GLSL_FRAGMENT " true\n";
             fragmentGLSL << glsl.str();
             fragmentShader = m_fragmentShaderHandle.compileShaderModule(
                 context->m_device,
@@ -1079,13 +1080,13 @@ void RenderContextWebGPUImpl::initGPUObjects()
         std::ostringstream glsl;
         glsl << "#version 310 es\n";
         glsl << "#pragma shader_stage(vertex)\n";
-        glsl << "#define " GLSL_VERTEX "\n";
+        glsl << "#define " GLSL_VERTEX " true\n";
         // If we are being compiled by SPIRV transpiler for introspection, use
         // gl_VertexIndex instead of gl_VertexID.
         glsl << "#ifndef GL_EXT_shader_pixel_local_storage\n";
         glsl << "#define gl_VertexID gl_VertexIndex\n";
         glsl << "#endif\n";
-        glsl << "#define " GLSL_ENABLE_CLIPPING "\n";
+        glsl << "#define " GLSL_ENABLE_CLIPPING " true\n";
         BuildLoadStoreEXTGLSL(glsl, LoadStoreActionsEXT::none);
         m_loadStoreEXTVertexShader =
             m_loadStoreEXTVertexShaderHandle.compileShaderModule(
