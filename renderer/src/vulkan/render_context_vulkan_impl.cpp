@@ -2032,9 +2032,6 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_contourBufferRing(m_vk,
                         VK_BUFFER_USAGE_STORAGE_BUFFER_BIT,
                         vkutil::Mappability::writeOnly),
-    m_simpleColorRampsBufferRing(m_vk,
-                                 VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-                                 vkutil::Mappability::writeOnly),
     m_gradSpanBufferRing(m_vk,
                          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                          vkutil::Mappability::writeOnly),
@@ -2199,8 +2196,7 @@ void RenderContextVulkanImpl::resizeGradientTexture(uint32_t width,
             .format = VK_FORMAT_R8G8B8A8_UNORM,
             .extent = {width, height, 1},
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_SAMPLED_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+                     VK_IMAGE_USAGE_SAMPLED_BIT,
         });
 
         m_gradTextureView = m_vk->makeTextureView(m_gradientTexture);
@@ -2288,7 +2284,6 @@ void RenderContextVulkanImpl::prepareToMapBuffers()
     m_paintBufferRing.synchronizeSizeAt(m_bufferRingIdx);
     m_paintAuxBufferRing.synchronizeSizeAt(m_bufferRingIdx);
     m_contourBufferRing.synchronizeSizeAt(m_bufferRingIdx);
-    m_simpleColorRampsBufferRing.synchronizeSizeAt(m_bufferRingIdx);
     m_gradSpanBufferRing.synchronizeSizeAt(m_bufferRingIdx);
     m_tessSpanBufferRing.synchronizeSizeAt(m_bufferRingIdx);
     m_triangleBufferRing.synchronizeSizeAt(m_bufferRingIdx);
@@ -2511,9 +2506,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     VulkanContext::TextureAccess lastGradTextureAccess, lastTessTextureAccess;
     lastTessTextureAccess = lastGradTextureAccess = {
         // The last thing to access the gradient and tessellation textures was
-        // the
-        // previous flush. Make sure our barriers account for this so we don't
-        // overwrite these textures before previous draws are done reading them.
+        // the previous flush.
+        // Make sure our barriers account for this so we don't overwrite these
+        // textures before previous draws are done reading them.
         .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
         .accessMask = VK_ACCESS_SHADER_READ_BIT,
         // Transition from an "UNDEFINED" layout because we don't care about
@@ -2521,48 +2516,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         .layout = VK_IMAGE_LAYOUT_UNDEFINED,
     };
 
-    // Copy the simple color ramps to the gradient texture.
-    if (desc.simpleGradTexelsHeight > 0)
-    {
-        // Wait for previous accesses to finish before copying to the gradient
-        // texture.
-        lastGradTextureAccess = m_vk->simpleImageMemoryBarrier(
-            commandBuffer,
-            lastGradTextureAccess,
-            {
-                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            },
-            *m_gradientTexture);
-
-        VkBufferImageCopy bufferImageCopy{
-            .bufferOffset = desc.simpleGradDataOffsetInBytes,
-            .bufferRowLength = gpu::kGradTextureWidth,
-            .imageSubresource =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .layerCount = 1,
-                },
-            .imageExtent =
-                {
-                    desc.simpleGradTexelsWidth,
-                    desc.simpleGradTexelsHeight,
-                    1,
-                },
-        };
-
-        m_vk->CmdCopyBufferToImage(
-            commandBuffer,
-            m_simpleColorRampsBufferRing.vkBufferAt(m_bufferRingIdx),
-            *m_gradientTexture,
-            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-            1,
-            &bufferImageCopy);
-    }
-
     // Render the complex color ramps to the gradient texture.
-    if (desc.complexGradSpanCount > 0)
+    if (desc.gradSpanCount > 0)
     {
         // Wait for previous accesses to finish before rendering to the gradient
         // texture.
@@ -2577,8 +2532,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             *m_gradientTexture);
 
         VkRect2D renderArea = {
-            .offset = {0, static_cast<int32_t>(desc.complexGradRowsTop)},
-            .extent = {gpu::kGradTextureWidth, desc.complexGradRowsHeight},
+            .extent = {gpu::kGradTextureWidth, desc.gradDataHeight},
         };
 
         VkRenderPassBeginInfo renderPassBeginInfo = {
@@ -2606,7 +2560,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         VkBuffer gradSpanBuffer =
             m_gradSpanBufferRing.vkBufferAt(m_bufferRingIdx);
         VkDeviceSize gradSpanOffset =
-            desc.firstComplexGradSpan * sizeof(gpu::GradientSpan);
+            desc.firstGradSpan * sizeof(gpu::GradientSpan);
         m_vk->CmdBindVertexBuffers(commandBuffer,
                                    0,
                                    1,
@@ -2638,7 +2592,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     0,
                                     nullptr);
 
-        m_vk->CmdDraw(commandBuffer, 4, desc.complexGradSpanCount, 0, 0);
+        m_vk->CmdDraw(commandBuffer, 4, desc.gradSpanCount, 0, 0);
 
         m_vk->CmdEndRenderPass(commandBuffer);
 

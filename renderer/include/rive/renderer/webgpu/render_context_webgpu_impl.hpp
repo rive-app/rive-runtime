@@ -148,8 +148,6 @@ private:
         gpu::StorageBufferStructure) override;
     std::unique_ptr<BufferRing> makeVertexBufferRing(
         size_t capacityInBytes) override;
-    std::unique_ptr<BufferRing> makeTextureTransferBufferRing(
-        size_t capacityInBytes) override;
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;

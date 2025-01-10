@@ -560,12 +560,6 @@ std::unique_ptr<BufferRing> RenderContextGLImpl::makeVertexBufferRing(
     return BufferRingGLImpl::Make(capacityInBytes, GL_ARRAY_BUFFER, m_state);
 }
 
-std::unique_ptr<BufferRing> RenderContextGLImpl::makeTextureTransferBufferRing(
-    size_t capacityInBytes)
-{
-    return std::make_unique<HeapBufferRing>(capacityInBytes);
-}
-
 void RenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
 {
     glDeleteTextures(1, &m_gradientTexture);
@@ -895,11 +889,6 @@ static GLuint gl_buffer_id(const BufferRing* bufferRing)
         ->submittedBufferID();
 }
 
-static const uint8_t* heap_buffer_contents(const BufferRing* bufferRing)
-{
-    return static_cast<const HeapBufferRing*>(bufferRing)->contents();
-}
-
 static void bind_storage_buffer(const GLCapabilities& capabilities,
                                 const BufferRing* bufferRing,
                                 uint32_t bindingIdx,
@@ -1068,41 +1057,26 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                             desc.firstContour * sizeof(gpu::ContourData));
     }
 
-    // Copy the simple color ramps to the gradient texture.
-    if (desc.simpleGradTexelsHeight > 0)
-    {
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
-        glTexSubImage2D(GL_TEXTURE_2D,
-                        0,
-                        0,
-                        0,
-                        desc.simpleGradTexelsWidth,
-                        desc.simpleGradTexelsHeight,
-                        GL_RGBA,
-                        GL_UNSIGNED_BYTE,
-                        heap_buffer_contents(simpleColorRampsBufferRing()) +
-                            desc.simpleGradDataOffsetInBytes);
-    }
-    else if (m_capabilities.isPowerVR && desc.complexGradRowsHeight > 0)
-    {
-        // PowerVR needs an extra little update to the gradient texture to help
-        // with synchronization.
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
-        uint32_t nullData = 0;
-        glTexSubImage2D(GL_TEXTURE_2D,
-                        0,
-                        0,
-                        0,
-                        1,
-                        1,
-                        GL_RGBA,
-                        GL_UNSIGNED_BYTE,
-                        &nullData);
-    }
-
     // Render the complex color ramps into the gradient texture.
-    if (desc.complexGradSpanCount > 0)
+    if (desc.gradSpanCount > 0)
     {
+        if (m_capabilities.isPowerVR)
+        {
+            // PowerVR needs an extra little update to the gradient texture to
+            // help with synchronization.
+            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+            uint32_t nullData = 0;
+            glTexSubImage2D(GL_TEXTURE_2D,
+                            0,
+                            0,
+                            0,
+                            1,
+                            1,
+                            GL_RGBA,
+                            GL_UNSIGNED_BYTE,
+                            &nullData);
+        }
+
         m_state->bindBuffer(GL_ARRAY_BUFFER,
                             gl_buffer_id(gradSpanBufferRing()));
         m_state->bindVAO(m_colorRampVAO);
@@ -1112,26 +1086,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             4,
             GL_UNSIGNED_INT,
             0,
-            reinterpret_cast<const void*>(desc.firstComplexGradSpan *
+            reinterpret_cast<const void*>(desc.firstGradSpan *
                                           sizeof(gpu::GradientSpan)));
-        glViewport(0,
-                   desc.complexGradRowsTop,
-                   kGradTextureWidth,
-                   desc.complexGradRowsHeight);
+        glViewport(0, 0, kGradTextureWidth, desc.gradDataHeight);
         glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
         m_state->bindProgram(m_colorRampProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
-        glInvalidateSubFramebuffer(GL_FRAMEBUFFER,
-                                   1,
-                                   &colorAttachment0,
-                                   0,
-                                   desc.complexGradRowsTop,
-                                   kGradTextureWidth,
-                                   desc.complexGradRowsHeight);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP,
-                              0,
-                              4,
-                              desc.complexGradSpanCount);
+        glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.gradSpanCount);
     }
 
     // Tessellate all curves into vertices in the tessellation texture.

@@ -281,7 +281,7 @@ private:
     // LogicalFlush::LayoutCounters.
     struct ResourceAllocationCounts
     {
-        constexpr static int NUM_ELEMENTS = 13;
+        constexpr static int NUM_ELEMENTS = 12;
         using VecType = simd::gvec<size_t, NUM_ELEMENTS>;
 
         RIVE_ALWAYS_INLINE VecType toVec() const
@@ -308,8 +308,7 @@ private:
         size_t paintBufferCount = 0;
         size_t paintAuxBufferCount = 0;
         size_t contourBufferCount = 0;
-        size_t simpleGradientBufferCount = 0;
-        size_t complexGradSpanBufferCount = 0;
+        size_t gradSpanBufferCount = 0;
         size_t tessSpanBufferCount = 0;
         size_t triangleVertexBufferCount = 0;
         size_t gradTextureHeight = 0;
@@ -366,9 +365,6 @@ private:
     WriteOnlyMappedMemory<gpu::PaintData> m_paintData;
     WriteOnlyMappedMemory<gpu::PaintAuxData> m_paintAuxData;
     WriteOnlyMappedMemory<gpu::ContourData> m_contourData;
-    // Simple gradients get written by the CPU.
-    WriteOnlyMappedMemory<gpu::TwoTexelRamp> m_simpleColorRampsData;
-    // Complex gradients get rendered by the GPU.
     WriteOnlyMappedMemory<gpu::GradientSpan> m_gradSpanData;
     WriteOnlyMappedMemory<gpu::TessVertexSpan> m_tessSpanData;
     WriteOnlyMappedMemory<gpu::TriangleVertex> m_triangleVertexData;
@@ -527,8 +523,7 @@ private:
             uint32_t paintPaddingCount = 0;
             uint32_t paintAuxPaddingCount = 0;
             uint32_t contourPaddingCount = 0;
-            uint32_t simpleGradCount = 0;
-            uint32_t complexGradSpanCount = 0;
+            uint32_t gradSpanCount = 0;
             uint32_t gradSpanPaddingCount = 0;
             uint32_t maxGradTextureHeight = 0;
             uint32_t maxTessTextureHeight = 0;
@@ -703,7 +698,7 @@ private:
         // implemented with 2 texels.
         std::unordered_map<uint64_t, uint32_t>
             m_simpleGradients; // [color0, color1] -> texelsIdx.
-        std::vector<gpu::TwoTexelRamp> m_pendingSimpleGradientWrites;
+        std::vector<gpu::TwoTexelRamp> m_pendingSimpleGradDraws;
 
         // Complex gradients have stop(s) between t=0 and t=1. In theory they
         // should be scaled to a ramp where every stop lands exactly on a pixel
@@ -711,8 +706,11 @@ private:
         // texture width.
         std::unordered_map<GradientContentKey, uint16_t, DeepHashGradient>
             m_complexGradients; // [colors[0..n], stops[0..n]] -> rowIdx
-        std::vector<const Gradient*> m_pendingComplexColorRampDraws;
-        size_t m_pendingComplexGradSpanCount;
+        std::vector<const Gradient*> m_pendingComplexGradDraws;
+
+        // Simple and complex gradients both get uploaded to the GPU as sets of
+        // "GradientSpan" instances.
+        size_t m_pendingGradSpanCount;
 
         std::vector<ClipInfo> m_clips;
 
@@ -732,9 +730,9 @@ private:
         uint32_t m_outerCubicTessVertexIdx;
         uint32_t m_midpointFanTessVertexIdx;
 
-        gpu::FlushDescriptor m_flushDesc;
-        // Not determined until writeResources().
         gpu::GradTextureLayout m_gradTextureLayout;
+
+        gpu::FlushDescriptor m_flushDesc;
 
         BlockAllocatedLinkedList<DrawBatch> m_drawList;
         gpu::ShaderFeatures m_combinedShaderFeatures;

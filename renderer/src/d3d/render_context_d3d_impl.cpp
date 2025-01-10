@@ -809,14 +809,6 @@ std::unique_ptr<BufferRing> RenderContextD3DImpl::makeVertexBufferRing(
                : nullptr;
 }
 
-std::unique_ptr<BufferRing> RenderContextD3DImpl::makeTextureTransferBufferRing(
-    size_t capacityInBytes)
-{
-    // It appears impossible to update a D3D texture from a GPU buffer; store
-    // this data on the heap and upload it to the texture at flush time.
-    return std::make_unique<HeapBufferRing>(capacityInBytes);
-}
-
 RenderTargetD3D::RenderTargetD3D(RenderContextD3DImpl* renderContextImpl,
                                  uint32_t width,
                                  uint32_t height) :
@@ -1420,7 +1412,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     }
 
     // Render the complex color ramps to the gradient texture.
-    if (desc.complexGradSpanCount > 0)
+    if (desc.gradSpanCount > 0)
     {
         ID3D11Buffer* gradSpanBuffer =
             flush_buffer(m_gpuContext.Get(), gradSpanBufferRing());
@@ -1437,13 +1429,12 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         m_gpuContext->VSSetShader(m_colorRampVertexShader.Get(), NULL, 0);
 
-        D3D11_VIEWPORT viewport = {
-            0,
-            static_cast<float>(desc.complexGradRowsTop),
-            static_cast<float>(kGradTextureWidth),
-            static_cast<float>(desc.complexGradRowsHeight),
-            0,
-            1};
+        D3D11_VIEWPORT viewport = {0,
+                                   0,
+                                   static_cast<float>(kGradTextureWidth),
+                                   static_cast<float>(desc.gradDataHeight),
+                                   0,
+                                   1};
         m_gpuContext->RSSetViewports(1, &viewport);
 
         // Unbind the gradient texture before rendering it.
@@ -1460,31 +1451,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         m_gpuContext->DrawInstanced(
             4,
-            desc.complexGradSpanCount,
+            desc.gradSpanCount,
             0,
-            math::lossless_numeric_cast<UINT>(desc.firstComplexGradSpan));
-    }
-
-    // Copy the simple color ramps to the gradient texture.
-    if (desc.simpleGradTexelsHeight > 0)
-    {
-        assert(desc.simpleGradTexelsHeight * desc.simpleGradTexelsWidth * 4 <=
-               simpleColorRampsBufferRing()->capacityInBytes());
-        D3D11_BOX box;
-        box.left = 0;
-        box.right = desc.simpleGradTexelsWidth;
-        box.top = 0;
-        box.bottom = desc.simpleGradTexelsHeight;
-        box.front = 0;
-        box.back = 1;
-        m_gpuContext->UpdateSubresource(
-            m_gradTexture.Get(),
-            0,
-            &box,
-            heap_buffer_contents(simpleColorRampsBufferRing()) +
-                desc.simpleGradDataOffsetInBytes,
-            kGradTextureWidth * 4,
-            0);
+            math::lossless_numeric_cast<UINT>(desc.firstGradSpan));
     }
 
     // Tessellate all curves into vertices in the tessellation texture.

@@ -385,7 +385,7 @@ FlushUniforms::InverseViewports::InverseViewports(
         numerators.w = -numerators.w;
     }
     float4 vals = numerators /
-                  float4{static_cast<float>(flushDesc.complexGradRowsHeight),
+                  float4{static_cast<float>(flushDesc.gradDataHeight),
                          static_cast<float>(flushDesc.tessDataHeight),
                          static_cast<float>(flushDesc.renderTarget->width()),
                          static_cast<float>(flushDesc.renderTarget->height())};

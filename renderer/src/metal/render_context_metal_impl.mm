@@ -698,12 +698,6 @@ std::unique_ptr<BufferRing> RenderContextMetalImpl::makeVertexBufferRing(
     return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
 }
 
-std::unique_ptr<BufferRing> RenderContextMetalImpl::
-    makeTextureTransferBufferRing(size_t capacityInBytes)
-{
-    return BufferRingMetalImpl::Make(m_gpu, capacityInBytes);
-}
-
 void RenderContextMetalImpl::resizeGradientTexture(uint32_t width,
                                                    uint32_t height)
 {
@@ -970,13 +964,12 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         (__bridge id<MTLCommandBuffer>)desc.externalCommandBuffer;
 
     // Render the complex color ramps to the gradient texture.
-    if (desc.complexGradSpanCount > 0)
+    if (desc.gradSpanCount > 0)
     {
         MTLRenderPassDescriptor* gradPass =
             [MTLRenderPassDescriptor renderPassDescriptor];
         gradPass.renderTargetWidth = kGradTextureWidth;
-        gradPass.renderTargetHeight =
-            desc.complexGradRowsTop + desc.complexGradRowsHeight;
+        gradPass.renderTargetHeight = desc.gradDataHeight;
         gradPass.colorAttachments[0].loadAction = MTLLoadActionDontCare;
         gradPass.colorAttachments[0].storeAction = MTLStoreActionStore;
         gradPass.colorAttachments[0].texture = m_gradientTexture;
@@ -984,47 +977,25 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         id<MTLRenderCommandEncoder> gradEncoder =
             [commandBuffer renderCommandEncoderWithDescriptor:gradPass];
         [gradEncoder
-            setViewport:make_viewport(
-                            0,
-                            static_cast<double>(desc.complexGradRowsTop),
-                            kGradTextureWidth,
-                            static_cast<float>(desc.complexGradRowsHeight))];
+            setViewport:make_viewport(0,
+                                      0,
+                                      kGradTextureWidth,
+                                      static_cast<float>(desc.gradDataHeight))];
         [gradEncoder
             setRenderPipelineState:m_colorRampPipeline->pipelineState()];
         [gradEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                               offset:desc.flushUniformDataOffsetInBytes
                              atIndex:FLUSH_UNIFORM_BUFFER_IDX];
-        [gradEncoder setVertexBuffer:mtl_buffer(gradSpanBufferRing())
-                              offset:desc.firstComplexGradSpan *
-                                     sizeof(gpu::GradientSpan)
-                             atIndex:0];
+        [gradEncoder
+            setVertexBuffer:mtl_buffer(gradSpanBufferRing())
+                     offset:desc.firstGradSpan * sizeof(gpu::GradientSpan)
+                    atIndex:0];
         [gradEncoder setCullMode:MTLCullModeBack];
         [gradEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
                         vertexCount:4
-                      instanceCount:desc.complexGradSpanCount];
+                      instanceCount:desc.gradSpanCount];
         [gradEncoder endEncoding];
-    }
-
-    // Copy the simple color ramps to the gradient texture.
-    if (desc.simpleGradTexelsHeight > 0)
-    {
-        id<MTLBlitCommandEncoder> textureBlitEncoder =
-            [commandBuffer blitCommandEncoder];
-        [textureBlitEncoder
-                 copyFromBuffer:mtl_buffer(simpleColorRampsBufferRing())
-                   sourceOffset:desc.simpleGradDataOffsetInBytes
-              sourceBytesPerRow:kGradTextureWidth * 4
-            sourceBytesPerImage:desc.simpleGradTexelsHeight *
-                                kGradTextureWidth * 4
-                     sourceSize:MTLSizeMake(desc.simpleGradTexelsWidth,
-                                            desc.simpleGradTexelsHeight,
-                                            1)
-                      toTexture:m_gradientTexture
-               destinationSlice:0
-               destinationLevel:0
-              destinationOrigin:MTLOriginMake(0, 0, 0)];
-        [textureBlitEncoder endEncoding];
     }
 
     // Tessellate all curves into vertices in the tessellation texture.

@@ -164,8 +164,6 @@ protected:
         size_t capacityInBytes, StorageBufferStructure) override;
     std::unique_ptr<BufferRing> makeVertexBufferRing(
         size_t capacityInBytes) override;
-    std::unique_ptr<BufferRing> makeTextureTransferBufferRing(
-        size_t capacityInBytes) override;
 
 private:
     // Renders paths to the main render target.

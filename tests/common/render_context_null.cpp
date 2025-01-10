@@ -84,9 +84,3 @@ std::unique_ptr<rive::gpu::BufferRing> RenderContextNULL::makeVertexBufferRing(
 {
     return std::make_unique<BufferRingNULL>(capacityInBytes);
 }
-
-std::unique_ptr<rive::gpu::BufferRing> RenderContextNULL::
-    makeTextureTransferBufferRing(size_t capacityInBytes)
-{
-    return std::make_unique<BufferRingNULL>(capacityInBytes);
-}

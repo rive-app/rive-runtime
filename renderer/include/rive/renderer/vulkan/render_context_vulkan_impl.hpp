@@ -173,7 +173,6 @@ private:
     IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintBuffer, m_paintBufferRing)
     IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintAuxBuffer, m_paintAuxBufferRing)
     IMPLEMENT_PLS_STRUCTURED_BUFFER(ContourBuffer, m_contourBufferRing)
-    IMPLEMENT_PLS_BUFFER(SimpleColorRampsBuffer, m_simpleColorRampsBufferRing)
     IMPLEMENT_PLS_BUFFER(GradSpanBuffer, m_gradSpanBufferRing)
     IMPLEMENT_PLS_BUFFER(TessVertexSpanBuffer, m_tessSpanBufferRing)
     IMPLEMENT_PLS_BUFFER(TriangleVertexBuffer, m_triangleBufferRing)
@@ -230,7 +229,6 @@ private:
     vkutil::BufferRing m_paintBufferRing;
     vkutil::BufferRing m_paintAuxBufferRing;
     vkutil::BufferRing m_contourBufferRing;
-    vkutil::BufferRing m_simpleColorRampsBufferRing;
     vkutil::BufferRing m_gradSpanBufferRing;
     vkutil::BufferRing m_tessSpanBufferRing;
     vkutil::BufferRing m_triangleBufferRing;

@@ -324,11 +324,10 @@ struct ColorRampLocation
 // and images reference an additional Gradient* and Texture* respectively.
 union SimplePaintValue
 {
-    ColorInt color = 0xff000000; // PaintType::solidColor
-    ColorRampLocation
-        colorRampLocation; // Paintype::linearGradient, Paintype::radialGradient
-    float imageOpacity;    // PaintType::image
-    uint32_t outerClipID;  // Paintype::clipUpdate
+    ColorInt color = 0xff000000;         // PaintType::solidColor
+    ColorRampLocation colorRampLocation; // Paintype::linear/radialGradient
+    float imageOpacity;                  // PaintType::image
+    uint32_t outerClipID;                // Paintype::clipUpdate
 };
 static_assert(sizeof(SimplePaintValue) == 4);
 
@@ -834,10 +833,10 @@ struct TwoTexelRamp
 {
     void set(const ColorInt colors[2])
     {
-        UnpackColorToRGBA8(colors[0], colorData);
-        UnpackColorToRGBA8(colors[1], colorData + 4);
+        color0 = colors[0];
+        color1 = colors[1];
     }
-    uint8_t colorData[8];
+    ColorInt color0, color1;
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
 
@@ -859,7 +858,7 @@ public:
 //
 //  1. Render the complex gradients from the gradSpanBuffer to the gradient
 //  texture
-//     (complexGradSpanCount, firstComplexGradSpan, complexGradRowsTop,
+//     (gradSpanCount, firstComplexGradSpan, complexGradRowsTop,
 //     complexGradRowsHeight).
 //
 //  2. Transfer the simple gradient texels from the simpleColorRampsBuffer to
@@ -909,15 +908,11 @@ struct FlushDescriptor
     size_t firstPaintAux = 0;
     uint32_t contourCount = 0;
     size_t firstContour = 0;
-    uint32_t complexGradSpanCount = 0;
-    size_t firstComplexGradSpan = 0;
+    uint32_t gradSpanCount = 0;
+    size_t firstGradSpan = 0;
     uint32_t tessVertexSpanCount = 0;
     size_t firstTessVertexSpan = 0;
-    uint32_t simpleGradTexelsWidth = 0;
-    uint32_t simpleGradTexelsHeight = 0;
-    size_t simpleGradDataOffsetInBytes = 0;
-    uint32_t complexGradRowsTop = 0;
-    uint32_t complexGradRowsHeight = 0;
+    uint32_t gradDataHeight = 0;
     uint32_t tessDataHeight = 0;
     // Override path fill rules with "clockwise".
     bool clockwiseFillOverride = false;

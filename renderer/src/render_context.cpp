@@ -174,10 +174,10 @@ void RenderContext::LogicalFlush::rewind()
     m_resourceCounts = Draw::ResourceCounters();
     m_drawPassCount = 0;
     m_simpleGradients.clear();
-    m_pendingSimpleGradientWrites.clear();
+    m_pendingSimpleGradDraws.clear();
     m_complexGradients.clear();
-    m_pendingComplexColorRampDraws.clear();
-    m_pendingComplexGradSpanCount = 0;
+    m_pendingComplexGradDraws.clear();
+    m_pendingGradSpanCount = 0;
     m_clips.clear();
     m_draws.clear();
     m_combinedDrawBounds = {std::numeric_limits<int32_t>::max(),
@@ -221,16 +221,16 @@ void RenderContext::LogicalFlush::resetContainers()
     m_simpleGradients.rehash(0);
     m_simpleGradients.reserve(kDefaultSimpleGradientCapacity);
 
-    m_pendingSimpleGradientWrites.clear();
-    m_pendingSimpleGradientWrites.shrink_to_fit();
-    m_pendingSimpleGradientWrites.reserve(kDefaultSimpleGradientCapacity);
+    m_pendingSimpleGradDraws.clear();
+    m_pendingSimpleGradDraws.shrink_to_fit();
+    m_pendingSimpleGradDraws.reserve(kDefaultSimpleGradientCapacity);
 
     m_complexGradients.rehash(0);
     m_complexGradients.reserve(kDefaultComplexGradientCapacity);
 
-    m_pendingComplexColorRampDraws.clear();
-    m_pendingComplexColorRampDraws.shrink_to_fit();
-    m_pendingComplexColorRampDraws.reserve(kDefaultComplexGradientCapacity);
+    m_pendingComplexGradDraws.clear();
+    m_pendingComplexGradDraws.shrink_to_fit();
+    m_pendingComplexGradDraws.reserve(kDefaultComplexGradientCapacity);
 }
 
 void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
@@ -447,8 +447,10 @@ bool RenderContext::LogicalFlush::allocateGradient(
             rampTexelsIdx = math::lossless_numeric_cast<uint32_t>(
                 m_simpleGradients.size() * 2);
             m_simpleGradients.insert({simpleKey, rampTexelsIdx});
-            m_pendingSimpleGradientWrites.emplace_back().set(
-                gradient->colors());
+            m_pendingSimpleGradDraws.emplace_back().set(gradient->colors());
+            // Simple gradients get uploaded to the GPU as two GradientSpan
+            // instances. (One for color0 and one for color1.)
+            m_pendingGradSpanCount += 2;
         }
         colorRampLocation->row = rampTexelsIdx / kGradTextureWidth;
         colorRampLocation->col = rampTexelsIdx % kGradTextureWidth;
@@ -477,11 +479,14 @@ bool RenderContext::LogicalFlush::allocateGradient(
 
             row = static_cast<uint32_t>(m_complexGradients.size());
             m_complexGradients.emplace(std::move(key), row);
-            m_pendingComplexColorRampDraws.push_back(gradient);
+            m_pendingComplexGradDraws.push_back(gradient);
 
             size_t spanCount = stopCount + 1;
-            m_pendingComplexGradSpanCount += spanCount;
+            m_pendingGradSpanCount += spanCount;
         }
+        // Store the row relative to the first complex gradient for now.
+        // PaintData::set() will offset this value by the number of simple
+        // gradient rows once its final value is known.
         colorRampLocation->row = row;
         colorRampLocation->col = ColorRampLocation::kComplexGradientMarker;
     }
@@ -550,13 +555,8 @@ void RenderContext::flush(const FlushResources& flushResources)
         totalFrameResourceCounts.pathCount + layoutCounts.paintAuxPaddingCount;
     allocs.contourBufferCount = totalFrameResourceCounts.contourCount +
                                 layoutCounts.contourPaddingCount;
-    // The gradient texture needs to be updated in entire rows at a time. Extend
-    // its texture-transfer buffer's length in order to be able to serve a
-    // worst-case scenario.
-    allocs.simpleGradientBufferCount =
-        layoutCounts.simpleGradCount + gpu::kGradTextureWidthInSimpleRamps - 1;
-    allocs.complexGradSpanBufferCount =
-        layoutCounts.complexGradSpanCount + layoutCounts.gradSpanPaddingCount;
+    allocs.gradSpanBufferCount =
+        layoutCounts.gradSpanCount + layoutCounts.gradSpanPaddingCount;
     allocs.tessSpanBufferCount =
         totalFrameResourceCounts.maxTessellatedSegmentCount;
     allocs.triangleVertexBufferCount =
@@ -643,11 +643,8 @@ void RenderContext::flush(const FlushResources& flushResources)
     assert(m_contourData.elementsWritten() ==
            totalFrameResourceCounts.contourCount +
                layoutCounts.contourPaddingCount);
-    assert(m_simpleColorRampsData.elementsWritten() ==
-           layoutCounts.simpleGradCount);
     assert(m_gradSpanData.elementsWritten() ==
-           layoutCounts.complexGradSpanCount +
-               layoutCounts.gradSpanPaddingCount);
+           layoutCounts.gradSpanCount + layoutCounts.gradSpanPaddingCount);
     assert(m_tessSpanData.elementsWritten() <=
            totalFrameResourceCounts.maxTessellatedSegmentCount);
     assert(m_triangleVertexData.elementsWritten() <=
@@ -719,7 +716,7 @@ void RenderContext::LogicalFlush::layoutResources(
     // Metal requires vertex buffers to be 256-byte aligned.
     m_gradSpanPaddingCount =
         gpu::PaddingToAlignUp<gpu::kGradSpanBufferAlignmentInElements>(
-            m_pendingComplexGradSpanCount);
+            m_pendingGradSpanCount);
 
     size_t totalTessVertexCountWithPadding = 0;
     if ((m_resourceCounts.midpointFanTessVertexCount |
@@ -774,6 +771,12 @@ void RenderContext::LogicalFlush::layoutResources(
             maxSpanBreakCount + kPaddingSpanCount +
             kMaxTessellationAlignmentVertices;
     }
+
+    // Complex gradients begin on the first row immediately after the simple
+    // gradients.
+    m_gradTextureLayout.complexOffsetY = math::lossless_numeric_cast<uint32_t>(
+        resource_texture_height<gpu::kGradTextureWidthInSimpleRamps>(
+            m_simpleGradients.size()));
 
     m_flushDesc.renderTarget = flushResources.renderTarget;
     m_flushDesc.interlockMode = m_ctx->frameInterlockMode();
@@ -868,24 +871,12 @@ void RenderContext::LogicalFlush::layoutResources(
         math::lossless_numeric_cast<uint32_t>(m_resourceCounts.contourCount);
     m_flushDesc.firstContour = runningFrameResourceCounts->contourCount +
                                runningFrameLayoutCounts->contourPaddingCount;
-    m_flushDesc.complexGradSpanCount =
-        math::lossless_numeric_cast<uint32_t>(m_pendingComplexGradSpanCount);
-    m_flushDesc.firstComplexGradSpan =
-        runningFrameLayoutCounts->complexGradSpanCount +
-        runningFrameLayoutCounts->gradSpanPaddingCount;
-    m_flushDesc.simpleGradTexelsWidth =
-        std::min<uint32_t>(
-            math::lossless_numeric_cast<uint32_t>(m_simpleGradients.size()),
-            gpu::kGradTextureWidthInSimpleRamps) *
-        2;
-    m_flushDesc.simpleGradTexelsHeight = static_cast<uint32_t>(
-        resource_texture_height<gpu::kGradTextureWidthInSimpleRamps>(
-            m_simpleGradients.size()));
-    m_flushDesc.simpleGradDataOffsetInBytes =
-        runningFrameLayoutCounts->simpleGradCount * sizeof(gpu::TwoTexelRamp);
-    m_flushDesc.complexGradRowsTop = m_flushDesc.simpleGradTexelsHeight;
-    m_flushDesc.complexGradRowsHeight =
-        math::lossless_numeric_cast<uint32_t>(m_complexGradients.size());
+    m_flushDesc.gradSpanCount =
+        math::lossless_numeric_cast<uint32_t>(m_pendingGradSpanCount);
+    m_flushDesc.firstGradSpan = runningFrameLayoutCounts->gradSpanCount +
+                                runningFrameLayoutCounts->gradSpanPaddingCount;
+    m_flushDesc.gradDataHeight = math::lossless_numeric_cast<uint32_t>(
+        m_gradTextureLayout.complexOffsetY + m_complexGradients.size());
     m_flushDesc.tessDataHeight = tessDataHeight;
     m_flushDesc.clockwiseFillOverride = frameDescriptor.clockwiseFillOverride;
     m_flushDesc.wireframe = frameDescriptor.wireframe;
@@ -903,13 +894,11 @@ void RenderContext::LogicalFlush::layoutResources(
     runningFrameLayoutCounts->paintPaddingCount += m_paintPaddingCount;
     runningFrameLayoutCounts->paintAuxPaddingCount += m_paintAuxPaddingCount;
     runningFrameLayoutCounts->contourPaddingCount += m_contourPaddingCount;
-    runningFrameLayoutCounts->simpleGradCount += m_simpleGradients.size();
-    runningFrameLayoutCounts->complexGradSpanCount +=
-        m_pendingComplexGradSpanCount;
+    runningFrameLayoutCounts->gradSpanCount += m_pendingGradSpanCount;
     runningFrameLayoutCounts->gradSpanPaddingCount += m_gradSpanPaddingCount;
-    runningFrameLayoutCounts->maxGradTextureHeight = std::max(
-        m_flushDesc.simpleGradTexelsHeight + m_flushDesc.complexGradRowsHeight,
-        runningFrameLayoutCounts->maxGradTextureHeight);
+    runningFrameLayoutCounts->maxGradTextureHeight =
+        std::max(m_flushDesc.gradDataHeight,
+                 runningFrameLayoutCounts->maxGradTextureHeight);
     runningFrameLayoutCounts->maxTessTextureHeight =
         std::max(m_flushDesc.tessDataHeight,
                  runningFrameLayoutCounts->maxTessTextureHeight);
@@ -924,7 +913,7 @@ void RenderContext::LogicalFlush::layoutResources(
            0);
     assert(m_flushDesc.firstContour % gpu::kContourBufferAlignmentInElements ==
            0);
-    assert(m_flushDesc.firstComplexGradSpan %
+    assert(m_flushDesc.firstGradSpan %
                gpu::kGradSpanBufferAlignmentInElements ==
            0);
     RIVE_DEBUG_CODE(m_hasDoneLayout = true;)
@@ -939,12 +928,11 @@ void RenderContext::LogicalFlush::writeResources()
     assert(m_flushDesc.firstPaintAux ==
            m_ctx->m_paintAuxData.elementsWritten());
 
-    // Wait until here to layout the gradient texture because the final gradient
-    // texture height is not decided until after all LogicalFlushes have run
+    // Wait until here before we finish laying out the gradient texture because
+    // the final height is not decided until after all LogicalFlushes have run
     // layoutResources().
     m_gradTextureLayout.inverseHeight =
         1.f / m_ctx->m_currentResourceAllocations.gradTextureHeight;
-    m_gradTextureLayout.complexOffsetY = m_flushDesc.complexGradRowsTop;
 
     // Exact tessSpan/triangleVertex counts aren't known until after their data
     // is written out.
@@ -964,26 +952,51 @@ void RenderContext::LogicalFlush::writeResources()
            m_ctx->m_tessSpanData.elementsWritten());
 
     // Write out the simple gradient data.
-    assert(m_simpleGradients.size() == m_pendingSimpleGradientWrites.size());
-    if (!m_pendingSimpleGradientWrites.empty())
+    assert(m_simpleGradients.size() == m_pendingSimpleGradDraws.size());
+    if (!m_pendingSimpleGradDraws.empty())
     {
-        m_ctx->m_simpleColorRampsData.push_back_n(
-            m_pendingSimpleGradientWrites.data(),
-            m_pendingSimpleGradientWrites.size());
+        for (size_t i = 0; i < m_pendingSimpleGradDraws.size(); ++i)
+        {
+            // Render simple gradients as two uniform-color, single-texel spans.
+            // We use separate spans as an easy way to precisely control the
+            // colors that gets interpolated at pixel centers.
+            // TODO: If this is too much data, we can experiment with adding
+            // complexity to the shader instead, and only writing one
+            // GradientSpan.
+            auto [color0, color1] = m_pendingSimpleGradDraws[i];
+            uint32_t y = math::lossless_numeric_cast<uint32_t>(
+                i / gpu::kGradTextureWidthInSimpleRamps);
+            uint32_t x = math::lossless_numeric_cast<uint32_t>(
+                (i % gpu::kGradTextureWidthInSimpleRamps) * 2);
+            constexpr static uint32_t ONE_TEXEL_FIXED =
+                65536 / gpu::kGradTextureWidth;
+            m_ctx->m_gradSpanData.set_back(x * ONE_TEXEL_FIXED,
+                                           (x + 1) * ONE_TEXEL_FIXED,
+                                           y,
+                                           color0,
+                                           color0);
+            m_ctx->m_gradSpanData.set_back(
+                (x + 1) * ONE_TEXEL_FIXED,
+                std::min((x + 2) * ONE_TEXEL_FIXED, 65535u),
+                y,
+                color1,
+                color1);
+        }
     }
 
     // Write out the vertex data for rendering complex gradients.
-    assert(m_complexGradients.size() == m_pendingComplexColorRampDraws.size());
-    if (!m_pendingComplexColorRampDraws.empty())
+    assert(m_complexGradients.size() == m_pendingComplexGradDraws.size());
+    if (!m_pendingComplexGradDraws.empty())
     {
         // The viewport will start at simpleGradDataHeight when rendering color
         // ramps.
-        for (uint32_t y = 0; y < m_pendingComplexColorRampDraws.size(); ++y)
+        for (uint32_t i = 0; i < m_pendingComplexGradDraws.size(); ++i)
         {
-            const Gradient* gradient = m_pendingComplexColorRampDraws[y];
+            const Gradient* gradient = m_pendingComplexGradDraws[i];
             const ColorInt* colors = gradient->colors();
             const float* stops = gradient->stops();
             size_t stopCount = gradient->count();
+            uint32_t y = i + m_gradTextureLayout.complexOffsetY;
 
             // Push "GradientSpan" instances that will render each section of
             // the color ramp.
@@ -999,8 +1012,8 @@ void RenderContext::LogicalFlush::writeResources()
                 float x = stops[i] * w + .5f;
                 uint32_t xFixed =
                     static_cast<uint32_t>(x * (65536.f / kGradTextureWidth));
-                assert(lastXFixed <= xFixed &&
-                       xFixed < 65536); // stops[] must be ordered.
+                // stops[] must be ordered.
+                assert(lastXFixed <= xFixed && xFixed < 65536);
                 m_ctx->m_gradSpanData.set_back(lastXFixed,
                                                xFixed,
                                                y,
@@ -1336,7 +1349,7 @@ void RenderContext::LogicalFlush::writeResources()
            m_flushDesc.firstContour + m_resourceCounts.contourCount +
                m_contourPaddingCount);
     assert(m_ctx->m_gradSpanData.elementsWritten() ==
-           m_flushDesc.firstComplexGradSpan + m_pendingComplexGradSpanCount +
+           m_flushDesc.firstGradSpan + m_pendingGradSpanCount +
                m_gradSpanPaddingCount);
     assert(m_midpointFanTessVertexIdx == m_midpointFanTessEndLocation);
     assert(m_outerCubicTessVertexIdx == m_outerCubicTessEndLocation);
@@ -1493,21 +1506,12 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
                                     gpu::ContourData::kBufferStructure);
     }
 
-    LOG_BUFFER_RING_SIZE(simpleGradientBufferCount, sizeof(gpu::TwoTexelRamp));
-    if (allocs.simpleGradientBufferCount !=
-            m_currentResourceAllocations.simpleGradientBufferCount ||
+    LOG_BUFFER_RING_SIZE(gradSpanBufferCount, sizeof(gpu::GradientSpan));
+    if (allocs.gradSpanBufferCount !=
+            m_currentResourceAllocations.gradSpanBufferCount ||
         forceRealloc)
     {
-        m_impl->resizeSimpleColorRampsBuffer(allocs.simpleGradientBufferCount *
-                                             sizeof(gpu::TwoTexelRamp));
-    }
-
-    LOG_BUFFER_RING_SIZE(complexGradSpanBufferCount, sizeof(gpu::GradientSpan));
-    if (allocs.complexGradSpanBufferCount !=
-            m_currentResourceAllocations.complexGradSpanBufferCount ||
-        forceRealloc)
-    {
-        m_impl->resizeGradSpanBuffer(allocs.complexGradSpanBufferCount *
+        m_impl->resizeGradSpanBuffer(allocs.gradSpanBufferCount *
                                      sizeof(gpu::GradientSpan));
     }
 
@@ -1626,23 +1630,13 @@ void RenderContext::mapResourceBuffers(
     }
     assert(m_contourData.hasRoomFor(mapCounts.contourBufferCount));
 
-    if (mapCounts.simpleGradientBufferCount > 0)
-    {
-        m_simpleColorRampsData.mapElements(
-            m_impl.get(),
-            &RenderContextImpl::mapSimpleColorRampsBuffer,
-            mapCounts.simpleGradientBufferCount);
-    }
-    assert(
-        m_simpleColorRampsData.hasRoomFor(mapCounts.simpleGradientBufferCount));
-
-    if (mapCounts.complexGradSpanBufferCount > 0)
+    if (mapCounts.gradSpanBufferCount > 0)
     {
         m_gradSpanData.mapElements(m_impl.get(),
                                    &RenderContextImpl::mapGradSpanBuffer,
-                                   mapCounts.complexGradSpanBufferCount);
+                                   mapCounts.gradSpanBufferCount);
     }
-    assert(m_gradSpanData.hasRoomFor(mapCounts.complexGradSpanBufferCount));
+    assert(m_gradSpanData.hasRoomFor(mapCounts.gradSpanBufferCount));
 
     if (mapCounts.tessSpanBufferCount > 0)
     {
@@ -1694,11 +1688,6 @@ void RenderContext::unmapResourceBuffers()
     {
         m_impl->unmapContourBuffer();
         m_contourData.reset();
-    }
-    if (m_simpleColorRampsData)
-    {
-        m_impl->unmapSimpleColorRampsBuffer();
-        m_simpleColorRampsData.reset();
     }
     if (m_gradSpanData)
     {

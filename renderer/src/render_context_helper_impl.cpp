@@ -72,11 +72,6 @@ void RenderContextHelperImpl::resizeContourBuffer(
     m_contourBuffer = makeStorageBufferRing(sizeInBytes, bufferStructure);
 }
 
-void RenderContextHelperImpl::resizeSimpleColorRampsBuffer(size_t sizeInBytes)
-{
-    m_simpleColorRampsBuffer = makeTextureTransferBufferRing(sizeInBytes);
-}
-
 void RenderContextHelperImpl::resizeGradSpanBuffer(size_t sizeInBytes)
 {
     m_gradSpanBuffer = makeVertexBufferRing(sizeInBytes);
@@ -122,11 +117,6 @@ void* RenderContextHelperImpl::mapContourBuffer(size_t mapSizeInBytes)
     return m_contourBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void* RenderContextHelperImpl::mapSimpleColorRampsBuffer(size_t mapSizeInBytes)
-{
-    return m_simpleColorRampsBuffer->mapBuffer(mapSizeInBytes);
-}
-
 void* RenderContextHelperImpl::mapGradSpanBuffer(size_t mapSizeInBytes)
 {
     return m_gradSpanBuffer->mapBuffer(mapSizeInBytes);
@@ -170,11 +160,6 @@ void RenderContextHelperImpl::unmapPaintAuxBuffer()
 void RenderContextHelperImpl::unmapContourBuffer()
 {
     m_contourBuffer->unmapAndSubmitBuffer();
-}
-
-void RenderContextHelperImpl::unmapSimpleColorRampsBuffer()
-{
-    m_simpleColorRampsBuffer->unmapAndSubmitBuffer();
 }
 
 void RenderContextHelperImpl::unmapGradSpanBuffer()

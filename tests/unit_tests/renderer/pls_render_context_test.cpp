@@ -42,8 +42,7 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
     RenderContextTest::ResourceAllocationCounts allocs;
     allocs.pathBufferCount = 1;
     allocs.contourBufferCount = 2;
-    allocs.simpleGradientBufferCount = 3;
-    allocs.complexGradSpanBufferCount = 4;
+    allocs.gradSpanBufferCount = 4;
     allocs.tessSpanBufferCount = 5;
     allocs.triangleVertexBufferCount = 6;
     allocs.imageDrawUniformBufferCount = 7;
@@ -53,8 +52,7 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
     allocs = allocs.toVec() * 2;
     CHECK(allocs.pathBufferCount == 2);
     CHECK(allocs.contourBufferCount == 4);
-    CHECK(allocs.simpleGradientBufferCount == 6);
-    CHECK(allocs.complexGradSpanBufferCount == 8);
+    CHECK(allocs.gradSpanBufferCount == 8);
     CHECK(allocs.tessSpanBufferCount == 10);
     CHECK(allocs.triangleVertexBufferCount == 12);
     CHECK(allocs.imageDrawUniformBufferCount == 14);
@@ -64,8 +62,7 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
     RenderContextTest::ResourceAllocationCounts testAllocs;
     testAllocs.pathBufferCount = 18;
     testAllocs.contourBufferCount = 16;
-    testAllocs.simpleGradientBufferCount = 14;
-    testAllocs.complexGradSpanBufferCount = 12;
+    testAllocs.gradSpanBufferCount = 12;
     testAllocs.tessSpanBufferCount = 10;
     testAllocs.triangleVertexBufferCount = 8;
     testAllocs.imageDrawUniformBufferCount = 6;
@@ -77,8 +74,7 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
                                 allocs.toVec() * size_t(5));
     CHECK(allocs.pathBufferCount == 18);
     CHECK(allocs.contourBufferCount == 16);
-    CHECK(allocs.simpleGradientBufferCount == 14);
-    CHECK(allocs.complexGradSpanBufferCount == 12);
+    CHECK(allocs.gradSpanBufferCount == 12);
     CHECK(allocs.tessSpanBufferCount == 10);
     CHECK(allocs.triangleVertexBufferCount == 12 * 5);
     CHECK(allocs.imageDrawUniformBufferCount == 14 * 5);
@@ -91,8 +87,7 @@ TEST_CASE("ResourceAllocationCounts", "RenderContext")
                            allocs.toVec());
     CHECK(allocs.pathBufferCount == 18);
     CHECK(allocs.contourBufferCount == 16);
-    CHECK(allocs.simpleGradientBufferCount == 14);
-    CHECK(allocs.complexGradSpanBufferCount == 12);
+    CHECK(allocs.gradSpanBufferCount == 12);
     CHECK(allocs.tessSpanBufferCount == 10);
     CHECK(allocs.triangleVertexBufferCount == 6 * 5);
     CHECK(allocs.imageDrawUniformBufferCount == 7 * 5);
@@ -119,8 +114,7 @@ TEST_CASE("ResourceTriming", "RenderContext")
     CHECK(ctx.currentResourceAllocations().paintBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().paintAuxBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().contourBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().simpleGradientBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().complexGradSpanBufferCount == 0);
+    CHECK(ctx.currentResourceAllocations().gradSpanBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().tessSpanBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().triangleVertexBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().gradTextureHeight == 0);
@@ -224,8 +218,7 @@ TEST_CASE("ResourceTriming", "RenderContext")
     CHECK(ctx.currentResourceAllocations().paintBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().paintAuxBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().contourBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().simpleGradientBufferCount == 0);
-    CHECK(ctx.currentResourceAllocations().complexGradSpanBufferCount == 0);
+    CHECK(ctx.currentResourceAllocations().gradSpanBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().tessSpanBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().triangleVertexBufferCount == 0);
     CHECK(ctx.currentResourceAllocations().gradTextureHeight == 0);

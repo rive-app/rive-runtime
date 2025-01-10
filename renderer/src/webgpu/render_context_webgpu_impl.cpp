@@ -1510,15 +1510,6 @@ std::unique_ptr<BufferRing> RenderContextWebGPUImpl::makeVertexBufferRing(
                                           wgpu::BufferUsage::Vertex);
 }
 
-std::unique_ptr<BufferRing> RenderContextWebGPUImpl::
-    makeTextureTransferBufferRing(size_t capacityInBytes)
-{
-    return std::make_unique<BufferWebGPU>(m_device,
-                                          m_queue,
-                                          capacityInBytes,
-                                          wgpu::BufferUsage::CopySrc);
-}
-
 void RenderContextWebGPUImpl::resizeGradientTexture(uint32_t width,
                                                     uint32_t height)
 {
@@ -1527,8 +1518,7 @@ void RenderContextWebGPUImpl::resizeGradientTexture(uint32_t width,
 
     wgpu::TextureDescriptor desc{
         .usage = wgpu::TextureUsage::RenderAttachment |
-                 wgpu::TextureUsage::TextureBinding |
-                 wgpu::TextureUsage::CopyDst,
+                 wgpu::TextureUsage::TextureBinding,
         .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
         .format = wgpu::TextureFormat::RGBA8Unorm,
     };
@@ -1810,7 +1800,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     }
 
     // Render the complex color ramps to the gradient texture.
-    if (desc.complexGradSpanCount > 0)
+    if (desc.gradDataHeight > 0)
     {
         wgpu::BindGroupEntry bindingEntries[] = {
             {
@@ -1843,41 +1833,19 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         wgpu::RenderPassEncoder gradPass =
             encoder.BeginRenderPass(&gradPassDesc);
         gradPass.SetViewport(0.f,
-                             static_cast<double>(desc.complexGradRowsTop),
+                             0.f,
                              gpu::kGradTextureWidth,
-                             static_cast<float>(desc.complexGradRowsHeight),
+                             static_cast<float>(desc.gradDataHeight),
                              0.0,
                              1.0);
         gradPass.SetPipeline(m_colorRampPipeline->renderPipeline());
         gradPass.SetVertexBuffer(0,
                                  webgpu_buffer(gradSpanBufferRing()),
-                                 desc.firstComplexGradSpan *
+                                 desc.firstGradSpan *
                                      sizeof(gpu::GradientSpan));
         gradPass.SetBindGroup(0, bindings);
-        gradPass.Draw(4, desc.complexGradSpanCount, 0, 0);
+        gradPass.Draw(4, desc.gradSpanCount, 0, 0);
         gradPass.End();
-    }
-
-    // Copy the simple color ramps to the gradient texture.
-    if (desc.simpleGradTexelsHeight > 0)
-    {
-        wgpu::ImageCopyBuffer srcBuffer = {
-            .layout =
-                {
-                    .offset = desc.simpleGradDataOffsetInBytes,
-                    .bytesPerRow = gpu::kGradTextureWidth * 4,
-                },
-            .buffer = webgpu_buffer(simpleColorRampsBufferRing()),
-        };
-        wgpu::ImageCopyTexture dstTexture = {
-            .texture = m_gradientTexture,
-            .origin = {0, 0, 0},
-        };
-        wgpu::Extent3D copySize = {
-            .width = desc.simpleGradTexelsWidth,
-            .height = desc.simpleGradTexelsHeight,
-        };
-        encoder.CopyBufferToTexture(&srcBuffer, &dstTexture, &copySize);
     }
 
     // Tessellate all curves into vertices in the tessellation texture.
