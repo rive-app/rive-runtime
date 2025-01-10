@@ -993,7 +993,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [gradEncoder setCullMode:MTLCullModeBack];
         [gradEncoder drawPrimitives:MTLPrimitiveTypeTriangleStrip
                         vertexStart:0
-                        vertexCount:4
+                        vertexCount:gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT
                       instanceCount:desc.gradSpanCount];
         [gradEncoder endEncoding];
     }

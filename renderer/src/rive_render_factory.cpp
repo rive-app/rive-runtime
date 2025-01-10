@@ -19,7 +19,6 @@ rcp<RenderShader> RiveRenderFactory::makeLinearGradient(
     const float stops[],     // [count]
     size_t count)
 {
-
     return gpu::Gradient::MakeLinear(sx, sy, ex, ey, colors, stops, count);
 }
 
@@ -31,7 +30,6 @@ rcp<RenderShader> RiveRenderFactory::makeRadialGradient(
     const float stops[],     // [count]
     size_t count)
 {
-
     return gpu::Gradient::MakeRadial(cx, cy, radius, colors, stops, count);
 }
 

@@ -2592,7 +2592,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     0,
                                     nullptr);
 
-        m_vk->CmdDraw(commandBuffer, 4, desc.gradSpanCount, 0, 0);
+        m_vk->CmdDraw(commandBuffer,
+                      gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
+                      desc.gradSpanCount,
+                      0,
+                      0);
 
         m_vk->CmdEndRenderPass(commandBuffer);
 

@@ -417,16 +417,19 @@ bool RenderContext::LogicalFlush::allocateGradient(
 
     const float* stops = gradient->stops();
     size_t stopCount = gradient->count();
+    assert(stopCount > 0); // RiveRenderFactory guarantees this.
 
-    if (stopCount == 2 && stops[0] == 0 && stops[1] == 1)
+    if (stopCount == 1 || (stopCount == 2 && stops[0] == 0 && stops[1] == 1))
     {
         // This is a simple gradient that can be implemented by a two-texel
         // color ramp.
+        const ColorInt* colors = gradient->colors();
+        TwoTexelRamp colorRamp = {colors[0],
+                                  // Handle ramps with a single stop.
+                                  colors[std::min<size_t>(1, stopCount - 1)]};
         uint64_t simpleKey;
         static_assert(sizeof(simpleKey) == sizeof(ColorInt) * 2);
-        RIVE_INLINE_MEMCPY(&simpleKey,
-                           gradient->colors(),
-                           sizeof(ColorInt) * 2);
+        RIVE_INLINE_MEMCPY(&simpleKey, &colorRamp, sizeof(ColorInt) * 2);
         uint32_t rampTexelsIdx;
         auto iter = m_simpleGradients.find(simpleKey);
         if (iter != m_simpleGradients.end())
@@ -447,10 +450,10 @@ bool RenderContext::LogicalFlush::allocateGradient(
             rampTexelsIdx = math::lossless_numeric_cast<uint32_t>(
                 m_simpleGradients.size() * 2);
             m_simpleGradients.insert({simpleKey, rampTexelsIdx});
-            m_pendingSimpleGradDraws.emplace_back().set(gradient->colors());
-            // Simple gradients get uploaded to the GPU as two GradientSpan
-            // instances. (One for color0 and one for color1.)
-            m_pendingGradSpanCount += 2;
+            m_pendingSimpleGradDraws.push_back(colorRamp);
+            // Simple gradients get uploaded to the GPU as a single GradientSpan
+            // instance.
+            ++m_pendingGradSpanCount;
         }
         colorRampLocation->row = rampTexelsIdx / kGradTextureWidth;
         colorRampLocation->col = rampTexelsIdx % kGradTextureWidth;
@@ -481,7 +484,7 @@ bool RenderContext::LogicalFlush::allocateGradient(
             m_complexGradients.emplace(std::move(key), row);
             m_pendingComplexGradDraws.push_back(gradient);
 
-            size_t spanCount = stopCount + 1;
+            size_t spanCount = stopCount - 1;
             m_pendingGradSpanCount += spanCount;
         }
         // Store the row relative to the first complex gradient for now.
@@ -952,35 +955,27 @@ void RenderContext::LogicalFlush::writeResources()
            m_ctx->m_tessSpanData.elementsWritten());
 
     // Write out the simple gradient data.
+    constexpr static uint32_t ONE_TEXEL_FIXED = 65536 / gpu::kGradTextureWidth;
     assert(m_simpleGradients.size() == m_pendingSimpleGradDraws.size());
     if (!m_pendingSimpleGradDraws.empty())
     {
         for (size_t i = 0; i < m_pendingSimpleGradDraws.size(); ++i)
         {
-            // Render simple gradients as two uniform-color, single-texel spans.
-            // We use separate spans as an easy way to precisely control the
-            // colors that gets interpolated at pixel centers.
-            // TODO: If this is too much data, we can experiment with adding
-            // complexity to the shader instead, and only writing one
-            // GradientSpan.
+            // Render each simple gradient as a single, empty GradientSpan with
+            // 1px borders to the left and right.
             auto [color0, color1] = m_pendingSimpleGradDraws[i];
             uint32_t y = math::lossless_numeric_cast<uint32_t>(
                 i / gpu::kGradTextureWidthInSimpleRamps);
-            uint32_t x = math::lossless_numeric_cast<uint32_t>(
-                (i % gpu::kGradTextureWidthInSimpleRamps) * 2);
-            constexpr static uint32_t ONE_TEXEL_FIXED =
-                65536 / gpu::kGradTextureWidth;
-            m_ctx->m_gradSpanData.set_back(x * ONE_TEXEL_FIXED,
-                                           (x + 1) * ONE_TEXEL_FIXED,
+            size_t centerX = (i % gpu::kGradTextureWidthInSimpleRamps) * 2 + 1;
+            uint32_t centerXFixed = math::lossless_numeric_cast<uint32_t>(
+                centerX * ONE_TEXEL_FIXED);
+            m_ctx->m_gradSpanData.set_back(centerXFixed,
+                                           centerXFixed,
                                            y,
+                                           GRAD_SPAN_FLAG_LEFT_BORDER |
+                                               GRAD_SPAN_FLAG_RIGHT_BORDER,
                                            color0,
-                                           color0);
-            m_ctx->m_gradSpanData.set_back(
-                (x + 1) * ONE_TEXEL_FIXED,
-                std::min((x + 2) * ONE_TEXEL_FIXED, 65535u),
-                y,
-                color1,
-                color1);
+                                           color1);
         }
     }
 
@@ -992,41 +987,43 @@ void RenderContext::LogicalFlush::writeResources()
         // ramps.
         for (uint32_t i = 0; i < m_pendingComplexGradDraws.size(); ++i)
         {
+            // Push "GradientSpan" instances that will render each section of
+            // this color ramp's gradient.
             const Gradient* gradient = m_pendingComplexGradDraws[i];
-            const ColorInt* colors = gradient->colors();
             const float* stops = gradient->stops();
+            const ColorInt* colors = gradient->colors();
             size_t stopCount = gradient->count();
             uint32_t y = i + m_gradTextureLayout.complexOffsetY;
 
-            // Push "GradientSpan" instances that will render each section of
-            // the color ramp.
+            // "stop * m + a" converts a stop position to a fixed-point x
+            // coordinate in the gradient texture. (In an ideal world, stops
+            // would all be aligned on pixel centers for the texture sampling to
+            // be identical to the gradient, but here we just stretch it across
+            // kGradTextureWidth pixels and hope everything looks ok.)
+            float m = (kGradTextureWidth - 1.f) * ONE_TEXEL_FIXED;
+            float a = .5f * ONE_TEXEL_FIXED;
+            uint32_t lastXFixed = static_cast<uint32_t>(stops[0] * m + a);
             ColorInt lastColor = colors[0];
-            uint32_t lastXFixed = 0;
-            // "stop * w + .5" converts a stop position to an x-coordinate in
-            // the gradient texture. Stops should be aligned (ideally) on pixel
-            // centers to prevent bleed. Render half-pixel-wide caps at the
-            // beginning and end to ensure the boundary pixels get filled.
-            float w = kGradTextureWidth - 1.f;
-            for (size_t i = 0; i < stopCount; ++i)
+            assert(stopCount >= 2);
+            for (size_t i = 1; i < stopCount; ++i)
             {
-                float x = stops[i] * w + .5f;
-                uint32_t xFixed =
-                    static_cast<uint32_t>(x * (65536.f / kGradTextureWidth));
+                uint32_t xFixed = static_cast<uint32_t>(stops[i] * m + a);
                 // stops[] must be ordered.
                 assert(lastXFixed <= xFixed && xFixed < 65536);
+                uint32_t flags = GRAD_SPAN_FLAG_COMPLEX_BORDER;
+                if (i == 1)
+                    flags |= GRAD_SPAN_FLAG_LEFT_BORDER;
+                if (i == stopCount - 1)
+                    flags |= GRAD_SPAN_FLAG_RIGHT_BORDER;
                 m_ctx->m_gradSpanData.set_back(lastXFixed,
                                                xFixed,
                                                y,
+                                               flags,
                                                lastColor,
                                                colors[i]);
                 lastColor = colors[i];
                 lastXFixed = xFixed;
             }
-            m_ctx->m_gradSpanData.set_back(lastXFixed,
-                                           65535u,
-                                           y,
-                                           lastColor,
-                                           lastColor);
         }
     }
 

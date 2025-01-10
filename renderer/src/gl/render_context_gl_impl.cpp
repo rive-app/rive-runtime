@@ -1093,7 +1093,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         m_state->bindProgram(m_colorRampProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP, 0, 4, desc.gradSpanCount);
+        glDrawArraysInstanced(GL_TRIANGLE_STRIP,
+                              0,
+                              gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
+                              desc.gradSpanCount);
     }
 
     // Tessellate all curves into vertices in the tessellation texture.

@@ -139,19 +139,20 @@ struct GradientSpan
     // fixed-point range 0..65535.
     RIVE_ALWAYS_INLINE void set(uint32_t x0Fixed,
                                 uint32_t x1Fixed,
-                                float y_,
+                                uint32_t y,
+                                uint32_t flags,
                                 ColorInt color0_,
                                 ColorInt color1_)
     {
         assert(x0Fixed < 65536);
         assert(x1Fixed < 65536);
         horizontalSpan = (x1Fixed << 16) | x0Fixed;
-        y = y_;
+        yWithFlags = flags | y;
         color0 = color0_;
         color1 = color1_;
     }
     uint32_t horizontalSpan;
-    uint32_t y;
+    uint32_t yWithFlags;
     uint32_t color0;
     uint32_t color1;
 };
@@ -160,6 +161,9 @@ static_assert(256 % sizeof(GradientSpan) == 0);
 // Metal requires vertex buffers to be 256-byte aligned.
 constexpr static size_t kGradSpanBufferAlignmentInElements =
     256 / sizeof(GradientSpan);
+
+// Gradient spans are drawn as 1px-tall triangle strips with 3 sub-rectangles.
+constexpr uint32_t GRAD_SPAN_TRI_STRIP_VERTEX_COUNT = 8;
 
 // Each curve gets tessellated into vertices. This is performed by rendering a
 // horizontal span of positions and normals into the tessellation data texture,
@@ -831,11 +835,6 @@ struct DrawBatch
 // memory from the CPU instead of rendering them.
 struct TwoTexelRamp
 {
-    void set(const ColorInt colors[2])
-    {
-        color0 = colors[0];
-        color1 = colors[1];
-    }
     ColorInt color0, color1;
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));

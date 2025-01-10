@@ -180,28 +180,34 @@ public:
                                                size_t i,
                                                size_t j) override
     {
+        rive::ColorInt colors[3] = {randColor(), randColor(), randColor()};
+        std::array<float, 3> stops;
+        // Also test gradients with only one color stop (which render as a solid
+        // color).
+        int count = m_rand.u32(1, 3);
+        if (count == 3)
+            stops = {.05f, .147f, 1};
+        else
+            stops = {0, 1};
+
         if (m_rand.boolean())
         {
-            float stops[3] = {.05f, .147f, 1};
-            rive::ColorInt colors[3] = {randColor(), randColor(), randColor()};
             return factory->makeRadialGradient((i & 1) ? 0 : 16,
                                                (j & 1) ? 2 : 22,
                                                22,
                                                colors,
-                                               stops,
-                                               3);
+                                               stops.data(),
+                                               count);
         }
         else
         {
-            float stops[2] = {0, 1};
-            rive::ColorInt colors[2] = {randColor(), randColor()};
             return factory->makeLinearGradient((i & 1) ? 16 : 0,
                                                (j & 1) ? 16 : 0,
                                                (i & 1) ? 0 : 16,
                                                (j & 1) ? 0 : 16,
                                                colors,
-                                               stops,
-                                               2);
+                                               stops.data(),
+                                               count);
         }
     }
 };

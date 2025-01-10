@@ -9,7 +9,7 @@
 ATTR_BLOCK_BEGIN(Attrs)
 #ifdef SPLIT_UINT4_ATTRIBUTES
 ATTR(0, uint, @a_spanX);
-ATTR(1, uint, @a_y);
+ATTR(1, uint, @a_yWithFlags);
 ATTR(2, uint, @a_color0);
 ATTR(3, uint, @a_color1);
 #else
@@ -41,31 +41,52 @@ VERTEX_MAIN(@colorRampVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
 #ifdef SPLIT_UINT4_ATTRIBUTES
     ATTR_UNPACK(_instanceID, attrs, @a_spanX, uint);
-    ATTR_UNPACK(_instanceID, attrs, @a_y, uint);
+    ATTR_UNPACK(_instanceID, attrs, @a_yWithFlags, uint);
     ATTR_UNPACK(_instanceID, attrs, @a_color0, uint);
     ATTR_UNPACK(_instanceID, attrs, @a_color1, uint);
-    uint4 @a_span = uint4(@a_spanX, @a_y, @a_color0, @a_color1);
+    uint4 @a_span = uint4(@a_spanX, @a_yWithFlags, @a_color0, @a_color1);
 #else
     ATTR_UNPACK(_instanceID, attrs, @a_span, uint4);
 #endif
     VARYING_INIT(v_rampColor, half4);
 
+    int columnWithinSpan = _vertexID >> 1;
     float x =
-        float((_vertexID & 1) == 0 ? @a_span.x & 0xffffu : @a_span.x >> 16) /
+        float(columnWithinSpan <= 1 ? @a_span.x & 0xffffu : @a_span.x >> 16) /
         65536.;
-    float offsetY = (_vertexID & 2) == 0 ? 1. : .0;
+    float offsetY = (_vertexID & 1) == 0 ? .0 : 1.;
     if (uniforms.gradInverseViewportY < .0)
     {
-        // Make sure we always emit clockwise triangles. Swap the top and bottom
-        // vertices.
+        // Swap the top and bottom vertices to make sure we always emit
+        // clockwise triangles. vertices.
         offsetY = 1. - offsetY;
     }
-    v_rampColor = unpackColorInt((_vertexID & 1) == 0 ? @a_span.z : @a_span.w);
+    uint yWithFlags = @a_span.y;
+    float y = float(yWithFlags & ~GRAD_SPAN_FLAGS_MASK) + offsetY;
+    if ((yWithFlags & GRAD_SPAN_FLAG_LEFT_BORDER) != 0u &&
+        columnWithinSpan == 0)
+    {
+        if ((yWithFlags & GRAD_SPAN_FLAG_COMPLEX_BORDER) != 0u)
+            x = .0; // Borders of complex gradients go to the far edge.
+        else
+            // Simple gradients are empty with 1px borders on either side.
+            x -= GRAD_TEXTURE_INVERSE_WIDTH;
+    }
+    if ((yWithFlags & GRAD_SPAN_FLAG_RIGHT_BORDER) != 0u &&
+        columnWithinSpan == 3)
+    {
+        if ((yWithFlags & GRAD_SPAN_FLAG_COMPLEX_BORDER) != 0u)
+            x = 1.; // Borders of complex gradients go to the far edge.
+        else
+            // Simple gradients are empty with 1px borders on either side.
+            x += GRAD_TEXTURE_INVERSE_WIDTH;
+    }
+    v_rampColor = unpackColorInt(columnWithinSpan <= 1 ? @a_span.z : @a_span.w);
 
     float4 pos;
     pos.x = x * 2. - 1.;
-    pos.y = (float(@a_span.y) + offsetY) * uniforms.gradInverseViewportY -
-            sign(uniforms.gradInverseViewportY);
+    pos.y =
+        y * uniforms.gradInverseViewportY - sign(uniforms.gradInverseViewportY);
     pos.zw = float2(0, 1);
 
     VARYING_PACK(v_rampColor);

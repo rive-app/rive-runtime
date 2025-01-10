@@ -1450,7 +1450,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                          NULL);
 
         m_gpuContext->DrawInstanced(
-            4,
+            gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
             desc.gradSpanCount,
             0,
             math::lossless_numeric_cast<UINT>(desc.firstGradSpan));

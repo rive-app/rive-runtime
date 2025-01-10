@@ -1845,7 +1845,10 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                  desc.firstGradSpan *
                                      sizeof(gpu::GradientSpan));
         gradPass.SetBindGroup(0, bindings);
-        gradPass.Draw(4, desc.gradSpanCount, 0, 0);
+        gradPass.Draw(gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
+                      desc.gradSpanCount,
+                      0,
+                      0);
         gradPass.End();
     }
 

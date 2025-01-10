@@ -18,6 +18,18 @@
 #define STORAGE_TEXTURE_SHIFT_Y 7
 #define STORAGE_TEXTURE_MASK_X 0x7fu
 
+// Flags that state whether/how we need to render solid-color borders to the
+// left and/or right side of a GradientSpan. (Borders of complex gradients
+// stretch all the way to the left/right edges of the texture, whereas borders
+// of simple gradients just need to stretch 1px to the left/right of the
+// span.)
+#define GRAD_SPAN_FLAG_LEFT_BORDER 0x80000000u
+#define GRAD_SPAN_FLAG_RIGHT_BORDER 0x40000000u
+#define GRAD_SPAN_FLAG_COMPLEX_BORDER 0x20000000u
+#define GRAD_SPAN_FLAGS_MASK                                                   \
+    (GRAD_SPAN_FLAG_LEFT_BORDER | GRAD_SPAN_FLAG_RIGHT_BORDER |                \
+     GRAD_SPAN_FLAG_COMPLEX_BORDER)
+
 // Tells shaders that a cubic should actually be drawn as the single, non-AA
 // triangle: [p0, p1, p3]. This is used to squeeze in more rare triangles, like
 // "grout" triangles from self intersections on interior triangulation, where it
