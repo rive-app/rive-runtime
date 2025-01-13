@@ -100,15 +100,27 @@ bool TextValueRun::hitTestAABB(const Vec2D& position)
         return false;
     }
 
+    if (textComponent()->overflow() != TextOverflow::visible)
+    {
+        Mat2D inverseWorld;
+        if (!textComponent()->worldTransform().invert(&inverseWorld))
+        {
+            return false;
+        }
+
+        if (!textComponent()->localBounds().contains(inverseWorld * position))
+        {
+            return false;
+        }
+    }
+
     Mat2D inverseWorld;
-    if (textComponent()->worldTransform().invert(&inverseWorld))
+    Mat2D worldTransform =
+        textComponent()->worldTransform() * textComponent()->m_transform;
+    if (worldTransform.invert(&inverseWorld))
     {
         auto localWorld = inverseWorld * position;
-        if (textComponent()->overflow() == TextOverflow::visible)
-        {
-            return m_localBounds.contains(localWorld);
-        }
-        return textComponent()->localBounds().contains(localWorld);
+        return m_localBounds.contains(localWorld);
     }
 
     return false;
@@ -127,8 +139,8 @@ bool TextValueRun::hitTestHiFi(const Vec2D& position, float hitRadius)
                         position.y + hitRadius)
                        .round();
     HitTestCommandPath tester(hitArea);
-
-    tester.setXform(textComponent()->worldTransform());
+    tester.setXform(textComponent()->worldTransform() *
+                    textComponent()->m_transform);
     for (const std::vector<Vec2D>& contour : m_contours)
     {
         tester.moveTo(contour[0].x, contour[0].y);
