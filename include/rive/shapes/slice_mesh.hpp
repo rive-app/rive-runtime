@@ -54,6 +54,7 @@ private:
 protected:
 public:
     SliceMesh(NSlicer* nslicer);
+    MeshType type = MeshType::nslice;
     void draw(Renderer* renderer,
               const RenderImage* image,
               BlendMode blendMode,

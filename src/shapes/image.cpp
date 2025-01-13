@@ -4,6 +4,7 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/image_asset.hpp"
+#include "rive/layout/n_slicer.hpp"
 #include "rive/shapes/mesh_drawable.hpp"
 #include "rive/artboard.hpp"
 #include "rive/clip_result.hpp"
@@ -211,6 +212,11 @@ void Image::controlSize(Vec2D size,
 
 void Image::updateImageScale()
 {
+    // User-created meshes are not affected by scale
+    if (m_Mesh != nullptr && m_Mesh->type == MeshType::vertex)
+    {
+        return;
+    }
     if (imageAsset() != nullptr && imageAsset()->renderImage() != nullptr &&
         !std::isnan(m_layoutWidth) && !std::isnan(m_layoutHeight))
     {
