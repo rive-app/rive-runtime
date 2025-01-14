@@ -131,9 +131,12 @@ class TestEntry(object):
 
     # this is equivalent of implementing < operator. We use this for sorted and sort functions
     def __lt__(self, other):
-        if (self.histogram is not None and
-            other.histogram is not None and
-            self.histogram != other.histogram):
+        # Always sort by avg first. Histogram is a good heuristic to divide into
+        # "pass/fail" buckets, but it's helpful to then see the fail bucked
+        # sorted by avg, which is more sensitive to differences.
+        if (self.avg == other.avg and
+            self.histogram is not None and
+            other.histogram is not None):
             # LOWER histogram values mean worse matches. Sort the bad matches first.
             return self.histogram > other.histogram
         else:

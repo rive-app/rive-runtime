@@ -31,7 +31,7 @@ if [[ ! -f "dependencies/bin/premake5" ]]; then
   if [[ $machine = "macosx" ]]; then
     # v5.0.0-beta2 doesn't support apple silicon properly, update the branch
     # once a stable one is avaialble that supports it
-    git clone --depth 1 --branch master https://github.com/premake/premake-core.git
+    git clone --depth 1 --branch v5.0.0-beta3 https://github.com/premake/premake-core.git
     pushd premake-core
     if [[ $LOCAL_ARCH == "arm64" ]]; then
       PREMAKE_MAKE_ARCH=ARM
