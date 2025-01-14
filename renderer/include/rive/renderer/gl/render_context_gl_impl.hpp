@@ -134,8 +134,6 @@ private:
 
     static std::unique_ptr<PixelLocalStorageImpl> MakePLSImplEXTNative(
         const GLCapabilities&);
-    static std::unique_ptr<PixelLocalStorageImpl> MakePLSImplFramebufferFetch(
-        const GLCapabilities&);
     static std::unique_ptr<PixelLocalStorageImpl> MakePLSImplWebGL();
     static std::unique_ptr<PixelLocalStorageImpl> MakePLSImplRWTexture();
 

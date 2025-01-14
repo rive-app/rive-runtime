@@ -1700,6 +1700,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         glPolygonModeANGLE(GL_FRONT_AND_BACK, GL_FILL_ANGLE);
     }
 #endif
+
+    if (m_capabilities.isAdreno)
+    {
+        // Qualcomm experiences synchronization issues with multiple flushes per
+        // frame if we don't call glFlush in between.
+        glFlush();
+    }
 }
 
 void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
@@ -1999,6 +2006,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     const char* rendererString =
         reinterpret_cast<const char*>(glGetString(rendererToken));
     capabilities.isPowerVR = strstr(rendererString, "PowerVR");
+    capabilities.isAdreno = strstr(rendererString, "Adreno");
     if (strstr(rendererString, "Direct3D") != nullptr)
     {
         // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D.
@@ -2026,24 +2034,12 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
                                capabilities,
                                MakePLSImplEXTNative(capabilities));
         }
-
-        if (capabilities.EXT_shader_framebuffer_fetch)
-        {
-            // EXT_shader_framebuffer_fetch is costly on Qualcomm, with or
-            // without the "noncoherent" extension. Use MSAA on Adreno.
-            if (strstr(rendererString, "Adreno") == nullptr)
-            {
-                return MakeContext(rendererString,
-                                   capabilities,
-                                   MakePLSImplFramebufferFetch(capabilities));
-            }
-        }
 #else
         if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
         {
             // EXT_shader_framebuffer_fetch is costly on Qualcomm, with or
             // without the "noncoherent" extension. Use MSAA on Adreno.
-            if (strstr(rendererString, "Adreno") == nullptr)
+            if (!capabilities.isAdreno)
             {
                 return MakeContext(rendererString,
                                    capabilities,

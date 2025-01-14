@@ -220,7 +220,6 @@ do
         files({
             'src/gl/load_gles_extensions.cpp',
             'src/gl/pls_impl_ext_native.cpp',
-            'src/gl/pls_impl_framebuffer_fetch.cpp',
         })
     end
 
