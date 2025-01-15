@@ -63,10 +63,12 @@ private:
                               NestedArtboard* source);
     void sortHitComponents();
     double randomValue();
-    StateTransition* findRandomTransition(StateInstance* stateFromInstance,
-                                          bool ignoreTriggers);
-    StateTransition* findAllowedTransition(StateInstance* stateFromInstance,
-                                           bool ignoreTriggers);
+    StateTransition* findRandomTransition(
+        StateInstance* stateFromInstance,
+        StateMachineLayerInstance* layerInstance);
+    StateTransition* findAllowedTransition(
+        StateInstance* stateFromInstance,
+        StateMachineLayerInstance* layerInstance);
     DataContext* m_DataContext = nullptr;
     void addToHitLookup(Component* target,
                         bool isLayoutComponent,
@@ -161,7 +163,10 @@ public:
     bool playsAudio() override { return true; }
     BindableProperty* bindablePropertyInstance(
         BindableProperty* bindableProperty) const;
-    DataBind* bindableDataBind(BindableProperty* bindableProperty);
+    DataBind* bindableDataBindToSource(
+        BindableProperty* bindableProperty) const;
+    DataBind* bindableDataBindToTarget(
+        BindableProperty* bindableProperty) const;
     bool hasListeners() { return m_hitComponents.size() > 0; }
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };
@@ -191,7 +196,10 @@ private:
     std::vector<DataBind*> m_dataBinds;
     std::unordered_map<BindableProperty*, BindableProperty*>
         m_bindablePropertyInstances;
-    std::unordered_map<BindableProperty*, DataBind*> m_bindableDataBinds;
+    std::unordered_map<BindableProperty*, DataBind*>
+        m_bindableDataBindsToTarget;
+    std::unordered_map<BindableProperty*, DataBind*>
+        m_bindableDataBindsToSource;
     uint8_t m_drawOrderChangeCounter = 0;
 
 #ifdef WITH_RIVE_TOOLS

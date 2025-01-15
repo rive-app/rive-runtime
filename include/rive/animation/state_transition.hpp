@@ -14,6 +14,7 @@ class StateTransitionImporter;
 class TransitionCondition;
 class StateInstance;
 class StateMachineInstance;
+class StateMachineLayerInstance;
 class LinearAnimation;
 class LinearAnimationInstance;
 
@@ -70,7 +71,7 @@ public:
     /// stateFrom with the given inputs.
     AllowTransition allowed(StateInstance* stateFrom,
                             StateMachineInstance* stateMachineInstance,
-                            bool ignoreTriggers) const;
+                            StateMachineLayerInstance* layerInstance) const;
 
     /// Whether the animation is held at exit or if it keeps advancing
     /// during mixing.

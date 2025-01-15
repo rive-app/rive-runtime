@@ -11,7 +11,7 @@ public:
     bool compare(TransitionComparator* comparand,
                  TransitionConditionOp operation,
                  const StateMachineInstance* stateMachineInstance,
-                 bool ignoreTriggers) override;
+                 StateMachineLayerInstance* layerInstance) override;
 };
 } // namespace rive
 

@@ -8,6 +8,7 @@
 namespace rive
 {
 class StateMachineInstance;
+class StateMachineLayerInstance;
 class TransitionComparator : public TransitionComparatorBase
 {
 public:
@@ -15,7 +16,7 @@ public:
     virtual bool compare(TransitionComparator* comparand,
                          TransitionConditionOp operation,
                          const StateMachineInstance* stateMachineInstance,
-                         bool ignoreTriggers);
+                         StateMachineLayerInstance* layerInstance);
 
 protected:
     bool compareNumbers(float left, float right, TransitionConditionOp op);

@@ -15,7 +15,7 @@ protected:
 
 public:
     bool evaluate(const StateMachineInstance* stateMachineInstance,
-                  bool ignoreTriggers) const override;
+                  StateMachineLayerInstance* layerInstance) const override;
     TransitionComparator* leftComparator() const { return m_leftComparator; };
     TransitionComparator* rightComparator() const { return m_rightComparator; };
     void comparator(TransitionComparator* value)

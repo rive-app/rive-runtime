@@ -1,6 +1,7 @@
 #ifndef _RIVE_VIEW_MODEL_INSTANCE_TRIGGER_HPP_
 #define _RIVE_VIEW_MODEL_INSTANCE_TRIGGER_HPP_
 #include "rive/generated/viewmodel/viewmodel_instance_trigger_base.hpp"
+#include "rive/animation/state_machine_input_instance.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -9,7 +10,8 @@ class ViewModelInstanceTrigger;
 typedef void (*ViewModelTriggerChanged)(ViewModelInstanceTrigger* vmi,
                                         uint32_t value);
 #endif
-class ViewModelInstanceTrigger : public ViewModelInstanceTriggerBase
+class ViewModelInstanceTrigger : public ViewModelInstanceTriggerBase,
+                                 public Triggerable
 {
 protected:
     void propertyValueChanged() override;

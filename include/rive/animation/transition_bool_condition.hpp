@@ -8,7 +8,7 @@ class TransitionBoolCondition : public TransitionBoolConditionBase
 {
 public:
     bool evaluate(const StateMachineInstance* stateMachineInstance,
-                  bool ignoreTriggers) const override;
+                  StateMachineLayerInstance* layerInstance) const override;
 
 protected:
     bool validateInputType(const StateMachineInput* input) const override;

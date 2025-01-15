@@ -12,7 +12,7 @@ public:
     bool compare(TransitionComparator* comparand,
                  TransitionConditionOp operation,
                  const StateMachineInstance* stateMachineInstance,
-                 bool ignoreTriggers) override;
+                 StateMachineLayerInstance* layerInstance) override;
 
 private:
     float propertyValue(const StateMachineInstance* stateMachineInstance);

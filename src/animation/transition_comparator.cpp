@@ -128,7 +128,7 @@ bool TransitionComparator::compare(
     TransitionComparator* comparand,
     TransitionConditionOp operation,
     const StateMachineInstance* stateMachineInstance,
-    bool ignoreTriggers)
+    StateMachineLayerInstance* layerInstance)
 {
     return false;
 }

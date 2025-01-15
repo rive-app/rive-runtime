@@ -11,7 +11,7 @@ protected:
 
 public:
     bool evaluate(const StateMachineInstance* stateMachineInstance,
-                  bool ignoreTriggers) const override;
+                  StateMachineLayerInstance* layerInstance) const override;
 };
 } // namespace rive
 

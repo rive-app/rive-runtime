@@ -14,7 +14,7 @@ public:
     bool compare(TransitionComparator* comparand,
                  TransitionConditionOp operation,
                  const StateMachineInstance* stateMachineInstance,
-                 bool ignoreTriggers) override;
+                 StateMachineLayerInstance* layerInstance) override;
     template <typename T = BindableProperty, typename U>
     U value(const StateMachineInstance* stateMachineInstance)
     {

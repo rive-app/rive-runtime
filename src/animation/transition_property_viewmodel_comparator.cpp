@@ -13,6 +13,7 @@
 #include "rive/data_bind/bindable_property_enum.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
+#include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 
 using namespace rive;
 
@@ -35,7 +36,7 @@ bool TransitionPropertyViewModelComparator::compare(
     TransitionComparator* comparand,
     TransitionConditionOp operation,
     const StateMachineInstance* stateMachineInstance,
-    bool ignoreTriggers)
+    StateMachineLayerInstance* layerInstance)
 {
     switch (m_bindableProperty->coreType())
     {
@@ -152,10 +153,6 @@ bool TransitionPropertyViewModelComparator::compare(
             }
             break;
         case BindablePropertyTrigger::typeKey:
-            if (ignoreTriggers)
-            {
-                return false;
-            }
             if (comparand->is<TransitionPropertyViewModelComparator>())
             {
                 auto rightValue =
@@ -169,6 +166,25 @@ bool TransitionPropertyViewModelComparator::compare(
             }
             else if (comparand->is<TransitionValueTriggerComparator>())
             {
+                auto bindableInstance =
+                    stateMachineInstance->bindablePropertyInstance(
+                        m_bindableProperty);
+                auto dataBind = stateMachineInstance->bindableDataBindToTarget(
+                    bindableInstance);
+                if (dataBind != nullptr)
+                {
+                    auto source = dataBind->source();
+                    if (source != nullptr &&
+                        source->is<ViewModelInstanceTrigger>())
+                    {
+                        if (!source->as<ViewModelInstanceTrigger>()->useInLayer(
+                                layerInstance))
+                        {
+
+                            return false;
+                        }
+                    }
+                }
                 auto leftValue = value<BindablePropertyTrigger, uint32_t>(
                     stateMachineInstance);
                 if (leftValue != 0)

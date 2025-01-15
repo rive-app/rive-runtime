@@ -16,12 +16,9 @@ bool TransitionTriggerCondition::validateInputType(
 
 bool TransitionTriggerCondition::evaluate(
     const StateMachineInstance* stateMachineInstance,
-    bool ignoreTriggers) const
+    StateMachineLayerInstance* layerInstance) const
 {
-    if (ignoreTriggers)
-    {
-        return false;
-    }
+
     auto inputInstance = stateMachineInstance->input(inputId());
     if (inputInstance == nullptr)
     {
@@ -29,7 +26,7 @@ bool TransitionTriggerCondition::evaluate(
     }
     auto triggerInput = static_cast<const SMITrigger*>(inputInstance);
 
-    if (triggerInput->m_fired)
+    if (triggerInput->m_fired && triggerInput->useInLayer(layerInstance))
     {
         return true;
     }

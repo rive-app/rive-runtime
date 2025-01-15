@@ -6,7 +6,7 @@ bool TransitionValueNumberComparator::compare(
     TransitionComparator* comparand,
     TransitionConditionOp operation,
     const StateMachineInstance* stateMachineInstance,
-    bool ignoreTriggers)
+    StateMachineLayerInstance* layerInstance)
 {
     if (comparand->is<TransitionValueNumberComparator>())
     {

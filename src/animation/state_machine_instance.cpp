@@ -113,7 +113,7 @@ public:
 
         bool changedState = false;
 
-        for (int i = 0; updateState(i != 0); i++)
+        for (int i = 0; updateState(); i++)
         {
             changedState = true;
             apply();
@@ -137,7 +137,7 @@ public:
                m_transition->duration() != 0 && m_mix < 1.0f;
     }
 
-    bool updateState(bool ignoreTriggers)
+    bool updateState()
     {
         // Don't allow changing state while a transition is taking place
         // (we're mixing one state onto another) if enableEarlyExit is not true.
@@ -148,12 +148,12 @@ public:
 
         m_waitingForExit = false;
 
-        if (tryChangeState(m_anyStateInstance, ignoreTriggers))
+        if (tryChangeState(m_anyStateInstance))
         {
             return true;
         }
 
-        return tryChangeState(m_currentState, ignoreTriggers);
+        return tryChangeState(m_currentState);
     }
 
     void fireEvents(StateMachineFireOccurance occurs,
@@ -206,8 +206,7 @@ public:
         return true;
     }
 
-    StateTransition* findRandomTransition(StateInstance* stateFromInstance,
-                                          bool ignoreTriggers)
+    StateTransition* findRandomTransition(StateInstance* stateFromInstance)
     {
         uint32_t totalWeight = 0;
         auto stateFrom = stateFromInstance->state();
@@ -217,7 +216,7 @@ public:
             auto transition = stateFrom->transition(i);
             auto allowed = transition->allowed(stateFromInstance,
                                                m_stateMachineInstance,
-                                               ignoreTriggers);
+                                               this);
             if (allowed == AllowTransition::yes &&
                 canChangeState(transition->stateTo()))
             {
@@ -254,15 +253,14 @@ public:
         return nullptr;
     }
 
-    StateTransition* findAllowedTransition(StateInstance* stateFromInstance,
-                                           bool ignoreTriggers)
+    StateTransition* findAllowedTransition(StateInstance* stateFromInstance)
     {
         auto stateFrom = stateFromInstance->state();
         // If it should randomize
         if ((static_cast<LayerStateFlags>(stateFrom->flags()) &
              LayerStateFlags::Random) == LayerStateFlags::Random)
         {
-            return findRandomTransition(stateFromInstance, ignoreTriggers);
+            return findRandomTransition(stateFromInstance);
         }
         // Else search the first valid transition
         for (size_t i = 0, length = stateFrom->transitionCount(); i < length;
@@ -271,7 +269,7 @@ public:
             auto transition = stateFrom->transition(i);
             auto allowed = transition->allowed(stateFromInstance,
                                                m_stateMachineInstance,
-                                               ignoreTriggers);
+                                               this);
             if (allowed == AllowTransition::yes &&
                 canChangeState(transition->stateTo()))
             {
@@ -307,15 +305,14 @@ public:
         }
     }
 
-    bool tryChangeState(StateInstance* stateFromInstance, bool ignoreTriggers)
+    bool tryChangeState(StateInstance* stateFromInstance)
     {
         if (stateFromInstance == nullptr)
         {
             return false;
         }
         auto outState = m_currentState;
-        auto transition =
-            findAllowedTransition(stateFromInstance, ignoreTriggers);
+        auto transition = findAllowedTransition(stateFromInstance);
         if (transition != nullptr)
         {
             clearAnimationReset();
@@ -1311,7 +1308,13 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             if (static_cast<DataBindFlags>(dataBindClone->flags()) ==
                 DataBindFlags::ToSource)
             {
-                m_bindableDataBinds[bindablePropertyClone] = dataBindClone;
+                m_bindableDataBindsToSource[bindablePropertyClone] =
+                    dataBindClone;
+            }
+            else
+            {
+                m_bindableDataBindsToTarget[bindablePropertyClone] =
+                    dataBindClone;
             }
         }
     }
@@ -1514,7 +1517,7 @@ bool StateMachineInstance::tryChangeState()
     bool hasChangedState = false;
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_layers[i].updateState(true))
+        if (m_layers[i].updateState())
         {
             hasChangedState = true;
         }
@@ -1828,11 +1831,22 @@ BindableProperty* StateMachineInstance::bindablePropertyInstance(
     return bindablePropertyInstance->second;
 }
 
-DataBind* StateMachineInstance::bindableDataBind(
-    BindableProperty* bindableProperty)
+DataBind* StateMachineInstance::bindableDataBindToSource(
+    BindableProperty* bindableProperty) const
 {
-    auto dataBind = m_bindableDataBinds.find(bindableProperty);
-    if (dataBind == m_bindableDataBinds.end())
+    auto dataBind = m_bindableDataBindsToSource.find(bindableProperty);
+    if (dataBind == m_bindableDataBindsToSource.end())
+    {
+        return nullptr;
+    }
+    return dataBind->second;
+}
+
+DataBind* StateMachineInstance::bindableDataBindToTarget(
+    BindableProperty* bindableProperty) const
+{
+    auto dataBind = m_bindableDataBindsToTarget.find(bindableProperty);
+    if (dataBind == m_bindableDataBindsToTarget.end())
     {
         return nullptr;
     }

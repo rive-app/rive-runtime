@@ -17,7 +17,7 @@ public:
     StatusCode import(ImportStack& importStack) override;
 
     virtual bool evaluate(const StateMachineInstance* stateMachineInstance,
-                          bool ignoreTriggers) const
+                          StateMachineLayerInstance* layerInstance) const
     {
         return true;
     }

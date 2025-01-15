@@ -147,7 +147,7 @@ const LinearAnimation* StateTransition::exitTimeAnimation(
 AllowTransition StateTransition::allowed(
     StateInstance* stateFrom,
     StateMachineInstance* stateMachineInstance,
-    bool ignoreTriggers) const
+    StateMachineLayerInstance* layerInstance) const
 {
     if (isDisabled())
     {
@@ -156,7 +156,7 @@ AllowTransition StateTransition::allowed(
 
     for (auto condition : m_Conditions)
     {
-        if (!condition->evaluate(stateMachineInstance, ignoreTriggers))
+        if (!condition->evaluate(stateMachineInstance, layerInstance))
         {
             return AllowTransition::no;
         }

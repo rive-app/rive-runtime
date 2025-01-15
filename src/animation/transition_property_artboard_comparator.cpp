@@ -38,7 +38,7 @@ bool TransitionPropertyArtboardComparator::compare(
     TransitionComparator* comparand,
     TransitionConditionOp operation,
     const StateMachineInstance* stateMachineInstance,
-    bool ignoreTriggers)
+    StateMachineLayerInstance* layerInstance)
 {
     auto value = propertyValue(stateMachineInstance);
     if (comparand->is<TransitionPropertyViewModelComparator>())

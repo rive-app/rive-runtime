@@ -36,7 +36,8 @@ void ListenerViewModelChange::perform(
         stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
     // Get the data bound object (that goes from target to source) from this
     // bindable instance
-    auto dataBind = stateMachineInstance->bindableDataBind(bindableInstance);
+    auto dataBind =
+        stateMachineInstance->bindableDataBindToSource(bindableInstance);
     // Apply the change that will assign the value of the bindable property to
     // the view model property instance
     dataBind->updateSourceBinding();
