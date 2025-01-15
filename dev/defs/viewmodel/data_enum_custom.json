@@ -23,8 +23,7 @@
         "int": 572,
         "string": "name"
       },
-      "description": "Non-unique identifier, used to give friendly names to enums.",
-      "runtime": false
+      "description": "Non-unique identifier, used to give friendly names to enums."
     }
   }
 }

@@ -1372,6 +1372,9 @@ public:
             case ViewModelComponentBase::namePropertyKey:
                 object->as<ViewModelComponentBase>()->name(value);
                 break;
+            case DataEnumCustomBase::namePropertyKey:
+                object->as<DataEnumCustomBase>()->name(value);
+                break;
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceStringBase>()->propertyValue(value);
                 break;
@@ -2557,6 +2560,8 @@ public:
         {
             case ViewModelComponentBase::namePropertyKey:
                 return object->as<ViewModelComponentBase>()->name();
+            case DataEnumCustomBase::namePropertyKey:
+                return object->as<DataEnumCustomBase>()->name();
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceStringBase>()
                     ->propertyValue();
@@ -3222,6 +3227,7 @@ public:
             case BindablePropertyColorBase::propertyValuePropertyKey:
                 return CoreColorType::id;
             case ViewModelComponentBase::namePropertyKey:
+            case DataEnumCustomBase::namePropertyKey:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
             case ComponentBase::namePropertyKey:
             case DataEnumValueBase::keyPropertyKey:
@@ -3906,6 +3912,8 @@ public:
                 return object->is<BindablePropertyColorBase>();
             case ViewModelComponentBase::namePropertyKey:
                 return object->is<ViewModelComponentBase>();
+            case DataEnumCustomBase::namePropertyKey:
+                return object->is<DataEnumCustomBase>();
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceStringBase>();
             case ComponentBase::namePropertyKey:
