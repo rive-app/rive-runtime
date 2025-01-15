@@ -96,9 +96,12 @@ public:
         }
     }
 
-    bool advance(float seconds)
+    bool advance(float seconds, bool newFrame)
     {
-        m_stateMachineChangedOnAdvance = false;
+        if (newFrame)
+        {
+            m_stateMachineChangedOnAdvance = false;
+        }
         m_currentState->advance(seconds, m_stateMachineInstance);
         updateMix(seconds);
 
@@ -1542,7 +1545,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     }
     for (size_t i = 0; i < m_layerCount; i++)
     {
-        if (m_layers[i].advance(seconds))
+        if (m_layers[i].advance(seconds, newFrame))
         {
             m_needsAdvance = true;
         }
