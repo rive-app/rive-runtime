@@ -927,8 +927,7 @@ bool LayoutComponent::animates()
     {
         return false;
     }
-    return m_style->positionType() == YGPositionType::YGPositionTypeRelative &&
-           m_style->animationStyle() != LayoutAnimationStyle::none &&
+    return m_style->animationStyle() != LayoutAnimationStyle::none &&
            interpolation() != LayoutStyleInterpolation::hold &&
            interpolationTime() > 0;
 }
