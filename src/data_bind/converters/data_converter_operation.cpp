@@ -58,6 +58,9 @@ DataValue* DataConverterOperation::convertValue(DataValue* input, float value)
             case ArithmeticOperation::atangent:
                 resultValue = atan(inputValue);
                 break;
+            case ArithmeticOperation::atangent2:
+                resultValue = atan2(inputValue, resultValue);
+                break;
         }
         m_output.value(resultValue);
     }
@@ -122,6 +125,9 @@ DataValue* DataConverterOperation::reverseConvertValue(DataValue* input,
                 break;
             case ArithmeticOperation::atangent:
                 resultValue = tan(inputValue);
+                break;
+            case ArithmeticOperation::atangent2:
+                resultValue = inputValue; // atan2 doesn't have an inverse
                 break;
         }
         output->value(resultValue);

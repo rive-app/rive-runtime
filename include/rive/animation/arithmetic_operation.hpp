@@ -20,6 +20,7 @@ enum class ArithmeticOperation : int
     acosine = 12,
     asine = 13,
     atangent = 14,
+    atangent2 = 15,
 };
 } // namespace rive
 
