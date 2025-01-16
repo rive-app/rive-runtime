@@ -1103,14 +1103,6 @@ public:
             case TransitionValueConditionBase::opValuePropertyKey:
                 object->as<TransitionValueConditionBase>()->opValue(value);
                 break;
-            case TransitionViewModelConditionBase::leftComparatorIdPropertyKey:
-                object->as<TransitionViewModelConditionBase>()
-                    ->leftComparatorId(value);
-                break;
-            case TransitionViewModelConditionBase::rightComparatorIdPropertyKey:
-                object->as<TransitionViewModelConditionBase>()
-                    ->rightComparatorId(value);
-                break;
             case TransitionViewModelConditionBase::opValuePropertyKey:
                 object->as<TransitionViewModelConditionBase>()->opValue(value);
                 break;
@@ -2368,12 +2360,6 @@ public:
                 return object->as<ListenerAlignTargetBase>()->targetId();
             case TransitionValueConditionBase::opValuePropertyKey:
                 return object->as<TransitionValueConditionBase>()->opValue();
-            case TransitionViewModelConditionBase::leftComparatorIdPropertyKey:
-                return object->as<TransitionViewModelConditionBase>()
-                    ->leftComparatorId();
-            case TransitionViewModelConditionBase::rightComparatorIdPropertyKey:
-                return object->as<TransitionViewModelConditionBase>()
-                    ->rightComparatorId();
             case TransitionViewModelConditionBase::opValuePropertyKey:
                 return object->as<TransitionViewModelConditionBase>()
                     ->opValue();
@@ -3141,8 +3127,6 @@ public:
             case ListenerBoolChangeBase::valuePropertyKey:
             case ListenerAlignTargetBase::targetIdPropertyKey:
             case TransitionValueConditionBase::opValuePropertyKey:
-            case TransitionViewModelConditionBase::leftComparatorIdPropertyKey:
-            case TransitionViewModelConditionBase::rightComparatorIdPropertyKey:
             case TransitionViewModelConditionBase::opValuePropertyKey:
             case BlendState1DInputBase::inputIdPropertyKey:
             case StateTransitionBase::stateToIdPropertyKey:
@@ -3744,10 +3728,6 @@ public:
                 return object->is<ListenerAlignTargetBase>();
             case TransitionValueConditionBase::opValuePropertyKey:
                 return object->is<TransitionValueConditionBase>();
-            case TransitionViewModelConditionBase::leftComparatorIdPropertyKey:
-                return object->is<TransitionViewModelConditionBase>();
-            case TransitionViewModelConditionBase::rightComparatorIdPropertyKey:
-                return object->is<TransitionViewModelConditionBase>();
             case TransitionViewModelConditionBase::opValuePropertyKey:
                 return object->is<TransitionViewModelConditionBase>();
             case BlendState1DInputBase::inputIdPropertyKey:
