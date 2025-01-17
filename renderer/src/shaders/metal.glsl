@@ -52,7 +52,6 @@
 #define greaterThan(A, B) ((A) > (B))
 #define greaterThanEqual(A, B) ((A) >= (B))
 #define MUL(A, B) ((A) * (B))
-#define atan $atan2
 #define inversesqrt $rsqrt
 
 #define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                         \

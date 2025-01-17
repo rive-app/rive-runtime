@@ -309,8 +309,6 @@ INLINE uint packUnorm4x8(half4 color)
     return vals.r;
 }
 
-INLINE float atan(float y, float x) { return $atan2(y, x); }
-
 INLINE float2x2 inverse(float2x2 m)
 {
     float2x2 adjoint = float2x2(m[1][1], -m[0][1], -m[1][0], m[0][0]);

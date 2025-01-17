@@ -130,13 +130,9 @@ INLINE half id_bits_to_f16(uint idBits, uint pathIDGranularity)
 
 INLINE float atan2(float2 v)
 {
-    float bias = .0;
-    if (abs(v.x) > abs(v.y))
-    {
-        v = float2(v.y, -v.x);
-        bias = PI / 2.;
-    }
-    return atan(v.y, v.x) + bias;
+    v = normalize(v);
+    float theta = acos(clamp(v.x, -1., 1.));
+    return v.y >= .0 ? theta : -theta;
 }
 
 INLINE half4 premultiply(half4 color)
