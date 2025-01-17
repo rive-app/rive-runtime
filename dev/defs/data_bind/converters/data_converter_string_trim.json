@@ -1,0 +1,20 @@
+{
+  "name": "DataConverterStringTrim",
+  "key": {
+    "int": 532,
+    "string": "dataconverterstringtrim"
+  },
+  "extends": "data_bind/converters/data_converter.json",
+  "properties": {
+    "trimType": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 746,
+        "string": "trimtype"
+      },
+      "description": "Trim type, 0 is none, 1 is start, 2 is end, 3 is all",
+      "bindable": true
+    }
+  }
+}

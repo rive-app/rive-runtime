@@ -138,6 +138,9 @@
 #include "rive/data_bind/converters/data_converter_operation_viewmodel.hpp"
 #include "rive/data_bind/converters/data_converter_range_mapper.hpp"
 #include "rive/data_bind/converters/data_converter_rounder.hpp"
+#include "rive/data_bind/converters/data_converter_string_pad.hpp"
+#include "rive/data_bind/converters/data_converter_string_remove_zeros.hpp"
+#include "rive/data_bind/converters/data_converter_string_trim.hpp"
 #include "rive/data_bind/converters/data_converter_system_degs_to_rads.hpp"
 #include "rive/data_bind/converters/data_converter_system_normalizer.hpp"
 #include "rive/data_bind/converters/data_converter_to_string.hpp"
@@ -549,10 +552,16 @@ public:
                 return new DataConverterGroupItem();
             case DataConverterGroupBase::typeKey:
                 return new DataConverterGroup();
+            case DataConverterStringRemoveZerosBase::typeKey:
+                return new DataConverterStringRemoveZeros();
             case DataConverterRounderBase::typeKey:
                 return new DataConverterRounder();
+            case DataConverterStringPadBase::typeKey:
+                return new DataConverterStringPad();
             case DataConverterTriggerBase::typeKey:
                 return new DataConverterTrigger();
+            case DataConverterStringTrimBase::typeKey:
+                return new DataConverterStringTrim();
             case DataConverterOperationViewModelBase::typeKey:
                 return new DataConverterOperationViewModel();
             case DataConverterToStringBase::typeKey:
@@ -1247,6 +1256,15 @@ public:
             case DataConverterRounderBase::decimalsPropertyKey:
                 object->as<DataConverterRounderBase>()->decimals(value);
                 break;
+            case DataConverterStringPadBase::lengthPropertyKey:
+                object->as<DataConverterStringPadBase>()->length(value);
+                break;
+            case DataConverterStringPadBase::padTypePropertyKey:
+                object->as<DataConverterStringPadBase>()->padType(value);
+                break;
+            case DataConverterStringTrimBase::trimTypePropertyKey:
+                object->as<DataConverterStringTrimBase>()->trimType(value);
+                break;
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 object->as<BindablePropertyEnumBase>()->propertyValue(value);
                 break;
@@ -1396,6 +1414,9 @@ public:
                 break;
             case DataConverterBase::namePropertyKey:
                 object->as<DataConverterBase>()->name(value);
+                break;
+            case DataConverterStringPadBase::textPropertyKey:
+                object->as<DataConverterStringPadBase>()->text(value);
                 break;
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 object->as<BindablePropertyStringBase>()->propertyValue(value);
@@ -2460,6 +2481,12 @@ public:
                 return object->as<DataConverterGroupItemBase>()->converterId();
             case DataConverterRounderBase::decimalsPropertyKey:
                 return object->as<DataConverterRounderBase>()->decimals();
+            case DataConverterStringPadBase::lengthPropertyKey:
+                return object->as<DataConverterStringPadBase>()->length();
+            case DataConverterStringPadBase::padTypePropertyKey:
+                return object->as<DataConverterStringPadBase>()->padType();
+            case DataConverterStringTrimBase::trimTypePropertyKey:
+                return object->as<DataConverterStringTrimBase>()->trimType();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyEnumBase>()->propertyValue();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -2570,6 +2597,8 @@ public:
                 return object->as<OpenUrlEventBase>()->url();
             case DataConverterBase::namePropertyKey:
                 return object->as<DataConverterBase>()->name();
+            case DataConverterStringPadBase::textPropertyKey:
+                return object->as<DataConverterStringPadBase>()->text();
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyStringBase>()
                     ->propertyValue();
@@ -3174,6 +3203,9 @@ public:
             case DataConverterRangeMapperBase::flagsPropertyKey:
             case DataConverterGroupItemBase::converterIdPropertyKey:
             case DataConverterRounderBase::decimalsPropertyKey:
+            case DataConverterStringPadBase::lengthPropertyKey:
+            case DataConverterStringPadBase::padTypePropertyKey:
+            case DataConverterStringTrimBase::trimTypePropertyKey:
             case BindablePropertyEnumBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::fitPropertyKey:
             case WeightBase::valuesPropertyKey:
@@ -3222,6 +3254,7 @@ public:
             case TransitionValueStringComparatorBase::valuePropertyKey:
             case OpenUrlEventBase::urlPropertyKey:
             case DataConverterBase::namePropertyKey:
+            case DataConverterStringPadBase::textPropertyKey:
             case BindablePropertyStringBase::propertyValuePropertyKey:
             case TextValueRunBase::textPropertyKey:
             case CustomPropertyStringBase::propertyValuePropertyKey:
@@ -3822,6 +3855,12 @@ public:
                 return object->is<DataConverterGroupItemBase>();
             case DataConverterRounderBase::decimalsPropertyKey:
                 return object->is<DataConverterRounderBase>();
+            case DataConverterStringPadBase::lengthPropertyKey:
+                return object->is<DataConverterStringPadBase>();
+            case DataConverterStringPadBase::padTypePropertyKey:
+                return object->is<DataConverterStringPadBase>();
+            case DataConverterStringTrimBase::trimTypePropertyKey:
+                return object->is<DataConverterStringTrimBase>();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyEnumBase>();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -3914,6 +3953,8 @@ public:
                 return object->is<OpenUrlEventBase>();
             case DataConverterBase::namePropertyKey:
                 return object->is<DataConverterBase>();
+            case DataConverterStringPadBase::textPropertyKey:
+                return object->is<DataConverterStringPadBase>();
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyStringBase>();
             case TextValueRunBase::textPropertyKey:

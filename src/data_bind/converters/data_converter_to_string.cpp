@@ -12,17 +12,6 @@ DataValue* DataConverterToString::convert(DataValue* input, DataBind* dataBind)
     {
         float value = input->as<DataValueNumber>()->value();
         std::string str = std::to_string(value);
-        if (str.find('.') != std::string::npos)
-        {
-            // Remove trailing zeroes
-            str = str.substr(0, str.find_last_not_of('0') + 1);
-            // If the decimal point is now the last character, remove that as
-            // well
-            if (str.find('.') == str.size() - 1)
-            {
-                str = str.substr(0, str.size() - 1);
-            }
-        }
         m_output.value(str);
     }
     else if (input->is<DataValueEnum>())
