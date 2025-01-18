@@ -8,7 +8,7 @@
   "properties": {
     "interpolationType": {
       "type": "uint",
-      "initialValue": "0",
+      "initialValue": "1",
       "key": {
         "int": 713,
         "string": "interpolationtype"
