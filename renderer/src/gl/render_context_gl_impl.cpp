@@ -106,6 +106,21 @@ RenderContextGLImpl::RenderContextGLImpl(
     glEnableVertexAttribArray(0);
     glVertexAttribDivisor(0, 1);
 
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_featherTexture);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_R16F, gpu::GAUSSIAN_TABLE_SIZE, 1);
+    m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+    glTexSubImage2D(GL_TEXTURE_2D,
+                    0,
+                    0,
+                    0,
+                    gpu::GAUSSIAN_TABLE_SIZE,
+                    1,
+                    GL_RED,
+                    GL_HALF_FLOAT,
+                    gpu::g_gaussianIntegralTableF16);
+    glutils::SetTexture2DSamplingParams(GL_LINEAR, GL_LINEAR);
+
     const char* tessellateSources[] = {glsl::constants,
                                        glsl::common,
                                        glsl::tessellate};
@@ -240,6 +255,9 @@ void RenderContextGLImpl::invalidateGLState()
 
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
+
+    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
+    glBindTexture(GL_TEXTURE_2D, m_featherTexture);
 
     m_state->invalidate();
 }
@@ -687,6 +705,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
     switch (drawType)
     {
         case gpu::DrawType::midpointFanPatches:
+        case gpu::DrawType::midpointFanCenterAAPatches:
         case gpu::DrawType::outerCurvePatches:
             if (shaderType == GL_VERTEX_SHADER)
             {
@@ -802,6 +821,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     const bool isImageDraw = gpu::DrawTypeIsImageDraw(drawType);
     const bool isTessellationDraw =
         drawType == gpu::DrawType::midpointFanPatches ||
+        drawType == gpu::DrawType::midpointFanCenterAAPatches ||
         drawType == gpu::DrawType::outerCurvePatches;
     const bool isPathDraw =
         isTessellationDraw || drawType == gpu::DrawType::interiorTriangulation;
@@ -825,6 +845,12 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
         glutils::Uniform1iByName(m_id,
                                  GLSL_gradTexture,
                                  kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+    }
+    if (shaderFeatures & gpu::ShaderFeatures::ENABLE_FEATHER)
+    {
+        assert(isPathDraw || interlockMode == gpu::InterlockMode::atomics);
+        glUniform1i(glGetUniformLocation(m_id, GLSL_featherTexture),
+                    kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
     }
     // Atomic mode doesn't support image paints on paths.
     if (isImageDraw ||
@@ -1355,6 +1381,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         switch (gpu::DrawType drawType = batch.drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.
@@ -1413,8 +1440,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     break;
                 }
 
-                // MSAA fills only use the "fan" section of the patch (the don't
-                // need AA borders).
+                // MSAA fills only use the "fan" section of the patch (they
+                // don't need AA borders).
                 drawHelper.setIndexRange(gpu::PatchFanIndexCount(drawType),
                                          gpu::PatchFanBaseIndex(drawType));
 

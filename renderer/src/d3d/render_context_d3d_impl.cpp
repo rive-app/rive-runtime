@@ -249,6 +249,30 @@ RenderContextD3DImpl::RenderContextD3DImpl(
                                            &m_colorRampPixelShader));
     }
 
+    // Create the feather texture.
+    m_featherTexture = makeSimple2DTexture(DXGI_FORMAT_R16_FLOAT,
+                                           gpu::GAUSSIAN_TABLE_SIZE,
+                                           1,
+                                           1,
+                                           D3D11_BIND_SHADER_RESOURCE);
+    D3D11_BOX box;
+    box.left = 0;
+    box.right = gpu::GAUSSIAN_TABLE_SIZE;
+    box.top = 0;
+    box.bottom = 1;
+    box.front = 0;
+    box.back = 1;
+    m_gpuContext->UpdateSubresource(m_featherTexture.Get(),
+                                    0,
+                                    &box,
+                                    gpu::g_gaussianIntegralTableF16,
+                                    sizeof(gpu::g_gaussianIntegralTableF16),
+                                    0);
+    VERIFY_OK(m_gpu->CreateShaderResourceView(
+        m_featherTexture.Get(),
+        NULL,
+        m_featherTextureSRV.ReleaseAndGetAddressOf()));
+
     // Compile the tessellation shaders.
     {
         std::ostringstream s;
@@ -366,7 +390,7 @@ RenderContextD3DImpl::RenderContextD3DImpl(
                                 m_imageDrawUniforms.ReleaseAndGetAddressOf()));
     }
 
-    // Create a linear sampler for the gradient texture.
+    // Create a linear sampler for the gradient & feather textures.
     D3D11_SAMPLER_DESC linearSamplerDesc;
     linearSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
     linearSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
@@ -396,10 +420,14 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         m_gpu->CreateSamplerState(&mipmapSamplerDesc,
                                   m_mipmapSampler.ReleaseAndGetAddressOf()));
 
-    ID3D11SamplerState* samplers[2] = {m_linearSampler.Get(),
-                                       m_mipmapSampler.Get()};
-    static_assert(IMAGE_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
-    m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 2, samplers);
+    ID3D11SamplerState* samplers[3] = {
+        m_linearSampler.Get(),
+        m_linearSampler.Get(),
+        m_mipmapSampler.Get(),
+    };
+    static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+    static_assert(IMAGE_TEXTURE_IDX == FEATHER_TEXTURE_IDX + 1);
+    m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 3, samplers);
 
     D3D11_BLEND_DESC srcOverDesc{};
     srcOverDesc.RenderTarget[0].BlendEnable = TRUE;
@@ -1110,6 +1138,7 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
                 s << "#define " << GLSL_DRAW_PATH << '\n';
                 break;
@@ -1145,6 +1174,7 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
                 s << gpu::glsl::draw_path_common << '\n';
                 s << (interlockMode == gpu::InterlockMode::rasterOrdering
@@ -1192,6 +1222,7 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
+                case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
                     layoutDesc[0] = {GLSL_a_patchVertexData,
                                      0,
@@ -1640,9 +1671,10 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX,
                                        1,
                                        m_tessTextureSRV.GetAddressOf());
-    m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX,
-                                       1,
-                                       m_gradTextureSRV.GetAddressOf());
+    ID3D11ShaderResourceView* gradFeatherViews[] = {m_gradTextureSRV.Get(),
+                                                    m_featherTextureSRV.Get()};
+    m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 2, gradFeatherViews);
+    assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
 
     const char* const imageDrawUniformData =
         heap_buffer_contents(imageDrawUniformBufferRing());
@@ -1694,6 +1726,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             {
                 m_gpuContext->IASetPrimitiveTopology(

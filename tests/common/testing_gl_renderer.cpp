@@ -76,9 +76,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
             return std::make_unique<rive::RiveRenderer>(m_renderContext.get());
         }
 
-        void beginFrame(rive::ColorInt clearColor,
-                        bool doClear,
-                        bool wireframe) override
+        void beginFrame(const TestingWindow::FrameOptions& options) override
         {
             // For testing, reset GPU resources to their initial sizes every
             // frame. This will stress intermediate flushes more, as well as
@@ -89,10 +87,10 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
             rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
                 .renderTargetWidth = m_renderTarget->width(),
                 .renderTargetHeight = m_renderTarget->height(),
-                .loadAction = doClear
+                .loadAction = options.doClear
                                   ? rive::gpu::LoadAction::clear
                                   : rive::gpu::LoadAction::preserveRenderTarget,
-                .clearColor = clearColor,
+                .clearColor = options.clearColor,
                 .msaaSampleCount =
                     (m_rendererFlags & TestingWindow::RendererFlags::useMSAA)
                         ? 4
@@ -100,8 +98,11 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
                 .disableRasterOrdering =
                     (m_rendererFlags &
                      TestingWindow::RendererFlags::disableRasterOrdering),
-                .wireframe = wireframe,
-            };
+                .wireframe = options.wireframe,
+                .clockwiseFillOverride =
+                    (m_rendererFlags &
+                     TestingWindow::RendererFlags::clockwiseFillOverride) ||
+                    options.clockwiseFillOverride};
             m_renderContext->beginFrame(frameDescriptor);
         }
 

@@ -134,6 +134,7 @@ void BackgroundShaderCompiler::threadMain()
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
                 // Add baseInstance to the instanceID for path draws.
                 defines[@GLSL_ENABLE_INSTANCE_INDEX] = @"";

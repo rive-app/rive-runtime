@@ -48,14 +48,13 @@ public:
         m_height = h;
     }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
-                                               bool doClear,
-                                               bool wireframe) override
+    std::unique_ptr<rive::Renderer> beginFrame(
+        const FrameOptions& options) override
     {
         CGContextFlush(m_ctx);
-        if (doClear)
+        if (options.doClear)
         {
-            std::fill(m_pixels.begin(), m_pixels.end(), clearColor);
+            std::fill(m_pixels.begin(), m_pixels.end(), options.clearColor);
         }
         return std::make_unique<rive::CGRenderer>(m_ctx, m_width, m_height);
     }

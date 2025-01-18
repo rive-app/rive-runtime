@@ -8,6 +8,7 @@
 #include "rive/math/math_types.hpp"
 #include "rive/math/bezier_utils.hpp"
 #include "rive/math/simd.hpp"
+#include "common/rand.hpp"
 #include <catch.hpp>
 
 namespace rive
@@ -150,20 +151,25 @@ TEST_CASE("chop_cubic_at(tValues=null)", "[bezier_utils]")
     }
 }
 
-static float SkMeasureNonInflectCubicRotation(const Vec2D pts[4])
+static float measure_non_inflect_cubic_rotation(const Vec2D pts[4])
 {
     Vec2D a = pts[1] - pts[0];
     Vec2D b = pts[2] - pts[1];
     Vec2D c = pts[3] - pts[2];
-    if (a == Vec2D())
+    float lengthA = a.length();
+    float lengthB = b.length();
+    float lengthC = c.length();
+    float lengthMax = std::max(std::max(lengthA, lengthB), lengthC);
+    float zeroThreshold = std::max(lengthMax, 1.f) * 1e-4f;
+    if (lengthA <= zeroThreshold)
     {
         return math::measure_angle_between_vectors(b, c);
     }
-    if (b == Vec2D())
+    if (lengthB <= zeroThreshold)
     {
         return math::measure_angle_between_vectors(a, c);
     }
-    if (c == Vec2D())
+    if (lengthC <= zeroThreshold)
     {
         return math::measure_angle_between_vectors(a, b);
     }
@@ -174,25 +180,26 @@ static float SkMeasureNonInflectCubicRotation(const Vec2D pts[4])
            math::measure_angle_between_vectors(b, -c);
 }
 
-TEST_CASE("SkMeasureNonInflectCubicRotation", "[bezier_utils]")
+TEST_CASE("measure_non_inflect_cubic_rotation", "[bezier_utils]")
 {
     static Vec2D kFlatCubic[4] = {{0, 0}, {0, 1}, {0, 2}, {0, 3}};
-    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic), 0));
+    CHECK(fuzzy_equal(measure_non_inflect_cubic_rotation(kFlatCubic), 0));
 
     static Vec2D kFlatCubic180_1[4] = {{0, 0}, {1, 0}, {3, 0}, {2, 0}};
-    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic180_1),
+    CHECK(fuzzy_equal(measure_non_inflect_cubic_rotation(kFlatCubic180_1),
                       math::PI));
 
     static Vec2D kFlatCubic180_2[4] = {{0, 1}, {0, 0}, {0, 2}, {0, 3}};
-    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic180_2),
+    CHECK(fuzzy_equal(measure_non_inflect_cubic_rotation(kFlatCubic180_2),
                       math::PI));
 
     static Vec2D kFlatCubic360[4] = {{0, 1}, {0, 0}, {0, 3}, {0, 2}};
-    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kFlatCubic360),
+    CHECK(fuzzy_equal(measure_non_inflect_cubic_rotation(kFlatCubic360),
                       2 * math::PI));
 
     static Vec2D kSquare180[4] = {{0, 0}, {0, 1}, {1, 1}, {1, 0}};
-    CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(kSquare180), math::PI));
+    CHECK(
+        fuzzy_equal(measure_non_inflect_cubic_rotation(kSquare180), math::PI));
 
     auto checkQuadRotation = [](const Vec2D pts[3], float expectedRotation) {
 #if 0
@@ -200,15 +207,15 @@ TEST_CASE("SkMeasureNonInflectCubicRotation", "[bezier_utils]")
         CHECK(fuzzy_equal(r, expectedRotation));
 #endif
         Vec2D cubic1[4] = {pts[0], pts[0], pts[1], pts[2]};
-        CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(cubic1),
+        CHECK(fuzzy_equal(measure_non_inflect_cubic_rotation(cubic1),
                           expectedRotation));
 
         Vec2D cubic2[4] = {pts[0], pts[1], pts[1], pts[2]};
-        CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(cubic2),
+        CHECK(fuzzy_equal(measure_non_inflect_cubic_rotation(cubic2),
                           expectedRotation));
 
         Vec2D cubic3[4] = {pts[0], pts[1], pts[2], pts[2]};
-        CHECK(fuzzy_equal(SkMeasureNonInflectCubicRotation(cubic3),
+        CHECK(fuzzy_equal(measure_non_inflect_cubic_rotation(cubic3),
                           expectedRotation));
     };
 
@@ -367,7 +374,7 @@ static void check_cubic_convex_180(const Vec2D p[4])
     }
     else
     {
-        float totalRotation = SkMeasureNonInflectCubicRotation(p);
+        float totalRotation = measure_non_inflect_cubic_rotation(p);
         int convex180N =
             math::find_cubic_convex_180_chops(p, convex180T, &areCusps);
         Vec2D chops[10];
@@ -402,7 +409,7 @@ static void check_cubic_convex_180(const Vec2D p[4])
         }
         for (int i = 0; i <= convex180N; ++i)
         {
-            float rads = SkMeasureNonInflectCubicRotation(chops + i * 3);
+            float rads = measure_non_inflect_cubic_rotation(chops + i * 3);
             assert(rads < math::PI + kEpsilon);
             radsSum += rads;
         }
@@ -420,10 +427,11 @@ static void check_cubic_convex_180(const Vec2D p[4])
                 // This works because cusps take the "inflection" path above, so
                 // we don't get non-lilnear curves that lose rotation when
                 // chopped.
-                REQUIRE(fuzzy_equal(SkMeasureNonInflectCubicRotation(chops),
+                REQUIRE(fuzzy_equal(measure_non_inflect_cubic_rotation(chops),
                                     math::PI));
-                REQUIRE(fuzzy_equal(SkMeasureNonInflectCubicRotation(chops + 3),
-                                    totalRotation - math::PI));
+                REQUIRE(
+                    fuzzy_equal(measure_non_inflect_cubic_rotation(chops + 3),
+                                totalRotation - math::PI));
             }
             REQUIRE(!areCusps);
         }
@@ -543,10 +551,35 @@ Vec2D eval_cubic(const Vec2D* p, float t)
            3 * (1 - t) * pow2(t) * p[2] + pow3(t) * p[3];
 }
 
-void check_eval_cubic(const EvalCubic& evalCubic,
-                      const Vec2D* cubic,
-                      float t0,
-                      float t1)
+constexpr static Vec2D TEST_CUBICS[][4] = {
+    {{199, 1225}, {197, 943}, {349, 607}, {549, 427}},
+    {{549, 427}, {349, 607}, {197, 943}, {199, 1225}},
+    {{460, 1060}, {403, -320}, {60, 660}, {1181, 634}},
+    {{1181, 634}, {60, 660}, {403, -320}, {460, 1060}},
+    {{0, 0}, {0, 0}, {0, 0}, {0, 0}},
+    {{0, 0}, {0, 0}, {0, 0}, {100, 100}},
+    {{0, 0}, {0, 0}, {100, 100}, {100, 100}},
+    {{0, 0}, {100, 100}, {100, 100}, {0, 0}},
+    {{-100, -100}, {100, 100}, {100, -100}, {-100, 100}}, // Cusp
+    {{0, 0}, {0, 0}, {100, 100}, {100, 100}},             // Line
+    {{0, 0}, {-100, -100}, {200, 200}, {100, 100}},       // Line w/ 2 cusps
+    {{0, 0},
+     {50 * 2.f / 3.f, 100 * 2.f / 3.f},
+     {100 - 50 * 2.f / 3.f, 100 * 2.f / 3.f},
+     {100, 0}}, // Quadratic
+    // The remaining cubics had some sort of issue during development. They're
+    // in the list to make sure they don't regress.
+    {{0, 0},
+     {50 * 2.f / 3.f, 100 * 2.f / 3.f},
+     {100 - 50 * 2.f / 3.f, 100 * 2.f / 3.f},
+     {100, 100}},
+    {{100, 0}, {0, 0}, {0, 0}, {0, 0}},
+};
+
+static void check_eval_cubic(const EvalCubic& evalCubic,
+                             const Vec2D* cubic,
+                             float t0,
+                             float t1)
 {
     float4 pp = evalCubic(float4{t0, t0, t1, t1});
     Vec2D p0ref = eval_cubic(cubic, t0);
@@ -565,18 +598,7 @@ void check_eval_cubic(const EvalCubic& evalCubic,
 
 TEST_CASE("EvalCubic", "[bezier_utils]")
 {
-    Vec2D cubics[][4] = {
-        {{199, 1225}, {197, 943}, {349, 607}, {549, 427}},
-        {{549, 427}, {349, 607}, {197, 943}, {199, 1225}},
-        {{460, 1060}, {403, -320}, {60, 660}, {1181, 634}},
-        {{1181, 634}, {60, 660}, {403, -320}, {460, 1060}},
-        {{0, 0}, {0, 0}, {0, 0}, {0, 0}},
-        {{0, 0}, {0, 0}, {0, 0}, {100, 100}},
-        {{0, 0}, {0, 0}, {100, 100}, {100, 100}},
-        {{0, 0}, {100, 100}, {100, 100}, {0, 0}},
-        {{-100, -100}, {100, 100}, {100, -100}, {-100, 100}}, // Cusp
-    };
-    for (auto cubic : cubics)
+    for (auto cubic : TEST_CUBICS)
     {
         math::EvalCubic evalCubic(cubic);
         check_eval_cubic(evalCubic, cubic, 0, 1);
@@ -584,6 +606,230 @@ TEST_CASE("EvalCubic", "[bezier_utils]")
         {
             check_eval_cubic(evalCubic, cubic, t, t + 3e-3f);
         }
+    }
+}
+
+static void check_cubic_max_height(const Vec2D* pts)
+{
+    float t, h = math::find_cubic_max_height(pts, &t);
+    CHECK(h >= 0);
+    CHECK(t >= 0);
+    CHECK(t <= 1);
+    Vec2D norm = (pts[3] - pts[0]).normalized();
+    norm = {-norm.y, norm.x};
+    float k = -Vec2D::dot(norm, pts[0]);
+    auto heightAt = [=](float t) {
+        return fabsf(Vec2D::dot(norm, math::eval_cubic_at(pts, t)) + k);
+    };
+    constexpr static float EPSILON = 5e-5f;
+    CHECK(heightAt(t) == Approx(h).margin(EPSILON));
+    CHECK(h + EPSILON > heightAt(0));
+    CHECK(h + EPSILON > heightAt(1));
+    for (float t2 = 0; t2 <= 1; t2 += .005137f)
+    {
+        CHECK(h + EPSILON > heightAt(t2));
+    }
+}
+
+TEST_CASE("find_cubic_max_height", "[bezier_utils]")
+{
+    for (auto pts : TEST_CUBICS)
+    {
+        check_cubic_max_height(pts);
+    }
+    // Test all combinations of corners from the square [0,0,1,1]. This covers
+    // every cubic type as well as a wide variety of special cases for cusps,
+    // lines, loops, and inflections.
+    for (int i = 0; i < (1 << 8); ++i)
+    {
+        Vec2D pts[4] = {Vec2D((i >> 0) & 1, (i >> 1) & 1) * 100,
+                        Vec2D((i >> 2) & 1, (i >> 3) & 1) * 100,
+                        Vec2D((i >> 4) & 1, (i >> 5) & 1) * 100,
+                        Vec2D((i >> 6) & 1, (i >> 7) & 1) * 100};
+        check_cubic_max_height(pts);
+    }
+    Rand rando;
+    rando.seed(0);
+    for (int i = 0; i < 100; ++i)
+    {
+        Vec2D randos[] = {
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+        };
+        check_cubic_max_height(randos);
+    }
+}
+
+static float guess_cubic_local_curvature(const Vec2D* p,
+                                         const CubicCoeffs& coeffs,
+                                         float t,
+                                         float desiredSpread)
+{
+    // Iteratively guess a spread and compare with the computed result.
+    float maxDT = fminf(t, 1 - t) * .9999f;
+    float2 tan = 3.f * ((coeffs.A * t + 2.f * coeffs.B) * t + coeffs.C);
+    float lengthTan = sqrtf(simd::dot(tan, tan));
+    tan /= lengthTan;
+    float dt = 0;
+    math::EvalCubic evalCubic(coeffs, p[0]);
+    // This would converge faster if we used the derivative of the Spread(dt)
+    // function from math::measure_cubic_local_curvature, but since the whole
+    // point of this test is to validate that function, use a binary search
+    // instead.
+    for (int i = 0; i < 24; ++i)
+    {
+        float guessDT = (dt + maxDT) * .5f;
+        float guessT0 = t - guessDT;
+        float guessT1 = t + guessDT;
+        float4 endpts = evalCubic(float4{guessT0, guessT0, guessT1, guessT1});
+        float spread = fabsf(simd::dot(endpts.zw - endpts.xy, tan));
+        if (spread <= desiredSpread)
+            dt = guessDT;
+        else
+            maxDT = guessDT;
+    }
+    Vec2D chops[10];
+    math::chop_cubic_at(p, chops, t - dt, t + dt);
+    return measure_non_inflect_cubic_rotation(chops + 3);
+}
+
+constexpr static float FEATHERING_CUSP_PADDING = 1e-3f;
+
+static void check_cubic_convex_90_chops(const Vec2D* pts)
+{
+    float T[4];
+    bool areCusps;
+    int n = math::find_cubic_convex_90_chops(pts,
+                                             T,
+                                             FEATHERING_CUSP_PADDING,
+                                             &areCusps);
+    CHECK(n <= 4);
+
+    Vec2D chops[16];
+    assert(n * 3 + 1 <= std::size(chops));
+    math::chop_cubic_at(pts, chops, T, n);
+    Vec2D* p = chops;
+    for (int i = 0; i <= n; ++i, p += 3)
+    {
+        if (areCusps && (i & 1))
+        {
+            // If the chops are around a cusp, odd-numbered chops are a padding
+            // section that passes through a cusp.
+            continue;
+        }
+        CHECK(measure_non_inflect_cubic_rotation(p) <=
+              Approx(math::PI / 2).margin(1e-2f));
+    }
+}
+
+TEST_CASE("find_cubic_convex_90_chops", "[bezier_utils]")
+{
+    for (auto pts : TEST_CUBICS)
+    {
+        check_cubic_convex_90_chops(pts);
+    }
+    // Test all combinations of corners from the square [0,0,1,1]. This covers
+    // every cubic type as well as a wide variety of special cases for cusps,
+    // lines, loops, and inflections.
+    for (int i = 0; i < (1 << 8); ++i)
+    {
+        Vec2D pts[4] = {Vec2D((i >> 0) & 1, (i >> 1) & 1) * 100,
+                        Vec2D((i >> 2) & 1, (i >> 3) & 1) * 100,
+                        Vec2D((i >> 4) & 1, (i >> 5) & 1) * 100,
+                        Vec2D((i >> 6) & 1, (i >> 7) & 1) * 100};
+        check_cubic_convex_90_chops(pts);
+    }
+    Rand rando;
+    rando.seed(0);
+    for (int i = 0; i < 100; ++i)
+    {
+        Vec2D randos[] = {
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+        };
+        check_cubic_convex_90_chops(randos);
+    }
+}
+
+static void check_cubic_local_curvature(const Vec2D* pts)
+{
+    float T[4];
+    bool areCusps;
+    int n = math::find_cubic_convex_90_chops(pts,
+                                             T,
+                                             FEATHERING_CUSP_PADDING,
+                                             &areCusps);
+    CHECK(n <= 4);
+
+    Vec2D chops[16];
+    assert(n * 3 + 1 <= std::size(chops));
+    math::chop_cubic_at(pts, chops, T, n);
+    Vec2D* p = chops;
+    for (int i = 0; i <= n; ++i, p += 3)
+    {
+        if (areCusps && (i & 1))
+        {
+            // If the chops are around a cusp, odd-numbered chops are a padding
+            // section that passes through a cusp.
+            continue;
+        }
+        float maxHeightT;
+        CHECK(measure_non_inflect_cubic_rotation(p) <=
+              Approx(math::PI / 2).margin(2.6e-3f));
+        math::find_cubic_max_height(p, &maxHeightT);
+        CubicCoeffs coeffs(p);
+        for (float desiredSpread : {1.f, 10.f, 100.f})
+        {
+            for (float t : {maxHeightT, .5f})
+            {
+                float theta =
+                    math::measure_cubic_local_curvature(p,
+                                                        coeffs,
+                                                        t,
+                                                        desiredSpread);
+                CHECK(theta >= 0);
+                CHECK(theta <= math::PI);
+
+                float guess =
+                    guess_cubic_local_curvature(p, coeffs, t, desiredSpread);
+                CHECK(theta == Approx(guess).margin(1e-2f));
+            }
+        }
+    }
+}
+
+TEST_CASE("measure_cubic_local_curvature", "[bezier_utils]")
+{
+    for (auto pts : TEST_CUBICS)
+    {
+        check_cubic_local_curvature(pts);
+    }
+    // Test all combinations of corners from the square [0,0,1,1]. This covers
+    // every cubic type as well as a wide variety of special cases for cusps,
+    // lines, loops, and inflections.
+    for (int i = 0; i < (1 << 8); ++i)
+    {
+        Vec2D pts[4] = {Vec2D((i >> 0) & 1, (i >> 1) & 1) * 100,
+                        Vec2D((i >> 2) & 1, (i >> 3) & 1) * 100,
+                        Vec2D((i >> 4) & 1, (i >> 5) & 1) * 100,
+                        Vec2D((i >> 6) & 1, (i >> 7) & 1) * 100};
+        check_cubic_local_curvature(pts);
+    }
+    Rand rando;
+    rando.seed(0);
+    for (int i = 0; i < 100; ++i)
+    {
+        Vec2D randos[] = {
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+        };
+        check_cubic_local_curvature(randos);
     }
 }
 } // namespace math

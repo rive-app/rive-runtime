@@ -542,6 +542,23 @@ TEST_CASE("ceil", "[simd]")
     CHECK_ALL((simd::isnan(simd::ceil(float2{kNaN, -kNaN}))));
 }
 
+// Check simd::copysign.
+TEST_CASE("copysign", "[simd]")
+{
+    CHECK_ALL((simd::copysign(float4{-1, 2, -3, 4},
+                              float4{-999.2f, -kInf, 123.4f, .0000001f}) ==
+               float4{-1, -2, 3, 4}));
+    CHECK_ALL((simd::copysign(float4{kInf, -kInf, kInf, -kInf},
+                              float4{-999.2f, -kInf, 123.4f, .0000001f}) ==
+               float4{-kInf, -kInf, kInf, kInf}));
+    CHECK_ALL(
+        (simd::copysign(float2{998, -23}, float2{-1, 1}) == float2{-998, 23}));
+    CHECK_ALL(
+        (simd::isnan(simd::copysign(float2{kNaN, -kNaN}, float2{-1, 1}))));
+    CHECK_ALL((simd::isnan(simd::copysign(float4{kNaN, -kNaN, kNaN, -kNaN},
+                                          float4{-1, -1, 1, 1}))));
+}
+
 // Check simd::sqrt.
 TEST_CASE("sqrt", "[simd]")
 {

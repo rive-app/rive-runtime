@@ -136,6 +136,8 @@
     layout(set = SET, binding = IDX) uniform highp texture2D NAME
 #define TEXTURE_RGBA8(SET, IDX, NAME)                                          \
     layout(set = SET, binding = IDX) uniform mediump texture2D NAME
+#define TEXTURE_R16F(SET, IDX, NAME)                                           \
+    layout(binding = IDX) uniform mediump texture2D NAME
 #elif @GLSL_VERSION >= 310
 #define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
     layout(binding = IDX) uniform highp usampler2D NAME
@@ -143,11 +145,15 @@
     layout(binding = IDX) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(SET, IDX, NAME)                                          \
     layout(binding = IDX) uniform mediump sampler2D NAME
+#define TEXTURE_R16F(SET, IDX, NAME)                                           \
+    layout(binding = IDX) uniform mediump sampler2D NAME
 #else
 #define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(SET, IDX, NAME) uniform mediump sampler2D NAME
+#define TEXTURE_R16F(SET, IDX, NAME) uniform mediump sampler2D NAME
 #endif
+
 #define TEXTURE_RG32UI(SET, IDX, NAME) TEXTURE_RGBA32UI(SET, IDX, NAME)
 
 #ifdef @TARGET_VULKAN
@@ -163,6 +169,9 @@
     textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
+#define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                   \
+    mediump texture2D NAME, mediump sampler SAMPLER_NAME
+#define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME, SAMPLER_NAME
 #else
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling
 // parameters are API-level state tied to the texture.
@@ -173,8 +182,11 @@
     textureLod(NAME, COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(NAME, COORD, DDX, DDY)
-#endif
+#define SAMPLED_R16F_REF(NAME, SAMPLER_NAME) mediump sampler2D NAME
+#define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME
+#endif // !@TARGET_VULKAN
 
+#define TEXTURE_REF_SAMPLE_LOD TEXTURE_SAMPLE_LOD
 #define TEXEL_FETCH(NAME, COORD) texelFetch(NAME, COORD, 0)
 
 #define VERTEX_STORAGE_BUFFER_BLOCK_BEGIN

@@ -57,10 +57,12 @@ const char* TestingWindow::BackendName(Backend backend)
             return "anglemsaa";
         case TestingWindow::Backend::dawn:
             return "dawn";
-        case TestingWindow::Backend::coregraphics:
-            return "coregraphics";
         case Backend::rhi:
             return "rhi";
+        case TestingWindow::Backend::coregraphics:
+            return "coregraphics";
+        case TestingWindow::Backend::skia:
+            return "skia";
     }
     RIVE_UNREACHABLE();
 }
@@ -128,10 +130,12 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         return Backend::anglemsaa;
     if (nameStr == "dawn")
         return Backend::dawn;
-    if (nameStr == "coregraphics")
-        return Backend::coregraphics;
     if (nameStr == "rhi")
         return Backend::rhi;
+    if (nameStr == "coregraphics")
+        return Backend::coregraphics;
+    if (nameStr == "skia")
+        return Backend::skia;
     fprintf(stderr, "'%s': invalid TestingWindow::Backend\n", name);
     abort();
 }
@@ -266,10 +270,13 @@ TestingWindow* TestingWindow::Init(Backend backend,
                                                                gpuNameFilter,
                                                                platformWindow);
             break;
+        case Backend::rhi:
+            break;
         case Backend::coregraphics:
             s_TestingWindow = MakeCoreGraphics();
             break;
-        case Backend::rhi:
+        case Backend::skia:
+            s_TestingWindow = MakeSkia();
             break;
     }
     if (!s_TestingWindow)

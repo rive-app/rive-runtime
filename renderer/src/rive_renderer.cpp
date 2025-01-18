@@ -9,7 +9,6 @@
 #include "rive/math/math_types.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/renderer/rive_render_image.hpp"
-#include "shaders/constants.glsl"
 
 namespace rive
 {
@@ -117,23 +116,51 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
         return;
     }
 
-    bool stroked = paint->getIsStroked();
-    if (stroked && m_context->frameDescriptor().strokesDisabled)
+    if (paint->getIsStroked() && m_context->frameDescriptor().strokesDisabled)
     {
         return;
     }
-    if (!stroked && m_context->frameDescriptor().fillsDisabled)
+    if (!paint->getIsStroked() && m_context->frameDescriptor().fillsDisabled)
     {
         return;
     }
-    if (stroked && !(paint->getThickness() >
-                     0)) // Use inverse logic to ensure we abort when stroke
-    {                    // thickness is NaN.
+    if (paint->getIsStroked() &&
+        // Use inverse logic to ensure we abort when stroke thickness is NaN.
+        !(paint->getThickness() > 0))
+    {
+        return;
+    }
+    // Use inverse logic to ensure we abort when stroke thickness is NaN.
+    if (!(paint->getFeather() >= 0))
+    {
         return;
     }
     if (m_stack.back().clipIsEmpty)
     {
         return;
+    }
+
+    if (paint->getFeather() != 0 && !paint->getIsStroked())
+    {
+        if (path->getFillRule() != FillRule::clockwise &&
+            !m_context->frameDescriptor().clockwiseFillOverride)
+        {
+            // Don't draw feathered fills that aren't clockwise.
+            return;
+        }
+        float matrixMaxScale = m_stack.back().matrix.findMaxScale();
+        if (paint->getFeather() * matrixMaxScale > 1)
+        {
+            clipAndPushDraw(gpu::RiveRenderPathDraw::Make(
+                m_context,
+                m_stack.back().matrix,
+                path->makeSoftenedCopyForFeathering(paint->getFeather(),
+                                                    matrixMaxScale),
+                path->getFillRule(),
+                paint,
+                &m_scratchPath));
+            return;
+        }
     }
 
     gpu::DrawUniquePtr cacheDraw =

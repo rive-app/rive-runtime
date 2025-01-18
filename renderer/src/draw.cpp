@@ -17,7 +17,6 @@ namespace rive::gpu
 {
 namespace
 {
-
 // The final segment in an outerCurve patch is a bowtie join.
 constexpr static size_t kJoinSegmentCount = 1;
 constexpr static size_t kPatchSegmentCountExcludingJoin =
@@ -28,7 +27,7 @@ constexpr static size_t kMaxCurveSubdivisions =
     (kMaxParametricSegments + kPatchSegmentCountExcludingJoin - 1) /
     kPatchSegmentCountExcludingJoin;
 
-static uint32_t FindSubdivisionCount(
+static uint32_t find_subdivision_count(
     const Vec2D pts[],
     const wangs_formula::VectorXform& vectorXform)
 {
@@ -39,15 +38,16 @@ static uint32_t FindSubdivisionCount(
         math::clamp(numSubdivisions, 1, kMaxCurveSubdivisions));
 }
 
-constexpr static int kNumSegmentsInMiterOrBevelJoin = 5;
-constexpr static int kStrokeStyleFlag = 8;
-constexpr static int kRoundJoinStyleFlag = kStrokeStyleFlag << 1;
-RIVE_ALWAYS_INLINE constexpr int style_flags(bool isStroked,
+constexpr static int NUM_SEGMENTS_IN_MITER_OR_BEVEL_JOIN = 5;
+constexpr static int STROKE_OR_FEATHER_STYLE_FLAG = 8;
+constexpr static int ROUND_JOIN_STYLE_FLAG = STROKE_OR_FEATHER_STYLE_FLAG << 1;
+RIVE_ALWAYS_INLINE constexpr int style_flags(bool isStrokeOrFeather,
                                              bool roundJoinStroked)
 {
-    int styleFlags = (isStroked << 3) | (roundJoinStroked << 4);
-    assert(bool(styleFlags & kStrokeStyleFlag) == isStroked);
-    assert(bool(styleFlags & kRoundJoinStyleFlag) == roundJoinStroked);
+    int styleFlags = (isStrokeOrFeather << 3) | (roundJoinStroked << 4);
+    assert(bool(styleFlags & STROKE_OR_FEATHER_STYLE_FLAG) ==
+           isStrokeOrFeather);
+    assert(bool(styleFlags & ROUND_JOIN_STYLE_FLAG) == roundJoinStroked);
     return styleFlags;
 }
 
@@ -56,28 +56,38 @@ RIVE_ALWAYS_INLINE constexpr int style_flags(bool isStroked,
 enum class StyledVerb
 {
     filledMove = static_cast<int>(PathVerb::move),
-    strokedMove = kStrokeStyleFlag | static_cast<int>(PathVerb::move),
-    roundJoinStrokedMove = kStrokeStyleFlag | kRoundJoinStyleFlag |
+    strokedMove =
+        STROKE_OR_FEATHER_STYLE_FLAG | static_cast<int>(PathVerb::move),
+    roundJoinStrokedMove = STROKE_OR_FEATHER_STYLE_FLAG |
+                           ROUND_JOIN_STYLE_FLAG |
                            static_cast<int>(PathVerb::move),
 
     filledLine = static_cast<int>(PathVerb::line),
-    strokedLine = kStrokeStyleFlag | static_cast<int>(PathVerb::line),
-    roundJoinStrokedLine = kStrokeStyleFlag | kRoundJoinStyleFlag |
+    strokedLine =
+        STROKE_OR_FEATHER_STYLE_FLAG | static_cast<int>(PathVerb::line),
+    roundJoinStrokedLine = STROKE_OR_FEATHER_STYLE_FLAG |
+                           ROUND_JOIN_STYLE_FLAG |
                            static_cast<int>(PathVerb::line),
 
     filledQuad = static_cast<int>(PathVerb::quad),
-    strokedQuad = kStrokeStyleFlag | static_cast<int>(PathVerb::quad),
-    roundJoinStrokedQuad = kStrokeStyleFlag | kRoundJoinStyleFlag |
+    strokedQuad =
+        STROKE_OR_FEATHER_STYLE_FLAG | static_cast<int>(PathVerb::quad),
+    roundJoinStrokedQuad = STROKE_OR_FEATHER_STYLE_FLAG |
+                           ROUND_JOIN_STYLE_FLAG |
                            static_cast<int>(PathVerb::quad),
 
     filledCubic = static_cast<int>(PathVerb::cubic),
-    strokedCubic = kStrokeStyleFlag | static_cast<int>(PathVerb::cubic),
-    roundJoinStrokedCubic = kStrokeStyleFlag | kRoundJoinStyleFlag |
+    strokedCubic =
+        STROKE_OR_FEATHER_STYLE_FLAG | static_cast<int>(PathVerb::cubic),
+    roundJoinStrokedCubic = STROKE_OR_FEATHER_STYLE_FLAG |
+                            ROUND_JOIN_STYLE_FLAG |
                             static_cast<int>(PathVerb::cubic),
 
     filledClose = static_cast<int>(PathVerb::close),
-    strokedClose = kStrokeStyleFlag | static_cast<int>(PathVerb::close),
-    roundJoinStrokedClose = kStrokeStyleFlag | kRoundJoinStyleFlag |
+    strokedClose =
+        STROKE_OR_FEATHER_STYLE_FLAG | static_cast<int>(PathVerb::close),
+    roundJoinStrokedClose = STROKE_OR_FEATHER_STYLE_FLAG |
+                            ROUND_JOIN_STYLE_FLAG |
                             static_cast<int>(PathVerb::close),
 };
 RIVE_ALWAYS_INLINE constexpr StyledVerb styled_verb(PathVerb verb,
@@ -311,7 +321,7 @@ RIVE_ALWAYS_INLINE uint32_t join_type_flags(StrokeJoin join)
         case StrokeJoin::miter:
             return MITER_REVERT_JOIN_CONTOUR_FLAG;
         case StrokeJoin::round:
-            return 0;
+            return ROUND_JOIN_CONTOUR_FLAG;
         case StrokeJoin::bevel:
             return BEVEL_JOIN_CONTOUR_FLAG;
     }
@@ -368,6 +378,8 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
 {
     assert(path != nullptr);
     assert(paint != nullptr);
+
+    // Compute the screen-space bounding box.
     AABB mappedBounds;
     if (context->frameInterlockMode() == gpu::InterlockMode::rasterOrdering)
     {
@@ -384,17 +396,28 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
     }
     assert(mappedBounds.width() >= 0);
     assert(mappedBounds.height() >= 0);
-    if (paint->getIsStroked())
+    if (paint->getIsStroked() || paint->getFeather() > 0)
     {
-        // Outset the path's bounding box to account for stroking.
-        float strokeOutset = paint->getThickness() * .5f;
-        if (paint->getJoin() == StrokeJoin::miter)
+        // Outset the path's bounding box to account for stroking & feathering.
+        float strokeOutset = 0;
+        if (paint->getIsStroked())
         {
-            strokeOutset *= 4;
+            strokeOutset = paint->getThickness() * .5f;
+            if (paint->getJoin() == StrokeJoin::miter)
+            {
+                // Miter joins may be longer than the stroke radius.
+                strokeOutset *= RIVE_MITER_LIMIT;
+            }
+            else if (paint->getCap() == StrokeCap::square)
+            {
+                // The diagonal of a square cap is longer than the stroke
+                // radius.
+                strokeOutset *= math::SQRT2;
+            }
         }
-        else if (paint->getCap() == StrokeCap::square)
+        if (paint->getFeather() != 0)
         {
-            strokeOutset *= math::SQRT2;
+            strokeOutset += paint->getFeather() * (FEATHER_TEXTURE_STDDEVS / 2);
         }
         AABB strokePixelOutset =
             matrix.mapBoundingBox({0, 0, strokeOutset, strokeOutset});
@@ -405,6 +428,7 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
         mappedBounds = mappedBounds.outset(strokePixelOutset.width() + 1,
                                            strokePixelOutset.height() + 1);
     }
+
     IAABB pixelBounds = mappedBounds.roundOut();
     bool doTriangulation = false;
     const AABB& localBounds = path->getBounds();
@@ -412,14 +436,17 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
     {
         return DrawUniquePtr();
     }
-    if (!paint->getIsStroked())
+    if (!paint->getIsStroked() && paint->getFeather() == 0)
     {
         // Use interior triangulation to draw filled paths if they're large
         // enough to benefit from it.
+        //
+        // FIXME! Implement interior triangulation for feathers.
+        //
         // FIXME! Implement interior triangulation in msaa mode.
         if (context->frameInterlockMode() != gpu::InterlockMode::msaa &&
             path->getRawPath().verbs().count() < 1000 &&
-            gpu::FindTransformedArea(localBounds, matrix) > 512.f * 512.f)
+            gpu::find_transformed_area(localBounds, matrix) > 512.f * 512.f)
         {
             doTriangulation = true;
         }
@@ -473,10 +500,22 @@ RiveRenderPathDraw::RiveRenderPathDraw(
     assert(m_pathRef != nullptr);
     assert(!m_pathRef->getRawPath().empty());
     assert(paint != nullptr);
+
     if (m_blendMode == BlendMode::srcOver && paint->getIsOpaque())
     {
         m_drawContents |= gpu::DrawContents::opaquePaint;
     }
+
+    if (paint->getFeather() > 0 &&
+        // MSAA doesn't support feather yet.
+        interlockMode != gpu::InterlockMode::msaa)
+    {
+        m_featherRadius = paint->getFeather() * (FEATHER_TEXTURE_STDDEVS / 2);
+        assert(!std::isnan(m_featherRadius)); // These should get culled in
+                                              // RiveRenderer::drawPath().
+        assert(m_featherRadius > 0);
+    }
+
     if (paint->getIsStroked())
     {
         m_drawContents |= gpu::DrawContents::stroke;
@@ -489,29 +528,36 @@ RiveRenderPathDraw::RiveRenderPathDraw(
                                              // RiveRenderer::drawPath().
         assert(m_strokeRadius > 0);
     }
-    else if (initialFillRule == FillRule::clockwise ||
-             frameDesc.clockwiseFillOverride)
+    else
     {
-        m_drawContents |= gpu::DrawContents::clockwiseFill;
-    }
-    else if (initialFillRule == FillRule::nonZero)
-    {
-        m_drawContents |= gpu::DrawContents::nonZeroFill;
-    }
-    else if (initialFillRule == FillRule::evenOdd)
-    {
-        m_drawContents |= gpu::DrawContents::evenOddFill;
-    }
-    if (paint->getType() == gpu::PaintType::clipUpdate)
-    {
-        m_drawContents |= gpu::DrawContents::clipUpdate;
-        if (paint->getSimpleValue().outerClipID != 0)
+        if (m_featherRadius)
         {
-            m_drawContents |= gpu::DrawContents::activeClip;
+            m_drawContents |= gpu::DrawContents::featheredFill;
+        }
+        if (initialFillRule == FillRule::clockwise ||
+            frameDesc.clockwiseFillOverride)
+        {
+            m_drawContents |= gpu::DrawContents::clockwiseFill;
+        }
+        else if (initialFillRule == FillRule::nonZero)
+        {
+            m_drawContents |= gpu::DrawContents::nonZeroFill;
+        }
+        else if (initialFillRule == FillRule::evenOdd)
+        {
+            m_drawContents |= gpu::DrawContents::evenOddFill;
+        }
+        if (paint->getType() == gpu::PaintType::clipUpdate)
+        {
+            m_drawContents |= gpu::DrawContents::clipUpdate;
+            if (paint->getSimpleValue().outerClipID != 0)
+            {
+                m_drawContents |= gpu::DrawContents::activeClip;
+            }
         }
     }
 
-    if (isStroked())
+    if (isStroke())
     {
         // Stroke triangles are always forward.
         m_contourDirections = gpu::ContourDirections::forward;
@@ -578,7 +624,9 @@ RiveRenderPathDraw::RiveRenderPathDraw(
     m_simplePaintValue = paint->getSimpleValue();
     RIVE_DEBUG_CODE(m_pathRef->lockRawPathMutations();)
     RIVE_DEBUG_CODE(m_rawPathMutationID = m_pathRef->getRawPathMutationID();)
-    assert(isStroked() == (strokeRadius() > 0));
+    assert(isStroke() == (strokeRadius() > 0));
+    assert(isFeatheredFill() == (!isStroke() && featherRadius() > 0));
+    assert(!isFeatheredFill() || featherRadius() > 0);
 }
 
 RiveRenderPathDraw::RiveRenderPathDraw(
@@ -603,11 +651,11 @@ RiveRenderPathDraw::RiveRenderPathDraw(
 
 {
     m_resourceCounts = from.m_resourceCounts;
-    m_strokeMatrixMaxScale = from.m_strokeMatrixMaxScale;
 
-    if (isStroked())
+    if (isStrokeOrFeather())
     {
         m_strokeMatrixMaxScale = from.m_strokeMatrixMaxScale;
+        m_polarSegmentsPerRadian = from.m_polarSegmentsPerRadian;
         m_strokeJoin = from.m_strokeJoin;
         m_strokeCap = from.m_strokeCap;
     }
@@ -643,9 +691,28 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
     assert(type() == Type::midpointFanPath);
     assert(simd::all(m_resourceCounts.toVec() == 0)); // Only call init() once.
 
-    if (isStroked())
+    if (isStrokeOrFeather())
     {
         m_strokeMatrixMaxScale = m_matrix.findMaxScale();
+
+        float r_ = 0;
+        if (m_featherRadius != 0)
+        {
+            r_ = m_featherRadius * m_strokeMatrixMaxScale;
+            // The Gaussian distribution is very blurry on the outer edges.
+            // Once the radius crosses a certain threshold, we don't ever
+            // need more polar segments.
+            constexpr static float FEATHER_MAX_SCREEN_SPACE_RADIUS =
+                kPolarPrecision * 3;
+            r_ = std::min(r_, FEATHER_MAX_SCREEN_SPACE_RADIUS);
+        }
+        if (isStroke())
+        {
+            r_ += m_strokeRadius * m_strokeMatrixMaxScale;
+        }
+        m_polarSegmentsPerRadian =
+            math::calc_polar_segments_per_radian<kPolarPrecision>(r_);
+
         m_strokeJoin = paint->getJoin();
         m_strokeCap = paint->getCap();
     }
@@ -668,10 +735,10 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
     size_t pathMaxLinesOrCurvesBeforeChops = rawPath.verbs().size() - 1;
     // Stroked cubics can be chopped into a maximum of 5 segments.
     size_t pathMaxLinesOrCurvesAfterChops =
-        isStroked() ? pathMaxLinesOrCurvesBeforeChops * 5
-                    : pathMaxLinesOrCurvesBeforeChops;
+        isStrokeOrFeather() ? pathMaxLinesOrCurvesBeforeChops * 5
+                            : pathMaxLinesOrCurvesBeforeChops;
     maxCurves += pathMaxLinesOrCurvesAfterChops;
-    if (isStroked())
+    if (isStrokeOrFeather())
     {
         maxStrokedCurvesBeforeChops += pathMaxLinesOrCurvesBeforeChops;
         maxRotations += pathMaxLinesOrCurvesAfterChops;
@@ -696,12 +763,12 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
     // +3 for each contour because we align each contour's curves and rotations
     // on multiples of 4.
     size_t maxPaddedRotations =
-        isStroked() ? maxRotations + contourCount * 3 : 0;
+        isStrokeOrFeather() ? maxRotations + contourCount * 3 : 0;
     size_t maxPaddedCurves = maxCurves + contourCount * 3;
 
     // Reserve intermediate space for the polar segment counts of each curve and
     // round join.
-    if (isStroked())
+    if (isStrokeOrFeather())
     {
         m_numChops.reset(context->numChopsAllocator(), maxChops);
         m_chopVertices.reset(context->chopVerticesAllocator(), maxChopVertices);
@@ -713,6 +780,19 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
     m_parametricSegmentCounts =
         context->parametricSegmentCountsAllocator().alloc(maxPaddedCurves);
 
+    float parametricPrecision = gpu::kParametricPrecision;
+    if (m_featherRadius > 1)
+    {
+        // Once the blur radius is above ~50 pixels, we don't have to tessellate
+        // within 1/4px of the edge anymore.
+        // At this point, tessellate within strokeRadius/200 pixels of the edge.
+        // (parametricPrecision == 1/tolerance.)
+        parametricPrecision =
+            std::min(parametricPrecision * 100.f /
+                         (m_featherRadius * m_strokeMatrixMaxScale),
+                     parametricPrecision);
+    }
+
     size_t lineCount = 0;
     size_t unpaddedCurveCount = 0;
     size_t unpaddedRotationCount = 0;
@@ -722,16 +802,16 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
     // every path in the batch, and begin counting tessellated vertices.
     size_t contourIdx = 0;
     size_t curveIdx = 0;
-    size_t rotationIdx =
-        0; // We measure rotations on both curves and round joins.
-    bool roundJoinStroked = isStroked() && m_strokeJoin == StrokeJoin::round;
+    // We measure rotations on both curves and round joins.
+    size_t rotationIdx = 0;
+    bool roundJoinStroked = isStroke() && m_strokeJoin == StrokeJoin::round;
     wangs_formula::VectorXform vectorXform(m_matrix);
     RawPath::Iter startOfContour = rawPath.begin();
     RawPath::Iter end = rawPath.end();
-    int preChopVerbCount =
-        0; // Original number of lines and curves, before chopping.
+    // Original number of lines and curves, before chopping.
+    int preChopVerbCount = 0;
     Vec2D endpointsSum{};
-    bool closed = !isStroked();
+    bool closed = !isStroke();
     Vec2D lastTangent = {0, 1};
     Vec2D firstTangent = {0, 1};
     size_t roundJoinCount = 0;
@@ -786,7 +866,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
             curveIdx,
             contourFirstRotationIdx,
             rotationIdx,
-            isStroked() ? Vec2D() : endpointsSum * (1.f / preChopVerbCount),
+            isStroke() ? Vec2D() : endpointsSum * (1.f / preChopVerbCount),
             closed,
             strokeJoinCount,
             0,                 // strokeCapSegmentCount
@@ -800,7 +880,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
         contourFirstRotationIdx = rotationIdx =
             math::round_up_to_multiple_of<4>(rotationIdx);
     };
-    const int styleFlags = style_flags(isStroked(), roundJoinStroked);
+    const int styleFlags = style_flags(isStrokeOrFeather(), roundJoinStroked);
     for (RawPath::Iter iter = startOfContour; iter != end; ++iter)
     {
         switch (styled_verb(iter.verb(), styleFlags))
@@ -815,7 +895,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                 }
                 preChopVerbCount = 0;
                 endpointsSum = {0, 0};
-                closed = !isStroked();
+                closed = !isStroke();
                 lastTangent = {0, 1};
                 firstTangent = {0, 1};
                 roundJoinCount = 0;
@@ -885,20 +965,21 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                 // convex), and do not rotate more than 180 degrees. This is
                 // required by the GPU parametric/polar sorter.
                 float t[2];
-                bool areCusps;
+                bool areCusps = false;
                 uint8_t numChops =
-                    math::find_cubic_convex_180_chops(p, t, &areCusps);
+                    isStroke()
+                        ? math::find_cubic_convex_180_chops(p, t, &areCusps)
+                        : 0; // Feathers already got chopped.
                 uint8_t chopKey = chop_key(areCusps, numChops);
                 m_numChops.push_back(chopKey);
                 Vec2D localChopBuffer[16];
                 switch (chopKey)
                 {
                     case cusp_chop_key(2): // 2 cusps
-                    case cusp_chop_key(
-                        1): // 1 cusp
-                            // We have to chop carefully around stroked cusps in
-                            // order to avoid rendering artifacts. Luckily,
-                            // cusps are extremely rare in real-world content.
+                    case cusp_chop_key(1): // 1 cusp
+                        // We have to chop carefully around stroked cusps in
+                        // order to avoid rendering artifacts. Luckily, cusps
+                        // are extremely rare in real-world content.
                         m_chopVertices.push_back() = {t[0], t[1]};
                         chop_cubic_around_cusps(p,
                                                 localChopBuffer,
@@ -929,7 +1010,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                      p += 3, ++curveIdx, ++rotationIdx)
                 {
                     float n4 = wangs_formula::cubic_pow4(p,
-                                                         kParametricPrecision,
+                                                         parametricPrecision,
                                                          vectorXform);
                     // Record n^4 for now. This will get resolved later.
                     assert(curveIdx < maxPaddedCurves);
@@ -947,7 +1028,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                 ++preChopVerbCount;
                 endpointsSum += p[3];
                 float n4 = wangs_formula::cubic_pow4(p,
-                                                     kParametricPrecision,
+                                                     parametricPrecision,
                                                      vectorXform);
                 // Record n^4 for now. This will get resolved later.
                 assert(curveIdx < maxPaddedCurves);
@@ -970,11 +1051,11 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
     assert(curveIdx % 4 == 0);
     // Because we write polar segment counts in batches of 4.
     assert(rotationIdx % 4 == 0);
-    assert(isStroked() || maxPaddedRotations == 0);
-    assert(isStroked() || rotationIdx == 0);
+    assert(isStrokeOrFeather() || maxPaddedRotations == 0);
+    assert(isStrokeOrFeather() || rotationIdx == 0);
 
     // Return any data we conservatively allocated but did not use.
-    if (isStroked())
+    if (isStrokeOrFeather())
     {
         m_numChops.shrinkToFit(context->numChopsAllocator(), maxChops);
         m_chopVertices.shrinkToFit(context->chopVerticesAllocator(),
@@ -1021,13 +1102,10 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
             contourVertexCount -= m_parametricSegmentCounts[j];
         }
 
-        if (isStroked())
+        if (isStrokeOrFeather())
         {
             // Finish calculating and counting polar segments for each stroked
             // curve and round join.
-            const float r_ = m_strokeRadius * m_strokeMatrixMaxScale;
-            const float polarSegmentsPerRad =
-                math::calc_polar_segments_per_radian<kPolarPrecision>(r_);
             for (j = contour->firstRotationIdx; j < contour->endRotationIdx;
                  j += 4)
             {
@@ -1045,7 +1123,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                 cosTheta = simd::clamp(cosTheta, float4(-1), float4(1));
                 float4 theta = simd::fast_acos(cosTheta);
                 // Find polar segment counts from the rotation angles.
-                float4 n = simd::ceil(theta * polarSegmentsPerRad);
+                float4 n = simd::ceil(theta * m_polarSegmentsPerRadian);
                 n = simd::clamp(n, float4(1), float4(kMaxPolarSegments));
                 uint4 n_ = simd::cast<uint32_t>(n);
                 assert(j + 4 <= rotationIdx);
@@ -1073,7 +1151,19 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
             }
 
             // Count joins.
-            if (m_strokeJoin == StrokeJoin::round)
+            if (!isStroke())
+            {
+                assert(isFeatheredFill());
+                uint32_t numSegmentsInFeatherJoin =
+                    static_cast<uint32_t>(std::clamp<float>(
+                        ceilf(m_polarSegmentsPerRadian * math::PI),
+                        2,
+                        kMaxPolarSegments - 2)) +
+                    5;
+                contourVertexCount +=
+                    contour->strokeJoinCount * (numSegmentsInFeatherJoin - 1);
+            }
+            else if (m_strokeJoin == StrokeJoin::round)
             {
                 // Round joins share their beginning and ending vertices with
                 // the curve on either side. Therefore, the number of vertices
@@ -1088,20 +1178,20 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                 // their beginning and ending vertices with the curve on either
                 // side).
                 contourVertexCount += contour->strokeJoinCount *
-                                      (kNumSegmentsInMiterOrBevelJoin - 1);
+                                      (NUM_SEGMENTS_IN_MITER_OR_BEVEL_JOIN - 1);
             }
 
             // Count stroke caps, if any.
             bool empty = contour->endLineIdx == contourFirstLineIdx &&
                          contour->endCurveIdx == contour->firstCurveIdx;
             StrokeCap cap;
-            bool needsCaps;
+            bool needsCaps = false;
             if (!empty)
             {
                 cap = m_strokeCap;
                 needsCaps = !contour->closed;
             }
-            else
+            else if (isStroke())
             {
                 cap = empty_stroke_cap(contour->closed,
                                        m_strokeJoin,
@@ -1116,7 +1206,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                 {
                     // Round caps rotate 180 degrees.
                     float strokeCapSegmentCount =
-                        ceilf(polarSegmentsPerRad * math::PI);
+                        ceilf(m_polarSegmentsPerRadian * math::PI);
                     // +2 because round caps emulated as joins need to emit
                     // vertices at T=0 and T=1, unlike normal round joins.
                     strokeCapSegmentCount += 2;
@@ -1129,7 +1219,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                 else
                 {
                     contour->strokeCapSegmentCount =
-                        kNumSegmentsInMiterOrBevelJoin;
+                        NUM_SEGMENTS_IN_MITER_OR_BEVEL_JOIN;
                 }
                 // PLS expects all patches to have >0 tessellation vertices, so
                 // for the case of an empty patch with a stroke cap,
@@ -1201,7 +1291,7 @@ void RiveRenderPathDraw::initForInteriorTriangulation(
 {
     assert(type() == Type::interiorTriangulationPath);
     assert(simd::all(m_resourceCounts.toVec() == 0)); // Only call init() once.
-    assert(!isStroked());
+    assert(!isStrokeOrFeather());
     assert(m_strokeRadius == 0);
 
     // Every path has at least 1 (non-cubic) move.
@@ -1267,7 +1357,7 @@ bool RiveRenderPathDraw::allocateResourcesAndSubpasses(
     m_prepassCount = 0;
 
     if (flush->interlockMode() == gpu::InterlockMode::clockwiseAtomic &&
-        !isStroked())
+        !isStroke())
     {
         // clockwiseAtomic fills need a prepass to render their borrowed
         // coverage.
@@ -1337,7 +1427,7 @@ void RiveRenderPathDraw::pushToRenderContextImpl(
     assert(m_pathID != 0);
 
     bool clockwiseAtomicFill =
-        !isStroked() &&
+        !isStroke() &&
         flush->desc().interlockMode == gpu::InterlockMode::clockwiseAtomic;
 
     if (clockwiseAtomicFill)
@@ -1415,7 +1505,7 @@ void RiveRenderPathDraw::pushToRenderContextImpl(
             // Determine where to fill in forward and mirrored tessellations.
             uint32_t forwardTessVertexCount, forwardTessLocation,
                 mirroredTessVertexCount, mirroredTessLocation;
-            if (isStroked())
+            if (isStroke())
             {
                 // Strokes use a single forward tessellation.
                 assert(m_contourDirections == gpu::ContourDirections::forward);
@@ -1575,9 +1665,9 @@ void RiveRenderPathDraw::pushMidpointFanTessellationData(
         // Push a contour and curve records.
         const ContourInfo& contour = m_contours[i];
         assert(startOfContour.verb() == PathVerb::move);
-        assert(isStroked() || contour.closed); // Fills are always closed.
+        assert(isStroke() || contour.closed); // Fills are always closed.
         RIVE_DEBUG_CODE(m_pendingStrokeJoinCount =
-                            isStroked() ? contour.strokeJoinCount : 0;)
+                            isStrokeOrFeather() ? contour.strokeJoinCount : 0;)
         RIVE_DEBUG_CODE(m_pendingStrokeCapCount =
                             contour.strokeCapSegmentCount != 0 ? 2 : 0;)
 
@@ -1590,25 +1680,30 @@ void RiveRenderPathDraw::pushMidpointFanTessellationData(
         // Emit a starting cap before the next cubic?
         bool needsFirstEmulatedCapAsJoin = false;
         uint32_t emulatedCapAsJoinFlags = 0;
-        if (isStroked())
+        if (isStrokeOrFeather())
         {
-            joinTypeFlags = join_type_flags(m_strokeJoin);
-            roundJoinStroked = joinTypeFlags == 0;
+            joinTypeFlags = isStroke() ? join_type_flags(m_strokeJoin)
+                                       : FEATHER_JOIN_CONTOUR_FLAG;
+            roundJoinStroked = joinTypeFlags == ROUND_JOIN_CONTOUR_FLAG;
             if (contour.strokeCapSegmentCount != 0)
             {
                 StrokeCap cap =
                     !contour.closed
                         ? m_strokeCap
                         : empty_stroke_cap(true, m_strokeJoin, m_strokeCap);
-                emulatedCapAsJoinFlags = EMULATED_STROKE_CAP_CONTOUR_FLAG;
-                if (cap == StrokeCap::square)
+                switch (cap)
                 {
-                    emulatedCapAsJoinFlags |= MITER_CLIP_JOIN_CONTOUR_FLAG;
+                    case StrokeCap::butt:
+                        emulatedCapAsJoinFlags = BEVEL_JOIN_CONTOUR_FLAG;
+                        break;
+                    case StrokeCap::square:
+                        emulatedCapAsJoinFlags = MITER_CLIP_JOIN_CONTOUR_FLAG;
+                        break;
+                    case StrokeCap::round:
+                        emulatedCapAsJoinFlags = ROUND_JOIN_CONTOUR_FLAG;
+                        break;
                 }
-                else if (cap == StrokeCap::butt)
-                {
-                    emulatedCapAsJoinFlags |= BEVEL_JOIN_CONTOUR_FLAG;
-                }
+                emulatedCapAsJoinFlags |= EMULATED_STROKE_CAP_CONTOUR_FLAG;
                 needsFirstEmulatedCapAsJoin = true;
             }
         }
@@ -1616,13 +1711,32 @@ void RiveRenderPathDraw::pushMidpointFanTessellationData(
         // Make a data record for this current contour on the GPU.
         uint32_t contourIDWithFlags =
             m_contourFlags |
-            tessWriter->pushContour(renderPaintStyle(),
+            tessWriter->pushContour(m_drawContents,
                                     contour.midpoint,
                                     contour.closed,
                                     contour.paddingVertexCount);
 
+        // When we don't have round joins, the number of segments per join is
+        // constant. (Round joins have a variable number of segments per join,
+        // depending on the angle.)
+        uint32_t numSegmentsInNotRoundJoin;
+        if (isFeatheredFill())
+        {
+            numSegmentsInNotRoundJoin =
+                static_cast<uint32_t>(std::clamp<float>(
+                    ceilf(m_polarSegmentsPerRadian * math::PI),
+                    2,
+                    kMaxPolarSegments - 2)) +
+                5;
+        }
+        else
+        {
+            numSegmentsInNotRoundJoin = NUM_SEGMENTS_IN_MITER_OR_BEVEL_JOIN;
+        }
+
         // Convert all curves in the contour to cubics and push them to the GPU.
-        const int styleFlags = style_flags(isStroked(), roundJoinStroked);
+        const int styleFlags =
+            style_flags(isStrokeOrFeather(), roundJoinStroked);
         Vec2D joinTangent = {0, 1};
         int joinSegmentCount = 1;
         Vec2D implicitClose[2]; // In case we need an implicit closing line.
@@ -1671,7 +1785,7 @@ void RiveRenderPathDraw::pushMidpointFanTessellationData(
                                                         end.rawPtsPtr(),
                                                         contour.closed,
                                                         pts);
-                        joinSegmentCount = kNumSegmentsInMiterOrBevelJoin;
+                        joinSegmentCount = numSegmentsInNotRoundJoin;
                         RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                     }
                     else
@@ -1819,7 +1933,7 @@ void RiveRenderPathDraw::pushMidpointFanTessellationData(
                                                             end.rawPtsPtr(),
                                                             contour.closed,
                                                             pts);
-                            joinSegmentCount = kNumSegmentsInMiterOrBevelJoin;
+                            joinSegmentCount = numSegmentsInNotRoundJoin;
                         }
                         RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                     }
@@ -1897,10 +2011,10 @@ void RiveRenderPathDraw::pushMidpointFanTessellationData(
                     RIVE_DEBUG_CODE(--m_pendingRotationCount;)
                     RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                 }
-                else if (isStroked())
+                else if (isStrokeOrFeather())
                 {
                     joinTangent = find_starting_tangent(pts, end.rawPtsPtr());
-                    joinSegmentCount = kNumSegmentsInMiterOrBevelJoin;
+                    joinSegmentCount = numSegmentsInNotRoundJoin;
                     RIVE_DEBUG_CODE(--m_pendingStrokeJoinCount;)
                 }
                 tessWriter->pushCubic(cubic.data(),
@@ -2003,11 +2117,10 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                 else
                 {
                     contourIDWithFlags =
-                        m_contourFlags |
-                        tessWriter->pushContour(renderPaintStyle(),
-                                                {0, 0},
-                                                true,
-                                                0);
+                        m_contourFlags | tessWriter->pushContour(m_drawContents,
+                                                                 {0, 0},
+                                                                 true,
+                                                                 0);
                 }
                 p0 = pts[0];
                 ++contourCount;
@@ -2038,7 +2151,7 @@ void RiveRenderPathDraw::iterateInteriorTriangulation(
                 uint32_t numSubdivisions;
                 if (op == InteriorTriangulationOp::countDataAndTriangulate)
                 {
-                    numSubdivisions = FindSubdivisionCount(pts, vectorXform);
+                    numSubdivisions = find_subdivision_count(pts, vectorXform);
                     m_numChops.push_back(numSubdivisions);
                 }
                 else

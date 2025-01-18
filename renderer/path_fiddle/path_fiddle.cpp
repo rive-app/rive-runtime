@@ -63,6 +63,7 @@ static float2 s_pts[] = {{260 + 2 * 100, 60 + 2 * 500},
 constexpr static int kNumInteractivePts = sizeof(s_pts) / sizeof(*s_pts);
 
 static float s_strokeWidth = 70;
+static float featherPower = 0;
 
 static float2 s_translate;
 static float s_scale = 1;
@@ -184,6 +185,28 @@ double fpsLastTime = 0;
 int fpsFrames = 0;
 static bool s_needsTitleUpdate = false;
 
+enum class API
+{
+    gl,
+    metal,
+    d3d,
+    dawn,
+    vulkan,
+};
+
+API api =
+#if defined(__APPLE__)
+    API::metal
+#elif defined(_WIN32)
+    API::d3d
+#else
+    API::gl
+#endif
+    ;
+
+bool angle = false;
+bool skia = false;
+
 static void key_callback(GLFWwindow* window,
                          int key,
                          int scancode,
@@ -202,7 +225,6 @@ static void key_callback(GLFWwindow* window,
                 s_forceAtomicMode = !s_forceAtomicMode;
                 fpsLastTime = 0;
                 fpsFrames = 0;
-                s_needsTitleUpdate = true;
                 break;
             case GLFW_KEY_D:
                 printf("static float s_scale = %f;\n", s_scale);
@@ -233,6 +255,12 @@ static void key_callback(GLFWwindow* window,
             case GLFW_KEY_EQUAL:
                 s_strokeWidth *= 1.5f;
                 break;
+            case GLFW_KEY_F:
+                if (!shift)
+                    ++featherPower;
+                else
+                    featherPower = std::max(featherPower - 1, 0.f);
+                break;
             case GLFW_KEY_W:
                 s_wireframe = !s_wireframe;
                 break;
@@ -244,9 +272,27 @@ static void key_callback(GLFWwindow* window,
                 s_doClose = !s_doClose;
                 break;
             case GLFW_KEY_S:
-                s_disableStroke = !s_disableStroke;
+                if (shift)
+                {
+                    // Toggle Skia.
+                    s_scenes.clear();
+                    s_artboards.clear();
+                    s_rivFile = nullptr;
+                    skia = !skia;
+                    s_fiddleContext = skia ? FiddleContext::MakeGLSkia()
+                                           : FiddleContext::MakeGLPLS();
+                    lastWidth = 0;
+                    lastHeight = 0;
+                    fpsLastTime = 0;
+                    fpsFrames = 0;
+                    s_needsTitleUpdate = true;
+                }
+                else
+                {
+                    s_disableStroke = !s_disableStroke;
+                }
                 break;
-            case GLFW_KEY_F:
+            case GLFW_KEY_I:
                 s_disableFill = !s_disableFill;
                 break;
             case GLFW_KEY_X:
@@ -326,28 +372,8 @@ static void set_environment_variable(const char* name, const char* value)
 #endif
 }
 
-enum class API
-{
-    gl,
-    metal,
-    d3d,
-    dawn,
-    vulkan,
-};
-
-API api =
-#if defined(__APPLE__)
-    API::metal
-#elif defined(_WIN32)
-    API::d3d
-#else
-    API::gl
-#endif
-    ;
-
-bool angle = false;
-
 std::unique_ptr<Renderer> renderer;
+const char* s_rivName = nullptr;
 
 void riveMainLoop();
 
@@ -386,7 +412,6 @@ int main(int argc, const char** argv)
     free(hash);
 #endif
 
-    const char* rivName = nullptr;
     for (int i = 1; i < argc; i++)
     {
         if (!strcmp(argv[i], "--gl"))
@@ -504,6 +529,10 @@ int main(int argc, const char** argv)
             angle = true;
         }
 #endif
+        else if (!strcmp(argv[i], "--skia"))
+        {
+            skia = true;
+        }
         else if (sscanf(argv[i], "-a%i", &s_animation))
         {
             // Already updated s_animation.
@@ -546,7 +575,7 @@ int main(int argc, const char** argv)
         }
         else
         {
-            rivName = argv[i];
+            s_rivName = argv[i];
         }
     }
 
@@ -630,22 +659,14 @@ int main(int argc, const char** argv)
             s_fiddleContext = FiddleContext::MakeVulkanPLS(s_options);
             break;
         case API::gl:
-            s_fiddleContext = FiddleContext::MakeGLPLS();
+            s_fiddleContext =
+                skia ? FiddleContext::MakeGLSkia() : FiddleContext::MakeGLPLS();
             break;
     }
     if (!s_fiddleContext)
     {
         fprintf(stderr, "Failed to create a fiddle context.\n");
         abort();
-    }
-    Factory* factory = s_fiddleContext->factory();
-
-    if (rivName)
-    {
-        std::ifstream rivStream(rivName, std::ios::binary);
-        std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
-                                      {});
-        s_rivFile = File::import(rivBytes, factory);
     }
 
 #ifndef __EMSCRIPTEN__
@@ -661,7 +682,7 @@ int main(int argc, const char** argv)
         {
             glfwSwapBuffers(s_window);
         }
-        if (s_rivFile)
+        if (s_rivName)
         {
             glfwPollEvents();
         }
@@ -691,7 +712,14 @@ static void update_window_title(double fps,
     {
         title << " (x" << instances << " instances)";
     }
-    title << " | Rive Renderer";
+    if (skia)
+    {
+        title << " | SKIA Renderer";
+    }
+    else
+    {
+        title << " | RIVE Renderer";
+    }
     if (s_msaa)
     {
         title << " (msaa" << s_msaa << ')';
@@ -706,6 +734,14 @@ static void update_window_title(double fps,
 
 void riveMainLoop()
 {
+    if (s_rivName && !s_rivFile)
+    {
+        std::ifstream rivStream(s_rivName, std::ios::binary);
+        std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
+                                      {});
+        s_rivFile = File::import(rivBytes, s_fiddleContext->factory());
+    }
+
 #ifdef __EMSCRIPTEN__
     {
         // Fit the canvas to the browser window size.
@@ -749,7 +785,7 @@ void riveMainLoop()
     s_fiddleContext->begin({
         .renderTargetWidth = static_cast<uint32_t>(width),
         .renderTargetHeight = static_cast<uint32_t>(height),
-        .clearColor = 0xff404040,
+        .clearColor = 0xff303030,
         .msaaSampleCount = s_msaa,
         .disableRasterOrdering = s_forceAtomicMode,
         .wireframe = s_wireframe,
@@ -820,34 +856,47 @@ void riveMainLoop()
         auto path = factory->makeRenderPath(rawPath, FillRule::nonZero);
 
         auto fillPaint = factory->makeRenderPaint();
-        fillPaint->style(RenderPaintStyle::fill);
+        if (featherPower != 0)
+        {
+            fillPaint->feather(powf(1.5f, featherPower));
+        }
         fillPaint->color(0xd0ffffff);
 
-        auto strokePaint = factory->makeRenderPaint();
-        strokePaint->style(RenderPaintStyle::stroke);
-        strokePaint->color(0x8000ffff);
-        strokePaint->thickness(s_strokeWidth);
-        strokePaint->join(s_join);
-        strokePaint->cap(s_cap);
-
         renderer->drawPath(path.get(), fillPaint.get());
-        renderer->drawPath(path.get(), strokePaint.get());
 
-        // Draw the interactive points.
-        auto pointPaint = factory->makeRenderPaint();
-        pointPaint->style(RenderPaintStyle::stroke);
-        pointPaint->color(0xff0000ff);
-        pointPaint->thickness(14);
-        pointPaint->cap(StrokeCap::round);
-
-        auto pointPath = factory->makeEmptyRenderPath();
-        for (int i : {1, 2, 4, 6, 7})
+        if (!s_disableStroke)
         {
-            float2 pt = s_pts[i] + s_translate;
-            pointPath->moveTo(pt.x, pt.y);
-        }
+            auto strokePaint = factory->makeRenderPaint();
+            strokePaint->style(RenderPaintStyle::stroke);
+            strokePaint->color(0x8000ffff);
+            strokePaint->thickness(s_strokeWidth);
+            if (featherPower != 0)
+            {
+                strokePaint->feather(powf(1.5f, featherPower));
+            }
+            strokePaint->join(s_join);
+            strokePaint->cap(s_cap);
 
-        renderer->drawPath(pointPath.get(), pointPaint.get());
+            renderer->drawPath(path.get(), strokePaint.get());
+
+            // Draw the interactive points.
+            auto pointPaint = factory->makeRenderPaint();
+            pointPaint->style(RenderPaintStyle::stroke);
+            pointPaint->color(0xff0000ff);
+            pointPaint->thickness(14);
+            pointPaint->cap(StrokeCap::round);
+            pointPaint->join(StrokeJoin::round);
+
+            auto pointPath = factory->makeEmptyRenderPath();
+            for (int i : {1, 2, 4, 6, 7})
+            {
+                float2 pt = s_pts[i] + s_translate;
+                pointPath->moveTo(pt.x, pt.y);
+                pointPath->close();
+            }
+
+            renderer->drawPath(pointPath.get(), pointPaint.get());
+        }
     }
 
     s_fiddleContext->end(s_window);

@@ -1104,13 +1104,13 @@ void RenderContext::LogicalFlush::writeResources()
         constexpr static int kDrawTypeShift = 45;
         constexpr static int64_t kDrawTypeMask RIVE_MAYBE_UNUSED =
             7llu << kDrawTypeShift;
-        constexpr static int kTextureHashShift = 29;
-        constexpr static int64_t kTextureHashMask = 0xffffllu
+        constexpr static int kTextureHashShift = 30;
+        constexpr static int64_t kTextureHashMask = 0x7fffllu
                                                     << kTextureHashShift;
-        constexpr static int kBlendModeShift = 25;
+        constexpr static int kBlendModeShift = 26;
         constexpr static int kBlendModeMask = 0xf << kBlendModeShift;
         constexpr static int kDrawContentsShift = 17;
-        constexpr static int64_t kDrawContentsMask = 0xffllu
+        constexpr static int64_t kDrawContentsMask = 0x1ffllu
                                                      << kDrawContentsShift;
         constexpr static int kDrawIndexShift = 1;
         constexpr static int64_t kDrawIndexMask = 0x7fff << kDrawIndexShift;
@@ -1748,21 +1748,11 @@ uint32_t RenderContext::LogicalFlush::pushPath(const RiveRenderPathDraw* draw)
     ++m_currentPathID;
     assert(0 < m_currentPathID && m_currentPathID <= m_ctx->m_maxPathID);
 
-    if (m_flushDesc.interlockMode != gpu::InterlockMode::clockwiseAtomic)
-    {
-        m_ctx->m_pathData.set_back(draw->matrix(),
-                                   draw->strokeRadius(),
-                                   m_currentZIndex);
-    }
-    else
-    {
-
-        m_ctx->m_pathData.set_back(draw->matrix(),
-                                   draw->strokeRadius(),
-                                   m_currentZIndex,
-                                   draw->coverageBufferRange());
-    }
-
+    m_ctx->m_pathData.set_back(draw->matrix(),
+                               draw->strokeRadius(),
+                               draw->featherRadius(),
+                               m_currentZIndex,
+                               draw->coverageBufferRange());
     m_ctx->m_paintData.set_back(draw->drawContents(),
                                 draw->paintType(),
                                 draw->simplePaintValue(),
@@ -1826,16 +1816,17 @@ RenderContext::TessellationWriter::~TessellationWriter()
     assert(m_pathMirroredTessLocation == m_expectedPathMirroredTessEndLocation);
 }
 
-uint32_t RenderContext::LogicalFlush::pushContour(uint32_t pathID,
-                                                  RenderPaintStyle style,
-                                                  Vec2D midpoint,
-                                                  bool closed,
-                                                  uint32_t vertexIndex0)
+uint32_t RenderContext::LogicalFlush::pushContour(
+    uint32_t pathID,
+    gpu::DrawContents drawContents,
+    Vec2D midpoint,
+    bool closed,
+    uint32_t vertexIndex0)
 {
     assert(pathID != 0);
-    assert(style == RenderPaintStyle::stroke || closed);
+    assert((drawContents & gpu::DrawContents::stroke) || closed);
 
-    if (style == RenderPaintStyle::stroke)
+    if (drawContents & gpu::DrawContents::stroke)
     {
         midpoint.x = closed ? 1 : 0;
     }
@@ -1849,7 +1840,7 @@ uint32_t RenderContext::LogicalFlush::pushContour(uint32_t pathID,
 }
 
 uint32_t RenderContext::TessellationWriter::pushContour(
-    RenderPaintStyle renderPaintStyle,
+    gpu::DrawContents drawContents,
     Vec2D midpoint,
     bool closed,
     uint32_t paddingVertexCount)
@@ -1861,7 +1852,7 @@ uint32_t RenderContext::TessellationWriter::pushContour(
     m_nextCubicPaddingVertexCount = paddingVertexCount;
 
     return m_flush->pushContour(m_pathID,
-                                renderPaintStyle,
+                                drawContents,
                                 midpoint,
                                 closed,
                                 nextVertexIndex());
@@ -2117,7 +2108,9 @@ void RenderContext::LogicalFlush::pushMidpointFanDraw(
     assert(instanceCount * kMidpointFanPatchSegmentSpan == tessVertexCount);
 
     pushPathDraw(draw,
-                 gpu::DrawType::midpointFanPatches,
+                 draw->isFeatheredFill()
+                     ? gpu::DrawType::midpointFanCenterAAPatches
+                     : gpu::DrawType::midpointFanPatches,
                  shaderMiscFlags,
                  instanceCount,
                  baseInstance);
@@ -2280,28 +2273,28 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
                                 vertexCount,
                                 baseVertex);
 
-    if (!(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass))
+    auto pathShaderFeatures = gpu::ShaderFeatures::NONE;
+    if (draw->featherRadius() != 0)
     {
-        auto pathShaderFeatures = gpu::ShaderFeatures::NONE;
-        if (draw->isEvenOddFill())
-        {
-            pathShaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
-        }
-        if (draw->paintType() == PaintType::clipUpdate &&
-            draw->simplePaintValue().outerClipID != 0)
-        {
-            pathShaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
-        }
-        batch.shaderFeatures |=
-            pathShaderFeatures & m_ctx->m_frameShaderFeaturesMask;
-        m_combinedShaderFeatures |= batch.shaderFeatures;
+        pathShaderFeatures |= ShaderFeatures::ENABLE_FEATHER;
     }
+    if (draw->isEvenOddFill())
+    {
+        assert(!(shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill));
+        pathShaderFeatures |= ShaderFeatures::ENABLE_EVEN_ODD;
+    }
+    if (draw->paintType() == PaintType::clipUpdate &&
+        draw->simplePaintValue().outerClipID != 0)
+    {
+        pathShaderFeatures |= ShaderFeatures::ENABLE_NESTED_CLIPPING;
+    }
+    batch.shaderFeatures |=
+        pathShaderFeatures & m_ctx->m_frameShaderFeaturesMask;
+    m_combinedShaderFeatures |= batch.shaderFeatures;
     assert(
         (batch.shaderFeatures &
          gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
         batch.shaderFeatures);
-    assert(!(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass) ||
-           batch.shaderFeatures == gpu::ShaderFeatures::NONE);
     return batch;
 }
 
@@ -2310,6 +2303,11 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_contents(
     gpu::DrawContents batchContents,
     const Draw* draw)
 {
+    // Feathered fills should never attempt to combine with fills, strokes, or
+    // feathered strokes because they use a different DrawType.
+    assert((batchContents & gpu::DrawContents::featheredFill).bits() ==
+           (draw->drawContents() & gpu::DrawContents::featheredFill).bits());
+
     constexpr static auto ANY_FILL = gpu::DrawContents::clockwiseFill |
                                      gpu::DrawContents::evenOddFill |
                                      gpu::DrawContents::nonZeroFill;
@@ -2320,7 +2318,7 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_contents(
         // don't have fills yet.
         (batchContents & ANY_FILL) && (draw->drawContents() & ANY_FILL))
     {
-        assert(!draw->isStroked());
+        assert(!draw->isStroke());
         return (batchContents & gpu::DrawContents::clockwiseFill).bits() ==
                (draw->drawContents() & gpu::DrawContents::clockwiseFill).bits();
     }
@@ -2356,6 +2354,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::stencilClipReset:
@@ -2413,48 +2412,45 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     assert(can_combine_draw_images(batch->imageTexture, draw->imageTexture()));
     assert(!batch->needsBarrier);
 
-    if (!(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass))
+    auto shaderFeatures = ShaderFeatures::NONE;
+    if (draw->clipID() != 0)
     {
-        auto shaderFeatures = ShaderFeatures::NONE;
-        if (draw->clipID() != 0)
-        {
-            shaderFeatures |= ShaderFeatures::ENABLE_CLIPPING;
-        }
-        if (draw->hasClipRect() && paintType != PaintType::clipUpdate)
-        {
-            shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
-        }
-        if (paintType != PaintType::clipUpdate)
-        {
-            switch (draw->blendMode())
-            {
-                case BlendMode::hue:
-                case BlendMode::saturation:
-                case BlendMode::color:
-                case BlendMode::luminosity:
-                    shaderFeatures |= ShaderFeatures::ENABLE_HSL_BLEND_MODES;
-                    [[fallthrough]];
-                case BlendMode::screen:
-                case BlendMode::overlay:
-                case BlendMode::darken:
-                case BlendMode::lighten:
-                case BlendMode::colorDodge:
-                case BlendMode::colorBurn:
-                case BlendMode::hardLight:
-                case BlendMode::softLight:
-                case BlendMode::difference:
-                case BlendMode::exclusion:
-                case BlendMode::multiply:
-                    shaderFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
-                    break;
-                case BlendMode::srcOver:
-                    break;
-            }
-        }
-        batch->shaderFeatures |=
-            shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
-        m_combinedShaderFeatures |= batch->shaderFeatures;
+        shaderFeatures |= ShaderFeatures::ENABLE_CLIPPING;
     }
+    if (draw->hasClipRect() && paintType != PaintType::clipUpdate)
+    {
+        shaderFeatures |= ShaderFeatures::ENABLE_CLIP_RECT;
+    }
+    if (paintType != PaintType::clipUpdate &&
+        !(shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass))
+    {
+        switch (draw->blendMode())
+        {
+            case BlendMode::hue:
+            case BlendMode::saturation:
+            case BlendMode::color:
+            case BlendMode::luminosity:
+                shaderFeatures |= ShaderFeatures::ENABLE_HSL_BLEND_MODES;
+                [[fallthrough]];
+            case BlendMode::screen:
+            case BlendMode::overlay:
+            case BlendMode::darken:
+            case BlendMode::lighten:
+            case BlendMode::colorDodge:
+            case BlendMode::colorBurn:
+            case BlendMode::hardLight:
+            case BlendMode::softLight:
+            case BlendMode::difference:
+            case BlendMode::exclusion:
+            case BlendMode::multiply:
+                shaderFeatures |= ShaderFeatures::ENABLE_ADVANCED_BLEND;
+                break;
+            case BlendMode::srcOver:
+                break;
+        }
+    }
+    batch->shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
+    m_combinedShaderFeatures |= batch->shaderFeatures;
     assert(
         (batch->shaderFeatures &
          gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==

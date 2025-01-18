@@ -107,6 +107,11 @@ $typedef $uint ushort;
 #define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform $Texture2D<uint4> NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME) uniform $Texture2D<float4> NAME
 #define TEXTURE_RGBA8(SET, IDX, NAME) uniform $Texture2D<$unorm float4> NAME
+#define TEXTURE_R16F(SET, IDX, NAME)                                           \
+    uniform $Texture2D<half> NAME : $register($t##IDX)
+#define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                   \
+    $Texture2D<half> NAME, $SamplerState SAMPLER_NAME
+#define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME, SAMPLER_NAME
 
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler
 // parameters are defined at the API level.
@@ -119,6 +124,7 @@ $typedef $uint ushort;
     NAME.$Sample(SAMPLER_NAME, COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     NAME.$SampleLevel(SAMPLER_NAME, COORD, LOD)
+#define TEXTURE_REF_SAMPLE_LOD TEXTURE_SAMPLE_LOD
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     NAME.$SampleGrad(SAMPLER_NAME, COORD, DDX, DDY)
 

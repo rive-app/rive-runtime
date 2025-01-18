@@ -60,6 +60,15 @@ public:
     bool isClockwiseDominant(const Mat2D& viewMatrix) const;
     uint64_t getRawPathMutationID() const;
 
+    // Feathering does not always look like a blur when there is strong
+    // curvature. This method returns a copy of the path with flatter curves
+    // that will more accurately depict a gaussian blur when drawn with the
+    // given feather.
+    //
+    // TODO: Move this work to the GPU.
+    rcp<RiveRenderPath> makeSoftenedCopyForFeathering(float feather,
+                                                      float matrixMaxScale);
+
 #ifdef DEBUG
     // Allows ref holders to guarantee the rawPath doesn't mutate during a
     // specific time.
@@ -131,5 +140,6 @@ private:
     mutable float m_cachedThickness;
     mutable StrokeJoin m_cachedJoin;
     mutable StrokeCap m_cachedCap;
+    mutable float m_cachedFeather;
 };
 } // namespace rive

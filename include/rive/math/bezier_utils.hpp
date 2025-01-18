@@ -20,6 +20,82 @@ namespace rive
 {
 namespace math
 {
+// Finds the cubic bezier's power basis coefficients. These define the bezier
+// curve as:
+//
+//                                    |T^3|
+//     Cubic(T) = x,y = |A  3B  3C| * |T^2| + P0
+//                      |.   .   .|   |T  |
+//
+// And the tangent:
+//
+//                                         |T^2|
+//     Tangent(T) = dx,dy = |3A  6B  3C| * |T  |
+//                          | .   .   .|   |1  |
+//
+struct CubicCoeffs
+{
+    RIVE_ALWAYS_INLINE CubicCoeffs(const Vec2D pts[4]) :
+        CubicCoeffs(simd::load2f(&pts[0].x),
+                    simd::load2f(&pts[1].x),
+                    simd::load2f(&pts[2].x),
+                    simd::load2f(&pts[3].x))
+    {}
+
+    RIVE_ALWAYS_INLINE CubicCoeffs(float2 p0, float2 p1, float2 p2, float2 p3)
+    {
+        C = p1 - p0;
+        float2 D = p2 - p1;
+        float2 E = p3 - p0;
+        B = D - C;
+        A = -3.f * D + E;
+    }
+
+    float2 A, B, C;
+};
+
+// Optimized SIMD helper for evaluating a single cubic at many points.
+class EvalCubic
+{
+public:
+    RIVE_ALWAYS_INLINE EvalCubic(const Vec2D pts[]) :
+        EvalCubic(CubicCoeffs(pts), pts[0])
+    {}
+
+    RIVE_ALWAYS_INLINE EvalCubic(const CubicCoeffs& coeffs, Vec2D p0) :
+        EvalCubic(coeffs, simd::load2f(&p0))
+    {}
+
+    RIVE_ALWAYS_INLINE EvalCubic(const CubicCoeffs& coeffs, float2 p0) :
+        // Duplicate coefficients across a float4 so we can evaluate two at
+        // once.
+        A(coeffs.A.xyxy),
+        B((3.f * coeffs.B).xyxy),
+        C((3.f * coeffs.C).xyxy),
+        D(p0.xyxy)
+    {}
+
+    // Evaluates [x, y] at location t.
+    RIVE_ALWAYS_INLINE float2 operator()(float t) const
+    {
+        // At^3 + Bt^2 + Ct + P0
+        return ((A.xy * t + B.xy) * t + C.xy) * t + D.xy;
+    }
+
+    // Evaluates [Xa, Ya, Xb, Yb] at locations [Ta, Ta, Tb, Tb].
+    RIVE_ALWAYS_INLINE float4 operator()(float4 t) const
+    {
+        // At^3 + Bt^2 + Ct + P0
+        return ((A * t + B) * t + C) * t + D;
+    }
+
+private:
+    const float4 A;
+    const float4 B;
+    const float4 C;
+    const float4 D;
+};
+
 // Decides the number of polar segments the tessellator adds for each curve.
 // (Uniform steps in tangent angle.) The tessellator will add this number of
 // polar segments for each radian of rotation in local path space.
@@ -69,58 +145,38 @@ float measure_angle_between_vectors(Vec2D a, Vec2D b);
 // on a degenerate flat line.
 int find_cubic_convex_180_chops(const Vec2D[], float T[2], bool* areCusps);
 
-// Optimized SIMD helper for evaluating a single cubic at many points.
-class EvalCubic
+// Returns up to 4 T values at which to chop the given curve in order to
+// guarantee the resulting cubics are convex and rotate no more than 90 degrees.
+//
+// If the curve has any cusp points (proper cusps or 180-degree turnarounds on
+// a degenerate flat line), the cusps are straddled with `cuspPadding` on either
+// side and `areCusps` is set to true. In this cases, odd-numbered curves after
+// chopping will always be the small sections that pass through the cusp.
+int find_cubic_convex_90_chops(const Vec2D[],
+                               float T[4],
+                               float cuspPadding,
+                               bool* areCusps);
+
+// Find the location and value of a cubic's maximum height, relative to the
+// baseline p0->p3.
+float find_cubic_max_height(const Vec2D pts[4], float* outT);
+
+// Measure the amount of curvature, in radians, of the given cubic, centered at
+// location T, and covering a spread of width "desiredSpread" in local
+// coordinates. If "desiredSpread" would reach outside the range t=0..1, a
+// smaller spread is used.
+float measure_cubic_local_curvature(const Vec2D pts[4],
+                                    const math::CubicCoeffs& coeffs,
+                                    float T,
+                                    float desiredSpread);
+inline float measure_cubic_local_curvature(const Vec2D pts[4],
+                                           float T,
+                                           float desiredSpread)
 {
-public:
-    inline EvalCubic(const Vec2D pts[])
-    {
-        // Cubic power-basis form:
-        //
-        //                                       | 1  0  0  0|   |P0|
-        //   Cubic(T) = x,y = |1  t  t^2  t^3| * |-3  3  0  0| * |P1|
-        //                                       | 3 -6  3  0|   |P2|
-        //                                       |-1  3 -3  1|   |P3|
-        //
-        // Find the cubic's power basis coefficients. These define the bezier
-        // curve as:
-        //
-        //                                  |t^3|
-        //     Cubic(T) = x,y = |A  B  C| * |t^2| + P0
-        //                      |.  .  .|   |t  |
-        //
-        // (Duplicate coefficients across a float4 so we can evaluate two at
-        // once.)
-        m_P0 = simd::load2f(pts + 0).xyxy;
-        float4 P1 = simd::load2f(pts + 1).xyxy;
-        float4 P2 = simd::load2f(pts + 2).xyxy;
-        float4 P3 = simd::load2f(pts + 3).xyxy;
-        m_C = 3.f * (P1 - m_P0);
-        float4 D = 3.f * (P2 - P1);
-        float4 E = P3 - m_P0;
-        m_B = D - m_C;
-        m_A = E - D;
-    }
-
-    // Evaluates [x, y] at location t.
-    inline float2 operator()(float t) const
-    {
-        // At^3 + Bt^2 + Ct + P0
-        return t * (t * (t * m_A.xy + m_B.xy) + m_C.xy) + m_P0.xy;
-    }
-
-    // Evaluates [Xa, Ya, Xb, Yb] at locations [Ta, Ta, Tb, Tb].
-    inline float4 operator()(float4 t) const
-    {
-        // At^3 + Bt^2 + Ct + P0
-        return t * (t * (t * m_A + m_B) + m_C) + m_P0;
-    }
-
-private:
-    float4 m_A;
-    float4 m_B;
-    float4 m_C;
-    float4 m_P0;
-};
+    return measure_cubic_local_curvature(pts,
+                                         CubicCoeffs(pts),
+                                         T,
+                                         desiredSpread);
+}
 } // namespace math
 } // namespace rive

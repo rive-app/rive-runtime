@@ -221,6 +221,9 @@ private:
     glutils::Framebuffer m_colorRampFBO;
     GLuint m_gradientTexture = 0;
 
+    // Gaussian integral table for feathering.
+    glutils::Texture m_featherTexture;
+
     // Tessellation texture rendering.
     glutils::Program m_tessellateProgram;
     glutils::VAO m_tessellateVAO;

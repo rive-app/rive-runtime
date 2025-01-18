@@ -111,32 +111,37 @@ public:
     {
         // Each feature corresponds to a specific index in the namespaceID.
         // These must stay in sync with generate_draw_combinations.py.
-        char namespaceID[] = "0000000";
-        if (drawType == DrawType::interiorTriangulation)
-        {
-            namespaceID[0] = '1';
-        }
+        char namespaceID[] = "00000000";
+        static_assert(sizeof(namespaceID) == gpu::kShaderFeatureCount +
+                                                 1 /*DRAW_INTERIOR_TRIANGLES*/ +
+                                                 1 /*null terminator*/);
         for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
         {
             ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
             if (shaderFeatures & feature)
             {
-                namespaceID[i + 1] = '1';
+                namespaceID[i] = '1';
             }
             static_assert((int)ShaderFeatures::ENABLE_CLIPPING == 1 << 0);
             static_assert((int)ShaderFeatures::ENABLE_CLIP_RECT == 1 << 1);
             static_assert((int)ShaderFeatures::ENABLE_ADVANCED_BLEND == 1 << 2);
-            static_assert((int)ShaderFeatures::ENABLE_EVEN_ODD == 1 << 3);
+            static_assert((int)ShaderFeatures::ENABLE_FEATHER == 1 << 3);
+            static_assert((int)ShaderFeatures::ENABLE_EVEN_ODD == 1 << 4);
             static_assert((int)ShaderFeatures::ENABLE_NESTED_CLIPPING ==
-                          1 << 4);
-            static_assert((int)ShaderFeatures::ENABLE_HSL_BLEND_MODES ==
                           1 << 5);
+            static_assert((int)ShaderFeatures::ENABLE_HSL_BLEND_MODES ==
+                          1 << 6);
+        }
+        if (drawType == DrawType::interiorTriangulation)
+        {
+            namespaceID[gpu::kShaderFeatureCount] = '1';
         }
 
         char namespacePrefix;
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             case DrawType::interiorTriangulation:
                 namespacePrefix =
@@ -448,6 +453,21 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 
     m_colorRampPipeline =
         std::make_unique<ColorRampPipeline>(m_gpu, m_plsPrecompiledLibrary);
+
+    MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
+    desc.pixelFormat = MTLPixelFormatR16Float;
+    desc.width = gpu::GAUSSIAN_TABLE_SIZE;
+    desc.height = 1;
+    desc.usage = MTLTextureUsageShaderRead;
+    desc.textureType = MTLTextureType2D;
+    desc.mipmapLevelCount = 1;
+    m_featherTexture = [m_gpu newTextureWithDescriptor:desc];
+    [m_featherTexture
+        replaceRegion:MTLRegionMake2D(0, 0, gpu::GAUSSIAN_TABLE_SIZE, 1)
+          mipmapLevel:0
+            withBytes:gpu::g_gaussianIntegralTableF16
+          bytesPerRow:sizeof(gpu::g_gaussianIntegralTableF16)];
+
     m_tessPipeline =
         std::make_unique<TessellatePipeline>(m_gpu, m_plsPrecompiledLibrary);
     m_tessSpanIndexBuffer =
@@ -885,6 +905,7 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
     [encoder setVertexTexture:m_tessVertexTexture
                       atIndex:TESS_VERTEX_TEXTURE_IDX];
     [encoder setFragmentTexture:m_gradientTexture atIndex:GRAD_TEXTURE_IDX];
+    [encoder setFragmentTexture:m_featherTexture atIndex:FEATHER_TEXTURE_IDX];
     if (flushDesc.pathCount > 0)
     {
         [encoder setVertexBuffer:mtl_buffer(pathBufferRing())
@@ -1215,6 +1236,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.
@@ -1229,10 +1251,10 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                  length:sizeof(uint32_t)
                                 atIndex:PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX];
                 [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
-                                    indexCount:PatchIndexCount(drawType)
+                                    indexCount:gpu::PatchIndexCount(drawType)
                                      indexType:MTLIndexTypeUInt16
                                    indexBuffer:m_pathPatchIndexBuffer
-                             indexBufferOffset:PatchBaseIndex(drawType) *
+                             indexBufferOffset:gpu::PatchBaseIndex(drawType) *
                                                sizeof(uint16_t)
                                  instanceCount:batch.elementCount];
                 break;

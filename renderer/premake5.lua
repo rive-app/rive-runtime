@@ -17,6 +17,7 @@ do
         'include',
         RIVE_RUNTIME_DIR .. '/include',
         'include',
+        RIVE_RUNTIME_DIR .. '/renderer/src',
     })
     externalincludedirs({
         'glad',

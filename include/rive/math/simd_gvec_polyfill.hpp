@@ -88,6 +88,8 @@ template <typename T> struct gvec_data<T, 2>
         gvec<T, 2, PackSwizzle2(2, 1, 0)> yx;
         gvec<T, 4, PackSwizzle4(2, 0, 1, 0, 1)> xyxy;
         gvec<T, 4, PackSwizzle4(2, 1, 0, 1, 0)> yxyx;
+        gvec<T, 4, PackSwizzle4(2, 0, 0, 1, 1)> xxyy;
+        gvec<T, 4, PackSwizzle4(2, 1, 1, 0, 0)> yyxx;
     };
 };
 
@@ -134,6 +136,7 @@ template <typename T> struct gvec_data<T, 4>
         gvec<T, 4, PackSwizzle4(4, 2, 3, 0, 1)> zwxy;
         gvec<T, 4, PackSwizzle4(4, 2, 1, 0, 3)> zyxw;
         gvec<T, 4, PackSwizzle4(4, 0, 3, 2, 1)> xwzy;
+        gvec<T, 4, PackSwizzle4(4, 0, 2, 1, 3)> xzyw;
     };
 };
 

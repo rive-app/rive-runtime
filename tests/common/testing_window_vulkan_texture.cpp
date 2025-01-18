@@ -104,9 +104,8 @@ public:
         return m_renderContext.get();
     }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
-                                               bool doClear,
-                                               bool wireframe) override
+    std::unique_ptr<rive::Renderer> beginFrame(
+        const FrameOptions& options) override
     {
         if (m_lastFrameFence != nullptr)
         {
@@ -124,11 +123,13 @@ public:
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
             .renderTargetWidth = m_width,
             .renderTargetHeight = m_height,
-            .loadAction = doClear ? rive::gpu::LoadAction::clear
-                                  : rive::gpu::LoadAction::preserveRenderTarget,
-            .clearColor = clearColor,
-            .wireframe = wireframe,
-            .clockwiseFillOverride = m_clockwiseFill,
+            .loadAction = options.doClear
+                              ? rive::gpu::LoadAction::clear
+                              : rive::gpu::LoadAction::preserveRenderTarget,
+            .clearColor = options.clearColor,
+            .wireframe = options.wireframe,
+            .clockwiseFillOverride =
+                m_clockwiseFill || options.clockwiseFillOverride,
         };
         m_renderContext->beginFrame(frameDescriptor);
         return std::make_unique<RiveRenderer>(m_renderContext.get());

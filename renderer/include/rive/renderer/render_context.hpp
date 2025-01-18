@@ -607,7 +607,7 @@ private:
         // Returns a unique 16-bit "contourID" handle for this specific record.
         // This ID may be or-ed with '*_CONTOUR_FLAG' bits from constants.glsl.
         [[nodiscard]] uint32_t pushContour(uint32_t pathID,
-                                           RenderPaintStyle,
+                                           gpu::DrawContents,
                                            Vec2D midpoint,
                                            bool closed,
                                            uint32_t vertexIndex0);
@@ -801,7 +801,7 @@ private:
         // 'paddingVertexCount' tessellation vertices, colocated at T=0. The
         // caller must use this argument to align the end of the contour on
         // a boundary of the patch size. (See gpu::PaddingToAlignUp().)
-        [[nodiscard]] uint32_t pushContour(RenderPaintStyle,
+        [[nodiscard]] uint32_t pushContour(gpu::DrawContents,
                                            Vec2D midpoint,
                                            bool closed,
                                            uint32_t paddingVertexCount);

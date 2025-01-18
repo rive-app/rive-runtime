@@ -209,6 +209,9 @@ private:
     std::unique_ptr<ColorRampPipeline> m_colorRampPipeline;
     id<MTLTexture> m_gradientTexture = nullptr;
 
+    // Gaussian integral table for feathering.
+    id<MTLTexture> m_featherTexture = nullptr;
+
     // Renders tessellated vertices to the tessellation texture.
     class TessellatePipeline;
     std::unique_ptr<TessellatePipeline> m_tessPipeline;

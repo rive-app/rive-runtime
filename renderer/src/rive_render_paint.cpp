@@ -3,7 +3,6 @@
  */
 
 #include "rive_render_paint.hpp"
-#include "rive/renderer/rive_render_image.hpp"
 #include "gradient.hpp"
 
 namespace rive

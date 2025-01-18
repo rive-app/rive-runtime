@@ -119,7 +119,7 @@ public:
 
             // PushRetrofittedTrianglesGMDraw specific push to render
             uint32_t contourID = tessWriter.pushContour(
-                renderPaintStyle(),
+                m_drawContents,
                 {0, 0},
                 true,
                 0 /* gpu::kOuterCurvePatchSegmentSpan - 2 */);
@@ -164,11 +164,11 @@ protected:
             TestingWindow::Get()->renderContext();
         if (!renderContext)
         {
-            TestingWindow::Get()->beginFrame(0xffff0000, true);
+            TestingWindow::Get()->beginFrame({.clearColor = 0xffff0000});
         }
         else
         {
-            TestingWindow::Get()->beginFrame(0xff000000, true);
+            TestingWindow::Get()->beginFrame({.clearColor = 0xff000000});
             RiveRenderPaint paint;
             paint.color(0xffffffff);
             DrawUniquePtr draw(

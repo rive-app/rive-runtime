@@ -40,7 +40,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                        v_edgeDistance VERTEX_CONTEXT_UNPACK))
     {
         uint4 coverageData =
-            STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u);
+            STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
         v_pathID = pathID;
         v_coveragePlacement = coverageData.xy;
         v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
@@ -92,7 +92,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         unpack_interior_triangle_vertex(@a_triangleVertex,
                                         pathID,
                                         v_windingWeight VERTEX_CONTEXT_UNPACK);
-    uint4 coverageData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u);
+    uint4 coverageData = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
     v_pathID = pathID;
     v_coveragePlacement = coverageData.xy;
     v_coverageCoord = vertexPosition + uintBitsToFloat(coverageData.zw);
@@ -110,10 +110,16 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
+#ifdef @ENABLE_FEATHER
+TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
+#endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 FRAG_TEXTURE_BLOCK_END
 
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
+#ifdef @ENABLE_FEATHER
+SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
+#endif
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
@@ -127,7 +133,8 @@ INLINE void apply_borrowed_coverage(half borrowedCoverage, uint coverageIndex)
 {
     // Try to apply borrowedCoverage, assuming the existing coverage value
     // is zero.
-    uint borrowedCoverageFixed = uint(abs(borrowedCoverage) * 255.);
+    uint borrowedCoverageFixed =
+        uint(abs(borrowedCoverage) * CLOCKWISE_COVERAGE_PRECISION + .5);
     uint targetCoverageValue =
         uniforms.coverageBufferPrefix |
         (CLOCKWISE_FILL_ZERO_VALUE - borrowedCoverageFixed);
@@ -159,7 +166,8 @@ INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
     }
 
     half X;
-    uint fragCoverageFixed = uint(abs(fragCoverage) * 255.);
+    uint fragCoverageFixed =
+        uint(abs(fragCoverage) * CLOCKWISE_COVERAGE_PRECISION + .5);
     uint coverageBeforeMax = STORAGE_BUFFER_ATOMIC_MAX(
         coverageBuffer,
         coverageIndex,
@@ -175,7 +183,9 @@ INLINE void apply_stroke_coverage(INOUT(float) paintAlpha,
         // This pixel has been touched previously by a fragment in the stroke.
         // Multiply in an incremental coverage value that mixes with what's
         // already in the framebuffer.
-        half c1 = cast_uint_to_half(coverageBeforeMax & 0xffu) * (1. / 255.);
+        half c1 =
+            cast_uint_to_half(coverageBeforeMax & CLOCKWISE_COVERAGE_MASK) *
+            CLOCKWISE_COVERAGE_INVERSE_PRECISION;
         half c2 = max(c1, fragCoverage);
         X = (c2 - c1) / (1. - c1 * paintAlpha);
     }
@@ -201,7 +211,8 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
     }
 
     half X = .0; // Amount by which to multiply paintAlpha.
-    uint fragCoverageRemainingFixed = uint(abs(fragCoverageRemaining) * 255.);
+    uint fragCoverageRemainingFixed =
+        uint(abs(fragCoverageRemaining) * CLOCKWISE_COVERAGE_PRECISION + .5);
     if (coverageInitialValue < uniforms.coverageBufferPrefix)
     {
         // The initial coverage value does not belong to this path. We *might*
@@ -234,7 +245,8 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
             // coverageBeforeMax >= 0.
             uint c1Fixed = (coverageBeforeMax & CLOCKWISE_COVERAGE_MASK) -
                            CLOCKWISE_FILL_ZERO_VALUE;
-            half c1 = cast_uint_to_half(c1Fixed) * (1. / 255.);
+            half c1 = cast_uint_to_half(c1Fixed) *
+                      CLOCKWISE_COVERAGE_INVERSE_PRECISION;
             half c2 = fragCoverageRemaining;
 #ifdef @DRAW_INTERIOR_TRIANGLES
             c2 = min(c2, 1.);
@@ -263,7 +275,7 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
         half c1 =
             cast_int_to_half(int((coverageBeforeAdd & CLOCKWISE_COVERAGE_MASK) -
                                  CLOCKWISE_FILL_ZERO_VALUE)) *
-            (1. / 255.);
+            CLOCKWISE_COVERAGE_INVERSE_PRECISION;
         half c2 = c1 + fragCoverageRemaining;
         c1 = clamp(c1, .0, 1.);
         c2 = clamp(c2, .0, 1.);
@@ -350,7 +362,20 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @DRAW_INTERIOR_TRIANGLES
         half borrowedCoverage = -v_windingWeight;
 #else
-        half borrowedCoverage = max(-v_edgeDistance.x, .0);
+        half fragCoverage;
+#ifdef @ENABLE_FEATHER
+        if (@ENABLE_FEATHER && is_feathered_fill(v_edgeDistance))
+        {
+            fragCoverage = feathered_fill_coverage(
+                v_edgeDistance,
+                SAMPLED_R16F(@featherTexture, featherSampler));
+        }
+        else
+#endif
+        {
+            fragCoverage = v_edgeDistance.x;
+        }
+        half borrowedCoverage = max(-fragCoverage, .0);
 #endif
         apply_borrowed_coverage(borrowedCoverage, coverageIndex);
         discard;
@@ -358,10 +383,22 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #endif // BORROWED_COVERAGE_PREPASS
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
-    if (v_edgeDistance.y >= .0) // Is this a stroke?
+    if (is_stroke(v_edgeDistance))
     {
-        half fragCoverage =
-            clamp(min(v_edgeDistance.x, v_edgeDistance.y), .0, 1.);
+        half fragCoverage;
+#ifdef @ENABLE_FEATHER
+        if (@ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
+        {
+            fragCoverage = feathered_stroke_coverage(
+                v_edgeDistance,
+                SAMPLED_R16F(@featherTexture, featherSampler));
+        }
+        else
+#endif
+        {
+            fragCoverage = min(v_edgeDistance.x, v_edgeDistance.y);
+        }
+        fragCoverage = clamp(fragCoverage, .0, 1.);
         apply_stroke_coverage(paintColor.a, fragCoverage, coverageIndex);
     }
     else // It's a fill.
@@ -370,7 +407,20 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @DRAW_INTERIOR_TRIANGLES
         half fragCoverage = v_windingWeight;
 #else
-        half fragCoverage = clamp(v_edgeDistance.x, .0, 1.);
+        half fragCoverage;
+#ifdef @ENABLE_FEATHER
+        if (@ENABLE_FEATHER && is_feathered_fill(v_edgeDistance))
+        {
+            fragCoverage = feathered_fill_coverage(
+                v_edgeDistance,
+                SAMPLED_R16F(@featherTexture, featherSampler));
+        }
+        else
+#endif
+        {
+            fragCoverage = v_edgeDistance.x;
+        }
+        fragCoverage = clamp(fragCoverage, .0, 1.);
 #endif
         apply_fill_coverage(paintColor.a, fragCoverage, coverageIndex);
     }

@@ -271,6 +271,9 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
+#if defined(@ENABLE_FEATHER)
+TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
+#endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 #if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_ADVANCED_BLEND)
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
@@ -278,6 +281,9 @@ TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
 FRAG_TEXTURE_BLOCK_END
 
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
+#if defined(@ENABLE_FEATHER)
+SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
+#endif
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
@@ -361,12 +367,41 @@ PLS_MAIN(@drawFragmentMain)
     coverageCount += v_windingWeight;
     PLS_PRESERVE_UI(coverageCountBuffer);
 #else
-    if (v_edgeDistance.y >= .0) // Stroke.
-        coverageCount =
-            max(min(v_edgeDistance.x, v_edgeDistance.y), coverageCount);
-    else // Fill. (Back-face culling ensures v_edgeDistance.x is appropriately
-         // signed.)
-        coverageCount += v_edgeDistance.x;
+    if (is_stroke(v_edgeDistance))
+    {
+        half fragCoverage;
+#if defined(@ENABLE_FEATHER)
+        if (@ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
+        {
+            fragCoverage = feathered_stroke_coverage(
+                v_edgeDistance,
+                SAMPLED_R16F(@featherTexture, featherSampler));
+        }
+        else
+#endif
+        {
+            fragCoverage = min(v_edgeDistance.x, v_edgeDistance.y);
+        }
+        coverageCount = max(fragCoverage, coverageCount);
+    }
+    else // Fill. (Back-face culling handles the sign of v_edgeDistance.x.)
+    {
+        half fragCoverage;
+#if defined(@CLOCKWISE_FILL) && defined(@ENABLE_FEATHER)
+        if (@CLOCKWISE_FILL && @ENABLE_FEATHER &&
+            is_feathered_fill(v_edgeDistance))
+        {
+            fragCoverage = feathered_fill_coverage(
+                v_edgeDistance,
+                SAMPLED_R16F(@featherTexture, featherSampler));
+        }
+        else
+#endif
+        {
+            fragCoverage = v_edgeDistance.x;
+        }
+        coverageCount += fragCoverage;
+    }
 
     // Save the updated coverage.
     PLS_STOREUI(coverageCountBuffer,

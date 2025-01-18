@@ -7,7 +7,6 @@
 #include "rive/enum_bitset.hpp"
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
-#include "rive/math/path_types.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
@@ -399,10 +398,15 @@ enum class PatchType
     // followed by a ~1px AA ramp.
     midpointFan,
 
+    // Similar to midpointFan, except AA ramps are split down the center and
+    // drawn with a ~1/2px outset AA ramp and a ~1/2px inset AA ramp that
+    // overlaps the inner tessellation and has negative coverage.
+    midpointFanCenterAA,
+
     // Patches only cover the AA ramps and interiors of bezier curves. The
     // interior path triangles that connect the outer curves are triangulated on
     // the CPU to eliminate overlap, and are drawn in a separate call. AA ramps
-    // are split down the middle (on the same lines as the interior
+    // are split down the center (on the same lines as the interior
     // triangulation), and drawn with a ~1/2px outset AA ramp and a ~1/2px inset
     // AA ramp that overlaps the inner tessellation and has negative coverage. A
     // lone bowtie join is emitted at the end of the patch to tie the outer
@@ -494,6 +498,21 @@ constexpr static uint32_t kMidpointFanPatchIndexCount =
     3 /*Triangle from path midpoint*/;
 constexpr static uint32_t kMidpointFanPatchBaseIndex = 0;
 static_assert((kMidpointFanPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
+
+constexpr static uint32_t kMidpointFanCenterAAPatchVertexCount =
+    kMidpointFanPatchSegmentSpan * 4 * 2 /*Stroke and/or AA outer ramp*/ +
+    (kMidpointFanPatchSegmentSpan + 1) /*Curve fan*/ +
+    1 /*Triangle from path midpoint*/;
+constexpr static uint32_t kMidpointFanCenterAAPatchBorderIndexCount =
+    kMidpointFanPatchSegmentSpan * 12 /*Stroke and/or AA outer ramp*/;
+constexpr static uint32_t kMidpointFanCenterAAPatchIndexCount =
+    kMidpointFanCenterAAPatchBorderIndexCount /*Stroke and/or AA outer ramp*/ +
+    (kMidpointFanPatchSegmentSpan - 1) * 3 /*Curve fan*/ +
+    3 /*Triangle from path midpoint*/;
+constexpr static uint32_t kMidpointFanCenterAAPatchBaseIndex =
+    kMidpointFanPatchBaseIndex + kMidpointFanPatchIndexCount;
+static_assert((kMidpointFanCenterAAPatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
+
 constexpr static uint32_t kOuterCurvePatchVertexCount =
     kOuterCurvePatchSegmentSpan * 8 /*AA center ramp with bowtie*/ +
     kOuterCurvePatchSegmentSpan /*Curve fan*/;
@@ -503,20 +522,24 @@ constexpr static uint32_t kOuterCurvePatchIndexCount =
     kOuterCurvePatchBorderIndexCount /*AA center ramp with bowtie*/ +
     (kOuterCurvePatchSegmentSpan - 2) * 3 /*Curve fan*/;
 constexpr static uint32_t kOuterCurvePatchBaseIndex =
-    kMidpointFanPatchIndexCount;
+    kMidpointFanCenterAAPatchBaseIndex + kMidpointFanCenterAAPatchIndexCount;
 static_assert((kOuterCurvePatchBaseIndex * sizeof(uint16_t)) % 4 == 0);
+
 constexpr static uint32_t kPatchVertexBufferCount =
-    kMidpointFanPatchVertexCount + kOuterCurvePatchVertexCount;
+    kMidpointFanPatchVertexCount + kMidpointFanCenterAAPatchVertexCount +
+    kOuterCurvePatchVertexCount;
 constexpr static uint32_t kPatchIndexBufferCount =
-    kMidpointFanPatchIndexCount + kOuterCurvePatchIndexCount;
+    kMidpointFanPatchIndexCount + kMidpointFanCenterAAPatchIndexCount +
+    kOuterCurvePatchIndexCount;
 void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
                              uint16_t indices[kPatchIndexBufferCount]);
 
 enum class DrawType : uint8_t
 {
-    midpointFanPatches, // Standard paths and/or strokes.
-    outerCurvePatches,  // Just the outer curves of a path; the interior will be
-                        // triangulated.
+    midpointFanPatches,         // Fills, strokes, feathered strokes.
+    midpointFanCenterAAPatches, // Feathered fills.
+    outerCurvePatches, // Just the outer curves of a path; the interior will be
+                       // triangulated.
     interiorTriangulation,
     imageRect,
     imageMesh,
@@ -536,6 +559,7 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::imageMesh:
             return true;
         case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::atomicInitialize:
@@ -546,30 +570,25 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
     RIVE_UNREACHABLE();
 }
 
-constexpr static uint32_t PatchSegmentSpan(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-            return kMidpointFanPatchSegmentSpan;
-        case DrawType::outerCurvePatches:
-            return kOuterCurvePatchSegmentSpan;
-        default:
-            RIVE_UNREACHABLE();
-    }
-}
-
 constexpr static uint32_t PatchIndexCount(DrawType drawType)
 {
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
             return kMidpointFanPatchIndexCount;
+        case DrawType::midpointFanCenterAAPatches:
+            return kMidpointFanCenterAAPatchIndexCount;
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchIndexCount;
-        default:
+        case DrawType::interiorTriangulation:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
+        case DrawType::stencilClipReset:
             RIVE_UNREACHABLE();
     }
+    RIVE_UNREACHABLE();
 }
 
 constexpr static uint32_t PatchBorderIndexCount(DrawType drawType)
@@ -578,11 +597,19 @@ constexpr static uint32_t PatchBorderIndexCount(DrawType drawType)
     {
         case DrawType::midpointFanPatches:
             return kMidpointFanPatchBorderIndexCount;
+        case DrawType::midpointFanCenterAAPatches:
+            return kMidpointFanCenterAAPatchBorderIndexCount;
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchBorderIndexCount;
-        default:
+        case DrawType::interiorTriangulation:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
+        case DrawType::stencilClipReset:
             RIVE_UNREACHABLE();
     }
+    RIVE_UNREACHABLE();
 }
 
 constexpr static uint32_t PatchFanIndexCount(DrawType drawType)
@@ -596,11 +623,19 @@ constexpr static uint32_t PatchBaseIndex(DrawType drawType)
     {
         case DrawType::midpointFanPatches:
             return kMidpointFanPatchBaseIndex;
+        case DrawType::midpointFanCenterAAPatches:
+            return kMidpointFanCenterAAPatchBaseIndex;
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchBaseIndex;
-        default:
+        case DrawType::interiorTriangulation:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
+        case DrawType::stencilClipReset:
             RIVE_UNREACHABLE();
     }
+    RIVE_UNREACHABLE();
 }
 
 constexpr static uint32_t PatchFanBaseIndex(DrawType drawType)
@@ -645,12 +680,13 @@ enum class ShaderFeatures
     ENABLE_ADVANCED_BLEND = 1 << 2,
 
     // Fragment-only features.
-    ENABLE_EVEN_ODD = 1 << 3,
-    ENABLE_NESTED_CLIPPING = 1 << 4,
-    ENABLE_HSL_BLEND_MODES = 1 << 5,
+    ENABLE_FEATHER = 1 << 3,
+    ENABLE_EVEN_ODD = 1 << 4,
+    ENABLE_NESTED_CLIPPING = 1 << 5,
+    ENABLE_HSL_BLEND_MODES = 1 << 6,
 };
 RIVE_MAKE_ENUM_BITSET(ShaderFeatures)
-constexpr static size_t kShaderFeatureCount = 6;
+constexpr static size_t kShaderFeatureCount = 7;
 constexpr static ShaderFeatures kAllShaderFeatures =
     static_cast<gpu::ShaderFeatures>((1 << kShaderFeatureCount) - 1);
 constexpr static ShaderFeatures kVertexShaderFeaturesMask =
@@ -699,6 +735,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             // consider the same shader features for path draws.
             [[fallthrough]];
         case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::atomicResolve:
@@ -775,13 +812,16 @@ enum class DrawContents
 {
     none = 0,
     opaquePaint = 1 << 0,
-    stroke = 1 << 1,
-    clockwiseFill = 1 << 2,
-    nonZeroFill = 1 << 3,
-    evenOddFill = 1 << 4,
-    activeClip = 1 << 5,
-    clipUpdate = 1 << 6,
-    advancedBlend = 1 << 7,
+    // Put feathered fills down low because they only need to draw different
+    // geometry, which isn't really a context switch at all.
+    featheredFill = 1 << 1,
+    stroke = 1 << 2,
+    clockwiseFill = 1 << 3,
+    nonZeroFill = 1 << 4,
+    evenOddFill = 1 << 5,
+    activeClip = 1 << 6,
+    clipUpdate = 1 << 7,
+    advancedBlend = 1 << 8,
 };
 RIVE_MAKE_ENUM_BITSET(DrawContents)
 
@@ -946,7 +986,7 @@ RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(size_t value)
 
 // Returns the area of the (potentially non-rectangular) quadrilateral that
 // results from transforming the given bounds by the given matrix.
-float FindTransformedArea(const AABB& bounds, const Mat2D&);
+float find_transformed_area(const AABB& bounds, const Mat2D&);
 
 // Convert a BlendMode to the tightly-packed range used by PLS shaders.
 uint32_t ConvertBlendModeToPLSBlendMode(BlendMode riveMode);
@@ -1074,9 +1114,9 @@ public:
     constexpr static StorageBufferStructure kBufferStructure =
         StorageBufferStructure::uint32x4;
 
-    void set(const Mat2D&, float strokeRadius, uint32_t zIndex);
     void set(const Mat2D&,
              float strokeRadius,
+             float featherRadius,
              uint32_t zIndex,
              const CoverageBufferRange&);
 
@@ -1084,11 +1124,12 @@ private:
     WRITEONLY float m_matrix[6];
     // "0" indicates that the path is filled, not stroked.
     WRITEONLY float m_strokeRadius;
+    WRITEONLY float m_featherRadius;
     // InterlockMode::msaa.
     WRITEONLY uint32_t m_zIndex;
+    WRITEONLY uint32_t pad[3];
     // InterlockMode::clockwiseAtomic.
     WRITEONLY CoverageBufferRange m_coverageBufferRange;
-    WRITEONLY uint32_t pad[4];
 };
 static_assert(sizeof(PathData) ==
               StorageBufferElementSizeInBytes(PathData::kBufferStructure) * 4);
@@ -1375,4 +1416,18 @@ enum class TriState
     yes,
     unknown
 };
+
+// These tables integrate the gaussian function, and its inverse, covering a
+// spread of -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS.
+constexpr int GAUSSIAN_TABLE_SIZE = 512;
+extern const uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
+extern const float g_inverseGaussianIntegralTableF32[GAUSSIAN_TABLE_SIZE];
+
+// Looks up the value of "x" in the given Gaussian table, with linear filtering.
+float gaussian_table_lookup(const float (&table)[GAUSSIAN_TABLE_SIZE], float x);
+
+inline float inverse_gaussian_integral(float y)
+{
+    return gaussian_table_lookup(g_inverseGaussianIntegralTableF32, y);
+}
 } // namespace rive::gpu

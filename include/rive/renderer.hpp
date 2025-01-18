@@ -121,6 +121,7 @@ public:
     virtual void thickness(float value) = 0;
     virtual void join(StrokeJoin value) = 0;
     virtual void cap(StrokeCap value) = 0;
+    virtual void feather(float value) {} // Not supported on all renderers.
     virtual void blendMode(BlendMode value) = 0;
     virtual void shader(rcp<RenderShader>) = 0;
     virtual void invalidateStroke() = 0;

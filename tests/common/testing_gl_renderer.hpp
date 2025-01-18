@@ -31,9 +31,7 @@ public:
         int width,
         int height,
         uint32_t targetTextureID = 0) = 0;
-    virtual void beginFrame(rive::ColorInt clearColor,
-                            bool doClear,
-                            bool wireframe) = 0;
+    virtual void beginFrame(const TestingWindow::FrameOptions&) = 0;
     virtual void flush(int dpiScale = 1) = 0;
 
     // For testing directly on RenderContext.

@@ -9,6 +9,11 @@ dofile(RIVE_RUNTIME_DIR .. '/dependencies/premake5_libpng_v2.lua')
 dofile(RIVE_RUNTIME_DIR .. '/decoders/premake5_v2.lua')
 dofile(RIVE_PLS_DIR .. '/premake5_pls_renderer.lua')
 
+newoption({ trigger = 'with-skia', description = 'use skia' })
+if _OPTIONS['with-skia'] then
+    dofile(RIVE_RUNTIME_DIR .. '/skia/renderer/build/premake5.lua')
+end
+
 function rive_tools_project(name, project_kind)
     project(name)
     cppdialect('C++17')
@@ -80,6 +85,18 @@ function rive_tools_project(name, project_kind)
 
     if _OPTIONS['with_vulkan'] then
         dofile(RIVE_PLS_DIR .. '/rive_vk_bootstrap/bootstrap_project.lua')
+    end
+
+    filter('options:with-skia')
+    do
+        includedirs({
+            RIVE_RUNTIME_DIR .. '/skia/renderer/include',
+            RIVE_RUNTIME_DIR .. '/skia/dependencies',
+            RIVE_RUNTIME_DIR .. '/skia/dependencies/skia',
+        })
+        defines({ 'RIVE_SKIA' })
+        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/skia/out/static' })
+        links({ 'skia', 'rive_skia_renderer' })
     end
 
     filter({ 'toolset:not msc' })

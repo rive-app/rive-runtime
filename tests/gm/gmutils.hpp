@@ -58,6 +58,7 @@ class Path
 
 public:
     Path() : m_Path(TestingWindow::Get()->factory()->makeEmptyRenderPath()) {}
+    Path(rive::FillRule rule) : Path() { m_Path->fillRule(rule); }
     Path(Path&& path) : m_Path(std::move(path.m_Path)) {}
     Path(const Path&) = delete;
 

@@ -64,7 +64,14 @@ static Path make_path_move_mix()
 class EmptyStrokeGM : public GM
 {
 public:
-    EmptyStrokeGM() : GM(180, 540, "emptystroke") {}
+    struct Options
+    {
+        bool stroke = false, feather = false;
+    };
+
+    EmptyStrokeGM(Options options, const char* name) :
+        GM(180, 540, name), m_options(options)
+    {}
 
 private:
     void onDraw(Renderer* renderer) override
@@ -76,9 +83,16 @@ private:
             make_path_move_mix,   // expect red black black,
         };
 
-        Paint strokePaint;
-        strokePaint->style(RenderPaintStyle::stroke);
-        strokePaint->thickness(21);
+        Paint paint;
+        if (m_options.stroke)
+        {
+            paint->style(RenderPaintStyle::stroke);
+            paint->thickness(21);
+        }
+        if (m_options.feather)
+        {
+            paint->feather(21);
+        }
 
         Paint dotPaint;
         dotPaint->color(0xffff0000);
@@ -86,8 +100,8 @@ private:
 
         for (size_t j = 0; j < 3; ++j)
         {
-            strokePaint->cap(static_cast<StrokeCap>((3 - j) % 3));
-            strokePaint->join(static_cast<StrokeJoin>(j));
+            paint->cap(static_cast<StrokeCap>((3 - j) % 3));
+            paint->join(static_cast<StrokeJoin>(j));
             for (auto proc : kProcs)
             {
                 for (int i = 0; i < 3; ++i)
@@ -98,10 +112,19 @@ private:
                                                           kPts[i].y + 3.5f}),
                                        dotPaint);
                 }
-                renderer->drawPath(proc(), strokePaint);
+                Path path = proc();
+                path->fillRule(FillRule::clockwise);
+                renderer->drawPath(path, paint);
                 renderer->translate(0, 40);
             }
         }
     }
+
+    Options m_options;
 };
-GMREGISTER(return new EmptyStrokeGM;)
+GMREGISTER(return new EmptyStrokeGM({.stroke = true, .feather = false},
+                                    "emptystroke");)
+GMREGISTER(return new EmptyStrokeGM({.stroke = false, .feather = true},
+                                    "emptyfeather");)
+GMREGISTER(return new EmptyStrokeGM({.stroke = true, .feather = true},
+                                    "emptystrokefeather");)

@@ -27,7 +27,8 @@ protected:
         yellow->color(0xffffff00);
 
         // Set the render target to a cyan background with a yellow circle.
-        auto renderer = TestingWindow::Get()->beginFrame(0xff008080);
+        auto renderer =
+            TestingWindow::Get()->beginFrame({.clearColor = 0xff008080});
         renderer->drawPath(PathBuilder::Circle(32, 32, 20), yellow);
 
         // Don't clear to red!
@@ -45,8 +46,10 @@ protected:
         else
         {
             TestingWindow::Get()->endFrame();
-            renderer =
-                TestingWindow::Get()->beginFrame(0xffff0000, false /*doClear*/);
+            renderer = TestingWindow::Get()->beginFrame({
+                .clearColor = 0xffff0000,
+                .doClear = false,
+            });
         }
 
         if (!m_empty)

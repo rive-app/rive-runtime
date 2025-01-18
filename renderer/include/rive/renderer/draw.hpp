@@ -55,14 +55,7 @@ public:
     BlendMode blendMode() const { return m_blendMode; }
     Type type() const { return m_type; }
     gpu::DrawContents drawContents() const { return m_drawContents; }
-    bool isStroked() const
-    {
-        return m_drawContents & gpu::DrawContents::stroke;
-    }
-    RenderPaintStyle renderPaintStyle() const
-    {
-        return isStroked() ? RenderPaintStyle::stroke : RenderPaintStyle::fill;
-    }
+    bool isStroke() const { return m_drawContents & gpu::DrawContents::stroke; }
     bool isEvenOddFill() const
     {
         return m_drawContents & gpu::DrawContents::evenOddFill;
@@ -225,7 +218,17 @@ public:
 
     const Gradient* gradient() const { return m_gradientRef; }
     gpu::PaintType paintType() const { return m_paintType; }
+    bool isFeatheredFill() const
+    {
+        return m_drawContents & gpu::DrawContents::featheredFill;
+    }
+    bool isStrokeOrFeather() const
+    {
+        return m_drawContents &
+               (gpu::DrawContents::stroke | gpu::DrawContents::featheredFill);
+    }
     float strokeRadius() const { return m_strokeRadius; }
+    float featherRadius() const { return m_featherRadius; }
     gpu::ContourDirections contourDirections() const
     {
         return m_contourDirections;
@@ -311,14 +314,16 @@ protected:
     const Gradient* m_gradientRef;
     const gpu::PaintType m_paintType;
     float m_strokeRadius = 0;
+    float m_featherRadius = 0;
     gpu::ContourDirections m_contourDirections;
     uint32_t m_contourFlags = 0;
     gpu::CoverageBufferRange m_coverageBufferRange; // clockwiseAtomic only.
     GrInnerFanTriangulator* m_triangulator = nullptr;
 
-    float m_strokeMatrixMaxScale;
     StrokeJoin m_strokeJoin;
     StrokeCap m_strokeCap;
+    float m_strokeMatrixMaxScale;
+    float m_polarSegmentsPerRadian;
 
     struct ContourInfo
     {

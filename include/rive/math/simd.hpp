@@ -378,6 +378,20 @@ template <int N> SIMD_ALWAYS_INLINE gvec<float, N> ceil(gvec<float, N> x)
 #endif
 }
 
+template <int N>
+SIMD_ALWAYS_INLINE gvec<float, N> copysign(gvec<float, N> x, gvec<float, N> y)
+{
+    constexpr static uint32_t SIGN_BIT = 0x80000000u;
+    // Type punning is free in vector registers.
+    gvec<uint32_t, N> bitsX, bitsY;
+    SIMD_INLINE_MEMCPY(&bitsX, &x, sizeof(x));
+    SIMD_INLINE_MEMCPY(&bitsY, &y, sizeof(y));
+    gvec<uint32_t, N> bitsRet = (bitsY & SIGN_BIT) | (bitsX & ~SIGN_BIT);
+    gvec<float, N> ret;
+    SIMD_INLINE_MEMCPY(&ret, &bitsRet, sizeof(ret));
+    return ret;
+}
+
 // IEEE compliant sqrt.
 template <int N> SIMD_ALWAYS_INLINE gvec<float, N> sqrt(gvec<float, N> x)
 {
@@ -703,9 +717,16 @@ SIMD_ALWAYS_INLINE gvec<float, N> mix(gvec<float, N> a,
     assert(simd::all(0.f <= t && t < 1.f));
     return (b - a) * t + a;
 }
-
-// Linearly interpolates between a and b, returning precisely 'a' if t==0 and
-// precisely 'b' if t==1.
+// Called when it doesn't matter if mix(a, b, 1) is only ~= b (it may not be
+// precisely b).
+template <int N>
+SIMD_ALWAYS_INLINE gvec<float, N> unchecked_mix(gvec<float, N> a,
+                                                gvec<float, N> b,
+                                                gvec<float, N> t)
+{
+    return (b - a) * t + a;
+}
+// Returns precisely 'a' if t==0 and precisely 'b' if t==1.
 template <int N>
 SIMD_ALWAYS_INLINE gvec<float, N> precise_mix(gvec<float, N> a,
                                               gvec<float, N> b,

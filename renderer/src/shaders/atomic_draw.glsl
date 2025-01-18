@@ -284,12 +284,18 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
+#ifdef @ENABLE_FEATHER
+TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
+#endif
 #ifdef NEEDS_IMAGE_TEXTURE
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 #endif
 FRAG_TEXTURE_BLOCK_END
 
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
+#ifdef @ENABLE_FEATHER
+SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
+#endif
 #ifdef NEEDS_IMAGE_TEXTURE
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 #endif
@@ -343,14 +349,14 @@ FRAG_STORAGE_BUFFER_BLOCK_END
 
 INLINE uint to_fixed(float x)
 {
-    return uint(x * FIXED_COVERAGE_FACTOR + FIXED_COVERAGE_ZERO);
+    return uint(round(x * FIXED_COVERAGE_PRECISION + FIXED_COVERAGE_ZERO));
 }
 
 INLINE half from_fixed(uint x)
 {
     return cast_float_to_half(
-        float(x) * FIXED_COVERAGE_INVERSE_FACTOR +
-        (-FIXED_COVERAGE_ZERO * FIXED_COVERAGE_INVERSE_FACTOR));
+        float(x) * FIXED_COVERAGE_INVERSE_PRECISION +
+        (-FIXED_COVERAGE_ZERO * FIXED_COVERAGE_INVERSE_PRECISION));
 }
 
 #ifdef @ENABLE_CLIPPING
@@ -537,8 +543,27 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_edgeDistance, half2);
     VARYING_UNPACK(v_pathID, ushort);
 
-    half fragmentCoverage =
-        min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), make_half(1.));
+    half fragmentCoverage;
+#ifdef @ENABLE_FEATHER
+    if (@ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
+    {
+        fragmentCoverage = feathered_stroke_coverage(
+            v_edgeDistance,
+            SAMPLED_R16F(@featherTexture, featherSampler));
+    }
+    else if (@ENABLE_FEATHER && is_feathered_fill(v_edgeDistance))
+    {
+        fragmentCoverage = feathered_fill_coverage(
+            v_edgeDistance,
+            SAMPLED_R16F(@featherTexture, featherSampler));
+    }
+    else
+#endif
+    {
+        // Cover stroke and fill both in a branchless expression.
+        fragmentCoverage =
+            min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), make_half(1.));
+    }
 
     // Since v_pathID increases monotonically with every draw, and since it
     // lives in the most significant bits of the coverage data, an atomic max()
@@ -548,21 +573,22 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     //      invocation to hit the new path, and the one that should resolve the
     //      previous path in the framebuffer.
     //    * Properly resets coverage to zero when we do cross over into
-    //    processing
-    //      a new path.
+    //      processing a new path.
     //    * Accumulates coverage for strokes.
     //
     uint fixedCoverage = to_fixed(fragmentCoverage);
-    uint minCoverageData = (make_uint(v_pathID) << 16) | fixedCoverage;
+    uint minCoverageData =
+        (make_uint(v_pathID) << FIXED_COVERAGE_BIT_COUNT) | fixedCoverage;
     uint lastCoverageData =
         PLS_ATOMIC_MAX(coverageAtomicBuffer, minCoverageData);
-    ushort lastPathID = cast_uint_to_ushort(lastCoverageData >> 16);
+    ushort lastPathID =
+        cast_uint_to_ushort(lastCoverageData >> FIXED_COVERAGE_BIT_COUNT);
     if (lastPathID == v_pathID)
     {
         // This is not the first fragment of the current path to touch this
         // pixel. We already resolved the previous path, so just update coverage
         // (if we're a fill) and move on.
-        if (v_edgeDistance.y < .0 /*fill?*/)
+        if (!is_stroke(v_edgeDistance))
         {
             // Only apply the effect of the min() the first time we cross into a
             // path.
@@ -578,7 +604,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 
     // We crossed into a new path! Resolve the previous path now that we know
     // its exact coverage.
-    half coverageCount = from_fixed(lastCoverageData & 0xffffu);
+    half coverageCount = from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
     half4 fragColorOut;
 #ifdef @ENABLE_CLIPPING
     CLIP_VALUE_TYPE fragClipOut = MAKE_NON_UPDATING_CLIP_VALUE;
@@ -612,16 +638,19 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_pathID, ushort);
 
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageAtomicBuffer);
-    ushort lastPathID = cast_uint_to_ushort(lastCoverageData >> 16);
+    ushort lastPathID =
+        cast_uint_to_ushort(lastCoverageData >> FIXED_COVERAGE_BIT_COUNT);
 
     // Update coverageAtomicBuffer with the coverage weight of the current
     // triangle. This does not need to be atomic since interior triangles don't
     // overlap.
-    int coverageDeltaFixed = int(v_windingWeight * FIXED_COVERAGE_FACTOR);
+    int coverageDeltaFixed =
+        int(round(v_windingWeight * FIXED_COVERAGE_PRECISION));
     uint currPathCoverageData =
         lastPathID == v_pathID
             ? lastCoverageData
-            : (make_uint(v_pathID) << 16) + FIXED_COVERAGE_ZERO_UINT;
+            : (make_uint(v_pathID) << FIXED_COVERAGE_BIT_COUNT) +
+                  FIXED_COVERAGE_ZERO_UINT;
     PLS_STOREUI_ATOMIC(coverageAtomicBuffer,
                        currPathCoverageData + uint(coverageDeltaFixed));
 
@@ -634,7 +663,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 
     // We crossed into a new path! Resolve the previous path now that we know
     // its exact coverage.
-    half lastCoverageCount = from_fixed(lastCoverageData & 0xffffu);
+    half lastCoverageCount = from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
     half4 fragColorOut;
 #ifdef @ENABLE_CLIPPING
     CLIP_VALUE_TYPE fragClipOut = MAKE_NON_UPDATING_CLIP_VALUE;
@@ -692,8 +721,9 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 
     // Resolve the previous path.
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageAtomicBuffer);
-    ushort lastPathID = cast_uint_to_ushort(lastCoverageData >> 16);
-    half lastCoverageCount = from_fixed(lastCoverageData & 0xffffu);
+    ushort lastPathID =
+        cast_uint_to_ushort(lastCoverageData >> FIXED_COVERAGE_BIT_COUNT);
+    half lastCoverageCount = from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
     half4 fragColorOut;
 #ifdef @ENABLE_CLIPPING
     CLIP_VALUE_TYPE fragClipOut = MAKE_NON_UPDATING_CLIP_VALUE;
@@ -810,8 +840,9 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 #endif
 {
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageAtomicBuffer);
-    half coverageCount = from_fixed(lastCoverageData & 0xffffu);
-    ushort lastPathID = cast_uint_to_ushort(lastCoverageData >> 16);
+    half coverageCount = from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
+    ushort lastPathID =
+        cast_uint_to_ushort(lastCoverageData >> FIXED_COVERAGE_BIT_COUNT);
     half4 fragColorOut;
     resolve_paint(lastPathID,
                   coverageCount,

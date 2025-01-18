@@ -242,6 +242,9 @@ private:
     rcp<vkutil::TextureView> m_gradTextureView;
     rcp<vkutil::Framebuffer> m_gradTextureFramebuffer;
 
+    // Gaussian integral table for feathering.
+    rcp<TextureVulkanImpl> m_featherTexture;
+
     // Renders tessellated vertices to the tessellation texture.
     class TessellatePipeline;
     std::unique_ptr<TessellatePipeline> m_tessellatePipeline;
@@ -267,8 +270,8 @@ private:
     class DrawPipeline;
     std::map<uint32_t, DrawPipeline> m_drawPipelines;
 
-    rcp<TextureVulkanImpl>
-        m_nullImageTexture; // Bound when there is not an image paint.
+    // Bound when there is not an image paint.
+    rcp<TextureVulkanImpl> m_nullImageTexture;
     VkSampler m_linearSampler;
     VkSampler m_mipmapSampler;
     rcp<vkutil::Buffer> m_pathPatchVertexBuffer;

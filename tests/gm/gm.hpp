@@ -5,6 +5,7 @@
 #ifndef _RIVEGM_GM_HPP_
 #define _RIVEGM_GM_HPP_
 
+#include "common/testing_window.hpp"
 #include "rive/renderer.hpp"
 #include <cstring>
 #include <memory>
@@ -31,12 +32,14 @@ public:
 
     void onceBeforeDraw() { this->onOnceBeforeDraw(); }
 
-    // Calls clearColor(), TestingWindow::beginFrame(), draw(),
-    // TestingWindow::flush(). (Most GMs just need to override onDraw() instead
-    // of overriding this method.)
+    // Calls clearColor(), updateFrameOptions(),
+    // TestingWindow::beginFrame(), draw(), TestingWindow::flush(). (Most GMs
+    // just need to override onDraw() instead of overriding this method.)
     virtual void run(std::vector<uint8_t>* pixels);
 
     virtual rive::ColorInt clearColor() const { return 0xffffffff; }
+
+    virtual void updateFrameOptions(TestingWindow::FrameOptions*) const {}
 
     void draw(rive::Renderer*);
 

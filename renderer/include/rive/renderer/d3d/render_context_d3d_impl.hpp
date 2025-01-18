@@ -151,6 +151,10 @@ private:
     ComPtr<ID3D11ShaderResourceView> m_gradTextureSRV;
     ComPtr<ID3D11RenderTargetView> m_gradTextureRTV;
 
+    // Gaussian integral table for feathering.
+    ComPtr<ID3D11Texture2D> m_featherTexture;
+    ComPtr<ID3D11ShaderResourceView> m_featherTextureSRV;
+
     ComPtr<ID3D11Texture2D> m_tessTexture;
     ComPtr<ID3D11ShaderResourceView> m_tessTextureSRV;
     ComPtr<ID3D11RenderTargetView> m_tessTextureRTV;

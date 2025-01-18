@@ -199,18 +199,19 @@ public:
         abort();
     }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
-                                               bool doClear,
-                                               bool wireframe) override
+    std::unique_ptr<rive::Renderer> beginFrame(
+        const FrameOptions& options) override
     {
         m_renderContext->beginFrame(RenderContext::FrameDescriptor{
             .renderTargetWidth = m_width,
             .renderTargetHeight = m_height,
-            .loadAction = doClear ? gpu::LoadAction::clear
-                                  : gpu::LoadAction::preserveRenderTarget,
-            .clearColor = clearColor,
-            .wireframe = wireframe,
-            .clockwiseFillOverride = m_clockwiseFill,
+            .loadAction = options.doClear
+                              ? gpu::LoadAction::clear
+                              : gpu::LoadAction::preserveRenderTarget,
+            .clearColor = options.clearColor,
+            .wireframe = options.wireframe,
+            .clockwiseFillOverride =
+                m_clockwiseFill || options.clockwiseFillOverride,
         });
 
         return std::make_unique<RiveRenderer>(m_renderContext.get());

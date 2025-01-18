@@ -65,7 +65,7 @@ STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
 STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 VERTEX_STORAGE_BUFFER_BLOCK_END
 
-float cosine_between_vectors(float2 a, float2 b)
+INLINE float cosine_between_vectors(float2 a, float2 b)
 {
     // FIXME(crbug.com/800804,skbug.com/11268): This can overflow if we don't
     // normalize exponents.
@@ -200,7 +200,7 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
         float joinSpan = float(joinSegmentCount);
         if ((contourIDWithFlags &
              (JOIN_TYPE_MASK | EMULATED_STROKE_CAP_CONTOUR_FLAG)) ==
-            EMULATED_STROKE_CAP_CONTOUR_FLAG)
+            (ROUND_JOIN_CONTOUR_FLAG | EMULATED_STROKE_CAP_CONTOUR_FLAG))
         {
             // Round caps emulated as joins need to emit vertices at T=0 and
             // T=1, unlike normal round joins. The fragment shader will handle
@@ -265,6 +265,8 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     // Begin with the assumption that we belong to the curve section.
     float mergedSegmentCount = totalVertexCount - joinSegmentCount;
     float mergedVertexID = vertexIdx;
+    half2 featherCorrection = make_half2(.0, .0);
+    int featherVertexIndex0;
     if (mergedVertexID <= mergedSegmentCount)
     {
         // We do belong to the curve section. Clear out any stroke join flags.
@@ -279,7 +281,8 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
         parametricSegmentCount = 1.;
         mergedVertexID -= mergedSegmentCount;
         mergedSegmentCount = joinSegmentCount;
-        if ((contourIDWithFlags & JOIN_TYPE_MASK) != 0u)
+        radsPerPolarSegment = v_joinArgs.z; // radsPerJoinSegment.
+        if ((contourIDWithFlags & JOIN_TYPE_MASK) > ROUND_JOIN_CONTOUR_FLAG)
         {
             // Miter or bevel join vertices snap to either tangents[0] or
             // tangents[1], and get adjusted in the shader that follows.
@@ -298,9 +301,71 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
             // accounted for this in radsPerJoinSegment), but adjust our
             // stepping parameters so we begin at T=0 and end at T=1.
             mergedSegmentCount -= 2.;
-            mergedVertexID--;
+            --mergedVertexID;
         }
-        radsPerPolarSegment = v_joinArgs.z; // radsPerJoinSegment.
+        else if ((contourIDWithFlags & JOIN_TYPE_MASK) ==
+                 FEATHER_JOIN_CONTOUR_FLAG)
+        {
+            featherVertexIndex0 = -int(mergedVertexID);
+            --mergedVertexID; // Duplicate the vertex at T=1 on the join also.
+
+            // radsPerPolarSegment was calculated under the assumption that all
+            // joinSegmentCount vertices were meant for the angle between tan0
+            // and tan1. However, feather joins always have a rotation of PI.
+            float rads = radsPerPolarSegment * joinSegmentCount;
+            float joinVertexCount = joinSegmentCount - 1.;
+            float joinNonEmptySegmentCount = joinVertexCount - 1. - 3.;
+            // Feather joins draw backwards segments across the angle outside
+            // the join, in order to erase some of the coverage that got
+            // written.
+            float backwardSegmentCount =
+                clamp(round(abs(rads) / PI * joinNonEmptySegmentCount),
+                      1.,
+                      joinNonEmptySegmentCount - 1.);
+            // Forward segments are in the normal join angle.
+            float forwardSegmentCount =
+                joinNonEmptySegmentCount - backwardSegmentCount;
+            featherCorrection.y = cast_float_to_half(abs(rads) / PI);
+            if (mergedVertexID <= forwardSegmentCount)
+            {
+                // We're a backwards segment of the feather join.
+                tangents[1] = -tangents[1];
+                radsPerPolarSegment =
+                    -(PI * sign(rads) - rads) / forwardSegmentCount;
+                mergedSegmentCount = forwardSegmentCount;
+                featherCorrection.x = 1.;
+            }
+            else if (mergedVertexID == forwardSegmentCount + 1.)
+            {
+                // There's a discontinuous jump between the backwards and
+                // forward segments. Duplicate the final backwards vertex with
+                // zero height.
+                tangents[0] = tangents[1] = -tangents[1];
+                mergedVertexID = .0;
+                mergedSegmentCount = 1.;
+                contourIDWithFlags |= ZERO_FEATHER_OUTSET_CONTOUR_FLAG;
+            }
+            else if (mergedVertexID == forwardSegmentCount + 2.)
+            {
+                // There's a discontinuous jump between the backwards and
+                // forward segments. Duplicate the first forward vertex with
+                // zero height.
+                tangents[1] = tangents[0];
+                mergedVertexID = .0;
+                mergedSegmentCount = 1.;
+                contourIDWithFlags |= ZERO_FEATHER_OUTSET_CONTOUR_FLAG;
+            }
+            else
+            {
+                // We're a forward segment of the feather join.
+                mergedVertexID -= forwardSegmentCount + 3.;
+                mergedSegmentCount = backwardSegmentCount;
+                radsPerPolarSegment = rads / backwardSegmentCount;
+                featherCorrection.y =
+                    cast_float_to_half(1. - featherCorrection.y);
+                featherCorrection.x = 1.;
+            }
+        }
         contourIDWithFlags |= radsPerPolarSegment < .0
                                   ? LEFT_JOIN_CONTOUR_FLAG
                                   : RIGHT_JOIN_CONTOUR_FLAG;
@@ -309,7 +374,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     float2 tessCoord;
     float theta = .0;
     if (mergedVertexID == .0 || mergedVertexID == mergedSegmentCount ||
-        (contourIDWithFlags & JOIN_TYPE_MASK) != 0u)
+        (contourIDWithFlags & JOIN_TYPE_MASK) > ROUND_JOIN_CONTOUR_FLAG)
     {
         // Tessellated vertices at the beginning and end of the strip use exact
         // endpoints and tangents. This ensures crack-free seaming between
@@ -317,6 +382,9 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
         bool isTan0 = mergedVertexID < mergedSegmentCount * .5;
         tessCoord = isTan0 ? p0 : p3;
         theta = atan2(isTan0 ? tangents[0] : tangents[1]);
+        // Never do feather correction on the ends; the falloff is linear here
+        // plus we need to blend smoothly with the edges.
+        featherCorrection.x = .0;
     }
     else if ((contourIDWithFlags & RETROFITTED_TRIANGLE_CONTOUR_FLAG) != 0u)
     {
@@ -362,11 +430,11 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
             // Now find the coefficients that give a tangent direction from a
             // parametric vertex ID:
             //
-            //                                                                |parametricVertexID^2|
-            //  Tangent_Direction(parametricVertexID) = dx,dy = |A  B_  C_| *
-            //  |parametricVertexID  |
-            //                                                  |.   .   .|   |1
-            //                                                  |
+            //  Tangent_Direction(parametricVertexID) = dx,dy =
+            //
+            //                     |parametricVertexID^2|
+            //      |A  B_  C_| *  |parametricVertexID  |
+            //      |.   .   .|    |1                   |
             //
             float2 B_ = B * (parametricSegmentCount * 2.);
             float2 C_ = C * (parametricSegmentCount * parametricSegmentCount);
@@ -462,6 +530,15 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
             // polar vertices, our final T value for mergedVertexID is whichever
             // is larger.
             T = max(parametricT, polarT);
+
+            if (featherCorrection.x == 1.)
+            {
+                // This is a total hack to give feather joins nonlinear falloff
+                // on the bisector while keeping it linear on the ends.
+                // TODO: This needs a more methodical approach.
+                featherCorrection.x =
+                    sqrt(sin(lastPolarVertexID / mergedSegmentCount * PI));
+            }
         }
 
         // Evaluate the cubic at T. Use De Casteljau's for its accuracy and
@@ -480,7 +557,20 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
             theta = atan2(bcd - abc);
     }
 
-    EMIT_FRAG_DATA(
-        uint4(floatBitsToUint(float3(tessCoord, theta)), contourIDWithFlags));
+    uint4 tessData =
+        uint4(floatBitsToUint(float3(tessCoord, theta)), contourIDWithFlags);
+    if ((contourIDWithFlags & JOIN_TYPE_MASK) == FEATHER_JOIN_CONTOUR_FLAG)
+    {
+        // Feathered corners need an extra dimming factor. Luckily, the corner
+        // spokes are all centered on the same point, so we can store a backset
+        // to that point instead of the point itself, and thus make room for the
+        // dimming factor.
+        tessData.x = uint(featherVertexIndex0);
+        // The coverage dimming factor is "y^(x+1)" on the outer edge of the
+        // feather (y <= 1, x >= 0), and just "y^0" at the center. We provide x
+        // and y, and the vertex shader works out the rest.
+        tessData.y = packHalf2x16(featherCorrection);
+    }
+    EMIT_FRAG_DATA(tessData);
 }
 #endif

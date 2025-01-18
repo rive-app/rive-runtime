@@ -272,8 +272,11 @@ int main(int argc, const char* argv[])
             lastReportedPauseState = paused;
         }
 
-        auto renderer =
-            TestingWindow::Get()->beginFrame(0xff303030, true, wireframe);
+        auto renderer = TestingWindow::Get()->beginFrame({
+            .clearColor = 0xff303030,
+            .doClear = true,
+            .wireframe = wireframe,
+        });
         renderer->save();
 
         uint32_t width = TestingWindow::Get()->width();

@@ -520,13 +520,12 @@ public:
         m_height = height;
     }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
-                                               bool doClear,
-                                               bool wireframe) override
+    std::unique_ptr<rive::Renderer> beginFrame(
+        const FrameOptions& options) override
     {
         auto renderer =
             m_renderer->reset(m_width, m_height, m_headlessRenderTexture);
-        m_renderer->beginFrame(clearColor, doClear, wireframe);
+        m_renderer->beginFrame(options);
         return renderer;
     }
 
@@ -640,11 +639,16 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
         case Backend::swiftshader:
         case Backend::swiftshadercore:
         case Backend::dawn:
-        case Backend::coregraphics:
         case Backend::rhi:
+        case Backend::coregraphics:
+        case Backend::skia:
             printf("Invalid backend for TestingWindow::MakeEGLPbuffer.");
             abort();
             break;
+    }
+    if (IsClockwiseFill(backend))
+    {
+        rendererFlags |= RendererFlags::clockwiseFillOverride;
     }
     return new TestingWindowEGL(angleBackend,
                                 samples,

@@ -260,6 +260,12 @@ public:
     // Otherwise it does nothing.
     void injectImplicitMoveIfNeeded();
 
+    void reserve(size_t numVerbs, size_t numPts)
+    {
+        m_Verbs.reserve(numVerbs);
+        m_Points.reserve(numPts);
+    }
+
 private:
     std::vector<Vec2D> m_Points;
     std::vector<PathVerb> m_Verbs;

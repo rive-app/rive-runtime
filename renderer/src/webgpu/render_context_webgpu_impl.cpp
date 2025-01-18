@@ -627,6 +627,7 @@ public:
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
+                case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
                     addDefine(GLSL_ENABLE_INSTANCE_INDEX);
                     if (plsType ==
@@ -676,6 +677,7 @@ public:
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
+                case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
                     addDefine(GLSL_DRAW_PATH);
                     glsl << gpu::glsl::draw_path_common << '\n';
@@ -732,6 +734,7 @@ public:
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
+                case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
                     vertexShader =
                         m_vertexShaderHandle.compileSPIRVShaderModule(
@@ -1557,6 +1560,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         {
             attrs = {
@@ -2177,6 +2181,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             {
                 // Draw PLS patches that connect the tessellation vertices.

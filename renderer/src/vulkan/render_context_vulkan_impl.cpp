@@ -114,6 +114,36 @@ rcp<RenderBuffer> RenderContextVulkanImpl::makeRenderBuffer(
     return make_rcp<RenderBufferVulkanImpl>(m_vk, type, flags, sizeInBytes);
 }
 
+enum class TextureFormat
+{
+    rgba8,
+    r16f,
+};
+
+constexpr static VkFormat vulkan_texture_format(TextureFormat format)
+{
+    switch (format)
+    {
+        case TextureFormat::rgba8:
+            return VK_FORMAT_R8G8B8A8_UNORM;
+        case TextureFormat::r16f:
+            return VK_FORMAT_R16_SFLOAT;
+    }
+    RIVE_UNREACHABLE();
+}
+
+constexpr static size_t vulkan_texture_bytes_per_pixel(TextureFormat format)
+{
+    switch (format)
+    {
+        case TextureFormat::rgba8:
+            return 4;
+        case TextureFormat::r16f:
+            return 2;
+    }
+    RIVE_UNREACHABLE();
+}
+
 class TextureVulkanImpl : public Texture
 {
 public:
@@ -121,11 +151,12 @@ public:
                       uint32_t width,
                       uint32_t height,
                       uint32_t mipLevelCount,
-                      const uint8_t imageDataRGBA[]) :
+                      TextureFormat format,
+                      const void* imageData) :
         Texture(width, height),
         m_vk(std::move(vk)),
         m_texture(m_vk->makeTexture({
-            .format = VK_FORMAT_R8G8B8A8_UNORM,
+            .format = vulkan_texture_format(format),
             .extent = {width, height, 1},
             .mipLevels = mipLevelCount,
             .usage =
@@ -134,13 +165,13 @@ public:
         m_textureView(m_vk->makeTextureView(m_texture)),
         m_imageUploadBuffer(m_vk->makeBuffer(
             {
-                .size = height * width * 4,
+                .size = height * width * vulkan_texture_bytes_per_pixel(format),
                 .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
             },
             vkutil::Mappability::writeOnly))
     {
         memcpy(m_imageUploadBuffer->contents(),
-               imageDataRGBA,
+               imageData,
                m_imageUploadBuffer->info().size);
         m_imageUploadBuffer->flushContents();
     }
@@ -321,6 +352,7 @@ rcp<Texture> RenderContextVulkanImpl::decodeImageTexture(
                                            width,
                                            height,
                                            mipLevelCount,
+                                           TextureFormat::rgba8,
                                            bitmap->bytes());
     }
 #endif
@@ -891,6 +923,12 @@ public:
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
             },
             {
+                .binding = FEATHER_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            {
                 .binding = PATH_BUFFER_IDX,
                 .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
                 .descriptorCount = 1,
@@ -983,6 +1021,12 @@ public:
         VkDescriptorSetLayoutBinding samplerLayoutBindings[] = {
             {
                 .binding = GRAD_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            },
+            {
+                .binding = FEATHER_TEXTURE_IDX,
                 .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
                 .descriptorCount = 1,
                 .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
@@ -1097,7 +1141,7 @@ public:
             },
             {
                 .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .descriptorCount = 2, // m_linearSampler, m_mipmapSampler
+                .descriptorCount = 3, // grad, feather, image samplers
             },
         };
         VkDescriptorPoolCreateInfo staticDescriptorPoolCreateInfo = {
@@ -1154,9 +1198,11 @@ public:
             },
             {
                 {.sampler = impl->m_linearSampler},
+                {.sampler = impl->m_linearSampler},
                 {.sampler = impl->m_mipmapSampler},
             });
-        static_assert(IMAGE_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+        static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+        static_assert(IMAGE_TEXTURE_IDX == FEATHER_TEXTURE_IDX + 1);
     }
 
     VkRenderPass renderPassAt(int renderPassVariantIdx)
@@ -1460,6 +1506,7 @@ public:
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
+                case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
                     vkutil::set_shader_code(vsInfo, spirv::draw_path_vert);
                     vkutil::set_shader_code(fsInfo, spirv::draw_path_frag);
@@ -1497,6 +1544,7 @@ public:
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
+                case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
                     vkutil::set_shader_code(vsInfo,
                                             spirv::atomic_draw_path_vert);
@@ -1559,6 +1607,7 @@ public:
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
+                case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
                     vkutil::set_shader_code(vsInfo,
                                             spirv::draw_clockwise_path_vert);
@@ -1656,6 +1705,7 @@ public:
             shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING,
             shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT,
             shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND,
+            shaderFeatures & gpu::ShaderFeatures::ENABLE_FEATHER,
             shaderFeatures & gpu::ShaderFeatures::ENABLE_EVEN_ODD,
             shaderFeatures & gpu::ShaderFeatures::ENABLE_NESTED_CLIPPING,
             shaderFeatures & gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES,
@@ -1665,12 +1715,13 @@ public:
         static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
         static_assert(CLIP_RECT_SPECIALIZATION_IDX == 1);
         static_assert(ADVANCED_BLEND_SPECIALIZATION_IDX == 2);
-        static_assert(EVEN_ODD_SPECIALIZATION_IDX == 3);
-        static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 4);
-        static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 5);
-        static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 6);
-        static_assert(BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX == 7);
-        static_assert(SPECIALIZATION_COUNT == 8);
+        static_assert(FEATHER_SPECIALIZATION_IDX == 3);
+        static_assert(EVEN_ODD_SPECIALIZATION_IDX == 4);
+        static_assert(NESTED_CLIPPING_SPECIALIZATION_IDX == 5);
+        static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
+        static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 7);
+        static_assert(BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX == 8);
+        static_assert(SPECIALIZATION_COUNT == 9);
 
         VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
         for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)
@@ -1732,6 +1783,7 @@ public:
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             {
                 vertexInputBindingDescriptions = {{{
@@ -2076,8 +2128,17 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
 
 void RenderContextVulkanImpl::initGPUObjects()
 {
+    m_featherTexture =
+        make_rcp<TextureVulkanImpl>(m_vk,
+                                    gpu::GAUSSIAN_TABLE_SIZE,
+                                    1,
+                                    1,
+                                    TextureFormat::r16f,
+                                    gpu::g_gaussianIntegralTableF16);
+
     constexpr static uint8_t black[] = {0, 0, 0, 1};
-    m_nullImageTexture = make_rcp<TextureVulkanImpl>(m_vk, 1, 1, 1, black);
+    m_nullImageTexture =
+        make_rcp<TextureVulkanImpl>(m_vk, 1, 1, 1, TextureFormat::rgba8, black);
 
     VkSamplerCreateInfo linearSamplerCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
@@ -2295,7 +2356,7 @@ constexpr static uint32_t kMaxUniformUpdates = 3;
 constexpr static uint32_t kMaxDynamicUniformUpdates = 1;
 constexpr static uint32_t kMaxImageTextureUpdates = 256;
 constexpr static uint32_t kMaxSampledImageUpdates =
-    2 + kMaxImageTextureUpdates; // tess + grad + imageTextures
+    3 + kMaxImageTextureUpdates; // tess + feather + grad + imageTextures
 constexpr static uint32_t kMaxStorageImageUpdates =
     1; // coverageAtomicTexture in atomic mode.
 constexpr static uint32_t kMaxStorageBufferUpdates =
@@ -2487,6 +2548,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     rcp<DescriptorSetPool> descriptorSetPool = m_descriptorSetPoolPool->make();
 
     // Apply pending texture updates.
+    if (m_featherTexture->hasUpdates())
+    {
+        m_featherTexture->synchronize(commandBuffer);
+    }
     if (m_nullImageTexture->hasUpdates())
     {
         m_nullImageTexture->synchronize(commandBuffer);
@@ -3070,10 +3135,17 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .dstBinding = GRAD_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         },
-        {{
-            .imageView = *m_gradTextureView,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }});
+        {
+            {
+                .imageView = *m_gradTextureView,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            },
+            {
+                .imageView = *m_featherTexture->m_textureView,
+                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+            },
+        });
+    static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
 
     m_vk->updateBufferDescriptorSets(
         perFlushDescriptorSet,
@@ -3406,9 +3478,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             {
-                // Draw PLS patches that connect the tessellation vertices.
+                // Draw patches that connect the tessellation vertices.
                 m_vk->CmdBindVertexBuffers(
                     commandBuffer,
                     0,

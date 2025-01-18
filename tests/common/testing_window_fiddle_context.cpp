@@ -207,6 +207,7 @@ public:
         {
             case Backend::rhi:
             case Backend::coregraphics:
+            case Backend::skia:
                 break;
             case Backend::gl:
             case Backend::glatomic:
@@ -279,19 +280,20 @@ public:
         }
     }
 
-    std::unique_ptr<rive::Renderer> beginFrame(uint32_t clearColor,
-                                               bool doClear,
-                                               bool wireframe) override
+    std::unique_ptr<rive::Renderer> beginFrame(
+        const FrameOptions& options) override
     {
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
             .renderTargetWidth = static_cast<uint32_t>(m_width),
             .renderTargetHeight = static_cast<uint32_t>(m_height),
-            .loadAction = doClear ? rive::gpu::LoadAction::clear
-                                  : rive::gpu::LoadAction::preserveRenderTarget,
-            .clearColor = clearColor,
+            .loadAction = options.doClear
+                              ? rive::gpu::LoadAction::clear
+                              : rive::gpu::LoadAction::preserveRenderTarget,
+            .clearColor = options.clearColor,
             .msaaSampleCount = m_msaaSampleCount,
-            .wireframe = wireframe,
-            .clockwiseFillOverride = m_clockwiseFill,
+            .wireframe = options.wireframe,
+            .clockwiseFillOverride =
+                m_clockwiseFill || options.clockwiseFillOverride,
         };
         m_fiddleContext->begin(std::move(frameDescriptor));
         return m_fiddleContext->makeRenderer(m_width, m_height);

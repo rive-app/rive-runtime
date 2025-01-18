@@ -14,6 +14,7 @@
 #include "include/core/SkPath.h"
 #include "include/core/SkVertices.h"
 #include "include/effects/SkGradientShader.h"
+#include "include/effects/SkImageFilters.h"
 
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/color.hpp"
@@ -50,6 +51,7 @@ class SkiaRenderPaint : public LITE_RTTI_OVERRIDE(RenderPaint, SkiaRenderPaint)
 {
 private:
     SkPaint m_Paint;
+    bool m_hasFeather = false;
 
 public:
     SkiaRenderPaint();
@@ -61,9 +63,41 @@ public:
     void thickness(float value) override;
     void join(StrokeJoin value) override;
     void cap(StrokeCap value) override;
+    void feather(float value) override;
     void blendMode(BlendMode value) override;
     void shader(rcp<RenderShader>) override;
     void invalidateStroke() override {}
+
+    class OverrideStrokeParamsForFeather
+    {
+    public:
+        OverrideStrokeParamsForFeather(SkiaRenderPaint* paint) :
+            m_skPaint(&paint->m_Paint), m_hasFeather(paint->m_hasFeather)
+        {
+            if (m_hasFeather)
+            {
+                m_overriddenCap = m_skPaint->getStrokeCap();
+                m_overriddenJoin = m_skPaint->getStrokeJoin();
+                m_skPaint->setStrokeCap(SkPaint::kRound_Cap);
+                m_skPaint->setStrokeJoin(SkPaint::kRound_Join);
+            }
+        }
+
+        ~OverrideStrokeParamsForFeather()
+        {
+            if (m_hasFeather)
+            {
+                m_skPaint->setStrokeCap(m_overriddenCap);
+                m_skPaint->setStrokeJoin(m_overriddenJoin);
+            }
+        }
+
+    private:
+        SkPaint* const m_skPaint;
+        const bool m_hasFeather;
+        SkPaint::Cap m_overriddenCap;
+        SkPaint::Join m_overriddenJoin;
+    };
 };
 
 class SkiaRenderImage : public LITE_RTTI_OVERRIDE(RenderImage, SkiaRenderImage)
@@ -136,6 +170,20 @@ void SkiaRenderPaint::cap(StrokeCap value)
     m_Paint.setStrokeCap(ToSkia::convert(value));
 }
 
+void SkiaRenderPaint::feather(float value)
+{
+    m_hasFeather = value != 0;
+    if (m_hasFeather)
+    {
+        m_Paint.setImageFilter(
+            SkImageFilters::Blur(value * .5f, value * .5f, nullptr));
+    }
+    else
+    {
+        m_Paint.setImageFilter(nullptr);
+    }
+}
+
 void SkiaRenderPaint::blendMode(BlendMode value)
 {
     m_Paint.setBlendMode(ToSkia::convert(value));
@@ -155,9 +203,11 @@ void SkiaRenderer::transform(const Mat2D& transform)
 }
 void SkiaRenderer::drawPath(RenderPath* path, RenderPaint* paint)
 {
-    LITE_RTTI_CAST_OR_RETURN(skPath, SkiaRenderPath*, path);
-    LITE_RTTI_CAST_OR_RETURN(skPaint, SkiaRenderPaint*, paint);
-    m_Canvas->drawPath(skPath->path(), skPaint->paint());
+    LITE_RTTI_CAST_OR_RETURN(skiaRenderPath, SkiaRenderPath*, path);
+    LITE_RTTI_CAST_OR_RETURN(skiaRenderPaint, SkiaRenderPaint*, paint);
+
+    SkiaRenderPaint::OverrideStrokeParamsForFeather ospff(skiaRenderPaint);
+    m_Canvas->drawPath(skiaRenderPath->path(), skiaRenderPaint->paint());
 }
 
 void SkiaRenderer::clipPath(RenderPath* path)

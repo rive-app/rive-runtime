@@ -48,11 +48,10 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
     }
     else if (type == GL_DEBUG_TYPE_PERFORMANCE)
     {
-        if (strcmp(message,
-                   "API_ID_REDUNDANT_FBO performance warning has been "
-                   "generated. Redundant state "
-                   "change in glBindFramebuffer API call, FBO 0, \"\", already "
-                   "bound.") == 0)
+        if (strstr(
+                message,
+                "API_ID_REDUNDANT_FBO performance warning has been generated. "
+                "Redundant state change in glBindFramebuffer API call, FBO"))
         {
             return;
         }
@@ -62,8 +61,7 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
         }
         if (strcmp(message,
                    "Pixel-path performance warning: Pixel transfer is "
-                   "synchronized with 3D "
-                   "rendering.") == 0)
+                   "synchronized with 3D rendering.") == 0)
         {
             return;
         }
@@ -74,7 +72,111 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
 #endif
 #endif
 
-class FiddleContextGL : public FiddleContext
+class FiddleContextGLBase : public FiddleContext
+{
+public:
+    ~FiddleContextGLBase() override
+    {
+        glDeleteFramebuffers(1, &m_zoomWindowFBO);
+    }
+
+    float dpiScale(GLFWwindow*) const override
+    {
+#if defined(__APPLE__) || defined(RIVE_WEBGL)
+        return 2;
+#else
+        return 1;
+#endif
+    }
+
+    void toggleZoomWindow() override
+    {
+        if (m_zoomWindowFBO)
+        {
+            glDeleteFramebuffers(1, &m_zoomWindowFBO);
+            m_zoomWindowFBO = 0;
+        }
+        else
+        {
+            GLuint tex;
+            glGenTextures(1, &tex);
+            glActiveTexture(GL_TEXTURE0);
+            glBindTexture(GL_TEXTURE_2D, tex);
+            glTexStorage2D(GL_TEXTURE_2D,
+                           1,
+                           GL_RGB8,
+                           kZoomWindowWidth,
+                           kZoomWindowHeight);
+
+            glGenFramebuffers(1, &m_zoomWindowFBO);
+            glBindFramebuffer(GL_FRAMEBUFFER, m_zoomWindowFBO);
+            glFramebufferTexture2D(GL_FRAMEBUFFER,
+                                   GL_COLOR_ATTACHMENT0,
+                                   GL_TEXTURE_2D,
+                                   tex,
+                                   0);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            glDeleteTextures(1, &tex);
+        }
+    }
+
+    void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
+    {
+        onEnd(pixelData);
+        if (m_zoomWindowFBO)
+        {
+            // Blit the zoom window.
+            double xd, yd;
+            glfwGetCursorPos(window, &xd, &yd);
+            xd *= dpiScale(window);
+            yd *= dpiScale(window);
+            int width = 0, height = 0;
+            glfwGetFramebufferSize(window, &width, &height);
+            int x = xd, y = height - yd;
+            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_zoomWindowFBO);
+            glBlitFramebuffer(x - kZoomWindowWidth / 2,
+                              y - kZoomWindowHeight / 2,
+                              x + kZoomWindowWidth / 2,
+                              y + kZoomWindowHeight / 2,
+                              0,
+                              0,
+                              kZoomWindowWidth,
+                              kZoomWindowHeight,
+                              GL_COLOR_BUFFER_BIT,
+                              GL_NEAREST);
+            glBindFramebuffer(GL_FRAMEBUFFER, 0);
+
+            glEnable(GL_SCISSOR_TEST);
+            glScissor(0,
+                      0,
+                      kZoomWindowWidth * kZoomWindowScale + 2,
+                      kZoomWindowHeight * kZoomWindowScale + 2);
+            glClearColor(.6f, .6f, .6f, 1);
+            glClear(GL_COLOR_BUFFER_BIT);
+            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_zoomWindowFBO);
+            glBlitFramebuffer(0,
+                              0,
+                              kZoomWindowWidth,
+                              kZoomWindowHeight,
+                              0,
+                              0,
+                              kZoomWindowWidth * kZoomWindowScale,
+                              kZoomWindowHeight * kZoomWindowScale,
+                              GL_COLOR_BUFFER_BIT,
+                              GL_NEAREST);
+            glDisable(GL_SCISSOR_TEST);
+        }
+    }
+
+protected:
+    virtual void onEnd(std::vector<uint8_t>* pixelData) = 0;
+
+private:
+    GLuint m_zoomWindowFBO = 0;
+};
+
+class FiddleContextGL : public FiddleContextGLBase
 {
 public:
     FiddleContextGL(FiddleContextOptions options)
@@ -124,49 +226,6 @@ public:
         }
     }
 
-    ~FiddleContextGL() { glDeleteFramebuffers(1, &m_zoomWindowFBO); }
-
-    float dpiScale(GLFWwindow*) const override
-    {
-#if defined(__APPLE__) || defined(RIVE_WEBGL)
-        return 2;
-#else
-        return 1;
-#endif
-    }
-
-    void toggleZoomWindow() final
-    {
-        if (m_zoomWindowFBO)
-        {
-            glDeleteFramebuffers(1, &m_zoomWindowFBO);
-            m_zoomWindowFBO = 0;
-        }
-        else
-        {
-            GLuint tex;
-            glGenTextures(1, &tex);
-            glActiveTexture(GL_TEXTURE0);
-            glBindTexture(GL_TEXTURE_2D, tex);
-            glTexStorage2D(GL_TEXTURE_2D,
-                           1,
-                           GL_RGB8,
-                           kZoomWindowWidth,
-                           kZoomWindowHeight);
-
-            glGenFramebuffers(1, &m_zoomWindowFBO);
-            glBindFramebuffer(GL_FRAMEBUFFER, m_zoomWindowFBO);
-            glFramebufferTexture2D(GL_FRAMEBUFFER,
-                                   GL_COLOR_ATTACHMENT0,
-                                   GL_TEXTURE_2D,
-                                   tex,
-                                   0);
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-            glDeleteTextures(1, &tex);
-        }
-    }
-
     rive::Factory* factory() override { return m_renderContext.get(); }
 
     rive::gpu::RenderContext* renderContextOrNull() override
@@ -206,7 +265,7 @@ public:
         m_renderContext->flush({.renderTarget = m_renderTarget.get()});
     }
 
-    void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
+    void onEnd(std::vector<uint8_t>* pixelData) override
     {
         flushPLSContext();
         m_renderContext->static_impl_cast<RenderContextGLImpl>()
@@ -225,53 +284,9 @@ public:
                          GL_UNSIGNED_BYTE,
                          pixelData->data());
         }
-        if (m_zoomWindowFBO)
-        {
-            // Blit the zoom window.
-            double xd, yd;
-            glfwGetCursorPos(window, &xd, &yd);
-            xd *= dpiScale(window);
-            yd *= dpiScale(window);
-            int width = 0, height = 0;
-            glfwGetFramebufferSize(window, &width, &height);
-            int x = xd, y = height - yd;
-            glBindFramebuffer(GL_DRAW_FRAMEBUFFER, m_zoomWindowFBO);
-            glBlitFramebuffer(x - kZoomWindowWidth / 2,
-                              y - kZoomWindowHeight / 2,
-                              x + kZoomWindowWidth / 2,
-                              y + kZoomWindowHeight / 2,
-                              0,
-                              0,
-                              kZoomWindowWidth,
-                              kZoomWindowHeight,
-                              GL_COLOR_BUFFER_BIT,
-                              GL_NEAREST);
-            glBindFramebuffer(GL_FRAMEBUFFER, 0);
-
-            glEnable(GL_SCISSOR_TEST);
-            glScissor(0,
-                      0,
-                      kZoomWindowWidth * kZoomWindowScale + 2,
-                      kZoomWindowHeight * kZoomWindowScale + 2);
-            glClearColor(.6f, .6f, .6f, 1);
-            glClear(GL_COLOR_BUFFER_BIT);
-            glBindFramebuffer(GL_READ_FRAMEBUFFER, m_zoomWindowFBO);
-            glBlitFramebuffer(0,
-                              0,
-                              kZoomWindowWidth,
-                              kZoomWindowHeight,
-                              0,
-                              0,
-                              kZoomWindowWidth * kZoomWindowScale,
-                              kZoomWindowHeight * kZoomWindowScale,
-                              GL_COLOR_BUFFER_BIT,
-                              GL_NEAREST);
-            glDisable(GL_SCISSOR_TEST);
-        }
     }
 
 private:
-    GLuint m_zoomWindowFBO = 0;
     std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetGL> m_renderTarget;
 };
@@ -281,5 +296,97 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeGLPLS(
 {
     return std::make_unique<FiddleContextGL>(options);
 }
+
+#ifndef RIVE_SKIA
+
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia() { return nullptr; }
+
+#else
+
+#include "skia_factory.hpp"
+#include "skia_renderer.hpp"
+#include "skia/include/core/SkCanvas.h"
+#include "skia/include/core/SkSurface.h"
+#include "skia/include/gpu/GrDirectContext.h"
+#include "skia/include/gpu/gl/GrGLAssembleInterface.h"
+#include "skia/include/gpu/gl/GrGLInterface.h"
+#include "include/effects/SkImageFilters.h"
+
+static GrGLFuncPtr get_skia_gl_proc_address(void* ctx, const char name[])
+{
+    return glfwGetProcAddress(name);
+}
+
+class FiddleContextGLSkia : public FiddleContextGLBase
+{
+public:
+    FiddleContextGLSkia() :
+        m_grContext(GrDirectContext::MakeGL(
+            GrGLMakeAssembledInterface(nullptr, get_skia_gl_proc_address)))
+    {
+        if (!m_grContext)
+        {
+            fprintf(stderr, "GrDirectContext::MakeGL failed.\n");
+            abort();
+        }
+    }
+
+    rive::Factory* factory() override { return &m_factory; }
+
+    rive::gpu::RenderContext* renderContextOrNull() override { return nullptr; }
+
+    rive::gpu::RenderTarget* renderTargetOrNull() override { return nullptr; }
+
+    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
+    {
+        GrBackendRenderTarget backendRT(width,
+                                        height,
+                                        1 /*samples*/,
+                                        0 /*stencilBits*/,
+                                        {0 /*fbo 0*/, GL_RGBA8});
+
+        SkSurfaceProps surfProps(0, kUnknown_SkPixelGeometry);
+
+        m_skSurface =
+            SkSurface::MakeFromBackendRenderTarget(m_grContext.get(),
+                                                   backendRT,
+                                                   kBottomLeft_GrSurfaceOrigin,
+                                                   kRGBA_8888_SkColorType,
+                                                   nullptr,
+                                                   &surfProps);
+        if (!m_skSurface)
+        {
+            fprintf(stderr, "SkSurface::MakeFromBackendRenderTarget failed.\n");
+            abort();
+        }
+        return std::make_unique<SkiaRenderer>(m_skSurface->getCanvas());
+    }
+
+    void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
+    {
+        m_skSurface->getCanvas()->clear(frameDescriptor.clearColor);
+        m_grContext->resetContext();
+        m_skSurface->getCanvas()->save();
+    }
+
+    void onEnd(std::vector<uint8_t>* pixelData) override
+    {
+        m_skSurface->getCanvas()->restore();
+        m_skSurface->flush();
+    }
+
+    void flushPLSContext() override {}
+
+private:
+    SkiaFactory m_factory;
+    const sk_sp<GrDirectContext> m_grContext;
+    sk_sp<SkSurface> m_skSurface;
+};
+
+std::unique_ptr<FiddleContext> FiddleContext::MakeGLSkia()
+{
+    return std::make_unique<FiddleContextGLSkia>();
+}
+#endif
 
 #endif

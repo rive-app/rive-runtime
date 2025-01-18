@@ -44,7 +44,8 @@ static bool render_and_dump_png(int cellSize,
         const rive::AABB cellBounds = rive::AABB(0, 0, cellSize, cellSize);
 
         // Render the scene in a grid.
-        auto renderer = TestingWindow::Get()->beginFrame(0xffffffff);
+        auto renderer =
+            TestingWindow::Get()->beginFrame({.clearColor = 0xffffffff});
         renderer->save();
         scene->advanceAndApply(0);
         for (int y = 0; y < s_args.rows(); ++y)
@@ -54,7 +55,7 @@ static bool render_and_dump_png(int cellSize,
                 if ((x | y) != 0)
                 {
                     TestingWindow::Get()->endFrame();
-                    TestingWindow::Get()->beginFrame(0, false);
+                    TestingWindow::Get()->beginFrame({.doClear = false});
                     scene->advanceAndApply(frameDuration);
                 }
 

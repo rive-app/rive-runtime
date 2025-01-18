@@ -164,8 +164,14 @@ enum class FillMode
 class TrickyCubicsGM : public GM
 {
 public:
-    TrickyCubicsGM(StrokeCap cap, StrokeJoin join, const char* name) :
-        GM(kTestWidth, kTestHeight, name), m_Cap(cap), m_Join(join)
+    TrickyCubicsGM(StrokeCap cap,
+                   StrokeJoin join,
+                   float feather,
+                   const char* name) :
+        GM(kTestWidth, kTestHeight, name),
+        m_Cap(cap),
+        m_Join(join),
+        m_feather(feather)
     {}
 
     ColorInt clearColor() const override { return 0xff000000; }
@@ -247,6 +253,10 @@ public:
                 Vec2D c1 = p[2] + (p[1] - p[2]) * (2 / 3.f);
                 path->cubicTo(c0.x, c0.y, c1.x, c1.y, p[2].x, p[2].y);
             }
+            if (m_feather != 0)
+            {
+                strokePaint->feather(m_feather / matrix.findMaxScale());
+            }
             renderer->drawPath(path, strokePaint);
             renderer->restore();
         }
@@ -255,11 +265,19 @@ public:
 private:
     StrokeCap m_Cap;
     StrokeJoin m_Join;
+    float m_feather;
 };
 
 GMREGISTER(return new TrickyCubicsGM(StrokeCap::butt,
                                      StrokeJoin::miter,
+                                     0,
                                      "trickycubicstrokes"))
 GMREGISTER(return new TrickyCubicsGM(StrokeCap::round,
                                      StrokeJoin::round,
+                                     0,
                                      "trickycubicstrokes_roundcaps"))
+// Feathers ignore cap and join.
+GMREGISTER(return new TrickyCubicsGM(StrokeCap::butt,
+                                     StrokeJoin::miter,
+                                     20,
+                                     "trickycubicstrokes_feather"))

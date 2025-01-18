@@ -66,9 +66,11 @@ public:
         angle,
         anglemsaa,
         dawn,
-        coregraphics,
 
         rhi,
+
+        coregraphics,
+        skia,
     };
 
     constexpr static bool IsGL(Backend backend)
@@ -95,8 +97,9 @@ public:
             case Backend::swiftshader:
             case Backend::swiftshadercore:
             case Backend::dawn:
-            case Backend::coregraphics:
             case Backend::rhi:
+            case Backend::coregraphics:
+            case Backend::skia:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -126,8 +129,9 @@ public:
             case Backend::swiftshader:
             case Backend::swiftshadercore:
             case Backend::dawn:
-            case Backend::coregraphics:
             case Backend::rhi:
+            case Backend::coregraphics:
+            case Backend::skia:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -155,10 +159,11 @@ public:
             case Backend::metalcw:
             case Backend::metalatomic:
             case Backend::dawn:
-            case Backend::coregraphics:
             case Backend::angle:
             case Backend::anglemsaa:
             case Backend::rhi:
+            case Backend::coregraphics:
+            case Backend::skia:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -190,6 +195,7 @@ public:
             case Backend::anglemsaa:
             case Backend::dawn:
             case Backend::coregraphics:
+            case Backend::skia:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -219,8 +225,9 @@ public:
             case Backend::angle:
             case Backend::anglemsaa:
             case Backend::dawn:
-            case Backend::coregraphics:
             case Backend::rhi:
+            case Backend::coregraphics:
+            case Backend::skia:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -250,8 +257,9 @@ public:
             case Backend::swiftshader:
             case Backend::angle:
             case Backend::dawn:
-            case Backend::coregraphics:
             case Backend::rhi:
+            case Backend::coregraphics:
+            case Backend::skia:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -281,8 +289,9 @@ public:
             case Backend::angle:
             case Backend::anglemsaa:
             case Backend::dawn:
-            case Backend::coregraphics:
             case Backend::rhi:
+            case Backend::coregraphics:
+            case Backend::skia:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -293,6 +302,7 @@ public:
         none = 0,
         useMSAA = 1 << 0,
         disableRasterOrdering = 1 << 1,
+        clockwiseFillOverride = 1 << 2,
     };
 
     enum class Visibility
@@ -321,10 +331,14 @@ public:
         m_width = width;
         m_height = height;
     }
-    virtual std::unique_ptr<rive::Renderer> beginFrame(
-        uint32_t clearColor,
-        bool doClear = true,
-        bool wireframe = false) = 0;
+    struct FrameOptions
+    {
+        uint32_t clearColor;
+        bool doClear = true;
+        bool wireframe = false;
+        bool clockwiseFillOverride = false;
+    };
+    virtual std::unique_ptr<rive::Renderer> beginFrame(const FrameOptions&) = 0;
     virtual void endFrame(std::vector<uint8_t>* pixelData = nullptr) = 0;
 
     // For testing directly on RenderContext.
@@ -374,6 +388,7 @@ private:
     static TestingWindow* MakeAndroidVulkan(void* platformWindow,
                                             bool coreFeaturesOnly,
                                             bool clockwiseFill);
+    static TestingWindow* MakeSkia();
 };
 
 RIVE_MAKE_ENUM_BITSET(TestingWindow::RendererFlags);
