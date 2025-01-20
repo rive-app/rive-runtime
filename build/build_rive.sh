@@ -111,11 +111,6 @@ if [[ "$1" = "rebuild" ]]; then
     fi
 else
     # New build. Parse arguments into premake options.
-    RIVE_PREMAKE_FILE="${RIVE_PREMAKE_FILE:-./premake5.lua}"
-    if [ ! -f "$RIVE_PREMAKE_FILE" ]; then
-        echo "Premake file "$RIVE_PREMAKE_FILE" not found"
-        exit -1
-    fi
 
     # Only use default arguments if RIVE_PREMAKE_ARGS is unset (not just empty).
     if [ -z "${RIVE_PREMAKE_ARGS+null_detector_string}" ]; then
@@ -132,9 +127,10 @@ else
                 RIVE_ARCH="${RIVE_ARCH:-universal}" # The simulator requires universal builds.
                 ;;
             "android") RIVE_OS="${RIVE_OS:-android}" ;;
-            "arm") RIVE_ARCH="${RIVE_ARCH:-arm}" ;;
             "arm64") RIVE_ARCH="${RIVE_ARCH:-arm64}" ;;
+            "arm") RIVE_ARCH="${RIVE_ARCH:-arm}" ;;
             "x64") RIVE_ARCH="${RIVE_ARCH:-x64}" ;;
+            "x86") RIVE_ARCH="${RIVE_ARCH:-x86}" ;;
             "universal") RIVE_ARCH="${RIVE_ARCH:-universal}" ;;
             "wasm") RIVE_ARCH="${RIVE_ARCH:-wasm}" ;;
             "ninja") RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-ninja}" ;;
@@ -181,7 +177,7 @@ else
         RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-gmake2}"
     fi
 
-    RIVE_PREMAKE_ARGS="$RIVE_BUILD_SYSTEM --file=$RIVE_PREMAKE_FILE --config=$RIVE_CONFIG --out=$RIVE_OUT $RIVE_PREMAKE_ARGS"
+    RIVE_PREMAKE_ARGS="$RIVE_BUILD_SYSTEM --config=$RIVE_CONFIG --out=$RIVE_OUT $RIVE_PREMAKE_ARGS"
     if [ ! -z "$RIVE_OS" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --os=$RIVE_OS"; fi
     if [ ! -z "$RIVE_VARIANT" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --variant=$RIVE_VARIANT"; fi
     if [ ! -z "$RIVE_ARCH" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --arch=$RIVE_ARCH"; fi

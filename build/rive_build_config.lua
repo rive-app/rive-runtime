@@ -62,6 +62,12 @@ newoption({
 })
 
 newoption({
+    trigger = 'android_api',
+    description = 'Target Android API version number',
+    default = '21',
+})
+
+newoption({
     trigger = 'variant',
     value = 'type',
     description = 'Choose a particular variant to build',
@@ -361,6 +367,14 @@ if _OPTIONS['os'] == 'android' then
         ndk_toolchain = ndk_toolchain .. '/linux-x86_64'
     end
 
+    local android_base_targets = {
+        arm64 = 'aarch64-linux-android',
+        arm = 'armv7a-linux-androideabi',
+        x64 = 'x86_64-linux-android',
+        x86 = 'i686-linux-android',
+    }
+    local android_target = android_base_targets[_OPTIONS['arch']] .. _OPTIONS['android_api']
+
     -- clone the clang toolset into a custom one called "android_ndk".
     premake.tools.android_ndk = {}
     for k, v in pairs(premake.tools.clang) do
@@ -369,16 +383,20 @@ if _OPTIONS['os'] == 'android' then
 
     -- update the android_ndk toolset to use the appropriate binaries.
     local android_ndk_tools = {
-        cc = ndk_toolchain .. '/bin/clang',
-        cxx = ndk_toolchain .. '/bin/clang++',
+        cc = ndk_toolchain .. '/bin/' .. android_target .. '-clang',
+        cxx = ndk_toolchain .. '/bin/' .. android_target .. '-clang++',
         ar = ndk_toolchain .. '/bin/llvm-ar',
     }
     function premake.tools.android_ndk.gettoolname(cfg, tool)
         return android_ndk_tools[tool]
     end
 
-    valid_cc_tools = premake.action._list['gmake2'].valid_tools['cc']
-    valid_cc_tools[#valid_cc_tools + 1] = 'android_ndk'
+    -- suppress "** Warning: Unsupported toolset 'android_ndk'".
+    local premake_valid_tools = premake.action._list[_ACTION].valid_tools
+    if premake_valid_tools ~= nil then
+        premake_valid_tools['cc'][#premake_valid_tools['cc'] + 1] = 'android_ndk'
+    end
+
     toolset('android_ndk')
 
     buildoptions({
@@ -403,62 +421,6 @@ if _OPTIONS['os'] == 'android' then
         '-Wl,--no-undefined',
         '-static-libstdc++',
     })
-
-    filter({ 'options:arch=x86', 'options:not for_unreal' })
-    do
-        architecture('x86')
-        buildoptions({ '--target=i686-none-linux-android21' })
-        linkoptions({ '--target=i686-none-linux-android21' })
-    end
-
-    filter({ 'options:arch=x86', 'options:for_unreal' })
-    do
-        architecture('x86')
-        buildoptions({ '--target=i686-none-linux-android31' })
-        linkoptions({ '--target=i686-none-linux-android31' })
-    end
-
-    filter({ 'options:arch=x64', 'options:not for_unreal' })
-    do
-        architecture('x64')
-        buildoptions({ '--target=x86_64-none-linux-android21' })
-        linkoptions({ '--target=x86_64-none-linux-android21' })
-    end
-
-    filter({ 'options:arch=x64', 'options:for_unreal' })
-    do
-        architecture('x64')
-        buildoptions({ '--target=x86_64-none-linux-android31' })
-        linkoptions({ '--target=x86_64-none-linux-android31' })
-    end
-
-    filter({ 'options:arch=arm', 'options:not for_unreal' })
-    do
-        architecture('arm')
-        buildoptions({ '--target=armv7a-none-linux-android21' })
-        linkoptions({ '--target=armv7a-none-linux-android21' })
-    end
-
-    filter({ 'options:arch=arm', 'options:for_unreal' })
-    do
-        architecture('arm')
-        buildoptions({ '--target=armv7a-none-linux-android31' })
-        linkoptions({ '--target=armv7a-none-linux-android31' })
-    end
-
-    filter({ 'options:arch=arm64', 'options:not for_unreal' })
-    do
-        architecture('arm64')
-        buildoptions({ '--target=aarch64-none-linux-android21' })
-        linkoptions({ '--target=aarch64-none-linux-android21' })
-    end
-
-    filter({ 'options:arch=arm64', 'options:for_unreal' })
-    do
-        architecture('arm64')
-        buildoptions({ '--target=aarch64-none-linux-android31' })
-        linkoptions({ '--target=aarch64-none-linux-android31' })
-    end
 
     filter({})
 end
@@ -664,10 +626,13 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
         return emsdk_tools[tool]
     end
 
-    system('emscripten')
+    -- suppress "** Warning: Unsupported toolset 'emsdk'".
+    local premake_valid_tools = premake.action._list[_ACTION].valid_tools
+    if premake_valid_tools ~= nil then
+        premake_valid_tools['cc'][#premake_valid_tools['cc'] + 1] = 'emsdk'
+    end
 
-    valid_cc_tools = premake.action._list['gmake2'].valid_tools['cc']
-    valid_cc_tools[#valid_cc_tools + 1] = 'emsdk'
+    system('emscripten')
     toolset('emsdk')
 
     linkoptions({ '-sALLOW_MEMORY_GROWTH=1', '-sDYNAMIC_EXECUTION=0' })
