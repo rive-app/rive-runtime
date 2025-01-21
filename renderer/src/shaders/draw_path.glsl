@@ -370,7 +370,7 @@ PLS_MAIN(@drawFragmentMain)
     if (is_stroke(v_edgeDistance))
     {
         half fragCoverage;
-#if defined(@ENABLE_FEATHER)
+#ifdef @ENABLE_FEATHER
         if (@ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
         {
             fragCoverage = feathered_stroke_coverage(
@@ -378,7 +378,7 @@ PLS_MAIN(@drawFragmentMain)
                 SAMPLED_R16F(@featherTexture, featherSampler));
         }
         else
-#endif
+#endif // @ENABLE_FEATHER
         {
             fragCoverage = min(v_edgeDistance.x, v_edgeDistance.y);
         }
@@ -396,7 +396,7 @@ PLS_MAIN(@drawFragmentMain)
                 SAMPLED_R16F(@featherTexture, featherSampler));
         }
         else
-#endif
+#endif // @CLOCKWISE_FILL && @ENABLE_FEATHER
         {
             fragCoverage = v_edgeDistance.x;
         }

@@ -13,7 +13,9 @@
 #undef DRAW_IMAGE
 #define DRAW_PATH
 #define DRAW_INTERIOR_TRIANGLES
+#define ENABLE_FEATHER
 #include "draw_path_common.minified.glsl"
+#undef ENABLE_FEATHER
 #undef DRAW_INTERIOR_TRIANGLES
 #undef DRAW_PATH
 #undef VERTEX

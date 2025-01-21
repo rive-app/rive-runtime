@@ -435,6 +435,7 @@ unpack_interior_triangle_vertex(float3 triangleVertex,
 #ifdef @FRAGMENT
 INLINE bool is_stroke(half2 edgeDistance) { return edgeDistance.y >= .0; }
 
+#ifdef @ENABLE_FEATHER
 INLINE bool is_feathered_stroke(half2 edgeDistance)
 {
     return edgeDistance.x < FEATHER_COVERAGE_THRESHOLD;
@@ -490,4 +491,5 @@ INLINE half feathered_fill_coverage(half2 edgeDistance,
     fragCoverage *= exp2(x);
     return fragCoverage;
 }
+#endif // @ENABLE_FEATHER
 #endif // @FRAGMENT
