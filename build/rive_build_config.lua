@@ -81,7 +81,7 @@ newoption({
         {
             'runtime',
             'Build the static library specifically targeting our runtimes',
-        }
+        },
     },
     default = 'system',
 })
@@ -183,10 +183,10 @@ newoption({
 })
 
 newoption({
-    trigger= "toolsversion",
-    value="msvc_toolsversion",
-    description = "specify the version of the compiler tool. On windows thats the msvc version which affects both clang and msvc outputs.",
-    default= 'latest'
+    trigger = 'toolsversion',
+    value = 'msvc_toolsversion',
+    description = 'specify the version of the compiler tool. On windows thats the msvc version which affects both clang and msvc outputs.',
+    default = 'latest',
 })
 
 -- This is just to match our old windows config. Rive Native specifically sets
@@ -252,10 +252,10 @@ do
 end
 
 -- for latest builds we leave toolsversion unset so that it automatically chooses the latest version
-filter({"options:toolsversion != latest"})
+filter({ 'options:toolsversion != latest' })
 do
     -- this is because unreal "prefers" certain msvc versions so we try to match it from the python build script
-    toolsversion(_OPTIONS["toolsversion"])
+    toolsversion(_OPTIONS['toolsversion'])
 end
 
 filter({ 'system:windows', 'options:toolset=clang' })
@@ -353,9 +353,42 @@ filter({})
 if _OPTIONS['os'] == 'android' then
     pic('on') -- Position-independent code is required for NDK libraries.
 
-    ndk = os.getenv('NDK_PATH') or os.getenv('ANDROID_NDK')
-    if not ndk then
-        error('export $NDK_PATH or $ANDROID_NDK')
+    -- Detect the NDK.
+    EXPECTED_NDK_VERSION = 'r27c'
+    ndk = os.getenv('NDK_PATH') or os.getenv('ANDROID_NDK') or '<undefined>'
+    local ndk_version = '<undetected>'
+    local f = io.open(ndk .. '/source.properties', 'r')
+    if f then
+        for line in f:lines() do
+            local match = line:match('^Pkg.ReleaseName = (.+)$')
+            if match then
+                ndk_version = match
+                break
+            end
+        end
+        f:close()
+    end
+    if ndk_version ~= EXPECTED_NDK_VERSION then
+        print()
+        print('** Rive requires Android NDK version ' .. EXPECTED_NDK_VERSION .. ' **')
+        print()
+        print('To install via Android Studio:')
+        print('  - Settings > SDK Manager > SDK Tools')
+        print('  - Check "Show Package Details" at the bottom')
+        print('  - Select 27.2.12479018 under "NDK (Side by side)"')
+        print('  - Note the value of "Android SDK Location"')
+        print()
+        print('Then set the ANDROID_NDK environment variable:')
+        print('  - export ANDROID_NDK="<Android SDK Location>/ndk/27.2.12479018"')
+        print()
+        error(
+            'Unsupported Android NDK\n  ndk: '
+                .. ndk
+                .. '\n  version: '
+                .. ndk_version
+                .. '\n  expected: '
+                .. EXPECTED_NDK_VERSION
+        )
     end
 
     local ndk_toolchain = ndk .. '/toolchains/llvm/prebuilt'
