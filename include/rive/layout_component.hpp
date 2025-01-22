@@ -136,6 +136,7 @@ protected:
     }
     bool isDisplayHidden() const;
     void propagateCollapse(bool collapse);
+    bool collapse(bool value) override;
 
 private:
     float m_widthOverride = NAN;

@@ -206,6 +206,19 @@ void LayoutComponent::propagateCollapse(bool collapse)
     }
 }
 
+bool LayoutComponent::collapse(bool value)
+{
+    if (!Component::collapse(value))
+    {
+        return false;
+    }
+    for (Component* child : children())
+    {
+        child->collapse(value || isDisplayHidden());
+    }
+    return true;
+}
+
 #ifdef WITH_RIVE_LAYOUT
 
 LayoutComponent::LayoutComponent() :
