@@ -75,7 +75,7 @@ extern "C"
                                              int canvasHeight,
                                              bool invertedY,
                                              int pixelLocalStorageType,
-                                             int maxVertexStorgeBlocks)
+                                             int maxVertexStorageBlocks)
     {
         s_deviceHandle = EmJsHandle(deviceID);
         s_queueHandle = EmJsHandle(queueID);
@@ -92,7 +92,7 @@ extern "C"
             emscripten_webgpu_import_queue(s_queueHandle.get()),
             platformFeatures,
             static_cast<PixelLocalStorageType>(pixelLocalStorageType),
-            maxVertexStorgeBlocks);
+            maxVertexStorageBlocks);
     }
 
     intptr_t EMSCRIPTEN_KEEPALIVE RiveBeginRendering(int textureViewID,
@@ -431,9 +431,9 @@ SetupDawnWindowAndGetSurfaceDescriptor(GLFWwindow* window, bool retina)
 
 #endif
 
+#ifdef RIVE_DAWN
 int main(int argc, const char** argv)
 {
-#ifdef RIVE_DAWN
     // Cause stdout and stderr to print immediately without buffering.
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
@@ -606,6 +606,6 @@ int main(int argc, const char** argv)
         lastTimestamp = timestamp;
     }
     glfwTerminate();
-#endif
     return 0;
 }
+#endif

@@ -192,14 +192,14 @@ EM_JS(int,
                   inputs : [
                       {format : framebufferFormat, usedAsColor : true},
                       {format : "r32uint", usedAsColor : true},
-                      {format : "r32uint", usedAsColor : true},
                       {format : framebufferFormat, usedAsColor : true},
+                      {format : "r32uint", usedAsColor : true},
                   ],
                   targets : [
                       {format : framebufferFormat, usedAsInput : true},
                       {format : "r32uint", usedAsInput : true},
-                      {format : "r32uint", usedAsInput : true},
                       {format : framebufferFormat, usedAsInput : true},
+                      {format : "r32uint", usedAsInput : true},
                   ],
                   features : GPUFragmentStateFeatures
                       .RASTERIZATION_ORDER_ATTACHMENT_ACCESS,
@@ -231,6 +231,10 @@ wgpu::RenderPipeline RenderContextWebGPUVulkan::makeDrawPipeline(
         emscripten_webgpu_export_shader_module(fragmentShader.Get()),
         emscripten_webgpu_export_pipeline_layout(drawPipelineLayout().Get()),
         frontFaceForOnScreenDraws() == wgpu::FrontFace::CW));
+    static_assert(COLOR_PLANE_IDX == 0);
+    static_assert(CLIP_PLANE_IDX == 1);
+    static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+    static_assert(COVERAGE_PLANE_IDX == 3);
     return wgpu::RenderPipeline::Acquire(
         emscripten_webgpu_import_render_pipeline(
             pipelineJSHandleIfNeeded->get()));

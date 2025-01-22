@@ -23,14 +23,21 @@ const RIVE_ALIGNMENT_BOTTOM_LEFT = [-1.0, 1.0];
 const RIVE_ALIGNMENT_BOTTOM_CENTER = [0.0, 1.0];
 const RIVE_ALIGNMENT_BOTTOM_RIGHT = [1.0, 1.0];
 
-function RiveInitialize(device, queue, canvasWidth, canvasHeight, invertedY, pixelLocalStorageType)
+function RiveInitialize(device,
+                        queue,
+                        canvasWidth,
+                        canvasHeight,
+                        invertedY,
+                        pixelLocalStorageType,
+                        maxVertexStorageBlocks)
 {
     Module._RiveInitialize(JsValStore.add(device),
                            JsValStore.add(queue),
                            canvasWidth,
                            canvasHeight,
                            invertedY,
-                           pixelLocalStorageType);
+                           pixelLocalStorageType,
+                           maxVertexStorageBlocks);
 }
 
 function RiveLoadFile(bytes)

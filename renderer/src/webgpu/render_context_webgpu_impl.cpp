@@ -366,10 +366,7 @@ public:
     {
         return m_bindGroupLayout;
     }
-    const wgpu::RenderPipeline& renderPipeline() const
-    {
-        return m_renderPipeline;
-    }
+    wgpu::RenderPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
     wgpu::BindGroupLayout m_bindGroupLayout;
@@ -551,10 +548,7 @@ public:
     {
         return m_bindGroupLayout;
     }
-    const wgpu::RenderPipeline renderPipeline() const
-    {
-        return m_renderPipeline;
-    }
+    wgpu::RenderPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
     wgpu::BindGroupLayout m_bindGroupLayout;
@@ -793,7 +787,7 @@ public:
         }
     }
 
-    const wgpu::RenderPipeline renderPipeline(
+    wgpu::RenderPipeline renderPipeline(
         wgpu::TextureFormat framebufferFormat) const
     {
         return m_renderPipelines[RenderPipelineIdx(framebufferFormat)];

@@ -37,7 +37,13 @@ async function wgpuDataInitialize(wgpu, canvas, adapter, device)
 
     // Rive has to be initialized before loading assets.
     const invertY = false
-    RiveInitialize(data.device, data.queue, data.width, data.height, invertY, RIVE_PLS_TYPE_NONE);
+    RiveInitialize(data.device,
+                   data.queue,
+                   data.width,
+                   data.height,
+                   invertY,
+                   RIVE_PLS_TYPE_NONE,
+                   4);
 
     assets.skills = await loadRiveAsset({url:"skills_demov1.riv", stateMachine:"Motion"});
     assets.santa = await loadRiveAsset({url:"Santa_Claus.riv"});
