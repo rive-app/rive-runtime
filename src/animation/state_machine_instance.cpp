@@ -1220,7 +1220,7 @@ void StateMachineInstance::addToHitLookup(
                            hitLookup,
                            listenerGroup,
                            isOpaque);
-            return true;
+            return false;
         });
         return;
     }

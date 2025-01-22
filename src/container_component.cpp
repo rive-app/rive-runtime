@@ -29,19 +29,17 @@ bool ContainerComponent::forAll(std::function<bool(Component*)> predicate)
     return true;
 }
 
-bool ContainerComponent::forEachChild(std::function<bool(Component*)> predicate)
+void ContainerComponent::forEachChild(std::function<bool(Component*)> predicate)
 {
     for (Component* child : m_children)
     {
         if (!predicate(child))
         {
-            return false;
+            continue;
         }
-        if (child->is<ContainerComponent>() &&
-            !child->as<ContainerComponent>()->forEachChild(predicate))
+        if (child->is<ContainerComponent>())
         {
-            return false;
+            child->as<ContainerComponent>()->forEachChild(predicate);
         }
     }
-    return true;
 }

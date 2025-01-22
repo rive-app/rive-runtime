@@ -13,10 +13,12 @@ public:
     virtual void addChild(Component* component);
     bool collapse(bool value) override;
 
-    // Returns true if it searched through all of its children. predicate can
-    // return false to stop searching.
+    // Returns whether predicate returns true for the current Component.
     bool forAll(std::function<bool(Component*)> predicate);
-    bool forEachChild(std::function<bool(Component*)> predicate);
+
+    // Recursively descend onto all the children in the hierarchy tree.
+    // If predicate returns false, it won't recurse down a particular branch.
+    void forEachChild(std::function<bool(Component*)> predicate);
 
 private:
     std::vector<Component*> m_children;
