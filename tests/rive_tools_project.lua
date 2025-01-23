@@ -59,6 +59,7 @@ function rive_tools_project(name, project_kind)
         RIVE_RUNTIME_DIR .. '/include',
         RIVE_RUNTIME_DIR .. '/cg_renderer/include',
         'unit_tests',
+        '%{cfg.targetdir}/include/libpng',
     })
 
     includedirs({

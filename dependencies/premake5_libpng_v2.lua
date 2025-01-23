@@ -7,12 +7,20 @@ zlib = dependency.github('madler/zlib', '04f42ceca40f73e2978b50e93806c2a18c1281f
 includedirs({ './' })
 forceincludes({ 'rive_png_renames.h' })
 
+-- Generate a pnglibconf.h in our OUT directory.
+if not os.isdir(RIVE_BUILD_OUT .. '/include/libpng') then
+    os.mkdir(RIVE_BUILD_OUT .. '/include/libpng')
+    os.copyfile(
+        libpng .. '/scripts/pnglibconf.h.prebuilt',
+        RIVE_BUILD_OUT .. '/include/libpng/pnglibconf.h'
+    )
+end
+
 project('libpng')
 do
     kind('StaticLib')
-    os.copyfile(libpng .. '/scripts/pnglibconf.h.prebuilt', libpng .. '/pnglibconf.h')
-    includedirs({ libpng, zlib })
     optimize('Speed') -- Always optimize image encoding/decoding, even in debug builds.
+    includedirs({ libpng, zlib, '%{cfg.targetdir}/include/libpng' })
     files({
         libpng .. '/png.c',
         libpng .. '/pngerror.c',
