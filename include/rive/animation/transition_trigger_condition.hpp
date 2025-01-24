@@ -9,6 +9,8 @@ class TransitionTriggerCondition : public TransitionTriggerConditionBase
 public:
     bool evaluate(const StateMachineInstance* stateMachineInstance,
                   StateMachineLayerInstance* layerInstance) const override;
+    void useInLayer(const StateMachineInstance* stateMachineInstance,
+                    StateMachineLayerInstance* layerInstance) const;
 
 protected:
     bool validateInputType(const StateMachineInput* input) const override;

@@ -1,5 +1,6 @@
 #include <rive/file.hpp>
 #include <rive/animation/state_machine_bool.hpp>
+#include <rive/animation/state_machine_trigger.hpp>
 #include <rive/animation/state_machine_layer.hpp>
 #include <rive/animation/animation_state.hpp>
 #include <rive/animation/entry_state.hpp>
@@ -420,6 +421,84 @@ TEST_CASE("Transitions with reset applied to them.", "[file]")
     // The last two states don't have a transition with duration set so the
     // instance is released and available
     REQUIRE(rive::AnimationResetFactory::resourcesCount() == 1);
+
+    delete stateMachineInstance;
+}
+
+TEST_CASE("Triggers will only be used on allowed state changes.", "[file]")
+{
+    auto file = ReadRiveFile("assets/state_machine_triggers.riv");
+
+    auto artboard = file->artboard("main");
+
+    // We empty all factory reset resources to start the test clean
+    rive::AnimationResetFactory::releaseResources();
+    REQUIRE(rive::AnimationResetFactory::resourcesCount() == 0);
+
+    REQUIRE(artboard != nullptr);
+    REQUIRE(artboard->animationCount() == 1);
+    REQUIRE(artboard->stateMachineCount() == 1);
+
+    auto stateMachine = artboard->stateMachine("State Machine 1");
+    REQUIRE(stateMachine->layerCount() == 1);
+    REQUIRE(stateMachine->inputCount() == 1);
+
+    auto abi = artboard->instance();
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, abi.get());
+    stateMachineInstance->advanceAndApply(0.1f);
+    abi->advance(0.1f);
+
+    auto trigger = stateMachine->input("Trigger 1");
+    REQUIRE(trigger != nullptr);
+    REQUIRE(trigger->is<rive::StateMachineTrigger>());
+
+    auto layer = stateMachine->layer(0);
+    REQUIRE(layer->stateCount() == 5);
+
+    REQUIRE(layer->anyState() != nullptr);
+    REQUIRE(layer->entryState() != nullptr);
+    REQUIRE(layer->exitState() != nullptr);
+
+    rive::AnimationState* animationState1 = nullptr;
+    rive::AnimationState* animationState2 = nullptr;
+
+    int foundAnimationStates = 0;
+    for (int i = 0; i < layer->stateCount(); i++)
+    {
+        auto state = layer->state(i);
+        if (state->is<rive::AnimationState>())
+        {
+            foundAnimationStates++;
+            REQUIRE(state->as<rive::AnimationState>()->animation() != nullptr);
+            if (foundAnimationStates == 1)
+            {
+                animationState1 = state->as<rive::AnimationState>();
+            }
+            else
+            {
+                animationState2 = state->as<rive::AnimationState>();
+            }
+        }
+    }
+    REQUIRE(foundAnimationStates == 2);
+    REQUIRE(animationState1 != nullptr);
+    REQUIRE(animationState2 != nullptr);
+
+    auto triggerInstance = stateMachineInstance->getTrigger("Trigger 1");
+    REQUIRE(triggerInstance != nullptr);
+
+    triggerInstance->fire();
+    stateMachineInstance->advanceAndApply(0.1f);
+    auto currentLayerState = stateMachineInstance->layerState(0);
+
+    REQUIRE(currentLayerState == animationState2);
+
+    triggerInstance->fire();
+    stateMachineInstance->advanceAndApply(0.1f);
+    currentLayerState = stateMachineInstance->layerState(0);
+
+    REQUIRE(currentLayerState == animationState1);
 
     delete stateMachineInstance;
 }

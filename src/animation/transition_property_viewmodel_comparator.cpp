@@ -177,8 +177,8 @@ bool TransitionPropertyViewModelComparator::compare(
                     if (source != nullptr &&
                         source->is<ViewModelInstanceTrigger>())
                     {
-                        if (!source->as<ViewModelInstanceTrigger>()->useInLayer(
-                                layerInstance))
+                        if (source->as<ViewModelInstanceTrigger>()
+                                ->isUsedInLayer(layerInstance))
                         {
 
                             return false;
