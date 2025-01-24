@@ -38,6 +38,15 @@
       "description": "Y translation value of the stage in the editor.",
       "runtime": false,
       "coop": false
+    },
+    "flags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 754,
+        "string": "flags"
+      },
+      "runtime": false
     }
   }
 }
