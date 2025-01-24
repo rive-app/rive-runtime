@@ -430,11 +430,20 @@ FlushUniforms::InverseViewports::InverseViewports(
     const PlatformFeatures& platformFeatures)
 {
     float4 numerators = 2;
-    if (platformFeatures.invertOffscreenY)
+    // When rendering to the gradient and tessellation textures, ensure that
+    // row 0 in input coordinates gets written to row 0 in texture memory.
+    // This requires a Y inversion if clip space and framebuffer space have
+    // opposing senses of which way is up.
+    if (platformFeatures.clipSpaceBottomUp !=
+        platformFeatures.framebufferBottomUp)
     {
         numerators.xy = -numerators.xy;
     }
-    if (platformFeatures.uninvertOnScreenY)
+    // When drawing to a render target, ensure that Y=0 (in Rive pixel space)
+    // gets drawn to the top of thew viewport.
+    // This requires a Y inversion if Rive pixel space and clip space have
+    // opposing senses of which way is up.
+    if (platformFeatures.clipSpaceBottomUp)
     {
         numerators.w = -numerators.w;
     }
@@ -570,7 +579,7 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
         {
             Mat2D paintMatrix;
             viewMatrix.invert(&paintMatrix);
-            if (platformFeatures.fragCoordBottomUp)
+            if (platformFeatures.framebufferBottomUp)
             {
                 // Flip _fragCoord.y.
                 paintMatrix =
@@ -646,7 +655,7 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
     if (clipRectInverseMatrix != nullptr)
     {
         Mat2D m = clipRectInverseMatrix->inverseMatrix();
-        if (platformFeatures.fragCoordBottomUp)
+        if (platformFeatures.framebufferBottomUp)
         {
             // Flip _fragCoord.y.
             m = m * Mat2D(1, 0, 0, -1, 0, renderTarget->height());

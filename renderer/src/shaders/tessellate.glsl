@@ -217,11 +217,9 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
     v_contourIDWithFlags = contourIDWithFlags;
 
-    float4 pos;
-    pos.x = coord.x * (2. / TESS_TEXTURE_WIDTH) - 1.;
-    pos.y = coord.y * uniforms.tessInverseViewportY -
-            sign(uniforms.tessInverseViewportY);
-    pos.zw = float2(0, 1);
+    float4 pos = pixel_coord_to_clip_coord(coord,
+                                           2. / TESS_TEXTURE_WIDTH,
+                                           uniforms.tessInverseViewportY);
 
     VARYING_PACK(v_p0p1);
     VARYING_PACK(v_p2p3);

@@ -41,15 +41,10 @@ protected:
 private:
     friend class RenderContextWebGPUImpl;
 
-    RenderContextWebGPUVulkan(
-        wgpu::Device device,
-        wgpu::Queue queue,
-        const ContextOptions& contextOptions,
-        const gpu::PlatformFeatures& baselinePlatformFeatures) :
-        RenderContextWebGPUImpl(device,
-                                queue,
-                                contextOptions,
-                                baselinePlatformFeatures)
+    RenderContextWebGPUVulkan(wgpu::Device device,
+                              wgpu::Queue queue,
+                              const ContextOptions& contextOptions) :
+        RenderContextWebGPUImpl(device, queue, contextOptions)
     {
         assert(contextOptions.plsType == PixelLocalStorageType::subpassLoad);
         m_platformFeatures.supportsRasterOrdering = true;

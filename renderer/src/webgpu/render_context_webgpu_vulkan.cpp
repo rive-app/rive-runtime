@@ -230,7 +230,7 @@ wgpu::RenderPipeline RenderContextWebGPUVulkan::makeDrawPipeline(
         emscripten_webgpu_export_shader_module(vertexShader.Get()),
         emscripten_webgpu_export_shader_module(fragmentShader.Get()),
         emscripten_webgpu_export_pipeline_layout(drawPipelineLayout().Get()),
-        frontFaceForOnScreenDraws() == wgpu::FrontFace::CW));
+        frontFaceForRenderTargetDraws() == wgpu::FrontFace::CW));
     static_assert(COLOR_PLANE_IDX == 0);
     static_assert(CLIP_PLANE_IDX == 1);
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);

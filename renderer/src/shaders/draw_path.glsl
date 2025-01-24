@@ -130,7 +130,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     // Paint matrices operate on the fragment shader's "_fragCoord", which is
     // bottom-up in GL.
     float2 fragCoord = vertexPosition;
-#ifdef FRAG_COORD_BOTTOM_UP
+#ifdef @FRAMEBUFFER_BOTTOM_UP
     fragCoord.y = float(uniforms.renderTargetHeight) - fragCoord.y;
 #endif
 
@@ -234,6 +234,9 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     if (!shouldDiscardVertex)
     {
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
+#ifdef @POST_INVERT_Y
+        pos.y = -pos.y;
+#endif
 #ifdef @RENDER_MODE_MSAA
         pos.z = normalize_z_index(pathZIndex);
 #endif

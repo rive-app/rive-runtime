@@ -27,7 +27,6 @@ function RiveInitialize(device,
                         queue,
                         canvasWidth,
                         canvasHeight,
-                        invertedY,
                         pixelLocalStorageType,
                         maxVertexStorageBlocks)
 {
@@ -35,7 +34,6 @@ function RiveInitialize(device,
                            JsValStore.add(queue),
                            canvasWidth,
                            canvasHeight,
-                           invertedY,
                            pixelLocalStorageType,
                            maxVertexStorageBlocks);
 }

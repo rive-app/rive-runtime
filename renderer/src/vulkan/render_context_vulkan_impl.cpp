@@ -2104,8 +2104,8 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
         features.fragmentStoresAndAtomics;
     m_platformFeatures.supportsClockwiseAtomicRendering =
         features.fragmentStoresAndAtomics;
-    m_platformFeatures.invertOffscreenY = false;
-    m_platformFeatures.uninvertOnScreenY = true;
+    m_platformFeatures.clipSpaceBottomUp = false;
+    m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.maxCoverageBufferLength =
         std::min(features.maxStorageBufferRange, 1u << 28) / sizeof(uint32_t);
 

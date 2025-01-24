@@ -69,13 +69,17 @@ public:
     {
         PixelLocalStorageType plsType = PixelLocalStorageType::none;
         bool disableStorageBuffers = false;
+        // Invert Y when drawing to client-provided RenderTargets.
+        // TODO: We may need to eventually make this configurable
+        // per-RenderTarget.
+        bool invertRenderTargetY = false;
+        // Invert the front face when drawing to client-provied RenderTargets.
+        bool invertRenderTargetFrontFace = false;
     };
 
-    static std::unique_ptr<RenderContext> MakeContext(
-        wgpu::Device,
-        wgpu::Queue,
-        const ContextOptions&,
-        const gpu::PlatformFeatures& baselinePlatformFeatures = {});
+    static std::unique_ptr<RenderContext> MakeContext(wgpu::Device,
+                                                      wgpu::Queue,
+                                                      const ContextOptions&);
 
     virtual ~RenderContextWebGPUImpl();
 
@@ -93,11 +97,9 @@ public:
                                   const uint8_t imageDataRGBA[]) override;
 
 protected:
-    RenderContextWebGPUImpl(
-        wgpu::Device device,
-        wgpu::Queue queue,
-        const ContextOptions&,
-        const gpu::PlatformFeatures& baselinePlatformFeatures);
+    RenderContextWebGPUImpl(wgpu::Device device,
+                            wgpu::Queue queue,
+                            const ContextOptions&);
 
     // Create the BindGroupLayout that binds the PLS attachments as textures.
     // This is not necessary on all implementations.
@@ -124,9 +126,11 @@ protected:
         EmJsHandle* renderPassJSHandleIfNeeded);
 
     wgpu::Device device() const { return m_device; }
-    wgpu::FrontFace frontFaceForOnScreenDraws() const
+    wgpu::FrontFace frontFaceForRenderTargetDraws() const
     {
-        return m_frontFaceForOnScreenDraws;
+        return m_contextOptions.invertRenderTargetFrontFace
+                   ? wgpu::FrontFace::CCW
+                   : wgpu::FrontFace::CW;
     }
     wgpu::PipelineLayout drawPipelineLayout() const
     {
@@ -159,15 +163,6 @@ private:
     const wgpu::Device m_device;
     const wgpu::Queue m_queue;
     const ContextOptions m_contextOptions;
-
-    // PLS always expects CW, but when using "glsl-raw" shaders, we may need to
-    // use CCW. This is because the WebGPU layer might actually flip our
-    // frontFace if it anticipates negating our Y coordinate in the vertex
-    // shader. But when we use raw-glsl shaders, the WebGPU layer doesn't
-    // actually get a chance to negate Y like it thinks it will. Therefore, we
-    // emit the wrong frontFace, in anticipation of it getting flipped into the
-    // correct frontFace on its way to the driver.
-    wgpu::FrontFace m_frontFaceForOnScreenDraws;
 
     // Draws emulated render-pass load/store actions for
     // EXT_shader_pixel_local_storage.

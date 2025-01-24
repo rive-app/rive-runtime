@@ -185,12 +185,21 @@ UNIFORM_BLOCK_END(uniforms)
 
 #ifdef @VERTEX
 
+INLINE float4 pixel_coord_to_clip_coord(float2 pixelCoord,
+                                        float inverseViewportX,
+                                        float inverseViewportY)
+{
+    return float4(pixelCoord.x * inverseViewportX - 1.,
+                  pixelCoord.y * inverseViewportY - sign(inverseViewportY),
+                  0.,
+                  1.);
+}
+
+// Defined as a macro because 'uniforms' isn't always available at global scope.
 #define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                               \
-    float4((COORD).x* uniforms.renderTargetInverseViewportX - 1.,              \
-           (COORD).y * -uniforms.renderTargetInverseViewportY +                \
-               sign(uniforms.renderTargetInverseViewportY),                    \
-           .0,                                                                 \
-           1.)
+    pixel_coord_to_clip_coord(COORD,                                           \
+                              uniforms.renderTargetInverseViewportX,           \
+                              uniforms.renderTargetInverseViewportY)
 
 #ifndef @RENDER_MODE_MSAA
 // Calculates the Manhattan distance in pixels from the given pixelPosition, to

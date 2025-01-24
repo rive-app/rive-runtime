@@ -40,9 +40,9 @@ static std::unique_ptr<Renderer> s_renderer;
 
 void riveInitPlayer(int w,
                     int h,
+                    bool invertRenderTargetFrontFace,
                     wgpu::Device gpu,
                     wgpu::Queue queue,
-                    const gpu::PlatformFeatures& platformFeatures,
                     PixelLocalStorageType plsType,
                     int maxVertexStorageBlocks)
 {
@@ -50,14 +50,14 @@ void riveInitPlayer(int w,
         .plsType = plsType,
         .disableStorageBuffers =
             maxVertexStorageBlocks < gpu::kMaxStorageBuffers,
+        .invertRenderTargetY = h < 0,
+        .invertRenderTargetFrontFace = invertRenderTargetFrontFace,
     };
-    s_renderContext = RenderContextWebGPUImpl::MakeContext(gpu,
-                                                           queue,
-                                                           contextOptions,
-                                                           platformFeatures);
+    s_renderContext =
+        RenderContextWebGPUImpl::MakeContext(gpu, queue, contextOptions);
     s_renderTarget =
         s_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-            ->makeRenderTarget(wgpu::TextureFormat::BGRA8Unorm, w, h);
+            ->makeRenderTarget(wgpu::TextureFormat::BGRA8Unorm, w, abs(h));
     s_renderer = std::make_unique<RiveRenderer>(s_renderContext.get());
 }
 
@@ -73,24 +73,19 @@ extern "C"
                                              int queueID,
                                              int canvasWidth,
                                              int canvasHeight,
-                                             bool invertedY,
+                                             bool invertRenderTargetFrontFace,
                                              int pixelLocalStorageType,
                                              int maxVertexStorageBlocks)
     {
         s_deviceHandle = EmJsHandle(deviceID);
         s_queueHandle = EmJsHandle(queueID);
-        gpu::PlatformFeatures platformFeatures;
-        if (invertedY)
-        {
-            platformFeatures.uninvertOnScreenY = true;
-        }
         riveInitPlayer(
             canvasWidth,
             canvasHeight,
+            invertRenderTargetFrontFace,
             wgpu::Device::Acquire(
                 emscripten_webgpu_import_device(s_deviceHandle.get())),
             emscripten_webgpu_import_queue(s_queueHandle.get()),
-            platformFeatures,
             static_cast<PixelLocalStorageType>(pixelLocalStorageType),
             maxVertexStorageBlocks);
     }
@@ -556,9 +551,9 @@ int main(int argc, const char** argv)
 
     riveInitPlayer(w,
                    h,
+                   /*invertRenderTargetFrontFace=*/false,
                    device.Get(),
                    device.GetQueue(),
-                   PlatformFeatures{},
                    PixelLocalStorageType::none,
                    8);
 

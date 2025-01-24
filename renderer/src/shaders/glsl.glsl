@@ -533,10 +533,6 @@
 
 #define MUL(A, B) ((A) * (B))
 
-#ifndef @TARGET_VULKAN
-#define FRAG_COORD_BOTTOM_UP
-#endif
-
 precision highp float;
 precision highp int;
 

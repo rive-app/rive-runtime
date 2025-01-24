@@ -343,7 +343,8 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     // It appears, so far, that we don't need to use flat interpolation for path
     // IDs on any Apple device, and it's faster not to.
     m_platformFeatures.avoidFlatVaryings = true;
-    m_platformFeatures.invertOffscreenY = true;
+    m_platformFeatures.clipSpaceBottomUp = true;
+    m_platformFeatures.framebufferBottomUp = false;
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS)
     m_platformFeatures.supportsRasterOrdering = true;
     m_platformFeatures.supportsFragmentShaderAtomics = false;

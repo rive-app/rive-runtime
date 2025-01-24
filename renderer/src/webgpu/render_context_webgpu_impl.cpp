@@ -212,6 +212,10 @@ public:
         glsl << "#pragma shader_stage(fragment)\n";
         glsl << "#define " GLSL_FRAGMENT " true\n";
         glsl << "#define " GLSL_ENABLE_CLIPPING " true\n";
+        if (context->m_contextOptions.invertRenderTargetY)
+        {
+            glsl << "#define " GLSL_POST_INVERT_Y " true\n";
+        }
         BuildLoadStoreEXTGLSL(glsl, actions);
         fragmentShader =
             m_fragmentShaderHandle.compileShaderModule(context->m_device,
@@ -241,7 +245,7 @@ public:
             .primitive =
                 {
                     .topology = wgpu::PrimitiveTopology::TriangleStrip,
-                    .frontFace = context->m_frontFaceForOnScreenDraws,
+                    .frontFace = context->frontFaceForRenderTargetDraws(),
                     .cullMode = wgpu::CullMode::Back,
                 },
             .fragment = &fragmentState,
@@ -574,22 +578,26 @@ public:
         {
             const char* language;
             const char* versionString;
+            std::ostringstream glsl;
+            auto addDefine = [&glsl](const char* name) {
+                glsl << "#define " << name << " true\n";
+            };
             if (plsType ==
                 PixelLocalStorageType::EXT_shader_pixel_local_storage)
             {
                 language = "glsl-raw";
                 versionString = "#version 310 es";
+                if (context->m_contextOptions.invertRenderTargetY)
+                {
+                    addDefine(GLSL_POST_INVERT_Y);
+                }
             }
             else
             {
                 language = "glsl";
                 versionString = "#version 460";
+                addDefine(GLSL_TARGET_VULKAN);
             }
-
-            std::ostringstream glsl;
-            auto addDefine = [&glsl](const char* name) {
-                glsl << "#define " << name << " true\n";
-            };
             if (plsType ==
                 PixelLocalStorageType::EXT_shader_pixel_local_storage)
             {
@@ -598,7 +606,6 @@ public:
                 glsl << "#else\n";
                 glsl << "#extension GL_EXT_samplerless_texture_functions : "
                         "enable\n";
-                addDefine(GLSL_TARGET_VULKAN);
                 // If we are being compiled by SPIRV transpiler for
                 // introspection, GL_EXT_shader_pixel_local_storage will not be
                 // defined.
@@ -609,7 +616,6 @@ public:
             {
                 glsl << "#extension GL_EXT_samplerless_texture_functions : "
                         "enable\n";
-                addDefine(GLSL_TARGET_VULKAN);
                 addDefine(plsType == PixelLocalStorageType::subpassLoad
                               ? GLSL_PLS_IMPL_SUBPASS_LOAD
                               : GLSL_PLS_IMPL_NONE);
@@ -810,39 +816,19 @@ private:
 RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     wgpu::Device device,
     wgpu::Queue queue,
-    const ContextOptions& contextOptions,
-    const PlatformFeatures& baselinePlatformFeatures) :
+    const ContextOptions& contextOptions) :
     m_device(device),
     m_queue(queue),
     m_contextOptions(contextOptions),
-    m_frontFaceForOnScreenDraws(wgpu::FrontFace::CW),
     m_colorRampPipeline(std::make_unique<ColorRampPipeline>(m_device)),
     m_tessellatePipeline(
         std::make_unique<TessellatePipeline>(m_device, m_contextOptions))
 {
-    m_platformFeatures = baselinePlatformFeatures;
     // All backends currently use raster ordered shaders.
     // TODO: update this flag once we have msaa and atomic modes.
     m_platformFeatures.supportsRasterOrdering = true;
-    m_platformFeatures.invertOffscreenY = true;
-
-    if (m_contextOptions.plsType ==
-            PixelLocalStorageType::EXT_shader_pixel_local_storage &&
-        baselinePlatformFeatures.uninvertOnScreenY)
-    {
-        // We will use "glsl-raw" in order to access
-        // EXT_shader_pixel_local_storage, so the WebGPU layer won't actually
-        // get a chance to negate Y like it thinks it will.
-        m_platformFeatures.uninvertOnScreenY = false;
-        // PLS always expects CW, but in this case, we need to specify CCW. This
-        // is because the WebGPU layer thinks it's going to negate Y in our
-        // shader, and will therefore also flip our frontFace. However, since we
-        // will use raw-glsl shaders, the WebGPU layer won't actually get a
-        // chance to negate Y like it thinks it will. Therefore, we emit the
-        // wrong frontFace, in anticipation of it getting flipped into the
-        // correct frontFace on its way to the driver.
-        m_frontFaceForOnScreenDraws = wgpu::FrontFace::CCW;
-    }
+    m_platformFeatures.clipSpaceBottomUp = true;
+    m_platformFeatures.framebufferBottomUp = false;
 }
 
 void RenderContextWebGPUImpl::initGPUObjects()
@@ -1084,6 +1070,10 @@ void RenderContextWebGPUImpl::initGPUObjects()
         glsl << "#define gl_VertexID gl_VertexIndex\n";
         glsl << "#endif\n";
         glsl << "#define " GLSL_ENABLE_CLIPPING " true\n";
+        if (m_contextOptions.invertRenderTargetY)
+        {
+            glsl << "#define " GLSL_POST_INVERT_Y " true\n";
+        }
         BuildLoadStoreEXTGLSL(glsl, LoadStoreActionsEXT::none);
         m_loadStoreEXTVertexShader =
             m_loadStoreEXTVertexShaderHandle.compileShaderModule(
@@ -1671,7 +1661,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         .primitive =
             {
                 .topology = wgpu::PrimitiveTopology::TriangleList,
-                .frontFace = m_frontFaceForOnScreenDraws,
+                .frontFace = frontFaceForRenderTargetDraws(),
                 .cullMode = DrawTypeIsImageDraw(drawType)
                                 ? wgpu::CullMode::None
                                 : wgpu::CullMode::Back,
@@ -2247,8 +2237,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 std::unique_ptr<RenderContext> RenderContextWebGPUImpl::MakeContext(
     wgpu::Device device,
     wgpu::Queue queue,
-    const ContextOptions& contextOptions,
-    const gpu::PlatformFeatures& baselinePlatformFeatures)
+    const ContextOptions& contextOptions)
 {
     std::unique_ptr<RenderContextWebGPUImpl> impl;
     switch (contextOptions.plsType)
@@ -2256,19 +2245,13 @@ std::unique_ptr<RenderContext> RenderContextWebGPUImpl::MakeContext(
         case PixelLocalStorageType::subpassLoad:
 #ifdef RIVE_WEBGPU
             impl = std::unique_ptr<RenderContextWebGPUImpl>(
-                new RenderContextWebGPUVulkan(device,
-                                              queue,
-                                              contextOptions,
-                                              baselinePlatformFeatures));
+                new RenderContextWebGPUVulkan(device, queue, contextOptions));
             break;
 #endif
         case PixelLocalStorageType::EXT_shader_pixel_local_storage:
         case PixelLocalStorageType::none:
             impl = std::unique_ptr<RenderContextWebGPUImpl>(
-                new RenderContextWebGPUImpl(device,
-                                            queue,
-                                            contextOptions,
-                                            baselinePlatformFeatures));
+                new RenderContextWebGPUImpl(device, queue, contextOptions));
             break;
     }
     impl->initGPUObjects();

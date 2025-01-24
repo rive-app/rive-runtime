@@ -163,7 +163,8 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     m_gpu(std::move(gpu)),
     m_gpuContext(std::move(gpuContext))
 {
-    m_platformFeatures.invertOffscreenY = true;
+    m_platformFeatures.clipSpaceBottomUp = true;
+    m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.supportsRasterOrdering =
         d3dCapabilities.supportsRasterizerOrderedViews;
     m_platformFeatures.supportsFragmentShaderAtomics = true;

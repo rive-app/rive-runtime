@@ -73,7 +73,8 @@ RenderContextGLImpl::RenderContextGLImpl(
         // (5-10%) improvement from not using flat varyings.
         m_platformFeatures.avoidFlatVaryings = true;
     }
-    m_platformFeatures.fragCoordBottomUp = true;
+    m_platformFeatures.clipSpaceBottomUp = true;
+    m_platformFeatures.framebufferBottomUp = true;
 
     std::vector<const char*> generalDefines;
     if (!m_capabilities.ARB_shader_storage_buffer_object)
@@ -685,6 +686,8 @@ RenderContextGLImpl::DrawShader::DrawShader(
     {
         defines.push_back(GLSL_RENDER_MODE_MSAA);
     }
+    assert(renderContextImpl->platformFeatures().framebufferBottomUp);
+    defines.push_back(GLSL_FRAMEBUFFER_BOTTOM_UP);
 
     std::vector<const char*> sources;
     sources.push_back(glsl::constants);

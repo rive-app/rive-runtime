@@ -83,11 +83,9 @@ VERTEX_MAIN(@colorRampVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
     v_rampColor = unpackColorInt(columnWithinSpan <= 1 ? @a_span.z : @a_span.w);
 
-    float4 pos;
-    pos.x = x * 2. - 1.;
-    pos.y =
-        y * uniforms.gradInverseViewportY - sign(uniforms.gradInverseViewportY);
-    pos.zw = float2(0, 1);
+    float4 pos = pixel_coord_to_clip_coord(float2(x, y),
+                                           2.,
+                                           uniforms.gradInverseViewportY);
 
     VARYING_PACK(v_rampColor);
     EMIT_VERTEX(pos);

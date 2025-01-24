@@ -109,15 +109,58 @@ struct PlatformFeatures
     // Required for @ENABLE_CLIP_RECT in msaa mode.
     bool supportsClipPlanes = false;
     bool avoidFlatVaryings = false;
-    // Invert Y when drawing to offscreen render targets? (Gradient and
-    // tessellation textures.)
-    bool invertOffscreenY = false;
-    // Specifies whether the graphics layer appends a negation of Y to on-screen
-    // vertex shaders that needs to be undone.
-    bool uninvertOnScreenY = false;
-    // Does the built-in pixel coordinate in the fragment shader go bottom-up or
-    // top-down?
-    bool fragCoordBottomUp = false;
+    // clipSpaceBottomUp specifies whether the top of the viewport, in clip
+    // coordinates, is at Y=+1 (OpenGL, Metal, D3D, WebGPU) or Y=-1 (Vulkan).
+    //
+    // framebufferBottomUp specifies whether "row 0" of the framebuffer is the
+    // bottom of the image (OpenGL) or the top (Metal, D3D, WebGPU, Vulkan).
+    //
+    //
+    //                                OpenGL
+    //           (clipSpaceBottomUp=true, framebufferBottomUp=true)
+    //
+    //  Rive Pixel Space             Clip Space              Framebuffer
+    //
+    //  0 ----------->                   ^ +1                ^ height
+    //  |          width                 |                   |
+    //  |                         -1     |     +1            |
+    //  |                 ===>    <------|------>    ===>    |
+    //  |                                |                   |
+    //  |                                |                   |          width
+    //  v height                         v -1                0 ----------->
+    //
+    //
+    //
+    //                            Metal/D3D/WebGPU
+    //           (clipSpaceBottomUp=true, framebufferBottomUp=false)
+    //
+    //  Rive Pixel Space             Clip Space              Framebuffer
+    //
+    //  0 ----------->                   ^ +1                0 ----------->
+    //  |          width                 |                   |          width
+    //  |                         -1     |     +1            |
+    //  |                 ===>    <------|------>    ===>    |
+    //  |                                |                   |
+    //  |                                |                   |
+    //  v height                         v -1                v height
+    //
+    //
+    //
+    //                                Vulkan
+    //          (clipSpaceBottomUp=false, framebufferBottomUp=false)
+    //
+    //  Rive Pixel Space             Clip Space              Framebuffer
+    //
+    //  0 ----------->                   ^ -1                0 ----------->
+    //  |          width                 |                   |          width
+    //  |                         -1     |     +1            |
+    //  |                 ===>    <------|------>    ===>    |
+    //  |                                |                   |
+    //  |                                |                   |
+    //  v height                         v +1                v height
+    //
+    bool clipSpaceBottomUp = false;
+    bool framebufferBottomUp = false;
     // Backend cannot initialize PLS with typical clear/load APIs in atomic
     // mode. Issue a "DrawType::atomicInitialize" draw instead.
     bool atomicPLSMustBeInitializedAsDraw = false;
