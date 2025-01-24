@@ -2,7 +2,7 @@
 #define _RIVE_SHAPE_PAINT_BASE_HPP_
 #include "rive/container_component.hpp"
 #include "rive/core/field_types/core_bool_type.hpp"
-#include "rive/core/field_types/core_double_type.hpp"
+#include "rive/core/field_types/core_uint_type.hpp"
 namespace rive
 {
 class ShapePaintBase : public ContainerComponent
@@ -31,11 +31,11 @@ public:
     uint16_t coreType() const override { return typeKey; }
 
     static const uint16_t isVisiblePropertyKey = 41;
-    static const uint16_t featherPropertyKey = 712;
+    static const uint16_t blendModeValuePropertyKey = 747;
 
 protected:
     bool m_IsVisible = true;
-    float m_Feather = 0.0f;
+    uint32_t m_BlendModeValue = -1;
 
 public:
     virtual bool isVisible() const { return m_IsVisible; }
@@ -49,21 +49,21 @@ public:
         isVisibleChanged();
     }
 
-    inline float feather() const { return m_Feather; }
-    void feather(float value)
+    inline uint32_t blendModeValue() const { return m_BlendModeValue; }
+    void blendModeValue(uint32_t value)
     {
-        if (m_Feather == value)
+        if (m_BlendModeValue == value)
         {
             return;
         }
-        m_Feather = value;
-        featherChanged();
+        m_BlendModeValue = value;
+        blendModeValueChanged();
     }
 
     void copy(const ShapePaintBase& object)
     {
         m_IsVisible = object.m_IsVisible;
-        m_Feather = object.m_Feather;
+        m_BlendModeValue = object.m_BlendModeValue;
         ContainerComponent::copy(object);
     }
 
@@ -74,8 +74,8 @@ public:
             case isVisiblePropertyKey:
                 m_IsVisible = CoreBoolType::deserialize(reader);
                 return true;
-            case featherPropertyKey:
-                m_Feather = CoreDoubleType::deserialize(reader);
+            case blendModeValuePropertyKey:
+                m_BlendModeValue = CoreUintType::deserialize(reader);
                 return true;
         }
         return ContainerComponent::deserialize(propertyKey, reader);
@@ -83,7 +83,7 @@ public:
 
 protected:
     virtual void isVisibleChanged() {}
-    virtual void featherChanged() {}
+    virtual void blendModeValueChanged() {}
 };
 } // namespace rive
 

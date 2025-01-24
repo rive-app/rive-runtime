@@ -82,11 +82,12 @@ void Shape::addToRenderPath(RenderPath* path, const Mat2D& transform)
 {
     if (isFlagged(PathFlags::local))
     {
-        path->addPath(m_PathComposer.localPath(), transform * worldTransform());
+        path->addPath(m_PathComposer.localPath()->renderPath(this),
+                      transform * worldTransform());
     }
     else
     {
-        path->addPath(m_PathComposer.worldPath(), transform);
+        path->addPath(m_PathComposer.worldPath()->renderPath(this), transform);
     }
 }
 
@@ -106,18 +107,12 @@ void Shape::draw(Renderer* renderer)
             {
                 continue;
             }
-            renderer->save();
-            bool paintsInLocal = shapePaint->isFlagged(PathFlags::local);
-            if (paintsInLocal)
+            auto shapePaintPath = shapePaint->pickPath(this);
+            if (shapePaintPath == nullptr)
             {
-                renderer->transform(worldTransform());
+                continue;
             }
-            shapePaint->draw(renderer,
-                             paintsInLocal ? m_PathComposer.localPath()
-                                           : m_PathComposer.worldPath(),
-                             paintsInLocal ? &m_PathComposer.localRawPath()
-                                           : &m_PathComposer.worldRawPath());
-            renderer->restore();
+            shapePaint->draw(renderer, shapePaintPath, worldTransform());
         }
     }
 
@@ -161,7 +156,8 @@ Core* Shape::hitTest(HitInfo* hinfo, const Mat2D& xform)
 
     // TODO: clip:
 
-    const bool shapeIsLocal = isFlagged(PathFlags::local);
+    const bool shapeIsLocal =
+        isFlagged(PathFlags::local | PathFlags::localClockwise);
 
     for (auto rit = m_ShapePaints.rbegin(); rit != m_ShapePaints.rend(); ++rit)
     {
@@ -175,7 +171,8 @@ Core* Shape::hitTest(HitInfo* hinfo, const Mat2D& xform)
             continue;
         }
 
-        auto paintIsLocal = shapePaint->isFlagged(PathFlags::local);
+        auto paintIsLocal =
+            shapePaint->isFlagged(PathFlags::local | PathFlags::localClockwise);
 
         auto mx = xform;
         if (paintIsLocal)
@@ -306,6 +303,12 @@ public:
         return nullptr;
     }
 
+    const RenderPath* renderPath() const override
+    {
+        assert(false);
+        return nullptr;
+    }
+
 private:
     RawPath m_rawPath;
 };
@@ -365,3 +368,12 @@ Vec2D Shape::measureLayout(float width,
     }
     return size;
 }
+
+ShapePaintPath* Shape::worldPath() { return m_PathComposer.worldPath(); }
+ShapePaintPath* Shape::localPath() { return m_PathComposer.localPath(); }
+ShapePaintPath* Shape::localClockwisePath()
+{
+    return m_PathComposer.localClockwisePath();
+}
+
+Component* Shape::pathBuilder() { return &m_PathComposer; }

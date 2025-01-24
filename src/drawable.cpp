@@ -59,19 +59,18 @@ ClipResult Drawable::applyClip(Renderer* renderer) const
             continue;
         }
 
-        RenderPath* renderPath = clippingShape->renderPath();
-        // Can intentionally be null if all the clipping shapes are hidden.
-        if (renderPath != nullptr)
+        ShapePaintPath* path = clippingShape->path();
+        if (path == nullptr)
         {
-            renderer->clipPath(renderPath);
-        }
-        else
-        {
-            // If one renderPath is null we exit early because we are treating
-            // it as an empty path and its intersection will always be an empty
-            // path
             return ClipResult::emptyClip;
         }
+        RenderPath* renderPath = path->renderPath(this);
+        if (renderPath == nullptr)
+        {
+            return ClipResult::emptyClip;
+        }
+
+        renderer->clipPath(renderPath);
     }
     return ClipResult::clip;
 }

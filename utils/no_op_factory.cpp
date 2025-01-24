@@ -20,6 +20,7 @@ public:
     void blendMode(BlendMode value) override {}
     void shader(rcp<RenderShader>) override {}
     void invalidateStroke() override {}
+    void feather(float value) override {}
 };
 
 class NoOpRenderPath : public RenderPath

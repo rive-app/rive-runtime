@@ -332,3 +332,13 @@ TEST_CASE("double new line type works", "[text]")
     auto lines = text->orderedLines();
     REQUIRE(lines.size() == 3);
 }
+
+TEST_CASE("can load and run opacity modifiers", "[text]")
+{
+    auto file = ReadRiveFile("assets/text_opacity_modifier.riv");
+    auto artboard = file->artboardDefault();
+
+    artboard->advance(0.0f);
+    rive::NoOpRenderer renderer;
+    artboard->draw(&renderer);
+}

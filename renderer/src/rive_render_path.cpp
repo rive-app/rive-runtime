@@ -93,6 +93,20 @@ void RiveRenderPath::addRenderPath(RenderPath* path, const Mat2D& matrix)
     m_dirt = kAllDirt;
 }
 
+void RiveRenderPath::addRenderPathBackwards(RenderPath* path,
+                                            const Mat2D& transform)
+{
+    RiveRenderPath* riveRenderPath = static_cast<RiveRenderPath*>(path);
+    RawPath::Iter transformedPathIter =
+        m_rawPath.addPathBackwards(riveRenderPath->m_rawPath, &transform);
+    if (transform != Mat2D())
+    {
+        // Prune any segments that became empty after the transform.
+        m_rawPath.pruneEmptySegments(transformedPathIter);
+    }
+    m_dirt = kAllDirt;
+}
+
 const AABB& RiveRenderPath::getBounds() const
 {
     if (m_dirt & kPathBoundsDirt)
@@ -107,58 +121,7 @@ float RiveRenderPath::getCoarseArea() const
 {
     if (m_dirt & kPathCoarseAreaDirt)
     {
-        float a = 0;
-        Vec2D contourP0 = {0, 0}, lastPt = {0, 0};
-        for (auto [verb, pts] : m_rawPath)
-        {
-            switch (verb)
-            {
-                case PathVerb::move:
-                    a += Vec2D::cross(lastPt, contourP0);
-                    contourP0 = lastPt = pts[0];
-                    break;
-                case PathVerb::close:
-                    break;
-                case PathVerb::line:
-                    a += Vec2D::cross(lastPt, pts[1]);
-                    lastPt = pts[1];
-                    break;
-                case PathVerb::quad:
-                    RIVE_UNREACHABLE();
-                case PathVerb::cubic:
-                {
-                    // Linearize the cubic in artboard space, then add up the
-                    // area for each segment.
-                    float n = ceilf(
-                        wangs_formula::cubic(pts, 1.f / kCoarseAreaTolerance));
-                    if (n > 1)
-                    {
-                        n = std::min(n, 64.f);
-                        float4 t = float4{1, 1, 2, 2} * (1 / n);
-                        float4 dt = t.w;
-                        math::EvalCubic evalCubic(pts);
-                        for (; t.x < 1; t += dt)
-                        {
-                            float4 p = evalCubic(t);
-                            Vec2D lo = {p.x, p.y};
-                            a += Vec2D::cross(lastPt, lo);
-                            lastPt = lo;
-                            if (t.y < 1)
-                            {
-                                Vec2D hi = {p.z, p.w};
-                                a += Vec2D::cross(lastPt, hi);
-                                lastPt = hi;
-                            }
-                        }
-                    }
-                    a += Vec2D::cross(lastPt, pts[3]);
-                    lastPt = pts[3];
-                    break;
-                }
-            }
-        }
-        a += Vec2D::cross(lastPt, contourP0);
-        m_coarseArea = a * .5f;
+        m_coarseArea = m_rawPath.computeCoarseArea();
         m_dirt &= ~kPathCoarseAreaDirt;
     }
     return m_coarseArea;

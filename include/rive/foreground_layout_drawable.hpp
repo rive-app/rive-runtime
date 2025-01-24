@@ -13,6 +13,14 @@ public:
     Core* hitTest(HitInfo*, const Mat2D&) override;
 
     Artboard* getArtboard() override { return artboard(); }
+
+    // Implemented for ShapePaintContainer.
+    const Mat2D& shapeWorldTransform() const override
+    {
+        return worldTransform();
+    }
+
+    Component* pathBuilder() override;
 };
 } // namespace rive
 

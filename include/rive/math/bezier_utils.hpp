@@ -89,6 +89,12 @@ public:
         return ((A * t + B) * t + C) * t + D;
     }
 
+    RIVE_ALWAYS_INLINE float4 at(float4 t) const
+    {
+        // At^3 + Bt^2 + Ct + P0
+        return ((A * t + B) * t + C) * t + D;
+    }
+
 private:
     const float4 A;
     const float4 B;

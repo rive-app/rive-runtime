@@ -80,6 +80,7 @@ public:
     {
         cubic({x, y}, {x1, y1}, {x2, y2});
     }
+    void quadToCubic(float x, float y, float x1, float y1);
 
     // Helpers for adding new contours
 
@@ -248,6 +249,7 @@ public:
     // transform. Returns an iterator at the beginning of the newly added
     // geometry.
     Iter addPath(const RawPath&, const Mat2D* = nullptr);
+    Iter addPathBackwards(const RawPath&, const Mat2D* = nullptr);
 
     void pruneEmptySegments(Iter start);
     void pruneEmptySegments() { pruneEmptySegments(begin()); }
@@ -265,6 +267,10 @@ public:
         m_Verbs.reserve(numVerbs);
         m_Points.reserve(numPts);
     }
+    // Approximates the area of the path by linearizing it with a coarse
+    // tolerance of 8px in artboard space.
+    constexpr static float kCoarseAreaTolerance = 8;
+    float computeCoarseArea() const;
 
 private:
     std::vector<Vec2D> m_Points;
@@ -272,6 +278,10 @@ private:
     size_t m_lastMoveIdx;
     // True of the path is nonempty and the most recent verb is not "close".
     bool m_contourIsOpen = false;
+
+    void addPoints(std::vector<Vec2D>::const_iterator& rev_iter,
+                   int count,
+                   const Mat2D* = nullptr);
 };
 
 } // namespace rive

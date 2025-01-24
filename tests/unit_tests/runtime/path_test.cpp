@@ -121,6 +121,12 @@ public:
     {
         return rive::make_rcp<TestRenderPath>();
     }
+
+    rive::rcp<rive::RenderPath> makeRenderPath(rive::RawPath&,
+                                               rive::FillRule) override
+    {
+        return rive::make_rcp<TestRenderPath>();
+    }
 };
 } // namespace
 
@@ -327,9 +333,13 @@ TEST_CASE("nested solo with shape expanded and path collapsed", "[path]")
     REQUIRE(path->isCollapsed() == true);
 
     auto pathComposer = rootShape->pathComposer();
+    auto localPath = pathComposer->localPath();
+    REQUIRE(localPath != nullptr);
+    REQUIRE(localPath->numContours() == 0);
     auto pathComposerPath =
-        static_cast<TestRenderPath*>(pathComposer->localPath());
+        static_cast<TestRenderPath*>(localPath->renderPath(&emptyFactory));
     // Path is skipped and the nested shape forms its own drawable, so size is 0
+    REQUIRE(pathComposerPath != nullptr);
     REQUIRE(pathComposerPath->commands.size() == 0);
 }
 
@@ -363,10 +373,10 @@ TEST_CASE("nested solo clipping with shape collapsed and path expanded",
 
     auto clippingShape = rectangleClip->clippingShapes()[0];
     REQUIRE(clippingShape != nullptr);
-    auto clippingPath =
-        static_cast<TestRenderPath*>(clippingShape->renderPath());
-    // One path is skipped, otherwise size would be 3
-    REQUIRE(clippingPath->commands.size() == 2);
+    auto clippingPath = clippingShape->path();
+    REQUIRE(clippingPath != nullptr);
+    // One path is skipped, otherwise size would be 2
+    REQUIRE(clippingPath->numContours() == 1);
 }
 
 TEST_CASE("nested solo clipping with animation", "[path]")
@@ -382,38 +392,42 @@ TEST_CASE("nested solo clipping with animation", "[path]")
     REQUIRE(rectangleClip->name() == "Rectangle-clipped");
     auto clippingShape = rectangleClip->clippingShapes()[0];
     REQUIRE(clippingShape != nullptr);
-    auto clippingPath =
-        static_cast<TestRenderPath*>(clippingShape->renderPath());
+    auto clippingPath = clippingShape->path();
     REQUIRE(clippingPath != nullptr);
     std::unique_ptr<rive::LinearAnimationInstance> animation =
         artboard->animationAt(0);
+
     // First a single shape is drawn as part of the solo
-    REQUIRE(clippingPath->commands[0].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands[1].command == TestPathCommandType::AddPath);
-    REQUIRE(clippingPath->commands.size() == 2);
+    REQUIRE(clippingPath->numContours() == 1);
+    {
+        auto renderPath = clippingPath->renderPath(&emptyFactory);
+        REQUIRE(renderPath != nullptr);
+    }
+
     animation->advanceAndApply(2.5f);
     // Then a different shape is drawn as part of the solo
-    REQUIRE(clippingPath->commands[2].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands[3].command == TestPathCommandType::AddPath);
-    REQUIRE(clippingPath->commands.size() == 4);
+    REQUIRE(clippingPath->numContours() == 1);
+    // no cached render path as it's a new contour.
+    REQUIRE(!clippingPath->hasRenderPath());
+    {
+        auto renderPath = clippingPath->renderPath(&emptyFactory);
+        REQUIRE(renderPath != nullptr);
+    }
+
+    // // Then an empty group is focused, so there is no path drawn
     animation->advanceAndApply(2.5f);
-    // Then an empty group is focused, so there is no path drawn
-    REQUIRE(clippingPath->commands[4].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands.size() == 5);
+    REQUIRE(clippingPath->numContours() == 0);
+
     animation->advanceAndApply(2.5f);
-    // Then an empty group is focused, so there is no path drawn
-    REQUIRE(clippingPath->commands[5].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands[6].command == TestPathCommandType::AddPath);
-    REQUIRE(clippingPath->commands.size() == 7);
-    animation->advanceAndApply(1.0f);
+    REQUIRE(clippingPath->numContours() == 1);
+
     // Then back to the group so no path is added
-    REQUIRE(clippingPath->commands[7].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands.size() == 8);
+    animation->advanceAndApply(1.0f);
+    REQUIRE(clippingPath->numContours() == 0);
+
     animation->advanceAndApply(2.5f);
     // Finally a new shape is added
-    REQUIRE(clippingPath->commands[8].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands[9].command == TestPathCommandType::AddPath);
-    REQUIRE(clippingPath->commands.size() == 10);
+    REQUIRE(clippingPath->numContours() == 1);
 }
 
 TEST_CASE("double nested solos clipping with animation", "[path]")
@@ -428,49 +442,55 @@ TEST_CASE("double nested solos clipping with animation", "[path]")
     REQUIRE(rectangleClip->name() == "Rectangle-clipped");
     auto clippingShape = rectangleClip->clippingShapes()[0];
     REQUIRE(clippingShape != nullptr);
-    auto clippingPath =
-        static_cast<TestRenderPath*>(clippingShape->renderPath());
+    // auto clippingPath = static_cast<TestRenderPath*>(
+    //     clippingShape->path()->renderPath(&emptyFactory));
+    auto clippingPath = clippingShape->path();
     REQUIRE(clippingPath != nullptr);
     std::unique_ptr<rive::LinearAnimationInstance> animation =
         artboard->animationAt(0);
     // First a single shape is drawn as part of the solo
-    REQUIRE(clippingPath->commands[0].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands[1].command == TestPathCommandType::AddPath);
-    REQUIRE(clippingPath->commands.size() == 2);
+    REQUIRE(clippingPath->numContours() == 1);
     animation->advanceAndApply(1.5f); // 1.5s in timeline
     // Changed nested group but path does not change.
     // Reset and AddPath are called anyway because it is marked as dirty
-    REQUIRE(clippingPath->commands[2].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands[3].command == TestPathCommandType::AddPath);
-    REQUIRE(clippingPath->commands.size() == 4);
+    REQUIRE(clippingPath->numContours() == 1);
+    REQUIRE(!clippingPath->hasRenderPath());
+    {
+        auto renderPath = clippingPath->renderPath(&emptyFactory);
+        REQUIRE(renderPath != nullptr);
+    }
+
     animation->advanceAndApply(1.0f); // 2.5s in timeline
+
     // Both solos are pointing to empty groups
-    REQUIRE(clippingPath->commands[4].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands.size() == 5);
+    REQUIRE(clippingPath->numContours() == 0);
     animation->advanceAndApply(1.0f); // 3.5s in timeline
+
     // Nothing changes, it hasn't reached any new keyframe
-    REQUIRE(clippingPath->commands.size() == 5);
+    REQUIRE(clippingPath->numContours() == 0);
     animation->advanceAndApply(1.0f); // 4.5s in timeline
+
     // Outer solo is pointing to inner solo, but inner solo is pointing to empty
     // group
-    REQUIRE(clippingPath->commands.size() == 5);
+    REQUIRE(clippingPath->numContours() == 0);
     animation->advanceAndApply(1.0f); // 5.5s in timeline
+
     // Outer solo is pointing to inner solo, inner solo is pointing to shape
-    REQUIRE(clippingPath->commands[5].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands[6].command == TestPathCommandType::AddPath);
-    REQUIRE(clippingPath->commands.size() == 7);
+    REQUIRE(clippingPath->numContours() == 1);
     animation->advanceAndApply(1.0f); // 6.5s in timeline
+
     // Outer solo pointing to empty group
-    REQUIRE(clippingPath->commands[7].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands.size() == 8);
+    REQUIRE(clippingPath->numContours() == 0);
     animation->advanceAndApply(2.0f); // 8.5s in timeline
+
     // Outer solo pointing to inner solo. Inner solo pointing to rect shape
-    REQUIRE(clippingPath->commands[8].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands[9].command == TestPathCommandType::AddPath);
-    REQUIRE(clippingPath->commands.size() == 10);
+    REQUIRE(clippingPath->numContours() == 1);
     animation->advanceAndApply(2.0f); // 10.5s in timeline
     // Outer solo pointing to inner solo. Inner solo pointing to path
-    REQUIRE(clippingPath->commands[10].command == TestPathCommandType::Reset);
-    REQUIRE(clippingPath->commands[11].command == TestPathCommandType::AddPath);
-    REQUIRE(clippingPath->commands.size() == 12);
+    REQUIRE(clippingPath->numContours() == 1);
+    REQUIRE(!clippingPath->hasRenderPath());
+    {
+        auto renderPath = clippingPath->renderPath(&emptyFactory);
+        REQUIRE(renderPath != nullptr);
+    }
 }

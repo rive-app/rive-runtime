@@ -2,6 +2,8 @@
 #define _RIVE_SHAPE_PAINT_CONTAINER_HPP_
 #include "rive/refcnt.hpp"
 #include "rive/shapes/path_flags.hpp"
+#include "rive/shapes/shape_paint_path.hpp"
+#include "rive/math/mat2d.hpp"
 #include <vector>
 
 namespace rive
@@ -29,6 +31,10 @@ protected:
 public:
     static ShapePaintContainer* from(Component* component);
 
+    /// The component that's responsible for path building, helpful for adding
+    /// dependencies after the paths are built.
+    virtual Component* pathBuilder() = 0;
+
     virtual ~ShapePaintContainer() {}
 
     PathFlags pathFlags() const;
@@ -37,12 +43,18 @@ public:
 
     void propagateOpacity(float opacity);
 
+    virtual const Mat2D& shapeWorldTransform() const = 0;
+
 #ifdef TESTING
     const std::vector<ShapePaint*>& shapePaints() const
     {
         return m_ShapePaints;
     }
 #endif
+
+    virtual ShapePaintPath* worldPath() { return nullptr; }
+    virtual ShapePaintPath* localPath() { return nullptr; }
+    virtual ShapePaintPath* localClockwisePath() { return nullptr; }
 };
 } // namespace rive
 

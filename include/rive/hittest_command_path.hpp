@@ -31,7 +31,9 @@ public:
     void rewind() override;
     void fillRule(FillRule value) override;
     void addPath(CommandPath* path, const Mat2D& transform) override;
+
     RenderPath* renderPath() override;
+    const RenderPath* renderPath() const override;
 
     void moveTo(float x, float y) override;
     void lineTo(float x, float y) override;

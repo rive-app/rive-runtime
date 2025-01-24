@@ -97,10 +97,10 @@ extern "C"
                               void*)
     {
         ((rive::RawPath*)rpath)
-            ->quadTo(x1 * gInvScale,
-                     -y1 * gInvScale,
-                     x2 * gInvScale,
-                     -y2 * gInvScale);
+            ->quadToCubic(x1 * gInvScale,
+                          -y1 * gInvScale,
+                          x2 * gInvScale,
+                          -y2 * gInvScale);
     }
     static void rpath_cubic_to(hb_draw_funcs_t*,
                                void* rpath,

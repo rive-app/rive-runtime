@@ -98,6 +98,8 @@ public:
         return !(width() > 0 && height() > 0);
     }
 
+    AABB pad(float amount) const { return outset(amount, amount); }
+
     AABB inset(float dx, float dy) const
     {
         AABB r = {minX + dx, minY + dy, maxX - dx, maxY - dy};

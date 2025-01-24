@@ -5,12 +5,15 @@
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/shape_paint_mutator.hpp"
 #include "rive/shapes/path_flags.hpp"
+#include "rive/shapes/shape_paint_path.hpp"
 #include "rive/math/raw_path.hpp"
 
 namespace rive
 {
 class RenderPaint;
 class ShapePaintMutator;
+class Feather;
+class ShapePaintContainer;
 class ShapePaint : public ShapePaintBase
 {
 protected:
@@ -36,19 +39,11 @@ public:
         return (int)(pathFlags() & flags) != 0x00;
     }
 
-    void draw(Renderer* renderer,
-              CommandPath* path,
-              const RawPath* rawPath = nullptr)
-    {
-        draw(renderer, path, rawPath, renderPaint());
-    }
-
     virtual void draw(Renderer* renderer,
-                      CommandPath* path,
-                      // When every CommandPath stores a RawPath we can get rid
-                      // of this argument.
-                      const RawPath* rawPath,
-                      RenderPaint* paint) = 0;
+                      ShapePaintPath* shapePaintPath,
+                      const Mat2D& transform,
+                      bool usePathFillRule = false,
+                      RenderPaint* overridePaint = nullptr);
 
     RenderPaint* renderPaint() { return m_RenderPaint.get(); }
 
@@ -66,6 +61,14 @@ public:
     /// the opacity by opacityModifer.
     virtual void applyTo(RenderPaint* renderPaint,
                          float opacityModifier) const = 0;
+
+    void feather(Feather* feather);
+    Feather* feather() const;
+
+    virtual ShapePaintPath* pickPath(ShapePaintContainer* shape) const = 0;
+
+private:
+    Feather* m_feather = nullptr;
 };
 } // namespace rive
 

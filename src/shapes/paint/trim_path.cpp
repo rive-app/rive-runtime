@@ -1,7 +1,5 @@
 #include "rive/shapes/paint/trim_path.hpp"
 #include "rive/shapes/paint/stroke.hpp"
-#include "rive/factory.hpp"
-
 using namespace rive;
 
 StatusCode TrimPath::onAddedClean(CoreContext* context)
@@ -16,15 +14,15 @@ StatusCode TrimPath::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void TrimPath::trimRawPath(const RawPath& source)
+void TrimPath::trimPath(const RawPath* source)
 {
-    m_rawPath.rewind();
+    auto rawPath = m_path.mutableRawPath();
     auto renderOffset = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);
 
     // Build up contours if they're empty.
     if (m_contours.empty())
     {
-        ContourMeasureIter iter(&source);
+        ContourMeasureIter iter(source);
         while (auto meas = iter.next())
         {
             m_contours.push_back(meas);
@@ -63,10 +61,7 @@ void TrimPath::trimRawPath(const RawPath& source)
 
                 if (startLength < contourLength)
                 {
-                    contour->getSegment(startLength,
-                                        endLength,
-                                        &m_rawPath,
-                                        true);
+                    contour->getSegment(startLength, endLength, rawPath, true);
                     endLength -= contourLength;
                     startLength = 0;
                 }
@@ -99,15 +94,12 @@ void TrimPath::trimRawPath(const RawPath& source)
                     startLength -= contourLength;
                     endLength -= contourLength;
                 }
-                contour->getSegment(startLength, endLength, &m_rawPath, true);
+                contour->getSegment(startLength, endLength, rawPath, true);
                 while (endLength > contourLength)
                 {
                     startLength = 0;
                     endLength -= contourLength;
-                    contour->getSegment(startLength,
-                                        endLength,
-                                        &m_rawPath,
-                                        true);
+                    contour->getSegment(startLength, endLength, rawPath, true);
                 }
             }
         }
@@ -115,30 +107,6 @@ void TrimPath::trimRawPath(const RawPath& source)
         default:
             RIVE_UNREACHABLE();
     }
-}
-
-RenderPath* TrimPath::effectPath(const RawPath& source, Factory* factory)
-{
-    if (m_renderPath != nullptr)
-    {
-        // Previous result hasn't been invalidated, it's still good.
-        return m_renderPath;
-    }
-
-    trimRawPath(source);
-
-    if (!m_trimmedPath)
-    {
-        m_trimmedPath = factory->makeEmptyRenderPath();
-    }
-    else
-    {
-        m_trimmedPath->rewind();
-    }
-
-    m_renderPath = m_trimmedPath.get();
-    m_rawPath.addTo(m_renderPath);
-    return m_renderPath;
 }
 
 void TrimPath::invalidateEffect()
@@ -151,7 +119,7 @@ void TrimPath::invalidateEffect()
 
 void TrimPath::invalidateTrim()
 {
-    m_renderPath = nullptr;
+    m_path.rewind();
     if (parent() != nullptr)
     {
         auto stroke = parent()->as<Stroke>();
@@ -180,3 +148,16 @@ StatusCode TrimPath::onAddedDirty(CoreContext* context)
     }
     return StatusCode::InvalidObject;
 }
+
+void TrimPath::updateEffect(const ShapePaintPath* source)
+{
+    if (m_path.hasRenderPath())
+    {
+        // Previous result hasn't been invalidated, it's still good.
+        return;
+    }
+    m_path.rewind(source->isLocal(), source->fillRule());
+    trimPath(source->rawPath());
+}
+
+ShapePaintPath* TrimPath::effectPath() { return &m_path; }

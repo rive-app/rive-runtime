@@ -1,8 +1,14 @@
 #include "rive/shapes/paint/fill.hpp"
+#include "rive/shapes/shape_paint_container.hpp"
 
 using namespace rive;
 
-PathFlags Fill::pathFlags() const { return PathFlags::local; }
+PathFlags Fill::pathFlags() const
+{
+    return (FillRule)fillRule() == FillRule::clockwise
+               ? PathFlags::localClockwise
+               : PathFlags::local;
+}
 
 RenderPaint* Fill::initRenderPaint(ShapePaintMutator* mutator)
 {
@@ -18,16 +24,11 @@ void Fill::applyTo(RenderPaint* renderPaint, float opacityModifier) const
     m_PaintMutator->applyTo(renderPaint, opacityModifier);
 }
 
-void Fill::draw(Renderer* renderer,
-                CommandPath* path,
-                const RawPath* rawPath,
-                RenderPaint* paint)
+ShapePaintPath* Fill::pickPath(ShapePaintContainer* shape) const
 {
-    if (!isVisible())
+    if ((FillRule)fillRule() == FillRule::clockwise)
     {
-        return;
+        return shape->localClockwisePath();
     }
-    auto renderPath = path->renderPath();
-    renderPath->fillRule((FillRule)fillRule());
-    renderer->drawPath(renderPath, paint);
+    return shape->localPath();
 }

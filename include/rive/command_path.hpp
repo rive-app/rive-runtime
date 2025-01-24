@@ -29,6 +29,7 @@ public:
     virtual void close() = 0;
 
     virtual RenderPath* renderPath() = 0;
+    virtual const RenderPath* renderPath() const = 0;
 
     // non-virtual helpers
 

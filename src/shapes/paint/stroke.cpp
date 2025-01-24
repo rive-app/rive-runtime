@@ -20,6 +20,17 @@ RenderPaint* Stroke::initRenderPaint(ShapePaintMutator* mutator)
     return renderPaint;
 }
 
+void Stroke::update(ComponentDirt value)
+{
+    Super::update(value);
+    if (hasDirt(value, ComponentDirt::Path) && m_Effect != nullptr)
+    {
+        auto container = ShapePaintContainer::from(parent());
+        auto path = pickPath(container);
+        m_Effect->updateEffect(path);
+    }
+}
+
 void Stroke::applyTo(RenderPaint* renderPaint, float opacityModifier) const
 {
     renderPaint->style(RenderPaintStyle::stroke);
@@ -33,25 +44,6 @@ void Stroke::applyTo(RenderPaint* renderPaint, float opacityModifier) const
 bool Stroke::isVisible() const
 {
     return Super::isVisible() && thickness() > 0.0f;
-}
-
-void Stroke::draw(Renderer* renderer,
-                  CommandPath* path,
-                  const RawPath* rawPath,
-                  RenderPaint* paint)
-{
-    if (!isVisible())
-    {
-        return;
-    }
-
-    if (m_Effect != nullptr && rawPath != nullptr)
-    {
-        auto factory = artboard()->factory();
-        path = m_Effect->effectPath(*rawPath, factory);
-    }
-
-    renderer->drawPath(path->renderPath(), paint);
 }
 
 void Stroke::thicknessChanged()
@@ -87,4 +79,41 @@ void Stroke::invalidateRendering()
 {
     assert(m_RenderPaint != nullptr);
     m_RenderPaint->invalidateStroke();
+    addDirt(ComponentDirt::Path);
+}
+
+ShapePaintPath* Stroke::pickPath(ShapePaintContainer* shape) const
+{
+    if (transformAffectsStroke())
+    {
+        return shape->localPath();
+    }
+    return shape->worldPath();
+}
+
+void Stroke::draw(Renderer* renderer,
+                  ShapePaintPath* shapePaintPath,
+                  const Mat2D& transform,
+                  bool usePathFillRule,
+                  RenderPaint* overridePaint)
+{
+    if (m_Effect != nullptr)
+    {
+        shapePaintPath = m_Effect->effectPath();
+    }
+
+    Super::draw(renderer,
+                shapePaintPath,
+                transform,
+                usePathFillRule,
+                overridePaint);
+}
+
+void Stroke::buildDependencies()
+{
+    auto container = ShapePaintContainer::from(parent());
+    if (container != nullptr)
+    {
+        container->pathBuilder()->addDependent(this);
+    }
 }

@@ -1,6 +1,7 @@
 #ifndef _RIVE_PATH_COMPOSER_HPP_
 #define _RIVE_PATH_COMPOSER_HPP_
 #include "rive/component.hpp"
+#include "rive/shapes/shape_paint_path.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/math/raw_path.hpp"
 
@@ -8,7 +9,7 @@ namespace rive
 {
 class Shape;
 class CommandPath;
-class RenderPath;
+
 class PathComposer : public Component
 {
 
@@ -19,20 +20,17 @@ public:
     void onDirty(ComponentDirt dirt) override;
     void update(ComponentDirt value) override;
 
-    CommandPath* localPath() const { return m_localPath.get(); }
-    CommandPath* worldPath() const { return m_worldPath.get(); }
-
-    const RawPath& localRawPath() const { return m_localRawPath; }
-    const RawPath& worldRawPath() const { return m_worldRawPath; }
+    ShapePaintPath* localPath() { return &m_localPath; }
+    ShapePaintPath* worldPath() { return &m_worldPath; }
+    ShapePaintPath* localClockwisePath() { return &m_localClockwisePath; }
 
     void pathCollapseChanged();
 
 private:
     Shape* m_shape;
-    RawPath m_localRawPath;
-    RawPath m_worldRawPath;
-    rcp<CommandPath> m_localPath;
-    rcp<CommandPath> m_worldPath;
+    ShapePaintPath m_localPath;
+    ShapePaintPath m_worldPath;
+    ShapePaintPath m_localClockwisePath;
     bool m_deferredPathDirt;
 };
 } // namespace rive

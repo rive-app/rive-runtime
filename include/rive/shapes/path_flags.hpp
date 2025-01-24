@@ -13,6 +13,7 @@ enum class PathFlags : uint8_t
     clipping = 1 << 3,
     followPath = 1 << 4,
     neverDeferUpdate = 1 << 5,
+    localClockwise = 1 << 6,
 };
 
 inline constexpr PathFlags operator&(PathFlags lhs, PathFlags rhs)

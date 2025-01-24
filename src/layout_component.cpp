@@ -255,8 +255,6 @@ StatusCode LayoutComponent::onAddedClean(CoreContext* context)
     }
     artboard()->markLayoutDirty(this);
     markLayoutStyleDirty();
-    m_backgroundPath = artboard()->factory()->makeEmptyRenderPath();
-    m_clipPath = artboard()->factory()->makeEmptyRenderPath();
     m_backgroundRect.originX(0);
     m_backgroundRect.originY(0);
     syncLayoutChildren();
@@ -269,30 +267,21 @@ void LayoutComponent::drawProxy(Renderer* renderer)
     if (clip())
     {
         renderer->save();
-        renderer->clipPath(m_clipPath.get());
+        renderer->clipPath(m_worldPath.renderPath(this));
     }
-    renderer->save();
-    renderer->transform(worldTransform());
     for (auto shapePaint : m_ShapePaints)
     {
         if (!shapePaint->isVisible())
         {
             continue;
         }
-        if (shapePaint->is<Stroke>())
+        auto shapePaintPath = shapePaint->pickPath(this);
+        if (shapePaintPath == nullptr)
         {
-            shapePaint->draw(renderer,
-                             m_backgroundPath.get(),
-                             &m_backgroundRect.rawPath());
+            continue;
         }
-        if (shapePaint->is<Fill>())
-        {
-            shapePaint->draw(renderer,
-                             m_backgroundPath.get(),
-                             &m_backgroundRect.rawPath());
-        }
+        shapePaint->draw(renderer, shapePaintPath, worldTransform());
     }
-    renderer->restore();
 }
 
 void LayoutComponent::draw(Renderer* renderer)
@@ -318,13 +307,12 @@ void LayoutComponent::updateRenderPath()
     }
     m_backgroundRect.update(ComponentDirt::Path);
 
-    m_backgroundPath->rewind();
-    m_backgroundRect.rawPath().addTo(m_backgroundPath.get());
+    m_localPath.rewind();
+    m_localPath.addPath(m_backgroundRect.rawPath());
 
-    RawPath clipPath;
-    clipPath.addPath(m_backgroundRect.rawPath(), &m_WorldTransform);
-    m_clipPath =
-        artboard()->factory()->makeRenderPath(clipPath, FillRule::nonZero);
+    m_worldPath.rewind(false, FillRule::clockwise);
+    m_worldPath.addPath(m_backgroundRect.rawPath(), &m_WorldTransform);
+
     for (auto shapePaint : m_ShapePaints)
     {
         if (!shapePaint->isVisible())
@@ -1297,3 +1285,9 @@ void LayoutComponent::heightChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::styleIdChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::fractionalWidthChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::fractionalHeightChanged() { markLayoutNodeDirty(); }
+
+ShapePaintPath* LayoutComponent::worldPath() { return &m_worldPath; }
+ShapePaintPath* LayoutComponent::localPath() { return &m_localPath; }
+ShapePaintPath* LayoutComponent::localClockwisePath() { return &m_localPath; }
+
+Component* LayoutComponent::pathBuilder() { return this; }

@@ -150,8 +150,6 @@ StatusCode Artboard::initialize()
     StatusCode code;
 
     // these will be re-built in update() -- are they needed here?
-    m_backgroundPath = factory()->makeEmptyRenderPath();
-    m_clipPath = factory()->makeEmptyRenderPath();
     m_layout = Layout(0.0f, 0.0f, width(), height());
 
 #ifdef WITH_RIVE_LAYOUT
@@ -683,11 +681,10 @@ void Artboard::updateRenderPath()
     {
         clip = bg;
     }
-    m_clipPath = factory()->makeRenderPath(clip);
-    m_backgroundRawPath.rewind();
-    m_backgroundRawPath.addRect(bg);
-    m_backgroundPath->rewind();
-    m_backgroundRawPath.addTo(m_backgroundPath.get());
+    m_localPath.rewind();
+    m_localPath.addRect(bg);
+    m_worldPath.rewind();
+    m_worldPath.addRect(clip);
 }
 
 void Artboard::update(ComponentDirt value)
@@ -969,7 +966,7 @@ void Artboard::draw(Renderer* renderer, DrawOption option)
     renderer->save();
     if (clip())
     {
-        renderer->clipPath(m_clipPath.get());
+        renderer->clipPath(m_worldPath.renderPath(this));
     }
 
     if (m_FrameOrigin)
@@ -984,9 +981,16 @@ void Artboard::draw(Renderer* renderer, DrawOption option)
     {
         for (auto shapePaint : m_ShapePaints)
         {
-            shapePaint->draw(renderer,
-                             m_backgroundPath.get(),
-                             &m_backgroundRawPath);
+            if (!shapePaint->isVisible())
+            {
+                continue;
+            }
+            auto shapePaintPath = shapePaint->pickPath(this);
+            if (shapePaintPath == nullptr)
+            {
+                continue;
+            }
+            shapePaint->draw(renderer, shapePaintPath, worldTransform());
         }
     }
 

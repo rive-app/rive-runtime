@@ -70,8 +70,8 @@ TEST_CASE("artboard is clipped correctly", "[clipping]")
     REQUIRE(artboard->originX() == 0.5);
     REQUIRE(artboard->originY() == 0.5);
     {
-        auto clipPath = static_cast<ClipTestRenderPath*>(artboard->clipPath());
-        auto points = clipPath->rawPath.points();
+        auto clipPath = artboard->worldPath()->rawPath();
+        auto points = clipPath->points();
         REQUIRE(points.size() == 4);
 
         REQUIRE(points[0] == rive::Vec2D(0.0f, 0.0f));
@@ -83,8 +83,10 @@ TEST_CASE("artboard is clipped correctly", "[clipping]")
     artboard->frameOrigin(false);
     artboard->updateComponents();
     {
-        auto clipPath = static_cast<ClipTestRenderPath*>(artboard->clipPath());
-        auto points = clipPath->rawPath.points();
+        // auto clipPath =
+        // static_cast<ClipTestRenderPath*>(artboard->clipPath());
+        auto clipPath = artboard->worldPath()->rawPath();
+        auto points = clipPath->points();
         REQUIRE(points.size() == 4);
 
         REQUIRE(points[0] == rive::Vec2D(-250.0f, -250.0f));

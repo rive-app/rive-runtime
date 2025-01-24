@@ -11,25 +11,24 @@ void PathDasher::invalidateSourcePath()
     invalidateDash();
 }
 
-void PathDasher::invalidateDash() { m_renderPath = nullptr; }
+void PathDasher::invalidateDash() { m_path.rewind(); }
 
-RenderPath* PathDasher::dash(const RawPath& source,
-                             Factory* factory,
-                             Dash* offset,
-                             Span<Dash*> dashes)
+ShapePaintPath* PathDasher::dash(const RawPath* source,
+                                 Dash* offset,
+                                 Span<Dash*> dashes)
 {
-    if (m_renderPath != nullptr)
+    if (m_path.hasRenderPath())
     {
         // Previous result hasn't been invalidated, it's still good.
-        return m_renderPath;
+        return &m_path;
     }
 
-    m_rawPath.rewind();
+    m_path.rewind();
     if (m_contours.empty())
     {
         // 0.5f / 8.0f is a value that seems to look good on dashes with small
         // gaps and scaled
-        ContourMeasureIter iter(&source, 0.0625f);
+        ContourMeasureIter iter(source, 0.0625f);
         while (auto meas = iter.next())
         {
             m_contours.push_back(meas);
@@ -56,6 +55,7 @@ RenderPath* PathDasher::dash(const RawPath& source,
     if (hasValidDash)
     {
         int dashIndex = 0;
+        auto rawPath = m_path.mutableRawPath();
         for (const rcp<ContourMeasure>& contour : m_contours)
         {
             float dashed = 0.0f;
@@ -79,19 +79,16 @@ RenderPath* PathDasher::dash(const RawPath& source,
                         {
                             contour->getSegment(distance,
                                                 contour->length(),
-                                                &m_rawPath,
+                                                rawPath,
                                                 true);
                             contour->getSegment(0.0f,
                                                 endLength,
-                                                &m_rawPath,
+                                                rawPath,
                                                 !contour->isClosed());
                         }
                         else
                         {
-                            contour->getSegment(0.0f,
-                                                endLength,
-                                                &m_rawPath,
-                                                true);
+                            contour->getSegment(0.0f, endLength, rawPath, true);
                         }
                     }
 
@@ -100,7 +97,7 @@ RenderPath* PathDasher::dash(const RawPath& source,
                 }
                 else if (draw)
                 {
-                    contour->getSegment(distance, endLength, &m_rawPath, true);
+                    contour->getSegment(distance, endLength, rawPath, true);
                 }
                 distance += dashLength;
                 dashed += dashLength;
@@ -108,20 +105,7 @@ RenderPath* PathDasher::dash(const RawPath& source,
             }
         }
     }
-
-    if (!m_dashedPath)
-    {
-        m_dashedPath = factory->makeEmptyRenderPath();
-    }
-    else
-    {
-        m_dashedPath->rewind();
-    }
-
-    m_renderPath = m_dashedPath.get();
-    m_rawPath.addTo(m_renderPath);
-
-    return m_renderPath;
+    return &m_path;
 }
 
 float PathDasher::pathLength() const
@@ -153,13 +137,15 @@ StatusCode DashPath::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-RenderPath* DashPath::effectPath(const RawPath& source, Factory* factory)
-{
-    Dash dashOffset(offset(), offsetIsPercentage());
-    return dash(source, factory, &dashOffset, m_dashes);
-}
-
 void DashPath::invalidateEffect() { invalidateSourcePath(); }
 
 void DashPath::offsetChanged() { invalidateDash(); }
 void DashPath::offsetIsPercentageChanged() { invalidateDash(); }
+
+void DashPath::updateEffect(const ShapePaintPath* source)
+{
+    Dash dashOffset(offset(), offsetIsPercentage());
+    dash(source->rawPath(), &dashOffset, m_dashes);
+}
+
+ShapePaintPath* DashPath::effectPath() { return &m_path; }

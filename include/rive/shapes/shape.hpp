@@ -83,6 +83,16 @@ public:
 
     bool hitTestAABB(const Vec2D& position) override;
     bool hitTestHiFi(const Vec2D& position, float hitRadius) override;
+    // Implemented for ShapePaintContainer.
+    const Mat2D& shapeWorldTransform() const override
+    {
+        return worldTransform();
+    }
+
+    ShapePaintPath* worldPath() override;
+    ShapePaintPath* localPath() override;
+    ShapePaintPath* localClockwisePath() override;
+    Component* pathBuilder() override;
 };
 } // namespace rive
 

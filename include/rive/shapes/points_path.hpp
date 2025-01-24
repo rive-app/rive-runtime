@@ -13,6 +13,11 @@ public:
     void markPathDirty(bool sendToLayout = true) override;
     void markSkinDirty() override;
     const Mat2D& pathTransform() const override;
+
+    bool isClockwise() const { return m_isClockwise; }
+
+private:
+    bool m_isClockwise = true;
 };
 } // namespace rive
 

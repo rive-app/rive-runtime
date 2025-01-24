@@ -36,7 +36,7 @@ private:
 } // namespace rive
 
 // satisfy unique_ptr
-TextStyle::TextStyle() {}
+TextStyle::TextStyle() : m_path(true, FillRule::clockwise) {}
 
 void TextStyle::addVariation(TextStyleAxis* axis)
 {
@@ -135,13 +135,11 @@ void TextStyle::buildDependencies()
     }
     parent()->addDependent(this);
     Super::buildDependencies();
-    auto factory = getArtboard()->factory();
-    m_path = factory->makeEmptyRenderPath();
 }
 
 void TextStyle::rewindPath()
 {
-    m_path->rewind();
+    m_path.rewind();
     m_hasContents = false;
     m_opacityPaths.clear();
 }
@@ -152,39 +150,37 @@ bool TextStyle::addPath(const RawPath& rawPath, float opacity)
     m_hasContents = true;
     if (opacity == 1.0f)
     {
-        rawPath.addTo(m_path.get());
+        m_path.addPathClockwise(rawPath);
     }
     else if (opacity > 0.0f)
     {
         auto itr = m_opacityPaths.find(opacity);
-        RenderPath* renderPath = nullptr;
+        ShapePaintPath* shapePaintPath = nullptr;
         if (itr != m_opacityPaths.end())
         {
-            renderPath = itr->second.get();
+            ShapePaintPath& path = itr->second;
+            shapePaintPath = &path;
         }
         else
         {
-            auto factory = getArtboard()->factory();
-            auto erp = factory->makeEmptyRenderPath();
-            renderPath = erp.get();
-            m_opacityPaths[opacity] = std::move(erp);
+            m_opacityPaths[opacity] = ShapePaintPath(true, FillRule::clockwise);
+            shapePaintPath = &m_opacityPaths.at(opacity);
         }
-        rawPath.addTo(renderPath);
+        shapePaintPath->addPathClockwise(rawPath);
     }
 
     return !hadContents;
 }
 
-void TextStyle::draw(Renderer* renderer)
+void TextStyle::draw(Renderer* renderer, const Mat2D& worldTransform)
 {
-    auto path = m_path.get();
     for (auto shapePaint : m_ShapePaints)
     {
         if (!shapePaint->isVisible())
         {
             continue;
         }
-        shapePaint->draw(renderer, path);
+        shapePaint->draw(renderer, &m_path, worldTransform, true);
 
         if (m_paintPool.size() < m_opacityPaths.size())
         {
@@ -202,7 +198,12 @@ void TextStyle::draw(Renderer* renderer)
         {
             RenderPaint* renderPaint = m_paintPool[paintIndex++].get();
             shapePaint->applyTo(renderPaint, itr->first);
-            shapePaint->draw(renderer, itr->second.get(), nullptr, renderPaint);
+            ShapePaintPath& path = itr->second;
+            shapePaint->draw(renderer,
+                             &path,
+                             worldTransform,
+                             true,
+                             renderPaint);
         }
     }
 }
@@ -246,3 +247,10 @@ Core* TextStyle::clone() const
 
     return twin;
 }
+
+const Mat2D& TextStyle::shapeWorldTransform() const
+{
+    return parent()->as<Text>()->shapeWorldTransform();
+}
+
+Component* TextStyle::pathBuilder() { return parent(); }

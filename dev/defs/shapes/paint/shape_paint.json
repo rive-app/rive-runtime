@@ -25,15 +25,14 @@
       },
       "runtime": false
     },
-    "feather": {
-      "type": "double",
-      "initialValue": "0",
-      "animates": true,
+    "blendModeValue": {
+      "type": "uint",
+      "initialValue": "-1",
       "key": {
-        "int": 712,
-        "string": "feather"
+        "int": 747,
+        "string": "blendmodevalue"
       },
-      "bindable": true
+      "description": "Shape paint blend mode value. -1 means inherit."
     }
   }
 }

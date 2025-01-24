@@ -6,6 +6,8 @@
 
 #include "rive/command_path.hpp"
 #include "rive/math/simd.hpp"
+#include "rive/math/wangs_formula.hpp"
+#include "rive/math/bezier_utils.hpp"
 #include <cmath>
 #include <cstring>
 #include <algorithm>
@@ -220,6 +222,27 @@ void RawPath::addPoly(Span<const Vec2D> span, bool isClosed)
     }
 }
 
+void RawPath::addPoints(std::vector<Vec2D>::const_iterator& ptIter,
+                        int count,
+                        const Mat2D* mat)
+{
+    while (count > 0)
+    {
+        auto point = *ptIter;
+        if (mat)
+        {
+            Vec2D transformedPoint = Vec2D::transformMat2D(point, *mat);
+            m_Points.emplace_back(transformedPoint);
+        }
+        else
+        {
+            m_Points.emplace_back(point);
+        }
+        ptIter--;
+        count--;
+    }
+}
+
 RawPath::Iter RawPath::addPath(const RawPath& src, const Mat2D* mat)
 {
     size_t initialVerbCount = m_Verbs.size();
@@ -242,6 +265,52 @@ RawPath::Iter RawPath::addPath(const RawPath& src, const Mat2D* mat)
     }
 
     // Return an iterator at the beginning of the newly added geometry.
+    return Iter{m_Verbs.data() + initialVerbCount,
+                m_Points.data() + initialPointCount};
+}
+
+RawPath::Iter RawPath::addPathBackwards(const RawPath& src, const Mat2D* mat)
+{
+    size_t initialVerbCount = m_Verbs.size();
+    size_t initialPointCount = m_Points.size();
+    if (!src.m_Verbs.empty())
+    {
+        bool isClosed = src.m_Verbs.back() == PathVerb::close;
+
+        auto reversePointIterator = src.m_Points.end() - 1;
+        // Move to first point
+        m_Verbs.emplace_back(PathVerb::move);
+        addPoints(reversePointIterator, 1, mat);
+
+        auto reverseVerbIterator = src.m_Verbs.end() - 1;
+        if (isClosed)
+        {
+            reverseVerbIterator--;
+        }
+
+        for (; reverseVerbIterator != src.m_Verbs.begin();
+             reverseVerbIterator--)
+        {
+            PathVerb verb = *reverseVerbIterator;
+            m_Verbs.emplace_back(verb);
+            switch (verb)
+            {
+                case PathVerb::cubic:
+                    addPoints(reversePointIterator, 3, mat);
+                    break;
+                case PathVerb::quad:
+                    addPoints(reversePointIterator, 2, mat);
+                    break;
+                case PathVerb::line:
+                case PathVerb::move:
+                    addPoints(reversePointIterator, 1, mat);
+                    break;
+                default:
+                    break;
+            }
+        }
+        m_Verbs.emplace_back(PathVerb::close);
+    }
     return Iter{m_Verbs.data() + initialVerbCount,
                 m_Points.data() + initialPointCount};
 }
@@ -375,6 +444,19 @@ void RawPath::addTo(CommandPath* result) const
                               pts[2]);
         }
     }
+}
+
+void RawPath::quadToCubic(float x, float y, float x1, float y1)
+{
+    assert(!m_Points.empty());
+    if (m_Points.empty())
+    {
+        return;
+    }
+    const Vec2D& p0 = m_Points.back();
+    const Vec2D p1(x, y);
+    const Vec2D p2(x1, y1);
+    cubic(Vec2D::lerp(p0, p1, 2 / 3.f), Vec2D::lerp(p2, p1, 2 / 3.f), p2);
 }
 
 #ifdef DEBUG
@@ -594,4 +676,61 @@ AABB RawPath::preciseBounds() const
 }
 #endif
 
+float RawPath::computeCoarseArea() const
+{
+    float a = 0;
+    Vec2D contourP0 = {0, 0}, lastPt = {0, 0};
+    for (auto iter : *this)
+    {
+        PathVerb verb = std::get<0>(iter);
+        const Vec2D* pts = std::get<1>(iter);
+        switch (verb)
+        {
+            case PathVerb::move:
+                a += Vec2D::cross(lastPt, contourP0);
+                contourP0 = lastPt = pts[0];
+                break;
+            case PathVerb::close:
+                break;
+            case PathVerb::line:
+                a += Vec2D::cross(lastPt, pts[1]);
+                lastPt = pts[1];
+                break;
+            case PathVerb::quad:
+                RIVE_UNREACHABLE();
+            case PathVerb::cubic:
+            {
+                // Linearize the cubic in artboard space, then add up the
+                // area for each segment.
+                float n = ceilf(
+                    wangs_formula::cubic(pts, 1.f / kCoarseAreaTolerance));
+                if (n > 1)
+                {
+                    n = std::min(n, 64.f);
+                    float4 t = float4{1, 1, 2, 2} * (1 / n);
+                    float4 dt = t.w;
+                    math::EvalCubic evalCubic(pts);
+                    for (; t.x < 1; t += dt)
+                    {
+                        float4 p = evalCubic(t);
+                        Vec2D lo = {p.x, p.y};
+                        a += Vec2D::cross(lastPt, lo);
+                        lastPt = lo;
+                        if (t.y < 1)
+                        {
+                            Vec2D hi = {p.z, p.w};
+                            a += Vec2D::cross(lastPt, hi);
+                            lastPt = hi;
+                        }
+                    }
+                }
+                a += Vec2D::cross(lastPt, pts[3]);
+                lastPt = pts[3];
+                break;
+            }
+        }
+    }
+    a += Vec2D::cross(lastPt, contourP0);
+    return a * .5f;
+}
 } // namespace rive

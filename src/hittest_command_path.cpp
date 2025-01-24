@@ -34,6 +34,13 @@ RenderPath* HitTestCommandPath::renderPath()
     return nullptr;
 }
 
+const RenderPath* HitTestCommandPath::renderPath() const
+{
+    assert(false);
+    // not supported
+    return nullptr;
+}
+
 void HitTestCommandPath::moveTo(float x, float y)
 {
     m_Tester.move(m_Xform * Vec2D(x, y));

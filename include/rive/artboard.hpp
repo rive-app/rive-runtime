@@ -69,7 +69,6 @@ private:
     bool m_JoysticksApplyBeforeUpdate = true;
 
     unsigned int m_DirtDepth = 0;
-    RawPath m_backgroundRawPath;
     Factory* m_Factory = nullptr;
     Drawable* m_FirstDrawable = nullptr;
     bool m_IsInstance = false;
@@ -100,6 +99,12 @@ private:
 public:
     void host(NestedArtboard* nestedArtboard);
     NestedArtboard* host() const;
+
+    // Implemented for ShapePaintContainer.
+    const Mat2D& shapeWorldTransform() const override
+    {
+        return worldTransform();
+    }
 
 private:
 #ifdef TESTING
@@ -172,8 +177,8 @@ public:
     void addToRenderPath(RenderPath* path, const Mat2D& transform);
 
 #ifdef TESTING
-    RenderPath* clipPath() const { return m_clipPath.get(); }
-    RenderPath* backgroundPath() const { return m_backgroundPath.get(); }
+    ShapePaintPath* clipPath() { return &m_worldPath; }
+    ShapePaintPath* backgroundPath() { return &m_localPath; }
 #endif
 
     const std::vector<Core*>& objects() const { return m_Objects; }

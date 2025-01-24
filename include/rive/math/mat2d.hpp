@@ -94,6 +94,11 @@ public:
     void tx(float value) { m_buffer[4] = value; }
     void ty(float value) { m_buffer[5] = value; }
 
+    float determinant() const
+    {
+        return m_buffer[0] * m_buffer[3] - m_buffer[2] * m_buffer[1];
+    }
+
 private:
     std::array<float, 6> m_buffer;
 };

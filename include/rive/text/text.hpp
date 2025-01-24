@@ -4,6 +4,7 @@
 #include "rive/math/aabb.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text_engine.hpp"
+#include "rive/shapes/shape_paint_path.hpp"
 #include "rive/simple_array.hpp"
 #include <vector>
 #include "rive/text/glyph_lookup.hpp"
@@ -190,7 +191,9 @@ public:
     void markPaintDirty();
     void update(ComponentDirt value) override;
     Mat2D m_transform;
+    Mat2D m_shapeWorldTransform;
 
+    const Mat2D& shapeWorldTransform() const { return m_shapeWorldTransform; }
     TextSizing sizing() const { return (TextSizing)sizingValue(); }
     TextSizing effectiveSizing() const;
     TextOverflow overflow() const { return (TextOverflow)overflowValue(); }
@@ -282,7 +285,8 @@ private:
     // Runs ordered by paragraph line.
     std::vector<OrderedLine> m_orderedLines;
     GlyphRun m_ellipsisRun;
-    rcp<RenderPath> m_clipRenderPath;
+    RawPath m_clipRect;
+    ShapePaintPath m_clipPath;
     AABB m_bounds;
     std::vector<TextModifierGroup*> m_modifierGroups;
 

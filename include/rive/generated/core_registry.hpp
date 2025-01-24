@@ -179,6 +179,7 @@
 #include "rive/shapes/mesh_vertex.hpp"
 #include "rive/shapes/paint/dash.hpp"
 #include "rive/shapes/paint/dash_path.hpp"
+#include "rive/shapes/paint/feather.hpp"
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/paint/gradient_stop.hpp"
 #include "rive/shapes/paint/linear_gradient.hpp"
@@ -480,6 +481,8 @@ public:
                 return new SolidColor();
             case GradientStopBase::typeKey:
                 return new GradientStop();
+            case FeatherBase::typeKey:
+                return new Feather();
             case TrimPathBase::typeKey:
                 return new TrimPath();
             case FillBase::typeKey:
@@ -718,6 +721,9 @@ public:
                 break;
             case StrokeBase::transformAffectsStrokePropertyKey:
                 object->as<StrokeBase>()->transformAffectsStroke(value);
+                break;
+            case FeatherBase::innerPropertyKey:
+                object->as<FeatherBase>()->inner(value);
                 break;
             case PointsPathBase::isClosedPropertyKey:
                 object->as<PointsPathBase>()->isClosed(value);
@@ -1170,11 +1176,17 @@ public:
                 object->as<BlendStateTransitionBase>()->exitBlendAnimationId(
                     value);
                 break;
+            case ShapePaintBase::blendModeValuePropertyKey:
+                object->as<ShapePaintBase>()->blendModeValue(value);
+                break;
             case StrokeBase::capPropertyKey:
                 object->as<StrokeBase>()->cap(value);
                 break;
             case StrokeBase::joinPropertyKey:
                 object->as<StrokeBase>()->join(value);
+                break;
+            case FeatherBase::spaceValuePropertyKey:
+                object->as<FeatherBase>()->spaceValue(value);
                 break;
             case TrimPathBase::modeValuePropertyKey:
                 object->as<TrimPathBase>()->modeValue(value);
@@ -1698,9 +1710,6 @@ public:
             case BlendAnimation1DBase::valuePropertyKey:
                 object->as<BlendAnimation1DBase>()->value(value);
                 break;
-            case ShapePaintBase::featherPropertyKey:
-                object->as<ShapePaintBase>()->feather(value);
-                break;
             case DashPathBase::offsetPropertyKey:
                 object->as<DashPathBase>()->offset(value);
                 break;
@@ -1727,6 +1736,15 @@ public:
                 break;
             case GradientStopBase::positionPropertyKey:
                 object->as<GradientStopBase>()->position(value);
+                break;
+            case FeatherBase::strengthPropertyKey:
+                object->as<FeatherBase>()->strength(value);
+                break;
+            case FeatherBase::offsetXPropertyKey:
+                object->as<FeatherBase>()->offsetX(value);
+                break;
+            case FeatherBase::offsetYPropertyKey:
+                object->as<FeatherBase>()->offsetY(value);
                 break;
             case TrimPathBase::startPropertyKey:
                 object->as<TrimPathBase>()->start(value);
@@ -2091,6 +2109,8 @@ public:
                 return object->as<DashBase>()->lengthIsPercentage();
             case StrokeBase::transformAffectsStrokePropertyKey:
                 return object->as<StrokeBase>()->transformAffectsStroke();
+            case FeatherBase::innerPropertyKey:
+                return object->as<FeatherBase>()->inner();
             case PointsPathBase::isClosedPropertyKey:
                 return object->as<PointsPathBase>()->isClosed();
             case RectangleBase::linkCornerRadiusPropertyKey:
@@ -2421,10 +2441,14 @@ public:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 return object->as<BlendStateTransitionBase>()
                     ->exitBlendAnimationId();
+            case ShapePaintBase::blendModeValuePropertyKey:
+                return object->as<ShapePaintBase>()->blendModeValue();
             case StrokeBase::capPropertyKey:
                 return object->as<StrokeBase>()->cap();
             case StrokeBase::joinPropertyKey:
                 return object->as<StrokeBase>()->join();
+            case FeatherBase::spaceValuePropertyKey:
+                return object->as<FeatherBase>()->spaceValue();
             case TrimPathBase::modeValuePropertyKey:
                 return object->as<TrimPathBase>()->modeValue();
             case FillBase::fillRulePropertyKey:
@@ -2797,8 +2821,6 @@ public:
                 return object->as<NestedRemapAnimationBase>()->time();
             case BlendAnimation1DBase::valuePropertyKey:
                 return object->as<BlendAnimation1DBase>()->value();
-            case ShapePaintBase::featherPropertyKey:
-                return object->as<ShapePaintBase>()->feather();
             case DashPathBase::offsetPropertyKey:
                 return object->as<DashPathBase>()->offset();
             case LinearGradientBase::startXPropertyKey:
@@ -2817,6 +2839,12 @@ public:
                 return object->as<StrokeBase>()->thickness();
             case GradientStopBase::positionPropertyKey:
                 return object->as<GradientStopBase>()->position();
+            case FeatherBase::strengthPropertyKey:
+                return object->as<FeatherBase>()->strength();
+            case FeatherBase::offsetXPropertyKey:
+                return object->as<FeatherBase>()->offsetX();
+            case FeatherBase::offsetYPropertyKey:
+                return object->as<FeatherBase>()->offsetY();
             case TrimPathBase::startPropertyKey:
                 return object->as<TrimPathBase>()->start();
             case TrimPathBase::endPropertyKey:
@@ -3041,6 +3069,7 @@ public:
             case DashPathBase::offsetIsPercentagePropertyKey:
             case DashBase::lengthIsPercentagePropertyKey:
             case StrokeBase::transformAffectsStrokePropertyKey:
+            case FeatherBase::innerPropertyKey:
             case PointsPathBase::isClosedPropertyKey:
             case RectangleBase::linkCornerRadiusPropertyKey:
             case ClippingShapeBase::isVisiblePropertyKey:
@@ -3175,8 +3204,10 @@ public:
             case ElasticInterpolatorBase::easingValuePropertyKey:
             case TransitionValueEnumComparatorBase::valuePropertyKey:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
+            case ShapePaintBase::blendModeValuePropertyKey:
             case StrokeBase::capPropertyKey:
             case StrokeBase::joinPropertyKey:
+            case FeatherBase::spaceValuePropertyKey:
             case TrimPathBase::modeValuePropertyKey:
             case FillBase::fillRulePropertyKey:
             case PathBase::pathFlagsPropertyKey:
@@ -3347,7 +3378,6 @@ public:
             case NestedNumberBase::nestedValuePropertyKey:
             case NestedRemapAnimationBase::timePropertyKey:
             case BlendAnimation1DBase::valuePropertyKey:
-            case ShapePaintBase::featherPropertyKey:
             case DashPathBase::offsetPropertyKey:
             case LinearGradientBase::startXPropertyKey:
             case LinearGradientBase::startYPropertyKey:
@@ -3357,6 +3387,9 @@ public:
             case DashBase::lengthPropertyKey:
             case StrokeBase::thicknessPropertyKey:
             case GradientStopBase::positionPropertyKey:
+            case FeatherBase::strengthPropertyKey:
+            case FeatherBase::offsetXPropertyKey:
+            case FeatherBase::offsetYPropertyKey:
             case TrimPathBase::startPropertyKey:
             case TrimPathBase::endPropertyKey:
             case TrimPathBase::offsetPropertyKey:
@@ -3535,6 +3568,8 @@ public:
                 return object->is<DashBase>();
             case StrokeBase::transformAffectsStrokePropertyKey:
                 return object->is<StrokeBase>();
+            case FeatherBase::innerPropertyKey:
+                return object->is<FeatherBase>();
             case PointsPathBase::isClosedPropertyKey:
                 return object->is<PointsPathBase>();
             case RectangleBase::linkCornerRadiusPropertyKey:
@@ -3799,10 +3834,14 @@ public:
                 return object->is<TransitionValueEnumComparatorBase>();
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 return object->is<BlendStateTransitionBase>();
+            case ShapePaintBase::blendModeValuePropertyKey:
+                return object->is<ShapePaintBase>();
             case StrokeBase::capPropertyKey:
                 return object->is<StrokeBase>();
             case StrokeBase::joinPropertyKey:
                 return object->is<StrokeBase>();
+            case FeatherBase::spaceValuePropertyKey:
+                return object->is<FeatherBase>();
             case TrimPathBase::modeValuePropertyKey:
                 return object->is<TrimPathBase>();
             case FillBase::fillRulePropertyKey:
@@ -4135,8 +4174,6 @@ public:
                 return object->is<NestedRemapAnimationBase>();
             case BlendAnimation1DBase::valuePropertyKey:
                 return object->is<BlendAnimation1DBase>();
-            case ShapePaintBase::featherPropertyKey:
-                return object->is<ShapePaintBase>();
             case DashPathBase::offsetPropertyKey:
                 return object->is<DashPathBase>();
             case LinearGradientBase::startXPropertyKey:
@@ -4155,6 +4192,12 @@ public:
                 return object->is<StrokeBase>();
             case GradientStopBase::positionPropertyKey:
                 return object->is<GradientStopBase>();
+            case FeatherBase::strengthPropertyKey:
+                return object->is<FeatherBase>();
+            case FeatherBase::offsetXPropertyKey:
+                return object->is<FeatherBase>();
+            case FeatherBase::offsetYPropertyKey:
+                return object->is<FeatherBase>();
             case TrimPathBase::startPropertyKey:
                 return object->is<TrimPathBase>();
             case TrimPathBase::endPropertyKey:

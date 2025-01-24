@@ -420,26 +420,16 @@ void Text::buildRenderStyles()
     // Build the clip path if we want it.
     if (overflow() == TextOverflow::clipped)
     {
-        if (m_clipRenderPath == nullptr)
-        {
-            m_clipRenderPath = artboard()->factory()->makeEmptyRenderPath();
-        }
-        else
-        {
-            m_clipRenderPath->rewind();
-        }
+
+        m_clipRect.rewind();
 
         AABB bounds = localBounds();
 
-        m_clipRenderPath->addRect(bounds.minX + bounds.width() * originX(),
-                                  bounds.minY + bounds.height() * originY() +
-                                      verticalAlignOffset,
-                                  bounds.width(),
-                                  bounds.height());
-    }
-    else
-    {
-        m_clipRenderPath = nullptr;
+        float minX = bounds.minX + bounds.width() * originX();
+        float minY =
+            bounds.minY + bounds.height() * originY() + verticalAlignOffset;
+        m_clipRect.addRect(
+            AABB(minX, minY, minX + bounds.width(), minY + bounds.height()));
     }
 
     y = 0;
@@ -745,14 +735,14 @@ void Text::draw(Renderer* renderer)
     }
     if (clipResult != ClipResult::emptyClip)
     {
-        renderer->transform(m_WorldTransform * m_transform);
-        if (overflow() == TextOverflow::clipped && m_clipRenderPath)
+        if (overflow() == TextOverflow::clipped && !m_clipPath.empty())
         {
-            renderer->clipPath(m_clipRenderPath.get());
+            renderer->clipPath(m_clipPath.renderPath(this));
         }
+        auto worldTransform = shapeWorldTransform();
         for (auto style : m_renderStyles)
         {
-            style->draw(renderer);
+            style->draw(renderer, worldTransform);
         }
     }
     renderer->restore();
@@ -1022,6 +1012,15 @@ void Text::update(ComponentDirt value)
         {
             style->propagateOpacity(renderOpacity());
         }
+    }
+
+    if (hasDirt(value,
+                ComponentDirt::WorldTransform | ComponentDirt::Path |
+                    ComponentDirt::Paint))
+    {
+        m_clipPath.rewind();
+        m_shapeWorldTransform = m_WorldTransform * m_transform;
+        m_clipPath.addPath(m_clipRect, &m_shapeWorldTransform);
     }
 }
 

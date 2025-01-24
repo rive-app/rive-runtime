@@ -25,6 +25,16 @@
       "description": "We use this to track the edit-time state of the PointsPath for the VertexEditor.",
       "runtime": false,
       "coop": false
+    },
+    "isClockwise": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 753,
+        "string": "isclockwise"
+      },
+      "description": "We use this to track whether user designed paths are clockwise.",
+      "runtime": false
     }
   }
 }

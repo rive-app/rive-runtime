@@ -1,3 +1,4 @@
+#include "rive/artboard.hpp"
 #include "rive/shapes/points_path.hpp"
 #include "rive/shapes/vertex.hpp"
 #include "rive/shapes/path_vertex.hpp"
