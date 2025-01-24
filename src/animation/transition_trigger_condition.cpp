@@ -26,9 +26,23 @@ bool TransitionTriggerCondition::evaluate(
     }
     auto triggerInput = static_cast<const SMITrigger*>(inputInstance);
 
-    if (triggerInput->m_fired && triggerInput->useInLayer(layerInstance))
+    if (triggerInput->m_fired && !triggerInput->isUsedInLayer(layerInstance))
     {
         return true;
     }
     return false;
+}
+
+void TransitionTriggerCondition::useInLayer(
+    const StateMachineInstance* stateMachineInstance,
+    StateMachineLayerInstance* layerInstance) const
+{
+
+    auto inputInstance = stateMachineInstance->input(inputId());
+    if (inputInstance == nullptr)
+    {
+        return;
+    }
+    auto triggerInput = static_cast<const SMITrigger*>(inputInstance);
+    triggerInput->useInLayer(layerInstance);
 }

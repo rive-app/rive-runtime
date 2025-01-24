@@ -217,21 +217,25 @@ public:
              i++)
         {
             auto transition = stateFrom->transition(i);
-            auto allowed = transition->allowed(stateFromInstance,
-                                               m_stateMachineInstance,
-                                               this);
-            if (allowed == AllowTransition::yes &&
-                canChangeState(transition->stateTo()))
+            if (canChangeState(transition->stateTo()))
             {
-                transition->evaluatedRandomWeight(transition->randomWeight());
-                totalWeight += transition->randomWeight();
-            }
-            else
-            {
-                transition->evaluatedRandomWeight(0);
-                if (allowed == AllowTransition::waitingForExit)
+
+                auto allowed = transition->allowed(stateFromInstance,
+                                                   m_stateMachineInstance,
+                                                   this);
+                if (allowed == AllowTransition::yes)
                 {
-                    m_waitingForExit = true;
+                    transition->evaluatedRandomWeight(
+                        transition->randomWeight());
+                    totalWeight += transition->randomWeight();
+                }
+                else
+                {
+                    transition->evaluatedRandomWeight(0);
+                    if (allowed == AllowTransition::waitingForExit)
+                    {
+                        m_waitingForExit = true;
+                    }
                 }
             }
         }
@@ -270,21 +274,25 @@ public:
              i++)
         {
             auto transition = stateFrom->transition(i);
-            auto allowed = transition->allowed(stateFromInstance,
-                                               m_stateMachineInstance,
-                                               this);
-            if (allowed == AllowTransition::yes &&
-                canChangeState(transition->stateTo()))
+            if (canChangeState(transition->stateTo()))
             {
-                transition->evaluatedRandomWeight(transition->randomWeight());
-                return transition;
-            }
-            else
-            {
-                transition->evaluatedRandomWeight(0);
-                if (allowed == AllowTransition::waitingForExit)
+
+                auto allowed = transition->allowed(stateFromInstance,
+                                                   m_stateMachineInstance,
+                                                   this);
+                if (allowed == AllowTransition::yes)
                 {
-                    m_waitingForExit = true;
+                    transition->evaluatedRandomWeight(
+                        transition->randomWeight());
+                    return transition;
+                }
+                else
+                {
+                    transition->evaluatedRandomWeight(0);
+                    if (allowed == AllowTransition::waitingForExit)
+                    {
+                        m_waitingForExit = true;
+                    }
                 }
             }
         }

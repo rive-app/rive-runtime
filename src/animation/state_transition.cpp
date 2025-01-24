@@ -202,6 +202,15 @@ AllowTransition StateTransition::allowed(
             }
         }
     }
+    for (auto condition : m_Conditions)
+    {
+        if (condition->is<TransitionTriggerCondition>())
+        {
+            condition->as<TransitionTriggerCondition>()->useInLayer(
+                stateMachineInstance,
+                layerInstance);
+        }
+    }
     return AllowTransition::yes;
 }
 

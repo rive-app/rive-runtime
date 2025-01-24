@@ -79,15 +79,22 @@ class Triggerable
 {
 
 public:
-    bool useInLayer(StateMachineLayerInstance* layer) const
+    bool isUsedInLayer(StateMachineLayerInstance* layer) const
+    {
+        auto it = std::find(m_usedLayers.begin(), m_usedLayers.end(), layer);
+        if (it == m_usedLayers.end())
+        {
+            return false;
+        }
+        return true;
+    }
+    void useInLayer(StateMachineLayerInstance* layer) const
     {
         auto it = std::find(m_usedLayers.begin(), m_usedLayers.end(), layer);
         if (it == m_usedLayers.end())
         {
             m_usedLayers.push_back(layer);
-            return true;
         }
-        return false;
     }
 
 protected:
