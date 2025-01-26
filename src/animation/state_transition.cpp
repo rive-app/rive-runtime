@@ -202,15 +202,6 @@ AllowTransition StateTransition::allowed(
             }
         }
     }
-    for (auto condition : m_Conditions)
-    {
-        if (condition->is<TransitionTriggerCondition>())
-        {
-            condition->as<TransitionTriggerCondition>()->useInLayer(
-                stateMachineInstance,
-                layerInstance);
-        }
-    }
     return AllowTransition::yes;
 }
 
@@ -227,4 +218,19 @@ bool StateTransition::applyExitCondition(StateInstance* from) const
         return true;
     }
     return useExitTime;
+}
+
+void StateTransition::useLayerInConditions(
+    StateMachineInstance* stateMachineInstance,
+    StateMachineLayerInstance* layerInstance) const
+{
+    for (auto condition : m_Conditions)
+    {
+        if (condition->is<TransitionTriggerCondition>())
+        {
+            condition->as<TransitionTriggerCondition>()->useInLayer(
+                stateMachineInstance,
+                layerInstance);
+        }
+    }
 }

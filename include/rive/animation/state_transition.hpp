@@ -134,6 +134,10 @@ public:
     /// correct time to the animation instance in the stateFrom, when
     /// applicable (when it's an AnimationState).
     bool applyExitCondition(StateInstance* stateFrom) const;
+
+    /// Marks any trigger based condition as used for this layer
+    void useLayerInConditions(StateMachineInstance* stateMachineInstance,
+                              StateMachineLayerInstance* layerInstance) const;
 };
 } // namespace rive
 
