@@ -238,6 +238,10 @@ public:
                     }
                 }
             }
+            else
+            {
+                transition->evaluatedRandomWeight(0);
+            }
         }
         if (totalWeight > 0)
         {
@@ -251,6 +255,8 @@ public:
                 auto transitionWeight = transition->evaluatedRandomWeight();
                 if (currentWeight + transitionWeight > randomWeight)
                 {
+                    transition->useLayerInConditions(m_stateMachineInstance,
+                                                     this);
                     return transition;
                 }
                 currentWeight += transitionWeight;
@@ -284,6 +290,8 @@ public:
                 {
                     transition->evaluatedRandomWeight(
                         transition->randomWeight());
+                    transition->useLayerInConditions(m_stateMachineInstance,
+                                                     this);
                     return transition;
                 }
                 else
