@@ -1,62 +1,72 @@
 {
-    "name": "Feather",
-    "key": {
-      "int": 533,
-      "string": "feather"
+  "name": "Feather",
+  "key": {
+    "int": 533,
+    "string": "feather"
+  },
+  "extends": "container_component.json",
+  "properties": {
+    "spaceValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 748,
+        "string": "spacevalue"
+      },
+      "description": "The transform space for the offset."
     },
-    "extends": "container_component.json",
-    "properties": {
-      "spaceValue": {
-        "type": "uint",
-        "initialValue": "0",
-        "key": {
-          "int": 748,
-          "string": "spacevalue"
-        },
-        "description": "The transform space for the offset."
+    "strength": {
+      "type": "double",
+      "initialValue": "12",
+      "animates": true,
+      "key": {
+        "int": 749,
+        "string": "strength"
       },
-      "strength": {
-        "type": "double",
-        "initialValue": "12",
-        "animates": true,
-        "key": {
-          "int": 749,
-          "string": "strength"
-        },
-        "bindable": true
+      "bindable": true
+    },
+    "offsetX": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 750,
+        "string": "offsetx"
       },
-      "offsetX": {
-        "type": "double",
-        "initialValue": "0",
-        "animates": true,
-        "key": {
-          "int": 750,
-          "string": "offsetx"
-        },
-        "description": "X offset of the feather.",
-        "bindable": true
+      "description": "X offset of the feather.",
+      "bindable": true
+    },
+    "offsetY": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 751,
+        "string": "offsety"
       },
-      "offsetY": {
-        "type": "double",
-        "initialValue": "0",
-        "animates": true,
-        "key": {
-          "int": 751,
-          "string": "offsety"
-        },
-        "description": "Y offset of the feather.",
-        "bindable": true
+      "description": "Y offset of the feather.",
+      "bindable": true
+    },
+    "inner": {
+      "type": "bool",
+      "initialValue": "false",
+      "animates": true,
+      "key": {
+        "int": 752,
+        "string": "inner"
       },
-      "inner": {
-        "type": "bool",
-        "initialValue": "false",
-        "animates": true,
-        "key": {
-          "int": 752,
-          "string": "inner"
-        },
-        "description": "Whether it's an inner shadow.",
-        "bindable": true
-      }
+      "description": "Whether it's an inner shadow.",
+      "bindable": true
+    },
+    "isEnabled": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 755,
+        "string": "isenabled"
+      },
+      "description": "Whether the feather is active or has been removed. We keep it to avoid losing the settings.",
+      "runtime": false
     }
   }
+}
