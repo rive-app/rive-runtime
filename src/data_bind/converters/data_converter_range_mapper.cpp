@@ -5,6 +5,12 @@
 
 using namespace rive;
 
+void DataConverterRangeMapper::copy(const DataConverterRangeMapperBase& object)
+{
+    interpolator(object.as<DataConverterRangeMapper>()->interpolator());
+    DataConverterRangeMapperBase::copy(object);
+}
+
 DataValueNumber* DataConverterRangeMapper::calculateRange(DataValue* input,
                                                           float minInput,
                                                           float maxInput,

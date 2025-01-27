@@ -24,9 +24,11 @@ protected:
 
 public:
     void interpolator(KeyFrameInterpolator* interpolator);
+    KeyFrameInterpolator* interpolator() const { return m_interpolator; };
     DataType outputType() override { return DataType::number; };
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
+    void copy(const DataConverterRangeMapperBase& object);
 
 private:
     DataValueNumber m_output;

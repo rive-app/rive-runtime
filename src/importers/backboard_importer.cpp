@@ -90,6 +90,20 @@ StatusCode BackboardImporter::resolve()
         auto asset = m_FileAssets[index];
         referencer->setAsset(asset);
     }
+
+    for (auto converter : m_DataConverters)
+    {
+        if (converter->is<DataConverterRangeMapper>())
+        {
+            size_t converterId =
+                converter->as<DataConverterRangeMapper>()->interpolatorId();
+            if (converterId != -1 && converterId < m_interpolators.size())
+            {
+                converter->as<DataConverterRangeMapper>()->interpolator(
+                    m_interpolators[converterId]);
+            }
+        }
+    }
     for (auto referencer : m_DataConverterGroupItemReferencers)
     {
         auto index = (size_t)referencer->converterId();
@@ -108,19 +122,6 @@ StatusCode BackboardImporter::resolve()
         }
         referencer->converter(
             m_DataConverters[index]->clone()->as<DataConverter>());
-    }
-    for (auto converter : m_DataConverters)
-    {
-        if (converter->is<DataConverterRangeMapper>())
-        {
-            size_t converterId =
-                converter->as<DataConverterRangeMapper>()->interpolatorId();
-            if (converterId != -1 && converterId < m_interpolators.size())
-            {
-                converter->as<DataConverterRangeMapper>()->interpolator(
-                    m_interpolators[converterId]);
-            }
-        }
     }
     return StatusCode::Ok;
 }
