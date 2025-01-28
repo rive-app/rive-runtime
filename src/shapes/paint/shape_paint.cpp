@@ -38,7 +38,8 @@ RenderPaint* ShapePaint::initRenderPaint(ShapePaintMutator* mutator)
 void ShapePaint::blendMode(BlendMode parentValue)
 {
     assert(m_RenderPaint != nullptr);
-    if (blendModeValue() == -1)
+    // 127 means inherit
+    if (blendModeValue() == 127)
     {
         m_RenderPaint->blendMode(parentValue);
     }

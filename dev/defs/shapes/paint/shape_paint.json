@@ -27,12 +27,12 @@
     },
     "blendModeValue": {
       "type": "uint",
-      "initialValue": "-1",
+      "initialValue": "127",
       "key": {
         "int": 747,
         "string": "blendmodevalue"
       },
-      "description": "Shape paint blend mode value. -1 means inherit."
+      "description": "Shape paint blend mode value. 127 means inherit."
     }
   }
 }

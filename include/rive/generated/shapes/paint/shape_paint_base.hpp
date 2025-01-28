@@ -35,7 +35,7 @@ public:
 
 protected:
     bool m_IsVisible = true;
-    uint32_t m_BlendModeValue = -1;
+    uint32_t m_BlendModeValue = 127;
 
 public:
     virtual bool isVisible() const { return m_IsVisible; }
