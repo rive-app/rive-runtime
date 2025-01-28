@@ -414,11 +414,17 @@ if _OPTIONS['os'] == 'android' then
         premake.tools.android_ndk[k] = v
     end
 
+    -- Windows requires extentions for .cmd files.
+    local ndk_ext = '';
+    if os.host() == 'windows' then
+        ndk_ext = '.cmd';
+    end
+
     -- update the android_ndk toolset to use the appropriate binaries.
     local android_ndk_tools = {
-        cc = ndk_toolchain .. '/bin/' .. android_target .. '-clang',
-        cxx = ndk_toolchain .. '/bin/' .. android_target .. '-clang++',
-        ar = ndk_toolchain .. '/bin/llvm-ar',
+        cc = ndk_toolchain .. '/bin/' .. android_target .. '-clang' .. ndk_ext,
+        cxx = ndk_toolchain .. '/bin/' .. android_target .. '-clang++' .. ndk_ext,
+        ar = ndk_toolchain .. '/bin/llvm-ar'
     }
     function premake.tools.android_ndk.gettoolname(cfg, tool)
         return android_ndk_tools[tool]
