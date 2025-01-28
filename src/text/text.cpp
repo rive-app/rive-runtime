@@ -1042,7 +1042,8 @@ Vec2D Text::measure(Vec2D maxSize)
                 measuringWidth = std::numeric_limits<float>::max();
                 break;
         }
-        auto measuringWrap = maxSize.x == std::numeric_limits<float>::max()
+        auto measuringWrap = maxSize.x == std::numeric_limits<float>::max() &&
+                                     effectiveSizing() != TextSizing::autoHeight
                                  ? TextWrap::noWrap
                                  : wrap();
         auto lines = BreakLines(shape,
