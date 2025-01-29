@@ -90,3 +90,5 @@ dependencies/windows/cache
 
 # Local development setup
 compile_commands.json
+
+tests/unit_tests/dependencies

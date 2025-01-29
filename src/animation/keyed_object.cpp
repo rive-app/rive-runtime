@@ -24,19 +24,23 @@ StatusCode KeyedObject::onAddedDirty(CoreContext* context)
         return StatusCode::MissingObject;
     }
 
-    for (auto& property : m_keyedProperties)
+    for (auto itr = m_keyedProperties.begin(); itr != m_keyedProperties.end();)
     {
-        // Validate coreObject supports propertyKey
+        auto& property = *itr;
+        // Validate coreObject supports propertyKey, if not remove it from the
+        // property keys.
         if (!CoreRegistry::objectSupportsProperty(coreObject,
                                                   property->propertyKey()))
         {
-            return StatusCode::InvalidObject;
+            itr = m_keyedProperties.erase(itr);
+            continue;
         }
         StatusCode code;
         if ((code = property->onAddedDirty(context)) != StatusCode::Ok)
         {
             return code;
         }
+        itr++;
     }
     return StatusCode::Ok;
 }

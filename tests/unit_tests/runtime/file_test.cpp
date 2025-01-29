@@ -227,25 +227,25 @@ TEST_CASE("file a bad skin (no parent skinnable) doesn't crash", "[file]")
     artboard->updateComponents();
 }
 
-// TODO:
-// ShapePaint (fill/stroke) needs to be implemented in WASM (jsFill/jsStroke) in
-// order to create Paint objects as necessary.
+TEST_CASE("file with bad keyed property loads", "[file]")
+{
+    FILE* fp = fopen("assets/magic_alley_db_reduced_export.riv", "rb");
+    REQUIRE(fp != nullptr);
 
-// Mutators need to be implemented in WASM (solid/linear/radial) and get access
-// to their ShapePaint so they can mutate any extra objects they create on it
-// (like a paint object for skia).
+    fseek(fp, 0, SEEK_END);
+    const size_t length = ftell(fp);
+    fseek(fp, 0, SEEK_SET);
+    std::vector<uint8_t> bytes(length);
+    REQUIRE(fread(bytes.data(), 1, length, fp) == length);
+    fclose(fp);
 
-// Paths need to be implemented in WASM but not so much as a core path (like
-// parametric/pointspath, etc) but more as a general rendering path. Handed
-// their commands so they can generate/store a re-usable path. This would be a
-// Path2D in context2D and a SkPath in CanvasKit.
+    rive::ImportResult result;
+    auto file = rive::File::import(bytes, &gNoOpFactory, &result);
+    REQUIRE(result == rive::ImportResult::success);
+    REQUIRE(file.get() != nullptr);
+    REQUIRE(file->artboard() != nullptr);
 
-// PathComposer is the factory for the Paths. But they do need to surive so they
-// can be reset/reused as available by the rendering lib.
-
-// PathComposer needs to be implemented in WASM to compose the paths together
-// and be accessible from the Shape (jsShape) which will need a call
-// setupFill/restoreFill and setupStroke/restoreStroke.
-
-// Draw will be called by C++ on the Shape, the Shape will call draw on the
-// fill/stroke (propagates to jsFill/jsStroke)
+    REQUIRE(file->artboard()->name() == "Artboard");
+    auto artboard = file->artboardDefault();
+    artboard->updateComponents();
+}
