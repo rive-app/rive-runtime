@@ -14,7 +14,8 @@
       "key": {
         "int": 18,
         "string": "opacity"
-      }
+      },
+      "bindable": true
     }
   }
 }
