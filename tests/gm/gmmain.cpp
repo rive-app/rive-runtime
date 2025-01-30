@@ -84,7 +84,14 @@ static void dumpGMs(const std::string& match, bool interactive)
         if (interactive)
         {
             // Wait for any key if in interactive mode.
-            TestingWindow::Get()->getKey();
+            TestingWindow::InputEventData inputEventData =
+                TestingWindow::Get()->waitForInputEvent();
+            // Anything that isn't a key press will not progress.
+            while (inputEventData.eventType !=
+                   TestingWindow::InputEvent::KeyPress)
+            {
+                inputEventData = TestingWindow::Get()->waitForInputEvent();
+            }
         }
 #ifdef RIVE_ANDROID
         if (!rive_android_app_poll_once())

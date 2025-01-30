@@ -18,6 +18,7 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend,
 #include "fiddle_context.hpp"
 
 #include <deque>
+#include <queue>
 
 #define GLFW_INCLUDE_NONE
 #define GLFW_NATIVE_INCLUDE_NONE
@@ -27,7 +28,43 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend,
 using namespace rive;
 using namespace rive::gpu;
 
-static std::deque<char> s_keys;
+static std::queue<TestingWindow::InputEventData> inputEvents;
+static float dpi = 1.0f;
+
+static void mouse_position_callback(GLFWwindow* window,
+                                    double xPos,
+                                    double yPos)
+{
+    inputEvents.push({TestingWindow::InputEvent::MouseMove,
+                      static_cast<float>(xPos) * dpi,
+                      static_cast<float>(yPos) * dpi});
+}
+
+void mouse_button_callback(GLFWwindow* window, int button, int action, int mods)
+{
+    assert(0 <= button);
+    assert(button <= GLFW_MOUSE_BUTTON_LAST);
+
+    double xPos, yPos;
+    glfwGetCursorPos(window, &xPos, &yPos);
+
+    switch (action)
+    {
+        case GLFW_PRESS:
+            inputEvents.push({TestingWindow::InputEvent::MouseDown,
+                              static_cast<float>(xPos) * dpi,
+                              static_cast<float>(yPos) * dpi});
+            break;
+        case GLFW_RELEASE:
+            inputEvents.push({TestingWindow::InputEvent::MouseUp,
+                              static_cast<float>(xPos) * dpi,
+                              static_cast<float>(yPos) * dpi});
+            break;
+        default:
+            printf("Unsupported GLFW mouse button event received!\n");
+            break;
+    }
+}
 
 static void key_callback(GLFWwindow* window,
                          int key,
@@ -67,7 +104,8 @@ static void key_callback(GLFWwindow* window,
         }
         if (key < 128)
         {
-            s_keys.push_back(static_cast<char>(key));
+            inputEvents.push(
+                {TestingWindow::InputEvent::KeyPress, static_cast<char>(key)});
             return;
         }
         switch (key)
@@ -76,10 +114,10 @@ static void key_callback(GLFWwindow* window,
                 glfwSetWindowShouldClose(window, GLFW_TRUE);
                 break;
             case GLFW_KEY_TAB:
-                s_keys.push_back('\t');
+                inputEvents.push({TestingWindow::InputEvent::KeyPress, '\t'});
                 break;
             case GLFW_KEY_BACKSPACE:
-                s_keys.push_back('\b');
+                inputEvents.push({TestingWindow::InputEvent::KeyPress, '\b'});
                 break;
         }
     }
@@ -191,6 +229,8 @@ public:
         glfwSwapInterval(0);
 
         glfwSetKeyCallback(m_glfwWindow, key_callback);
+        glfwSetCursorPosCallback(m_glfwWindow, mouse_position_callback);
+        glfwSetMouseButtonCallback(m_glfwWindow, mouse_button_callback);
 
         FiddleContextOptions fiddleOptions = {
             .retinaDisplay = visibility == Visibility::fullscreen,
@@ -253,6 +293,7 @@ public:
         glfwGetFramebufferSize(m_glfwWindow, &w, &h);
         m_width = w;
         m_height = h;
+        dpi = m_fiddleContext->dpiScale(m_glfwWindow);
         m_fiddleContext->onSizeChanged(m_glfwWindow, m_width, m_height, 0);
     }
 
@@ -319,21 +360,22 @@ public:
 
     void flushPLSContext() override { m_fiddleContext->flushPLSContext(); }
 
-    bool peekKey(char& key) override
+    bool consumeInputEvent(InputEventData& eventData) override
     {
-        if (s_keys.empty())
+        const bool hasNewEvent = !inputEvents.empty();
+        if (hasNewEvent)
         {
-            return false;
+            eventData = inputEvents.front();
+            inputEvents.pop();
         }
-        key = s_keys.front();
-        s_keys.pop_front();
-        return true;
+        return hasNewEvent;
     }
 
-    char getKey() override
+    InputEventData waitForInputEvent() override
     {
-        char key;
-        while (!peekKey(key))
+        InputEventData eventData;
+
+        while (!consumeInputEvent(eventData))
         {
             glfwWaitEvents();
             if (glfwWindowShouldClose(m_glfwWindow))
@@ -342,7 +384,7 @@ public:
                 exit(0);
             }
         }
-        return key;
+        return eventData;
     }
 
     bool shouldQuit() const override

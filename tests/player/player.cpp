@@ -40,7 +40,9 @@ static int spacing = 0;
 static int monitorIdx = 0;
 static bool wireframe = false;
 static bool paused = false;
+static bool forceFixedDeltaTime = false;
 static bool quit = false;
+
 static void key_pressed(char key)
 {
     static int multiplier = 0;
@@ -109,6 +111,9 @@ static void key_pressed(char key)
             break;
         case 'p':
             paused = !paused;
+            break;
+        case 'f':
+            forceFixedDeltaTime = !forceFixedDeltaTime;
             break;
         case 'q':
         case '\x03': // ^C
@@ -222,9 +227,10 @@ int main(int argc, const char* argv[])
         fprintf(stderr, "no .riv file specified");
         abort();
     }
-    auto file = rive::File::import(rivBytes, TestingWindow::Get()->factory());
+    std::unique_ptr<rive::File> file =
+        rive::File::import(rivBytes, TestingWindow::Get()->factory());
     assert(file);
-    auto artboard = file->artboardDefault();
+    std::unique_ptr<rive::ArtboardInstance> artboard = file->artboardDefault();
     assert(artboard);
     std::unique_ptr<rive::Scene> scene = artboard->defaultStateMachine();
     if (!scene)
@@ -237,21 +243,40 @@ int main(int argc, const char* argv[])
     bool lastReportedPauseState = paused;
 
     // Setup FPS.
-    auto roboto = HBFont::Decode(assets::roboto_flex_ttf());
-    auto blackStroke = TestingWindow::Get()->factory()->makeRenderPaint();
+    rive::rcp<rive::Font> roboto = HBFont::Decode(assets::roboto_flex_ttf());
+    rive::rcp<rive::RenderPaint> blackStroke =
+        TestingWindow::Get()->factory()->makeRenderPaint();
     blackStroke->color(0xff000000);
     blackStroke->style(rive::RenderPaintStyle::stroke);
     blackStroke->thickness(4);
-    auto whiteFill = TestingWindow::Get()->factory()->makeRenderPaint();
+    rive::rcp<rive::RenderPaint> whiteFill =
+        TestingWindow::Get()->factory()->makeRenderPaint();
     whiteFill->color(0xffffffff);
     std::unique_ptr<rive::RawText> fpsText;
     int fpsFrames = 0;
-    std::chrono::time_point fpsLastTime =
+    std::chrono::time_point timeLastFPSUpdate =
+        std::chrono::high_resolution_clock::now();
+    std::chrono::time_point timestampPrevFrame =
         std::chrono::high_resolution_clock::now();
 
     while (!quit && !TestingWindow::Get()->shouldQuit())
     {
-        scene->advanceAndApply(paused ? 0 : 1.0 / 120);
+        std::chrono::time_point timeNow =
+            std::chrono::high_resolution_clock::now();
+        const double elapsedS =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                timeNow - timestampPrevFrame)
+                .count() /
+            1e9; // convert to s
+        timestampPrevFrame = timeNow;
+
+        float advanceDeltaTime = static_cast<float>(elapsedS);
+        if (forceFixedDeltaTime)
+        {
+            advanceDeltaTime = 1.0f / 120;
+        }
+
+        scene->advanceAndApply(paused ? 0 : advanceDeltaTime);
 
         copiesLeft = std::max(copiesLeft, 0);
         copiesAbove = std::max(copiesAbove, 0);
@@ -330,14 +355,14 @@ int main(int argc, const char* argv[])
 
         // Count FPS.
         ++fpsFrames;
-        std::chrono::time_point now = std::chrono::high_resolution_clock::now();
-        auto fpsElapsedMS =
-            std::chrono::duration_cast<std::chrono::milliseconds>(now -
-                                                                  fpsLastTime)
-                .count();
-        if (fpsElapsedMS > 2000)
+        const double elapsedFPSUpdate =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                timeNow - timeLastFPSUpdate)
+                .count() /
+            1e9; // convert to s
+        if (elapsedFPSUpdate >= 2.0)
         {
-            double fps = 1000.0 * fpsFrames / fpsElapsedMS;
+            double fps = fpsFrames / elapsedFPSUpdate;
             printf("[%.3f FPS]\n", fps);
 
             char fpsRawText[32];
@@ -354,12 +379,46 @@ int main(int argc, const char* argv[])
             fpsText->append(fpsRawText, nullptr, roboto, 50.f);
 
             fpsFrames = 0;
-            fpsLastTime = now;
+            timeLastFPSUpdate = timeNow;
+        }
+
+        const rive::Mat2D alignmentMat =
+            computeAlignment(rive::Fit::contain,
+                             rive::Alignment::center,
+                             rive::AABB(0, 0, width, height),
+                             artboard->bounds());
+
+        // Consume all input events until none are left in the queue
+        TestingWindow::InputEventData inputEventData;
+        while (TestingWindow::Get()->consumeInputEvent(inputEventData))
+        {
+            const rive::Vec2D mousePosAligned =
+                alignmentMat.invertOrIdentity() *
+                rive::Vec2D(inputEventData.metadata.posX,
+                            inputEventData.metadata.posY);
+
+            switch (inputEventData.eventType)
+            {
+                case TestingWindow::InputEvent::KeyPress:
+                    key_pressed(inputEventData.metadata.key);
+                    break;
+
+                case TestingWindow::InputEvent::MouseMove:
+                    scene->pointerMove(mousePosAligned);
+                    break;
+
+                case TestingWindow::InputEvent::MouseDown:
+                    scene->pointerDown(mousePosAligned);
+                    break;
+
+                case TestingWindow::InputEvent::MouseUp:
+                    scene->pointerUp(mousePosAligned);
+                    break;
+            }
         }
 
         char key;
-        while (TestingWindow::Get()->peekKey(key) ||
-               TestHarness::Instance().peekChar(key))
+        while (TestHarness::Instance().peekChar(key))
         {
             key_pressed(key);
         }

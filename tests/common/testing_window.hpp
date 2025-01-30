@@ -7,6 +7,7 @@
 
 #include "rive/rive_types.hpp"
 #include "rive/enum_bitset.hpp"
+#include "rive/math/vec2d.hpp"
 #include <memory>
 #include <vector>
 #include <string>
@@ -312,6 +313,53 @@ public:
         fullscreen,
     };
 
+    enum class InputEvent
+    {
+        KeyPress,
+        MouseDown,
+        MouseUp,
+        MouseMove
+    };
+
+    // Aligns with GLFW's mouse button enum
+    enum MouseButton : int
+    {
+        Left,
+        Right,
+        Middle,
+        // can support more buttons
+    };
+
+    struct InputEventData
+    {
+        InputEventData() : InputEventData(InputEvent::KeyPress, '\0') {}
+
+        InputEventData(InputEvent type, float posX, float posY) :
+            eventType(type)
+        {
+            metadata = {.posX = posX, .posY = posY};
+        }
+
+        InputEventData(InputEvent type, char c) : eventType(type)
+        {
+            metadata = {.key = c};
+        }
+
+        InputEvent eventType;
+
+        union
+        {
+            struct
+            {
+                // Move & down/up mouse press events all have coords
+                float posX;
+                float posY;
+            };
+
+            char key;
+        } metadata;
+    };
+
     static const char* BackendName(Backend);
     static Backend ParseBackend(const char* name, std::string* gpuNameFilter);
     static TestingWindow* Init(Backend,
@@ -353,13 +401,13 @@ public:
     // renderContext()->beginFrame() again.
     virtual void flushPLSContext() {}
 
-    // Blocks until a key is pressed.
-    virtual bool peekKey(char& key) { return false; }
-    virtual char getKey()
+    virtual bool consumeInputEvent(InputEventData& eventData) { return false; }
+    virtual InputEventData waitForInputEvent()
     {
-        fprintf(stderr, "TestingWindow::getKey not implemented.");
+        fprintf(stderr, "TestingWindow::waitForInputEvent not implemented.");
         abort();
     }
+
     virtual bool shouldQuit() const { return false; }
 
     virtual ~TestingWindow() {}
