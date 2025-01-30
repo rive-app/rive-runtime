@@ -262,3 +262,12 @@ bool DataBind::toTarget()
     return (flagsValue & DataBindFlags::TwoWay) != 0 ||
            (flagsValue & DataBindFlags::ToSource) == 0;
 }
+
+bool DataBind::advance(float elapsedTime)
+{
+    if (converter())
+    {
+        return converter()->advance(elapsedTime);
+    }
+    return false;
+}

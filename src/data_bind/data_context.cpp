@@ -30,8 +30,9 @@ ViewModelInstanceValue* DataContext::getViewModelProperty(
             if (viewModelInstanceValue != nullptr &&
                 viewModelInstanceValue->is<ViewModelInstanceViewModel>())
             {
-                instance = viewModelInstanceValue->as<ViewModelInstanceViewModel>()
-                               ->referenceViewModelInstance();
+                instance =
+                    viewModelInstanceValue->as<ViewModelInstanceViewModel>()
+                        ->referenceViewModelInstance();
             }
             else
             {
@@ -67,8 +68,9 @@ ViewModelInstance* DataContext::getViewModelInstance(
             if (viewModelInstanceValue != nullptr &&
                 viewModelInstanceValue->is<ViewModelInstanceViewModel>())
             {
-                instance = viewModelInstanceValue->as<ViewModelInstanceViewModel>()
-                               ->referenceViewModelInstance();
+                instance =
+                    viewModelInstanceValue->as<ViewModelInstanceViewModel>()
+                        ->referenceViewModelInstance();
             }
             else
             {

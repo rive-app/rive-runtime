@@ -34,6 +34,7 @@ public:
     ViewModelInstanceValue* source() const { return m_Source; };
     bool toSource();
     bool toTarget();
+    bool advance(float elapsedTime);
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;

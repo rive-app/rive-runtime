@@ -7,7 +7,7 @@ using namespace rive;
 
 DataConverterGroup::~DataConverterGroup()
 {
-    for (auto item : m_items)
+    for (auto& item : m_items)
     {
         delete item;
     }
@@ -21,9 +21,12 @@ void DataConverterGroup::addItem(DataConverterGroupItem* item)
 DataValue* DataConverterGroup::convert(DataValue* input, DataBind* dataBind)
 {
     DataValue* value = input;
-    for (auto item : m_items)
+    for (auto& item : m_items)
     {
-        value = item->converter()->convert(value, dataBind);
+        if (item->converter() != nullptr)
+        {
+            value = item->converter()->convert(value, dataBind);
+        }
     }
     return value;
 }
@@ -34,7 +37,10 @@ DataValue* DataConverterGroup::reverseConvert(DataValue* input,
     DataValue* value = input;
     for (auto it = m_items.rbegin(); it != m_items.rend(); ++it)
     {
-        value = (*it)->converter()->reverseConvert(value, dataBind);
+        if ((*it)->converter() != nullptr)
+        {
+            value = (*it)->converter()->reverseConvert(value, dataBind);
+        }
     }
     return value;
 }
@@ -42,8 +48,12 @@ DataValue* DataConverterGroup::reverseConvert(DataValue* input,
 Core* DataConverterGroup::clone() const
 {
     auto cloned = DataConverterGroupBase::clone()->as<DataConverterGroup>();
-    for (auto item : m_items)
+    for (auto& item : m_items)
     {
+        if (item->converter() == nullptr)
+        {
+            continue;
+        }
         auto clonedItem = item->clone()->as<DataConverterGroupItem>();
         cloned->addItem(clonedItem);
     }
@@ -53,7 +63,7 @@ Core* DataConverterGroup::clone() const
 void DataConverterGroup::bindFromContext(DataContext* dataContext,
                                          DataBind* dataBind)
 {
-    for (auto item : m_items)
+    for (auto& item : m_items)
     {
         auto converter = item->converter();
         if (converter != nullptr)
@@ -65,7 +75,7 @@ void DataConverterGroup::bindFromContext(DataContext* dataContext,
 
 void DataConverterGroup::update()
 {
-    for (auto item : m_items)
+    for (auto& item : m_items)
     {
         auto converter = item->converter();
         if (converter != nullptr)
@@ -73,4 +83,21 @@ void DataConverterGroup::update()
             converter->update();
         }
     }
+}
+
+bool DataConverterGroup::advance(float elapsedSeconds)
+{
+    bool didUpdate = false;
+    for (auto& item : m_items)
+    {
+        auto converter = item->converter();
+        if (converter != nullptr)
+        {
+            if (converter->advance(elapsedSeconds))
+            {
+                didUpdate = true;
+            }
+        }
+    }
+    return didUpdate;
 }

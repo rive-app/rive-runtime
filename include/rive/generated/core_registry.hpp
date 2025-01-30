@@ -133,6 +133,7 @@
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
+#include "rive/data_bind/converters/data_converter_interpolator.hpp"
 #include "rive/data_bind/converters/data_converter_operation.hpp"
 #include "rive/data_bind/converters/data_converter_operation_value.hpp"
 #include "rive/data_bind/converters/data_converter_operation_viewmodel.hpp"
@@ -549,6 +550,8 @@ public:
                 return new DataConverterSystemDegsToRads();
             case DataConverterRangeMapperBase::typeKey:
                 return new DataConverterRangeMapper();
+            case DataConverterInterpolatorBase::typeKey:
+                return new DataConverterInterpolator();
             case DataConverterSystemNormalizerBase::typeKey:
                 return new DataConverterSystemNormalizer();
             case DataConverterGroupItemBase::typeKey:
@@ -1262,6 +1265,14 @@ public:
             case DataConverterRangeMapperBase::flagsPropertyKey:
                 object->as<DataConverterRangeMapperBase>()->flags(value);
                 break;
+            case DataConverterInterpolatorBase::interpolationTypePropertyKey:
+                object->as<DataConverterInterpolatorBase>()->interpolationType(
+                    value);
+                break;
+            case DataConverterInterpolatorBase::interpolatorIdPropertyKey:
+                object->as<DataConverterInterpolatorBase>()->interpolatorId(
+                    value);
+                break;
             case DataConverterGroupItemBase::converterIdPropertyKey:
                 object->as<DataConverterGroupItemBase>()->converterId(value);
                 break;
@@ -1891,6 +1902,9 @@ public:
             case DataConverterRangeMapperBase::maxOutputPropertyKey:
                 object->as<DataConverterRangeMapperBase>()->maxOutput(value);
                 break;
+            case DataConverterInterpolatorBase::durationPropertyKey:
+                object->as<DataConverterInterpolatorBase>()->duration(value);
+                break;
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 object->as<BindablePropertyNumberBase>()->propertyValue(value);
                 break;
@@ -2501,6 +2515,12 @@ public:
                     ->interpolatorId();
             case DataConverterRangeMapperBase::flagsPropertyKey:
                 return object->as<DataConverterRangeMapperBase>()->flags();
+            case DataConverterInterpolatorBase::interpolationTypePropertyKey:
+                return object->as<DataConverterInterpolatorBase>()
+                    ->interpolationType();
+            case DataConverterInterpolatorBase::interpolatorIdPropertyKey:
+                return object->as<DataConverterInterpolatorBase>()
+                    ->interpolatorId();
             case DataConverterGroupItemBase::converterIdPropertyKey:
                 return object->as<DataConverterGroupItemBase>()->converterId();
             case DataConverterRounderBase::decimalsPropertyKey:
@@ -2942,6 +2962,8 @@ public:
                 return object->as<DataConverterRangeMapperBase>()->minOutput();
             case DataConverterRangeMapperBase::maxOutputPropertyKey:
                 return object->as<DataConverterRangeMapperBase>()->maxOutput();
+            case DataConverterInterpolatorBase::durationPropertyKey:
+                return object->as<DataConverterInterpolatorBase>()->duration();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyNumberBase>()
                     ->propertyValue();
@@ -3232,6 +3254,8 @@ public:
             case DataConverterRangeMapperBase::interpolationTypePropertyKey:
             case DataConverterRangeMapperBase::interpolatorIdPropertyKey:
             case DataConverterRangeMapperBase::flagsPropertyKey:
+            case DataConverterInterpolatorBase::interpolationTypePropertyKey:
+            case DataConverterInterpolatorBase::interpolatorIdPropertyKey:
             case DataConverterGroupItemBase::converterIdPropertyKey:
             case DataConverterRounderBase::decimalsPropertyKey:
             case DataConverterStringPadBase::lengthPropertyKey:
@@ -3438,6 +3462,7 @@ public:
             case DataConverterRangeMapperBase::maxInputPropertyKey:
             case DataConverterRangeMapperBase::minOutputPropertyKey:
             case DataConverterRangeMapperBase::maxOutputPropertyKey:
+            case DataConverterInterpolatorBase::durationPropertyKey:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::alignmentXPropertyKey:
             case NestedArtboardLeafBase::alignmentYPropertyKey:
@@ -3890,6 +3915,10 @@ public:
                 return object->is<DataConverterRangeMapperBase>();
             case DataConverterRangeMapperBase::flagsPropertyKey:
                 return object->is<DataConverterRangeMapperBase>();
+            case DataConverterInterpolatorBase::interpolationTypePropertyKey:
+                return object->is<DataConverterInterpolatorBase>();
+            case DataConverterInterpolatorBase::interpolatorIdPropertyKey:
+                return object->is<DataConverterInterpolatorBase>();
             case DataConverterGroupItemBase::converterIdPropertyKey:
                 return object->is<DataConverterGroupItemBase>();
             case DataConverterRounderBase::decimalsPropertyKey:
@@ -4294,6 +4323,8 @@ public:
                 return object->is<DataConverterRangeMapperBase>();
             case DataConverterRangeMapperBase::maxOutputPropertyKey:
                 return object->is<DataConverterRangeMapperBase>();
+            case DataConverterInterpolatorBase::durationPropertyKey:
+                return object->is<DataConverterInterpolatorBase>();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyNumberBase>();
             case NestedArtboardLeafBase::alignmentXPropertyKey:

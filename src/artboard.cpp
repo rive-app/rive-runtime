@@ -903,6 +903,13 @@ bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
             didUpdate = true;
         }
     }
+    for (auto dataBind : m_AllDataBinds)
+    {
+        if (dataBind->advance(elapsedSeconds))
+        {
+            didUpdate = true;
+        }
+    }
 
     return didUpdate;
 }

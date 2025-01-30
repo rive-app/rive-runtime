@@ -79,3 +79,5 @@ void DataConverter::copy(const DataConverter& object)
     }
     DataConverterBase::copy(object);
 }
+
+bool DataConverter::advance(float elapsedTime) { return false; }

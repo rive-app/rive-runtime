@@ -735,7 +735,11 @@ void Text::draw(Renderer* renderer)
     }
     if (clipResult != ClipResult::emptyClip)
     {
-        if (overflow() == TextOverflow::clipped && !m_clipPath.empty())
+        // For now we need to check both empty() and hasRenderPath() in
+        // ShapePaintPath because the raw path gets cleared when the render path
+        // is created.
+        if (overflow() == TextOverflow::clipped &&
+            (!m_clipPath.empty() || m_clipPath.hasRenderPath()))
         {
             renderer->clipPath(m_clipPath.renderPath(this));
         }

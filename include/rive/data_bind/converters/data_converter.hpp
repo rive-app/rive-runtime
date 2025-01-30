@@ -27,6 +27,7 @@ public:
     void addDirt(ComponentDirt dirt);
     virtual void update();
     void copy(const DataConverter& object);
+    virtual bool advance(float elapsedTime);
 
 private:
     std::vector<DataBind*> m_dataBinds;

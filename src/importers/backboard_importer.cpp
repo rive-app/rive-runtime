@@ -11,6 +11,7 @@
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_range_mapper.hpp"
+#include "rive/data_bind/converters/data_converter_interpolator.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include <unordered_set>
 
@@ -100,6 +101,16 @@ StatusCode BackboardImporter::resolve()
             if (converterId != -1 && converterId < m_interpolators.size())
             {
                 converter->as<DataConverterRangeMapper>()->interpolator(
+                    m_interpolators[converterId]);
+            }
+        }
+        else if (converter->is<DataConverterInterpolator>())
+        {
+            size_t converterId =
+                converter->as<DataConverterInterpolator>()->interpolatorId();
+            if (converterId != -1 && converterId < m_interpolators.size())
+            {
+                converter->as<DataConverterInterpolator>()->interpolator(
                     m_interpolators[converterId]);
             }
         }

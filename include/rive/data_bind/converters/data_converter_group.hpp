@@ -25,6 +25,7 @@ public:
     Core* clone() const override;
     void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
     void update() override;
+    bool advance(float elapsedSeconds) override;
 
 private:
     std::vector<DataConverterGroupItem*> m_items;
