@@ -1860,16 +1860,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     {
         if (capabilities.isContextVersionAtLeast(3, 1))
         {
-            // Don't use storage buffers if we're on Android ANGLE. ANGLE
-            // doesn't have strong support for 3.1+ functionality, and storage
-            // buffers get rendering artifacts on Galaxy S22
-            // (OpenGL Samsung Electronics Co., Ltd.;
-            // ANGLE (Samsung Xclipse 920) on Vulkan 1.1.179;
-            // OpenGL ES 3.2 ANGLE git hash: c7c78c41d520).
-            if (!capabilities.isAndroidANGLE)
-            {
-                capabilities.ARB_shader_storage_buffer_object = true;
-            }
+            capabilities.ARB_shader_storage_buffer_object = true;
         }
     }
     else
