@@ -138,6 +138,12 @@ do
     --     }
     -- end
 
+    -- Ignore fatal warning for miniaudio on x86 android build.
+    filter({ 'system:android', 'options:arch=x86', 'files:src/audio/audio_engine.cpp' })
+    do
+        buildoptions({ '-Wno-atomic-alignment' })
+    end
+
     filter({ 'system:macosx', 'options:variant=runtime' })
     do
         buildoptions({
@@ -146,7 +152,7 @@ do
         })
     end
 
-    filter( 'system:ios' )
+    filter('system:ios')
     do
         buildoptions({ '-flto=full', '-Wno-implicit-int-conversion' })
         files({ 'src/audio/audio_engine.m' })
