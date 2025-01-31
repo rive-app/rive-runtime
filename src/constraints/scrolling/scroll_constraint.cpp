@@ -38,6 +38,7 @@ void ScrollConstraint::dragView(Vec2D delta)
 
 void ScrollConstraint::runPhysics()
 {
+    m_isDragging = false;
     std::vector<Vec2D> snappingPoints;
     if (snap())
     {
@@ -63,8 +64,8 @@ bool ScrollConstraint::advanceComponent(float elapsedSeconds,
 {
     if ((flags & AdvanceFlags::AdvanceNested) != AdvanceFlags::AdvanceNested)
     {
-        offsetX(0);
-        offsetY(0);
+        // offsetX(0);
+        // offsetY(0);
         return false;
     }
     if (m_physics == nullptr)
@@ -74,8 +75,8 @@ bool ScrollConstraint::advanceComponent(float elapsedSeconds,
     if (m_physics->isRunning())
     {
         auto offset = m_physics->advance(elapsedSeconds);
-        offsetX(offset.x);
-        offsetY(offset.y);
+        scrollOffsetX(offset.x);
+        scrollOffsetY(offset.y);
     }
     return m_physics->enabled();
 }
@@ -138,10 +139,151 @@ StatusCode ScrollConstraint::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
+StatusCode ScrollConstraint::onAddedDirty(CoreContext* context)
+{
+    StatusCode result = Super::onAddedDirty(context);
+    offsetX(scrollOffsetX());
+    offsetY(scrollOffsetY());
+    return result;
+}
+
 void ScrollConstraint::initPhysics()
 {
+    m_isDragging = true;
     if (m_physics != nullptr)
     {
         m_physics->prepare(direction());
     }
+}
+
+void ScrollConstraint::stopPhysics()
+{
+    if (m_physics != nullptr)
+    {
+        m_physics->reset();
+    }
+}
+
+float ScrollConstraint::scrollPercentX()
+{
+    return maxOffsetX() != 0 ? scrollOffsetX() / maxOffsetX() : 0;
+}
+
+float ScrollConstraint::scrollPercentY()
+{
+    return maxOffsetY() != 0 ? scrollOffsetY() / maxOffsetY() : 0;
+}
+
+float ScrollConstraint::scrollIndex()
+{
+    return indexAtPosition(Vec2D(scrollOffsetX(), scrollOffsetY()));
+}
+
+void ScrollConstraint::setScrollPercentX(float value)
+{
+    if (m_isDragging)
+    {
+        return;
+    }
+    stopPhysics();
+    float to = value * maxOffsetX();
+    scrollOffsetX(to);
+}
+
+void ScrollConstraint::setScrollPercentY(float value)
+{
+    if (m_isDragging)
+    {
+        return;
+    }
+    stopPhysics();
+    float to = value * maxOffsetY();
+    scrollOffsetY(to);
+}
+
+void ScrollConstraint::setScrollIndex(float value)
+{
+    if (m_isDragging)
+    {
+        return;
+    }
+    stopPhysics();
+    Vec2D to = positionAtIndex(value);
+    if (constrainsHorizontal())
+    {
+        scrollOffsetX(to.x);
+    }
+    else if (constrainsVertical())
+    {
+        scrollOffsetY(to.y);
+    }
+}
+
+Vec2D ScrollConstraint::positionAtIndex(float index)
+{
+    if (content() == nullptr || content()->children().size() == 0)
+    {
+        return Vec2D();
+    }
+    auto i = 0;
+    LayoutComponent* lastChild;
+    for (auto child : content()->children())
+    {
+        if (child->is<LayoutComponent>())
+        {
+            auto c = child->as<LayoutComponent>();
+            auto floorIndex = std::floor(index);
+            if (i == floorIndex)
+            {
+                auto mod = index - floorIndex;
+                return Vec2D(-c->layoutX() - c->layoutWidth() * mod,
+                             -c->layoutY() - c->layoutHeight() * mod);
+            }
+            lastChild = c;
+            i++;
+        }
+    }
+    return Vec2D(-lastChild->layoutX(), -lastChild->layoutY());
+}
+
+float ScrollConstraint::indexAtPosition(Vec2D pos)
+{
+    if (content() == nullptr || content()->children().size() == 0)
+    {
+        return 0;
+    }
+    float i = 0.0f;
+    if (constrainsHorizontal())
+    {
+        for (auto child : content()->children())
+        {
+            if (child->is<LayoutComponent>())
+            {
+                auto c = child->as<LayoutComponent>();
+                if (pos.x > -c->layoutX() - c->layoutWidth())
+                {
+                    return i + (-pos.x - c->layoutX()) / c->layoutWidth();
+                }
+                i++;
+            }
+        }
+        return i;
+    }
+    else if (constrainsVertical())
+    {
+        for (auto child : content()->children())
+        {
+            if (child->is<LayoutComponent>())
+            {
+                auto c = child->as<LayoutComponent>();
+                if (pos.y > -c->layoutY() - c->layoutHeight())
+                {
+                    return i + (-pos.y - c->layoutY()) / c->layoutHeight();
+                }
+                i++;
+            }
+        }
+        return i;
+    }
+    return 0;
 }

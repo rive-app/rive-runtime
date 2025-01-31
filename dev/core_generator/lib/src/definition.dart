@@ -195,7 +195,9 @@ class Definition {
 
       // Write fields.
       for (final property in properties) {
-        if (property.isEncoded || !property.getExportType().storesData) {
+        if (property.isEncoded ||
+            !property.getExportType().storesData ||
+            property.isPassthrough) {
           // Encoded properties don't store data, it's up to the implementation
           // to decode and store what it needs.
           continue;
@@ -238,6 +240,22 @@ class Definition {
               '(const ${_name}Base& object) ' +
               (property.isSetOverride ? 'override' : '') +
               '= 0;');
+        } else if (property.isPassthrough) {
+          code.writeln('virtual void '
+              'set${property.capitalizedName}(${property.type.cppGetterName} value) '
+              '= 0;');
+          code.writeln(
+              'virtual ${property.type.cppGetterName} ${property.name}() '
+              '= 0;');
+          code.writeln(
+              'void ${property.name}(${property.type.cppName} value) ' +
+                  (property.isSetOverride ? 'override' : '') +
+                  '{'
+                      'if(${property.name}() == value)'
+                      '{return;}'
+                      'set${property.capitalizedName}(value);'
+                      '${property.name}Changed();'
+                      '}');
         } else {
           code.writeln(((property.isVirtual || property.isPureVirtual)
                   ? 'virtual'
@@ -272,6 +290,9 @@ class Definition {
     if (storedProperties.isNotEmpty || _extensionOf == null) {
       code.writeln('void copy(const ${_name}Base& object) {');
       for (final property in storedProperties) {
+        if (property.isPassthrough) {
+          continue;
+        }
         if (property.isEncoded) {
           code.writeln('copy${property.capitalizedName}(object);');
         } else {
@@ -292,6 +313,9 @@ class Definition {
       if (storedProperties.isNotEmpty) {
         code.writeln('switch (propertyKey){');
         for (final property in properties) {
+          if (property.isPassthrough) {
+            continue;
+          }
           code.writeln('case ${property.name}PropertyKey:');
           if (property.isEncoded) {
             code.writeln('decode${property.capitalizedName}'

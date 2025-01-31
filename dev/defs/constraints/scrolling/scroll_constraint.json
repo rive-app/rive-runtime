@@ -6,6 +6,61 @@
   },
   "extends": "constraints/draggable_constraint.json",
   "properties": {
+    "scrollOffsetX": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 759,
+        "string": "scrolloffsetx"
+      },
+      "description": "Pixel offset of the scroll content within it's parent viewport",
+      "bindable": true
+    },
+    "scrollOffsetY": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 760,
+        "string": "scrolloffsety"
+      },
+      "description": "Pixel offset of the scroll content within it's parent viewport",
+      "bindable": true
+    },
+    "scrollPercentX": {
+      "type": "double",
+      "animates": true,
+      "key": {
+        "int": 761,
+        "string": "scrollpercentx"
+      },
+      "description": "Percent offset of the scroll content within it's parent viewport (0 to 100)",
+      "bindable": true,
+      "passthrough": true
+    },
+    "scrollPercentY": {
+      "type": "double",
+      "animates": true,
+      "key": {
+        "int": 762,
+        "string": "scrollpercenty"
+      },
+      "description": "Percent offset of the scroll content within it's parent viewport (0 to 100)",
+      "bindable": true,
+      "passthrough": true
+    },
+    "scrollIndex": {
+      "type": "double",
+      "animates": true,
+      "key": {
+        "int": 763,
+        "string": "scrollindex"
+      },
+      "description": "Index of the child layout to scroll to within it's parent viewport",
+      "bindable": true,
+      "passthrough": true
+    },
     "snap": {
       "type": "bool",
       "initialValue": "false",

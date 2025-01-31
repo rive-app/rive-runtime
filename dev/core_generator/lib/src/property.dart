@@ -21,6 +21,7 @@ class Property {
   bool isGetOverride = false;
   bool isEncoded = false;
   bool isBindable = false;
+  bool isPassthrough = false;
   bool isPureVirtual = false;
   FieldType? typeRuntime;
 
@@ -98,6 +99,10 @@ class Property {
     dynamic b = data['bindable'];
     if (b is bool) {
       isBindable = b;
+    }
+    dynamic p = data['passthrough'];
+    if (p is bool) {
+      isPassthrough = p;
     }
     dynamic pv = data['pureVirtual'];
     if (pv is bool) {

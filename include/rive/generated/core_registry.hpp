@@ -1499,6 +1499,21 @@ public:
             case FollowPathConstraintBase::distancePropertyKey:
                 object->as<FollowPathConstraintBase>()->distance(value);
                 break;
+            case ScrollConstraintBase::scrollOffsetXPropertyKey:
+                object->as<ScrollConstraintBase>()->scrollOffsetX(value);
+                break;
+            case ScrollConstraintBase::scrollOffsetYPropertyKey:
+                object->as<ScrollConstraintBase>()->scrollOffsetY(value);
+                break;
+            case ScrollConstraintBase::scrollPercentXPropertyKey:
+                object->as<ScrollConstraintBase>()->scrollPercentX(value);
+                break;
+            case ScrollConstraintBase::scrollPercentYPropertyKey:
+                object->as<ScrollConstraintBase>()->scrollPercentY(value);
+                break;
+            case ScrollConstraintBase::scrollIndexPropertyKey:
+                object->as<ScrollConstraintBase>()->scrollIndex(value);
+                break;
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 object->as<ElasticScrollPhysicsBase>()->friction(value);
                 break;
@@ -2690,6 +2705,16 @@ public:
                     ->maxValueY();
             case FollowPathConstraintBase::distancePropertyKey:
                 return object->as<FollowPathConstraintBase>()->distance();
+            case ScrollConstraintBase::scrollOffsetXPropertyKey:
+                return object->as<ScrollConstraintBase>()->scrollOffsetX();
+            case ScrollConstraintBase::scrollOffsetYPropertyKey:
+                return object->as<ScrollConstraintBase>()->scrollOffsetY();
+            case ScrollConstraintBase::scrollPercentXPropertyKey:
+                return object->as<ScrollConstraintBase>()->scrollPercentX();
+            case ScrollConstraintBase::scrollPercentYPropertyKey:
+                return object->as<ScrollConstraintBase>()->scrollPercentY();
+            case ScrollConstraintBase::scrollIndexPropertyKey:
+                return object->as<ScrollConstraintBase>()->scrollIndex();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->as<ElasticScrollPhysicsBase>()->friction();
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
@@ -3327,6 +3352,11 @@ public:
             case TransformComponentConstraintYBase::minValueYPropertyKey:
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
             case FollowPathConstraintBase::distancePropertyKey:
+            case ScrollConstraintBase::scrollOffsetXPropertyKey:
+            case ScrollConstraintBase::scrollOffsetYPropertyKey:
+            case ScrollConstraintBase::scrollPercentXPropertyKey:
+            case ScrollConstraintBase::scrollPercentYPropertyKey:
+            case ScrollConstraintBase::scrollIndexPropertyKey:
             case ElasticScrollPhysicsBase::frictionPropertyKey:
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:
             case ElasticScrollPhysicsBase::elasticFactorPropertyKey:
@@ -4055,6 +4085,16 @@ public:
                 return object->is<TransformComponentConstraintYBase>();
             case FollowPathConstraintBase::distancePropertyKey:
                 return object->is<FollowPathConstraintBase>();
+            case ScrollConstraintBase::scrollOffsetXPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::scrollOffsetYPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::scrollPercentXPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::scrollPercentYPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::scrollIndexPropertyKey:
+                return object->is<ScrollConstraintBase>();
             case ElasticScrollPhysicsBase::frictionPropertyKey:
                 return object->is<ElasticScrollPhysicsBase>();
             case ElasticScrollPhysicsBase::speedMultiplierPropertyKey:

@@ -70,6 +70,7 @@ void ElasticScrollPhysics::prepare(DraggableConstraintDirection dir)
 
 void ElasticScrollPhysics::reset()
 {
+    Super::reset();
     m_physicsX = nullptr;
     m_physicsY = nullptr;
 }
