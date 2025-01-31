@@ -43,6 +43,10 @@
 #define ushort3 mediump uvec3
 #define ushort4 mediump uvec4
 
+#define bool2 bvec2
+#define bool3 bvec3
+#define bool4 bvec4
+
 #define float2x2 mat2
 
 #define INLINE

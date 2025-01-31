@@ -30,31 +30,15 @@ TEST_CASE("find_transformed_area", "[gpu]")
         Approx(0.f).margin(math::EPSILON));
 }
 
-// Borrowed from:
-// https://stackoverflow.com/questions/1659440/32-bit-to-16-bit-floating-point-conversion
-float half_to_float(uint16_t x)
-{
-    // IEEE-754 16-bit floating-point format (without infinity): 1-5-10, exp-15,
-    // +-131008.0, +-6.1035156E-5, +-5.9604645E-8, 3.311 digits
-    const uint32_t e = (x & 0x7C00) >> 10; // exponent
-    const uint32_t m = (x & 0x03FF) << 13; // mantissa
-    // evil log2 bit hack to count leading zeros in denormalized format
-    const uint32_t v = math::bit_cast<uint32_t>(static_cast<float>(m)) >> 23;
-    return math::bit_cast<float>(
-        (x & 0x8000) << 16 | (e != 0) * ((e + 112) << 23 | m) |
-        ((e == 0) & (m != 0)) *
-            ((v - 37) << 23 |
-             ((m << (150 - v)) &
-              0x007FE000))); // sign : normalized : denormalized
-}
-
 TEST_CASE("gaussian_integral_table", "[gpu]")
 {
     float gaussianTable[gpu::GAUSSIAN_TABLE_SIZE];
-    for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; ++i)
+    for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; i += 4)
     {
-        gaussianTable[i] = half_to_float(gpu::g_gaussianIntegralTableF16[i]);
-    }
+        float4 f32s = gpu::cast_f16_to_f32(
+            simd::load<uint16_t, 4>(gpu::g_gaussianIntegralTableF16 + i));
+        simd::store(gaussianTable + i, f32s);
+    };
 
     CHECK(gaussianTable[0] >= 0);
     CHECK(gaussianTable[0] <= expf(-.5f * FEATHER_TEXTURE_STDDEVS));
@@ -88,67 +72,94 @@ TEST_CASE("gaussian_integral_table", "[gpu]")
 
 TEST_CASE("inverse_gaussian_integral_table", "[gpu]")
 {
-    CHECK(gpu::g_inverseGaussianIntegralTableF32[0] == 0);
-    CHECK(
-        gpu::g_inverseGaussianIntegralTableF32[gpu::GAUSSIAN_TABLE_SIZE - 1] ==
-        1);
-    if (gpu::GAUSSIAN_TABLE_SIZE & 1)
-    {
-        CHECK(gpu::g_inverseGaussianIntegralTableF32[gpu::GAUSSIAN_TABLE_SIZE /
-                                                     2] == .5f);
-    }
-    else
-    {
-        CHECK((gpu::g_inverseGaussianIntegralTableF32
-                   [gpu::GAUSSIAN_TABLE_SIZE / 2 - 1] +
-               gpu::g_inverseGaussianIntegralTableF32[gpu::GAUSSIAN_TABLE_SIZE /
-                                                      2]) /
-                  2 ==
-              Approx(.5f).margin(1e-4f));
-    }
-    for (int i = 1; i < gpu::GAUSSIAN_TABLE_SIZE; ++i)
-    {
-        CHECK(gpu::g_inverseGaussianIntegralTableF32[i - 1] <=
-              gpu::g_inverseGaussianIntegralTableF32[i]);
-    }
-    for (int i = 0; i < (gpu::GAUSSIAN_TABLE_SIZE + 1) / 2 - 4; ++i)
-    {
-        CHECK(gpu::g_inverseGaussianIntegralTableF32[i] +
-                  gpu::g_inverseGaussianIntegralTableF32
-                      [gpu::GAUSSIAN_TABLE_SIZE - 1 - i] ==
-              Approx(1).margin(i > 100 ? 1e-4f
-                               : i > 4 ? 1e-3f
-                                       : 1e-2f));
-    }
-
-    // Check that the inverse table is actually an inverse of the gaussian
-    // integral.
     float gaussianTable[gpu::GAUSSIAN_TABLE_SIZE];
+    for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; i += 4)
+    {
+        float4 f32s = gpu::cast_f16_to_f32(
+            simd::load<uint16_t, 4>(gpu::g_gaussianIntegralTableF16 + i));
+        simd::store(gaussianTable + i, f32s);
+    };
+
+    auto checkTable = [gaussianTable](const float(
+                          &inverseGaussianTable)[gpu::GAUSSIAN_TABLE_SIZE]) {
+        CHECK(inverseGaussianTable[0] == 0);
+        CHECK(inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] == 1);
+        if (gpu::GAUSSIAN_TABLE_SIZE & 1)
+        {
+            CHECK(inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2] == .5f);
+        }
+        else
+        {
+            CHECK((inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2 - 1] +
+                   inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2]) /
+                      2 ==
+                  Approx(.5f).margin(1e-4f));
+        }
+        for (int i = 1; i < gpu::GAUSSIAN_TABLE_SIZE; ++i)
+        {
+            CHECK(inverseGaussianTable[i - 1] <= inverseGaussianTable[i]);
+        }
+        for (int i = 0; i < (gpu::GAUSSIAN_TABLE_SIZE + 1) / 2 - 4; ++i)
+        {
+            CHECK(inverseGaussianTable[i] +
+                      inverseGaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1 - i] ==
+                  Approx(1).margin(i > 100 ? 5e-4f
+                                   : i > 4 ? 1e-3f
+                                           : 1e-2f));
+        }
+
+        // Check that the inverse table is actually an inverse of the gaussian
+        // integral.
+        float M = 21;
+        for (float x = 0; x <= 1; x += 1.f / (gpu::GAUSSIAN_TABLE_SIZE * M))
+        {
+            float y = gpu::function_table_lookup(x, gaussianTable);
+            // The inverse table loses precision at the inner and outer cells.
+            float margin = x > .125f && x < .875f ? 1.f / 512
+                           : x > .04f && x < .96f ? 1.f / 256
+                           : x > .02f && x < .98f ? 1.f / 128
+                                                  : 1.f / 95;
+            CHECK(gpu::function_table_lookup(y, inverseGaussianTable) ==
+                  Approx(x).margin(margin));
+            CHECK(gpu::inverse_gaussian_integral(y) ==
+                  Approx(x).margin(margin));
+        }
+
+        // Check inverse_gaussian_integral edge cases.
+        CHECK(gpu::function_table_lookup(-1, inverseGaussianTable) == 0);
+        CHECK(gpu::inverse_gaussian_integral(-1) == 0);
+
+        CHECK(gpu::function_table_lookup(2, inverseGaussianTable) == 1);
+        CHECK(gpu::inverse_gaussian_integral(2) == 1);
+
+        CHECK(
+            gpu::function_table_lookup(-std::numeric_limits<float>::infinity(),
+                                       inverseGaussianTable) == 0);
+        CHECK(gpu::inverse_gaussian_integral(
+                  -std::numeric_limits<float>::infinity()) == 0);
+
+        CHECK(gpu::function_table_lookup(std::numeric_limits<float>::infinity(),
+                                         inverseGaussianTable) == 1);
+        CHECK(gpu::inverse_gaussian_integral(
+                  std::numeric_limits<float>::infinity()) == 1);
+
+        CHECK(
+            gpu::function_table_lookup(std::numeric_limits<float>::quiet_NaN(),
+                                       inverseGaussianTable) == 0);
+        CHECK(gpu::inverse_gaussian_integral(
+                  std::numeric_limits<float>::quiet_NaN()) == 0);
+    };
+    checkTable(gpu::g_inverseGaussianIntegralTableF32);
+
+    gpu::FeatherTextureData featherTextureData;
+    const uint16_t* inverseGaussianTableF16 =
+        featherTextureData.data + gpu::GAUSSIAN_TABLE_SIZE;
+    float inverseGaussianTableFromF16[gpu::GAUSSIAN_TABLE_SIZE];
     for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; ++i)
     {
-        gaussianTable[i] = half_to_float(gpu::g_gaussianIntegralTableF16[i]);
+        inverseGaussianTableFromF16[i] =
+            gpu::cast_f16_to_f32(inverseGaussianTableF16[i]).x;
     }
-    float M = 21;
-    for (float x = 0; x <= 1; x += 1.f / (gpu::GAUSSIAN_TABLE_SIZE * M))
-    {
-        float y = gpu::gaussian_table_lookup(gaussianTable, x);
-        float inverseY = gpu::inverse_gaussian_integral(y);
-        // The inverse table loses precision at the inner and outer cells.
-        float margin = x > .125f && x < .875f ? 1.f / 512
-                       : x > .04f && x < .96f ? 1.f / 256
-                       : x > .02f && x < .98f ? 1.f / 128
-                                              : 1.f / 95;
-        CHECK(inverseY == Approx(x).margin(margin));
-    }
-
-    // Check inverse_gaussian_integral edge cases.
-    CHECK(gpu::inverse_gaussian_integral(-1) == 0);
-    CHECK(gpu::inverse_gaussian_integral(2) == 1);
-    CHECK(gpu::inverse_gaussian_integral(
-              -std::numeric_limits<float>::infinity()) == 0);
-    CHECK(gpu::inverse_gaussian_integral(
-              std::numeric_limits<float>::infinity()) == 1);
-    CHECK(gpu::inverse_gaussian_integral(
-              std::numeric_limits<float>::quiet_NaN()) == 0);
+    checkTable(inverseGaussianTableFromF16);
 }
 } // namespace rive

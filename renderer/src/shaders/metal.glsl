@@ -154,8 +154,9 @@
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
 
 #define VERTEX_CONTEXT_DECL                                                    \
-    , VertexTextures _textures, VertexStorageBuffers _buffers
-#define VERTEX_CONTEXT_UNPACK , _textures, _buffers
+    , $constant @FlushUniforms &uniforms, VertexTextures _textures,            \
+        VertexStorageBuffers _buffers
+#define VERTEX_CONTEXT_UNPACK , uniforms, _textures, _buffers
 
 #ifdef @ENABLE_INSTANCE_INDEX
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
@@ -166,7 +167,9 @@
         [[$buffer(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)]],                    \
         $constant @FlushUniforms& uniforms                                     \
         [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                                 \
-        $constant Attrs* attrs [[$buffer(0)]] VERTEX_CONTEXT_DECL)             \
+        $constant Attrs* attrs [[$buffer(0)]],                                 \
+        VertexTextures _textures,                                              \
+        VertexStorageBuffers _buffers)                                         \
     {                                                                          \
         _instanceID += _baseInstance;                                          \
         Varyings _varyings;
@@ -177,7 +180,9 @@
         uint _instanceID [[$instance_id]],                                     \
         $constant @FlushUniforms& uniforms                                     \
         [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                                 \
-        $constant Attrs* attrs [[$buffer(0)]] VERTEX_CONTEXT_DECL)             \
+        $constant Attrs* attrs [[$buffer(0)]],                                 \
+        VertexTextures _textures,                                              \
+        VertexStorageBuffers _buffers)                                         \
     {                                                                          \
         Varyings _varyings;
 #endif
@@ -189,7 +194,9 @@
         [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                                 \
         $constant @ImageDrawUniforms& imageDrawUniforms                        \
         [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],                            \
-        $constant Attrs* attrs [[$buffer(0)]] VERTEX_CONTEXT_DECL)             \
+        $constant Attrs* attrs [[$buffer(0)]],                                 \
+        VertexTextures _textures,                                              \
+        VertexStorageBuffers _buffers)                                         \
     {                                                                          \
         Varyings _varyings;
 
@@ -488,3 +495,13 @@ INLINE half3 mix(half3 a, half3 b, bool3 c)
         result[i] = c[i] ? b[i] : a[i];
     return result;
 }
+
+INLINE float2 mix(float2 a, float2 b, bool2 c)
+{
+    float2 result;
+    for (int i = 0; i < 2; ++i)
+        result[i] = c[i] ? b[i] : a[i];
+    return result;
+}
+
+INLINE float mod(float x, float y) { return $fmod(x, y); }

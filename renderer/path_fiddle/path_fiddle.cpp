@@ -225,6 +225,7 @@ static void key_callback(GLFWwindow* window,
                 s_forceAtomicMode = !s_forceAtomicMode;
                 fpsLastTime = 0;
                 fpsFrames = 0;
+                s_needsTitleUpdate = true;
                 break;
             case GLFW_KEY_D:
                 printf("static float s_scale = %f;\n", s_scale);

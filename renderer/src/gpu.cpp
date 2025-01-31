@@ -467,7 +467,9 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_coverageClearValue(flushDesc.coverageClearValue),
     m_renderTargetUpdateBounds(flushDesc.renderTargetUpdateBounds),
     m_coverageBufferPrefix(flushDesc.coverageBufferPrefix),
-    m_pathIDGranularity(platformFeatures.pathIDGranularity)
+    m_pathIDGranularity(platformFeatures.pathIDGranularity),
+    m_vertexDiscardValue(std::numeric_limits<float>::quiet_NaN()),
+    m_wireframeEnabled(flushDesc.wireframe)
 {}
 
 static void write_matrix(volatile float* dst, const Mat2D& matrix)
@@ -739,6 +741,49 @@ float find_transformed_area(const AABB& bounds, const Mat2D& matrix)
            .5f;
 }
 
+// Borrowed from:
+// https://stackoverflow.com/questions/1659440/32-bit-to-16-bit-floating-point-conversion
+//
+// IEEE-754 16-bit floating-point format (without infinity): 1-5-10, exp-15,
+// +-131008.0, +-6.1035156E-5, +-5.9604645E-8, 3.311 digits
+float4 cast_f16_to_f32(uint16x4 x16)
+{
+    uint4 x = simd::cast<uint32_t>(x16);
+    uint4 e = (x & 0x7C00) >> 10; // exponent
+    uint4 m = (x & 0x03FF) << 13; // mantissa
+    // evil log2 bit hack to count leading zeros in denormalized format
+    uint4 v = math::bit_cast<uint4>(simd::cast<float>(m)) >> 23;
+    // sign : normalized : denormalized
+    return math::bit_cast<float4>(
+        (x & 0x8000u) << 16 |
+        simd::cast<uint32_t>((e != 0u) & 1) * ((e + 112) << 23 | m) |
+        simd::cast<uint32_t>((e == 0u) & (m != 0u) & 1) *
+            ((v - 37u) << 23 | ((m << (150u - v)) & 0x007FE000u)));
+}
+
+// Borrowed from:
+// https://stackoverflow.com/questions/1659440/32-bit-to-16-bit-floating-point-conversion
+//
+// IEEE-754 16-bit floating-point format (without infinity): 1-5-10, exp-15,
+// +-131008.0, +-6.1035156E-5, +-5.9604645E-8, 3.311 digits
+uint16x4 cast_f32_to_f16(float4 x)
+{
+    // round-to-nearest-even: add last bit after truncated mantissa
+    uint4 b = math::bit_cast<uint4>(x) + 0x00001000;
+    uint4 e = (b & 0x7F800000) >> 23; // exponent
+    // mantissa; in line below: 0x007FF000 = 0x00800000-0x00001000 = decimal
+    // indicator flag - initial rounding
+    uint4 m = b & 0x007FFFFF;
+    // sign : normalized : denormalized : saturate
+    return simd::cast<uint16_t>(
+        ((b & 0x80000000u) >> 16) |
+        simd::cast<uint32_t>((e > 112u) & 1) *
+            ((((e - 112u) << 10) & 0x7C00u) | m >> 13) |
+        simd::cast<uint32_t>((e < 113u) & (e > 101u) & 1) *
+            ((((0x007FF000u + m) >> (125u - e)) + 1u) >> 1) |
+        simd::cast<uint32_t>((e > 143u) & 1) * 0x7FFFu);
+}
+
 // Code to generate g_gaussianIntegralTableF16.
 #if 0
 static float eval_normal_distribution(float x, float mu, float inverseSigma)
@@ -748,13 +793,13 @@ static float eval_normal_distribution(float x, float mu, float inverseSigma)
     return expf(-.5 * y * y) * inverseSigma * ONE_OVER_SQRT_2_PI;
 }
 
-void generate_gausian_integral_table(float table[], size_t tableSize)
+void generate_gausian_integral_table(float (&table)[GAUSSIAN_TABLE_SIZE])
 {
-    float sigma = tableSize / (FEATHER_TEXTURE_STDDEVS * 2);
+    float sigma = GAUSSIAN_TABLE_SIZE / (FEATHER_TEXTURE_STDDEVS * 2);
     float inverseSigma = 1 / sigma;
-    float mu = tableSize * .5f;
+    float mu = GAUSSIAN_TABLE_SIZE * .5f;
     float integral = 0;
-    for (size_t i = 0; i < tableSize; ++i)
+    for (size_t i = 0; i < GAUSSIAN_TABLE_SIZE; ++i)
     {
         // Sample the normal distribution in multiple locations for each entry
         // of the table, in order to get a more accurate integral.
@@ -772,14 +817,22 @@ void generate_gausian_integral_table(float table[], size_t tableSize)
     // Account for the area under the curve prior to our table by shifting so
     // the middle value of the table is exactly 1/2.
     float shift =
-        .5 - ((tableSize & 1)
-                  ? table[tableSize / 2]
-                  : (table[tableSize / 2 - 1] + table[tableSize / 2]) / 2);
+        .5 - ((GAUSSIAN_TABLE_SIZE & 1) ? table[GAUSSIAN_TABLE_SIZE / 2]
+                                        : (table[GAUSSIAN_TABLE_SIZE / 2 - 1] +
+                                           table[GAUSSIAN_TABLE_SIZE / 2]) /
+                                              2);
     table[0] = fminf(fmaxf(0, table[0] + shift), 1);
-    for (size_t i = 1; i < tableSize; ++i)
+    for (size_t i = 1; i < GAUSSIAN_TABLE_SIZE; ++i)
     {
         table[i] = fminf(fmaxf(table[i - 1], table[i] + shift), 1);
     }
+    printf("\nconst uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE] = "
+           "{\n");
+    for (size_t i = 0; i < GAUSSIAN_TABLE_SIZE; ++i)
+    {
+        printf("0x%x, ", gpu::cast_f32_to_f16(table[i]).x);
+    }
+    printf("\n};\n");
 }
 #endif
 
@@ -845,14 +898,15 @@ const uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE] = {
 
 // Code to generate g_inverseGaussianIntegralTableF32.
 #if 0
-void generate_inverse_gausian_integral_table(float table[], size_t tableSize)
+void generate_inverse_gausian_integral_table(
+    float (&table)[GAUSSIAN_TABLE_SIZE])
 {
     // Evaluate 32 samples for every table value, for better precision.
     size_t MULTIPLIER = 32;
-    float sigma = tableSize / (FEATHER_TEXTURE_STDDEVS * 2);
+    float sigma = GAUSSIAN_TABLE_SIZE / (FEATHER_TEXTURE_STDDEVS * 2);
     float inverseSigma = 1 / sigma;
-    float mu = tableSize * .5f;
-    size_t samples = tableSize * MULTIPLIER;
+    float mu = GAUSSIAN_TABLE_SIZE * .5f;
+    size_t samples = GAUSSIAN_TABLE_SIZE * MULTIPLIER;
 
     // Integrate half the curve in order to determine the initial value of our
     // integral (the table doesn't begin until -FEATHER_TEXTURE_STDDEVS).
@@ -870,13 +924,13 @@ void generate_inverse_gausian_integral_table(float table[], size_t tableSize)
     float lastInverseX = std::numeric_limits<float>::quiet_NaN(),
           lastInverseY = 0;
     table[0] = 0;
-    table[tableSize - 1] = 1;
+    table[GAUSSIAN_TABLE_SIZE - 1] = 1;
     for (size_t i = 0; i < samples; ++i)
     {
         float barCenterX = static_cast<float>(i) / MULTIPLIER;
         integral +=
             eval_normal_distribution(barCenterX, mu, inverseSigma) / MULTIPLIER;
-        float inverseX = fminf(fmaxf(0, integral), 1) * tableSize;
+        float inverseX = fminf(fmaxf(0, integral), 1) * GAUSSIAN_TABLE_SIZE;
         float inverseY = (i + .5f) / samples;
         size_t cell = static_cast<size_t>(inverseX);
         float cellCenterX = cell + .5f;
@@ -889,16 +943,24 @@ void generate_inverse_gausian_integral_table(float table[], size_t tableSize)
         {
             float t = (cellCenterX - lastInverseX) / (inverseX - lastInverseX);
             float y = lerp(lastInverseY, inverseY, t);
-            assert(0 <= cell && cell < tableSize);
+            assert(0 <= cell && cell < GAUSSIAN_TABLE_SIZE);
             table[cell] = y;
         }
         lastInverseX = inverseX;
         lastInverseY = inverseY;
     }
 
-    // Use a large enough tableSize that the beginning and ending values are 0
-    // and 1!
-    assert(table[0] == 0 && table[tableSize - 1] == 1);
+    // Use a large enough GAUSSIAN_TABLE_SIZE that the beginning and ending
+    // values are 0 and 1!
+    assert(table[0] == 0 && table[GAUSSIAN_TABLE_SIZE - 1] == 1);
+
+    printf("\nconst float "
+           "g_inverseGaussianIntegralTableF32[GAUSSIAN_TABLE_SIZE] = {\n");
+    for (size_t i = 0; i < GAUSSIAN_TABLE_SIZE; ++i)
+    {
+        printf("%ff, ", table[i]);
+    }
+    printf("\n};\n");
 }
 #endif
 
@@ -979,14 +1041,26 @@ const float g_inverseGaussianIntegralTableF32[GAUSSIAN_TABLE_SIZE] = {
     1.000000f,
 };
 
-float gaussian_table_lookup(const float (&table)[GAUSSIAN_TABLE_SIZE], float x)
+FeatherTextureData::FeatherTextureData()
+{
+    memcpy(data,
+           g_gaussianIntegralTableF16,
+           sizeof(g_gaussianIntegralTableF16));
+    for (int i = 0; i < GAUSSIAN_TABLE_SIZE; i += 4)
+    {
+        uint16x4 f16s = cast_f32_to_f16(
+            simd::load4f(g_inverseGaussianIntegralTableF32 + i));
+        simd::store(data + GAUSSIAN_TABLE_SIZE + i, f16s);
+    }
+}
+
+float function_table_lookup(float x, const float* table, float tableSize)
 {
     x = fminf(fmaxf(0, x), 1);
-    float sampleBoxLeft = x * GAUSSIAN_TABLE_SIZE - .5f;
-    int rightIdx =
-        static_cast<int>(fminf(sampleBoxLeft + 1, GAUSSIAN_TABLE_SIZE - 1));
+    float sampleRegionLeft = x * tableSize - .5f;
+    int rightIdx = static_cast<int>(fminf(sampleRegionLeft + 1, tableSize - 1));
     int leftIdx = std::max(rightIdx - 1, 0);
-    float t = fminf(fmaxf(0, sampleBoxLeft - leftIdx), 1);
+    float t = fminf(fmaxf(0, sampleRegionLeft - leftIdx), 1);
     return lerp(table[leftIdx], table[rightIdx], t);
 }
 } // namespace rive::gpu

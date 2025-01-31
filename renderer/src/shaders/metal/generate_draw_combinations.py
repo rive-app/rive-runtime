@@ -23,10 +23,10 @@ DRAW_INTERIOR_TRIANGLES = Feature('DRAW_INTERIOR_TRIANGLES', 7)
 whole_program_features = {DRAW_INTERIOR_TRIANGLES,
                           ENABLE_CLIPPING,
                           ENABLE_CLIP_RECT,
-                          ENABLE_ADVANCED_BLEND}
+                          ENABLE_ADVANCED_BLEND,
+                          ENABLE_FEATHER}
 
-fragment_only_features = {ENABLE_FEATHER,
-                          ENABLE_EVEN_ODD,
+fragment_only_features = {ENABLE_EVEN_ODD,
                           ENABLE_NESTED_CLIPPING,
                           ENABLE_HSL_BLEND_MODES}
 

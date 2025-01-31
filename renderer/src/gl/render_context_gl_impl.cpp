@@ -109,17 +109,21 @@ RenderContextGLImpl::RenderContextGLImpl(
 
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_featherTexture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_R16F, gpu::GAUSSIAN_TABLE_SIZE, 1);
+    glTexStorage2D(GL_TEXTURE_2D,
+                   1,
+                   GL_R16F,
+                   gpu::FEATHER_TEXTURE_WIDTH,
+                   gpu::FEATHER_TEXTURE_HEIGHT);
     m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     glTexSubImage2D(GL_TEXTURE_2D,
                     0,
                     0,
                     0,
-                    gpu::GAUSSIAN_TABLE_SIZE,
-                    1,
+                    gpu::FEATHER_TEXTURE_WIDTH,
+                    gpu::FEATHER_TEXTURE_HEIGHT,
                     GL_RED,
                     GL_HALF_FLOAT,
-                    gpu::g_gaussianIntegralTableF16);
+                    gpu::FeatherTextureData().data);
     glutils::SetTexture2DSamplingParams(GL_LINEAR, GL_LINEAR);
 
     const char* tessellateSources[] = {glsl::constants,
@@ -740,14 +744,21 @@ RenderContextGLImpl::DrawShader::DrawShader(
             assert(interlockMode == gpu::InterlockMode::atomics);
             defines.push_back(GLSL_DRAW_IMAGE);
             defines.push_back(GLSL_DRAW_IMAGE_RECT);
+            sources.push_back(gpu::glsl::draw_path_common);
             sources.push_back(gpu::glsl::atomic_draw);
             break;
         case gpu::DrawType::imageMesh:
             defines.push_back(GLSL_DRAW_IMAGE);
             defines.push_back(GLSL_DRAW_IMAGE_MESH);
-            sources.push_back(interlockMode == gpu::InterlockMode::atomics
-                                  ? gpu::glsl::atomic_draw
-                                  : gpu::glsl::draw_image_mesh);
+            if (interlockMode == gpu::InterlockMode::atomics)
+            {
+                sources.push_back(gpu::glsl::draw_path_common);
+                sources.push_back(gpu::glsl::atomic_draw);
+            }
+            else
+            {
+                sources.push_back(gpu::glsl::draw_image_mesh);
+            }
             break;
         case gpu::DrawType::atomicResolve:
             assert(interlockMode == gpu::InterlockMode::atomics);
@@ -759,6 +770,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 assert(shaderType == GL_FRAGMENT_SHADER);
                 defines.push_back(GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER);
             }
+            sources.push_back(gpu::glsl::draw_path_common);
             sources.push_back(gpu::glsl::atomic_draw);
             break;
         case gpu::DrawType::atomicInitialize:
@@ -849,7 +861,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
                                  GLSL_gradTexture,
                                  kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     }
-    if (shaderFeatures & gpu::ShaderFeatures::ENABLE_FEATHER)
+    if (shaderFeatures & ShaderFeatures::ENABLE_FEATHER)
     {
         assert(isPathDraw || interlockMode == gpu::InterlockMode::atomics);
         glUniform1i(glGetUniformLocation(m_id, GLSL_featherTexture),

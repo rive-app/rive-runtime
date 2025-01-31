@@ -12,7 +12,7 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
-NO_PERSPECTIVE VARYING(0, half2, v_edgeDistance);
+NO_PERSPECTIVE VARYING(0, float4, v_coverages);
 FLAT VARYING(1, ushort, v_pathID);
 FLAT VARYING(2, uint2, v_coveragePlacement);
 VARYING(3, float2, v_coverageCoord);
@@ -24,7 +24,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
     ATTR_UNPACK(_vertexID, attrs, @a_mirroredVertexData, float4);
 
-    VARYING_INIT(v_edgeDistance, half2);
+    VARYING_INIT(v_coverages, float4);
     VARYING_INIT(v_pathID, ushort);
     VARYING_INIT(v_coveragePlacement, uint2);
     VARYING_INIT(v_coverageCoord, float2);
@@ -37,7 +37,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                        _instanceID,
                                        pathID,
                                        vertexPosition,
-                                       v_edgeDistance VERTEX_CONTEXT_UNPACK))
+                                       v_coverages VERTEX_CONTEXT_UNPACK))
     {
         uint4 coverageData =
             STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 3u);
@@ -54,7 +54,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                      uniforms.vertexDiscardValue);
     }
 
-    VARYING_PACK(v_edgeDistance);
+    VARYING_PACK(v_coverages);
     VARYING_PACK(v_pathID);
     VARYING_PACK(v_coveragePlacement);
     VARYING_PACK(v_coverageCoord);
@@ -108,20 +108,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // DRAW_INTERIOR_TRIANGLES
 
 #ifdef @FRAGMENT
-FRAG_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
-#ifdef @ENABLE_FEATHER
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
-#endif
-TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-FRAG_TEXTURE_BLOCK_END
-
-SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
-#ifdef @ENABLE_FEATHER
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
-#endif
-SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
-
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
@@ -292,7 +278,7 @@ INLINE void apply_fill_coverage(INOUT(float) paintAlpha,
 
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
-    VARYING_UNPACK(v_edgeDistance, half2);
+    VARYING_UNPACK(v_coverages, float4);
     VARYING_UNPACK(v_pathID, ushort);
     VARYING_UNPACK(v_coveragePlacement, uint2);
     VARYING_UNPACK(v_coverageCoord, float2);
@@ -364,16 +350,16 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #else
         half fragCoverage;
 #ifdef @ENABLE_FEATHER
-        if (@ENABLE_FEATHER && is_feathered_fill(v_edgeDistance))
+        if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
         {
-            fragCoverage = feathered_fill_coverage(
-                v_edgeDistance,
+            fragCoverage = eval_feathered_fill(
+                v_coverages,
                 SAMPLED_R16F(@featherTexture, featherSampler));
         }
         else
 #endif
         {
-            fragCoverage = v_edgeDistance.x;
+            fragCoverage = v_coverages.x;
         }
         half borrowedCoverage = max(-fragCoverage, .0);
 #endif
@@ -383,20 +369,20 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #endif // BORROWED_COVERAGE_PREPASS
 
 #ifndef @DRAW_INTERIOR_TRIANGLES
-    if (is_stroke(v_edgeDistance))
+    if (is_stroke(v_coverages))
     {
         half fragCoverage;
 #ifdef @ENABLE_FEATHER
-        if (@ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
+        if (@ENABLE_FEATHER && is_feathered_stroke(v_coverages))
         {
-            fragCoverage = feathered_stroke_coverage(
-                v_edgeDistance,
+            fragCoverage = eval_feathered_stroke(
+                v_coverages,
                 SAMPLED_R16F(@featherTexture, featherSampler));
         }
         else
 #endif
         {
-            fragCoverage = min(v_edgeDistance.x, v_edgeDistance.y);
+            fragCoverage = min(v_coverages.x, v_coverages.y);
         }
         fragCoverage = clamp(fragCoverage, .0, 1.);
         apply_stroke_coverage(paintColor.a, fragCoverage, coverageIndex);
@@ -409,16 +395,16 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #else
         half fragCoverage;
 #ifdef @ENABLE_FEATHER
-        if (@ENABLE_FEATHER && is_feathered_fill(v_edgeDistance))
+        if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
         {
-            fragCoverage = feathered_fill_coverage(
-                v_edgeDistance,
+            fragCoverage = eval_feathered_fill(
+                v_coverages,
                 SAMPLED_R16F(@featherTexture, featherSampler));
         }
         else
 #endif
         {
-            fragCoverage = v_edgeDistance.x;
+            fragCoverage = v_coverages.x;
         }
         fragCoverage = clamp(fragCoverage, .0, 1.);
 #endif

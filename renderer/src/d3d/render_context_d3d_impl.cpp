@@ -252,22 +252,22 @@ RenderContextD3DImpl::RenderContextD3DImpl(
 
     // Create the feather texture.
     m_featherTexture = makeSimple2DTexture(DXGI_FORMAT_R16_FLOAT,
-                                           gpu::GAUSSIAN_TABLE_SIZE,
-                                           1,
+                                           gpu::FEATHER_TEXTURE_WIDTH,
+                                           gpu::FEATHER_TEXTURE_HEIGHT,
                                            1,
                                            D3D11_BIND_SHADER_RESOURCE);
     D3D11_BOX box;
     box.left = 0;
-    box.right = gpu::GAUSSIAN_TABLE_SIZE;
+    box.right = gpu::FEATHER_TEXTURE_WIDTH;
     box.top = 0;
-    box.bottom = 1;
+    box.bottom = gpu::FEATHER_TEXTURE_HEIGHT;
     box.front = 0;
     box.back = 1;
     m_gpuContext->UpdateSubresource(m_featherTexture.Get(),
                                     0,
                                     &box,
-                                    gpu::g_gaussianIntegralTableF16,
-                                    sizeof(gpu::g_gaussianIntegralTableF16),
+                                    gpu::FeatherTextureData().data,
+                                    gpu::FeatherTextureData::BYTES_PER_ROW,
                                     0);
     VERIFY_OK(m_gpu->CreateShaderResourceView(
         m_featherTexture.Get(),
@@ -420,6 +420,10 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     VERIFY_OK(
         m_gpu->CreateSamplerState(&mipmapSamplerDesc,
                                   m_mipmapSampler.ReleaseAndGetAddressOf()));
+
+    m_gpuContext->VSSetSamplers(FEATHER_TEXTURE_IDX,
+                                1,
+                                m_linearSampler.GetAddressOf());
 
     ID3D11SamplerState* samplers[3] = {
         m_linearSampler.Get(),
@@ -1192,17 +1196,24 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
                 break;
             case DrawType::imageRect:
                 assert(interlockMode == gpu::InterlockMode::atomics);
+                s << gpu::glsl::draw_path_common << '\n';
                 s << gpu::glsl::atomic_draw << '\n';
                 break;
             case DrawType::imageMesh:
-                s << (interlockMode == gpu::InterlockMode::rasterOrdering
-                          ? gpu::glsl::draw_image_mesh
-                          : gpu::glsl::atomic_draw)
-                  << '\n';
+                if (interlockMode == gpu::InterlockMode::rasterOrdering)
+                {
+                    s << gpu::glsl::draw_image_mesh << '\n';
+                }
+                else
+                {
+                    s << gpu::glsl::draw_path_common << '\n';
+                    s << gpu::glsl::atomic_draw << '\n';
+                }
                 break;
             case DrawType::atomicResolve:
             case DrawType::stencilClipReset:
                 assert(interlockMode == gpu::InterlockMode::atomics);
+                s << gpu::glsl::draw_path_common << '\n';
                 s << gpu::glsl::atomic_draw << '\n';
                 break;
             case DrawType::atomicInitialize:
@@ -1672,6 +1683,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX,
                                        1,
                                        m_tessTextureSRV.GetAddressOf());
+    m_gpuContext->VSSetShaderResources(FEATHER_TEXTURE_IDX,
+                                       1,
+                                       m_featherTextureSRV.GetAddressOf());
     ID3D11ShaderResourceView* gradFeatherViews[] = {m_gradTextureSRV.Get(),
                                                     m_featherTextureSRV.Get()};
     m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 2, gradFeatherViews);

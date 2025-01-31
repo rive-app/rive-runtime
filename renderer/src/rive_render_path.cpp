@@ -172,7 +172,7 @@ static void add_softened_cubic_for_feathering(RawPath* featheredPath,
     // ("feather" is 2 std devs.)
     float desiredSpread = feather * .5f;
 
-    // The feather gets dimmer with curvature. Find a dimming factor based on
+    // The feather gets softer with curvature. Find a dimming factor based on
     // the strength of curvature at maximum height.
     float theta = math::measure_cubic_local_curvature(p,
                                                       coeffs,
@@ -184,13 +184,14 @@ static void add_softened_cubic_for_feathering(RawPath* featheredPath,
     // FIXME: This is unfortunate. There must be a better way to handle cusps.
     dimming = fminf(dimming, .925f);
 
-    // Find a new height such that the center of the feather (currently 50%
-    // opacity) is reduced to "50% * dimming".
+    // Soften the feather by reducing the curve height. Find a new height such
+    // that the center of the feather (currently 50% opacity) is reduced to
+    // "50% * dimming".
     float desiredOpacityOnCenter = .5f * dimming;
     float x = gpu::inverse_gaussian_integral(desiredOpacityOnCenter) - .5f;
-    float newHeight = height + feather * FEATHER_TEXTURE_STDDEVS * x;
+    float softenedHeight = height + feather * FEATHER_TEXTURE_STDDEVS * x;
 
-    if (maxDepth > 0 && (height - newHeight) * matrixMaxScale > 8)
+    if (maxDepth > 0 && (height - softenedHeight) * matrixMaxScale > 8)
     {
         // The curve would be flattened too much. Chop at max height and
         // recurse.
@@ -209,11 +210,11 @@ static void add_softened_cubic_for_feathering(RawPath* featheredPath,
         return;
     }
 
-    // Flatten the curve down to "newHeight". (Height scales linearly as we lerp
-    // the control points to "flatLinePoints".)
+    // Flatten the curve down to "softenedHeight". (Height scales linearly as we
+    // lerp the control points to "flatLinePoints".)
     float4 flatLinePoints =
         simd::mix(p0.xyxy, p3.xyxy, float4{1.f / 3, 1.f / 3, 2.f / 3, 2.f / 3});
-    float softness = height != 0 ? 1 - newHeight / height : 1;
+    float softness = height != 0 ? 1 - softenedHeight / height : 1;
     // Do the "min" first so softness is 1 if anything went NaN.
     softness = fmaxf(0, fminf(softness, 1));
     assert(softness >= 0 && softness <= 1);

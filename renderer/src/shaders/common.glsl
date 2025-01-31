@@ -2,8 +2,11 @@
  * Copyright 2022 Rive
  */
 
-// Common functions shared by multiple shaders.
-#define PI float(3.141592653589793238)
+// Common definitions and functions shared by multiple shaders.
+
+#define PI 3.141592653589793238
+#define ONE_OVER_SQRT_2PI 0.398942280401433 // 1/sqrt(2*pi)
+#define ONE_OVER_SQRT_2 0.70710678118       // 1/sqrt(2)
 
 #ifndef @RENDER_MODE_MSAA
 #define AA_RADIUS float(.5)
@@ -53,6 +56,8 @@ INLINE half2 make_half2(half x)
     return ret;
 }
 
+INLINE float2 make_float2(float x) { return float2(x, x); }
+
 INLINE half3 make_half3(half x, half y, half z)
 {
     half3 ret;
@@ -88,6 +93,8 @@ INLINE half4 make_half4(half x)
     ret.x = x, ret.y = x, ret.z = x, ret.w = x;
     return ret;
 }
+
+INLINE bool2 make_bool2(bool b) { return bool2(b, b); }
 
 INLINE half3x3 make_half3x3(half3 a, half3 b, half3 c)
 {
@@ -180,6 +187,8 @@ uint coverageBufferPrefix;
 uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE
                         // compliant).
 float vertexDiscardValue;
+// Debugging.
+uint wireframeEnabled;
 UNIFORM_BLOCK_END(uniforms)
 #endif
 

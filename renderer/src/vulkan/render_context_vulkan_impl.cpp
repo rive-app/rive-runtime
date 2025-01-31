@@ -926,7 +926,8 @@ public:
                 .binding = FEATHER_TEXTURE_IDX,
                 .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
                 .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .stageFlags =
+                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             },
             {
                 .binding = PATH_BUFFER_IDX,
@@ -1029,7 +1030,8 @@ public:
                 .binding = FEATHER_TEXTURE_IDX,
                 .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
                 .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .stageFlags =
+                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
             },
             {
                 .binding = IMAGE_TEXTURE_IDX,
@@ -1196,13 +1198,23 @@ public:
                 .dstBinding = GRAD_TEXTURE_IDX,
                 .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
             },
+            {{.sampler = impl->m_linearSampler}});
+
+        m_vk->updateImageDescriptorSets(
+            m_samplerDescriptorSet,
             {
-                {.sampler = impl->m_linearSampler},
-                {.sampler = impl->m_linearSampler},
-                {.sampler = impl->m_mipmapSampler},
-            });
-        static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
-        static_assert(IMAGE_TEXTURE_IDX == FEATHER_TEXTURE_IDX + 1);
+                .dstBinding = FEATHER_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            },
+            {{.sampler = impl->m_linearSampler}});
+
+        m_vk->updateImageDescriptorSets(
+            m_samplerDescriptorSet,
+            {
+                .dstBinding = IMAGE_TEXTURE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            },
+            {{.sampler = impl->m_mipmapSampler}});
     }
 
     VkRenderPass renderPassAt(int renderPassVariantIdx)
@@ -2130,11 +2142,11 @@ void RenderContextVulkanImpl::initGPUObjects()
 {
     m_featherTexture =
         make_rcp<TextureVulkanImpl>(m_vk,
-                                    gpu::GAUSSIAN_TABLE_SIZE,
-                                    1,
+                                    gpu::FEATHER_TEXTURE_WIDTH,
+                                    gpu::FEATHER_TEXTURE_HEIGHT,
                                     1,
                                     TextureFormat::r16f,
-                                    gpu::g_gaussianIntegralTableF16);
+                                    gpu::FeatherTextureData().data);
 
     constexpr static uint8_t black[] = {0, 0, 0, 1};
     m_nullImageTexture =
@@ -3135,17 +3147,21 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .dstBinding = GRAD_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         },
+        {{
+            .imageView = *m_gradTextureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+
+    m_vk->updateImageDescriptorSets(
+        perFlushDescriptorSet,
         {
-            {
-                .imageView = *m_gradTextureView,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            },
-            {
-                .imageView = *m_featherTexture->m_textureView,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            },
-        });
-    static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+            .dstBinding = FEATHER_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_featherTexture->m_textureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
 
     m_vk->updateBufferDescriptorSets(
         perFlushDescriptorSet,

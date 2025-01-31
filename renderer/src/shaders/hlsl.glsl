@@ -368,6 +368,8 @@ INLINE half2 fract(half2 x) { return half2($frac(x)); }
 INLINE half3 fract(half3 x) { return half3($frac(x)); }
 INLINE half4 fract(half4 x) { return half4($frac(x)); }
 
+INLINE float mod(float x, float y) { return $fmod(x, y); }
+
 // Reimplement intrinsics for half types.
 // This shadows the intrinsic function for floats, so we also have to declare
 // that overload.

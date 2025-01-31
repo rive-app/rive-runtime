@@ -9,16 +9,32 @@
 #define FEATHER_COVERAGE_BIAS -2.
 
 // Fragment shaders test if a coverage value is less than
-// "FEATHER_COVERAGE_THRESHOLD" to test if the coverage belongs to a feather.
+// "FEATHER_COVERAGE_THRESHOLD" to see if the coverage belongs to a feather.
 #define FEATHER_COVERAGE_THRESHOLD -1.5
 
-#ifdef @VERTEX
+// Since the sign of x dictates the sign of coverage, and since x may be 0 when
+// feathering, bias x slightly upward so we don't lose the sign when it's 0.
+#define FEATHER_X_COORD_BIAS .25
 
+// Magnitude of cotan(theta) at which we decide an angle is flat when processing
+// feathers.
+#define HORIZONTAL_COTANGENT_THRESHOLD 1e3
+
+// Value to assign cotTheta to ensure it gets treated as flat.
+#define HORIZONTAL_COTANGENT_VALUE                                             \
+    (HORIZONTAL_COTANGENT_THRESHOLD * HORIZONTAL_COTANGENT_THRESHOLD)
+
+#ifdef @VERTEX
 VERTEX_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA32UI(PER_FLUSH_BINDINGS_SET,
                  TESS_VERTEX_TEXTURE_IDX,
                  @tessVertexTexture);
+#if defined(@ENABLE_FEATHER)
+TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
+#endif
 VERTEX_TEXTURE_BLOCK_END
+
+SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
 
 VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
@@ -26,8 +42,201 @@ STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 VERTEX_STORAGE_BUFFER_BLOCK_END
+#endif // VERTEX
 
-#ifdef @DRAW_PATH
+#ifdef @FRAGMENT
+FRAG_TEXTURE_BLOCK_BEGIN
+TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
+#if defined(@ENABLE_FEATHER)
+TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
+#endif
+TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
+#if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_ADVANCED_BLEND)
+TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
+#endif
+FRAG_TEXTURE_BLOCK_END
+
+SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
+// Metal defines @VERTEX and @FRAGMENT at the same time, so yield to the vertex
+// definition of featherSampler in this case.
+#if defined(@ENABLE_FEATHER) && !defined(@VERTEX)
+SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
+#endif
+SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
+#endif // @FRAGMENT
+
+// We distinguish between strokes and fills by the sign of coverages.y,
+// regardless of whether feathering is enabled (coverages are float4), or
+// disabled (coverages are half2),
+#ifdef @FRAGMENT
+INLINE bool is_stroke(float4 coverages) { return coverages.y >= .0; }
+INLINE bool is_stroke(half2 coverages) { return coverages.y >= .0; }
+#endif // FRAGMENT
+
+#if defined(@FRAGMENT) && defined(@ENABLE_FEATHER)
+// We can also classify a fragments as feathered/not-feathered strokes/fills by
+// looking at coverages.
+INLINE bool is_feathered_stroke(float4 coverages)
+{
+    return coverages.x < FEATHER_COVERAGE_THRESHOLD;
+}
+
+INLINE bool is_feathered_fill(float4 coverages)
+{
+    return coverages.y < FEATHER_COVERAGE_THRESHOLD;
+}
+#endif // @FRAGMENT && @ENABLE_FEATHER
+
+#ifdef @VERTEX
+// Packs all the info to evaluate a feathered fill into 4 varying floats.
+float4 pack_feathered_fill_coverages(float cornerTheta,
+                                     float2 spokeNorm,
+                                     float outset)
+{
+    // Find the corner's local coordinate within the feather convolution, where
+    // the convolution matrix is centered on [.5, .5] and spans 0..1, and the
+    // first edge of the corner runs horizontal and to the left.
+    float2 cornerLocalCoord = (1. - spokeNorm * abs(outset)) * .5;
+
+    // Calculate cotTheta and y0 for the fragment shader.
+    // (See eval_feathered_fill() for details.)
+    float cotTheta, y0;
+    if (abs(cornerTheta - PI / 2.) < 1. / HORIZONTAL_COTANGENT_THRESHOLD)
+    {
+        cotTheta = .0;
+        y0 = .0;
+    }
+    else
+    {
+        float tanTheta = tan(cornerTheta);
+        cotTheta = sign(PI / 2. - cornerTheta) /
+                   max(abs(tanTheta), 1. / HORIZONTAL_COTANGENT_VALUE);
+        y0 = cotTheta >= .0
+                 ? cornerLocalCoord.y - (1. - cornerLocalCoord.x) * tanTheta
+                 : cornerLocalCoord.y + cornerLocalCoord.x * tanTheta;
+    }
+
+    // Bias x & y for additional information:
+    //
+    //  * x will be negated later on if the triangle is back-facing. This tells
+    //    the fragment shader what sign to give feathered coverage. Ensure it's
+    //    greater than zero.
+    //
+    //  * y < FEATHER_COVERAGE_BIAS tells the fragment shader this is a feather.
+    //
+    float4 coverages;
+    coverages.x = max(cornerLocalCoord.x, .0) + FEATHER_X_COORD_BIAS;
+    coverages.y = -cornerLocalCoord.y + FEATHER_COVERAGE_BIAS;
+    coverages.z = cotTheta;
+    coverages.w = y0;
+    return coverages;
+}
+#endif // @VERTEX
+
+#ifdef @ENABLE_FEATHER
+
+// This is a macro because we can't (at least for now) forward texture refs to a
+// function in a way that works in all the languages we support.
+#define FEATHER(X)                                                             \
+    TEXTURE_REF_SAMPLE_LOD(featherTextureRef,                                  \
+                           featherSamplerRef,                                  \
+                           float2(X, .0),                                      \
+                           .0)                                                 \
+        .r
+
+// Evaluates the Gaussian distribution at 4 locations. The curve is centered at
+// x=.5, but its area is not 1. To normalize the area, multiply by
+// NORMAL_CURVE_SCALAR.
+INLINE half4 eval_normal_curve(half4 x)
+{
+#define MU .5
+#define INVERSE_SIGMA (FEATHER_TEXTURE_STDDEVS * 2.)
+#define NORMAL_CURVE_SCALAR (INVERSE_SIGMA * ONE_OVER_SQRT_2PI)
+    half4 y = x * (INVERSE_SIGMA * ONE_OVER_SQRT_2) +
+              (-MU * INVERSE_SIGMA * ONE_OVER_SQRT_2);
+    return exp(-y * y);
+}
+
+INLINE half eval_feathered_fill(float4 coverages,
+                                SAMPLED_R16F_REF(featherTextureRef,
+                                                 featherSamplerRef))
+{
+    // x and y are the relative coordinates of the corner vertex within the
+    // feather convolution. They are oriented above center=[.5, .5], with the
+    // first edge running horizontal and to the left.
+    //
+    // The second edge exits x,y at an angle of theta. "y0" is the location
+    // where it intersects with either the left or right edge of the
+    // convolution (left if cotTheta < 0, right if cotTheta > 0).
+    //
+    // y0 and cotTheta are both 0 when the corner angle is pi/2.
+    half cotTheta = coverages.z;
+    half y0 = max(coverages.w, .0); // Clamp y0 at the top of the convolution.
+
+    // First compute the upper area of the convolution that is fully contained
+    // within both edges. (i.e., the area above y0.)
+    //
+    // NOTE: If we aren't a corner, this will be the entire feather.
+    half featherCoverage = cotTheta >= .0 ? FEATHER(y0) : .0;
+
+    if (abs(cotTheta) < HORIZONTAL_COTANGENT_THRESHOLD)
+    {
+        // We're a (not flat) corner. The bottom area of the convolution needs
+        // to account for both edges.
+        //
+        // Integrate the area contained within both edges, taking advantage of
+        // the separability property of our convolution:
+        //           _
+        //    t=y   / \.
+        //          |
+        //          |  FEATHER(t * m + b) * FEATHER'(t) * dt
+        //          |
+        //   t=y0 \_/
+        //
+        // NOTE: The derivative FEATHER'(t) is the normal curve and can be
+        // computed directly.
+        //
+        // For performance constraints, we only take 4 samples.
+        half x = abs(coverages.x) - FEATHER_X_COORD_BIAS;
+        half y = -coverages.y + FEATHER_COVERAGE_BIAS;
+        half dt = (y - y0) * (.25 * NORMAL_CURVE_SCALAR);
+        half4 t =
+            (make_half4(.5, 1.5, 2.5, 3.5) / NORMAL_CURVE_SCALAR) * dt + y0;
+        half4 u = t * -cotTheta + (y * cotTheta + x);
+        half4 feathers = make_half4(FEATHER(u[0]),
+                                    FEATHER(u[1]),
+                                    FEATHER(u[2]),
+                                    FEATHER(u[3]));
+        featherCoverage += dot(feathers, eval_normal_curve(t)) * dt;
+    }
+
+    return featherCoverage * sign(coverages.x);
+}
+
+INLINE half eval_feathered_stroke(float4 coverages,
+                                  SAMPLED_R16F_REF(featherTextureRef,
+                                                   featherSamplerRef))
+{
+    // Feathered stroke is:
+    // 1 - feather(1 - leftCoverage) - feather(1 - rightCoverage)
+    float featherCoverage = 1.;
+
+    // The portion OUTSIDE the featherCoverage is "1 - featherCoverage".
+    // (coverages.x is biased in order to classify this featherCoverage as a
+    // feather, so also remove the bias.)
+    float leftOutsideCoverage = (1. - FEATHER_COVERAGE_BIAS) + coverages.x;
+    featherCoverage -= FEATHER(leftOutsideCoverage);
+
+    float rightOutsideCoverage = 1. - coverages.y;
+    featherCoverage -= FEATHER(rightOutsideCoverage);
+
+    return featherCoverage;
+}
+#undef FEATHER
+
+#endif // @ENABLE_FEATHER
+
+#if defined(@VERTEX) && defined(@DRAW_PATH)
 INLINE int2 tess_texel_coord(int texelIndex)
 {
     return int2(texelIndex & ((1 << TESS_TEXTURE_WIDTH_LOG2) - 1),
@@ -48,7 +257,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                            OUT(float2) outVertexPosition
 #ifndef @RENDER_MODE_MSAA
                                            ,
-                                           OUT(half2) outEdgeDistance
+                                           OUT(float4) outCoverages
 #else
                                            ,
                                            OUT(ushort) outPathZIndex
@@ -188,8 +397,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // Calculate the AA distance to both the outset and inset edges of the
         // stroke. The fragment shader will use whichever is lesser.
         float x = outset * (strokeRadius + aaRadius);
-        outEdgeDistance = cast_float2_to_half2(
-            (1. / (aaRadius * 2.)) * (float2(x, -x) + strokeRadius) + .5);
+        outCoverages.xy =
+            (1. / (aaRadius * 2.)) * (float2(x, -x) + strokeRadius) + .5;
+        outCoverages.zw = make_float2(.0);
 #endif
 
         uint joinType = contourIDWithFlags & JOIN_TYPE_MASK;
@@ -292,25 +502,25 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                  (bisectPixelWidth * (AA_RADIUS * 2.));
 #ifndef @RENDER_MODE_MSAA
             if ((contourIDWithFlags & LEFT_JOIN_CONTOUR_FLAG) != 0u)
-                outEdgeDistance.y = cast_float_to_half(clipDistance);
+                outCoverages.y = clipDistance;
             else
-                outEdgeDistance.x = cast_float_to_half(clipDistance);
+                outCoverages.x = clipDistance;
 #endif
         }
 
 #ifndef @RENDER_MODE_MSAA
-        outEdgeDistance *= globalCoverage;
+        outCoverages.xy *= globalCoverage;
 
-        // Bias outEdgeDistance.y slightly upwards in order to guarantee
-        // outEdgeDistance.y is >= 0 at every pixel. "outEdgeDistance.y < 0" is
+        // Bias outCoverages.y slightly upwards in order to guarantee
+        // outCoverages.y is >= 0 at every pixel. "outCoverages.y < 0" is
         // used to differentiate between strokes and fills.
-        outEdgeDistance.y = max(outEdgeDistance.y, make_half(1e-4));
+        outCoverages.y = max(outCoverages.y, 1e-4);
 
         if (featherRadius != .0)
         {
             // Bias x to tell the fragment shader that this is a feathered
             // stroke.
-            outEdgeDistance.x = FEATHER_COVERAGE_BIAS - outEdgeDistance.x;
+            outCoverages.x = FEATHER_COVERAGE_BIAS - outCoverages.x;
         }
 #endif
 
@@ -322,66 +532,118 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     }
     else // This is a fill.
     {
-        if (bool(contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) !=
-            bool(contourIDWithFlags & NEGATE_PATH_FILL_COVERAGE_FLAG))
-        {
-            fillCoverage = -fillCoverage;
-        }
-
 #ifndef @RENDER_MODE_MSAA
-        // "outEdgeDistance.y < 0" indicates to the fragment shader that this is
-        // a fill.
-        outEdgeDistance = make_half2(fillCoverage, -1.);
+        // "outCoverages.y < 0" indicates to the fragment shader that this is
+        // a fill, as opposed to a stroke.
+        outCoverages = float4(fillCoverage, -1., .0, .0);
 
+#ifdef @ENABLE_FEATHER
         if (featherRadius != .0)
         {
-            if (vertexType == STROKE_VERTEX)
-            {
-                // Bias y to tells the fragment shader that this is a feathered
-                // fill.
-                outEdgeDistance.y = FEATHER_COVERAGE_BIAS;
-            }
+            // Bias y to tell the fragment shader that this is a feathered edge.
+            outCoverages.y = FEATHER_COVERAGE_BIAS;
+
+            // "outCoverages.z = HORIZONTAL_COTANGENT_VALUE" initializes us
+            // in a default state of feathering a flat edge (as opposed to a
+            // corner).
+            outCoverages.z = HORIZONTAL_COTANGENT_VALUE;
+
+            // eval_feathered_fill() just feathers outCoverages.w=y0 when
+            // we're a flat edge, so initialize it with fillCoverage.
+            outCoverages.w = fillCoverage;
+
             if ((contourIDWithFlags & JOIN_TYPE_MASK) ==
                 FEATHER_JOIN_CONTOUR_FLAG)
             {
-                // Feather joins need some dimming data, but there wasn't any
-                // room left in the tessellation texture. Luckily, since feather
-                // joins are all colocated on the same point, we were able to
-                // slip in a sneaky backset to a different texel that has the
-                // location, which freed up 32 bits for our dimming data.
+                // Feather joins need to know the corner angle, but there wasn't
+                // any room left in the tessellation texture. Luckily, since
+                // feather joins are all colocated on the same point, we were
+                // able to slip in a sneaky backset to a different tessellation
+                // vertex with the same location, which then freed up 32 bits
+                // for the corner angle.
                 int backset = int(tessVertexData.x);
                 if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
                     backset = -backset;
+
                 // Replace origin with the real one.
-                origin = uintBitsToFloat(
+                uint4 featherJoinData =
                     TEXEL_FETCH(@tessVertexTexture,
-                                tess_texel_coord(tessVertexIdx + backset))
-                        .xy);
+                                tess_texel_coord(tessVertexIdx + backset));
+                origin = uintBitsToFloat(featherJoinData.xy);
+
                 if (vertexType == STROKE_VERTEX)
                 {
-                    // The dimming factor was placed where we typically would
-                    // have found the origin.
-                    half2 featherCorrection = unpackHalf2x16(tessVertexData.y);
-                    // The dimming factor is "y^(x+1)" on the outer edge of the
-                    // feather (y <= 1, x >= 0) and just "y^0" at the center.
+                    // Unpack the angle of our first edge and the corner angle.
+                    float edge0Theta = uintBitsToFloat(featherJoinData.z);
+                    float cornerTheta = uintBitsToFloat(tessVertexData.y);
+
+                    // Feathered corners are symmetric; swap the first and
+                    // second edge if needed so the corner angle is always
+                    // positive.
+                    if (cornerTheta < .0)
+                    {
+                        edge0Theta += cornerTheta;
+                        cornerTheta = -cornerTheta;
+                    }
+
+                    // Find the angle and local outset direction of our specific
+                    // spoke in the feather join, relative to the first edge.
+                    // Take advantage of the fact that feathered corners are
+                    // symmetric again, and limit spokeTheta to the first half
+                    // of the join angle.
+                    float spokeTheta = theta - edge0Theta;
+                    spokeTheta = mod(spokeTheta + PI / 2., 2. * PI) - PI / 2.;
+                    spokeTheta = clamp(spokeTheta, .0, cornerTheta);
+                    if (spokeTheta > cornerTheta * .5)
+                    {
+                        spokeTheta = cornerTheta - spokeTheta;
+                    }
+                    float2 spokeNorm = float2(sin(spokeTheta), cos(spokeTheta));
+
+                    // When coners have stong curvature, their feather
+                    // diminishes faster than it does for flat edges. In this
+                    // scenario we can contract the tessellation a little to
+                    // save on performance without losing visual fidelity.
                     //
-                    // TODO: can we accomplish this by just making the local
-                    // feather thinner instead?
-                    half y = featherCorrection.y;
-                    half x = fillCoverage == .0 ? featherCorrection.x : .0;
-                    // If we change the base to 2, x becomes negative and this
-                    // exponent can be expressed with one single scalar value:
-                    //
-                    //   y^(x+1) == 2^((x+1) * log2(y))
-                    //
-                    x = min((x + 1.) * log2(max(y, make_half(1e-5))), .0);
-                    // Bias y to tells the fragment shader that this is a
-                    // feather.
-                    outEdgeDistance.y = x + FEATHER_COVERAGE_BIAS;
+                    // This code attempts to be somewhat methodical, but it's
+                    // just hackery. The idea is to measure actual feather
+                    // coverage at an outset of N standard deviations, compare
+                    // that to what coverage would have been for a flat edge,
+                    // and contract accordingly. By observation, a logarithmic
+                    // function of cornerTheta gives values for N with a good
+                    // balance of perf and quality.
+                    float N =
+                        1. + .33 * log2((PI / 2.) /
+                                        (PI - min(cornerTheta, PI - PI / 16.)));
+                    float4 coveragesAtNStddevOutset =
+                        pack_feathered_fill_coverages(cornerTheta,
+                                                      spokeNorm,
+                                                      .5 * (N / 3.));
+                    float featherAtNStddevOutset = eval_feathered_fill(
+                        coveragesAtNStddevOutset,
+                        SAMPLED_R16F(@featherTexture, featherSampler));
+                    float inverseFeather =
+                        TEXTURE_SAMPLE_LOD(@featherTexture,
+                                           featherSampler,
+                                           float2(featherAtNStddevOutset, 1.),
+                                           .0)
+                            .r;
+                    float stddevsAwayFromCenter =
+                        (.5 - inverseFeather) * (FEATHER_TEXTURE_STDDEVS * 2.);
+                    float contraction = N / max(stddevsAwayFromCenter, N);
+                    outset *= contraction;
+
+                    // Emit coverage values for the fragment shader.
+                    outCoverages = pack_feathered_fill_coverages(cornerTheta,
+                                                                 spokeNorm,
+                                                                 outset);
                 }
                 if ((contourIDWithFlags & ZERO_FEATHER_OUTSET_CONTOUR_FLAG) !=
                     0u)
                 {
+                    // There's a discontinuous jump between the backwards and
+                    // forward segments of a feather join. This zero-length
+                    // spoke is used to pivot the feather's triangle strip.
                     outset = .0;
                 }
             }
@@ -389,10 +651,17 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             postTransformVertexOffset = MUL(M, (outset * featherRadius) * norm);
         }
         else
+#endif // ENABLE_FEATHER
         {
             // Offset the vertex for Manhattan AA.
             postTransformVertexOffset =
                 sign(MUL(outset * norm, inverse(M))) * AA_RADIUS;
+        }
+
+        if (bool(contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) !=
+            bool(contourIDWithFlags & NEGATE_PATH_FILL_COVERAGE_FLAG))
+        {
+            outCoverages.x = -outCoverages.x;
         }
 #endif // !RENDER_MODE_MSAA
 
@@ -410,11 +679,20 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     }
 
     outVertexPosition = MUL(M, origin) + postTransformVertexOffset + translate;
+
+#ifndef @RENDER_MODE_MSAA
+    // Force coverage to solid when wireframe is enabled so we can see the
+    // triangles.
+    outCoverages.xy = mix(outCoverages.xy,
+                          float2(1., -1.),
+                          make_bool2(uniforms.wireframeEnabled != 0u));
+#endif
+
     return true;
 }
-#endif // @DRAW_PATH
+#endif // @VERTEX && @DRAW_PATH
 
-#ifdef @DRAW_INTERIOR_TRIANGLES
+#if defined(@VERTEX) && defined(@DRAW_INTERIOR_TRIANGLES)
 INLINE float2
 unpack_interior_triangle_vertex(float3 triangleVertex,
                                 OUT(uint) outPathID,
@@ -428,68 +706,4 @@ unpack_interior_triangle_vertex(float3 triangleVertex,
     outWindingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
     return MUL(M, triangleVertex.xy) + translate;
 }
-#endif // @DRAW_INTERIOR_TRIANGLES
-
-#endif // @VERTEX
-
-#ifdef @FRAGMENT
-INLINE bool is_stroke(half2 edgeDistance) { return edgeDistance.y >= .0; }
-
-#ifdef @ENABLE_FEATHER
-INLINE bool is_feathered_stroke(half2 edgeDistance)
-{
-    return edgeDistance.x < FEATHER_COVERAGE_THRESHOLD;
-}
-
-INLINE bool is_feathered_fill(half2 edgeDistance)
-{
-    return edgeDistance.y < FEATHER_COVERAGE_THRESHOLD;
-}
-
-INLINE half feathered_stroke_coverage(half2 edgeDistance,
-                                      SAMPLED_R16F_REF(featherTextureRef,
-                                                       featherSamplerRef))
-{
-    // Feathered stroke is:
-    // 1 - feather(1 - leftCoverage) - feather(1 - rightCoverage)
-    half coverage = 1.;
-
-    // The portion OUTSIDE the coverage is "1 - coverage".
-    // (edgeDistance.x is biased in order to classify this coverage as a
-    // feather, so also remove the bias.)
-    half leftOutsideCoverage = (1. - FEATHER_COVERAGE_BIAS) + edgeDistance.x;
-    coverage -= TEXTURE_REF_SAMPLE_LOD(featherTextureRef,
-                                       featherSamplerRef,
-                                       float2(leftOutsideCoverage, .5),
-                                       .0)
-                    .r;
-
-    half rightOutsideCoverage = 1. - edgeDistance.y;
-    coverage -= TEXTURE_REF_SAMPLE_LOD(featherTextureRef,
-                                       featherSamplerRef,
-                                       float2(rightOutsideCoverage, .5),
-                                       .0)
-                    .r;
-
-    return coverage;
-}
-
-INLINE half feathered_fill_coverage(half2 edgeDistance,
-                                    SAMPLED_R16F_REF(featherTexture,
-                                                     featherSampler))
-{
-    half fragCoverage = TEXTURE_REF_SAMPLE_LOD(featherTexture,
-                                               featherSampler,
-                                               float2(abs(edgeDistance.x), .5),
-                                               .0)
-                            .r *
-                        sign(edgeDistance.x);
-    // Apply nonlinear falloff to corners.
-    // (edgeDistance.y is biased in order to classify this coverage as a
-    // feather, so also remove the bias.)
-    half x = min(edgeDistance.y - FEATHER_COVERAGE_BIAS, .0);
-    fragCoverage *= exp2(x);
-    return fragCoverage;
-}
-#endif // @ENABLE_FEATHER
-#endif // @FRAGMENT
+#endif // @VERTEX && @DRAW_INTERIOR_TRIANGLES

@@ -13,7 +13,11 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
-NO_PERSPECTIVE VARYING(0, half2, v_edgeDistance);
+#ifdef @ENABLE_FEATHER
+NO_PERSPECTIVE VARYING(0, float4, v_coverages);
+#else
+NO_PERSPECTIVE VARYING(0, half2, v_coverages);
+#endif
 FLAT VARYING(1, ushort, v_pathID);
 VARYING_BLOCK_END
 
@@ -23,19 +27,29 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
     ATTR_UNPACK(_vertexID, attrs, @a_mirroredVertexData, float4);
 
-    VARYING_INIT(v_edgeDistance, half2);
+#ifdef @ENABLE_FEATHER
+    VARYING_INIT(v_coverages, float4);
+#else
+    VARYING_INIT(v_coverages, half2);
+#endif
     VARYING_INIT(v_pathID, ushort);
 
     float4 pos;
     uint pathID;
     float2 vertexPosition;
+    float4 coverages;
     if (unpack_tessellated_path_vertex(@a_patchVertexData,
                                        @a_mirroredVertexData,
                                        _instanceID,
                                        pathID,
                                        vertexPosition,
-                                       v_edgeDistance VERTEX_CONTEXT_UNPACK))
+                                       coverages VERTEX_CONTEXT_UNPACK))
     {
+#ifdef @ENABLE_FEATHER
+        v_coverages = coverages;
+#else
+        v_coverages.xy = cast_float2_to_half2(coverages.xy);
+#endif
         v_pathID = cast_uint_to_ushort(pathID);
         pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
     }
@@ -47,7 +61,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                      uniforms.vertexDiscardValue);
     }
 
-    VARYING_PACK(v_edgeDistance);
+    VARYING_PACK(v_coverages);
     VARYING_PACK(v_pathID);
     EMIT_VERTEX(pos);
 }
@@ -105,12 +119,6 @@ NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_TEXTURE_BLOCK_BEGIN
-VERTEX_TEXTURE_BLOCK_END
-
-VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
-VERTEX_STORAGE_BUFFER_BLOCK_END
-
 IMAGE_RECT_VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_imageRectVertex, float4);
@@ -258,12 +266,6 @@ VARYING_BLOCK_BEGIN
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_TEXTURE_BLOCK_BEGIN
-VERTEX_TEXTURE_BLOCK_END
-
-VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
-VERTEX_STORAGE_BUFFER_BLOCK_END
-
 VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     int2 coord;
@@ -282,24 +284,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
 #ifdef @FRAGMENT
-FRAG_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
-#ifdef @ENABLE_FEATHER
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
-#endif
-#ifdef NEEDS_IMAGE_TEXTURE
-TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-#endif
-FRAG_TEXTURE_BLOCK_END
-
-SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
-#ifdef @ENABLE_FEATHER
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
-#endif
-#ifdef NEEDS_IMAGE_TEXTURE
-SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
-#endif
-
 PLS_BLOCK_BEGIN
 // We only write the framebuffer as a storage texture when there are blend
 // modes. Otherwise, we render to it as a normal color attachment.
@@ -540,29 +524,34 @@ INLINE void emit_pls_clip(CLIP_VALUE_TYPE fragClipOut PLS_CONTEXT_DECL)
 #ifdef @DRAW_PATH
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
-    VARYING_UNPACK(v_edgeDistance, half2);
+#ifdef @ENABLE_FEATHER
+    VARYING_UNPACK(v_coverages, float4);
+#else
+    VARYING_UNPACK(v_coverages, half2);
+#endif
     VARYING_UNPACK(v_pathID, ushort);
 
     half fragmentCoverage;
 #ifdef @ENABLE_FEATHER
-    if (@ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
+    if (@ENABLE_FEATHER && is_feathered_stroke(v_coverages))
     {
-        fragmentCoverage = feathered_stroke_coverage(
-            v_edgeDistance,
+        fragmentCoverage = eval_feathered_stroke(
+            v_coverages,
             SAMPLED_R16F(@featherTexture, featherSampler));
     }
-    else if (@ENABLE_FEATHER && is_feathered_fill(v_edgeDistance))
+    else if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
     {
-        fragmentCoverage = feathered_fill_coverage(
-            v_edgeDistance,
-            SAMPLED_R16F(@featherTexture, featherSampler));
+        fragmentCoverage =
+            eval_feathered_fill(v_coverages,
+                                SAMPLED_R16F(@featherTexture, featherSampler));
     }
     else
 #endif
     {
         // Cover stroke and fill both in a branchless expression.
         fragmentCoverage =
-            min(min(v_edgeDistance.x, abs(v_edgeDistance.y)), make_half(1.));
+            min(min(make_half(v_coverages.x), abs(make_half(v_coverages.y))),
+                make_half(1.));
     }
 
     // Since v_pathID increases monotonically with every draw, and since it
@@ -588,7 +577,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
         // This is not the first fragment of the current path to touch this
         // pixel. We already resolved the previous path, so just update coverage
         // (if we're a fill) and move on.
-        if (!is_stroke(v_edgeDistance))
+        if (!is_stroke(v_coverages))
         {
             // Only apply the effect of the min() the first time we cross into a
             // path.

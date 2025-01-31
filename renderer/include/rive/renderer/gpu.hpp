@@ -8,6 +8,7 @@
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/math/simd.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
@@ -721,9 +722,9 @@ enum class ShaderFeatures
     ENABLE_CLIPPING = 1 << 0,
     ENABLE_CLIP_RECT = 1 << 1,
     ENABLE_ADVANCED_BLEND = 1 << 2,
+    ENABLE_FEATHER = 1 << 3,
 
     // Fragment-only features.
-    ENABLE_FEATHER = 1 << 3,
     ENABLE_EVEN_ODD = 1 << 4,
     ENABLE_NESTED_CLIPPING = 1 << 5,
     ENABLE_HSL_BLEND_MODES = 1 << 6,
@@ -734,7 +735,7 @@ constexpr static ShaderFeatures kAllShaderFeatures =
     static_cast<gpu::ShaderFeatures>((1 << kShaderFeatureCount) - 1);
 constexpr static ShaderFeatures kVertexShaderFeaturesMask =
     ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
-    ShaderFeatures::ENABLE_ADVANCED_BLEND;
+    ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_FEATHER;
 
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     InterlockMode interlockMode)
@@ -746,9 +747,9 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case InterlockMode::atomics:
             return kAllShaderFeatures & ~ShaderFeatures::ENABLE_NESTED_CLIPPING;
         case InterlockMode::clockwiseAtomic:
-            // TODO: shaders features aren't yet implemented in clockwiseAtomic
-            // mode.
-            return ShaderFeatures::NONE;
+            // TODO: shader features aren't fully implemented yet in
+            // clockwiseAtomic mode.
+            return ShaderFeatures::ENABLE_FEATHER;
         case InterlockMode::msaa:
             return ShaderFeatures::ENABLE_CLIP_RECT |
                    ShaderFeatures::ENABLE_ADVANCED_BLEND |
@@ -1084,8 +1085,8 @@ private:
     };
 
     WRITEONLY InverseViewports m_inverseViewports;
-    WRITEONLY uint32_t m_renderTargetWidth = 0;
-    WRITEONLY uint32_t m_renderTargetHeight = 0;
+    WRITEONLY uint32_t m_renderTargetWidth;
+    WRITEONLY uint32_t m_renderTargetHeight;
     // Only used if clears are implemented as draws.
     WRITEONLY uint32_t m_colorClearValue;
     // Only used if clears are implemented as draws.
@@ -1098,11 +1099,11 @@ private:
     // values. (clockwiseAtomic mode only.)
     WRITEONLY uint32_t m_coverageBufferPrefix;
     // Spacing between adjacent path IDs (1 if IEEE compliant).
-    WRITEONLY uint32_t m_pathIDGranularity = 0;
-    WRITEONLY float m_vertexDiscardValue =
-        std::numeric_limits<float>::quiet_NaN();
+    WRITEONLY uint32_t m_pathIDGranularity;
+    WRITEONLY float m_vertexDiscardValue;
+    WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 60];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 64];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
@@ -1462,15 +1463,45 @@ enum class TriState
 
 // These tables integrate the gaussian function, and its inverse, covering a
 // spread of -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS.
-constexpr int GAUSSIAN_TABLE_SIZE = 512;
+constexpr static uint32_t GAUSSIAN_TABLE_SIZE = 512;
 extern const uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
 extern const float g_inverseGaussianIntegralTableF32[GAUSSIAN_TABLE_SIZE];
 
-// Looks up the value of "x" in the given Gaussian table, with linear filtering.
-float gaussian_table_lookup(const float (&table)[GAUSSIAN_TABLE_SIZE], float x);
+float4 cast_f16_to_f32(uint16x4 x);
+uint16x4 cast_f32_to_f16(float4);
+
+// Code to generate g_gaussianIntegralTableF16 and
+// g_inverseGaussianIntegralTableF32. This is left in the codebase but #ifdef'd
+// out in case we ever want to change any parameters of the built-in tables.
+#if 0
+void generate_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
+void generate_inverse_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
+#endif
+
+// Defines a GPU texture for feathers. The first row is the the gaussian
+// integral table and the second row is its inverse.
+constexpr static uint32_t FEATHER_TEXTURE_WIDTH = GAUSSIAN_TABLE_SIZE;
+constexpr static uint32_t FEATHER_TEXTURE_HEIGHT = 2;
+struct FeatherTextureData
+{
+public:
+    FeatherTextureData();
+    uint16_t data[GAUSSIAN_TABLE_SIZE * 2];
+    constexpr static uint32_t BYTES_PER_ROW =
+        GAUSSIAN_TABLE_SIZE * sizeof(uint16_t);
+};
+
+// Looks up the value of "x" in the given function table, with linear filtering.
+float function_table_lookup(float x, const float* table, float tableSize);
+
+inline float function_table_lookup(float x,
+                                   const float (&table)[GAUSSIAN_TABLE_SIZE])
+{
+    return function_table_lookup(x, table, std::size(table));
+}
 
 inline float inverse_gaussian_integral(float y)
 {
-    return gaussian_table_lookup(g_inverseGaussianIntegralTableF32, y);
+    return function_table_lookup(y, g_inverseGaussianIntegralTableF32);
 }
 } // namespace rive::gpu

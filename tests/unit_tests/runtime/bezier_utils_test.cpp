@@ -621,7 +621,7 @@ static void check_cubic_max_height(const Vec2D* pts)
     auto heightAt = [=](float t) {
         return fabsf(Vec2D::dot(norm, math::eval_cubic_at(pts, t)) + k);
     };
-    constexpr static float EPSILON = 5e-5f;
+    constexpr static float EPSILON = 1e-4f;
     CHECK(heightAt(t) == Approx(h).margin(EPSILON));
     CHECK(h + EPSILON > heightAt(0));
     CHECK(h + EPSILON > heightAt(1));

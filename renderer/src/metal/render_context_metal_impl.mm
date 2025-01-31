@@ -457,17 +457,19 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
     desc.pixelFormat = MTLPixelFormatR16Float;
-    desc.width = gpu::GAUSSIAN_TABLE_SIZE;
-    desc.height = 1;
+    desc.width = gpu::FEATHER_TEXTURE_WIDTH;
+    desc.height = gpu::FEATHER_TEXTURE_HEIGHT;
     desc.usage = MTLTextureUsageShaderRead;
     desc.textureType = MTLTextureType2D;
     desc.mipmapLevelCount = 1;
     m_featherTexture = [m_gpu newTextureWithDescriptor:desc];
-    [m_featherTexture
-        replaceRegion:MTLRegionMake2D(0, 0, gpu::GAUSSIAN_TABLE_SIZE, 1)
-          mipmapLevel:0
-            withBytes:gpu::g_gaussianIntegralTableF16
-          bytesPerRow:sizeof(gpu::g_gaussianIntegralTableF16)];
+    [m_featherTexture replaceRegion:MTLRegionMake2D(0,
+                                                    0,
+                                                    gpu::FEATHER_TEXTURE_WIDTH,
+                                                    gpu::FEATHER_TEXTURE_HEIGHT)
+                        mipmapLevel:0
+                          withBytes:gpu::FeatherTextureData().data
+                        bytesPerRow:gpu::FeatherTextureData::BYTES_PER_ROW];
 
     m_tessPipeline =
         std::make_unique<TessellatePipeline>(m_gpu, m_plsPrecompiledLibrary);
@@ -905,6 +907,7 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
                        atIndex:FLUSH_UNIFORM_BUFFER_IDX];
     [encoder setVertexTexture:m_tessVertexTexture
                       atIndex:TESS_VERTEX_TEXTURE_IDX];
+    [encoder setVertexTexture:m_featherTexture atIndex:FEATHER_TEXTURE_IDX];
     [encoder setFragmentTexture:m_gradientTexture atIndex:GRAD_TEXTURE_IDX];
     [encoder setFragmentTexture:m_featherTexture atIndex:FEATHER_TEXTURE_IDX];
     if (flushDesc.pathCount > 0)

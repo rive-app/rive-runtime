@@ -21,7 +21,11 @@ NO_PERSPECTIVE VARYING(0, float4, v_paint);
 #ifdef @DRAW_INTERIOR_TRIANGLES
 @OPTIONALLY_FLAT VARYING(1, half, v_windingWeight);
 #else
-NO_PERSPECTIVE VARYING(2, half2, v_edgeDistance);
+#ifdef @ENABLE_FEATHER
+NO_PERSPECTIVE VARYING(2, float4, v_coverages);
+#else
+NO_PERSPECTIVE VARYING(2, half2, v_coverages);
+#endif
 #endif
 @OPTIONALLY_FLAT VARYING(3, half, v_pathID);
 #ifdef @ENABLE_CLIPPING
@@ -51,7 +55,11 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_INIT(v_windingWeight, half);
 #else
-    VARYING_INIT(v_edgeDistance, half2);
+#ifdef @ENABLE_FEATHER
+    VARYING_INIT(v_coverages, float4);
+#else
+    VARYING_INIT(v_coverages, half2);
+#endif
 #endif
     VARYING_INIT(v_pathID, half);
 #ifdef @ENABLE_CLIPPING
@@ -78,6 +86,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                         pathID,
                                         v_windingWeight VERTEX_CONTEXT_UNPACK);
 #else
+    float4 coverages;
     shouldDiscardVertex =
         !unpack_tessellated_path_vertex(@a_patchVertexData,
                                         @a_mirroredVertexData,
@@ -86,12 +95,19 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                                         vertexPosition
 #ifndef @RENDER_MODE_MSAA
                                         ,
-                                        v_edgeDistance
+                                        coverages
 #else
                                         ,
                                         pathZIndex
 #endif
                                             VERTEX_CONTEXT_UNPACK);
+#ifndef @RENDER_MODE_MSAA
+#ifdef @ENABLE_FEATHER
+    v_coverages = coverages;
+#else
+    v_coverages.xy = cast_float2_to_half2(coverages.xy);
+#endif
+#endif
 #endif // !DRAW_INTERIOR_TRIANGLES
 
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
@@ -254,7 +270,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_PACK(v_windingWeight);
 #else
-    VARYING_PACK(v_edgeDistance);
+    VARYING_PACK(v_coverages);
 #endif
     VARYING_PACK(v_pathID);
 #ifdef @ENABLE_CLIPPING
@@ -272,23 +288,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
 #ifdef @FRAGMENT
-FRAG_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
-#if defined(@ENABLE_FEATHER)
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
-#endif
-TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-#if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_ADVANCED_BLEND)
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
-#endif
-FRAG_TEXTURE_BLOCK_END
-
-SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
-#if defined(@ENABLE_FEATHER)
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
-#endif
-SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
-
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
 
@@ -343,7 +342,11 @@ PLS_MAIN(@drawFragmentMain)
 #ifdef @DRAW_INTERIOR_TRIANGLES
     VARYING_UNPACK(v_windingWeight, half);
 #else
-    VARYING_UNPACK(v_edgeDistance, half2);
+#ifdef @ENABLE_FEATHER
+    VARYING_UNPACK(v_coverages, float4);
+#else
+    VARYING_UNPACK(v_coverages, half2);
+#endif
 #endif
     VARYING_UNPACK(v_pathID, half);
 #ifdef @ENABLE_CLIPPING
@@ -370,38 +373,37 @@ PLS_MAIN(@drawFragmentMain)
     coverageCount += v_windingWeight;
     PLS_PRESERVE_UI(coverageCountBuffer);
 #else
-    if (is_stroke(v_edgeDistance))
+    if (is_stroke(v_coverages))
     {
         half fragCoverage;
 #ifdef @ENABLE_FEATHER
-        if (@ENABLE_FEATHER && is_feathered_stroke(v_edgeDistance))
+        if (@ENABLE_FEATHER && is_feathered_stroke(v_coverages))
         {
-            fragCoverage = feathered_stroke_coverage(
-                v_edgeDistance,
+            fragCoverage = eval_feathered_stroke(
+                v_coverages,
                 SAMPLED_R16F(@featherTexture, featherSampler));
         }
         else
 #endif // @ENABLE_FEATHER
         {
-            fragCoverage = min(v_edgeDistance.x, v_edgeDistance.y);
+            fragCoverage = min(v_coverages.x, v_coverages.y);
         }
         coverageCount = max(fragCoverage, coverageCount);
     }
-    else // Fill. (Back-face culling handles the sign of v_edgeDistance.x.)
+    else // Fill. (Back-face culling handles the sign of v_coverages.x.)
     {
         half fragCoverage;
-#if defined(@CLOCKWISE_FILL) && defined(@ENABLE_FEATHER)
-        if (@CLOCKWISE_FILL && @ENABLE_FEATHER &&
-            is_feathered_fill(v_edgeDistance))
+#if defined(@ENABLE_FEATHER)
+        if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
         {
-            fragCoverage = feathered_fill_coverage(
-                v_edgeDistance,
+            fragCoverage = eval_feathered_fill(
+                v_coverages,
                 SAMPLED_R16F(@featherTexture, featherSampler));
         }
         else
 #endif // @CLOCKWISE_FILL && @ENABLE_FEATHER
         {
-            fragCoverage = v_edgeDistance.x;
+            fragCoverage = v_coverages.x;
         }
         coverageCount += fragCoverage;
     }

@@ -6,7 +6,7 @@ dofile(RIVE_RUNTIME_DIR .. '/decoders/premake5_v2.lua')
 
 newoption({ trigger = 'with-skia', description = 'use skia' })
 if _OPTIONS['with-skia'] then
-    dofile(RIVE_RUNTIME_DIR .. '/skia/renderer/build/premake5.lua')
+    dofile(RIVE_RUNTIME_DIR .. '/skia/renderer/premake5_v2.lua')
 end
 
 if not _OPTIONS['with-webgpu'] then
