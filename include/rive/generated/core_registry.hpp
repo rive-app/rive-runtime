@@ -1288,6 +1288,12 @@ public:
             case DataConverterStringTrimBase::trimTypePropertyKey:
                 object->as<DataConverterStringTrimBase>()->trimType(value);
                 break;
+            case DataConverterToStringBase::flagsPropertyKey:
+                object->as<DataConverterToStringBase>()->flags(value);
+                break;
+            case DataConverterToStringBase::decimalsPropertyKey:
+                object->as<DataConverterToStringBase>()->decimals(value);
+                break;
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 object->as<BindablePropertyEnumBase>()->propertyValue(value);
                 break;
@@ -2546,6 +2552,10 @@ public:
                 return object->as<DataConverterStringPadBase>()->padType();
             case DataConverterStringTrimBase::trimTypePropertyKey:
                 return object->as<DataConverterStringTrimBase>()->trimType();
+            case DataConverterToStringBase::flagsPropertyKey:
+                return object->as<DataConverterToStringBase>()->flags();
+            case DataConverterToStringBase::decimalsPropertyKey:
+                return object->as<DataConverterToStringBase>()->decimals();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyEnumBase>()->propertyValue();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -3286,6 +3296,8 @@ public:
             case DataConverterStringPadBase::lengthPropertyKey:
             case DataConverterStringPadBase::padTypePropertyKey:
             case DataConverterStringTrimBase::trimTypePropertyKey:
+            case DataConverterToStringBase::flagsPropertyKey:
+            case DataConverterToStringBase::decimalsPropertyKey:
             case BindablePropertyEnumBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::fitPropertyKey:
             case WeightBase::valuesPropertyKey:
@@ -3959,6 +3971,10 @@ public:
                 return object->is<DataConverterStringPadBase>();
             case DataConverterStringTrimBase::trimTypePropertyKey:
                 return object->is<DataConverterStringTrimBase>();
+            case DataConverterToStringBase::flagsPropertyKey:
+                return object->is<DataConverterToStringBase>();
+            case DataConverterToStringBase::decimalsPropertyKey:
+                return object->is<DataConverterToStringBase>();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyEnumBase>();
             case NestedArtboardLeafBase::fitPropertyKey:

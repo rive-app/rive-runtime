@@ -4,5 +4,25 @@
     "int": 490,
     "string": "dataconvertertostring"
   },
-  "extends": "data_bind/converters/data_converter.json"
+  "extends": "data_bind/converters/data_converter.json",
+  "properties": {
+    "flags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 764,
+        "string": "flags"
+      }
+    },
+    "decimals": {
+      "type": "uint",
+      "typeRuntime": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 765,
+        "string": "decimals"
+      },
+      "description": "Number of decimals to round to"
+    }
+  }
 }
