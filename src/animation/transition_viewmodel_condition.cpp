@@ -21,3 +21,14 @@ bool TransitionViewModelCondition::evaluate(
     }
     return false;
 }
+
+void TransitionViewModelCondition::useInLayer(
+    const StateMachineInstance* stateMachineInstance,
+    StateMachineLayerInstance* layerInstance) const
+{
+    if (leftComparator() != nullptr)
+    {
+        return leftComparator()->useInLayer(stateMachineInstance,
+                                            layerInstance);
+    }
+}

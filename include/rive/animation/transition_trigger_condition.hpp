@@ -10,7 +10,7 @@ public:
     bool evaluate(const StateMachineInstance* stateMachineInstance,
                   StateMachineLayerInstance* layerInstance) const override;
     void useInLayer(const StateMachineInstance* stateMachineInstance,
-                    StateMachineLayerInstance* layerInstance) const;
+                    StateMachineLayerInstance* layerInstance) const override;
 
 protected:
     bool validateInputType(const StateMachineInput* input) const override;

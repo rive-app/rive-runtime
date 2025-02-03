@@ -18,6 +18,10 @@ public:
                          const StateMachineInstance* stateMachineInstance,
                          StateMachineLayerInstance* layerInstance);
 
+    virtual void useInLayer(const StateMachineInstance* stateMachineInstance,
+                            StateMachineLayerInstance* layerInstance) const
+    {}
+
 protected:
     bool compareNumbers(float left, float right, TransitionConditionOp op);
     bool compareBooleans(bool left, bool right, TransitionConditionOp op);

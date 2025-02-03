@@ -196,3 +196,19 @@ bool TransitionPropertyViewModelComparator::compare(
     }
     return false;
 }
+
+void TransitionPropertyViewModelComparator::useInLayer(
+    const StateMachineInstance* stateMachineInstance,
+    StateMachineLayerInstance* layerInstance) const
+{
+
+    auto bindableInstance =
+        stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
+    auto dataBind =
+        stateMachineInstance->bindableDataBindToTarget(bindableInstance);
+    auto source = dataBind->source();
+    if (source != nullptr && source->is<ViewModelInstanceTrigger>())
+    {
+        source->as<ViewModelInstanceTrigger>()->useInLayer(layerInstance);
+    }
+}

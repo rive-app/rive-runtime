@@ -226,11 +226,6 @@ void StateTransition::useLayerInConditions(
 {
     for (auto condition : m_Conditions)
     {
-        if (condition->is<TransitionTriggerCondition>())
-        {
-            condition->as<TransitionTriggerCondition>()->useInLayer(
-                stateMachineInstance,
-                layerInstance);
-        }
+        condition->useInLayer(stateMachineInstance, layerInstance);
     }
 }

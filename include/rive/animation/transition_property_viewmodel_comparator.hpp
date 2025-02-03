@@ -27,6 +27,8 @@ public:
         }
         return (new T())->propertyValue();
     };
+    void useInLayer(const StateMachineInstance* stateMachineInstance,
+                    StateMachineLayerInstance* layerInstance) const override;
 
 protected:
     BindableProperty* m_bindableProperty;

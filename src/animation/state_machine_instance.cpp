@@ -1571,7 +1571,6 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     {
         inst->advanced();
     }
-    advancedDataContext();
 
     return m_needsAdvance || !m_reportedEvents.empty();
 }
@@ -1616,6 +1615,7 @@ bool StateMachineInstance::advanceAndApply(float seconds)
         {
             keepGoing = true;
         }
+        advancedDataContext();
 
         if (!m_artboardInstance->hasDirt(ComponentDirt::Components))
         {

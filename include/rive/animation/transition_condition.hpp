@@ -22,6 +22,10 @@ public:
         return true;
     }
 
+    virtual void useInLayer(const StateMachineInstance* stateMachineInstance,
+                            StateMachineLayerInstance* layerInstance) const
+    {}
+
 protected:
     virtual bool validateInputType(const StateMachineInput* input) const
     {
