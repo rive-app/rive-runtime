@@ -175,7 +175,7 @@ bool LayoutComponent::isHidden() const
 bool LayoutComponent::isDisplayHidden() const
 {
 #ifdef WITH_RIVE_LAYOUT
-    if (m_style != nullptr && m_style->display() == YGDisplayNone)
+    if (m_displayHidden)
     {
         return true;
     }
@@ -185,8 +185,7 @@ bool LayoutComponent::isDisplayHidden() const
         if (p->is<LayoutComponent>())
         {
             auto layout = p->as<LayoutComponent>();
-            if (layout->style() != nullptr &&
-                layout->style()->display() == YGDisplayNone)
+            if (layout->isDisplayHidden())
             {
                 return true;
             }
@@ -253,7 +252,6 @@ StatusCode LayoutComponent::onAddedClean(CoreContext* context)
     {
         return code;
     }
-    artboard()->markLayoutDirty(this);
     markLayoutStyleDirty();
     m_backgroundRect.originX(0);
     m_backgroundRect.originY(0);
@@ -295,6 +293,10 @@ void LayoutComponent::draw(Renderer* renderer)
 
 void LayoutComponent::updateRenderPath()
 {
+    if (isDisplayHidden())
+    {
+        return;
+    }
     m_backgroundRect.width(m_layout.width());
     m_backgroundRect.height(m_layout.height());
     if (style() != nullptr)
@@ -814,6 +816,15 @@ void LayoutComponent::calculateLayout()
                           YGDirection::YGDirectionInherit);
 }
 
+bool LayoutComponent::styleDisplayHidden()
+{
+    if (m_style == nullptr)
+    {
+        return false;
+    }
+    return m_style->display() == YGDisplayNone;
+}
+
 void LayoutComponent::onDirty(ComponentDirt value)
 {
     Super::onDirty(value);
@@ -906,10 +917,10 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         propagateSize();
         markWorldTransformDirty();
     }
-    if (m_displayChanged)
+    if (m_style != nullptr && styleDisplayHidden() != m_displayHidden)
     {
+        m_displayHidden = styleDisplayHidden();
         propagateCollapse(isCollapsed());
-        m_displayChanged = false;
     }
 }
 
@@ -1226,7 +1237,6 @@ void LayoutComponent::displayChanged()
     {
         return;
     }
-    m_displayChanged = true;
     markLayoutNodeDirty();
 }
 

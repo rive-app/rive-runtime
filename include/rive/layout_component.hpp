@@ -115,7 +115,7 @@ protected:
     ShapePaintPath m_localPath;
     ShapePaintPath m_worldPath;
     DrawableProxy m_proxy;
-    bool m_displayChanged = false;
+    bool m_displayHidden = false;
     std::vector<LayoutConstraint*> m_layoutConstraints;
 
     Artboard* getArtboard() override { return artboard(); }
@@ -154,9 +154,8 @@ protected:
     void syncLayoutChildren();
     void propagateSizeToChildren(ContainerComponent* component);
     bool applyInterpolation(float elapsedSeconds, bool animate = true);
-
-protected:
     void calculateLayout();
+    bool styleDisplayHidden();
 #endif
 
 public:
