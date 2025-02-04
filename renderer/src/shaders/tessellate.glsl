@@ -36,14 +36,11 @@ ATTR_BLOCK_END
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float4, v_p0p1);
 NO_PERSPECTIVE VARYING(1, float4, v_p2p3);
-NO_PERSPECTIVE VARYING(
-    2,
-    float4,
-    v_args); // [vertexIdx, totalVertexCount, joinSegmentCount,
-             //  parametricSegmentCount, radsPerPolarSegment]
-NO_PERSPECTIVE VARYING(3,
-                       float3,
-                       v_joinArgs); // [joinTangent, radsPerJoinSegment]
+// [vertexIdx, totalVertexCount, joinSegmentCount,
+//  parametricSegmentCount, radsPerPolarSegment]
+NO_PERSPECTIVE VARYING(2, float4, v_args);
+// [joinTangent, radsPerJoinSegment]
+NO_PERSPECTIVE VARYING(3, float3, v_joinArgs);
 FLAT VARYING(4, uint, v_contourIDWithFlags);
 VARYING_BLOCK_END
 

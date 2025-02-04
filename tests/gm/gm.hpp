@@ -144,3 +144,15 @@ using GMRegistry = Registry<GMFactory>;
     void NAME##_GM::onDraw(rive::Renderer* RENDERER)
 
 #endif
+
+#ifdef RIVE_UNREAL
+typedef const void* REGISTRY_HANDLE;
+REGISTRY_HANDLE gms_get_registry_head();
+REGISTRY_HANDLE gms_registry_get_next(REGISTRY_HANDLE position_handle);
+bool gms_run_gm(REGISTRY_HANDLE gm_handle);
+bool gms_registry_get_name(REGISTRY_HANDLE position_handle, std::string& name);
+bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
+                           size_t& width,
+                           size_t& height);
+int gms_main(int argc, const char* argv[]);
+#endif

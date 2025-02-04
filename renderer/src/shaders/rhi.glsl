@@ -76,6 +76,17 @@ $typedef $uint ushort;
 #define ATTR_LOAD(T, A, N, I)
 #define ATTR_UNPACK(ID, attrs, NAME, TYPE) TYPE NAME = attrs.NAME
 
+#define UNIFORM_BLOCK_BEGIN(IDX, NAME)                                         \
+    $cbuffer NAME                                                              \
+    {                                                                          \
+        struct                                                                 \
+        {
+
+#define UNIFORM_BLOCK_END(NAME)                                                \
+    }                                                                          \
+    NAME;                                                                      \
+    }
+
 #define VARYING_BLOCK_BEGIN                                                    \
     struct Varyings                                                            \
     {

@@ -111,8 +111,6 @@ static bool is_arg(const char arg[],
 
 #if defined(RIVE_UNREAL)
 
-typedef const void* REGISTRY_HANDLE;
-
 REGISTRY_HANDLE gms_get_registry_head() { return rivegm::GMRegistry::head(); }
 
 REGISTRY_HANDLE gms_registry_get_next(REGISTRY_HANDLE position_handle)
