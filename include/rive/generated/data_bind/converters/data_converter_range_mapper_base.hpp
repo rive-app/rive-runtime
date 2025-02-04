@@ -38,7 +38,7 @@ public:
     static const uint16_t maxOutputPropertyKey = 719;
 
 protected:
-    uint32_t m_InterpolationType = 0;
+    uint32_t m_InterpolationType = 1;
     uint32_t m_InterpolatorId = -1;
     uint32_t m_Flags = 0;
     float m_MinInput = 1.0f;
