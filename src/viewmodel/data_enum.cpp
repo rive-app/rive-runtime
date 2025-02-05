@@ -18,7 +18,11 @@ std::string DataEnum::value(std::string key)
     {
         if (enumValue->key() == key)
         {
-            return enumValue->value();
+            if (enumValue->value() != "")
+            {
+                return enumValue->value();
+            }
+            return enumValue->key();
         };
     }
     return "";
@@ -28,7 +32,11 @@ std::string DataEnum::value(uint32_t index)
 {
     if (index < m_Values.size())
     {
-        return m_Values[index]->value();
+        if (m_Values[index]->value() != "")
+        {
+            return m_Values[index]->value();
+        }
+        return m_Values[index]->key();
     }
     return "";
 }

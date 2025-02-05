@@ -22,7 +22,18 @@
         "int": 765,
         "string": "decimals"
       },
-      "description": "Number of decimals to round to"
+      "description": "Number of decimals to round to",
+      "bindable": true
+    },
+    "colorFormat": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 766,
+        "string": "colorformat"
+      },
+      "description": "A formatted color.",
+      "bindable": true
     }
   }
 }
