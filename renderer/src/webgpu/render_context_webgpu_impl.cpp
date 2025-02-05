@@ -643,13 +643,27 @@ public:
                     addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
                     break;
                 case DrawType::imageRect:
+                    addDefine(GLSL_DRAW_IMAGE);
+                    addDefine(GLSL_DRAW_IMAGE_RECT);
                     RIVE_UNREACHABLE();
+                    break;
                 case DrawType::imageMesh:
+                    addDefine(GLSL_DRAW_IMAGE);
+                    addDefine(GLSL_DRAW_IMAGE_MESH);
                     break;
                 case DrawType::atomicInitialize:
+                    addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
+                    addDefine(GLSL_INITIALIZE_PLS);
+                    RIVE_UNREACHABLE();
+                    break;
                 case DrawType::atomicResolve:
+                    addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
+                    addDefine(GLSL_RESOLVE_PLS);
+                    RIVE_UNREACHABLE();
+                    break;
                 case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
+                    break;
             }
             for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
             {
@@ -688,25 +702,15 @@ public:
                     glsl << gpu::glsl::draw_path_common << '\n';
                     glsl << gpu::glsl::draw_path << '\n';
                     break;
-                case DrawType::imageRect:
-                    addDefine(GLSL_DRAW_IMAGE);
-                    addDefine(GLSL_DRAW_IMAGE_RECT);
-                    RIVE_UNREACHABLE();
                 case DrawType::imageMesh:
-                    addDefine(GLSL_DRAW_IMAGE);
-                    addDefine(GLSL_DRAW_IMAGE_MESH);
                     glsl << gpu::glsl::draw_image_mesh << '\n';
                     break;
+                case DrawType::imageRect:
                 case DrawType::atomicInitialize:
-                    addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
-                    addDefine(GLSL_INITIALIZE_PLS);
-                    RIVE_UNREACHABLE();
                 case DrawType::atomicResolve:
-                    addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
-                    addDefine(GLSL_RESOLVE_PLS);
-                    RIVE_UNREACHABLE();
                 case DrawType::stencilClipReset:
                     RIVE_UNREACHABLE();
+                    break;
             }
 
             std::ostringstream vertexGLSL;
