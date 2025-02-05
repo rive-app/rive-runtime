@@ -144,19 +144,6 @@ float4 pack_feathered_fill_coverages(float cornerTheta,
                            .0)                                                 \
         .r
 
-// Evaluates the Gaussian distribution at 4 locations. The curve is centered at
-// x=.5, but its area is not 1. To normalize the area, multiply by
-// NORMAL_CURVE_SCALAR.
-INLINE half4 eval_normal_curve(half4 x)
-{
-#define MU .5
-#define INVERSE_SIGMA (FEATHER_TEXTURE_STDDEVS * 2.)
-#define NORMAL_CURVE_SCALAR (INVERSE_SIGMA * ONE_OVER_SQRT_2PI)
-    half4 y = x * (INVERSE_SIGMA * ONE_OVER_SQRT_2) +
-              (-MU * INVERSE_SIGMA * ONE_OVER_SQRT_2);
-    return exp(-y * y);
-}
-
 INLINE half eval_feathered_fill(float4 coverages,
                                 SAMPLED_R16F_REF(featherTextureRef,
                                                  featherSamplerRef))
@@ -179,35 +166,68 @@ INLINE half eval_feathered_fill(float4 coverages,
     // NOTE: If we aren't a corner, this will be the entire feather.
     half featherCoverage = cotTheta >= .0 ? FEATHER(y0) : .0;
 
+    // If we're a (not flat) corner, the bottom area of the convolution needs to
+    // account for both edges.
+    //
+    // Integrate the area contained within both edges, taking advantage of the
+    // separability property of our convolution:
+    //           _
+    //    t=y   / \.
+    //          |
+    //          |  FEATHER(t * m + b) * FEATHER'(t) * dt
+    //          |
+    //   t=y0 \_/
+    //
+    // NOTE: The derivative FEATHER'(t) is the normal distribution with:
+    //
+    //   mu = 1/2
+    //   sigma = 1 / (2 * FEATHER_TEXTURE_STDDEVS)
+    //
+    // We can evaluate this directly without a lookup table.
+    //
+    // For performance constraints, we only take 4 samples on the integral.
     if (abs(cotTheta) < HORIZONTAL_COTANGENT_THRESHOLD)
     {
-        // We're a (not flat) corner. The bottom area of the convolution needs
-        // to account for both edges.
-        //
-        // Integrate the area contained within both edges, taking advantage of
-        // the separability property of our convolution:
-        //           _
-        //    t=y   / \.
-        //          |
-        //          |  FEATHER(t * m + b) * FEATHER'(t) * dt
-        //          |
-        //   t=y0 \_/
-        //
-        // NOTE: The derivative FEATHER'(t) is the normal curve and can be
-        // computed directly.
-        //
-        // For performance constraints, we only take 4 samples.
+        // Unpack x & y from the varying coverages.
         half x = abs(coverages.x) - FEATHER_X_COORD_BIAS;
         half y = -coverages.y + FEATHER_COVERAGE_BIAS;
-        half dt = (y - y0) * (.25 * NORMAL_CURVE_SCALAR);
-        half4 t =
-            (make_half4(.5, 1.5, 2.5, 3.5) / NORMAL_CURVE_SCALAR) * dt + y0;
+
+        // Find the height of each sample, and pre-scale by 1/(sigma*sqrt(2pi))
+        // from the normal distribution (to save on multiplies later).
+        //
+        //   dt = (y - y0) / 4 / (sigma * sqrt(2pi))
+        //
+        half dt = (y - y0) * 0.5984134206;
+
+        // Subdivide into 4 bars of even height, and sample at the centers.
+        // (Reuse dt so we don't have to recompute "y - y1" again.)
+        //
+        //   t = lerp(y0, y1, [1/8, 3/8, 5/8, 7/8])
+        //
+        half4 t = y0 + dt * make_half4(0.20888568955,
+                                       0.62665706865,
+                                       1.04442844776,
+                                       1.46219982687);
+
+        // Feather horizontally where each sample intersects the second edge.
         half4 u = t * -cotTheta + (y * cotTheta + x);
         half4 feathers = make_half4(FEATHER(u[0]),
                                     FEATHER(u[1]),
                                     FEATHER(u[2]),
                                     FEATHER(u[3]));
-        featherCoverage += dot(feathers, eval_normal_curve(t)) * dt;
+
+        // Evaluate the normal distribution at each vertical sample.
+        // (Scale t_ by sqrt(log2(e)) to change the base of the function from
+        // e^x to 2^x.)
+        //
+        //   t_ = 1/sqrt(2) * (x - mu) / sigma * sqrt(log2(e))
+        //   normalDistro = 2^(-t_ * t_)
+        //
+        half4 t_ = t * 5.09593080173 + -2.54796540086;
+        half4 ddtFeather = exp2(-t_ * t_);
+
+        // Take the sum of "FEATHER(u) * FEATHER'(t) * dt" at all 4 samples.
+        featherCoverage += dot(feathers, ddtFeather) * dt;
     }
 
     return featherCoverage * sign(coverages.x);
