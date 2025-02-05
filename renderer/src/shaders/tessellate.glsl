@@ -173,12 +173,13 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     float theta = acos(cosine_between_vectors(tangents[0], tangents[1]));
     float radsPerPolarSegment = theta / float(polarSegmentCount);
     // Adjust sign of radsPerPolarSegment to match the direction the curve
-    // turns. NOTE: Since the curve is not allowed to inflect, we can just check
-    // F'(.5) x F''(.5). NOTE: F'(.5) x F''(.5) has the same sign as (p2 - p0) x
-    // (p3 - p1).
+    // turns.
+    // NOTE: Since the curve is not allowed to inflect, we can just check
+    // F'(.5) x F''(.5).
+    // NOTE: F'(.5) x F''(.5) has the same sign as (p2 - p0) x (p3 - p1).
     float turn = determinant(float2x2(p2 - p0, p3 - p1));
-    if (turn ==
-        .0) // This is the case for joins and cusps where points are co-located.
+    // This is the case for joins and cusps where points are co-located.
+    if (turn == .0)
         turn = determinant(tangents);
     if (turn < .0)
         radsPerPolarSegment = -radsPerPolarSegment;

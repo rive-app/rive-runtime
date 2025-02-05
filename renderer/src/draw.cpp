@@ -131,23 +131,6 @@ RIVE_ALWAYS_INLINE std::array<Vec2D, 4> convert_line_to_cubic(Vec2D p0,
     return convert_line_to_cubic(line);
 }
 
-// Finds the tangents of the curve at T=0 and T=1 respectively.
-RIVE_ALWAYS_INLINE Vec2D find_cubic_tan0(const Vec2D p[4])
-{
-    Vec2D tan0 = (p[0] != p[1] ? p[1] : p[1] != p[2] ? p[2] : p[3]) - p[0];
-    return tan0;
-}
-RIVE_ALWAYS_INLINE Vec2D find_cubic_tan1(const Vec2D p[4])
-{
-    Vec2D tan1 = p[3] - (p[3] != p[2] ? p[2] : p[2] != p[1] ? p[1] : p[0]);
-    return tan1;
-}
-RIVE_ALWAYS_INLINE void find_cubic_tangents(const Vec2D p[4], Vec2D tangents[2])
-{
-    tangents[0] = find_cubic_tan0(p);
-    tangents[1] = find_cubic_tan1(p);
-}
-
 // Chops a cubic into 2 * n + 1 segments, surrounding each cusp. The resulting
 // cubics will be visually equivalent to the original when stroked, but the cusp
 // won't have artifacts when rendered using the parametric/polar sorting
@@ -699,11 +682,24 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
         if (m_featherRadius != 0)
         {
             r_ = m_featherRadius * m_strokeMatrixMaxScale;
-            // The Gaussian distribution is very blurry on the outer edges.
-            // Once the radius crosses a certain threshold, we don't ever
-            // need more polar segments.
+
+            // Inverse of 1/calc_polar_segments_per_radian at
+            // FEATHER_MIN_POLAR_SEGMENT_ANGLE.
+            //
+            // i.e., 1 / calc_polar_segments_per_radian<kPolarPrecision>(
+            //           FEATHER_MIN_POLAR_SEGMENT_ANGLE) ==
+            //       FEATHER_MAX_SCREEN_SPACE_RADIUS
+            //
             constexpr static float FEATHER_MAX_SCREEN_SPACE_RADIUS =
-                kPolarPrecision * 3;
+                1 / (kPolarPrecision *
+                     (1 - COS_FEATHER_POLAR_SEGMENT_MIN_ANGLE_OVER_2));
+            assert(math::nearly_equal(
+                1 / math::calc_polar_segments_per_radian<kPolarPrecision>(
+                        FEATHER_MAX_SCREEN_SPACE_RADIUS),
+                gpu::FEATHER_POLAR_SEGMENT_MIN_ANGLE));
+
+            // r_ is used to calculate how many polar segments are needed. Limit
+            // r_ for large feathers. (See FEATHER_POLAR_SEGMENT_MIN_ANGLE.)
             r_ = std::min(r_, FEATHER_MAX_SCREEN_SPACE_RADIUS);
         }
         if (isStroke())
@@ -941,7 +937,7 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
             {
                 const Vec2D* p = iter.cubicPts();
                 Vec2D unchoppedTangents[2];
-                find_cubic_tangents(p, unchoppedTangents);
+                math::find_cubic_tangents(p, unchoppedTangents);
                 if (preChopVerbCount == 0)
                 {
                     firstTangent = unchoppedTangents[0];
@@ -1018,7 +1014,22 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
                                        &n4,
                                        sizeof(uint32_t));
                     assert(rotationIdx < maxPaddedRotations);
-                    find_cubic_tangents(p, m_tangentPairs[rotationIdx].data());
+                    if (isStroke())
+                    {
+                        math::find_cubic_tangents(
+                            p,
+                            m_tangentPairs[rotationIdx].data());
+                    }
+                    else
+                    {
+                        // FIXME: Feathered fills don't have polar segments for
+                        // now, but we're leaving space for them in
+                        // m_tangentPairs because we will convert them to use a
+                        // similar concept of "polar joins" once we move them
+                        // onto the GPU.
+                        m_tangentPairs[rotationIdx] = {Vec2D{0, 1},
+                                                       Vec2D{0, 1}};
+                    }
                 }
                 break;
             }
@@ -2057,7 +2068,7 @@ void RiveRenderPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     tessWriter->pushCubic(
         std::array{cubic[3], cubic[2], cubic[1], cubic[0]}.data(),
         m_contourDirections,
-        find_cubic_tan0(cubic),
+        math::find_cubic_tan0(cubic),
         0,
         0,
         strokeCapSegmentCount,

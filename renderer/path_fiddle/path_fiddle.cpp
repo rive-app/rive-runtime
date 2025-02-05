@@ -854,7 +854,7 @@ void riveMainLoop()
         }
 
         Factory* factory = s_fiddleContext->factory();
-        auto path = factory->makeRenderPath(rawPath, FillRule::nonZero);
+        auto path = factory->makeRenderPath(rawPath, FillRule::clockwise);
 
         auto fillPaint = factory->makeRenderPaint();
         if (featherPower != 0)

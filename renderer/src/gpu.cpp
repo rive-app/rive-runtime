@@ -826,6 +826,13 @@ void generate_gausian_integral_table(float (&table)[GAUSSIAN_TABLE_SIZE])
     {
         table[i] = fminf(fmaxf(table[i - 1], table[i] + shift), 1);
     }
+    printf("\nconst float g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE] = "
+           "{\n");
+    for (size_t i = 0; i < GAUSSIAN_TABLE_SIZE; ++i)
+    {
+        printf("%f, ", table[i]);
+    }
+    printf("\n};\n");
     printf("\nconst uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE] = "
            "{\n");
     for (size_t i = 0; i < GAUSSIAN_TABLE_SIZE; ++i)

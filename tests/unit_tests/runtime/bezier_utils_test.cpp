@@ -543,12 +543,11 @@ TEST_CASE("find_cubic_convex_180_chops_lines", "[bezier_utils]")
     }
 }
 
-float pow2(float x) { return x * x; }
 float pow3(float x) { return x * x * x; }
 Vec2D eval_cubic(const Vec2D* p, float t)
 {
-    return pow3(1 - t) * p[0] + 3 * pow2(1 - t) * t * p[1] +
-           3 * (1 - t) * pow2(t) * p[2] + pow3(t) * p[3];
+    return pow3(1 - t) * p[0] + 3 * math::pow2(1 - t) * t * p[1] +
+           3 * (1 - t) * math::pow2(t) * p[2] + pow3(t) * p[3];
 }
 
 constexpr static Vec2D TEST_CUBICS[][4] = {

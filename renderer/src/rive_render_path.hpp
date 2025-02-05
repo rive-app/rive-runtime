@@ -62,10 +62,10 @@ public:
     bool isClockwiseDominant(const Mat2D& viewMatrix) const;
     uint64_t getRawPathMutationID() const;
 
-    // Feathering does not always look like a blur when there is strong
-    // curvature. This method returns a copy of the path with flatter curves
-    // that will more accurately depict a gaussian blur when drawn with the
-    // given feather.
+    // 1-dimensional feathering along the normal vector quits looking like a
+    // blur when there is strong curvature. This method returns a copy of the
+    // path with shorter, flatter curves that will more accurately depict a
+    // gaussian blur when drawn with the given feather.
     //
     // TODO: Move this work to the GPU.
     rcp<RiveRenderPath> makeSoftenedCopyForFeathering(float feather,

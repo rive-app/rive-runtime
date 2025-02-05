@@ -184,5 +184,29 @@ inline float measure_cubic_local_curvature(const Vec2D pts[4],
                                          T,
                                          desiredSpread);
 }
+
+// Finds the tangents of the curve at T=0 and T=1 respectively.
+RIVE_ALWAYS_INLINE Vec2D find_cubic_tan0(const Vec2D p[4])
+{
+    Vec2D tan0 = (p[0] != p[1] ? p[1] : p[1] != p[2] ? p[2] : p[3]) - p[0];
+    return tan0;
+}
+RIVE_ALWAYS_INLINE Vec2D find_cubic_tan1(const Vec2D p[4])
+{
+    Vec2D tan1 = p[3] - (p[3] != p[2] ? p[2] : p[2] != p[1] ? p[1] : p[0]);
+    return tan1;
+}
+RIVE_ALWAYS_INLINE void find_cubic_tangents(const Vec2D p[4], Vec2D tangents[2])
+{
+    tangents[0] = find_cubic_tan0(p);
+    tangents[1] = find_cubic_tan1(p);
+}
+
+RIVE_ALWAYS_INLINE constexpr float pow2(float x) { return x * x; }
+
+RIVE_ALWAYS_INLINE constexpr float length_squared(Vec2D v)
+{
+    return pow2(v.x) + pow2(v.y);
+}
 } // namespace math
 } // namespace rive

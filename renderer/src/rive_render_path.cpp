@@ -6,7 +6,6 @@
 
 #include "rive/math/bezier_utils.hpp"
 #include "rive/math/simd.hpp"
-#include "rive/math/wangs_formula.hpp"
 #include "shaders/constants.glsl"
 
 namespace rive
@@ -157,12 +156,53 @@ uint64_t RiveRenderPath::getRawPathMutationID() const
 static void add_softened_cubic_for_feathering(RawPath* featheredPath,
                                               const Vec2D p[4],
                                               float feather,
-                                              float matrixMaxScale,
-                                              int maxDepth = 3)
+                                              float rotationBetweenJoins,
+                                              float totalRotation)
 {
-    float2 p0 = simd::load2f(p), p1 = simd::load2f(p + 1),
-           p2 = simd::load2f(p + 2), p3 = simd::load2f(p + 3);
     math::CubicCoeffs coeffs(p);
+
+    // If we rotate too much _and_ the endpoints are further apart than 1
+    // standard deviation of each other, chop and recurse.
+    // ("feather" is 2 standard deviations, so (feather^2)/4 == one_stddev^2.)
+    if (abs(totalRotation) > abs(rotationBetweenJoins) + 1e-2f &&
+        math::length_squared(p[3] - p[0]) > feather * feather * .25f)
+    {
+        // The cubic rotates more than rotationBetweenJoins. Find a boundary
+        // of rotationBetweenJoins toward the center to chop on.
+        float chopTheta = ceilf(totalRotation / (2 * rotationBetweenJoins)) *
+                          rotationBetweenJoins;
+        Vec2D tan0 = math::find_cubic_tan0(p);
+        float2 chopTan =
+            math::bit_cast<float2>(Mat2D::fromRotation(chopTheta) * tan0);
+
+        // Solve for T where the tangent of the curve is equal to chopTan.
+        float a = simd::cross(coeffs.A, chopTan);
+        float b_over_2 = simd::cross(coeffs.B, chopTan);
+        float c = simd::cross(coeffs.C, chopTan);
+        float discr_over_4 = b_over_2 * b_over_2 - a * c;
+        float q = sqrtf(discr_over_4);
+        q = -b_over_2 - copysignf(q, b_over_2);
+        float2 roots = float2{q, c} / float2{a, q};
+        float t =
+            fabsf(roots.x - .5f) < fabsf(roots.y - .5f) ? roots.x : roots.y;
+        if (t > 0 && t < 1)
+        {
+            // Chop and recurse.
+            Vec2D pp[7];
+            math::chop_cubic_at(p, pp, t);
+            add_softened_cubic_for_feathering(featheredPath,
+                                              pp,
+                                              feather,
+                                              rotationBetweenJoins,
+                                              totalRotation * .5f);
+            add_softened_cubic_for_feathering(featheredPath,
+                                              pp + 3,
+                                              feather,
+                                              rotationBetweenJoins,
+                                              totalRotation * .5f);
+            return;
+        }
+    }
 
     // Find the point of maximum height on the cubic.
     float maxHeightT;
@@ -180,10 +220,6 @@ static void add_softened_cubic_for_feathering(RawPath* featheredPath,
                                                       desiredSpread);
     float dimming = 1 - theta * (1 / math::PI);
 
-    // Always dim a little bit in order to avoid artifacts on tight cusps.
-    // FIXME: This is unfortunate. There must be a better way to handle cusps.
-    dimming = fminf(dimming, .925f);
-
     // Soften the feather by reducing the curve height. Find a new height such
     // that the center of the feather (currently 50% opacity) is reduced to
     // "50% * dimming".
@@ -191,34 +227,17 @@ static void add_softened_cubic_for_feathering(RawPath* featheredPath,
     float x = gpu::inverse_gaussian_integral(desiredOpacityOnCenter) - .5f;
     float softenedHeight = height + feather * FEATHER_TEXTURE_STDDEVS * x;
 
-    if (maxDepth > 0 && (height - softenedHeight) * matrixMaxScale > 8)
-    {
-        // The curve would be flattened too much. Chop at max height and
-        // recurse.
-        Vec2D pp[7];
-        math::chop_cubic_at(p, pp, maxHeightT);
-        add_softened_cubic_for_feathering(featheredPath,
-                                          pp,
-                                          feather,
-                                          matrixMaxScale,
-                                          maxDepth - 1);
-        add_softened_cubic_for_feathering(featheredPath,
-                                          pp + 3,
-                                          feather,
-                                          matrixMaxScale,
-                                          maxDepth - 1);
-        return;
-    }
-
     // Flatten the curve down to "softenedHeight". (Height scales linearly as we
     // lerp the control points to "flatLinePoints".)
     float4 flatLinePoints =
-        simd::mix(p0.xyxy, p3.xyxy, float4{1.f / 3, 1.f / 3, 2.f / 3, 2.f / 3});
+        simd::mix(simd::load2f(p).xyxy,
+                  simd::load2f(p + 3).xyxy,
+                  float4{1.f / 3, 1.f / 3, 2.f / 3, 2.f / 3});
     float softness = height != 0 ? 1 - softenedHeight / height : 1;
     // Do the "min" first so softness is 1 if anything went NaN.
     softness = fmaxf(0, fminf(softness, 1));
     assert(softness >= 0 && softness <= 1);
-    float4 softenedPoints = simd::unchecked_mix(simd::join(p1, p2),
+    float4 softenedPoints = simd::unchecked_mix(simd::load4f(p + 1), // [p1, p2]
                                                 flatLinePoints,
                                                 float4(softness));
     featheredPath->cubic(math::bit_cast<Vec2D>(softenedPoints.xy),
@@ -230,6 +249,14 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
     float feather,
     float matrixMaxScale)
 {
+    // Since curvature is what breaks 1-dimensional feathering along the normal
+    // vector, chop into segments that rotate no more than a certain threshold.
+    float r_ = feather * (FEATHER_TEXTURE_STDDEVS / 2) * matrixMaxScale * .25f;
+    float polarSegmentsPerRadian =
+        math::calc_polar_segments_per_radian<gpu::kPolarPrecision>(r_);
+    float rotationBetweenJoins = std::max(1 / polarSegmentsPerRadian,
+                                          gpu::FEATHER_POLAR_SEGMENT_MIN_ANGLE);
+
     RawPath featheredPath;
     // Reserve a generous amount of space upfront so we hopefully don't have to
     // reallocate -- enough for each verb to be chopped 4 times.
@@ -272,10 +299,30 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
                     }
                     else
                     {
-                        add_softened_cubic_for_feathering(&featheredPath,
-                                                          p,
-                                                          feather,
-                                                          matrixMaxScale);
+                        Vec2D tangents[2];
+                        math::find_cubic_tangents(p, tangents);
+                        // Determine which the direction the curve turns.
+                        // NOTE: Since the curve does not inflect, we can just
+                        // check F'(.5) x F''(.5).
+                        // NOTE: F'(.5) x F''(.5) has the same sign as
+                        // (p2 - p0) x (p3 - p1).
+                        float turn = Vec2D::cross(p[2] - p[0], p[3] - p[1]);
+                        if (turn == 0)
+                        {
+                            // This is the case for joins and cusps where points
+                            // are co-located.
+                            turn = Vec2D::cross(tangents[0], tangents[1]);
+                        }
+                        float totalRotation = copysignf(
+                            math::measure_angle_between_vectors(tangents[0],
+                                                                tangents[1]),
+                            turn);
+                        add_softened_cubic_for_feathering(
+                            &featheredPath,
+                            p,
+                            feather,
+                            copysignf(rotationBetweenJoins, totalRotation),
+                            totalRotation);
                     }
                 }
                 break;
