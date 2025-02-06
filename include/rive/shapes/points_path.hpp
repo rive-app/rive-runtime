@@ -14,10 +14,7 @@ public:
     void markSkinDirty() override;
     const Mat2D& pathTransform() const override;
 
-    bool isClockwise() const { return m_isClockwise; }
-
-private:
-    bool m_isClockwise = true;
+    bool isClockwise() const;
 };
 } // namespace rive
 
