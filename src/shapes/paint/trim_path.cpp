@@ -54,14 +54,19 @@ void TrimPath::trimPath(const RawPath* source)
             }
 
             int i = 0, subPathCount = (int)m_contours.size();
+            std::vector<int> indices;
+            std::vector<float> lengths;
             while (endLength > 0)
             {
-                auto contour = m_contours[i % subPathCount];
+                auto currentContourIndex = i % subPathCount;
+                auto contour = m_contours[currentContourIndex];
                 auto contourLength = contour->length();
 
                 if (startLength < contourLength)
                 {
-                    contour->getSegment(startLength, endLength, rawPath, true);
+                    indices.push_back(currentContourIndex);
+                    lengths.push_back(startLength);
+                    lengths.push_back(endLength);
                     endLength -= contourLength;
                     startLength = 0;
                 }
@@ -71,6 +76,49 @@ void TrimPath::trimPath(const RawPath* source)
                     endLength -= contourLength;
                 }
                 i++;
+            }
+
+            // This is inintuitive but works. If the last segment and the first
+            // segment of the trim path belong to the same contour, we want to
+            // draw the first semgment first, then the last one and then the
+            // rest. This is intentional to make sure the last segment is
+            // connected to the first one in order to avoid a gap. A linear way
+            // without reordering indices is to start at index 0 and go
+            // backwards. For the remaining segments it's not important in what
+            // order they are drawn
+            int startingIndex = 0;
+            int indexCount = 0;
+
+            int prevContourIndex = -1;
+            while (indexCount < indices.size())
+            {
+                auto index = (startingIndex < 0 ? startingIndex + indices.size()
+                                                : startingIndex) %
+                             indices.size();
+                auto contourIndex = indices[index];
+                auto contour = m_contours[contourIndex];
+                auto contourLength = contour->length();
+                auto lengthIndex = index * 2;
+                auto startLength = lengths[lengthIndex];
+                auto endLength = lengths[lengthIndex + 1];
+                // if two consecutive segments belong to the same contour, draw
+                // them connected.
+                contour->getSegment(startLength,
+                                    endLength,
+                                    rawPath,
+                                    prevContourIndex != contourIndex ||
+                                        !contour->isClosed());
+                // Close contours that are fully used as
+                // segments
+                if (startLength == 0.0f &&
+                    endLength - startLength >= contourLength &&
+                    contour->isClosed())
+                {
+                    rawPath->close();
+                }
+                prevContourIndex = contourIndex;
+                indexCount++;
+                startingIndex--;
             }
         }
         break;
@@ -89,7 +137,7 @@ void TrimPath::trimPath(const RawPath* source)
                     endLength = length;
                 }
 
-                if (startLength > contourLength)
+                if (startLength >= contourLength)
                 {
                     startLength -= contourLength;
                     endLength -= contourLength;
@@ -99,7 +147,15 @@ void TrimPath::trimPath(const RawPath* source)
                 {
                     startLength = 0;
                     endLength -= contourLength;
-                    contour->getSegment(startLength, endLength, rawPath, true);
+                    contour->getSegment(startLength,
+                                        endLength,
+                                        rawPath,
+                                        !contour->isClosed());
+                }
+
+                if (start() == 0.0f && end() == 1.0f && contour->isClosed())
+                {
+                    rawPath->close();
                 }
             }
         }

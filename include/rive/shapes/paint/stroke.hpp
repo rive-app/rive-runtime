@@ -29,6 +29,9 @@ public:
               RenderPaint* overridePaint) override;
     void buildDependencies() override;
     void update(ComponentDirt value) override;
+#ifdef TESTING
+    StrokeEffect* effect() { return m_Effect; }
+#endif
 
 protected:
     void thicknessChanged() override;
