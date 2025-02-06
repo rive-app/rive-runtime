@@ -440,7 +440,10 @@ public:
         intersectPreviousClip,
     };
 
-    StencilClipReset(RenderContext*, uint32_t previousClipID, ResetAction);
+    StencilClipReset(RenderContext*,
+                     uint32_t previousClipID,
+                     gpu::DrawContents previousClipDrawContents,
+                     ResetAction);
 
     uint32_t previousClipID() const { return m_previousClipID; }
 

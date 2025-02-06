@@ -1512,12 +1512,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     m_state->setCullFace(GL_FRONT);
                     if (batch.drawContents & gpu::DrawContents::clockwiseFill)
                     {
-                        // For clockwise fill, disable the color mask when
-                        // cleaning up backward triangles. This mode only fills
-                        // in forward triangles.
-                        m_state->setWriteMasks(false,
-                                               false,
-                                               isClipUpdate ? 0xff : 0x7f);
+                        // For clockwise fill, disable color & clip-bit writes
+                        // when cleaning up backward triangles. This mode only
+                        // fills in forward triangles.
+                        m_state->setWriteMasks(false, false, 0x7f);
                     }
                     drawHelper.draw();
                     break;
@@ -1527,8 +1525,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 glStencilFunc(hasActiveClip ? GL_LEQUAL : GL_ALWAYS,
                               0x80,
                               0xff);
-                glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
-                glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+                // Decrement front-facing triangles so the MSB is set when
+                // clockwise.
+                glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
+                glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
                 m_state->setWriteMasks(false,
                                        false,
                                        isEvenOddFill ? 0x1 : 0x7f);
@@ -1566,7 +1566,19 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     // stencil buffer. Intersect it with the existing clip.
                     // (Erasing regions of the existing clip that are outside
                     // the nested clip.)
-                    glStencilFunc(GL_LESS, 0x80, 0xff);
+                    glStencilFunc(
+                        GL_LESS,
+                        0x80,
+                        (batch.drawContents & gpu::DrawContents::clockwiseFill)
+                            // clockwise: (0x80 & 0xc0) < (stencilValue & 0xc0)
+                            //   => "If clipbit is set and winding is negative"
+                            //   => "If clipbit is set and winding is clockwise"
+                            //      (because clockwise decrements)
+                            //
+                            ? 0xc0
+                            // non-clockwise: 0x80 < stencilValue
+                            //   => "If clipbit is set and winding is nonzero"
+                            : 0xff);
                     glStencilOp(GL_ZERO, GL_KEEP, GL_REPLACE);
                 }
                 else

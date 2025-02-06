@@ -2386,6 +2386,7 @@ void ImageMeshDraw::releaseRefs()
 
 StencilClipReset::StencilClipReset(RenderContext* context,
                                    uint32_t previousClipID,
+                                   gpu::DrawContents previousClipDrawContents,
                                    ResetAction resetAction) :
     Draw(context->getClipContentBounds(previousClipID),
          Mat2D(),
@@ -2394,6 +2395,10 @@ StencilClipReset::StencilClipReset(RenderContext* context,
          Type::stencilClipReset),
     m_previousClipID(previousClipID)
 {
+    constexpr static gpu::DrawContents FILL_RULE_FLAGS =
+        gpu::DrawContents::nonZeroFill | gpu::DrawContents::evenOddFill |
+        gpu::DrawContents::clockwiseFill;
+    m_drawContents |= previousClipDrawContents & FILL_RULE_FLAGS;
     switch (resetAction)
     {
         case ResetAction::intersectPreviousClip:

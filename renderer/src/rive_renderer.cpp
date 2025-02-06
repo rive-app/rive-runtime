@@ -544,6 +544,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
                 gpu::DrawUniquePtr(m_context->make<gpu::StencilClipReset>(
                     m_context,
                     m_context->getClipContentID(),
+                    gpu::DrawContents::none,
                     gpu::StencilClipReset::ResetAction::clearPreviousClip));
             if (!m_context->isOutsideCurrentFrame(
                     stencilClipClear->pixelBounds()))
@@ -559,56 +560,55 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
         assert(clip.pathBounds == clip.path->getBounds());
 
         IAABB clipDrawBounds;
-        {
-            RiveRenderPaint clipUpdatePaint;
-            clipUpdatePaint.clipUpdate(
-                /*clip THIS clipDraw against:*/ lastClipID);
+        RiveRenderPaint clipUpdatePaint;
+        clipUpdatePaint.clipUpdate(
+            /*clip THIS clipDraw against:*/ lastClipID);
 
-            gpu::DrawUniquePtr clipDraw =
-                clip.path->getDrawCache(clip.matrix,
-                                        &clipUpdatePaint,
-                                        clip.fillRule,
-                                        &m_context->perFrameAllocator(),
-                                        m_context->frameDescriptor(),
-                                        m_context->frameInterlockMode());
+        gpu::DrawUniquePtr clipDraw =
+            clip.path->getDrawCache(clip.matrix,
+                                    &clipUpdatePaint,
+                                    clip.fillRule,
+                                    &m_context->perFrameAllocator(),
+                                    m_context->frameDescriptor(),
+                                    m_context->frameInterlockMode());
+
+        if (clipDraw == nullptr)
+        {
+            clipDraw = gpu::RiveRenderPathDraw::Make(m_context,
+                                                     clip.matrix,
+                                                     clip.path,
+                                                     clip.fillRule,
+                                                     &clipUpdatePaint,
+                                                     &m_scratchPath);
 
             if (clipDraw == nullptr)
             {
-                clipDraw = gpu::RiveRenderPathDraw::Make(m_context,
-                                                         clip.matrix,
-                                                         clip.path,
-                                                         clip.fillRule,
-                                                         &clipUpdatePaint,
-                                                         &m_scratchPath);
-
-                if (clipDraw == nullptr)
-                {
-                    return ApplyClipResult::clipEmpty;
-                }
-
-                clip.path->setDrawCache(
-                    static_cast<gpu::RiveRenderPathDraw*>(clipDraw.get()),
-                    clip.matrix,
-                    &clipUpdatePaint);
+                return ApplyClipResult::clipEmpty;
             }
 
-            clipDrawBounds = clipDraw->pixelBounds();
-            // Generate a new clipID every time we (re-)render an element to the
-            // clip buffer. (Each embodiment of the element needs its own
-            // separate readBounds.)
-            clip.clipID = m_context->generateClipID(clipDrawBounds);
-            assert(clip.clipID != m_context->getClipContentID());
-            if (clip.clipID == 0)
-            {
-                return ApplyClipResult::failure; // The context is out of
-                                                 // clipIDs. We will flush and
-                                                 // try again.
-            }
-            clipDraw->setClipID(clip.clipID);
-            if (!m_context->isOutsideCurrentFrame(clipDrawBounds))
-            {
-                m_internalDrawBatch.push_back(std::move(clipDraw));
-            }
+            clip.path->setDrawCache(
+                static_cast<gpu::RiveRenderPathDraw*>(clipDraw.get()),
+                clip.matrix,
+                &clipUpdatePaint);
+        }
+
+        clipDrawBounds = clipDraw->pixelBounds();
+        // Generate a new clipID every time we (re-)render an element to the
+        // clip buffer. (Each embodiment of the element needs its own
+        // separate readBounds.)
+        clip.clipID = m_context->generateClipID(clipDrawBounds);
+        assert(clip.clipID != m_context->getClipContentID());
+        if (clip.clipID == 0)
+        {
+            return ApplyClipResult::failure; // The context is out of
+                                             // clipIDs. We will flush and
+                                             // try again.
+        }
+        clipDraw->setClipID(clip.clipID);
+        gpu::DrawContents clipDrawContents = clipDraw->drawContents();
+        if (!m_context->isOutsideCurrentFrame(clipDrawBounds))
+        {
+            m_internalDrawBatch.push_back(std::move(clipDraw));
         }
 
         if (lastClipID != 0)
@@ -623,6 +623,7 @@ RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
                     gpu::DrawUniquePtr(m_context->make<gpu::StencilClipReset>(
                         m_context,
                         lastClipID,
+                        clipDrawContents,
                         gpu::StencilClipReset::ResetAction::
                             intersectPreviousClip));
                 if (!m_context->isOutsideCurrentFrame(
