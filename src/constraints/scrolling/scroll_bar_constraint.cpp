@@ -158,7 +158,7 @@ void ScrollBarConstraint::hitTrack(Vec2D worldPosition)
         auto thumbWidth = computedThumbWidth();
         auto trackRange = innerWidth - thumbWidth;
         auto maxOffsetX = m_scrollConstraint->maxOffsetX();
-        m_scrollConstraint->offsetX(
+        m_scrollConstraint->scrollOffsetX(
             math::clamp(localPosition.x / trackRange * maxOffsetX,
                         maxOffsetX,
                         0));
@@ -170,7 +170,7 @@ void ScrollBarConstraint::hitTrack(Vec2D worldPosition)
         auto thumbHeight = computedThumbHeight();
         auto trackRange = innerHeight - thumbHeight;
         auto maxOffsetY = m_scrollConstraint->maxOffsetY();
-        m_scrollConstraint->offsetY(
+        m_scrollConstraint->scrollOffsetY(
             math::clamp(localPosition.y / trackRange * maxOffsetY,
                         maxOffsetY,
                         0));
@@ -197,7 +197,7 @@ void ScrollBarConstraint::dragThumb(Vec2D delta)
         auto maxOffsetX = m_scrollConstraint->maxOffsetX();
         auto thumbOffset =
             (m_scrollConstraint->offsetX() / maxOffsetX * trackRange) + delta.x;
-        m_scrollConstraint->offsetX(
+        m_scrollConstraint->scrollOffsetX(
             math::clamp((thumbOffset / trackRange * maxOffsetX),
                         maxOffsetX,
                         0));
@@ -215,7 +215,7 @@ void ScrollBarConstraint::dragThumb(Vec2D delta)
         auto maxOffsetY = m_scrollConstraint->maxOffsetY();
         auto thumbOffset =
             (m_scrollConstraint->offsetY() / maxOffsetY * trackRange) + delta.y;
-        m_scrollConstraint->offsetY(
+        m_scrollConstraint->scrollOffsetY(
             math::clamp((thumbOffset / trackRange * maxOffsetY),
                         maxOffsetY,
                         0));

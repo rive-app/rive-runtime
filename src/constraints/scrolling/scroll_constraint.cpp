@@ -2,6 +2,7 @@
 #include "rive/constraints/scrolling/scroll_constraint_proxy.hpp"
 #include "rive/constraints/transform_constraint.hpp"
 #include "rive/core_context.hpp"
+#include "rive/layout/layout_node_provider.hpp"
 #include "rive/transform_component.hpp"
 #include "rive/math/mat2d.hpp"
 
@@ -14,8 +15,13 @@ void ScrollConstraint::constrain(TransformComponent* component)
                              constrainsVertical() ? clampedOffsetY() : 0);
 }
 
-void ScrollConstraint::constrainChild(LayoutComponent* component)
+void ScrollConstraint::constrainChild(LayoutNodeProvider* child)
 {
+    auto component = child->transformComponent();
+    if (component == nullptr)
+    {
+        return;
+    }
     auto targetTransform =
         Mat2D::multiply(component->worldTransform(), m_scrollTransform);
     TransformConstraint::constrainWorld(component,
@@ -44,10 +50,11 @@ void ScrollConstraint::runPhysics()
     {
         for (auto child : content()->children())
         {
-            if (child->is<LayoutComponent>())
+            auto c = LayoutNodeProvider::from(child);
+            if (c != nullptr)
             {
-                auto c = child->as<LayoutComponent>();
-                snappingPoints.push_back(Vec2D(c->layoutX(), c->layoutY()));
+                auto bounds = c->layoutBounds();
+                snappingPoints.push_back(Vec2D(bounds.left(), bounds.top()));
             }
         }
     }
@@ -93,11 +100,11 @@ void ScrollConstraint::buildDependencies()
     Super::buildDependencies();
     for (auto child : content()->children())
     {
-        if (child->is<LayoutComponent>())
+        auto layout = LayoutNodeProvider::from(child);
+        if (layout != nullptr)
         {
             addDependent(child);
-            child->as<LayoutComponent>()->addLayoutConstraint(
-                static_cast<LayoutConstraint*>(this));
+            layout->addLayoutConstraint(static_cast<LayoutConstraint*>(this));
         }
     }
 }
@@ -226,24 +233,26 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
         return Vec2D();
     }
     auto i = 0;
-    LayoutComponent* lastChild;
+    LayoutNodeProvider* lastChild;
     for (auto child : content()->children())
     {
-        if (child->is<LayoutComponent>())
+        auto c = LayoutNodeProvider::from(child);
+        if (c != nullptr)
         {
-            auto c = child->as<LayoutComponent>();
             auto floorIndex = std::floor(index);
             if (i == floorIndex)
             {
                 auto mod = index - floorIndex;
-                return Vec2D(-c->layoutX() - c->layoutWidth() * mod,
-                             -c->layoutY() - c->layoutHeight() * mod);
+                auto bounds = c->layoutBounds();
+                return Vec2D(-bounds.left() - bounds.width() * mod,
+                             -bounds.top() - bounds.height() * mod);
             }
             lastChild = c;
             i++;
         }
     }
-    return Vec2D(-lastChild->layoutX(), -lastChild->layoutY());
+    auto bounds = lastChild->layoutBounds();
+    return Vec2D(-bounds.left(), -bounds.top());
 }
 
 float ScrollConstraint::indexAtPosition(Vec2D pos)
@@ -257,12 +266,13 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
     {
         for (auto child : content()->children())
         {
-            if (child->is<LayoutComponent>())
+            auto c = LayoutNodeProvider::from(child);
+            if (c != nullptr)
             {
-                auto c = child->as<LayoutComponent>();
-                if (pos.x > -c->layoutX() - c->layoutWidth())
+                auto bounds = c->layoutBounds();
+                if (pos.x > -bounds.left() - bounds.width())
                 {
-                    return i + (-pos.x - c->layoutX()) / c->layoutWidth();
+                    return i + (-pos.x - bounds.left()) / bounds.width();
                 }
                 i++;
             }
@@ -273,12 +283,13 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
     {
         for (auto child : content()->children())
         {
-            if (child->is<LayoutComponent>())
+            auto c = LayoutNodeProvider::from(child);
+            if (c != nullptr)
             {
-                auto c = child->as<LayoutComponent>();
-                if (pos.y > -c->layoutY() - c->layoutHeight())
+                auto bounds = c->layoutBounds();
+                if (pos.y > -bounds.top() - bounds.height())
                 {
-                    return i + (-pos.y - c->layoutY()) / c->layoutHeight();
+                    return i + (-pos.y - bounds.top()) / bounds.height();
                 }
                 i++;
             }

@@ -3,12 +3,12 @@
 #include <stdio.h>
 namespace rive
 {
-class LayoutComponent;
+class LayoutNodeProvider;
 
 class LayoutConstraint
 {
 public:
-    virtual void constrainChild(LayoutComponent* component) {}
+    virtual void constrainChild(LayoutNodeProvider* child) {}
 };
 } // namespace rive
 

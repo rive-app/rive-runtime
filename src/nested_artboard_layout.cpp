@@ -1,5 +1,6 @@
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/artboard.hpp"
+#include "rive/math/aabb.hpp"
 
 using namespace rive;
 
@@ -26,6 +27,17 @@ float NestedArtboardLayout::actualInstanceHeight()
 {
     return instanceHeight() == -1.0f ? artboardInstance()->originalHeight()
                                      : instanceHeight();
+}
+
+AABB NestedArtboardLayout::layoutBounds()
+{
+#ifdef WITH_RIVE_LAYOUT
+    if (artboardInstance() != nullptr)
+    {
+        return artboardInstance()->layoutBounds();
+    }
+#endif
+    return AABB();
 }
 
 #ifdef WITH_RIVE_LAYOUT
@@ -76,6 +88,18 @@ void NestedArtboardLayout::update(ComponentDirt value)
         auto back = Mat2D::fromTranslation(-artboard->origin());
         m_WorldTransform = back * m_WorldTransform;
     }
+}
+
+void NestedArtboardLayout::updateConstraints()
+{
+    if (m_layoutConstraints.size() > 0)
+    {
+        for (auto parentConstraint : m_layoutConstraints)
+        {
+            parentConstraint->constrainChild(this);
+        }
+    }
+    Super::updateConstraints();
 }
 
 StatusCode NestedArtboardLayout::onAddedClean(CoreContext* context)

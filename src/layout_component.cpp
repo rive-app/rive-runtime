@@ -141,14 +141,6 @@ void LayoutComponent::updateConstraints()
     Super::updateConstraints();
 }
 
-void LayoutComponent::addLayoutConstraint(LayoutConstraint* constraint)
-{
-    assert(std::find(m_layoutConstraints.begin(),
-                     m_layoutConstraints.end(),
-                     constraint) == m_layoutConstraints.end());
-    m_layoutConstraints.push_back(constraint);
-}
-
 bool LayoutComponent::overridesKeyedInterpolation(int propertyKey)
 {
 #ifdef WITH_RIVE_LAYOUT

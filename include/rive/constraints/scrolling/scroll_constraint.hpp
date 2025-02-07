@@ -11,6 +11,7 @@
 #include <stdio.h>
 namespace rive
 {
+class LayoutNodeProvider;
 
 class ScrollConstraint : public ScrollConstraintBase,
                          public AdvancingComponent,
@@ -37,7 +38,7 @@ public:
     Core* clone() const override;
     void dragView(Vec2D delta);
     void runPhysics();
-    void constrainChild(LayoutComponent* component) override;
+    void constrainChild(LayoutNodeProvider* child) override;
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;

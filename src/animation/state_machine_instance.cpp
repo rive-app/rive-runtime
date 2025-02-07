@@ -1182,6 +1182,10 @@ void StateMachineInstance::addToHitLookup(
             hitLayout = static_cast<HitLayout*>(itr->second);
         }
         hitLayout->addListener(listenerGroup);
+        if (isOpaque)
+        {
+            hitLayout->isOpaque = true;
+        }
         return;
     }
 
@@ -1368,7 +1372,6 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         m_listenerGroups.push_back(std::move(listenerGroup));
     }
 
-    std::unordered_map<Component*, HitDrawable*> hitScrollLookup;
     std::vector<DraggableConstraint*> draggableConstraints;
     for (auto core : m_artboardInstance->objects())
     {

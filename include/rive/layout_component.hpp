@@ -5,6 +5,7 @@
 #include "rive/drawable.hpp"
 #include "rive/generated/layout_component_base.hpp"
 #include "rive/layout/layout_measure_mode.hpp"
+#include "rive/layout/layout_node_provider.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
@@ -95,7 +96,8 @@ class LayoutComponent : public LayoutComponentBase,
                         public ProxyDrawing,
                         public ShapePaintContainer,
                         public AdvancingComponent,
-                        public InterpolatorHost
+                        public InterpolatorHost,
+                        public LayoutNodeProvider
 {
 protected:
     LayoutComponentStyle* m_style = nullptr;
@@ -116,7 +118,6 @@ protected:
     ShapePaintPath m_worldPath;
     DrawableProxy m_proxy;
     bool m_displayHidden = false;
-    std::vector<LayoutConstraint*> m_layoutConstraints;
 
     Artboard* getArtboard() override { return artboard(); }
     LayoutAnimationData* currentAnimationData();
@@ -176,7 +177,7 @@ public:
     virtual void updateRenderPath();
     void update(ComponentDirt value) override;
     void onDirty(ComponentDirt value) override;
-    AABB layoutBounds()
+    AABB layoutBounds() override
     {
         return AABB::fromLTWH(m_layout.left(),
                               m_layout.top(),
@@ -238,7 +239,10 @@ public:
     void forcedWidth(float width);
     void forcedHeight(float height);
     void updateConstraints() override;
-    void addLayoutConstraint(LayoutConstraint* constraint);
+    TransformComponent* transformComponent() override
+    {
+        return this->as<TransformComponent>();
+    }
 
     LayoutComponent();
     ~LayoutComponent();
