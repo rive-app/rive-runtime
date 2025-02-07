@@ -28,7 +28,7 @@ void NestedArtboardLeaf::update(ComponentDirt value)
 
         AABB bounds = p != nullptr && p->is<LayoutComponent>()
                           ? p->as<LayoutComponent>()->localBounds()
-                          : AABB();
+                          : artboard->bounds();
 
         auto viewTransform =
             computeAlignment((Fit)fit(),
