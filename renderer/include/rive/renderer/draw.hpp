@@ -43,7 +43,7 @@ public:
         stencilClipReset,
     };
 
-    Draw(AABB bounds,
+    Draw(IAABB pixelBounds,
          const Mat2D&,
          BlendMode,
          rcp<const Texture> imageTexture,
@@ -140,7 +140,6 @@ public:
 
 protected:
     const Texture* const m_imageTextureRef;
-    const AABB m_bounds;
     const IAABB m_pixelBounds;
     const Mat2D m_matrix;
     const BlendMode m_blendMode;
@@ -185,7 +184,7 @@ inline void DrawReleaseRefs::operator()(Draw* draw) { draw->releaseRefs(); }
 
 // High level abstraction of a single path to be drawn (midpoint fan or interior
 // triangulation).
-class RiveRenderPathDraw : public Draw
+class PathDraw : public Draw
 {
 public:
     // Creates either a normal path draw or an interior triangulation if the
@@ -197,24 +196,14 @@ public:
                               const RiveRenderPaint*,
                               RawPath* scratchPath);
 
-    RiveRenderPathDraw(AABB,
-                       const Mat2D&,
-                       rcp<const RiveRenderPath>,
-                       FillRule,
-                       const RiveRenderPaint*,
-                       Type,
-                       const RenderContext::FrameDescriptor&,
-                       gpu::InterlockMode);
-
-    // Copy constructor
-    RiveRenderPathDraw(const RiveRenderPathDraw&,
-                       float tx,
-                       float ty,
-                       rcp<const RiveRenderPath>,
-                       FillRule fillRule,
-                       const RiveRenderPaint* paint,
-                       const RenderContext::FrameDescriptor&,
-                       gpu::InterlockMode);
+    PathDraw(IAABB pixelBounds,
+             const Mat2D&,
+             rcp<const RiveRenderPath>,
+             FillRule,
+             const RiveRenderPaint*,
+             Type,
+             const RenderContext::FrameDescriptor&,
+             gpu::InterlockMode);
 
     const Gradient* gradient() const { return m_gradientRef; }
     gpu::PaintType paintType() const { return m_paintType; }

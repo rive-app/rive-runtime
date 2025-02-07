@@ -33,7 +33,7 @@ class StencilClipReset;
 class Draw;
 class Gradient;
 class RenderContextImpl;
-class RiveRenderPathDraw;
+class PathDraw;
 
 // Used as a key for complex gradients.
 class GradientContentKey
@@ -266,7 +266,7 @@ public:
 
 private:
     friend class Draw;
-    friend class RiveRenderPathDraw;
+    friend class PathDraw;
     friend class ImageRectDraw;
     friend class ImageMeshDraw;
     friend class StencilClipReset;
@@ -596,7 +596,7 @@ private:
         // This method does not add the path to the draw list. The caller must
         // define that draw specifically with a separate call to
         // pushMidpointFanDraw() or pushOuterCubicsDraw().
-        [[nodiscard]] uint32_t pushPath(const RiveRenderPathDraw* draw);
+        [[nodiscard]] uint32_t pushPath(const PathDraw* draw);
 
         // Pushes a contour record to the GPU that references the given path.
         //
@@ -619,10 +619,10 @@ private:
         // Pushes a "midpointFanPatches" draw to the list. Path, contour, and
         // cubic data are pushed separately.
         //
-        // Also adds the RiveRenderPathDraw to a dstRead list if one is
+        // Also adds the PathDraw to a dstRead list if one is
         // required, and if this is the path's first subpass.
         void pushMidpointFanDraw(
-            const RiveRenderPathDraw*,
+            const PathDraw*,
             uint32_t tessVertexCount,
             uint32_t tessLocation,
             gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
@@ -630,10 +630,10 @@ private:
         // Pushes an "outerCurvePatches" draw to the list. Path, contour, and
         // cubic data are pushed separately.
         //
-        // Also adds the RiveRenderPathDraw to a dstRead list if one is
+        // Also adds the PathDraw to a dstRead list if one is
         // required, and if this is the path's first subpass.
         void pushOuterCubicsDraw(
-            const RiveRenderPathDraw*,
+            const PathDraw*,
             uint32_t tessVertexCount,
             uint32_t tessLocation,
             gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
@@ -642,7 +642,7 @@ private:
         // an "interiorTriangulation" draw to the list.
         // Returns the number of vertices actually written.
         size_t pushInteriorTriangulationDraw(
-            const RiveRenderPathDraw*,
+            const PathDraw*,
             uint32_t pathID,
             gpu::WindingFaces,
             gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
@@ -671,7 +671,7 @@ private:
         // Either appends a new drawBatch to m_drawList or merges into
         // m_drawList.tail(). Updates the batch's ShaderFeatures according to
         // the passed parameters.
-        DrawBatch& pushPathDraw(const RiveRenderPathDraw*,
+        DrawBatch& pushPathDraw(const PathDraw*,
                                 DrawType,
                                 gpu::ShaderMiscFlags,
                                 uint32_t vertexCount,

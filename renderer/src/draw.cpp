@@ -312,14 +312,13 @@ RIVE_ALWAYS_INLINE uint32_t join_type_flags(StrokeJoin join)
 }
 } // namespace
 
-Draw::Draw(AABB bounds,
+Draw::Draw(IAABB pixelBounds,
            const Mat2D& matrix,
            BlendMode blendMode,
            rcp<const Texture> imageTexture,
            Type type) :
     m_imageTextureRef(imageTexture.release()),
-    m_bounds(bounds),
-    m_pixelBounds(bounds.roundOut()),
+    m_pixelBounds(pixelBounds),
     m_matrix(matrix),
     m_blendMode(blendMode),
     m_type(type)
@@ -352,12 +351,12 @@ void Draw::setClipID(uint32_t clipID)
 
 void Draw::releaseRefs() { safe_unref(m_imageTextureRef); }
 
-DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
-                                       const Mat2D& matrix,
-                                       rcp<const RiveRenderPath> path,
-                                       FillRule fillRule,
-                                       const RiveRenderPaint* paint,
-                                       RawPath* scratchPath)
+DrawUniquePtr PathDraw::Make(RenderContext* context,
+                             const Mat2D& matrix,
+                             rcp<const RiveRenderPath> path,
+                             FillRule fillRule,
+                             const RiveRenderPaint* paint,
+                             RawPath* scratchPath)
 {
     assert(path != nullptr);
     assert(paint != nullptr);
@@ -435,24 +434,24 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
         }
     }
 
-    auto draw = context->make<RiveRenderPathDraw>(
-        pixelBounds,
-        matrix,
-        std::move(path),
-        fillRule,
-        paint,
-        doTriangulation ? Type::interiorTriangulationPath
-                        : Type::midpointFanPath,
-        context->frameDescriptor(),
-        context->frameInterlockMode());
+    auto draw = context->make<PathDraw>(pixelBounds,
+                                        matrix,
+                                        std::move(path),
+                                        fillRule,
+                                        paint,
+                                        doTriangulation
+                                            ? Type::interiorTriangulationPath
+                                            : Type::midpointFanPath,
+                                        context->frameDescriptor(),
+                                        context->frameInterlockMode());
     if (doTriangulation)
     {
         draw->initForInteriorTriangulation(
             context,
             scratchPath,
             localBounds.width() > localBounds.height()
-                ? RiveRenderPathDraw::TriangulatorAxis::horizontal
-                : RiveRenderPathDraw::TriangulatorAxis::vertical);
+                ? PathDraw::TriangulatorAxis::horizontal
+                : PathDraw::TriangulatorAxis::vertical);
     }
     else
     {
@@ -462,16 +461,15 @@ DrawUniquePtr RiveRenderPathDraw::Make(RenderContext* context,
     return DrawUniquePtr(draw);
 }
 
-RiveRenderPathDraw::RiveRenderPathDraw(
-    AABB bounds,
-    const Mat2D& matrix,
-    rcp<const RiveRenderPath> path,
-    FillRule initialFillRule,
-    const RiveRenderPaint* paint,
-    Type type,
-    const RenderContext::FrameDescriptor& frameDesc,
-    gpu::InterlockMode interlockMode) :
-    Draw(bounds,
+PathDraw::PathDraw(IAABB pixelBounds,
+                   const Mat2D& matrix,
+                   rcp<const RiveRenderPath> path,
+                   FillRule initialFillRule,
+                   const RiveRenderPaint* paint,
+                   Type type,
+                   const RenderContext::FrameDescriptor& frameDesc,
+                   gpu::InterlockMode interlockMode) :
+    Draw(pixelBounds,
          matrix,
          paint->getBlendMode(),
          ref_rcp(paint->getImageTexture()),
@@ -612,64 +610,16 @@ RiveRenderPathDraw::RiveRenderPathDraw(
     assert(!isFeatheredFill() || featherRadius() > 0);
 }
 
-RiveRenderPathDraw::RiveRenderPathDraw(
-    const RiveRenderPathDraw& from,
-    float tx,
-    float ty,
-    rcp<const RiveRenderPath> path,
-    FillRule fillRule,
-    const RiveRenderPaint* paint,
-    const RenderContext::FrameDescriptor& frameDesc,
-    gpu::InterlockMode interlockMode) :
-    RiveRenderPathDraw(
-        from.m_bounds.offset(tx - from.m_matrix.tx(), ty - from.m_matrix.ty()),
-        from.m_matrix.translate(
-            Vec2D(tx - from.m_matrix.tx(), ty - from.m_matrix.ty())),
-        path,
-        fillRule,
-        paint,
-        from.m_type,
-        frameDesc,
-        interlockMode)
-
+void PathDraw::releaseRefs()
 {
-    m_resourceCounts = from.m_resourceCounts;
-
-    if (isStrokeOrFeather())
-    {
-        m_strokeMatrixMaxScale = from.m_strokeMatrixMaxScale;
-        m_polarSegmentsPerRadian = from.m_polarSegmentsPerRadian;
-        m_strokeJoin = from.m_strokeJoin;
-        m_strokeCap = from.m_strokeCap;
-    }
-    m_contours = from.m_contours;
-    m_numChops = from.m_numChops;
-    m_chopVertices = from.m_chopVertices;
-    m_tangentPairs = from.m_tangentPairs;
-    m_polarSegmentCounts = from.m_polarSegmentCounts;
-    m_parametricSegmentCounts = from.m_parametricSegmentCounts;
-    m_triangulator = from.m_triangulator;
-
-    RIVE_DEBUG_CODE(m_pendingLineCount = from.m_pendingLineCount;)
-    RIVE_DEBUG_CODE(m_pendingCurveCount = from.m_pendingCurveCount;)
-    RIVE_DEBUG_CODE(m_pendingRotationCount = from.m_pendingRotationCount;)
-    RIVE_DEBUG_CODE(m_pendingStrokeJoinCount = from.m_pendingStrokeJoinCount;)
-    RIVE_DEBUG_CODE(m_pendingStrokeCapCount = from.m_pendingStrokeCapCount;)
-    RIVE_DEBUG_CODE(m_pendingEmptyStrokeCountForCaps =
-                        from.m_pendingEmptyStrokeCountForCaps;)
-}
-
-void RiveRenderPathDraw::releaseRefs()
-{
-    m_pathRef->invalidateDrawCache();
     Draw::releaseRefs();
     RIVE_DEBUG_CODE(m_pathRef->unlockRawPathMutations();)
     m_pathRef->unref();
     safe_unref(m_gradientRef);
 }
 
-void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
-                                            const RiveRenderPaint* paint)
+void PathDraw::initForMidpointFan(RenderContext* context,
+                                  const RiveRenderPaint* paint)
 {
     assert(type() == Type::midpointFanPath);
     assert(simd::all(m_resourceCounts.toVec() == 0)); // Only call init() once.
@@ -1295,10 +1245,9 @@ void RiveRenderPathDraw::initForMidpointFan(RenderContext* context,
     }
 }
 
-void RiveRenderPathDraw::initForInteriorTriangulation(
-    RenderContext* context,
-    RawPath* scratchPath,
-    TriangulatorAxis triangulatorAxis)
+void PathDraw::initForInteriorTriangulation(RenderContext* context,
+                                            RawPath* scratchPath,
+                                            TriangulatorAxis triangulatorAxis)
 {
     assert(type() == Type::interiorTriangulationPath);
     assert(simd::all(m_resourceCounts.toVec() == 0)); // Only call init() once.
@@ -1317,8 +1266,7 @@ void RiveRenderPathDraw::initForInteriorTriangulation(
     m_numChops.shrinkToFit(context->numChopsAllocator(), originalNumChopsSize);
 }
 
-bool RiveRenderPathDraw::allocateResourcesAndSubpasses(
-    RenderContext::LogicalFlush* flush)
+bool PathDraw::allocateResourcesAndSubpasses(RenderContext::LogicalFlush* flush)
 {
     // Allocate a coverage buffer range if in clockwiseAtomic mode.
     if (flush->interlockMode() == gpu::InterlockMode::clockwiseAtomic)
@@ -1394,8 +1342,8 @@ bool RiveRenderPathDraw::allocateResourcesAndSubpasses(
     return true;
 }
 
-void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
-                                             int subpassIndex)
+void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
+                                   int subpassIndex)
 {
     // Make sure the rawPath in our path reference hasn't changed since we began
     // holding!
@@ -1427,10 +1375,9 @@ void RiveRenderPathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
     }
 }
 
-void RiveRenderPathDraw::pushToRenderContextImpl(
-    RenderContext::LogicalFlush* flush,
-    int subpassIndex,
-    uint32_t tessVertexCount)
+void PathDraw::pushToRenderContextImpl(RenderContext::LogicalFlush* flush,
+                                       int subpassIndex,
+                                       uint32_t tessVertexCount)
 {
     assert(flush->desc().interlockMode == gpu::InterlockMode::rasterOrdering ||
            flush->desc().interlockMode == gpu::InterlockMode::atomics ||
@@ -1622,10 +1569,9 @@ void RiveRenderPathDraw::pushToRenderContextImpl(
     }
 }
 
-void RiveRenderPathDraw::pushToRenderContextImplMSAA(
-    RenderContext::LogicalFlush* flush,
-    int subpassIndex,
-    uint32_t tessVertexCount)
+void PathDraw::pushToRenderContextImplMSAA(RenderContext::LogicalFlush* flush,
+                                           int subpassIndex,
+                                           uint32_t tessVertexCount)
 {
     assert(flush->desc().interlockMode == gpu::InterlockMode::msaa);
     assert(m_pathID != 0);
@@ -1666,7 +1612,7 @@ void RiveRenderPathDraw::pushToRenderContextImplMSAA(
     pushMidpointFanTessellationData(&tessWriter);
 }
 
-void RiveRenderPathDraw::pushMidpointFanTessellationData(
+void PathDraw::pushMidpointFanTessellationData(
     RenderContext::TessellationWriter* tessWriter)
 {
     const RawPath& rawPath = m_pathRef->getRawPath();
@@ -2054,7 +2000,7 @@ void RiveRenderPathDraw::pushMidpointFanTessellationData(
     assert(m_pendingEmptyStrokeCountForCaps == 0);
 }
 
-void RiveRenderPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
+void PathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     RenderContext::TessellationWriter* tessWriter,
     const Vec2D cubic[],
     uint32_t strokeCapSegmentCount,
@@ -2077,7 +2023,7 @@ void RiveRenderPathDraw::pushEmulatedStrokeCapAsJoinBeforeCubic(
     RIVE_DEBUG_CODE(--m_pendingEmptyStrokeCountForCaps;)
 }
 
-void RiveRenderPathDraw::iterateInteriorTriangulation(
+void PathDraw::iterateInteriorTriangulation(
     InteriorTriangulationOp op,
     TrivialBlockAllocator* allocator,
     RawPath* scratchPath,

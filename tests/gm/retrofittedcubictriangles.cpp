@@ -30,21 +30,21 @@ rcp<RiveRenderPath> make_nonempty_placeholder_path()
     return path;
 }
 
-class PushRetrofittedTrianglesGMDraw : public RiveRenderPathDraw
+class PushRetrofittedTrianglesGMDraw : public PathDraw
 {
 public:
     PushRetrofittedTrianglesGMDraw(RenderContext* context,
                                    const RiveRenderPaint* paint) :
-        RiveRenderPathDraw(kFullscreenPixelBounds,
-                           Mat2D(),
-                           make_nonempty_placeholder_path(),
-                           context->frameDescriptor().clockwiseFillOverride
-                               ? FillRule::clockwise
-                               : FillRule::nonZero,
-                           paint,
-                           Type::interiorTriangulationPath,
-                           context->frameDescriptor(),
-                           context->frameInterlockMode())
+        PathDraw(kFullscreenPixelBounds,
+                 Mat2D(),
+                 make_nonempty_placeholder_path(),
+                 context->frameDescriptor().clockwiseFillOverride
+                     ? FillRule::clockwise
+                     : FillRule::nonZero,
+                 paint,
+                 Type::interiorTriangulationPath,
+                 context->frameDescriptor(),
+                 context->frameInterlockMode())
     {
         m_resourceCounts.pathCount = 1;
         m_resourceCounts.contourCount = 1;
@@ -64,7 +64,7 @@ public:
     bool allocateResourcesAndSubpasses(
         RenderContext::LogicalFlush* flush) override
     {
-        if (!RiveRenderPathDraw::allocateResourcesAndSubpasses(flush))
+        if (!PathDraw::allocateResourcesAndSubpasses(flush))
         {
             return false;
         }

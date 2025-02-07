@@ -16,7 +16,7 @@
 using namespace rive;
 using namespace rive::gpu;
 
-using PathDraw = std::tuple<rcp<RiveRenderPath>, rcp<RiveRenderPaint>>;
+using PathPaint = std::tuple<rcp<RiveRenderPath>, rcp<RiveRenderPaint>>;
 
 // Measure the speed of RiveRenderer::drawPath(), with a null render context.
 class DrawRiveRenderPath : public Bench
@@ -30,7 +30,7 @@ protected:
                 .renderTargetWidth = m_renderTarget->width(),
                 .renderTargetHeight = m_renderTarget->height(),
             });
-            for (const auto& [path, paint] : m_pathDraws)
+            for (const auto& [path, paint] : m_pathPaints)
             {
                 m_renderer.drawPath(path.get(), paint.get());
             }
@@ -39,7 +39,7 @@ protected:
         return 0;
     }
 
-    std::vector<PathDraw> m_pathDraws;
+    std::vector<PathPaint> m_pathPaints;
     std::unique_ptr<RenderContext> m_nullContext =
         RenderContextNULL::MakeContext();
     mutable RiveRenderer m_renderer{m_nullContext.get()};
@@ -52,10 +52,10 @@ protected:
 class SniffPathsRenderer : public Renderer
 {
 public:
-    SniffPathsRenderer(std::vector<PathDraw>* pathDraws,
+    SniffPathsRenderer(std::vector<PathPaint>* pathPaints,
                        bool allStrokes,
                        bool allRoundJoin) :
-        m_pathDraws(pathDraws),
+        m_pathPaints(pathPaints),
         m_allStrokes(allStrokes),
         m_allRoundJoin(allRoundJoin)
     {}
@@ -77,7 +77,7 @@ public:
             renderPaint->join(StrokeJoin::round);
         }
 
-        m_pathDraws->push_back({ref_rcp(renderPath), ref_rcp(renderPaint)});
+        m_pathPaints->push_back({ref_rcp(renderPath), ref_rcp(renderPaint)});
     }
     void clipPath(RenderPath* path) override {}
     void drawImage(const RenderImage*, BlendMode, float) override {}
@@ -92,7 +92,7 @@ public:
     {}
 
 private:
-    std::vector<PathDraw>* m_pathDraws;
+    std::vector<PathPaint>* m_pathPaints;
     bool m_allStrokes;
     bool m_allRoundJoin;
 };
@@ -105,7 +105,7 @@ public:
     DrawRiveRenderPaths(bool allStrokes = false, bool allRoundJoin = false)
     {
         // Sniff paths out of a .riv file.
-        SniffPathsRenderer sniffer(&m_pathDraws, allStrokes, allRoundJoin);
+        SniffPathsRenderer sniffer(&m_pathPaints, allStrokes, allRoundJoin);
         std::unique_ptr<File> rivFile =
             File::import(assets::paper_riv(), m_nullContext.get());
         std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
@@ -148,8 +148,8 @@ public:
                 m_nullContext->makeRenderPaint());
             renderPaint->style(RenderPaintStyle::stroke);
             renderPaint->thickness(2);
-            m_pathDraws.emplace_back(std::move(renderPath),
-                                     std::move(renderPaint));
+            m_pathPaints.emplace_back(std::move(renderPath),
+                                      std::move(renderPaint));
         }
     }
 

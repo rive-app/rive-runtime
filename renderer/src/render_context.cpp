@@ -1741,7 +1741,7 @@ uint32_t RenderContext::LogicalFlush::allocateOuterCubicTessVertices(
     return location;
 }
 
-uint32_t RenderContext::LogicalFlush::pushPath(const RiveRenderPathDraw* draw)
+uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
 {
     assert(m_hasDoneLayout);
 
@@ -2091,7 +2091,7 @@ void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t count,
 }
 
 void RenderContext::LogicalFlush::pushMidpointFanDraw(
-    const RiveRenderPathDraw* draw,
+    const PathDraw* draw,
     uint32_t tessVertexCount,
     uint32_t tessLocation,
     gpu::ShaderMiscFlags shaderMiscFlags)
@@ -2117,7 +2117,7 @@ void RenderContext::LogicalFlush::pushMidpointFanDraw(
 }
 
 void RenderContext::LogicalFlush::pushOuterCubicsDraw(
-    const RiveRenderPathDraw* draw,
+    const PathDraw* draw,
     uint32_t tessVertexCount,
     uint32_t tessLocation,
     gpu::ShaderMiscFlags shaderMiscFlags)
@@ -2141,7 +2141,7 @@ void RenderContext::LogicalFlush::pushOuterCubicsDraw(
 }
 
 size_t RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
-    const RiveRenderPathDraw* draw,
+    const PathDraw* draw,
     uint32_t pathID,
     gpu::WindingFaces windingFaces,
     gpu::ShaderMiscFlags shaderMiscFlags)
@@ -2258,7 +2258,7 @@ void RenderContext::LogicalFlush::pushBarrier()
 }
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
-    const RiveRenderPathDraw* draw,
+    const PathDraw* draw,
     DrawType drawType,
     gpu::ShaderMiscFlags shaderMiscFlags,
     uint32_t vertexCount,
