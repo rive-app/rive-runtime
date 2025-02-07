@@ -288,11 +288,34 @@ RawPath::Iter RawPath::addPathBackwards(const RawPath& src, const Mat2D* mat)
             reverseVerbIterator--;
         }
 
+        bool hasPendingMoveCommand = false;
+
         for (; reverseVerbIterator != src.m_Verbs.begin();
              reverseVerbIterator--)
         {
             PathVerb verb = *reverseVerbIterator;
-            m_Verbs.emplace_back(verb);
+            // For paths that have multiple segments (like in certain font
+            // glyphs), we need to flip the intermediate move verbs with the
+            // previous close path. So we hold on to it and add it after the
+            // next close call.
+            if (verb == PathVerb::move)
+            {
+                hasPendingMoveCommand = true;
+            }
+            else
+            {
+                if (hasPendingMoveCommand && verb != PathVerb::close)
+                {
+                    m_Verbs.emplace_back(PathVerb::move);
+                    hasPendingMoveCommand = false;
+                }
+                m_Verbs.emplace_back(verb);
+                if (hasPendingMoveCommand && verb == PathVerb::close)
+                {
+                    m_Verbs.emplace_back(PathVerb::move);
+                    hasPendingMoveCommand = false;
+                }
+            }
             switch (verb)
             {
                 case PathVerb::cubic:
@@ -308,6 +331,13 @@ RawPath::Iter RawPath::addPathBackwards(const RawPath& src, const Mat2D* mat)
                 default:
                     break;
             }
+        }
+        // This should never be the case, but if for some reason a path ends
+        // with a move command, we add it to the list of verbs to ensure the
+        // path matches with the number of points
+        if (hasPendingMoveCommand)
+        {
+            m_Verbs.emplace_back(PathVerb::move);
         }
         m_Verbs.emplace_back(PathVerb::close);
     }
