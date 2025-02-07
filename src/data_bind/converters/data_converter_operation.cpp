@@ -61,6 +61,15 @@ DataValue* DataConverterOperation::convertValue(DataValue* input, float value)
             case ArithmeticOperation::atangent2:
                 resultValue = atan2(inputValue, resultValue);
                 break;
+            case ArithmeticOperation::round:
+                resultValue = roundf(inputValue);
+                break;
+            case ArithmeticOperation::floor:
+                resultValue = floorf(inputValue);
+                break;
+            case ArithmeticOperation::ceil:
+                resultValue = ceilf(inputValue);
+                break;
         }
         m_output.value(resultValue);
     }
@@ -93,8 +102,9 @@ DataValue* DataConverterOperation::reverseConvertValue(DataValue* input,
             case ArithmeticOperation::divide:
                 resultValue = inputValue * resultValue;
                 break;
-                // No reverse operation for modulo
+                //
             case ArithmeticOperation::modulo:
+                resultValue = inputValue; //  No reverse operation for modulo
                 break;
             case ArithmeticOperation::squareRoot:
                 resultValue = powf(inputValue, 2);
@@ -127,7 +137,12 @@ DataValue* DataConverterOperation::reverseConvertValue(DataValue* input,
                 resultValue = tan(inputValue);
                 break;
             case ArithmeticOperation::atangent2:
-                resultValue = inputValue; // atan2 doesn't have an inverse
+                resultValue = inputValue; //  No reverse operation for atan2
+                break;
+            case ArithmeticOperation::round:
+            case ArithmeticOperation::floor:
+            case ArithmeticOperation::ceil:
+                resultValue = inputValue; //  No reverse operation
                 break;
         }
         output->value(resultValue);

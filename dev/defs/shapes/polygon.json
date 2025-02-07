@@ -13,7 +13,8 @@
         "int": 125,
         "string": "points"
       },
-      "description": "The number of points for the polygon."
+      "description": "The number of points for the polygon.",
+      "bindable": true
     },
     "cornerRadius": {
       "type": "double",
@@ -22,7 +23,8 @@
         "int": 126,
         "string": "cornerradius"
       },
-      "description": "The corner radius."
+      "description": "The corner radius.",
+      "bindable": true
     }
   }
 }

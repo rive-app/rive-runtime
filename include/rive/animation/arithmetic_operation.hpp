@@ -21,6 +21,9 @@ enum class ArithmeticOperation : int
     asine = 13,
     atangent = 14,
     atangent2 = 15,
+    round = 16,
+    floor = 17,
+    ceil = 18,
 };
 } // namespace rive
 
