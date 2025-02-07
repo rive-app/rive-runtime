@@ -131,6 +131,7 @@
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
+#include "rive/data_bind/converters/data_converter_boolean_negate.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
@@ -570,6 +571,8 @@ public:
                 return new DataConverterStringTrim();
             case DataConverterOperationViewModelBase::typeKey:
                 return new DataConverterOperationViewModel();
+            case DataConverterBooleanNegateBase::typeKey:
+                return new DataConverterBooleanNegate();
             case DataConverterToStringBase::typeKey:
                 return new DataConverterToString();
             case DataBindContextBase::typeKey:

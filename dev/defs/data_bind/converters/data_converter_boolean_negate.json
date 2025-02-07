@@ -1,0 +1,8 @@
+{
+  "name": "DataConverterBooleanNegate",
+  "key": {
+    "int": 535,
+    "string": "dataconverterbooleannegate"
+  },
+  "extends": "data_bind/converters/data_converter.json"
+}
