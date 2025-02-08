@@ -530,9 +530,9 @@ TEST_CASE("find_cubic_convex_180_chops", "[bezier_utils]")
 TEST_CASE("find_cubic_convex_180_chops_lines", "[bezier_utils]")
 {
     Vec2D p0 = {123, 200}, p3 = {223, 432};
-    for (float t0 = 0; t0 < 1; t0 += .12f)
+    for (float t0 = 1e-3f; t0 < 1; t0 += .12f)
     {
-        for (float t1 = t0 + .097f; t0 < 1; t0 += .097f)
+        for (float t1 = t0 + .097f; t1 < 1; t1 += .097f)
         {
             Vec2D line[4] = {p0, lerp(p0, p3, t0), lerp(p0, p3, t1), p3};
             float _[2];
