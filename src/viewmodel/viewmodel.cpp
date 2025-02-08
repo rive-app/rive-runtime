@@ -43,7 +43,12 @@ void ViewModel::addInstance(ViewModelInstance* value)
 
 ViewModelInstance* ViewModel::defaultInstance()
 {
-    return m_Instances[defaultInstanceId()];
+    if (m_Instances.size() > 0)
+    {
+
+        return m_Instances[0];
+    }
+    return nullptr;
 }
 
 ViewModelInstance* ViewModel::instance(size_t index)

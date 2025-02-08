@@ -45,6 +45,26 @@
       },
       "description": "Whether it is visible on stage or not.",
       "runtime": false
+    },
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "key": {
+        "int": 739,
+        "string": "order"
+      },
+      "description": "View model instance display order",
+      "runtime": false
+    },
+    "export": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 740,
+        "string": "export"
+      },
+      "description": "Whether the instance should be exported for runtime.",
+      "runtime": false
     }
   }
 }

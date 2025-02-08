@@ -26,7 +26,21 @@
         "int": 564,
         "string": "defaultinstanceid"
       },
-      "description": "The default instance attached to the view model."
+      "description": "The default instance attached to the view model.",
+      "runtime": false
+    },
+    "editingInstanceId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 741,
+        "string": "editinginstanceid"
+      },
+      "description": "The selected inspector instance. Saves to local editor properties.",
+      "runtime": false,
+      "coop": false
     }
   }
 }
