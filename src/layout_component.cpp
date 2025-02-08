@@ -770,6 +770,10 @@ void LayoutComponent::propagateSize() { propagateSizeToChildren(this); }
 
 void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
 {
+    if (isHidden())
+    {
+        return;
+    }
     for (auto child : component->children())
     {
         if (child->is<LayoutComponent>() ||
@@ -854,6 +858,12 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     }
     node.setHasNewLayout(false);
 
+    if (m_style != nullptr && styleDisplayHidden() != m_displayHidden)
+    {
+        m_displayHidden = styleDisplayHidden();
+        propagateCollapse(isCollapsed());
+    }
+
     for (auto child : children())
     {
         if (child->is<LayoutComponent>())
@@ -908,11 +918,6 @@ void LayoutComponent::updateLayoutBounds(bool animate)
 
         propagateSize();
         markWorldTransformDirty();
-    }
-    if (m_style != nullptr && styleDisplayHidden() != m_displayHidden)
-    {
-        m_displayHidden = styleDisplayHidden();
-        propagateCollapse(isCollapsed());
     }
 }
 
