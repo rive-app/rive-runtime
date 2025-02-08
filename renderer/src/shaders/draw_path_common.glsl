@@ -42,7 +42,7 @@ STORAGE_BUFFER_U32x2(PAINT_BUFFER_IDX, PaintBuffer, @paintBuffer);
 STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 VERTEX_STORAGE_BUFFER_BLOCK_END
-#endif // VERTEX
+#endif // @VERTEX
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
@@ -51,6 +51,9 @@ TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
 TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
 #endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
+#ifdef @ATLAS_COVERAGE
+TEXTURE_R16F(PER_DRAW_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
+#endif
 #if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_ADVANCED_BLEND)
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
 #endif
@@ -314,12 +317,6 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 
     float strokeRadius = uintBitsToFloat(pathData.z);
     float featherRadius = uintBitsToFloat(pathData.w);
-
-#ifdef @RENDER_MODE_MSAA
-    // Unpack the rest of the path data.
-    uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
-    outPathZIndex = cast_uint_to_ushort(pathData2.r);
-#endif
 
     // Fix the tessellation vertex if we fetched the wrong one in order to
     // guarantee we got the correct contour ID and flags, or if we belong to a
@@ -700,7 +697,10 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 
     outVertexPosition = MUL(M, origin) + postTransformVertexOffset + translate;
 
-#ifndef @RENDER_MODE_MSAA
+#ifdef @RENDER_MODE_MSAA
+    uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
+    outPathZIndex = cast_uint_to_ushort(pathData2.r);
+#else
     // Force coverage to solid when wireframe is enabled so we can see the
     // triangles.
     outCoverages.xy = mix(outCoverages.xy,
@@ -713,17 +713,44 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 #endif // @VERTEX && @DRAW_PATH
 
 #if defined(@VERTEX) && defined(@DRAW_INTERIOR_TRIANGLES)
-INLINE float2
-unpack_interior_triangle_vertex(float3 triangleVertex,
-                                OUT(uint) outPathID,
-                                OUT(half) outWindingWeight VERTEX_CONTEXT_DECL)
+INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
+                                              OUT(uint) outPathID
+#ifdef @RENDER_MODE_MSAA
+                                              ,
+                                              OUT(ushort) outPathZIndex
+#elif !defined(@ATLAS_COVERAGE)
+                                              ,
+                                              OUT(half) outWindingWeight
+#endif
+#ifdef @ATLAS_COVERAGE
+                                              ,
+                                              OUT(half2) outAtlasCoord
+#endif
+                                                  VERTEX_CONTEXT_DECL)
 {
     outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
     float2x2 M = make_float2x2(
         uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
     uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
     float2 translate = uintBitsToFloat(pathData.xy);
+#if defined(@RENDER_MODE_MSAA) || defined(@ATLAS_COVERAGE)
+    uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
+#endif
+#ifdef @RENDER_MODE_MSAA
+    outPathZIndex = cast_uint_to_ushort(pathData2.x);
+#elif !defined(@ATLAS_COVERAGE)
     outWindingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
-    return MUL(M, triangleVertex.xy) + translate;
+#endif
+    float2 vertexPos = triangleVertex.xy;
+#ifdef @ATLAS_COVERAGE
+    // outAtlasCoord tells the fragment shader where to fetch coverage from the
+    // atlas.
+    float2 screenToAtlasOffset =
+        float2(int2(pathData2.y << 16, pathData2.y) >> 16);
+    outAtlasCoord = vertexPos + screenToAtlasOffset;
+#else
+    vertexPos = MUL(M, vertexPos) + translate;
+#endif
+    return vertexPos;
 }
 #endif // @VERTEX && @DRAW_INTERIOR_TRIANGLES

@@ -466,6 +466,10 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_colorClearValue(SwizzleRiveColorToRGBAPremul(flushDesc.clearColor)),
     m_coverageClearValue(flushDesc.coverageClearValue),
     m_renderTargetUpdateBounds(flushDesc.renderTargetUpdateBounds),
+    m_atlasTextureInverseSize(1.f / flushDesc.atlasTextureWidth,
+                              1.f / flushDesc.atlasTextureHeight),
+    m_atlasContentInverseViewport(2.f / flushDesc.atlasContentWidth,
+                                  2.f / flushDesc.atlasContentHeight),
     m_coverageBufferPrefix(flushDesc.coverageBufferPrefix),
     m_pathIDGranularity(platformFeatures.pathIDGranularity),
     m_vertexDiscardValue(std::numeric_limits<float>::quiet_NaN()),
@@ -485,12 +489,17 @@ void PathData::set(const Mat2D& m,
                    float strokeRadius,
                    float featherRadius,
                    uint32_t zIndex,
+                   int16_t screenToAtlasOffsetX,
+                   int16_t screenToAtlasOffsetY,
                    const CoverageBufferRange& coverageBufferRange)
 {
     write_matrix(m_matrix, m);
     m_strokeRadius = strokeRadius; // 0 if the path is filled.
     m_zIndex = zIndex;
     m_featherRadius = featherRadius;
+    m_screenToAtlasOffsetPackedXY =
+        (static_cast<uint32_t>(screenToAtlasOffsetY) << 16) |
+        (static_cast<uint32_t>(screenToAtlasOffsetX) & 0xffffu);
     m_coverageBufferRange.offset = coverageBufferRange.offset;
     m_coverageBufferRange.pitch = coverageBufferRange.pitch;
     m_coverageBufferRange.offsetX = coverageBufferRange.offsetX;

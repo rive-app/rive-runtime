@@ -106,17 +106,18 @@
 #define GRAD_TEXTURE_IDX 1
 #define FEATHER_TEXTURE_IDX 2
 #define IMAGE_TEXTURE_IDX 3
-#define PATH_BUFFER_IDX 4
-#define PAINT_BUFFER_IDX 5
-#define PAINT_AUX_BUFFER_IDX 6
-#define CONTOUR_BUFFER_IDX 7
-#define FLUSH_UNIFORM_BUFFER_IDX 8
-#define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX 9
-#define IMAGE_DRAW_UNIFORM_BUFFER_IDX 10
+#define ATLAS_TEXTURE_IDX 4
+#define PATH_BUFFER_IDX 5
+#define PAINT_BUFFER_IDX 6
+#define PAINT_AUX_BUFFER_IDX 7
+#define CONTOUR_BUFFER_IDX 8
+#define FLUSH_UNIFORM_BUFFER_IDX 9
+#define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX 10
+#define IMAGE_DRAW_UNIFORM_BUFFER_IDX 11
 // Coverage buffer used in coverageAtomic mode.
-#define COVERAGE_BUFFER_IDX 11
-#define DST_COLOR_TEXTURE_IDX 12
-#define DEFAULT_BINDINGS_SET_SIZE 13
+#define COVERAGE_BUFFER_IDX 12
+#define DST_COLOR_TEXTURE_IDX 13
+#define DEFAULT_BINDINGS_SET_SIZE 14
 
 // Samplers are accessed at the same index as their corresponding texture, so we
 // put them in a separate binding set.

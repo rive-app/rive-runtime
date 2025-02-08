@@ -83,6 +83,12 @@ public:
             T(std::forward<Args>(args)...);
     }
 
+    template <typename T> T* makePODArray(size_t count)
+    {
+        static_assert(std::is_pod<T>::value);
+        return reinterpret_cast<T*>(alloc<alignof(T)>(count * sizeof(T)));
+    }
+
 private:
     const size_t m_initialBlockSize;
 

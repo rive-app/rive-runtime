@@ -35,7 +35,7 @@ void CompileAndAttachShader(GLuint program,
                                    size_t numSources,
                                    const GLCapabilities&);
 
-[[nodiscard]] GLuint CompileRawGLSL(GLuint shaderType, const char* rawGLSL);
+[[nodiscard]] GLuint CompileRawGLSL(GLenum shaderType, const char* rawGLSL);
 
 void LinkProgram(GLuint program);
 
@@ -151,6 +151,41 @@ public:
     ~VAO() { glDeleteVertexArrays(1, &m_id); }
 };
 
+class Shader : public GLObject
+{
+public:
+    Shader() = default;
+    Shader(Shader&& rhs) : GLObject(std::move(rhs)) {}
+    Shader& operator=(Shader&& rhs)
+    {
+        reset(std::exchange(rhs.m_id, 0));
+        return *this;
+    }
+    ~Shader() { reset(0); }
+
+    void compile(GLenum type,
+                 const char* source,
+                 const GLCapabilities& capabilities)
+    {
+        compile(type, nullptr, 0, &source, 1, capabilities);
+    }
+    void compile(GLenum type,
+                 const char* defines[],
+                 size_t numDefines,
+                 const char* sources[],
+                 size_t numSources,
+                 const GLCapabilities&);
+
+    void reset(GLuint adoptedID = 0)
+    {
+        if (m_id != 0)
+        {
+            glDeleteShader(m_id);
+        }
+        m_id = adoptedID;
+    }
+};
+
 class Program : public GLObject
 {
 public:
@@ -158,8 +193,8 @@ public:
     Program& operator=(Program&& rhs)
     {
         reset(std::exchange(rhs.m_id, 0));
-        m_vertexShaderID = std::exchange(rhs.m_vertexShaderID, 0);
-        m_fragmentShaderID = std::exchange(rhs.m_fragmentShaderID, 0);
+        m_vertexShader = std::move(rhs.m_vertexShader);
+        m_fragmentShader = std::move(rhs.m_fragmentShader);
         return *this;
     }
     ~Program() { reset(0); }
@@ -186,8 +221,8 @@ private:
 
     void reset(GLuint adoptedProgramID);
 
-    GLuint m_vertexShaderID = 0;
-    GLuint m_fragmentShaderID = 0;
+    glutils::Shader m_vertexShader;
+    glutils::Shader m_fragmentShader;
 };
 
 void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter);

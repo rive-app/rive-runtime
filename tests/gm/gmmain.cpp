@@ -70,14 +70,6 @@ static void dumpGMs(const std::string& match, bool interactive)
         {
             continue; // A different process already drew this gm.
         }
-#ifdef RIVE_ANDROID
-        if (gm->name().find("feather") != std::string::npos)
-        {
-            // Don't support or test feathering on Android until MSAA is
-            // implemented and device-specific crashes are resolved.
-            continue;
-        }
-#endif
         gm->onceBeforeDraw();
 
         dump_gm(gm.get());

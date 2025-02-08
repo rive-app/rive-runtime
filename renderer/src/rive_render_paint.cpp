@@ -49,6 +49,14 @@ void RiveRenderPaint::clipUpdate(uint32_t outerClipID)
 
 bool RiveRenderPaint::getIsOpaque() const
 {
+    if (m_feather != 0)
+    {
+        return false;
+    }
+    if (m_blendMode != BlendMode::srcOver)
+    {
+        return false;
+    }
     switch (m_paintType)
     {
         case gpu::PaintType::solidColor:

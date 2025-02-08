@@ -179,10 +179,12 @@ float renderTargetInverseViewportX;
 float renderTargetInverseViewportY;
 uint renderTargetWidth;
 uint renderTargetHeight;
-uint colorClearValue;          // Only used if clears are implemented as draws.
-uint coverageClearValue;       // Only used if clears are implemented as draws.
-int4 renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if there is
-                               // a clear. (LTRB.)
+uint colorClearValue;           // Only used if clears are implemented as draws.
+uint coverageClearValue;        // Only used if clears are implemented as draws.
+int4 renderTargetUpdateBounds;  // drawBounds, or renderTargetBounds if there is
+                                // a clear. (LTRB.)
+float2 atlasTextureInverseSize; // 1 / [atlasWidth, atlasHeight]
+float2 atlasContentInverseViewport; // 2 / atlasContentBounds
 uint coverageBufferPrefix;
 uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE
                         // compliant).

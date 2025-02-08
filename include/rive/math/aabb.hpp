@@ -7,31 +7,31 @@
 
 namespace rive
 {
-struct IAABB
+template <typename T> struct TAABB
 {
     int32_t left, top, right, bottom;
 
-    constexpr int width() const { return right - left; }
-    constexpr int height() const { return bottom - top; }
+    constexpr T width() const { return right - left; }
+    constexpr T height() const { return bottom - top; }
     constexpr bool empty() const { return left >= right || top >= bottom; }
 
-    IAABB inset(int dx, int dy) const
+    TAABB inset(T dx, T dy) const
     {
         return {left + dx, top + dy, right - dx, bottom - dy};
     }
-    IAABB outset(int dx, int dy) const { return inset(-dx, -dy); }
-    IAABB offset(int dx, int dy) const
+    TAABB outset(T dx, T dy) const { return inset(-dx, -dy); }
+    TAABB offset(T dx, T dy) const
     {
         return {left + dx, top + dy, right + dx, bottom + dy};
     }
-    IAABB join(IAABB b) const
+    TAABB join(TAABB b) const
     {
         return {std::min(left, b.left),
                 std::min(top, b.top),
                 std::max(right, b.right),
                 std::max(bottom, b.bottom)};
     }
-    IAABB intersect(IAABB b) const
+    TAABB intersect(TAABB b) const
     {
         return {std::max(left, b.left),
                 std::max(top, b.top),
@@ -39,13 +39,15 @@ struct IAABB
                 std::min(bottom, b.bottom)};
     }
 
-    bool operator==(const IAABB& o) const
+    bool operator==(const TAABB& o) const
     {
         return left == o.left && top == o.top && right == o.right &&
                bottom == o.bottom;
     }
-    bool operator!=(const IAABB& o) const { return !(*this == o); }
+    bool operator!=(const TAABB& o) const { return !(*this == o); }
 };
+
+using IAABB = TAABB<int32_t>;
 
 class AABB
 {

@@ -177,6 +177,8 @@ struct PlatformFeatures
     // Workaround for precision issues. Determines how far apart we space unique
     // path IDs when they will be bit-casted to fp16.
     uint8_t pathIDGranularity = 1;
+    // Maximum size (width or height) of a texture.
+    uint32_t maxTextureSize = 2048;
     // Maximum length (in 32-bit uints) of the coverage buffer used for paths in
     // clockwiseFill/atomic mode. 2^27 bytes is the minimum storage buffer size
     // requirement in the Vulkan, GL, and D3D11 specs. Metal guarantees 256 MB.
@@ -718,6 +720,14 @@ enum class InterlockMode
 };
 constexpr static size_t kInterlockModeCount = 4;
 
+// Low-level batch of scissored geometry for rendering to the offscreen atlas.
+struct AtlasDrawBatch
+{
+    TAABB<uint16_t> scissor;
+    uint32_t patchCount;
+    uint32_t basePatch;
+};
+
 // "Uber shader" features that can be #defined in a draw shader.
 // This set is strictly limited to switches that don't *change* the behavior of
 // the shader, i.e., turning them all on will enable all types Rive content, but
@@ -844,8 +854,17 @@ enum class ShaderMiscFlags : uint32_t
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
     coalescedResolveAndTransfer = 1 << 5,
+
+    // Read coverage from the offscreen atlas instead of computing coverage in
+    // the shader.
+    atlasCoverage = 1 << 6,
 };
 RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
+
+// The set of ShaderMiscFlags that affect the vertex shader. (The others only
+// affect the fragment shader.)
+constexpr static ShaderMiscFlags VERTEX_SHADER_MISC_FLAGS_MASK =
+    ShaderMiscFlags::atlasCoverage;
 
 // Returns a unique value that can be used to key a shader.
 uint32_t ShaderUniqueKey(DrawType,
@@ -949,18 +968,15 @@ public:
 // buffers and draw a flush. A typical flush is done in 4 steps:
 //
 //  1. Render the complex gradients from the gradSpanBuffer to the gradient
-//  texture
-//     (gradSpanCount, firstComplexGradSpan, complexGradRowsTop,
+//     texture (gradSpanCount, firstComplexGradSpan, complexGradRowsTop,
 //     complexGradRowsHeight).
 //
 //  2. Transfer the simple gradient texels from the simpleColorRampsBuffer to
-//  the top of the
-//     gradient texture (simpleGradTexelsWidth, simpleGradTexelsHeight,
-//     simpleGradDataOffsetInBytes, tessDataHeight).
+//     the top of the gradient texture (simpleGradTexelsWidth,
+//     simpleGradTexelsHeight, simpleGradDataOffsetInBytes, tessDataHeight).
 //
 //  3. Render the tessellation texture from the tessVertexSpanBuffer
-//  (tessVertexSpanCount,
-//     firstTessVertexSpan).
+//     (tessVertexSpanCount, firstTessVertexSpan).
 //
 //  4. Execute the drawList, reading from the newly rendered resource textures.
 //
@@ -977,6 +993,15 @@ struct FlushDescriptor
 
     IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
                                     // loadAction == LoadAction::clear.
+
+    // Physical size of the atlas texture.
+    uint16_t atlasTextureWidth;
+    uint16_t atlasTextureHeight;
+
+    // Boundaries of the content for this specific flush within the atlas
+    // texture.
+    uint16_t atlasContentWidth;
+    uint16_t atlasContentHeight;
 
     // Monotonically increasing prefix that gets appended to the most
     // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
@@ -1022,6 +1047,18 @@ struct FlushDescriptor
     // executing the entire frame. (Null if isFinalFlushOfFrame is false.)
     gpu::CommandBufferCompletionFence* frameCompletionFence = nullptr;
 
+    // List of feathered fills (if any) that must be rendered to the atlas
+    // before the main render pass.
+    const AtlasDrawBatch* atlasFillBatches = nullptr;
+    size_t atlasFillBatchCount = 0;
+
+    // List of feathered strokes (if any) that must be rendered to the atlas
+    // before the main render pass.
+    const AtlasDrawBatch* atlasStrokeBatches = nullptr;
+    size_t atlasStrokeBatchCount = 0;
+
+    // List of draws in the main render pass. These are rendered directly to the
+    // renderTarget.
     const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
 };
 
@@ -1103,6 +1140,8 @@ private:
     // drawBounds, or renderTargetBounds if there is a clear. (Used by the
     // "@RESOLVE_PLS" step in InterlockMode::atomics.)
     WRITEONLY IAABB m_renderTargetUpdateBounds;
+    WRITEONLY Vec2D m_atlasTextureInverseSize; // 1 / [atlasWidth, atlasHeight]
+    WRITEONLY Vec2D m_atlasContentInverseViewport; // 2 / atlasContentBounds
     // Monotonically increasing prefix that gets appended to the most
     // significant "32 - CLOCKWISE_COVERAGE_BIT_COUNT" bits of coverage buffer
     // values. (clockwiseAtomic mode only.)
@@ -1112,7 +1151,7 @@ private:
     WRITEONLY float m_vertexDiscardValue;
     WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 64];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 80];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 
@@ -1171,6 +1210,8 @@ public:
              float strokeRadius,
              float featherRadius,
              uint32_t zIndex,
+             int16_t screenToAtlasOffsetX,
+             int16_t screenToAtlasOffsetY,
              const CoverageBufferRange&);
 
 private:
@@ -1180,7 +1221,9 @@ private:
     WRITEONLY float m_featherRadius;
     // InterlockMode::msaa.
     WRITEONLY uint32_t m_zIndex;
-    WRITEONLY uint32_t pad[3];
+    // Only used when rendering coverage via the atlas.
+    WRITEONLY uint32_t m_screenToAtlasOffsetPackedXY;
+    WRITEONLY uint32_t pad[2];
     // InterlockMode::clockwiseAtomic.
     WRITEONLY CoverageBufferRange m_coverageBufferRange;
 };

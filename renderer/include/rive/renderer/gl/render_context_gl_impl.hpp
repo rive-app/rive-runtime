@@ -208,6 +208,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
+    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
 
     void flush(const FlushDescriptor&) override;
 
@@ -230,6 +231,36 @@ private:
     glutils::Buffer m_tessSpanIndexBuffer;
     glutils::Framebuffer m_tessellateFBO;
     GLuint m_tessVertexTexture = 0;
+
+    // Atlas rendering.
+    class AtlasProgram
+    {
+    public:
+        void compile(GLuint vertexShaderID,
+                     const char* defines[],
+                     size_t numDefines,
+                     const char* sources[],
+                     size_t numSources,
+                     const GLCapabilities&,
+                     GLState* state);
+
+        operator GLuint() const { return m_program; }
+
+        GLint spirvCrossBaseInstanceLocation() const
+        {
+            return m_spirvCrossBaseInstanceLocation;
+        }
+
+    private:
+        glutils::Program m_program = glutils::Program::Zero();
+        GLint m_spirvCrossBaseInstanceLocation = -1;
+    };
+
+    glutils::Shader m_atlasVertexShader;
+    AtlasProgram m_atlasFillProgram;
+    AtlasProgram m_atlasStrokeProgram;
+    glutils::Texture m_atlasTexture = glutils::Texture::Zero();
+    glutils::Framebuffer m_atlasFBO;
 
     // Not all programs have a unique vertex shader, so we cache and reuse them
     // where possible.

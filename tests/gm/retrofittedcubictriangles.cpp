@@ -42,9 +42,8 @@ public:
                      ? FillRule::clockwise
                      : FillRule::nonZero,
                  paint,
-                 Type::interiorTriangulationPath,
-                 context->frameDescriptor(),
-                 context->frameInterlockMode())
+                 SelectCoverageType(paint, context->frameInterlockMode()),
+                 context->frameDescriptor())
     {
         m_resourceCounts.pathCount = 1;
         m_resourceCounts.contourCount = 1;
@@ -119,9 +118,9 @@ public:
 
             // PushRetrofittedTrianglesGMDraw specific push to render
             uint32_t contourID = tessWriter.pushContour(
-                m_drawContents,
                 {0, 0},
-                true,
+                /*isStroke=*/false,
+                /*closed=*/true,
                 0 /* gpu::kOuterCurvePatchSegmentSpan - 2 */);
             for (const auto& pts : kTris)
             {

@@ -103,7 +103,7 @@ GLuint CompileShader(GLuint type,
     return CompileRawGLSL(type, shaderSource.str().c_str());
 }
 
-[[nodiscard]] GLuint CompileRawGLSL(GLuint shaderType, const char* rawGLSL)
+[[nodiscard]] GLuint CompileRawGLSL(GLenum shaderType, const char* rawGLSL)
 {
     GLuint shader = glCreateShader(shaderType);
 #ifdef BYPASS_EMSCRIPTEN_SHADER_PARSER
@@ -169,16 +169,8 @@ void LinkProgram(GLuint program)
 
 void Program::reset(GLuint adoptedProgramID)
 {
-    if (m_fragmentShaderID != 0)
-    {
-        glDeleteShader(m_fragmentShaderID);
-        m_fragmentShaderID = 0;
-    }
-    if (m_vertexShaderID != 0)
-    {
-        glDeleteShader(m_vertexShaderID);
-        m_vertexShaderID = 0;
-    }
+    m_fragmentShader.reset();
+    m_vertexShader.reset();
     if (m_id != 0)
     {
         glDeleteProgram(m_id);
@@ -194,19 +186,26 @@ void Program::compileAndAttachShader(GLuint type,
                                      const GLCapabilities& capabilities)
 {
     assert(type == GL_VERTEX_SHADER || type == GL_FRAGMENT_SHADER);
-    GLuint& internalShaderID =
-        type == GL_VERTEX_SHADER ? m_vertexShaderID : m_fragmentShaderID;
-    if (internalShaderID != 0)
-    {
-        glDeleteShader(internalShaderID);
-    }
-    internalShaderID = CompileShader(type,
-                                     defines,
-                                     numDefines,
-                                     sources,
-                                     numSources,
-                                     capabilities);
-    glAttachShader(m_id, internalShaderID);
+    glutils::Shader& internalShader =
+        type == GL_VERTEX_SHADER ? m_vertexShader : m_fragmentShader;
+    internalShader
+        .compile(type, defines, numDefines, sources, numSources, capabilities);
+    glAttachShader(m_id, internalShader);
+}
+
+void Shader::compile(GLenum type,
+                     const char* defines[],
+                     size_t numDefines,
+                     const char* sources[],
+                     size_t numSources,
+                     const GLCapabilities& capabilities)
+{
+    reset(CompileShader(type,
+                        defines,
+                        numDefines,
+                        sources,
+                        numSources,
+                        capabilities));
 }
 
 void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter)

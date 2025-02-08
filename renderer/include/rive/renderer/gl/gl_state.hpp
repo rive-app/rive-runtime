@@ -21,8 +21,36 @@ public:
 
     void invalidate();
 
-    void setBlendEquation(BlendMode);
-    void disableBlending();
+    enum class GLBlendMode
+    {
+        none = 0,
+
+        srcOver = static_cast<int>(rive::BlendMode::srcOver),
+        screen = static_cast<int>(rive::BlendMode::screen),
+        overlay = static_cast<int>(rive::BlendMode::overlay),
+        darken = static_cast<int>(rive::BlendMode::darken),
+        lighten = static_cast<int>(rive::BlendMode::lighten),
+        colorDodge = static_cast<int>(rive::BlendMode::colorDodge),
+        colorBurn = static_cast<int>(rive::BlendMode::colorBurn),
+        hardLight = static_cast<int>(rive::BlendMode::hardLight),
+        softLight = static_cast<int>(rive::BlendMode::softLight),
+        difference = static_cast<int>(rive::BlendMode::difference),
+        exclusion = static_cast<int>(rive::BlendMode::exclusion),
+        multiply = static_cast<int>(rive::BlendMode::multiply),
+        hue = static_cast<int>(rive::BlendMode::hue),
+        saturation = static_cast<int>(rive::BlendMode::saturation),
+        color = static_cast<int>(rive::BlendMode::color),
+        luminosity = static_cast<int>(rive::BlendMode::luminosity),
+
+        plus = srcOver + 1,
+        max = plus + 1,
+    };
+    void setGLBlendMode(GLBlendMode);
+    void setBlendMode(rive::BlendMode blendMode)
+    {
+        setGLBlendMode(static_cast<GLBlendMode>(blendMode));
+    }
+    void disableBlending() { setGLBlendMode(GLBlendMode::none); }
 
     void setWriteMasks(bool colorWriteMask,
                        bool depthWriteMask,
@@ -39,7 +67,7 @@ public:
 
 private:
     const GLCapabilities m_capabilities;
-    GLenum m_blendEquation;
+    GLBlendMode m_blendMode;
     bool m_colorWriteMask;
     bool m_depthWriteMask;
     GLuint m_stencilWriteMask;

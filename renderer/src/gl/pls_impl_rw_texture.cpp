@@ -57,7 +57,7 @@ class RenderContextGLImpl::PLSImplRWTexture
         if (desc.interlockMode == gpu::InterlockMode::atomics &&
             needs_atomic_fixed_function_color_blend(desc))
         {
-            renderContextImpl->state()->setBlendEquation(BlendMode::srcOver);
+            renderContextImpl->state()->setBlendMode(BlendMode::srcOver);
         }
         else if (auto framebufferRenderTarget =
                      lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))

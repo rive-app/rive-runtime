@@ -452,9 +452,9 @@ int find_cubic_convex_90_chops(const Vec2D pts[],
     int4 n4 = (T != 1) & 1;
     n4.xy += n4.zw;
     int n = n4.x + n4.y;
-    RIVE_INLINE_MEMCPY(outT, &T, 4 * sizeof(float));
+    simd::store(outT, T);
 
-    if (*areCusps)
+    if (*areCusps && n > 0)
     {
         // Generate padding around cusp points. Odd numbered chops are always
         // padding sections that pass through a cusp.
@@ -467,6 +467,14 @@ int find_cubic_convex_90_chops(const Vec2D pts[],
             outT[i * 2 + 0] = std::max(outT[i] - cuspPadding, minT);
         }
         n *= 2;
+        // Re-clip and re-sort n after adding cusp padding. This is a hack, but
+        // we leave it here for now becase we're about to remove this entire
+        // method in favor of something more robust.
+        if (outT[n - 1] == 1)
+        {
+            --n;
+        }
+        std::sort(outT, outT + n);
     }
 
     return n;

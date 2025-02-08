@@ -20,9 +20,6 @@ void GLState::invalidate()
     glClearDepthf(1);
     glClearStencil(0);
 
-    // We always blend with premultiplied src-over when glBlendFunc is relevant.
-    glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-
     // ANGLE_shader_pixel_local_storage doesn't allow dither.
     glDisable(GL_DITHER);
 
@@ -67,69 +64,81 @@ void GLState::invalidate()
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
 }
 
-constexpr static GLenum blend_mode_to_gl_equation(BlendMode blendMode)
+void GLState::setGLBlendMode(GLBlendMode blendMode)
 {
+    if (m_validState.blendEquation && blendMode == m_blendMode)
+    {
+        return;
+    }
+    if (!m_validState.blendEquation || m_blendMode == GLBlendMode::none)
+    {
+        glEnable(GL_BLEND);
+    }
     switch (blendMode)
     {
-        case BlendMode::srcOver:
-            return GL_FUNC_ADD;
-        case BlendMode::screen:
-            return GL_SCREEN_KHR;
-        case BlendMode::overlay:
-            return GL_OVERLAY_KHR;
-        case BlendMode::darken:
-            return GL_DARKEN_KHR;
-        case BlendMode::lighten:
-            return GL_LIGHTEN_KHR;
-        case BlendMode::colorDodge:
-            return GL_COLORDODGE_KHR;
-        case BlendMode::colorBurn:
-            return GL_COLORBURN_KHR;
-        case BlendMode::hardLight:
-            return GL_HARDLIGHT_KHR;
-        case BlendMode::softLight:
-            return GL_SOFTLIGHT_KHR;
-        case BlendMode::difference:
-            return GL_DIFFERENCE_KHR;
-        case BlendMode::exclusion:
-            return GL_EXCLUSION_KHR;
-        case BlendMode::multiply:
-            return GL_MULTIPLY_KHR;
-        case BlendMode::hue:
-            return GL_HSL_HUE_KHR;
-        case BlendMode::saturation:
-            return GL_HSL_SATURATION_KHR;
-        case BlendMode::color:
-            return GL_HSL_COLOR_KHR;
-        case BlendMode::luminosity:
-            return GL_HSL_LUMINOSITY_KHR;
+        case GLBlendMode::none:
+            glDisable(GL_BLEND);
+            break;
+        case GLBlendMode::srcOver:
+            glBlendEquation(GL_FUNC_ADD);
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case GLBlendMode::screen:
+            glBlendEquation(GL_SCREEN_KHR);
+            break;
+        case GLBlendMode::overlay:
+            glBlendEquation(GL_OVERLAY_KHR);
+            break;
+        case GLBlendMode::darken:
+            glBlendEquation(GL_DARKEN_KHR);
+            break;
+        case GLBlendMode::lighten:
+            glBlendEquation(GL_LIGHTEN_KHR);
+            break;
+        case GLBlendMode::colorDodge:
+            glBlendEquation(GL_COLORDODGE_KHR);
+            break;
+        case GLBlendMode::colorBurn:
+            glBlendEquation(GL_COLORBURN_KHR);
+            break;
+        case GLBlendMode::hardLight:
+            glBlendEquation(GL_HARDLIGHT_KHR);
+            break;
+        case GLBlendMode::softLight:
+            glBlendEquation(GL_SOFTLIGHT_KHR);
+            break;
+        case GLBlendMode::difference:
+            glBlendEquation(GL_DIFFERENCE_KHR);
+            break;
+        case GLBlendMode::exclusion:
+            glBlendEquation(GL_EXCLUSION_KHR);
+            break;
+        case GLBlendMode::multiply:
+            glBlendEquation(GL_MULTIPLY_KHR);
+            break;
+        case GLBlendMode::hue:
+            glBlendEquation(GL_HSL_HUE_KHR);
+            break;
+        case GLBlendMode::saturation:
+            glBlendEquation(GL_HSL_SATURATION_KHR);
+            break;
+        case GLBlendMode::color:
+            glBlendEquation(GL_HSL_COLOR_KHR);
+            break;
+        case GLBlendMode::luminosity:
+            glBlendEquation(GL_HSL_LUMINOSITY_KHR);
+            break;
+        case GLBlendMode::plus:
+            glBlendEquation(GL_FUNC_ADD);
+            glBlendFunc(GL_ONE, GL_ONE);
+            break;
+        case GLBlendMode::max:
+            glBlendEquation(GL_MAX);
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
     }
-    RIVE_UNREACHABLE();
-}
-
-void GLState::setBlendEquation(BlendMode blendMode)
-{
-    GLenum blendEquation = blend_mode_to_gl_equation(blendMode);
-    if (!m_validState.blendEquation || blendEquation != m_blendEquation)
-    {
-        if (!m_validState.blendEquation || m_blendEquation == GL_NONE)
-        {
-            glEnable(GL_BLEND);
-        }
-        glBlendEquation(blendEquation);
-        m_blendEquation = blendEquation;
-        m_validState.blendEquation = true;
-    }
-}
-
-void GLState::disableBlending()
-{
-    if (!m_validState.blendEquation || m_blendEquation != GL_NONE)
-    {
-        glDisable(GL_BLEND);
-        m_blendEquation = GL_NONE;
-        m_validState.blendEquation = true;
-    }
+    m_blendMode = blendMode;
+    m_validState.blendEquation = true;
 }
 
 void GLState::setWriteMasks(bool colorWriteMask,
