@@ -23,6 +23,9 @@ public:
     }
 
     Component* pathBuilder() override;
+    ShapePaintPath* worldPath() override;
+    ShapePaintPath* localPath() override;
+    ShapePaintPath* localClockwisePath() override;
 };
 } // namespace rive
 

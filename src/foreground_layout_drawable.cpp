@@ -62,3 +62,18 @@ Core* ForegroundLayoutDrawable::hitTest(HitInfo* hinfo, const Mat2D& xform)
 }
 
 Component* ForegroundLayoutDrawable::pathBuilder() { return parent(); }
+
+ShapePaintPath* ForegroundLayoutDrawable::worldPath()
+{
+    return parent()->as<LayoutComponent>()->worldPath();
+}
+
+ShapePaintPath* ForegroundLayoutDrawable::localPath()
+{
+    return parent()->as<LayoutComponent>()->localPath();
+}
+
+ShapePaintPath* ForegroundLayoutDrawable::localClockwisePath()
+{
+    return parent()->as<LayoutComponent>()->localClockwisePath();
+}
