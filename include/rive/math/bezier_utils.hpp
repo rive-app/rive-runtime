@@ -151,18 +151,6 @@ float measure_angle_between_vectors(Vec2D a, Vec2D b);
 // on a degenerate flat line.
 int find_cubic_convex_180_chops(const Vec2D[], float T[2], bool* areCusps);
 
-// Returns up to 4 T values at which to chop the given curve in order to
-// guarantee the resulting cubics are convex and rotate no more than 90 degrees.
-//
-// If the curve has any cusp points (proper cusps or 180-degree turnarounds on
-// a degenerate flat line), the cusps are straddled with `cuspPadding` on either
-// side and `areCusps` is set to true. In this cases, odd-numbered curves after
-// chopping will always be the small sections that pass through the cusp.
-int find_cubic_convex_90_chops(const Vec2D[],
-                               float T[4],
-                               float cuspPadding,
-                               bool* areCusps);
-
 // Find the location and value of a cubic's maximum height, relative to the
 // baseline p0->p3.
 float find_cubic_max_height(const Vec2D pts[4], float* outT);
@@ -203,8 +191,8 @@ RIVE_ALWAYS_INLINE void find_cubic_tangents(const Vec2D p[4], Vec2D tangents[2])
 }
 
 RIVE_ALWAYS_INLINE constexpr float pow2(float x) { return x * x; }
-
-RIVE_ALWAYS_INLINE constexpr float length_squared(Vec2D v)
+RIVE_ALWAYS_INLINE constexpr float pow3(float x) { return x * pow2(x); }
+RIVE_ALWAYS_INLINE constexpr float length_pow2(Vec2D v)
 {
     return pow2(v.x) + pow2(v.y);
 }

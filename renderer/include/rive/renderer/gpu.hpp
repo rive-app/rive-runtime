@@ -54,11 +54,11 @@ constexpr static uint32_t kMaxPolarSegments = 1023;
 // The Gaussian distribution is very blurry on the outer edges. Regardless of
 // how wide a feather is, the polar segments never need to have a finer angle
 // than this value.
-constexpr static float FEATHER_POLAR_SEGMENT_MIN_ANGLE = math::PI / 16;
+constexpr static float FEATHER_POLAR_SEGMENT_MIN_ANGLE = 3 * math::PI / 32;
 
 // cos(FEATHER_MIN_POLAR_SEGMENT_ANGLE / 2)
 constexpr static float COS_FEATHER_POLAR_SEGMENT_MIN_ANGLE_OVER_2 =
-    0.99518472667f;
+    0.98917650996f;
 
 // We allocate all our GPU buffers in rings. This ensures the CPU can prepare
 // frames in parallel while the GPU renders them.

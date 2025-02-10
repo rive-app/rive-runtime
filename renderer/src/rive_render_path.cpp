@@ -161,11 +161,11 @@ static void add_softened_cubic_for_feathering(RawPath* featheredPath,
 {
     math::CubicCoeffs coeffs(p);
 
-    // If we rotate too much _and_ the endpoints are further apart than 1
-    // standard deviation of each other, chop and recurse.
-    // ("feather" is 2 standard deviations, so (feather^2)/4 == one_stddev^2.)
-    if (abs(totalRotation) > abs(rotationBetweenJoins) + 1e-2f &&
-        math::length_squared(p[3] - p[0]) > feather * feather * .25f)
+    // Recurse until each segment rotates by no more than approximately
+    // "rotationBetweenJoins" radians.
+    // TODO: Now that this recursion is uniform, we can move the chopping to the
+    // GPU.
+    if (abs(totalRotation) > abs(rotationBetweenJoins) + 1e-4f)
     {
         // The cubic rotates more than rotationBetweenJoins. Find a boundary
         // of rotationBetweenJoins toward the center to chop on.
@@ -220,6 +220,18 @@ static void add_softened_cubic_for_feathering(RawPath* featheredPath,
                                                       desiredSpread);
     float dimming = 1 - theta * (1 / math::PI);
 
+    // It gets hard to measure curvature on short segments. Also taper down to
+    // completely flat as the distance between endpoints moves from 2 standard
+    // deviations to 1.
+    float stddevsPow2 =
+        math::length_pow2(p[3] - p[0]) / (.25 * math::pow2(feather));
+    float dimmingByStddevs = (stddevsPow2 - 1) * .5f;
+    dimming = fminf(dimming, dimmingByStddevs);
+
+    // Unfortunately, the best method we have to get rid of some final speckles
+    // on cusps is to dim everything by 1%.
+    dimming = fminf(dimming, .99f);
+
     // Soften the feather by reducing the curve height. Find a new height such
     // that the center of the feather (currently 50% opacity) is reduced to
     // "50% * dimming".
@@ -251,11 +263,27 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
 {
     // Since curvature is what breaks 1-dimensional feathering along the normal
     // vector, chop into segments that rotate no more than a certain threshold.
+    constexpr static int POLAR_JOIN_PRECISION = 2;
     float r_ = feather * (FEATHER_TEXTURE_STDDEVS / 2) * matrixMaxScale * .25f;
     float polarSegmentsPerRadian =
-        math::calc_polar_segments_per_radian<gpu::kPolarPrecision>(r_);
-    float rotationBetweenJoins = std::max(1 / polarSegmentsPerRadian,
-                                          gpu::FEATHER_POLAR_SEGMENT_MIN_ANGLE);
+        math::calc_polar_segments_per_radian<POLAR_JOIN_PRECISION>(r_);
+    float rotationBetweenJoins = 1 / polarSegmentsPerRadian;
+    if (rotationBetweenJoins < gpu::FEATHER_POLAR_SEGMENT_MIN_ANGLE)
+    {
+        // Once we cross the FEATHER_POLAR_SEGMENT_MIN_ANGLE threshold, we start
+        // needing fewer polar joins again. Mirror at this point and begin
+        // adding back space between the joins.
+        // TODO: This formula is founded entirely in what feels good visually.
+        // It has almost no mathematical method. We can probably improve it.
+        rotationBetweenJoins =
+            gpu::FEATHER_POLAR_SEGMENT_MIN_ANGLE +
+            math::pow3(
+                (gpu::FEATHER_POLAR_SEGMENT_MIN_ANGLE - rotationBetweenJoins) *
+                5.f);
+    }
+    // Our math that flattens feathered curves relies on curves not rotating
+    // more than 90 degrees.
+    rotationBetweenJoins = std::min(rotationBetweenJoins, math::PI / 2);
 
     RawPath featheredPath;
     // Reserve a generous amount of space upfront so we hopefully don't have to
@@ -280,50 +308,38 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
                 float T[4];
                 Vec2D chops[(std::size(T) + 1) * 3 + 1]; // 4 chops will produce
                                                          // 16 cubic vertices.
-                bool areCusps;
+                bool areCusps; // Ignored. Polar joins handle cusps without us
+                               // having to do anything special.
                 // A generous cusp padding looks better empirically.
-                constexpr static float CUSP_PADDING = 1e-2f;
-                int n = math::find_cubic_convex_90_chops(pts,
-                                                         T,
-                                                         CUSP_PADDING,
-                                                         &areCusps);
+                int n = math::find_cubic_convex_180_chops(pts, T, &areCusps);
                 math::chop_cubic_at(pts, chops, T, n);
                 Vec2D* p = chops;
                 for (int i = 0; i <= n; ++i, p += 3)
                 {
-                    if (areCusps && (i & 1))
+                    Vec2D tangents[2];
+                    math::find_cubic_tangents(p, tangents);
+                    // Determine which the direction the curve turns.
+                    // NOTE: Since the curve does not inflect, we can just
+                    // check F'(.5) x F''(.5).
+                    // NOTE: F'(.5) x F''(.5) has the same sign as
+                    // (p2 - p0) x (p3 - p1).
+                    float turn = Vec2D::cross(p[2] - p[0], p[3] - p[1]);
+                    if (turn == 0)
                     {
-                        // If the chops are straddling cusps, odd-numbered chops
-                        // are the ones that pass through a cusp.
-                        featheredPath.line(p[3]);
+                        // This is the case for joins and cusps where points
+                        // are co-located.
+                        turn = Vec2D::cross(tangents[0], tangents[1]);
                     }
-                    else
-                    {
-                        Vec2D tangents[2];
-                        math::find_cubic_tangents(p, tangents);
-                        // Determine which the direction the curve turns.
-                        // NOTE: Since the curve does not inflect, we can just
-                        // check F'(.5) x F''(.5).
-                        // NOTE: F'(.5) x F''(.5) has the same sign as
-                        // (p2 - p0) x (p3 - p1).
-                        float turn = Vec2D::cross(p[2] - p[0], p[3] - p[1]);
-                        if (turn == 0)
-                        {
-                            // This is the case for joins and cusps where points
-                            // are co-located.
-                            turn = Vec2D::cross(tangents[0], tangents[1]);
-                        }
-                        float totalRotation = copysignf(
-                            math::measure_angle_between_vectors(tangents[0],
-                                                                tangents[1]),
-                            turn);
-                        add_softened_cubic_for_feathering(
-                            &featheredPath,
-                            p,
-                            feather,
-                            copysignf(rotationBetweenJoins, totalRotation),
-                            totalRotation);
-                    }
+                    float totalRotation = copysignf(
+                        math::measure_angle_between_vectors(tangents[0],
+                                                            tangents[1]),
+                        turn);
+                    add_softened_cubic_for_feathering(
+                        &featheredPath,
+                        p,
+                        feather,
+                        copysignf(rotationBetweenJoins, totalRotation),
+                        totalRotation);
                 }
                 break;
             }
