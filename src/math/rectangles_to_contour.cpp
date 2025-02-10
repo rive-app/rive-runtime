@@ -241,7 +241,7 @@ std::vector<std::vector<Vec2D>> RectanglesToContour::computeContours()
     while (i < sortY.size())
     {
         float currY = sortY[i].y;
-        while (sortY[i].y == currY && i < sortY.size())
+        while (i < sortY.size() && sortY[i].y == currY)
         {
             edgesH[sortY[i]] = sortY[i + 1];
             edgesH[sortY[i + 1]] = sortY[i];
@@ -253,7 +253,7 @@ std::vector<std::vector<Vec2D>> RectanglesToContour::computeContours()
     while (i < sortX.size())
     {
         float currX = sortX[i].x;
-        while (sortX[i].x == currX && i < sortX.size())
+        while (i < sortX.size() && sortX[i].x == currX)
         {
             edgesV[sortX[i]] = sortX[i + 1];
             edgesV[sortX[i + 1]] = sortX[i];
