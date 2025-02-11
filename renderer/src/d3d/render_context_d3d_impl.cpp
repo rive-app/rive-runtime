@@ -1533,6 +1533,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     m_gpuContext->VSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX,
                                        std::size(uniformBuffers),
                                        uniformBuffers);
+    m_gpuContext->PSSetConstantBuffers(FLUSH_UNIFORM_BUFFER_IDX,
+                                       std::size(uniformBuffers),
+                                       uniformBuffers);
 
     // All programs use the same storage buffers.
     ID3D11ShaderResourceView* storageBufferBufferSRVs[] = {

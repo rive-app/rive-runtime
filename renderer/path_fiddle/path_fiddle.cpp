@@ -59,17 +59,17 @@ static float2 s_pts[] = {{260 + 2 * 100, 60 + 2 * 500},
                          {260 + 2 * 400, 60 + 2 * 200},
                          {260 + 2 * 213, 60 + 2 * 200},
                          {260 + 2 * 213, 60 + 2 * 300},
-                         {260 + 2 * 391, 60 + 2 * 480}};
+                         {260 + 2 * 391, 60 + 2 * 480},
+                         {1400, 1400}}; // Feather control.
 constexpr static int kNumInteractivePts = sizeof(s_pts) / sizeof(*s_pts);
 
 static float s_strokeWidth = 70;
-static float featherPower = 0;
 
 static float2 s_translate;
 static float s_scale = 1;
 
-static StrokeJoin s_join = StrokeJoin::miter;
-static StrokeCap s_cap = StrokeCap::butt;
+static StrokeJoin s_join = StrokeJoin::round;
+static StrokeCap s_cap = StrokeCap::round;
 
 static bool s_doClose = false;
 static bool s_paused = false;
@@ -256,12 +256,6 @@ static void key_callback(GLFWwindow* window,
             case GLFW_KEY_EQUAL:
                 s_strokeWidth *= 1.5f;
                 break;
-            case GLFW_KEY_F:
-                if (!shift)
-                    ++featherPower;
-                else
-                    featherPower = std::max(featherPower - 1, 0.f);
-                break;
             case GLFW_KEY_W:
                 s_wireframe = !s_wireframe;
                 break;
@@ -293,7 +287,7 @@ static void key_callback(GLFWwindow* window,
                     s_disableStroke = !s_disableStroke;
                 }
                 break;
-            case GLFW_KEY_I:
+            case GLFW_KEY_F:
                 s_disableFill = !s_disableFill;
                 break;
             case GLFW_KEY_X:
@@ -857,9 +851,10 @@ void riveMainLoop()
         auto path = factory->makeRenderPath(rawPath, FillRule::clockwise);
 
         auto fillPaint = factory->makeRenderPaint();
-        if (featherPower != 0)
+        float feather = powf(1.5f, (1400 - s_pts[std::size(s_pts) - 1].y) / 75);
+        if (feather > 1)
         {
-            fillPaint->feather(powf(1.5f, featherPower));
+            fillPaint->feather(feather);
         }
         fillPaint->color(0xd0ffffff);
 
@@ -871,13 +866,12 @@ void riveMainLoop()
             strokePaint->style(RenderPaintStyle::stroke);
             strokePaint->color(0x8000ffff);
             strokePaint->thickness(s_strokeWidth);
-            if (featherPower != 0)
+            if (feather > 1)
             {
-                strokePaint->feather(powf(1.5f, featherPower));
+                strokePaint->feather(feather);
             }
             strokePaint->join(s_join);
             strokePaint->cap(s_cap);
-
             renderer->drawPath(path.get(), strokePaint.get());
 
             // Draw the interactive points.
@@ -895,7 +889,13 @@ void riveMainLoop()
                 pointPath->moveTo(pt.x, pt.y);
                 pointPath->close();
             }
+            renderer->drawPath(pointPath.get(), pointPaint.get());
 
+            // Draw the feather control point.
+            pointPaint->color(0xffff0000);
+            pointPath = factory->makeEmptyRenderPath();
+            float2 pt = s_pts[std::size(s_pts) - 1] + s_translate;
+            pointPath->moveTo(pt.x, pt.y);
             renderer->drawPath(pointPath.get(), pointPaint.get());
         }
     }
