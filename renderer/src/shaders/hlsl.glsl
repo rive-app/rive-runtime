@@ -146,6 +146,11 @@ $typedef $uint ushort;
 #define TEXTURE_REF_SAMPLE_LOD TEXTURE_SAMPLE_LOD
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     NAME.$SampleGrad(SAMPLER_NAME, COORD, DDX, DDY)
+#define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)        \
+    make_half4(TEXEL_FETCH(NAME, int2(COORD) + int2(-1, 0)).r,                 \
+               TEXEL_FETCH(NAME, int2(COORD) + int2(0, 0)).r,                  \
+               TEXEL_FETCH(NAME, int2(COORD) + int2(0, -1)).r,                 \
+               TEXEL_FETCH(NAME, int2(COORD) + int2(-1, -1)).r)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -205,6 +210,9 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define VERTEX_CONTEXT_DECL
 #define VERTEX_CONTEXT_UNPACK
+
+#define TEXTURE_CONTEXT_DECL
+#define TEXTURE_CONTEXT_FORWARD
 
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
     $cbuffer DrawUniforms                                                      \

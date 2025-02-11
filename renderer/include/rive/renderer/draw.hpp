@@ -233,8 +233,10 @@ public:
     }
 
     // Only used when rendering coverage via the atlas.
-    int16_t screenToAtlasOffsetX() const { return m_screenToAtlasOffsetX; }
-    int16_t screenToAtlasOffsetY() const { return m_screenToAtlasOffsetY; }
+    const gpu::AtlasTransform& atlasTransform() const
+    {
+        return m_atlasTransform;
+    }
     const TAABB<uint16_t>& atlasScissor() const { return m_atlasScissor; }
     bool atlasScissorEnabled() const { return m_atlasScissorEnabled; }
 
@@ -264,6 +266,7 @@ public:
 
 protected:
     static CoverageType SelectCoverageType(const RiveRenderPaint*,
+                                           float matrixMaxScale,
                                            gpu::InterlockMode);
 
     // Prepares to draw the path by tessellating a fan around its midpoint.
@@ -333,8 +336,7 @@ protected:
     uint32_t m_contourFlags = 0;
 
     // Only used when rendering coverage via the atlas.
-    int16_t m_screenToAtlasOffsetX;
-    int16_t m_screenToAtlasOffsetY;
+    gpu::AtlasTransform m_atlasTransform;
     TAABB<uint16_t> m_atlasScissor; // Scissor rect when rendering to the atlas.
     bool m_atlasScissorEnabled;
 

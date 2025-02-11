@@ -120,6 +120,10 @@ void BackgroundShaderCompiler::threadMain()
         {
             defines[@GLSL_CLOCKWISE_FILL] = @"1";
         }
+        if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
+        {
+            defines[@GLSL_ATLAS_COVERAGE] = @"1";
+        }
 
         auto source =
             [[NSMutableString alloc] initWithCString:gpu::glsl::metal

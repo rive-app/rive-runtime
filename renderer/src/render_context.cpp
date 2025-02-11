@@ -509,12 +509,14 @@ bool RenderContext::LogicalFlush::allocateGradient(
     return true;
 }
 
-bool RenderContext::LogicalFlush::allocateAtlasDraw(PathDraw* pathDraw,
-                                                    uint16_t drawWidth,
-                                                    uint16_t drawHeight,
-                                                    uint16_t padding,
-                                                    uint16_t* x,
-                                                    uint16_t* y)
+bool RenderContext::LogicalFlush::allocateAtlasDraw(
+    PathDraw* pathDraw,
+    uint16_t drawWidth,
+    uint16_t drawHeight,
+    uint16_t desiredPadding,
+    uint16_t* x,
+    uint16_t* y,
+    TAABB<uint16_t>* paddedRegion)
 {
     if (m_atlasRectanizer == nullptr)
     {
@@ -526,17 +528,18 @@ bool RenderContext::LogicalFlush::allocateAtlasDraw(PathDraw* pathDraw,
             std::max(atlasMaxSize, drawHeight));
     }
 
+    const uint16_t atlasMaxWidth = m_atlasRectanizer->width();
+    const uint16_t atlasMaxHeight = m_atlasRectanizer->height();
     uint16_t paddedWidth =
-        std::min<uint16_t>(drawWidth, m_atlasRectanizer->width());
+        std::min<uint16_t>(drawWidth + desiredPadding * 2, atlasMaxWidth);
     uint16_t paddedHeight =
-        std::min<uint16_t>(drawHeight, m_atlasRectanizer->height());
+        std::min<uint16_t>(drawHeight + desiredPadding * 2, atlasMaxHeight);
     int16_t ix, iy;
     if (!m_atlasRectanizer->addRect(paddedWidth, paddedHeight, &ix, &iy))
     {
         // Delete the rectanizer of it wasn't big enough for this path. It will
         // be reallocated to a large enough size on the next call.
-        if (drawWidth > m_atlasRectanizer->width() ||
-            drawHeight > m_atlasRectanizer->height())
+        if (drawWidth > atlasMaxWidth || drawHeight > atlasMaxHeight)
         {
             m_atlasRectanizer = nullptr;
         }
@@ -546,10 +549,20 @@ bool RenderContext::LogicalFlush::allocateAtlasDraw(PathDraw* pathDraw,
 
     assert(ix >= 0);
     assert(iy >= 0);
-    *x = ix;
-    *y = iy;
-    m_atlasMaxX = std::max<uint32_t>(m_atlasMaxX, *x + drawWidth);
-    m_atlasMaxY = std::max<uint32_t>(m_atlasMaxY, *y + drawHeight);
+    assert(ix + paddedWidth <= atlasMaxWidth);
+    assert(iy + paddedHeight <= atlasMaxHeight);
+
+    *x = ix + (paddedWidth - drawWidth) / 2;
+    *y = iy + (paddedHeight - drawHeight) / 2;
+    *paddedRegion = {ix, iy, ix + paddedWidth, iy + paddedHeight};
+    assert((TAABB<uint16_t>{0, 0, atlasMaxWidth, atlasMaxHeight})
+               .contains(*paddedRegion));
+
+    m_atlasMaxX = std::max<uint32_t>(m_atlasMaxX, paddedRegion->right);
+    m_atlasMaxY = std::max<uint32_t>(m_atlasMaxY, paddedRegion->bottom);
+    assert(m_atlasMaxX <= atlasMaxWidth);
+    assert(m_atlasMaxY <= atlasMaxHeight);
+
     m_pendingAtlasDraws.push_back(pathDraw);
     return true;
 }
@@ -1979,8 +1992,7 @@ uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
                                draw->strokeRadius(),
                                draw->featherRadius(),
                                m_currentZIndex,
-                               draw->screenToAtlasOffsetX(),
-                               draw->screenToAtlasOffsetY(),
+                               draw->atlasTransform(),
                                draw->coverageBufferRange());
     m_ctx->m_paintData.set_back(draw->drawContents(),
                                 draw->paintType(),
@@ -2410,7 +2422,8 @@ void RenderContext::LogicalFlush::pushAtlasCoverageDraw(PathDraw* draw,
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 1, pathID);
     pushPathDraw(draw,
                  DrawType::interiorTriangulation,
-                 gpu::ShaderMiscFlags::atlasCoverage,
+                 gpu::ShaderMiscFlags::clockwiseFill |
+                     gpu::ShaderMiscFlags::atlasCoverage,
                  6,
                  baseVertex);
 }
@@ -2541,10 +2554,11 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     batch.shaderFeatures |=
         pathShaderFeatures & m_ctx->m_frameShaderFeaturesMask;
     m_combinedShaderFeatures |= batch.shaderFeatures;
-    assert(
-        (batch.shaderFeatures &
-         gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
-        batch.shaderFeatures);
+    assert((batch.shaderFeatures &
+            gpu::ShaderFeaturesMaskFor(drawType,
+                                       shaderMiscFlags,
+                                       m_ctx->frameInterlockMode())) ==
+           batch.shaderFeatures);
     return batch;
 }
 
@@ -2701,10 +2715,11 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     }
     batch->shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
     m_combinedShaderFeatures |= batch->shaderFeatures;
-    assert(
-        (batch->shaderFeatures &
-         gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
-        batch->shaderFeatures);
+    assert((batch->shaderFeatures &
+            gpu::ShaderFeaturesMaskFor(drawType,
+                                       shaderMiscFlags,
+                                       m_ctx->frameInterlockMode())) ==
+           batch->shaderFeatures);
 
     batch->drawContents |= draw->drawContents();
 

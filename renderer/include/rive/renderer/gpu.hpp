@@ -777,45 +777,6 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     RIVE_UNREACHABLE();
 }
 
-constexpr static ShaderFeatures ShaderFeaturesMaskFor(
-    DrawType drawType,
-    InterlockMode interlockMode)
-{
-    ShaderFeatures mask = ShaderFeatures::NONE;
-    switch (drawType)
-    {
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-            if (interlockMode != gpu::InterlockMode::atomics)
-            {
-                mask = ShaderFeatures::ENABLE_CLIPPING |
-                       ShaderFeatures::ENABLE_CLIP_RECT |
-                       ShaderFeatures::ENABLE_ADVANCED_BLEND |
-                       ShaderFeatures::ENABLE_HSL_BLEND_MODES;
-                break;
-            }
-            // Since atomic mode has to resolve previous draws, images need to
-            // consider the same shader features for path draws.
-            [[fallthrough]];
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-        case DrawType::interiorTriangulation:
-        case DrawType::atomicResolve:
-            mask = kAllShaderFeatures;
-            break;
-        case DrawType::atomicInitialize:
-            assert(interlockMode == gpu::InterlockMode::atomics);
-            mask = ShaderFeatures::ENABLE_CLIPPING |
-                   ShaderFeatures::ENABLE_ADVANCED_BLEND;
-            break;
-        case DrawType::stencilClipReset:
-            mask = ShaderFeatures::NONE;
-            break;
-    }
-    return mask & ShaderFeaturesMaskFor(interlockMode);
-}
-
 // Miscellaneous switches that *do* affect the behavior of the fragment shader.
 // The renderContext may add some of these, and a backend may also add them to a
 // shader key if it wants to implement the behavior.
@@ -861,10 +822,63 @@ enum class ShaderMiscFlags : uint32_t
 };
 RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
 
+constexpr static ShaderFeatures ShaderFeaturesMaskFor(
+    ShaderMiscFlags shaderMiscFlags)
+{
+    if (shaderMiscFlags & ShaderMiscFlags::atlasCoverage)
+    {
+        return kAllShaderFeatures & ~(ShaderFeatures::ENABLE_FEATHER |
+                                      ShaderFeatures::ENABLE_EVEN_ODD |
+                                      ShaderFeatures::ENABLE_NESTED_CLIPPING);
+    }
+    return kAllShaderFeatures;
+}
+
 // The set of ShaderMiscFlags that affect the vertex shader. (The others only
 // affect the fragment shader.)
 constexpr static ShaderMiscFlags VERTEX_SHADER_MISC_FLAGS_MASK =
     ShaderMiscFlags::atlasCoverage;
+
+constexpr static ShaderFeatures ShaderFeaturesMaskFor(
+    DrawType drawType,
+    ShaderMiscFlags shaderMiscFlags,
+    InterlockMode interlockMode)
+{
+    ShaderFeatures mask = ShaderFeatures::NONE;
+    switch (drawType)
+    {
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+            if (interlockMode != gpu::InterlockMode::atomics)
+            {
+                mask = ShaderFeatures::ENABLE_CLIPPING |
+                       ShaderFeatures::ENABLE_CLIP_RECT |
+                       ShaderFeatures::ENABLE_ADVANCED_BLEND |
+                       ShaderFeatures::ENABLE_HSL_BLEND_MODES;
+                break;
+            }
+            // Since atomic mode has to resolve previous draws, images need to
+            // consider the same shader features for path draws.
+            [[fallthrough]];
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::atomicResolve:
+            mask = kAllShaderFeatures;
+            break;
+        case DrawType::atomicInitialize:
+            assert(interlockMode == gpu::InterlockMode::atomics);
+            mask = ShaderFeatures::ENABLE_CLIPPING |
+                   ShaderFeatures::ENABLE_ADVANCED_BLEND;
+            break;
+        case DrawType::stencilClipReset:
+            mask = ShaderFeatures::NONE;
+            break;
+    }
+    return mask & ShaderFeaturesMaskFor(shaderMiscFlags) &
+           ShaderFeaturesMaskFor(interlockMode);
+}
 
 // Returns a unique value that can be used to key a shader.
 uint32_t ShaderUniqueKey(DrawType,
@@ -1183,6 +1197,15 @@ constexpr static uint32_t StorageBufferElementSizeInBytes(
     RIVE_UNREACHABLE();
 }
 
+// Defines a transform from screen space into a region of the atlas.
+// The atlas may have a different scale factor than the screen.
+struct AtlasTransform
+{
+    float scaleFactor;
+    float translateX;
+    float translateY;
+};
+
 // Defines a sub-allocation for a path's coverage data within the
 // renderContext's coverage buffer. (clockwiseAtomic mode only.)
 struct CoverageBufferRange
@@ -1210,8 +1233,7 @@ public:
              float strokeRadius,
              float featherRadius,
              uint32_t zIndex,
-             int16_t screenToAtlasOffsetX,
-             int16_t screenToAtlasOffsetY,
+             const AtlasTransform&,
              const CoverageBufferRange&);
 
 private:
@@ -1222,8 +1244,7 @@ private:
     // InterlockMode::msaa.
     WRITEONLY uint32_t m_zIndex;
     // Only used when rendering coverage via the atlas.
-    WRITEONLY uint32_t m_screenToAtlasOffsetPackedXY;
-    WRITEONLY uint32_t pad[2];
+    WRITEONLY AtlasTransform m_atlasTransform;
     // InterlockMode::clockwiseAtomic.
     WRITEONLY CoverageBufferRange m_coverageBufferRange;
 };

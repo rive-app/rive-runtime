@@ -27,7 +27,7 @@ constexpr static size_t kMaxCurveSubdivisions =
     (kMaxParametricSegments + kPatchSegmentCountExcludingJoin - 1) /
     kPatchSegmentCountExcludingJoin;
 
-static uint32_t find_subdivision_count(
+static uint32_t find_outer_cubic_subdivision_count(
     const Vec2D pts[],
     const wangs_formula::VectorXform& vectorXform)
 {
@@ -310,6 +310,23 @@ RIVE_ALWAYS_INLINE uint32_t join_type_flags(StrokeJoin join)
     }
     RIVE_UNREACHABLE();
 }
+
+inline float find_feather_radius(float paintFeather)
+{
+    // Blur magnitudes in design tools are customarily the width of two standard
+    // deviations, or, the length of the range -1stddev .. +1stddev.
+    return paintFeather * (FEATHER_TEXTURE_STDDEVS / 2);
+}
+
+inline float find_atlas_feather_scale_factor(float featherRadius,
+                                             float matrixMaxScale)
+{
+    // In practice, and with "gaussian -> linear -> gaussian" filtering, we
+    // never need to render a blur with a radius larger than 16 pixels. After
+    // this point, we can just scale it up to whatever resolution it needs to be
+    // displayed at.
+    return 16.f / fmaxf(featherRadius * matrixMaxScale, 16);
+}
 } // namespace
 
 Draw::Draw(IAABB pixelBounds,
@@ -353,12 +370,22 @@ void Draw::releaseRefs() { safe_unref(m_imageTextureRef); }
 
 PathDraw::CoverageType PathDraw::SelectCoverageType(
     const RiveRenderPaint* paint,
+    float matrixMaxScale,
     gpu::InterlockMode interlockMode)
 {
     if (interlockMode == gpu::InterlockMode::msaa)
     {
         return paint->getFeather() != 0 ? CoverageType::atlas
                                         : CoverageType::msaa;
+    }
+    // Switch to the feather atlas once we can render quarter-resultion
+    // feathers.
+    if (paint->getFeather() != 0 &&
+        find_atlas_feather_scale_factor(
+            find_feather_radius(paint->getFeather()),
+            matrixMaxScale) <= .5f)
+    {
+        return CoverageType::atlas;
     }
     if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
     {
@@ -378,7 +405,9 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
     assert(paint != nullptr);
 
     CoverageType coverageType =
-        SelectCoverageType(paint, context->frameInterlockMode());
+        SelectCoverageType(paint,
+                           matrix.findMaxScale(),
+                           context->frameInterlockMode());
 
     // Compute the screen-space bounding box.
     AABB mappedBounds;
@@ -419,7 +448,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
         }
         if (paint->getFeather() != 0)
         {
-            outset += paint->getFeather() * (FEATHER_TEXTURE_STDDEVS / 2);
+            outset += find_feather_radius(paint->getFeather());
         }
         AABB strokePixelOutset = matrix.mapBoundingBox({0, 0, outset, outset});
         // Add an extra pixel to the stroke outset radius to account for:
@@ -507,7 +536,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
 
     if (paint->getFeather() != 0)
     {
-        m_featherRadius = paint->getFeather() * (FEATHER_TEXTURE_STDDEVS / 2);
+        m_featherRadius = find_feather_radius(paint->getFeather());
         assert(!std::isnan(m_featherRadius)); // These should get culled in
                                               // RiveRenderer::drawPath().
         assert(m_featherRadius > 0);
@@ -1315,7 +1344,7 @@ bool PathDraw::allocateResourcesAndSubpasses(RenderContext::LogicalFlush* flush)
     if (m_coverageType == CoverageType::atlas ||
         m_coverageType == CoverageType::clockwiseAtomic)
     {
-        constexpr static int PADDING = 1;
+        constexpr static int PADDING = 2;
 
         // We don't need any coverage space for areas outside the viewport.
         // TODO: Account for active clips as well once we have the info.
@@ -1329,22 +1358,28 @@ bool PathDraw::allocateResourcesAndSubpasses(RenderContext::LogicalFlush* flush)
 
         if (m_coverageType == CoverageType::atlas)
         {
-            uint16_t x, y, w = visibleBounds.width(),
-                           h = visibleBounds.height();
-            if (!flush->allocateAtlasDraw(this, w, h, PADDING, &x, &y))
+            const float scaleFactor =
+                find_atlas_feather_scale_factor(m_featherRadius,
+                                                m_strokeMatrixMaxScale);
+            auto w = static_cast<uint16_t>(
+                ceilf(visibleBounds.width() * scaleFactor));
+            auto h = static_cast<uint16_t>(
+                ceilf(visibleBounds.height() * scaleFactor));
+            uint16_t x, y;
+            if (!flush->allocateAtlasDraw(this,
+                                          w,
+                                          h,
+                                          PADDING,
+                                          &x,
+                                          &y,
+                                          &m_atlasScissor))
             {
                 return false; // There wasn't room for our path in the atlas.
             }
-            m_screenToAtlasOffsetX = x - visibleBounds.left;
-            m_screenToAtlasOffsetY = y - visibleBounds.top;
+            m_atlasTransform.scaleFactor = scaleFactor;
+            m_atlasTransform.translateX = x - visibleBounds.left * scaleFactor;
+            m_atlasTransform.translateY = y - visibleBounds.top * scaleFactor;
             m_atlasScissorEnabled = visibleBounds != m_pixelBounds;
-            if (m_atlasScissorEnabled)
-            {
-                m_atlasScissor = {x,
-                                  y,
-                                  static_cast<uint16_t>(x + w),
-                                  static_cast<uint16_t>(y + h)};
-            }
         }
         else
         {
@@ -2176,7 +2211,8 @@ void PathDraw::iterateInteriorTriangulation(
                 uint32_t numSubdivisions;
                 if (op == InteriorTriangulationOp::countDataAndTriangulate)
                 {
-                    numSubdivisions = find_subdivision_count(pts, vectorXform);
+                    numSubdivisions =
+                        find_outer_cubic_subdivision_count(pts, vectorXform);
                     m_numChops.push_back(numSubdivisions);
                 }
                 else

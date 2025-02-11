@@ -152,6 +152,8 @@
     TEXTURE_REF_SAMPLE_LOD(_textures.TEXTURE, SAMPLER_NAME, COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(TEXTURE, SAMPLER_NAME, COORD, DDX, DDY)            \
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
+#define TEXTURE_GATHER(TEXTURE, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)     \
+    _textures.TEXTURE.$gather(SAMPLER_NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
 
 #define VERTEX_CONTEXT_DECL                                                    \
     , $constant @FlushUniforms &uniforms, VertexTextures _textures,            \
@@ -224,7 +226,8 @@
 
 #define FRAG_DATA_MAIN(DATA_TYPE, NAME)                                        \
     DATA_TYPE $__attribute__(($visibility("default"))) $fragment NAME(         \
-        Varyings _varyings [[$stage_in]])                                      \
+        Varyings _varyings [[$stage_in]],                                      \
+        FragmentTextures _textures)                                            \
     {
 
 #define EMIT_FRAG_DATA(VALUE)                                                  \
@@ -235,6 +238,9 @@
     , float2 _fragCoord, FragmentTextures _textures,                           \
         FragmentStorageBuffers _buffers
 #define FRAGMENT_CONTEXT_UNPACK , _fragCoord, _textures, _buffers
+
+#define TEXTURE_CONTEXT_DECL , FragmentTextures _textures
+#define TEXTURE_CONTEXT_FORWARD , _textures
 
 #ifdef @PLS_IMPL_DEVICE_BUFFER
 
@@ -399,6 +405,8 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
 #define PLS_MAIN(NAME, ...)                                                    \
     PLS_METAL_MAIN(NAME,                                                       \
                    PLS _inpls,                                                 \
+                   $constant @FlushUniforms& uniforms                          \
+                   [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                      \
                    Varyings _varyings [[$stage_in]],                           \
                    FragmentTextures _textures,                                 \
                    FragmentStorageBuffers _buffers)

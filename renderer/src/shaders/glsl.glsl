@@ -173,8 +173,6 @@
     textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
-#define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                   \
-    mediump texture2D NAME, mediump sampler SAMPLER_NAME
 #define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME, SAMPLER_NAME
 #else
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling
@@ -186,12 +184,24 @@
     textureLod(NAME, COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(NAME, COORD, DDX, DDY)
-#define SAMPLED_R16F_REF(NAME, SAMPLER_NAME) mediump sampler2D NAME
 #define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME
 #endif // !@TARGET_VULKAN
 
-#define TEXTURE_REF_SAMPLE_LOD TEXTURE_SAMPLE_LOD
+#define TEXTURE_CONTEXT_DECL
+
+#define TEXTURE_CONTEXT_FORWARD
 #define TEXEL_FETCH(NAME, COORD) texelFetch(NAME, COORD, 0)
+
+#if @GLSL_VERSION >= 310
+#define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)        \
+    textureGather(NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
+#else
+#define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)        \
+    make_half4(TEXEL_FETCH(NAME, int2(COORD) + int2(-1, 0)).r,                 \
+               TEXEL_FETCH(NAME, int2(COORD) + int2(0, 0)).r,                  \
+               TEXEL_FETCH(NAME, int2(COORD) + int2(0, -1)).r,                 \
+               TEXEL_FETCH(NAME, int2(COORD) + int2(-1, -1)).r)
+#endif
 
 #define VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 #define VERTEX_STORAGE_BUFFER_BLOCK_END

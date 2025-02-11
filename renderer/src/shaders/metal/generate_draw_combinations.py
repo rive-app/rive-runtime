@@ -19,9 +19,9 @@ ENABLE_EVEN_ODD = Feature('ENABLE_EVEN_ODD', 4)
 ENABLE_NESTED_CLIPPING = Feature('ENABLE_NESTED_CLIPPING', 5)
 ENABLE_HSL_BLEND_MODES = Feature('ENABLE_HSL_BLEND_MODES', 6)
 DRAW_INTERIOR_TRIANGLES = Feature('DRAW_INTERIOR_TRIANGLES', 7)
+ATLAS_COVERAGE = Feature('ATLAS_COVERAGE', 8)
 
-whole_program_features = {DRAW_INTERIOR_TRIANGLES,
-                          ENABLE_CLIPPING,
+whole_program_features = {ENABLE_CLIPPING,
                           ENABLE_CLIP_RECT,
                           ENABLE_ADVANCED_BLEND,
                           ENABLE_FEATHER}
@@ -48,10 +48,15 @@ def is_unique_vertex_feature_set(feature_set):
         return False
     return True
 
-non_image_mesh_features = {DRAW_INTERIOR_TRIANGLES,
-                           ENABLE_FEATHER,
+non_atlas_coverage_features = {ENABLE_FEATHER,
+                               ENABLE_EVEN_ODD,
+                               ENABLE_NESTED_CLIPPING}
+
+non_image_mesh_features = {ENABLE_FEATHER,
                            ENABLE_EVEN_ODD,
-                           ENABLE_NESTED_CLIPPING}
+                           ENABLE_NESTED_CLIPPING,
+                           DRAW_INTERIOR_TRIANGLES,
+                           ATLAS_COVERAGE}
 
 # Returns whether the given feature set is compatible with an image mesh shader.
 def is_image_mesh_feature_set(feature_set):
@@ -70,7 +75,7 @@ def emit_shader(out, shader_type, draw_type, fill_type, feature_set):
         out.write('#define FRAGMENT\n')
     if draw_type == DrawType.IMAGE_MESH:
         assert(is_image_mesh_feature_set(feature_set))
-    namespace_id = ['0', '0', '0', '0', '0', '0', '0', '0']
+    namespace_id = ['0', '0', '0', '0', '0', '0', '0', '0', '0']
     for feature in feature_set:
         namespace_id[feature.index] = '1'
     for feature in feature_set:
@@ -105,18 +110,32 @@ out = open(sys.argv[1], 'w', newline='\n')
 # Precompile the bare minimum set of shaders required to draw everything. We can compile more
 # specialized shaders in the background at runtime, and use the fully-featured (slower) shaders
 # while waiting for the compilations to complete.
+
+# Path tessellation shaders.
 emit_shader(out, ShaderType.VERTEX, DrawType.PATH, FillType.LEGACY,
             whole_program_features)
 emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.LEGACY, all_features)
 emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.CLOCKWISE, all_features)
 
+# Interior triangulation shaders.
 emit_shader(out, ShaderType.VERTEX, DrawType.PATH, FillType.LEGACY,
-            whole_program_features.difference({DRAW_INTERIOR_TRIANGLES}))
+            whole_program_features.union({DRAW_INTERIOR_TRIANGLES}))
 emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.LEGACY,
-            all_features.difference({DRAW_INTERIOR_TRIANGLES}))
+            all_features.union({DRAW_INTERIOR_TRIANGLES}))
 emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.CLOCKWISE,
-            all_features.difference({DRAW_INTERIOR_TRIANGLES}))
+            all_features.union({DRAW_INTERIOR_TRIANGLES}))
 
+# Atlas coverage shaders.
+emit_shader(out, ShaderType.VERTEX, DrawType.PATH, FillType.LEGACY,
+            whole_program_features\
+                    .union({DRAW_INTERIOR_TRIANGLES, ATLAS_COVERAGE})\
+                    .difference(non_atlas_coverage_features))
+emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.CLOCKWISE,
+            all_features\
+                    .union({DRAW_INTERIOR_TRIANGLES, ATLAS_COVERAGE})\
+                    .difference(non_atlas_coverage_features))
+
+# Image mesh shaders.
 emit_shader(out, ShaderType.VERTEX, DrawType.IMAGE_MESH, FillType.LEGACY,
             whole_program_features.difference(non_image_mesh_features))
 emit_shader(out, ShaderType.FRAGMENT, DrawType.IMAGE_MESH, FillType.LEGACY,

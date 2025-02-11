@@ -352,9 +352,8 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @ENABLE_FEATHER
         if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
         {
-            fragCoverage = eval_feathered_fill(
-                v_coverages,
-                SAMPLED_R16F(@featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif
@@ -375,9 +374,8 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @ENABLE_FEATHER
         if (@ENABLE_FEATHER && is_feathered_stroke(v_coverages))
         {
-            fragCoverage = eval_feathered_stroke(
-                v_coverages,
-                SAMPLED_R16F(@featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_stroke(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif
@@ -397,9 +395,8 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @ENABLE_FEATHER
         if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
         {
-            fragCoverage = eval_feathered_fill(
-                v_coverages,
-                SAMPLED_R16F(@featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif

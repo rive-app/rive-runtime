@@ -180,6 +180,8 @@ class RenderContextGLImpl::PLSImplRWTexture
         {
             // Turn the color mask back on now that we're about to resolve.
             renderContextImpl->state()->setWriteMasks(true, true, 0xff);
+            renderContextImpl->state()->setGLBlendMode(
+                GLState::GLBlendMode::none);
         }
     }
 

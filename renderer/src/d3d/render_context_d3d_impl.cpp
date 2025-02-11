@@ -15,6 +15,7 @@
 #include "generated/shaders/color_ramp.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
+#include "generated/shaders/draw_atlas.glsl.hpp"
 #include "generated/shaders/draw_image_mesh.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.glsl.hpp"
@@ -168,6 +169,7 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     m_platformFeatures.supportsRasterOrdering =
         d3dCapabilities.supportsRasterizerOrderedViews;
     m_platformFeatures.supportsFragmentShaderAtomics = true;
+    m_platformFeatures.maxTextureSize = D3D11_REQ_TEXTURE2D_U_OR_V_DIMENSION;
 
     // Create a default raster state for path and offscreen draws.
     D3D11_RASTERIZER_DESC rasterDesc;
@@ -192,7 +194,14 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         &rasterDesc,
         m_backCulledRasterState[0].ReleaseAndGetAddressOf()));
 
+    // ...And with scissor for the atlas.
+    rasterDesc.ScissorEnable = TRUE;
+    VERIFY_OK(m_gpu->CreateRasterizerState(
+        &rasterDesc,
+        m_atlasRasterState.ReleaseAndGetAddressOf()));
+
     // ...And with wireframe for debugging.
+    rasterDesc.ScissorEnable = FALSE;
     rasterDesc.FillMode = D3D11_FILL_WIREFRAME;
     VERIFY_OK(m_gpu->CreateRasterizerState(
         &rasterDesc,
@@ -425,15 +434,6 @@ RenderContextD3DImpl::RenderContextD3DImpl(
                                 1,
                                 m_linearSampler.GetAddressOf());
 
-    ID3D11SamplerState* samplers[3] = {
-        m_linearSampler.Get(),
-        m_linearSampler.Get(),
-        m_mipmapSampler.Get(),
-    };
-    static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
-    static_assert(IMAGE_TEXTURE_IDX == FEATHER_TEXTURE_IDX + 1);
-    m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 3, samplers);
-
     D3D11_BLEND_DESC srcOverDesc{};
     srcOverDesc.RenderTarget[0].BlendEnable = TRUE;
     srcOverDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
@@ -447,6 +447,27 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     VERIFY_OK(
         m_gpu->CreateBlendState(&srcOverDesc,
                                 m_srcOverBlendState.ReleaseAndGetAddressOf()));
+
+    D3D11_BLEND_DESC plusDesc{};
+    plusDesc.RenderTarget[0].BlendEnable = TRUE;
+    plusDesc.RenderTarget[0].SrcBlend = D3D11_BLEND_ONE;
+    plusDesc.RenderTarget[0].DestBlend = D3D11_BLEND_ONE;
+    plusDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_ADD;
+    plusDesc.RenderTarget[0].SrcBlendAlpha = D3D11_BLEND_ONE;
+    plusDesc.RenderTarget[0].DestBlendAlpha = D3D11_BLEND_ONE;
+    plusDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_ADD;
+    plusDesc.RenderTarget[0].RenderTargetWriteMask =
+        D3D11_COLOR_WRITE_ENABLE_ALL;
+    VERIFY_OK(
+        m_gpu->CreateBlendState(&plusDesc,
+                                m_plusBlendState.ReleaseAndGetAddressOf()));
+
+    D3D11_BLEND_DESC maxDesc = plusDesc;
+    maxDesc.RenderTarget[0].BlendOp = D3D11_BLEND_OP_MAX;
+    maxDesc.RenderTarget[0].BlendOpAlpha = D3D11_BLEND_OP_MAX;
+    VERIFY_OK(
+        m_gpu->CreateBlendState(&maxDesc,
+                                m_maxBlendState.ReleaseAndGetAddressOf()));
 }
 
 ComPtr<ID3D11Texture2D> RenderContextD3DImpl::makeSimple2DTexture(
@@ -1077,23 +1098,114 @@ void RenderContextD3DImpl::resizeTessellationTexture(uint32_t width,
     }
 }
 
+void RenderContextD3DImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
+{
+
+    if (width == 0 || height == 0)
+    {
+        m_atlasTexture = nullptr;
+        m_atlasTextureSRV = nullptr;
+        m_atlasTextureRTV = nullptr;
+    }
+    else
+    {
+        m_atlasTexture = makeSimple2DTexture(DXGI_FORMAT_R32_FLOAT,
+                                             width,
+                                             height,
+                                             1,
+                                             D3D11_BIND_RENDER_TARGET |
+                                                 D3D11_BIND_SHADER_RESOURCE);
+        VERIFY_OK(m_gpu->CreateShaderResourceView(
+            m_atlasTexture.Get(),
+            NULL,
+            m_atlasTextureSRV.ReleaseAndGetAddressOf()));
+        VERIFY_OK(m_gpu->CreateRenderTargetView(
+            m_atlasTexture.Get(),
+            NULL,
+            m_atlasTextureRTV.ReleaseAndGetAddressOf()));
+    }
+
+    // Don't compile the atlas programs until we get an indication that they
+    // will be used.
+    if (m_atlasVertexShader == 0)
+    {
+        std::ostringstream s;
+        s << "#define " << GLSL_DRAW_PATH << '\n';
+        s << "#define " << GLSL_ENABLE_FEATHER << '\n';
+        s << "#define " << GLSL_DRAW_PATH << '\n';
+        s << "#define " << GLSL_ATLAS_FEATHERED_FILL << '\n';
+        s << "#define " << GLSL_ATLAS_FEATHERED_STROKE << '\n';
+        s << glsl::hlsl << '\n';
+        s << glsl::constants << '\n';
+        s << glsl::common << '\n';
+        s << glsl::draw_path_common << '\n';
+        s << glsl::draw_atlas << '\n';
+        ComPtr<ID3DBlob> blob = compileSourceToBlob(GLSL_VERTEX,
+                                                    s.str().c_str(),
+                                                    GLSL_atlasVertexMain,
+                                                    "vs_5_0");
+        D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
+        layoutDesc[0] = {GLSL_a_patchVertexData,
+                         0,
+                         DXGI_FORMAT_R32G32B32A32_FLOAT,
+                         kPatchVertexDataSlot,
+                         D3D11_APPEND_ALIGNED_ELEMENT,
+                         D3D11_INPUT_PER_VERTEX_DATA,
+                         0};
+        layoutDesc[1] = {GLSL_a_mirroredVertexData,
+                         0,
+                         DXGI_FORMAT_R32G32B32A32_FLOAT,
+                         kPatchVertexDataSlot,
+                         D3D11_APPEND_ALIGNED_ELEMENT,
+                         D3D11_INPUT_PER_VERTEX_DATA,
+                         0};
+        VERIFY_OK(m_gpu->CreateInputLayout(layoutDesc,
+                                           2,
+                                           blob->GetBufferPointer(),
+                                           blob->GetBufferSize(),
+                                           &m_atlasLayout));
+        VERIFY_OK(m_gpu->CreateVertexShader(blob->GetBufferPointer(),
+                                            blob->GetBufferSize(),
+                                            nullptr,
+                                            &m_atlasVertexShader));
+
+        blob = compileSourceToBlob(GLSL_FRAGMENT,
+                                   s.str().c_str(),
+                                   GLSL_atlasFillFragmentMain,
+                                   "ps_5_0");
+        VERIFY_OK(m_gpu->CreatePixelShader(blob->GetBufferPointer(),
+                                           blob->GetBufferSize(),
+                                           nullptr,
+                                           &m_atlasFillPixelShader));
+
+        blob = compileSourceToBlob(GLSL_FRAGMENT,
+                                   s.str().c_str(),
+                                   GLSL_atlasStrokeFragmentMain,
+                                   "ps_5_0");
+        VERIFY_OK(m_gpu->CreatePixelShader(blob->GetBufferPointer(),
+                                           blob->GetBufferSize(),
+                                           nullptr,
+                                           &m_atlasStrokePixelShader));
+    }
+}
+
 void RenderContextD3DImpl::setPipelineLayoutAndShaders(
     DrawType drawType,
     gpu::ShaderFeatures shaderFeatures,
     gpu::InterlockMode interlockMode,
-    gpu::ShaderMiscFlags pixelShaderMiscFlags)
+    gpu::ShaderMiscFlags shaderMiscFlags)
 {
-    uint32_t vertexShaderKey =
-        gpu::ShaderUniqueKey(drawType,
-                             shaderFeatures & kVertexShaderFeaturesMask,
-                             interlockMode,
-                             gpu::ShaderMiscFlags::none);
+    uint32_t vertexShaderKey = gpu::ShaderUniqueKey(
+        drawType,
+        shaderFeatures & kVertexShaderFeaturesMask,
+        interlockMode,
+        shaderMiscFlags & gpu::VERTEX_SHADER_MISC_FLAGS_MASK);
     auto vertexEntry = m_drawVertexShaders.find(vertexShaderKey);
 
     uint32_t pixelShaderKey = ShaderUniqueKey(drawType,
                                               shaderFeatures,
                                               interlockMode,
-                                              pixelShaderMiscFlags);
+                                              shaderMiscFlags);
     auto pixelEntry = m_drawPixelShaders.find(pixelShaderKey);
 
     if (vertexEntry == m_drawVertexShaders.end() ||
@@ -1111,7 +1223,8 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
         if (m_d3dCapabilities.supportsRasterizerOrderedViews)
         {
             if (interlockMode == gpu::InterlockMode::rasterOrdering &&
-                drawType != DrawType::interiorTriangulation)
+                (drawType != DrawType::interiorTriangulation ||
+                 (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)))
             {
                 s << "#define " << GLSL_ENABLE_RASTERIZER_ORDERED_VIEWS << '\n';
             }
@@ -1124,21 +1237,23 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
         {
             s << "#define " << GLSL_ENABLE_MIN_16_PRECISION << '\n';
         }
-        if (pixelShaderMiscFlags &
-            gpu::ShaderMiscFlags::fixedFunctionColorOutput)
+        if (shaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput)
         {
             s << "#define " << GLSL_FIXED_FUNCTION_COLOR_OUTPUT << '\n';
         }
-        if (pixelShaderMiscFlags &
-            gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
+        if (shaderMiscFlags & gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
         {
             s << "#define " << GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER << '\n';
             s << "#define " << GLSL_COLOR_PLANE_IDX_OVERRIDE << ' '
               << COALESCED_OFFSCREEN_COLOR_PLANE_IDX << '\n';
         }
-        if (pixelShaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
+        if (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
         {
             s << "#define " << GLSL_CLOCKWISE_FILL << " 1\n";
+        }
+        if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
+        {
+            s << "#define " << GLSL_ATLAS_COVERAGE << " 1\n";
         }
         switch (drawType)
         {
@@ -1381,6 +1496,16 @@ static void blit_sub_rect(ID3D11DeviceContext* gpuContext,
                                       &updateBox);
 }
 
+static D3D11_RECT make_scissor(const TAABB<uint16_t> scissor)
+{
+    D3D11_RECT rect;
+    rect.left = scissor.left;
+    rect.top = scissor.top;
+    rect.right = scissor.right;
+    rect.bottom = scissor.bottom;
+    return rect;
+}
+
 void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 {
     assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
@@ -1453,6 +1578,18 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                            2,
                                            storageBufferBufferSRVs + 1);
     }
+
+    // All programs use the same samplers.
+    ID3D11SamplerState* samplers[4] = {
+        m_linearSampler.Get(),
+        m_linearSampler.Get(),
+        m_linearSampler.Get(),
+        m_mipmapSampler.Get(),
+    };
+    static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+    static_assert(ATLAS_TEXTURE_IDX == FEATHER_TEXTURE_IDX + 1);
+    static_assert(IMAGE_TEXTURE_IDX == ATLAS_TEXTURE_IDX + 1);
+    m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 4, samplers);
 
     // Render the complex color ramps to the gradient texture.
     if (desc.gradSpanCount > 0)
@@ -1555,6 +1692,127 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         }
     }
 
+    ID3D11Buffer* vertexBuffers[3] = {
+        m_patchVertexBuffer.Get(),
+        desc.hasTriangleVertices
+            ? flush_buffer(m_gpuContext.Get(), triangleBufferRing())
+            : NULL,
+        m_imageRectVertexBuffer.Get()};
+    UINT vertexStrides[3] = {sizeof(gpu::PatchVertex),
+                             sizeof(gpu::TriangleVertex),
+                             sizeof(gpu::ImageRectVertex)};
+    UINT vertexOffsets[3] = {0, 0, 0};
+    static_assert(kPatchVertexDataSlot == 0);
+    static_assert(kTriangleVertexDataSlot == 1);
+    static_assert(kImageRectVertexDataSlot == 2);
+    m_gpuContext->IASetVertexBuffers(0,
+                                     3,
+                                     vertexBuffers,
+                                     vertexStrides,
+                                     vertexOffsets);
+
+    // Unbind the tess and grad texture as a render target before binding them
+    // as images.
+    m_gpuContext->OMSetRenderTargets(0, NULL, NULL);
+    m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX,
+                                       1,
+                                       m_tessTextureSRV.GetAddressOf());
+    m_gpuContext->VSSetShaderResources(FEATHER_TEXTURE_IDX,
+                                       1,
+                                       m_featherTextureSRV.GetAddressOf());
+    ID3D11ShaderResourceView* gradFeatherViews[] = {
+        m_gradTextureSRV.Get(),
+        m_featherTextureSRV.Get(),
+    };
+    m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 2, gradFeatherViews);
+    assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+
+    // Render the atlas if we have any offscreen feathers.
+    if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
+    {
+        float clearZero[4]{};
+        m_gpuContext->ClearRenderTargetView(m_atlasTextureRTV.Get(), clearZero);
+
+        m_gpuContext->IASetInputLayout(m_atlasLayout.Get());
+        m_gpuContext->IASetPrimitiveTopology(
+            D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
+        m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(),
+                                       DXGI_FORMAT_R16_UINT,
+                                       0);
+        m_gpuContext->RSSetState(m_atlasRasterState.Get());
+
+        m_gpuContext->VSSetShader(m_atlasVertexShader.Get(), NULL, 0);
+
+        D3D11_VIEWPORT viewport = {0,
+                                   0,
+                                   static_cast<float>(desc.atlasContentWidth),
+                                   static_cast<float>(desc.atlasContentHeight),
+                                   0,
+                                   1};
+        m_gpuContext->RSSetViewports(1, &viewport);
+
+        m_gpuContext->OMSetRenderTargets(1,
+                                         m_atlasTextureRTV.GetAddressOf(),
+                                         NULL);
+
+        if (desc.atlasFillBatchCount != 0)
+        {
+            m_gpuContext->PSSetShader(m_atlasFillPixelShader.Get(), NULL, 0);
+            m_gpuContext->OMSetBlendState(m_plusBlendState.Get(),
+                                          NULL,
+                                          0xffffffff);
+            for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
+            {
+                const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
+                D3D11_RECT scissor = make_scissor(fillBatch.scissor);
+                m_gpuContext->RSSetScissorRects(1, &scissor);
+                DrawUniforms drawUniforms(fillBatch.basePatch);
+                m_gpuContext->UpdateSubresource(m_drawUniforms.Get(),
+                                                0,
+                                                NULL,
+                                                &drawUniforms,
+                                                0,
+                                                0);
+                m_gpuContext->DrawIndexedInstanced(
+                    gpu::kMidpointFanCenterAAPatchIndexCount,
+                    fillBatch.patchCount,
+                    gpu::kMidpointFanCenterAAPatchBaseIndex,
+                    0,
+                    fillBatch.basePatch);
+            }
+        }
+
+        if (desc.atlasStrokeBatchCount != 0)
+        {
+            m_gpuContext->PSSetShader(m_atlasStrokePixelShader.Get(), NULL, 0);
+            m_gpuContext->OMSetBlendState(m_maxBlendState.Get(),
+                                          NULL,
+                                          0xffffffff);
+            for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
+            {
+                const gpu::AtlasDrawBatch& strokeBatch =
+                    desc.atlasStrokeBatches[i];
+                D3D11_RECT scissor = make_scissor(strokeBatch.scissor);
+                m_gpuContext->RSSetScissorRects(1, &scissor);
+                DrawUniforms drawUniforms(strokeBatch.basePatch);
+                m_gpuContext->UpdateSubresource(m_drawUniforms.Get(),
+                                                0,
+                                                NULL,
+                                                &drawUniforms,
+                                                0,
+                                                0);
+                m_gpuContext->DrawIndexedInstanced(
+                    gpu::kMidpointFanPatchBorderIndexCount,
+                    strokeBatch.patchCount,
+                    gpu::kMidpointFanPatchBaseIndex,
+                    0,
+                    strokeBatch.basePatch);
+            }
+        }
+
+        m_gpuContext->OMSetBlendState(NULL, NULL, 0xffffffff);
+    }
+
     // Setup and clear the PLS textures.
     bool renderDirectToRasterPipeline =
         desc.interlockMode == InterlockMode::atomics &&
@@ -1614,37 +1872,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     }
 
     // Execute the DrawList.
-    ID3D11Buffer* vertexBuffers[3] = {
-        m_patchVertexBuffer.Get(),
-        desc.hasTriangleVertices
-            ? flush_buffer(m_gpuContext.Get(), triangleBufferRing())
-            : NULL,
-        m_imageRectVertexBuffer.Get()};
-    UINT vertexStrides[3] = {sizeof(gpu::PatchVertex),
-                             sizeof(gpu::TriangleVertex),
-                             sizeof(gpu::ImageRectVertex)};
-    UINT vertexOffsets[3] = {0, 0, 0};
-    static_assert(kPatchVertexDataSlot == 0);
-    static_assert(kTriangleVertexDataSlot == 1);
-    static_assert(kImageRectVertexDataSlot == 2);
-    m_gpuContext->IASetVertexBuffers(0,
-                                     3,
-                                     vertexBuffers,
-                                     vertexStrides,
-                                     vertexOffsets);
-
-    D3D11_VIEWPORT viewport = {0,
-                               0,
-                               static_cast<float>(renderTarget->width()),
-                               static_cast<float>(renderTarget->height()),
-                               0,
-                               1};
-    m_gpuContext->RSSetViewports(1, &viewport);
-
-    m_gpuContext->PSSetConstantBuffers(IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-                                       1,
-                                       m_imageDrawUniforms.GetAddressOf());
-
     ID3D11RenderTargetView* targetRTV =
         renderDirectToRasterPipeline ? renderTarget->targetRTV() : NULL;
     ID3D11UnorderedAccessView* plsUAVs[] = {
@@ -1678,18 +1905,23 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                       0xffffffff);
     }
 
-    // Set these last, when the tess and grad textures are no longer bound as
-    // render targets.
-    m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX,
+    D3D11_VIEWPORT viewport = {0,
+                               0,
+                               static_cast<float>(renderTarget->width()),
+                               static_cast<float>(renderTarget->height()),
+                               0,
+                               1};
+    m_gpuContext->RSSetViewports(1, &viewport);
+
+    // Set this last, when the atlas texture is no longer bound as a render
+    // target.
+    m_gpuContext->PSSetShaderResources(ATLAS_TEXTURE_IDX,
                                        1,
-                                       m_tessTextureSRV.GetAddressOf());
-    m_gpuContext->VSSetShaderResources(FEATHER_TEXTURE_IDX,
+                                       m_atlasTextureSRV.GetAddressOf());
+
+    m_gpuContext->PSSetConstantBuffers(IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                                        1,
-                                       m_featherTextureSRV.GetAddressOf());
-    ID3D11ShaderResourceView* gradFeatherViews[] = {m_gradTextureSRV.Get(),
-                                                    m_featherTextureSRV.Get()};
-    m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 2, gradFeatherViews);
-    assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+                                       m_imageDrawUniforms.GetAddressOf());
 
     const char* const imageDrawUniformData =
         heap_buffer_contents(imageDrawUniformBufferRing());
@@ -1710,25 +1942,26 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         auto shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
-        auto pixelShaderMiscFlags =
-            drawType == gpu::DrawType::atomicResolve &&
-                    renderPassHasCoalescedResolveAndTransfer
-                ? gpu::ShaderMiscFlags::coalescedResolveAndTransfer
-                : gpu::ShaderMiscFlags::none;
+        auto shaderMiscFlags = batch.shaderMiscFlags;
+        if (drawType == gpu::DrawType::atomicResolve &&
+            renderPassHasCoalescedResolveAndTransfer)
+        {
+            shaderMiscFlags |=
+                gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
+        }
         if (renderDirectToRasterPipeline)
         {
-            pixelShaderMiscFlags |=
-                gpu::ShaderMiscFlags::fixedFunctionColorOutput;
+            shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
         }
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
             (batch.drawContents & gpu::DrawContents::clockwiseFill))
         {
-            pixelShaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
+            shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
         setPipelineLayoutAndShaders(drawType,
                                     shaderFeatures,
                                     desc.interlockMode,
-                                    pixelShaderMiscFlags);
+                                    shaderMiscFlags);
 
         if (auto imageTextureD3D =
                 static_cast<const TextureD3DImpl*>(batch.imageTexture))

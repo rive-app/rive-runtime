@@ -47,13 +47,13 @@ VERTEX_STORAGE_BUFFER_BLOCK_END
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
-#if defined(@ENABLE_FEATHER)
+#if defined(@ENABLE_FEATHER) || defined(@ATLAS_COVERAGE)
 TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
 #endif
-TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 #ifdef @ATLAS_COVERAGE
 TEXTURE_R16F(PER_DRAW_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
 #endif
+TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 #if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_ADVANCED_BLEND)
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
 #endif
@@ -62,8 +62,11 @@ FRAG_TEXTURE_BLOCK_END
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 // Metal defines @VERTEX and @FRAGMENT at the same time, so yield to the vertex
 // definition of featherSampler in this case.
-#if defined(@ENABLE_FEATHER) && !defined(@VERTEX)
+#if (defined(@ENABLE_FEATHER) || defined(@ATLAS_COVERAGE)) && !defined(@VERTEX)
 SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
+#endif
+#ifdef @ATLAS_COVERAGE
+SAMPLER_LINEAR(ATLAS_TEXTURE_IDX, atlasSampler)
 #endif
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 #endif // @FRAGMENT
@@ -75,6 +78,15 @@ SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 INLINE bool is_stroke(float4 coverages) { return coverages.y >= .0; }
 INLINE bool is_stroke(half2 coverages) { return coverages.y >= .0; }
 #endif // FRAGMENT
+
+#if defined(@ENABLE_FEATHER) || defined(@ATLAS_COVERAGE)
+// This is a macro because we can't (at least for now) forward texture refs to a
+// function in a way that works in all the languages we support.
+#define FEATHER(X)                                                             \
+    TEXTURE_SAMPLE_LOD(@featherTexture, featherSampler, float2(X, .0), .0).r
+#define INVERSE_FEATHER(X)                                                     \
+    TEXTURE_SAMPLE_LOD(@featherTexture, featherSampler, float2(X, 1.), .0).r
+#endif
 
 #if defined(@FRAGMENT) && defined(@ENABLE_FEATHER)
 // We can also classify a fragments as feathered/not-feathered strokes/fills by
@@ -137,19 +149,7 @@ float4 pack_feathered_fill_coverages(float cornerTheta,
 #endif // @VERTEX
 
 #ifdef @ENABLE_FEATHER
-
-// This is a macro because we can't (at least for now) forward texture refs to a
-// function in a way that works in all the languages we support.
-#define FEATHER(X)                                                             \
-    TEXTURE_REF_SAMPLE_LOD(featherTextureRef,                                  \
-                           featherSamplerRef,                                  \
-                           float2(X, .0),                                      \
-                           .0)                                                 \
-        .r
-
-INLINE half eval_feathered_fill(float4 coverages,
-                                SAMPLED_R16F_REF(featherTextureRef,
-                                                 featherSamplerRef))
+INLINE float eval_feathered_fill(float4 coverages TEXTURE_CONTEXT_DECL)
 {
     // x and y are the relative coordinates of the corner vertex within the
     // feather convolution. They are oriented above center=[.5, .5], with the
@@ -236,9 +236,7 @@ INLINE half eval_feathered_fill(float4 coverages,
     return featherCoverage * sign(coverages.x);
 }
 
-INLINE half eval_feathered_stroke(float4 coverages,
-                                  SAMPLED_R16F_REF(featherTextureRef,
-                                                   featherSamplerRef))
+INLINE half eval_feathered_stroke(float4 coverages TEXTURE_CONTEXT_DECL)
 {
     // Feathered stroke is:
     // 1 - feather(1 - leftCoverage) - feather(1 - rightCoverage)
@@ -255,9 +253,39 @@ INLINE half eval_feathered_stroke(float4 coverages,
 
     return featherCoverage;
 }
-#undef FEATHER
-
 #endif // @ENABLE_FEATHER
+
+#if defined(@FRAGMENT) && defined(@ATLAS_COVERAGE)
+// Upscales a pre-rendered feather from the atlas, converting from gaussian
+// space to linear before doing a bilerp.
+INLINE half
+filter_feather_atlas(float2 atlasCoord,
+                     float2 atlasTextureInverseSize TEXTURE_CONTEXT_DECL)
+{
+    // Gather the quad of pixels we need to filter.
+    // Gather from the exact center of the quad to make sure there are no
+    // rounding differences between us and the texture unit.
+    float2 atlasQuadCenter = round(atlasCoord);
+    half4 coverages = TEXTURE_GATHER(@atlasTexture,
+                                     atlasSampler,
+                                     atlasQuadCenter,
+                                     atlasTextureInverseSize);
+    // Convert each pixel from gaussian space back to linear.
+    coverages = make_half4(INVERSE_FEATHER(coverages.x),
+                           INVERSE_FEATHER(coverages.y),
+                           INVERSE_FEATHER(coverages.z),
+                           INVERSE_FEATHER(coverages.w));
+    // Bilerp in linear space.
+    coverages.xw = mix(coverages.xw,
+                       coverages.yz,
+                       make_half(atlasCoord.x + .5 - atlasQuadCenter.x));
+    coverages.x = mix(coverages.w,
+                      coverages.x,
+                      make_half(atlasCoord.y + .5 - atlasQuadCenter.y));
+    // Go back to gaussian now that the bilerp is finished.
+    return FEATHER(coverages.x);
+}
+#endif // @FRAGMENT && @ATLAS_COVERAGE
 
 #if defined(@VERTEX) && defined(@DRAW_PATH)
 INLINE int2 tess_texel_coord(int texelIndex)
@@ -617,6 +645,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                     }
                     float2 spokeNorm = float2(sin(spokeTheta), cos(spokeTheta));
 
+                    // TODO: This contraction logic generates cracks in
+                    // geometry. It needs more investigation.
+#if 0
                     // When coners have stong curvature, their feather
                     // diminishes faster than it does for flat edges. In this
                     // scenario we can contract the tessellation a little to
@@ -637,18 +668,14 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                                                       spokeNorm,
                                                       .5 * (N / 3.));
                     float featherAtNStddevOutset = eval_feathered_fill(
-                        coveragesAtNStddevOutset,
-                        SAMPLED_R16F(@featherTexture, featherSampler));
+                        coveragesAtNStddevOutset TEXTURE_CONTEXT_FORWARD);
                     float inverseFeather =
-                        TEXTURE_SAMPLE_LOD(@featherTexture,
-                                           featherSampler,
-                                           float2(featherAtNStddevOutset, 1.),
-                                           .0)
-                            .r;
+                        INVERSE_FEATHER(featherAtNStddevOutset);
                     float stddevsAwayFromCenter =
                         (.5 - inverseFeather) * (FEATHER_TEXTURE_STDDEVS * 2.);
                     float contraction = N / max(stddevsAwayFromCenter, N);
                     outset *= contraction;
+#endif
 
                     // Emit coverage values for the fragment shader.
                     outCoverages = pack_feathered_fill_coverages(cornerTheta,
@@ -718,39 +745,49 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
 #ifdef @RENDER_MODE_MSAA
                                               ,
                                               OUT(ushort) outPathZIndex
-#elif !defined(@ATLAS_COVERAGE)
+#else
                                               ,
                                               OUT(half) outWindingWeight
-#endif
-#ifdef @ATLAS_COVERAGE
-                                              ,
-                                              OUT(half2) outAtlasCoord
 #endif
                                                   VERTEX_CONTEXT_DECL)
 {
     outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
+#ifdef @RENDER_MODE_MSAA
+    uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
+    outPathZIndex = cast_uint_to_ushort(pathData2.x);
+#else
+    outWindingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
+#endif
+    float2 vertexPos = triangleVertex.xy;
+    // ATLAS_COVERAGE draws vertices in screen space.
     float2x2 M = make_float2x2(
         uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
     uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
     float2 translate = uintBitsToFloat(pathData.xy);
-#if defined(@RENDER_MODE_MSAA) || defined(@ATLAS_COVERAGE)
-    uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
-#endif
-#ifdef @RENDER_MODE_MSAA
-    outPathZIndex = cast_uint_to_ushort(pathData2.x);
-#elif !defined(@ATLAS_COVERAGE)
-    outWindingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
-#endif
-    float2 vertexPos = triangleVertex.xy;
-#ifdef @ATLAS_COVERAGE
-    // outAtlasCoord tells the fragment shader where to fetch coverage from the
-    // atlas.
-    float2 screenToAtlasOffset =
-        float2(int2(pathData2.y << 16, pathData2.y) >> 16);
-    outAtlasCoord = vertexPos + screenToAtlasOffset;
-#else
     vertexPos = MUL(M, vertexPos) + translate;
-#endif
     return vertexPos;
 }
 #endif // @VERTEX && @DRAW_INTERIOR_TRIANGLES
+
+#if defined(@VERTEX) && defined(@ATLAS_COVERAGE)
+INLINE float2
+unpack_atlas_coverage_vertex(float3 triangleVertex,
+                             OUT(uint) outPathID,
+#ifdef @RENDER_MODE_MSAA
+                             OUT(ushort) outPathZIndex,
+#endif
+                             OUT(float2) outAtlasCoord VERTEX_CONTEXT_DECL)
+{
+    outPathID = floatBitsToUint(triangleVertex.z) & 0xffffu;
+    uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 2u);
+#ifdef @RENDER_MODE_MSAA
+    outPathZIndex = cast_uint_to_ushort(pathData2.x);
+#endif
+    float2 vertexPos = triangleVertex.xy;
+    // outAtlasCoord tells the fragment shader where to fetch coverage from the
+    // atlas, when using atlas coverage.
+    float3 atlasTransform = uintBitsToFloat(pathData2.yzw);
+    outAtlasCoord = vertexPos * atlasTransform.x + atlasTransform.yz;
+    return vertexPos;
+}
+#endif // @VERTEX && @ATLAS_COVERAGE

@@ -14,7 +14,16 @@
 #define DRAW_PATH
 #define DRAW_INTERIOR_TRIANGLES
 #define ENABLE_FEATHER
+#define ATLAS_COVERAGE
 #include "draw_path_common.minified.glsl"
+
+#define ATLAS_FEATHERED_FILL
+#define ATLAS_FEATHERED_STROKE
+#include "draw_atlas.minified.glsl"
+#undef ATLAS_FEATHERED_FILL
+#undef ATLAS_FEATHERED_STROKE
+
+#undef ATLAS_COVERAGE
 #undef ENABLE_FEATHER
 #undef DRAW_INTERIOR_TRIANGLES
 #undef DRAW_PATH

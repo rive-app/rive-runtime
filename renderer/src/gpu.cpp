@@ -68,7 +68,8 @@ uint32_t ShaderUniqueKey(DrawType drawType,
     assert(static_cast<uint32_t>(interlockMode) < 1 << 2);
     key = (key << 2) | static_cast<uint32_t>(interlockMode);
     key = (key << kShaderFeatureCount) |
-          (shaderFeatures & ShaderFeaturesMaskFor(drawType, interlockMode))
+          (shaderFeatures &
+           ShaderFeaturesMaskFor(drawType, miscFlags, interlockMode))
               .bits();
     assert(drawTypeKey < 1 << 3);
     key = (key << 3) | drawTypeKey;
@@ -469,7 +470,11 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_atlasTextureInverseSize(1.f / flushDesc.atlasTextureWidth,
                               1.f / flushDesc.atlasTextureHeight),
     m_atlasContentInverseViewport(2.f / flushDesc.atlasContentWidth,
-                                  2.f / flushDesc.atlasContentHeight),
+                                  (platformFeatures.clipSpaceBottomUp !=
+                                           platformFeatures.framebufferBottomUp
+                                       ? -2.f
+                                       : 2.f) /
+                                      flushDesc.atlasContentHeight),
     m_coverageBufferPrefix(flushDesc.coverageBufferPrefix),
     m_pathIDGranularity(platformFeatures.pathIDGranularity),
     m_vertexDiscardValue(std::numeric_limits<float>::quiet_NaN()),
@@ -489,17 +494,16 @@ void PathData::set(const Mat2D& m,
                    float strokeRadius,
                    float featherRadius,
                    uint32_t zIndex,
-                   int16_t screenToAtlasOffsetX,
-                   int16_t screenToAtlasOffsetY,
+                   const AtlasTransform& atlasTransform,
                    const CoverageBufferRange& coverageBufferRange)
 {
     write_matrix(m_matrix, m);
     m_strokeRadius = strokeRadius; // 0 if the path is filled.
     m_zIndex = zIndex;
     m_featherRadius = featherRadius;
-    m_screenToAtlasOffsetPackedXY =
-        (static_cast<uint32_t>(screenToAtlasOffsetY) << 16) |
-        (static_cast<uint32_t>(screenToAtlasOffsetX) & 0xffffu);
+    m_atlasTransform.scaleFactor = atlasTransform.scaleFactor;
+    m_atlasTransform.translateX = atlasTransform.translateX;
+    m_atlasTransform.translateY = atlasTransform.translateY;
     m_coverageBufferRange.offset = coverageBufferRange.offset;
     m_coverageBufferRange.pitch = coverageBufferRange.pitch;
     m_coverageBufferRange.offsetX = coverageBufferRange.offsetX;

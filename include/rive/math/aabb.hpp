@@ -45,6 +45,12 @@ template <typename T> struct TAABB
                bottom == o.bottom;
     }
     bool operator!=(const TAABB& o) const { return !(*this == o); }
+
+    bool contains(const TAABB& rhs) const
+    {
+        return left <= rhs.left && top <= rhs.top && right >= rhs.right &&
+               bottom >= rhs.bottom;
+    }
 };
 
 using IAABB = TAABB<int32_t>;

@@ -282,7 +282,7 @@ private:
     uint32_t atlasMaxSize() const
     {
         constexpr static uint32_t MAX_ATLAS_MAX_SIZE = 4096;
-        return std::max(platformFeatures().maxTextureSize, MAX_ATLAS_MAX_SIZE);
+        return std::min(platformFeatures().maxTextureSize, MAX_ATLAS_MAX_SIZE);
     }
 
     // Defines the exact size of each of our GPU resources. Computed during
@@ -559,12 +559,17 @@ private:
         // registers a future callback to PathDraw::pushAtlasTessellation()
         // where it will render its coverage data to this same region in the
         // atlas.
+        //
+        // Attempts to leave a border of "desiredPadding" pixels surrounding the
+        // rectangular region, but the allocation may not be padded if the path
+        // is up against an edge.
         bool allocateAtlasDraw(PathDraw*,
                                uint16_t drawWidth,
                                uint16_t drawHeight,
-                               uint16_t padding,
+                               uint16_t desiredPadding,
                                uint16_t* x,
-                               uint16_t* y);
+                               uint16_t* y,
+                               TAABB<uint16_t>* paddedRegion);
 
         // Reserves a range within the coverage buffer for a path to use in
         // clockwiseAtomic mode.

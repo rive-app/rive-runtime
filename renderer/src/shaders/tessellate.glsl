@@ -229,6 +229,9 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif
 
 #ifdef @FRAGMENT
+FRAG_TEXTURE_BLOCK_BEGIN
+FRAG_TEXTURE_BLOCK_END
+
 FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
 {
     VARYING_UNPACK(v_p0p1, float4);

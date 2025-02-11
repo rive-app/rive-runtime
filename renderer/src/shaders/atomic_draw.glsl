@@ -76,7 +76,11 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
+#ifdef @ATLAS_COVERAGE
+NO_PERSPECTIVE VARYING(0, float2, v_atlasCoord);
+#else
 @OPTIONALLY_FLAT VARYING(0, half, v_windingWeight);
+#endif
 FLAT VARYING(1, ushort, v_pathID);
 VARYING_BLOCK_END
 
@@ -85,18 +89,34 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
 
+#ifdef @ATLAS_COVERAGE
+    VARYING_INIT(v_atlasCoord, float2);
+#else
     VARYING_INIT(v_windingWeight, half);
+#endif
     VARYING_INIT(v_pathID, ushort);
 
     uint pathID;
-    float2 vertexPosition =
+    float2 vertexPosition;
+#ifdef @ATLAS_COVERAGE
+    vertexPosition =
+        unpack_atlas_coverage_vertex(@a_triangleVertex,
+                                     pathID,
+                                     v_atlasCoord VERTEX_CONTEXT_UNPACK);
+#else
+    vertexPosition =
         unpack_interior_triangle_vertex(@a_triangleVertex,
                                         pathID,
                                         v_windingWeight VERTEX_CONTEXT_UNPACK);
+#endif
     v_pathID = cast_uint_to_ushort(pathID);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
+#ifdef @ATLAS_COVERAGE
+    VARYING_PACK(v_atlasCoord);
+#else
     VARYING_PACK(v_windingWeight);
+#endif
     VARYING_PACK(v_pathID);
     EMIT_VERTEX(pos);
 }
@@ -535,15 +555,13 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 #ifdef @ENABLE_FEATHER
     if (@ENABLE_FEATHER && is_feathered_stroke(v_coverages))
     {
-        fragmentCoverage = eval_feathered_stroke(
-            v_coverages,
-            SAMPLED_R16F(@featherTexture, featherSampler));
+        fragmentCoverage =
+            eval_feathered_stroke(v_coverages TEXTURE_CONTEXT_FORWARD);
     }
     else if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
     {
         fragmentCoverage =
-            eval_feathered_fill(v_coverages,
-                                SAMPLED_R16F(@featherTexture, featherSampler));
+            eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
     }
     else
 #endif
@@ -623,7 +641,11 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 #ifdef @DRAW_INTERIOR_TRIANGLES
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
+#ifdef @ATLAS_COVERAGE
+    VARYING_UNPACK(v_atlasCoord, float2);
+#else
     VARYING_UNPACK(v_windingWeight, half);
+#endif
     VARYING_UNPACK(v_pathID, ushort);
 
     uint lastCoverageData = PLS_LOADUI_ATOMIC(coverageAtomicBuffer);
@@ -633,22 +655,41 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     // Update coverageAtomicBuffer with the coverage weight of the current
     // triangle. This does not need to be atomic since interior triangles don't
     // overlap.
-    int coverageDeltaFixed =
-        int(round(v_windingWeight * FIXED_COVERAGE_PRECISION));
-    uint currPathCoverageData =
-        lastPathID == v_pathID
-            ? lastCoverageData
-            : (make_uint(v_pathID) << FIXED_COVERAGE_BIT_COUNT) +
-                  FIXED_COVERAGE_ZERO_UINT;
+    uint currPathCoverageData;
+#ifndef @ATLAS_COVERAGE
+    if (lastPathID == v_pathID)
+    {
+        currPathCoverageData = lastCoverageData;
+    }
+    else
+#endif
+    {
+        currPathCoverageData =
+            (make_uint(v_pathID) << FIXED_COVERAGE_BIT_COUNT) +
+            FIXED_COVERAGE_ZERO_UINT;
+    }
+
+    half coverage;
+#ifdef @ATLAS_COVERAGE
+    coverage = filter_feather_atlas(
+        v_atlasCoord,
+        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
+#else
+    coverage = v_windingWeight;
+#endif
+
+    int coverageDeltaFixed = int(round(coverage * FIXED_COVERAGE_PRECISION));
     PLS_STOREUI_ATOMIC(coverageAtomicBuffer,
                        currPathCoverageData + uint(coverageDeltaFixed));
 
+#ifndef @ATLAS_COVERAGE
     if (lastPathID == v_pathID)
     {
         // This is not the first fragment of the current path to touch this
         // pixel. We already resolved the previous path, so just move on.
         discard;
     }
+#endif
 
     // We crossed into a new path! Resolve the previous path now that we know
     // its exact coverage.

@@ -171,6 +171,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
+    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
 
     // Obtains an exclusive lock on the next buffer ring index, potentially
     // blocking until the GPU has finished rendering with it. This ensures it is
@@ -217,6 +218,12 @@ private:
     std::unique_ptr<TessellatePipeline> m_tessPipeline;
     id<MTLBuffer> m_tessSpanIndexBuffer = nullptr;
     id<MTLTexture> m_tessVertexTexture = nullptr;
+
+    // Atlas rendering.
+    class AtlasPipeline;
+    std::unique_ptr<AtlasPipeline> m_atlasFillPipeline;
+    std::unique_ptr<AtlasPipeline> m_atlasStrokePipeline;
+    id<MTLTexture> m_atlasTexture = nullptr;
 
     std::map<uint32_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
 

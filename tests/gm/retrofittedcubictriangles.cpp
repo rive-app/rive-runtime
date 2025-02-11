@@ -42,7 +42,7 @@ public:
                      ? FillRule::clockwise
                      : FillRule::nonZero,
                  paint,
-                 SelectCoverageType(paint, context->frameInterlockMode()),
+                 SelectCoverageType(paint, 1, context->frameInterlockMode()),
                  context->frameDescriptor())
     {
         m_resourceCounts.pathCount = 1;

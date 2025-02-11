@@ -84,19 +84,23 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     ushort pathZIndex;
 #endif
 
-#ifdef @DRAW_INTERIOR_TRIANGLES
+#ifdef @ATLAS_COVERAGE
+    vertexPosition =
+        unpack_atlas_coverage_vertex(@a_triangleVertex,
+                                     pathID,
+#ifdef @RENDER_MODE_MSAA
+                                     pathZIndex,
+#endif
+                                     v_atlasCoord VERTEX_CONTEXT_UNPACK);
+#elif defined(@DRAW_INTERIOR_TRIANGLES)
     vertexPosition = unpack_interior_triangle_vertex(@a_triangleVertex,
                                                      pathID
 #ifdef @RENDER_MODE_MSAA
                                                      ,
                                                      pathZIndex
-#elif !defined(@ATLAS_COVERAGE)
+#else
                                                      ,
                                                      v_windingWeight
-#endif
-#ifdef @ATLAS_COVERAGE
-                                                     ,
-                                                     v_atlasCoord
 #endif
                                                          VERTEX_CONTEXT_UNPACK);
 #else // !@DRAW_INTERIOR_TRIANGLES
@@ -280,7 +284,6 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     VARYING_PACK(v_paint);
-
 #ifdef @ATLAS_COVERAGE
     VARYING_PACK(v_atlasCoord);
 #elif !defined(@RENDER_MODE_MSAA)
@@ -388,9 +391,11 @@ PLS_MAIN(@drawFragmentMain)
     PLS_INTERLOCK_BEGIN;
 #endif
 
+    half coverage;
 #ifdef @ATLAS_COVERAGE
-    half coverage =
-        clamp(TEXEL_FETCH(@atlasTexture, int2(floor(v_atlasCoord))).r, .0, 1.);
+    coverage = filter_feather_atlas(
+        v_atlasCoord,
+        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
 #else
     half2 coverageData = unpackHalf2x16(PLS_LOADUI(coverageCountBuffer));
     half coverageBufferID = coverageData.g;
@@ -407,9 +412,8 @@ PLS_MAIN(@drawFragmentMain)
 #ifdef @ENABLE_FEATHER
         if (@ENABLE_FEATHER && is_feathered_stroke(v_coverages))
         {
-            fragCoverage = eval_feathered_stroke(
-                v_coverages,
-                SAMPLED_R16F(@featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_stroke(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif // @ENABLE_FEATHER
@@ -424,9 +428,8 @@ PLS_MAIN(@drawFragmentMain)
 #if defined(@ENABLE_FEATHER)
         if (@ENABLE_FEATHER && is_feathered_fill(v_coverages))
         {
-            fragCoverage = eval_feathered_fill(
-                v_coverages,
-                SAMPLED_R16F(@featherTexture, featherSampler));
+            fragCoverage =
+                eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD);
         }
         else
 #endif // @CLOCKWISE_FILL && @ENABLE_FEATHER
@@ -442,7 +445,6 @@ PLS_MAIN(@drawFragmentMain)
 #endif // !@DRAW_INTERIOR_TRIANGLES
 
     // Convert coverageCount to coverage.
-    half coverage;
 #ifdef @CLOCKWISE_FILL
     if (@CLOCKWISE_FILL)
     {
@@ -611,8 +613,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 
     half4 color = find_paint_color(v_paint);
 #ifdef @ATLAS_COVERAGE
-    color.a *=
-        clamp(TEXEL_FETCH(@atlasTexture, int2(floor(v_atlasCoord))).r, .0, 1.);
+    color.a *= filter_feather_atlas(
+        v_atlasCoord,
+        uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
 #endif
 
 #ifdef @ENABLE_ADVANCED_BLEND

@@ -15,7 +15,7 @@ NO_PERSPECTIVE VARYING(0, float4, v_coverages);
 VARYING_BLOCK_END
 
 #ifdef @VERTEX
-VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
+VERTEX_MAIN(@atlasVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_patchVertexData, float4);
     ATTR_UNPACK(_vertexID, attrs, @a_mirroredVertexData, float4);
@@ -34,9 +34,8 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     {
         // Offset from on-screen coordinates to atlas coordinates.
         uint4 pathData2 = STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 2u);
-        float2 screenToAtlasOffset =
-            float2(int2(pathData2.y << 16, pathData2.y) >> 16);
-        vertexPosition += screenToAtlasOffset;
+        float3 atlasTransform = uintBitsToFloat(pathData2.yzw);
+        vertexPosition = vertexPosition * atlasTransform.x + atlasTransform.yz;
 
         pos = pixel_coord_to_clip_coord(vertexPosition,
                                         uniforms.atlasContentInverseViewport.x,
@@ -50,27 +49,27 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
                      uniforms.vertexDiscardValue);
     }
 
-    VARYING_PACK(v_coverageCoord);
+    VARYING_PACK(v_coverages);
     EMIT_VERTEX(pos);
 }
 #endif // @VERTEX
 
 #ifdef @FRAGMENT
-FRAG_DATA_MAIN(half4, @drawFragmentMain)
+
+#ifdef @ATLAS_FEATHERED_FILL
+FRAG_DATA_MAIN(float, @atlasFillFragmentMain)
 {
     VARYING_UNPACK(v_coverages, float4);
-
-    half coverage;
-#ifdef @ATLAS_DRAW_FEATHERED_STROKE
-    coverage =
-        eval_feathered_stroke(v_coverages,
-                              SAMPLED_R16F(@featherTexture, featherSampler));
-#else
-    coverage =
-        eval_feathered_fill(v_coverages,
-                            SAMPLED_R16F(@featherTexture, featherSampler));
-#endif
-
-    EMIT_FRAG_DATA(make_half4(coverage));
+    EMIT_FRAG_DATA(eval_feathered_fill(v_coverages TEXTURE_CONTEXT_FORWARD));
 }
+#endif // @ATLAS_FEATHERED_FILL
+
+#ifdef @ATLAS_FEATHERED_STROKE
+FRAG_DATA_MAIN(float, @atlasStrokeFragmentMain)
+{
+    VARYING_UNPACK(v_coverages, float4);
+    EMIT_FRAG_DATA(eval_feathered_stroke(v_coverages TEXTURE_CONTEXT_FORWARD));
+}
+#endif // @ATLAS_FEATHERED_STROKE
+
 #endif // FRAGMENT

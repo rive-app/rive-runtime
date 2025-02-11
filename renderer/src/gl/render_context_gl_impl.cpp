@@ -14,7 +14,7 @@
 #include "generated/shaders/color_ramp.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
-#include "generated/shaders/draw_feather_atlas.glsl.hpp"
+#include "generated/shaders/draw_atlas.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.glsl.hpp"
 #include "generated/shaders/draw_image_mesh.glsl.hpp"
@@ -693,7 +693,7 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
     m_atlasTexture = glutils::Texture();
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + ATLAS_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_atlasTexture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_R16F, width, height);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32F, width, height);
     glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_atlasFBO);
@@ -711,8 +711,6 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
         defines.push_back(GLSL_DRAW_PATH);
         defines.push_back(GLSL_ENABLE_FEATHER);
         defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
-        defines.push_back(GLSL_PLS_IMPL_STORAGE_TEXTURE);
-        defines.push_back(GLSL_USING_PLS_STORAGE_TEXTURES);
         if (!m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
         {
             defines.push_back(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
@@ -724,7 +722,7 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
         const char* atlasSources[] = {glsl::constants,
                                       glsl::common,
                                       glsl::draw_path_common,
-                                      glsl::draw_feather_atlas};
+                                      glsl::draw_atlas};
         m_atlasVertexShader.compile(GL_VERTEX_SHADER,
                                     defines.data(),
                                     defines.size(),
@@ -732,6 +730,7 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
                                     std::size(atlasSources),
                                     m_capabilities);
 
+        defines.push_back(GLSL_ATLAS_FEATHERED_FILL);
         m_atlasFillProgram.compile(m_atlasVertexShader,
                                    defines.data(),
                                    defines.size(),
@@ -739,8 +738,9 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
                                    std::size(atlasSources),
                                    m_capabilities,
                                    m_state.get());
+        defines.pop_back();
 
-        defines.push_back(GLSL_ATLAS_DRAW_FEATHERED_STROKE);
+        defines.push_back(GLSL_ATLAS_FEATHERED_STROKE);
         m_atlasStrokeProgram.compile(m_atlasVertexShader,
                                      defines.data(),
                                      defines.size(),
@@ -748,6 +748,7 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
                                      std::size(atlasSources),
                                      m_capabilities,
                                      m_state.get());
+        defines.pop_back();
     }
 }
 
@@ -987,7 +988,9 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
                                  GLSL_gradTexture,
                                  kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
     }
-    if (isTessellationDraw && (shaderFeatures & ShaderFeatures::ENABLE_FEATHER))
+    if ((isTessellationDraw &&
+         (shaderFeatures & ShaderFeatures::ENABLE_FEATHER)) ||
+        (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage))
     {
         assert(isPathDraw || interlockMode == gpu::InterlockMode::atomics);
         glutils::Uniform1iByName(m_id,
@@ -995,18 +998,18 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
                                  kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
     }
     // Atomic mode doesn't support image paints on paths.
+    if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
+    {
+        glutils::Uniform1iByName(m_id,
+                                 GLSL_atlasTexture,
+                                 kPLSTexIdxOffset + ATLAS_TEXTURE_IDX);
+    }
     if (isImageDraw ||
         (isPathDraw && interlockMode != gpu::InterlockMode::atomics))
     {
         glutils::Uniform1iByName(m_id,
                                  GLSL_imageTexture,
                                  kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
-    }
-    if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
-    {
-        glutils::Uniform1iByName(m_id,
-                                 GLSL_atlasTexture,
-                                 kPLSTexIdxOffset + ATLAS_TEXTURE_IDX);
     }
     if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
     {
@@ -1795,13 +1798,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case gpu::DrawType::interiorTriangulation:
             {
                 m_state->bindVAO(m_trianglesVAO);
-                const bool disableRasterOrdering =
-                    desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
-                    !(shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage);
-                if (disableRasterOrdering)
-                {
-                    m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
-                }
                 if (desc.interlockMode == gpu::InterlockMode::msaa)
                 {
                     bool hasActiveClip =
@@ -1812,11 +1808,25 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
                     m_state->setWriteMasks(true, false, 0x0);
                 }
+                else if (desc.interlockMode ==
+                         gpu::InterlockMode::rasterOrdering)
+                {
+                    // Disable raster ordering if we're drawing true interior
+                    // triangles (not atlas coverage). We know the triangulation
+                    // is large enough that it's faster to issue a barrier than
+                    // to force raster ordering in the fragment shader.
+                    const bool needRasterOrdering =
+                        (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage);
+                    m_plsImpl->ensureRasterOrderingEnabled(this,
+                                                           desc,
+                                                           needRasterOrdering);
+                }
                 m_state->setCullFace(GL_BACK);
                 glDrawArrays(GL_TRIANGLES,
                              batch.baseElement,
                              batch.elementCount);
-                if (disableRasterOrdering)
+                if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
+                    !(shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage))
                 {
                     // We turned off raster ordering even though we're in
                     // "rasterOrdering" mode because it improves performance and

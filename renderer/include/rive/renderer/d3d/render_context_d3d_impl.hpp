@@ -134,13 +134,14 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
+    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
 
     void flush(const FlushDescriptor&) override;
 
     void setPipelineLayoutAndShaders(DrawType,
                                      gpu::ShaderFeatures,
                                      gpu::InterlockMode,
-                                     gpu::ShaderMiscFlags pixelShaderMiscFlags);
+                                     gpu::ShaderMiscFlags shaderMiscFlags);
 
     const D3DCapabilities m_d3dCapabilities;
 
@@ -159,6 +160,11 @@ private:
     ComPtr<ID3D11ShaderResourceView> m_tessTextureSRV;
     ComPtr<ID3D11RenderTargetView> m_tessTextureRTV;
 
+    ComPtr<ID3D11Texture2D> m_atlasTexture;
+    ComPtr<ID3D11ShaderResourceView> m_atlasTextureSRV;
+    ComPtr<ID3D11RenderTargetView> m_atlasTextureRTV;
+
+    ComPtr<ID3D11RasterizerState> m_atlasRasterState;
     ComPtr<ID3D11RasterizerState> m_backCulledRasterState[2];
     ComPtr<ID3D11RasterizerState> m_doubleSidedRasterState[2];
 
@@ -170,6 +176,11 @@ private:
     ComPtr<ID3D11VertexShader> m_tessellateVertexShader;
     ComPtr<ID3D11PixelShader> m_tessellatePixelShader;
     ComPtr<ID3D11Buffer> m_tessSpanIndexBuffer;
+
+    ComPtr<ID3D11InputLayout> m_atlasLayout;
+    ComPtr<ID3D11VertexShader> m_atlasVertexShader;
+    ComPtr<ID3D11PixelShader> m_atlasFillPixelShader;
+    ComPtr<ID3D11PixelShader> m_atlasStrokePixelShader;
 
     struct DrawVertexShader
     {
@@ -206,5 +217,7 @@ private:
     ComPtr<ID3D11SamplerState> m_mipmapSampler;
 
     ComPtr<ID3D11BlendState> m_srcOverBlendState;
+    ComPtr<ID3D11BlendState> m_plusBlendState;
+    ComPtr<ID3D11BlendState> m_maxBlendState;
 };
 } // namespace rive::gpu
