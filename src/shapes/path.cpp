@@ -29,6 +29,40 @@ static float computeIdealControlPointDistance(const Vec2D& toPrev,
             (angle < math::PI / 2 ? 1 + cos(angle) : 2.0f - sin(angle)));
 }
 
+static void rotatePoints(const Vec2D& nextPoint,
+                         const Vec2D& prevPoint,
+                         const Vec2D& point,
+                         Vec2D& outPoint,
+                         Vec2D& inPoint)
+{
+    // Calculate angle between original pos and new positions
+    auto v1 = prevPoint - nextPoint;
+    auto v2 = point - nextPoint;
+    auto angle = atan2(Vec2D::cross(v1, v2), Vec2D::dot(v1, v2));
+    {
+        // Rotate outPoint around prevPoint twice the angle
+        auto s = sin(angle * 2);
+        auto c = cos(angle * 2);
+        outPoint.x -= prevPoint.x;
+        outPoint.y -= prevPoint.y;
+        auto xNew = outPoint.x * c - outPoint.y * s;
+        auto yNew = outPoint.x * s + outPoint.y * c;
+        outPoint.x = xNew + prevPoint.x;
+        outPoint.y = yNew + prevPoint.y;
+    }
+    {
+        // Rotate inPoint around nextPoint twice the angle
+        auto s = sin(-angle * 2);
+        auto c = cos(-angle * 2);
+        inPoint.x -= nextPoint.x;
+        inPoint.y -= nextPoint.y;
+        auto xNew = inPoint.x * c - inPoint.y * s;
+        auto yNew = inPoint.x * s + inPoint.y * c;
+        inPoint.x = xNew + nextPoint.x;
+        inPoint.y = yNew + nextPoint.y;
+    }
+}
+
 RenderPathDeformer* Path::deformer() const
 {
     if (m_Shape != nullptr)
@@ -123,7 +157,7 @@ void Path::buildPath(RawPath& rawPath) const
         startIsCubic = prevIsCubic = false;
         auto point = *firstPoint->as<StraightVertex>();
         auto radius = point.radius();
-        if (radius > 0.0f)
+        if (radius != 0.0f)
         {
             auto prev = vertices[length - 1];
 
@@ -144,9 +178,9 @@ void Path::buildPath(RawPath& rawPath) const
                 pos;
             auto toNextLength = toNext.normalizeLength();
 
-            float renderRadius =
-                std::min(toPrevLength / 2.0f,
-                         std::min(toNextLength / 2.0f, radius));
+            float renderRadius = std::min(
+                toPrevLength / 2.0f,
+                std::min(toNextLength / 2.0f, radius > 0 ? radius : -radius));
             float idealDistance =
                 computeIdealControlPointDistance(toPrev, toNext, renderRadius);
 
@@ -158,6 +192,11 @@ void Path::buildPath(RawPath& rawPath) const
             Vec2D inPoint =
                 Vec2D::scaleAndAdd(pos, toNext, renderRadius - idealDistance);
             out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
+
+            if (radius < 0)
+            {
+                rotatePoints(out, startIn, pos, outPoint, inPoint);
+            }
             rawPath.cubic(outPoint, inPoint, out);
             prevIsCubic = false;
         }
@@ -188,7 +227,7 @@ void Path::buildPath(RawPath& rawPath) const
             auto point = *vertex->as<StraightVertex>();
             Vec2D pos = point.renderTranslation();
             auto radius = point.radius();
-            if (radius > 0.0f)
+            if (radius != 0.0f)
             {
                 auto prev = vertices[i - 1];
                 Vec2D toPrev = (prev->is<CubicVertex>()
@@ -207,7 +246,8 @@ void Path::buildPath(RawPath& rawPath) const
 
                 float renderRadius =
                     std::min(toPrevLength / 2.0f,
-                             std::min(toNextLength / 2.0f, radius));
+                             std::min(toNextLength / 2.0f,
+                                      radius > 0 ? radius : -radius));
                 float idealDistance =
                     computeIdealControlPointDistance(toPrev,
                                                      toNext,
@@ -233,6 +273,11 @@ void Path::buildPath(RawPath& rawPath) const
                                        toNext,
                                        renderRadius - idealDistance);
                 out = Vec2D::scaleAndAdd(pos, toNext, renderRadius);
+
+                if (radius < 0)
+                {
+                    rotatePoints(out, translation, pos, outPoint, inPoint);
+                }
                 rawPath.cubic(outPoint, inPoint, out);
                 prevIsCubic = false;
             }

@@ -413,7 +413,7 @@ void LayoutComponentStyle::positionBottomUnitsValueChanged()
 {
     markLayoutNodeDirty();
 }
-void LayoutComponentStyle::cornerRadiusTLChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::cornerRadiusTRChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::cornerRadiusBLChanged() { markLayoutNodeDirty(); }
-void LayoutComponentStyle::cornerRadiusBRChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::cornerRadiusTLChanged() { markLayoutStyleDirty(); }
+void LayoutComponentStyle::cornerRadiusTRChanged() { markLayoutStyleDirty(); }
+void LayoutComponentStyle::cornerRadiusBLChanged() { markLayoutStyleDirty(); }
+void LayoutComponentStyle::cornerRadiusBRChanged() { markLayoutStyleDirty(); }
