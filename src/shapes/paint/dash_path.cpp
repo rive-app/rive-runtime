@@ -149,3 +149,14 @@ void DashPath::updateEffect(const ShapePaintPath* source)
 }
 
 ShapePaintPath* DashPath::effectPath() { return &m_path; }
+
+void DashPath::invalidateDash()
+{
+    PathDasher::invalidateDash();
+    if (parent() != nullptr)
+    {
+        auto stroke = parent()->as<Stroke>();
+        stroke->parent()->addDirt(ComponentDirt::Paint);
+        stroke->invalidateRendering();
+    }
+}
