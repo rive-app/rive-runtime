@@ -252,57 +252,6 @@ StatusCode LayoutComponent::onAddedClean(CoreContext* context)
     return StatusCode::Ok;
 }
 
-bool LayoutComponent::willComputeValidWidth()
-{
-    auto p = parent();
-    while (p != nullptr)
-    {
-        if (p->is<LayoutComponent>() && !p->is<Artboard>())
-        {
-            auto layout = p->as<LayoutComponent>();
-            if (layout->style() != nullptr)
-            {
-                if (layout->style()->widthScaleType() == LayoutScaleType::fixed)
-                {
-                    return true;
-                }
-                if (layout->style()->positionType() == YGPositionTypeAbsolute)
-                {
-                    break;
-                }
-            }
-        }
-        p = p->parent();
-    }
-    return false;
-}
-
-bool LayoutComponent::willComputeValidHeight()
-{
-    auto p = parent();
-    while (p != nullptr)
-    {
-        if (p->is<LayoutComponent>() && !p->is<Artboard>())
-        {
-            auto layout = p->as<LayoutComponent>();
-            if (layout->style() != nullptr)
-            {
-                if (layout->style()->heightScaleType() ==
-                    LayoutScaleType::fixed)
-                {
-                    return true;
-                }
-                if (layout->style()->positionType() == YGPositionTypeAbsolute)
-                {
-                    break;
-                }
-            }
-        }
-        p = p->parent();
-    }
-    return false;
-}
-
 void LayoutComponent::drawProxy(Renderer* renderer)
 {
     if (clip())
@@ -756,31 +705,14 @@ void LayoutComponent::syncStyle()
     ygStyle.border()[YGEdgeBottom] =
         YGValue{m_style->borderBottom(), m_style->borderBottomUnits()};
 
-    auto hasValidWidth = willComputeValidWidth();
-    auto hasValidHeight = willComputeValidHeight();
-    auto marginLeftUnits =
-        !hasValidWidth && m_style->marginLeftUnits() == YGUnitPercent
-            ? YGUnitAuto
-            : m_style->marginLeftUnits();
-    auto marginRightUnits =
-        !hasValidWidth && m_style->marginRightUnits() == YGUnitPercent
-            ? YGUnitAuto
-            : m_style->marginRightUnits();
-    auto marginTopUnits =
-        !hasValidHeight && m_style->marginTopUnits() == YGUnitPercent
-            ? YGUnitAuto
-            : m_style->marginTopUnits();
-    auto marginBottomUnits =
-        !hasValidHeight && m_style->marginBottomUnits() == YGUnitPercent
-            ? YGUnitAuto
-            : m_style->marginBottomUnits();
     ygStyle.margin()[YGEdgeLeft] =
-        YGValue{m_style->marginLeft(), marginLeftUnits};
+        YGValue{m_style->marginLeft(), m_style->marginLeftUnits()};
     ygStyle.margin()[YGEdgeRight] =
-        YGValue{m_style->marginRight(), marginRightUnits};
-    ygStyle.margin()[YGEdgeTop] = YGValue{m_style->marginTop(), marginTopUnits};
+        YGValue{m_style->marginRight(), m_style->marginRightUnits()};
+    ygStyle.margin()[YGEdgeTop] =
+        YGValue{m_style->marginTop(), m_style->marginTopUnits()};
     ygStyle.margin()[YGEdgeBottom] =
-        YGValue{m_style->marginBottom(), marginBottomUnits};
+        YGValue{m_style->marginBottom(), m_style->marginBottomUnits()};
     ygStyle.padding()[YGEdgeLeft] =
         YGValue{m_style->paddingLeft(), m_style->paddingLeftUnits()};
     ygStyle.padding()[YGEdgeRight] =

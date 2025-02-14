@@ -274,8 +274,6 @@ public:
     void scaleTypeChanged();
     void displayChanged();
     void flexDirectionChanged();
-    bool willComputeValidWidth();
-    bool willComputeValidHeight();
 #endif
     void buildDependencies() override;
 
