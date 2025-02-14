@@ -16,7 +16,7 @@
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
 #include "utils/lite_rtti.hpp"
-
+#include "rive/math/raw_path.hpp"
 #include <stdio.h>
 #include <cstdint>
 
@@ -192,6 +192,8 @@ public:
     {
         // No-op on non rive renderer.
     }
+
+    virtual void addRawPath(const RawPath& path) = 0;
 };
 
 class Renderer

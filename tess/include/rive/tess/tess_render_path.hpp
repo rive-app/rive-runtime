@@ -58,6 +58,7 @@ public:
         override;
     void close() override;
     void addRenderPath(RenderPath* path, const Mat2D& transform) override;
+    void addRawPath(const RawPath& path) override;
 
     const SegmentedContour& segmentedContour() const;
     bool triangulate();

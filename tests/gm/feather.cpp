@@ -153,6 +153,11 @@ protected:
             m_begin = shape->m_begin;
         }
 
+        void addRawPath(const RawPath& path) override
+        {
+            m_path->addRawPath(path);
+        }
+
     protected:
         Path m_path;
         Vec2D m_pen = {0, 0};

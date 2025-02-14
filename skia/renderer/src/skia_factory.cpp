@@ -39,6 +39,7 @@ public:
 
     void rewind() override;
     void addRenderPath(RenderPath* path, const Mat2D& transform) override;
+    void addRawPath(const RawPath& path) override;
     void fillRule(FillRule value) override;
     void moveTo(float x, float y) override;
     void lineTo(float x, float y) override;
@@ -130,6 +131,23 @@ void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
 {
     LITE_RTTI_CAST_OR_RETURN(skPath, SkiaRenderPath*, path);
     m_Path.addPath(skPath->m_Path, ToSkia::convert(transform));
+}
+
+void SkiaRenderPath::addRawPath(const RawPath& path)
+{
+    const bool isVolatile = false;
+    const SkScalar* conicWeights = nullptr;
+    const int conicWeightCount = 0;
+    auto skPath =
+        SkPath::Make(reinterpret_cast<const SkPoint*>(path.points().data()),
+                     path.points().size(),
+                     (uint8_t*)path.verbs().data(),
+                     path.verbs().size(),
+                     conicWeights,
+                     conicWeightCount,
+                     m_Path.getFillType(),
+                     isVolatile);
+    m_Path.addPath(skPath);
 }
 
 void SkiaRenderPath::moveTo(float x, float y) { m_Path.moveTo(x, y); }

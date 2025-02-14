@@ -93,7 +93,11 @@ public:
     CGRenderPath(Span<const Vec2D> pts, Span<const PathVerb> vbs, FillRule rule)
     {
         m_fillMode = convert(rule);
+        addRawPathCommands(pts, vbs);
+    }
 
+    void addRawPathCommands(Span<const Vec2D> pts, Span<const PathVerb> vbs)
+    {
         auto p = pts.data();
         for (auto v : vbs)
         {
@@ -133,6 +137,11 @@ public:
             }
         }
         assert(p == pts.end());
+    }
+
+    void addRawPath(const RawPath& path) override
+    {
+        addRawPathCommands(path.points(), path.verbs());
     }
 
     CGPathRef path() const { return m_path.get(); }

@@ -13,14 +13,14 @@ ShapePaintPath::ShapePaintPath(bool isLocal, FillRule fillRule) :
 void ShapePaintPath::rewind()
 {
     m_rawPath.rewind();
-    m_renderPath = nullptr;
+    m_isRenderPathDirty = true;
 }
 
 void ShapePaintPath::addPath(const RawPath& rawPath, const Mat2D* transform)
 {
     auto iter = m_rawPath.addPath(rawPath, transform);
     m_rawPath.pruneEmptySegments(iter);
-    m_renderPath = nullptr;
+    m_isRenderPathDirty = true;
 }
 
 void ShapePaintPath::addPathClockwise(const RawPath& rawPath,
@@ -46,25 +46,30 @@ void ShapePaintPath::addPathBackwards(const RawPath& rawPath,
 {
     auto iter = m_rawPath.addPathBackwards(rawPath, transform);
     m_rawPath.pruneEmptySegments(iter);
-    m_renderPath = nullptr;
+    m_isRenderPathDirty = true;
 }
 
 RenderPath* ShapePaintPath::renderPath(const Component* component)
 {
     assert(component != nullptr);
-    if (!m_renderPath)
-    {
-        auto factory = component->artboard()->factory();
-        m_renderPath = factory->makeRenderPath(m_rawPath, m_fillRule);
-    }
-    return m_renderPath.get();
+    return renderPath(component->artboard()->factory());
 }
 
 RenderPath* ShapePaintPath::renderPath(Factory* factory)
 {
     if (!m_renderPath)
     {
-        m_renderPath = factory->makeRenderPath(m_rawPath, m_fillRule);
+        m_renderPath = factory->makeEmptyRenderPath();
+        m_renderPath->addRawPath(m_rawPath);
+        m_renderPath->fillRule(m_fillRule);
+        m_isRenderPathDirty = false;
     }
+    else if (m_isRenderPathDirty)
+    {
+        m_renderPath->rewind();
+        m_renderPath->addRawPath(m_rawPath);
+        m_isRenderPathDirty = false;
+    }
+
     return m_renderPath.get();
 }

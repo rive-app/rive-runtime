@@ -32,7 +32,7 @@ public:
     void addRenderPath(RenderPath* path, const Mat2D& matrix) override;
     void addRenderPathBackwards(RenderPath* path,
                                 const Mat2D& transform) override;
-
+    void addRawPath(const RawPath& path) override;
     const RawPath& getRawPath() const { return m_rawPath; }
     FillRule getFillRule() const { return m_fillRule; }
 

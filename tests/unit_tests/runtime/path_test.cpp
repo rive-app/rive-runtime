@@ -45,6 +45,8 @@ class TestRenderPath : public rive::RenderPath
 {
 public:
     std::vector<TestPathCommand> commands;
+    void addRawPath(const rive::RawPath& path) override { path.addTo(this); }
+
     void rewind() override
     {
         commands.emplace_back(TestPathCommand{TestPathCommandType::Reset,

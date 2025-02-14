@@ -82,9 +82,12 @@ void RiveRenderPath::addRenderPath(RenderPath* path, const Mat2D& matrix)
 {
     assert(m_rawPathMutationLockCount == 0);
     RiveRenderPath* riveRenderPath = static_cast<RiveRenderPath*>(path);
+
+    bool isIdentity = matrix == Mat2D();
     RawPath::Iter transformedPathIter =
-        m_rawPath.addPath(riveRenderPath->m_rawPath, &matrix);
-    if (matrix != Mat2D())
+        m_rawPath.addPath(riveRenderPath->m_rawPath,
+                          isIdentity ? nullptr : &matrix);
+    if (!isIdentity)
     {
         // Prune any segments that became empty after the transform.
         m_rawPath.pruneEmptySegments(transformedPathIter);
@@ -104,6 +107,11 @@ void RiveRenderPath::addRenderPathBackwards(RenderPath* path,
         m_rawPath.pruneEmptySegments(transformedPathIter);
     }
     m_dirt = kAllDirt;
+}
+
+void RiveRenderPath::addRawPath(const RawPath& path)
+{
+    m_rawPath.addPath(path, nullptr);
 }
 
 const AABB& RiveRenderPath::getBounds() const

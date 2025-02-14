@@ -27,7 +27,6 @@ protected:
     std::vector<ShapePaint*> m_ShapePaints;
     void addPaint(ShapePaint* paint);
 
-    // TODO: void draw(Renderer* renderer, PathComposer& composer);
 public:
     static ShapePaintContainer* from(Component* component);
 

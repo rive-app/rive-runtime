@@ -38,6 +38,8 @@ public:
         override
     {}
     void close() override {}
+
+    void addRawPath(const RawPath& path) override {}
 };
 } // namespace
 

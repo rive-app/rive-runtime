@@ -46,6 +46,11 @@ void TessRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
     m_subPaths.emplace_back(SubPath(path, transform));
 }
 
+void TessRenderPath::addRawPath(const RawPath& path)
+{
+    m_rawPath.addPath(path, nullptr);
+}
+
 const SegmentedContour& TessRenderPath::segmentedContour() const
 {
     return m_segmentedContour;

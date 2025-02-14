@@ -41,6 +41,10 @@ public:
     void addRenderPath(rive::RenderPath* path,
                        const rive::Mat2D& transform) override
     {}
+    void addRawPath(const rive::RawPath& path) override
+    {
+        rawPath.addPath(path, nullptr);
+    }
 
     void moveTo(float x, float y) override {}
     void lineTo(float x, float y) override {}
