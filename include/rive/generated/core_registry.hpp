@@ -731,6 +731,9 @@ public:
             case FeatherBase::innerPropertyKey:
                 object->as<FeatherBase>()->inner(value);
                 break;
+            case PathBase::isHolePropertyKey:
+                object->as<PathBase>()->isHole(value);
+                break;
             case PointsPathBase::isClosedPropertyKey:
                 object->as<PointsPathBase>()->isClosed(value);
                 break;
@@ -2149,6 +2152,8 @@ public:
                 return object->as<StrokeBase>()->transformAffectsStroke();
             case FeatherBase::innerPropertyKey:
                 return object->as<FeatherBase>()->inner();
+            case PathBase::isHolePropertyKey:
+                return object->as<PathBase>()->isHole();
             case PointsPathBase::isClosedPropertyKey:
                 return object->as<PointsPathBase>()->isClosed();
             case RectangleBase::linkCornerRadiusPropertyKey:
@@ -3130,6 +3135,7 @@ public:
             case DashBase::lengthIsPercentagePropertyKey:
             case StrokeBase::transformAffectsStrokePropertyKey:
             case FeatherBase::innerPropertyKey:
+            case PathBase::isHolePropertyKey:
             case PointsPathBase::isClosedPropertyKey:
             case RectangleBase::linkCornerRadiusPropertyKey:
             case ClippingShapeBase::isVisiblePropertyKey:
@@ -3640,6 +3646,8 @@ public:
                 return object->is<StrokeBase>();
             case FeatherBase::innerPropertyKey:
                 return object->is<FeatherBase>();
+            case PathBase::isHolePropertyKey:
+                return object->is<PathBase>();
             case PointsPathBase::isClosedPropertyKey:
                 return object->is<PointsPathBase>();
             case RectangleBase::linkCornerRadiusPropertyKey:

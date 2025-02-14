@@ -85,7 +85,9 @@ void PathComposer::update(ComponentDirt value)
                          (path->as<PointsPath>()->isClockwise() ? 1.0f
                                                                 : -1.0f) <
                      0);
-                if (isNotClockwise)
+                bool isHole = path->isHole();
+                // Only draw backwards if values are different
+                if (isNotClockwise != isHole)
                 {
                     m_localClockwisePath.addPathBackwards(path->rawPath(),
                                                           &localTransform);

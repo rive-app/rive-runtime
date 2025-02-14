@@ -372,6 +372,8 @@ void Path::update(ComponentDirt value)
     // }
 }
 
+void Path::isHoleChanged() { markPathDirty(); }
+
 bool Path::collapse(bool value)
 {
     bool changed = Super::collapse(value);

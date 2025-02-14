@@ -44,6 +44,7 @@ protected:
     PathFlags m_pathFlags = PathFlags::none;
     RawPath m_rawPath;
     RenderPathDeformer* deformer() const;
+    void isHoleChanged() override;
 
 public:
     Shape* shape() const { return m_Shape; }
