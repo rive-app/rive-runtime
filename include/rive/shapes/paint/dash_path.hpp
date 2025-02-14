@@ -23,6 +23,9 @@ protected:
     ShapePaintPath* dash(const RawPath* source,
                          Dash* offset,
                          Span<Dash*> dashes);
+    ShapePaintPath* applyDash(const RawPath* source,
+                              Dash* offset,
+                              Span<Dash*> dashes);
 
 protected:
     ShapePaintPath m_path;

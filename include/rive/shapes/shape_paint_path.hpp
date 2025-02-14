@@ -28,6 +28,11 @@ public:
         m_fillRule = fillRule;
         rewind();
     }
+    void rewind(bool isLocal)
+    {
+        m_isLocal = isLocal;
+        rewind();
+    }
     void addPath(const RawPath& rawPath, const Mat2D* transform = nullptr);
     void addPathBackwards(const RawPath& rawPath,
                           const Mat2D* transform = nullptr);

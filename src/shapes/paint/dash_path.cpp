@@ -24,6 +24,12 @@ ShapePaintPath* PathDasher::dash(const RawPath* source,
     }
 
     m_path.rewind();
+    return applyDash(source, offset, dashes);
+}
+ShapePaintPath* PathDasher::applyDash(const RawPath* source,
+                                      Dash* offset,
+                                      Span<Dash*> dashes)
+{
     if (m_contours.empty())
     {
         // 0.5f / 8.0f is a value that seems to look good on dashes with small
@@ -144,8 +150,15 @@ void DashPath::offsetIsPercentageChanged() { invalidateDash(); }
 
 void DashPath::updateEffect(const ShapePaintPath* source)
 {
+
+    if (m_path.hasRenderPath())
+    {
+        return;
+    }
+    m_path.rewind(source->isLocal());
+
     Dash dashOffset(offset(), offsetIsPercentage());
-    dash(source->rawPath(), &dashOffset, m_dashes);
+    applyDash(source->rawPath(), &dashOffset, m_dashes);
 }
 
 ShapePaintPath* DashPath::effectPath() { return &m_path; }
