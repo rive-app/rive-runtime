@@ -180,6 +180,7 @@ void TextStyle::draw(Renderer* renderer, const Mat2D& worldTransform)
         {
             continue;
         }
+        shapePaint->blendMode(parent()->as<Text>()->blendMode());
         shapePaint->draw(renderer, &m_path, worldTransform, true);
 
         if (m_paintPool.size() < m_opacityPaths.size())
