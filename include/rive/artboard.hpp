@@ -420,6 +420,7 @@ public:
     void onLayoutDirty(ArtboardCallback callback)
     {
         m_layoutDirtyCallback = callback;
+        addDirt(ComponentDirt::Components);
     }
 #endif
 };
