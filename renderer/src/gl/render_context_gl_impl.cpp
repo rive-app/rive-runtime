@@ -693,7 +693,16 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
     m_atlasTexture = glutils::Texture();
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + ATLAS_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_atlasTexture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32F, width, height);
+    glTexStorage2D(
+        GL_TEXTURE_2D,
+        1,
+        m_capabilities.EXT_float_blend
+            ? GL_R32F  // fp32 is ideal for the atlas. When there's a lot of
+                       // overlap, fp16 can run out of precision.
+            : GL_R16F, // FIXME: Fallback for when EXT_color_buffer_half_float
+                       // isn't supported.
+        width,
+        height);
     glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_atlasFBO);
@@ -2105,6 +2114,12 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     // versions are reported as extensions.
     if (capabilities.isGLES)
     {
+        if (capabilities.isContextVersionAtLeast(3, 2))
+        {
+            // Floating point render targets became core in OpenGL ES 3.2.
+            capabilities.EXT_color_buffer_half_float = true;
+            capabilities.EXT_float_blend = true;
+        }
         if (capabilities.isContextVersionAtLeast(3, 1))
         {
             capabilities.ARB_shader_storage_buffer_object = true;
@@ -2121,6 +2136,9 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             capabilities.ARB_shader_storage_buffer_object = true;
         }
         capabilities.EXT_clip_cull_distance = true;
+        // Floating point render targets became core in OpenGL 3.0.
+        capabilities.EXT_color_buffer_half_float = true;
+        capabilities.EXT_float_blend = true;
     }
 
 #ifndef RIVE_WEBGL
@@ -2204,6 +2222,14 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.INTEL_fragment_shader_ordering = true;
         }
+        else if (strcmp(ext, "GL_EXT_color_buffer_half_float") == 0)
+        {
+            capabilities.EXT_color_buffer_half_float = true;
+        }
+        else if (strcmp(ext, "GL_EXT_float_blend") == 0)
+        {
+            capabilities.EXT_float_blend = true;
+        }
         else if (strcmp(ext, "GL_EXT_shader_framebuffer_fetch") == 0)
         {
             capabilities.EXT_shader_framebuffer_fetch = true;
@@ -2233,6 +2259,21 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             "WEBGL_clip_cull_distance"))
     {
         capabilities.EXT_clip_cull_distance = true;
+    }
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "EXT_color_buffer_half_float"))
+    {
+        capabilities.EXT_color_buffer_half_float = true;
+    }
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "EXT_color_buffer_float") &&
+        emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "EXT_float_blend"))
+    {
+        capabilities.EXT_float_blend = true;
     }
 #endif // RIVE_WEBGL
 
