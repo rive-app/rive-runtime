@@ -127,9 +127,8 @@ $typedef $uint ushort;
     uniform $Texture2D<$unorm float4> NAME : $register($t##IDX)
 #define TEXTURE_R16F(SET, IDX, NAME)                                           \
     uniform $Texture2D<half> NAME : $register($t##IDX)
-#define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                   \
-    $Texture2D<half> NAME, $SamplerState SAMPLER_NAME
-#define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME, SAMPLER_NAME
+#define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME)                                  \
+    uniform $Texture1DArray<half> NAME : $register($t##IDX)
 
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler
 // parameters are defined at the API level.
@@ -143,11 +142,17 @@ $typedef $uint ushort;
     NAME.$Sample(SAMPLER_NAME, COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     NAME.$SampleLevel(SAMPLER_NAME, COORD, LOD)
-#define TEXTURE_REF_SAMPLE_LOD TEXTURE_SAMPLE_LOD
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     NAME.$SampleGrad(SAMPLER_NAME, COORD, DDX, DDY)
 #define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)        \
     NAME.$Gather(SAMPLER_NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
+#define TEXTURE_SAMPLE_LOD_1D_ARRAY(NAME,                                      \
+                                    SAMPLER_NAME,                              \
+                                    X,                                         \
+                                    ARRAY_INDEX,                               \
+                                    ARRAY_INDEX_NORMALIZED,                    \
+                                    LOD)                                       \
+    NAME.$SampleLevel(SAMPLER_NAME, float2(X, ARRAY_INDEX), LOD)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END

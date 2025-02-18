@@ -151,14 +151,12 @@ TEST_CASE("inverse_gaussian_integral_table", "[gpu]")
     };
     checkTable(gpu::g_inverseGaussianIntegralTableF32);
 
-    gpu::FeatherTextureData featherTextureData;
-    const uint16_t* inverseGaussianTableF16 =
-        featherTextureData.data + gpu::GAUSSIAN_TABLE_SIZE;
+    gpu::InverseGaussianIntegralTableF16 inverseGaussianTableF16;
     float inverseGaussianTableFromF16[gpu::GAUSSIAN_TABLE_SIZE];
     for (int i = 0; i < gpu::GAUSSIAN_TABLE_SIZE; ++i)
     {
         inverseGaussianTableFromF16[i] =
-            gpu::cast_f16_to_f32(inverseGaussianTableF16[i]).x;
+            gpu::cast_f16_to_f32(inverseGaussianTableF16.data[i]).x;
     }
     checkTable(inverseGaussianTableFromF16);
 }

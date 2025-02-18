@@ -1551,17 +1551,11 @@ void generate_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 void generate_inverse_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 #endif
 
-// Defines a GPU texture for feathers. The first row is the the gaussian
-// integral table and the second row is its inverse.
-constexpr static uint32_t FEATHER_TEXTURE_WIDTH = GAUSSIAN_TABLE_SIZE;
-constexpr static uint32_t FEATHER_TEXTURE_HEIGHT = 2;
-struct FeatherTextureData
+// Converts g_inverseGaussianIntegralTableF32 to 16-bit floats.
+struct InverseGaussianIntegralTableF16
 {
-public:
-    FeatherTextureData();
-    uint16_t data[GAUSSIAN_TABLE_SIZE * 2];
-    constexpr static uint32_t BYTES_PER_ROW =
-        GAUSSIAN_TABLE_SIZE * sizeof(uint16_t);
+    InverseGaussianIntegralTableF16();
+    uint16_t data[GAUSSIAN_TABLE_SIZE];
 };
 
 // Looks up the value of "x" in the given function table, with linear filtering.

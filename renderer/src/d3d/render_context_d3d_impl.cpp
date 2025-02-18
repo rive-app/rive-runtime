@@ -260,23 +260,38 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     }
 
     // Create the feather texture.
-    m_featherTexture = makeSimple2DTexture(DXGI_FORMAT_R16_FLOAT,
-                                           gpu::FEATHER_TEXTURE_WIDTH,
-                                           gpu::FEATHER_TEXTURE_HEIGHT,
-                                           1,
-                                           D3D11_BIND_SHADER_RESOURCE);
+    D3D11_TEXTURE1D_DESC featherTextureDesc{};
+    featherTextureDesc.Format = DXGI_FORMAT_R16_FLOAT;
+    featherTextureDesc.Width = gpu::GAUSSIAN_TABLE_SIZE;
+    featherTextureDesc.MipLevels = 1;
+    featherTextureDesc.ArraySize = FEATHER_TEXTURE_1D_ARRAY_LENGTH;
+    featherTextureDesc.Usage = D3D11_USAGE_DEFAULT;
+    featherTextureDesc.BindFlags = D3D11_BIND_SHADER_RESOURCE;
+    featherTextureDesc.CPUAccessFlags = 0;
+    featherTextureDesc.MiscFlags = 0;
+    VERIFY_OK(
+        m_gpu->CreateTexture1D(&featherTextureDesc,
+                               NULL,
+                               m_featherTexture.ReleaseAndGetAddressOf()));
+
     D3D11_BOX box;
     box.left = 0;
-    box.right = gpu::FEATHER_TEXTURE_WIDTH;
+    box.right = gpu::GAUSSIAN_TABLE_SIZE;
     box.top = 0;
-    box.bottom = gpu::FEATHER_TEXTURE_HEIGHT;
+    box.bottom = 1;
     box.front = 0;
     box.back = 1;
     m_gpuContext->UpdateSubresource(m_featherTexture.Get(),
-                                    0,
+                                    FEATHER_FUNCTION_ARRAY_INDEX,
                                     &box,
-                                    gpu::FeatherTextureData().data,
-                                    gpu::FeatherTextureData::BYTES_PER_ROW,
+                                    gpu::g_gaussianIntegralTableF16,
+                                    sizeof(gpu::g_gaussianIntegralTableF16),
+                                    sizeof(gpu::g_gaussianIntegralTableF16));
+    m_gpuContext->UpdateSubresource(m_featherTexture.Get(),
+                                    FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,
+                                    &box,
+                                    gpu::InverseGaussianIntegralTableF16().data,
+                                    sizeof(gpu::g_gaussianIntegralTableF16),
                                     0);
     VERIFY_OK(m_gpu->CreateShaderResourceView(
         m_featherTexture.Get(),

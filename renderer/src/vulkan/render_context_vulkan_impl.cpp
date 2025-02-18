@@ -2140,13 +2140,25 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
 
 void RenderContextVulkanImpl::initGPUObjects()
 {
+    // Emulate the feather texture1d array as a 2d texture until we add
+    // texture1d support in Vulkan.
+    uint16_t featherTextureData[gpu::GAUSSIAN_TABLE_SIZE *
+                                FEATHER_TEXTURE_1D_ARRAY_LENGTH];
+    memcpy(featherTextureData,
+           gpu::g_gaussianIntegralTableF16,
+           sizeof(gpu::g_gaussianIntegralTableF16));
+    memcpy(featherTextureData + gpu::GAUSSIAN_TABLE_SIZE,
+           gpu::InverseGaussianIntegralTableF16().data,
+           sizeof(gpu::g_gaussianIntegralTableF16));
+    static_assert(FEATHER_FUNCTION_ARRAY_INDEX == 0);
+    static_assert(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX == 1);
     m_featherTexture =
         make_rcp<TextureVulkanImpl>(m_vk,
-                                    gpu::FEATHER_TEXTURE_WIDTH,
-                                    gpu::FEATHER_TEXTURE_HEIGHT,
+                                    gpu::GAUSSIAN_TABLE_SIZE,
+                                    FEATHER_TEXTURE_1D_ARRAY_LENGTH,
                                     1,
                                     TextureFormat::r16f,
-                                    gpu::FeatherTextureData().data);
+                                    featherTextureData);
 
     constexpr static uint8_t black[] = {0, 0, 0, 1};
     m_nullImageTexture =

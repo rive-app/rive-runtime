@@ -503,19 +503,26 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 
     MTLTextureDescriptor* desc = [[MTLTextureDescriptor alloc] init];
     desc.pixelFormat = MTLPixelFormatR16Float;
-    desc.width = gpu::FEATHER_TEXTURE_WIDTH;
-    desc.height = gpu::FEATHER_TEXTURE_HEIGHT;
-    desc.usage = MTLTextureUsageShaderRead;
-    desc.textureType = MTLTextureType2D;
+    desc.textureType = MTLTextureType1DArray;
+    desc.width = gpu::GAUSSIAN_TABLE_SIZE;
     desc.mipmapLevelCount = 1;
+    desc.arrayLength = FEATHER_TEXTURE_1D_ARRAY_LENGTH;
+    desc.usage = MTLTextureUsageShaderRead;
     m_featherTexture = [m_gpu newTextureWithDescriptor:desc];
-    [m_featherTexture replaceRegion:MTLRegionMake2D(0,
-                                                    0,
-                                                    gpu::FEATHER_TEXTURE_WIDTH,
-                                                    gpu::FEATHER_TEXTURE_HEIGHT)
-                        mipmapLevel:0
-                          withBytes:gpu::FeatherTextureData().data
-                        bytesPerRow:gpu::FeatherTextureData::BYTES_PER_ROW];
+    [m_featherTexture
+        replaceRegion:MTLRegionMake2D(0, 0, gpu::GAUSSIAN_TABLE_SIZE, 1)
+          mipmapLevel:0
+                slice:FEATHER_FUNCTION_ARRAY_INDEX
+            withBytes:gpu::g_gaussianIntegralTableF16
+          bytesPerRow:sizeof(gpu::g_gaussianIntegralTableF16)
+        bytesPerImage:sizeof(gpu::g_gaussianIntegralTableF16)];
+    [m_featherTexture
+        replaceRegion:MTLRegionMake2D(0, 0, gpu::GAUSSIAN_TABLE_SIZE, 1)
+          mipmapLevel:0
+                slice:FEATHER_INVERSE_FUNCTION_ARRAY_INDEX
+            withBytes:gpu::InverseGaussianIntegralTableF16().data
+          bytesPerRow:sizeof(gpu::g_gaussianIntegralTableF16)
+        bytesPerImage:sizeof(gpu::g_gaussianIntegralTableF16)];
 
     m_tessPipeline =
         std::make_unique<TessellatePipeline>(m_gpu, m_plsPrecompiledLibrary);

@@ -13,6 +13,12 @@
 // -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS in the domain x=0..1.
 #define FEATHER_TEXTURE_STDDEVS float(3)
 
+// Indices of function tables in the feather texture1d array.
+// NOTE: This will be a texture2d if texture1d isn't supported.
+#define FEATHER_FUNCTION_ARRAY_INDEX 0
+#define FEATHER_INVERSE_FUNCTION_ARRAY_INDEX 1
+#define FEATHER_TEXTURE_1D_ARRAY_LENGTH 2
+
 // Width to use for a texture that emulates a storage buffer.
 //
 // Minimize width since the texture needs to be updated in entire rows from the

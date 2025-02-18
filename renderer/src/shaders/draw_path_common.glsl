@@ -30,7 +30,9 @@ TEXTURE_RGBA32UI(PER_FLUSH_BINDINGS_SET,
                  TESS_VERTEX_TEXTURE_IDX,
                  @tessVertexTexture);
 #if defined(@ENABLE_FEATHER)
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
+TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
+                      FEATHER_TEXTURE_IDX,
+                      @featherTexture);
 #endif
 VERTEX_TEXTURE_BLOCK_END
 
@@ -48,7 +50,9 @@ VERTEX_STORAGE_BUFFER_BLOCK_END
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
 #if defined(@ENABLE_FEATHER) || defined(@ATLAS_COVERAGE)
-TEXTURE_R16F(PER_FLUSH_BINDINGS_SET, FEATHER_TEXTURE_IDX, @featherTexture);
+TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
+                      FEATHER_TEXTURE_IDX,
+                      @featherTexture);
 #endif
 #ifdef @ATLAS_COVERAGE
 TEXTURE_R16F(PER_DRAW_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
@@ -83,9 +87,21 @@ INLINE bool is_stroke(half2 coverages) { return coverages.y >= .0; }
 // This is a macro because we can't (at least for now) forward texture refs to a
 // function in a way that works in all the languages we support.
 #define FEATHER(X)                                                             \
-    TEXTURE_SAMPLE_LOD(@featherTexture, featherSampler, float2(X, .0), .0).r
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
+                                featherSampler,                                \
+                                X,                                             \
+                                FEATHER_FUNCTION_ARRAY_INDEX,                  \
+                                float(FEATHER_FUNCTION_ARRAY_INDEX),           \
+                                .0)                                            \
+        .r
 #define INVERSE_FEATHER(X)                                                     \
-    TEXTURE_SAMPLE_LOD(@featherTexture, featherSampler, float2(X, 1.), .0).r
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
+                                featherSampler,                                \
+                                X,                                             \
+                                FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,          \
+                                float(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX),   \
+                                .0)                                            \
+        .r
 #endif
 
 #if defined(@FRAGMENT) && defined(@ENABLE_FEATHER)

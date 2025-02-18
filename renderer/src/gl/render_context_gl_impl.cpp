@@ -112,23 +112,34 @@ RenderContextGLImpl::RenderContextGLImpl(
     glEnableVertexAttribArray(0);
     glVertexAttribDivisor(0, 1);
 
+    // Emulate the feather texture1d array as a texture2d since GLES doesn't
+    // have texture1d.
     glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_featherTexture);
     glTexStorage2D(GL_TEXTURE_2D,
                    1,
                    GL_R16F,
-                   gpu::FEATHER_TEXTURE_WIDTH,
-                   gpu::FEATHER_TEXTURE_HEIGHT);
+                   gpu::GAUSSIAN_TABLE_SIZE,
+                   FEATHER_TEXTURE_1D_ARRAY_LENGTH);
     m_state->bindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
     glTexSubImage2D(GL_TEXTURE_2D,
                     0,
                     0,
-                    0,
-                    gpu::FEATHER_TEXTURE_WIDTH,
-                    gpu::FEATHER_TEXTURE_HEIGHT,
+                    FEATHER_FUNCTION_ARRAY_INDEX,
+                    gpu::GAUSSIAN_TABLE_SIZE,
+                    1,
                     GL_RED,
                     GL_HALF_FLOAT,
-                    gpu::FeatherTextureData().data);
+                    g_gaussianIntegralTableF16);
+    glTexSubImage2D(GL_TEXTURE_2D,
+                    0,
+                    0,
+                    FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,
+                    gpu::GAUSSIAN_TABLE_SIZE,
+                    1,
+                    GL_RED,
+                    GL_HALF_FLOAT,
+                    InverseGaussianIntegralTableF16().data);
     glutils::SetTexture2DSamplingParams(GL_LINEAR, GL_LINEAR);
 
     const char* tessellateSources[] = {glsl::constants,

@@ -158,8 +158,6 @@
 #define TEXTURE_R16F(SET, IDX, NAME) uniform mediump sampler2D NAME
 #endif
 
-#define TEXTURE_RG32UI(SET, IDX, NAME) TEXTURE_RGBA32UI(SET, IDX, NAME)
-
 #ifdef @TARGET_VULKAN
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
     layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)                  \
@@ -173,7 +171,6 @@
     textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
-#define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME, SAMPLER_NAME
 #else
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling
 // parameters are API-level state tied to the texture.
@@ -184,8 +181,25 @@
     textureLod(NAME, COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(NAME, COORD, DDX, DDY)
-#define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME
 #endif // !@TARGET_VULKAN
+
+// Polyfill the feather texture as a sampler2D since ES doesn't support
+// sampler1DArray. This is why the macro needs "ARRAY_INDEX_NORMALIZED": when
+// polyfilled as a 2D texture, the "array index" needs to be a 0..1 normalized
+// y coordinate instead of the literal array index.
+#define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME) TEXTURE_R16F(SET, IDX, NAME)
+#define TEXTURE_SAMPLE_LOD_1D_ARRAY(NAME,                                      \
+                                    SAMPLER_NAME,                              \
+                                    X,                                         \
+                                    ARRAY_INDEX,                               \
+                                    ARRAY_INDEX_NORMALIZED,                    \
+                                    LOD)                                       \
+    TEXTURE_SAMPLE_LOD(NAME,                                                   \
+                       SAMPLER_NAME,                                           \
+                       float2(X, ARRAY_INDEX_NORMALIZED),                      \
+                       LOD)
+
+#define TEXTURE_RG32UI(SET, IDX, NAME) TEXTURE_RGBA32UI(SET, IDX, NAME)
 
 #define TEXTURE_CONTEXT_DECL
 

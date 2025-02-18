@@ -134,9 +134,8 @@
 #define TEXTURE_RGBA32F(SET, IDX, NAME) [[$texture(IDX)]] $texture2d<float> NAME
 #define TEXTURE_RGBA8(SET, IDX, NAME) [[$texture(IDX)]] $texture2d<half> NAME
 #define TEXTURE_R16F(SET, IDX, NAME) [[$texture(IDX)]] $texture2d<half> NAME
-#define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                   \
-    $thread $const $texture2d<half>&NAME, $const $thread $sampler &SAMPLER_NAME
-#define SAMPLED_R16F(NAME, SAMPLER_NAME) _textures.NAME, SAMPLER_NAME
+#define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME)                                  \
+    [[$texture(IDX)]] $texture1d_array<half> NAME
 
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$none);
@@ -146,14 +145,19 @@
 #define TEXEL_FETCH(TEXTURE, COORD) _textures.TEXTURE.$read(uint2(COORD))
 #define TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD)                           \
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD)
-#define TEXTURE_REF_SAMPLE_LOD(TEXTURE_REF, SAMPLER_NAME, COORD, LOD)          \
-    TEXTURE_REF.$sample(SAMPLER_NAME, COORD, $level(LOD))
 #define TEXTURE_SAMPLE_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)                  \
-    TEXTURE_REF_SAMPLE_LOD(_textures.TEXTURE, SAMPLER_NAME, COORD, LOD)
+    _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $level(LOD))
 #define TEXTURE_SAMPLE_GRAD(TEXTURE, SAMPLER_NAME, COORD, DDX, DDY)            \
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
 #define TEXTURE_GATHER(TEXTURE, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)     \
     _textures.TEXTURE.$gather(SAMPLER_NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
+#define TEXTURE_SAMPLE_LOD_1D_ARRAY(TEXTURE,                                   \
+                                    SAMPLER_NAME,                              \
+                                    X,                                         \
+                                    ARRAY_INDEX,                               \
+                                    ARRAY_INDEX_NORMALIZED,                    \
+                                    LOD)                                       \
+    _textures.TEXTURE.$sample(SAMPLER_NAME, X, ARRAY_INDEX)
 
 #define VERTEX_CONTEXT_DECL                                                    \
     , $constant @FlushUniforms &uniforms, VertexTextures _textures,            \

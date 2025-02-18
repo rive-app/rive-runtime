@@ -1061,16 +1061,13 @@ const float g_inverseGaussianIntegralTableF32[GAUSSIAN_TABLE_SIZE] = {
     1.000000f,
 };
 
-FeatherTextureData::FeatherTextureData()
+InverseGaussianIntegralTableF16::InverseGaussianIntegralTableF16()
 {
-    memcpy(data,
-           g_gaussianIntegralTableF16,
-           sizeof(g_gaussianIntegralTableF16));
     for (int i = 0; i < GAUSSIAN_TABLE_SIZE; i += 4)
     {
         uint16x4 f16s = cast_f32_to_f16(
             simd::load4f(g_inverseGaussianIntegralTableF32 + i));
-        simd::store(data + GAUSSIAN_TABLE_SIZE + i, f16s);
+        simd::store(data + i, f16s);
     }
 }
 
