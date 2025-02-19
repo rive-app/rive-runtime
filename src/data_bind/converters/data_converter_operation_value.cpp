@@ -15,3 +15,8 @@ DataValue* DataConverterOperationValue::reverseConvert(DataValue* input,
 {
     return reverseConvertValue(input, operationValue());
 }
+
+void DataConverterOperationValue::operationValueChanged()
+{
+    markConverterDirty();
+}

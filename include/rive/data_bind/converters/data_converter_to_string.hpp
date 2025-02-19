@@ -125,6 +125,8 @@ class DataConverterToString : public DataConverterToStringBase
 public:
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataType outputType() override { return DataType::string; };
+    void decimalsChanged() override;
+    void colorFormatChanged() override;
 
 private:
     DataValue* convertNumber(DataValueNumber* value);

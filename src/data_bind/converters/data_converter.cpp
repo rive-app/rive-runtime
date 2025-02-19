@@ -47,7 +47,7 @@ void DataConverter::bindFromContext(DataContext* dataContext,
     }
 }
 
-void DataConverter::addDirt(ComponentDirt dirt)
+void DataConverter::markConverterDirty()
 {
     m_parentDataBind->addDirt(ComponentDirt::Dependents |
                                   ComponentDirt::Bindings,

@@ -88,7 +88,7 @@ bool DataConverterInterpolator::advance(float elapsedTime)
     advanceAnimationData(elapsedTime);
     if (animationData->elapsedSeconds < duration())
     {
-        addDirt(ComponentDirt::Dependents);
+        markConverterDirty();
         return true;
     }
     return false;
@@ -140,6 +140,8 @@ DataValue* DataConverterInterpolator::reverseConvert(DataValue* input,
 {
     return convert(input, dataBind);
 }
+
+void DataConverterInterpolator::durationChanged() { markConverterDirty(); }
 
 void InterpolatorAnimationData::copy(const InterpolatorAnimationData& source)
 {

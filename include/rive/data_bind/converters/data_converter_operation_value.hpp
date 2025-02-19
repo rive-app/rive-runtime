@@ -9,6 +9,7 @@ class DataConverterOperationValue : public DataConverterOperationValueBase
 public:
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
+    void operationValueChanged() override;
 };
 } // namespace rive
 

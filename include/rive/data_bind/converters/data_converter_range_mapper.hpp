@@ -29,6 +29,10 @@ public:
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
     void copy(const DataConverterRangeMapperBase& object);
+    void minInputChanged() override;
+    void maxInputChanged() override;
+    void minOutputChanged() override;
+    void maxOutputChanged() override;
 
 private:
     DataValueNumber m_output;

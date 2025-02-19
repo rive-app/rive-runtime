@@ -124,3 +124,11 @@ DataValue* DataConverterRangeMapper::reverseConvert(DataValue* input,
                                  minOutput(),
                                  maxOutput());
 }
+
+void DataConverterRangeMapper::minInputChanged() { markConverterDirty(); }
+
+void DataConverterRangeMapper::maxInputChanged() { markConverterDirty(); }
+
+void DataConverterRangeMapper::minOutputChanged() { markConverterDirty(); }
+
+void DataConverterRangeMapper::maxOutputChanged() { markConverterDirty(); }

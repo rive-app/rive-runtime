@@ -42,7 +42,8 @@
         "int": 158,
         "string": "duration"
       },
-      "description": "Duration of the trasition (mix time) in milliseconds or percentage (0-100) based on flags."
+      "description": "Duration of the trasition (mix time) in milliseconds or percentage (0-100) based on flags.",
+      "bindable": true
     },
     "transitionOrder": {
       "type": "FractionalIndex",

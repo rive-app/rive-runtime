@@ -1340,6 +1340,10 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
                     dataBindClone;
             }
         }
+        else
+        {
+            dataBindClone->target(dataBind->target());
+        }
     }
 
     // Initialize listeners. Store a lookup table of shape id to hit shape

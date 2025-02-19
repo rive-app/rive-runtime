@@ -33,6 +33,7 @@ public:
     DataValue* reverseConvert(DataValue* value, DataBind* dataBind) override;
     bool advance(float elapsedTime) override;
     void copy(const DataConverterInterpolatorBase& object);
+    void durationChanged() override;
 
 private:
     DataValueNumber m_output;

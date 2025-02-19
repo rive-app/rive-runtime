@@ -6,27 +6,36 @@ using namespace rive;
 
 DataBindContextValueEnum::DataBindContextValueEnum(DataBind* dataBind) :
     DataBindContextValue(dataBind)
-{}
+{
+    auto source = m_dataBind->source();
+    auto viewmodelInstanceEnum = source->as<ViewModelInstanceEnum>();
+    auto viewModelPropertyEnum =
+        viewmodelInstanceEnum->viewModelProperty()->as<ViewModelPropertyEnum>();
+    m_targetDataValue.dataEnum(viewModelPropertyEnum->dataEnum());
+}
 
 void DataBindContextValueEnum::apply(Core* target,
                                      uint32_t propertyKey,
                                      bool isMainDirection)
 {
 
-    updateSourceValue();
+    syncSourceValue();
     auto value = calculateValue<DataValueEnum, uint32_t>(m_dataValue,
                                                          isMainDirection,
                                                          m_dataBind);
     CoreRegistry::setUint(target, propertyKey, value);
 }
 
-DataValue* DataBindContextValueEnum::getTargetValue(Core* target,
-                                                    uint32_t propertyKey)
+bool DataBindContextValueEnum::syncTargetValue(Core* target,
+                                               uint32_t propertyKey)
 {
     auto value = CoreRegistry::getUint(target, propertyKey);
-    auto source = m_dataBind->source();
-    auto viewmodelInstanceEnum = source->as<ViewModelInstanceEnum>();
-    auto viewModelPropertyEnum =
-        viewmodelInstanceEnum->viewModelProperty()->as<ViewModelPropertyEnum>();
-    return new DataValueEnum(value, viewModelPropertyEnum->dataEnum());
+
+    if (m_previousValue != value)
+    {
+        m_previousValue = value;
+        m_targetDataValue.value(value);
+        return true;
+    }
+    return false;
 }

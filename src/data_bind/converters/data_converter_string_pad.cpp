@@ -42,3 +42,9 @@ DataValue* DataConverterStringPad::convert(DataValue* input, DataBind* dataBind)
     }
     return &m_output;
 }
+
+void DataConverterStringPad::lengthChanged() { markConverterDirty(); }
+
+void DataConverterStringPad::padTypeChanged() { markConverterDirty(); }
+
+void DataConverterStringPad::textChanged() { markConverterDirty(); }

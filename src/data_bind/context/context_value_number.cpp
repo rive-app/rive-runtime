@@ -1,5 +1,4 @@
 #include "rive/data_bind/context/context_value_number.hpp"
-#include "rive/data_bind/data_values/data_value_number.hpp"
 #include "rive/generated/core_registry.hpp"
 #include <cmath>
 
@@ -13,7 +12,7 @@ void DataBindContextValueNumber::apply(Core* target,
                                        uint32_t propertyKey,
                                        bool isMainDirection)
 {
-    updateSourceValue();
+    syncSourceValue();
     auto value = calculateValue<DataValueNumber, float>(m_dataValue,
                                                         isMainDirection,
                                                         m_dataBind);
@@ -29,23 +28,29 @@ void DataBindContextValueNumber::apply(Core* target,
     }
 }
 
-DataValue* DataBindContextValueNumber::getTargetValue(Core* target,
-                                                      uint32_t propertyKey)
+bool DataBindContextValueNumber::syncTargetValue(Core* target,
+                                                 uint32_t propertyKey)
 {
+    float value = 0;
     switch (CoreRegistry::propertyFieldId(propertyKey))
     {
         case CoreDoubleType::id:
         {
-            auto value = CoreRegistry::getDouble(target, propertyKey);
-            return new DataValueNumber(value);
+            value = CoreRegistry::getDouble(target, propertyKey);
         }
         break;
         case CoreUintType::id:
         {
-            auto value = (float)CoreRegistry::getUint(target, propertyKey);
-            return new DataValueNumber(value);
+            value = (float)CoreRegistry::getUint(target, propertyKey);
             break;
         }
     }
-    return new DataValueNumber(0);
+    if (m_previousValue != value)
+    {
+        m_previousValue = value;
+
+        m_targetDataValue.value(value);
+        return true;
+    }
+    return false;
 }

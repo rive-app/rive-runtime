@@ -16,6 +16,7 @@ public:
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataType outputType() override { return DataType::string; };
     TrimType trimValue() { return (TrimType)trimType(); }
+    void trimTypeChanged() override;
 
 private:
     DataValueString m_output;

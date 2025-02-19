@@ -12,16 +12,23 @@ void DataBindContextValueBoolean::apply(Core* target,
                                         uint32_t propertyKey,
                                         bool isMainDirection)
 {
-    updateSourceValue();
+    syncSourceValue();
     auto value = calculateValue<DataValueBoolean, bool>(m_dataValue,
                                                         isMainDirection,
                                                         m_dataBind);
     CoreRegistry::setBool(target, propertyKey, value);
 }
 
-DataValue* DataBindContextValueBoolean::getTargetValue(Core* target,
-                                                       uint32_t propertyKey)
+bool DataBindContextValueBoolean::syncTargetValue(Core* target,
+                                                  uint32_t propertyKey)
 {
     auto value = CoreRegistry::getBool(target, propertyKey);
-    return new DataValueBoolean(value);
+
+    if (m_previousValue != value)
+    {
+        m_previousValue = value;
+        m_targetDataValue.value(value);
+        return true;
+    }
+    return false;
 }

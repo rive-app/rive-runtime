@@ -33,3 +33,5 @@ DataValue* DataConverterStringTrim::convert(DataValue* input,
     }
     return &m_output;
 }
+
+void DataConverterStringTrim::trimTypeChanged() { markConverterDirty(); }

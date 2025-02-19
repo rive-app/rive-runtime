@@ -54,7 +54,6 @@ StatusCode DataBind::import(ImportStack& importStack)
         }
         else
         {
-
             switch (target()->coreType())
             {
                 case BindablePropertyNumberBase::typeKey:
@@ -64,6 +63,7 @@ StatusCode DataBind::import(ImportStack& importStack)
                 case BindablePropertyColorBase::typeKey:
                 case BindablePropertyTriggerBase::typeKey:
                 case TransitionPropertyViewModelComparatorBase::typeKey:
+                case StateTransitionBase::typeKey:
                 {
                     auto stateMachineImporter =
                         importStack.latest<StateMachineImporter>(
@@ -205,13 +205,17 @@ void DataBind::update(ComponentDirt value)
     }
 }
 
-void DataBind::updateSourceBinding()
+void DataBind::updateSourceBinding(bool invalidate)
 {
     auto flagsValue = static_cast<DataBindFlags>(flags());
     if (toSource())
     {
         if (m_ContextValue != nullptr)
         {
+            if (invalidate)
+            {
+                m_ContextValue->invalidate();
+            }
             m_ContextValue->applyToSource(
                 m_target,
                 propertyKey(),
@@ -238,7 +242,11 @@ bool DataBind::addDirt(ComponentDirt value, bool recurse)
 #endif
     if (target() != nullptr && target()->is<DataConverter>())
     {
-        target()->as<DataConverter>()->addDirt(value);
+        target()->as<DataConverter>()->markConverterDirty();
+    }
+    if ((m_Dirt & ComponentDirt::Dependents) != 0 && m_ContextValue != nullptr)
+    {
+        m_ContextValue->invalidate();
     }
     return true;
 }

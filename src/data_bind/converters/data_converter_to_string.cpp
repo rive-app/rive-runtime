@@ -183,3 +183,7 @@ DataValue* DataConverterToString::convert(DataValue* input, DataBind* dataBind)
     }
     return &m_output;
 }
+
+void DataConverterToString::decimalsChanged() { markConverterDirty(); }
+
+void DataConverterToString::colorFormatChanged() { markConverterDirty(); }

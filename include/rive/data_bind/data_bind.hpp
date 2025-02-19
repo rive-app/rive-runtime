@@ -20,7 +20,7 @@ public:
     ~DataBind();
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode import(ImportStack& importStack) override;
-    virtual void updateSourceBinding();
+    virtual void updateSourceBinding(bool invalidate = false);
     virtual void update(ComponentDirt value);
     Core* target() const { return m_target; };
     void target(Core* value) { m_target = value; };

@@ -11,6 +11,9 @@ class DataConverterStringPad : public DataConverterStringPadBase
 public:
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataType outputType() override { return DataType::string; };
+    void lengthChanged() override;
+    void padTypeChanged() override;
+    void textChanged() override;
 
 private:
     DataValueString m_output;

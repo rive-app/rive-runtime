@@ -12,16 +12,23 @@ void DataBindContextValueColor::apply(Core* target,
                                       uint32_t propertyKey,
                                       bool isMainDirection)
 {
-    updateSourceValue();
+    syncSourceValue();
     auto value = calculateValue<DataValueColor, int>(m_dataValue,
                                                      isMainDirection,
                                                      m_dataBind);
     CoreRegistry::setColor(target, propertyKey, value);
 }
 
-DataValue* DataBindContextValueColor::getTargetValue(Core* target,
-                                                     uint32_t propertyKey)
+bool DataBindContextValueColor::syncTargetValue(Core* target,
+                                                uint32_t propertyKey)
 {
     auto value = CoreRegistry::getColor(target, propertyKey);
-    return new DataValueColor(value);
+
+    if (m_previousValue != value)
+    {
+        m_previousValue = value;
+        m_targetDataValue.value(value);
+        return true;
+    }
+    return false;
 }
