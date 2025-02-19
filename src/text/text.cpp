@@ -4,6 +4,7 @@ using namespace rive;
 #include "rive/text_engine.hpp"
 #include "rive/component_dirt.hpp"
 #include "rive/math/rectangles_to_contour.hpp"
+#include "rive/math/transform_components.hpp"
 #include "rive/text/utf.hpp"
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_value_run.hpp"
@@ -13,7 +14,6 @@ using namespace rive;
 #include "rive/factory.hpp"
 #include "rive/clip_result.hpp"
 #include <limits>
-#include <unordered_map>
 
 void GlyphItr::tryAdvanceRun()
 {
@@ -303,30 +303,28 @@ TextSizing Text::effectiveSizing() const
     return TextSizing::fixed;
 }
 
-void Text::buildRenderStyles()
+void Text::clearRenderStyles()
 {
     for (TextStyle* style : m_renderStyles)
     {
         style->rewindPath();
     }
     m_renderStyles.clear();
-    if (m_shape.empty())
-    {
-        m_bounds = AABB(0.0f, 0.0f, 0.0f, 0.0f);
-        return;
-    }
 
-    std::unordered_map<uint16_t, std::vector<Rect>> textValueRunToRects;
+    m_textValueRunToRects.clear();
     for (uint16_t i = 0; i < m_runs.size(); i++)
     {
         TextValueRun* textValueRun = m_runs[i];
         textValueRun->resetHitTest();
         if (textValueRun->m_isHitTarget)
         {
-            textValueRunToRects[i] = {};
+            m_textValueRunToRects[i] = {};
         }
     }
+}
 
+TextBoundsInfo Text::computeBoundsInfo()
+{
     const float paragraphSpace = paragraphSpacing();
 
     // Build up ordered runs as we go.
@@ -383,20 +381,137 @@ void Text::buildRenderStyles()
         ellipsisLine = 0;
     }
     isEllipsisLineLast = lastLineIndex == ellipsisLine;
+    return {
+        minY,
+        maxWidth,
+        totalHeight,
+        ellipsisLine,
+        isEllipsisLineLast,
+    };
+}
 
-    int lineIndex = 0;
-    paragraphIndex = 0;
+LineIter Text::shouldDrawLine(float curY,
+                              float totalHeight,
+                              const GlyphLine& line)
+{
+    switch (overflow())
+    {
+        case TextOverflow::hidden:
+            if (effectiveSizing() == TextSizing::fixed)
+            {
+                switch (verticalAlign())
+                {
+                    case VerticalTextAlign::top:
+                        if (curY + line.bottom > effectiveHeight())
+                        {
+                            return LineIter::yOutOfBounds;
+                        }
+                        break;
+                    case VerticalTextAlign::middle:
+                        if (curY + line.top <
+                            totalHeight / 2 - effectiveHeight() / 2)
+                        {
+                            return LineIter::skipThisLine;
+                        }
+                        if (curY + line.bottom >
+                            totalHeight / 2 + effectiveHeight() / 2)
+                        {
+                            return LineIter::yOutOfBounds;
+                        }
+                        break;
+                    case VerticalTextAlign::bottom:
+                        if (curY + line.top < totalHeight - effectiveHeight())
+                        {
+                            return LineIter::skipThisLine;
+                        }
+                        break;
+                }
+            }
+            break;
+        case TextOverflow::clipped:
+            if (effectiveSizing() == TextSizing::fixed)
+            {
+                switch (verticalAlign())
+                {
+                    case VerticalTextAlign::top:
+                        if (curY + line.top > effectiveHeight())
+                        {
+                            return LineIter::yOutOfBounds;
+                        }
+                        break;
+                    case VerticalTextAlign::middle:
+                        if (curY + line.bottom <
+                            totalHeight / 2 - effectiveHeight() / 2)
+                        {
+                            return LineIter::skipThisLine;
+                        }
+                        if (curY + line.top >
+                            totalHeight / 2 + effectiveHeight() / 2)
+                        {
+                            return LineIter::yOutOfBounds;
+                        }
+                        break;
+                    case VerticalTextAlign::bottom:
+                        if (curY + line.bottom <
+                            totalHeight - effectiveHeight())
+                        {
+                            return LineIter::skipThisLine;
+                        }
+                        break;
+                }
+            }
+            break;
+        default:
+            break;
+    }
+    return LineIter::drawLine;
+}
+
+void Text::buildRenderStyles()
+{
+    // Step 1: reset stuff
+    clearRenderStyles();
+
+    if (m_shape.empty())
+    {
+        m_bounds = AABB(0.0f, 0.0f, 0.0f, 0.0f);
+        return;
+    }
+
+    // Step 2: compute ellipsis information
+    TextBoundsInfo info = computeBoundsInfo();
+    float minY = info.minY;
+    float maxWidth = info.maxWidth;
+    float totalHeight = info.totalHeight;
+    int ellipsisLine = info.ellipsisLine;
+    bool isEllipsisLineLast = info.isEllipsisLineLast;
+
+    // Step 3: update modifiers
+    bool hasModifiers = haveModifiers();
+    if (hasModifiers)
+    {
+        uint32_t textSize = (uint32_t)m_styledText.unichars().size();
+        for (TextModifierGroup* modifierGroup : m_modifierGroups)
+        {
+            modifierGroup->computeCoverage(textSize);
+        }
+    }
+
+    // Step 4: update bounds
+    const float paragraphSpace = paragraphSpacing();
     switch (effectiveSizing())
     {
         case TextSizing::autoWidth:
-            m_bounds =
-                AABB(0.0f, minY, maxWidth, std::max(minY, y - paragraphSpace));
+            m_bounds = AABB(0.0f,
+                            minY,
+                            maxWidth,
+                            std::max(minY, totalHeight - paragraphSpace));
             break;
         case TextSizing::autoHeight:
             m_bounds = AABB(0.0f,
                             minY,
                             effectiveWidth(),
-                            std::max(minY, y - paragraphSpace));
+                            std::max(minY, totalHeight - paragraphSpace));
             break;
         case TextSizing::fixed:
             m_bounds =
@@ -417,10 +532,9 @@ void Text::buildRenderStyles()
             break;
     }
 
-    // Build the clip path if we want it.
+    // Step 5: Update clip information (if we want it)
     if (overflow() == TextOverflow::clipped)
     {
-
         m_clipRect.rewind();
 
         AABB bounds = localBounds();
@@ -432,121 +546,39 @@ void Text::buildRenderStyles()
             AABB(minX, minY, minX + bounds.width(), minY + bounds.height()));
     }
 
-    y = 0;
-    if (textOrigin() == TextOrigin::baseline && !m_lines.empty() &&
-        !m_lines[0].empty())
-    {
-        y -= m_lines[0][0].baseline;
-    }
-    paragraphIndex = 0;
-
-    bool hasModifiers = haveModifiers();
-    if (hasModifiers)
-    {
-        uint32_t textSize = (uint32_t)m_styledText.unichars().size();
-        for (TextModifierGroup* modifierGroup : m_modifierGroups)
-        {
-            modifierGroup->computeCoverage(textSize);
-        }
-    }
+    // Step 6: add the glyphs to render paths
+    float curY = minY;
+    int lineIndex = 0;
+    int paragraphIndex = 0;
     float minX = std::numeric_limits<float>::max();
-    bool drawLine = true;
+
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
     {
         const Paragraph& paragraph = m_shape[paragraphIndex++];
         for (const GlyphLine& line : paragraphLines)
         {
-            drawLine = true;
-            switch (overflow())
+            LineIter lineIter = shouldDrawLine(curY, totalHeight, line);
+            if (lineIter == LineIter::yOutOfBounds)
             {
-                case TextOverflow::hidden:
-                    if (effectiveSizing() == TextSizing::fixed)
-                    {
-                        switch (verticalAlign())
-                        {
-                            case VerticalTextAlign::top:
-                                if (y + line.bottom > effectiveHeight())
-                                {
-                                    goto skipLines;
-                                }
-                                break;
-                            case VerticalTextAlign::middle:
-                                if (y + line.top <
-                                    totalHeight / 2 - effectiveHeight() / 2)
-                                {
-                                    drawLine = false;
-                                }
-                                if (y + line.bottom >
-                                    totalHeight / 2 + effectiveHeight() / 2)
-                                {
-                                    drawLine = false;
-                                    goto skipLines;
-                                }
-                                break;
-                            case VerticalTextAlign::bottom:
-                                if (y + line.top <
-                                    totalHeight - effectiveHeight())
-                                {
-                                    continue;
-                                }
-                                break;
-                        }
-                    }
-                    break;
-                case TextOverflow::clipped:
-                    if (effectiveSizing() == TextSizing::fixed)
-                    {
-                        switch (verticalAlign())
-                        {
-                            case VerticalTextAlign::top:
-                                if (y + line.top > effectiveHeight())
-                                {
-                                    goto skipLines;
-                                }
-                                break;
-                            case VerticalTextAlign::middle:
-                                if (y + line.bottom <
-                                    totalHeight / 2 - effectiveHeight() / 2)
-                                {
-                                    drawLine = false;
-                                }
-                                if (y + line.top >
-                                    totalHeight / 2 + effectiveHeight() / 2)
-                                {
-                                    goto skipLines;
-                                }
-                                break;
-                            case VerticalTextAlign::bottom:
-                                if (y + line.bottom <
-                                    totalHeight - effectiveHeight())
-                                {
-                                    drawLine = false;
-                                }
-                                break;
-                        }
-                    }
-                    break;
-                default:
-                    break;
+                goto skipLines;
+            }
+            else if (lineIter == LineIter::skipThisLine)
+            {
+                lineIndex++;
+                continue;
             }
 
-            if (lineIndex >= m_orderedLines.size())
-            {
-                // We need to still compute this line's ordered runs.
-                m_orderedLines.emplace_back(
-                    OrderedLine(paragraph,
-                                line,
-                                effectiveWidth(),
-                                ellipsisLine == lineIndex,
-                                isEllipsisLineLast,
-                                &m_ellipsisRun));
-            }
+            // We need to compute this line's ordered runs.
+            m_orderedLines.emplace_back(OrderedLine(paragraph,
+                                                    line,
+                                                    effectiveWidth(),
+                                                    ellipsisLine == lineIndex,
+                                                    isEllipsisLineLast,
+                                                    &m_ellipsisRun));
 
-            const OrderedLine& orderedLine = m_orderedLines[lineIndex];
-            float x = line.startX;
-            minX = std::min(x, minX);
-            float renderY = y + line.baseline;
-            for (auto glyphItr : orderedLine)
+            float curX = line.startX;
+            minX = std::min(curX, minX);
+            for (auto glyphItr : m_orderedLines.back())
             {
                 const GlyphRun* run = std::get<0>(glyphItr);
                 size_t glyphIndex = std::get<1>(glyphItr);
@@ -559,40 +591,42 @@ void Text::buildRenderStyles()
 
                 RawPath path = font->getPath(glyphId);
 
-                uint32_t textIndex = 0;
-                uint32_t glyphCount = 0;
+                // Step 6.1: translate to the glyph's origin and scale.
+                Vec2D curPos(curX, curY + line.baseline);
+                float centerX = advance / 2.0f;
+                TransformComponents tc;
+                tc.scaleX(run->size);
+                tc.scaleY(run->size);
+                tc.x(-centerX);
+                Mat2D pathTransform = Mat2D::compose(tc);
+
+                // Step 6.2: apply modifiers on a font-sized glyph
+                float opacity = 1.0f;
                 if (hasModifiers)
                 {
-                    textIndex = run->textIndices[glyphIndex];
-                    glyphCount = m_glyphLookup.count(textIndex);
+                    uint32_t textIndex = run->textIndices[glyphIndex];
+                    uint32_t glyphCount = m_glyphLookup.count(textIndex);
 
-                    float centerX = advance / 2.0f;
-                    Mat2D transform = Mat2D::fromScaleAndTranslation(run->size,
-                                                                     run->size,
-                                                                     -centerX,
-                                                                     0.0f);
                     for (TextModifierGroup* modifierGroup : m_modifierGroups)
                     {
                         float coverage =
                             modifierGroup->glyphCoverage(textIndex, glyphCount);
-                        modifierGroup->transform(coverage, transform);
+                        modifierGroup->transform(coverage, pathTransform);
+                        if (modifierGroup->modifiesOpacity())
+                        {
+                            opacity = modifierGroup->computeOpacity(opacity,
+                                                                    coverage);
+                        }
                     }
-                    transform =
-                        Mat2D::fromTranslate(centerX + x + offset.x,
-                                             y + line.baseline + offset.y) *
-                        transform;
+                }
 
-                    path.transformInPlace(transform);
-                }
-                else
-                {
-                    path.transformInPlace(Mat2D(run->size,
-                                                0.0f,
-                                                0.0f,
-                                                run->size,
-                                                x + offset.x,
-                                                renderY + offset.y));
-                }
+                // Step 6.3: translate back to center with offset
+                pathTransform =
+                    Mat2D::fromTranslate(curPos.x + centerX + offset.x,
+                                         curPos.y + offset.y) *
+                    pathTransform;
+
+                path.transformInPlace(pathTransform);
 
                 assert(run->styleId < m_runs.size());
                 TextValueRun* textValueRun = m_runs[run->styleId];
@@ -600,48 +634,30 @@ void Text::buildRenderStyles()
                 // TextValueRun::onAddedDirty botches loading if it cannot
                 // resolve a style, so we're confident we have a style here.
                 assert(style != nullptr);
-                // Consider this the "local" opacity.
-                float opacity = 1.0f;
-                if (hasModifiers)
-                {
-                    for (TextModifierGroup* modifierGroup : m_modifierGroups)
-                    {
-                        if (modifierGroup->modifiesOpacity())
-                        {
-                            float coverage =
-                                modifierGroup->glyphCoverage(textIndex,
-                                                             glyphCount);
-                            opacity = modifierGroup->computeOpacity(opacity,
-                                                                    coverage);
-                        }
-                    }
-                }
-                if (drawLine)
-                {
-                    if (style->addPath(path, opacity))
-                    {
-                        // This was the first path added to the style, so let's
-                        // mark it in our draw list.
-                        m_renderStyles.push_back(style);
-                        style->propagateOpacity(renderOpacity());
-                    }
 
-                    // Bounds of the glyph
-                    auto rectsItr = textValueRunToRects.find(run->styleId);
-                    if (rectsItr != textValueRunToRects.end())
-                    {
-                        Vec2D topLeft = Vec2D(x, y + line.top);
-                        Vec2D bottomRight = Vec2D(x + advance, y + line.bottom);
-                        AABB::expandTo(textValueRun->m_localBounds, topLeft);
-                        AABB::expandTo(textValueRun->m_localBounds,
-                                       bottomRight);
-                        rectsItr->second.emplace_back(topLeft.x,
-                                                      topLeft.y,
-                                                      bottomRight.x,
-                                                      bottomRight.y);
-                    }
+                if (style->addPath(path, opacity))
+                {
+                    // This was the first path added to the style, so let's
+                    // mark it in our draw list.
+                    m_renderStyles.push_back(style);
+                    style->propagateOpacity(renderOpacity());
                 }
-                x += advance;
+
+                // Bounds of the glyph
+                auto rectsItr = m_textValueRunToRects.find(run->styleId);
+                if (rectsItr != m_textValueRunToRects.end())
+                {
+                    Vec2D topLeft = Vec2D(curX, curY + line.top);
+                    Vec2D bottomRight =
+                        Vec2D(curX + advance, curY + line.bottom);
+                    AABB::expandTo(textValueRun->m_localBounds, topLeft);
+                    AABB::expandTo(textValueRun->m_localBounds, bottomRight);
+                    rectsItr->second.emplace_back(topLeft.x,
+                                                  topLeft.y,
+                                                  bottomRight.x,
+                                                  bottomRight.y);
+                }
+                curX += advance;
             }
             if (lineIndex == ellipsisLine)
             {
@@ -651,11 +667,12 @@ void Text::buildRenderStyles()
         }
         if (!paragraphLines.empty())
         {
-            y += paragraphLines.back().bottom;
+            curY += paragraphLines.back().bottom;
         }
-        y += paragraphSpace;
+        curY += paragraphSpacing();
     }
 skipLines:
+    // Step 7: consider fit mode, and update local transform
     auto scale = 1.0f;
     auto xOffset = -m_bounds.width() * originX();
     auto yOffset = -m_bounds.height() * originY();
@@ -710,7 +727,10 @@ skipLines:
 #ifdef WITH_RIVE_LAYOUT
     markLayoutNodeDirty();
 #endif
-    for (auto it = textValueRunToRects.begin(); it != textValueRunToRects.end();
+
+    // Step 8: cleanup
+    for (auto it = m_textValueRunToRects.begin();
+         it != m_textValueRunToRects.end();
          ++it)
     {
         m_runs[it->first]->m_contours =

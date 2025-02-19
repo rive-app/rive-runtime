@@ -2,10 +2,12 @@
 #define _RIVE_TEXT_CORE_HPP_
 #include "rive/generated/text/text_base.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/math/rect.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text_engine.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
 #include "rive/simple_array.hpp"
+#include <unordered_map>
 #include <vector>
 #include "rive/text/glyph_lookup.hpp"
 namespace rive
@@ -178,6 +180,22 @@ public:
     }
 };
 
+struct TextBoundsInfo
+{
+    float minY;
+    float maxWidth;
+    float totalHeight;
+    int ellipsisLine;
+    bool isEllipsisLineLast;
+};
+
+enum class LineIter : uint8_t
+{
+    drawLine,
+    skipThisLine,
+    yOutOfBounds
+};
+
 class TextStyle;
 class Text : public TextBase
 {
@@ -294,6 +312,12 @@ private:
     StyledText m_modifierStyledText;
 
     GlyphLookup m_glyphLookup;
+
+    std::unordered_map<uint16_t, std::vector<Rect>> m_textValueRunToRects;
+    void clearRenderStyles();
+    TextBoundsInfo computeBoundsInfo();
+    LineIter shouldDrawLine(float y, float totalHeight, const GlyphLine& line);
+
 #endif
     float m_layoutWidth = NAN;
     float m_layoutHeight = NAN;
