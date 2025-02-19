@@ -7,6 +7,7 @@ namespace rive
 class BindablePropertyBoolean : public BindablePropertyBooleanBase
 {
 public:
+    constexpr static bool defaultValue = false;
 };
 } // namespace rive
 

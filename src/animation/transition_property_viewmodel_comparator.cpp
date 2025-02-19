@@ -204,6 +204,10 @@ void TransitionPropertyViewModelComparator::useInLayer(
 
     auto bindableInstance =
         stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
+    if (bindableInstance == nullptr)
+    {
+        return;
+    }
     auto dataBind =
         stateMachineInstance->bindableDataBindToTarget(bindableInstance);
     auto source = dataBind->source();

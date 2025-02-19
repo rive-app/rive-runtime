@@ -7,6 +7,7 @@ namespace rive
 class BindablePropertyNumber : public BindablePropertyNumberBase
 {
 public:
+    constexpr static float defaultValue = 0;
 };
 } // namespace rive
 
