@@ -371,21 +371,24 @@ void Draw::releaseRefs() { safe_unref(m_imageTextureRef); }
 PathDraw::CoverageType PathDraw::SelectCoverageType(
     const RiveRenderPaint* paint,
     float matrixMaxScale,
+    const gpu::PlatformFeatures& platformFeatures,
     gpu::InterlockMode interlockMode)
 {
+    if (paint->getFeather() != 0)
+    {
+        if (platformFeatures.alwaysFeatherToAtlas ||
+            interlockMode == gpu::InterlockMode::msaa ||
+            // Always switch to the atlas once we can render quarter-resultion.
+            find_atlas_feather_scale_factor(
+                find_feather_radius(paint->getFeather()),
+                matrixMaxScale) <= .5f)
+        {
+            return CoverageType::atlas;
+        }
+    }
     if (interlockMode == gpu::InterlockMode::msaa)
     {
-        return paint->getFeather() != 0 ? CoverageType::atlas
-                                        : CoverageType::msaa;
-    }
-    // Switch to the feather atlas once we can render quarter-resultion
-    // feathers.
-    if (paint->getFeather() != 0 &&
-        find_atlas_feather_scale_factor(
-            find_feather_radius(paint->getFeather()),
-            matrixMaxScale) <= .5f)
-    {
-        return CoverageType::atlas;
+        return CoverageType::msaa;
     }
     if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
     {
@@ -407,6 +410,7 @@ DrawUniquePtr PathDraw::Make(RenderContext* context,
     CoverageType coverageType =
         SelectCoverageType(paint,
                            matrix.findMaxScale(),
+                           context->platformFeatures(),
                            context->frameInterlockMode());
 
     // Compute the screen-space bounding box.

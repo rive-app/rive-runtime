@@ -119,6 +119,12 @@ struct PlatformFeatures
     // Required for @ENABLE_CLIP_RECT in msaa mode.
     bool supportsClipPlanes = false;
     bool avoidFlatVaryings = false;
+    // Vivo Y21 (PowerVR Rogue GE8320; OpenGL ES 3.2 build 1.13@5776728a) seems
+    // to hit some sort of reset condition that corrupts pixel local storage
+    // when rendering a complex feather. Provide a workaround that allows the
+    // implementation to opt in to always feathering to the atlas instead of
+    // rendering directly to the screen.
+    bool alwaysFeatherToAtlas = false;
     // clipSpaceBottomUp specifies whether the top of the viewport, in clip
     // coordinates, is at Y=+1 (OpenGL, Metal, D3D, WebGPU) or Y=-1 (Vulkan).
     //

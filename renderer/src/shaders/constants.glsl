@@ -108,22 +108,27 @@
 #define PER_DRAW_BINDINGS_SET 1
 
 // Index at which we access each resource.
-#define TESS_VERTEX_TEXTURE_IDX 0
-#define GRAD_TEXTURE_IDX 1
-#define FEATHER_TEXTURE_IDX 2
-#define ATLAS_TEXTURE_IDX 3
-#define IMAGE_TEXTURE_IDX 4
-#define PATH_BUFFER_IDX 5
-#define PAINT_BUFFER_IDX 6
-#define PAINT_AUX_BUFFER_IDX 7
-#define CONTOUR_BUFFER_IDX 8
-#define FLUSH_UNIFORM_BUFFER_IDX 9
-#define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX 10
-#define IMAGE_DRAW_UNIFORM_BUFFER_IDX 11
+// (Enumerate buffers first because GLES allows a hard limit on buffer index
+// bindings as low as 7.)
+#define FLUSH_UNIFORM_BUFFER_IDX 0
+#define PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX 1
+#define IMAGE_DRAW_UNIFORM_BUFFER_IDX 2
+#define PATH_BUFFER_IDX 3
+#define PAINT_BUFFER_IDX 4
+#define PAINT_AUX_BUFFER_IDX 5
+#define CONTOUR_BUFFER_IDX 6
 // Coverage buffer used in coverageAtomic mode.
-#define COVERAGE_BUFFER_IDX 12
+#define COVERAGE_BUFFER_IDX 7
+#define TESS_VERTEX_TEXTURE_IDX 8
+#define GRAD_TEXTURE_IDX 9
+#define FEATHER_TEXTURE_IDX 10
+#define ATLAS_TEXTURE_IDX 11
+#define IMAGE_TEXTURE_IDX 12
 #define DST_COLOR_TEXTURE_IDX 13
 #define DEFAULT_BINDINGS_SET_SIZE 14
+
+// Metal doesn't allow us to bind buffers index 0 or 1. Offset them by 2.
+#define METAL_BUFFER_IDX(IDX) (2 + IDX)
 
 // Samplers are accessed at the same index as their corresponding texture, so we
 // put them in a separate binding set.
@@ -191,13 +196,6 @@
 #define CLOCKWISE_COVERAGE_PRECISION float(2048)
 #define CLOCKWISE_COVERAGE_INVERSE_PRECISION float(0.00048828125)
 #define CLOCKWISE_FILL_ZERO_VALUE (1u << 16)
-
-// Binding points for storage buffers.
-#define PAINT_STORAGE_BUFFER_IDX 8
-#define PAINT_MATRIX_STORAGE_BUFFER_IDX 9
-#define PAINT_TRANSLATE_STORAGE_BUFFER_IDX 10
-#define CLIPRECT_MATRIX_STORAGE_BUFFER_IDX 11
-#define CLIPRECT_TRANSLATE_STORAGE_BUFFER_IDX 12
 
 // Indices for SPIRV specialization constants (used in lieu of #defines in
 // Vulkan.)

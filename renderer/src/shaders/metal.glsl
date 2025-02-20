@@ -108,11 +108,11 @@
     ;
 
 #define STORAGE_BUFFER_U32x2(IDX, GLSL_STRUCT_NAME, NAME)                      \
-    $constant uint2* NAME [[$buffer(IDX)]]
+    $constant uint2* NAME [[$buffer(METAL_BUFFER_IDX(IDX))]]
 #define STORAGE_BUFFER_U32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
-    $constant uint4* NAME [[$buffer(IDX)]]
+    $constant uint4* NAME [[$buffer(METAL_BUFFER_IDX(IDX))]]
 #define STORAGE_BUFFER_F32x4(IDX, GLSL_STRUCT_NAME, NAME)                      \
-    $constant float4* NAME [[$buffer(IDX)]]
+    $constant float4* NAME [[$buffer(METAL_BUFFER_IDX(IDX))]]
 #define STORAGE_BUFFER_LOAD4(NAME, I) _buffers.NAME[I]
 #define STORAGE_BUFFER_LOAD2(NAME, I) _buffers.NAME[I]
 
@@ -170,9 +170,9 @@
         uint _vertexID [[$vertex_id]],                                         \
         uint _instanceID [[$instance_id]],                                     \
         $constant uint& _baseInstance                                          \
-        [[$buffer(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)]],                    \
+        [[$buffer(METAL_BUFFER_IDX(PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX))]],  \
         $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                                 \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         $constant Attrs* attrs [[$buffer(0)]],                                 \
         VertexTextures _textures,                                              \
         VertexStorageBuffers _buffers)                                         \
@@ -185,7 +185,7 @@
         uint _vertexID [[$vertex_id]],                                         \
         uint _instanceID [[$instance_id]],                                     \
         $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                                 \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         $constant Attrs* attrs [[$buffer(0)]],                                 \
         VertexTextures _textures,                                              \
         VertexStorageBuffers _buffers)                                         \
@@ -197,9 +197,9 @@
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(            \
         uint _vertexID [[$vertex_id]],                                         \
         $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                                 \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         $constant @ImageDrawUniforms& imageDrawUniforms                        \
-        [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],                            \
+        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]],          \
         $constant Attrs* attrs [[$buffer(0)]],                                 \
         VertexTextures _textures,                                              \
         VertexStorageBuffers _buffers)                                         \
@@ -215,9 +215,9 @@
     $__attribute__(($visibility("default"))) Varyings $vertex NAME(            \
         uint _vertexID [[$vertex_id]],                                         \
         $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                                 \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         $constant @ImageDrawUniforms& imageDrawUniforms                        \
-        [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],                            \
+        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]],          \
         $constant PositionAttr* position [[$buffer(0)]],                       \
         $constant UVAttr* uv [[$buffer(1)]])                                   \
     {                                                                          \
@@ -258,22 +258,28 @@
 // buffers by DEFAULT_BINDINGS_SET_SIZE.
 #define PLS_DECL4F(IDX, NAME)                                                  \
     $device uint* NAME                                                         \
-        [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE), $raster_order_group(0)]]
+        [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE)),          \
+          $raster_order_group(0)]]
 #define PLS_DECLUI(IDX, NAME)                                                  \
     $device uint* NAME                                                         \
-        [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE), $raster_order_group(0)]]
+        [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE)),          \
+          $raster_order_group(0)]]
 #define PLS_DECLUI_ATOMIC(IDX, NAME)                                           \
     $device $atomic_uint* NAME                                                 \
-        [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE), $raster_order_group(0)]]
+        [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE)),          \
+          $raster_order_group(0)]]
 #else
 // Since the PLS plane indices collide with other buffer bindings, offset the
 // binding indices of these buffers by DEFAULT_BINDINGS_SET_SIZE.
 #define PLS_DECL4F(IDX, NAME)                                                  \
-    $device uint* NAME [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE)]]
+    $device uint* NAME                                                         \
+        [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE))]]
 #define PLS_DECLUI(IDX, NAME)                                                  \
-    $device uint* NAME [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE)]]
+    $device uint* NAME                                                         \
+        [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE))]]
 #define PLS_DECLUI_ATOMIC(IDX, NAME)                                           \
-    $device $atomic_uint* NAME [[$buffer(IDX + DEFAULT_BINDINGS_SET_SIZE)]]
+    $device $atomic_uint* NAME                                                 \
+        [[$buffer(METAL_BUFFER_IDX(IDX + DEFAULT_BINDINGS_SET_SIZE))]]
 #endif // @PLS_IMPL_DEVICE_BUFFER_RASTER_ORDERED
 #define PLS_BLOCK_END                                                          \
     }                                                                          \
@@ -312,7 +318,7 @@
     $__attribute__(($visibility("default"))) $fragment NAME(                   \
         PLS _pls,                                                              \
         $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                                 \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         Varyings _varyings [[$stage_in]],                                      \
         FragmentTextures _textures,                                            \
         FragmentStorageBuffers _buffers)                                       \
@@ -325,9 +331,9 @@
     $__attribute__(($visibility("default"))) $fragment NAME(                   \
         PLS _pls,                                                              \
         $constant @FlushUniforms& uniforms                                     \
-        [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                                 \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         $constant @ImageDrawUniforms& imageDrawUniforms                        \
-        [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]],                            \
+        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]],          \
         Varyings _varyings [[$stage_in]],                                      \
         FragmentTextures _textures,                                            \
         FragmentStorageBuffers _buffers)                                       \
@@ -410,19 +416,20 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
     PLS_METAL_MAIN(NAME,                                                       \
                    PLS _inpls,                                                 \
                    $constant @FlushUniforms& uniforms                          \
-                   [[$buffer(FLUSH_UNIFORM_BUFFER_IDX)]],                      \
+                   [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],    \
                    Varyings _varyings [[$stage_in]],                           \
                    FragmentTextures _textures,                                 \
                    FragmentStorageBuffers _buffers)
 
 #define PLS_MAIN_WITH_IMAGE_UNIFORMS(NAME)                                     \
-    PLS_METAL_MAIN(NAME,                                                       \
-                   PLS _inpls,                                                 \
-                   Varyings _varyings [[$stage_in]],                           \
-                   FragmentTextures _textures,                                 \
-                   FragmentStorageBuffers _buffers,                            \
-                   $constant @ImageDrawUniforms& imageDrawUniforms             \
-                   [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]])
+    PLS_METAL_MAIN(                                                            \
+        NAME,                                                                  \
+        PLS _inpls,                                                            \
+        Varyings _varyings [[$stage_in]],                                      \
+        FragmentTextures _textures,                                            \
+        FragmentStorageBuffers _buffers,                                       \
+        $constant @ImageDrawUniforms& imageDrawUniforms                        \
+        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]])
 
 #define EMIT_PLS                                                               \
     }                                                                          \
@@ -449,14 +456,14 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
                               FragmentStorageBuffers _buffers)
 
 #define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                          \
-    PLS_FRAG_COLOR_METAL_MAIN(NAME,                                            \
-                              PLS _inpls,                                      \
-                              Varyings _varyings [[$stage_in]],                \
-                              FragmentTextures _textures,                      \
-                              FragmentStorageBuffers _buffers,                 \
-                              $__VA_ARGS__ $constant                           \
-                              @ImageDrawUniforms& imageDrawUniforms            \
-                              [[$buffer(IMAGE_DRAW_UNIFORM_BUFFER_IDX)]])
+    PLS_FRAG_COLOR_METAL_MAIN(                                                 \
+        NAME,                                                                  \
+        PLS _inpls,                                                            \
+        Varyings _varyings [[$stage_in]],                                      \
+        FragmentTextures _textures,                                            \
+        FragmentStorageBuffers _buffers,                                       \
+        $__VA_ARGS__ $constant @ImageDrawUniforms& imageDrawUniforms           \
+        [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]])
 
 #define EMIT_PLS_AND_FRAG_COLOR                                                \
     }                                                                          \

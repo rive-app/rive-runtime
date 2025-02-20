@@ -267,6 +267,7 @@ public:
 protected:
     static CoverageType SelectCoverageType(const RiveRenderPaint*,
                                            float matrixMaxScale,
+                                           const gpu::PlatformFeatures&,
                                            gpu::InterlockMode);
 
     // Prepares to draw the path by tessellating a fan around its midpoint.

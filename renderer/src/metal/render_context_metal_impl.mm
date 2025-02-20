@@ -1010,10 +1010,10 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
                         0, 0, renderTarget->width(), renderTarget->height())];
     [encoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                       offset:flushDesc.flushUniformDataOffsetInBytes
-                     atIndex:FLUSH_UNIFORM_BUFFER_IDX];
+                     atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
     [encoder setFragmentBuffer:mtl_buffer(flushUniformBufferRing())
                         offset:flushDesc.flushUniformDataOffsetInBytes
-                       atIndex:FLUSH_UNIFORM_BUFFER_IDX];
+                       atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
     [encoder setVertexTexture:m_tessVertexTexture
                       atIndex:TESS_VERTEX_TEXTURE_IDX];
     [encoder setVertexTexture:m_featherTexture atIndex:FEATHER_TEXTURE_IDX];
@@ -1024,28 +1024,28 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
     {
         [encoder setVertexBuffer:mtl_buffer(pathBufferRing())
                           offset:flushDesc.firstPath * sizeof(gpu::PathData)
-                         atIndex:PATH_BUFFER_IDX];
+                         atIndex:METAL_BUFFER_IDX(PATH_BUFFER_IDX)];
         if (flushDesc.interlockMode == gpu::InterlockMode::atomics)
         {
             [encoder
                 setFragmentBuffer:mtl_buffer(paintBufferRing())
                            offset:flushDesc.firstPaint * sizeof(gpu::PaintData)
-                          atIndex:PAINT_BUFFER_IDX];
+                          atIndex:METAL_BUFFER_IDX(PAINT_BUFFER_IDX)];
             [encoder setFragmentBuffer:mtl_buffer(paintAuxBufferRing())
                                 offset:flushDesc.firstPaintAux *
                                        sizeof(gpu::PaintAuxData)
-                               atIndex:PAINT_AUX_BUFFER_IDX];
+                               atIndex:METAL_BUFFER_IDX(PAINT_AUX_BUFFER_IDX)];
         }
         else
         {
             [encoder
                 setVertexBuffer:mtl_buffer(paintBufferRing())
                          offset:flushDesc.firstPaint * sizeof(gpu::PaintData)
-                        atIndex:PAINT_BUFFER_IDX];
+                        atIndex:METAL_BUFFER_IDX(PAINT_BUFFER_IDX)];
             [encoder setVertexBuffer:mtl_buffer(paintAuxBufferRing())
                               offset:flushDesc.firstPaintAux *
                                      sizeof(gpu::PaintAuxData)
-                             atIndex:PAINT_AUX_BUFFER_IDX];
+                             atIndex:METAL_BUFFER_IDX(PAINT_AUX_BUFFER_IDX)];
         }
     }
     if (flushDesc.contourCount > 0)
@@ -1053,7 +1053,7 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
         [encoder
             setVertexBuffer:mtl_buffer(contourBufferRing())
                      offset:flushDesc.firstContour * sizeof(gpu::ContourData)
-                    atIndex:CONTOUR_BUFFER_IDX];
+                    atIndex:METAL_BUFFER_IDX(CONTOUR_BUFFER_IDX)];
     }
     if (flushDesc.interlockMode == gpu::InterlockMode::atomics)
     {
@@ -1067,7 +1067,8 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
             [encoder
                 setFragmentBuffer:renderTarget->colorAtomicBuffer()
                            offset:0
-                          atIndex:COLOR_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE];
+                          atIndex:METAL_BUFFER_IDX(COLOR_PLANE_IDX +
+                                                   DEFAULT_BINDINGS_SET_SIZE)];
         }
         if (flushDesc.combinedShaderFeatures &
             gpu::ShaderFeatures::ENABLE_CLIPPING)
@@ -1075,12 +1076,13 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
             [encoder
                 setFragmentBuffer:renderTarget->clipAtomicBuffer()
                            offset:0
-                          atIndex:CLIP_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE];
+                          atIndex:METAL_BUFFER_IDX(CLIP_PLANE_IDX +
+                                                   DEFAULT_BINDINGS_SET_SIZE)];
         }
-        [encoder
-            setFragmentBuffer:renderTarget->coverageAtomicBuffer()
-                       offset:0
-                      atIndex:COVERAGE_PLANE_IDX + DEFAULT_BINDINGS_SET_SIZE];
+        [encoder setFragmentBuffer:renderTarget->coverageAtomicBuffer()
+                            offset:0
+                           atIndex:METAL_BUFFER_IDX(COVERAGE_PLANE_IDX +
+                                                    DEFAULT_BINDINGS_SET_SIZE)];
     }
     if (flushDesc.wireframe)
     {
@@ -1118,9 +1120,10 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                       static_cast<float>(desc.gradDataHeight))];
         [gradEncoder
             setRenderPipelineState:m_colorRampPipeline->pipelineState()];
-        [gradEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
-                              offset:desc.flushUniformDataOffsetInBytes
-                             atIndex:FLUSH_UNIFORM_BUFFER_IDX];
+        [gradEncoder
+            setVertexBuffer:mtl_buffer(flushUniformBufferRing())
+                     offset:desc.flushUniformDataOffsetInBytes
+                    atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
         [gradEncoder
             setVertexBuffer:mtl_buffer(gradSpanBufferRing())
                      offset:desc.firstGradSpan * sizeof(gpu::GradientSpan)
@@ -1150,9 +1153,10 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             setViewport:make_viewport(
                             0, 0, kTessTextureWidth, desc.tessDataHeight)];
         [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
-        [tessEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
-                              offset:desc.flushUniformDataOffsetInBytes
-                             atIndex:FLUSH_UNIFORM_BUFFER_IDX];
+        [tessEncoder
+            setVertexBuffer:mtl_buffer(flushUniformBufferRing())
+                     offset:desc.flushUniformDataOffsetInBytes
+                    atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
         [tessEncoder setVertexBuffer:mtl_buffer(tessSpanBufferRing())
                               offset:desc.firstTessVertexSpan *
                                      sizeof(gpu::TessVertexSpan)
@@ -1160,12 +1164,12 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         assert(desc.pathCount > 0);
         [tessEncoder setVertexBuffer:mtl_buffer(pathBufferRing())
                               offset:desc.firstPath * sizeof(gpu::PathData)
-                             atIndex:PATH_BUFFER_IDX];
+                             atIndex:METAL_BUFFER_IDX(PATH_BUFFER_IDX)];
         assert(desc.contourCount > 0);
         [tessEncoder
             setVertexBuffer:mtl_buffer(contourBufferRing())
                      offset:desc.firstContour * sizeof(gpu::ContourData)
-                    atIndex:CONTOUR_BUFFER_IDX];
+                    atIndex:METAL_BUFFER_IDX(CONTOUR_BUFFER_IDX)];
         [tessEncoder setCullMode:MTLCullModeBack];
         [tessEncoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                 indexCount:std::size(gpu::kTessSpanIndices)
@@ -1195,12 +1199,14 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                                 0,
                                                 desc.atlasContentWidth,
                                                 desc.atlasContentHeight)];
-        [atlasEncoder setVertexBuffer:mtl_buffer(flushUniformBufferRing())
-                               offset:desc.flushUniformDataOffsetInBytes
-                              atIndex:FLUSH_UNIFORM_BUFFER_IDX];
-        [atlasEncoder setFragmentBuffer:mtl_buffer(flushUniformBufferRing())
-                                 offset:desc.flushUniformDataOffsetInBytes
-                                atIndex:FLUSH_UNIFORM_BUFFER_IDX];
+        [atlasEncoder
+            setVertexBuffer:mtl_buffer(flushUniformBufferRing())
+                     offset:desc.flushUniformDataOffsetInBytes
+                    atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
+        [atlasEncoder
+            setFragmentBuffer:mtl_buffer(flushUniformBufferRing())
+                       offset:desc.flushUniformDataOffsetInBytes
+                      atIndex:METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX)];
         [atlasEncoder setVertexTexture:m_tessVertexTexture
                                atIndex:TESS_VERTEX_TEXTURE_IDX];
         [atlasEncoder setVertexTexture:m_featherTexture
@@ -1213,22 +1219,22 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         {
             [atlasEncoder setVertexBuffer:mtl_buffer(pathBufferRing())
                                    offset:desc.firstPath * sizeof(gpu::PathData)
-                                  atIndex:PATH_BUFFER_IDX];
+                                  atIndex:METAL_BUFFER_IDX(PATH_BUFFER_IDX)];
             [atlasEncoder
                 setVertexBuffer:mtl_buffer(paintBufferRing())
                          offset:desc.firstPaint * sizeof(gpu::PaintData)
-                        atIndex:PAINT_BUFFER_IDX];
+                        atIndex:METAL_BUFFER_IDX(PAINT_BUFFER_IDX)];
             [atlasEncoder
                 setVertexBuffer:mtl_buffer(paintAuxBufferRing())
                          offset:desc.firstPaintAux * sizeof(gpu::PaintAuxData)
-                        atIndex:PAINT_AUX_BUFFER_IDX];
+                        atIndex:METAL_BUFFER_IDX(PAINT_AUX_BUFFER_IDX)];
         }
         if (desc.contourCount > 0)
         {
             [atlasEncoder
                 setVertexBuffer:mtl_buffer(contourBufferRing())
                          offset:desc.firstContour * sizeof(gpu::ContourData)
-                        atIndex:CONTOUR_BUFFER_IDX];
+                        atIndex:METAL_BUFFER_IDX(CONTOUR_BUFFER_IDX)];
         }
         [atlasEncoder setVertexBuffer:m_pathPatchVertexBuffer
                                offset:0
@@ -1246,7 +1252,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 [atlasEncoder
                     setVertexBytes:&fillBatch.basePatch
                             length:sizeof(uint32_t)
-                           atIndex:PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX];
+                           atIndex:METAL_BUFFER_IDX(
+                                       PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)];
                 [atlasEncoder
                     drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                indexCount:
@@ -1272,7 +1279,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 [atlasEncoder
                     setVertexBytes:&strokeBatch.basePatch
                             length:sizeof(uint32_t)
-                           atIndex:PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX];
+                           atIndex:METAL_BUFFER_IDX(
+                                       PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)];
                 [atlasEncoder
                     drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                indexCount:gpu::kMidpointFanPatchBorderIndexCount
@@ -1473,9 +1481,11 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 [encoder setCullMode:MTLCullModeBack];
                 // Don't use baseInstance in order to run on Apple GPU Family 2.
                 // TODO: Use baseInstance instead once we deprecate Apple2.
-                [encoder setVertexBytes:&batch.baseElement
-                                 length:sizeof(uint32_t)
-                                atIndex:PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX];
+                [encoder
+                    setVertexBytes:&batch.baseElement
+                            length:sizeof(uint32_t)
+                           atIndex:METAL_BUFFER_IDX(
+                                       PATH_BASE_INSTANCE_UNIFORM_BUFFER_IDX)];
                 [encoder drawIndexedPrimitives:MTLPrimitiveTypeTriangle
                                     indexCount:gpu::PatchIndexCount(drawType)
                                      indexType:MTLIndexTypeUInt16
@@ -1504,11 +1514,13 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 [encoder
                     setVertexBuffer:mtl_buffer(imageDrawUniformBufferRing())
                              offset:batch.imageDrawDataOffset
-                            atIndex:IMAGE_DRAW_UNIFORM_BUFFER_IDX];
+                            atIndex:METAL_BUFFER_IDX(
+                                        IMAGE_DRAW_UNIFORM_BUFFER_IDX)];
                 [encoder
                     setFragmentBuffer:mtl_buffer(imageDrawUniformBufferRing())
                                offset:batch.imageDrawDataOffset
-                              atIndex:IMAGE_DRAW_UNIFORM_BUFFER_IDX];
+                              atIndex:METAL_BUFFER_IDX(
+                                          IMAGE_DRAW_UNIFORM_BUFFER_IDX)];
                 [encoder setCullMode:MTLCullModeNone];
                 if (drawType == DrawType::imageRect)
                 {

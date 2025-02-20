@@ -165,7 +165,7 @@ float4 pack_feathered_fill_coverages(float cornerTheta,
 #endif // @VERTEX
 
 #ifdef @ENABLE_FEATHER
-INLINE float eval_feathered_fill(float4 coverages TEXTURE_CONTEXT_DECL)
+INLINE half eval_feathered_fill(float4 coverages TEXTURE_CONTEXT_DECL)
 {
     // x and y are the relative coordinates of the corner vertex within the
     // feather convolution. They are oriented above center=[.5, .5], with the
@@ -413,7 +413,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     float theta = uintBitsToFloat(tessVertexData.z);
     float2 norm = float2(sin(theta), -cos(theta));
     float2 origin = uintBitsToFloat(tessVertexData.xy);
-    float2 postTransformVertexOffset;
+    float2 postTransformVertexOffset = float2(0);
 
     if (featherRadius != .0)
     {

@@ -37,10 +37,6 @@ const char atomic_draw[] = "";
 #include "generated/shaders/atomic_draw.glsl.hpp"
 #endif
 
-// Offset all PLS texture indices by 1 so we, and others who share our GL
-// context, can use GL_TEXTURE0 as a scratch texture index.
-constexpr static int kPLSTexIdxOffset = 1;
-
 namespace rive::gpu
 {
 RenderContextGLImpl::RenderContextGLImpl(
@@ -73,6 +69,14 @@ RenderContextGLImpl::RenderContextGLImpl(
         // vertices in the triangle emit the same value, and we also see a small
         // (5-10%) improvement from not using flat varyings.
         m_platformFeatures.avoidFlatVaryings = true;
+    }
+    if (m_capabilities.isPowerVR)
+    {
+        // Vivo Y21 (PowerVR Rogue GE8320; OpenGL ES 3.2 build 1.13@5776728a)
+        // seems to hit some sort of reset condition that corrupts pixel local
+        // storage when rendering a complex feather. For now, feather directly
+        // to the screen on PowerVR; always go offscreen.
+        m_platformFeatures.alwaysFeatherToAtlas = true;
     }
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = true;
@@ -114,7 +118,7 @@ RenderContextGLImpl::RenderContextGLImpl(
 
     // Emulate the feather texture1d array as a texture2d since GLES doesn't
     // have texture1d.
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
+    glActiveTexture(GL_TEXTURE0 + FEATHER_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_featherTexture);
     glTexStorage2D(GL_TEXTURE_2D,
                    1,
@@ -169,10 +173,10 @@ RenderContextGLImpl::RenderContextGLImpl(
         // buffers as textures.
         glutils::Uniform1iByName(m_tessellateProgram,
                                  GLSL_pathBuffer,
-                                 kPLSTexIdxOffset + PATH_BUFFER_IDX);
+                                 PATH_BUFFER_IDX);
         glutils::Uniform1iByName(m_tessellateProgram,
                                  GLSL_contourBuffer,
-                                 kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
+                                 CONTOUR_BUFFER_IDX);
     }
 
     m_state->bindVAO(m_tessellateVAO);
@@ -271,16 +275,16 @@ RenderContextGLImpl::~RenderContextGLImpl()
 
 void RenderContextGLImpl::invalidateGLState()
 {
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+    glActiveTexture(GL_TEXTURE0 + TESS_VERTEX_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
 
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+    glActiveTexture(GL_TEXTURE0 + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
 
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
+    glActiveTexture(GL_TEXTURE0 + FEATHER_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_featherTexture);
 
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + ATLAS_TEXTURE_IDX);
+    glActiveTexture(GL_TEXTURE0 + ATLAS_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_atlasTexture);
 
     m_state->invalidate();
@@ -293,9 +297,9 @@ void RenderContextGLImpl::unbindGLInternalResources()
     m_state->bindBuffer(GL_ARRAY_BUFFER, 0);
     m_state->bindBuffer(GL_UNIFORM_BUFFER, 0);
     glBindFramebuffer(GL_FRAMEBUFFER, 0);
-    for (int i = 0; i <= CONTOUR_BUFFER_IDX; ++i)
+    for (int i = 0; i <= DEFAULT_BINDINGS_SET_SIZE; ++i)
     {
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + i);
+        glActiveTexture(GL_TEXTURE0 + i);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 }
@@ -331,7 +335,7 @@ rcp<Texture> RenderContextGLImpl::makeImageTexture(
 {
     GLuint textureID;
     glGenTextures(1, &textureID);
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
+    glActiveTexture(GL_TEXTURE0 + IMAGE_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, textureID);
     glTexStorage2D(GL_TEXTURE_2D, mipLevelCount, GL_RGBA8, width, height);
     glTexSubImage2D(GL_TEXTURE_2D,
@@ -549,7 +553,7 @@ public:
     {
         auto [updateWidth, updateHeight] =
             gpu::StorageTextureSize(bindingSizeInBytes, m_bufferStructure);
-        glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + bindingIdx);
+        glActiveTexture(GL_TEXTURE0 + bindingIdx);
         glBindTexture(GL_TEXTURE_2D, m_textures[submittedBufferIdx()]);
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
@@ -612,7 +616,7 @@ void RenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
     }
 
     glGenTextures(1, &m_gradientTexture);
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+    glActiveTexture(GL_TEXTURE0 + GRAD_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
     glutils::SetTexture2DSamplingParams(GL_LINEAR, GL_LINEAR);
@@ -636,7 +640,7 @@ void RenderContextGLImpl::resizeTessellationTexture(uint32_t width,
     }
 
     glGenTextures(1, &m_tessVertexTexture);
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+    glActiveTexture(GL_TEXTURE0 + TESS_VERTEX_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
     glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
     glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
@@ -673,18 +677,16 @@ void RenderContextGLImpl::AtlasProgram::compile(
                           FLUSH_UNIFORM_BUFFER_IDX);
     glutils::Uniform1iByName(m_program,
                              GLSL_tessVertexTexture,
-                             kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+                             TESS_VERTEX_TEXTURE_IDX);
     glutils::Uniform1iByName(m_program,
                              GLSL_featherTexture,
-                             kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
+                             FEATHER_TEXTURE_IDX);
     if (!capabilities.ARB_shader_storage_buffer_object)
     {
-        glutils::Uniform1iByName(m_program,
-                                 GLSL_pathBuffer,
-                                 kPLSTexIdxOffset + PATH_BUFFER_IDX);
+        glutils::Uniform1iByName(m_program, GLSL_pathBuffer, PATH_BUFFER_IDX);
         glutils::Uniform1iByName(m_program,
                                  GLSL_contourBuffer,
-                                 kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
+                                 CONTOUR_BUFFER_IDX);
     }
     if (!capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
     {
@@ -702,7 +704,7 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
     }
 
     m_atlasTexture = glutils::Texture();
-    glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + ATLAS_TEXTURE_IDX);
+    glActiveTexture(GL_TEXTURE0 + ATLAS_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_atlasTexture);
     glTexStorage2D(
         GL_TEXTURE_2D,
@@ -998,15 +1000,13 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     {
         glutils::Uniform1iByName(m_id,
                                  GLSL_tessVertexTexture,
-                                 kPLSTexIdxOffset + TESS_VERTEX_TEXTURE_IDX);
+                                 TESS_VERTEX_TEXTURE_IDX);
     }
     // Since atomic mode emits the color of the *previous* path, it needs the
     // gradient texture bound for every draw.
     if (isPathDraw || interlockMode == gpu::InterlockMode::atomics)
     {
-        glutils::Uniform1iByName(m_id,
-                                 GLSL_gradTexture,
-                                 kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+        glutils::Uniform1iByName(m_id, GLSL_gradTexture, GRAD_TEXTURE_IDX);
     }
     if ((isTessellationDraw &&
          (shaderFeatures & ShaderFeatures::ENABLE_FEATHER)) ||
@@ -1015,21 +1015,17 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
         assert(isPathDraw || interlockMode == gpu::InterlockMode::atomics);
         glutils::Uniform1iByName(m_id,
                                  GLSL_featherTexture,
-                                 kPLSTexIdxOffset + FEATHER_TEXTURE_IDX);
+                                 FEATHER_TEXTURE_IDX);
     }
     // Atomic mode doesn't support image paints on paths.
     if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
     {
-        glutils::Uniform1iByName(m_id,
-                                 GLSL_atlasTexture,
-                                 kPLSTexIdxOffset + ATLAS_TEXTURE_IDX);
+        glutils::Uniform1iByName(m_id, GLSL_atlasTexture, ATLAS_TEXTURE_IDX);
     }
     if (isImageDraw ||
         (isPathDraw && interlockMode != gpu::InterlockMode::atomics))
     {
-        glutils::Uniform1iByName(m_id,
-                                 GLSL_imageTexture,
-                                 kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
+        glutils::Uniform1iByName(m_id, GLSL_imageTexture, IMAGE_TEXTURE_IDX);
     }
     if (!renderContextImpl->m_capabilities.ARB_shader_storage_buffer_object)
     {
@@ -1037,24 +1033,20 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
         // buffers as textures.
         if (isPathDraw)
         {
-            glutils::Uniform1iByName(m_id,
-                                     GLSL_pathBuffer,
-                                     kPLSTexIdxOffset + PATH_BUFFER_IDX);
+            glutils::Uniform1iByName(m_id, GLSL_pathBuffer, PATH_BUFFER_IDX);
         }
         if (isPathDraw || interlockMode == gpu::InterlockMode::atomics)
         {
-            glutils::Uniform1iByName(m_id,
-                                     GLSL_paintBuffer,
-                                     kPLSTexIdxOffset + PAINT_BUFFER_IDX);
+            glutils::Uniform1iByName(m_id, GLSL_paintBuffer, PAINT_BUFFER_IDX);
             glutils::Uniform1iByName(m_id,
                                      GLSL_paintAuxBuffer,
-                                     kPLSTexIdxOffset + PAINT_AUX_BUFFER_IDX);
+                                     PAINT_AUX_BUFFER_IDX);
         }
         if (isTessellationDraw)
         {
             glutils::Uniform1iByName(m_id,
                                      GLSL_contourBuffer,
-                                     kPLSTexIdxOffset + CONTOUR_BUFFER_IDX);
+                                     CONTOUR_BUFFER_IDX);
         }
     }
     if (interlockMode == gpu::InterlockMode::msaa &&
@@ -1063,7 +1055,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     {
         glutils::Uniform1iByName(m_id,
                                  GLSL_dstColorTexture,
-                                 kPLSTexIdxOffset + DST_COLOR_TEXTURE_IDX);
+                                 DST_COLOR_TEXTURE_IDX);
     }
     if (!renderContextImpl->m_capabilities
              .ANGLE_base_vertex_base_instance_shader_builtin)
@@ -1261,7 +1253,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         {
             // PowerVR needs an extra little update to the gradient texture to
             // help with synchronization.
-            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + GRAD_TEXTURE_IDX);
+            glActiveTexture(GL_TEXTURE0 + GRAD_TEXTURE_IDX);
             uint32_t nullData = 0;
             glTexSubImage2D(GL_TEXTURE_2D,
                             0,
@@ -1507,8 +1499,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             {
                 // Set up an internal texture to copy the framebuffer into, for
                 // in-shader blending.
-                renderTarget->bindInternalDstTexture(
-                    GL_TEXTURE0 + kPLSTexIdxOffset + DST_COLOR_TEXTURE_IDX);
+                renderTarget->bindInternalDstTexture(GL_TEXTURE0 +
+                                                     DST_COLOR_TEXTURE_IDX);
             }
         }
     }
@@ -1554,7 +1546,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         if (auto imageTextureGL =
                 static_cast<const TextureGLImpl*>(batch.imageTexture))
         {
-            glActiveTexture(GL_TEXTURE0 + kPLSTexIdxOffset + IMAGE_TEXTURE_IDX);
+            glActiveTexture(GL_TEXTURE0 + IMAGE_TEXTURE_IDX);
             glBindTexture(GL_TEXTURE_2D, imageTextureGL->textureID());
         }
 
@@ -2125,12 +2117,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     // versions are reported as extensions.
     if (capabilities.isGLES)
     {
-        if (capabilities.isContextVersionAtLeast(3, 2))
-        {
-            // Floating point render targets became core in OpenGL ES 3.2.
-            capabilities.EXT_color_buffer_half_float = true;
-            capabilities.EXT_float_blend = true;
-        }
         if (capabilities.isContextVersionAtLeast(3, 1))
         {
             capabilities.ARB_shader_storage_buffer_object = true;
@@ -2147,9 +2133,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             capabilities.ARB_shader_storage_buffer_object = true;
         }
         capabilities.EXT_clip_cull_distance = true;
-        // Floating point render targets became core in OpenGL 3.0.
-        capabilities.EXT_color_buffer_half_float = true;
-        capabilities.EXT_float_blend = true;
     }
 
 #ifndef RIVE_WEBGL
@@ -2239,6 +2222,11 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         }
         else if (strcmp(ext, "GL_EXT_float_blend") == 0)
         {
+            capabilities.EXT_float_blend = true;
+        }
+        else if (strcmp(ext, "GL_ARB_color_buffer_float") == 0)
+        {
+            capabilities.EXT_color_buffer_half_float = true;
             capabilities.EXT_float_blend = true;
         }
         else if (strcmp(ext, "GL_EXT_shader_framebuffer_fetch") == 0)
