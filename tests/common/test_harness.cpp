@@ -162,6 +162,16 @@ void TestHarness::monitorStdIOThread()
             threadTCPClient->sendString(buff);
         }
 #ifdef RIVE_ANDROID
+        if (threadTCPClient == nullptr)
+        {
+            // When we don't have a test harness (e.g., when running on
+            // browserstack), also save stdout & stderr to a log file in case we
+            // lose ANDROID_LOG_DEBUG.
+            FILE* f =
+                fopen((m_outputDir / "rive_log.txt").string().c_str(), "a");
+            fwrite(buff, 1, strlen(buff), f);
+            fclose(f);
+        }
         __android_log_write(ANDROID_LOG_DEBUG, "rive_android_tests", buff);
 #endif
     }

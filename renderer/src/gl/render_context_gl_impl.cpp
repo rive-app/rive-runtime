@@ -1129,21 +1129,15 @@ void RenderContextGLImpl::PixelLocalStorageImpl::ensureRasterOrderingEnabled(
 class DrawIndexedInstancedHelper
 {
 public:
-    DrawIndexedInstancedHelper(const GLCapabilities& capabilities,
-                               GLint spirvCrossBaseInstanceLocation,
+    DrawIndexedInstancedHelper(GLint spirvCrossBaseInstanceLocation,
                                GLenum primitiveTopology,
                                uint32_t instanceCount,
                                uint32_t baseInstance) :
-        m_hasBaseInstanceInShader(
-            capabilities.ANGLE_base_vertex_base_instance_shader_builtin),
         m_spirvCrossBaseInstanceLocation(spirvCrossBaseInstanceLocation),
         m_primitiveTopology(primitiveTopology),
         m_instanceCount(instanceCount),
         m_baseInstance(baseInstance)
-    {
-        assert(m_hasBaseInstanceInShader ==
-               (m_spirvCrossBaseInstanceLocation < 0));
-    }
+    {}
 
     void setIndexRange(uint32_t indexCount, uint32_t baseIndex)
     {
@@ -1152,27 +1146,39 @@ public:
             reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
     }
 
-    void draw() const
+    void draw(const GLCapabilities& capabilities) const
     {
+        assert(capabilities.ANGLE_base_vertex_base_instance_shader_builtin ==
+               (m_spirvCrossBaseInstanceLocation < 0));
+        for (uint32_t baseInstance = m_baseInstance,
+                      endInstance = m_baseInstance + m_instanceCount;
+             baseInstance < endInstance;)
+
+        {
+            uint32_t instanceCount =
+                std::min(endInstance - baseInstance,
+                         capabilities.maxSupportedInstancesPerDrawCommand);
 #ifndef RIVE_WEBGL
-        if (m_hasBaseInstanceInShader)
-        {
-            glDrawElementsInstancedBaseInstanceEXT(m_primitiveTopology,
-                                                   m_indexCount,
-                                                   GL_UNSIGNED_SHORT,
-                                                   m_indexOffset,
-                                                   m_instanceCount,
-                                                   m_baseInstance);
-        }
-        else
+            if (capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+            {
+                glDrawElementsInstancedBaseInstanceEXT(m_primitiveTopology,
+                                                       m_indexCount,
+                                                       GL_UNSIGNED_SHORT,
+                                                       m_indexOffset,
+                                                       instanceCount,
+                                                       baseInstance);
+            }
+            else
 #endif
-        {
-            glUniform1i(m_spirvCrossBaseInstanceLocation, m_baseInstance);
-            glDrawElementsInstanced(m_primitiveTopology,
-                                    m_indexCount,
-                                    GL_UNSIGNED_SHORT,
-                                    m_indexOffset,
-                                    m_instanceCount);
+            {
+                glUniform1i(m_spirvCrossBaseInstanceLocation, baseInstance);
+                glDrawElementsInstanced(m_primitiveTopology,
+                                        m_indexCount,
+                                        GL_UNSIGNED_SHORT,
+                                        m_indexOffset,
+                                        instanceCount);
+            }
+            baseInstance += instanceCount;
         }
     }
 
@@ -1181,17 +1187,17 @@ public:
                                  GLuint mask,
                                  GLenum stencilFailOp,
                                  GLenum depthPassStencilFailOp,
-                                 GLenum depthPassStencilPassOp) const
+                                 GLenum depthPassStencilPassOp,
+                                 const GLCapabilities& capabilities) const
     {
         glStencilFunc(comparator, ref, mask);
         glStencilOp(stencilFailOp,
                     depthPassStencilFailOp,
                     depthPassStencilPassOp);
-        draw();
+        draw(capabilities);
     }
 
 private:
-    const bool m_hasBaseInstanceInShader;
     const GLint m_spirvCrossBaseInstanceLocation;
     const GLenum m_primitiveTopology;
     const uint32_t m_instanceCount;
@@ -1350,7 +1356,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                           fillBatch.scissor.width(),
                           fillBatch.scissor.height());
                 DrawIndexedInstancedHelper drawHelper(
-                    m_capabilities,
                     m_atlasFillProgram.spirvCrossBaseInstanceLocation(),
                     GL_TRIANGLES,
                     fillBatch.patchCount,
@@ -1358,7 +1363,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 drawHelper.setIndexRange(
                     gpu::kMidpointFanCenterAAPatchIndexCount,
                     gpu::kMidpointFanCenterAAPatchBaseIndex);
-                drawHelper.draw();
+                drawHelper.draw(m_capabilities);
             }
         }
 
@@ -1375,14 +1380,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                           strokeBatch.scissor.width(),
                           strokeBatch.scissor.height());
                 DrawIndexedInstancedHelper drawHelper(
-                    m_capabilities,
                     m_atlasStrokeProgram.spirvCrossBaseInstanceLocation(),
                     GL_TRIANGLES,
                     strokeBatch.patchCount,
                     strokeBatch.basePatch);
                 drawHelper.setIndexRange(gpu::kMidpointFanPatchBorderIndexCount,
                                          gpu::kMidpointFanPatchBaseIndex);
-                drawHelper.draw();
+                drawHelper.draw(m_capabilities);
             }
         }
 
@@ -1615,7 +1619,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 // Draw PLS patches that connect the tessellation vertices.
                 m_state->bindVAO(m_drawVAO);
                 DrawIndexedInstancedHelper drawHelper(
-                    m_capabilities,
                     drawProgram.spirvCrossBaseInstanceLocation(),
                     GL_TRIANGLES,
                     batch.elementCount,
@@ -1631,7 +1634,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     drawHelper.setIndexRange(gpu::PatchIndexCount(drawType),
                                              gpu::PatchBaseIndex(drawType));
                     m_state->setCullFace(GL_BACK);
-                    drawHelper.draw();
+                    drawHelper.draw(m_capabilities);
                     break;
                 }
 
@@ -1664,7 +1667,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                         0xff,
                         GL_KEEP,
                         GL_KEEP,
-                        GL_KEEP);
+                        GL_KEEP,
+                        m_capabilities);
                     break;
                 }
 
@@ -1688,7 +1692,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                         0xff,
                         GL_KEEP,
                         GL_KEEP,
-                        GL_INCR_WRAP);
+                        GL_INCR_WRAP,
+                        m_capabilities);
 
                     // (Configure both stencil faces before issuing the next
                     // draws, so GL can give them the same internal pipeline
@@ -1718,7 +1723,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     // Draw forward triangles, clipped by the backward triangle
                     // counts. (The depth test prevents double hits.)
                     m_state->setCullFace(GL_BACK);
-                    drawHelper.draw();
+                    drawHelper.draw(m_capabilities);
 
                     // Clean up backward triangles in the stencil buffer, (also
                     // filling negative winding numbers for nonZero fill).
@@ -1730,7 +1735,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                         // fills in forward triangles.
                         m_state->setWriteMasks(false, false, 0x7f);
                     }
-                    drawHelper.draw();
+                    drawHelper.draw(m_capabilities);
                     break;
                 }
 
@@ -1746,7 +1751,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                        false,
                                        isEvenOddFill ? 0x1 : 0x7f);
                 m_state->setCullFace(GL_NONE);
-                drawHelper.draw(); // Stencil the path!
+                drawHelper.draw(m_capabilities); // Stencil the path!
 
                 // Nested clip updates do the "cover" operation during
                 // DrawType::stencilClipReset.
@@ -1762,7 +1767,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                         0x7f,
                         GL_KEEP,
                         GL_KEEP,
-                        isClipUpdate ? GL_REPLACE : GL_ZERO);
+                        isClipUpdate ? GL_REPLACE : GL_ZERO,
+                        m_capabilities);
                 }
                 break;
             }
@@ -2113,6 +2119,37 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         }
     }
 
+    GLenum rendererToken = GL_RENDERER;
+#ifdef RIVE_WEBGL
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "WEBGL_debug_renderer_info"))
+    {
+        rendererToken = GL_UNMASKED_RENDERER_WEBGL;
+    }
+#endif
+    const char* rendererString =
+        reinterpret_cast<const char*>(glGetString(rendererToken));
+    capabilities.isAdreno = strstr(rendererString, "Adreno");
+    capabilities.isMali = strstr(rendererString, "Mali");
+    capabilities.isPowerVR = strstr(rendererString, "PowerVR");
+    if (capabilities.isMali || capabilities.isPowerVR)
+    {
+        // We have observed crashes on Mali-G71 when issuing instanced draws
+        // with somewhere between 2^15 and 2^16 instances.
+        //
+        // Skia also reports crashes on PowerVR when drawing somewhere between
+        // 2^14 and 2^15 instances.
+        //
+        // Limit the maximum number of instances we issue per-draw-call on these
+        // devices to a safe value, far below the observed crash thresholds.
+        capabilities.maxSupportedInstancesPerDrawCommand = 999;
+    }
+    else
+    {
+        capabilities.maxSupportedInstancesPerDrawCommand = ~0u;
+    }
+
     // Our baseline feature set is GLES 3.0. Capabilities from newer context
     // versions are reported as extensions.
     if (capabilities.isGLES)
@@ -2311,19 +2348,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         capabilities.INTEL_fragment_shader_ordering = false;
     }
 
-    GLenum rendererToken = GL_RENDERER;
-#ifdef RIVE_WEBGL
-    if (emscripten_webgl_enable_extension(
-            emscripten_webgl_get_current_context(),
-            "WEBGL_debug_renderer_info"))
-    {
-        rendererToken = GL_UNMASKED_RENDERER_WEBGL;
-    }
-#endif
-    const char* rendererString =
-        reinterpret_cast<const char*>(glGetString(rendererToken));
-    capabilities.isPowerVR = strstr(rendererString, "PowerVR");
-    capabilities.isAdreno = strstr(rendererString, "Adreno");
     if (strstr(rendererString, "Direct3D") != nullptr)
     {
         // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D.
@@ -2336,8 +2360,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         capabilities.EXT_multisampled_render_to_texture = false;
     }
 #ifdef RIVE_ANDROID
-    LoadGLESExtensions(
-        capabilities); // Android doesn't load extension functions for us.
+    // Android doesn't load extension functions for us.
+    LoadGLESExtensions(capabilities);
 #endif
 
     if (!contextOptions.disablePixelLocalStorage)

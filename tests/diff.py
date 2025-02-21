@@ -338,7 +338,8 @@ def parse_status(candidates_path, golden_path, output_path, device_name, browser
     return (total_lines, test_entries, success)
 
 def diff_directory_shallow(candidates_path, output_path, golden_path, device_name=None, browserstack_details=None):
-    original_filenames = set((file.name for file in os.scandir(candidates_path) if file.is_file()))
+    original_filenames = set((file.name for file in os.scandir(candidates_path)
+                              if file.is_file() and file.name.endswith('.png')))
     candidate_filenames = set(os.listdir(golden_path))
     intersect_filenames = original_filenames.intersection(candidate_filenames)
 

@@ -6,6 +6,7 @@
 
 #include <stdio.h>
 #include <sstream>
+#include <thread>
 #include <vector>
 
 #include "generated/shaders/glsl.glsl.hpp"
@@ -132,6 +133,9 @@ GLuint CompileShader(GLuint type,
         std::vector<GLchar> infoLog(maxLength);
         glGetShaderInfoLog(shader, maxLength, &maxLength, &infoLog[0]);
         fprintf(stderr, "Failed to compile shader\n");
+        // Print the error message *before* the shader in case stderr hasn't
+        // finished flushing when we call abort() further on.
+        fprintf(stderr, "%s\n", &infoLog[0]);
         int l = 1;
         std::stringstream stream(rawGLSL);
         std::string lineStr;
@@ -139,9 +143,13 @@ GLuint CompileShader(GLuint type,
         {
             fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
         }
+        // Print the error message, again, *after* the shader where it's easier
+        // to find in the console.
         fprintf(stderr, "%s\n", &infoLog[0]);
         fflush(stderr);
         glDeleteShader(shader);
+        // Give stderr another second to finish flushing before we abort.
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
         abort();
     }
 #endif
