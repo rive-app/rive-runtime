@@ -1574,6 +1574,14 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
         }
     }
 
+    for (auto& dataBind : m_dataBinds)
+    {
+        if (dataBind->advance(seconds))
+        {
+            m_needsAdvance = true;
+        }
+    }
+
     for (auto inst : m_inputInstances)
     {
         inst->advanced();
