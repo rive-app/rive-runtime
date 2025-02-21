@@ -410,6 +410,8 @@ public:
 
     virtual bool shouldQuit() const { return false; }
 
+    virtual void hotloadShaders() {}
+
     virtual ~TestingWindow() {}
 
 protected:

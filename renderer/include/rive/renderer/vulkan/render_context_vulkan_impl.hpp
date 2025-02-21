@@ -131,6 +131,8 @@ public:
 
     rcp<Texture> decodeImageTexture(Span<const uint8_t> encodedBytes) override;
 
+    void hotloadShaders(rive::Span<const uint32_t> spirvData);
+
 private:
     RenderContextVulkanImpl(VkInstance instance,
                             VkPhysicalDevice physicalDevice,

@@ -41,6 +41,7 @@ public:
     virtual void end(GLFWwindow*,
                      std::vector<uint8_t>* pixelData = nullptr) = 0;
     virtual void tick(){};
+    virtual void hotloadShaders(){};
 
     static std::unique_ptr<FiddleContext> MakeGLPLS(FiddleContextOptions = {});
     static std::unique_ptr<FiddleContext> MakeGLSkia();

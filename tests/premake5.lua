@@ -9,7 +9,7 @@ end
 
 rive_tools_project('gms', 'RiveTool')
 do
-    files({ 'gm/*.cpp' })
+    files({ 'gm/*.cpp', RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
     filter({ 'options:for_unreal' })
     do
         defines({ 'RIVE_UNREAL' })
@@ -19,7 +19,7 @@ end
 rive_tools_project('goldens', 'RiveTool')
 do
     exceptionhandling('On')
-    files({ 'goldens/goldens.cpp' })
+    files({ 'goldens/goldens.cpp', RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
     filter({ 'options:for_unreal' })
     do
         defines({ 'RIVE_UNREAL' })
@@ -28,5 +28,5 @@ end
 
 rive_tools_project('player', 'RiveTool')
 do
-    files({ 'player/player.cpp' })
+    files({ 'player/player.cpp', RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
 end

@@ -39,7 +39,13 @@ parser.add_argument("-p", "--ply-path", required=True, type=str, help="path to p
 
 args = parser.parse_args()
 
-sys.path.append(args.ply_path)
+# Convert posix path to windows 
+convertedPath = args.ply_path
+if sys.platform.startswith('win32') and args.ply_path[:2] == '/c':
+    convertedPath = 'C:\\' + args.ply_path[2:]
+    print('Using ply path:' + convertedPath)
+
+sys.path.append(convertedPath)
 
 import ply.lex as lex
 

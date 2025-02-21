@@ -19,6 +19,7 @@ if not _OPTIONS['with-webgpu'] then
             RIVE_RUNTIME_DIR .. '/include',
             'include',
             RIVE_RUNTIME_DIR .. '/renderer/src',
+            RIVE_RUNTIME_DIR .. '/renderer/shader_hotload',
         })
         externalincludedirs({
             'glad',
@@ -30,7 +31,7 @@ if not _OPTIONS['with-webgpu'] then
 
         defines({ 'YOGA_EXPORT=' })
 
-        files({ 'path_fiddle/**.cpp' })
+        files({ 'path_fiddle/**.cpp', 'shader_hotload/**.cpp' })
 
         links({
             'rive',

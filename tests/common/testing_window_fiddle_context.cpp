@@ -190,6 +190,7 @@ public:
         if (visibility == Visibility::fullscreen)
         {
             glfwWindowHint(GLFW_CENTER_CURSOR, GLFW_FALSE);
+            glfwWindowHint(GLFW_AUTO_ICONIFY, GLFW_FALSE);
 
             // For GLFW, the platformWindow is a fullscreen monitor index.
             intptr_t fullscreenMonitorIdx =
@@ -320,6 +321,8 @@ public:
             m_height = height;
         }
     }
+
+    void hotloadShaders() override { m_fiddleContext->hotloadShaders(); }
 
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override

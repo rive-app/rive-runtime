@@ -98,6 +98,7 @@ public:
     F(DestroySampler)                                                          \
     F(DestroySemaphore)                                                        \
     F(DestroyShaderModule)                                                     \
+    F(DeviceWaitIdle)                                                          \
     F(FreeCommandBuffers)                                                      \
     F(ResetCommandBuffer)                                                      \
     F(ResetDescriptorPool)                                                     \

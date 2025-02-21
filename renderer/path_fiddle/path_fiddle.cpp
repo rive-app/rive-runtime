@@ -40,68 +40,69 @@ constexpr static char kSwiftShaderICD[] = "dependencies/SwiftShader/build/"
                                           "Linux"
 #endif
                                           "/vk_swiftshader_icd.json";
-static FiddleContextOptions s_options;
-static GLFWwindow* s_window = nullptr;
-static int s_msaa = 0;
-static bool s_forceAtomicMode = false;
-static bool s_wireframe = false;
-static bool s_disableFill = false;
-static bool s_disableStroke = false;
-static bool s_clockwiseFill = false;
+static FiddleContextOptions options;
+static GLFWwindow* window = nullptr;
+static int msaa = 0;
+static bool forceAtomicMode = false;
+static bool wireframe = false;
+static bool disableFill = false;
+static bool disableStroke = false;
+static bool clockwiseFill = false;
+static bool hotloadShaders = false;
 
-static std::unique_ptr<FiddleContext> s_fiddleContext;
+static std::unique_ptr<FiddleContext> fiddleContext;
 
-static float2 s_pts[] = {{260 + 2 * 100, 60 + 2 * 500},
-                         {260 + 2 * 257, 60 + 2 * 233},
-                         {260 + 2 * -100, 60 + 2 * 300},
-                         {260 + 2 * 100, 60 + 2 * 200},
-                         {260 + 2 * 250, 60 + 2 * 0},
-                         {260 + 2 * 400, 60 + 2 * 200},
-                         {260 + 2 * 213, 60 + 2 * 200},
-                         {260 + 2 * 213, 60 + 2 * 300},
-                         {260 + 2 * 391, 60 + 2 * 480},
-                         {1400, 1400}}; // Feather control.
-constexpr static int kNumInteractivePts = sizeof(s_pts) / sizeof(*s_pts);
+static float2 pts[] = {{260 + 2 * 100, 60 + 2 * 500},
+                       {260 + 2 * 257, 60 + 2 * 233},
+                       {260 + 2 * -100, 60 + 2 * 300},
+                       {260 + 2 * 100, 60 + 2 * 200},
+                       {260 + 2 * 250, 60 + 2 * 0},
+                       {260 + 2 * 400, 60 + 2 * 200},
+                       {260 + 2 * 213, 60 + 2 * 200},
+                       {260 + 2 * 213, 60 + 2 * 300},
+                       {260 + 2 * 391, 60 + 2 * 480},
+                       {1400, 1400}}; // Feather control.
+constexpr static int NUM_INTERACTIVE_PTS = sizeof(pts) / sizeof(*pts);
 
-static float s_strokeWidth = 70;
+static float strokeWidth = 70;
 
-static float2 s_translate;
-static float s_scale = 1;
+static float2 translate;
+static float scale = 1;
 
-static StrokeJoin s_join = StrokeJoin::round;
-static StrokeCap s_cap = StrokeCap::round;
+static StrokeJoin join = StrokeJoin::round;
+static StrokeCap cap = StrokeCap::round;
 
-static bool s_doClose = false;
-static bool s_paused = false;
+static bool doClose = false;
+static bool paused = false;
 
-static int s_dragIdx = -1;
-static float2 s_dragLastPos;
+static int dragIdx = -1;
+static float2 dragLastPos;
 
-static int s_animation = -1;
-static int s_stateMachine = -1;
-static int s_horzRepeat = 0;
-static int s_upRepeat = 0;
-static int s_downRepeat = 0;
+static int animation = -1;
+static int stateMachine = -1;
+static int horzRepeat = 0;
+static int upRepeat = 0;
+static int downRepeat = 0;
 
-std::unique_ptr<File> s_rivFile;
-std::vector<std::unique_ptr<Artboard>> s_artboards;
-std::vector<std::unique_ptr<Scene>> s_scenes;
+std::unique_ptr<File> rivFile;
+std::vector<std::unique_ptr<Artboard>> artboards;
+std::vector<std::unique_ptr<Scene>> scenes;
 
 static void make_scenes(size_t count)
 {
-    s_artboards.clear();
-    s_scenes.clear();
+    artboards.clear();
+    scenes.clear();
     for (size_t i = 0; i < count; ++i)
     {
-        auto artboard = s_rivFile->artboardDefault();
+        auto artboard = rivFile->artboardDefault();
         std::unique_ptr<Scene> scene;
-        if (s_stateMachine >= 0)
+        if (stateMachine >= 0)
         {
-            scene = artboard->stateMachineAt(s_stateMachine);
+            scene = artboard->stateMachineAt(stateMachine);
         }
-        else if (s_animation >= 0)
+        else if (animation >= 0)
         {
-            scene = artboard->animationAt(s_animation);
+            scene = artboard->animationAt(animation);
         }
         else
         {
@@ -114,8 +115,8 @@ static void make_scenes(size_t count)
             scene = std::make_unique<StaticScene>(artboard.get());
         }
         scene->advanceAndApply(scene->durationSeconds() * i / count);
-        s_artboards.push_back(std::move(artboard));
-        s_scenes.push_back(std::move(scene));
+        artboards.push_back(std::move(artboard));
+        scenes.push_back(std::move(scene));
     }
 }
 
@@ -138,21 +139,21 @@ static void mouse_button_callback(GLFWwindow* window,
 {
     double x, y;
     glfwGetCursorPos(window, &x, &y);
-    float dpiScale = s_fiddleContext->dpiScale(s_window);
+    float dpiScale = fiddleContext->dpiScale(window);
     x *= dpiScale;
     y *= dpiScale;
-    s_dragLastPos = float2{(float)x, (float)y};
+    dragLastPos = float2{(float)x, (float)y};
     if (button == GLFW_MOUSE_BUTTON_LEFT && action == GLFW_PRESS)
     {
-        s_dragIdx = -1;
-        if (!s_rivFile)
+        dragIdx = -1;
+        if (!rivFile)
         {
-            for (int i = 0; i < kNumInteractivePts; ++i)
+            for (int i = 0; i < NUM_INTERACTIVE_PTS; ++i)
             {
-                if (simd::all(simd::abs(s_dragLastPos -
-                                        (s_pts[i] + s_translate)) < 100))
+                if (simd::all(simd::abs(dragLastPos - (pts[i] + translate)) <
+                              100))
                 {
-                    s_dragIdx = i;
+                    dragIdx = i;
                     break;
                 }
             }
@@ -162,28 +163,28 @@ static void mouse_button_callback(GLFWwindow* window,
 
 static void mousemove_callback(GLFWwindow* window, double x, double y)
 {
-    float dpiScale = s_fiddleContext->dpiScale(s_window);
+    float dpiScale = fiddleContext->dpiScale(window);
     x *= dpiScale;
     y *= dpiScale;
     if (glfwGetMouseButton(window, GLFW_MOUSE_BUTTON_LEFT) == GLFW_PRESS)
     {
         float2 pos = float2{(float)x, (float)y};
-        if (s_dragIdx >= 0)
+        if (dragIdx >= 0)
         {
-            s_pts[s_dragIdx] += (pos - s_dragLastPos);
+            pts[dragIdx] += (pos - dragLastPos);
         }
         else
         {
-            s_translate += (pos - s_dragLastPos);
+            translate += (pos - dragLastPos);
         }
-        s_dragLastPos = pos;
+        dragLastPos = pos;
     }
 }
 
 int lastWidth = 0, lastHeight = 0;
 double fpsLastTime = 0;
 int fpsFrames = 0;
-static bool s_needsTitleUpdate = false;
+static bool needsTitleUpdate = false;
 
 enum class API
 {
@@ -221,22 +222,25 @@ static void key_callback(GLFWwindow* window,
             case GLFW_KEY_ESCAPE:
                 glfwSetWindowShouldClose(window, 1);
                 break;
+            case GLFW_KEY_GRAVE_ACCENT: // ` key, backtick
+                hotloadShaders = true;
+                break;
             case GLFW_KEY_A:
-                s_forceAtomicMode = !s_forceAtomicMode;
+                forceAtomicMode = !forceAtomicMode;
                 fpsLastTime = 0;
                 fpsFrames = 0;
-                s_needsTitleUpdate = true;
+                needsTitleUpdate = true;
                 break;
             case GLFW_KEY_D:
-                printf("static float s_scale = %f;\n", s_scale);
-                printf("static float2 s_translate = {%f, %f};\n",
-                       s_translate.x,
-                       s_translate.y);
-                printf("static float2 s_pts[] = {");
-                for (int i = 0; i < kNumInteractivePts; i++)
+                printf("static float scale = %f;\n", scale);
+                printf("static float2 translate = {%f, %f};\n",
+                       translate.x,
+                       translate.y);
+                printf("static float2 pts[] = {");
+                for (int i = 0; i < NUM_INTERACTIVE_PTS; i++)
                 {
-                    printf("{%g, %g}", s_pts[i].x, s_pts[i].y);
-                    if (i < kNumInteractivePts - 1)
+                    printf("{%g, %g}", pts[i].x, pts[i].y);
+                    if (i < NUM_INTERACTIVE_PTS - 1)
                     {
                         printf(", ");
                     }
@@ -248,97 +252,96 @@ static void key_callback(GLFWwindow* window,
                 fflush(stdout);
                 break;
             case GLFW_KEY_Z:
-                s_fiddleContext->toggleZoomWindow();
+                fiddleContext->toggleZoomWindow();
                 break;
             case GLFW_KEY_MINUS:
-                s_strokeWidth /= 1.5f;
+                strokeWidth /= 1.5f;
                 break;
             case GLFW_KEY_EQUAL:
-                s_strokeWidth *= 1.5f;
+                strokeWidth *= 1.5f;
                 break;
             case GLFW_KEY_W:
-                s_wireframe = !s_wireframe;
+                wireframe = !wireframe;
                 break;
             case GLFW_KEY_C:
-                s_cap =
-                    static_cast<StrokeCap>((static_cast<int>(s_cap) + 1) % 3);
+                cap = static_cast<StrokeCap>((static_cast<int>(cap) + 1) % 3);
                 break;
             case GLFW_KEY_O:
-                s_doClose = !s_doClose;
+                doClose = !doClose;
                 break;
             case GLFW_KEY_S:
                 if (shift)
                 {
                     // Toggle Skia.
-                    s_scenes.clear();
-                    s_artboards.clear();
-                    s_rivFile = nullptr;
+                    scenes.clear();
+                    artboards.clear();
+                    rivFile = nullptr;
                     skia = !skia;
-                    s_fiddleContext = skia ? FiddleContext::MakeGLSkia()
-                                           : FiddleContext::MakeGLPLS();
+                    fiddleContext = skia ? FiddleContext::MakeGLSkia()
+                                         : FiddleContext::MakeGLPLS();
                     lastWidth = 0;
                     lastHeight = 0;
                     fpsLastTime = 0;
                     fpsFrames = 0;
-                    s_needsTitleUpdate = true;
+                    needsTitleUpdate = true;
                 }
                 else
                 {
-                    s_disableStroke = !s_disableStroke;
+                    disableStroke = !disableStroke;
                 }
                 break;
             case GLFW_KEY_F:
-                s_disableFill = !s_disableFill;
+                disableFill = !disableFill;
                 break;
             case GLFW_KEY_X:
-                s_clockwiseFill = !s_clockwiseFill;
+                clockwiseFill = !clockwiseFill;
                 break;
             case GLFW_KEY_P:
-                s_paused = !s_paused;
+                paused = !paused;
                 break;
             case GLFW_KEY_H:
                 if (!shift)
-                    ++s_horzRepeat;
-                else if (s_horzRepeat > 0)
-                    --s_horzRepeat;
+                    ++horzRepeat;
+                else if (horzRepeat > 0)
+                    --horzRepeat;
                 break;
             case GLFW_KEY_K:
                 if (!shift)
-                    ++s_upRepeat;
-                else if (s_upRepeat > 0)
-                    --s_upRepeat;
+                    ++upRepeat;
+                else if (upRepeat > 0)
+                    --upRepeat;
                 break;
             case GLFW_KEY_J:
-                if (!s_rivFile)
-                    s_join = static_cast<StrokeJoin>(
-                        (static_cast<int>(s_join) + 1) % 3);
+                if (!rivFile)
+                    join = static_cast<StrokeJoin>(
+                        (static_cast<int>(join) + 1) % 3);
                 else if (!shift)
-                    ++s_downRepeat;
-                else if (s_downRepeat > 0)
-                    --s_downRepeat;
+                    ++downRepeat;
+                else if (downRepeat > 0)
+                    --downRepeat;
                 break;
             case GLFW_KEY_UP:
             {
-                float oldScale = s_scale;
-                s_scale *= 1.25;
+                float oldScale = scale;
+                scale *= 1.25;
                 double x = 0, y = 0;
                 glfwGetCursorPos(window, &x, &y);
                 float2 cursorPos = float2{(float)x, (float)y} *
-                                   s_fiddleContext->dpiScale(s_window);
-                s_translate =
-                    cursorPos + (s_translate - cursorPos) * s_scale / oldScale;
+                                   fiddleContext->dpiScale(window);
+                translate =
+                    cursorPos + (translate - cursorPos) * scale / oldScale;
                 break;
             }
             case GLFW_KEY_DOWN:
             {
-                float oldScale = s_scale;
-                s_scale /= 1.25;
+                float oldScale = scale;
+                scale /= 1.25;
                 double x = 0, y = 0;
                 glfwGetCursorPos(window, &x, &y);
                 float2 cursorPos = float2{(float)x, (float)y} *
-                                   s_fiddleContext->dpiScale(s_window);
-                s_translate =
-                    cursorPos + (s_translate - cursorPos) * s_scale / oldScale;
+                                   fiddleContext->dpiScale(window);
+                translate =
+                    cursorPos + (translate - cursorPos) * scale / oldScale;
                 break;
             }
         }
@@ -368,7 +371,7 @@ static void set_environment_variable(const char* name, const char* value)
 }
 
 std::unique_ptr<Renderer> renderer;
-const char* s_rivName = nullptr;
+const char* rivName = nullptr;
 
 void riveMainLoop();
 
@@ -379,7 +382,7 @@ int main(int argc, const char** argv)
     setvbuf(stderr, NULL, _IONBF, 0);
 
 #ifdef DEBUG
-    s_options.enableVulkanValidationLayers = true;
+    options.enableVulkanValidationLayers = true;
 #endif
 
 #ifdef __EMSCRIPTEN__
@@ -416,13 +419,13 @@ int main(int argc, const char** argv)
         else if (!strcmp(argv[i], "--glatomic"))
         {
             api = API::gl;
-            s_forceAtomicMode = true;
+            forceAtomicMode = true;
         }
         else if (!strcmp(argv[i], "--glcw"))
         {
             api = API::gl;
-            s_forceAtomicMode = true;
-            s_clockwiseFill = true;
+            forceAtomicMode = true;
+            clockwiseFill = true;
         }
         else if (!strcmp(argv[i], "--metal"))
         {
@@ -431,12 +434,12 @@ int main(int argc, const char** argv)
         else if (!strcmp(argv[i], "--metalcw"))
         {
             api = API::metal;
-            s_clockwiseFill = true;
+            clockwiseFill = true;
         }
         else if (!strcmp(argv[i], "--metalatomic"))
         {
             api = API::metal;
-            s_forceAtomicMode = true;
+            forceAtomicMode = true;
         }
         else if (!strcmp(argv[i], "--mvk") || !strcmp(argv[i], "--moltenvk"))
         {
@@ -448,7 +451,7 @@ int main(int argc, const char** argv)
         {
             set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
             api = API::vulkan;
-            s_forceAtomicMode = true;
+            forceAtomicMode = true;
         }
         else if (!strcmp(argv[i], "--sw") || !strcmp(argv[i], "--swiftshader"))
         {
@@ -464,7 +467,7 @@ int main(int argc, const char** argv)
             // packages/runtime/renderer/make_swiftshader.sh
             set_environment_variable("VK_ICD_FILENAMES", kSwiftShaderICD);
             api = API::vulkan;
-            s_forceAtomicMode = true;
+            forceAtomicMode = true;
         }
         else if (!strcmp(argv[i], "--dawn"))
         {
@@ -477,7 +480,7 @@ int main(int argc, const char** argv)
         else if (!strcmp(argv[i], "--d3datomic"))
         {
             api = API::d3d;
-            s_forceAtomicMode = true;
+            forceAtomicMode = true;
         }
         else if (!strcmp(argv[i], "--vulkan") || !strcmp(argv[i], "--vk"))
         {
@@ -486,13 +489,13 @@ int main(int argc, const char** argv)
         else if (!strcmp(argv[i], "--vkcw"))
         {
             api = API::vulkan;
-            s_clockwiseFill = true;
+            clockwiseFill = true;
         }
         else if (!strcmp(argv[i], "--vulkanatomic") ||
                  !strcmp(argv[i], "--vkatomic"))
         {
             api = API::vulkan;
-            s_forceAtomicMode = true;
+            forceAtomicMode = true;
         }
 #ifdef RIVE_DESKTOP_GL
         else if (!strcmp(argv[i], "--angle_gl"))
@@ -528,49 +531,49 @@ int main(int argc, const char** argv)
         {
             skia = true;
         }
-        else if (sscanf(argv[i], "-a%i", &s_animation))
+        else if (sscanf(argv[i], "-a%i", &animation))
         {
-            // Already updated s_animation.
+            // Already updated animation.
         }
-        else if (sscanf(argv[i], "-s%i", &s_stateMachine))
+        else if (sscanf(argv[i], "-s%i", &stateMachine))
         {
-            // Already updated s_stateMachine.
+            // Already updated stateMachine.
         }
-        else if (sscanf(argv[i], "-h%i", &s_horzRepeat))
+        else if (sscanf(argv[i], "-h%i", &horzRepeat))
         {
-            // Already updated s_horzRepeat.
+            // Already updated horzRepeat.
         }
-        else if (sscanf(argv[i], "-j%i", &s_downRepeat))
+        else if (sscanf(argv[i], "-j%i", &downRepeat))
         {
-            // Already updated s_downRepeat.
+            // Already updated downRepeat.
         }
-        else if (sscanf(argv[i], "-k%i", &s_upRepeat))
+        else if (sscanf(argv[i], "-k%i", &upRepeat))
         {
-            // Already updated s_upRepeat.
+            // Already updated upRepeat.
         }
         else if (!strcmp(argv[i], "-p"))
         {
-            s_paused = true;
+            paused = true;
         }
         else if (!strcmp(argv[i], "--atomic"))
         {
-            s_forceAtomicMode = true;
+            forceAtomicMode = true;
         }
         else if (!strncmp(argv[i], "--msaa", 6))
         {
-            s_msaa = argv[i][6] - '0';
+            msaa = argv[i][6] - '0';
         }
         else if (!strcmp(argv[i], "--validation"))
         {
-            s_options.enableVulkanValidationLayers = true;
+            options.enableVulkanValidationLayers = true;
         }
         else if (!strcmp(argv[i], "--gpu") || !strcmp(argv[i], "-G"))
         {
-            s_options.gpuNameFilter = argv[++i];
+            options.gpuNameFilter = argv[++i];
         }
         else
         {
-            s_rivName = argv[i];
+            rivName = argv[i];
         }
     }
 
@@ -582,11 +585,11 @@ int main(int argc, const char** argv)
         return 1;
     }
 
-    if (s_msaa > 0)
+    if (msaa > 0)
     {
-        if (s_msaa > 1)
+        if (msaa > 1)
         {
-            glfwWindowHint(GLFW_SAMPLES, s_msaa);
+            glfwWindowHint(GLFW_SAMPLES, msaa);
         }
         glfwWindowHint(GLFW_STENCIL_BITS, 8);
         glfwWindowHint(GLFW_DEPTH_BITS, 16);
@@ -622,43 +625,43 @@ int main(int argc, const char** argv)
     }
     glfwWindowHint(GLFW_FOCUS_ON_SHOW, GLFW_TRUE);
     // glfwWindowHint(GLFW_FLOATING, GLFW_TRUE);
-    s_window = glfwCreateWindow(1600, 1600, "Rive Renderer", nullptr, nullptr);
-    if (!s_window)
+    window = glfwCreateWindow(1600, 1600, "Rive Renderer", nullptr, nullptr);
+    if (!window)
     {
         glfwTerminate();
         fprintf(stderr, "Failed to create window.\n");
         return -1;
     }
 
-    glfwSetMouseButtonCallback(s_window, mouse_button_callback);
-    glfwSetCursorPosCallback(s_window, mousemove_callback);
-    glfwSetKeyCallback(s_window, key_callback);
+    glfwSetMouseButtonCallback(window, mouse_button_callback);
+    glfwSetCursorPosCallback(window, mousemove_callback);
+    glfwSetKeyCallback(window, key_callback);
     if (api == API::gl)
     {
-        glfwMakeContextCurrent(s_window);
+        glfwMakeContextCurrent(window);
     }
-    glfwShowWindow(s_window);
+    glfwShowWindow(window);
 
     switch (api)
     {
         case API::metal:
-            s_fiddleContext = FiddleContext::MakeMetalPLS(s_options);
+            fiddleContext = FiddleContext::MakeMetalPLS(options);
             break;
         case API::d3d:
-            s_fiddleContext = FiddleContext::MakeD3DPLS(s_options);
+            fiddleContext = FiddleContext::MakeD3DPLS(options);
             break;
         case API::dawn:
-            s_fiddleContext = FiddleContext::MakeDawnPLS(s_options);
+            fiddleContext = FiddleContext::MakeDawnPLS(options);
             break;
         case API::vulkan:
-            s_fiddleContext = FiddleContext::MakeVulkanPLS(s_options);
+            fiddleContext = FiddleContext::MakeVulkanPLS(options);
             break;
         case API::gl:
-            s_fiddleContext =
+            fiddleContext =
                 skia ? FiddleContext::MakeGLSkia() : FiddleContext::MakeGLPLS();
             break;
     }
-    if (!s_fiddleContext)
+    if (!fiddleContext)
     {
         fprintf(stderr, "Failed to create a fiddle context.\n");
         abort();
@@ -669,15 +672,15 @@ int main(int argc, const char** argv)
     {
         glfwSwapInterval(0);
     }
-    while (!glfwWindowShouldClose(s_window))
+    while (!glfwWindowShouldClose(window))
     {
         riveMainLoop();
-        s_fiddleContext->tick();
+        fiddleContext->tick();
         if (api == API::gl)
         {
-            glfwSwapBuffers(s_window);
+            glfwSwapBuffers(window);
         }
-        if (s_rivName)
+        if (rivName)
         {
             glfwPollEvents();
         }
@@ -686,7 +689,7 @@ int main(int argc, const char** argv)
             glfwWaitEvents();
         }
     }
-    s_fiddleContext = nullptr;
+    fiddleContext = nullptr;
     glfwTerminate();
 #endif
 
@@ -715,26 +718,26 @@ static void update_window_title(double fps,
     {
         title << " | RIVE Renderer";
     }
-    if (s_msaa)
+    if (msaa)
     {
-        title << " (msaa" << s_msaa << ')';
+        title << " (msaa" << msaa << ')';
     }
-    else if (s_forceAtomicMode)
+    else if (forceAtomicMode)
     {
         title << " (atomic)";
     }
     title << " | " << width << " x " << height;
-    glfwSetWindowTitle(s_window, title.str().c_str());
+    glfwSetWindowTitle(window, title.str().c_str());
 }
 
 void riveMainLoop()
 {
-    if (s_rivName && !s_rivFile)
+    if (rivName && !rivFile)
     {
-        std::ifstream rivStream(s_rivName, std::ios::binary);
+        std::ifstream rivStream(rivName, std::ios::binary);
         std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
                                       {});
-        s_rivFile = File::import(rivBytes, s_fiddleContext->factory());
+        rivFile = File::import(rivBytes, fiddleContext->factory());
     }
 
 #ifdef __EMSCRIPTEN__
@@ -746,11 +749,11 @@ void riveMainLoop()
         int canvasExpectedWidth = windowWidth * devicePixelRatio;
         int canvasExpectedHeight = windowHeight * devicePixelRatio;
         int canvasWidth, canvasHeight;
-        glfwGetFramebufferSize(s_window, &canvasWidth, &canvasHeight);
+        glfwGetFramebufferSize(window, &canvasWidth, &canvasHeight);
         if (canvasWidth != canvasExpectedWidth ||
             canvasHeight != canvasExpectedHeight)
         {
-            glfwSetWindowSize(s_window,
+            glfwSetWindowSize(window,
                               canvasExpectedWidth,
                               canvasExpectedHeight);
             emscripten_set_element_css_size("#canvas",
@@ -761,45 +764,55 @@ void riveMainLoop()
 #endif
 
     int width = 0, height = 0;
-    glfwGetFramebufferSize(s_window, &width, &height);
+    glfwGetFramebufferSize(window, &width, &height);
     if (lastWidth != width || lastHeight != height)
     {
         printf("size changed to %ix%i\n", width, height);
         lastWidth = width;
         lastHeight = height;
-        s_fiddleContext->onSizeChanged(s_window, width, height, s_msaa);
-        renderer = s_fiddleContext->makeRenderer(width, height);
-        s_needsTitleUpdate = true;
+        fiddleContext->onSizeChanged(window, width, height, msaa);
+        renderer = fiddleContext->makeRenderer(width, height);
+        needsTitleUpdate = true;
     }
-    if (s_needsTitleUpdate)
+    if (needsTitleUpdate)
     {
         update_window_title(0, 1, width, height);
-        s_needsTitleUpdate = false;
+        needsTitleUpdate = false;
     }
 
-    s_fiddleContext->begin({
+    // Call right before begin()
+    if (hotloadShaders)
+    {
+        hotloadShaders = false;
+
+#ifndef RIVE_BUILD_FOR_IOS
+        std::system("sh rebuild_shaders.sh /tmp/rive");
+#endif
+        fiddleContext->hotloadShaders();
+    }
+    fiddleContext->begin({
         .renderTargetWidth = static_cast<uint32_t>(width),
         .renderTargetHeight = static_cast<uint32_t>(height),
         .clearColor = 0xff303030,
-        .msaaSampleCount = s_msaa,
-        .disableRasterOrdering = s_forceAtomicMode,
-        .wireframe = s_wireframe,
-        .fillsDisabled = s_disableFill,
-        .strokesDisabled = s_disableStroke,
-        .clockwiseFillOverride = s_clockwiseFill,
+        .msaaSampleCount = msaa,
+        .disableRasterOrdering = forceAtomicMode,
+        .wireframe = wireframe,
+        .fillsDisabled = disableFill,
+        .strokesDisabled = disableStroke,
+        .clockwiseFillOverride = clockwiseFill,
     });
 
     int instances = 1;
-    if (s_rivFile)
+    if (rivFile)
     {
-        instances = (1 + s_horzRepeat * 2) * (1 + s_upRepeat + s_downRepeat);
-        if (s_artboards.size() != instances || s_scenes.size() != instances)
+        instances = (1 + horzRepeat * 2) * (1 + upRepeat + downRepeat);
+        if (artboards.size() != instances || scenes.size() != instances)
         {
             make_scenes(instances);
         }
-        else if (!s_paused)
+        else if (!paused)
         {
-            for (const auto& scene : s_scenes)
+            for (const auto& scene : scenes)
             {
                 scene->advanceAndApply(1 / 120.f);
             }
@@ -807,19 +820,18 @@ void riveMainLoop()
         Mat2D m = computeAlignment(rive::Fit::contain,
                                    rive::Alignment::center,
                                    rive::AABB(0, 0, width, height),
-                                   s_artboards.front()->bounds());
+                                   artboards.front()->bounds());
         renderer->save();
-        m = Mat2D(s_scale, 0, 0, s_scale, s_translate.x, s_translate.y) * m;
+        m = Mat2D(scale, 0, 0, scale, translate.x, translate.y) * m;
         renderer->transform(m);
         float spacing = 200 / m.findMaxScale();
-        auto scene = s_scenes.begin();
-        for (int j = 0; j < s_upRepeat + 1 + s_downRepeat; ++j)
+        auto scene = scenes.begin();
+        for (int j = 0; j < upRepeat + 1 + downRepeat; ++j)
         {
             renderer->save();
-            renderer->transform(
-                Mat2D::fromTranslate(-spacing * s_horzRepeat,
-                                     (j - s_upRepeat) * spacing));
-            for (int i = 0; i < s_horzRepeat * 2 + 1; ++i)
+            renderer->transform(Mat2D::fromTranslate(-spacing * horzRepeat,
+                                                     (j - upRepeat) * spacing));
+            for (int i = 0; i < horzRepeat * 2 + 1; ++i)
             {
                 (*scene++)->draw(renderer.get());
                 renderer->transform(Mat2D::fromTranslate(spacing, 0));
@@ -833,7 +845,7 @@ void riveMainLoop()
         float2 p[9];
         for (int i = 0; i < 9; ++i)
         {
-            p[i] = s_pts[i] + s_translate;
+            p[i] = pts[i] + translate;
         }
         RawPath rawPath;
         rawPath.moveTo(p[0].x, p[0].y);
@@ -842,16 +854,16 @@ void riveMainLoop()
         float2 c1 = simd::mix(p[5], p[4], float2(2 / 3.f));
         rawPath.cubicTo(c0.x, c0.y, c1.x, c1.y, p[5].x, p[5].y);
         rawPath.cubicTo(p[6].x, p[6].y, p[7].x, p[7].y, p[8].x, p[8].y);
-        if (s_doClose)
+        if (doClose)
         {
             rawPath.close();
         }
 
-        Factory* factory = s_fiddleContext->factory();
+        Factory* factory = fiddleContext->factory();
         auto path = factory->makeRenderPath(rawPath, FillRule::clockwise);
 
         auto fillPaint = factory->makeRenderPaint();
-        float feather = powf(1.5f, (1400 - s_pts[std::size(s_pts) - 1].y) / 75);
+        float feather = powf(1.5f, (1400 - pts[std::size(pts) - 1].y) / 75);
         if (feather > 1)
         {
             fillPaint->feather(feather);
@@ -860,18 +872,19 @@ void riveMainLoop()
 
         renderer->drawPath(path.get(), fillPaint.get());
 
-        if (!s_disableStroke)
+        if (!disableStroke)
         {
             auto strokePaint = factory->makeRenderPaint();
             strokePaint->style(RenderPaintStyle::stroke);
             strokePaint->color(0x8000ffff);
-            strokePaint->thickness(s_strokeWidth);
+            strokePaint->thickness(strokeWidth);
             if (feather > 1)
             {
                 strokePaint->feather(feather);
             }
-            strokePaint->join(s_join);
-            strokePaint->cap(s_cap);
+
+            strokePaint->join(join);
+            strokePaint->cap(cap);
             renderer->drawPath(path.get(), strokePaint.get());
 
             // Draw the interactive points.
@@ -885,7 +898,7 @@ void riveMainLoop()
             auto pointPath = factory->makeEmptyRenderPath();
             for (int i : {1, 2, 4, 6, 7})
             {
-                float2 pt = s_pts[i] + s_translate;
+                float2 pt = pts[i] + translate;
                 pointPath->moveTo(pt.x, pt.y);
                 pointPath->close();
             }
@@ -894,15 +907,15 @@ void riveMainLoop()
             // Draw the feather control point.
             pointPaint->color(0xffff0000);
             pointPath = factory->makeEmptyRenderPath();
-            float2 pt = s_pts[std::size(s_pts) - 1] + s_translate;
+            float2 pt = pts[std::size(pts) - 1] + translate;
             pointPath->moveTo(pt.x, pt.y);
             renderer->drawPath(pointPath.get(), pointPaint.get());
         }
     }
 
-    s_fiddleContext->end(s_window);
+    fiddleContext->end(window);
 
-    if (s_rivFile)
+    if (rivFile)
     {
         // Count FPS.
         ++fpsFrames;
@@ -910,8 +923,7 @@ void riveMainLoop()
         double fpsElapsed = time - fpsLastTime;
         if (fpsElapsed > 2)
         {
-            int instances =
-                (1 + s_horzRepeat * 2) * (1 + s_upRepeat + s_downRepeat);
+            int instances = (1 + horzRepeat * 2) * (1 + upRepeat + downRepeat);
             double fps = fpsLastTime == 0 ? 0 : fpsFrames / fpsElapsed;
             update_window_title(fps, instances, width, height);
             fpsFrames = 0;

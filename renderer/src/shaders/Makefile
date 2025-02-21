@@ -143,8 +143,9 @@ $(OUT)/rive_renderer_appletvsimulator.metallib.c: $(OUT)/ios/rive_renderer_apple
 
 
 ## SPIRV compilation.
-SPIRV_INPUTS := $(wildcard spirv/*.main)
-SPIRV_OUTPUTS := \
+SPIRV_INPUTS := $(wildcard spirv/*.main) 
+
+SPIRV_OUTPUTS_HEADERS := \
     $(addprefix $(OUT)/, $(patsubst %.main, %.vert.h, $(SPIRV_INPUTS))) \
     $(addprefix $(OUT)/, $(patsubst %.main, %.frag.h, $(SPIRV_INPUTS))) \
     $(OUT)/spirv/atomic_draw_image_mesh.fixedcolor_frag.h \
@@ -153,23 +154,44 @@ SPIRV_OUTPUTS := \
     $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_resolve_pls.fixedcolor_frag.h \
 
-## Compile *.main into vertex shaders.
-$(OUT)/spirv/%.vert.h: spirv/%.main $(MINIFY_STAMP)
+SPIRV_OUTPUTS_BINARY := \
+    $(addprefix $(OUT)/, $(patsubst %.main, %.vert.spirv, $(SPIRV_INPUTS))) \
+    $(addprefix $(OUT)/, $(patsubst %.main, %.frag.spirv, $(SPIRV_INPUTS))) \
+    $(OUT)/spirv/atomic_draw_image_mesh.fixedcolor_frag.spirv \
+    $(OUT)/spirv/atomic_draw_image_rect.fixedcolor_frag.spirv \
+    $(OUT)/spirv/atomic_draw_interior_triangles.fixedcolor_frag.spirv \
+    $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.spirv \
+    $(OUT)/spirv/atomic_resolve_pls.fixedcolor_frag.spirv \
+
+## Compile *.main into vertex shaders. First rule generates the binary spirv, then the .h file after.
+$(OUT)/spirv/%.vert.spirv: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -I$(OUT) -V -o $@ $<
+
+$(OUT)/spirv/%.vert.h: spirv/%.main $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv	
 	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -I$(OUT) -V --vn $(subst .main,_vert,$(notdir $<)) -o $@ $<
 
 ## Compile *.main again into fragment shaders.
+$(OUT)/spirv/%.frag.spirv: spirv/%.main $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V -o $@ $<
+
 $(OUT)/spirv/%.frag.h: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
 	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V --vn $(subst .main,_frag,$(notdir $<)) -o $@ $<
 
 ## Compile atomic fragment shaders again with FIXED_FUNCTION_COLOR_OUTPUT defined.
+$(OUT)/spirv/%.fixedcolor_frag.spirv: spirv/%.main $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DFIXED_FUNCTION_COLOR_OUTPUT -I$(OUT) -V -o $@ $<
+
 $(OUT)/spirv/%.fixedcolor_frag.h: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
 	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DFIXED_FUNCTION_COLOR_OUTPUT -I$(OUT) -V --vn $(subst .main,_fixedcolor_frag,$(notdir $<)) -o $@ $<
 
-spirv: $(SPIRV_OUTPUTS)
-
+spirv: $(SPIRV_OUTPUTS_HEADERS)
+spirv-binary: $(SPIRV_OUTPUTS_BINARY)
 
 ## Cleaning.
 clean:

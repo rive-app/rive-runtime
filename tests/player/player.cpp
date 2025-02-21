@@ -42,7 +42,7 @@ static bool wireframe = false;
 static bool paused = false;
 static bool forceFixedDeltaTime = false;
 static bool quit = false;
-
+static bool hotloadShaders = false;
 static void key_pressed(char key)
 {
     static int multiplier = 0;
@@ -120,6 +120,9 @@ static void key_pressed(char key)
             quit = true;
             break;
         case '\x1b': // Esc
+            break;
+        case '`':
+            hotloadShaders = true;
             break;
         default:
             // fprintf(stderr, "invalid option: %c\n", key);
@@ -302,6 +305,16 @@ int main(int argc, const char* argv[])
             .doClear = true,
             .wireframe = wireframe,
         });
+
+        if (hotloadShaders)
+        {
+            hotloadShaders = false;
+#ifndef RIVE_BUILD_FOR_IOS
+            std::system("sh rebuild_shaders.sh /tmp/rive");
+            TestingWindow::Get()->hotloadShaders();
+#endif
+        }
+
         renderer->save();
 
         uint32_t width = TestingWindow::Get()->width();

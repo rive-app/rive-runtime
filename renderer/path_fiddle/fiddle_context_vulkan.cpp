@@ -18,6 +18,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeVulkanPLS(
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include "rive/renderer/vulkan/vkutil_resource_pool.hpp"
+#include "shader_hotload.hpp"
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 #include <vulkan/vulkan.h>
@@ -228,6 +229,16 @@ public:
     }
 
     void toggleZoomWindow() override {}
+
+    void hotloadShaders() override
+    {
+        rive::Span<const uint32_t> newShaderBytecodeData =
+            loadNewShaderFileData();
+        if (newShaderBytecodeData.size() > 0)
+        {
+            impl()->hotloadShaders(newShaderBytecodeData);
+        }
+    }
 
     std::unique_ptr<Renderer> makeRenderer(int width, int height) override
     {

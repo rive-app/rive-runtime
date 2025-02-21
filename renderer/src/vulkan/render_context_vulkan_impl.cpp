@@ -8,7 +8,7 @@
 #include "rive/renderer/rive_render_buffer.hpp"
 #include "shaders/constants.glsl"
 
-namespace spirv
+namespace spirv_embedded
 {
 #include "generated/shaders/spirv/color_ramp.vert.h"
 #include "generated/shaders/spirv/color_ramp.frag.h"
@@ -47,6 +47,113 @@ namespace spirv
 #include "generated/shaders/spirv/draw_clockwise_interior_triangles.frag.h"
 #include "generated/shaders/spirv/draw_clockwise_image_mesh.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_image_mesh.frag.h"
+}; // namespace spirv_embedded
+
+#include "shader_hotload.hpp"
+
+namespace spirv
+{
+rive::Span<const uint32_t> color_ramp_vert =
+    rive::make_span(spirv_embedded::color_ramp_vert,
+                    std::size(spirv_embedded::color_ramp_vert));
+rive::Span<const uint32_t> color_ramp_frag =
+    rive::make_span(spirv_embedded::color_ramp_frag,
+                    std::size(spirv_embedded::color_ramp_frag));
+rive::Span<const uint32_t> tessellate_vert =
+    rive::make_span(spirv_embedded::tessellate_vert,
+                    std::size(spirv_embedded::tessellate_vert));
+rive::Span<const uint32_t> tessellate_frag =
+    rive::make_span(spirv_embedded::tessellate_frag,
+                    std::size(spirv_embedded::tessellate_frag));
+rive::Span<const uint32_t> draw_path_vert =
+    rive::make_span(spirv_embedded::draw_path_vert,
+                    std::size(spirv_embedded::draw_path_vert));
+rive::Span<const uint32_t> draw_path_frag =
+    rive::make_span(spirv_embedded::draw_path_frag,
+                    std::size(spirv_embedded::draw_path_frag));
+rive::Span<const uint32_t> draw_interior_triangles_vert =
+    rive::make_span(spirv_embedded::draw_interior_triangles_vert,
+                    std::size(spirv_embedded::draw_interior_triangles_vert));
+rive::Span<const uint32_t> draw_interior_triangles_frag =
+    rive::make_span(spirv_embedded::draw_interior_triangles_frag,
+                    std::size(spirv_embedded::draw_interior_triangles_frag));
+rive::Span<const uint32_t> draw_image_mesh_vert =
+    rive::make_span(spirv_embedded::draw_image_mesh_vert,
+                    std::size(spirv_embedded::draw_image_mesh_vert));
+rive::Span<const uint32_t> draw_image_mesh_frag =
+    rive::make_span(spirv_embedded::draw_image_mesh_frag,
+                    std::size(spirv_embedded::draw_image_mesh_frag));
+rive::Span<const uint32_t> atomic_draw_path_vert =
+    rive::make_span(spirv_embedded::atomic_draw_path_vert,
+                    std::size(spirv_embedded::atomic_draw_path_vert));
+rive::Span<const uint32_t> atomic_draw_path_frag =
+    rive::make_span(spirv_embedded::atomic_draw_path_frag,
+                    std::size(spirv_embedded::atomic_draw_path_frag));
+rive::Span<const uint32_t> atomic_draw_path_fixedcolor_frag = rive::make_span(
+    spirv_embedded::atomic_draw_path_fixedcolor_frag,
+    std::size(spirv_embedded::atomic_draw_path_fixedcolor_frag));
+rive::Span<const uint32_t> atomic_draw_interior_triangles_vert =
+    rive::make_span(
+        spirv_embedded::atomic_draw_interior_triangles_vert,
+        std::size(spirv_embedded::atomic_draw_interior_triangles_vert));
+rive::Span<const uint32_t> atomic_draw_interior_triangles_frag =
+    rive::make_span(
+        spirv_embedded::atomic_draw_interior_triangles_frag,
+        std::size(spirv_embedded::atomic_draw_interior_triangles_frag));
+rive::Span<const uint32_t> atomic_draw_interior_triangles_fixedcolor_frag =
+    rive::make_span(
+        spirv_embedded::atomic_draw_interior_triangles_fixedcolor_frag,
+        std::size(
+            spirv_embedded::atomic_draw_interior_triangles_fixedcolor_frag));
+rive::Span<const uint32_t> atomic_draw_image_rect_vert =
+    rive::make_span(spirv_embedded::atomic_draw_image_rect_vert,
+                    std::size(spirv_embedded::atomic_draw_image_rect_vert));
+rive::Span<const uint32_t> atomic_draw_image_rect_frag =
+    rive::make_span(spirv_embedded::atomic_draw_image_rect_frag,
+                    std::size(spirv_embedded::atomic_draw_image_rect_frag));
+rive::Span<const uint32_t> atomic_draw_image_rect_fixedcolor_frag =
+    rive::make_span(
+        spirv_embedded::atomic_draw_image_rect_fixedcolor_frag,
+        std::size(spirv_embedded::atomic_draw_image_rect_fixedcolor_frag));
+rive::Span<const uint32_t> atomic_draw_image_mesh_vert =
+    rive::make_span(spirv_embedded::atomic_draw_image_mesh_vert,
+                    std::size(spirv_embedded::atomic_draw_image_mesh_vert));
+rive::Span<const uint32_t> atomic_draw_image_mesh_frag =
+    rive::make_span(spirv_embedded::atomic_draw_image_mesh_frag,
+                    std::size(spirv_embedded::atomic_draw_image_mesh_frag));
+rive::Span<const uint32_t> atomic_draw_image_mesh_fixedcolor_frag =
+    rive::make_span(
+        spirv_embedded::atomic_draw_image_mesh_fixedcolor_frag,
+        std::size(spirv_embedded::atomic_draw_image_mesh_fixedcolor_frag));
+rive::Span<const uint32_t> atomic_resolve_pls_vert =
+    rive::make_span(spirv_embedded::atomic_resolve_pls_vert,
+                    std::size(spirv_embedded::atomic_resolve_pls_vert));
+rive::Span<const uint32_t> atomic_resolve_pls_frag =
+    rive::make_span(spirv_embedded::atomic_resolve_pls_frag,
+                    std::size(spirv_embedded::atomic_resolve_pls_frag));
+rive::Span<const uint32_t> atomic_resolve_pls_fixedcolor_frag = rive::make_span(
+    spirv_embedded::atomic_resolve_pls_fixedcolor_frag,
+    std::size(spirv_embedded::atomic_resolve_pls_fixedcolor_frag));
+rive::Span<const uint32_t> draw_clockwise_path_vert =
+    rive::make_span(spirv_embedded::draw_clockwise_path_vert,
+                    std::size(spirv_embedded::draw_clockwise_path_vert));
+rive::Span<const uint32_t> draw_clockwise_path_frag =
+    rive::make_span(spirv_embedded::draw_clockwise_path_frag,
+                    std::size(spirv_embedded::draw_clockwise_path_frag));
+rive::Span<const uint32_t> draw_clockwise_interior_triangles_vert =
+    rive::make_span(
+        spirv_embedded::draw_clockwise_interior_triangles_vert,
+        std::size(spirv_embedded::draw_clockwise_interior_triangles_vert));
+rive::Span<const uint32_t> draw_clockwise_interior_triangles_frag =
+    rive::make_span(
+        spirv_embedded::draw_clockwise_interior_triangles_frag,
+        std::size(spirv_embedded::draw_clockwise_interior_triangles_frag));
+rive::Span<const uint32_t> draw_clockwise_image_mesh_vert =
+    rive::make_span(spirv_embedded::draw_clockwise_image_mesh_vert,
+                    std::size(spirv_embedded::draw_clockwise_image_mesh_vert));
+rive::Span<const uint32_t> draw_clockwise_image_mesh_frag =
+    rive::make_span(spirv_embedded::draw_clockwise_image_mesh_frag,
+                    std::size(spirv_embedded::draw_clockwise_image_mesh_frag));
 }; // namespace spirv
 
 #ifdef RIVE_DECODERS
@@ -55,6 +162,58 @@ namespace spirv
 
 namespace rive::gpu
 {
+void RenderContextVulkanImpl::hotloadShaders(
+    rive::Span<const uint32_t> spirvData)
+{
+    m_vk->DeviceWaitIdle(m_vk->device);
+
+    // Delete all old shaders
+    m_drawShaders.clear();
+    m_drawPipelines.clear();
+
+    size_t spirvIndex = 0;
+    auto readNextBytecodeSpan = [spirvData,
+                                 &spirvIndex]() -> rive::Span<const uint32_t> {
+        size_t insnCount = spirvData[spirvIndex++];
+        const uint32_t* insnData = spirvData.data() + spirvIndex;
+        spirvIndex += insnCount;
+        return rive::make_span(insnData, insnCount);
+    };
+
+    spirv::color_ramp_vert = readNextBytecodeSpan();
+    spirv::color_ramp_frag = readNextBytecodeSpan();
+    spirv::tessellate_vert = readNextBytecodeSpan();
+    spirv::tessellate_frag = readNextBytecodeSpan();
+    spirv::draw_path_vert = readNextBytecodeSpan();
+    spirv::draw_path_frag = readNextBytecodeSpan();
+    spirv::draw_interior_triangles_vert = readNextBytecodeSpan();
+    spirv::draw_interior_triangles_frag = readNextBytecodeSpan();
+    spirv::draw_image_mesh_vert = readNextBytecodeSpan();
+    spirv::draw_image_mesh_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_path_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_path_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_path_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_interior_triangles_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_interior_triangles_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_interior_triangles_fixedcolor_frag =
+        readNextBytecodeSpan();
+    spirv::atomic_draw_image_rect_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_image_rect_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_image_rect_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_image_mesh_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_image_mesh_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::atomic_resolve_pls_vert = readNextBytecodeSpan();
+    spirv::atomic_resolve_pls_frag = readNextBytecodeSpan();
+    spirv::atomic_resolve_pls_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_path_vert = readNextBytecodeSpan();
+    spirv::draw_clockwise_path_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_interior_triangles_vert = readNextBytecodeSpan();
+    spirv::draw_clockwise_interior_triangles_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_image_mesh_vert = readNextBytecodeSpan();
+    spirv::draw_clockwise_image_mesh_frag = readNextBytecodeSpan();
+}
+
 static VkBufferUsageFlagBits render_buffer_usage_flags(
     RenderBufferType renderBufferType)
 {
@@ -395,8 +554,8 @@ public:
 
         VkShaderModuleCreateInfo shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = sizeof(spirv::color_ramp_vert),
-            .pCode = spirv::color_ramp_vert,
+            .codeSize = spirv::color_ramp_vert.size_bytes(),
+            .pCode = spirv::color_ramp_vert.data(),
         };
 
         VkShaderModule vertexShader;
@@ -407,8 +566,8 @@ public:
 
         shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = sizeof(spirv::color_ramp_frag),
-            .pCode = spirv::color_ramp_frag,
+            .codeSize = spirv::color_ramp_frag.size_bytes(),
+            .pCode = spirv::color_ramp_frag.data(),
         };
 
         VkShaderModule fragmentShader;
@@ -637,8 +796,8 @@ public:
 
         VkShaderModuleCreateInfo shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = sizeof(spirv::tessellate_vert),
-            .pCode = spirv::tessellate_vert,
+            .codeSize = spirv::tessellate_vert.size_bytes(),
+            .pCode = spirv::tessellate_vert.data(),
         };
 
         VkShaderModule vertexShader;
@@ -649,8 +808,8 @@ public:
 
         shaderModuleCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
-            .codeSize = sizeof(spirv::tessellate_frag),
-            .pCode = spirv::tessellate_frag,
+            .codeSize = spirv::tessellate_frag.size_bytes(),
+            .pCode = spirv::tessellate_frag.data(),
         };
 
         VkShaderModule fragmentShader;

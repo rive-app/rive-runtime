@@ -55,6 +55,7 @@ function rive_tools_project(name, project_kind)
         '.',
         RIVE_PLS_DIR .. '/include',
         RIVE_PLS_DIR .. '/path_fiddle',
+        RIVE_PLS_DIR .. '/shader_hotload',
         RIVE_PLS_DIR .. '/src',
         RIVE_RUNTIME_DIR .. '/include',
         RIVE_RUNTIME_DIR .. '/cg_renderer/include',
@@ -62,14 +63,6 @@ function rive_tools_project(name, project_kind)
         '%{cfg.targetdir}/include/libpng',
     })
 
-    includedirs({
-        '.',
-        RIVE_PLS_DIR .. '/include',
-        RIVE_PLS_DIR .. '/path_fiddle',
-        RIVE_PLS_DIR .. '/src',
-        RIVE_RUNTIME_DIR .. '/include',
-        RIVE_RUNTIME_DIR .. '/cg_renderer/include',
-    })
     externalincludedirs({
         'include',
         RIVE_PLS_DIR .. '/glad',
