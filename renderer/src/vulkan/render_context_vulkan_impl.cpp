@@ -160,6 +160,8 @@ rive::Span<const uint32_t> draw_clockwise_image_mesh_frag =
 #include "rive/decoders/bitmap_decoder.hpp"
 #endif
 
+#include "rive/renderer/stack_vector.hpp"
+
 namespace rive::gpu
 {
 void RenderContextVulkanImpl::hotloadShaders(
@@ -1385,18 +1387,32 @@ public:
                 LoadOpFromRenderPassVariant(renderPassVariantIdx);
             VkFormat renderTargetFormat =
                 FormatFromRenderPassVariant(renderPassVariantIdx);
-            VkAttachmentDescription attachmentDescriptions[] = {
-                {
-                    .format = renderTargetFormat,
-                    .samples = VK_SAMPLE_COUNT_1_BIT,
-                    .loadOp = colorLoadOp,
-                    .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
-                    .initialLayout = colorLoadOp == VK_ATTACHMENT_LOAD_OP_LOAD
-                                         ? VK_IMAGE_LAYOUT_GENERAL
-                                         : VK_IMAGE_LAYOUT_UNDEFINED,
-                    .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-                {
+
+            StackVector<VkAttachmentDescription,
+                        PIXEL_LOCAL_STORAGE_PLANE_COUNT>
+                attachmentDescs;
+            StackVector<VkAttachmentReference, PIXEL_LOCAL_STORAGE_PLANE_COUNT>
+                attachmentRefs;
+
+            attachmentDescs.push_back({
+                .format = renderTargetFormat,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .loadOp = colorLoadOp,
+                .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+                .initialLayout = colorLoadOp == VK_ATTACHMENT_LOAD_OP_LOAD
+                                     ? VK_IMAGE_LAYOUT_GENERAL
+                                     : VK_IMAGE_LAYOUT_UNDEFINED,
+                .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+            });
+            attachmentRefs.push_back({
+                .attachment = COLOR_PLANE_IDX,
+                .layout = VK_IMAGE_LAYOUT_GENERAL,
+            });
+
+            if (m_interlockMode == gpu::InterlockMode::rasterOrdering ||
+                m_interlockMode == gpu::InterlockMode::atomics)
+            {
+                attachmentDescs.push_back({
                     // The clip buffer is RGBA8 in atomic mode.
                     .format = m_interlockMode == gpu::InterlockMode::atomics
                                   ? renderTargetFormat
@@ -1406,114 +1422,101 @@ public:
                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-                {
+                });
+                attachmentRefs.push_back({
+                    .attachment = CLIP_PLANE_IDX,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
+                });
+            }
+
+            if (m_interlockMode == gpu::InterlockMode::rasterOrdering)
+            {
+                attachmentDescs.push_back({
                     .format = renderTargetFormat,
                     .samples = VK_SAMPLE_COUNT_1_BIT,
                     .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-                {
+                });
+                attachmentRefs.push_back({
+                    .attachment = SCRATCH_COLOR_PLANE_IDX,
+                    .layout = VK_IMAGE_LAYOUT_GENERAL,
+                });
+                attachmentDescs.push_back({
                     .format = VK_FORMAT_R32_UINT,
                     .samples = VK_SAMPLE_COUNT_1_BIT,
                     .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
                     .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
                     .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                     .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-            };
-            static_assert(COLOR_PLANE_IDX == 0);
-            static_assert(CLIP_PLANE_IDX == 1);
-            static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
-            static_assert(COVERAGE_PLANE_IDX == 3);
-
-            VkAttachmentReference attachmentReferences[] = {
-                {
-                    .attachment = COLOR_PLANE_IDX,
-                    .layout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-                {
-                    .attachment = CLIP_PLANE_IDX,
-                    .layout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-                {
-                    .attachment = SCRATCH_COLOR_PLANE_IDX,
-                    .layout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-                {
+                });
+                attachmentRefs.push_back({
                     .attachment = COVERAGE_PLANE_IDX,
                     .layout = VK_IMAGE_LAYOUT_GENERAL,
-                },
-            };
-            static_assert(COLOR_PLANE_IDX == 0);
-            static_assert(CLIP_PLANE_IDX == 1);
-            static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
-            static_assert(COVERAGE_PLANE_IDX == 3);
-
-            VkAttachmentReference inputAttachmentReferences[] = {
-                // COLOR is not an input attachment if we're using fixed
-                // function blending.
-                (m_options &
-                 DrawPipelineLayoutOptions::fixedFunctionColorOutput)
-                    ? VkAttachmentReference{.attachment = VK_ATTACHMENT_UNUSED}
-                    : attachmentReferences[0],
-                attachmentReferences[1],
-                attachmentReferences[2],
-                attachmentReferences[3],
-            };
-            static_assert(sizeof(inputAttachmentReferences) ==
-                          sizeof(attachmentReferences));
-
-            VkSubpassDescription subpassDescriptions[2] = {
-                {
-                    // Draw subpass.
-                    .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    .inputAttachmentCount = inputAttachmentCount(),
-                    .pInputAttachments = inputAttachmentReferences,
-                    .colorAttachmentCount = attachmentCount(),
-                    .pColorAttachments = attachmentReferences,
-                },
-                {
-                    // Atomic resolve subpass.
-                    .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-                    .inputAttachmentCount = attachmentCount(),
-                    .pInputAttachments = inputAttachmentReferences,
-                    .colorAttachmentCount =
-                        1u, // The resolve only writes color.
-                    .pColorAttachments = attachmentReferences,
-                }};
-            static_assert(COLOR_PLANE_IDX == 0);
-
-            if (m_interlockMode == gpu::InterlockMode::rasterOrdering &&
-                m_vk->features.rasterizationOrderColorAttachmentAccess)
-            {
-                // With EXT_rasterization_order_attachment_access, we just need
-                // this flag and all subpass dependencies are implicit.
-                subpassDescriptions[0].flags |=
-                    VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT;
+                });
             }
 
-            VkRenderPassCreateInfo renderPassCreateInfo = {
-                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
-                .attachmentCount = attachmentCount(),
-                .pAttachments = attachmentDescriptions,
-                // Atomic mode has a second subpass for the resolve step.
-                .subpassCount =
-                    m_interlockMode == gpu::InterlockMode::atomics ? 2u : 1u,
-                .pSubpasses = subpassDescriptions,
-            };
+            if (m_interlockMode == gpu::InterlockMode::msaa)
+            {
+                RIVE_UNREACHABLE();
+            }
+
+            // Input attachments can differ from the proper color attachments
+            StackVector<VkAttachmentReference, PIXEL_LOCAL_STORAGE_PLANE_COUNT>
+                inputAttachmentRefs;
+            inputAttachmentRefs.push_back_n(attachmentRefs.size(),
+                                            attachmentRefs.data());
+
+            // COLOR is not an input attachment if we're using fixed
+            // function blending.
+            if (m_options & DrawPipelineLayoutOptions::fixedFunctionColorOutput)
+            {
+                inputAttachmentRefs[0] =
+                    VkAttachmentReference{.attachment = VK_ATTACHMENT_UNUSED};
+            }
+
+            uint32_t numInputAttachments = inputAttachmentRefs.size();
+            if (m_interlockMode == gpu::InterlockMode::clockwiseAtomic)
+            {
+                numInputAttachments = 0;
+            }
+            const uint32_t numColorAttachments = attachmentRefs.size();
+
+            // Subpasses
+
+            constexpr uint32_t MAX_SUBPASSES_POSSIBLE = 2;
+            StackVector<VkSubpassDescription, MAX_SUBPASSES_POSSIBLE>
+                subpassDescriptions;
 
             // Without EXT_rasterization_order_attachment_access we need to
             // declare explicit subpass dependencies.
-            VkSubpassDependency subpassDependencies[2] = {
-                // Draw subpass self-dependencies.
-                m_interlockMode != gpu::InterlockMode::clockwiseAtomic
-                    // Normally our dependenies are input attachments.
+            StackVector<VkSubpassDependency, MAX_SUBPASSES_POSSIBLE>
+                subpassDeps;
+            const bool implicitSubpassDependencies =
+                m_interlockMode == gpu::InterlockMode::rasterOrdering &&
+                m_vk->features.rasterizationOrderColorAttachmentAccess;
+
+            // Draw subpass
+            subpassDescriptions.push_back({
+                .flags =
+                    implicitSubpassDependencies
+                        ? VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT
+                        : 0u,
+                .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                .inputAttachmentCount = numInputAttachments,
+                .pInputAttachments = inputAttachmentRefs.data(),
+                .colorAttachmentCount = numColorAttachments,
+                .pColorAttachments = attachmentRefs.data(),
+                .pDepthStencilAttachment = nullptr,
+            });
+            // Draw subpass self-dependencies.
+            subpassDeps.push_back(
+                    m_interlockMode != gpu::InterlockMode::clockwiseAtomic
+                    // Normally our dependencies are input attachments.
                     // TODO: Do we need shader SHADER_READ/SHADER_WRITE as well,
                     // for the coverage texture?
-                    ? VkSubpassDependency{
+                    ? VkSubpassDependency {
                         .srcSubpass = 0,
                         .dstSubpass = 0,
                         .srcStageMask =
@@ -1523,19 +1526,32 @@ public:
                         .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
                         .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
                     }
-                    // clockwiseAtomic mode only has dependencies in the
-                    // coverage buffer (for now).
-                    : VkSubpassDependency{
-                        .srcSubpass = 0,
-                        .dstSubpass = 0,
-                        .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                        .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-                        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                        .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-                    },
-                {
-                    // Atomic resolve dependencies (InerlockMode::atomics only).
+                // clockwiseAtomic mode only has dependencies in the
+                // coverage buffer (for now).
+                : VkSubpassDependency {
+                    .srcSubpass = 0,
+                    .dstSubpass = 0,
+                    .srcStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                    .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                    .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+                });
+
+            if (m_interlockMode == gpu::InterlockMode::atomics)
+            {
+                // Atomic resolve subpass.
+                subpassDescriptions.push_back({
+                    .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+                    .inputAttachmentCount = numColorAttachments,
+                    .pInputAttachments = inputAttachmentRefs.data(),
+                    .colorAttachmentCount =
+                        1u, // The resolve only writes color.
+                    .pColorAttachments = attachmentRefs.data(),
+                });
+                subpassDeps.push_back({
+                    // Atomic resolve dependencies (InterlockMode::atomics
+                    // only).
                     .srcSubpass = 0,
                     .dstSubpass = 1,
                     .srcStageMask =
@@ -1544,16 +1560,21 @@ public:
                     .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                     .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
                     .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
-                },
-            };
-
-            if (!(subpassDescriptions[0].flags &
-                  VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT))
-            {
-                renderPassCreateInfo.dependencyCount =
-                    renderPassCreateInfo.subpassCount;
-                renderPassCreateInfo.pDependencies = subpassDependencies;
+                });
             }
+
+            VkRenderPassCreateInfo renderPassCreateInfo = {
+                .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+                .attachmentCount = attachmentDescs.size(),
+                .pAttachments = attachmentDescs.data(),
+                .subpassCount = subpassDescriptions.size(),
+                .pSubpasses = subpassDescriptions.data(),
+                .dependencyCount = implicitSubpassDependencies
+                                       ? 0
+                                       : renderPassCreateInfo.subpassCount,
+                .pDependencies =
+                    implicitSubpassDependencies ? nullptr : subpassDeps.data(),
+            };
 
             VK_CHECK(
                 m_vk->CreateRenderPass(m_vk->device,
@@ -1593,21 +1614,6 @@ public:
                 return 2;
             case gpu::InterlockMode::clockwiseAtomic:
                 return 1;
-            case gpu::InterlockMode::msaa:
-                RIVE_UNREACHABLE();
-        }
-    }
-
-    uint32_t inputAttachmentCount() const
-    {
-        switch (m_interlockMode)
-        {
-            case gpu::InterlockMode::rasterOrdering:
-                return 4;
-            case gpu::InterlockMode::atomics:
-                return 2;
-            case gpu::InterlockMode::clockwiseAtomic:
-                return 0;
             case gpu::InterlockMode::msaa:
                 RIVE_UNREACHABLE();
         }
