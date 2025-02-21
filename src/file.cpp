@@ -10,6 +10,7 @@
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/importers/bindable_property_importer.hpp"
 #include "rive/importers/data_converter_group_importer.hpp"
+#include "rive/importers/data_converter_formula_importer.hpp"
 #include "rive/importers/enum_importer.hpp"
 #include "rive/importers/file_asset_importer.hpp"
 #include "rive/importers/import_stack.hpp"
@@ -419,6 +420,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 stackObject = rivestd::make_unique<DataConverterGroupImporter>(
                     object->as<DataConverterGroup>());
                 stackType = DataConverterGroupBase::typeKey;
+                break;
+            case DataConverterFormulaBase::typeKey:
+                stackObject =
+                    rivestd::make_unique<DataConverterFormulaImporter>(
+                        object->as<DataConverterFormula>());
+                stackType = DataConverterFormulaBase::typeKey;
                 break;
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) !=

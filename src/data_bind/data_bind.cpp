@@ -18,6 +18,7 @@
 #include "rive/data_bind/context/context_value_trigger.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
+#include "rive/data_bind/converters/formula/formula_token.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/importers/artboard_importer.hpp"
@@ -51,6 +52,10 @@ StatusCode DataBind::import(ImportStack& importStack)
         if (target()->is<DataConverter>())
         {
             target()->as<DataConverter>()->addDataBind(this);
+        }
+        else if (target()->is<FormulaToken>())
+        {
+            target()->as<FormulaToken>()->addDataBind(this);
         }
         else
         {
@@ -240,9 +245,18 @@ bool DataBind::addDirt(ComponentDirt value, bool recurse)
         m_changedCallback();
     }
 #endif
-    if (target() != nullptr && target()->is<DataConverter>())
+    if (target() != nullptr)
     {
-        target()->as<DataConverter>()->markConverterDirty();
+        if (target()->is<DataConverter>())
+        {
+
+            target()->as<DataConverter>()->markConverterDirty();
+        }
+        else if (target()->is<FormulaToken>())
+        {
+
+            target()->as<FormulaToken>()->markDirty();
+        }
     }
     if ((m_Dirt & ComponentDirt::Dependents) != 0 && m_ContextValue != nullptr)
     {

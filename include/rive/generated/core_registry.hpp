@@ -132,6 +132,7 @@
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/data_converter_boolean_negate.hpp"
+#include "rive/data_bind/converters/data_converter_formula.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
@@ -147,6 +148,15 @@
 #include "rive/data_bind/converters/data_converter_system_normalizer.hpp"
 #include "rive/data_bind/converters/data_converter_to_string.hpp"
 #include "rive/data_bind/converters/data_converter_trigger.hpp"
+#include "rive/data_bind/converters/formula/formula_token.hpp"
+#include "rive/data_bind/converters/formula/formula_token_argument_separator.hpp"
+#include "rive/data_bind/converters/formula/formula_token_function.hpp"
+#include "rive/data_bind/converters/formula/formula_token_input.hpp"
+#include "rive/data_bind/converters/formula/formula_token_operation.hpp"
+#include "rive/data_bind/converters/formula/formula_token_parenthesis.hpp"
+#include "rive/data_bind/converters/formula/formula_token_parenthesis_close.hpp"
+#include "rive/data_bind/converters/formula/formula_token_parenthesis_open.hpp"
+#include "rive/data_bind/converters/formula/formula_token_value.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
 #include "rive/draw_rules.hpp"
@@ -543,6 +553,8 @@ public:
                 return new BindablePropertyBoolean();
             case DataBindBase::typeKey:
                 return new DataBind();
+            case DataConverterFormulaBase::typeKey:
+                return new DataConverterFormula();
             case DataConverterOperationBase::typeKey:
                 return new DataConverterOperation();
             case DataConverterOperationValueBase::typeKey:
@@ -569,6 +581,24 @@ public:
                 return new DataConverterTrigger();
             case DataConverterStringTrimBase::typeKey:
                 return new DataConverterStringTrim();
+            case FormulaTokenBase::typeKey:
+                return new FormulaToken();
+            case FormulaTokenArgumentSeparatorBase::typeKey:
+                return new FormulaTokenArgumentSeparator();
+            case FormulaTokenParenthesisBase::typeKey:
+                return new FormulaTokenParenthesis();
+            case FormulaTokenParenthesisCloseBase::typeKey:
+                return new FormulaTokenParenthesisClose();
+            case FormulaTokenOperationBase::typeKey:
+                return new FormulaTokenOperation();
+            case FormulaTokenFunctionBase::typeKey:
+                return new FormulaTokenFunction();
+            case FormulaTokenValueBase::typeKey:
+                return new FormulaTokenValue();
+            case FormulaTokenParenthesisOpenBase::typeKey:
+                return new FormulaTokenParenthesisOpen();
+            case FormulaTokenInputBase::typeKey:
+                return new FormulaTokenInput();
             case DataConverterOperationViewModelBase::typeKey:
                 return new DataConverterOperationViewModel();
             case DataConverterBooleanNegateBase::typeKey:
@@ -1291,6 +1321,12 @@ public:
             case DataConverterStringTrimBase::trimTypePropertyKey:
                 object->as<DataConverterStringTrimBase>()->trimType(value);
                 break;
+            case FormulaTokenOperationBase::operationTypePropertyKey:
+                object->as<FormulaTokenOperationBase>()->operationType(value);
+                break;
+            case FormulaTokenFunctionBase::functionTypePropertyKey:
+                object->as<FormulaTokenFunctionBase>()->functionType(value);
+                break;
             case DataConverterToStringBase::flagsPropertyKey:
                 object->as<DataConverterToStringBase>()->flags(value);
                 break;
@@ -1932,6 +1968,9 @@ public:
             case DataConverterInterpolatorBase::durationPropertyKey:
                 object->as<DataConverterInterpolatorBase>()->duration(value);
                 break;
+            case FormulaTokenValueBase::operationValuePropertyKey:
+                object->as<FormulaTokenValueBase>()->operationValue(value);
+                break;
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 object->as<BindablePropertyNumberBase>()->propertyValue(value);
                 break;
@@ -2558,6 +2597,10 @@ public:
                 return object->as<DataConverterStringPadBase>()->padType();
             case DataConverterStringTrimBase::trimTypePropertyKey:
                 return object->as<DataConverterStringTrimBase>()->trimType();
+            case FormulaTokenOperationBase::operationTypePropertyKey:
+                return object->as<FormulaTokenOperationBase>()->operationType();
+            case FormulaTokenFunctionBase::functionTypePropertyKey:
+                return object->as<FormulaTokenFunctionBase>()->functionType();
             case DataConverterToStringBase::flagsPropertyKey:
                 return object->as<DataConverterToStringBase>()->flags();
             case DataConverterToStringBase::decimalsPropertyKey:
@@ -3007,6 +3050,8 @@ public:
                 return object->as<DataConverterRangeMapperBase>()->maxOutput();
             case DataConverterInterpolatorBase::durationPropertyKey:
                 return object->as<DataConverterInterpolatorBase>()->duration();
+            case FormulaTokenValueBase::operationValuePropertyKey:
+                return object->as<FormulaTokenValueBase>()->operationValue();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyNumberBase>()
                     ->propertyValue();
@@ -3304,6 +3349,8 @@ public:
             case DataConverterStringPadBase::lengthPropertyKey:
             case DataConverterStringPadBase::padTypePropertyKey:
             case DataConverterStringTrimBase::trimTypePropertyKey:
+            case FormulaTokenOperationBase::operationTypePropertyKey:
+            case FormulaTokenFunctionBase::functionTypePropertyKey:
             case DataConverterToStringBase::flagsPropertyKey:
             case DataConverterToStringBase::decimalsPropertyKey:
             case BindablePropertyEnumBase::propertyValuePropertyKey:
@@ -3514,6 +3561,7 @@ public:
             case DataConverterRangeMapperBase::minOutputPropertyKey:
             case DataConverterRangeMapperBase::maxOutputPropertyKey:
             case DataConverterInterpolatorBase::durationPropertyKey:
+            case FormulaTokenValueBase::operationValuePropertyKey:
             case BindablePropertyNumberBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::alignmentXPropertyKey:
             case NestedArtboardLeafBase::alignmentYPropertyKey:
@@ -3980,6 +4028,10 @@ public:
                 return object->is<DataConverterStringPadBase>();
             case DataConverterStringTrimBase::trimTypePropertyKey:
                 return object->is<DataConverterStringTrimBase>();
+            case FormulaTokenOperationBase::operationTypePropertyKey:
+                return object->is<FormulaTokenOperationBase>();
+            case FormulaTokenFunctionBase::functionTypePropertyKey:
+                return object->is<FormulaTokenFunctionBase>();
             case DataConverterToStringBase::flagsPropertyKey:
                 return object->is<DataConverterToStringBase>();
             case DataConverterToStringBase::decimalsPropertyKey:
@@ -4392,6 +4444,8 @@ public:
                 return object->is<DataConverterRangeMapperBase>();
             case DataConverterInterpolatorBase::durationPropertyKey:
                 return object->is<DataConverterInterpolatorBase>();
+            case FormulaTokenValueBase::operationValuePropertyKey:
+                return object->is<FormulaTokenValueBase>();
             case BindablePropertyNumberBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyNumberBase>();
             case NestedArtboardLeafBase::alignmentXPropertyKey:
