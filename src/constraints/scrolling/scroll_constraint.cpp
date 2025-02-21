@@ -91,7 +91,7 @@ bool ScrollConstraint::advanceComponent(float elapsedSeconds,
 std::vector<DraggableProxy*> ScrollConstraint::draggables()
 {
     std::vector<DraggableProxy*> items;
-    items.push_back(new ViewportDraggableProxy(this, viewport()));
+    items.push_back(new ViewportDraggableProxy(this, viewport()->proxy()));
     return items;
 }
 
