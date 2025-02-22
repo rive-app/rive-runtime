@@ -28,8 +28,7 @@ using namespace rive::gpu;
 class TextureTargetGL : public GM
 {
 public:
-    TextureTargetGL(const char* name) : GM(256, 256, name) {}
-    TextureTargetGL() : TextureTargetGL("texture_target_gl") {}
+    TextureTargetGL() : GM(256, 256) {}
 
     ColorInt clearColor() const override { return 0xffff0000; }
 
@@ -164,20 +163,17 @@ private:
     GLuint m_offscreenTex = 0;
 };
 
-GMREGISTER(return new TextureTargetGL)
+GMREGISTER(texture_target_gl, return new TextureTargetGL)
 
 // This GM checks that texture targets (including MSAA targets) work with
 // LoadAction::preserveRenderTarget.
 class TextureTargetGLPreserve : public TextureTargetGL
 {
 public:
-    TextureTargetGLPreserve(const char* name, BlendMode blendMode) :
-        TextureTargetGL(name), m_blendMode(blendMode)
+    TextureTargetGLPreserve(BlendMode blendMode) :
+        TextureTargetGL(), m_blendMode(blendMode)
     {}
-    TextureTargetGLPreserve() :
-        TextureTargetGLPreserve("texture_target_gl_preserve",
-                                BlendMode::srcOver)
-    {}
+    TextureTargetGLPreserve() : TextureTargetGLPreserve(BlendMode::srcOver) {}
 
     virtual void drawInternal(Renderer* renderer,
                               TextureRenderTargetGL* renderTextureTargetGL)
@@ -285,15 +281,15 @@ public:
 private:
     BlendMode m_blendMode;
 };
-GMREGISTER(return new TextureTargetGLPreserve)
+GMREGISTER(texture_target_gl_preserve, return new TextureTargetGLPreserve)
 
 // ...And verify that blend modes work on a texture target.
 class TextureTargetGLPreserveLum : public TextureTargetGLPreserve
 {
 public:
     TextureTargetGLPreserveLum() :
-        TextureTargetGLPreserve("texture_target_gl_preserve_lum",
-                                BlendMode::luminosity)
+        TextureTargetGLPreserve(BlendMode::luminosity)
     {}
 };
-GMREGISTER(return new TextureTargetGLPreserveLum)
+GMREGISTER(texture_target_gl_preserve_lum,
+           return new TextureTargetGLPreserveLum)

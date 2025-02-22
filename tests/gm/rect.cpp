@@ -10,7 +10,7 @@ using namespace rivegm;
 class RectGM : public GM
 {
 public:
-    RectGM() : GM(240, 240, "rect") {}
+    RectGM() : GM(240, 240) {}
 
     void onDraw(rive::Renderer* ren) override
     {
@@ -37,12 +37,12 @@ public:
         }
     }
 };
-GMREGISTER(return new RectGM)
+GMREGISTER(rect, return new RectGM)
 
 class RectGradientGM : public GM
 {
 public:
-    RectGradientGM() : GM(220, 220, "rect_grad") {}
+    RectGradientGM() : GM(220, 220) {}
 
     void onDraw(rive::Renderer* ren) override
     {
@@ -98,4 +98,4 @@ public:
         }
     }
 };
-GMREGISTER(return new RectGradientGM)
+GMREGISTER(rect_grad, return new RectGradientGM)

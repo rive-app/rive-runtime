@@ -53,7 +53,7 @@ static void draw_strokes(Renderer* renderer,
 class WideButtCapsGM : public GM
 {
 public:
-    WideButtCapsGM() : GM(kTestWidth, kTestHeight, "widebuttcaps") {}
+    WideButtCapsGM() : GM(kTestWidth, kTestHeight) {}
 
     ColorInt clearColor() const override { return 0xff000000; }
 
@@ -109,4 +109,4 @@ public:
     }
 };
 
-GMREGISTER(return new WideButtCapsGM();)
+GMREGISTER(widebuttcaps, return new WideButtCapsGM();)

@@ -17,18 +17,14 @@ namespace rivegm
 
 class GM
 {
-    std::string m_Name;
     const int m_Width, m_Height;
 
 public:
-    GM(int width, int height, const char name[]) :
-        m_Name(name, strlen(name)), m_Width(width), m_Height(height)
-    {}
+    GM(int width, int height) : m_Width(width), m_Height(height) {}
     virtual ~GM() {}
 
     int width() const { return m_Width; }
     int height() const { return m_Height; }
-    std::string name() const { return m_Name; }
 
     void onceBeforeDraw() { this->onOnceBeforeDraw(); }
 
@@ -48,64 +44,65 @@ protected:
     virtual void onDraw(rive::Renderer*) = 0;
 };
 
-template <typename T> class Registry
+using FuncPtr = void* (*)();
+// let this be used in extern c declares
+extern "C" struct FactoryRegistry
 {
-    static Registry* s_Head;
-    static Registry* s_Tail;
-
-    T m_Value;
-    Registry* m_Next = nullptr;
-
-public:
-    Registry(T value, bool isSlow) : m_Value(value)
-    {
-        if (s_Head == nullptr)
-        {
-            s_Tail = s_Head = this;
-        }
-        else if (isSlow)
-        {
-            m_Next = s_Head;
-            s_Head = this;
-        }
-        else
-        {
-            s_Tail->m_Next = this;
-            s_Tail = this;
-        }
-    }
-
-    static const Registry* head() { return s_Head; }
-    const T& get() const { return m_Value; }
-    const Registry* next() const { return m_Next; }
+    FuncPtr m_Value;
+    const char* m_name;
+    bool m_isSlow;
 };
 
-template <typename T> Registry<T>* Registry<T>::s_Head = nullptr;
-template <typename T> Registry<T>* Registry<T>::s_Tail = nullptr;
-
+extern "C" FactoryRegistry make_factory_regsitry(FuncPtr value,
+                                                 const char* name,
+                                                 bool isSlow);
 using GMFactory = std::unique_ptr<GM> (*)();
-using GMRegistry = Registry<GMFactory>;
+using GMRegistry = FactoryRegistry;
 
+static std::vector<FactoryRegistry> RegistryList;
+
+#define registry_get(registry)                                                 \
+    std::unique_ptr<GM>(static_cast<GM*>(registry.m_Value()));
 } // namespace rivegm
 
 // Macro helpers (lifted from SkMacros.h
-
+#define RIVE_STRING(A) RIVE_STRING_IMPL_PRIV(A)
+#define RIVE_STRING_IMPL_PRIV(A) #A
 #define RIVE_MACRO_CONCAT(X, Y) RIVE_MACRO_CONCAT_IMPL_PRIV(X, Y)
 #define RIVE_MACRO_CONCAT_IMPL_PRIV(X, Y) X##Y
 
-#define RIVE_MACRO_APPEND_COUNTER(name) RIVE_MACRO_CONCAT(name, __COUNTER__)
+#define DECLARE_GMREGISTRY(name)                                               \
+    extern "C" GMRegistry RIVE_MACRO_CONCAT(name, _get_registry)();
 
 // Usage: GMREGISTER( return new mygmclass(...) )
 //
-#define GMREGISTER(code)                                                       \
-    static GMRegistry RIVE_MACRO_APPEND_COUNTER(rivegm_registry)(              \
-        []() { return std::unique_ptr<rivegm::GM>([]() { code; }()); },        \
-        false);
-#define GMREGISTER_SLOW(code)                                                  \
-    static GMRegistry RIVE_MACRO_APPEND_COUNTER(rivegm_registry)(              \
-        []() { return std::unique_ptr<rivegm::GM>([]() { code; }()); },        \
-        true);
+#define GMREGISTER(name, code)                                                 \
+    DECLARE_GMREGISTRY(name)                                                   \
+    GMRegistry RIVE_MACRO_CONCAT(name, _get_registry)()                        \
+    {                                                                          \
+        return make_factory_regsitry(                                          \
+            []() { return (void*)([]() { code; }()); },                        \
+            RIVE_STRING(name),                                                 \
+            false);                                                            \
+    }
+#define GMREGISTER_SLOW(name, code)                                            \
+    DECLARE_GMREGISTRY(name)                                                   \
+    GMRegistry RIVE_MACRO_CONCAT(name, _get_registry)()                        \
+    {                                                                          \
+        return make_factory_regsitry(                                          \
+            []() { return (void*)([]() { code; }()); },                        \
+            RIVE_STRING(name),                                                 \
+            true);                                                             \
+    }
 
+#define CALL_GMREGISTRY(name)                                                  \
+    auto RIVE_MACRO_CONCAT(registry, name) =                                   \
+        RIVE_MACRO_CONCAT(name, _get_registry)();                              \
+    if (RIVE_MACRO_CONCAT(registry, name).m_isSlow)                            \
+        RegistryList.insert(RegistryList.begin(),                              \
+                            std::move(RIVE_MACRO_CONCAT(registry, name)));     \
+    else                                                                       \
+        RegistryList.push_back(std::move(RIVE_MACRO_CONCAT(registry, name)));
 // Usage:
 //
 //   DEF_SIMPLE_GM(name, width, height, renderer) {
@@ -116,10 +113,10 @@ using GMRegistry = Registry<GMFactory>;
     class NAME##_GM : public rivegm::GM                                        \
     {                                                                          \
     public:                                                                    \
-        NAME##_GM() : GM(WIDTH, HEIGHT, #NAME) {}                              \
+        NAME##_GM() : GM(WIDTH, HEIGHT) {}                                     \
         void onDraw(rive::Renderer*) override;                                 \
     };                                                                         \
-    GMREGISTER(return new NAME##_GM)                                           \
+    GMREGISTER(NAME, return new NAME##_GM)                                     \
     void NAME##_GM::onDraw(rive::Renderer* RENDERER)
 
 // Usage:
@@ -136,19 +133,21 @@ using GMRegistry = Registry<GMFactory>;
     class NAME##_GM : public rivegm::GM                                        \
     {                                                                          \
     public:                                                                    \
-        NAME##_GM() : GM(WIDTH, HEIGHT, #NAME) {}                              \
+        NAME##_GM() : GM(WIDTH, HEIGHT) {}                                     \
         ColorInt clearColor() const override { return CLEAR_COLOR; }           \
         void onDraw(rive::Renderer*) override;                                 \
     };                                                                         \
-    GMREGISTER(return new NAME##_GM)                                           \
+    GMREGISTER(NAME, return new NAME##_GM)                                     \
     void NAME##_GM::onDraw(rive::Renderer* RENDERER)
 
 #endif
 
 #ifdef RIVE_UNREAL
-typedef const void* REGISTRY_HANDLE;
+typedef int REGISTRY_HANDLE;
+#define INVALID_REGISTRY -1
 REGISTRY_HANDLE gms_get_registry_head();
 REGISTRY_HANDLE gms_registry_get_next(REGISTRY_HANDLE position_handle);
+void gms_build_registry();
 bool gms_run_gm(REGISTRY_HANDLE gm_handle);
 bool gms_registry_get_name(REGISTRY_HANDLE position_handle, std::string& name);
 bool gms_registry_get_size(REGISTRY_HANDLE position_handle,

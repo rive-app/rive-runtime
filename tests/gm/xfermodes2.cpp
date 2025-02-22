@@ -15,7 +15,7 @@ using namespace rivegm;
 class Xfermodes2GM : public GM
 {
 public:
-    Xfermodes2GM() : GM(455, 475, "xfermodes2") {}
+    Xfermodes2GM() : GM(455, 475) {}
 
 protected:
     rive::ColorInt clearColor() const override { return 0; } // TRANSPARENT!
@@ -113,4 +113,4 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 
-GMREGISTER(return new Xfermodes2GM)
+GMREGISTER(xfermodes2, return new Xfermodes2GM)

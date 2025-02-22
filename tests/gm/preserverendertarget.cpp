@@ -15,10 +15,8 @@ using namespace rive;
 class PreserveRenderTargetBase : public GM
 {
 protected:
-    PreserveRenderTargetBase(const char* name,
-                             bool empty,
-                             BlendMode blendMode) :
-        GM(64, 64, name), m_empty(empty), m_blendMode(blendMode)
+    PreserveRenderTargetBase(bool empty, BlendMode blendMode) :
+        GM(64, 64), m_empty(empty), m_blendMode(blendMode)
     {}
 
     void run(std::vector<uint8_t>* pixels) override
@@ -74,31 +72,26 @@ class PreserveRenderTargetGM : public PreserveRenderTargetBase
 {
 public:
     PreserveRenderTargetGM() :
-        PreserveRenderTargetBase("preserverendertarget",
-                                 false,
-                                 BlendMode::srcOver)
+        PreserveRenderTargetBase(false, BlendMode::srcOver)
     {}
 };
-GMREGISTER(return new PreserveRenderTargetGM)
+GMREGISTER(preserverendertarget, return new PreserveRenderTargetGM)
 
 class PreserveRenderTargetBlendModeGM : public PreserveRenderTargetBase
 {
 public:
     PreserveRenderTargetBlendModeGM() :
-        PreserveRenderTargetBase("preserverendertarget_blendmode",
-                                 false,
-                                 BlendMode::darken)
+        PreserveRenderTargetBase(false, BlendMode::darken)
     {}
 };
-GMREGISTER(return new PreserveRenderTargetBlendModeGM)
+GMREGISTER(preserverendertarget_blendmode,
+           return new PreserveRenderTargetBlendModeGM)
 
 class PreserveRenderTargetEmptyGM : public PreserveRenderTargetBase
 {
 public:
     PreserveRenderTargetEmptyGM() :
-        PreserveRenderTargetBase("preserverendertarget_empty",
-                                 true,
-                                 BlendMode::srcOver)
+        PreserveRenderTargetBase(true, BlendMode::srcOver)
     {}
 };
-GMREGISTER(return new PreserveRenderTargetEmptyGM)
+GMREGISTER(preserverendertarget_empty, return new PreserveRenderTargetEmptyGM)

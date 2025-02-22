@@ -23,7 +23,7 @@ using namespace rive;
 class DstReadShuffle : public GM
 {
 public:
-    DstReadShuffle() : GM(530, 690, "dstreadshuffle") {}
+    DstReadShuffle() : GM(530, 690) {}
 
 protected:
     enum ShapeType
@@ -237,4 +237,4 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 
-GMREGISTER(return new DstReadShuffle;)
+GMREGISTER(dstreadshuffle, return new DstReadShuffle;)

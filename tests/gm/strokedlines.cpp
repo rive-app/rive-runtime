@@ -118,8 +118,7 @@ class StrokedLinesGM : public GM
 public:
     StrokedLinesGM() :
         GM(kNumColumns * (2 * kRadius + 2 * kPad),
-           kNumRows * (2 * kRadius + 2 * kPad),
-           "strokedlines")
+           kNumRows * (2 * kRadius + 2 * kPad))
     {}
 
 protected:
@@ -242,5 +241,5 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 
-GMREGISTER(return new StrokedLinesGM;)
+GMREGISTER(strokedlines, return new StrokedLinesGM;)
 } // namespace skiagm

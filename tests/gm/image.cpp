@@ -13,7 +13,7 @@ using namespace rivegm;
 class ImageGM : public GM
 {
 public:
-    ImageGM() : GM(530, 310, "image") {}
+    ImageGM() : GM(530, 310) {}
 
     void onDraw(rive::Renderer* ren) override
     {
@@ -44,4 +44,4 @@ public:
         ren->restore();
     }
 };
-GMREGISTER(return new ImageGM)
+GMREGISTER(image, return new ImageGM)

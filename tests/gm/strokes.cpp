@@ -51,7 +51,7 @@ static void rnd_rect(AABB* r, RenderPaint* paint, Rand& rand)
 class StrokesGM : public GM
 {
 public:
-    StrokesGM() : GM(W, H, "strokes_round") {}
+    StrokesGM() : GM(W, H) {}
 
 protected:
     void onDraw(Renderer* renderer) override
@@ -89,7 +89,7 @@ protected:
 class ZeroLenStrokesGM : public GM
 {
 public:
-    ZeroLenStrokesGM() : GM(W * 3 / 7, H * 3 / 4, "zeroPath") {}
+    ZeroLenStrokesGM() : GM(W * 3 / 7, H * 3 / 4) {}
 
 private:
     Path fMoveHfPath, fMoveZfPath, /* fDashedfPath, */ fRefPath[4];
@@ -194,7 +194,7 @@ protected:
 class TeenyStrokesGM : public GM
 {
 public:
-    TeenyStrokesGM() : GM(W, H * .5, "teenyStrokes") {}
+    TeenyStrokesGM() : GM(W, H * .5) {}
 
 private:
     static void line(float scale, Renderer* canvas, ColorInt color)
@@ -311,7 +311,7 @@ DEF_SIMPLE_GM(quadcap, 70, 30, canvas)
 class Strokes2GM : public GM
 {
 public:
-    Strokes2GM() : GM(W, H, "strokes_poly") {}
+    Strokes2GM() : GM(W, H) {}
 
 private:
     Path fPath;
@@ -410,7 +410,7 @@ class Strokes3GM : public GM
     }
 
 public:
-    Strokes3GM() : GM(1500, 1500, "strokes3") {}
+    Strokes3GM() : GM(1500, 1500) {}
 
 protected:
     void onDraw(Renderer* canvas) override
@@ -460,7 +460,7 @@ protected:
 class Strokes4GM : public GM
 {
 public:
-    Strokes4GM() : GM(W, H / 4, "strokes_zoomed") {}
+    Strokes4GM() : GM(W, H / 4) {}
 
 protected:
     void onDraw(Renderer* canvas) override
@@ -481,7 +481,7 @@ protected:
 class Strokes5GM : public GM
 {
 public:
-    Strokes5GM() : GM(W, H, "zero_control_stroke") {}
+    Strokes5GM() : GM(W, H) {}
 
 protected:
     void onDraw(Renderer* canvas) override
@@ -517,14 +517,14 @@ protected:
 
 //////////////////////////////////////////////////////////////////////////////
 
-GMREGISTER(return new StrokesGM;)
-GMREGISTER(return new Strokes2GM;)
-GMREGISTER(return new Strokes3GM;)
-GMREGISTER(return new Strokes4GM;)
-GMREGISTER(return new Strokes5GM;)
+GMREGISTER(strokes_round, return new StrokesGM;)
+GMREGISTER(strokes_poly, return new Strokes2GM;)
+GMREGISTER(strokes3, return new Strokes3GM;)
+GMREGISTER(strokes_zoomed, return new Strokes4GM;)
+GMREGISTER(zero_control_stroke, return new Strokes5GM;)
 
-GMREGISTER(return new ZeroLenStrokesGM;)
-GMREGISTER(return new TeenyStrokesGM;)
+GMREGISTER(zeroPath, return new ZeroLenStrokesGM;)
+GMREGISTER(teenyStrokes, return new TeenyStrokesGM;)
 
 DEF_SIMPLE_GM(inner_join_geometry, 1000, 700, canvas)
 {

@@ -14,7 +14,7 @@ using namespace rive;
 class MutatingFillRuleGM : public GM
 {
 public:
-    MutatingFillRuleGM() : GM(600, 300, "mutating_fill_rule") {}
+    MutatingFillRuleGM() : GM(600, 300) {}
 
     void onDraw(rive::Renderer* renderer) override
     {
@@ -38,4 +38,4 @@ public:
     }
 };
 
-GMREGISTER(return new MutatingFillRuleGM())
+GMREGISTER(mutating_fill_rule, return new MutatingFillRuleGM())

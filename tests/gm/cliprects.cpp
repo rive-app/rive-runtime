@@ -18,7 +18,7 @@ constexpr static int kNumRows = 3;
 class ClipRectsGM : public GM
 {
 public:
-    ClipRectsGM() : GM(200 * 3, 200 * kNumRows, "cliprects") {}
+    ClipRectsGM() : GM(200 * 3, 200 * kNumRows) {}
 
     void onDraw(rive::Renderer* renderer) override
     {
@@ -90,4 +90,4 @@ public:
     }
 };
 
-GMREGISTER(return new ClipRectsGM())
+GMREGISTER(cliprects, return new ClipRectsGM())

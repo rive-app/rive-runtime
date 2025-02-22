@@ -80,7 +80,7 @@ static void perterb_patch(rive::Vec2D pts[16], float scale)
 class MeshGM : public GM
 {
 public:
-    MeshGM() : GM(800, 600, "mesh") {}
+    MeshGM() : GM(800, 600) {}
 
     void onDraw(rive::Renderer* ren) override
     {
@@ -172,7 +172,7 @@ public:
         }
     }
 };
-GMREGISTER(return new MeshGM)
+GMREGISTER(mesh, return new MeshGM)
 
 class MeshHitTestGM : public GM
 {
@@ -181,7 +181,7 @@ class MeshHitTestGM : public GM
     int fN;
 
 public:
-    MeshHitTestGM(int N, const char name[]) : GM(60, 60, name) { fN = N; }
+    MeshHitTestGM(int N) : GM(60, 60) { fN = N; }
 
     void onOnceBeforeDraw() override
     {
@@ -216,5 +216,5 @@ public:
     }
 };
 
-GMREGISTER(return new MeshHitTestGM(7, "mesh-ht-7"))
-GMREGISTER(return new MeshHitTestGM(1, "mesh-ht-1"))
+GMREGISTER(mesh_ht_7, return new MeshHitTestGM(7))
+GMREGISTER(mesh_ht_1, return new MeshHitTestGM(1))

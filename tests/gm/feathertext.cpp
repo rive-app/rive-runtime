@@ -26,8 +26,8 @@ constexpr static char LOREM_IPSUM[] =
 class FeatherTextGM : public GM
 {
 public:
-    FeatherTextGM(rive::Span<uint8_t> fontBytes, const char* name) :
-        GM(1600, 1840, name), m_text(TestingWindow::Get()->factory())
+    FeatherTextGM(rive::Span<uint8_t> fontBytes) :
+        GM(1600, 1840), m_text(TestingWindow::Get()->factory())
     {
         m_paint->color(0xff000000);
         m_text.maxWidth(720);
@@ -65,9 +65,9 @@ private:
     Paint m_paint;
 };
 
-GMREGISTER_SLOW(return new FeatherTextGM(assets::roboto_flex_ttf(),
-                                         "feathertext_roboto"))
-GMREGISTER_SLOW(return new FeatherTextGM(assets::montserrat_ttf(),
-                                         "feathertext_montserrat"))
+GMREGISTER_SLOW(feathertext_roboto,
+                return new FeatherTextGM(assets::roboto_flex_ttf()))
+GMREGISTER_SLOW(feathertext_montserrat,
+                return new FeatherTextGM(assets::montserrat_ttf()))
 
 #endif

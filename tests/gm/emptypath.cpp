@@ -69,9 +69,7 @@ public:
         bool stroke = false, feather = false;
     };
 
-    EmptyStrokeGM(Options options, const char* name) :
-        GM(180, 540, name), m_options(options)
-    {}
+    EmptyStrokeGM(Options options) : GM(180, 540), m_options(options) {}
 
 private:
     void onDraw(Renderer* renderer) override
@@ -122,9 +120,9 @@ private:
 
     Options m_options;
 };
-GMREGISTER(return new EmptyStrokeGM({.stroke = true, .feather = false},
-                                    "emptystroke");)
-GMREGISTER(return new EmptyStrokeGM({.stroke = false, .feather = true},
-                                    "emptyfeather");)
-GMREGISTER(return new EmptyStrokeGM({.stroke = true, .feather = true},
-                                    "emptystrokefeather");)
+GMREGISTER(emptystroke,
+           return new EmptyStrokeGM({.stroke = true, .feather = false});)
+GMREGISTER(emptyfeather,
+           return new EmptyStrokeGM({.stroke = false, .feather = true});)
+GMREGISTER(emptystrokefeather,
+           return new EmptyStrokeGM({.stroke = true, .feather = true});)

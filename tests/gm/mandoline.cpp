@@ -114,7 +114,7 @@ private:
 class MandolineGM : public GM
 {
 public:
-    MandolineGM() : GM(560, 475, "mandoline") {}
+    MandolineGM() : GM(560, 475) {}
 
 protected:
     ColorInt clearColor() const override { return 0xff000000; }
@@ -172,4 +172,4 @@ protected:
     }
 };
 
-GMREGISTER_SLOW(return new MandolineGM;)
+GMREGISTER_SLOW(mandoline, return new MandolineGM;)

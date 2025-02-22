@@ -15,7 +15,7 @@ namespace rive::gpu
 class ParallelClipsGM : public GM
 {
 public:
-    ParallelClipsGM() : GM(850, 850, "parallelclips") {}
+    ParallelClipsGM() : GM(850, 850) {}
 
     ColorInt clearColor() const override { return 0xff000000; }
 
@@ -69,5 +69,5 @@ public:
         }
     }
 };
-GMREGISTER(return new ParallelClipsGM)
+GMREGISTER(parallelclips, return new ParallelClipsGM)
 } // namespace rive::gpu

@@ -156,7 +156,7 @@ public:
 class RetrofittedCubicTrianglesGM : public GM
 {
 public:
-    RetrofittedCubicTrianglesGM() : GM(300, 300, "retrofittedcubictriangles") {}
+    RetrofittedCubicTrianglesGM() : GM(300, 300) {}
 
 protected:
     void onDraw(Renderer* renderer) override
@@ -183,4 +183,4 @@ protected:
     }
 };
 
-GMREGISTER(return new RetrofittedCubicTrianglesGM;)
+GMREGISTER(retrofittedcubictriangles, return new RetrofittedCubicTrianglesGM;)

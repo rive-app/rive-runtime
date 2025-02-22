@@ -36,7 +36,7 @@ private:
 class ConvexPathsGM : public GM
 {
 public:
-    ConvexPathsGM() : GM(1200, 1100, "convexpaths") {}
+    ConvexPathsGM() : GM(1200, 1100) {}
 
 private:
     SkDoOnce fOnce;
@@ -260,4 +260,4 @@ private:
 };
 } // namespace
 
-GMREGISTER(return new ConvexPathsGM;)
+GMREGISTER(convexpaths, return new ConvexPathsGM;)

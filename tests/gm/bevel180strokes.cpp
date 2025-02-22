@@ -18,7 +18,7 @@ using namespace rive;
 class Bevel180StrokesGM : public GM
 {
 public:
-    Bevel180StrokesGM() : GM(300, 300, "bevel180strokes") {}
+    Bevel180StrokesGM() : GM(300, 300) {}
 
     ColorInt clearColor() const override { return 0xff000000; }
 
@@ -59,4 +59,4 @@ public:
     }
 };
 
-GMREGISTER(return new Bevel180StrokesGM())
+GMREGISTER(bevel180strokes, return new Bevel180StrokesGM())

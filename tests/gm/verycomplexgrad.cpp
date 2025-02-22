@@ -17,7 +17,7 @@ constexpr int N = 9999;
 class VeryComplexGradGM : public GM
 {
 public:
-    VeryComplexGradGM() : GM(W, H, "verycomplexgrad") {}
+    VeryComplexGradGM() : GM(W, H) {}
 
     ColorInt clearColor() const override { return 0xff000000; }
 
@@ -44,4 +44,4 @@ public:
     }
 };
 
-GMREGISTER(return new VeryComplexGradGM())
+GMREGISTER(verycomplexgrad, return new VeryComplexGradGM())

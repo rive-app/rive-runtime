@@ -15,7 +15,7 @@ namespace rive::gpu
 class InterleavedFillRuleGM : public GM
 {
 public:
-    InterleavedFillRuleGM() : GM(1700, 1700, "interleavedfillrule") {}
+    InterleavedFillRuleGM() : GM(1700, 1700) {}
 
     ColorInt clearColor() const override { return 0xff000000; }
 
@@ -100,5 +100,5 @@ public:
         }
     }
 };
-GMREGISTER(return new InterleavedFillRuleGM)
+GMREGISTER(interleavedfillrule, return new InterleavedFillRuleGM)
 } // namespace rive::gpu

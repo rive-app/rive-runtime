@@ -17,7 +17,7 @@ using namespace rivegm;
 class RawTextGM : public GM
 {
 public:
-    RawTextGM() : GM(400, 335, "rawtext") {}
+    RawTextGM() : GM(400, 335) {}
 
     void onDraw(rive::Renderer* renderer) override
     {
@@ -40,6 +40,6 @@ public:
     }
 };
 
-GMREGISTER(return new RawTextGM)
+GMREGISTER(rawtext, return new RawTextGM)
 
 #endif

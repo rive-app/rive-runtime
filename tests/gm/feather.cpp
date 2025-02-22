@@ -15,8 +15,7 @@ namespace rive::gpu
 class FeatherGM : public GM
 {
 public:
-    FeatherGM(const char* tag) :
-        GM(1800, 2100, (std::string("feather_") + tag).c_str())
+    FeatherGM() : GM(1800, 2100)
     {
         m_paint = TestingWindow::Get()->factory()->makeRenderPaint();
         m_paint->color(0xffffffff);
@@ -56,8 +55,6 @@ private:
 class FeatherShapesGM : public FeatherGM
 {
 public:
-    FeatherShapesGM(const char* tag = "shapes") : FeatherGM(tag) {}
-
     void onOnceBeforeDraw() override
     {
         m_shapes.reserve(6);
@@ -176,15 +173,12 @@ protected:
 
     std::vector<std::unique_ptr<Shape>> m_shapes;
 };
-GMREGISTER(return new FeatherShapesGM)
+GMREGISTER(feather_shapes, return new FeatherShapesGM)
 
 // Validate corners by tessellating shapes into polygons and then feathering
 // them.
 class FeatherPolyShapesGM : public FeatherShapesGM
 {
-public:
-    FeatherPolyShapesGM() : FeatherShapesGM("polyshapes") {}
-
 private:
     class PolyShape : public Shape
     {
@@ -214,14 +208,11 @@ private:
         return std::make_unique<PolyShape>();
     }
 };
-GMREGISTER(return new FeatherPolyShapesGM)
+GMREGISTER(feather_polyshapes, return new FeatherPolyShapesGM)
 
 // Check that corners don't have artifacts.
 class FeatherCornerGM : public FeatherGM
 {
-public:
-    FeatherCornerGM() : FeatherGM("corner") {}
-
 private:
     virtual void drawCell(Renderer* renderer,
                           int x,
@@ -255,14 +246,11 @@ private:
         renderer->drawPath(path, paint);
     }
 };
-GMREGISTER(return new FeatherCornerGM)
+GMREGISTER(feather_corner, return new FeatherCornerGM)
 
 // Check that tightly rounded corners don't have artifacts.
 class FeatherRoundCornerGM : public FeatherGM
 {
-public:
-    FeatherRoundCornerGM() : FeatherGM("roundcorner") {}
-
 private:
     virtual void drawCell(Renderer* renderer,
                           int x,
@@ -285,13 +273,11 @@ private:
         renderer->drawPath(path, paint);
     }
 };
-GMREGISTER(return new FeatherRoundCornerGM)
+GMREGISTER(feather_roundcorner, return new FeatherRoundCornerGM)
 
 // Check that the cusp points on a squashed ellipse don't have artifacts.
 class FeatherEllipseGM : public FeatherGM
 {
-public:
-    FeatherEllipseGM() : FeatherGM("ellipse") {}
 
 private:
     virtual void drawCell(Renderer* renderer,
@@ -307,14 +293,11 @@ private:
         renderer->drawPath(ellipse, paint);
     }
 };
-GMREGISTER(return new FeatherEllipseGM)
+GMREGISTER(feather_ellipse, return new FeatherEllipseGM)
 
 // Check that a non-degenerate cubic cusps and near-cusps don't have artifacts.
 class FeatherCuspGM : public FeatherGM
 {
-public:
-    FeatherCuspGM() : FeatherGM("cusp") {}
-
 private:
     virtual void drawCell(Renderer* renderer,
                           int x,
@@ -329,13 +312,13 @@ private:
         renderer->drawPath(cusp, paint);
     }
 };
-GMREGISTER(return new FeatherCuspGM)
+GMREGISTER(feather_cusp, return new FeatherCuspGM)
 
 // Check that basic strokes feather correctly (enough).
 class FeatherStrokesGM : public FeatherGM
 {
 public:
-    FeatherStrokesGM() : FeatherGM("strokes")
+    FeatherStrokesGM() : FeatherGM()
     {
         m_strokes.reserve(6);
 
@@ -392,5 +375,5 @@ private:
 
     std::vector<Path> m_strokes;
 };
-GMREGISTER(return new FeatherStrokesGM)
+GMREGISTER(feather_strokes, return new FeatherStrokesGM)
 } // namespace rive::gpu

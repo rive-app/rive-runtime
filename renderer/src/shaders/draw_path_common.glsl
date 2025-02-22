@@ -413,7 +413,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     float theta = uintBitsToFloat(tessVertexData.z);
     float2 norm = float2(sin(theta), -cos(theta));
     float2 origin = uintBitsToFloat(tessVertexData.xy);
-    float2 postTransformVertexOffset = float2(0);
+    float2 postTransformVertexOffset = float2(0, 0);
 
     if (featherRadius != .0)
     {

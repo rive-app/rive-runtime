@@ -15,7 +15,7 @@ using namespace rive;
 class DegenGradGM : public GM
 {
 public:
-    DegenGradGM() : GM(200 * 4 + 50, 200 * 3 + 50, "degengrad") {}
+    DegenGradGM() : GM(200 * 4 + 50, 200 * 3 + 50) {}
 
     void onDraw(rive::Renderer* renderer) override
     {
@@ -64,4 +64,4 @@ public:
     }
 };
 
-GMREGISTER(return new DegenGradGM())
+GMREGISTER(degengrad, return new DegenGradGM())

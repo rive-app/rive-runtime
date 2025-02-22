@@ -25,32 +25,12 @@ static void add_star(Path& path, int count, float dir)
     }
 }
 
-static std::string fillrule_to_name(rive::FillRule fr)
-{
-    std::string polyName("poly_");
-    switch (fr)
-    {
-        case rive::FillRule::nonZero:
-            polyName += "nonZero";
-            break;
-        case rive::FillRule::evenOdd:
-            polyName += "evenOdd";
-            break;
-        case rive::FillRule::clockwise:
-            polyName += "clockwise";
-            break;
-    }
-    return polyName;
-}
-
 class PolyGM : public GM
 {
     rive::FillRule m_FillRule;
 
 public:
-    PolyGM(rive::FillRule fr) :
-        GM(480, 480, fillrule_to_name(fr).c_str()), m_FillRule(fr)
-    {}
+    PolyGM(rive::FillRule fr) : GM(480, 480), m_FillRule(fr) {}
 
     void onDraw(rive::Renderer* ren) override
     {
@@ -75,11 +55,11 @@ public:
 };
 
 // Expect all to be filled but the black-6-pointer
-GMREGISTER(return new PolyGM(rive::FillRule::nonZero))
+GMREGISTER(poly_nonZero, return new PolyGM(rive::FillRule::nonZero))
 
 // Expect all to have a hole
-GMREGISTER(return new PolyGM(rive::FillRule::evenOdd))
+GMREGISTER(poly_evenOdd, return new PolyGM(rive::FillRule::evenOdd))
 
 // Expect all to be filled but the black-6-pointer, and the black-6-pointer will
 // also be missing half the triangle tips.
-GMREGISTER(return new PolyGM(rive::FillRule::clockwise))
+GMREGISTER(poly_clockwise, return new PolyGM(rive::FillRule::clockwise))

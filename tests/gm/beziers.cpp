@@ -61,7 +61,7 @@ static Path rnd_cubic(RenderPaint* paint, Rand& rand)
 class BeziersGM : public GM
 {
 public:
-    BeziersGM() : GM(W, H * 2, "beziers") {}
+    BeziersGM() : GM(W, H * 2) {}
 
 protected:
     void onDraw(Renderer* canvas) override
@@ -83,4 +83,4 @@ protected:
     }
 };
 
-GMREGISTER(return new BeziersGM;)
+GMREGISTER(beziers, return new BeziersGM;)

@@ -93,20 +93,12 @@ public:
     void close() override {}
 };
 
-static std::string fillrule_to_name(rive::FillRule fr)
-{
-    return fr == rive::FillRule::nonZero ? "nonZero" : "evenOdd";
-}
-
 class HitTestGM : public GM
 {
     rive::FillRule m_FillRule;
 
 public:
-    HitTestGM(rive::FillRule fr) :
-        GM(320, 460, ("hittest_" + fillrule_to_name(fr)).c_str()),
-        m_FillRule(fr)
-    {}
+    HitTestGM(rive::FillRule fr) : GM(320, 460), m_FillRule(fr) {}
 
     void onDraw(rive::Renderer* renderer) override
     {
@@ -168,5 +160,5 @@ public:
     }
 };
 
-GMREGISTER_SLOW(return new HitTestGM(rive::FillRule::evenOdd))
-GMREGISTER_SLOW(return new HitTestGM(rive::FillRule::nonZero))
+GMREGISTER_SLOW(hittest_evenOdd, return new HitTestGM(rive::FillRule::evenOdd))
+GMREGISTER_SLOW(hittest_nonZero, return new HitTestGM(rive::FillRule::nonZero))

@@ -19,7 +19,7 @@ using namespace rive;
 class RoundJoinStrokesGM : public GM
 {
 public:
-    RoundJoinStrokesGM() : GM(800, 600, "roundjoinstrokes") {}
+    RoundJoinStrokesGM() : GM(800, 600) {}
 
     ColorInt clearColor() const override { return 0xff000000; }
 
@@ -113,4 +113,4 @@ public:
     }
 };
 
-GMREGISTER(return new RoundJoinStrokesGM())
+GMREGISTER(roundjoinstrokes, return new RoundJoinStrokesGM())

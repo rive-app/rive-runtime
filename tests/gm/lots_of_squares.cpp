@@ -20,7 +20,7 @@ constexpr static size_t kCols = 100;
 class LotsOfSquaresGM : public GM
 {
 public:
-    LotsOfSquaresGM(const char* name) : GM(1701, 1701, name) {}
+    LotsOfSquaresGM() : GM(1701, 1701) {}
 
     rive::ColorInt clearColor() const override { return 0xff000000; }
 
@@ -61,7 +61,7 @@ protected:
 class LotsOfGradsGM : public LotsOfSquaresGM
 {
 public:
-    LotsOfGradsGM(const char* name) : LotsOfSquaresGM(name) {}
+    LotsOfGradsGM() : LotsOfSquaresGM() {}
 
     void drawSquare(rive::Renderer* renderer,
                     float size,
@@ -83,7 +83,7 @@ public:
 class LotsOfGradsSimpleGM : public LotsOfGradsGM
 {
 public:
-    LotsOfGradsSimpleGM() : LotsOfGradsGM("lots_of_grads_simple") {}
+    LotsOfGradsSimpleGM() : LotsOfGradsGM() {}
 
     rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory,
                                                size_t i,
@@ -100,13 +100,13 @@ public:
                                            2);
     }
 };
-GMREGISTER(return new LotsOfGradsSimpleGM)
+GMREGISTER(lots_of_grads_simple, return new LotsOfGradsSimpleGM)
 
 // Run out of "complex" texel rows in the gradient texture.
 class LotsOfGradsComplexGM : public LotsOfGradsGM
 {
 public:
-    LotsOfGradsComplexGM() : LotsOfGradsGM("lots_of_grads_complex") {}
+    LotsOfGradsComplexGM() : LotsOfGradsGM() {}
 
     rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory,
                                                size_t i,
@@ -122,14 +122,13 @@ public:
                                            3);
     }
 };
-GMREGISTER(return new LotsOfGradsComplexGM)
+GMREGISTER(lots_of_grads_complex, return new LotsOfGradsComplexGM)
 
 // Run out of "GradSpan" instances for rendering color ramps.
 class LotsOfGradSpansGM : public LotsOfGradsGM
 {
 public:
-    LotsOfGradSpansGM() : LotsOfGradsGM("lots_of_grad_spans") {}
-    LotsOfGradSpansGM(const char* name) : LotsOfGradsGM(name) {}
+    LotsOfGradSpansGM() : LotsOfGradsGM() {}
 
     rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory,
                                                size_t i,
@@ -152,14 +151,14 @@ public:
                                            7);
     }
 };
-GMREGISTER(return new LotsOfGradSpansGM)
+GMREGISTER(lots_of_grad_spans, return new LotsOfGradSpansGM)
 
 // Ensure that an intermediate flush does not invalidate the clip buffer
 // contents.
 class LotsOfGradsClippedGM : public LotsOfGradSpansGM
 {
 public:
-    LotsOfGradsClippedGM() : LotsOfGradSpansGM("lots_of_grads_clipped") {}
+    LotsOfGradsClippedGM() : LotsOfGradSpansGM() {}
 
     void preDraw(rive::Renderer* renderer) override
     {
@@ -168,13 +167,13 @@ public:
         renderer->clipPath(circle);
     }
 };
-GMREGISTER(return new LotsOfGradsClippedGM)
+GMREGISTER(lots_of_grads_clipped, return new LotsOfGradsClippedGM)
 
 // Run out of complex and simple gradients both.
 class LotsOfGradsMixedGM : public LotsOfGradsGM
 {
 public:
-    LotsOfGradsMixedGM() : LotsOfGradsGM("lots_of_grads_mixed") {}
+    LotsOfGradsMixedGM() : LotsOfGradsGM() {}
 
     rive::rcp<rive::RenderShader> makeGradient(rive::Factory* factory,
                                                size_t i,
@@ -211,14 +210,14 @@ public:
         }
     }
 };
-GMREGISTER(return new LotsOfGradsMixedGM)
+GMREGISTER(lots_of_grads_mixed, return new LotsOfGradsMixedGM)
 
 // Run out of VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE descriptors, requiring the Vulkan
 // backend to allocate a new VkDescriptorPool during flush.
 class LotsOfImagesGM : public LotsOfSquaresGM
 {
 public:
-    LotsOfImagesGM() : LotsOfSquaresGM("lots_of_images") {}
+    LotsOfImagesGM() : LotsOfSquaresGM() {}
 
     void drawSquare(rive::Renderer* renderer,
                     float size,
@@ -258,4 +257,4 @@ public:
 private:
     rive::rcp<rive::RenderImage> m_images[512];
 };
-GMREGISTER_SLOW(return new LotsOfImagesGM)
+GMREGISTER_SLOW(lots_of_images, return new LotsOfImagesGM)

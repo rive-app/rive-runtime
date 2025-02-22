@@ -20,7 +20,7 @@ using namespace rive;
 class ClippedCubicGM : public GM
 {
 public:
-    ClippedCubicGM() : GM(600, 500, "clippedcubic") {}
+    ClippedCubicGM() : GM(600, 500) {}
 
 private:
     void onDraw(Renderer* canvas) override
@@ -55,7 +55,7 @@ private:
 class ClippedCubic2GM : public GM
 {
 public:
-    ClippedCubic2GM() : GM(725, 325, "clippedcubic2") {}
+    ClippedCubic2GM() : GM(725, 325) {}
 
 private:
     void onDraw(Renderer* canvas) override
@@ -126,7 +126,7 @@ private:
 class CubicPathGM : public GM
 {
 public:
-    CubicPathGM() : GM(825, 175, "cubicpath") {}
+    CubicPathGM() : GM(825, 175) {}
 
 private:
     void drawPath(Path& path,
@@ -253,7 +253,7 @@ private:
 class CubicClosePathGM : public GM
 {
 public:
-    CubicClosePathGM() : GM(825, 175, "cubicclosepath") {}
+    CubicClosePathGM() : GM(825, 175) {}
 
 private:
     void drawPath(Path& path,
@@ -417,7 +417,7 @@ DEF_SIMPLE_GM(bug6083, 100, 50, canvas)
 
 //////////////////////////////////////////////////////////////////////////////
 
-GMREGISTER(return new CubicPathGM;)
-GMREGISTER(return new CubicClosePathGM;)
-GMREGISTER(return new ClippedCubicGM;)
-GMREGISTER(return new ClippedCubic2GM;)
+GMREGISTER(cubicpath, return new CubicPathGM;)
+GMREGISTER(cubicclosepath, return new CubicClosePathGM;)
+GMREGISTER(clippedcubic, return new ClippedCubicGM;)
+GMREGISTER(clippedcubic2, return new ClippedCubic2GM;)

@@ -17,7 +17,7 @@ using namespace rive;
 class BatchedConvexPathsGM : public GM
 {
 public:
-    BatchedConvexPathsGM() : GM(512, 512, "batchedconvexpaths") {}
+    BatchedConvexPathsGM() : GM(512, 512) {}
 
 private:
     ColorInt clearColor() const override { return 0xFF000000; }
@@ -59,4 +59,4 @@ private:
     }
 };
 
-GMREGISTER(return new BatchedConvexPathsGM;)
+GMREGISTER(batchedconvexpaths, return new BatchedConvexPathsGM;)

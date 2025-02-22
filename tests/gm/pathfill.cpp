@@ -279,7 +279,7 @@ constexpr MakePathProc gProcs[] = {
 class PathFillGM : public GM
 {
 public:
-    PathFillGM() : GM(365, 425, "pathfill") {}
+    PathFillGM() : GM(365, 425) {}
 
 private:
     Path fPath[N];
@@ -353,7 +353,7 @@ DEF_SIMPLE_GM(rotatedcubicpath, 100, 100, canvas)
 
 ///////////////////////////////////////////////////////////////////////////////
 
-GMREGISTER(return new PathFillGM;)
+GMREGISTER(pathfill, return new PathFillGM;)
 
 DEF_SIMPLE_GM(bug7792, 800, 800, canvas)
 {

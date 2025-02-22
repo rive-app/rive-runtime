@@ -10,7 +10,7 @@ using namespace rivegm;
 class OvalGM : public GM
 {
 public:
-    OvalGM() : GM(410, 410, "oval") {}
+    OvalGM() : GM(410, 410) {}
 
     void onDraw(rive::Renderer* ren) override
     {
@@ -43,4 +43,4 @@ public:
         ren->drawPath(path, paint);
     }
 };
-GMREGISTER(return new OvalGM)
+GMREGISTER(oval, return new OvalGM)

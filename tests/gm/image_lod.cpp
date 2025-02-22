@@ -12,7 +12,7 @@ using namespace rivegm;
 class ImageLODGM : public GM
 {
 public:
-    ImageLODGM() : GM(978, 919, "image_lod") {}
+    ImageLODGM() : GM(978, 919) {}
 
     void onDraw(rive::Renderer* renderer) override
     {
@@ -57,4 +57,4 @@ public:
         renderer->restore();
     }
 };
-GMREGISTER(return new ImageLODGM)
+GMREGISTER(image_lod, return new ImageLODGM)

@@ -156,7 +156,7 @@ static_assert(std::size(gSizes) == std::size(gPoints), "array_mismatch");
 class ConvexLineOnlyPathsGM : public GM
 {
 public:
-    ConvexLineOnlyPathsGM() : GM(kGMWidth, kGMHeight, "convex-lineonly-ths") {}
+    ConvexLineOnlyPathsGM() : GM(kGMWidth, kGMHeight) {}
 
 protected:
     static Path GetPath(int index, rivegm::PathDirection dir)
@@ -380,4 +380,4 @@ private:
 
 //////////////////////////////////////////////////////////////////////////////
 
-GMREGISTER(return new ConvexLineOnlyPathsGM;)
+GMREGISTER(convex_lineonly_ths, return new ConvexLineOnlyPathsGM;)

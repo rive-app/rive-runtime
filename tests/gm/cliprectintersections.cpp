@@ -15,8 +15,7 @@ using namespace rive;
 class CLipRectIntersectionsGM : public GM
 {
 public:
-    CLipRectIntersectionsGM() : GM(150 + 120 * 3, 685, "cliprectintersections")
-    {}
+    CLipRectIntersectionsGM() : GM(150 + 120 * 3, 685) {}
 
     ColorInt clearColor() const override { return 0xff000000; }
 
@@ -157,4 +156,4 @@ public:
     }
 };
 
-GMREGISTER(return new CLipRectIntersectionsGM())
+GMREGISTER(cliprectintersections, return new CLipRectIntersectionsGM())

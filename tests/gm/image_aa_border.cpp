@@ -14,7 +14,7 @@ using namespace rivegm;
 class ImageAABorderGM : public GM
 {
 public:
-    ImageAABorderGM() : GM(500, 500, "image_aa_border") {}
+    ImageAABorderGM() : GM(500, 500) {}
 
     void onDraw(rive::Renderer* ren) override
     {
@@ -55,4 +55,4 @@ public:
         draw_image(ren, img.get(), {10, 160.9375, 150, 161.0625});
     }
 };
-GMREGISTER(return new ImageAABorderGM)
+GMREGISTER(image_aa_border, return new ImageAABorderGM)

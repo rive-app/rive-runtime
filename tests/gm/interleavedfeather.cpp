@@ -16,7 +16,7 @@ namespace rive::gpu
 class InterleavedFeatherGM : public GM
 {
 public:
-    InterleavedFeatherGM() : GM(1000, 1000, "interleavedfeather") {}
+    InterleavedFeatherGM() : GM(1000, 1000) {}
 
     ColorInt clearColor() const override { return 0; }
 
@@ -82,5 +82,5 @@ public:
         }
     }
 };
-GMREGISTER(return new InterleavedFeatherGM)
+GMREGISTER(interleavedfeather, return new InterleavedFeatherGM)
 } // namespace rive::gpu

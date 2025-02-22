@@ -164,11 +164,8 @@ enum class FillMode
 class TrickyCubicsGM : public GM
 {
 public:
-    TrickyCubicsGM(StrokeCap cap,
-                   StrokeJoin join,
-                   float feather,
-                   const char* name) :
-        GM(kTestWidth, kTestHeight, name),
+    TrickyCubicsGM(StrokeCap cap, StrokeJoin join, float feather) :
+        GM(kTestWidth, kTestHeight),
         m_Cap(cap),
         m_Join(join),
         m_feather(feather)
@@ -268,16 +265,10 @@ private:
     float m_feather;
 };
 
-GMREGISTER(return new TrickyCubicsGM(StrokeCap::butt,
-                                     StrokeJoin::miter,
-                                     0,
-                                     "trickycubicstrokes"))
-GMREGISTER(return new TrickyCubicsGM(StrokeCap::round,
-                                     StrokeJoin::round,
-                                     0,
-                                     "trickycubicstrokes_roundcaps"))
+GMREGISTER(trickycubicstrokes,
+           return new TrickyCubicsGM(StrokeCap::butt, StrokeJoin::miter, 0))
+GMREGISTER(trickycubicstrokes_roundcaps,
+           return new TrickyCubicsGM(StrokeCap::round, StrokeJoin::round, 0))
 // Feathers ignore cap and join.
-GMREGISTER(return new TrickyCubicsGM(StrokeCap::butt,
-                                     StrokeJoin::miter,
-                                     20,
-                                     "trickycubicstrokes_feather"))
+GMREGISTER(trickycubicstrokes_feather,
+           return new TrickyCubicsGM(StrokeCap::butt, StrokeJoin::miter, 20))
