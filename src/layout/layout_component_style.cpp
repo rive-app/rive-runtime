@@ -237,6 +237,14 @@ void LayoutComponentStyle::displayChanged()
     }
 }
 
+void LayoutComponentStyle::positionTypeValueChanged()
+{
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->positionTypeChanged();
+    }
+}
+
 void LayoutComponentStyle::flexDirectionValueChanged()
 {
     if (parent()->is<LayoutComponent>())
@@ -265,10 +273,14 @@ void LayoutComponentStyle::markLayoutNodeDirty() {}
 void LayoutComponentStyle::markLayoutStyleDirty() {}
 void LayoutComponentStyle::scaleTypeChanged() {}
 void LayoutComponentStyle::displayChanged() {}
+void LayoutComponentStyle::positionTypeValueChanged() {}
 void LayoutComponentStyle::flexDirectionValueChanged() {}
 #endif
 
-void LayoutComponentStyle::interpolationTimeChanged() { markLayoutNodeDirty(); }
+void LayoutComponentStyle::interpolationTimeChanged()
+{
+    markLayoutStyleDirty();
+}
 void LayoutComponentStyle::layoutAlignmentTypeChanged()
 {
     markLayoutNodeDirty();
@@ -279,7 +291,6 @@ void LayoutComponentStyle::layoutHeightScaleTypeChanged()
     scaleTypeChanged();
 }
 void LayoutComponentStyle::displayValueChanged() { displayChanged(); }
-void LayoutComponentStyle::positionTypeValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::overflowValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::intrinsicallySizedValueChanged()
 {
