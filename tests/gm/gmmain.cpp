@@ -6,8 +6,6 @@
 #ifndef TESTING
 
 #include "gm.hpp"
-#include "gmutils.hpp"
-#include "utils/no_op_renderer.hpp"
 #include "common/testing_window.hpp"
 #include "common/test_harness.hpp"
 
@@ -20,223 +18,125 @@ using namespace rivegm;
 
 static bool verbose = false;
 
-DECLARE_GMREGISTRY(batchedconvexpaths)
-DECLARE_GMREGISTRY(batchedtriangulations)
-DECLARE_GMREGISTRY(bevel180strokes)
-DECLARE_GMREGISTRY(beziers)
-DECLARE_GMREGISTRY(bug615686)
-DECLARE_GMREGISTRY(cliprectintersections)
-DECLARE_GMREGISTRY(cliprects)
-DECLARE_GMREGISTRY(concavepaths)
-DECLARE_GMREGISTRY(convexpaths)
-DECLARE_GMREGISTRY(convex_lineonly_ths)
-DECLARE_GMREGISTRY(crbug_996140)
-DECLARE_GMREGISTRY(cubicpath)
-DECLARE_GMREGISTRY(cubicclosepath)
-DECLARE_GMREGISTRY(clippedcubic)
-DECLARE_GMREGISTRY(clippedcubic2)
-DECLARE_GMREGISTRY(bug5099)
-DECLARE_GMREGISTRY(bug6083)
-DECLARE_GMREGISTRY(degengrad)
-DECLARE_GMREGISTRY(dstreadshuffle)
-DECLARE_GMREGISTRY(emptyclear)
-DECLARE_GMREGISTRY(feather_shapes)
-DECLARE_GMREGISTRY(feather_corner)
-DECLARE_GMREGISTRY(feather_roundcorner)
-DECLARE_GMREGISTRY(feather_ellipse)
-DECLARE_GMREGISTRY(feather_cusp)
-DECLARE_GMREGISTRY(feather_strokes)
-DECLARE_GMREGISTRY(image)
-DECLARE_GMREGISTRY(image_aa_border)
-DECLARE_GMREGISTRY(image_lod)
-DECLARE_GMREGISTRY(interleavedfeather)
-DECLARE_GMREGISTRY(interleavedfillrule)
-DECLARE_GMREGISTRY(labyrinth_square)
-DECLARE_GMREGISTRY(labyrinth_round)
-DECLARE_GMREGISTRY(labyrinth_butt)
-DECLARE_GMREGISTRY(lots_of_grads_simple)
-DECLARE_GMREGISTRY(lots_of_grads_complex)
-DECLARE_GMREGISTRY(lots_of_grad_spans)
-DECLARE_GMREGISTRY(lots_of_grads_clipped)
-DECLARE_GMREGISTRY(lots_of_grads_mixed)
-DECLARE_GMREGISTRY(mesh)
-DECLARE_GMREGISTRY(mesh_ht_7)
-DECLARE_GMREGISTRY(mesh_ht_1)
-DECLARE_GMREGISTRY(mutating_fill_rule)
-DECLARE_GMREGISTRY(oval)
-DECLARE_GMREGISTRY(OverStroke)
-DECLARE_GMREGISTRY(parallelclips)
-DECLARE_GMREGISTRY(pathfill)
-DECLARE_GMREGISTRY(rotatedcubicpath)
-DECLARE_GMREGISTRY(bug7792)
-DECLARE_GMREGISTRY(path_stroke_clip_crbug1070835)
-DECLARE_GMREGISTRY(path_skbug_11859)
-DECLARE_GMREGISTRY(path_skbug_11886)
-DECLARE_GMREGISTRY(poly_nonZero)
-DECLARE_GMREGISTRY(poly_evenOdd)
-DECLARE_GMREGISTRY(poly_clockwise)
-DECLARE_GMREGISTRY(preserverendertarget)
-DECLARE_GMREGISTRY(preserverendertarget_empty)
-DECLARE_GMREGISTRY(rawtext)
-DECLARE_GMREGISTRY(rect)
-DECLARE_GMREGISTRY(rect_grad)
-DECLARE_GMREGISTRY(retrofittedcubictriangles)
-DECLARE_GMREGISTRY(roundjoinstrokes)
-DECLARE_GMREGISTRY(strokedlines)
-DECLARE_GMREGISTRY(strokefill)
-DECLARE_GMREGISTRY(bug339297)
-DECLARE_GMREGISTRY(bug339297_as_clip)
-DECLARE_GMREGISTRY(bug6987)
-DECLARE_GMREGISTRY(strokes_round)
-DECLARE_GMREGISTRY(strokes_poly)
-DECLARE_GMREGISTRY(strokes3)
-DECLARE_GMREGISTRY(strokes_zoomed)
-DECLARE_GMREGISTRY(zero_control_stroke)
-DECLARE_GMREGISTRY(zeroPath)
-DECLARE_GMREGISTRY(teenyStrokes)
-DECLARE_GMREGISTRY(CubicStroke)
-DECLARE_GMREGISTRY(zerolinestroke)
-DECLARE_GMREGISTRY(quadcap)
-DECLARE_GMREGISTRY(inner_join_geometry)
-DECLARE_GMREGISTRY(skbug12244)
-DECLARE_GMREGISTRY(texture_target_gl)
-DECLARE_GMREGISTRY(texture_target_gl_preserve)
-DECLARE_GMREGISTRY(transparentclear)
-DECLARE_GMREGISTRY(verycomplexgrad)
-DECLARE_GMREGISTRY(widebuttcaps)
-DECLARE_GMREGISTRY(xfermodes2)
-DECLARE_GMREGISTRY(trickycubicstrokes_roundcaps)
-DECLARE_GMREGISTRY(lots_of_images)
-DECLARE_GMREGISTRY(emptyfeather)
-DECLARE_GMREGISTRY(largeclippedpath_evenodd_nested)
-DECLARE_GMREGISTRY(hittest_nonZero)
-DECLARE_GMREGISTRY(hittest_evenOdd)
-DECLARE_GMREGISTRY(feather_polyshapes)
-DECLARE_GMREGISTRY(largeclippedpath_clockwise)
-DECLARE_GMREGISTRY(largeclippedpath_winding)
-DECLARE_GMREGISTRY(largeclippedpath_evenodd)
-DECLARE_GMREGISTRY(transparentclear_blendmode)
-DECLARE_GMREGISTRY(emptystrokefeather)
-DECLARE_GMREGISTRY(mandoline)
-DECLARE_GMREGISTRY(emptystroke)
-DECLARE_GMREGISTRY(trickycubicstrokes)
-DECLARE_GMREGISTRY(texture_target_gl_preserve_lum)
-DECLARE_GMREGISTRY(preserverendertarget_blendmode)
-DECLARE_GMREGISTRY(largeclippedpath_winding_nested)
-DECLARE_GMREGISTRY(largeclippedpath_clockwise_nested)
-DECLARE_GMREGISTRY(trickycubicstrokes_feather)
-DECLARE_GMREGISTRY(feathertext_roboto)
-DECLARE_GMREGISTRY(feathertext_montserrat)
+std::vector<std::tuple<std::unique_ptr<GM>, std::string>> gmRegistry;
 
-void gms_build_registry()
+extern "C" void gms_build_registry()
 {
-    CALL_GMREGISTRY(batchedconvexpaths)
-    CALL_GMREGISTRY(batchedtriangulations)
-    CALL_GMREGISTRY(bevel180strokes)
-    CALL_GMREGISTRY(beziers)
-    CALL_GMREGISTRY(bug615686)
-    CALL_GMREGISTRY(cliprectintersections)
-    CALL_GMREGISTRY(cliprects)
-    CALL_GMREGISTRY(concavepaths)
-    CALL_GMREGISTRY(convexpaths)
-    CALL_GMREGISTRY(convex_lineonly_ths)
-    CALL_GMREGISTRY(crbug_996140)
-    CALL_GMREGISTRY(cubicpath)
-    CALL_GMREGISTRY(cubicclosepath)
-    CALL_GMREGISTRY(clippedcubic)
-    CALL_GMREGISTRY(clippedcubic2)
-    CALL_GMREGISTRY(bug5099)
-    CALL_GMREGISTRY(bug6083)
-    CALL_GMREGISTRY(degengrad)
-    CALL_GMREGISTRY(dstreadshuffle)
-    CALL_GMREGISTRY(emptyclear)
-    CALL_GMREGISTRY(feather_shapes)
-    CALL_GMREGISTRY(feather_corner)
-    CALL_GMREGISTRY(feather_roundcorner)
-    CALL_GMREGISTRY(feather_ellipse)
-    CALL_GMREGISTRY(feather_cusp)
-    CALL_GMREGISTRY(feather_strokes)
-    CALL_GMREGISTRY(image)
-    CALL_GMREGISTRY(image_aa_border)
-    CALL_GMREGISTRY(image_lod)
-    CALL_GMREGISTRY(interleavedfeather)
-    CALL_GMREGISTRY(interleavedfillrule)
-    CALL_GMREGISTRY(labyrinth_square)
-    CALL_GMREGISTRY(labyrinth_round)
-    CALL_GMREGISTRY(labyrinth_butt)
-    CALL_GMREGISTRY(lots_of_grads_simple)
-    CALL_GMREGISTRY(lots_of_grads_complex)
-    CALL_GMREGISTRY(lots_of_grad_spans)
-    CALL_GMREGISTRY(lots_of_grads_clipped)
-    CALL_GMREGISTRY(lots_of_grads_mixed)
-    CALL_GMREGISTRY(mesh)
-    CALL_GMREGISTRY(mesh_ht_7)
-    CALL_GMREGISTRY(mesh_ht_1)
-    CALL_GMREGISTRY(mutating_fill_rule)
-    CALL_GMREGISTRY(oval)
-    CALL_GMREGISTRY(OverStroke)
-    CALL_GMREGISTRY(parallelclips)
-    CALL_GMREGISTRY(pathfill)
-    CALL_GMREGISTRY(rotatedcubicpath)
-    CALL_GMREGISTRY(bug7792)
-    CALL_GMREGISTRY(path_stroke_clip_crbug1070835)
-    CALL_GMREGISTRY(path_skbug_11859)
-    CALL_GMREGISTRY(path_skbug_11886)
-    CALL_GMREGISTRY(poly_nonZero)
-    CALL_GMREGISTRY(poly_evenOdd)
-    CALL_GMREGISTRY(poly_clockwise)
-    CALL_GMREGISTRY(preserverendertarget)
-    CALL_GMREGISTRY(preserverendertarget_empty)
-    CALL_GMREGISTRY(rawtext)
-    CALL_GMREGISTRY(rect)
-    CALL_GMREGISTRY(rect_grad)
-    CALL_GMREGISTRY(retrofittedcubictriangles)
-    CALL_GMREGISTRY(roundjoinstrokes)
-    CALL_GMREGISTRY(strokedlines)
-    CALL_GMREGISTRY(strokefill)
-    CALL_GMREGISTRY(bug339297)
-    CALL_GMREGISTRY(bug339297_as_clip)
-    CALL_GMREGISTRY(bug6987)
-    CALL_GMREGISTRY(strokes_round)
-    CALL_GMREGISTRY(strokes_poly)
-    CALL_GMREGISTRY(strokes3)
-    CALL_GMREGISTRY(strokes_zoomed)
-    CALL_GMREGISTRY(zero_control_stroke)
-    CALL_GMREGISTRY(zeroPath)
-    CALL_GMREGISTRY(teenyStrokes)
-    CALL_GMREGISTRY(CubicStroke)
-    CALL_GMREGISTRY(zerolinestroke)
-    CALL_GMREGISTRY(quadcap)
-    CALL_GMREGISTRY(inner_join_geometry)
-    CALL_GMREGISTRY(skbug12244)
-    CALL_GMREGISTRY(texture_target_gl)
-    CALL_GMREGISTRY(texture_target_gl_preserve)
-    CALL_GMREGISTRY(transparentclear)
-    CALL_GMREGISTRY(verycomplexgrad)
-    CALL_GMREGISTRY(widebuttcaps)
-    CALL_GMREGISTRY(xfermodes2)
-    CALL_GMREGISTRY(trickycubicstrokes_roundcaps)
-    CALL_GMREGISTRY(lots_of_images)
-    CALL_GMREGISTRY(emptyfeather)
-    CALL_GMREGISTRY(largeclippedpath_evenodd_nested)
-    CALL_GMREGISTRY(hittest_nonZero)
-    CALL_GMREGISTRY(hittest_evenOdd)
-    CALL_GMREGISTRY(feather_polyshapes)
-    CALL_GMREGISTRY(largeclippedpath_clockwise)
-    CALL_GMREGISTRY(largeclippedpath_winding)
-    CALL_GMREGISTRY(largeclippedpath_evenodd)
-    CALL_GMREGISTRY(transparentclear_blendmode)
-    CALL_GMREGISTRY(emptystrokefeather)
-    CALL_GMREGISTRY(mandoline)
-    CALL_GMREGISTRY(emptystroke)
-    CALL_GMREGISTRY(trickycubicstrokes)
-    CALL_GMREGISTRY(texture_target_gl_preserve_lum)
-    CALL_GMREGISTRY(preserverendertarget_blendmode)
-    CALL_GMREGISTRY(largeclippedpath_winding_nested)
-    CALL_GMREGISTRY(largeclippedpath_clockwise_nested)
-    CALL_GMREGISTRY(trickycubicstrokes_feather)
-    CALL_GMREGISTRY(feathertext_roboto)
-    CALL_GMREGISTRY(feathertext_montserrat)
+#define MAKE_GM(NAME)                                                          \
+    extern GM* RIVE_MACRO_CONCAT(make_, NAME)();                               \
+    gmRegistry.emplace_back(RIVE_MACRO_CONCAT(make_, NAME)(), #NAME);
+
+    // Add slow GMs first so they get more time to run in a multiprocess
+    // execution.
+    MAKE_GM(hittest_nonZero)
+    MAKE_GM(hittest_evenOdd)
+    MAKE_GM(mandoline)
+    MAKE_GM(lots_of_images)
+    MAKE_GM(feathertext_roboto)
+    MAKE_GM(feathertext_montserrat)
+
+    // Add the normal (not slow) gms last.
+    MAKE_GM(batchedconvexpaths)
+    MAKE_GM(batchedtriangulations)
+    MAKE_GM(bevel180strokes)
+    MAKE_GM(beziers)
+    MAKE_GM(bug615686)
+    MAKE_GM(cliprectintersections)
+    MAKE_GM(cliprects)
+    MAKE_GM(concavepaths)
+    MAKE_GM(convexpaths)
+    MAKE_GM(convex_lineonly_ths)
+    MAKE_GM(crbug_996140)
+    MAKE_GM(cubicpath)
+    MAKE_GM(cubicclosepath)
+    MAKE_GM(clippedcubic)
+    MAKE_GM(clippedcubic2)
+    MAKE_GM(bug5099)
+    MAKE_GM(bug6083)
+    MAKE_GM(degengrad)
+    MAKE_GM(dstreadshuffle)
+    MAKE_GM(emptyclear)
+    MAKE_GM(feather_shapes)
+    MAKE_GM(feather_corner)
+    MAKE_GM(feather_roundcorner)
+    MAKE_GM(feather_ellipse)
+    MAKE_GM(feather_cusp)
+    MAKE_GM(feather_strokes)
+    MAKE_GM(image)
+    MAKE_GM(image_aa_border)
+    MAKE_GM(image_lod)
+    MAKE_GM(interleavedfeather)
+    MAKE_GM(interleavedfillrule)
+    MAKE_GM(labyrinth_square)
+    MAKE_GM(labyrinth_round)
+    MAKE_GM(labyrinth_butt)
+    MAKE_GM(lots_of_grads_simple)
+    MAKE_GM(lots_of_grads_complex)
+    MAKE_GM(lots_of_grad_spans)
+    MAKE_GM(lots_of_grads_clipped)
+    MAKE_GM(lots_of_grads_mixed)
+    MAKE_GM(mesh)
+    MAKE_GM(mesh_ht_7)
+    MAKE_GM(mesh_ht_1)
+    MAKE_GM(mutating_fill_rule)
+    MAKE_GM(oval)
+    MAKE_GM(OverStroke)
+    MAKE_GM(parallelclips)
+    MAKE_GM(pathfill)
+    MAKE_GM(rotatedcubicpath)
+    MAKE_GM(bug7792)
+    MAKE_GM(path_stroke_clip_crbug1070835)
+    MAKE_GM(path_skbug_11859)
+    MAKE_GM(path_skbug_11886)
+    MAKE_GM(poly_nonZero)
+    MAKE_GM(poly_evenOdd)
+    MAKE_GM(poly_clockwise)
+    MAKE_GM(preserverendertarget)
+    MAKE_GM(preserverendertarget_empty)
+    MAKE_GM(rawtext)
+    MAKE_GM(rect)
+    MAKE_GM(rect_grad)
+    MAKE_GM(retrofittedcubictriangles)
+    MAKE_GM(roundjoinstrokes)
+    MAKE_GM(strokedlines)
+    MAKE_GM(strokefill)
+    MAKE_GM(bug339297)
+    MAKE_GM(bug339297_as_clip)
+    MAKE_GM(bug6987)
+    MAKE_GM(strokes_round)
+    MAKE_GM(strokes_poly)
+    MAKE_GM(strokes3)
+    MAKE_GM(strokes_zoomed)
+    MAKE_GM(zero_control_stroke)
+    MAKE_GM(zeroPath)
+    MAKE_GM(teenyStrokes)
+    MAKE_GM(CubicStroke)
+    MAKE_GM(zerolinestroke)
+    MAKE_GM(quadcap)
+    MAKE_GM(inner_join_geometry)
+    MAKE_GM(skbug12244)
+    MAKE_GM(texture_target_gl)
+    MAKE_GM(texture_target_gl_preserve)
+    MAKE_GM(transparentclear)
+    MAKE_GM(verycomplexgrad)
+    MAKE_GM(widebuttcaps)
+    MAKE_GM(xfermodes2)
+    MAKE_GM(trickycubicstrokes_roundcaps)
+    MAKE_GM(emptyfeather)
+    MAKE_GM(largeclippedpath_evenodd_nested)
+    MAKE_GM(feather_polyshapes)
+    MAKE_GM(largeclippedpath_clockwise)
+    MAKE_GM(largeclippedpath_winding)
+    MAKE_GM(largeclippedpath_evenodd)
+    MAKE_GM(transparentclear_blendmode)
+    MAKE_GM(emptystrokefeather)
+    MAKE_GM(emptystroke)
+    MAKE_GM(trickycubicstrokes)
+    MAKE_GM(texture_target_gl_preserve_lum)
+    MAKE_GM(preserverendertarget_blendmode)
+    MAKE_GM(largeclippedpath_winding_nested)
+    MAKE_GM(largeclippedpath_clockwise_nested)
+    MAKE_GM(trickycubicstrokes_feather)
 }
 
 static void dump_gm(GM* gm, const std::string& name)
@@ -274,24 +174,23 @@ static bool contains(const std::string& str, const std::string& substr)
 
 static void dumpGMs(const std::string& match, bool interactive)
 {
-    for (auto& registry : rivegm::RegistryList)
+    for (const auto& [gm, name] : gmRegistry)
     {
-        auto gm = registry_get(registry);
         if (!gm)
         {
             continue;
         }
-        if (match.size() && !contains(registry.m_name, match))
+        if (match.size() && !contains(name, match))
         {
             continue; // This gm got filtered out by the '--match' argument.
         }
-        if (!TestHarness::Instance().claimGMTest(registry.m_name))
+        if (!TestHarness::Instance().claimGMTest(name))
         {
             continue; // A different process already drew this gm.
         }
         gm->onceBeforeDraw();
 
-        dump_gm(gm.get(), registry.m_name);
+        dump_gm(gm.get(), name);
         if (interactive)
         {
             // Wait for any key if in interactive mode.
@@ -322,12 +221,13 @@ static bool is_arg(const char arg[],
 
 #if defined(RIVE_UNREAL)
 
-REGISTRY_HANDLE gms_get_registry_head() { return 0; }
+extern "C" REGISTRY_HANDLE gms_get_registry_head() { return 0; }
 
-REGISTRY_HANDLE gms_registry_get_next(REGISTRY_HANDLE position_handle)
+extern "C" REGISTRY_HANDLE gms_registry_get_next(
+    REGISTRY_HANDLE position_handle)
 {
     assert(position_handle >= 0);
-    if (position_handle == rivegm::RegistryList.size() - 1)
+    if (position_handle == gmRegistry.size() - 1)
         return INVALID_REGISTRY;
     return position_handle + 1;
 }
@@ -335,10 +235,9 @@ REGISTRY_HANDLE gms_registry_get_next(REGISTRY_HANDLE position_handle)
 bool gms_run_gm(REGISTRY_HANDLE position_handle)
 {
     assert(position_handle >= 0);
-    assert(position_handle < rivegm::RegistryList.size());
-    const GMRegistry& position = rivegm::RegistryList[position_handle];
+    assert(position_handle < gmRegistry.size());
+    const auto& [gm, gmName] = gmRegistry[position_handle];
 
-    auto gm = registry_get(position);
     if (!gm)
     {
         return false;
@@ -354,28 +253,28 @@ bool gms_run_gm(REGISTRY_HANDLE position_handle)
     return true;
 }
 
-bool gms_registry_get_name(REGISTRY_HANDLE position_handle, std::string& name)
+extern "C" bool gms_registry_get_name(REGISTRY_HANDLE position_handle,
+                                      std::string& name)
 {
     assert(position_handle >= 0);
-    assert(position_handle < rivegm::RegistryList.size());
-    const GMRegistry& position = rivegm::RegistryList[position_handle];
+    assert(position_handle < gmRegistry.size());
+    const auto& [gm, gmName] = gmRegistry[position_handle];
 
-    name = position.m_name;
+    name = gmName;
     return true;
 }
 
-bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
-                           size_t& width,
-                           size_t& height)
+extern "C" bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
+                                      size_t& width,
+                                      size_t& height)
 {
     assert(position_handle >= 0);
-    assert(position_handle < rivegm::RegistryList.size());
-    const GMRegistry& position = rivegm::RegistryList[position_handle];
+    assert(position_handle < gmRegistry.size());
+    const auto& [gm, gmName] = gmRegistry[position_handle];
 
     width = 0;
     height = 0;
 
-    auto gm = registry_get(position);
     if (!gm)
     {
         return false;
@@ -386,7 +285,8 @@ bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
 
     return true;
 }
-int gms_main(int argc, const char* argv[])
+
+extern "C" int gms_main(int argc, const char* argv[])
 #elif defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int gms_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
@@ -399,10 +299,6 @@ int main(int argc, const char* argv[])
     // Cause stdout and stderr to print immediately without buffering.
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
-#endif
-
-#ifndef RIVE_UNREAL // unreal calls this directly instead
-    gms_build_registry();
 #endif
 
     const char* match = "";
@@ -497,12 +393,19 @@ int main(int argc, const char* argv[])
     }
 #endif
     TestingWindow::Init(backend, visibility, gpuNameFilter, platformWindow);
+#ifndef RIVE_UNREAL // unreal calls this directly instead
+    gms_build_registry();
+#endif
+
+#ifndef RIVE_UNREAL // unreal calls this directly instead
+    gms_build_registry();
+#endif
 
     dumpGMs(std::string(match), interactive);
 
+    gmRegistry.clear();
     TestingWindow::Destroy(); // Exercise our PLS teardown process now that
                               // we're done.
-
     TestHarness::Instance().shutdown();
     return 0;
 }

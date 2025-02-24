@@ -257,4 +257,4 @@ public:
 private:
     rive::rcp<rive::RenderImage> m_images[512];
 };
-GMREGISTER_SLOW(lots_of_images, return new LotsOfImagesGM)
+GMREGISTER(lots_of_images, return new LotsOfImagesGM)

@@ -65,9 +65,9 @@ private:
     Paint m_paint;
 };
 
-GMREGISTER_SLOW(feathertext_roboto,
-                return new FeatherTextGM(assets::roboto_flex_ttf()))
-GMREGISTER_SLOW(feathertext_montserrat,
-                return new FeatherTextGM(assets::montserrat_ttf()))
+GMREGISTER(feathertext_roboto,
+           return new FeatherTextGM(assets::roboto_flex_ttf()))
+GMREGISTER(feathertext_montserrat,
+           return new FeatherTextGM(assets::montserrat_ttf()))
 
 #endif

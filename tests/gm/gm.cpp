@@ -23,14 +23,3 @@ void GM::draw(rive::Renderer* renderer)
     this->onDraw(renderer);
     renderer->restore();
 }
-
-extern "C" FactoryRegistry make_factory_regsitry(FuncPtr value,
-                                                 const char* name,
-                                                 bool isSlow)
-{
-    FactoryRegistry ret;
-    ret.m_Value = value;
-    ret.m_name = name;
-    ret.m_isSlow = isSlow;
-    return ret;
-}

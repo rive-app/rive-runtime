@@ -172,4 +172,4 @@ protected:
     }
 };
 
-GMREGISTER_SLOW(mandoline, return new MandolineGM;)
+GMREGISTER(mandoline, return new MandolineGM;)

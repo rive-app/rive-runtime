@@ -160,5 +160,5 @@ public:
     }
 };
 
-GMREGISTER_SLOW(hittest_evenOdd, return new HitTestGM(rive::FillRule::evenOdd))
-GMREGISTER_SLOW(hittest_nonZero, return new HitTestGM(rive::FillRule::nonZero))
+GMREGISTER(hittest_evenOdd, return new HitTestGM(rive::FillRule::evenOdd))
+GMREGISTER(hittest_nonZero, return new HitTestGM(rive::FillRule::nonZero))
