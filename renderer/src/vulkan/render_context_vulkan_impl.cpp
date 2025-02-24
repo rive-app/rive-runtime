@@ -524,29 +524,13 @@ rcp<Texture> RenderContextVulkanImpl::decodeImageTexture(
 class RenderContextVulkanImpl::ColorRampPipeline
 {
 public:
-    ColorRampPipeline(rcp<VulkanContext> vk) : m_vk(std::move(vk))
+    ColorRampPipeline(RenderContextVulkanImpl* impl) :
+        m_vk(ref_rcp(impl->vulkanContext()))
     {
-        VkDescriptorSetLayoutBinding descriptorSetLayoutBinding = {
-            .binding = FLUSH_UNIFORM_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-        };
-        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = 1,
-            .pBindings = &descriptorSetLayoutBinding,
-        };
-
-        VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                                 &descriptorSetLayoutCreateInfo,
-                                                 nullptr,
-                                                 &m_descriptorSetLayout));
-
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             .setLayoutCount = 1,
-            .pSetLayouts = &m_descriptorSetLayout,
+            .pSetLayouts = &impl->m_perFlushDescriptorSetLayout,
         };
 
         VK_CHECK(m_vk->CreatePipelineLayout(m_vk->device,
@@ -724,25 +708,17 @@ public:
 
     ~ColorRampPipeline()
     {
-        m_vk->DestroyDescriptorSetLayout(m_vk->device,
-                                         m_descriptorSetLayout,
-                                         nullptr);
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
         m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
         m_vk->DestroyPipeline(m_vk->device, m_renderPipeline, nullptr);
     }
 
-    const VkDescriptorSetLayout& descriptorSetLayout() const
-    {
-        return m_descriptorSetLayout;
-    }
     VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
     VkRenderPass renderPass() const { return m_renderPass; }
     VkPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
     rcp<VulkanContext> m_vk;
-    VkDescriptorSetLayout m_descriptorSetLayout;
     VkPipelineLayout m_pipelineLayout;
     VkRenderPass m_renderPass;
     VkPipeline m_renderPipeline;
@@ -752,43 +728,13 @@ private:
 class RenderContextVulkanImpl::TessellatePipeline
 {
 public:
-    TessellatePipeline(rcp<VulkanContext> vk) : m_vk(std::move(vk))
+    TessellatePipeline(RenderContextVulkanImpl* impl) :
+        m_vk(ref_rcp(impl->vulkanContext()))
     {
-        VkDescriptorSetLayoutBinding descriptorSetLayoutBindings[] = {
-            {
-                .binding = PATH_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-            },
-            {
-                .binding = CONTOUR_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-            },
-            {
-                .binding = FLUSH_UNIFORM_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-            },
-        };
-        VkDescriptorSetLayoutCreateInfo descriptorSetLayoutCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = std::size(descriptorSetLayoutBindings),
-            .pBindings = descriptorSetLayoutBindings,
-        };
-
-        VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
-                                                 &descriptorSetLayoutCreateInfo,
-                                                 nullptr,
-                                                 &m_descriptorSetLayout));
-
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
             .setLayoutCount = 1,
-            .pSetLayouts = &m_descriptorSetLayout,
+            .pSetLayouts = &impl->m_perFlushDescriptorSetLayout,
         };
 
         VK_CHECK(m_vk->CreatePipelineLayout(m_vk->device,
@@ -987,25 +933,17 @@ public:
 
     ~TessellatePipeline()
     {
-        m_vk->DestroyDescriptorSetLayout(m_vk->device,
-                                         m_descriptorSetLayout,
-                                         nullptr);
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
         m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
         m_vk->DestroyPipeline(m_vk->device, m_renderPipeline, nullptr);
     }
 
-    const VkDescriptorSetLayout& descriptorSetLayout() const
-    {
-        return m_descriptorSetLayout;
-    }
     VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
     VkRenderPass renderPass() const { return m_renderPass; }
     VkPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
     rcp<VulkanContext> m_vk;
-    VkDescriptorSetLayout m_descriptorSetLayout;
     VkPipelineLayout m_pipelineLayout;
     VkRenderPass m_renderPass;
     VkPipeline m_renderPipeline;
@@ -1069,151 +1007,6 @@ public:
     {
         assert(interlockMode != gpu::InterlockMode::msaa); // TODO: msaa.
 
-        // Most bindings only need to be set once per flush.
-        VkDescriptorSetLayoutBinding perFlushLayoutBindings[] = {
-            {
-                .binding = TESS_VERTEX_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-            },
-            {
-                .binding = GRAD_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-            {
-                .binding = FEATHER_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                .descriptorCount = 1,
-                .stageFlags =
-                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-            {
-                .binding = PATH_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-            },
-            {
-                .binding = PAINT_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = static_cast<VkShaderStageFlags>(
-                    m_interlockMode == gpu::InterlockMode::rasterOrdering
-                        ? VK_SHADER_STAGE_VERTEX_BIT
-                        : VK_SHADER_STAGE_FRAGMENT_BIT),
-            },
-            {
-                .binding = PAINT_AUX_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = static_cast<VkShaderStageFlags>(
-                    m_interlockMode == gpu::InterlockMode::rasterOrdering
-                        ? VK_SHADER_STAGE_VERTEX_BIT
-                        : VK_SHADER_STAGE_FRAGMENT_BIT),
-            },
-            {
-                .binding = CONTOUR_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
-            },
-            {
-                .binding = FLUSH_UNIFORM_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = static_cast<VkShaderStageFlags>(
-                    m_interlockMode != gpu::InterlockMode::clockwiseAtomic
-                        ? VK_SHADER_STAGE_VERTEX_BIT
-                        : VK_SHADER_STAGE_VERTEX_BIT |
-                              VK_SHADER_STAGE_FRAGMENT_BIT),
-            },
-            {
-                .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-                .descriptorCount = 1,
-                .stageFlags =
-                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-            {
-                .binding = COVERAGE_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-        };
-
-        VkDescriptorSetLayoutCreateInfo perFlushLayoutInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = std::size(perFlushLayoutBindings),
-            .pBindings = perFlushLayoutBindings,
-        };
-
-        VK_CHECK(m_vk->CreateDescriptorSetLayout(
-            m_vk->device,
-            &perFlushLayoutInfo,
-            nullptr,
-            &m_descriptorSetLayouts[PER_FLUSH_BINDINGS_SET]));
-
-        // The imageTexture gets updated with every draw that uses it.
-        VkDescriptorSetLayoutBinding perDrawLayoutBindings[] = {
-            {
-                .binding = IMAGE_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-        };
-
-        VkDescriptorSetLayoutCreateInfo perDrawLayoutInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = std::size(perDrawLayoutBindings),
-            .pBindings = perDrawLayoutBindings,
-        };
-
-        VK_CHECK(m_vk->CreateDescriptorSetLayout(
-            m_vk->device,
-            &perDrawLayoutInfo,
-            nullptr,
-            &m_descriptorSetLayouts[PER_DRAW_BINDINGS_SET]));
-
-        // Samplers get bound once per lifetime.
-        VkDescriptorSetLayoutBinding samplerLayoutBindings[] = {
-            {
-                .binding = GRAD_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-            {
-                .binding = FEATHER_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .descriptorCount = 1,
-                .stageFlags =
-                    VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-            {
-                .binding = IMAGE_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .descriptorCount = 1,
-                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            },
-        };
-
-        VkDescriptorSetLayoutCreateInfo samplerLayoutInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-            .bindingCount = std::size(samplerLayoutBindings),
-            .pBindings = samplerLayoutBindings,
-        };
-
-        VK_CHECK(m_vk->CreateDescriptorSetLayout(
-            m_vk->device,
-            &samplerLayoutInfo,
-            nullptr,
-            &m_descriptorSetLayouts[SAMPLER_BINDINGS_SET]));
-
         if (interlockMode == gpu::InterlockMode::rasterOrdering ||
             interlockMode == gpu::InterlockMode::atomics)
         {
@@ -1274,108 +1067,38 @@ public:
                 m_vk->device,
                 &plsLayoutInfo,
                 nullptr,
-                &m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET]));
+                &m_plsTextureDescriptorSetLayout));
         }
         else
         {
             // clockwiseAtomic and msaa modes don't use pixel local storage.
-            m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET] = VK_NULL_HANDLE;
+            m_plsTextureDescriptorSetLayout = VK_NULL_HANDLE;
         }
+
+        VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
+            impl->m_perFlushDescriptorSetLayout,
+            impl->m_perDrawDescriptorSetLayout,
+            impl->m_immutableSamplerDescriptorSetLayout,
+            m_plsTextureDescriptorSetLayout,
+        };
+        static_assert(COLOR_PLANE_IDX == 0);
+        static_assert(CLIP_PLANE_IDX == 1);
+        static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+        static_assert(COVERAGE_PLANE_IDX == 3);
+        static_assert(BINDINGS_SET_COUNT == 4);
 
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            .setLayoutCount =
-                m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET] != nullptr
-                    ? BINDINGS_SET_COUNT
-                    : BINDINGS_SET_COUNT - 1u,
-            .pSetLayouts = m_descriptorSetLayouts,
+            .setLayoutCount = m_plsTextureDescriptorSetLayout != nullptr
+                                  ? BINDINGS_SET_COUNT
+                                  : BINDINGS_SET_COUNT - 1u,
+            .pSetLayouts = pipelineDescriptorSetLayouts,
         };
 
         VK_CHECK(m_vk->CreatePipelineLayout(m_vk->device,
                                             &pipelineLayoutCreateInfo,
                                             nullptr,
                                             &m_pipelineLayout));
-
-        // Create static descriptor sets.
-        VkDescriptorPoolSize staticDescriptorPoolSizes[] = {
-            {
-                .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-                .descriptorCount = 1, // m_nullImageTexture
-            },
-            {
-                .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-                .descriptorCount = 3, // grad, feather, image samplers
-            },
-        };
-        VkDescriptorPoolCreateInfo staticDescriptorPoolCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
-            .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
-            .maxSets = 2,
-            .poolSizeCount = std::size(staticDescriptorPoolSizes),
-            .pPoolSizes = staticDescriptorPoolSizes,
-        };
-
-        VK_CHECK(m_vk->CreateDescriptorPool(m_vk->device,
-                                            &staticDescriptorPoolCreateInfo,
-                                            nullptr,
-                                            &m_staticDescriptorPool));
-
-        VkDescriptorSetAllocateInfo nullImageDescriptorSetInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = m_staticDescriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = &m_descriptorSetLayouts[PER_DRAW_BINDINGS_SET],
-        };
-
-        VK_CHECK(m_vk->AllocateDescriptorSets(m_vk->device,
-                                              &nullImageDescriptorSetInfo,
-                                              &m_nullImageDescriptorSet));
-
-        m_vk->updateImageDescriptorSets(
-            m_nullImageDescriptorSet,
-            {
-                .dstBinding = IMAGE_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-            },
-            {{
-                .imageView = *impl->m_nullImageTexture->m_textureView,
-                .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-            }});
-
-        VkDescriptorSetAllocateInfo samplerDescriptorSetInfo = {
-            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
-            .descriptorPool = m_staticDescriptorPool,
-            .descriptorSetCount = 1,
-            .pSetLayouts = m_descriptorSetLayouts + SAMPLER_BINDINGS_SET,
-        };
-
-        VK_CHECK(m_vk->AllocateDescriptorSets(m_vk->device,
-                                              &samplerDescriptorSetInfo,
-                                              &m_samplerDescriptorSet));
-
-        m_vk->updateImageDescriptorSets(
-            m_samplerDescriptorSet,
-            {
-                .dstBinding = GRAD_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            },
-            {{.sampler = impl->m_linearSampler}});
-
-        m_vk->updateImageDescriptorSets(
-            m_samplerDescriptorSet,
-            {
-                .dstBinding = FEATHER_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            },
-            {{.sampler = impl->m_linearSampler}});
-
-        m_vk->updateImageDescriptorSets(
-            m_samplerDescriptorSet,
-            {
-                .dstBinding = IMAGE_TEXTURE_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            },
-            {{.sampler = impl->m_mipmapSampler}});
     }
 
     VkRenderPass renderPassAt(int renderPassVariantIdx)
@@ -1587,14 +1310,10 @@ public:
 
     ~DrawPipelineLayout()
     {
-        for (VkDescriptorSetLayout layout : m_descriptorSetLayouts)
-        {
-            m_vk->DestroyDescriptorSetLayout(m_vk->device, layout, nullptr);
-        }
+        m_vk->DestroyDescriptorSetLayout(m_vk->device,
+                                         m_plsTextureDescriptorSetLayout,
+                                         nullptr);
         m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
-        m_vk->DestroyDescriptorPool(m_vk->device,
-                                    m_staticDescriptorPool,
-                                    nullptr);
         for (VkRenderPass renderPass : m_renderPasses)
         {
             m_vk->DestroyRenderPass(m_vk->device, renderPass, nullptr);
@@ -1619,29 +1338,9 @@ public:
         }
     }
 
-    VkDescriptorSetLayout perFlushLayout() const
-    {
-        return m_descriptorSetLayouts[PER_FLUSH_BINDINGS_SET];
-    }
-    VkDescriptorSetLayout perDrawLayout() const
-    {
-        return m_descriptorSetLayouts[PER_DRAW_BINDINGS_SET];
-    }
-    VkDescriptorSetLayout samplerLayout() const
-    {
-        return m_descriptorSetLayouts[SAMPLER_BINDINGS_SET];
-    }
     VkDescriptorSetLayout plsLayout() const
     {
-        return m_descriptorSetLayouts[PLS_TEXTURE_BINDINGS_SET];
-    }
-    VkDescriptorSet nullImageDescriptorSet() const
-    {
-        return m_nullImageDescriptorSet;
-    }
-    VkDescriptorSet samplerDescriptorSet() const
-    {
-        return m_samplerDescriptorSet;
+        return m_plsTextureDescriptorSetLayout;
     }
 
     VkPipelineLayout operator*() const { return m_pipelineLayout; }
@@ -1652,12 +1351,8 @@ private:
     const gpu::InterlockMode m_interlockMode;
     const DrawPipelineLayoutOptions m_options;
 
-    VkDescriptorSetLayout m_descriptorSetLayouts[BINDINGS_SET_COUNT];
+    VkDescriptorSetLayout m_plsTextureDescriptorSetLayout;
     VkPipelineLayout m_pipelineLayout;
-    VkDescriptorPool m_staticDescriptorPool; // For descriptorSets that never
-                                             // change between frames.
-    VkDescriptorSet m_nullImageDescriptorSet;
-    VkDescriptorSet m_samplerDescriptorSet;
     std::array<VkRenderPass, kRenderPassVariantCount> m_renderPasses = {};
 };
 
@@ -2270,8 +1965,6 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_triangleBufferRing(m_vk,
                          VK_BUFFER_USAGE_VERTEX_BUFFER_BIT,
                          vkutil::Mappability::writeOnly),
-    m_colorRampPipeline(std::make_unique<ColorRampPipeline>(m_vk)),
-    m_tessellatePipeline(std::make_unique<TessellatePipeline>(m_vk)),
     m_descriptorSetPoolPool(
         make_rcp<vkutil::ResourcePool<DescriptorSetPool>>(m_vk))
 {
@@ -2305,30 +1998,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
 
 void RenderContextVulkanImpl::initGPUObjects()
 {
-    // Emulate the feather texture1d array as a 2d texture until we add
-    // texture1d support in Vulkan.
-    uint16_t featherTextureData[gpu::GAUSSIAN_TABLE_SIZE *
-                                FEATHER_TEXTURE_1D_ARRAY_LENGTH];
-    memcpy(featherTextureData,
-           gpu::g_gaussianIntegralTableF16,
-           sizeof(gpu::g_gaussianIntegralTableF16));
-    memcpy(featherTextureData + gpu::GAUSSIAN_TABLE_SIZE,
-           gpu::InverseGaussianIntegralTableF16().data,
-           sizeof(gpu::g_gaussianIntegralTableF16));
-    static_assert(FEATHER_FUNCTION_ARRAY_INDEX == 0);
-    static_assert(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX == 1);
-    m_featherTexture =
-        make_rcp<TextureVulkanImpl>(m_vk,
-                                    gpu::GAUSSIAN_TABLE_SIZE,
-                                    FEATHER_TEXTURE_1D_ARRAY_LENGTH,
-                                    1,
-                                    TextureFormat::r16f,
-                                    featherTextureData);
-
-    constexpr static uint8_t black[] = {0, 0, 0, 1};
-    m_nullImageTexture =
-        make_rcp<TextureVulkanImpl>(m_vk, 1, 1, 1, TextureFormat::rgba8, black);
-
+    // Create the immutable samplers.
     VkSamplerCreateInfo linearSamplerCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
         .magFilter = VK_FILTER_LINEAR,
@@ -2360,6 +2030,236 @@ void RenderContextVulkanImpl::initGPUObjects()
                                  &mipmapSamplerCreateInfo,
                                  nullptr,
                                  &m_mipmapSampler));
+
+    // Bound when there is not an image paint.
+    constexpr static uint8_t black[] = {0, 0, 0, 1};
+    m_nullImageTexture =
+        make_rcp<TextureVulkanImpl>(m_vk, 1, 1, 1, TextureFormat::rgba8, black);
+
+    // All pipelines share the same perFlush bindings.
+    VkDescriptorSetLayoutBinding perFlushLayoutBindings[] = {
+        {
+            .binding = FLUSH_UNIFORM_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags =
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+            .descriptorCount = 1,
+            .stageFlags =
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            .binding = PATH_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        },
+        {
+            .binding = PAINT_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags =
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            .binding = PAINT_AUX_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags =
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            .binding = CONTOUR_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        },
+        {
+            .binding = COVERAGE_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            .binding = TESS_VERTEX_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_VERTEX_BIT,
+        },
+        {
+            .binding = GRAD_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+        {
+            .binding = FEATHER_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags =
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+    };
+
+    VkDescriptorSetLayoutCreateInfo perFlushLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = std::size(perFlushLayoutBindings),
+        .pBindings = perFlushLayoutBindings,
+    };
+
+    VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
+                                             &perFlushLayoutInfo,
+                                             nullptr,
+                                             &m_perFlushDescriptorSetLayout));
+
+    // The imageTexture gets updated with every draw that uses it.
+    VkDescriptorSetLayoutBinding perDrawLayoutBindings[] = {
+        {
+            .binding = IMAGE_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
+    };
+
+    VkDescriptorSetLayoutCreateInfo perDrawLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = std::size(perDrawLayoutBindings),
+        .pBindings = perDrawLayoutBindings,
+    };
+
+    VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
+                                             &perDrawLayoutInfo,
+                                             nullptr,
+                                             &m_perDrawDescriptorSetLayout));
+
+    // Every shader uses the same immutable sampler layout.
+    VkDescriptorSetLayoutBinding immutableSamplerLayoutBindings[] = {
+        {
+            .binding = GRAD_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = &m_linearSampler,
+        },
+        {
+            .binding = FEATHER_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags =
+                VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = &m_linearSampler,
+        },
+        {
+            .binding = IMAGE_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = &m_mipmapSampler,
+        },
+    };
+
+    VkDescriptorSetLayoutCreateInfo immutableSamplerLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = std::size(immutableSamplerLayoutBindings),
+        .pBindings = immutableSamplerLayoutBindings,
+    };
+
+    VK_CHECK(m_vk->CreateDescriptorSetLayout(
+        m_vk->device,
+        &immutableSamplerLayoutInfo,
+        nullptr,
+        &m_immutableSamplerDescriptorSetLayout));
+
+    // Create static descriptor sets.
+    VkDescriptorPoolSize staticDescriptorPoolSizes[] = {
+        {
+            .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1, // m_nullImageTexture
+        },
+        {
+            .type = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorCount = 3, // grad, feather, image samplers
+        },
+    };
+
+    VkDescriptorPoolCreateInfo staticDescriptorPoolCreateInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO,
+        .flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT,
+        .maxSets = 2,
+        .poolSizeCount = std::size(staticDescriptorPoolSizes),
+        .pPoolSizes = staticDescriptorPoolSizes,
+    };
+
+    VK_CHECK(m_vk->CreateDescriptorPool(m_vk->device,
+                                        &staticDescriptorPoolCreateInfo,
+                                        nullptr,
+                                        &m_staticDescriptorPool));
+
+    // Create a descriptor set to bind m_nullImageTexture when there is no image
+    // paint.
+    VkDescriptorSetAllocateInfo nullImageDescriptorSetInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = m_staticDescriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &m_perDrawDescriptorSetLayout,
+    };
+
+    VK_CHECK(m_vk->AllocateDescriptorSets(m_vk->device,
+                                          &nullImageDescriptorSetInfo,
+                                          &m_nullImageDescriptorSet));
+
+    m_vk->updateImageDescriptorSets(
+        m_nullImageDescriptorSet,
+        {
+            .dstBinding = IMAGE_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_nullImageTexture->m_textureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+
+    // Create an empty descriptor set for SAMPLER_BINDINGS_SET. Vulkan requires
+    // this even though the samplers are all immutable.
+    VkDescriptorSetAllocateInfo immutableSamplerDescriptorSetInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
+        .descriptorPool = m_staticDescriptorPool,
+        .descriptorSetCount = 1,
+        .pSetLayouts = &m_immutableSamplerDescriptorSetLayout,
+    };
+
+    VK_CHECK(m_vk->AllocateDescriptorSets(m_vk->device,
+                                          &immutableSamplerDescriptorSetInfo,
+                                          &m_immutableSamplerDescriptorSet));
+
+    // The pipelines reference our vulkan objects. Delete them first.
+    m_colorRampPipeline = std::make_unique<ColorRampPipeline>(this);
+    m_tessellatePipeline = std::make_unique<TessellatePipeline>(this);
+
+    // Emulate the feather texture1d array as a 2d texture until we add
+    // texture1d support in Vulkan.
+    uint16_t featherTextureData[gpu::GAUSSIAN_TABLE_SIZE *
+                                FEATHER_TEXTURE_1D_ARRAY_LENGTH];
+    memcpy(featherTextureData,
+           gpu::g_gaussianIntegralTableF16,
+           sizeof(gpu::g_gaussianIntegralTableF16));
+    memcpy(featherTextureData + gpu::GAUSSIAN_TABLE_SIZE,
+           gpu::InverseGaussianIntegralTableF16().data,
+           sizeof(gpu::g_gaussianIntegralTableF16));
+    static_assert(FEATHER_FUNCTION_ARRAY_INDEX == 0);
+    static_assert(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX == 1);
+    m_featherTexture =
+        make_rcp<TextureVulkanImpl>(m_vk,
+                                    gpu::GAUSSIAN_TABLE_SIZE,
+                                    FEATHER_TEXTURE_1D_ARRAY_LENGTH,
+                                    1,
+                                    TextureFormat::r16f,
+                                    featherTextureData);
 
     m_tessSpanIndexBuffer = m_vk->makeBuffer(
         {
@@ -2429,8 +2329,18 @@ RenderContextVulkanImpl::~RenderContextVulkanImpl()
     // zero, as opposed to being kept alive for in-flight command buffers.
     m_vk->shutdown();
 
-    m_vk->DestroySampler(m_vk->device, m_linearSampler, nullptr);
+    m_vk->DestroyDescriptorPool(m_vk->device, m_staticDescriptorPool, nullptr);
+    m_vk->DestroyDescriptorSetLayout(m_vk->device,
+                                     m_perFlushDescriptorSetLayout,
+                                     nullptr);
+    m_vk->DestroyDescriptorSetLayout(m_vk->device,
+                                     m_perDrawDescriptorSetLayout,
+                                     nullptr);
+    m_vk->DestroyDescriptorSetLayout(m_vk->device,
+                                     m_immutableSamplerDescriptorSetLayout,
+                                     nullptr);
     m_vk->DestroySampler(m_vk->device, m_mipmapSampler, nullptr);
+    m_vk->DestroySampler(m_vk->device, m_linearSampler, nullptr);
 }
 
 void RenderContextVulkanImpl::resizeGradientTexture(uint32_t width,
@@ -2757,6 +2667,127 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
     }
 
+    // Create a per-flush descriptor set.
+    VkDescriptorSet perFlushDescriptorSet =
+        descriptorSetPool->allocateDescriptorSet(m_perFlushDescriptorSetLayout);
+
+    m_vk->updateBufferDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = FLUSH_UNIFORM_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
+        },
+        {{
+            .buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = desc.flushUniformDataOffsetInBytes,
+            .range = sizeof(gpu::FlushUniforms),
+        }});
+
+    m_vk->updateBufferDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
+        },
+        {{
+            .buffer = m_imageDrawUniformBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = 0,
+            .range = sizeof(gpu::ImageDrawUniforms),
+        }});
+
+    m_vk->updateBufferDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = PATH_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {{
+            .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = desc.firstPath * sizeof(gpu::PathData),
+            .range = VK_WHOLE_SIZE,
+        }});
+
+    m_vk->updateBufferDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = PAINT_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {
+            {
+                .buffer = m_paintBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.firstPaint * sizeof(gpu::PaintData),
+                .range = VK_WHOLE_SIZE,
+            },
+            {
+                .buffer = m_paintAuxBufferRing.vkBufferAt(m_bufferRingIdx),
+                .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
+                .range = VK_WHOLE_SIZE,
+            },
+        });
+    static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
+
+    m_vk->updateBufferDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = CONTOUR_BUFFER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+        },
+        {{
+            .buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx),
+            .offset = desc.firstContour * sizeof(gpu::ContourData),
+            .range = VK_WHOLE_SIZE,
+        }});
+
+    if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic &&
+        m_coverageBuffer != nullptr)
+    {
+        m_vk->updateBufferDescriptorSets(
+            perFlushDescriptorSet,
+            {
+                .dstBinding = COVERAGE_BUFFER_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
+            },
+            {{
+                .buffer = *m_coverageBuffer,
+                .offset = 0,
+                .range = VK_WHOLE_SIZE,
+            }});
+    }
+
+    m_vk->updateImageDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = TESS_VERTEX_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_tessVertexTextureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+
+    m_vk->updateImageDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = GRAD_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_gradTextureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+
+    m_vk->updateImageDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = FEATHER_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_featherTexture->m_textureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+
     VulkanContext::TextureAccess lastGradTextureAccess, lastTessTextureAccess;
     lastTessTextureAccess = lastGradTextureAccess = {
         // The last thing to access the gradient and tessellation textures was
@@ -2821,30 +2852,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                    &gradSpanBuffer,
                                    &gradSpanOffset);
 
-        VkDescriptorSet descriptorSet =
-            descriptorSetPool->allocateDescriptorSet(
-                m_colorRampPipeline->descriptorSetLayout());
-
-        m_vk->updateBufferDescriptorSets(
-            descriptorSet,
-            {
-                .dstBinding = FLUSH_UNIFORM_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            },
-            {{
-                .buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx),
-                .offset = desc.flushUniformDataOffsetInBytes,
-                .range = sizeof(gpu::FlushUniforms),
-            }});
-
         m_vk->CmdBindDescriptorSets(commandBuffer,
                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                                     m_colorRampPipeline->pipelineLayout(),
                                     PER_FLUSH_BINDINGS_SET,
                                     1,
-                                    &descriptorSet,
-                                    0,
-                                    nullptr);
+                                    &perFlushDescriptorSet,
+                                    1,
+                                    zeroOffset32);
 
         m_vk->CmdDraw(commandBuffer,
                       gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
@@ -2926,54 +2941,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                  0,
                                  VK_INDEX_TYPE_UINT16);
 
-        VkDescriptorSet descriptorSet =
-            descriptorSetPool->allocateDescriptorSet(
-                m_tessellatePipeline->descriptorSetLayout());
-
-        m_vk->updateBufferDescriptorSets(
-            descriptorSet,
-            {
-                .dstBinding = PATH_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            },
-            {{
-                .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
-                .offset = desc.firstPath * sizeof(gpu::PathData),
-                .range = VK_WHOLE_SIZE,
-            }});
-
-        m_vk->updateBufferDescriptorSets(
-            descriptorSet,
-            {
-                .dstBinding = CONTOUR_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            },
-            {{
-                .buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx),
-                .offset = desc.firstContour * sizeof(gpu::ContourData),
-                .range = VK_WHOLE_SIZE,
-            }});
-
-        m_vk->updateBufferDescriptorSets(
-            descriptorSet,
-            {
-                .dstBinding = FLUSH_UNIFORM_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-            },
-            {{
-                .buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx),
-                .offset = desc.flushUniformDataOffsetInBytes,
-                .range = VK_WHOLE_SIZE,
-            }});
-
         m_vk->CmdBindDescriptorSets(commandBuffer,
                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                                     m_tessellatePipeline->pipelineLayout(),
                                     PER_FLUSH_BINDINGS_SET,
                                     1,
-                                    &descriptorSet,
-                                    0,
-                                    nullptr);
+                                    &perFlushDescriptorSet,
+                                    1,
+                                    zeroOffset32);
 
         m_vk->CmdDrawIndexed(commandBuffer,
                              std::size(gpu::kTessSpanIndices),
@@ -3001,6 +2976,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         },
         *m_tessVertexTexture);
 
+    auto* renderTarget = static_cast<RenderTargetVulkan*>(desc.renderTarget);
+
     auto pipelineLayoutOptions = DrawPipelineLayoutOptions::none;
     if (desc.interlockMode != gpu::InterlockMode::rasterOrdering &&
         !(desc.combinedShaderFeatures &
@@ -3026,8 +3003,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     bool fixedFunctionColorOutput =
         pipelineLayout.options() &
         DrawPipelineLayoutOptions::fixedFunctionColorOutput;
-
-    auto* renderTarget = static_cast<RenderTargetVulkan*>(desc.renderTarget);
 
     vkutil::TextureView* colorView =
         renderTarget->targetViewContainsUsageFlag(
@@ -3302,128 +3277,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     m_vk->CmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
-    // Update the per-flush descriptor sets.
-    VkDescriptorSet perFlushDescriptorSet =
-        descriptorSetPool->allocateDescriptorSet(
-            pipelineLayout.perFlushLayout());
-
-    m_vk->updateImageDescriptorSets(
-        perFlushDescriptorSet,
-        {
-            .dstBinding = TESS_VERTEX_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        },
-        {{
-            .imageView = *m_tessVertexTextureView,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }});
-
-    m_vk->updateImageDescriptorSets(
-        perFlushDescriptorSet,
-        {
-            .dstBinding = GRAD_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        },
-        {{
-            .imageView = *m_gradTextureView,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }});
-
-    m_vk->updateImageDescriptorSets(
-        perFlushDescriptorSet,
-        {
-            .dstBinding = FEATHER_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
-        },
-        {{
-            .imageView = *m_featherTexture->m_textureView,
-            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        }});
-
-    m_vk->updateBufferDescriptorSets(
-        perFlushDescriptorSet,
-        {
-            .dstBinding = PATH_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        },
-        {{
-            .buffer = m_pathBufferRing.vkBufferAt(m_bufferRingIdx),
-            .offset = desc.firstPath * sizeof(gpu::PathData),
-            .range = VK_WHOLE_SIZE,
-        }});
-
-    m_vk->updateBufferDescriptorSets(
-        perFlushDescriptorSet,
-        {
-            .dstBinding = PAINT_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        },
-        {
-            {
-                .buffer = m_paintBufferRing.vkBufferAt(m_bufferRingIdx),
-                .offset = desc.firstPaint * sizeof(gpu::PaintData),
-                .range = VK_WHOLE_SIZE,
-            },
-            {
-                .buffer = m_paintAuxBufferRing.vkBufferAt(m_bufferRingIdx),
-                .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
-                .range = VK_WHOLE_SIZE,
-            },
-        });
-    static_assert(PAINT_AUX_BUFFER_IDX == PAINT_BUFFER_IDX + 1);
-
-    m_vk->updateBufferDescriptorSets(
-        perFlushDescriptorSet,
-        {
-            .dstBinding = CONTOUR_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-        },
-        {{
-            .buffer = m_contourBufferRing.vkBufferAt(m_bufferRingIdx),
-            .offset = desc.firstContour * sizeof(gpu::ContourData),
-            .range = VK_WHOLE_SIZE,
-        }});
-
-    m_vk->updateBufferDescriptorSets(
-        perFlushDescriptorSet,
-        {
-            .dstBinding = FLUSH_UNIFORM_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
-        },
-        {{
-            .buffer = m_flushUniformBufferRing.vkBufferAt(m_bufferRingIdx),
-            .offset = desc.flushUniformDataOffsetInBytes,
-            .range = sizeof(gpu::FlushUniforms),
-        }});
-
-    m_vk->updateBufferDescriptorSets(
-        perFlushDescriptorSet,
-        {
-            .dstBinding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
-        },
-        {{
-            .buffer = m_imageDrawUniformBufferRing.vkBufferAt(m_bufferRingIdx),
-            .offset = 0,
-            .range = sizeof(gpu::ImageDrawUniforms),
-        }});
-
-    if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic &&
-        m_coverageBuffer != nullptr)
-    {
-        m_vk->updateBufferDescriptorSets(
-            perFlushDescriptorSet,
-            {
-                .dstBinding = COVERAGE_BUFFER_IDX,
-                .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
-            },
-            {{
-                .buffer = *m_coverageBuffer,
-                .offset = 0,
-                .range = VK_WHOLE_SIZE,
-            }});
-    }
-
     // Update the PLS input attachment descriptor sets.
     VkDescriptorSet inputAttachmentDescriptorSet = VK_NULL_HANDLE;
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering ||
@@ -3492,8 +3345,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     // update between draws, but this is otherwise all we need to bind!)
     VkDescriptorSet drawDescriptorSets[] = {
         perFlushDescriptorSet,
-        pipelineLayout.nullImageDescriptorSet(),
-        pipelineLayout.samplerDescriptorSet(),
+        m_nullImageDescriptorSet,
+        m_immutableSamplerDescriptorSet,
         inputAttachmentDescriptorSet,
     };
     static_assert(PER_FLUSH_BINDINGS_SET == 0);
@@ -3549,7 +3402,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
                 imageTexture->m_imageTextureDescriptorSet =
                     descriptorSetPool->allocateDescriptorSet(
-                        pipelineLayout.perDrawLayout());
+                        m_perDrawDescriptorSetLayout);
 
                 m_vk->updateImageDescriptorSets(
                     imageTexture->m_imageTextureDescriptorSet,

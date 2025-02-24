@@ -238,15 +238,32 @@ private:
     std::chrono::steady_clock::time_point m_localEpoch =
         std::chrono::steady_clock::now();
 
+    // Immutable samplers.
+    VkSampler m_linearSampler;
+    VkSampler m_mipmapSampler;
+
+    // Bound when there is not an image paint.
+    rcp<TextureVulkanImpl> m_nullImageTexture;
+
+    // With the exception of PLS texture bindings, which differ by interlock
+    // mode, all other shaders use the same shared descriptor set layouts.
+    VkDescriptorSetLayout m_perFlushDescriptorSetLayout;
+    VkDescriptorSetLayout m_perDrawDescriptorSetLayout;
+    VkDescriptorSetLayout m_immutableSamplerDescriptorSetLayout;
+
+    VkDescriptorPool m_staticDescriptorPool; // For descriptorSets that never
+                                             // change between frames.
+    VkDescriptorSet m_nullImageDescriptorSet;
+    VkDescriptorSet m_immutableSamplerDescriptorSet; // Empty since samplers are
+                                                     // immutable, but also
+                                                     // required by Vulkan.
+
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;
     std::unique_ptr<ColorRampPipeline> m_colorRampPipeline;
     rcp<vkutil::Texture> m_gradientTexture;
     rcp<vkutil::TextureView> m_gradTextureView;
     rcp<vkutil::Framebuffer> m_gradTextureFramebuffer;
-
-    // Gaussian integral table for feathering.
-    rcp<TextureVulkanImpl> m_featherTexture;
 
     // Renders tessellated vertices to the tessellation texture.
     class TessellatePipeline;
@@ -273,10 +290,9 @@ private:
     class DrawPipeline;
     std::map<uint32_t, DrawPipeline> m_drawPipelines;
 
-    // Bound when there is not an image paint.
-    rcp<TextureVulkanImpl> m_nullImageTexture;
-    VkSampler m_linearSampler;
-    VkSampler m_mipmapSampler;
+    // Gaussian integral table for feathering.
+    rcp<TextureVulkanImpl> m_featherTexture;
+
     rcp<vkutil::Buffer> m_pathPatchVertexBuffer;
     rcp<vkutil::Buffer> m_pathPatchIndexBuffer;
     rcp<vkutil::Buffer> m_imageRectVertexBuffer;
