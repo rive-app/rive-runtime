@@ -1,5 +1,6 @@
 #include "rive/text/text.hpp"
 #include "rive/text/text_modifier_group.hpp"
+#include "rive/text/text_follow_path_modifier.hpp"
 #include "rive/text/text_shape_modifier.hpp"
 #include "rive/text/text_modifier_range.hpp"
 #include "rive/text/glyph_lookup.hpp"
@@ -8,6 +9,15 @@
 #include <limits>
 
 using namespace rive;
+
+Text* TextModifierGroup::textComponent() const
+{
+    if (parent() != nullptr && parent()->is<Text>())
+    {
+        return parent()->as<Text>();
+    }
+    return nullptr;
+}
 
 StatusCode TextModifierGroup::onAddedDirty(CoreContext* context)
 {
@@ -37,6 +47,10 @@ void TextModifierGroup::addModifier(TextModifier* modifier)
     if (modifier->is<TextShapeModifier>())
     {
         m_shapeModifiers.push_back(modifier->as<TextShapeModifier>());
+    }
+    if (modifier->is<TextFollowPathModifier>())
+    {
+        m_followPathModifiers.push_back(modifier->as<TextFollowPathModifier>());
     }
 }
 
@@ -123,27 +137,78 @@ float TextModifierGroup::glyphCoverage(uint32_t textIndex,
     return c /= (float)codePointCount;
 }
 
-void TextModifierGroup::transform(float amount, Mat2D& ctm)
+void TextModifierGroup::onTextWorldTransformDirty()
 {
-    if (amount == 0.0f || !modifiesTransform())
+    bool followsPath = !m_followPathModifiers.empty();
+    if (followsPath)
+    {
+        textComponent()->addDirt(ComponentDirt::Path);
+    }
+}
+
+void TextModifierGroup::resetTextFollowPath()
+{
+    Text* text = textComponent();
+    Mat2D inverseText;
+    if (text == nullptr || !text->worldTransform().invert(&inverseText))
+    {
+        return;
+    }
+    for (TextFollowPathModifier* modifier : m_followPathModifiers)
+    {
+        modifier->reset(&inverseText);
+    }
+}
+
+void TextModifierGroup::transform(float amount,
+                                  Mat2D& ctm,
+                                  const TransformGlyphArg& arg)
+{
+    bool followsPath = !m_followPathModifiers.empty();
+    if (amount == 0.0f || (!modifiesTransform() && !followsPath))
     {
         return;
     }
 
-    float actualRotation = modifiesRotation() ? rotation() * amount : 0.0f;
-    Mat2D transform =
-        actualRotation != 0.0f ? Mat2D::fromRotation(actualRotation) : Mat2D();
-    if (modifiesTranslation())
+    TransformComponents parts;
+
+    if (followsPath)
     {
-        transform[4] = x() * amount;
-        transform[5] = y() * amount;
+        TransformComponents tc;
+        tc.x(arg.originPosition.x);
+        tc.y(arg.originPosition.y);
+        for (TextFollowPathModifier* modifier : m_followPathModifiers)
+        {
+            tc = modifier->transformGlyph(tc, arg);
+        }
+        Vec2D offset = tc.translation() - arg.originPosition;
+
+        // Commit the effect of the follow path modifiers to parts
+        parts.rotation(parts.rotation() + tc.rotation() * amount);
+        parts.x(parts.x() + offset.x * amount);
+        parts.y(parts.y() + offset.y * amount);
     }
+
     if (modifiesScale())
     {
         float iamount = 1.0f - amount;
-        transform.scaleByValues(iamount + scaleX() * amount,
-                                iamount + scaleY() * amount);
+        parts.scaleX(iamount + scaleX() * amount);
+        parts.scaleY(iamount + scaleY() * amount);
     }
+
+    if (modifiesRotation())
+    {
+        parts.rotation(parts.rotation() + rotation() * amount);
+    }
+
+    if (modifiesTranslation())
+    {
+        parts.x(parts.x() + x() * amount);
+        parts.y(parts.y() + y() * amount);
+    }
+
+    Mat2D transform = Mat2D::compose(parts);
+
     bool doesModifyOrigin = modifiesOrigin();
     if (doesModifyOrigin)
     {

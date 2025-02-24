@@ -494,6 +494,7 @@ void Text::buildRenderStyles()
         for (TextModifierGroup* modifierGroup : m_modifierGroups)
         {
             modifierGroup->computeCoverage(textSize);
+            modifierGroup->resetTextFollowPath();
         }
     }
 
@@ -555,6 +556,7 @@ void Text::buildRenderStyles()
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
     {
         const Paragraph& paragraph = m_shape[paragraphIndex++];
+        int lineIndexInParagraph = 0;
         for (const GlyphLine& line : paragraphLines)
         {
             LineIter lineIter = shouldDrawLine(curY, totalHeight, line);
@@ -564,6 +566,7 @@ void Text::buildRenderStyles()
             }
             else if (lineIter == LineIter::skipThisLine)
             {
+                lineIndexInParagraph++;
                 lineIndex++;
                 continue;
             }
@@ -611,7 +614,14 @@ void Text::buildRenderStyles()
                     {
                         float coverage =
                             modifierGroup->glyphCoverage(textIndex, glyphCount);
-                        modifierGroup->transform(coverage, pathTransform);
+                        modifierGroup->transform(coverage,
+                                                 pathTransform,
+                                                 {
+                                                     curPos,
+                                                     centerX,
+                                                     lineIndexInParagraph,
+                                                     paragraphLines,
+                                                 });
                         if (modifierGroup->modifiesOpacity())
                         {
                             opacity = modifierGroup->computeOpacity(opacity,
@@ -663,6 +673,7 @@ void Text::buildRenderStyles()
             {
                 goto skipLines;
             }
+            lineIndexInParagraph++;
             lineIndex++;
         }
         if (!paragraphLines.empty())
@@ -948,6 +959,18 @@ bool Text::modifierRangesNeedShape() const
     return false;
 }
 
+void Text::onDirty(ComponentDirt value)
+{
+    // Sometimes a WorldTransform dirt may also affect Path
+    if (hasDirt(value, ComponentDirt::WorldTransform))
+    {
+        for (TextModifierGroup* modifierGroup : m_modifierGroups)
+        {
+            modifierGroup->onTextWorldTransformDirty();
+        }
+    }
+}
+
 void Text::update(ComponentDirt value)
 {
     Super::update(value);
@@ -1188,6 +1211,7 @@ void Text::addRun(TextValueRun* run) {}
 void Text::addModifierGroup(TextModifierGroup* group) {}
 void Text::markShapeDirty(bool sendToLayout) {}
 void Text::update(ComponentDirt value) {}
+void Text::onDirty(ComponentDirt value) {}
 void Text::alignValueChanged() {}
 void Text::sizingValueChanged() {}
 void Text::overflowValueChanged() {}

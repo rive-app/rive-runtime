@@ -208,6 +208,7 @@ public:
     void modifierShapeDirty();
     void markPaintDirty();
     void update(ComponentDirt value) override;
+    void onDirty(ComponentDirt value) override;
     Mat2D m_transform;
     Mat2D m_shapeWorldTransform;
 

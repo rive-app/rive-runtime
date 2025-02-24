@@ -1,0 +1,8 @@
+{
+  "name": "TextFollowPathModifier",
+  "key": {
+    "int": 547,
+    "string": "textfollowpathmodifier"
+  },
+  "extends": "text/text_target_modifier.json"
+}

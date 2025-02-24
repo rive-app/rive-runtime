@@ -10,10 +10,32 @@ namespace rive
 {
 class TextModifierRange;
 class TextModifier;
+class TextFollowPathModifier;
 class TextShapeModifier;
 class GlyphLookup;
 class Text;
 class StyledText;
+
+struct TransformGlyphArg
+{
+    Vec2D position;
+    Vec2D originPosition;
+    float centerX;
+    int lineIndexInParagraph;
+    const SimpleArray<GlyphLine>& paragraphLines;
+
+    TransformGlyphArg(Vec2D position_,
+                      float centerX_,
+                      int lineIndexInParagraph_,
+                      const SimpleArray<GlyphLine>& lines) :
+        position(position_),
+        originPosition(Vec2D(position_.x + centerX_, position_.y)),
+        centerX(centerX_),
+        lineIndexInParagraph(lineIndexInParagraph_),
+        paragraphLines(lines)
+    {}
+};
+
 class TextModifierGroup : public TextModifierGroupBase
 {
 public:
@@ -30,13 +52,15 @@ public:
                          const SimpleArray<SimpleArray<GlyphLine>>& lines,
                          const GlyphLookup& glyphLookup);
     void computeCoverage(uint32_t textSize);
+    Text* textComponent() const;
+    void resetTextFollowPath();
     float glyphCoverage(uint32_t textIndex, uint32_t codePointCount);
     float coverage(uint32_t textIndex)
     {
         assert(textIndex < m_coverage.size());
         return m_coverage[textIndex];
     }
-    void transform(float amount, Mat2D& ctm);
+    void transform(float amount, Mat2D& ctm, const TransformGlyphArg& arg);
     TextRun modifyShape(const Text& text, TextRun run, float strength);
     void applyShapeModifiers(const Text& text, StyledText& styledText);
 
@@ -81,6 +105,7 @@ public:
 
     float computeOpacity(float current, float t) const;
     bool needsShape() const;
+    void onTextWorldTransformDirty();
 
 #ifdef TESTING
     const std::vector<TextModifierRange*>& ranges() const { return m_ranges; }
@@ -102,6 +127,7 @@ private:
     std::vector<TextModifierRange*> m_ranges;
     std::vector<TextModifier*> m_modifiers;
     std::vector<TextShapeModifier*> m_shapeModifiers;
+    std::vector<TextFollowPathModifier*> m_followPathModifiers;
     std::vector<float> m_coverage;
     rcp<Font> m_variableFont;
     std::vector<Font::Coord> m_variationCoords;

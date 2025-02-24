@@ -213,6 +213,7 @@
 #include "rive/shapes/vertex.hpp"
 #include "rive/solo.hpp"
 #include "rive/text/text.hpp"
+#include "rive/text/text_follow_path_modifier.hpp"
 #include "rive/text/text_modifier.hpp"
 #include "rive/text/text_modifier_group.hpp"
 #include "rive/text/text_modifier_range.hpp"
@@ -220,6 +221,7 @@
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_style_axis.hpp"
 #include "rive/text/text_style_feature.hpp"
+#include "rive/text/text_target_modifier.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_variation_modifier.hpp"
 #include "rive/transform_component.hpp"
@@ -631,6 +633,8 @@ public:
                 return new CubicWeight();
             case TextModifierRangeBase::typeKey:
                 return new TextModifierRange();
+            case TextFollowPathModifierBase::typeKey:
+                return new TextFollowPathModifier();
             case TextStyleFeatureBase::typeKey:
                 return new TextStyleFeature();
             case TextVariationModifierBase::typeKey:
@@ -1371,6 +1375,9 @@ public:
                 break;
             case TextModifierRangeBase::runIdPropertyKey:
                 object->as<TextModifierRangeBase>()->runId(value);
+                break;
+            case TextTargetModifierBase::targetIdPropertyKey:
+                object->as<TextTargetModifierBase>()->targetId(value);
                 break;
             case TextStyleFeatureBase::tagPropertyKey:
                 object->as<TextStyleFeatureBase>()->tag(value);
@@ -2631,6 +2638,8 @@ public:
                 return object->as<TextModifierRangeBase>()->modeValue();
             case TextModifierRangeBase::runIdPropertyKey:
                 return object->as<TextModifierRangeBase>()->runId();
+            case TextTargetModifierBase::targetIdPropertyKey:
+                return object->as<TextTargetModifierBase>()->targetId();
             case TextStyleFeatureBase::tagPropertyKey:
                 return object->as<TextStyleFeatureBase>()->tag();
             case TextStyleFeatureBase::featureValuePropertyKey:
@@ -3366,6 +3375,7 @@ public:
             case TextModifierRangeBase::typeValuePropertyKey:
             case TextModifierRangeBase::modeValuePropertyKey:
             case TextModifierRangeBase::runIdPropertyKey:
+            case TextTargetModifierBase::targetIdPropertyKey:
             case TextStyleFeatureBase::tagPropertyKey:
             case TextStyleFeatureBase::featureValuePropertyKey:
             case TextVariationModifierBase::axisTagPropertyKey:
@@ -4062,6 +4072,8 @@ public:
                 return object->is<TextModifierRangeBase>();
             case TextModifierRangeBase::runIdPropertyKey:
                 return object->is<TextModifierRangeBase>();
+            case TextTargetModifierBase::targetIdPropertyKey:
+                return object->is<TextTargetModifierBase>();
             case TextStyleFeatureBase::tagPropertyKey:
                 return object->is<TextStyleFeatureBase>();
             case TextStyleFeatureBase::featureValuePropertyKey:
