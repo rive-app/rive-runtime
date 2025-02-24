@@ -1,12 +1,12 @@
 #if defined(WITH_RIVE_TEXT) && !defined(RIVE_NO_CORETEXT)
 
-#if defined(TARGET_OS_IPHONE) || defined(TARGET_OS_SIMULATOR)
-#else
+// #if defined(TARGET_OS_IPHONE) || defined(TARGET_OS_SIMULATOR)
+// #else
 #include <CoreText/CoreText.h>
 #include <CoreText/CTFontManager.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <CoreFoundation/CoreFoundation.h>
-#endif
+// #endif
 
 #include "rive/text_engine.hpp"
 #include "rive/text/font_hb.hpp"
@@ -194,10 +194,10 @@ static void apply_element(void* ctx, const CGPathElement* element)
 
         case kCGPathElementAddQuadCurveToPoint:
 
-            path->quadTo((float)points[0].x * gInvScale,
-                         (float)-points[0].y * gInvScale,
-                         (float)points[1].x * gInvScale,
-                         (float)-points[1].y * gInvScale);
+            path->quadToCubic((float)points[0].x * gInvScale,
+                              (float)-points[0].y * gInvScale,
+                              (float)points[1].x * gInvScale,
+                              (float)-points[1].y * gInvScale);
             break;
 
         case kCGPathElementAddCurveToPoint:
