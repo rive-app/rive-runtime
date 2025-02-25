@@ -292,6 +292,7 @@ void CoreTextHBFont::shapeFallbackRun(
 
     CFArrayRef run_array = CTLineGetGlyphRuns(line.get());
     CFIndex runCount = CFArrayGetCount(run_array);
+    bool isEvenLevel = textRun.level % 2 == 0;
     for (CFIndex runIndex = 0; runIndex < runCount; runIndex++)
     {
         CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(run_array, runIndex);
@@ -322,6 +323,10 @@ void CoreTextHBFont::shapeFallbackRun(
             gr.level = textRun.level;
 
             CTRunGetGlyphs(run, {0, count}, gr.glyphs.data());
+            if (!isEvenLevel)
+            {
+                std::reverse(gr.glyphs.begin(), gr.glyphs.end());
+            }
 
             AutoSTArray<1024, CFIndex> indices(count);
             AutoSTArray<1024, CGSize> advances(count);
@@ -329,16 +334,18 @@ void CoreTextHBFont::shapeFallbackRun(
             CTRunGetAdvances(run, {0, count}, advances.data());
             CTRunGetStringIndices(run, {0, count}, indices.data());
 
+            int reverseIndex = count - 1;
             for (CFIndex i = 0; i < count; ++i)
             {
-                auto glyphId = gr.glyphs[i];
+                int glyphIndex = isEvenLevel ? i : reverseIndex;
                 float advance =
                     (float)(advances[i].width * scale) + textRun.letterSpacing;
-                gr.xpos[i] = gr.advances[i] = advance;
-                gr.textIndices[i] =
+                gr.xpos[glyphIndex] = gr.advances[glyphIndex] = advance;
+                gr.textIndices[glyphIndex] =
                     textStart + indices[i]; // utf16 offsets, will fix-up later
 
-                gr.offsets[i] = rive::Vec2D(0.0f, 0.0f);
+                gr.offsets[glyphIndex] = rive::Vec2D(0.0f, 0.0f);
+                reverseIndex--;
             }
             gr.xpos[count] = 0;
 
