@@ -4,9 +4,9 @@ using namespace rive;
 
 PathMeasure::PathMeasure() : m_length(0.0f) {}
 
-PathMeasure::PathMeasure(const RawPath* path) : m_length(0.0f)
+PathMeasure::PathMeasure(const RawPath* path, float tol) : m_length(0.0f)
 {
-    auto measure = ContourMeasureIter(path);
+    auto measure = ContourMeasureIter(path, tol);
     for (auto contour = measure.next(); contour != nullptr;
          contour = measure.next())
     {

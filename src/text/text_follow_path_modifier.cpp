@@ -80,7 +80,7 @@ void TextFollowPathModifier::reset(const Mat2D* inverseText)
     }
     m_localPath.rewind();
     m_localPath.addPath(m_worldPath, inverseText);
-    m_pathMeasure = PathMeasure(&m_localPath);
+    m_pathMeasure = PathMeasure(&m_localPath, 0.1f);
 }
 
 TransformComponents TextFollowPathModifier::transformGlyph(
