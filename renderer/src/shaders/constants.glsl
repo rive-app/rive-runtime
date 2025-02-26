@@ -19,6 +19,19 @@
 #define FEATHER_INVERSE_FUNCTION_ARRAY_INDEX 1
 #define FEATHER_TEXTURE_1D_ARRAY_LENGTH 2
 
+// Number of additional tessellation "helper" vertices that need to be allocated
+// for a feather join.
+#define FEATHER_JOIN_HELPER_VERTEX_COUNT 3u
+
+// Amount to increase "joinSegmentCount" in a feather join so the number of
+// literal vertices allocated increases by FEATHER_JOIN_HELPER_VERTEX_COUNT.
+#define FEATHER_JOIN_HELPER_SEGMENT_COUNT                                      \
+    (FEATHER_JOIN_HELPER_VERTEX_COUNT + 1u)
+
+// Feather joins are split into a backward and forward section. Both sections
+// need at least one segment, thus a minimum of 2 (plus helper vertices).
+#define FEATHER_JOIN_MIN_SEGMENT_COUNT (2u + FEATHER_JOIN_HELPER_SEGMENT_COUNT)
+
 // Width to use for a texture that emulates a storage buffer.
 //
 // Minimize width since the texture needs to be updated in entire rows from the
@@ -72,12 +85,10 @@
 
 // Internal contour flags.
 #define MIRRORED_CONTOUR_CONTOUR_FLAG (1u << 24u)
-// Degenerate outsets are used to implement discontinuities in feather joins.
-#define ZERO_FEATHER_OUTSET_CONTOUR_FLAG (1u << 23u)
-#define JOIN_TANGENT_0_CONTOUR_FLAG (1u << 22u)
-#define JOIN_TANGENT_INNER_CONTOUR_FLAG (1u << 21u)
-#define LEFT_JOIN_CONTOUR_FLAG (1u << 20u)
-#define RIGHT_JOIN_CONTOUR_FLAG (1u << 19u)
+#define JOIN_TANGENT_0_CONTOUR_FLAG (1u << 23u)
+#define JOIN_TANGENT_INNER_CONTOUR_FLAG (1u << 22u)
+#define LEFT_JOIN_CONTOUR_FLAG (1u << 21u)
+#define RIGHT_JOIN_CONTOUR_FLAG (1u << 20u)
 #define CONTOUR_ID_MASK 0xffffu
 
 // Says which part of the patch a vertex belongs to.

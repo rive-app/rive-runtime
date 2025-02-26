@@ -4,9 +4,10 @@
 
 // Common definitions and functions shared by multiple shaders.
 
-#define PI 3.141592653589793238
-#define ONE_OVER_SQRT_2PI 0.398942280401433 // 1/sqrt(2*pi)
-#define ONE_OVER_SQRT_2 0.70710678118       // 1/sqrt(2)
+#define PI 3.14159265359
+#define _2PI 6.28318530718
+#define PI_OVER_2 1.57079632679
+#define ONE_OVER_SQRT_2 0.70710678118 // 1/sqrt(2)
 
 #ifndef @RENDER_MODE_MSAA
 #define AA_RADIUS float(.5)

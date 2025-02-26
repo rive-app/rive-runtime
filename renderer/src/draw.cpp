@@ -327,6 +327,18 @@ inline float find_atlas_feather_scale_factor(float featherRadius,
     // displayed at.
     return 16.f / fmaxf(featherRadius * matrixMaxScale, 16);
 }
+
+static uint32_t feather_join_segment_count(float polarSegmentsPerRadian)
+{
+    uint32_t n =
+        static_cast<uint32_t>(ceilf(polarSegmentsPerRadian * math::PI)) +
+        FEATHER_JOIN_HELPER_SEGMENT_COUNT;
+    n = std::max(n, FEATHER_JOIN_MIN_SEGMENT_COUNT);
+    // FEATHER_POLAR_SEGMENT_MIN_ANGLE should limit n long before we reach
+    // kMaxPolarSegments.
+    assert(n < gpu::kMaxPolarSegments);
+    return n;
+}
 } // namespace
 
 Draw::Draw(IAABB pixelBounds,
@@ -1184,11 +1196,7 @@ void PathDraw::initForMidpointFan(RenderContext* context,
             {
                 assert(isFeatheredFill());
                 uint32_t numSegmentsInFeatherJoin =
-                    static_cast<uint32_t>(std::clamp<float>(
-                        ceilf(m_polarSegmentsPerRadian * math::PI),
-                        2,
-                        kMaxPolarSegments - 2)) +
-                    5;
+                    feather_join_segment_count(m_polarSegmentsPerRadian);
                 contourVertexCount +=
                     contour->strokeJoinCount * (numSegmentsInFeatherJoin - 1);
             }
@@ -1788,11 +1796,7 @@ void PathDraw::pushMidpointFanTessellationData(
         if (isFeatheredFill())
         {
             numSegmentsInNotRoundJoin =
-                static_cast<uint32_t>(std::clamp<float>(
-                    ceilf(m_polarSegmentsPerRadian * math::PI),
-                    2,
-                    kMaxPolarSegments - 2)) +
-                5;
+                feather_join_segment_count(m_polarSegmentsPerRadian);
         }
         else
         {

@@ -264,8 +264,6 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     // Begin with the assumption that we belong to the curve section.
     float mergedSegmentCount = totalVertexCount - joinSegmentCount;
     float mergedVertexID = vertexIdx;
-    float featherCornerTheta = .0;
-    int featherCornerVertexIndex0;
     if (mergedVertexID <= mergedSegmentCount)
     {
         // We do belong to the curve section. Clear out any stroke join flags.
@@ -291,74 +289,19 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
             if (mergedVertexID > 1.5 && mergedVertexID < 3.5)
                 contourIDWithFlags |= JOIN_TANGENT_INNER_CONTOUR_FLAG;
         }
-        else if ((contourIDWithFlags & EMULATED_STROKE_CAP_CONTOUR_FLAG) != 0u)
+        else if ((contourIDWithFlags & EMULATED_STROKE_CAP_CONTOUR_FLAG) !=
+                     0u ||
+                 (contourIDWithFlags & JOIN_TYPE_MASK) ==
+                     FEATHER_JOIN_CONTOUR_FLAG)
         {
-            // Round caps emulated as joins need to emit vertices at T=0 and
-            // T=1, unlike normal round joins. Preserve the same number of
-            // vertices (the CPU should have given us two extra, knowing that we
-            // are an emulated cap, and the vertex shader should have already
-            // accounted for this in radsPerJoinSegment), but adjust our
-            // stepping parameters so we begin at T=0 and end at T=1.
+            // Round caps emulated as joins and feather joins need to emit
+            // vertices at T=0 and T=1, unlike normal round joins. Preserve
+            // the same number of vertices, but adjust our stepping
+            // parameters so we begin at T=0 and end at T=1. (The CPU should
+            // have known we were going to add vertices here and increased our
+            // count to make sure the tessellation would still be smooth).
             mergedSegmentCount -= 2.;
             --mergedVertexID;
-        }
-        else if ((contourIDWithFlags & JOIN_TYPE_MASK) ==
-                 FEATHER_JOIN_CONTOUR_FLAG)
-        {
-            featherCornerVertexIndex0 = -int(mergedVertexID);
-            --mergedVertexID; // Duplicate the vertex at T=1 on the join also.
-
-            // radsPerPolarSegment was calculated under the assumption that all
-            // joinSegmentCount vertices were meant for the angle between tan0
-            // and tan1. However, feather joins always have a rotation of PI.
-            featherCornerTheta = radsPerPolarSegment * joinSegmentCount;
-            float joinVertexCount = joinSegmentCount - 1.;
-            float joinNonEmptySegmentCount = joinVertexCount - 1. - 3.;
-            // Feather joins draw backwards segments across the angle outside
-            // the join, in order to erase some of the coverage that got
-            // written.
-            float backwardSegmentCount = clamp(
-                round(abs(featherCornerTheta) / PI * joinNonEmptySegmentCount),
-                1.,
-                joinNonEmptySegmentCount - 1.);
-            // Forward segments are in the normal join angle.
-            float forwardSegmentCount =
-                joinNonEmptySegmentCount - backwardSegmentCount;
-            if (mergedVertexID <= forwardSegmentCount)
-            {
-                // We're a backwards segment of the feather join.
-                tangents[1] = -tangents[1];
-                featherCornerTheta =
-                    -(PI * sign(featherCornerTheta) - featherCornerTheta);
-                mergedSegmentCount = forwardSegmentCount;
-            }
-            else if (mergedVertexID == forwardSegmentCount + 1.)
-            {
-                // There's a discontinuous jump between the backwards and
-                // forward segments. Duplicate the final backwards vertex with
-                // zero height.
-                tangents[0] = tangents[1] = -tangents[1];
-                mergedVertexID = .0;
-                mergedSegmentCount = 1.;
-                contourIDWithFlags |= ZERO_FEATHER_OUTSET_CONTOUR_FLAG;
-            }
-            else if (mergedVertexID == forwardSegmentCount + 2.)
-            {
-                // There's a discontinuous jump between the backwards and
-                // forward segments. Duplicate the first forward vertex with
-                // zero height.
-                tangents[1] = tangents[0];
-                mergedVertexID = .0;
-                mergedSegmentCount = 1.;
-                contourIDWithFlags |= ZERO_FEATHER_OUTSET_CONTOUR_FLAG;
-            }
-            else
-            {
-                // We're a forward segment of the feather join.
-                mergedVertexID -= forwardSegmentCount + 3.;
-                mergedSegmentCount = backwardSegmentCount;
-            }
-            radsPerPolarSegment = featherCornerTheta / mergedSegmentCount;
         }
         contourIDWithFlags |= radsPerPolarSegment < .0
                                   ? LEFT_JOIN_CONTOUR_FLAG
@@ -539,17 +482,22 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
             theta = atan2(bcd - abc);
     }
 
-    uint4 tessData =
-        uint4(floatBitsToUint(float3(tessCoord, theta)), contourIDWithFlags);
+    uint4 tessData;
+    tessData.xy = floatBitsToUint(tessCoord);
     if ((contourIDWithFlags & JOIN_TYPE_MASK) == FEATHER_JOIN_CONTOUR_FLAG)
     {
-        // Feathered corners need to know the corner angle as well. Luckily, the
-        // corner spokes are all colocated on the same point, so we can store a
-        // backset to that point instead of the point itself, and thus make room
-        // for the corner angle.
-        tessData.x = uint(featherCornerVertexIndex0);
-        tessData.y = floatBitsToUint(featherCornerTheta);
+        // Feather joins work out their stepping in the vertex shader, so we
+        // emit the original tessellation parameters instead of just the tangent
+        // angle and let the vertex shader work it all out.
+        // Pack these as integers instead of using packHalf2x16() because the
+        // latter does not work on ARM Mali.
+        tessData.z = (uint(mergedSegmentCount) << 16) | uint(mergedVertexID);
     }
+    else
+    {
+        tessData.z = floatBitsToUint(mod(theta, _2PI));
+    }
+    tessData.w = contourIDWithFlags;
     EMIT_FRAG_DATA(tessData);
 }
 #endif
