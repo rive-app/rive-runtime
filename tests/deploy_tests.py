@@ -36,7 +36,7 @@ parser.add_argument("-b", "--backend",
                     default=None)
 parser.add_argument("-s", "--src",
                     type=str,
-                    default=os.path.join("..", "..", "..", "gold", "rivs"),
+                    default=os.path.join("..", "..", "..", "zzzgold", "rivs"),
                     help="INPUT directory of .riv files to render")
 parser.add_argument("-o", "--outdir",
                     type=str,

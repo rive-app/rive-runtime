@@ -557,7 +557,7 @@ int main(int argc, const char** argv)
                    PixelLocalStorageType::none,
                    8);
 
-    std::ifstream rivStream("../../../gold/rivs/Santa_Claus.riv",
+    std::ifstream rivStream("../../../zzzgold/rivs/Santa_Claus.riv",
                             std::ios::binary);
     std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
                                   {});
