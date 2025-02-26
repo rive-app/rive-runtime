@@ -25,14 +25,25 @@ StatusCode ListenerInputChange::import(ImportStack& importStack)
     {
         return StatusCode::MissingObject;
     }
-    auto input = stateMachineImporter->stateMachine()->input((size_t)inputId());
+    // First validate if this input change applies to a nested input
     auto nested = artboardImporter->artboard()->resolve(nestedInputId());
     auto nestedInput = nested != nullptr ? nested->as<NestedInput>() : nullptr;
-
-    // The listener should validate either an input or a nested input
-    if (!validateInputType(input) && !validateNestedInputType(nestedInput))
+    if (nestedInput != nullptr)
     {
-        return StatusCode::InvalidObject;
+        if (!validateNestedInputType(nestedInput))
+        {
+            return StatusCode::InvalidObject;
+        }
+    }
+    // Only if it doesn't apply to a nested input, check against an input
+    else
+    {
+        auto input =
+            stateMachineImporter->stateMachine()->input((size_t)inputId());
+        if (!validateInputType(input))
+        {
+            return StatusCode::InvalidObject;
+        }
     }
     return Super::import(importStack);
 }
