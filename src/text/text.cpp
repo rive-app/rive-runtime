@@ -969,6 +969,13 @@ void Text::onDirty(ComponentDirt value)
             modifierGroup->onTextWorldTransformDirty();
         }
     }
+    if (hasDirt(value, ComponentDirt::Path))
+    {
+        for (TextStyle* style : m_renderStyles)
+        {
+            style->invalidateStrokeEffects();
+        }
+    }
 }
 
 void Text::update(ComponentDirt value)
