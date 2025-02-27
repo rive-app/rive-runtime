@@ -323,8 +323,7 @@
 					"-lrive_pls_renderer",
 					"-ltools_common",
 					"-lgoldens",
-					"-force_load",
-					../out/ios_debug/libgms.a,
+					"-lgms",
 				);
 				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
 					"-lrive",
@@ -337,8 +336,7 @@
 					"-lrive_pls_renderer",
 					"-ltools_common",
 					"-lgoldens",
-					"-force_load",
-					../out/iossim_universal_debug/libgms.a,
+					"-lgms",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "rive.app.golden-test-app";
 				PRODUCT_NAME = rive_ios_tests;

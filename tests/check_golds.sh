@@ -103,19 +103,19 @@ do
     if [ "$REBASELINE" == true ]; then
         echo
         echo "Rebaselining $ID..."
-        rm -fr .zzzgold/$ID
-        python3 deploy_tests.py gms goldens $ARGS --target=$TARGET --outdir=.zzzgold/$ID --backend=$BACKEND $NO_REBUILD
+        rm -fr .gold/$ID
+        python3 deploy_tests.py gms goldens $ARGS --target=$TARGET --outdir=.gold/$ID --backend=$BACKEND $NO_REBUILD
     else
         echo
         echo "Checking $ID..."
-        rm -fr .zzzgold/candidates/$ID
-        python3 deploy_tests.py gms goldens $ARGS --target=$TARGET --outdir=.zzzgold/candidates/$ID --backend=$BACKEND $NO_REBUILD
+        rm -fr .gold/candidates/$ID
+        python3 deploy_tests.py gms goldens $ARGS --target=$TARGET --outdir=.gold/candidates/$ID --backend=$BACKEND $NO_REBUILD
         
         echo
         echo "Checking $ID..."
-        rm -fr .zzzgold/diffs/$ID && mkdir -p .zzzgold/diffs/$ID
-        python3 diff.py $DIFF_ARGS -g .zzzgold/$ID -c .zzzgold/candidates/$ID -j$NUMBER_OF_PROCESSORS -o .zzzgold/diffs/$ID \
-            || open_file .zzzgold/diffs/$ID/index.html
+        rm -fr .gold/diffs/$ID && mkdir -p .gold/diffs/$ID
+        python3 diff.py $DIFF_ARGS -g .gold/$ID -c .gold/candidates/$ID -j$NUMBER_OF_PROCESSORS -o .gold/diffs/$ID \
+            || open_file .gold/diffs/$ID/index.html
     fi
     
     NO_REBUILD="--no-rebuild --no-install"
