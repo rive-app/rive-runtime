@@ -11,7 +11,9 @@ public:
     float easeIn(float factor) const;
     float easeInOut(float factor) const;
 
+#ifndef TESTING
 private:
+#endif
     float computeActualAmplitude(float time) const;
     float m_amplitude;
     float m_period;

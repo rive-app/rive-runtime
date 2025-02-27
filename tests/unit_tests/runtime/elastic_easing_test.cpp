@@ -1,7 +1,8 @@
-#include <rive/file.hpp>
-#include <rive/node.hpp>
-#include <rive/animation/elastic_interpolator.hpp>
+#include "rive/file.hpp"
+#include "rive/node.hpp"
+#include "rive/animation/elastic_interpolator.hpp"
 #include "rive/shapes/shape.hpp"
+#include "rive/animation/elastic_ease.hpp"
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
 #include <cstdio>
@@ -32,4 +33,11 @@ TEST_CASE("test elastic easing loads properly", "[file]")
 
     animation->apply(artboard, 14.0f / animation->fps(), 1.0f);
     REQUIRE(shape->x() == Approx(303.995f));
+}
+
+TEST_CASE("elastic easer computes correct actual amplitude", "[animation]")
+{
+    rive::ElasticEase easer(0.5f, 3.14f);
+    REQUIRE(easer.computeActualAmplitude(0.0f) == 1.0f);
+    REQUIRE(easer.computeActualAmplitude(1.57f) == 0.5f);
 }
