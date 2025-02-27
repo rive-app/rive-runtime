@@ -40,4 +40,7 @@ TEST_CASE("elastic easer computes correct actual amplitude", "[animation]")
     rive::ElasticEase easer(0.5f, 3.14f);
     REQUIRE(easer.computeActualAmplitude(0.0f) == 1.0f);
     REQUIRE(easer.computeActualAmplitude(1.57f) == 0.5f);
+    REQUIRE(easer.easeOut(0.22f) == Catch::Detail::Approx(0.8307f));
+    REQUIRE(easer.easeIn(1.58f) == Catch::Detail::Approx(14.01086f));
+    REQUIRE(easer.easeInOut(1.58f) == Catch::Detail::Approx(1.0f));
 }
