@@ -2,7 +2,9 @@
 #define _RIVE_LAYOUT_COMPONENT_STYLE_HPP_
 #include "rive/generated/layout/layout_component_style_base.hpp"
 #include "rive/layout/layout_enums.hpp"
+#ifndef TESTING
 #include "rive/internal/assert_internal_only.hpp"
+#endif
 #ifdef WITH_RIVE_LAYOUT
 #include "yoga/Yoga.h"
 #endif

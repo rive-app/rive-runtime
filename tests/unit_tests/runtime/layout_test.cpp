@@ -1,3 +1,4 @@
+#include "rive/layout/layout_component_style.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
@@ -29,6 +30,10 @@ TEST_CASE("LayoutComponent FlexDirection row", "[layout]")
     auto target1Components = target1->worldTransform().decompose();
     auto target2Components = target2->worldTransform().decompose();
     auto target3Components = target3->worldTransform().decompose();
+
+    auto style = target1->style();
+    REQUIRE(style != nullptr);
+    REQUIRE(style->flexDirection() == YGFlexDirectionRow);
 
     REQUIRE(target1Components.x() == 0);
     REQUIRE(target2Components.x() == 100);
@@ -153,4 +158,123 @@ TEST_CASE("LayoutComponent with intrinsic size gets measured correctly",
     REQUIRE(bounds.top() == 0);
     REQUIRE(bounds.width() == 62.48047f);
     REQUIRE(bounds.height() == 72.62695f);
+}
+
+TEST_CASE("LayoutComponent Padding Px", "[layout]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_complex1.riv");
+
+    auto artboard = file->artboard();
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutLeft") != nullptr);
+    auto parent = artboard->find<rive::LayoutComponent>("LayoutLeft");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutLeftChild1") !=
+            nullptr);
+    auto child1 = artboard->find<rive::LayoutComponent>("LayoutLeftChild1");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutLeftChild2") !=
+            nullptr);
+    auto child2 = artboard->find<rive::LayoutComponent>("LayoutLeftChild2");
+
+    artboard->advance(0.0f);
+
+    auto style = parent->style();
+    REQUIRE(style != nullptr);
+    REQUIRE(style->paddingLeft() == 20);
+    REQUIRE(style->paddingLeftUnits() == YGUnitPoint);
+    REQUIRE(style->paddingRight() == 20);
+    REQUIRE(style->paddingRightUnits() == YGUnitPoint);
+    REQUIRE(style->paddingTop() == 20);
+    REQUIRE(style->paddingTopUnits() == YGUnitPoint);
+    REQUIRE(style->paddingBottom() == 20);
+    REQUIRE(style->paddingBottomUnits() == YGUnitPoint);
+
+    auto parentComponents = parent->worldTransform().decompose();
+    auto child1Components = child1->worldTransform().decompose();
+    auto child2Components = child2->worldTransform().decompose();
+
+    REQUIRE(parentComponents.x() == 0);
+    REQUIRE(child1Components.x() == 20);
+    REQUIRE(child2Components.x() == 130);
+    REQUIRE(parentComponents.y() == 0);
+    REQUIRE(child1Components.y() == 20);
+    REQUIRE(child2Components.y() == 20);
+}
+
+TEST_CASE("LayoutComponent Margin Px", "[layout]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_complex1.riv");
+
+    auto artboard = file->artboard();
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutRight") != nullptr);
+    auto parent = artboard->find<rive::LayoutComponent>("LayoutRight");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutRightChild1") !=
+            nullptr);
+    auto child1 = artboard->find<rive::LayoutComponent>("LayoutRightChild1");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutRightChild2") !=
+            nullptr);
+    auto child2 = artboard->find<rive::LayoutComponent>("LayoutRightChild2");
+
+    artboard->advance(0.0f);
+
+    auto style1 = child1->style();
+    REQUIRE(style1 != nullptr);
+    REQUIRE(style1->marginLeft() == 10);
+    REQUIRE(style1->marginLeftUnits() == YGUnitPoint);
+    REQUIRE(style1->marginRight() == 10);
+    REQUIRE(style1->marginRightUnits() == YGUnitPoint);
+    REQUIRE(style1->marginTop() == 10);
+    REQUIRE(style1->marginTopUnits() == YGUnitPoint);
+    REQUIRE(style1->marginBottom() == 10);
+    REQUIRE(style1->marginBottomUnits() == YGUnitPoint);
+    REQUIRE(style1->alignmentType() == rive::LayoutAlignmentType::center);
+    REQUIRE(style1->flexWrap() == YGWrapNoWrap);
+
+    auto style2 = child2->style();
+    REQUIRE(style2 != nullptr);
+    REQUIRE(style2->marginLeft() == 5);
+    REQUIRE(style2->marginLeftUnits() == YGUnitPercent);
+    REQUIRE(style2->marginRight() == 5);
+    REQUIRE(style2->marginRightUnits() == YGUnitPercent);
+    REQUIRE(style2->marginTop() == 5);
+    REQUIRE(style2->marginTopUnits() == YGUnitPercent);
+    REQUIRE(style2->marginBottom() == 5);
+    REQUIRE(style2->marginBottomUnits() == YGUnitPercent);
+    REQUIRE(style2->alignmentType() == rive::LayoutAlignmentType::topLeft);
+    REQUIRE(style2->flexWrap() == YGWrapWrap);
+
+    auto parentComponents = parent->worldTransform().decompose();
+    auto child1Components = child1->worldTransform().decompose();
+    auto child2Components = child2->worldTransform().decompose();
+
+    REQUIRE(parentComponents.x() == 250);
+    REQUIRE(child1Components.x() == 285);
+    REQUIRE(child2Components.x() == 285);
+    REQUIRE(parentComponents.y() == 0);
+    REQUIRE(child1Components.y() == 35);
+    REQUIRE(child2Components.y() == 215);
+}
+
+TEST_CASE("LayoutComponent Corner Radius", "[layout]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_complex1.riv");
+
+    auto artboard = file->artboard();
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutLeftChild1") !=
+            nullptr);
+    auto child1 = artboard->find<rive::LayoutComponent>("LayoutLeftChild1");
+
+    artboard->advance(0.0f);
+
+    auto style = child1->style();
+    REQUIRE(style != nullptr);
+    REQUIRE(style->cornerRadiusTL() == 15);
+    REQUIRE(style->cornerRadiusTR() == 15);
+    REQUIRE(style->cornerRadiusBL() == 15);
+    REQUIRE(style->cornerRadiusBR() == 15);
 }
