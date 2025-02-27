@@ -2314,8 +2314,6 @@ void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t count,
     assert(count > 0);
 
     constexpr static Vec2D kEmptyCubic[4]{};
-    // This is guaranteed to not collide with a neighboring contour ID.
-    constexpr static uint32_t kInvalidContourID = 0;
     TessellationWriter(this,
                        /*pathID=*/0,
                        gpu::ContourDirections::forward,
@@ -2327,7 +2325,7 @@ void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t count,
                                0,
                                0,
                                1,
-                               kInvalidContourID);
+                               INVALID_CONTOUR_ID_WITH_FLAGS);
 }
 
 void RenderContext::LogicalFlush::pushMidpointFanDraw(

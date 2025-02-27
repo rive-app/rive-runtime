@@ -18,6 +18,7 @@
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.glsl.hpp"
 #include "generated/shaders/draw_image_mesh.glsl.hpp"
+#include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
 #include "generated/shaders/blit_texture_as_draw.glsl.hpp"
 #include "generated/shaders/stencil_draw.glsl.hpp"
@@ -134,7 +135,7 @@ RenderContextGLImpl::RenderContextGLImpl(
                     1,
                     GL_RED,
                     GL_HALF_FLOAT,
-                    g_gaussianIntegralTableF16);
+                    gpu::g_gaussianIntegralTableF16);
     glTexSubImage2D(GL_TEXTURE_2D,
                     0,
                     0,
@@ -143,11 +144,12 @@ RenderContextGLImpl::RenderContextGLImpl(
                     1,
                     GL_RED,
                     GL_HALF_FLOAT,
-                    InverseGaussianIntegralTableF16().data);
+                    gpu::g_inverseGaussianIntegralTableF16);
     glutils::SetTexture2DSamplingParams(GL_LINEAR, GL_LINEAR);
 
     const char* tessellateSources[] = {glsl::constants,
                                        glsl::common,
+                                       glsl::bezier_utils,
                                        glsl::tessellate};
     m_tessellateProgram.compileAndAttachShader(GL_VERTEX_SHADER,
                                                generalDefines.data(),
@@ -163,6 +165,9 @@ RenderContextGLImpl::RenderContextGLImpl(
                                                m_capabilities);
     m_tessellateProgram.link();
     m_state->bindProgram(m_tessellateProgram);
+    glutils::Uniform1iByName(m_tessellateProgram,
+                             GLSL_featherTexture,
+                             FEATHER_TEXTURE_IDX);
     glUniformBlockBinding(
         m_tessellateProgram,
         glGetUniformBlockIndex(m_tessellateProgram, GLSL_FlushUniforms),

@@ -29,14 +29,12 @@ VERTEX_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA32UI(PER_FLUSH_BINDINGS_SET,
                  TESS_VERTEX_TEXTURE_IDX,
                  @tessVertexTexture);
-#if defined(@ENABLE_FEATHER)
+#ifdef @ENABLE_FEATHER
 TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
                       FEATHER_TEXTURE_IDX,
                       @featherTexture);
 #endif
 VERTEX_TEXTURE_BLOCK_END
-
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
 
 VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
@@ -45,6 +43,10 @@ STORAGE_BUFFER_F32x4(PAINT_AUX_BUFFER_IDX, PaintAuxBuffer, @paintAuxBuffer);
 STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 VERTEX_STORAGE_BUFFER_BLOCK_END
 #endif // @VERTEX
+
+#if defined(@ENABLE_FEATHER) || defined(@ATLAS_COVERAGE)
+SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
+#endif
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
@@ -66,9 +68,6 @@ FRAG_TEXTURE_BLOCK_END
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 // Metal defines @VERTEX and @FRAGMENT at the same time, so yield to the vertex
 // definition of featherSampler in this case.
-#if (defined(@ENABLE_FEATHER) || defined(@ATLAS_COVERAGE)) && !defined(@VERTEX)
-SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
-#endif
 #ifdef @ATLAS_COVERAGE
 SAMPLER_LINEAR(ATLAS_TEXTURE_IDX, atlasSampler)
 #endif
@@ -82,27 +81,6 @@ SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
 INLINE bool is_stroke(float4 coverages) { return coverages.y >= .0; }
 INLINE bool is_stroke(half2 coverages) { return coverages.y >= .0; }
 #endif // FRAGMENT
-
-#if defined(@ENABLE_FEATHER) || defined(@ATLAS_COVERAGE)
-// This is a macro because we can't (at least for now) forward texture refs to a
-// function in a way that works in all the languages we support.
-#define FEATHER(X)                                                             \
-    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
-                                featherSampler,                                \
-                                X,                                             \
-                                FEATHER_FUNCTION_ARRAY_INDEX,                  \
-                                float(FEATHER_FUNCTION_ARRAY_INDEX),           \
-                                .0)                                            \
-        .r
-#define INVERSE_FEATHER(X)                                                     \
-    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
-                                featherSampler,                                \
-                                X,                                             \
-                                FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,          \
-                                float(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX),   \
-                                .0)                                            \
-        .r
-#endif
 
 #if defined(@FRAGMENT) && defined(@ENABLE_FEATHER)
 // We can also classify a fragments as feathered/not-feathered strokes/fills by
@@ -249,6 +227,8 @@ INLINE half eval_feathered_fill(float4 coverages TEXTURE_CONTEXT_DECL)
         featherCoverage += dot(feathers, ddtFeather) * dt;
     }
 
+    // Clockwise triangles add to the featherCoverage, counterclockwise
+    // triangles subtract from it.
     return featherCoverage * sign(coverages.x);
 }
 
@@ -358,7 +338,6 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
     uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
     float2 translate = uintBitsToFloat(pathData.xy);
-
     float strokeRadius = uintBitsToFloat(pathData.z);
     float featherRadius = uintBitsToFloat(pathData.w);
 

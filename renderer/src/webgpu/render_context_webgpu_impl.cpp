@@ -21,6 +21,7 @@
 #include "generated/shaders/glsl.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
+#include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
 #include "generated/shaders/advanced_blend.glsl.hpp"
 #include "generated/shaders/draw_path.glsl.hpp"
@@ -466,6 +467,7 @@ public:
             vertexGLSL << glsl::glsl << "\n";
             vertexGLSL << glsl::constants << "\n";
             vertexGLSL << glsl::common << "\n";
+            vertexGLSL << glsl::bezier_utils << "\n";
             vertexGLSL << glsl::tessellate << "\n";
             vertexShader = m_vertexShaderHandle.compileShaderModule(
                 device,

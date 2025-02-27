@@ -54,11 +54,11 @@ constexpr static uint32_t kMaxPolarSegments = 1023;
 // The Gaussian distribution is very blurry on the outer edges. Regardless of
 // how wide a feather is, the polar segments never need to have a finer angle
 // than this value.
-constexpr static float FEATHER_POLAR_SEGMENT_MIN_ANGLE = 3 * math::PI / 32;
+constexpr static float FEATHER_POLAR_SEGMENT_MIN_ANGLE = math::PI / 16;
 
 // cos(FEATHER_MIN_POLAR_SEGMENT_ANGLE / 2)
 constexpr static float COS_FEATHER_POLAR_SEGMENT_MIN_ANGLE_OVER_2 =
-    0.98917650996f;
+    0.99518472667f;
 
 // We allocate all our GPU buffers in rings. This ensures the CPU can prepare
 // frames in parallel while the GPU renders them.
@@ -1544,7 +1544,7 @@ enum class TriState
 // spread of -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS.
 constexpr static uint32_t GAUSSIAN_TABLE_SIZE = 512;
 extern const uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
-extern const float g_inverseGaussianIntegralTableF32[GAUSSIAN_TABLE_SIZE];
+extern const uint16_t g_inverseGaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
 
 float4 cast_f16_to_f32(uint16x4 x);
 uint16x4 cast_f32_to_f16(float4);
@@ -1556,25 +1556,4 @@ uint16x4 cast_f32_to_f16(float4);
 void generate_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 void generate_inverse_gausian_integral_table(float (&)[GAUSSIAN_TABLE_SIZE]);
 #endif
-
-// Converts g_inverseGaussianIntegralTableF32 to 16-bit floats.
-struct InverseGaussianIntegralTableF16
-{
-    InverseGaussianIntegralTableF16();
-    uint16_t data[GAUSSIAN_TABLE_SIZE];
-};
-
-// Looks up the value of "x" in the given function table, with linear filtering.
-float function_table_lookup(float x, const float* table, float tableSize);
-
-inline float function_table_lookup(float x,
-                                   const float (&table)[GAUSSIAN_TABLE_SIZE])
-{
-    return function_table_lookup(x, table, std::size(table));
-}
-
-inline float inverse_gaussian_integral(float y)
-{
-    return function_table_lookup(y, g_inverseGaussianIntegralTableF32);
-}
 } // namespace rive::gpu

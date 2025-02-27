@@ -54,10 +54,12 @@ class SniffPathsRenderer : public Renderer
 public:
     SniffPathsRenderer(std::vector<PathPaint>* pathPaints,
                        bool allStrokes,
-                       bool allRoundJoin) :
+                       bool allRoundJoin,
+                       float forcedFeather = 0) :
         m_pathPaints(pathPaints),
         m_allStrokes(allStrokes),
-        m_allRoundJoin(allRoundJoin)
+        m_allRoundJoin(allRoundJoin),
+        m_forcedFeather(forcedFeather)
     {}
     void save() override {}
     void restore() override {}
@@ -75,6 +77,11 @@ public:
         if (m_allRoundJoin)
         {
             renderPaint->join(StrokeJoin::round);
+        }
+        if (m_forcedFeather)
+        {
+            renderPaint->feather(m_forcedFeather);
+            renderPath->fillRule(FillRule::clockwise);
         }
 
         m_pathPaints->push_back({ref_rcp(renderPath), ref_rcp(renderPaint)});
@@ -95,6 +102,7 @@ private:
     std::vector<PathPaint>* m_pathPaints;
     bool m_allStrokes;
     bool m_allRoundJoin;
+    float m_forcedFeather;
 };
 
 // Measure the speed of RiveRenderer::drawPath() from the contents of a .riv
@@ -114,7 +122,6 @@ public:
         scene->draw(&sniffer);
     }
 };
-
 REGISTER_BENCH(DrawRiveRenderPaths);
 
 // Measure the speed of RiveRenderer::drawPath() from the contents of a .riv
@@ -133,7 +140,7 @@ public:
 };
 REGISTER_BENCH(DrawRiveRenderPathsAsRoundJoinStrokes);
 
-class DrawCustomRiveRenderPaths : public DrawRiveRenderPath
+class DrawCustomPaths : public DrawRiveRenderPath
 {
 public:
     void setup() final
@@ -141,95 +148,151 @@ public:
         for (int i = 0; i < 1000; ++i)
         {
             RawPath rawPath;
-            buildPath(rawPath);
             auto renderPath = static_rcp_cast<RiveRenderPath>(
-                m_nullContext->makeRenderPath(rawPath, FillRule::nonZero));
+                m_nullContext->makeRenderPath(rawPath, FillRule::clockwise));
+            setupPath(renderPath.get());
             auto renderPaint = static_rcp_cast<RiveRenderPaint>(
                 m_nullContext->makeRenderPaint());
-            renderPaint->style(RenderPaintStyle::stroke);
-            renderPaint->thickness(2);
+            setupPaint(renderPaint.get());
+
             m_pathPaints.emplace_back(std::move(renderPath),
                                       std::move(renderPaint));
         }
     }
 
 protected:
-    virtual void buildPath(RawPath& rawPath) = 0;
+    virtual void setupPath(RiveRenderPath* path) = 0;
+    virtual void setupPaint(RiveRenderPaint* paint) {}
 };
 
-class DrawZeroChopStrokes : public DrawCustomRiveRenderPaths
+class DrawCustomStrokes : public DrawCustomPaths
+{
+public:
+    void setupPaint(RiveRenderPaint* paint) override
+    {
+        paint->style(RenderPaintStyle::stroke);
+        paint->thickness(2);
+    }
+};
+
+class DrawZeroChopStrokes : public DrawCustomStrokes
 {
 protected:
-    void buildPath(RawPath& rawPath) final
+    void setupPath(RiveRenderPath* path) final
     {
-        rawPath.moveTo(199, 1225);
+        path->moveTo(199, 1225);
         for (int j = 0; j < 50; ++j)
         {
-            rawPath.cubicTo(197, 943, 349, 607, 549, 427);
-            rawPath.cubicTo(349, 607, 197, 943, 199, 1225);
+            path->cubicTo(197, 943, 349, 607, 549, 427);
+            path->cubicTo(349, 607, 197, 943, 199, 1225);
         }
     }
 };
 
 REGISTER_BENCH(DrawZeroChopStrokes);
 
-class DrawOneChopStrokes : public DrawCustomRiveRenderPaths
+class DrawOneChopStrokes : public DrawCustomStrokes
 {
 protected:
-    void buildPath(RawPath& rawPath) final
+    void setupPath(RiveRenderPath* path) final
     {
         for (int j = 0; j < 50; ++j)
         {
-            rawPath.cubicTo(100, 0, 50, 100, 100, 100);
-            rawPath.cubicTo(0, -100, 200, 100, 0, 0);
+            path->cubicTo(100, 0, 50, 100, 100, 100);
+            path->cubicTo(0, -100, 200, 100, 0, 0);
         }
     }
 };
 
 REGISTER_BENCH(DrawOneChopStrokes);
 
-class DrawTwoChopStrokes : public DrawCustomRiveRenderPaths
+class DrawTwoChopStrokes : public DrawCustomStrokes
 {
 protected:
-    void buildPath(RawPath& rawPath) final
+    void setupPath(RiveRenderPath* path) final
     {
-        rawPath.moveTo(460, 1060);
+        path->moveTo(460, 1060);
         for (int j = 0; j < 50; ++j)
         {
-            rawPath.cubicTo(403, -320, 60, 660, 1181, 634);
-            rawPath.cubicTo(60, 660, 403, -320, 460, 1060);
+            path->cubicTo(403, -320, 60, 660, 1181, 634);
+            path->cubicTo(60, 660, 403, -320, 460, 1060);
         }
     }
 };
 
 REGISTER_BENCH(DrawTwoChopStrokes);
 
-class DrawOneCuspStrokes : public DrawCustomRiveRenderPaths
+class DrawOneCuspStrokes : public DrawCustomStrokes
 {
 protected:
-    void buildPath(RawPath& rawPath) final
+    void setupPath(RiveRenderPath* path) final
     {
         for (int j = 0; j < 50; ++j)
         {
-            rawPath.cubicTo(100, 100, 100, 0, 0, 100);
-            rawPath.cubicTo(100, 0, 100, 100, 0, 0);
+            path->cubicTo(100, 100, 100, 0, 0, 100);
+            path->cubicTo(100, 0, 100, 100, 0, 0);
         }
     }
 };
 
 REGISTER_BENCH(DrawOneCuspStrokes);
 
-class DrawTwoCuspStrokes : public DrawCustomRiveRenderPaths
+class DrawTwoCuspStrokes : public DrawCustomStrokes
 {
 protected:
-    void buildPath(RawPath& rawPath) final
+    void setupPath(RiveRenderPath* path) final
     {
         for (int j = 0; j < 50; ++j)
         {
-            rawPath.cubicTo(100, 0, 50, 0, 150, 0);
-            rawPath.cubicTo(50, 0, 100, 0, 0, 0);
+            path->cubicTo(100, 0, 50, 0, 150, 0);
+            path->cubicTo(50, 0, 100, 0, 0, 0);
         }
     }
 };
+
+class DrawFeatheredPaths : public DrawRiveRenderPath
+{
+public:
+    DrawFeatheredPaths(rive::Span<uint8_t> riv)
+    {
+        // Sniff paths out of a .riv file.
+        SniffPathsRenderer sniffer(&m_pathPaints,
+                                   /*allStrokes=*/false,
+                                   /*allRoundJoin=*/false,
+                                   /*forcedFeather=*/100);
+        std::unique_ptr<File> rivFile = File::import(riv, m_nullContext.get());
+        std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
+        std::unique_ptr<Scene> scene = artboard->defaultScene();
+        scene->advanceAndApply(0);
+        scene->draw(&sniffer);
+    }
+};
+
+class DrawFeatheredPaths_paper : public DrawFeatheredPaths
+{
+public:
+    DrawFeatheredPaths_paper() : DrawFeatheredPaths(assets::paper_riv()) {}
+};
+REGISTER_BENCH(DrawFeatheredPaths_paper);
+
+class DrawCustomFeathers : public DrawCustomPaths
+{
+public:
+    void setupPath(RiveRenderPath* path) final
+    {
+        path->fillRule(FillRule::clockwise);
+        for (int j = 0; j < 50; ++j)
+        {
+            path->cubicTo(-800, 1600, 2400, 1600, 1600, 0);
+        }
+    }
+
+    void setupPaint(RiveRenderPaint* paint) override
+    {
+        paint->style(RenderPaintStyle::fill);
+        paint->feather(85);
+    }
+};
+REGISTER_BENCH(DrawCustomFeathers);
 
 REGISTER_BENCH(DrawTwoCuspStrokes);

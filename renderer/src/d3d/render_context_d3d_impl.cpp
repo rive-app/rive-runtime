@@ -20,6 +20,7 @@
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.glsl.hpp"
 #include "generated/shaders/hlsl.glsl.hpp"
+#include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
 
 // D3D11 doesn't let us bind the framebuffer UAV to slot 0 when there is a color
@@ -290,7 +291,7 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     m_gpuContext->UpdateSubresource(m_featherTexture.Get(),
                                     FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,
                                     &box,
-                                    gpu::InverseGaussianIntegralTableF16().data,
+                                    gpu::g_inverseGaussianIntegralTableF16,
                                     sizeof(gpu::g_gaussianIntegralTableF16),
                                     0);
     VERIFY_OK(m_gpu->CreateShaderResourceView(
@@ -304,6 +305,7 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         s << glsl::hlsl << '\n';
         s << glsl::constants << '\n';
         s << glsl::common << '\n';
+        s << glsl::bezier_utils << '\n';
         s << glsl::tessellate << '\n';
         ComPtr<ID3DBlob> vertexBlob =
             compileSourceToBlob(GLSL_VERTEX,
@@ -1597,6 +1599,14 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                            storageBufferBufferSRVs + 1);
     }
 
+    // All programs use the same feather texture.
+    m_gpuContext->VSSetShaderResources(FEATHER_TEXTURE_IDX,
+                                       1,
+                                       m_featherTextureSRV.GetAddressOf());
+    m_gpuContext->PSSetShaderResources(FEATHER_TEXTURE_IDX,
+                                       1,
+                                       m_featherTextureSRV.GetAddressOf());
+
     // All programs use the same samplers.
     ID3D11SamplerState* samplers[4] = {
         m_linearSampler.Get(),
@@ -1735,15 +1745,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     m_gpuContext->VSSetShaderResources(TESS_VERTEX_TEXTURE_IDX,
                                        1,
                                        m_tessTextureSRV.GetAddressOf());
-    m_gpuContext->VSSetShaderResources(FEATHER_TEXTURE_IDX,
+    m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX,
                                        1,
-                                       m_featherTextureSRV.GetAddressOf());
-    ID3D11ShaderResourceView* gradFeatherViews[] = {
-        m_gradTextureSRV.Get(),
-        m_featherTextureSRV.Get(),
-    };
-    m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX, 2, gradFeatherViews);
-    assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
+                                       m_gradTextureSRV.GetAddressOf());
 
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)

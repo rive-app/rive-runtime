@@ -15,6 +15,33 @@
 #define AA_RADIUS float(.0)
 #endif
 
+// Defined as a macro because 'uniforms' isn't always available at global scope.
+#define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                               \
+    pixel_coord_to_clip_coord(COORD,                                           \
+                              uniforms.renderTargetInverseViewportX,           \
+                              uniforms.renderTargetInverseViewportY)
+
+// This is a macro because we can't (at least for now) forward texture refs to a
+// function in a way that works in all the languages we support.
+// This is a macro because we can't (at least for now) forward texture refs to a
+// function in a way that works in all the languages we support.
+#define FEATHER(X)                                                             \
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
+                                featherSampler,                                \
+                                X,                                             \
+                                FEATHER_FUNCTION_ARRAY_INDEX,                  \
+                                float(FEATHER_FUNCTION_ARRAY_INDEX),           \
+                                .0)                                            \
+        .r
+#define INVERSE_FEATHER(X)                                                     \
+    TEXTURE_SAMPLE_LOD_1D_ARRAY(@featherTexture,                               \
+                                featherSampler,                                \
+                                X,                                             \
+                                FEATHER_INVERSE_FUNCTION_ARRAY_INDEX,          \
+                                float(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX),   \
+                                .0)                                            \
+        .r
+
 #ifdef GLSL
 // GLSL has different semantics around precision. Normalize type conversions
 // across languages with "cast_*_to_*()" methods.
@@ -206,12 +233,6 @@ INLINE float4 pixel_coord_to_clip_coord(float2 pixelCoord,
                   0.,
                   1.);
 }
-
-// Defined as a macro because 'uniforms' isn't always available at global scope.
-#define RENDER_TARGET_COORD_TO_CLIP_COORD(COORD)                               \
-    pixel_coord_to_clip_coord(COORD,                                           \
-                              uniforms.renderTargetInverseViewportX,           \
-                              uniforms.renderTargetInverseViewportY)
 
 #ifndef @RENDER_MODE_MSAA
 // Calculates the Manhattan distance in pixels from the given pixelPosition, to

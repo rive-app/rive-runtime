@@ -11,6 +11,15 @@
 #include "common/rand.hpp"
 #include <catch.hpp>
 
+// glsl cross-compiling requires the clang/gcc vector extension.
+#ifndef _MSC_VER
+#include "../renderer/cpp.glsl"
+namespace glsl_cross
+{
+#include "shaders/bezier_utils.glsl"
+}
+#endif
+
 namespace rive
 {
 namespace math
@@ -607,33 +616,36 @@ TEST_CASE("EvalCubic", "[bezier_utils]")
     }
 }
 
-static void check_cubic_max_height(const Vec2D* pts)
+// glsl cross-compiling requires the clang/gcc vector extension.
+#ifndef _MSC_VER
+static void check_cubic_coeffs_tangents_glsl(const Vec2D* pts)
 {
-    float t, h = math::find_cubic_max_height(pts, &t);
-    CHECK(h >= 0);
-    CHECK(t >= 0);
-    CHECK(t <= 1);
-    Vec2D norm = (pts[3] - pts[0]).normalized();
-    norm = {-norm.y, norm.x};
-    float k = -Vec2D::dot(norm, pts[0]);
-    auto heightAt = [=](float t) {
-        return fabsf(Vec2D::dot(norm, math::eval_cubic_at(pts, t)) + k);
-    };
-    constexpr static float EPSILON = 1e-4f;
-    CHECK(heightAt(t) == Approx(h).margin(EPSILON));
-    CHECK(h + EPSILON > heightAt(0));
-    CHECK(h + EPSILON > heightAt(1));
-    for (float t2 = 0; t2 <= 1; t2 += .005137f)
-    {
-        CHECK(h + EPSILON > heightAt(t2));
-    }
+    // Check cubic coefficients.
+    math::CubicCoeffs coeffs(pts);
+    float2 p0 = simd::load2f(pts + 0);
+    float2 p1 = simd::load2f(pts + 1);
+    float2 p2 = simd::load2f(pts + 2);
+    float2 p3 = simd::load2f(pts + 3);
+    float2 A, B, C;
+    glsl_cross::find_cubic_coeffs(p0, p1, p2, p3, A, B, C);
+    CHECK(simd::all(A == coeffs.A));
+    CHECK(simd::all(B == coeffs.B));
+    CHECK(simd::all(C == coeffs.C));
+
+    // Check cubic tangents.
+    Vec2D tangents[2];
+    math::find_cubic_tangents(pts, tangents);
+    std::array<float2, 2> glslTangents =
+        glsl_cross::find_cubic_tangents(p0, p1, p2, p3);
+    CHECK(simd::all(simd::load2f(&tangents[0]) == glslTangents[0]));
+    CHECK(simd::all(simd::load2f(&tangents[1]) == glslTangents[1]));
 }
 
-TEST_CASE("find_cubic_max_height", "[bezier_utils]")
+TEST_CASE("find_cubic_coeffs_tangents_glsl", "[bezier_utils]")
 {
     for (auto pts : TEST_CUBICS)
     {
-        check_cubic_max_height(pts);
+        check_cubic_coeffs_tangents_glsl(pts);
     }
     // Test all combinations of corners from the square [0,0,1,1]. This covers
     // every cubic type as well as a wide variety of special cases for cusps,
@@ -644,7 +656,7 @@ TEST_CASE("find_cubic_max_height", "[bezier_utils]")
                         Vec2D((i >> 2) & 1, (i >> 3) & 1) * 100,
                         Vec2D((i >> 4) & 1, (i >> 5) & 1) * 100,
                         Vec2D((i >> 6) & 1, (i >> 7) & 1) * 100};
-        check_cubic_max_height(pts);
+        check_cubic_coeffs_tangents_glsl(pts);
     }
     Rand rando;
     rando.seed(0);
@@ -656,7 +668,84 @@ TEST_CASE("find_cubic_max_height", "[bezier_utils]")
             {rando.f32(-100, 100), rando.f32(-100, 100)},
             {rando.f32(-100, 100), rando.f32(-100, 100)},
         };
-        check_cubic_max_height(randos);
+        check_cubic_coeffs_tangents_glsl(randos);
+    }
+}
+
+TEST_CASE("clamped_divide_glsl", "[bezier_utils]")
+{
+    constexpr static float INF = std::numeric_limits<float>::infinity();
+    CHECK(glsl_cross::clamped_divide(1, 2) == .5f);
+    CHECK(glsl_cross::clamped_divide(-2, 0) == 0);
+    CHECK(glsl_cross::clamped_divide(1, 0) == 1);
+    CHECK(glsl_cross::clamped_divide(-INF, 1) == 0);
+    CHECK(glsl_cross::clamped_divide(INF, 1) == 1);
+    CHECK(glsl_cross::clamped_divide(INF, INF) == 1);
+    CHECK(glsl_cross::clamped_divide(-INF, -INF) == 1);
+    CHECK(glsl_cross::clamped_divide(-INF, INF) == 0);
+    CHECK(glsl_cross::clamped_divide(INF, -INF) == 0);
+    CHECK(glsl_cross::clamped_divide(0, 0) == 0);
+    CHECK(glsl_cross::clamped_divide(1, NAN) == 1);
+    CHECK(glsl_cross::clamped_divide(-1, NAN) == 0);
+    CHECK(glsl_cross::clamped_divide(NAN, 1) == 0);
+    CHECK(glsl_cross::clamped_divide(NAN, -1) == 0);
+    CHECK(glsl_cross::clamped_divide(NAN, NAN) == 0);
+}
+
+static void check_cubic_max_height_glsl(const Vec2D* pts)
+{
+    float t, h = glsl_cross::find_cubic_max_height(simd::load2f(pts + 0),
+                                                   simd::load2f(pts + 1),
+                                                   simd::load2f(pts + 2),
+                                                   simd::load2f(pts + 3),
+                                                   t);
+    CHECK(h >= 0);
+    CHECK(t >= 0);
+    CHECK(t <= 1);
+    Vec2D norm = (pts[3] - pts[0]).normalized();
+    norm = {-norm.y, norm.x};
+    float k = -Vec2D::dot(norm, pts[0]);
+    auto heightAt = [=](float t) {
+        return fabsf(Vec2D::dot(norm, math::eval_cubic_at(pts, t)) + k);
+    };
+    CHECK(heightAt(t) == Approx(h).margin(1e-4f));
+    float epsilon = std::max(h, 1.f) * 1e-3f;
+    CHECK(h + epsilon > heightAt(0));
+    CHECK(h + epsilon > heightAt(1));
+    for (float t2 = 0; t2 <= 1; t2 += .005137f)
+    {
+        CHECK(h + epsilon > heightAt(t2));
+    }
+}
+
+TEST_CASE("find_cubic_max_height_glsl", "[bezier_utils]")
+{
+    for (auto pts : TEST_CUBICS)
+    {
+        check_cubic_max_height_glsl(pts);
+    }
+    // Test all combinations of corners from the square [0,0,1,1]. This covers
+    // every cubic type as well as a wide variety of special cases for cusps,
+    // lines, loops, and inflections.
+    for (int i = 0; i < (1 << 8); ++i)
+    {
+        Vec2D pts[4] = {Vec2D((i >> 0) & 1, (i >> 1) & 1) * 100,
+                        Vec2D((i >> 2) & 1, (i >> 3) & 1) * 100,
+                        Vec2D((i >> 4) & 1, (i >> 5) & 1) * 100,
+                        Vec2D((i >> 6) & 1, (i >> 7) & 1) * 100};
+        check_cubic_max_height_glsl(pts);
+    }
+    Rand rando;
+    rando.seed(0);
+    for (int i = 0; i < 100; ++i)
+    {
+        Vec2D randos[] = {
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+            {rando.f32(-100, 100), rando.f32(-100, 100)},
+        };
+        check_cubic_max_height_glsl(randos);
     }
 }
 
@@ -673,9 +762,8 @@ static float guess_cubic_local_curvature(const Vec2D* p,
     float dt = 0;
     math::EvalCubic evalCubic(coeffs, p[0]);
     // This would converge faster if we used the derivative of the Spread(dt)
-    // function from math::measure_cubic_local_curvature, but since the whole
-    // point of this test is to validate that function, use a binary search
-    // instead.
+    // function from measure_cubic_local_curvature, but since the whole point of
+    // this test is to validate that function, use a binary search instead.
     for (int i = 0; i < 24; ++i)
     {
         float guessDT = (dt + maxDT) * .5f;
@@ -903,7 +991,7 @@ TEST_CASE("find_cubic_convex_90_chops", "[bezier_utils]")
     }
 }
 
-static void check_cubic_local_curvature(const Vec2D* pts)
+static void check_cubic_local_curvature_glsl(const Vec2D* pts)
 {
     float T[4];
     bool areCusps;
@@ -923,20 +1011,28 @@ static void check_cubic_local_curvature(const Vec2D* pts)
             // section that passes through a cusp.
             continue;
         }
+
+        float2 p0 = simd::load2f(p + 0);
+        float2 p1 = simd::load2f(p + 1);
+        float2 p2 = simd::load2f(p + 2);
+        float2 p3 = simd::load2f(p + 3);
+
         float maxHeightT;
         CHECK(measure_non_inflect_cubic_rotation(p) <=
               Approx(math::PI / 2).margin(2.6e-3f));
-        math::find_cubic_max_height(p, &maxHeightT);
+        glsl_cross::find_cubic_max_height(p0, p1, p2, p3, maxHeightT);
         CubicCoeffs coeffs(p);
         for (float desiredSpread : {1.f, 10.f, 100.f})
         {
             for (float t : {maxHeightT, .5f})
             {
                 float theta =
-                    math::measure_cubic_local_curvature(p,
-                                                        coeffs,
-                                                        t,
-                                                        desiredSpread);
+                    glsl_cross::measure_cubic_local_curvature(p0,
+                                                              p1,
+                                                              p2,
+                                                              p3,
+                                                              t,
+                                                              desiredSpread);
                 CHECK(theta >= 0);
                 CHECK(theta <= math::PI);
 
@@ -948,11 +1044,11 @@ static void check_cubic_local_curvature(const Vec2D* pts)
     }
 }
 
-TEST_CASE("measure_cubic_local_curvature", "[bezier_utils]")
+TEST_CASE("measure_cubic_local_curvature_glsl", "[bezier_utils]")
 {
     for (auto pts : TEST_CUBICS)
     {
-        check_cubic_local_curvature(pts);
+        check_cubic_local_curvature_glsl(pts);
     }
     // Test all combinations of corners from the square [0,0,1,1]. This covers
     // every cubic type as well as a wide variety of special cases for cusps,
@@ -963,7 +1059,7 @@ TEST_CASE("measure_cubic_local_curvature", "[bezier_utils]")
                         Vec2D((i >> 2) & 1, (i >> 3) & 1) * 100,
                         Vec2D((i >> 4) & 1, (i >> 5) & 1) * 100,
                         Vec2D((i >> 6) & 1, (i >> 7) & 1) * 100};
-        check_cubic_local_curvature(pts);
+        check_cubic_local_curvature_glsl(pts);
     }
     Rand rando;
     rando.seed(0);
@@ -975,8 +1071,9 @@ TEST_CASE("measure_cubic_local_curvature", "[bezier_utils]")
             {rando.f32(-100, 100), rando.f32(-100, 100)},
             {rando.f32(-100, 100), rando.f32(-100, 100)},
         };
-        check_cubic_local_curvature(randos);
+        check_cubic_local_curvature_glsl(randos);
     }
 }
+#endif
 } // namespace math
 } // namespace rive

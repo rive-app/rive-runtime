@@ -151,28 +151,6 @@ float measure_angle_between_vectors(Vec2D a, Vec2D b);
 // on a degenerate flat line.
 int find_cubic_convex_180_chops(const Vec2D[], float T[2], bool* areCusps);
 
-// Find the location and value of a cubic's maximum height, relative to the
-// baseline p0->p3.
-float find_cubic_max_height(const Vec2D pts[4], float* outT);
-
-// Measure the amount of curvature, in radians, of the given cubic, centered at
-// location T, and covering a spread of width "desiredSpread" in local
-// coordinates. If "desiredSpread" would reach outside the range t=0..1, a
-// smaller spread is used.
-float measure_cubic_local_curvature(const Vec2D pts[4],
-                                    const math::CubicCoeffs& coeffs,
-                                    float T,
-                                    float desiredSpread);
-inline float measure_cubic_local_curvature(const Vec2D pts[4],
-                                           float T,
-                                           float desiredSpread)
-{
-    return measure_cubic_local_curvature(pts,
-                                         CubicCoeffs(pts),
-                                         T,
-                                         desiredSpread);
-}
-
 // Finds the tangents of the curve at T=0 and T=1 respectively.
 RIVE_ALWAYS_INLINE Vec2D find_cubic_tan0(const Vec2D p[4])
 {

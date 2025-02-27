@@ -21,14 +21,6 @@
 #define half2 $half2
 #define half3 $half3
 #define half4 $half4
-#define short $short
-#define short2 $short2
-#define short3 $short3
-#define short4 $short4
-#define ushort $ushort
-#define ushort2 $ushort2
-#define ushort3 $ushort3
-#define ushort4 $ushort4
 #define float2 $float2
 #define float3 $float3
 #define float4 $float4
@@ -42,7 +34,6 @@
 #define int3 $int3
 #define int4 $int4
 #define float4x2 $float4x2
-#define ushort $ushort
 #define float2x2 $float2x2
 #define half3x3 $half3x3
 #define half2x3 $half2x3
@@ -52,15 +43,19 @@ $typedef float3 packed_float3;
 
 #ifdef @ENABLE_MIN_16_PRECISION
 
-$typedef $min16int short;
-
-$typedef $min16uint ushort;
+// Use #define instead of typedef because typedef generates
+// "error X3093: out of memory while parsing".
+#define short $min16int
+#define short2 $min16int2
+#define ushort $min16uint
 
 #else
 
-$typedef $int short;
-
-$typedef $uint ushort;
+// Use #define instead of typedef because typedef generates
+// "error X3093: out of memory while parsing".
+#define short int
+#define short2 int2
+#define ushort uint
 
 #endif
 

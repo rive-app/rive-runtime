@@ -731,10 +731,18 @@ public:
     TessellatePipeline(RenderContextVulkanImpl* impl) :
         m_vk(ref_rcp(impl->vulkanContext()))
     {
+        VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
+            impl->m_perFlushDescriptorSetLayout,
+            impl->m_emptyDescriptorSetLayout,
+            impl->m_immutableSamplerDescriptorSetLayout,
+        };
+        static_assert(PER_FLUSH_BINDINGS_SET == 0);
+        static_assert(SAMPLER_BINDINGS_SET == 2);
+
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            .setLayoutCount = 1,
-            .pSetLayouts = &impl->m_perFlushDescriptorSetLayout,
+            .setLayoutCount = std::size(pipelineDescriptorSetLayouts),
+            .pSetLayouts = pipelineDescriptorSetLayouts,
         };
 
         VK_CHECK(m_vk->CreatePipelineLayout(m_vk->device,
@@ -2175,6 +2183,17 @@ void RenderContextVulkanImpl::initGPUObjects()
         nullptr,
         &m_immutableSamplerDescriptorSetLayout));
 
+    // For when a set isn't used at all by a shader.
+    VkDescriptorSetLayoutCreateInfo emptyLayoutInfo = {
+        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+        .bindingCount = 0,
+    };
+
+    VK_CHECK(m_vk->CreateDescriptorSetLayout(m_vk->device,
+                                             &emptyLayoutInfo,
+                                             nullptr,
+                                             &m_emptyDescriptorSetLayout));
+
     // Create static descriptor sets.
     VkDescriptorPoolSize staticDescriptorPoolSizes[] = {
         {
@@ -2249,8 +2268,8 @@ void RenderContextVulkanImpl::initGPUObjects()
            gpu::g_gaussianIntegralTableF16,
            sizeof(gpu::g_gaussianIntegralTableF16));
     memcpy(featherTextureData + gpu::GAUSSIAN_TABLE_SIZE,
-           gpu::InverseGaussianIntegralTableF16().data,
-           sizeof(gpu::g_gaussianIntegralTableF16));
+           gpu::g_inverseGaussianIntegralTableF16,
+           sizeof(gpu::g_inverseGaussianIntegralTableF16));
     static_assert(FEATHER_FUNCTION_ARRAY_INDEX == 0);
     static_assert(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX == 1);
     m_featherTexture =
@@ -2338,6 +2357,9 @@ RenderContextVulkanImpl::~RenderContextVulkanImpl()
                                      nullptr);
     m_vk->DestroyDescriptorSetLayout(m_vk->device,
                                      m_immutableSamplerDescriptorSetLayout,
+                                     nullptr);
+    m_vk->DestroyDescriptorSetLayout(m_vk->device,
+                                     m_emptyDescriptorSetLayout,
                                      nullptr);
     m_vk->DestroySampler(m_vk->device, m_mipmapSampler, nullptr);
     m_vk->DestroySampler(m_vk->device, m_linearSampler, nullptr);
@@ -2949,6 +2971,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     &perFlushDescriptorSet,
                                     1,
                                     zeroOffset32);
+        m_vk->CmdBindDescriptorSets(commandBuffer,
+                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    m_tessellatePipeline->pipelineLayout(),
+                                    SAMPLER_BINDINGS_SET,
+                                    1,
+                                    &m_immutableSamplerDescriptorSet,
+                                    0,
+                                    nullptr);
 
         m_vk->CmdDrawIndexed(commandBuffer,
                              std::size(gpu::kTessSpanIndices),

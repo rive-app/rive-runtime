@@ -523,4 +523,6 @@ INLINE float2 mix(float2 a, float2 b, bool2 c)
     return result;
 }
 
+INLINE float2 mix(float2 a, float2 b, float t) { return mix(a, b, float2(t)); }
+
 INLINE float mod(float x, float y) { return $fmod(x, y); }

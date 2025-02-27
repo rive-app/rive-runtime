@@ -520,7 +520,7 @@ RenderContextMetalImpl::RenderContextMetalImpl(
         replaceRegion:MTLRegionMake2D(0, 0, gpu::GAUSSIAN_TABLE_SIZE, 1)
           mipmapLevel:0
                 slice:FEATHER_INVERSE_FUNCTION_ARRAY_INDEX
-            withBytes:gpu::InverseGaussianIntegralTableF16().data
+            withBytes:gpu::g_inverseGaussianIntegralTableF16
           bytesPerRow:sizeof(gpu::g_gaussianIntegralTableF16)
         bytesPerImage:sizeof(gpu::g_gaussianIntegralTableF16)];
 
@@ -1153,6 +1153,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             setViewport:make_viewport(
                             0, 0, kTessTextureWidth, desc.tessDataHeight)];
         [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
+        [tessEncoder setVertexTexture:m_featherTexture
+                              atIndex:FEATHER_TEXTURE_IDX];
         [tessEncoder
             setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                      offset:desc.flushUniformDataOffsetInBytes

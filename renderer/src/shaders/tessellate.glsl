@@ -44,33 +44,19 @@ NO_PERSPECTIVE VARYING(3, float3, v_joinArgs);
 FLAT VARYING(4, uint, v_contourIDWithFlags);
 VARYING_BLOCK_END
 
-// Tangent of the curve at T=0 and T=1.
-INLINE float2x2 find_tangents(float2 p0, float2 p1, float2 p2, float2 p3)
-{
-    float2x2 t;
-    t[0] = (any(notEqual(p0, p1)) ? p1 : any(notEqual(p1, p2)) ? p2 : p3) - p0;
-    t[1] = p3 - (any(notEqual(p3, p2)) ? p2 : any(notEqual(p2, p1)) ? p1 : p0);
-    return t;
-}
-
 #ifdef @VERTEX
 VERTEX_TEXTURE_BLOCK_BEGIN
+TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
+                      FEATHER_TEXTURE_IDX,
+                      @featherTexture);
 VERTEX_TEXTURE_BLOCK_END
+
+SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
 
 VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
 STORAGE_BUFFER_U32x4(PATH_BUFFER_IDX, PathBuffer, @pathBuffer);
 STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 VERTEX_STORAGE_BUFFER_BLOCK_END
-
-INLINE float cosine_between_vectors(float2 a, float2 b)
-{
-    // FIXME(crbug.com/800804,skbug.com/11268): This can overflow if we don't
-    // normalize exponents.
-    float ab_cosTheta = dot(a, b);
-    float ab_pow2 = dot(a, a) * dot(b, b);
-    return (ab_pow2 == .0) ? 1.
-                           : clamp(ab_cosTheta * inversesqrt(ab_pow2), -1., 1.);
-}
 
 VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
@@ -127,21 +113,78 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     float x1 = float(x0x1 >> 16);
     float2 coord = float2((_vertexID & 1) == 0 ? x0 : x1,
                           (_vertexID & 2) == 0 ? y + 1. : y);
-
-    uint parametricSegmentCount = @a_args.z & 0x3ffu;
-    uint polarSegmentCount = (@a_args.z >> 10) & 0x3ffu;
-    uint joinSegmentCount = @a_args.z >> 20;
-    uint contourIDWithFlags = @a_args.w;
-    if (x1 < x0) // Reflections are drawn right to left.
-    {
-        contourIDWithFlags |= MIRRORED_CONTOUR_CONTOUR_FLAG;
-    }
     if ((x1 - x0) * uniforms.tessInverseViewportY < .0)
     {
         // Make sure we always emit clockwise triangles. Swap the top and bottom
         // vertices.
         coord.y = 2. * y + 1. - coord.y;
     }
+
+    // Unpack arguments.
+    uint parametricSegmentCount = @a_args.z & 0x3ffu;
+    uint polarSegmentCount = (@a_args.z >> 10) & 0x3ffu;
+    uint joinSegmentCount = @a_args.z >> 20;
+    uint contourIDWithFlags = @a_args.w;
+    uint pathID =
+        contourIDWithFlags != INVALID_CONTOUR_ID_WITH_FLAGS
+            ? STORAGE_BUFFER_LOAD4(@contourBuffer,
+                                   contour_data_idx(contourIDWithFlags))
+                  .z
+            : 0u;
+    uint4 pathData = pathID != 0u
+                         ? STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u + 1u)
+                         : uint4(0u, 0u, 0u, 0u);
+    float strokeRadius = uintBitsToFloat(pathData.z);
+    float featherRadius = uintBitsToFloat(pathData.w);
+
+    if (featherRadius != .0 && strokeRadius == .0)
+    {
+        // We're a cubic from a feathered fill. To simulate the
+        // feather-softening effect that happens with curvature, reduce the
+        // height of the curve proportionally.
+        // Start by finding the point of maximum height on the cubic.
+        float maxHeightT;
+        float height = find_cubic_max_height(p0, p1, p2, p3, maxHeightT);
+
+        // Measure curvature across one standard deviation of the feather.
+        float oneStddev = featherRadius * (1. / FEATHER_TEXTURE_STDDEVS);
+        float curvature = measure_cubic_local_curvature(p0,
+                                                        p1,
+                                                        p2,
+                                                        p3,
+                                                        maxHeightT,
+                                                        oneStddev);
+
+        // The feather gets softer with curvature. Find a dimming factor based
+        // on the strength of curvature at maximum height.
+        float dimming = 1. - curvature * (1. / PI);
+
+        // It gets hard to measure curvature on short segments. Also taper down
+        // to completely flat as the distance between endpoints moves from 2
+        // standard deviations to 1.
+        float stddevsPow2 = dot(p3 - p0, p3 - p0) / (oneStddev * oneStddev);
+        float dimmingByStddevs = (stddevsPow2 - 1.) * .5;
+        dimming = min(dimming, dimmingByStddevs);
+
+        // Unfortunately, the best method we have to get rid of some final
+        // speckles on cusps is to dim everything by 1%.
+        dimming = min(dimming, .99);
+
+        // Soften the feather by reducing the curve height. Find a new height
+        // such that the center of the feather (currently 50% opacity) is
+        // reduced to "50% * dimming".
+        float desiredOpacityOnCenter = .5 * dimming;
+        float x = INVERSE_FEATHER(desiredOpacityOnCenter) * -2. + 1.;
+        float softness = clamped_divide(x * featherRadius, height);
+
+        // Flatten the curve down to "softenedHeight". (Height scales linearly
+        // as we lerp the control points to "flatLinePoints".)
+        float4 flatLinePoints =
+            mix(p0.xyxy, p3.xyxy, float4(1. / 3., 1. / 3., 2. / 3., 2. / 3.));
+        p1 = mix(p1, flatLinePoints.xy, softness);
+        p2 = mix(p2, flatLinePoints.zw, softness);
+    }
+
     if ((contourIDWithFlags & CULL_EXCESS_TESSELLATION_SEGMENTS_CONTOUR_FLAG) !=
         0u)
     {
@@ -151,9 +194,6 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
         // Wang's formula to figure out how many segments we actually need, and
         // make any excess segments degenerate by co-locating their vertices at
         // T=0.
-        uint pathID = STORAGE_BUFFER_LOAD4(@contourBuffer,
-                                           contour_data_idx(contourIDWithFlags))
-                          .z;
         float2x2 mat = make_float2x2(
             uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, pathID * 4u)));
         float2 d0 = MUL(mat, -2. * p1 + p2 + p0);
@@ -163,13 +203,14 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
         float n = max(ceil(sqrt(.75 * 4. * sqrt(m))), 1.);
         parametricSegmentCount = min(uint(n), parametricSegmentCount);
     }
+
     // Polar and parametric segments share the same beginning and ending
     // vertices, so the merged *vertex* count is equal to the sum of polar and
     // parametric *segment* counts.
     uint totalVertexCount =
         parametricSegmentCount + polarSegmentCount + joinSegmentCount - 1u;
 
-    float2x2 tangents = find_tangents(p0, p1, p2, p3);
+    float2x2 tangents = find_cubic_tangents(p0, p1, p2, p3);
     float theta = acos(cosine_between_vectors(tangents[0], tangents[1]));
     float radsPerPolarSegment = theta / float(polarSegmentCount);
     // Adjust sign of radsPerPolarSegment to match the direction the curve
@@ -213,6 +254,12 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
         v_joinArgs.xy = @a_joinTan_and_ys.xy;
         v_joinArgs.z = radsPerJoinSegment;
     }
+
+    if (x1 < x0) // Reflections are drawn right to left.
+    {
+        contourIDWithFlags |= MIRRORED_CONTOUR_CONTOUR_FLAG;
+    }
+
     v_contourIDWithFlags = contourIDWithFlags;
 
     float4 pos = pixel_coord_to_clip_coord(coord,
@@ -244,7 +291,7 @@ FRAG_DATA_MAIN(uint4, @tessellateFragmentMain)
     float2 p1 = v_p0p1.zw;
     float2 p2 = v_p2p3.xy;
     float2 p3 = v_p2p3.zw;
-    float2x2 tangents = find_tangents(p0, p1, p2, p3);
+    float2x2 tangents = find_cubic_tangents(p0, p1, p2, p3);
     // Colocate any padding vertices at T=0.
     float vertexIdx = max(floor(v_args.x), .0);
     float totalVertexCount = v_args.y;

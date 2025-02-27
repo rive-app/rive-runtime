@@ -152,117 +152,97 @@ uint64_t RiveRenderPath::getRawPathMutationID() const
     return m_rawPathMutationID;
 }
 
-// When a blurred shape curves away from the convolution matrix, the curvature
-// makes the blur softer, which does not happen naturally in feathering.
-//
-// To simulate the softening effect from curving away, we flatten curves
-// proportionaly to curvature. This works really well for gaussian feathers, but
-// we may also split the curve and recurse if there is enough flattening to
-// become noticeable.
-//
-// TODO: Move this work to the GPU.
-static void add_softened_cubic_for_feathering(RawPath* featheredPath,
-                                              const Vec2D p[4],
-                                              float feather,
-                                              float rotationBetweenJoins,
-                                              float totalRotation)
+// Chops the cubic definfed by p[4] at 'numChops' locations, each defined by
+// the next position where the tangent rotates by 'rotationMatrix'. Adds each
+// segment to 'path'.
+static void chop_cubic_at_uniform_rotation(RawPath* path,
+                                           const Vec2D p[4],
+                                           const Vec2D tangents[2],
+                                           int numChops,
+                                           const Mat2D& rotationMatrix)
 {
     math::CubicCoeffs coeffs(p);
-
-    // Recurse until each segment rotates by no more than approximately
-    // "rotationBetweenJoins" radians.
-    // TODO: Now that this recursion is uniform, we can move the chopping to the
-    // GPU.
-    if (abs(totalRotation) > abs(rotationBetweenJoins) + 1e-4f)
+    float2 tangent = simd::load2f(&tangents[0]);
+    float4 rotation = simd::load4f(rotationMatrix.values());
+    const Vec2D* remainingCubic = p;
+    float remainingT = 0;
+    Vec2D chops[10];
+    for (int i = 0; i < numChops; i += 4)
     {
-        // The cubic rotates more than rotationBetweenJoins. Find a boundary
-        // of rotationBetweenJoins toward the center to chop on.
-        float chopTheta = ceilf(totalRotation / (2 * rotationBetweenJoins)) *
-                          rotationBetweenJoins;
-        Vec2D tan0 = math::find_cubic_tan0(p);
-        float2 chopTan =
-            math::bit_cast<float2>(Mat2D::fromRotation(chopTheta) * tan0);
-
-        // Solve for T where the tangent of the curve is equal to chopTan.
-        float a = simd::cross(coeffs.A, chopTan);
-        float b_over_2 = simd::cross(coeffs.B, chopTan);
-        float c = simd::cross(coeffs.C, chopTan);
-        float discr_over_4 = b_over_2 * b_over_2 - a * c;
-        float q = sqrtf(discr_over_4);
-        q = -b_over_2 - copysignf(q, b_over_2);
-        float2 roots = float2{q, c} / float2{a, q};
-        float t =
-            fabsf(roots.x - .5f) < fabsf(roots.y - .5f) ? roots.x : roots.y;
-        if (t > 0 && t < 1)
+        // Load up to 4 quadratic equations to solve.
+        int numChopsRemaining = std::min(numChops - i, 4);
+        float4 tangentsX, tangentsY;
+        for (int j = 0; j < numChopsRemaining; ++j)
         {
-            // Chop and recurse.
-            Vec2D pp[7];
-            math::chop_cubic_at(p, pp, t);
-            add_softened_cubic_for_feathering(featheredPath,
-                                              pp,
-                                              feather,
-                                              rotationBetweenJoins,
-                                              totalRotation * .5f);
-            add_softened_cubic_for_feathering(featheredPath,
-                                              pp + 3,
-                                              feather,
-                                              rotationBetweenJoins,
-                                              totalRotation * .5f);
-            return;
+            float4 m = rotation * tangent.xxyy;
+            tangent = m.xy + m.zw;
+            tangentsX[j & 3] = tangent.x;
+            tangentsY[j & 3] = tangent.y;
+        }
+
+        // Solve for the T values where the tangent of the curve is equal to
+        // each tangent.
+        float4 a = coeffs.A.x * tangentsY - coeffs.A.y * tangentsX;
+        float4 b_over_2 = coeffs.B.x * tangentsY - coeffs.B.y * tangentsX;
+        float4 c = coeffs.C.x * tangentsY - coeffs.C.y * tangentsX;
+        float4 discr_over_4 = b_over_2 * b_over_2 - a * c;
+        float4 q = simd::sqrt(discr_over_4);
+        q = -b_over_2 - simd::copysign(q, b_over_2);
+        // Since C == tan0:
+        //  * c/q == 0 when tangent == tan0
+        //  * c/q is the root where tangent == tan0
+        //  * c/q is the root we need at each subsequent step
+        float4 roots = c / q;
+
+        // Filter out any roots that fell out of order due to fp32 precision
+        // issues, or are too close together for fp32 precision.
+        float t[4];
+        int numT = 0;
+        float maxT = remainingT;
+        for (int j = 0; j < numChopsRemaining; ++j)
+        {
+            constexpr float MIN_SPACING = 1e-4f;
+            if (roots[j] > maxT + MIN_SPACING && roots[j] < 1 - MIN_SPACING)
+            {
+                t[numT++] = maxT = roots[j];
+            }
+        }
+
+        // Chop the curve at the t values we just found. Add all but the final
+        // chop to the path. Update remainingCubic[4] & remainingT to the final
+        // chop.
+        for (int j = 0; j < numT; j += 2)
+        {
+            // Localize the t values from p[4] to remainingCubic[4].
+            float2 localT = simd::clamp((simd::load2f(t + j) - remainingT) /
+                                            (1 - remainingT),
+                                        float2(0),
+                                        float2(1));
+            if (j + 1 < numT)
+            {
+                // Two chops.
+                math::chop_cubic_at(remainingCubic,
+                                    chops,
+                                    localT[0],
+                                    localT[1]);
+                path->cubic(chops[1], chops[2], chops[3]);
+                path->cubic(chops[4], chops[5], chops[6]);
+                remainingCubic = chops + 6;
+                remainingT = t[j + 1];
+            }
+            else
+            {
+                // Only one chop is left.
+                math::chop_cubic_at(remainingCubic, chops, localT[0]);
+                path->cubic(chops[1], chops[2], chops[3]);
+                remainingCubic = chops + 3;
+                remainingT = t[j];
+            }
         }
     }
 
-    // Find the point of maximum height on the cubic.
-    float maxHeightT;
-    float height = math::find_cubic_max_height(p, &maxHeightT);
-
-    // Measure curvature across one standard deviation of the feather.
-    // ("feather" is 2 std devs.)
-    float desiredSpread = feather * .5f;
-
-    // The feather gets softer with curvature. Find a dimming factor based on
-    // the strength of curvature at maximum height.
-    float theta = math::measure_cubic_local_curvature(p,
-                                                      coeffs,
-                                                      maxHeightT,
-                                                      desiredSpread);
-    float dimming = 1 - theta * (1 / math::PI);
-
-    // It gets hard to measure curvature on short segments. Also taper down to
-    // completely flat as the distance between endpoints moves from 2 standard
-    // deviations to 1.
-    float stddevsPow2 =
-        math::length_pow2(p[3] - p[0]) / (.25 * math::pow2(feather));
-    float dimmingByStddevs = (stddevsPow2 - 1) * .5f;
-    dimming = fminf(dimming, dimmingByStddevs);
-
-    // Unfortunately, the best method we have to get rid of some final speckles
-    // on cusps is to dim everything by 1%.
-    dimming = fminf(dimming, .99f);
-
-    // Soften the feather by reducing the curve height. Find a new height such
-    // that the center of the feather (currently 50% opacity) is reduced to
-    // "50% * dimming".
-    float desiredOpacityOnCenter = .5f * dimming;
-    float x = gpu::inverse_gaussian_integral(desiredOpacityOnCenter) - .5f;
-    float softenedHeight = height + feather * FEATHER_TEXTURE_STDDEVS * x;
-
-    // Flatten the curve down to "softenedHeight". (Height scales linearly as we
-    // lerp the control points to "flatLinePoints".)
-    float4 flatLinePoints =
-        simd::mix(simd::load2f(p).xyxy,
-                  simd::load2f(p + 3).xyxy,
-                  float4{1.f / 3, 1.f / 3, 2.f / 3, 2.f / 3});
-    float softness = height != 0 ? 1 - softenedHeight / height : 1;
-    // Do the "min" first so softness is 1 if anything went NaN.
-    softness = fmaxf(0, fminf(softness, 1));
-    assert(softness >= 0 && softness <= 1);
-    float4 softenedPoints = simd::unchecked_mix(simd::load4f(p + 1), // [p1, p2]
-                                                flatLinePoints,
-                                                float4(softness));
-    featheredPath->cubic(math::bit_cast<Vec2D>(softenedPoints.xy),
-                         math::bit_cast<Vec2D>(softenedPoints.zw),
-                         p[3]);
+    // Finally, add whatever is left over after chopping.
+    path->cubic(remainingCubic[1], remainingCubic[2], remainingCubic[3]);
 }
 
 rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
@@ -292,6 +272,8 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
     // Our math that flattens feathered curves relies on curves not rotating
     // more than 90 degrees.
     rotationBetweenJoins = std::min(rotationBetweenJoins, math::PI / 2);
+    Mat2D rotationMatrix = Mat2D::fromRotation(rotationBetweenJoins);
+    Mat2D reverseRotationMatrix = Mat2D::fromRotation(-rotationBetweenJoins);
 
     RawPath featheredPath;
     // Reserve a generous amount of space upfront so we hopefully don't have to
@@ -311,21 +293,49 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
             case PathVerb::cubic:
             {
                 // Start by chopping all cubics so they are convex and rotate no
-                // more than 90 degrees. The stroke algorithm requires them not
-                // to have inflections
+                // more than 180 degrees. chop_cubic_at_uniform_rotation()
+                // requires them to not have inflections or rotate more than 180
+                // degrees.
                 float T[4];
                 Vec2D chops[(std::size(T) + 1) * 3 + 1]; // 4 chops will produce
                                                          // 16 cubic vertices.
-                bool areCusps; // Ignored. Polar joins handle cusps without us
-                               // having to do anything special.
-                // A generous cusp padding looks better empirically.
+                bool areCusps;
                 int n = math::find_cubic_convex_180_chops(pts, T, &areCusps);
+                assert(n <= 2);
+                if (areCusps)
+                {
+                    // Cross through cusps with short lines to avoid unstable
+                    // math. Large cusp padding empirically gets better results.
+                    constexpr static float CUSP_PADDING = 1e-2f;
+                    for (int i = 0; i < n; ++i)
+                    {
+                        // If the cusps are extremely close together, don't
+                        // allow the straddle points to cross.
+                        float minT = i == 0 ? 0.f : (T[i - 1] + T[i]) * .5f;
+                        float maxT = i + 1 == n ? 1.f : (T[i + 1] + T[i]) * .5f;
+                        T[i * 2 + 0] = fmaxf(T[i] - CUSP_PADDING, minT);
+                        T[i * 2 + 1] = fminf(T[i] + CUSP_PADDING, maxT);
+                    }
+                    n *= 2;
+                }
                 math::chop_cubic_at(pts, chops, T, n);
                 Vec2D* p = chops;
                 for (int i = 0; i <= n; ++i, p += 3)
                 {
+                    if (areCusps && (i & 1) == 1)
+                    {
+                        // This cubic contains an actual cusp. Cross through it
+                        // with a line.
+                        featheredPath.line(p[3]);
+                        continue;
+                    }
                     Vec2D tangents[2];
                     math::find_cubic_tangents(p, tangents);
+                    float rotation =
+                        math::measure_angle_between_vectors(tangents[0],
+                                                            tangents[1]);
+                    int numChops =
+                        static_cast<int>(rotation / rotationBetweenJoins);
                     // Determine which the direction the curve turns.
                     // NOTE: Since the curve does not inflect, we can just
                     // check F'(.5) x F''(.5).
@@ -338,16 +348,12 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
                         // are co-located.
                         turn = Vec2D::cross(tangents[0], tangents[1]);
                     }
-                    float totalRotation = copysignf(
-                        math::measure_angle_between_vectors(tangents[0],
-                                                            tangents[1]),
-                        turn);
-                    add_softened_cubic_for_feathering(
+                    chop_cubic_at_uniform_rotation(
                         &featheredPath,
                         p,
-                        feather,
-                        copysignf(rotationBetweenJoins, totalRotation),
-                        totalRotation);
+                        tangents,
+                        numChops,
+                        turn >= 0 ? rotationMatrix : reverseRotationMatrix);
                 }
                 break;
             }

@@ -250,6 +250,8 @@ private:
     VkDescriptorSetLayout m_perFlushDescriptorSetLayout;
     VkDescriptorSetLayout m_perDrawDescriptorSetLayout;
     VkDescriptorSetLayout m_immutableSamplerDescriptorSetLayout;
+    VkDescriptorSetLayout m_emptyDescriptorSetLayout; // For when a set isn't
+                                                      // used by a shader.
 
     VkDescriptorPool m_staticDescriptorPool; // For descriptorSets that never
                                              // change between frames.

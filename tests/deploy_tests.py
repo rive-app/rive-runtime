@@ -388,7 +388,10 @@ def update_cmd_to_deploy_on_target(cmd):
         return cmd
 
 def launch_gms(test_harness_server):
-    cmd = [os.path.join(args.builddir, "gms"),
+    tool = os.path.join(args.builddir, "gms")
+    if platform.system() == "Windows":
+        tool = tool + ".exe"
+    cmd = [tool,
            "--backend", args.backend,
            "--test_harness", "%s:%u" % test_harness_server.server_address,
            "--headless",
@@ -408,6 +411,8 @@ def launch_gms(test_harness_server):
 
 def launch_goldens(test_harness_server):
     tool = os.path.join(args.builddir, "goldens")
+    if platform.system() == "Windows":
+        tool = tool + ".exe"
     if args.verbose:
         print("[server] Using '" + tool + "'", flush=True)
 
@@ -443,14 +448,17 @@ def launch_player(test_harness_server):
         print("Can't find riv path " + args.src, flush=True)
         return -1;
 
-    rivsqueue.put(args.src)
-    cmd = [os.path.join(args.builddir, "player"),
+    tool = os.path.join(args.builddir, "player")
+    if platform.system() == "Windows":
+        tool = tool + ".exe"
+    cmd = [tool,
            "--test_harness", "%s:%u" % test_harness_server.server_address,
            "--backend", args.backend]
     if args.options:
         cmd += ["--options", args.options]
     cmd = update_cmd_to_deploy_on_target(cmd)
 
+    rivsqueue.put(args.src)
     player = CheckProcess(cmd)
     player.start()
     return player
@@ -510,13 +518,13 @@ def main():
          # currently, unreal needs to run only one job at a time for goldens and gms to work
         args.jobs_per_tool = 1
         if args.builddir == None:
-            args.builddir = "out/debug"
+            args.builddir = os.path.join("out", "debug")
         # unreal is currently always rhi, we may have seperate rhi types in the future like rhi_metal etc..
         args.backend = 'rhi'
     else:
         assert(args.target == "host")
         if args.builddir == None:
-            args.builddir = "out/debug"
+            args.builddir = os.path.join("out", "debug")
         if args.backend == None:
             args.backend = "metal" if platform.system() == "Darwin" else \
                            "d3d" if platform.system() == "Windows" else \

@@ -91,6 +91,9 @@
 #define RIGHT_JOIN_CONTOUR_FLAG (1u << 20u)
 #define CONTOUR_ID_MASK 0xffffu
 
+// This is guaranteed to not collide with a neighboring contour ID.
+#define INVALID_CONTOUR_ID_WITH_FLAGS 0u
+
 // Says which part of the patch a vertex belongs to.
 #define STROKE_VERTEX 0
 #define FAN_VERTEX 1
