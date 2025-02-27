@@ -168,6 +168,13 @@ do
     do
         files({ 'src/text/font_hb_apple.mm' })
     end
+
+    if TESTING == true then
+        filter({ 'toolset:not msc' })
+        do
+            buildoptions({ '-Wshorten-64-to-32', '-fprofile-instr-generate', '-fcoverage-mapping' })
+        end
+    end
 end
 
 newoption({

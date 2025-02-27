@@ -85,6 +85,16 @@ if [[ $machine = "macosx" ]]; then
   make -j$(($(sysctl -n hw.physicalcpu) + 1))
   popd
   $UTILITY $OUT_DIR/unit_tests
+  for var in "$@"; do
+    if [[ $var = "coverage" ]]; then
+      xcrun llvm-profdata merge -sparse default.profraw -o default.profdata
+      xcrun llvm-cov report $OUT_DIR/unit_tests -instr-profile=default.profdata
+      # xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=text >coverage.json
+      xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=lcov >coverage.txt
+      sed -i '' -e 's?'$RUNTIME'?packages/runtime?g' coverage.txt
+    fi
+  done
+
 elif [[ $machine = "windows" ]]; then
   if [[ -f "$PROGRAMFILES/Microsoft Visual Studio/2022/Enterprise/Msbuild/Current/Bin/MSBuild.exe" ]]; then
     export MSBUILD="$PROGRAMFILES/Microsoft Visual Studio/2022/Enterprise/Msbuild/Current/Bin/MSBuild.exe"

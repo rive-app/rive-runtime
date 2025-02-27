@@ -1,5 +1,5 @@
 dofile('rive_build_config.lua')
-
+TESTING = true
 defines({
     'TESTING',
     'ENABLE_QUERY_FLAT_VERTICES',
@@ -86,7 +86,7 @@ do
 
     filter({ 'toolset:not msc' })
     do
-        buildoptions({ '-Wshorten-64-to-32' })
+        linkoptions({ '-fprofile-instr-generate', '-fcoverage-mapping' })
     end
 
     filter({})

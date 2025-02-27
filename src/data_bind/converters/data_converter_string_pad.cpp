@@ -16,7 +16,7 @@ DataValue* DataConverterStringPad::convert(DataValue* input, DataBind* dataBind)
             auto padLength = padPattern.size();
             inputValue.reserve(length());
             std::string padText{""};
-            int padTextSize = length() - inputLength;
+            size_t padTextSize = length() - inputLength;
             padText.reserve(padTextSize);
             while (inputLength < length())
             {

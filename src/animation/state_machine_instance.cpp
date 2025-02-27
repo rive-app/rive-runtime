@@ -69,7 +69,7 @@ public:
         auto nanos = std::chrono::duration_cast<std::chrono::nanoseconds>(
                          now.time_since_epoch())
                          .count();
-        srand(nanos);
+        srand((unsigned int)nanos);
     }
 
     void updateMix(float seconds)

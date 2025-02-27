@@ -68,7 +68,7 @@ ColorInt colorModulateOpacity(ColorInt value, float opacity)
 
 static unsigned int lerp(unsigned int a, unsigned int b, float mix)
 {
-    return std::lround(
+    return (unsigned int)std::lround(
         std::max(0.0f, std::min(255.f, a * (1.0f - mix) + b * mix)));
 }
 

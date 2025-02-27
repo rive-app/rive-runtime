@@ -126,7 +126,7 @@ void DataBindContextValueList::update(Core* target)
             listIndex++;
         }
         // remove remaining cached elements backwars to pop from the vector.
-        listIndex = m_ListItemsCache.size() - 1;
+        listIndex = (int)(m_ListItemsCache.size() - 1);
         while (listIndex >= listItems.size())
         {
             popItem(target);

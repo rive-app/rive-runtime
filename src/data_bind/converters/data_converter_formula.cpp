@@ -145,7 +145,7 @@ void DataConverterFormula::initialize()
         }
         else if (token->is<FormulaTokenArgumentSeparator>())
         {
-            int index = operationsStack.size() - 1;
+            size_t index = operationsStack.size() - 1;
             while (index >= 0)
             {
                 auto operationTokenCandidate = operationsStack[index];

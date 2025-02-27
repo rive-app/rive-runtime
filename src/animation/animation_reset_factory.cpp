@@ -114,7 +114,8 @@ public:
             if (propertiesData.size() > 0)
             {
                 animationReset->writeObjectId(keyedObjectData->objectId);
-                animationReset->writeTotalProperties(propertiesData.size());
+                animationReset->writeTotalProperties(
+                    (uint32_t)propertiesData.size());
                 for (auto keyedPropertyData : propertiesData)
                 {
                     auto keyedProperty = keyedPropertyData.keyedProperty;
