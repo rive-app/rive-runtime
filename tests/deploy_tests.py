@@ -389,7 +389,7 @@ def update_cmd_to_deploy_on_target(cmd):
 
 def launch_gms(test_harness_server):
     tool = os.path.join(args.builddir, "gms")
-    if platform.system() == "Windows":
+    if platform.system() == "Windows" and args.target  == 'host':
         tool = tool + ".exe"
     cmd = [tool,
            "--backend", args.backend,
@@ -411,7 +411,7 @@ def launch_gms(test_harness_server):
 
 def launch_goldens(test_harness_server):
     tool = os.path.join(args.builddir, "goldens")
-    if platform.system() == "Windows":
+    if platform.system() == "Windows" and args.target  == 'host':
         tool = tool + ".exe"
     if args.verbose:
         print("[server] Using '" + tool + "'", flush=True)
