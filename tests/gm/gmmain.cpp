@@ -14,17 +14,18 @@
 #include <sys/system_properties.h>
 #endif
 
+#include <functional>
+
 using namespace rivegm;
 
 static bool verbose = false;
-
-std::vector<std::tuple<std::unique_ptr<GM>, std::string>> gmRegistry;
-
+std::vector<std::tuple<std::function<GM*(void)>, std::string>> gmRegistry;
 extern "C" void gms_build_registry()
 {
+
 #define MAKE_GM(NAME)                                                          \
     extern GM* RIVE_MACRO_CONCAT(make_, NAME)();                               \
-    gmRegistry.emplace_back(RIVE_MACRO_CONCAT(make_, NAME)(), #NAME);
+    gmRegistry.emplace_back(RIVE_MACRO_CONCAT(make_, NAME), #NAME);
 
     // Add slow GMs first so they get more time to run in a multiprocess
     // execution.
@@ -174,8 +175,11 @@ static bool contains(const std::string& str, const std::string& substr)
 
 static void dumpGMs(const std::string& match, bool interactive)
 {
-    for (const auto& [gm, name] : gmRegistry)
+
+    for (const auto& [make_gm, name] : gmRegistry)
     {
+        std::unique_ptr<GM> gm(make_gm());
+
         if (!gm)
         {
             continue;
@@ -232,11 +236,13 @@ extern "C" REGISTRY_HANDLE gms_registry_get_next(
     return position_handle + 1;
 }
 
-bool gms_run_gm(REGISTRY_HANDLE position_handle)
+extern "C" bool gms_run_gm(REGISTRY_HANDLE position_handle)
 {
     assert(position_handle >= 0);
     assert(position_handle < gmRegistry.size());
-    const auto& [gm, gmName] = gmRegistry[position_handle];
+    const auto& [make_gm, gmName] = gmRegistry[position_handle];
+
+    std::unique_ptr<GM> gm(make_gm());
 
     if (!gm)
     {
@@ -258,7 +264,7 @@ extern "C" bool gms_registry_get_name(REGISTRY_HANDLE position_handle,
 {
     assert(position_handle >= 0);
     assert(position_handle < gmRegistry.size());
-    const auto& [gm, gmName] = gmRegistry[position_handle];
+    const auto& [make_gm, gmName] = gmRegistry[position_handle];
 
     name = gmName;
     return true;
@@ -270,7 +276,9 @@ extern "C" bool gms_registry_get_size(REGISTRY_HANDLE position_handle,
 {
     assert(position_handle >= 0);
     assert(position_handle < gmRegistry.size());
-    const auto& [gm, gmName] = gmRegistry[position_handle];
+    const auto& [make_gm, gmName] = gmRegistry[position_handle];
+
+    std::unique_ptr<GM> gm(make_gm());
 
     width = 0;
     height = 0;

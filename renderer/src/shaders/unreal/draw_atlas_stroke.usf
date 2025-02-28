@@ -1,13 +1,14 @@
 #include "/Engine/Public/Platform.ush"
-#define SPLIT_UINT4_ATTRIBUTES 1
+#define DRAW_PATH
+#define ENABLE_FEATHER
+#define ATLAS_FEATHERED_STROKE
 
 #ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
 #include "/Engine/Generated/GeneratedUniformBuffers.ush"
 #endif
 
-#include "parse_environment.ush"
 #include "Generated/rhi.minified.ush"
 #include "Generated/constants.minified.ush"
 #include "Generated/common.minified.ush"
-#include "Generated/bezier_utils.minified.ush"
-#include "Generated/tessellate.minified.ush"
+#include "Generated/draw_path_common.minified.ush"
+#include "Generated/draw_atlas.minified.ush"

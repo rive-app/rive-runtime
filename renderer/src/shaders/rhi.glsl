@@ -118,8 +118,8 @@ $typedef $uint ushort;
 #define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform $Texture2D<uint4> NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME) uniform $Texture2D<float4> NAME
 #define TEXTURE_RGBA8(SET, IDX, NAME) uniform $Texture2D<$unorm float4> NAME
-#define TEXTURE_R16F(SET, IDX, NAME)                                           \
-    uniform $Texture2D<half> NAME : $register($t##IDX)
+#define TEXTURE_R16F(SET, IDX, NAME) uniform $Texture2D<half> NAME
+#define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME) uniform $Texture2DArray<half> NAME
 #define SAMPLED_R16F_REF(NAME, SAMPLER_NAME)                                   \
     $Texture2D<half> NAME, $SamplerState SAMPLER_NAME
 #define SAMPLED_R16F(NAME, SAMPLER_NAME) NAME, SAMPLER_NAME
@@ -138,6 +138,15 @@ $typedef $uint ushort;
 #define TEXTURE_REF_SAMPLE_LOD TEXTURE_SAMPLE_LOD
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     NAME.$SampleGrad(SAMPLER_NAME, COORD, DDX, DDY)
+#define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)        \
+    NAME.$Gather(SAMPLER_NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
+#define TEXTURE_SAMPLE_LOD_1D_ARRAY(NAME,                                      \
+                                    SAMPLER_NAME,                              \
+                                    X,                                         \
+                                    ARRAY_INDEX,                               \
+                                    ARRAY_INDEX_NORMALIZED,                    \
+                                    LOD)                                       \
+    NAME.$SampleLevel(SAMPLER_NAME, float3(X, 0.5, ARRAY_INDEX), LOD)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END
@@ -196,6 +205,9 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 
 #define VERTEX_CONTEXT_DECL
 #define VERTEX_CONTEXT_UNPACK
+
+#define TEXTURE_CONTEXT_DECL
+#define TEXTURE_CONTEXT_FORWARD
 
 #define VERTEX_MAIN(NAME, Attrs, attrs, _vertexID, _instanceID)                \
                                                                                \
@@ -343,6 +355,8 @@ INLINE float fract(float x) { return $frac(x); }
 INLINE float2 fract(float2 x) { return $frac(x); }
 INLINE float3 fract(float3 x) { return $frac(x); }
 INLINE float4 fract(float4 x) { return $frac(x); }
+
+INLINE float mod(float x, float y) { return $fmod(x, y); }
 
 // Reimplement intrinsics for half types.
 // This shadows the intrinsic function for floats, so we also have to declare
