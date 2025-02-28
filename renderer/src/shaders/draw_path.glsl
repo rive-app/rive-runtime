@@ -18,7 +18,7 @@ ATTR_BLOCK_END
 VARYING_BLOCK_BEGIN
 NO_PERSPECTIVE VARYING(0, float4, v_paint);
 
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
 NO_PERSPECTIVE VARYING(1, float2, v_atlasCoord);
 #elif !defined(@RENDER_MODE_MSAA)
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -54,7 +54,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     VARYING_INIT(v_paint, float4);
 
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     VARYING_INIT(v_atlasCoord, float2);
 #elif !defined(@RENDER_MODE_MSAA)
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -84,7 +84,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     ushort pathZIndex;
 #endif
 
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     vertexPosition =
         unpack_atlas_coverage_vertex(@a_triangleVertex,
                                      pathID,
@@ -130,7 +130,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     uint2 paintData = STORAGE_BUFFER_LOAD2(@paintBuffer, pathID);
 
-#if !defined(@ATLAS_COVERAGE) && !defined(@RENDER_MODE_MSAA)
+#if !defined(@ATLAS_BLIT) && !defined(@RENDER_MODE_MSAA)
     // Encode the integral pathID as a "half" that we know the hardware will see
     // as a unique value in the fragment shader.
     v_pathID = id_bits_to_f16(pathID, uniforms.pathIDGranularity);
@@ -138,7 +138,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     // Indicate even-odd fill rule by making pathID negative.
     if ((paintData.x & PAINT_FLAG_EVEN_ODD_FILL) != 0u)
         v_pathID = -v_pathID;
-#endif // !@ATLAS_COVERAGE && !@RENDER_MODE_MSAA
+#endif // !@ATLAS_BLIT && !@RENDER_MODE_MSAA
 
     uint paintType = paintData.x & 0xfu;
 #ifdef @ENABLE_CLIPPING
@@ -284,7 +284,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     }
 
     VARYING_PACK(v_paint);
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     VARYING_PACK(v_atlasCoord);
 #elif !defined(@RENDER_MODE_MSAA)
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -363,7 +363,7 @@ PLS_MAIN(@drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
 
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     VARYING_UNPACK(v_atlasCoord, float2);
 #elif !defined(@RENDER_MODE_MSAA)
 #ifdef @DRAW_INTERIOR_TRIANGLES
@@ -386,13 +386,13 @@ PLS_MAIN(@drawFragmentMain)
     VARYING_UNPACK(v_blendMode, half);
 #endif
 
-#if !defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_COVERAGE)
+#if !defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
     // Interior triangles don't overlap, so don't need raster ordering.
     PLS_INTERLOCK_BEGIN;
 #endif
 
     half coverage;
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     coverage = filter_feather_atlas(
         v_atlasCoord,
         uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
@@ -463,7 +463,7 @@ PLS_MAIN(@drawFragmentMain)
         // This also caps stroke coverage, which can be >1.
         coverage = min(coverage, make_half(1.));
     }
-#endif // !@ATLAS_COVERAGE
+#endif // !@ATLAS_BLIT
 
 #ifdef @ENABLE_CLIPPING
     if (@ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.
@@ -546,7 +546,7 @@ PLS_MAIN(@drawFragmentMain)
         color.a *= coverage;
 
         half4 dstColor;
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
         dstColor = PLS_LOAD4F(colorBuffer);
 #else
         if (coverageBufferID != v_pathID)
@@ -569,7 +569,7 @@ PLS_MAIN(@drawFragmentMain)
             PLS_PRESERVE_4F(scratchColorBuffer);
 #endif
         }
-#endif // @ATLAS_COVERAGE
+#endif // @ATLAS_BLIT
 
         // Blend with the framebuffer color.
 #ifdef @ENABLE_ADVANCED_BLEND
@@ -591,7 +591,7 @@ PLS_MAIN(@drawFragmentMain)
         PLS_PRESERVE_UI(clipBuffer);
     }
 
-#if !defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_COVERAGE)
+#if !defined(@DRAW_INTERIOR_TRIANGLES) || defined(@ATLAS_BLIT)
     // Interior triangles don't overlap, so don't need raster ordering.
     PLS_INTERLOCK_END;
 #endif
@@ -604,7 +604,7 @@ PLS_MAIN(@drawFragmentMain)
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
     VARYING_UNPACK(v_paint, float4);
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     VARYING_UNPACK(v_atlasCoord, float2);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
@@ -612,7 +612,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #endif
 
     half4 color = find_paint_color(v_paint);
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     color.a *= filter_feather_atlas(
         v_atlasCoord,
         uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);

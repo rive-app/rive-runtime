@@ -679,7 +679,7 @@ private:
         // Pushes a screen-space rectangle to the draw list, whose pixel
         // coverage is determined by the atlas region associated with the given
         // pathID.
-        void pushAtlasCoverageDraw(PathDraw*, uint32_t pathID);
+        void pushAtlasBlit(PathDraw*, uint32_t pathID);
 
         // Pushes an "imageRect" to the draw list.
         // This should only be used when we in atomic mode. Otherwise, images

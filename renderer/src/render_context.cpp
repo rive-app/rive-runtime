@@ -2406,8 +2406,7 @@ size_t RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
     return actualVertexCount;
 }
 
-void RenderContext::LogicalFlush::pushAtlasCoverageDraw(PathDraw* draw,
-                                                        uint32_t pathID)
+void RenderContext::LogicalFlush::pushAtlasBlit(PathDraw* draw, uint32_t pathID)
 {
     auto baseVertex = math::lossless_numeric_cast<uint32_t>(
         m_ctx->m_triangleVertexData.elementsWritten());
@@ -2419,9 +2418,8 @@ void RenderContext::LogicalFlush::pushAtlasCoverageDraw(PathDraw* draw,
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{l, t}, 1, pathID);
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 1, pathID);
     pushPathDraw(draw,
-                 DrawType::interiorTriangulation,
-                 gpu::ShaderMiscFlags::clockwiseFill |
-                     gpu::ShaderMiscFlags::atlasCoverage,
+                 DrawType::atlasBlit,
+                 gpu::ShaderMiscFlags::none,
                  6,
                  baseVertex);
 }
@@ -2533,8 +2531,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
 
     auto pathShaderFeatures = gpu::ShaderFeatures::NONE;
     if (draw->featherRadius() != 0 &&
-        draw->coverageType() != PathDraw::CoverageType::atlas &&
-        drawType != gpu::DrawType::interiorTriangulation)
+        drawType != gpu::DrawType::interiorTriangulation &&
+        drawType != gpu::DrawType::atlasBlit)
     {
         pathShaderFeatures |= ShaderFeatures::ENABLE_FEATHER;
     }
@@ -2552,11 +2550,10 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     batch.shaderFeatures |=
         pathShaderFeatures & m_ctx->m_frameShaderFeaturesMask;
     m_combinedShaderFeatures |= batch.shaderFeatures;
-    assert((batch.shaderFeatures &
-            gpu::ShaderFeaturesMaskFor(drawType,
-                                       shaderMiscFlags,
-                                       m_ctx->frameInterlockMode())) ==
-           batch.shaderFeatures);
+    assert(
+        (batch.shaderFeatures &
+         gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
+        batch.shaderFeatures);
     return batch;
 }
 
@@ -2619,6 +2616,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
         case DrawType::stencilClipReset:
             if (!m_drawList.empty())
             {
@@ -2713,11 +2711,10 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     }
     batch->shaderFeatures |= shaderFeatures & m_ctx->m_frameShaderFeaturesMask;
     m_combinedShaderFeatures |= batch->shaderFeatures;
-    assert((batch->shaderFeatures &
-            gpu::ShaderFeaturesMaskFor(drawType,
-                                       shaderMiscFlags,
-                                       m_ctx->frameInterlockMode())) ==
-           batch->shaderFeatures);
+    assert(
+        (batch->shaderFeatures &
+         gpu::ShaderFeaturesMaskFor(drawType, m_ctx->frameInterlockMode())) ==
+        batch->shaderFeatures);
 
     batch->drawContents |= draw->drawContents();
 

@@ -86,6 +86,10 @@ template <typename T> Span<T> make_span(T* ptr, size_t size)
     return Span<T>(ptr, size);
 }
 
+template <typename T, size_t N> Span<T> make_span(T (&ptr)[N])
+{
+    return Span<T>(ptr, N);
+}
 } // namespace rive
 
 #endif

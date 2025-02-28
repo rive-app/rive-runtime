@@ -19,7 +19,7 @@ ENABLE_EVEN_ODD = Feature('ENABLE_EVEN_ODD', 4)
 ENABLE_NESTED_CLIPPING = Feature('ENABLE_NESTED_CLIPPING', 5)
 ENABLE_HSL_BLEND_MODES = Feature('ENABLE_HSL_BLEND_MODES', 6)
 DRAW_INTERIOR_TRIANGLES = Feature('DRAW_INTERIOR_TRIANGLES', 7)
-ATLAS_COVERAGE = Feature('ATLAS_COVERAGE', 8)
+ATLAS_BLIT = Feature('ATLAS_BLIT', 8)
 
 whole_program_features = {ENABLE_CLIPPING,
                           ENABLE_CLIP_RECT,
@@ -56,7 +56,7 @@ non_image_mesh_features = {ENABLE_FEATHER,
                            ENABLE_EVEN_ODD,
                            ENABLE_NESTED_CLIPPING,
                            DRAW_INTERIOR_TRIANGLES,
-                           ATLAS_COVERAGE}
+                           ATLAS_BLIT}
 
 # Returns whether the given feature set is compatible with an image mesh shader.
 def is_image_mesh_feature_set(feature_set):
@@ -125,14 +125,14 @@ emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.LEGACY,
 emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.CLOCKWISE,
             all_features.union({DRAW_INTERIOR_TRIANGLES}))
 
-# Atlas coverage shaders.
+# Atlas blit shaders.
 emit_shader(out, ShaderType.VERTEX, DrawType.PATH, FillType.LEGACY,
             whole_program_features\
-                    .union({DRAW_INTERIOR_TRIANGLES, ATLAS_COVERAGE})\
+                    .union({DRAW_INTERIOR_TRIANGLES, ATLAS_BLIT})\
                     .difference(non_atlas_coverage_features))
-emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.CLOCKWISE,
+emit_shader(out, ShaderType.FRAGMENT, DrawType.PATH, FillType.LEGACY,
             all_features\
-                    .union({DRAW_INTERIOR_TRIANGLES, ATLAS_COVERAGE})\
+                    .union({DRAW_INTERIOR_TRIANGLES, ATLAS_BLIT})\
                     .difference(non_atlas_coverage_features))
 
 # Image mesh shaders.

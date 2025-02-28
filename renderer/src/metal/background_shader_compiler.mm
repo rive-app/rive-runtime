@@ -120,10 +120,6 @@ void BackgroundShaderCompiler::threadMain()
         {
             defines[@GLSL_CLOCKWISE_FILL] = @"1";
         }
-        if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
-        {
-            defines[@GLSL_ATLAS_COVERAGE] = @"1";
-        }
 
         auto source =
             [[NSMutableString alloc] initWithCString:gpu::glsl::metal
@@ -154,6 +150,9 @@ void BackgroundShaderCompiler::threadMain()
                                          : gpu::glsl::atomic_draw];
 #endif
                 break;
+            case DrawType::atlasBlit:
+                defines[@GLSL_ATLAS_BLIT] = @"1";
+                [[fallthrough]];
             case DrawType::interiorTriangulation:
                 defines[@GLSL_DRAW_INTERIOR_TRIANGLES] = @"";
                 [source appendFormat:@"%s\n", gpu::glsl::draw_path_common];

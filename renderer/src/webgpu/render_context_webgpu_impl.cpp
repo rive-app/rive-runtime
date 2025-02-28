@@ -15,6 +15,8 @@
 #include "generated/shaders/spirv/draw_path.frag.h"
 #include "generated/shaders/spirv/draw_interior_triangles.vert.h"
 #include "generated/shaders/spirv/draw_interior_triangles.frag.h"
+#include "generated/shaders/spirv/draw_atlas_blit.vert.h"
+#include "generated/shaders/spirv/draw_atlas_blit.frag.h"
 #include "generated/shaders/spirv/draw_image_mesh.vert.h"
 #include "generated/shaders/spirv/draw_image_mesh.frag.h"
 
@@ -641,6 +643,9 @@ public:
                         addDefine(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
                     }
                     break;
+                case DrawType::atlasBlit:
+                    addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
+                    [[fallthrough]];
                 case DrawType::interiorTriangulation:
                     addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
                     break;
@@ -700,7 +705,7 @@ public:
                     glsl << gpu::glsl::draw_path << '\n';
                     break;
                 case DrawType::interiorTriangulation:
-                    addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
+                case DrawType::atlasBlit:
                     glsl << gpu::glsl::draw_path_common << '\n';
                     glsl << gpu::glsl::draw_path << '\n';
                     break;
@@ -764,6 +769,18 @@ public:
                             context->m_device,
                             draw_interior_triangles_frag,
                             std::size(draw_interior_triangles_frag));
+                    break;
+                case DrawType::atlasBlit:
+                    vertexShader =
+                        m_vertexShaderHandle.compileSPIRVShaderModule(
+                            context->m_device,
+                            draw_atlas_blit_vert,
+                            std::size(draw_atlas_blit_vert));
+                    fragmentShader =
+                        m_fragmentShaderHandle.compileSPIRVShaderModule(
+                            context->m_device,
+                            draw_atlas_blit_frag,
+                            std::size(draw_atlas_blit_frag));
                     break;
                 case DrawType::imageRect:
                     RIVE_UNREACHABLE();
@@ -1577,6 +1594,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             break;
         }
         case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
         {
             attrs = {
                 {
@@ -2186,6 +2204,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::interiorTriangulation:
+            case DrawType::atlasBlit:
             {
                 drawPass.SetVertexBuffer(0,
                                          webgpu_buffer(triangleBufferRing()));

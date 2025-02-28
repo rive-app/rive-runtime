@@ -14,12 +14,12 @@
 #include "generated/shaders/color_ramp.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
-#include "generated/shaders/draw_atlas.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.glsl.hpp"
 #include "generated/shaders/draw_image_mesh.glsl.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
+#include "generated/shaders/render_atlas.glsl.hpp"
 #include "generated/shaders/blit_texture_as_draw.glsl.hpp"
 #include "generated/shaders/stencil_draw.glsl.hpp"
 
@@ -749,7 +749,7 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
         const char* atlasSources[] = {glsl::constants,
                                       glsl::common,
                                       glsl::draw_path_common,
-                                      glsl::draw_atlas};
+                                      glsl::render_atlas};
         m_atlasVertexShader.compile(GL_VERTEX_SHADER,
                                     defines.data(),
                                     defines.size(),
@@ -814,10 +814,6 @@ RenderContextGLImpl::DrawShader::DrawShader(
     if (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
     {
         defines.push_back(GLSL_CLOCKWISE_FILL);
-    }
-    if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
-    {
-        defines.push_back(GLSL_ATLAS_COVERAGE);
     }
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
@@ -886,6 +882,9 @@ RenderContextGLImpl::DrawShader::DrawShader(
             assert(interlockMode == gpu::InterlockMode::msaa);
             sources.push_back(gpu::glsl::stencil_draw);
             break;
+        case gpu::DrawType::atlasBlit:
+            defines.push_back(GLSL_ATLAS_BLIT);
+            [[fallthrough]];
         case gpu::DrawType::interiorTriangulation:
             defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
             sources.push_back(gpu::glsl::draw_path_common);
@@ -961,11 +960,10 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     // and reuse when possible.
     ShaderFeatures vertexShaderFeatures =
         shaderFeatures & kVertexShaderFeaturesMask;
-    uint32_t vertexShaderKey = gpu::ShaderUniqueKey(
-        drawType,
-        vertexShaderFeatures,
-        interlockMode,
-        shaderMiscFlags & gpu::VERTEX_SHADER_MISC_FLAGS_MASK);
+    uint32_t vertexShaderKey = gpu::ShaderUniqueKey(drawType,
+                                                    vertexShaderFeatures,
+                                                    interlockMode,
+                                                    gpu::ShaderMiscFlags::none);
     const DrawShader& vertexShader =
         renderContextImpl->m_vertexShaders
             .try_emplace(vertexShaderKey,
@@ -974,7 +972,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
                          drawType,
                          vertexShaderFeatures,
                          interlockMode,
-                         shaderMiscFlags & gpu::VERTEX_SHADER_MISC_FLAGS_MASK)
+                         gpu::ShaderMiscFlags::none)
             .first->second;
 
     m_id = glCreateProgram();
@@ -992,8 +990,9 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
         drawType == gpu::DrawType::midpointFanPatches ||
         drawType == gpu::DrawType::midpointFanCenterAAPatches ||
         drawType == gpu::DrawType::outerCurvePatches;
-    const bool isPathDraw =
-        isTessellationDraw || drawType == gpu::DrawType::interiorTriangulation;
+    const bool isPaintDraw = isTessellationDraw ||
+                             drawType == gpu::DrawType::interiorTriangulation ||
+                             drawType == gpu::DrawType::atlasBlit;
     if (isImageDraw)
     {
         glUniformBlockBinding(
@@ -1009,26 +1008,26 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     }
     // Since atomic mode emits the color of the *previous* path, it needs the
     // gradient texture bound for every draw.
-    if (isPathDraw || interlockMode == gpu::InterlockMode::atomics)
+    if (isPaintDraw || interlockMode == gpu::InterlockMode::atomics)
     {
         glutils::Uniform1iByName(m_id, GLSL_gradTexture, GRAD_TEXTURE_IDX);
     }
     if ((isTessellationDraw &&
          (shaderFeatures & ShaderFeatures::ENABLE_FEATHER)) ||
-        (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage))
+        drawType == gpu::DrawType::atlasBlit)
     {
-        assert(isPathDraw || interlockMode == gpu::InterlockMode::atomics);
+        assert(isPaintDraw || interlockMode == gpu::InterlockMode::atomics);
         glutils::Uniform1iByName(m_id,
                                  GLSL_featherTexture,
                                  FEATHER_TEXTURE_IDX);
     }
     // Atomic mode doesn't support image paints on paths.
-    if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
+    if (drawType == gpu::DrawType::atlasBlit)
     {
         glutils::Uniform1iByName(m_id, GLSL_atlasTexture, ATLAS_TEXTURE_IDX);
     }
     if (isImageDraw ||
-        (isPathDraw && interlockMode != gpu::InterlockMode::atomics))
+        (isPaintDraw && interlockMode != gpu::InterlockMode::atomics))
     {
         glutils::Uniform1iByName(m_id, GLSL_imageTexture, IMAGE_TEXTURE_IDX);
     }
@@ -1036,11 +1035,11 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     {
         // Our GL driver doesn't support storage buffers. We polyfill these
         // buffers as textures.
-        if (isPathDraw)
+        if (isPaintDraw)
         {
             glutils::Uniform1iByName(m_id, GLSL_pathBuffer, PATH_BUFFER_IDX);
         }
-        if (isPathDraw || interlockMode == gpu::InterlockMode::atomics)
+        if (isPaintDraw || interlockMode == gpu::InterlockMode::atomics)
         {
             glutils::Uniform1iByName(m_id, GLSL_paintBuffer, PAINT_BUFFER_IDX);
             glutils::Uniform1iByName(m_id,
@@ -1819,8 +1818,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case gpu::DrawType::interiorTriangulation:
+            case gpu::DrawType::atlasBlit:
             {
-                m_state->bindVAO(m_trianglesVAO);
                 if (desc.interlockMode == gpu::InterlockMode::msaa)
                 {
                     bool hasActiveClip =
@@ -1839,17 +1838,18 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     // is large enough that it's faster to issue a barrier than
                     // to force raster ordering in the fragment shader.
                     const bool needRasterOrdering =
-                        (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage);
+                        drawType == gpu::DrawType::atlasBlit;
                     m_plsImpl->ensureRasterOrderingEnabled(this,
                                                            desc,
                                                            needRasterOrdering);
                 }
+                m_state->bindVAO(m_trianglesVAO);
                 m_state->setCullFace(GL_BACK);
                 glDrawArrays(GL_TRIANGLES,
                              batch.baseElement,
                              batch.elementCount);
                 if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
-                    !(shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage))
+                    drawType != gpu::DrawType::atlasBlit)
                 {
                     // We turned off raster ordering even though we're in
                     // "rasterOrdering" mode because it improves performance and

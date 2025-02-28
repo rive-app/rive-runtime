@@ -76,7 +76,7 @@ ATTR_BLOCK_END
 #endif
 
 VARYING_BLOCK_BEGIN
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
 NO_PERSPECTIVE VARYING(0, float2, v_atlasCoord);
 #else
 @OPTIONALLY_FLAT VARYING(0, half, v_windingWeight);
@@ -89,7 +89,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 {
     ATTR_UNPACK(_vertexID, attrs, @a_triangleVertex, float3);
 
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     VARYING_INIT(v_atlasCoord, float2);
 #else
     VARYING_INIT(v_windingWeight, half);
@@ -98,7 +98,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 
     uint pathID;
     float2 vertexPosition;
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     vertexPosition =
         unpack_atlas_coverage_vertex(@a_triangleVertex,
                                      pathID,
@@ -112,7 +112,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     v_pathID = cast_uint_to_ushort(pathID);
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
 
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     VARYING_PACK(v_atlasCoord);
 #else
     VARYING_PACK(v_windingWeight);
@@ -641,7 +641,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
 #ifdef @DRAW_INTERIOR_TRIANGLES
 ATOMIC_PLS_MAIN(@drawFragmentMain)
 {
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     VARYING_UNPACK(v_atlasCoord, float2);
 #else
     VARYING_UNPACK(v_windingWeight, half);
@@ -656,7 +656,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     // triangle. This does not need to be atomic since interior triangles don't
     // overlap.
     uint currPathCoverageData;
-#ifndef @ATLAS_COVERAGE
+#ifndef @ATLAS_BLIT
     if (lastPathID == v_pathID)
     {
         currPathCoverageData = lastCoverageData;
@@ -670,7 +670,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     }
 
     half coverage;
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
     coverage = filter_feather_atlas(
         v_atlasCoord,
         uniforms.atlasTextureInverseSize TEXTURE_CONTEXT_FORWARD);
@@ -682,7 +682,7 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     PLS_STOREUI_ATOMIC(coverageAtomicBuffer,
                        currPathCoverageData + uint(coverageDeltaFixed));
 
-#ifndef @ATLAS_COVERAGE
+#ifndef @ATLAS_BLIT
     if (lastPathID == v_pathID)
     {
         // This is not the first fragment of the current path to touch this

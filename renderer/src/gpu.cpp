@@ -45,31 +45,33 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::interiorTriangulation:
             drawTypeKey = 1;
             break;
-        case DrawType::imageRect:
+        case DrawType::atlasBlit:
             drawTypeKey = 2;
             break;
-        case DrawType::imageMesh:
+        case DrawType::imageRect:
             drawTypeKey = 3;
+            break;
+        case DrawType::imageMesh:
+            drawTypeKey = 4;
             break;
         case DrawType::atomicInitialize:
             assert(interlockMode == gpu::InterlockMode::atomics);
-            drawTypeKey = 4;
+            drawTypeKey = 5;
             break;
         case DrawType::atomicResolve:
             assert(interlockMode == gpu::InterlockMode::atomics);
-            drawTypeKey = 5;
+            drawTypeKey = 6;
             break;
         case DrawType::stencilClipReset:
             assert(interlockMode == gpu::InterlockMode::msaa);
-            drawTypeKey = 6;
+            drawTypeKey = 7;
             break;
     }
     uint32_t key = static_cast<uint32_t>(miscFlags);
     assert(static_cast<uint32_t>(interlockMode) < 1 << 2);
     key = (key << 2) | static_cast<uint32_t>(interlockMode);
     key = (key << kShaderFeatureCount) |
-          (shaderFeatures &
-           ShaderFeaturesMaskFor(drawType, miscFlags, interlockMode))
+          (shaderFeatures & ShaderFeaturesMaskFor(drawType, interlockMode))
               .bits();
     assert(drawTypeKey < 1 << 3);
     key = (key << 3) | drawTypeKey;

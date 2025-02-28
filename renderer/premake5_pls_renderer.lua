@@ -148,7 +148,6 @@ do
         'include',
         'glad',
         'src',
-        'shader_hotload',
         '../include',
         pls_generated_headers,
     })

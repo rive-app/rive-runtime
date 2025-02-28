@@ -143,23 +143,31 @@ $(OUT)/rive_renderer_appletvsimulator.metallib.c: $(OUT)/ios/rive_renderer_apple
 
 
 ## SPIRV compilation.
-SPIRV_INPUTS := $(wildcard spirv/*.main) 
+SPIRV_INPUTS := $(wildcard spirv/*.main) \
+				$(wildcard spirv/*.vert) \
+				$(wildcard spirv/*.frag)
 
 SPIRV_OUTPUTS_HEADERS := \
-    $(addprefix $(OUT)/, $(patsubst %.main, %.vert.h, $(SPIRV_INPUTS))) \
-    $(addprefix $(OUT)/, $(patsubst %.main, %.frag.h, $(SPIRV_INPUTS))) \
+    $(addprefix $(OUT)/, $(patsubst %.main, %.vert.h, $(wildcard spirv/*.main))) \
+    $(addprefix $(OUT)/, $(patsubst %.main, %.frag.h, $(wildcard spirv/*.main))) \
+    $(addprefix $(OUT)/, $(patsubst %.vert, %.vert.h, $(wildcard spirv/*.vert))) \
+    $(addprefix $(OUT)/, $(patsubst %.frag, %.frag.h, $(wildcard spirv/*.frag))) \
     $(OUT)/spirv/atomic_draw_image_mesh.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_draw_image_rect.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_draw_interior_triangles.fixedcolor_frag.h \
+    $(OUT)/spirv/atomic_draw_atlas_blit.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_resolve_pls.fixedcolor_frag.h \
 
 SPIRV_OUTPUTS_BINARY := \
-    $(addprefix $(OUT)/, $(patsubst %.main, %.vert.spirv, $(SPIRV_INPUTS))) \
-    $(addprefix $(OUT)/, $(patsubst %.main, %.frag.spirv, $(SPIRV_INPUTS))) \
+    $(addprefix $(OUT)/, $(patsubst %.main, %.vert.spirv, $(wildcard spirv/*.main))) \
+    $(addprefix $(OUT)/, $(patsubst %.main, %.frag.spirv, $(wildcard spirv/*.main))) \
+    $(addprefix $(OUT)/, $(patsubst %.vert, %.vert.spirv, $(wildcard spirv/*.vert))) \
+    $(addprefix $(OUT)/, $(patsubst %.frag, %.frag.spirv, $(wildcard spirv/*.frag))) \
     $(OUT)/spirv/atomic_draw_image_mesh.fixedcolor_frag.spirv \
     $(OUT)/spirv/atomic_draw_image_rect.fixedcolor_frag.spirv \
     $(OUT)/spirv/atomic_draw_interior_triangles.fixedcolor_frag.spirv \
+    $(OUT)/spirv/atomic_draw_atlas_blit.fixedcolor_frag.spirv \
     $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.spirv \
     $(OUT)/spirv/atomic_resolve_pls.fixedcolor_frag.spirv \
 
@@ -169,7 +177,7 @@ $(OUT)/spirv/%.vert.spirv: spirv/%.main $(MINIFY_STAMP)
 	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -I$(OUT) -V -o $@ $<
 
 $(OUT)/spirv/%.vert.h: spirv/%.main $(MINIFY_STAMP)
-	@mkdir -p $(OUT)/spirv	
+	@mkdir -p $(OUT)/spirv
 	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -I$(OUT) -V --vn $(subst .main,_vert,$(notdir $<)) -o $@ $<
 
 ## Compile *.main again into fragment shaders.
@@ -189,6 +197,24 @@ $(OUT)/spirv/%.fixedcolor_frag.spirv: spirv/%.main $(MINIFY_STAMP)
 $(OUT)/spirv/%.fixedcolor_frag.h: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
 	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DFIXED_FUNCTION_COLOR_OUTPUT -I$(OUT) -V --vn $(subst .main,_fixedcolor_frag,$(notdir $<)) -o $@ $<
+
+## Compile *.vert into vertex shaders.
+$(OUT)/spirv/%.vert.spirv: spirv/%.vert $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -I$(OUT) -V -o $@ $<
+
+$(OUT)/spirv/%.vert.h: spirv/%.vert $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -I$(OUT) -V --vn $(subst .vert,_vert,$(notdir $<)) -o $@ $<
+
+## Compile *.frag into fragment shaders.
+$(OUT)/spirv/%.frag.spirv: spirv/%.frag $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V -o $@ $<
+
+$(OUT)/spirv/%.frag.h: spirv/%.frag $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V --vn $(subst .frag,_frag,$(notdir $<)) -o $@ $<
 
 spirv: $(SPIRV_OUTPUTS_HEADERS)
 spirv-binary: $(SPIRV_OUTPUTS_BINARY)

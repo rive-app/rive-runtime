@@ -1472,12 +1472,12 @@ void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,
 
     if (m_coverageType == CoverageType::atlas)
     {
-        // Atlas draws only have one subpass -- the rectangular draw to the
-        // screen. The step that renders coverage to the offscreen atlas is
-        // handled separately, outside the subpass system.
+        // Atlas draws only have one subpass -- the rectangular blit from the
+        // atlas to the screen. The step that renders coverage to the offscreen
+        // atlas is handled separately, outside the subpass system.
         assert(!clockwiseAtomicFill);
         assert(subpassIndex == 0);
-        flush->pushAtlasCoverageDraw(this, m_pathID);
+        flush->pushAtlasBlit(this, m_pathID);
         return;
     }
 

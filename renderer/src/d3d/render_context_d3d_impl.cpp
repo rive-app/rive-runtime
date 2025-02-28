@@ -15,12 +15,12 @@
 #include "generated/shaders/color_ramp.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
-#include "generated/shaders/draw_atlas.glsl.hpp"
 #include "generated/shaders/draw_image_mesh.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
 #include "generated/shaders/draw_path.glsl.hpp"
 #include "generated/shaders/hlsl.glsl.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
+#include "generated/shaders/render_atlas.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
 
 // D3D11 doesn't let us bind the framebuffer UAV to slot 0 when there is a color
@@ -1156,7 +1156,7 @@ void RenderContextD3DImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
         s << glsl::constants << '\n';
         s << glsl::common << '\n';
         s << glsl::draw_path_common << '\n';
-        s << glsl::draw_atlas << '\n';
+        s << glsl::render_atlas << '\n';
         ComPtr<ID3DBlob> blob = compileSourceToBlob(GLSL_VERTEX,
                                                     s.str().c_str(),
                                                     GLSL_atlasVertexMain,
@@ -1212,11 +1212,11 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
     gpu::InterlockMode interlockMode,
     gpu::ShaderMiscFlags shaderMiscFlags)
 {
-    uint32_t vertexShaderKey = gpu::ShaderUniqueKey(
-        drawType,
-        shaderFeatures & kVertexShaderFeaturesMask,
-        interlockMode,
-        shaderMiscFlags & gpu::VERTEX_SHADER_MISC_FLAGS_MASK);
+    uint32_t vertexShaderKey =
+        gpu::ShaderUniqueKey(drawType,
+                             shaderFeatures & kVertexShaderFeaturesMask,
+                             interlockMode,
+                             gpu::ShaderMiscFlags::none);
     auto vertexEntry = m_drawVertexShaders.find(vertexShaderKey);
 
     uint32_t pixelShaderKey = ShaderUniqueKey(drawType,
@@ -1240,8 +1240,7 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
         if (m_d3dCapabilities.supportsRasterizerOrderedViews)
         {
             if (interlockMode == gpu::InterlockMode::rasterOrdering &&
-                (drawType != DrawType::interiorTriangulation ||
-                 (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)))
+                drawType != DrawType::interiorTriangulation)
             {
                 s << "#define " << GLSL_ENABLE_RASTERIZER_ORDERED_VIEWS << '\n';
             }
@@ -1268,10 +1267,6 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
         {
             s << "#define " << GLSL_CLOCKWISE_FILL << " 1\n";
         }
-        if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
-        {
-            s << "#define " << GLSL_ATLAS_COVERAGE << " 1\n";
-        }
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
@@ -1279,6 +1274,9 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
             case DrawType::outerCurvePatches:
                 s << "#define " << GLSL_DRAW_PATH << '\n';
                 break;
+            case DrawType::atlasBlit:
+                s << "#define " << GLSL_ATLAS_BLIT << " 1\n";
+                [[fallthrough]];
             case DrawType::interiorTriangulation:
                 s << "#define " << GLSL_DRAW_INTERIOR_TRIANGLES << '\n';
                 break;
@@ -1320,6 +1318,7 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
                   << '\n';
                 break;
             case DrawType::interiorTriangulation:
+            case DrawType::atlasBlit:
                 s << gpu::glsl::draw_path_common << '\n';
                 s << (interlockMode == gpu::InterlockMode::rasterOrdering
                           ? gpu::glsl::draw_path
@@ -1385,6 +1384,7 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
                     vertexAttribCount = 2;
                     break;
                 case DrawType::interiorTriangulation:
+                case DrawType::atlasBlit:
                     layoutDesc[0] = {GLSL_a_triangleVertex,
                                      0,
                                      DXGI_FORMAT_R32G32B32_FLOAT,
@@ -2021,6 +2021,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::interiorTriangulation:
+            case DrawType::atlasBlit:
             {
                 m_gpuContext->IASetPrimitiveTopology(
                     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
@@ -2030,6 +2031,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::imageRect:
+            {
                 m_gpuContext->IASetPrimitiveTopology(
                     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 m_gpuContext->IASetIndexBuffer(m_imageRectIndexBuffer.Get(),
@@ -2048,6 +2050,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                           0,
                                           0);
                 break;
+            }
             case DrawType::imageMesh:
             {
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,

@@ -4,9 +4,14 @@
 
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 
+#include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
 #include "rive/renderer/rive_render_buffer.hpp"
 #include "shaders/constants.glsl"
+
+#ifdef RIVE_DECODERS
+#include "rive/decoders/bitmap_decoder.hpp"
+#endif
 
 namespace spirv_embedded
 {
@@ -14,12 +19,17 @@ namespace spirv_embedded
 #include "generated/shaders/spirv/color_ramp.frag.h"
 #include "generated/shaders/spirv/tessellate.vert.h"
 #include "generated/shaders/spirv/tessellate.frag.h"
+#include "generated/shaders/spirv/render_atlas.vert.h"
+#include "generated/shaders/spirv/render_atlas_fill.frag.h"
+#include "generated/shaders/spirv/render_atlas_stroke.frag.h"
 
 // InterlockMode::rasterOrdering shaders.
 #include "generated/shaders/spirv/draw_path.vert.h"
 #include "generated/shaders/spirv/draw_path.frag.h"
 #include "generated/shaders/spirv/draw_interior_triangles.vert.h"
 #include "generated/shaders/spirv/draw_interior_triangles.frag.h"
+#include "generated/shaders/spirv/draw_atlas_blit.vert.h"
+#include "generated/shaders/spirv/draw_atlas_blit.frag.h"
 #include "generated/shaders/spirv/draw_image_mesh.vert.h"
 #include "generated/shaders/spirv/draw_image_mesh.frag.h"
 
@@ -30,6 +40,9 @@ namespace spirv_embedded
 #include "generated/shaders/spirv/atomic_draw_interior_triangles.vert.h"
 #include "generated/shaders/spirv/atomic_draw_interior_triangles.frag.h"
 #include "generated/shaders/spirv/atomic_draw_interior_triangles.fixedcolor_frag.h"
+#include "generated/shaders/spirv/atomic_draw_atlas_blit.vert.h"
+#include "generated/shaders/spirv/atomic_draw_atlas_blit.frag.h"
+#include "generated/shaders/spirv/atomic_draw_atlas_blit.fixedcolor_frag.h"
 #include "generated/shaders/spirv/atomic_draw_image_rect.vert.h"
 #include "generated/shaders/spirv/atomic_draw_image_rect.frag.h"
 #include "generated/shaders/spirv/atomic_draw_image_rect.fixedcolor_frag.h"
@@ -45,122 +58,294 @@ namespace spirv_embedded
 #include "generated/shaders/spirv/draw_clockwise_path.frag.h"
 #include "generated/shaders/spirv/draw_clockwise_interior_triangles.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_interior_triangles.frag.h"
+#include "generated/shaders/spirv/draw_clockwise_atlas_blit.vert.h"
+#include "generated/shaders/spirv/draw_clockwise_atlas_blit.frag.h"
 #include "generated/shaders/spirv/draw_clockwise_image_mesh.vert.h"
 #include "generated/shaders/spirv/draw_clockwise_image_mesh.frag.h"
 }; // namespace spirv_embedded
 
-#include "shader_hotload.hpp"
-
 namespace spirv
 {
 rive::Span<const uint32_t> color_ramp_vert =
-    rive::make_span(spirv_embedded::color_ramp_vert,
-                    std::size(spirv_embedded::color_ramp_vert));
+    rive::make_span(spirv_embedded::color_ramp_vert);
 rive::Span<const uint32_t> color_ramp_frag =
-    rive::make_span(spirv_embedded::color_ramp_frag,
-                    std::size(spirv_embedded::color_ramp_frag));
+    rive::make_span(spirv_embedded::color_ramp_frag);
 rive::Span<const uint32_t> tessellate_vert =
-    rive::make_span(spirv_embedded::tessellate_vert,
-                    std::size(spirv_embedded::tessellate_vert));
+    rive::make_span(spirv_embedded::tessellate_vert);
 rive::Span<const uint32_t> tessellate_frag =
-    rive::make_span(spirv_embedded::tessellate_frag,
-                    std::size(spirv_embedded::tessellate_frag));
+    rive::make_span(spirv_embedded::tessellate_frag);
+rive::Span<const uint32_t> render_atlas_vert =
+    rive::make_span(spirv_embedded::render_atlas_vert);
+rive::Span<const uint32_t> render_atlas_fill_frag =
+    rive::make_span(spirv_embedded::render_atlas_fill_frag);
+rive::Span<const uint32_t> render_atlas_stroke_frag =
+    rive::make_span(spirv_embedded::render_atlas_stroke_frag);
 rive::Span<const uint32_t> draw_path_vert =
-    rive::make_span(spirv_embedded::draw_path_vert,
-                    std::size(spirv_embedded::draw_path_vert));
+    rive::make_span(spirv_embedded::draw_path_vert);
 rive::Span<const uint32_t> draw_path_frag =
-    rive::make_span(spirv_embedded::draw_path_frag,
-                    std::size(spirv_embedded::draw_path_frag));
+    rive::make_span(spirv_embedded::draw_path_frag);
 rive::Span<const uint32_t> draw_interior_triangles_vert =
-    rive::make_span(spirv_embedded::draw_interior_triangles_vert,
-                    std::size(spirv_embedded::draw_interior_triangles_vert));
+    rive::make_span(spirv_embedded::draw_interior_triangles_vert);
 rive::Span<const uint32_t> draw_interior_triangles_frag =
-    rive::make_span(spirv_embedded::draw_interior_triangles_frag,
-                    std::size(spirv_embedded::draw_interior_triangles_frag));
+    rive::make_span(spirv_embedded::draw_interior_triangles_frag);
+rive::Span<const uint32_t> draw_atlas_blit_vert =
+    rive::make_span(spirv_embedded::draw_atlas_blit_vert);
+rive::Span<const uint32_t> draw_atlas_blit_frag =
+    rive::make_span(spirv_embedded::draw_atlas_blit_frag);
 rive::Span<const uint32_t> draw_image_mesh_vert =
-    rive::make_span(spirv_embedded::draw_image_mesh_vert,
-                    std::size(spirv_embedded::draw_image_mesh_vert));
+    rive::make_span(spirv_embedded::draw_image_mesh_vert);
 rive::Span<const uint32_t> draw_image_mesh_frag =
-    rive::make_span(spirv_embedded::draw_image_mesh_frag,
-                    std::size(spirv_embedded::draw_image_mesh_frag));
+    rive::make_span(spirv_embedded::draw_image_mesh_frag);
 rive::Span<const uint32_t> atomic_draw_path_vert =
-    rive::make_span(spirv_embedded::atomic_draw_path_vert,
-                    std::size(spirv_embedded::atomic_draw_path_vert));
+    rive::make_span(spirv_embedded::atomic_draw_path_vert);
 rive::Span<const uint32_t> atomic_draw_path_frag =
-    rive::make_span(spirv_embedded::atomic_draw_path_frag,
-                    std::size(spirv_embedded::atomic_draw_path_frag));
+    rive::make_span(spirv_embedded::atomic_draw_path_frag);
 rive::Span<const uint32_t> atomic_draw_path_fixedcolor_frag = rive::make_span(
     spirv_embedded::atomic_draw_path_fixedcolor_frag,
     std::size(spirv_embedded::atomic_draw_path_fixedcolor_frag));
 rive::Span<const uint32_t> atomic_draw_interior_triangles_vert =
-    rive::make_span(
-        spirv_embedded::atomic_draw_interior_triangles_vert,
-        std::size(spirv_embedded::atomic_draw_interior_triangles_vert));
+    rive::make_span(spirv_embedded::atomic_draw_interior_triangles_vert);
 rive::Span<const uint32_t> atomic_draw_interior_triangles_frag =
-    rive::make_span(
-        spirv_embedded::atomic_draw_interior_triangles_frag,
-        std::size(spirv_embedded::atomic_draw_interior_triangles_frag));
+    rive::make_span(spirv_embedded::atomic_draw_interior_triangles_frag);
 rive::Span<const uint32_t> atomic_draw_interior_triangles_fixedcolor_frag =
     rive::make_span(
-        spirv_embedded::atomic_draw_interior_triangles_fixedcolor_frag,
-        std::size(
-            spirv_embedded::atomic_draw_interior_triangles_fixedcolor_frag));
+        spirv_embedded::atomic_draw_interior_triangles_fixedcolor_frag);
+rive::Span<const uint32_t> atomic_draw_atlas_blit_vert =
+    rive::make_span(spirv_embedded::atomic_draw_atlas_blit_vert);
+rive::Span<const uint32_t> atomic_draw_atlas_blit_frag =
+    rive::make_span(spirv_embedded::atomic_draw_atlas_blit_frag);
+rive::Span<const uint32_t> atomic_draw_atlas_blit_fixedcolor_frag =
+    rive::make_span(spirv_embedded::atomic_draw_atlas_blit_fixedcolor_frag);
 rive::Span<const uint32_t> atomic_draw_image_rect_vert =
-    rive::make_span(spirv_embedded::atomic_draw_image_rect_vert,
-                    std::size(spirv_embedded::atomic_draw_image_rect_vert));
+    rive::make_span(spirv_embedded::atomic_draw_image_rect_vert);
 rive::Span<const uint32_t> atomic_draw_image_rect_frag =
-    rive::make_span(spirv_embedded::atomic_draw_image_rect_frag,
-                    std::size(spirv_embedded::atomic_draw_image_rect_frag));
+    rive::make_span(spirv_embedded::atomic_draw_image_rect_frag);
 rive::Span<const uint32_t> atomic_draw_image_rect_fixedcolor_frag =
-    rive::make_span(
-        spirv_embedded::atomic_draw_image_rect_fixedcolor_frag,
-        std::size(spirv_embedded::atomic_draw_image_rect_fixedcolor_frag));
+    rive::make_span(spirv_embedded::atomic_draw_image_rect_fixedcolor_frag);
 rive::Span<const uint32_t> atomic_draw_image_mesh_vert =
-    rive::make_span(spirv_embedded::atomic_draw_image_mesh_vert,
-                    std::size(spirv_embedded::atomic_draw_image_mesh_vert));
+    rive::make_span(spirv_embedded::atomic_draw_image_mesh_vert);
 rive::Span<const uint32_t> atomic_draw_image_mesh_frag =
-    rive::make_span(spirv_embedded::atomic_draw_image_mesh_frag,
-                    std::size(spirv_embedded::atomic_draw_image_mesh_frag));
+    rive::make_span(spirv_embedded::atomic_draw_image_mesh_frag);
 rive::Span<const uint32_t> atomic_draw_image_mesh_fixedcolor_frag =
-    rive::make_span(
-        spirv_embedded::atomic_draw_image_mesh_fixedcolor_frag,
-        std::size(spirv_embedded::atomic_draw_image_mesh_fixedcolor_frag));
+    rive::make_span(spirv_embedded::atomic_draw_image_mesh_fixedcolor_frag);
 rive::Span<const uint32_t> atomic_resolve_pls_vert =
-    rive::make_span(spirv_embedded::atomic_resolve_pls_vert,
-                    std::size(spirv_embedded::atomic_resolve_pls_vert));
+    rive::make_span(spirv_embedded::atomic_resolve_pls_vert);
 rive::Span<const uint32_t> atomic_resolve_pls_frag =
-    rive::make_span(spirv_embedded::atomic_resolve_pls_frag,
-                    std::size(spirv_embedded::atomic_resolve_pls_frag));
+    rive::make_span(spirv_embedded::atomic_resolve_pls_frag);
 rive::Span<const uint32_t> atomic_resolve_pls_fixedcolor_frag = rive::make_span(
     spirv_embedded::atomic_resolve_pls_fixedcolor_frag,
     std::size(spirv_embedded::atomic_resolve_pls_fixedcolor_frag));
 rive::Span<const uint32_t> draw_clockwise_path_vert =
-    rive::make_span(spirv_embedded::draw_clockwise_path_vert,
-                    std::size(spirv_embedded::draw_clockwise_path_vert));
+    rive::make_span(spirv_embedded::draw_clockwise_path_vert);
 rive::Span<const uint32_t> draw_clockwise_path_frag =
-    rive::make_span(spirv_embedded::draw_clockwise_path_frag,
-                    std::size(spirv_embedded::draw_clockwise_path_frag));
+    rive::make_span(spirv_embedded::draw_clockwise_path_frag);
 rive::Span<const uint32_t> draw_clockwise_interior_triangles_vert =
-    rive::make_span(
-        spirv_embedded::draw_clockwise_interior_triangles_vert,
-        std::size(spirv_embedded::draw_clockwise_interior_triangles_vert));
+    rive::make_span(spirv_embedded::draw_clockwise_interior_triangles_vert);
 rive::Span<const uint32_t> draw_clockwise_interior_triangles_frag =
-    rive::make_span(
-        spirv_embedded::draw_clockwise_interior_triangles_frag,
-        std::size(spirv_embedded::draw_clockwise_interior_triangles_frag));
+    rive::make_span(spirv_embedded::draw_clockwise_interior_triangles_frag);
+rive::Span<const uint32_t> draw_clockwise_atlas_blit_vert =
+    rive::make_span(spirv_embedded::draw_clockwise_atlas_blit_vert);
+rive::Span<const uint32_t> draw_clockwise_atlas_blit_frag =
+    rive::make_span(spirv_embedded::draw_clockwise_atlas_blit_frag);
 rive::Span<const uint32_t> draw_clockwise_image_mesh_vert =
-    rive::make_span(spirv_embedded::draw_clockwise_image_mesh_vert,
-                    std::size(spirv_embedded::draw_clockwise_image_mesh_vert));
+    rive::make_span(spirv_embedded::draw_clockwise_image_mesh_vert);
 rive::Span<const uint32_t> draw_clockwise_image_mesh_frag =
-    rive::make_span(spirv_embedded::draw_clockwise_image_mesh_frag,
-                    std::size(spirv_embedded::draw_clockwise_image_mesh_frag));
+    rive::make_span(spirv_embedded::draw_clockwise_image_mesh_frag);
 }; // namespace spirv
 
-#ifdef RIVE_DECODERS
-#include "rive/decoders/bitmap_decoder.hpp"
-#endif
+// Common layout descriptors shared by various pipelines.
+namespace layout
+{
+constexpr static VkVertexInputBindingDescription PATH_INPUT_BINDINGS[] = {{
+    .binding = 0,
+    .stride = sizeof(rive::gpu::PatchVertex),
+    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+}};
+constexpr static VkVertexInputAttributeDescription PATH_VERTEX_ATTRIBS[] = {
+    {
+        .location = 0,
+        .binding = 0,
+        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+        .offset = 0,
+    },
+    {
+        .location = 1,
+        .binding = 0,
+        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+        .offset = 4 * sizeof(float),
+    },
+};
+constexpr static VkPipelineVertexInputStateCreateInfo PATH_VERTEX_INPUT_STATE =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = std::size(PATH_INPUT_BINDINGS),
+        .pVertexBindingDescriptions = PATH_INPUT_BINDINGS,
+        .vertexAttributeDescriptionCount = std::size(PATH_VERTEX_ATTRIBS),
+        .pVertexAttributeDescriptions = PATH_VERTEX_ATTRIBS,
+};
 
-#include "rive/renderer/stack_vector.hpp"
+constexpr static VkVertexInputBindingDescription INTERIOR_TRI_INPUT_BINDINGS[] =
+    {{
+        .binding = 0,
+        .stride = sizeof(rive::gpu::TriangleVertex),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+    }};
+constexpr static VkVertexInputAttributeDescription
+    INTERIOR_TRI_VERTEX_ATTRIBS[] = {
+        {
+            .location = 0,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32_SFLOAT,
+            .offset = 0,
+        },
+};
+constexpr static VkPipelineVertexInputStateCreateInfo
+    INTERIOR_TRI_VERTEX_INPUT_STATE = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = std::size(INTERIOR_TRI_INPUT_BINDINGS),
+        .pVertexBindingDescriptions = INTERIOR_TRI_INPUT_BINDINGS,
+        .vertexAttributeDescriptionCount =
+            std::size(INTERIOR_TRI_VERTEX_ATTRIBS),
+        .pVertexAttributeDescriptions = INTERIOR_TRI_VERTEX_ATTRIBS,
+};
+
+constexpr static VkVertexInputBindingDescription IMAGE_RECT_INPUT_BINDINGS[] = {
+    {
+        .binding = 0,
+        .stride = sizeof(rive::gpu::ImageRectVertex),
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+    }};
+constexpr static VkVertexInputAttributeDescription IMAGE_RECT_VERTEX_ATTRIBS[] =
+    {
+        {
+            .location = 0,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32B32A32_SFLOAT,
+            .offset = 0,
+        },
+};
+constexpr static VkPipelineVertexInputStateCreateInfo
+    IMAGE_RECT_VERTEX_INPUT_STATE = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = std::size(IMAGE_RECT_INPUT_BINDINGS),
+        .pVertexBindingDescriptions = IMAGE_RECT_INPUT_BINDINGS,
+        .vertexAttributeDescriptionCount = std::size(IMAGE_RECT_VERTEX_ATTRIBS),
+        .pVertexAttributeDescriptions = IMAGE_RECT_VERTEX_ATTRIBS,
+};
+
+constexpr static VkVertexInputBindingDescription IMAGE_MESH_INPUT_BINDINGS[] = {
+    {
+        .binding = 0,
+        .stride = sizeof(float) * 2,
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+    },
+    {
+        .binding = 1,
+        .stride = sizeof(float) * 2,
+        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
+    },
+};
+constexpr static VkVertexInputAttributeDescription IMAGE_MESH_VERTEX_ATTRIBS[] =
+    {
+        {
+            .location = 0,
+            .binding = 0,
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = 0,
+        },
+        {
+            .location = 1,
+            .binding = 1,
+            .format = VK_FORMAT_R32G32_SFLOAT,
+            .offset = 0,
+        },
+};
+constexpr static VkPipelineVertexInputStateCreateInfo
+    IMAGE_MESH_VERTEX_INPUT_STATE = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = std::size(IMAGE_MESH_INPUT_BINDINGS),
+        .pVertexBindingDescriptions = IMAGE_MESH_INPUT_BINDINGS,
+        .vertexAttributeDescriptionCount = std::size(IMAGE_MESH_VERTEX_ATTRIBS),
+        .pVertexAttributeDescriptions = IMAGE_MESH_VERTEX_ATTRIBS,
+};
+
+constexpr static VkPipelineVertexInputStateCreateInfo EMPTY_VERTEX_INPUT_STATE =
+    {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
+        .vertexBindingDescriptionCount = 0,
+        .vertexAttributeDescriptionCount = 0,
+};
+
+constexpr static VkPipelineInputAssemblyStateCreateInfo
+    INPUT_ASSEMBLY_TRIANGLE_STRIP = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
+};
+
+constexpr static VkPipelineInputAssemblyStateCreateInfo
+    INPUT_ASSEMBLY_TRIANGLE_LIST = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
+        .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
+};
+
+constexpr static VkPipelineViewportStateCreateInfo SINGLE_VIEWPORT = {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
+    .viewportCount = 1,
+    .scissorCount = 1,
+};
+
+constexpr static VkPipelineRasterizationStateCreateInfo
+    RASTER_STATE_CULL_BACK_CCW = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
+        .lineWidth = 1.f,
+};
+
+constexpr static VkPipelineRasterizationStateCreateInfo
+    RASTER_STATE_CULL_BACK_CW = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
+        .polygonMode = VK_POLYGON_MODE_FILL,
+        .cullMode = VK_CULL_MODE_BACK_BIT,
+        .frontFace = VK_FRONT_FACE_CLOCKWISE,
+        .lineWidth = 1.f,
+};
+
+constexpr static VkPipelineMultisampleStateCreateInfo MSAA_DISABLED = {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
+    .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
+};
+
+constexpr static VkPipelineColorBlendAttachmentState BLEND_DISABLED_VALUES = {
+    .colorWriteMask = rive::gpu::vkutil::kColorWriteMaskRGBA};
+constexpr static VkPipelineColorBlendStateCreateInfo
+    SINGLE_ATTACHMENT_BLEND_DISABLED = {
+        .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+        .attachmentCount = 1,
+        .pAttachments = &BLEND_DISABLED_VALUES,
+};
+
+constexpr static VkDynamicState DYNAMIC_VIEWPORT_SCISSOR_VALUES[] = {
+    VK_DYNAMIC_STATE_VIEWPORT,
+    VK_DYNAMIC_STATE_SCISSOR,
+};
+constexpr static VkPipelineDynamicStateCreateInfo DYNAMIC_VIEWPORT_SCISSOR = {
+    .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
+    .dynamicStateCount = std::size(DYNAMIC_VIEWPORT_SCISSOR_VALUES),
+    .pDynamicStates = DYNAMIC_VIEWPORT_SCISSOR_VALUES,
+};
+
+constexpr static VkAttachmentReference SINGLE_ATTACHMENT_SUBPASS_REFERENCE = {
+    .attachment = 0,
+    .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+};
+constexpr static VkSubpassDescription SINGLE_ATTACHMENT_SUBPASS = {
+    .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+    .colorAttachmentCount = 1,
+    .pColorAttachments = &SINGLE_ATTACHMENT_SUBPASS_REFERENCE,
+};
+} // namespace layout
 
 namespace rive::gpu
 {
@@ -168,10 +353,6 @@ void RenderContextVulkanImpl::hotloadShaders(
     rive::Span<const uint32_t> spirvData)
 {
     m_vk->DeviceWaitIdle(m_vk->device);
-
-    // Delete all old shaders
-    m_drawShaders.clear();
-    m_drawPipelines.clear();
 
     size_t spirvIndex = 0;
     auto readNextBytecodeSpan = [spirvData,
@@ -186,10 +367,15 @@ void RenderContextVulkanImpl::hotloadShaders(
     spirv::color_ramp_frag = readNextBytecodeSpan();
     spirv::tessellate_vert = readNextBytecodeSpan();
     spirv::tessellate_frag = readNextBytecodeSpan();
+    spirv::render_atlas_vert = readNextBytecodeSpan();
+    spirv::render_atlas_fill_frag = readNextBytecodeSpan();
+    spirv::render_atlas_stroke_frag = readNextBytecodeSpan();
     spirv::draw_path_vert = readNextBytecodeSpan();
     spirv::draw_path_frag = readNextBytecodeSpan();
     spirv::draw_interior_triangles_vert = readNextBytecodeSpan();
     spirv::draw_interior_triangles_frag = readNextBytecodeSpan();
+    spirv::draw_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::draw_atlas_blit_frag = readNextBytecodeSpan();
     spirv::draw_image_mesh_vert = readNextBytecodeSpan();
     spirv::draw_image_mesh_frag = readNextBytecodeSpan();
     spirv::atomic_draw_path_vert = readNextBytecodeSpan();
@@ -199,6 +385,9 @@ void RenderContextVulkanImpl::hotloadShaders(
     spirv::atomic_draw_interior_triangles_frag = readNextBytecodeSpan();
     spirv::atomic_draw_interior_triangles_fixedcolor_frag =
         readNextBytecodeSpan();
+    spirv::atomic_draw_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_atlas_blit_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
     spirv::atomic_draw_image_rect_vert = readNextBytecodeSpan();
     spirv::atomic_draw_image_rect_frag = readNextBytecodeSpan();
     spirv::atomic_draw_image_rect_fixedcolor_frag = readNextBytecodeSpan();
@@ -212,8 +401,17 @@ void RenderContextVulkanImpl::hotloadShaders(
     spirv::draw_clockwise_path_frag = readNextBytecodeSpan();
     spirv::draw_clockwise_interior_triangles_vert = readNextBytecodeSpan();
     spirv::draw_clockwise_interior_triangles_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::draw_clockwise_atlas_blit_frag = readNextBytecodeSpan();
     spirv::draw_clockwise_image_mesh_vert = readNextBytecodeSpan();
     spirv::draw_clockwise_image_mesh_frag = readNextBytecodeSpan();
+
+    // Delete and replace old shaders
+    m_colorRampPipeline = std::make_unique<ColorRampPipeline>(this);
+    m_tessellatePipeline = std::make_unique<TessellatePipeline>(this);
+    m_atlasPipeline = std::make_unique<AtlasPipeline>(this);
+    m_drawShaders.clear();
+    m_drawPipelines.clear();
 }
 
 static VkBufferUsageFlagBits render_buffer_usage_flags(
@@ -599,47 +797,6 @@ public:
                 .pVertexAttributeDescriptions = &vertexAttributeDescription,
             };
 
-        VkPipelineInputAssemblyStateCreateInfo
-            pipelineInputAssemblyStateCreateInfo = {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-                .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP,
-            };
-
-        VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-            .viewportCount = 1,
-            .scissorCount = 1,
-        };
-
-        VkPipelineRasterizationStateCreateInfo
-            pipelineRasterizationStateCreateInfo = {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-                .polygonMode = VK_POLYGON_MODE_FILL,
-                .cullMode = VK_CULL_MODE_BACK_BIT,
-                .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-                .lineWidth = 1.0,
-            };
-
-        VkPipelineMultisampleStateCreateInfo
-            pipelineMultisampleStateCreateInfo = {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-                .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-            };
-
-        VkPipelineColorBlendAttachmentState blendColorAttachment = {
-            .colorWriteMask = vkutil::kColorWriteMaskRGBA,
-        };
-        VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo =
-            {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-                .attachmentCount = 1,
-                .pAttachments = &blendColorAttachment,
-            };
-
         VkAttachmentDescription attachment = {
             .format = VK_FORMAT_R8G8B8A8_UNORM,
             .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -648,21 +805,12 @@ public:
             .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         };
-        VkAttachmentReference attachmentReference = {
-            .attachment = 0,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        };
-        VkSubpassDescription subpassDescription = {
-            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .colorAttachmentCount = 1,
-            .pColorAttachments = &attachmentReference,
-        };
         VkRenderPassCreateInfo renderPassCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
             .attachmentCount = 1,
             .pAttachments = &attachment,
             .subpassCount = 1,
-            .pSubpasses = &subpassDescription,
+            .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
         };
 
         VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
@@ -670,27 +818,17 @@ public:
                                         nullptr,
                                         &m_renderPass));
 
-        VkDynamicState dynamicStates[] = {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR,
-        };
-        VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-            .dynamicStateCount = 2,
-            .pDynamicStates = dynamicStates,
-        };
-
-        VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {
+        VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .stageCount = 2,
             .pStages = stages,
             .pVertexInputState = &pipelineVertexInputStateCreateInfo,
-            .pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo,
-            .pViewportState = &pipelineViewportStateCreateInfo,
-            .pRasterizationState = &pipelineRasterizationStateCreateInfo,
-            .pMultisampleState = &pipelineMultisampleStateCreateInfo,
-            .pColorBlendState = &pipelineColorBlendStateCreateInfo,
-            .pDynamicState = &pipelineDynamicStateCreateInfo,
+            .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_STRIP,
+            .pViewportState = &layout::SINGLE_VIEWPORT,
+            .pRasterizationState = &layout::RASTER_STATE_CULL_BACK_CCW,
+            .pMultisampleState = &layout::MSAA_DISABLED,
+            .pColorBlendState = &layout::SINGLE_ATTACHMENT_BLEND_DISABLED,
+            .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
             .layout = m_pipelineLayout,
             .renderPass = m_renderPass,
         };
@@ -698,7 +836,7 @@ public:
         VK_CHECK(m_vk->CreateGraphicsPipelines(m_vk->device,
                                                VK_NULL_HANDLE,
                                                1,
-                                               &graphicsPipelineCreateInfo,
+                                               &pipelineCreateInfo,
                                                nullptr,
                                                &m_renderPipeline));
 
@@ -832,47 +970,6 @@ public:
                 .pVertexAttributeDescriptions = vertexAttributeDescriptions,
             };
 
-        VkPipelineInputAssemblyStateCreateInfo
-            pipelineInputAssemblyStateCreateInfo = {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-                .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-            };
-
-        VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-            .viewportCount = 1,
-            .scissorCount = 1,
-        };
-
-        VkPipelineRasterizationStateCreateInfo
-            pipelineRasterizationStateCreateInfo = {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-                .polygonMode = VK_POLYGON_MODE_FILL,
-                .cullMode = VK_CULL_MODE_BACK_BIT,
-                .frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE,
-                .lineWidth = 1.0,
-            };
-
-        VkPipelineMultisampleStateCreateInfo
-            pipelineMultisampleStateCreateInfo = {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-                .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
-            };
-
-        VkPipelineColorBlendAttachmentState blendColorAttachment = {
-            .colorWriteMask = vkutil::kColorWriteMaskRGBA,
-        };
-        VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo =
-            {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
-                .attachmentCount = 1,
-                .pAttachments = &blendColorAttachment,
-            };
-
         VkAttachmentDescription attachment = {
             .format = VK_FORMAT_R32G32B32A32_UINT,
             .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -881,21 +978,12 @@ public:
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         };
-        VkAttachmentReference attachmentReference = {
-            .attachment = 0,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
-        };
-        VkSubpassDescription subpassDescription = {
-            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .colorAttachmentCount = 1,
-            .pColorAttachments = &attachmentReference,
-        };
         VkRenderPassCreateInfo renderPassCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
             .attachmentCount = 1,
             .pAttachments = &attachment,
             .subpassCount = 1,
-            .pSubpasses = &subpassDescription,
+            .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
         };
 
         VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
@@ -903,27 +991,17 @@ public:
                                         nullptr,
                                         &m_renderPass));
 
-        VkDynamicState dynamicStates[] = {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR,
-        };
-        VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-            .dynamicStateCount = 2,
-            .pDynamicStates = dynamicStates,
-        };
-
-        VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {
+        VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .stageCount = 2,
             .pStages = stages,
             .pVertexInputState = &pipelineVertexInputStateCreateInfo,
-            .pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo,
-            .pViewportState = &pipelineViewportStateCreateInfo,
-            .pRasterizationState = &pipelineRasterizationStateCreateInfo,
-            .pMultisampleState = &pipelineMultisampleStateCreateInfo,
-            .pColorBlendState = &pipelineColorBlendStateCreateInfo,
-            .pDynamicState = &pipelineDynamicStateCreateInfo,
+            .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST,
+            .pViewportState = &layout::SINGLE_VIEWPORT,
+            .pRasterizationState = &layout::RASTER_STATE_CULL_BACK_CCW,
+            .pMultisampleState = &layout::MSAA_DISABLED,
+            .pColorBlendState = &layout::SINGLE_ATTACHMENT_BLEND_DISABLED,
+            .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
             .layout = m_pipelineLayout,
             .renderPass = m_renderPass,
         };
@@ -931,7 +1009,7 @@ public:
         VK_CHECK(m_vk->CreateGraphicsPipelines(m_vk->device,
                                                VK_NULL_HANDLE,
                                                1,
-                                               &graphicsPipelineCreateInfo,
+                                               &pipelineCreateInfo,
                                                nullptr,
                                                &m_renderPipeline));
 
@@ -955,6 +1033,175 @@ private:
     VkPipelineLayout m_pipelineLayout;
     VkRenderPass m_renderPass;
     VkPipeline m_renderPipeline;
+};
+
+// Renders feathers to the atlas.
+class RenderContextVulkanImpl::AtlasPipeline
+{
+public:
+    AtlasPipeline(RenderContextVulkanImpl* impl) :
+        m_vk(ref_rcp(impl->vulkanContext()))
+    {
+        VkDescriptorSetLayout pipelineDescriptorSetLayouts[] = {
+            impl->m_perFlushDescriptorSetLayout,
+            impl->m_emptyDescriptorSetLayout,
+            impl->m_immutableSamplerDescriptorSetLayout,
+        };
+        static_assert(PER_FLUSH_BINDINGS_SET == 0);
+        static_assert(SAMPLER_BINDINGS_SET == 2);
+
+        VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
+            .setLayoutCount = std::size(pipelineDescriptorSetLayouts),
+            .pSetLayouts = pipelineDescriptorSetLayouts,
+        };
+
+        VK_CHECK(m_vk->CreatePipelineLayout(m_vk->device,
+                                            &pipelineLayoutCreateInfo,
+                                            nullptr,
+                                            &m_pipelineLayout));
+
+        VkShaderModuleCreateInfo shaderModuleCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = spirv::render_atlas_vert.size_bytes(),
+            .pCode = spirv::render_atlas_vert.data(),
+        };
+
+        VkShaderModule vertexShader;
+        VK_CHECK(m_vk->CreateShaderModule(m_vk->device,
+                                          &shaderModuleCreateInfo,
+                                          nullptr,
+                                          &vertexShader));
+
+        shaderModuleCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = spirv::render_atlas_fill_frag.size_bytes(),
+            .pCode = spirv::render_atlas_fill_frag.data(),
+        };
+
+        VkShaderModule fragmentFillShader;
+        VK_CHECK(m_vk->CreateShaderModule(m_vk->device,
+                                          &shaderModuleCreateInfo,
+                                          nullptr,
+                                          &fragmentFillShader));
+
+        shaderModuleCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO,
+            .codeSize = spirv::render_atlas_stroke_frag.size_bytes(),
+            .pCode = spirv::render_atlas_stroke_frag.data(),
+        };
+
+        VkShaderModule fragmentStrokeShader;
+        VK_CHECK(m_vk->CreateShaderModule(m_vk->device,
+                                          &shaderModuleCreateInfo,
+                                          nullptr,
+                                          &fragmentStrokeShader));
+
+        VkPipelineShaderStageCreateInfo stages[] = {
+            {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .stage = VK_SHADER_STAGE_VERTEX_BIT,
+                .module = vertexShader,
+                .pName = "main",
+            },
+            {
+                .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
+                .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
+                .module = nullptr, // Set for individual fill/stroke pipelines.
+                .pName = "main",
+            },
+        };
+
+        VkAttachmentDescription attachment = {
+            .format = VK_FORMAT_R32_SFLOAT,
+            .samples = VK_SAMPLE_COUNT_1_BIT,
+            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+        VkRenderPassCreateInfo renderPassCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO,
+            .attachmentCount = 1,
+            .pAttachments = &attachment,
+            .subpassCount = 1,
+            .pSubpasses = &layout::SINGLE_ATTACHMENT_SUBPASS,
+        };
+        VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
+                                        &renderPassCreateInfo,
+                                        nullptr,
+                                        &m_renderPass));
+
+        VkPipelineColorBlendAttachmentState blendState =
+            VkPipelineColorBlendAttachmentState{
+                .blendEnable = VK_TRUE,
+                .srcColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                .dstColorBlendFactor = VK_BLEND_FACTOR_ONE,
+                .colorWriteMask = VK_COLOR_COMPONENT_R_BIT,
+            };
+        VkPipelineColorBlendStateCreateInfo blendStateCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
+            .attachmentCount = 1u,
+            .pAttachments = &blendState,
+        };
+
+        VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
+            .stageCount = std::size(stages),
+            .pStages = stages,
+            .pVertexInputState = &layout::PATH_VERTEX_INPUT_STATE,
+            .pInputAssemblyState = &layout::INPUT_ASSEMBLY_TRIANGLE_LIST,
+            .pViewportState = &layout::SINGLE_VIEWPORT,
+            .pRasterizationState = &layout::RASTER_STATE_CULL_BACK_CW,
+            .pMultisampleState = &layout::MSAA_DISABLED,
+            .pColorBlendState = &blendStateCreateInfo,
+            .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
+            .layout = m_pipelineLayout,
+            .renderPass = m_renderPass,
+        };
+
+        stages[1].module = fragmentFillShader;
+        blendState.colorBlendOp = VK_BLEND_OP_ADD;
+        VK_CHECK(m_vk->CreateGraphicsPipelines(m_vk->device,
+                                               VK_NULL_HANDLE,
+                                               1,
+                                               &pipelineCreateInfo,
+                                               nullptr,
+                                               &m_fillPipeline));
+
+        stages[1].module = fragmentStrokeShader;
+        blendState.colorBlendOp = VK_BLEND_OP_MAX;
+        VK_CHECK(m_vk->CreateGraphicsPipelines(m_vk->device,
+                                               VK_NULL_HANDLE,
+                                               1,
+                                               &pipelineCreateInfo,
+                                               nullptr,
+                                               &m_strokePipeline));
+
+        m_vk->DestroyShaderModule(m_vk->device, vertexShader, nullptr);
+        m_vk->DestroyShaderModule(m_vk->device, fragmentFillShader, nullptr);
+        m_vk->DestroyShaderModule(m_vk->device, fragmentStrokeShader, nullptr);
+    }
+
+    ~AtlasPipeline()
+    {
+        m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
+        m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
+        m_vk->DestroyPipeline(m_vk->device, m_fillPipeline, nullptr);
+        m_vk->DestroyPipeline(m_vk->device, m_strokePipeline, nullptr);
+    }
+
+    VkPipelineLayout pipelineLayout() const { return m_pipelineLayout; }
+    VkRenderPass renderPass() const { return m_renderPass; }
+    VkPipeline fillPipeline() const { return m_fillPipeline; }
+    VkPipeline strokePipeline() const { return m_strokePipeline; }
+
+private:
+    rcp<VulkanContext> m_vk;
+    VkPipelineLayout m_pipelineLayout;
+    VkRenderPass m_renderPass;
+    VkPipeline m_fillPipeline;
+    VkPipeline m_strokePipeline;
 };
 
 enum class DrawPipelineLayoutOptions
@@ -1401,6 +1648,13 @@ public:
                         spirv::draw_interior_triangles_frag);
                     break;
 
+                case DrawType::atlasBlit:
+                    vkutil::set_shader_code(vsInfo,
+                                            spirv::draw_atlas_blit_vert);
+                    vkutil::set_shader_code(fsInfo,
+                                            spirv::draw_atlas_blit_frag);
+                    break;
+
                 case DrawType::imageMesh:
                     vkutil::set_shader_code(vsInfo,
                                             spirv::draw_image_mesh_vert);
@@ -1444,6 +1698,16 @@ public:
                         fixedFunctionColorOutput,
                         spirv::atomic_draw_interior_triangles_fixedcolor_frag,
                         spirv::atomic_draw_interior_triangles_frag);
+                    break;
+
+                case DrawType::atlasBlit:
+                    vkutil::set_shader_code(vsInfo,
+                                            spirv::atomic_draw_atlas_blit_vert);
+                    vkutil::set_shader_code_if_then_else(
+                        fsInfo,
+                        fixedFunctionColorOutput,
+                        spirv::atomic_draw_atlas_blit_fixedcolor_frag,
+                        spirv::atomic_draw_atlas_blit_frag);
                     break;
 
                 case DrawType::imageRect:
@@ -1502,6 +1766,15 @@ public:
                     vkutil::set_shader_code(
                         fsInfo,
                         spirv::draw_clockwise_interior_triangles_frag);
+                    break;
+
+                case DrawType::atlasBlit:
+                    vkutil::set_shader_code(
+                        vsInfo,
+                        spirv::draw_clockwise_atlas_blit_vert);
+                    vkutil::set_shader_code(
+                        fsInfo,
+                        spirv::draw_clockwise_atlas_blit_frag);
                     break;
 
                 case DrawType::imageMesh:
@@ -1637,164 +1910,6 @@ public:
             },
         };
 
-        std::array<VkVertexInputBindingDescription, 2>
-            vertexInputBindingDescriptions;
-        std::array<VkVertexInputAttributeDescription, 2>
-            vertexAttributeDescriptions;
-        VkPipelineVertexInputStateCreateInfo
-            pipelineVertexInputStateCreateInfo = {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO,
-                .vertexBindingDescriptionCount = 0,
-                .pVertexBindingDescriptions =
-                    vertexInputBindingDescriptions.data(),
-                .vertexAttributeDescriptionCount = 0,
-                .pVertexAttributeDescriptions =
-                    vertexAttributeDescriptions.data(),
-            };
-
-        VkPipelineInputAssemblyStateCreateInfo
-            pipelineInputAssemblyStateCreateInfo = {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO,
-                .topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST,
-            };
-
-        switch (drawType)
-        {
-            case DrawType::midpointFanPatches:
-            case DrawType::midpointFanCenterAAPatches:
-            case DrawType::outerCurvePatches:
-            {
-                vertexInputBindingDescriptions = {{{
-                    .binding = 0,
-                    .stride = sizeof(gpu::PatchVertex),
-                    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-                }}};
-                vertexAttributeDescriptions = {{
-                    {
-                        .location = 0,
-                        .binding = 0,
-                        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                        .offset = 0,
-                    },
-                    {
-                        .location = 1,
-                        .binding = 0,
-                        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                        .offset = 4 * sizeof(float),
-                    },
-                }};
-                pipelineVertexInputStateCreateInfo
-                    .vertexBindingDescriptionCount = 1;
-                pipelineVertexInputStateCreateInfo
-                    .vertexAttributeDescriptionCount = 2;
-                break;
-            }
-
-            case DrawType::interiorTriangulation:
-            {
-                vertexInputBindingDescriptions = {{{
-                    .binding = 0,
-                    .stride = sizeof(gpu::TriangleVertex),
-                    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-                }}};
-                vertexAttributeDescriptions = {{
-                    {
-                        .location = 0,
-                        .binding = 0,
-                        .format = VK_FORMAT_R32G32B32_SFLOAT,
-                        .offset = 0,
-                    },
-                }};
-                pipelineVertexInputStateCreateInfo
-                    .vertexBindingDescriptionCount = 1;
-                pipelineVertexInputStateCreateInfo
-                    .vertexAttributeDescriptionCount = 1;
-                break;
-            }
-
-            case DrawType::imageRect:
-            {
-                vertexInputBindingDescriptions = {{{
-                    .binding = 0,
-                    .stride = sizeof(gpu::ImageRectVertex),
-                    .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-                }}};
-                vertexAttributeDescriptions = {{
-                    {
-                        .location = 0,
-                        .binding = 0,
-                        .format = VK_FORMAT_R32G32B32A32_SFLOAT,
-                        .offset = 0,
-                    },
-                }};
-                pipelineVertexInputStateCreateInfo
-                    .vertexBindingDescriptionCount = 1;
-                pipelineVertexInputStateCreateInfo
-                    .vertexAttributeDescriptionCount = 1;
-                break;
-            }
-
-            case DrawType::imageMesh:
-            {
-                vertexInputBindingDescriptions = {{
-                    {
-                        .binding = 0,
-                        .stride = sizeof(float) * 2,
-                        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-                    },
-                    {
-                        .binding = 1,
-                        .stride = sizeof(float) * 2,
-                        .inputRate = VK_VERTEX_INPUT_RATE_VERTEX,
-                    },
-                }};
-                vertexAttributeDescriptions = {{
-                    {
-                        .location = 0,
-                        .binding = 0,
-                        .format = VK_FORMAT_R32G32_SFLOAT,
-                        .offset = 0,
-                    },
-                    {
-                        .location = 1,
-                        .binding = 1,
-                        .format = VK_FORMAT_R32G32_SFLOAT,
-                        .offset = 0,
-                    },
-                }};
-
-                pipelineVertexInputStateCreateInfo
-                    .vertexBindingDescriptionCount = 2;
-                pipelineVertexInputStateCreateInfo
-                    .vertexAttributeDescriptionCount = 2;
-
-                break;
-            }
-
-            case DrawType::atomicResolve:
-            {
-                pipelineVertexInputStateCreateInfo
-                    .vertexBindingDescriptionCount = 0;
-                pipelineVertexInputStateCreateInfo
-                    .vertexAttributeDescriptionCount = 0;
-                pipelineInputAssemblyStateCreateInfo.topology =
-                    VK_PRIMITIVE_TOPOLOGY_TRIANGLE_STRIP;
-                break;
-            }
-
-            case DrawType::atomicInitialize:
-            case DrawType::stencilClipReset:
-                RIVE_UNREACHABLE();
-        }
-
-        VkPipelineViewportStateCreateInfo pipelineViewportStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO,
-            .viewportCount = 1,
-            .scissorCount = 1,
-        };
-
         VkPipelineRasterizationStateCreateInfo
             pipelineRasterizationStateCreateInfo = {
                 .sType =
@@ -1808,13 +1923,6 @@ public:
                                                   : VK_CULL_MODE_BACK_BIT),
                 .frontFace = VK_FRONT_FACE_CLOCKWISE,
                 .lineWidth = 1.0,
-            };
-
-        VkPipelineMultisampleStateCreateInfo
-            pipelineMultisampleStateCreateInfo = {
-                .sType =
-                    VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO,
-                .rasterizationSamples = VK_SAMPLE_COUNT_1_BIT,
             };
 
         VkPipelineColorBlendAttachmentState colorBlendState =
@@ -1887,36 +1995,69 @@ public:
                 VK_PIPELINE_COLOR_BLEND_STATE_CREATE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_BIT_EXT;
         }
 
-        VkDynamicState dynamicStates[] = {
-            VK_DYNAMIC_STATE_VIEWPORT,
-            VK_DYNAMIC_STATE_SCISSOR,
-        };
-        VkPipelineDynamicStateCreateInfo pipelineDynamicStateCreateInfo = {
-            .sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO,
-            .dynamicStateCount = 2,
-            .pDynamicStates = dynamicStates,
-        };
-
-        VkGraphicsPipelineCreateInfo graphicsPipelineCreateInfo = {
+        VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .stageCount = 2,
             .pStages = stages,
-            .pVertexInputState = &pipelineVertexInputStateCreateInfo,
-            .pInputAssemblyState = &pipelineInputAssemblyStateCreateInfo,
-            .pViewportState = &pipelineViewportStateCreateInfo,
+            .pViewportState = &layout::SINGLE_VIEWPORT,
             .pRasterizationState = &pipelineRasterizationStateCreateInfo,
-            .pMultisampleState = &pipelineMultisampleStateCreateInfo,
+            .pMultisampleState = &layout::MSAA_DISABLED,
             .pColorBlendState = &pipelineColorBlendStateCreateInfo,
-            .pDynamicState = &pipelineDynamicStateCreateInfo,
+            .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
             .layout = *pipelineLayout,
             .renderPass = vkRenderPass,
             .subpass = drawType == gpu::DrawType::atomicResolve ? 1u : 0u,
         };
 
+        switch (drawType)
+        {
+            case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
+            case DrawType::outerCurvePatches:
+                pipelineCreateInfo.pVertexInputState =
+                    &layout::PATH_VERTEX_INPUT_STATE;
+                pipelineCreateInfo.pInputAssemblyState =
+                    &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+                break;
+
+            case DrawType::interiorTriangulation:
+            case DrawType::atlasBlit:
+                pipelineCreateInfo.pVertexInputState =
+                    &layout::INTERIOR_TRI_VERTEX_INPUT_STATE;
+                pipelineCreateInfo.pInputAssemblyState =
+                    &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+                break;
+
+            case DrawType::imageRect:
+                pipelineCreateInfo.pVertexInputState =
+                    &layout::IMAGE_RECT_VERTEX_INPUT_STATE;
+                pipelineCreateInfo.pInputAssemblyState =
+                    &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+                break;
+
+            case DrawType::imageMesh:
+                pipelineCreateInfo.pVertexInputState =
+                    &layout::IMAGE_MESH_VERTEX_INPUT_STATE;
+                pipelineCreateInfo.pInputAssemblyState =
+                    &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
+                break;
+
+            case DrawType::atomicResolve:
+                pipelineCreateInfo.pVertexInputState =
+                    &layout::EMPTY_VERTEX_INPUT_STATE;
+                pipelineCreateInfo.pInputAssemblyState =
+                    &layout::INPUT_ASSEMBLY_TRIANGLE_STRIP;
+                break;
+
+            case DrawType::atomicInitialize:
+            case DrawType::stencilClipReset:
+                RIVE_UNREACHABLE();
+        }
+
         VK_CHECK(m_vk->CreateGraphicsPipelines(m_vk->device,
                                                VK_NULL_HANDLE,
                                                1,
-                                               &graphicsPipelineCreateInfo,
+                                               &pipelineCreateInfo,
                                                nullptr,
                                                &m_vkPipeline));
     }
@@ -2111,6 +2252,12 @@ void RenderContextVulkanImpl::initGPUObjects()
             .stageFlags =
                 VK_SHADER_STAGE_VERTEX_BIT | VK_SHADER_STAGE_FRAGMENT_BIT,
         },
+        {
+            .binding = ATLAS_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
     };
 
     VkDescriptorSetLayoutCreateInfo perFlushLayoutInfo = {
@@ -2163,6 +2310,13 @@ void RenderContextVulkanImpl::initGPUObjects()
             .pImmutableSamplers = &m_linearSampler,
         },
         {
+            .binding = ATLAS_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            .pImmutableSamplers = &m_linearSampler,
+        },
+        {
             .binding = IMAGE_TEXTURE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
             .descriptorCount = 1,
@@ -2202,7 +2356,7 @@ void RenderContextVulkanImpl::initGPUObjects()
         },
         {
             .type = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 3, // grad, feather, image samplers
+            .descriptorCount = 4, // grad, feather, atlas, image samplers
         },
     };
 
@@ -2259,6 +2413,7 @@ void RenderContextVulkanImpl::initGPUObjects()
     // The pipelines reference our vulkan objects. Delete them first.
     m_colorRampPipeline = std::make_unique<ColorRampPipeline>(this);
     m_tessellatePipeline = std::make_unique<TessellatePipeline>(this);
+    m_atlasPipeline = std::make_unique<AtlasPipeline>(this);
 
     // Emulate the feather texture1d array as a 2d texture until we add
     // texture1d support in Vulkan.
@@ -2423,6 +2578,35 @@ void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width,
     }
 }
 
+void RenderContextVulkanImpl::resizeAtlasTexture(uint32_t width,
+                                                 uint32_t height)
+{
+    width = std::max(width, 1u);
+    height = std::max(height, 1u);
+    if (m_atlasTexture == nullptr ||
+        m_atlasTexture->info().extent.width != width ||
+        m_atlasTexture->info().extent.height != height)
+    {
+        m_atlasTexture = m_vk->makeTexture({
+            .format = VK_FORMAT_R32_SFLOAT,
+            .extent = {width, height, 1},
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_SAMPLED_BIT,
+        });
+
+        m_atlasTextureView = m_vk->makeTextureView(m_atlasTexture);
+
+        m_atlasFramebuffer = m_vk->makeFramebuffer({
+            .renderPass = m_atlasPipeline->renderPass(),
+            .attachmentCount = 1,
+            .pAttachments = m_atlasTextureView->vkImageViewAddressOf(),
+            .width = width,
+            .height = height,
+            .layers = 1,
+        });
+    }
+}
+
 void RenderContextVulkanImpl::resizeCoverageBuffer(size_t sizeInBytes)
 {
     if (sizeInBytes == 0)
@@ -2477,7 +2661,7 @@ constexpr static uint32_t kMaxUniformUpdates = 3;
 constexpr static uint32_t kMaxDynamicUniformUpdates = 1;
 constexpr static uint32_t kMaxImageTextureUpdates = 256;
 constexpr static uint32_t kMaxSampledImageUpdates =
-    3 + kMaxImageTextureUpdates; // tess + feather + grad + imageTextures
+    4 + kMaxImageTextureUpdates; // tess + grad + feather + atlas + images
 constexpr static uint32_t kMaxStorageImageUpdates =
     1; // coverageAtomicTexture in atomic mode.
 constexpr static uint32_t kMaxStorageBufferUpdates =
@@ -2810,8 +2994,20 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
 
-    VulkanContext::TextureAccess lastGradTextureAccess, lastTessTextureAccess;
-    lastTessTextureAccess = lastGradTextureAccess = {
+    m_vk->updateImageDescriptorSets(
+        perFlushDescriptorSet,
+        {
+            .dstBinding = ATLAS_TEXTURE_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
+        },
+        {{
+            .imageView = *m_atlasTextureView,
+            .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        }});
+
+    VulkanContext::TextureAccess lastGradTextureAccess, lastTessTextureAccess,
+        lastAtlasTextureAccess;
+    lastTessTextureAccess = lastGradTextureAccess = lastAtlasTextureAccess = {
         // The last thing to access the gradient and tessellation textures was
         // the previous flush.
         // Make sure our barriers account for this so we don't overwrite these
@@ -3001,6 +3197,136 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         lastTessTextureAccess,
         {
             .pipelineStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
+            .accessMask = VK_ACCESS_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        },
+        *m_tessVertexTexture);
+
+    // Render the atlas if we have any offscreen feathers.
+    if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
+    {
+        // Don't render new vertices until the previous flush has finished using
+        // the atlas texture.
+        lastAtlasTextureAccess = m_vk->simpleImageMemoryBarrier(
+            commandBuffer,
+            lastAtlasTextureAccess,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            },
+            *m_atlasTexture);
+
+        VkRect2D renderArea = {
+            .extent = {desc.atlasContentWidth, desc.atlasContentHeight},
+        };
+
+        VkClearValue atlasClearValue = {};
+
+        VkRenderPassBeginInfo renderPassBeginInfo = {
+            .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
+            .renderPass = m_atlasPipeline->renderPass(),
+            .framebuffer = *m_atlasFramebuffer,
+            .renderArea = renderArea,
+            .clearValueCount = 1,
+            .pClearValues = &atlasClearValue,
+        };
+
+        m_vk->CmdBeginRenderPass(commandBuffer,
+                                 &renderPassBeginInfo,
+                                 VK_SUBPASS_CONTENTS_INLINE);
+        m_vk->CmdSetViewport(commandBuffer,
+                             0,
+                             1,
+                             vkutil::ViewportFromRect2D(renderArea));
+        m_vk->CmdBindVertexBuffers(commandBuffer,
+                                   0,
+                                   1,
+                                   m_pathPatchVertexBuffer->vkBufferAddressOf(),
+                                   zeroOffset);
+        m_vk->CmdBindIndexBuffer(commandBuffer,
+                                 *m_pathPatchIndexBuffer,
+                                 0,
+                                 VK_INDEX_TYPE_UINT16);
+        m_vk->CmdBindDescriptorSets(commandBuffer,
+                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    m_atlasPipeline->pipelineLayout(),
+                                    PER_FLUSH_BINDINGS_SET,
+                                    1,
+                                    &perFlushDescriptorSet,
+                                    1,
+                                    zeroOffset32);
+        m_vk->CmdBindDescriptorSets(commandBuffer,
+                                    VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                    m_atlasPipeline->pipelineLayout(),
+                                    SAMPLER_BINDINGS_SET,
+                                    1,
+                                    &m_immutableSamplerDescriptorSet,
+                                    0,
+                                    nullptr);
+        if (desc.atlasFillBatchCount != 0)
+        {
+            m_vk->CmdBindPipeline(commandBuffer,
+                                  VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  m_atlasPipeline->fillPipeline());
+            for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
+            {
+                const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
+                VkRect2D scissor = {
+                    .offset = {fillBatch.scissor.left, fillBatch.scissor.top},
+                    .extent = {fillBatch.scissor.width(),
+                               fillBatch.scissor.height()},
+                };
+                m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissor);
+                m_vk->CmdDrawIndexed(commandBuffer,
+                                     gpu::kMidpointFanCenterAAPatchIndexCount,
+                                     fillBatch.patchCount,
+                                     gpu::kMidpointFanCenterAAPatchBaseIndex,
+                                     0,
+                                     fillBatch.basePatch);
+            }
+        }
+
+        if (desc.atlasStrokeBatchCount != 0)
+        {
+            m_vk->CmdBindPipeline(commandBuffer,
+                                  VK_PIPELINE_BIND_POINT_GRAPHICS,
+                                  m_atlasPipeline->strokePipeline());
+            for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
+            {
+                const gpu::AtlasDrawBatch& strokeBatch =
+                    desc.atlasStrokeBatches[i];
+                VkRect2D scissor = {
+                    .offset = {strokeBatch.scissor.left,
+                               strokeBatch.scissor.top},
+                    .extent = {strokeBatch.scissor.width(),
+                               strokeBatch.scissor.height()},
+                };
+                m_vk->CmdSetScissor(commandBuffer, 0, 1, &scissor);
+                m_vk->CmdDrawIndexed(commandBuffer,
+                                     gpu::kMidpointFanPatchBorderIndexCount,
+                                     strokeBatch.patchCount,
+                                     gpu::kMidpointFanPatchBaseIndex,
+                                     0,
+                                     strokeBatch.basePatch);
+            }
+        }
+
+        m_vk->CmdEndRenderPass(commandBuffer);
+
+        // The render pass transitioned the atlas texture to
+        // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
+        lastAtlasTextureAccess.layout =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    }
+
+    // Ensure the atlas texture has finished rendering before the fragment
+    // shaders read it.
+    m_vk->simpleImageMemoryBarrier(
+        commandBuffer,
+        lastAtlasTextureAccess,
+        {
+            .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             .accessMask = VK_ACCESS_SHADER_READ_BIT,
             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         },
@@ -3578,6 +3904,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             }
 
             case DrawType::interiorTriangulation:
+            case DrawType::atlasBlit:
             {
                 VkBuffer buffer =
                     m_triangleBufferRing.vkBufferAt(m_bufferRingIdx);

@@ -206,7 +206,11 @@
 #define TEXTURE_CONTEXT_FORWARD
 #define TEXEL_FETCH(NAME, COORD) texelFetch(NAME, COORD, 0)
 
-#if @GLSL_VERSION >= 310
+#ifdef @TARGET_VULKAN
+#define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)        \
+    textureGather(sampler2D(NAME, SAMPLER_NAME),                               \
+                  (COORD) * (TEXTURE_INVERSE_SIZE))
+#elif @GLSL_VERSION >= 310
 #define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)        \
     textureGather(NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
 #else

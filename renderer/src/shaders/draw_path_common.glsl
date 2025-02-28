@@ -44,19 +44,19 @@ STORAGE_BUFFER_U32x4(CONTOUR_BUFFER_IDX, ContourBuffer, @contourBuffer);
 VERTEX_STORAGE_BUFFER_BLOCK_END
 #endif // @VERTEX
 
-#if defined(@ENABLE_FEATHER) || defined(@ATLAS_COVERAGE)
+#if defined(@ENABLE_FEATHER) || defined(@ATLAS_BLIT)
 SAMPLER_LINEAR(FEATHER_TEXTURE_IDX, featherSampler)
 #endif
 
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, GRAD_TEXTURE_IDX, @gradTexture);
-#if defined(@ENABLE_FEATHER) || defined(@ATLAS_COVERAGE)
+#if defined(@ENABLE_FEATHER) || defined(@ATLAS_BLIT)
 TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
                       FEATHER_TEXTURE_IDX,
                       @featherTexture);
 #endif
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
 TEXTURE_R16F(PER_DRAW_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
 #endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
@@ -68,7 +68,7 @@ FRAG_TEXTURE_BLOCK_END
 SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 // Metal defines @VERTEX and @FRAGMENT at the same time, so yield to the vertex
 // definition of featherSampler in this case.
-#ifdef @ATLAS_COVERAGE
+#ifdef @ATLAS_BLIT
 SAMPLER_LINEAR(ATLAS_TEXTURE_IDX, atlasSampler)
 #endif
 SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
@@ -251,7 +251,7 @@ INLINE half eval_feathered_stroke(float4 coverages TEXTURE_CONTEXT_DECL)
 }
 #endif // @ENABLE_FEATHER
 
-#if defined(@FRAGMENT) && defined(@ATLAS_COVERAGE)
+#if defined(@FRAGMENT) && defined(@ATLAS_BLIT)
 // Upscales a pre-rendered feather from the atlas, converting from gaussian
 // space to linear before doing a bilerp.
 INLINE half
@@ -281,7 +281,7 @@ filter_feather_atlas(float2 atlasCoord,
     // Go back to gaussian now that the bilerp is finished.
     return FEATHER(coverages.x);
 }
-#endif // @FRAGMENT && @ATLAS_COVERAGE
+#endif // @FRAGMENT && @ATLAS_BLIT
 
 #if defined(@VERTEX) && defined(@DRAW_PATH)
 INLINE int2 tess_texel_coord(int texelIndex)
@@ -824,7 +824,7 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
     outWindingWeight = cast_int_to_half(floatBitsToInt(triangleVertex.z) >> 16);
 #endif
     float2 vertexPos = triangleVertex.xy;
-    // ATLAS_COVERAGE draws vertices in screen space.
+    // ATLAS_BLIT draws vertices in screen space.
     float2x2 M = make_float2x2(
         uintBitsToFloat(STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u)));
     uint4 pathData = STORAGE_BUFFER_LOAD4(@pathBuffer, outPathID * 4u + 1u);
@@ -834,7 +834,7 @@ INLINE float2 unpack_interior_triangle_vertex(float3 triangleVertex,
 }
 #endif // @VERTEX && @DRAW_INTERIOR_TRIANGLES
 
-#if defined(@VERTEX) && defined(@ATLAS_COVERAGE)
+#if defined(@VERTEX) && defined(@ATLAS_BLIT)
 INLINE float2
 unpack_atlas_coverage_vertex(float3 triangleVertex,
                              OUT(uint) outPathID,
@@ -855,4 +855,4 @@ unpack_atlas_coverage_vertex(float3 triangleVertex,
     outAtlasCoord = vertexPos * atlasTransform.x + atlasTransform.yz;
     return vertexPos;
 }
-#endif // @VERTEX && @ATLAS_COVERAGE
+#endif // @VERTEX && @ATLAS_BLIT

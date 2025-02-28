@@ -147,7 +147,7 @@ public:
         char namespaceID[] = "000000000";
         static_assert(sizeof(namespaceID) ==
                       gpu::kShaderFeatureCount + 1 /*DRAW_INTERIOR_TRIANGLES*/ +
-                          1 /*ATLAS_COVERAGE*/ + 1 /*null terminator*/);
+                          1 /*ATLAS_BLIT*/ + 1 /*null terminator*/);
         for (size_t i = 0; i < gpu::kShaderFeatureCount; ++i)
         {
             ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
@@ -169,8 +169,9 @@ public:
         {
             namespaceID[gpu::kShaderFeatureCount] = '1';
         }
-        if (shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage)
+        else if (drawType == DrawType::atlasBlit)
         {
+            namespaceID[gpu::kShaderFeatureCount] = '1';
             namespaceID[gpu::kShaderFeatureCount + 1] = '1';
         }
 
@@ -181,6 +182,7 @@ public:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
             case DrawType::interiorTriangulation:
+            case DrawType::atlasBlit:
                 namespacePrefix =
                     (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
                         ? 'c'
@@ -539,24 +541,20 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     {
         for (auto drawType : {DrawType::midpointFanPatches,
                               DrawType::interiorTriangulation,
+                              DrawType::atlasBlit,
                               DrawType::imageMesh})
         {
-            for (auto shaderMiscFlags :
-                 {gpu::ShaderMiscFlags::none,
-                  gpu::ShaderMiscFlags::clockwiseFill,
-                  ShaderMiscFlags(gpu::ShaderMiscFlags::clockwiseFill |
-                                  gpu::ShaderMiscFlags::atlasCoverage)})
+            for (auto shaderMiscFlags : {gpu::ShaderMiscFlags::none,
+                                         gpu::ShaderMiscFlags::clockwiseFill})
             {
-                if ((shaderMiscFlags & gpu::ShaderMiscFlags::atlasCoverage) &&
-                    drawType != gpu::DrawType::interiorTriangulation)
+                if (drawType == gpu::DrawType::atlasBlit &&
+                    shaderMiscFlags != gpu::ShaderMiscFlags::none)
                 {
                     continue;
                 }
                 gpu::ShaderFeatures allShaderFeatures =
                     gpu::ShaderFeaturesMaskFor(
-                        drawType,
-                        shaderMiscFlags,
-                        gpu::InterlockMode::rasterOrdering);
+                        drawType, gpu::InterlockMode::rasterOrdering);
                 uint32_t pipelineKey =
                     ShaderUniqueKey(drawType,
                                     allShaderFeatures,
@@ -568,7 +566,7 @@ RenderContextMetalImpl::RenderContextMetalImpl(
                     DrawPipeline::GetPrecompiledFunctionName(
                         drawType,
                         allShaderFeatures & gpu::kVertexShaderFeaturesMask,
-                        shaderMiscFlags & gpu::VERTEX_SHADER_MISC_FLAGS_MASK,
+                        gpu::ShaderMiscFlags::none,
                         m_plsPrecompiledLibrary,
                         GLSL_drawVertexMain),
                     DrawPipeline::GetPrecompiledFunctionName(
@@ -890,7 +888,7 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     // finding a fully-featured superset of features whose pipeline we can fall
     // back on while waiting for it to compile.
     ShaderFeatures fullyFeaturedPipelineFeatures =
-        gpu::ShaderFeaturesMaskFor(drawType, shaderMiscFlags, interlockMode);
+        gpu::ShaderFeaturesMaskFor(drawType, interlockMode);
     if (interlockMode == gpu::InterlockMode::atomics)
     {
         // Never add ENABLE_ADVANCED_BLEND to an atomic pipeline that doesn't
@@ -1498,6 +1496,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 break;
             }
             case DrawType::interiorTriangulation:
+            case DrawType::atlasBlit:
             {
                 [encoder setRenderPipelineState:drawPipelineState];
                 [encoder setVertexBuffer:mtl_buffer(triangleBufferRing())

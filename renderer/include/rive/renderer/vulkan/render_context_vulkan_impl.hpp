@@ -184,7 +184,7 @@ private:
 
     void resizeGradientTexture(uint32_t width, uint32_t height) override;
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
-    void resizeAtlasTexture(uint32_t width, uint32_t height) override {}
+    void resizeAtlasTexture(uint32_t width, uint32_t height) override;
     void resizeCoverageBuffer(size_t sizeInBytes) override;
 
     // Wraps a VkDescriptorPool created specifically for a PLS flush, and tracks
@@ -274,6 +274,13 @@ private:
     rcp<vkutil::Texture> m_tessVertexTexture;
     rcp<vkutil::TextureView> m_tessVertexTextureView;
     rcp<vkutil::Framebuffer> m_tessTextureFramebuffer;
+
+    // Renders feathers to the atlas.
+    class AtlasPipeline;
+    std::unique_ptr<AtlasPipeline> m_atlasPipeline;
+    rcp<vkutil::Texture> m_atlasTexture;
+    rcp<vkutil::TextureView> m_atlasTextureView;
+    rcp<vkutil::Framebuffer> m_atlasFramebuffer;
 
     // Coverage buffer used by shaders in clockwiseAtomic mode.
     rcp<vkutil::Buffer> m_coverageBuffer;

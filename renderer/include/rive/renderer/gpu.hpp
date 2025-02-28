@@ -602,6 +602,7 @@ enum class DrawType : uint8_t
     outerCurvePatches, // Just the outer curves of a path; the interior will be
                        // triangulated.
     interiorTriangulation,
+    atlasBlit,
     imageRect,
     imageMesh,
     atomicInitialize, // Clear/init PLS data when we can't do it with existing
@@ -623,6 +624,7 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
         case DrawType::atomicInitialize:
         case DrawType::atomicResolve:
         case DrawType::stencilClipReset:
@@ -642,6 +644,7 @@ constexpr static uint32_t PatchIndexCount(DrawType drawType)
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchIndexCount;
         case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::atomicInitialize:
@@ -663,6 +666,7 @@ constexpr static uint32_t PatchBorderIndexCount(DrawType drawType)
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchBorderIndexCount;
         case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::atomicInitialize:
@@ -689,6 +693,7 @@ constexpr static uint32_t PatchBaseIndex(DrawType drawType)
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchBaseIndex;
         case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::atomicInitialize:
@@ -821,33 +826,11 @@ enum class ShaderMiscFlags : uint32_t
     // a single pass, instead of (1) resolving the offscreen texture, and then
     // (2) copying the offscreen texture to back the renderTarget.
     coalescedResolveAndTransfer = 1 << 5,
-
-    // Read coverage from the offscreen atlas instead of computing coverage in
-    // the shader.
-    atlasCoverage = 1 << 6,
 };
 RIVE_MAKE_ENUM_BITSET(ShaderMiscFlags)
 
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(
-    ShaderMiscFlags shaderMiscFlags)
-{
-    if (shaderMiscFlags & ShaderMiscFlags::atlasCoverage)
-    {
-        return kAllShaderFeatures & ~(ShaderFeatures::ENABLE_FEATHER |
-                                      ShaderFeatures::ENABLE_EVEN_ODD |
-                                      ShaderFeatures::ENABLE_NESTED_CLIPPING);
-    }
-    return kAllShaderFeatures;
-}
-
-// The set of ShaderMiscFlags that affect the vertex shader. (The others only
-// affect the fragment shader.)
-constexpr static ShaderMiscFlags VERTEX_SHADER_MISC_FLAGS_MASK =
-    ShaderMiscFlags::atlasCoverage;
-
-constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     DrawType drawType,
-    ShaderMiscFlags shaderMiscFlags,
     InterlockMode interlockMode)
 {
     ShaderFeatures mask = ShaderFeatures::NONE;
@@ -855,6 +838,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     {
         case DrawType::imageRect:
         case DrawType::imageMesh:
+        case DrawType::atlasBlit:
             if (interlockMode != gpu::InterlockMode::atomics)
             {
                 mask = ShaderFeatures::ENABLE_CLIPPING |
@@ -882,8 +866,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             mask = ShaderFeatures::NONE;
             break;
     }
-    return mask & ShaderFeaturesMaskFor(shaderMiscFlags) &
-           ShaderFeaturesMaskFor(interlockMode);
+    return mask & ShaderFeaturesMaskFor(interlockMode);
 }
 
 // Returns a unique value that can be used to key a shader.
