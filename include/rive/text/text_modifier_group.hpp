@@ -20,6 +20,7 @@ struct TransformGlyphArg
 {
     Vec2D position;
     Vec2D originPosition;
+    Vec2D offset;
     float centerX;
     int lineIndexInParagraph;
     const SimpleArray<GlyphLine>& paragraphLines;
@@ -33,7 +34,9 @@ struct TransformGlyphArg
         centerX(centerX_),
         lineIndexInParagraph(lineIndexInParagraph_),
         paragraphLines(lines)
-    {}
+    {
+        offset = {0, 0};
+    }
 };
 
 class TextModifierGroup : public TextModifierGroupBase
@@ -60,7 +63,7 @@ public:
         assert(textIndex < m_coverage.size());
         return m_coverage[textIndex];
     }
-    void transform(float amount, Mat2D& ctm, const TransformGlyphArg& arg);
+    void transform(float amount, Mat2D& ctm, TransformGlyphArg& arg);
     TextRun modifyShape(const Text& text, TextRun run, float strength);
     void applyShapeModifiers(const Text& text, StyledText& styledText);
 

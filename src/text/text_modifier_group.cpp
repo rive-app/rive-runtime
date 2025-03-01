@@ -162,7 +162,7 @@ void TextModifierGroup::resetTextFollowPath()
 
 void TextModifierGroup::transform(float amount,
                                   Mat2D& ctm,
-                                  const TransformGlyphArg& arg)
+                                  TransformGlyphArg& arg)
 {
     bool followsPath = !m_followPathModifiers.empty();
     if (amount == 0.0f || (!modifiesTransform() && !followsPath))
@@ -177,16 +177,26 @@ void TextModifierGroup::transform(float amount,
         TransformComponents tc;
         tc.x(arg.originPosition.x);
         tc.y(arg.originPosition.y);
+        if (modifiesTranslation())
+        {
+            arg.offset = {x(), y()};
+        }
+
         for (TextFollowPathModifier* modifier : m_followPathModifiers)
         {
             tc = modifier->transformGlyph(tc, arg);
         }
-        Vec2D offset = tc.translation() - arg.originPosition;
+        Vec2D posDiff = tc.translation() - arg.originPosition;
 
         // Commit the effect of the follow path modifiers to parts
         parts.rotation(parts.rotation() + tc.rotation() * amount);
-        parts.x(parts.x() + offset.x * amount);
-        parts.y(parts.y() + offset.y * amount);
+        parts.x(posDiff.x * amount);
+        parts.y(posDiff.y * amount);
+    }
+    else if (modifiesTranslation())
+    {
+        parts.x(x() * amount);
+        parts.y(y() * amount);
     }
 
     if (modifiesScale())
@@ -199,12 +209,6 @@ void TextModifierGroup::transform(float amount,
     if (modifiesRotation())
     {
         parts.rotation(parts.rotation() + rotation() * amount);
-    }
-
-    if (modifiesTranslation())
-    {
-        parts.x(parts.x() + x() * amount);
-        parts.y(parts.y() + y() * amount);
     }
 
     Mat2D transform = Mat2D::compose(parts);

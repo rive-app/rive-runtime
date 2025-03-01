@@ -789,6 +789,9 @@ public:
             case TextModifierRangeBase::clampPropertyKey:
                 object->as<TextModifierRangeBase>()->clamp(value);
                 break;
+            case TextFollowPathModifierBase::radialPropertyKey:
+                object->as<TextFollowPathModifierBase>()->radial(value);
+                break;
             case TextBase::fitFromBaselinePropertyKey:
                 object->as<TextBase>()->fitFromBaseline(value);
                 break;
@@ -2215,6 +2218,8 @@ public:
                     ->propertyValue();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->as<TextModifierRangeBase>()->clamp();
+            case TextFollowPathModifierBase::radialPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->radial();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->as<TextBase>()->fitFromBaseline();
         }
@@ -3197,6 +3202,7 @@ public:
             case LayoutComponentBase::clipPropertyKey:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
+            case TextFollowPathModifierBase::radialPropertyKey:
             case TextBase::fitFromBaselinePropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
@@ -3720,6 +3726,8 @@ public:
                 return object->is<BindablePropertyBooleanBase>();
             case TextModifierRangeBase::clampPropertyKey:
                 return object->is<TextModifierRangeBase>();
+            case TextFollowPathModifierBase::radialPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->is<TextBase>();
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:

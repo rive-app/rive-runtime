@@ -17,6 +17,9 @@ public:
     TransformComponents transformGlyph(const TransformComponents& cur,
                                        const TransformGlyphArg& arg);
 
+protected:
+    void radialChanged() override;
+
 private:
     RawPath m_worldPath;
     RawPath m_localPath;

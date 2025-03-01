@@ -105,6 +105,15 @@ void RawPath::close()
     }
 }
 
+bool RawPath::isClosed() const
+{
+    if (m_Verbs.size() > 0)
+    {
+        return m_Verbs[m_Verbs.size() - 1] == PathVerb::close;
+    }
+    return false;
+}
+
 RawPath RawPath::transform(const Mat2D& m) const
 {
     RawPath path;

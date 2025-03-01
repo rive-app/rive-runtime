@@ -43,6 +43,7 @@ public:
     void quad(Vec2D, Vec2D);
     void cubic(Vec2D, Vec2D, Vec2D);
     void close();
+    bool isClosed() const;
 
     void swap(RawPath&);
 

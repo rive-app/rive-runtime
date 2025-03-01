@@ -71,6 +71,15 @@ void TextFollowPathModifier::update(ComponentDirt value)
     }
 }
 
+void TextFollowPathModifier::radialChanged()
+{
+    Text* text = textComponent();
+    if (text != nullptr)
+    {
+        text->modifierShapeDirty();
+    }
+}
+
 void TextFollowPathModifier::reset(const Mat2D* inverseText)
 {
     if (m_Target == nullptr)
@@ -87,45 +96,48 @@ TransformComponents TextFollowPathModifier::transformGlyph(
     const TransformComponents& cur,
     const TransformGlyphArg& arg)
 {
-    if (m_pathMeasure.length() == 0)
+    float pathLength = m_pathMeasure.length();
+    if (pathLength == 0)
     {
         return cur;
     }
 
-    const Vec2D& originPosition = arg.originPosition;
     const auto& paragraphLines = arg.paragraphLines;
     int lineIndexInParagraph = arg.lineIndexInParagraph;
 
     Vec2D position, tangent;
+    Vec2D positionOnPath = arg.originPosition + arg.offset;
+    bool pathClosed = m_localPath.isClosed();
 
-    if (originPosition.x < 0)
+    // Render along the tangent if overflowing on either ends
+    if (!pathClosed && positionOnPath.x < 0)
     {
         auto result = m_pathMeasure.atDistance(0);
         tangent = result.tan;
         tangent = tangent.normalized();
         Vec2D zeroPosition = result.pos;
-        float extra = -originPosition.x;
+        float extra = -positionOnPath.x;
         position = Vec2D(zeroPosition.x - tangent.x * extra,
                          zeroPosition.y - tangent.y * extra);
     }
-    else if (originPosition.x <= m_pathMeasure.length())
+    else if (!pathClosed && positionOnPath.x > pathLength)
     {
-        // Render text along the path if in
-        // bounds.
-        auto result = m_pathMeasure.atDistance(originPosition.x);
-        position = result.pos;
-        tangent = result.tan;
-    }
-    else
-    {
-        // Otherwise continue rendering along the tangent.
         auto result = m_pathMeasure.atDistance(m_pathMeasure.length());
         tangent = result.tan;
         tangent = tangent.normalized();
         Vec2D termPosition = result.pos;
-        float extra = originPosition.x - m_pathMeasure.length();
+        float extra = positionOnPath.x - m_pathMeasure.length();
         position = Vec2D(termPosition.x + tangent.x * extra,
                          termPosition.y + tangent.y * extra);
+    }
+    else
+    {
+        // Closed path, or in the range of the path.
+        // Use the percentage API to wrap around
+        auto result = m_pathMeasure.atPercentage(positionOnPath.x / pathLength);
+        position = result.pos;
+        tangent = result.tan;
+        tangent = tangent.normalized();
     }
 
     // Find out the baseline to sit on
@@ -144,11 +156,24 @@ TransformComponents TextFollowPathModifier::transformGlyph(
         curBaseline = paragraphLines[lineIndexInParagraph].baseline;
     }
 
-    TransformComponents tc;
-    Vec2D translation =
-        Vec2D(position.x,
-              originPosition.y + position.y + lastBaseline - curBaseline);
+    // We assume the glyph would have been rendered on the
+    // current line's baseline.
+    Vec2D translation;
+    if (radial())
+    {
+        float verticalSpacing = positionOnPath.y - curBaseline;
+        Vec2D perpendicular(-tangent.y, tangent.x);
+        translation = Vec2D(position.x + verticalSpacing * perpendicular.x,
+                            position.y + verticalSpacing * perpendicular.y);
+    }
+    else
+    {
+        translation =
+            Vec2D(position.x,
+                  positionOnPath.y - curBaseline + position.y + lastBaseline);
+    }
 
+    TransformComponents tc;
     tc.x(translation.x);
     tc.y(translation.y);
     tc.rotation(std::atan2(tangent.y, tangent.x));

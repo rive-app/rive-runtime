@@ -614,14 +614,13 @@ void Text::buildRenderStyles()
                     {
                         float coverage =
                             modifierGroup->glyphCoverage(textIndex, glyphCount);
-                        modifierGroup->transform(coverage,
-                                                 pathTransform,
-                                                 {
-                                                     curPos,
-                                                     centerX,
-                                                     lineIndexInParagraph,
-                                                     paragraphLines,
-                                                 });
+                        TransformGlyphArg arg = {
+                            curPos,
+                            centerX,
+                            lineIndexInParagraph,
+                            paragraphLines,
+                        };
+                        modifierGroup->transform(coverage, pathTransform, arg);
                         if (modifierGroup->modifiesOpacity())
                         {
                             opacity = modifierGroup->computeOpacity(opacity,
