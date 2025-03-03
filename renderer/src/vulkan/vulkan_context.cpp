@@ -15,6 +15,19 @@ static VmaAllocator make_vma_allocator(VmaAllocatorCreateInfo vmaCreateInfo)
     return vmaAllocator;
 }
 
+bool VulkanContext::isFormatSupportedWithGivenFormatFeatureFlags(
+    VkFormat formatInQuestion,
+    VkFormatFeatureFlagBits desiredFeatureFlags)
+{
+    // Can flesch this out, but currently just checks if format's optimal tiling
+    // features include the provided bits.
+    VkFormatProperties properties;
+    GetPhysicalDeviceFormatProperties(physicalDevice,
+                                      formatInQuestion,
+                                      &properties);
+    return (properties.optimalTilingFeatures & desiredFeatureFlags);
+}
+
 VulkanContext::VulkanContext(VkInstance instance,
                              VkPhysicalDevice physicalDevice_,
                              VkDevice device_,
@@ -38,13 +51,27 @@ VulkanContext::VulkanContext(VkInstance instance,
 // clang-format off
 #define LOAD_VULKAN_INSTANCE_COMMAND(CMD)                                                          \
     , CMD(reinterpret_cast<PFN_vk##CMD>(fp_vkGetInstanceProcAddr(instance, "vk" #CMD)))
+    RIVE_VULKAN_INSTANCE_COMMANDS(LOAD_VULKAN_INSTANCE_COMMAND)
 #define LOAD_VULKAN_DEVICE_COMMAND(CMD)                                                            \
     , CMD(reinterpret_cast<PFN_vk##CMD>(fp_vkGetDeviceProcAddr(device, "vk" #CMD)))
     RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
 #undef LOAD_VULKAN_DEVICE_COMMAND
 #undef LOAD_VULKAN_INSTANCE_COMMAND
 // clang-format on
-{}
+{
+    // VK spec says between D24_S8 and D32_S8, one of them must be supported
+    m_supportsD24S8 = isFormatSupportedWithGivenFormatFeatureFlags(
+        VK_FORMAT_D24_UNORM_S8_UINT,
+        VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
+
+    // This assert should never fire unless some hardware is breaking the VK
+    // spec by reporting that it does not support one of these formats.
+    assert((m_supportsD24S8 ||
+            isFormatSupportedWithGivenFormatFeatureFlags(
+                VK_FORMAT_D32_SFLOAT_S8_UINT,
+                VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) &&
+           "No suitable depth format supported!");
+}
 
 VulkanContext::~VulkanContext()
 {
@@ -132,22 +159,37 @@ static VkImageViewType image_view_type_for_image_type(VkImageType type)
     RIVE_UNREACHABLE();
 }
 
+static VkImageAspectFlags image_aspect_flags_for_format(VkFormat format)
+{
+    switch (format)
+    {
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            return VK_IMAGE_ASPECT_DEPTH_BIT | VK_IMAGE_ASPECT_STENCIL_BIT;
+        default:
+            return VK_IMAGE_ASPECT_COLOR_BIT;
+    }
+    RIVE_UNREACHABLE();
+}
+
 rcp<vkutil::TextureView> VulkanContext::makeTextureView(
     rcp<vkutil::Texture> texture)
 {
-    return makeTextureView(texture,
-                           {
-                               .image = *texture,
-                               .viewType = image_view_type_for_image_type(
-                                   texture->info().imageType),
-                               .format = texture->info().format,
-                               .subresourceRange =
-                                   {
-                                       .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                                       .levelCount = texture->info().mipLevels,
-                                       .layerCount = 1,
-                                   },
-                           });
+    const VkImageCreateInfo& texInfo = texture->info();
+
+    return makeTextureView(
+        texture,
+        {
+            .image = *texture,
+            .viewType = image_view_type_for_image_type(texInfo.imageType),
+            .format = texInfo.format,
+            .subresourceRange =
+                {
+                    .aspectMask = image_aspect_flags_for_format(texInfo.format),
+                    .levelCount = texInfo.mipLevels,
+                    .layerCount = 1,
+                },
+        });
 }
 
 rcp<vkutil::TextureView> VulkanContext::makeTextureView(

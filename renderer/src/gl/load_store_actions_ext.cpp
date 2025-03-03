@@ -14,7 +14,7 @@ LoadStoreActionsEXT BuildLoadActionsEXT(const gpu::FlushDescriptor& desc,
     LoadStoreActionsEXT actions = LoadStoreActionsEXT::clearCoverage;
     if (desc.colorLoadAction == LoadAction::clear)
     {
-        UnpackColorToRGBA32FPremul(desc.clearColor, clearColor4f->data());
+        UnpackColorToRGBA32FPremul(desc.colorClearValue, clearColor4f->data());
         actions |= LoadStoreActionsEXT::clearColor;
     }
     else if (desc.colorLoadAction == LoadAction::preserveRenderTarget)

@@ -1945,7 +1945,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     {
         loadOp = wgpu::LoadOp::Clear;
         float cc[4];
-        UnpackColorToRGBA32FPremul(desc.clearColor, cc);
+        UnpackColorToRGBA32FPremul(desc.colorClearValue, cc);
         clearColor = {cc[0], cc[1], cc[2], cc[3]};
     }
     else

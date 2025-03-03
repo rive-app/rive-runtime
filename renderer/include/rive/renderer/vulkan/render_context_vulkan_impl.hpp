@@ -61,6 +61,7 @@ public:
     VkImage clipTexture() const { return *m_clipTexture; }
     VkImage scratchColorTexture() const { return *m_scratchColorTexture; }
     VkImage coverageAtomicTexture() const { return *m_coverageAtomicTexture; }
+    VkImage depthStencilTexture() const { return *m_depthStencilTexture; }
 
     // getters that lazy load if needed.
 
@@ -69,6 +70,7 @@ public:
     vkutil::TextureView* ensureScratchColorTextureView();
     vkutil::TextureView* ensureCoverageTextureView();
     vkutil::TextureView* ensureCoverageAtomicTextureView();
+    vkutil::TextureView* ensureDepthStencilTextureView();
 
 private:
     friend class RenderContextVulkanImpl;
@@ -96,12 +98,14 @@ private:
     rcp<vkutil::Texture> m_scratchColorTexture;
     rcp<vkutil::Texture>
         m_coverageAtomicTexture; // gpu::InterlockMode::atomics.
+    rcp<vkutil::Texture> m_depthStencilTexture;
 
     rcp<vkutil::TextureView> m_offscreenColorTextureView;
     rcp<vkutil::TextureView> m_coverageTextureView;
     rcp<vkutil::TextureView> m_clipTextureView;
     rcp<vkutil::TextureView> m_scratchColorTextureView;
     rcp<vkutil::TextureView> m_coverageAtomicTextureView;
+    rcp<vkutil::TextureView> m_depthStencilTextureView;
 };
 
 class RenderContextVulkanImpl : public RenderContextImpl

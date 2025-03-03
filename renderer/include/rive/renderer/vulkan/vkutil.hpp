@@ -236,8 +236,8 @@ public:
             .y = static_cast<float>(rect.offset.y),
             .width = static_cast<float>(rect.extent.width),
             .height = static_cast<float>(rect.extent.height),
-            .minDepth = 0,
-            .maxDepth = 1,
+            .minDepth = DEPTH_MIN,
+            .maxDepth = DEPTH_MAX,
         }
     {}
 

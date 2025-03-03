@@ -105,7 +105,12 @@ constexpr static uint32_t kGradTextureWidth = 512;
 constexpr static uint32_t kGradTextureWidthInSimpleRamps =
     kGradTextureWidth / 2;
 
-// Backend-specific capabilities/workarounds and fine tuning.
+// Depth/stencil parameters
+constexpr static float DEPTH_MIN = 0.0f;
+constexpr static float DEPTH_MAX = 1.0f;
+constexpr static uint32_t STENCIL_CLEAR = 0u;
+
+// Backend-specific capabilities/workarounds and fine tunin// g.
 struct PlatformFeatures
 {
     // InterlockMode::rasterOrdering.
@@ -991,8 +996,10 @@ struct FlushDescriptor
     int msaaSampleCount = 0; // (0 unless interlockMode is msaa.)
 
     LoadAction colorLoadAction = LoadAction::clear;
-    ColorInt clearColor = 0; // When loadAction == LoadAction::clear.
+    ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
     uint32_t coverageClearValue = 0;
+    float depthClearValue = DEPTH_MAX;
+    ColorInt stencilClearValue = STENCIL_CLEAR;
 
     IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
                                     // loadAction == LoadAction::clear.

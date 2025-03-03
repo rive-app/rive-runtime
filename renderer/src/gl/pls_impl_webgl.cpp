@@ -227,7 +227,7 @@ class RenderContextGLImpl::PLSImplWebGL
         if (desc.colorLoadAction == LoadAction::clear)
         {
             float clearColor4f[4];
-            UnpackColorToRGBA32FPremul(desc.clearColor, clearColor4f);
+            UnpackColorToRGBA32FPremul(desc.colorClearValue, clearColor4f);
             glFramebufferPixelLocalClearValuefvANGLE(COLOR_PLANE_IDX,
                                                      clearColor4f);
         }

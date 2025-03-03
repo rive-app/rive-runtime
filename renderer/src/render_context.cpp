@@ -898,7 +898,7 @@ void RenderContext::LogicalFlush::layoutResources(
     {
         m_flushDesc.colorLoadAction = frameDescriptor.loadAction;
     }
-    m_flushDesc.clearColor = frameDescriptor.clearColor;
+    m_flushDesc.colorClearValue = frameDescriptor.clearColor;
 
     if (doClearDuringAtomicResolve)
     {

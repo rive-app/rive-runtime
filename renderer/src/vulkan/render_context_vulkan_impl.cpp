@@ -414,6 +414,12 @@ void RenderContextVulkanImpl::hotloadShaders(
     m_drawPipelines.clear();
 }
 
+static VkFormat get_preferred_depth_stencil_format(bool isD24S8Supported)
+{
+    return isD24S8Supported ? VK_FORMAT_D24_UNORM_S8_UINT
+                            : VK_FORMAT_D32_SFLOAT_S8_UINT;
+}
+
 static VkBufferUsageFlagBits render_buffer_usage_flags(
     RenderBufferType renderBufferType)
 {
@@ -1435,10 +1441,29 @@ public:
                 });
             }
 
-            if (m_interlockMode == gpu::InterlockMode::msaa)
+            const bool usesDepth = m_interlockMode == gpu::InterlockMode::msaa;
+            if (usesDepth)
             {
-                RIVE_UNREACHABLE();
+                attachmentDescs.push_back({
+                    .format = get_preferred_depth_stencil_format(
+                        m_vk->supportsD24S8()),
+                    .samples = VK_SAMPLE_COUNT_1_BIT,
+                    // Clear on render pass start, and don't need to store on
+                    // render pass end
+                    .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .stencilLoadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
+                    .stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                    .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
+                    .finalLayout =
+                        VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
+                });
             }
+
+            VkAttachmentReference depthAttachmentRef = {};
+            depthAttachmentRef.attachment = attachmentDescs.size() - 1;
+            depthAttachmentRef.layout =
+                VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
 
             // Input attachments can differ from the proper color attachments
             StackVector<VkAttachmentReference, PIXEL_LOCAL_STORAGE_PLANE_COUNT>
@@ -1486,7 +1511,8 @@ public:
                 .pInputAttachments = inputAttachmentRefs.data(),
                 .colorAttachmentCount = numColorAttachments,
                 .pColorAttachments = attachmentRefs.data(),
-                .pDepthStencilAttachment = nullptr,
+                .pDepthStencilAttachment =
+                    usesDepth ? &depthAttachmentRef : nullptr,
             });
             // Draw subpass self-dependencies.
             subpassDeps.push_back(
@@ -1589,7 +1615,7 @@ public:
             case gpu::InterlockMode::clockwiseAtomic:
                 return 1;
             case gpu::InterlockMode::msaa:
-                RIVE_UNREACHABLE();
+                return 2;
         }
     }
 
@@ -1995,6 +2021,17 @@ public:
                 VK_PIPELINE_COLOR_BLEND_STATE_CREATE_RASTERIZATION_ORDER_ATTACHMENT_ACCESS_BIT_EXT;
         }
 
+        VkPipelineDepthStencilStateCreateInfo depthStencilState = {
+            .sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO,
+            .depthTestEnable = VK_FALSE,
+            .depthWriteEnable = VK_FALSE,
+            .depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL,
+            .depthBoundsTestEnable = VK_FALSE,
+            .stencilTestEnable = VK_FALSE,
+            .minDepthBounds = DEPTH_MIN,
+            .maxDepthBounds = DEPTH_MAX,
+        };
+
         VkGraphicsPipelineCreateInfo pipelineCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO,
             .stageCount = 2,
@@ -2002,6 +2039,9 @@ public:
             .pViewportState = &layout::SINGLE_VIEWPORT,
             .pRasterizationState = &pipelineRasterizationStateCreateInfo,
             .pMultisampleState = &layout::MSAA_DISABLED,
+            .pDepthStencilState = interlockMode == gpu::InterlockMode::msaa
+                                      ? &depthStencilState
+                                      : nullptr,
             .pColorBlendState = &pipelineColorBlendStateCreateInfo,
             .pDynamicState = &layout::DYNAMIC_VIEWPORT_SCISSOR,
             .layout = *pipelineLayout,
@@ -2838,6 +2878,23 @@ vkutil::TextureView* RenderTargetVulkan::ensureCoverageAtomicTextureView()
     return m_coverageAtomicTextureView.get();
 }
 
+vkutil::TextureView* RenderTargetVulkan::ensureDepthStencilTextureView()
+{
+    if (m_depthStencilTextureView == nullptr)
+    {
+        m_depthStencilTexture = m_vk->makeTexture({
+            .format = get_preferred_depth_stencil_format(m_vk->supportsD24S8()),
+            .extent = {width(), height(), 1},
+            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
+        });
+
+        m_depthStencilTextureView =
+            m_vk->makeTextureView(m_depthStencilTexture);
+    }
+
+    return m_depthStencilTextureView.get();
+}
+
 void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 {
     constexpr static VkDeviceSize zeroOffset[1] = {0};
@@ -3367,7 +3424,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             ? renderTarget->targetTextureView()
             : renderTarget->ensureOffscreenColorTextureView();
     vkutil::TextureView *clipView = nullptr, *scratchColorTextureView = nullptr,
-                        *coverageTextureView = nullptr;
+                        *coverageTextureView = nullptr,
+                        *depthStencilTextureView = nullptr;
+    depthStencilTextureView = renderTarget->ensureDepthStencilTextureView();
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {
         clipView = renderTarget->ensureClipTextureView();
@@ -3381,6 +3440,10 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         clipView = renderTarget->ensureScratchColorTextureView();
         scratchColorTextureView = nullptr;
         coverageTextureView = renderTarget->ensureCoverageAtomicTextureView();
+    }
+    else if (desc.interlockMode == gpu::InterlockMode::msaa)
+    {
+        depthStencilTextureView = renderTarget->ensureDepthStencilTextureView();
     }
 
     VulkanContext::TextureAccess initialColorAccess =
@@ -3452,11 +3515,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         scratchColorTextureView != nullptr ? *scratchColorTextureView
                                            : VK_NULL_HANDLE,
         coverageTextureView != nullptr ? *coverageTextureView : VK_NULL_HANDLE,
+        depthStencilTextureView != nullptr ? *depthStencilTextureView
+                                           : VK_NULL_HANDLE,
     };
     static_assert(COLOR_PLANE_IDX == 0);
     static_assert(CLIP_PLANE_IDX == 1);
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
+    static_assert(DEPTH_STENCIL_IDX == 4);
 
     rcp<vkutil::Framebuffer> framebuffer = m_vk->makeFramebuffer({
         .renderPass = vkRenderPass,
@@ -3473,15 +3539,17 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     };
 
     VkClearValue clearValues[] = {
-        {.color = vkutil::color_clear_rgba32f(desc.clearColor)},
+        {.color = vkutil::color_clear_rgba32f(desc.colorClearValue)},
         {},
         {},
         {.color = vkutil::color_clear_r32ui(desc.coverageClearValue)},
+        {.depthStencil = {desc.depthClearValue, desc.stencilClearValue}},
     };
     static_assert(COLOR_PLANE_IDX == 0);
     static_assert(CLIP_PLANE_IDX == 1);
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
+    static_assert(DEPTH_STENCIL_IDX == 4);
 
     // Ensure any previous accesses to the color texture complete before we
     // begin rendering.
@@ -3523,10 +3591,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .image = renderTarget->coverageAtomicTexture(),
             });
 
+        const VkClearColorValue coverageClearValue =
+            vkutil::color_clear_r32ui(desc.coverageClearValue);
         m_vk->CmdClearColorImage(commandBuffer,
                                  renderTarget->coverageAtomicTexture(),
                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                 &clearValues[COVERAGE_PLANE_IDX].color,
+                                 &coverageClearValue,
                                  1,
                                  &clearRange);
 

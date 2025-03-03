@@ -160,6 +160,7 @@
 #define SCRATCH_COLOR_PLANE_IDX 2
 #define COVERAGE_PLANE_IDX 3
 #define PIXEL_LOCAL_STORAGE_PLANE_COUNT 4
+#define DEPTH_STENCIL_IDX PIXEL_LOCAL_STORAGE_PLANE_COUNT
 
 // Rive has a hard-coded miter limit of 4 in the editor and all runtimes.
 #define RIVE_MITER_LIMIT float(4)

@@ -55,6 +55,8 @@ public:
     const VulkanFeatures features;
     const VmaAllocator vmaAllocator;
 
+#define RIVE_VULKAN_INSTANCE_COMMANDS(F) F(GetPhysicalDeviceFormatProperties)
+
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
     F(AllocateCommandBuffers)                                                  \
     F(AllocateDescriptorSets)                                                  \
@@ -107,10 +109,12 @@ public:
     F(WaitForFences)
 
 #define DECLARE_VULKAN_COMMAND(CMD) const PFN_vk##CMD CMD;
+    RIVE_VULKAN_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)
     RIVE_VULKAN_DEVICE_COMMANDS(DECLARE_VULKAN_COMMAND)
 #undef DECLARE_VULKAN_COMMAND
 
     uint64_t currentFrameIdx() const { return m_currentFrameIdx; }
+    bool supportsD24S8() const { return m_supportsD24S8; }
 
     // Called at the beginning of a new frame. This is where we purge
     // m_resourcePurgatory, so the client is responsible to guarantee that all
@@ -218,6 +222,10 @@ public:
                      const IAABB&);
 
 private:
+    bool isFormatSupportedWithGivenFormatFeatureFlags(
+        VkFormat formatInQuestion,
+        VkFormatFeatureFlagBits desiredFeatureFlags);
+
     VmaVulkanFunctions& initVmaVulkanFunctions(
         PFN_vkGetInstanceProcAddr fn_vkGetInstanceProcAddr,
         PFN_vkGetDeviceProcAddr fn_vkGetDeviceProcAddr)
@@ -238,5 +246,8 @@ private:
 
     uint64_t m_currentFrameIdx = 0;
     bool m_shutdown = false; // Indicates that we are in a shutdown cycle.
+
+    // Vulkan spec: must support one of D24S8 and D32S8.
+    bool m_supportsD24S8 = false;
 };
 } // namespace rive::gpu
