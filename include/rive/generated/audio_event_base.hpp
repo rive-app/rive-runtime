@@ -20,6 +20,7 @@ public:
         {
             case AudioEventBase::typeKey:
             case EventBase::typeKey:
+            case CustomPropertyGroupBase::typeKey:
             case ContainerComponentBase::typeKey:
             case ComponentBase::typeKey:
                 return true;

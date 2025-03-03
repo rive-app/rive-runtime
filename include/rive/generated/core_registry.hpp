@@ -121,6 +121,7 @@
 #include "rive/container_component.hpp"
 #include "rive/custom_property.hpp"
 #include "rive/custom_property_boolean.hpp"
+#include "rive/custom_property_group.hpp"
 #include "rive/custom_property_number.hpp"
 #include "rive/custom_property_string.hpp"
 #include "rive/data_bind/bindable_property.hpp"
@@ -533,6 +534,8 @@ public:
                 return new Image();
             case CubicDetachedVertexBase::typeKey:
                 return new CubicDetachedVertex();
+            case CustomPropertyGroupBase::typeKey:
+                return new CustomPropertyGroup();
             case EventBase::typeKey:
                 return new Event();
             case DrawRulesBase::typeKey:

@@ -15,6 +15,16 @@
         "string": "value"
       },
       "bindable": true
+    },
+    "fieldHeight": {
+      "type": "double",
+      "initialValue": "29.0",
+      "key": {
+        "int": 780,
+        "string": "fieldheight"
+      },
+      "runtime": false,
+      "coop": false
     }
   }
 }
