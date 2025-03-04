@@ -17,6 +17,15 @@
 
 using namespace rive;
 
+TransitionPropertyViewModelComparator::~TransitionPropertyViewModelComparator()
+{
+    if (m_bindableProperty != nullptr)
+    {
+        delete m_bindableProperty;
+        m_bindableProperty = nullptr;
+    }
+}
+
 StatusCode TransitionPropertyViewModelComparator::import(
     ImportStack& importStack)
 {

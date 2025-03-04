@@ -10,6 +10,14 @@
 
 using namespace rive;
 
+DataEnum::~DataEnum()
+{
+    for (auto& enumValue : m_Values)
+    {
+        delete enumValue;
+    }
+}
+
 void DataEnum::addValue(DataEnumValue* value) { m_Values.push_back(value); }
 
 std::string DataEnum::value(std::string key)

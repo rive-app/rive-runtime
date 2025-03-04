@@ -11,6 +11,7 @@ private:
     std::vector<DataEnumValue*> m_Values;
 
 public:
+    ~DataEnum();
     void addValue(DataEnumValue* value);
     std::vector<DataEnumValue*> values() { return m_Values; };
     std::string value(std::string name);

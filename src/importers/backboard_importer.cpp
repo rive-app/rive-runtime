@@ -122,7 +122,8 @@ StatusCode BackboardImporter::resolve()
         {
             continue;
         }
-        referencer->converter(m_DataConverters[index]);
+        referencer->converter(
+            m_DataConverters[index]->clone()->as<DataConverter>());
     }
     for (auto referencer : m_DataConverterReferencers)
     {
@@ -133,6 +134,11 @@ StatusCode BackboardImporter::resolve()
         }
         referencer->converter(
             m_DataConverters[index]->clone()->as<DataConverter>());
+    }
+
+    for (auto& converter : m_DataConverters)
+    {
+        delete converter;
     }
     return StatusCode::Ok;
 }

@@ -5,6 +5,15 @@
 
 using namespace rive;
 
+ListenerViewModelChange::~ListenerViewModelChange()
+{
+    if (m_bindableProperty != nullptr)
+    {
+        delete m_bindableProperty;
+        m_bindableProperty = nullptr;
+    }
+}
+
 StatusCode ListenerViewModelChange::import(ImportStack& importStack)
 {
 

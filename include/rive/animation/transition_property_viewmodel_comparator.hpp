@@ -10,6 +10,7 @@ class TransitionPropertyViewModelComparator
     : public TransitionPropertyViewModelComparatorBase
 {
 public:
+    ~TransitionPropertyViewModelComparator();
     StatusCode import(ImportStack& importStack) override;
     bool compare(TransitionComparator* comparand,
                  TransitionConditionOp operation,

@@ -8,6 +8,20 @@
 
 using namespace rive;
 
+TransitionViewModelCondition::~TransitionViewModelCondition()
+{
+    if (m_leftComparator != nullptr)
+    {
+        delete m_leftComparator;
+        m_leftComparator = nullptr;
+    }
+    if (m_rightComparator != nullptr)
+    {
+        delete m_rightComparator;
+        m_rightComparator = nullptr;
+    }
+}
+
 bool TransitionViewModelCondition::evaluate(
     const StateMachineInstance* stateMachineInstance,
     StateMachineLayerInstance* layerInstance) const

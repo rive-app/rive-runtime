@@ -9,6 +9,18 @@
 
 using namespace rive;
 
+ViewModel::~ViewModel()
+{
+    for (auto& instance : m_Instances)
+    {
+        delete instance;
+    }
+    for (auto& property : m_Properties)
+    {
+        delete property;
+    }
+}
+
 void ViewModel::addProperty(ViewModelProperty* property)
 {
     m_Properties.push_back(property);

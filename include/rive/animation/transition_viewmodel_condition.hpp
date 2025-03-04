@@ -14,6 +14,7 @@ protected:
     TransitionComparator* m_rightComparator;
 
 public:
+    ~TransitionViewModelCondition();
     bool evaluate(const StateMachineInstance* stateMachineInstance,
                   StateMachineLayerInstance* layerInstance) const override;
     void useInLayer(const StateMachineInstance* stateMachineInstance,

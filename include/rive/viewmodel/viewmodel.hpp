@@ -13,6 +13,7 @@ private:
     std::vector<ViewModelInstance*> m_Instances;
 
 public:
+    ~ViewModel();
     void addProperty(ViewModelProperty* property);
     ViewModelProperty* property(const std::string& name);
     ViewModelProperty* property(size_t index);
