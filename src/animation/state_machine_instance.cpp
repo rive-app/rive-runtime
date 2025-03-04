@@ -1461,11 +1461,6 @@ StateMachineInstance::~StateMachineInstance()
         delete pair.second;
         pair.second = nullptr;
     }
-    if (m_DataContext != nullptr)
-    {
-        delete m_DataContext;
-        m_DataContext = nullptr;
-    }
     m_bindablePropertyInstances.clear();
 }
 
