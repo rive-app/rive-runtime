@@ -28,6 +28,9 @@ class Definition {
 
   Iterable<Property> get storedProperties =>
       properties.where((property) => property.getExportType().storesData);
+  Iterable<Property> get storedPropertiesNoPassthrough =>
+      properties.where((property) =>
+          property.getExportType().storesData && !property.isPassthrough);
 
   Definition? _extensionOf;
   Definition? _rawExtensionOf;
@@ -287,12 +290,9 @@ class Definition {
       code.writeln('Core* clone() const override;');
     }
 
-    if (storedProperties.isNotEmpty || _extensionOf == null) {
+    if (storedPropertiesNoPassthrough.isNotEmpty || _extensionOf == null) {
       code.writeln('void copy(const ${_name}Base& object) {');
-      for (final property in storedProperties) {
-        if (property.isPassthrough) {
-          continue;
-        }
+      for (final property in storedPropertiesNoPassthrough) {
         if (property.isEncoded) {
           code.writeln('copy${property.capitalizedName}(object);');
         } else {
@@ -310,12 +310,9 @@ class Definition {
       code.writeln('bool deserialize(uint16_t propertyKey, '
           'BinaryReader& reader) override {');
 
-      if (storedProperties.isNotEmpty) {
+      if (storedPropertiesNoPassthrough.isNotEmpty) {
         code.writeln('switch (propertyKey){');
-        for (final property in properties) {
-          if (property.isPassthrough) {
-            continue;
-          }
+        for (final property in storedPropertiesNoPassthrough) {
           code.writeln('case ${property.name}PropertyKey:');
           if (property.isEncoded) {
             code.writeln('decode${property.capitalizedName}'
