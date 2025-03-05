@@ -353,8 +353,11 @@ void RawText::render(Renderer* renderer, rcp<RenderPaint> paint)
     }
     for (auto style : m_renderStyles)
     {
-        renderer->drawPath(style->path.get(),
-                           paint ? paint.get() : style->paint.get());
+        auto renderPaint = paint ? paint.get() : style->paint.get();
+        if (renderPaint != nullptr)
+        {
+            renderer->drawPath(style->path.get(), renderPaint);
+        }
     }
     if (m_overflow == TextOverflow::clipped && m_clipRenderPath)
     {
