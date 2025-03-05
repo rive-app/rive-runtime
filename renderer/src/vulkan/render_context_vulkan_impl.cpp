@@ -3426,7 +3426,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     vkutil::TextureView *clipView = nullptr, *scratchColorTextureView = nullptr,
                         *coverageTextureView = nullptr,
                         *depthStencilTextureView = nullptr;
-    depthStencilTextureView = renderTarget->ensureDepthStencilTextureView();
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {
         clipView = renderTarget->ensureClipTextureView();
