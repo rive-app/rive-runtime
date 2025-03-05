@@ -1854,6 +1854,9 @@ public:
             case MeshVertexBase::vPropertyKey:
                 object->as<MeshVertexBase>()->v(value);
                 break;
+            case ShapeBase::lengthPropertyKey:
+                object->as<ShapeBase>()->length(value);
+                break;
             case StraightVertexBase::radiusPropertyKey:
                 object->as<StraightVertexBase>()->radius(value);
                 break;
@@ -2982,6 +2985,8 @@ public:
                 return object->as<MeshVertexBase>()->u();
             case MeshVertexBase::vPropertyKey:
                 return object->as<MeshVertexBase>()->v();
+            case ShapeBase::lengthPropertyKey:
+                return object->as<ShapeBase>()->length();
             case StraightVertexBase::radiusPropertyKey:
                 return object->as<StraightVertexBase>()->radius();
             case CubicAsymmetricVertexBase::rotationPropertyKey:
@@ -3538,6 +3543,7 @@ public:
             case VertexBase::yPropertyKey:
             case MeshVertexBase::uPropertyKey:
             case MeshVertexBase::vPropertyKey:
+            case ShapeBase::lengthPropertyKey:
             case StraightVertexBase::radiusPropertyKey:
             case CubicAsymmetricVertexBase::rotationPropertyKey:
             case CubicAsymmetricVertexBase::inDistancePropertyKey:
@@ -4383,6 +4389,8 @@ public:
                 return object->is<MeshVertexBase>();
             case MeshVertexBase::vPropertyKey:
                 return object->is<MeshVertexBase>();
+            case ShapeBase::lengthPropertyKey:
+                return object->is<ShapeBase>();
             case StraightVertexBase::radiusPropertyKey:
                 return object->is<StraightVertexBase>();
             case CubicAsymmetricVertexBase::rotationPropertyKey:

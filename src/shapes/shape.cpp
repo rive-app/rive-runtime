@@ -9,6 +9,7 @@
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/shapes/path_composer.hpp"
 #include "rive/clip_result.hpp"
+#include "rive/math/contour_measure.hpp"
 #include "rive/math/raw_path.hpp"
 #include <algorithm>
 
@@ -66,6 +67,25 @@ bool Shape::collapse(bool value)
     }
     m_PathComposer.collapse(value);
     return true;
+}
+
+float Shape::length()
+{
+    if (m_WorldLength < 0)
+    {
+        float l = 0;
+        for (auto path : m_Paths)
+        {
+            RawPath source = path->rawPath().transform(path->pathTransform());
+            ContourMeasureIter iter(&source);
+            while (auto contour = iter.next())
+            {
+                l += contour->length();
+            }
+        }
+        m_WorldLength = l;
+    }
+    return m_WorldLength;
 }
 
 void Shape::pathChanged()
