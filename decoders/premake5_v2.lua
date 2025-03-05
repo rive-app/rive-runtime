@@ -4,11 +4,7 @@ if _OPTIONS['no-rive-decoders'] then
     return
 end
 
-rive = path.getabsolute('../')
-
-dofile(rive .. '/dependencies/premake5_libpng_v2.lua')
-dofile(rive .. '/dependencies/premake5_libjpeg_v2.lua')
-dofile(rive .. '/dependencies/premake5_libwebp_v2.lua')
+local rive = path.getabsolute('../')
 
 newoption({
     trigger = 'no_rive_png',
@@ -20,6 +16,16 @@ newoption({
     description = 'don\'t build jpeg support into the rive_decoders library (built-in jpeg decoding will fail)',
 })
 
+if not _OPTIONS["no_rive_png"] then
+    dofile(rive .. '/dependencies/premake5_libpng_v2.lua')
+end
+
+if not _OPTIONS["no_rive_jpeg"] then
+    dofile(rive .. '/dependencies/premake5_libjpeg_v2.lua')
+end
+
+dofile(rive .. '/dependencies/premake5_libwebp_v2.lua')
+
 project('rive_decoders')
 do
     dependson('libwebp')
@@ -29,8 +35,6 @@ do
     includedirs({
         'include',
         '../include',
-        libpng,
-        libjpeg,
         libwebp .. '/src',
         '%{cfg.targetdir}/include/libpng',
     })
@@ -72,7 +76,21 @@ do
         })
     end
 
-    filter({ 'system:not macosx', 'system:not ios', 'options:not no_rive_png' })
+    filter({'options:not no_rive_png'})
+    do
+        includedirs({
+            libpng
+            })
+    end
+
+    filter({'options:not no_rive_jpeg'})
+    do
+        includedirs({
+            libjpeg
+            })
+    end
+
+    filter({ 'system:not macosx', 'system:not ios', 'options:not no_rive_png'  })
     do
         dependson('zlib', 'libpng')
         defines({ 'RIVE_PNG' })

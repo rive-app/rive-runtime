@@ -8,6 +8,11 @@ newoption({
     description = 'don\'t rename harfbuzz symbols',
 })
 
+newoption({
+    trigger = 'harfbuzz_getenv_no_op',
+    description = 'force include the header to no add no op implementation for getenv',
+})
+
 project('rive_harfbuzz')
 do
     kind('StaticLib')
@@ -274,6 +279,18 @@ do
     do
         includedirs({ './' })
         forceincludes({ 'rive_harfbuzz_renames.h' })
+    end
+
+    filter({ 'options:harfbuzz_getenv_no_op', 'files:**/src/hb-common.cc or **/src/hb-shaper.cc', 'options:no-harfbuzz-renames'})
+    do
+        includedirs({ './' })
+        forceincludes({ 'rive_harfbuzz_overrides.h'})
+    end
+
+    filter({ 'options:harfbuzz_getenv_no_op', 'files:**/src/hb-common.cc or **/src/hb-shaper.cc', 'options:not no-harfbuzz-renames'})
+    do
+        includedirs({ './' })
+        forceincludes({ 'rive_harfbuzz_overrides.h', 'rive_harfbuzz_renames.h' })
     end
 
     filter('system:macosx or system:ios')

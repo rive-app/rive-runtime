@@ -49,6 +49,8 @@
 #define RIVE_BUILD_FOR_OSX
 #endif
 
+#define RIVE_NO_STD_SYSTEM
+
 #endif
 
 // We really like these headers, so we include them all the time.

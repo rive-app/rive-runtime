@@ -10,7 +10,16 @@
 #include "png.h"
 #include "zlib.h"
 #include <vector>
+
+#ifdef SYS_SIGNAL_H
+#include <sys/signal.h>
+const char* strsignal(int)
+{
+    return "(strsignal) not suported on this platform";
+}
+#else
 #include <signal.h>
+#endif
 
 #ifdef _WIN32
 #include <io.h>
@@ -79,6 +88,7 @@ TestHarness& TestHarness::Instance()
 
 TestHarness::TestHarness()
 {
+#ifndef NO_SIGNAL_FORWARD
     // Forward signals to the test harness.
     for (int i = 1; i <= SIGTERM; ++i)
     {
@@ -88,6 +98,7 @@ TestHarness::TestHarness()
     // Check for if the app exits early (before calling
     // TestHarness::shutdown()).
     atexit(check_early_exit);
+#endif
 }
 
 void TestHarness::init(std::unique_ptr<TCPClient> tcpClient,
@@ -126,12 +137,13 @@ void TestHarness::init(std::filesystem::path outputDir, size_t pngThreadCount)
 
 void TestHarness::initStdioThread()
 {
+#ifndef NO_REDIRECT_OUTPUT
+
 #ifndef _WIN32
     // Make stdout & stderr line buffered. (This is not supported on Windows.)
     setvbuf(stdout, NULL, _IOLBF, 0);
     setvbuf(stderr, NULL, _IOLBF, 0);
 #endif
-
     // Pipe stdout and sterr back to the server.
     m_savedStdout = dup(1);
     m_savedStderr = dup(2);
@@ -139,6 +151,7 @@ void TestHarness::initStdioThread()
     dup2(m_stdioPipe[1], 1);
     dup2(m_stdioPipe[1], 2);
     m_stdioThread = std::thread(MonitorStdIOThread, this);
+#endif
 }
 
 void TestHarness::monitorStdIOThread()
@@ -427,6 +440,7 @@ void TestHarness::shutdown()
 
 void TestHarness::shutdownStdioThread()
 {
+#ifndef NO_REDIRECT_OUTPUT
     if (m_savedStdout != 0 || m_savedStderr != 0)
     {
         // Restore stdout and stderr.
@@ -442,6 +456,7 @@ void TestHarness::shutdownStdioThread()
         close(m_stdioPipe[0]);
         m_stdioPipe = {0, 0};
     }
+#endif
 }
 
 void TestHarness::shutdownInputPumpThread()

@@ -23,6 +23,7 @@ while :; do
         -u)
             TARGET="unreal"
             DEFAULT_BACKEND=rhi
+            ARGS="$ARGS --no-rebuild --no-install"
             shift
         ;;
         -i)

@@ -25,7 +25,9 @@ static size_t load_bytecode_file_into_buffer(std::ifstream& shaderBytecodeFile,
                                              char* bytecodeAllocation)
 {
     // Read entire file into buffer
-    shaderBytecodeFile.read(bytecodeAllocation, fileSize);
+    shaderBytecodeFile.read(
+        bytecodeAllocation,
+        rive::math::lossless_numeric_cast<std::streamsize>(fileSize));
     const size_t numActualBytesRead = shaderBytecodeFile.gcount();
     if (shaderBytecodeFile.good() && numActualBytesRead == fileSize)
     {

@@ -142,6 +142,7 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
 
 static void set_environment_variable(const char* name, const char* value)
 {
+#ifndef PLATFORM_NO_ENV_API
     if (const char* existingValue = getenv(name))
     {
         printf("warning: %s=%s already set. Overriding with %s=%s\n",
@@ -154,6 +155,7 @@ static void set_environment_variable(const char* name, const char* value)
     SetEnvironmentVariableA(name, value);
 #else
     setenv(name, value, /*overwrite=*/true);
+#endif
 #endif
 }
 

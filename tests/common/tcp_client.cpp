@@ -8,6 +8,8 @@
 #include <stdio.h>
 #include <string.h>
 
+#ifndef EXTERNAL_TCP_CLIENT_DEFINITION
+
 std::unique_ptr<TCPClient> TCPClient::Connect(
     const char* serverAddress /*server:port*/)
 {
@@ -206,3 +208,4 @@ std::string TCPClient::recvString()
     recvall(str.data(), length);
     return str;
 }
+#endif

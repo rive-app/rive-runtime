@@ -531,7 +531,7 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
 
         // Extend the vertex by half the width of the AA ramp.
         float2 vertexOffset =
-            MUL(norm, strokeRadius + aaRadius); // Bloat stroke width for AA.
+            norm * (strokeRadius + aaRadius); // Bloat stroke width for AA.
 
 #ifndef @RENDER_MODE_MSAA
         // Calculate the AA distance to both the outset and inset edges of the

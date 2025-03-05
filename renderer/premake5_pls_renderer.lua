@@ -62,6 +62,11 @@ end
 
 filter({})
 
+newoption({
+    trigger = 'no_gl',
+    description = 'do not compile in support for opengl',
+})
+
 -- Minify and compile PLS shaders offline.
 local nproc
 if os.host() == 'windows' then
@@ -193,7 +198,7 @@ do
         })
     end
 
-    filter({ 'system:not ios' })
+    filter({ 'system:not ios', 'options:not no_gl' })
     do
         files({
             'src/gl/gl_state.cpp',

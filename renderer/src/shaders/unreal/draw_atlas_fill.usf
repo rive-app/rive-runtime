@@ -11,4 +11,4 @@
 #include "Generated/constants.minified.ush"
 #include "Generated/common.minified.ush"
 #include "Generated/draw_path_common.minified.ush"
-#include "Generated/draw_atlas.minified.ush"
+#include "Generated/render_atlas.minified.ush"

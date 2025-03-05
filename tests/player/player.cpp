@@ -309,7 +309,7 @@ int main(int argc, const char* argv[])
         if (hotloadShaders)
         {
             hotloadShaders = false;
-#ifndef RIVE_BUILD_FOR_IOS
+#ifndef RIVE_NO_STD_SYSTEM
             std::system("sh rebuild_shaders.sh /tmp/rive");
             TestingWindow::Get()->hotloadShaders();
 #endif

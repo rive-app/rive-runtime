@@ -165,12 +165,18 @@ function rive_tools_project(name, project_kind)
             'rive',
             'libpng',
             'zlib',
-            'libjpeg',
             'libwebp',
             'rive_yoga',
             'rive_harfbuzz',
             'rive_sheenbidi',
         })
+
+        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:not no_rive_jpeg' })
+        do
+            links({
+                'libjpeg',
+            })
+        end
 
         if ndk then
             relative_ndk = ndk
@@ -274,11 +280,10 @@ do
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_vulkan.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn.cpp',
     })
-
-    filter({ 'options:for_unreal' })
+    
+    filter({ 'options:for_unreal'})
     do
         defines({ 'RIVE_UNREAL', 'RIVE_TOOLS_NO_GLFW', 'RIVE_TOOLS_NO_GL' })
-        cppdialect('C++20')
     end
 
     filter({ 'toolset:not msc' })
