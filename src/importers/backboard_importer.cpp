@@ -136,10 +136,6 @@ StatusCode BackboardImporter::resolve()
             m_DataConverters[index]->clone()->as<DataConverter>());
     }
 
-    for (auto& converter : m_DataConverters)
-    {
-        delete converter;
-    }
     return StatusCode::Ok;
 }
 

@@ -136,6 +136,8 @@ private:
     /// We just keep these alive for the life of this File
     std::vector<FileAsset*> m_fileAssets;
 
+    std::vector<DataConverter*> m_DataConverters;
+
     /// List of artboards in the file. Each artboard encapsulates a set of
     /// Rive components and animations.
     std::vector<Artboard*> m_artboards;

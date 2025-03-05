@@ -171,6 +171,10 @@ File::~File()
     {
         delete asset;
     }
+    for (auto dataConverter : m_DataConverters)
+    {
+        delete dataConverter;
+    }
     delete m_backboard;
 }
 
@@ -442,6 +446,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 StatusCode::Ok)
         {
             return ImportResult::malformed;
+        }
+        if (object->is<DataConverter>())
+        {
+            m_DataConverters.push_back(object->as<DataConverter>());
         }
     }
 

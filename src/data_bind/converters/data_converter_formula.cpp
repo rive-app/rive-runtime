@@ -38,11 +38,11 @@ int DataConverterFormula::getPrecedence(FormulaToken* token)
 {
     if (token->is<FormulaTokenParenthesis>())
     {
-        return 10;
+        return 1;
     }
     if (token->is<FormulaTokenFunction>())
     {
-        return 10;
+        return 1;
     }
     if (token->is<FormulaTokenOperation>())
     {
@@ -158,7 +158,20 @@ void DataConverterFormula::initialize()
                     m_argumentsCount[operationTokenCandidate] = count + 1;
                     break;
                 }
+                if (index == 0)
+                {
+                    break;
+                }
                 index -= 1;
+            }
+            while (
+                operationsStack.size() > 0 &&
+                (!operationsStack.back()->is<FormulaTokenParenthesisOpen>() &&
+                 !operationsStack.back()->is<FormulaTokenFunction>()))
+            {
+                auto higherToken = operationsStack.back();
+                operationsStack.pop_back();
+                m_outputQueue.push_back(higherToken);
             }
         }
         tokenIndex++;
@@ -219,9 +232,12 @@ float DataConverterFormula::applyFunction(std::vector<float>& stack,
     int currentRandom = 0;
     while (index < totalArguments)
     {
-        auto functionArgument = stack.back();
-        stack.pop_back();
-        functionArguments.push_back(functionArgument);
+        if (stack.size() > 0)
+        {
+            auto functionArgument = stack.back();
+            stack.pop_back();
+            functionArguments.push_back(functionArgument);
+        }
         index++;
     }
     auto functionType = (FunctionType)functionTypeIndex;
