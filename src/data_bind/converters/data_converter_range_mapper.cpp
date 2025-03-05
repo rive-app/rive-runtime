@@ -52,35 +52,24 @@ DataValueNumber* DataConverterRangeMapper::calculateRange(DataValue* input,
                 value =
                     std::abs(fmodf(value, (maxInput - minInput)) + minInput);
             }
-            if (value < minInput)
+            float perc = (value - minInput) / (maxInput - minInput);
+            // If reverse flag is on, flip the values
+            if ((flagsValue & DataConverterRangeMapperFlags::Reverse) ==
+                DataConverterRangeMapperFlags::Reverse)
             {
-                m_output.value(minOutput);
+                perc = 1 - perc;
             }
-            else if (value > maxInput)
+            // Apply interpolator if exists and value is within range
+            if (m_interpolator != nullptr && perc > 0 && perc < 1)
             {
-                m_output.value(maxOutput);
+                perc = m_interpolator->transform(perc);
             }
-            else
+            // hold keyframe interpolation
+            else if (interpolationType() == 0)
             {
-                float perc = (value - minInput) / (maxInput - minInput);
-                // If reverse flag is on, flip the values
-                if ((flagsValue & DataConverterRangeMapperFlags::Reverse) ==
-                    DataConverterRangeMapperFlags::Reverse)
-                {
-                    perc = 1 - perc;
-                }
-                // hold keyframe interpolation
-                else if (interpolationType() == 0)
-                {
-                    perc = perc <= 0 ? 0 : 1;
-                }
-                // Apply interpolator if exists
-                if (m_interpolator != nullptr)
-                {
-                    perc = m_interpolator->transform(perc);
-                }
-                m_output.value(perc * maxOutput + (1 - perc) * minOutput);
+                perc = perc <= 0 ? 0 : 1;
             }
+            m_output.value(perc * maxOutput + (1 - perc) * minOutput);
         }
     }
     else
