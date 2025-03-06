@@ -25,6 +25,8 @@ public:
     }
     ViewModelTriggerChanged m_changedCallback = nullptr;
 #endif
+
+    void trigger() { propertyValue(propertyValue() + 1); }
 };
 } // namespace rive
 

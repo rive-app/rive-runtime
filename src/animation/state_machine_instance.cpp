@@ -1594,7 +1594,7 @@ void StateMachineInstance::advancedDataContext()
 {
     if (m_DataContext != nullptr)
     {
-        m_DataContext->viewModelInstance()->advanced();
+        m_DataContext->advanced();
     }
 }
 
@@ -1681,8 +1681,8 @@ SMITrigger* StateMachineInstance::getTrigger(const std::string& name) const
     return getNamedInput<StateMachineTrigger, SMITrigger>(name);
 }
 
-void StateMachineInstance::setDataContextFromInstance(
-    ViewModelInstance* viewModelInstance)
+void StateMachineInstance::bindViewModelInstance(
+    rcp<ViewModelInstance> viewModelInstance)
 {
     dataContext(new DataContext(viewModelInstance));
 }

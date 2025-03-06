@@ -7,6 +7,7 @@ namespace rive
 class DataEnumCustom : public DataEnumCustomBase
 {
 public:
+    const std::string& enumName() const override { return name(); }
 };
 } // namespace rive
 

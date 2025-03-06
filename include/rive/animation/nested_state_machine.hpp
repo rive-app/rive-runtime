@@ -35,7 +35,7 @@ public:
     size_t inputCount() { return m_nestedInputs.size(); }
     NestedInput* input(size_t index);
     NestedInput* input(std::string name);
-    void setDataContextFromInstance(ViewModelInstance* viewModelInstance);
+    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
     void dataContext(DataContext* dataContext);
 };
 } // namespace rive

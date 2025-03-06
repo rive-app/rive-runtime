@@ -3,6 +3,7 @@
 #include "rive/generated/data_bind/converters/formula/formula_token_base.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
 #include "rive/data_bind/data_context.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include <stdio.h>
 namespace rive
 {

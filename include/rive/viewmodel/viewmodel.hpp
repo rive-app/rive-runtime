@@ -21,6 +21,9 @@ public:
     ViewModelInstance* instance(size_t index);
     ViewModelInstance* instance(const std::string& name);
     ViewModelInstance* defaultInstance();
+    size_t instanceCount() const;
+    std::vector<ViewModelProperty*> properties() { return m_Properties; }
+    std::vector<ViewModelInstance*> instances() { return m_Instances; }
 };
 } // namespace rive
 

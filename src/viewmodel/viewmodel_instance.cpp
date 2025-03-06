@@ -59,9 +59,9 @@ ViewModel* ViewModelInstance::viewModel() const { return m_ViewModel; }
 
 void ViewModelInstance::onComponentDirty(Component* component) {}
 
-void ViewModelInstance::setAsRoot() { setRoot(this); }
+void ViewModelInstance::setAsRoot() { setRoot(rcp<ViewModelInstance>(this)); }
 
-void ViewModelInstance::setRoot(ViewModelInstance* value)
+void ViewModelInstance::setRoot(rcp<ViewModelInstance> value)
 {
     for (auto propertyValue : m_PropertyValues)
     {

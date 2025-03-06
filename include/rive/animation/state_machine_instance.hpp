@@ -100,8 +100,8 @@ public:
     SMIBool* getBool(const std::string& name) const override;
     SMINumber* getNumber(const std::string& name) const override;
     SMITrigger* getTrigger(const std::string& name) const override;
-    void setDataContextFromInstance(
-        ViewModelInstance* viewModelInstance) override;
+    void bindViewModelInstance(
+        rcp<ViewModelInstance> viewModelInstance) override;
     void dataContext(DataContext* dataContext);
 
     size_t currentAnimationCount() const;

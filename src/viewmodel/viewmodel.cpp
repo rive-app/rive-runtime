@@ -83,3 +83,5 @@ ViewModelInstance* ViewModel::instance(const std::string& name)
     }
     return nullptr;
 }
+
+size_t ViewModel::instanceCount() const { return m_Instances.size(); }

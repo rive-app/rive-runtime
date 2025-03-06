@@ -89,6 +89,11 @@ Artboard::~Artboard()
             delete object;
         }
     }
+    if (m_ownsDataContext && m_DataContext != nullptr)
+    {
+        delete m_DataContext;
+        m_DataContext = nullptr;
+    }
 }
 
 static bool canContinue(StatusCode code)
@@ -1299,7 +1304,7 @@ void Artboard::internalDataContext(DataContext* value, bool isRoot)
             nestedArtboard->dataBindPathIds());
         if (value != nullptr && value->is<ViewModelInstance>())
         {
-            nestedArtboard->setDataContextFromInstance(value, m_DataContext);
+            nestedArtboard->bindViewModelInstance(value, m_DataContext);
         }
         else
         {
@@ -1400,20 +1405,20 @@ void Artboard::dataContext(DataContext* value)
     internalDataContext(value, true);
 }
 
-void Artboard::setDataContextFromInstance(ViewModelInstance* viewModelInstance)
+void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance)
 {
-    setDataContextFromInstance(viewModelInstance, nullptr, true);
+    bindViewModelInstance(viewModelInstance, nullptr, true);
 }
 
-void Artboard::setDataContextFromInstance(ViewModelInstance* viewModelInstance,
-                                          DataContext* parent)
+void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
+                                     DataContext* parent)
 {
-    setDataContextFromInstance(viewModelInstance, parent, true);
+    bindViewModelInstance(viewModelInstance, parent, true);
 }
 
-void Artboard::setDataContextFromInstance(ViewModelInstance* viewModelInstance,
-                                          DataContext* parent,
-                                          bool isRoot)
+void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
+                                     DataContext* parent,
+                                     bool isRoot)
 {
     if (viewModelInstance == nullptr)
     {
@@ -1423,6 +1428,7 @@ void Artboard::setDataContextFromInstance(ViewModelInstance* viewModelInstance,
     {
         viewModelInstance->setAsRoot();
     }
+    m_ownsDataContext = true;
     auto dataContext = new DataContext(viewModelInstance);
     dataContext->parent(parent);
     internalDataContext(dataContext, isRoot);

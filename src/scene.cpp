@@ -25,7 +25,7 @@ SMIInput* Scene::input(size_t index) const { return nullptr; }
 SMIBool* Scene::getBool(const std::string&) const { return nullptr; }
 SMINumber* Scene::getNumber(const std::string&) const { return nullptr; }
 SMITrigger* Scene::getTrigger(const std::string&) const { return nullptr; }
-void Scene::setDataContextFromInstance(ViewModelInstance* viewModelInstance) {}
+void Scene::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance) {}
 
 void Scene::reportKeyedCallback(uint32_t objectId,
                                 uint32_t propertyKey,

@@ -2,25 +2,26 @@
 #define _RIVE_VIEW_MODEL_INSTANCE_VIEW_MODEL_HPP_
 #include "rive/generated/viewmodel/viewmodel_instance_viewmodel_base.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/refcnt.hpp"
 #include <stdio.h>
 namespace rive
 {
 class ViewModelInstanceViewModel : public ViewModelInstanceViewModelBase
 {
 private:
-    ViewModelInstance* m_referenceViewModelInstance;
+    rcp<ViewModelInstance> m_referenceViewModelInstance;
 
 public:
     ~ViewModelInstanceViewModel();
-    void referenceViewModelInstance(ViewModelInstance* value)
+    void referenceViewModelInstance(rcp<ViewModelInstance> value)
     {
         m_referenceViewModelInstance = value;
     };
-    ViewModelInstance* referenceViewModelInstance()
+    rcp<ViewModelInstance> referenceViewModelInstance()
     {
         return m_referenceViewModelInstance;
     }
-    void setRoot(ViewModelInstance* value) override;
+    void setRoot(rcp<ViewModelInstance> value) override;
     void advanced() override;
 };
 } // namespace rive

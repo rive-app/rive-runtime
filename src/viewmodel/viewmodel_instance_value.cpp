@@ -6,6 +6,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/importers/viewmodel_instance_importer.hpp"
 #include "rive/data_bind/data_bind.hpp"
+#include "rive/refcnt.hpp"
 
 using namespace rive;
 
@@ -32,12 +33,12 @@ ViewModelProperty* ViewModelInstanceValue::viewModelProperty()
     return m_ViewModelProperty;
 }
 
-void ViewModelInstanceValue::addDependent(DataBind* value)
+void ViewModelInstanceValue::addDependent(Dirtyable* value)
 {
     m_DependencyHelper.addDependent(value);
 }
 
-void ViewModelInstanceValue::removeDependent(DataBind* value)
+void ViewModelInstanceValue::removeDependent(Dirtyable* value)
 {
     m_DependencyHelper.removeDependent(value);
 }
@@ -47,7 +48,18 @@ void ViewModelInstanceValue::addDirt(ComponentDirt value)
     m_DependencyHelper.addDirt(value);
 }
 
-void ViewModelInstanceValue::setRoot(ViewModelInstance* viewModelInstance)
+void ViewModelInstanceValue::setRoot(rcp<ViewModelInstance> viewModelInstance)
 {
-    m_DependencyHelper.dependecyRoot(viewModelInstance);
+    m_DependencyHelper.dependecyRoot(&viewModelInstance);
+}
+
+std::string ViewModelInstanceValue::defaultName = "";
+
+const std::string& ViewModelInstanceValue::name() const
+{
+    if (m_ViewModelProperty != nullptr)
+    {
+        return m_ViewModelProperty->constName();
+    };
+    return defaultName;
 }

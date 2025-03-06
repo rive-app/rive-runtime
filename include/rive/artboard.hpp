@@ -66,6 +66,7 @@ private:
     std::vector<DataBind*> m_DataBinds;
     std::vector<DataBind*> m_AllDataBinds;
     DataContext* m_DataContext = nullptr;
+    bool m_ownsDataContext = false;
     bool m_JoysticksApplyBeforeUpdate = true;
 
     unsigned int m_DirtDepth = 0;
@@ -208,12 +209,12 @@ public:
     void dataContext(DataContext* dataContext);
     void internalDataContext(DataContext* dataContext, bool isRoot);
     void clearDataContext();
-    void setDataContextFromInstance(ViewModelInstance* viewModelInstance,
-                                    DataContext* parent);
-    void setDataContextFromInstance(ViewModelInstance* viewModelInstance,
-                                    DataContext* parent,
-                                    bool isRoot);
-    void setDataContextFromInstance(ViewModelInstance* viewModelInstance);
+    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
+                               DataContext* parent);
+    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
+                               DataContext* parent,
+                               bool isRoot);
+    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
     void addDataBind(DataBind* dataBind);
     void populateDataBinds(std::vector<DataBind*>* dataBinds);
     void sortDataBinds();

@@ -16,7 +16,7 @@ public:
     int valueIndex(std::string name);
     int valueIndex(uint32_t index);
     void dataEnum(DataEnum* value);
-    DataEnum* dataEnum();
+    virtual DataEnum* dataEnum();
 
 private:
     DataEnum* m_DataEnum;

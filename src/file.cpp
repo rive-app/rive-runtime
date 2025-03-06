@@ -59,8 +59,10 @@
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_enum.hpp"
 #include "rive/viewmodel/viewmodel_property_enum_custom.hpp"
+#include "rive/viewmodel/viewmodel_property_enum_system.hpp"
 #include "rive/viewmodel/viewmodel_property_list.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
+#include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 
 // Default namespace for Rive Cpp code
 using namespace rive;
@@ -170,6 +172,14 @@ File::~File()
     for (auto asset : m_fileAssets)
     {
         delete asset;
+    }
+    for (auto& viewModel : m_ViewModels)
+    {
+        delete viewModel;
+    }
+    for (auto& enumData : m_Enums)
+    {
+        delete enumData;
     }
     for (auto dataConverter : m_DataConverters)
     {
@@ -512,11 +522,12 @@ std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
     return ab ? ab->instance() : nullptr;
 }
 
-void File::completeViewModelInstance(ViewModelInstance* viewModelInstance)
+void File::completeViewModelInstance(
+    rcp<ViewModelInstance> viewModelInstance) const
 {
     auto viewModel = m_ViewModels[viewModelInstance->viewModelId()];
     auto propertyValues = viewModelInstance->propertyValues();
-    for (auto value : propertyValues)
+    for (auto& value : propertyValues)
     {
         if (value->is<ViewModelInstanceViewModel>())
         {
@@ -540,11 +551,11 @@ void File::completeViewModelInstance(ViewModelInstance* viewModelInstance)
         else if (value->is<ViewModelInstanceList>())
         {
             auto viewModelList = value->as<ViewModelInstanceList>();
-            for (auto listItem : viewModelList->listItems())
+            for (auto& listItem : viewModelList->listItems())
             {
                 auto viewModel = m_ViewModels[listItem->viewModelId()];
-                auto viewModelInstance =
-                    viewModel->instance(listItem->viewModelInstanceId());
+                auto viewModelInstance = rcp<ViewModelInstance>(
+                    viewModel->instance(listItem->viewModelInstanceId()));
                 listItem->viewModelInstance(
                     copyViewModelInstance(viewModelInstance));
                 if (listItem->artboardId() < m_artboards.size())
@@ -558,17 +569,27 @@ void File::completeViewModelInstance(ViewModelInstance* viewModelInstance)
     }
 }
 
-ViewModelInstance* File::copyViewModelInstance(
-    ViewModelInstance* viewModelInstance)
+rcp<ViewModelInstance> File::copyViewModelInstance(
+    rcp<ViewModelInstance> viewModelInstance) const
 {
-    auto copy = viewModelInstance->clone()->as<ViewModelInstance>();
+    auto copy = rcp<ViewModelInstance>(
+        viewModelInstance->clone()->as<ViewModelInstance>());
     completeViewModelInstance(copy);
     return copy;
 }
 
-ViewModelInstance* File::createViewModelInstance(std::string name)
+rcp<ViewModelInstance> File::copyViewModelInstance(
+    ViewModelInstance* viewModelInstance) const
 {
-    for (auto viewModel : m_ViewModels)
+    auto copy = rcp<ViewModelInstance>(
+        viewModelInstance->clone()->as<ViewModelInstance>());
+    completeViewModelInstance(copy);
+    return copy;
+}
+
+rcp<ViewModelInstance> File::createViewModelInstance(std::string name) const
+{
+    for (auto& viewModel : m_ViewModels)
     {
         if (viewModel->is<ViewModel>())
         {
@@ -581,28 +602,26 @@ ViewModelInstance* File::createViewModelInstance(std::string name)
     return nullptr;
 }
 
-ViewModelInstance* File::createViewModelInstance(std::string name,
-                                                 std::string instanceName)
+rcp<ViewModelInstance> File::createViewModelInstance(
+    std::string name,
+    std::string instanceName) const
 {
-    for (auto viewModel : m_ViewModels)
+    for (auto& viewModel : m_ViewModels)
     {
-        if (viewModel->is<ViewModel>())
+        if (viewModel->name() == name)
         {
-            if (viewModel->name() == name)
+            auto instance = viewModel->instance(instanceName);
+            if (instance != nullptr)
             {
-                auto instance = viewModel->instance(instanceName);
-                if (instance != nullptr)
-                {
-                    return copyViewModelInstance(instance);
-                }
+                return copyViewModelInstance(instance);
             }
         }
     }
     return nullptr;
 }
 
-ViewModelInstance* File::createViewModelInstance(size_t index,
-                                                 size_t instanceIndex)
+rcp<ViewModelInstance> File::createViewModelInstance(size_t index,
+                                                     size_t instanceIndex) const
 {
     if (index < m_ViewModels.size())
     {
@@ -616,17 +635,90 @@ ViewModelInstance* File::createViewModelInstance(size_t index,
     return nullptr;
 }
 
-ViewModelInstance* File::createViewModelInstance(ViewModel* viewModel)
+uint32_t File::findViewModelId(ViewModel* search) const
+{
+    uint32_t viewModelId = 0;
+    for (auto& viewModel : m_ViewModels)
+    {
+        if (viewModel == search)
+        {
+            break;
+        }
+        viewModelId++;
+    }
+    return viewModelId;
+}
+
+rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
 {
     if (viewModel != nullptr)
     {
-        auto viewModelInstance = viewModel->defaultInstance();
-        return copyViewModelInstance(viewModelInstance);
+        uint32_t viewModelId = findViewModelId(viewModel);
+
+        auto viewModelInstance = new ViewModelInstance();
+        viewModelInstance->viewModelId(viewModelId);
+        viewModelInstance->viewModel(viewModel);
+        auto properties = viewModel->properties();
+        uint32_t propertyId = 0;
+        for (auto& property : properties)
+        {
+            ViewModelInstanceValue* viewModelInstanceValue = nullptr;
+            switch (property->coreType())
+            {
+                case ViewModelPropertyStringBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceString();
+                    break;
+                case ViewModelPropertyNumberBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceNumber();
+                    break;
+                case ViewModelPropertyBooleanBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceBoolean();
+                    break;
+                case ViewModelPropertyColorBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceColor();
+                    break;
+                case ViewModelPropertyListBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceList();
+                    break;
+                case ViewModelPropertyEnumSystemBase::typeKey:
+                case ViewModelPropertyEnumCustomBase::typeKey:
+                case ViewModelPropertyEnumBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceEnum();
+                    break;
+                case ViewModelPropertyTriggerBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceTrigger();
+                    break;
+                case ViewModelPropertyViewModelBase::typeKey:
+                {
+                    viewModelInstanceValue = new ViewModelInstanceViewModel();
+                    auto propertViewModel =
+                        property->as<ViewModelPropertyViewModel>();
+                    auto viewModelReference =
+                        m_ViewModels[propertViewModel->viewModelReferenceId()];
+                    auto viewModelInstanceViewModel =
+                        viewModelInstanceValue
+                            ->as<ViewModelInstanceViewModel>();
+                    viewModelInstanceViewModel->referenceViewModelInstance(
+                        createViewModelInstance(viewModelReference));
+                }
+                break;
+                default:
+                    break;
+            }
+            if (viewModelInstanceValue != nullptr)
+            {
+                viewModelInstanceValue->viewModelProperty(property);
+                viewModelInstanceValue->viewModelPropertyId(propertyId);
+            }
+            viewModelInstance->addValue(viewModelInstanceValue);
+            propertyId++;
+        }
+        return rcp<ViewModelInstance>(viewModelInstance);
     }
     return nullptr;
 }
 
-ViewModelInstance* File::createViewModelInstance(Artboard* artboard)
+rcp<ViewModelInstance> File::createViewModelInstance(Artboard* artboard) const
 {
     if ((size_t)artboard->viewModelId() < m_ViewModels.size())
     {
@@ -639,14 +731,42 @@ ViewModelInstance* File::createViewModelInstance(Artboard* artboard)
     return nullptr;
 }
 
+rcp<ViewModelInstance> File::createDefaultViewModelInstance(
+    Artboard* artboard) const
+{
+    if ((size_t)artboard->viewModelId() < m_ViewModels.size())
+    {
+        auto viewModel = m_ViewModels[artboard->viewModelId()];
+        if (viewModel != nullptr)
+        {
+            return createDefaultViewModelInstance(viewModel);
+        }
+    }
+    return nullptr;
+}
+
+rcp<ViewModelInstance> File::createDefaultViewModelInstance(
+    ViewModel* viewModel) const
+{
+    auto viewModelInstance = viewModel->instance(0);
+    if (viewModelInstance != nullptr)
+    {
+        auto copy = rcp<ViewModelInstance>(
+            viewModelInstance->clone()->as<ViewModelInstance>());
+        completeViewModelInstance(copy);
+        return copy;
+    }
+    return createViewModelInstance(viewModel);
+}
+
 ViewModelInstanceListItem* File::viewModelInstanceListItem(
-    ViewModelInstance* viewModelInstance)
+    rcp<ViewModelInstance> viewModelInstance)
 {
     // Search for an implicit artboard linked to the viewModel.
     // It will return the first one it finds, but there could be more.
     // We should decide if we want to be more restrictive and only return
     // an artboard if one and only one is found.
-    for (auto artboard : m_artboards)
+    for (auto& artboard : m_artboards)
     {
         if (artboard->viewModelId() == viewModelInstance->viewModelId())
         {
@@ -657,7 +777,7 @@ ViewModelInstanceListItem* File::viewModelInstanceListItem(
 }
 
 ViewModelInstanceListItem* File::viewModelInstanceListItem(
-    ViewModelInstance* viewModelInstance,
+    rcp<ViewModelInstance> viewModelInstance,
     Artboard* artboard)
 {
     auto viewModelInstanceListItem = new ViewModelInstanceListItem();
@@ -668,7 +788,7 @@ ViewModelInstanceListItem* File::viewModelInstanceListItem(
 
 ViewModel* File::viewModel(std::string name)
 {
-    for (auto viewModel : m_ViewModels)
+    for (auto& viewModel : m_ViewModels)
     {
         if (viewModel->name() == name)
         {
@@ -678,7 +798,40 @@ ViewModel* File::viewModel(std::string name)
     return nullptr;
 }
 
+ViewModelRuntime* File::viewModelByIndex(size_t index) const
+{
+    if (index < m_ViewModels.size())
+    {
+        return new ViewModelRuntime(m_ViewModels[index], this);
+    }
+    return nullptr;
+}
+
+ViewModelRuntime* File::viewModelByName(std::string name) const
+{
+    for (auto& viewModel : m_ViewModels)
+    {
+        if (viewModel->name() == name)
+        {
+            return new ViewModelRuntime(viewModel, this);
+        }
+    }
+    return nullptr;
+}
+
+ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
+{
+    if ((size_t)artboard->viewModelId() < m_ViewModels.size())
+    {
+        auto viewModel = m_ViewModels[artboard->viewModelId()];
+        return new ViewModelRuntime(viewModel, this);
+    }
+    return nullptr;
+}
+
 const std::vector<FileAsset*>& File::assets() const { return m_fileAssets; }
+
+const std::vector<DataEnum*>& File::enums() const { return m_Enums; }
 
 #ifdef WITH_RIVE_TOOLS
 const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,

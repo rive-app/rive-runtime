@@ -306,13 +306,11 @@ void NestedArtboard::clearDataContext()
     artboardInstance()->clearDataContext();
 }
 
-void NestedArtboard::setDataContextFromInstance(
-    ViewModelInstance* viewModelInstance,
+void NestedArtboard::bindViewModelInstance(
+    rcp<ViewModelInstance> viewModelInstance,
     DataContext* parent)
 {
-    artboardInstance()->setDataContextFromInstance(viewModelInstance,
-                                                   parent,
-                                                   false);
+    artboardInstance()->bindViewModelInstance(viewModelInstance, parent, false);
     for (auto animation : m_NestedAnimations)
     {
         if (animation->is<NestedStateMachine>())

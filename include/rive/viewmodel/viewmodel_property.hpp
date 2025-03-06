@@ -8,6 +8,7 @@ class ViewModelProperty : public ViewModelPropertyBase
 {
 public:
     StatusCode import(ImportStack& importStack) override;
+    inline const std::string& constName() const { return m_Name; }
 };
 } // namespace rive
 

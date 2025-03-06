@@ -27,7 +27,10 @@ enum class DataType : unsigned int
     enumType = 6,
 
     /// Trigger.
-    trigger = 7
+    trigger = 7,
+
+    /// View Model.
+    viewModel = 8
 };
 } // namespace rive
 #endif

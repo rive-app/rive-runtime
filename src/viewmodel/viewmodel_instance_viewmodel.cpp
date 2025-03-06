@@ -6,21 +6,18 @@
 
 using namespace rive;
 
-ViewModelInstanceViewModel::~ViewModelInstanceViewModel()
-{
-    delete m_referenceViewModelInstance;
-}
+ViewModelInstanceViewModel::~ViewModelInstanceViewModel() {}
 
-void ViewModelInstanceViewModel::setRoot(ViewModelInstance* value)
+void ViewModelInstanceViewModel::setRoot(rcp<ViewModelInstance> value)
 {
     Super::setRoot(value);
-    referenceViewModelInstance()->setRoot(value);
+    m_referenceViewModelInstance->setRoot(value);
 }
 
 void ViewModelInstanceViewModel::advanced()
 {
-    if (referenceViewModelInstance() != nullptr)
+    if (m_referenceViewModelInstance != nullptr)
     {
-        referenceViewModelInstance()->advanced();
+        m_referenceViewModelInstance->advanced();
     }
 }

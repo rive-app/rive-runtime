@@ -3,11 +3,13 @@
 #include "rive/generated/viewmodel/viewmodel_instance_base.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/component.hpp"
+#include "rive/refcnt.hpp"
 #include <stdio.h>
 namespace rive
 {
 class ViewModel;
-class ViewModelInstance : public ViewModelInstanceBase
+class ViewModelInstance : public ViewModelInstanceBase,
+                          public RefCnt<ViewModelInstance>
 {
 private:
     std::vector<ViewModelInstanceValue*> m_PropertyValues;
@@ -25,7 +27,7 @@ public:
     ViewModel* viewModel() const;
     void onComponentDirty(Component* component);
     void setAsRoot();
-    void setRoot(ViewModelInstance* value);
+    void setRoot(rcp<ViewModelInstance> value);
     Core* clone() const override;
     StatusCode import(ImportStack& importStack) override;
     void advanced();

@@ -230,12 +230,12 @@ void DataBind::updateSourceBinding(bool invalidate)
     }
 }
 
-bool DataBind::addDirt(ComponentDirt value, bool recurse)
+void DataBind::addDirt(ComponentDirt value, bool recurse)
 {
     if ((m_Dirt & value) == value)
     {
         // Already marked.
-        return false;
+        return;
     }
 
     m_Dirt |= value;
@@ -262,7 +262,6 @@ bool DataBind::addDirt(ComponentDirt value, bool recurse)
     {
         m_ContextValue->invalidate();
     }
-    return true;
 }
 
 bool DataBind::bindsOnce()

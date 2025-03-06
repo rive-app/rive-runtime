@@ -3,14 +3,16 @@
 
 using namespace rive;
 
-DataContext::DataContext(ViewModelInstance* viewModelInstance) :
+DataContext::DataContext(rcp<ViewModelInstance> viewModelInstance) :
     m_ViewModelInstance(viewModelInstance)
 {}
 
-void DataContext::viewModelInstance(ViewModelInstance* value)
+void DataContext::viewModelInstance(rcp<ViewModelInstance> value)
 {
     m_ViewModelInstance = value;
 }
+
+void DataContext::advanced() { m_ViewModelInstance->advanced(); }
 
 ViewModelInstanceValue* DataContext::getViewModelProperty(
     const std::vector<uint32_t> path) const
@@ -23,7 +25,7 @@ ViewModelInstanceValue* DataContext::getViewModelProperty(
     if (m_ViewModelInstance != nullptr &&
         m_ViewModelInstance->viewModelId() == path[0])
     {
-        ViewModelInstance* instance = m_ViewModelInstance;
+        rcp<ViewModelInstance> instance = m_ViewModelInstance;
         for (it = path.begin() + 1; it != path.end() - 1; it++)
         {
             auto viewModelInstanceValue = instance->propertyValue(*it);
@@ -50,7 +52,7 @@ skip_path:
     return nullptr;
 }
 
-ViewModelInstance* DataContext::getViewModelInstance(
+rcp<ViewModelInstance> DataContext::getViewModelInstance(
     const std::vector<uint32_t> path) const
 {
     std::vector<uint32_t>::const_iterator it;
@@ -61,7 +63,7 @@ ViewModelInstance* DataContext::getViewModelInstance(
     if (m_ViewModelInstance != nullptr &&
         m_ViewModelInstance->viewModelId() == path[0])
     {
-        ViewModelInstance* instance = m_ViewModelInstance;
+        rcp<ViewModelInstance> instance = m_ViewModelInstance;
         for (it = path.begin() + 1; it != path.end(); it++)
         {
             auto viewModelInstanceValue = instance->propertyValue(*it);

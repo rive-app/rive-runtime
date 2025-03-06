@@ -22,6 +22,7 @@ namespace rive
 class BinaryReader;
 class RuntimeHeader;
 class Factory;
+class ViewModelRuntime;
 
 ///
 /// Tracks the success/failure result when importing a Rive file.
@@ -90,29 +91,47 @@ public:
 
     /// @returns a view model instance of the view model with the specified
     /// name.
-    ViewModelInstance* createViewModelInstance(std::string name);
+    rcp<ViewModelInstance> createViewModelInstance(std::string name) const;
 
     /// @returns a view model instance attached to the artboard if it exists.
-    ViewModelInstance* createViewModelInstance(Artboard* artboard);
+    rcp<ViewModelInstance> createViewModelInstance(Artboard* artboard) const;
 
     /// @returns a view model instance of the viewModel.
-    ViewModelInstance* createViewModelInstance(ViewModel* viewModel);
+    rcp<ViewModelInstance> createViewModelInstance(ViewModel* viewModel) const;
+
+    /// @returns the default view model instance of the viewModel, or returns an
+    /// empty one if there is no default.
+    rcp<ViewModelInstance> createDefaultViewModelInstance(
+        ViewModel* viewModel) const;
+
+    /// @returns the default view model instance of the viewModel, or returns an
+    /// empty one if there is no default.
+    rcp<ViewModelInstance> createDefaultViewModelInstance(
+        Artboard* artboard) const;
 
     /// @returns a view model instance of the viewModel by name and instance
     /// name.
-    ViewModelInstance* createViewModelInstance(std::string name,
-                                               std::string instanceName);
+    rcp<ViewModelInstance> createViewModelInstance(
+        std::string name,
+        std::string instanceName) const;
 
     /// @returns a view model instance of the viewModel by their indexes.
-    ViewModelInstance* createViewModelInstance(size_t index,
-                                               size_t instanceIndex);
+    rcp<ViewModelInstance> createViewModelInstance(size_t index,
+                                                   size_t instanceIndex) const;
 
+    size_t viewModelCount() const { return m_ViewModels.size(); }
     ViewModel* viewModel(std::string name);
+    ViewModelRuntime* defaultArtboardViewModel(Artboard* artboard) const;
+    ViewModelRuntime* viewModelByIndex(size_t index) const;
+    ViewModelRuntime* viewModelByName(std::string name) const;
     ViewModelInstanceListItem* viewModelInstanceListItem(
-        ViewModelInstance* viewModelInstance);
+        rcp<ViewModelInstance> viewModelInstance);
     ViewModelInstanceListItem* viewModelInstanceListItem(
-        ViewModelInstance* viewModelInstance,
+        rcp<ViewModelInstance> viewModelInstance,
         Artboard* artboard);
+    void completeViewModelInstance(
+        rcp<ViewModelInstance> viewModelInstance) const;
+    const std::vector<DataEnum*>& enums() const;
 
 #ifdef WITH_RIVE_TOOLS
     /// Strips FileAssetContents for FileAssets of given typeKeys.
@@ -151,9 +170,13 @@ private:
     /// with the file.
     FileAssetLoader* m_assetLoader;
 
-    void completeViewModelInstance(ViewModelInstance* viewModelInstance);
-    ViewModelInstance* copyViewModelInstance(
-        ViewModelInstance* viewModelInstance);
+    rcp<ViewModelInstance> copyViewModelInstance(
+        ViewModelInstance* viewModelInstance) const;
+
+    rcp<ViewModelInstance> copyViewModelInstance(
+        rcp<ViewModelInstance> viewModelInstance) const;
+
+    uint32_t findViewModelId(ViewModel* search) const;
 };
 } // namespace rive
 #endif

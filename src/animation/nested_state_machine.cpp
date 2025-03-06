@@ -110,12 +110,12 @@ void NestedStateMachine::addNestedInput(NestedInput* input)
     m_nestedInputs.push_back(input);
 }
 
-void NestedStateMachine::setDataContextFromInstance(
-    ViewModelInstance* viewModelInstance)
+void NestedStateMachine::bindViewModelInstance(
+    rcp<ViewModelInstance> viewModelInstance)
 {
     if (m_StateMachineInstance != nullptr)
     {
-        m_StateMachineInstance->setDataContextFromInstance(viewModelInstance);
+        m_StateMachineInstance->bindViewModelInstance(viewModelInstance);
     }
 }
 
