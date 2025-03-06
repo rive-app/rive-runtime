@@ -55,7 +55,8 @@ public:
                         LayoutMeasureMode heightMode) override;
     void controlSize(Vec2D size,
                      LayoutScaleType widthScaleType,
-                     LayoutScaleType heightScaleType) override;
+                     LayoutScaleType heightScaleType,
+                     LayoutDirection direction) override;
 
     /// Convert a world space (relative to the artboard that this
     /// NestedArtboard is a child of) to the local space of the Artboard

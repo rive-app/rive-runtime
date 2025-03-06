@@ -222,6 +222,7 @@ public:
     {
         return (VerticalTextAlign)verticalAlignValue();
     }
+    TextAlign align() const;
     void overflow(TextOverflow value) { return overflowValue((uint32_t)value); }
     void buildRenderStyles();
     const TextStyle* styleFromShaperId(uint16_t id) const;
@@ -236,7 +237,8 @@ public:
                         LayoutMeasureMode heightMode) override;
     void controlSize(Vec2D size,
                      LayoutScaleType widthScaleType,
-                     LayoutScaleType heightScaleType) override;
+                     LayoutScaleType heightScaleType,
+                     LayoutDirection direction) override;
     float effectiveWidth()
     {
         return std::isnan(m_layoutWidth) ? width() : m_layoutWidth;
@@ -324,6 +326,7 @@ private:
     float m_layoutHeight = NAN;
     uint8_t m_layoutWidthScaleType = std::numeric_limits<uint8_t>::max();
     uint8_t m_layoutHeightScaleType = std::numeric_limits<uint8_t>::max();
+    LayoutDirection m_layoutDirection = LayoutDirection::inherit;
     Vec2D measure(Vec2D maxSize);
 };
 } // namespace rive

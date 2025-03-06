@@ -37,7 +37,8 @@ public:
                         LayoutMeasureMode heightMode) override;
     void controlSize(Vec2D size,
                      LayoutScaleType widthScaleType,
-                     LayoutScaleType heightScaleType) override;
+                     LayoutScaleType heightScaleType,
+                     LayoutDirection direction) override;
     float width() const;
     float height() const;
     void assetUpdated() override;

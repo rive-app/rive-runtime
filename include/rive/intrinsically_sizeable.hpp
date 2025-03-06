@@ -22,7 +22,8 @@ public:
 
     virtual void controlSize(Vec2D size,
                              LayoutScaleType widthScaleType,
-                             LayoutScaleType heightScaleType)
+                             LayoutScaleType heightScaleType,
+                             LayoutDirection direction)
     {}
     virtual bool shouldPropagateSizeToChildren() { return true; }
     static IntrinsicallySizeable* from(Component* component);

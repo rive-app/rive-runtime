@@ -278,3 +278,35 @@ TEST_CASE("LayoutComponent Corner Radius", "[layout]")
     REQUIRE(style->cornerRadiusBL() == 15);
     REQUIRE(style->cornerRadiusBR() == 15);
 }
+
+TEST_CASE("LayoutComponent Direction", "[layout]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_direction.riv");
+
+    auto artboard = file->artboard();
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("Layout1") != nullptr);
+    auto target1 = artboard->find<rive::LayoutComponent>("Layout1");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("Layout2") != nullptr);
+    auto target2 = artboard->find<rive::LayoutComponent>("Layout2");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("Layout3") != nullptr);
+    auto target3 = artboard->find<rive::LayoutComponent>("Layout3");
+
+    REQUIRE(artboard->find<rive::Text>("SampleText") != nullptr);
+    auto text = artboard->find<rive::Text>("SampleText");
+
+    artboard->advance(0.0f);
+    auto target1Components = target1->worldTransform().decompose();
+    auto target2Components = target2->worldTransform().decompose();
+    auto target3Components = target3->worldTransform().decompose();
+
+    REQUIRE(target1Components.x() == 200);
+    REQUIRE(target2Components.x() == 100);
+    REQUIRE(target3Components.x() == 0);
+    REQUIRE(target1->actualDirection() == rive::LayoutDirection::rtl);
+    REQUIRE(target2->actualDirection() == rive::LayoutDirection::rtl);
+    REQUIRE(target3->actualDirection() == rive::LayoutDirection::rtl);
+    REQUIRE(text->align() == rive::TextAlign::right);
+}

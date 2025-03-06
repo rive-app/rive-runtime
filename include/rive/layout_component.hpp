@@ -113,6 +113,7 @@ protected:
     LayoutStyleInterpolation m_inheritedInterpolation =
         LayoutStyleInterpolation::hold;
     float m_inheritedInterpolationTime = 0;
+    LayoutDirection m_inheritedDirection = LayoutDirection::inherit;
     Rectangle m_backgroundRect;
     ShapePaintPath m_localPath;
     ShapePaintPath m_worldPath;
@@ -149,6 +150,7 @@ private:
     bool m_heightIntrinsicallySizeOverride = false;
     float m_forcedWidth = NAN;
     float m_forcedHeight = NAN;
+    bool m_forceUpdateLayoutBounds = false;
 
 #ifdef WITH_RIVE_LAYOUT
 protected:
@@ -260,9 +262,10 @@ public:
     LayoutStyleInterpolation interpolation();
     float interpolationTime();
 
-    void cascadeAnimationStyle(LayoutStyleInterpolation inheritedInterpolation,
-                               KeyFrameInterpolator* inheritedInterpolator,
-                               float inheritedInterpolationTime);
+    void cascadeLayoutStyle(LayoutStyleInterpolation inheritedInterpolation,
+                            KeyFrameInterpolator* inheritedInterpolator,
+                            float inheritedInterpolationTime,
+                            LayoutDirection direction);
     void setInheritedInterpolation(
         LayoutStyleInterpolation inheritedInterpolation,
         KeyFrameInterpolator* inheritedInterpolator,
@@ -274,10 +277,12 @@ public:
     void scaleTypeChanged();
     void displayChanged();
     void flexDirectionChanged();
+    void directionChanged();
+    LayoutDirection actualDirection();
 #endif
     void buildDependencies() override;
 
-    void markLayoutNodeDirty();
+    void markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds = false);
     void markLayoutStyleDirty();
     void clipChanged() override;
     void widthChanged() override;

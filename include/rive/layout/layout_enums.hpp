@@ -36,6 +36,13 @@ enum class LayoutAlignmentType : uint8_t
     spaceBetweenEnd
 };
 
+enum class LayoutDirection : uint8_t
+{
+    inherit,
+    ltr,
+    rtl
+};
+
 enum class LayoutScaleType : uint8_t
 {
     fixed,

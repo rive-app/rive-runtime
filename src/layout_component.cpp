@@ -735,6 +735,7 @@ void LayoutComponent::syncStyle()
     ygStyle.flex() = YGFloatOptional(m_style->flex());
     ygStyle.flexDirection() = m_style->flexDirection();
     ygStyle.flexWrap() = m_style->flexWrap();
+    ygStyle.direction() = m_style->direction();
 
     ygNode.setStyle(ygStyle);
 }
@@ -790,7 +791,8 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
             sizeableChild->controlSize(
                 Vec2D(m_layout.width(), m_layout.height()),
                 widthScaleType,
-                heightScaleType);
+                heightScaleType,
+                actualDirection());
 
             if (!sizeableChild->shouldPropagateSizeToChildren())
             {
@@ -820,6 +822,23 @@ bool LayoutComponent::styleDisplayHidden()
         return false;
     }
     return m_style->display() == YGDisplayNone;
+}
+
+LayoutDirection LayoutComponent::actualDirection()
+{
+    if (m_style == nullptr)
+    {
+        return m_inheritedDirection;
+    }
+    switch (m_style->direction())
+    {
+        case YGDirectionLTR:
+            return LayoutDirection::ltr;
+        case YGDirectionRTL:
+            return LayoutDirection::rtl;
+        default:
+            return m_inheritedDirection;
+    }
 }
 
 void LayoutComponent::onDirty(ComponentDirt value)
@@ -884,7 +903,7 @@ void LayoutComponent::updateLayoutBounds(bool animate)
     if (animate && animates())
     {
         auto animationData = currentAnimationData();
-        if (newLayout != animationData->to)
+        if (newLayout != animationData->to || m_forceUpdateLayoutBounds)
         {
             if (animationData->elapsedSeconds != 0.0f)
             {
@@ -907,7 +926,7 @@ void LayoutComponent::updateLayoutBounds(bool animate)
             markWorldTransformDirty();
         }
     }
-    else if (newLayout != m_layout)
+    else if (newLayout != m_layout || m_forceUpdateLayoutBounds)
     {
         if (m_layout.width() != newLayout.width() ||
             m_layout.height() != newLayout.height())
@@ -920,6 +939,7 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         propagateSize();
         markWorldTransformDirty();
     }
+    m_forceUpdateLayoutBounds = false;
 }
 
 bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
@@ -1004,10 +1024,11 @@ float LayoutComponent::interpolationTime()
     }
 }
 
-void LayoutComponent::cascadeAnimationStyle(
+void LayoutComponent::cascadeLayoutStyle(
     LayoutStyleInterpolation inheritedInterpolation,
     KeyFrameInterpolator* inheritedInterpolator,
-    float inheritedInterpolationTime)
+    float inheritedInterpolationTime,
+    LayoutDirection direction)
 {
     if (m_style != nullptr &&
         m_style->animationStyle() == LayoutAnimationStyle::inherit)
@@ -1020,14 +1041,29 @@ void LayoutComponent::cascadeAnimationStyle(
     {
         clearInheritedInterpolation();
     }
+    auto oldDirection = m_inheritedDirection;
+    if (direction == LayoutDirection::inherit ||
+        (m_style != nullptr && m_style->direction() != YGDirectionInherit))
+    {
+        m_inheritedDirection = LayoutDirection::inherit;
+    }
+    else
+    {
+        m_inheritedDirection = direction;
+    }
+    if (m_inheritedDirection != oldDirection)
+    {
+        markLayoutNodeDirty(true);
+    }
     for (auto child : children())
     {
         if (child->is<LayoutComponent>())
         {
-            child->as<LayoutComponent>()->cascadeAnimationStyle(
+            child->as<LayoutComponent>()->cascadeLayoutStyle(
                 interpolation(),
                 interpolator(),
-                interpolationTime());
+                interpolationTime(),
+                actualDirection());
         }
     }
 }
@@ -1164,8 +1200,12 @@ void LayoutComponent::interruptAnimation()
     }
 }
 
-void LayoutComponent::markLayoutNodeDirty()
+void LayoutComponent::markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds)
 {
+    if (shouldForceUpdateLayoutBounds == true)
+    {
+        m_forceUpdateLayoutBounds = shouldForceUpdateLayoutBounds;
+    }
     m_layoutData->node.markDirtyAndPropagate();
     artboard()->markLayoutDirty(this);
 }
@@ -1253,6 +1293,12 @@ void LayoutComponent::flexDirectionChanged()
         }
     }
 }
+
+void LayoutComponent::directionChanged()
+{
+    markLayoutStyleDirty();
+    markLayoutNodeDirty(true);
+}
 #else
 LayoutComponent::LayoutComponent() :
     m_layoutData(new LayoutData()), m_proxy(this)
@@ -1277,7 +1323,7 @@ bool LayoutComponent::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
     return false;
 }
 
-void LayoutComponent::markLayoutNodeDirty() {}
+void LayoutComponent::markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds) {}
 void LayoutComponent::markLayoutStyleDirty() {}
 void LayoutComponent::onDirty(ComponentDirt value) {}
 bool LayoutComponent::mainAxisIsRow() { return true; }

@@ -197,7 +197,8 @@ Vec2D Image::measureLayout(float width,
 
 void Image::controlSize(Vec2D size,
                         LayoutScaleType widthScaleType,
-                        LayoutScaleType heightScaleType)
+                        LayoutScaleType heightScaleType,
+                        LayoutDirection direction)
 {
     // We store layout width/height because the image asset may not be available
     // yet (referenced images) and we have defer controlling its size

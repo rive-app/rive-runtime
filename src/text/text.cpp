@@ -278,16 +278,19 @@ Vec2D Text::measureLayout(float width,
 
 void Text::controlSize(Vec2D size,
                        LayoutScaleType widthScaleType,
-                       LayoutScaleType heightScaleType)
+                       LayoutScaleType heightScaleType,
+                       LayoutDirection direction)
 {
     if (m_layoutWidth != size.x || m_layoutHeight != size.y ||
         m_layoutWidthScaleType != (uint8_t)widthScaleType ||
-        m_layoutHeightScaleType != (uint8_t)heightScaleType)
+        m_layoutHeightScaleType != (uint8_t)heightScaleType ||
+        m_layoutDirection != direction)
     {
         m_layoutWidth = size.x;
         m_layoutHeight = size.y;
         m_layoutWidthScaleType = (uint8_t)widthScaleType;
         m_layoutHeightScaleType = (uint8_t)heightScaleType;
+        m_layoutDirection = direction;
         markShapeDirty(false);
     }
 }
@@ -702,7 +705,7 @@ skipLines:
         {
             scale = std::max(0.0f, xScale > yScale ? yScale : xScale);
             yOffset += baseline * (1 - scale);
-            switch ((TextAlign)alignValue())
+            switch (align())
             {
                 case TextAlign::center:
                     xOffset += (m_bounds.width() - maxWidth * scale) / 2 -
@@ -1000,7 +1003,7 @@ void Text::update(ComponentDirt value)
                             !parentIsLayoutNotArtboard)
                                ? -1.0f
                                : effectiveWidth(),
-                           (TextAlign)alignValue(),
+                           align(),
                            wrap());
             m_glyphLookup.compute(m_modifierStyledText.unichars(),
                                   m_modifierShape);
@@ -1025,7 +1028,7 @@ void Text::update(ComponentDirt value)
                                   !parentIsLayoutNotArtboard)
                                      ? -1.0f
                                      : effectiveWidth(),
-                                 (TextAlign)alignValue(),
+                                 align(),
                                  wrap());
             if (!precomputeModifierCoverage && haveModifiers())
             {
@@ -1101,7 +1104,7 @@ Vec2D Text::measure(Vec2D maxSize)
                                  : wrap();
         auto lines = BreakLines(shape,
                                 std::min(maxSize.x, measuringWidth),
-                                (TextAlign)alignValue(),
+                                align(),
                                 measuringWrap);
         float y = 0;
         float computedHeight = 0.0f;
@@ -1241,6 +1244,19 @@ Vec2D Text::measureLayout(float width,
 }
 void Text::controlSize(Vec2D size,
                        LayoutScaleType widthScaleType,
-                       LayoutScaleType heightScaleType)
+                       LayoutScaleType heightScaleType,
+                       LayoutDirection direction)
 {}
 #endif
+
+TextAlign Text::align() const
+{
+    auto val = (TextAlign)alignValue();
+    if (m_layoutDirection == LayoutDirection::inherit ||
+        val == TextAlign::center)
+    {
+        return val;
+    }
+    return m_layoutDirection == LayoutDirection::ltr ? TextAlign::left
+                                                     : TextAlign::right;
+}

@@ -269,7 +269,8 @@ void NestedArtboard::syncStyleChanges()
 
 void NestedArtboard::controlSize(Vec2D size,
                                  LayoutScaleType widthScaleType,
-                                 LayoutScaleType heightScaleType)
+                                 LayoutScaleType heightScaleType,
+                                 LayoutDirection direction)
 {}
 
 void NestedArtboard::decodeDataBindPathIds(Span<const uint8_t> value)

@@ -39,7 +39,8 @@ public:
                         LayoutMeasureMode heightMode) override;
     void controlSize(Vec2D size,
                      LayoutScaleType widthScaleType,
-                     LayoutScaleType heightScaleType) override;
+                     LayoutScaleType heightScaleType,
+                     LayoutDirection direction) override;
     bool shouldPropagateSizeToChildren() override { return false; }
 };
 } // namespace rive

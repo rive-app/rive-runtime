@@ -253,6 +253,14 @@ void LayoutComponentStyle::flexDirectionValueChanged()
     }
 }
 
+void LayoutComponentStyle::directionValueChanged()
+{
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->directionChanged();
+    }
+}
+
 StatusCode LayoutComponentStyle::onAddedDirty(CoreContext* context)
 {
     auto code = Super::onAddedDirty(context);
@@ -275,6 +283,7 @@ void LayoutComponentStyle::scaleTypeChanged() {}
 void LayoutComponentStyle::displayChanged() {}
 void LayoutComponentStyle::positionTypeValueChanged() {}
 void LayoutComponentStyle::flexDirectionValueChanged() {}
+void LayoutComponentStyle::directionValueChanged() {}
 #endif
 
 void LayoutComponentStyle::interpolationTimeChanged()
@@ -296,7 +305,6 @@ void LayoutComponentStyle::intrinsicallySizedValueChanged()
 {
     markLayoutNodeDirty();
 }
-void LayoutComponentStyle::directionValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::alignContentValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::alignItemsValueChanged() { markLayoutNodeDirty(); }
 void LayoutComponentStyle::alignSelfValueChanged() { markLayoutNodeDirty(); }

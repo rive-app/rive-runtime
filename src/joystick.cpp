@@ -114,7 +114,8 @@ Vec2D Joystick::measureLayout(float width,
 
 void Joystick::controlSize(Vec2D size,
                            LayoutScaleType widthScaleType,
-                           LayoutScaleType heightScaleType)
+                           LayoutScaleType heightScaleType,
+                           LayoutDirection direction)
 {
     width(size.x);
     height(size.y);

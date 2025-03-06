@@ -154,7 +154,8 @@ Vec2D NSlicedNode::measureLayout(float width,
 // We are told by a Layout to be a particular size
 void NSlicedNode::controlSize(Vec2D size,
                               LayoutScaleType widthScaleType,
-                              LayoutScaleType heightScaleType)
+                              LayoutScaleType heightScaleType,
+                              LayoutDirection direction)
 {
     width(size.x);
     height(size.y);
