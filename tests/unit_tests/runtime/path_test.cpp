@@ -4,6 +4,8 @@
 #include <rive/node.hpp>
 #include <rive/shapes/ellipse.hpp>
 #include <rive/shapes/path_composer.hpp>
+#include <rive/shapes/paint/feather.hpp>
+#include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/rectangle.hpp>
 #include <rive/shapes/shape.hpp>
 #include <rive/shapes/clipping_shape.hpp>
@@ -13,6 +15,7 @@
 #include <rive/animation/linear_animation_instance.hpp>
 #include "rive_file_reader.hpp"
 #include "rive/math/path_types.hpp"
+#include "rive/animation/state_machine_instance.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
@@ -495,4 +498,26 @@ TEST_CASE("double nested solos clipping with animation", "[path]")
         auto renderPath = clippingPath->renderPath(&emptyFactory);
         REQUIRE(renderPath != nullptr);
     }
+}
+
+TEST_CASE("XXXXX", "[path]")
+{
+    TestNoOpFactory emptyFactory;
+    auto file = ReadRiveFile("assets/feather_render_test.riv", &emptyFactory);
+
+    auto artboard = file->artboard("button 2")->instance();
+    REQUIRE(artboard != nullptr);
+    auto node = artboard->find("button_shape");
+    REQUIRE(node != nullptr);
+    REQUIRE(node->is<rive::Shape>());
+    auto stroke = node->as<rive::Shape>()->children()[2];
+    REQUIRE(stroke != nullptr);
+    auto feather = stroke->as<rive::Fill>()->feather();
+    REQUIRE(feather != nullptr);
+    auto machine = artboard->defaultStateMachine();
+    REQUIRE(feather->renderCount == 0);
+    machine->advanceAndApply(0.0f);
+    REQUIRE(feather->renderCount == 1);
+    machine->advanceAndApply(0.25f);
+    REQUIRE(feather->renderCount == 2);
 }

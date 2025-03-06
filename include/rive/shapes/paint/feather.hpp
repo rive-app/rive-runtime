@@ -26,6 +26,10 @@ protected:
 
 private:
     ShapePaintPath m_innerPath;
+#ifdef TESTING
+public:
+    int renderCount = 0;
+#endif
 };
 } // namespace rive
 
