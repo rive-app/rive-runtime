@@ -15,6 +15,56 @@
         "string": "radial"
       },
       "bindable": true
+    },
+    "orient": {
+      "type": "bool",
+      "initialValue": "true",
+      "animates": true,
+      "key": {
+        "int": 782,
+        "string": "orient"
+      },
+      "bindable": true
+    },
+    "start": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 783,
+        "string": "start"
+      },
+      "bindable": true
+    },
+    "end": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 784,
+        "string": "end"
+      },
+      "bindable": true
+    },
+    "strength": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 785,
+        "string": "strength"
+      },
+      "bindable": true
+    },
+    "offset": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 786,
+        "string": "offset"
+      },
+      "bindable": true
     }
   }
 }

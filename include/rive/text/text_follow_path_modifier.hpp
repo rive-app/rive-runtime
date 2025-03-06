@@ -19,11 +19,18 @@ public:
 
 protected:
     void radialChanged() override;
+    void orientChanged() override;
+    void startChanged() override;
+    void endChanged() override;
+    void offsetChanged() override;
+    void strengthChanged() override;
 
 private:
     RawPath m_worldPath;
     RawPath m_localPath;
     PathMeasure m_pathMeasure;
+
+    void modifierShapeDirty();
 };
 } // namespace rive
 

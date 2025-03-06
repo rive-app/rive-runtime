@@ -1,4 +1,5 @@
 #include "rive/core_context.hpp"
+#include "rive/math/math_types.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/text/text.hpp"
@@ -71,7 +72,13 @@ void TextFollowPathModifier::update(ComponentDirt value)
     }
 }
 
-void TextFollowPathModifier::radialChanged()
+void TextFollowPathModifier::radialChanged() { modifierShapeDirty(); }
+void TextFollowPathModifier::orientChanged() { modifierShapeDirty(); }
+void TextFollowPathModifier::startChanged() { modifierShapeDirty(); }
+void TextFollowPathModifier::endChanged() { modifierShapeDirty(); }
+void TextFollowPathModifier::offsetChanged() { modifierShapeDirty(); }
+void TextFollowPathModifier::strengthChanged() { modifierShapeDirty(); }
+void TextFollowPathModifier::modifierShapeDirty()
 {
     Text* text = textComponent();
     if (text != nullptr)
@@ -105,14 +112,27 @@ TransformComponents TextFollowPathModifier::transformGlyph(
     const auto& paragraphLines = arg.paragraphLines;
     int lineIndexInParagraph = arg.lineIndexInParagraph;
 
-    Vec2D position, tangent;
     Vec2D positionOnPath = arg.originPosition + arg.offset;
-    bool pathClosed = m_localPath.isClosed();
+
+    // endPct >= startPct
+    float startPct = math::clamp(std::min(start(), end()), 0.0, 1.0);
+    float endPct = math::clamp(std::max(start(), end()), 0.0, 1.0);
+    bool canWrap = m_localPath.isClosed() && (endPct - startPct) == 1.0;
+    float validLength = (endPct - startPct) * pathLength;
+
+    // 0%-100%
+    auto offsetPct = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);
+
+    // 0%-200%
+    startPct += offsetPct;
+    endPct += offsetPct;
+
+    Vec2D position, tangent;
 
     // Render along the tangent if overflowing on either ends
-    if (!pathClosed && positionOnPath.x < 0)
+    if ((!canWrap && positionOnPath.x < 0) || startPct == endPct)
     {
-        auto result = m_pathMeasure.atDistance(0);
+        auto result = m_pathMeasure.atPercentage(startPct);
         tangent = result.tan;
         tangent = tangent.normalized();
         Vec2D zeroPosition = result.pos;
@@ -120,13 +140,13 @@ TransformComponents TextFollowPathModifier::transformGlyph(
         position = Vec2D(zeroPosition.x - tangent.x * extra,
                          zeroPosition.y - tangent.y * extra);
     }
-    else if (!pathClosed && positionOnPath.x > pathLength)
+    else if (!canWrap && positionOnPath.x > validLength)
     {
-        auto result = m_pathMeasure.atDistance(m_pathMeasure.length());
+        auto result = m_pathMeasure.atPercentage(endPct);
         tangent = result.tan;
         tangent = tangent.normalized();
         Vec2D termPosition = result.pos;
-        float extra = positionOnPath.x - m_pathMeasure.length();
+        float extra = positionOnPath.x - validLength;
         position = Vec2D(termPosition.x + tangent.x * extra,
                          termPosition.y + tangent.y * extra);
     }
@@ -134,7 +154,8 @@ TransformComponents TextFollowPathModifier::transformGlyph(
     {
         // Closed path, or in the range of the path.
         // Use the percentage API to wrap around
-        auto result = m_pathMeasure.atPercentage(positionOnPath.x / pathLength);
+        auto result = m_pathMeasure.atPercentage(startPct +
+                                                 positionOnPath.x / pathLength);
         position = result.pos;
         tangent = result.tan;
         tangent = tangent.normalized();
@@ -173,9 +194,13 @@ TransformComponents TextFollowPathModifier::transformGlyph(
                   positionOnPath.y - curBaseline + position.y + lastBaseline);
     }
 
+    float rotation = orient() ? std::atan2(tangent.y, tangent.x) : 0;
+
     TransformComponents tc;
-    tc.x(translation.x);
-    tc.y(translation.y);
-    tc.rotation(std::atan2(tangent.y, tangent.x));
+    float t = math::clamp(strength(), 0.0, 1.0);
+    float ti = 1.0f - t;
+    tc.x(translation.x * t + cur.x() * ti);
+    tc.y(translation.y * t + cur.y() * ti);
+    tc.rotation(rotation * t + cur.rotation() * ti);
     return tc;
 }

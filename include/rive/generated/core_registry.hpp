@@ -795,6 +795,9 @@ public:
             case TextFollowPathModifierBase::radialPropertyKey:
                 object->as<TextFollowPathModifierBase>()->radial(value);
                 break;
+            case TextFollowPathModifierBase::orientPropertyKey:
+                object->as<TextFollowPathModifierBase>()->orient(value);
+                break;
             case TextBase::fitFromBaselinePropertyKey:
                 object->as<TextBase>()->fitFromBaseline(value);
                 break;
@@ -2059,6 +2062,18 @@ public:
             case TextModifierRangeBase::offsetPropertyKey:
                 object->as<TextModifierRangeBase>()->offset(value);
                 break;
+            case TextFollowPathModifierBase::startPropertyKey:
+                object->as<TextFollowPathModifierBase>()->start(value);
+                break;
+            case TextFollowPathModifierBase::endPropertyKey:
+                object->as<TextFollowPathModifierBase>()->end(value);
+                break;
+            case TextFollowPathModifierBase::strengthPropertyKey:
+                object->as<TextFollowPathModifierBase>()->strength(value);
+                break;
+            case TextFollowPathModifierBase::offsetPropertyKey:
+                object->as<TextFollowPathModifierBase>()->offset(value);
+                break;
             case TextVariationModifierBase::axisValuePropertyKey:
                 object->as<TextVariationModifierBase>()->axisValue(value);
                 break;
@@ -2226,6 +2241,8 @@ public:
                 return object->as<TextModifierRangeBase>()->clamp();
             case TextFollowPathModifierBase::radialPropertyKey:
                 return object->as<TextFollowPathModifierBase>()->radial();
+            case TextFollowPathModifierBase::orientPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->orient();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->as<TextBase>()->fitFromBaseline();
         }
@@ -3123,6 +3140,14 @@ public:
                 return object->as<TextModifierRangeBase>()->falloffTo();
             case TextModifierRangeBase::offsetPropertyKey:
                 return object->as<TextModifierRangeBase>()->offset();
+            case TextFollowPathModifierBase::startPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->start();
+            case TextFollowPathModifierBase::endPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->end();
+            case TextFollowPathModifierBase::strengthPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->strength();
+            case TextFollowPathModifierBase::offsetPropertyKey:
+                return object->as<TextFollowPathModifierBase>()->offset();
             case TextVariationModifierBase::axisValuePropertyKey:
                 return object->as<TextVariationModifierBase>()->axisValue();
             case TextModifierGroupBase::originXPropertyKey:
@@ -3211,6 +3236,7 @@ public:
             case BindablePropertyBooleanBase::propertyValuePropertyKey:
             case TextModifierRangeBase::clampPropertyKey:
             case TextFollowPathModifierBase::radialPropertyKey:
+            case TextFollowPathModifierBase::orientPropertyKey:
             case TextBase::fitFromBaselinePropertyKey:
                 return CoreBoolType::id;
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
@@ -3611,6 +3637,10 @@ public:
             case TextModifierRangeBase::falloffFromPropertyKey:
             case TextModifierRangeBase::falloffToPropertyKey:
             case TextModifierRangeBase::offsetPropertyKey:
+            case TextFollowPathModifierBase::startPropertyKey:
+            case TextFollowPathModifierBase::endPropertyKey:
+            case TextFollowPathModifierBase::strengthPropertyKey:
+            case TextFollowPathModifierBase::offsetPropertyKey:
             case TextVariationModifierBase::axisValuePropertyKey:
             case TextModifierGroupBase::originXPropertyKey:
             case TextModifierGroupBase::originYPropertyKey:
@@ -3736,6 +3766,8 @@ public:
             case TextModifierRangeBase::clampPropertyKey:
                 return object->is<TextModifierRangeBase>();
             case TextFollowPathModifierBase::radialPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
+            case TextFollowPathModifierBase::orientPropertyKey:
                 return object->is<TextFollowPathModifierBase>();
             case TextBase::fitFromBaselinePropertyKey:
                 return object->is<TextBase>();
@@ -4525,6 +4557,14 @@ public:
                 return object->is<TextModifierRangeBase>();
             case TextModifierRangeBase::offsetPropertyKey:
                 return object->is<TextModifierRangeBase>();
+            case TextFollowPathModifierBase::startPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
+            case TextFollowPathModifierBase::endPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
+            case TextFollowPathModifierBase::strengthPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
+            case TextFollowPathModifierBase::offsetPropertyKey:
+                return object->is<TextFollowPathModifierBase>();
             case TextVariationModifierBase::axisValuePropertyKey:
                 return object->is<TextVariationModifierBase>();
             case TextModifierGroupBase::originXPropertyKey:
