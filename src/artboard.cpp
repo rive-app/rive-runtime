@@ -1113,13 +1113,13 @@ bool Artboard::isTranslucent(const LinearAnimationInstance* inst) const
 std::string Artboard::animationNameAt(size_t index) const
 {
     auto la = this->animation(index);
-    return la ? la->name() : nullptr;
+    return la ? la->name() : "";
 }
 
 std::string Artboard::stateMachineNameAt(size_t index) const
 {
     auto sm = this->stateMachine(index);
-    return sm ? sm->name() : nullptr;
+    return sm ? sm->name() : "";
 }
 
 LinearAnimation* Artboard::animation(const std::string& name) const
