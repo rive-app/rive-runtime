@@ -235,11 +235,18 @@ function rive_tools_project(name, project_kind)
 
         filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with-dawn' })
         do
+            libdirs({
+                RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn',
+                RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn/native',
+                RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn/platform',
+                RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn/platform',
+            })
             links({
-                'dawn_native_static',
+                'winmm',
                 'webgpu_dawn',
-                'dawn_platform_static',
+                'dawn_native_static',
                 'dawn_proc_static',
+                'dawn_platform_static',
             })
         end
 

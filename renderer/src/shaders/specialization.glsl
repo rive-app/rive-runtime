@@ -1,21 +1,21 @@
 layout(constant_id = CLIPPING_SPECIALIZATION_IDX) const
-    bool kEnableClipping = false;
+    bool kEnableClipping = true;
 layout(constant_id = CLIP_RECT_SPECIALIZATION_IDX) const
-    bool kEnableClipRect = false;
+    bool kEnableClipRect = true;
 layout(constant_id = ADVANCED_BLEND_SPECIALIZATION_IDX) const
-    bool kEnableAdvancedBlend = false;
+    bool kEnableAdvancedBlend = true;
 layout(constant_id = FEATHER_SPECIALIZATION_IDX) const
-    bool kEnableFeather = false;
+    bool kEnableFeather = true;
 layout(constant_id = EVEN_ODD_SPECIALIZATION_IDX) const
-    bool kEnableEvenOdd = false;
+    bool kEnableEvenOdd = true;
 layout(constant_id = NESTED_CLIPPING_SPECIALIZATION_IDX) const
-    bool kEnableNestedClipping = false;
+    bool kEnableNestedClipping = true;
 layout(constant_id = HSL_BLEND_MODES_SPECIALIZATION_IDX) const
-    bool kEnableHSLBlendModes = false;
+    bool kEnableHSLBlendModes = true;
 layout(constant_id = CLOCKWISE_FILL_SPECIALIZATION_IDX) const
-    bool kClockwiseFill = false;
+    bool kClockwiseFill = true;
 layout(constant_id = BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX) const
-    bool kBorrowedCoveragePrepass = false;
+    bool kBorrowedCoveragePrepass = true;
 
 #define @ENABLE_CLIPPING kEnableClipping
 #define @ENABLE_CLIP_RECT kEnableClipRect

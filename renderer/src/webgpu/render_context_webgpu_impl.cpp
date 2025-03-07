@@ -11,6 +11,9 @@
 #include "generated/shaders/spirv/color_ramp.frag.h"
 #include "generated/shaders/spirv/tessellate.vert.h"
 #include "generated/shaders/spirv/tessellate.frag.h"
+#include "generated/shaders/spirv/render_atlas.vert.h"
+#include "generated/shaders/spirv/render_atlas_fill.frag.h"
+#include "generated/shaders/spirv/render_atlas_stroke.frag.h"
 #include "generated/shaders/spirv/draw_path.vert.h"
 #include "generated/shaders/spirv/draw_path.frag.h"
 #include "generated/shaders/spirv/draw_interior_triangles.vert.h"
@@ -25,6 +28,7 @@
 #include "generated/shaders/common.glsl.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
+#include "generated/shaders/render_atlas.glsl.hpp"
 #include "generated/shaders/advanced_blend.glsl.hpp"
 #include "generated/shaders/draw_path.glsl.hpp"
 #include "generated/shaders/draw_path_common.glsl.hpp"
@@ -36,6 +40,13 @@
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
 
+namespace wgpu
+{
+using ImageCopyBuffer = TexelCopyBufferInfo;
+using ImageCopyTexture = TexelCopyTextureInfo;
+using TextureDataLayout = TexelCopyBufferLayout;
+}; // namespace wgpu
+
 static void enable_shader_pixel_local_storage_ext(wgpu::RenderPassEncoder,
                                                   bool enabled)
 {
@@ -44,6 +55,8 @@ static void enable_shader_pixel_local_storage_ext(wgpu::RenderPassEncoder,
 
 static void write_texture(wgpu::Queue queue,
                           wgpu::Texture texture,
+                          uint32_t x,
+                          uint32_t y,
                           uint32_t bytesPerRow,
                           uint32_t width,
                           uint32_t height,
@@ -52,7 +65,7 @@ static void write_texture(wgpu::Queue queue,
 {
     wgpu::ImageCopyTexture dest = {
         .texture = texture,
-        .mipLevel = 0,
+        .origin = {x, y},
     };
     wgpu::TextureDataLayout layout = {
         .bytesPerRow = bytesPerRow,
@@ -100,6 +113,8 @@ EM_JS(void,
       write_texture_js,
       (int queue,
        int texture,
+       uint32_t x,
+       uint32_t y,
        uint32_t bytesPerRow,
        uint32_t width,
        uint32_t height,
@@ -111,7 +126,7 @@ EM_JS(void,
           // Copy data off the WASM heap before sending it to WebGPU bindings.
           const data = new Uint8Array(dataSize);
           data.set(Module.HEAPU8.subarray(indexU8, indexU8 + dataSize));
-          queue.writeTexture({texture},
+          queue.writeTexture({texture : texture, origin : [ x, y, 0 ]},
                              data,
                              {bytesPerRow : bytesPerRow},
                              {width : width, height : height});
@@ -119,6 +134,8 @@ EM_JS(void,
 
 static void write_texture(wgpu::Queue queue,
                           wgpu::Texture texture,
+                          uint32_t x,
+                          uint32_t y,
                           uint32_t bytesPerRow,
                           uint32_t width,
                           uint32_t height,
@@ -127,6 +144,8 @@ static void write_texture(wgpu::Queue queue,
 {
     write_texture_js(emscripten_webgpu_export_queue(queue.Get()),
                      emscripten_webgpu_export_texture(texture.Get()),
+                     x,
+                     y,
                      bytesPerRow,
                      width,
                      height,
@@ -282,25 +301,17 @@ private:
 class RenderContextWebGPUImpl::ColorRampPipeline
 {
 public:
-    ColorRampPipeline(wgpu::Device device)
+    ColorRampPipeline(RenderContextWebGPUImpl* impl)
     {
-        wgpu::BindGroupLayoutEntry bindingLayouts[] = {
-            {
-                .binding = FLUSH_UNIFORM_BUFFER_IDX,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                    {
-                        .type = wgpu::BufferBindingType::Uniform,
-                    },
-            },
+        const wgpu::Device device = impl->device();
+
+        wgpu::BindGroupLayoutDescriptor colorRampBindingsDesc = {
+            .entryCount = COLOR_RAMP_BINDINGS_COUNT,
+            .entries = impl->m_perFlushBindingLayouts.data(),
         };
 
-        wgpu::BindGroupLayoutDescriptor bindingsDesc = {
-            .entryCount = std::size(bindingLayouts),
-            .entries = bindingLayouts,
-        };
-
-        m_bindGroupLayout = device.CreateBindGroupLayout(&bindingsDesc);
+        m_bindGroupLayout =
+            device.CreateBindGroupLayout(&colorRampBindingsDesc);
 
         wgpu::PipelineLayoutDescriptor pipelineLayoutDesc = {
             .bindGroupLayoutCount = 1,
@@ -386,73 +397,35 @@ private:
 class RenderContextWebGPUImpl::TessellatePipeline
 {
 public:
-    TessellatePipeline(wgpu::Device device,
-                       const ContextOptions& contextOptions)
+    TessellatePipeline(RenderContextWebGPUImpl* impl)
     {
-        wgpu::BindGroupLayoutEntry bindingLayouts[] = {
-            contextOptions.disableStorageBuffers ?
-                wgpu::BindGroupLayoutEntry{
-                    .binding = PATH_BUFFER_IDX,
-                    .visibility = wgpu::ShaderStage::Vertex,
-                    .texture =
-                        {
-                            .sampleType = wgpu::TextureSampleType::Uint,
-                            .viewDimension = wgpu::TextureViewDimension::e2D,
-                        },
-                } :
-                wgpu::BindGroupLayoutEntry{
-                    .binding = PATH_BUFFER_IDX,
-                    .visibility = wgpu::ShaderStage::Vertex,
-                    .buffer =
-                        {
-                            .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                        },
-                },
-            contextOptions.disableStorageBuffers ?
-                wgpu::BindGroupLayoutEntry{
-                    .binding = CONTOUR_BUFFER_IDX,
-                    .visibility = wgpu::ShaderStage::Vertex,
-                    .texture =
-                        {
-                            .sampleType = wgpu::TextureSampleType::Uint,
-                            .viewDimension = wgpu::TextureViewDimension::e2D,
-                        },
-                } :
-                wgpu::BindGroupLayoutEntry{
-                    .binding = CONTOUR_BUFFER_IDX,
-                    .visibility = wgpu::ShaderStage::Vertex,
-                    .buffer =
-                        {
-                            .type = wgpu::BufferBindingType::ReadOnlyStorage,
-                        },
-                },
-            {
-                .binding = FLUSH_UNIFORM_BUFFER_IDX,
-                .visibility = wgpu::ShaderStage::Vertex,
-                .buffer =
-                    {
-                        .type = wgpu::BufferBindingType::Uniform,
-                    },
-            },
+        const wgpu::Device device = impl->device();
+
+        wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
+            .entryCount = TESS_BINDINGS_COUNT,
+            .entries = impl->m_perFlushBindingLayouts.data(),
         };
 
-        wgpu::BindGroupLayoutDescriptor bindingsDesc = {
-            .entryCount = std::size(bindingLayouts),
-            .entries = bindingLayouts,
-        };
+        m_perFlushBindingsLayout =
+            device.CreateBindGroupLayout(&perFlushBindingsDesc);
 
-        m_bindGroupLayout = device.CreateBindGroupLayout(&bindingsDesc);
+        wgpu::BindGroupLayout layouts[] = {
+            m_perFlushBindingsLayout,
+            wgpu::BindGroupLayout(),
+            impl->m_drawBindGroupLayouts[SAMPLER_BINDINGS_SET],
+        };
+        static_assert(SAMPLER_BINDINGS_SET == 2);
 
         wgpu::PipelineLayoutDescriptor pipelineLayoutDesc = {
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &m_bindGroupLayout,
+            .bindGroupLayoutCount = std::size(layouts),
+            .bindGroupLayouts = layouts,
         };
 
         wgpu::PipelineLayout pipelineLayout =
             device.CreatePipelineLayout(&pipelineLayoutDesc);
 
         wgpu::ShaderModule vertexShader;
-        if (contextOptions.disableStorageBuffers)
+        if (impl->m_contextOptions.disableStorageBuffers)
         {
             // The built-in SPIRV does not #define
             // DISABLE_SHADER_STORAGE_BUFFERS. Recompile the tessellation shader
@@ -552,17 +525,174 @@ public:
         m_renderPipeline = device.CreateRenderPipeline(&desc);
     }
 
-    const wgpu::BindGroupLayout& bindGroupLayout() const
+    wgpu::BindGroupLayout perFlushBindingsLayout() const
     {
-        return m_bindGroupLayout;
+        return m_perFlushBindingsLayout;
     }
     wgpu::RenderPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
-    wgpu::BindGroupLayout m_bindGroupLayout;
+    wgpu::BindGroupLayout m_perFlushBindingsLayout;
     EmJsHandle m_vertexShaderHandle;
     EmJsHandle m_fragmentShaderHandle;
     wgpu::RenderPipeline m_renderPipeline;
+};
+
+// Renders tessellated vertices to the tessellation texture.
+class RenderContextWebGPUImpl::AtlasPipeline
+{
+public:
+    AtlasPipeline(RenderContextWebGPUImpl* impl)
+    {
+        const wgpu::Device device = impl->device();
+
+        wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
+            .entryCount = ATLAS_BINDINGS_COUNT,
+            .entries = impl->m_perFlushBindingLayouts.data(),
+        };
+
+        m_perFlushBindingsLayout =
+            device.CreateBindGroupLayout(&perFlushBindingsDesc);
+
+        wgpu::BindGroupLayout layouts[] = {
+            m_perFlushBindingsLayout,
+            wgpu::BindGroupLayout(),
+            impl->m_drawBindGroupLayouts[SAMPLER_BINDINGS_SET],
+        };
+        static_assert(SAMPLER_BINDINGS_SET == 2);
+
+        wgpu::PipelineLayoutDescriptor pipelineLayoutDesc = {
+            .bindGroupLayoutCount = std::size(layouts),
+            .bindGroupLayouts = layouts,
+        };
+
+        wgpu::PipelineLayout pipelineLayout =
+            device.CreatePipelineLayout(&pipelineLayoutDesc);
+
+        wgpu::ShaderModule vertexShader;
+        if (impl->m_contextOptions.disableStorageBuffers)
+        {
+            // The built-in SPIRV does not #define
+            // DISABLE_SHADER_STORAGE_BUFFERS. Recompile the tessellation shader
+            // with storage buffers disabled.
+            std::ostringstream vertexGLSL;
+            vertexGLSL << "#version 460\n";
+            vertexGLSL
+                << "#extension GL_EXT_samplerless_texture_functions : enable\n";
+            vertexGLSL << "#pragma shader_stage(vertex)\n";
+            vertexGLSL << "#define " GLSL_VERTEX " true\n";
+            vertexGLSL << "#define " GLSL_DISABLE_SHADER_STORAGE_BUFFERS
+                          " true\n";
+            vertexGLSL << "#define " GLSL_TARGET_VULKAN " true\n";
+            vertexGLSL << "#define " << GLSL_DRAW_PATH << '\n';
+            vertexGLSL << "#define " << GLSL_ENABLE_FEATHER << "true\n";
+            vertexGLSL << glsl::glsl << '\n';
+            vertexGLSL << glsl::constants << '\n';
+            vertexGLSL << glsl::common << '\n';
+            vertexGLSL << glsl::draw_path_common << '\n';
+            vertexGLSL << glsl::render_atlas << '\n';
+            vertexShader = m_vertexShaderHandle.compileShaderModule(
+                device,
+                vertexGLSL.str().c_str(),
+                "glsl");
+        }
+        else
+        {
+            vertexShader = m_vertexShaderHandle.compileSPIRVShaderModule(
+                device,
+                render_atlas_vert,
+                std::size(render_atlas_vert));
+        }
+
+        wgpu::VertexAttribute attrs[] = {
+            {
+                .format = wgpu::VertexFormat::Float32x4,
+                .offset = 0,
+                .shaderLocation = 0,
+            },
+            {
+                .format = wgpu::VertexFormat::Float32x4,
+                .offset = 4 * sizeof(float),
+                .shaderLocation = 1,
+            },
+        };
+
+        wgpu::VertexBufferLayout vertexBufferLayout = {
+            .arrayStride = sizeof(gpu::PatchVertex),
+            .stepMode = wgpu::VertexStepMode::Vertex,
+            .attributeCount = std::size(attrs),
+            .attributes = attrs,
+        };
+
+        wgpu::ShaderModule fillFragmentShader =
+            m_fragmentShaderHandle.compileSPIRVShaderModule(
+                device,
+                render_atlas_fill_frag,
+                std::size(render_atlas_fill_frag));
+
+        wgpu::ShaderModule strokeFragmentShader =
+            m_fragmentShaderHandle.compileSPIRVShaderModule(
+                device,
+                render_atlas_stroke_frag,
+                std::size(render_atlas_stroke_frag));
+
+        wgpu::BlendState blendState = {
+            .color = {
+                .operation = wgpu::BlendOperation::Add,
+                .srcFactor = wgpu::BlendFactor::One,
+                .dstFactor = wgpu::BlendFactor::One,
+            }};
+
+        wgpu::ColorTargetState colorTargetState = {
+            .format = wgpu::TextureFormat::R16Float,
+            .blend = &blendState,
+        };
+
+        wgpu::FragmentState fragmentState = {
+            .module = fillFragmentShader,
+            .entryPoint = "main",
+            .targetCount = 1,
+            .targets = &colorTargetState,
+        };
+
+        wgpu::RenderPipelineDescriptor desc = {
+            .layout = pipelineLayout,
+            .vertex =
+                {
+                    .module = vertexShader,
+                    .entryPoint = "main",
+                    .bufferCount = 1,
+                    .buffers = &vertexBufferLayout,
+                },
+            .primitive =
+                {
+                    .topology = wgpu::PrimitiveTopology::TriangleList,
+                    .frontFace = kFrontFaceForOffscreenDraws,
+                    .cullMode = wgpu::CullMode::Back,
+                },
+            .fragment = &fragmentState,
+        };
+
+        m_fillPipeline = device.CreateRenderPipeline(&desc);
+
+        blendState.color.operation = wgpu::BlendOperation::Max;
+        fragmentState.module = strokeFragmentShader;
+        m_strokePipeline = device.CreateRenderPipeline(&desc);
+    }
+
+    wgpu::BindGroupLayout perFlushBindingsLayout() const
+    {
+        return m_perFlushBindingsLayout;
+    }
+    wgpu::RenderPipeline fillPipeline() const { return m_fillPipeline; }
+    wgpu::RenderPipeline strokePipeline() const { return m_strokePipeline; }
+
+private:
+    wgpu::BindGroupLayout m_perFlushBindingsLayout;
+    EmJsHandle m_vertexShaderHandle;
+    EmJsHandle m_fragmentShaderHandle;
+    wgpu::RenderPipeline m_fillPipeline;
+    wgpu::RenderPipeline m_strokePipeline;
 };
 
 // Draw paths and image meshes using the gradient and tessellation textures.
@@ -840,12 +970,7 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     wgpu::Device device,
     wgpu::Queue queue,
     const ContextOptions& contextOptions) :
-    m_device(device),
-    m_queue(queue),
-    m_contextOptions(contextOptions),
-    m_colorRampPipeline(std::make_unique<ColorRampPipeline>(m_device)),
-    m_tessellatePipeline(
-        std::make_unique<TessellatePipeline>(m_device, m_contextOptions))
+    m_device(device), m_queue(queue), m_contextOptions(contextOptions)
 {
     // All backends currently use raster ordered shaders.
     // TODO: update this flag once we have msaa and atomic modes.
@@ -856,23 +981,14 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
 
 void RenderContextWebGPUImpl::initGPUObjects()
 {
-    wgpu::BindGroupLayoutEntry perFlushBindingLayouts[] = {
+    m_perFlushBindingLayouts = {{
         {
-            .binding = TESS_VERTEX_TEXTURE_IDX,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .texture =
+            .binding = FLUSH_UNIFORM_BUFFER_IDX,
+            .visibility =
+                wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+            .buffer =
                 {
-                    .sampleType = wgpu::TextureSampleType::Uint,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
-                },
-        },
-        {
-            .binding = GRAD_TEXTURE_IDX,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .texture =
-                {
-                    .sampleType = wgpu::TextureSampleType::Float,
-                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                    .type = wgpu::BufferBindingType::Uniform,
                 },
         },
         m_contextOptions.disableStorageBuffers ?
@@ -948,16 +1064,46 @@ void RenderContextWebGPUImpl::initGPUObjects()
                     },
             },
         {
-            .binding = FLUSH_UNIFORM_BUFFER_IDX,
-            .visibility = wgpu::ShaderStage::Vertex,
-            .buffer =
+            .binding = FEATHER_TEXTURE_IDX,
+            .visibility =
+                wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+            .texture =
                 {
-                    .type = wgpu::BufferBindingType::Uniform,
+                    .sampleType = wgpu::TextureSampleType::Float,
+                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                },
+        },
+        {
+            .binding = TESS_VERTEX_TEXTURE_IDX,
+            .visibility = wgpu::ShaderStage::Vertex,
+            .texture =
+                {
+                    .sampleType = wgpu::TextureSampleType::Uint,
+                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                },
+        },
+        {
+            .binding = ATLAS_TEXTURE_IDX,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .texture =
+                {
+                    .sampleType = wgpu::TextureSampleType::Float,
+                    .viewDimension = wgpu::TextureViewDimension::e2D,
+                },
+        },
+        {
+            .binding = GRAD_TEXTURE_IDX,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .texture =
+                {
+                    .sampleType = wgpu::TextureSampleType::Float,
+                    .viewDimension = wgpu::TextureViewDimension::e2D,
                 },
         },
         {
             .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-            .visibility = wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+            .visibility =
+                wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
             .buffer =
                 {
                     .type = wgpu::BufferBindingType::Uniform,
@@ -965,11 +1111,14 @@ void RenderContextWebGPUImpl::initGPUObjects()
                     .minBindingSize = sizeof(gpu::ImageDrawUniforms),
                 },
         },
-    };
+    }};
+    static_assert(DRAW_BINDINGS_COUNT == 10);
+    static_assert(sizeof(m_perFlushBindingLayouts) ==
+                  DRAW_BINDINGS_COUNT * sizeof(wgpu::BindGroupLayoutEntry));
 
     wgpu::BindGroupLayoutDescriptor perFlushBindingsDesc = {
-        .entryCount = std::size(perFlushBindingLayouts),
-        .entries = perFlushBindingLayouts,
+        .entryCount = DRAW_BINDINGS_COUNT,
+        .entries = m_perFlushBindingLayouts.data(),
     };
 
     m_drawBindGroupLayouts[PER_FLUSH_BINDINGS_SET] =
@@ -998,6 +1147,23 @@ void RenderContextWebGPUImpl::initGPUObjects()
     wgpu::BindGroupLayoutEntry drawBindingSamplerLayouts[] = {
         {
             .binding = GRAD_TEXTURE_IDX,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .sampler =
+                {
+                    .type = wgpu::SamplerBindingType::Filtering,
+                },
+        },
+        {
+            .binding = FEATHER_TEXTURE_IDX,
+            .visibility =
+                wgpu::ShaderStage::Vertex | wgpu::ShaderStage::Fragment,
+            .sampler =
+                {
+                    .type = wgpu::SamplerBindingType::Filtering,
+                },
+        },
+        {
+            .binding = ATLAS_TEXTURE_IDX,
             .visibility = wgpu::ShaderStage::Fragment,
             .sampler =
                 {
@@ -1045,6 +1211,14 @@ void RenderContextWebGPUImpl::initGPUObjects()
     wgpu::BindGroupEntry samplerBindingEntries[] = {
         {
             .binding = GRAD_TEXTURE_IDX,
+            .sampler = m_linearSampler,
+        },
+        {
+            .binding = FEATHER_TEXTURE_IDX,
+            .sampler = m_linearSampler,
+        },
+        {
+            .binding = ATLAS_TEXTURE_IDX,
             .sampler = m_linearSampler,
         },
         {
@@ -1139,6 +1313,35 @@ void RenderContextWebGPUImpl::initGPUObjects()
     m_pathPatchVertexBuffer.Unmap();
     m_pathPatchIndexBuffer.Unmap();
 
+    wgpu::TextureDescriptor featherTextureDesc = {
+        .usage =
+            wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
+        .dimension = wgpu::TextureDimension::e2D,
+        .size = {gpu::GAUSSIAN_TABLE_SIZE, FEATHER_TEXTURE_1D_ARRAY_LENGTH},
+        .format = wgpu::TextureFormat::R16Float,
+    };
+
+    m_featherTexture = m_device.CreateTexture(&featherTextureDesc);
+    write_texture(m_queue,
+                  m_featherTexture,
+                  0,
+                  0,
+                  sizeof(gpu::g_gaussianIntegralTableF16),
+                  gpu::GAUSSIAN_TABLE_SIZE,
+                  1,
+                  gpu::g_gaussianIntegralTableF16,
+                  sizeof(gpu::g_gaussianIntegralTableF16));
+    write_texture(m_queue,
+                  m_featherTexture,
+                  0,
+                  1,
+                  sizeof(gpu::g_inverseGaussianIntegralTableF16),
+                  gpu::GAUSSIAN_TABLE_SIZE,
+                  1,
+                  gpu::g_inverseGaussianIntegralTableF16,
+                  sizeof(gpu::g_inverseGaussianIntegralTableF16));
+    m_featherTextureView = m_featherTexture.CreateView();
+
     wgpu::TextureDescriptor nullImagePaintTextureDesc = {
         .usage = wgpu::TextureUsage::TextureBinding,
         .dimension = wgpu::TextureDimension::e2D,
@@ -1149,6 +1352,10 @@ void RenderContextWebGPUImpl::initGPUObjects()
     m_nullImagePaintTexture =
         m_device.CreateTexture(&nullImagePaintTextureDesc);
     m_nullImagePaintTextureView = m_nullImagePaintTexture.CreateView();
+
+    m_colorRampPipeline = std::make_unique<ColorRampPipeline>(this);
+    m_tessellatePipeline = std::make_unique<TessellatePipeline>(this);
+    m_atlasPipeline = std::make_unique<AtlasPipeline>(this);
 }
 
 RenderContextWebGPUImpl::~RenderContextWebGPUImpl() {}
@@ -1317,6 +1524,8 @@ public:
         // TODO: implement mipmap generation.
         write_texture(queue,
                       m_texture,
+                      0,
+                      0,
                       width * 4,
                       width,
                       height,
@@ -1361,13 +1570,16 @@ public:
 
     BufferWebGPU(wgpu::Device device,
                  wgpu::Queue queue,
-                 size_t capacityInBytes,
+                 size_t capacityInBytesUnRounded,
                  wgpu::BufferUsage usage) :
-        BufferRing(std::max<size_t>(capacityInBytes, 1)), m_queue(queue)
+        // Storage buffers must be multiples of 4 in size.
+        BufferRing(math::round_up_to_multiple_of<4>(
+            std::max<size_t>(capacityInBytesUnRounded, 1))),
+        m_queue(queue)
     {
         wgpu::BufferDescriptor desc = {
             .usage = wgpu::BufferUsage::CopyDst | usage,
-            .size = capacityInBytes,
+            .size = capacityInBytes(),
         };
         for (int i = 0; i < gpu::kBufferRingSize; ++i)
         {
@@ -1555,6 +1767,23 @@ void RenderContextWebGPUImpl::resizeTessellationTexture(uint32_t width,
     m_tessVertexTextureView = m_tessVertexTexture.CreateView();
 }
 
+void RenderContextWebGPUImpl::resizeAtlasTexture(uint32_t width,
+                                                 uint32_t height)
+{
+    width = std::max(width, 1u);
+    height = std::max(height, 1u);
+
+    wgpu::TextureDescriptor desc{
+        .usage = wgpu::TextureUsage::RenderAttachment |
+                 wgpu::TextureUsage::TextureBinding,
+        .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
+        .format = wgpu::TextureFormat::R16Float,
+    };
+
+    m_atlasTexture = m_device.CreateTexture(&desc);
+    m_atlasTextureView = m_atlasTexture.CreateView();
+}
+
 wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     rive::gpu::DrawType drawType,
     wgpu::TextureFormat framebufferFormat,
@@ -1651,8 +1880,18 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             RIVE_UNREACHABLE();
     }
 
+    wgpu::BlendState srcOverBlend = {
+        .color = {.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha},
+        .alpha = {.dstFactor = wgpu::BlendFactor::OneMinusSrcAlpha},
+    };
+
     wgpu::ColorTargetState colorTargets[] = {
-        {.format = framebufferFormat},
+        {
+            .format = framebufferFormat,
+            .blend = (m_contextOptions.plsType == PixelLocalStorageType::none)
+                         ? &srcOverBlend
+                         : nullptr,
+        },
         {.format = wgpu::TextureFormat::R32Uint},
         {.format = framebufferFormat},
         {.format = wgpu::TextureFormat::R32Uint},
@@ -1812,24 +2051,83 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         }
     }
 
+    wgpu::BindGroupEntry perFlushBindingEntries[DRAW_BINDINGS_COUNT] = {
+        {
+            .binding = FLUSH_UNIFORM_BUFFER_IDX,
+            .buffer = webgpu_buffer(flushUniformBufferRing()),
+            .offset = desc.flushUniformDataOffsetInBytes,
+        },
+        m_contextOptions.disableStorageBuffers ?
+            wgpu::BindGroupEntry{
+                .binding = PATH_BUFFER_IDX,
+                .textureView = webgpu_storage_texture_view(pathBufferRing())
+            } :
+            wgpu::BindGroupEntry{
+                .binding = PATH_BUFFER_IDX,
+                .buffer = webgpu_buffer(pathBufferRing()),
+                .offset = desc.firstPath * sizeof(gpu::PathData),
+            },
+        m_contextOptions.disableStorageBuffers ?
+            wgpu::BindGroupEntry{
+                .binding = PAINT_BUFFER_IDX,
+                .textureView = webgpu_storage_texture_view(paintBufferRing()),
+            } :
+            wgpu::BindGroupEntry{
+                .binding = PAINT_BUFFER_IDX,
+                .buffer = webgpu_buffer(paintBufferRing()),
+                .offset = desc.firstPaint * sizeof(gpu::PaintData),
+            },
+        m_contextOptions.disableStorageBuffers ?
+            wgpu::BindGroupEntry{
+                .binding = PAINT_AUX_BUFFER_IDX,
+                .textureView = webgpu_storage_texture_view(paintAuxBufferRing()),
+            } :
+            wgpu::BindGroupEntry{
+                .binding = PAINT_AUX_BUFFER_IDX,
+                .buffer = webgpu_buffer(paintAuxBufferRing()),
+                .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
+            },
+        m_contextOptions.disableStorageBuffers ?
+            wgpu::BindGroupEntry{
+                .binding = CONTOUR_BUFFER_IDX,
+                .textureView = webgpu_storage_texture_view(contourBufferRing()),
+            } :
+            wgpu::BindGroupEntry{
+                .binding = CONTOUR_BUFFER_IDX,
+                .buffer = webgpu_buffer(contourBufferRing()),
+                .offset = desc.firstContour * sizeof(gpu::ContourData),
+            },
+        {
+            .binding = FEATHER_TEXTURE_IDX,
+            .textureView = m_featherTextureView,
+        },
+        {
+            .binding = TESS_VERTEX_TEXTURE_IDX,
+            .textureView = m_tessVertexTextureView,
+        },
+        {
+            .binding = ATLAS_TEXTURE_IDX,
+            .textureView = m_atlasTextureView,
+        },
+        {
+            .binding = GRAD_TEXTURE_IDX,
+            .textureView = m_gradientTextureView,
+        },
+        {
+            .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
+            .buffer = webgpu_buffer(imageDrawUniformBufferRing()),
+            .size = sizeof(gpu::ImageDrawUniforms),
+        },
+    };
+
     // Render the complex color ramps to the gradient texture.
     if (desc.gradDataHeight > 0)
     {
-        wgpu::BindGroupEntry bindingEntries[] = {
-            {
-                .binding = FLUSH_UNIFORM_BUFFER_IDX,
-                .buffer = webgpu_buffer(flushUniformBufferRing()),
-                .offset = desc.flushUniformDataOffsetInBytes,
-            },
-        };
-
-        wgpu::BindGroupDescriptor bindGroupDesc = {
+        wgpu::BindGroupDescriptor colorRampBindGroupDesc = {
             .layout = m_colorRampPipeline->bindGroupLayout(),
-            .entryCount = std::size(bindingEntries),
-            .entries = bindingEntries,
+            .entryCount = COLOR_RAMP_BINDINGS_COUNT,
+            .entries = perFlushBindingEntries,
         };
-
-        wgpu::BindGroup bindings = m_device.CreateBindGroup(&bindGroupDesc);
 
         wgpu::RenderPassColorAttachment attachment = {
             .view = m_gradientTextureView,
@@ -1856,7 +2154,9 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                  webgpu_buffer(gradSpanBufferRing()),
                                  desc.firstGradSpan *
                                      sizeof(gpu::GradientSpan));
-        gradPass.SetBindGroup(0, bindings);
+        gradPass.SetBindGroup(
+            0,
+            m_device.CreateBindGroup(&colorRampBindGroupDesc));
         gradPass.Draw(gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
                       desc.gradSpanCount,
                       0,
@@ -1867,41 +2167,11 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
-        wgpu::BindGroupEntry bindingEntries[] = {
-            m_contextOptions.disableStorageBuffers ?
-                wgpu::BindGroupEntry{
-                    .binding = PATH_BUFFER_IDX,
-                    .textureView = webgpu_storage_texture_view(pathBufferRing())
-                } :
-                wgpu::BindGroupEntry{
-                    .binding = PATH_BUFFER_IDX,
-                    .buffer = webgpu_buffer(pathBufferRing()),
-                    .offset = desc.firstPath * sizeof(gpu::PathData),
-                },
-            m_contextOptions.disableStorageBuffers ?
-                wgpu::BindGroupEntry{
-                    .binding = CONTOUR_BUFFER_IDX,
-                    .textureView = webgpu_storage_texture_view(contourBufferRing()),
-                } :
-                wgpu::BindGroupEntry{
-                    .binding = CONTOUR_BUFFER_IDX,
-                    .buffer = webgpu_buffer(contourBufferRing()),
-                    .offset = desc.firstContour * sizeof(gpu::ContourData),
-                },
-            {
-                .binding = FLUSH_UNIFORM_BUFFER_IDX,
-                .buffer = webgpu_buffer(flushUniformBufferRing()),
-                .offset = desc.flushUniformDataOffsetInBytes,
-            },
+        wgpu::BindGroupDescriptor tessBindGroupDesc = {
+            .layout = m_tessellatePipeline->perFlushBindingsLayout(),
+            .entryCount = TESS_BINDINGS_COUNT,
+            .entries = perFlushBindingEntries,
         };
-
-        wgpu::BindGroupDescriptor bindGroupDesc = {
-            .layout = m_tessellatePipeline->bindGroupLayout(),
-            .entryCount = std::size(bindingEntries),
-            .entries = bindingEntries,
-        };
-
-        wgpu::BindGroup bindings = m_device.CreateBindGroup(&bindGroupDesc);
 
         wgpu::RenderPassColorAttachment attachment{
             .view = m_tessVertexTextureView,
@@ -1930,13 +2200,91 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                      sizeof(gpu::TessVertexSpan));
         tessPass.SetIndexBuffer(m_tessSpanIndexBuffer,
                                 wgpu::IndexFormat::Uint16);
-        tessPass.SetBindGroup(0, bindings);
+        tessPass.SetBindGroup(PER_FLUSH_BINDINGS_SET,
+                              m_device.CreateBindGroup(&tessBindGroupDesc));
+        tessPass.SetBindGroup(SAMPLER_BINDINGS_SET, m_samplerBindings);
         tessPass.DrawIndexed(std::size(gpu::kTessSpanIndices),
                              desc.tessVertexSpanCount,
                              0,
                              0,
                              0);
         tessPass.End();
+    }
+
+    // Render the atlas if we have any offscreen feathers.
+    if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
+    {
+        wgpu::BindGroupDescriptor atlasBindGroupDesc = {
+            .layout = m_atlasPipeline->perFlushBindingsLayout(),
+            .entryCount = ATLAS_BINDINGS_COUNT,
+            .entries = perFlushBindingEntries,
+        };
+
+        wgpu::RenderPassColorAttachment attachment{
+            .view = m_atlasTextureView,
+            .loadOp = wgpu::LoadOp::Clear,
+            .storeOp = wgpu::StoreOp::Store,
+            .clearValue = {0, 0, 0, 0},
+        };
+
+        wgpu::RenderPassDescriptor atlasPassDesc = {
+            .colorAttachmentCount = 1,
+            .colorAttachments = &attachment,
+        };
+
+        wgpu::RenderPassEncoder atlasPass =
+            encoder.BeginRenderPass(&atlasPassDesc);
+        atlasPass.SetViewport(0.f,
+                              0.f,
+                              desc.atlasContentWidth,
+                              desc.atlasContentHeight,
+                              0.0,
+                              1.0);
+        atlasPass.SetVertexBuffer(0, m_pathPatchVertexBuffer);
+        atlasPass.SetIndexBuffer(m_pathPatchIndexBuffer,
+                                 wgpu::IndexFormat::Uint16);
+        atlasPass.SetBindGroup(PER_FLUSH_BINDINGS_SET,
+                               m_device.CreateBindGroup(&atlasBindGroupDesc));
+        atlasPass.SetBindGroup(SAMPLER_BINDINGS_SET, m_samplerBindings);
+
+        if (desc.atlasFillBatchCount != 0)
+        {
+            atlasPass.SetPipeline(m_atlasPipeline->fillPipeline());
+            for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
+            {
+                const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
+                atlasPass.SetScissorRect(fillBatch.scissor.left,
+                                         fillBatch.scissor.top,
+                                         fillBatch.scissor.width(),
+                                         fillBatch.scissor.height());
+                atlasPass.DrawIndexed(gpu::kMidpointFanCenterAAPatchIndexCount,
+                                      fillBatch.patchCount,
+                                      gpu::kMidpointFanCenterAAPatchBaseIndex,
+                                      0,
+                                      fillBatch.basePatch);
+            }
+        }
+
+        if (desc.atlasStrokeBatchCount != 0)
+        {
+            atlasPass.SetPipeline(m_atlasPipeline->strokePipeline());
+            for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
+            {
+                const gpu::AtlasDrawBatch& strokeBatch =
+                    desc.atlasStrokeBatches[i];
+                atlasPass.SetScissorRect(strokeBatch.scissor.left,
+                                         strokeBatch.scissor.top,
+                                         strokeBatch.scissor.width(),
+                                         strokeBatch.scissor.height());
+                atlasPass.DrawIndexed(gpu::kMidpointFanPatchBorderIndexCount,
+                                      strokeBatch.patchCount,
+                                      gpu::kMidpointFanPatchBaseIndex,
+                                      0,
+                                      strokeBatch.basePatch);
+            }
+        }
+
+        atlasPass.End();
     }
 
     wgpu::LoadOp loadOp;
@@ -2048,67 +2396,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     }
 
     drawPass.SetBindGroup(SAMPLER_BINDINGS_SET, m_samplerBindings);
-
-    wgpu::BindGroupEntry perFlushBindingEntries[] = {
-        {
-            .binding = TESS_VERTEX_TEXTURE_IDX,
-            .textureView = m_tessVertexTextureView,
-        },
-        {
-            .binding = GRAD_TEXTURE_IDX,
-            .textureView = m_gradientTextureView,
-        },
-        m_contextOptions.disableStorageBuffers ?
-            wgpu::BindGroupEntry{
-                .binding = PATH_BUFFER_IDX,
-                .textureView = webgpu_storage_texture_view(pathBufferRing())
-            } :
-            wgpu::BindGroupEntry{
-                .binding = PATH_BUFFER_IDX,
-                .buffer = webgpu_buffer(pathBufferRing()),
-                .offset = desc.firstPath * sizeof(gpu::PathData),
-            },
-        m_contextOptions.disableStorageBuffers ?
-            wgpu::BindGroupEntry{
-                .binding = PAINT_BUFFER_IDX,
-                .textureView = webgpu_storage_texture_view(paintBufferRing()),
-            } :
-            wgpu::BindGroupEntry{
-                .binding = PAINT_BUFFER_IDX,
-                .buffer = webgpu_buffer(paintBufferRing()),
-                .offset = desc.firstPaint * sizeof(gpu::PaintData),
-            },
-        m_contextOptions.disableStorageBuffers ?
-            wgpu::BindGroupEntry{
-                .binding = PAINT_AUX_BUFFER_IDX,
-                .textureView = webgpu_storage_texture_view(paintAuxBufferRing()),
-            } :
-            wgpu::BindGroupEntry{
-                .binding = PAINT_AUX_BUFFER_IDX,
-                .buffer = webgpu_buffer(paintAuxBufferRing()),
-                .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
-            },
-        m_contextOptions.disableStorageBuffers ?
-            wgpu::BindGroupEntry{
-                .binding = CONTOUR_BUFFER_IDX,
-                .textureView = webgpu_storage_texture_view(contourBufferRing()),
-            } :
-            wgpu::BindGroupEntry{
-                .binding = CONTOUR_BUFFER_IDX,
-                .buffer = webgpu_buffer(contourBufferRing()),
-                .offset = desc.firstContour * sizeof(gpu::ContourData),
-            },
-        {
-            .binding = FLUSH_UNIFORM_BUFFER_IDX,
-            .buffer = webgpu_buffer(flushUniformBufferRing()),
-            .offset = desc.flushUniformDataOffsetInBytes,
-        },
-        {
-            .binding = IMAGE_DRAW_UNIFORM_BUFFER_IDX,
-            .buffer = webgpu_buffer(imageDrawUniformBufferRing()),
-            .size = sizeof(gpu::ImageDrawUniforms),
-        },
-    };
 
     wgpu::BindGroupDescriptor perFlushBindGroupDesc = {
         .layout = m_drawBindGroupLayouts[PER_FLUSH_BINDINGS_SET],

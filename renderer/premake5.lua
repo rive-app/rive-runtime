@@ -123,10 +123,11 @@ if not _OPTIONS['with-webgpu'] then
                 'dependencies/dawn/out/release/obj/src/dawn/platform',
             })
             links({
-                'dawn_native_static',
+                'winmm',
                 'webgpu_dawn',
-                'dawn_platform_static',
+                'dawn_native_static',
                 'dawn_proc_static',
+                'dawn_platform_static',
             })
         end
 
@@ -214,6 +215,8 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             'webgpu_player/rivs/stopwatch.riv',
             'webgpu_player/rivs/volume_bars.riv',
             'webgpu_player/rivs/travel_icons.riv',
+            'webgpu_player/rivs/falling.riv',
+            'webgpu_player/rivs/tape.riv',
         })
 
         links({
@@ -259,6 +262,9 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
                 'dependencies/dawn/include',
                 'dependencies/dawn/out/release/gen/include',
             })
+            files({
+                'path_fiddle/fiddle_context_dawn.cpp',
+            })
             libdirs({
                 'dependencies/dawn/out/release/obj/src/dawn',
                 'dependencies/dawn/out/release/obj/src/dawn/native',
@@ -266,10 +272,11 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
                 'dependencies/dawn/out/release/obj/src/dawn/platform',
             })
             links({
-                'dawn_native_static',
+                'winmm',
                 'webgpu_dawn',
-                'dawn_platform_static',
+                'dawn_native_static',
                 'dawn_proc_static',
+                'dawn_platform_static',
             })
         end
 

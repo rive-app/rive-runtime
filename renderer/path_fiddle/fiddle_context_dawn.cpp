@@ -10,186 +10,93 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeDawnPLS(
 
 #else
 
-#include "dawn/native/DawnNative.h"
-#include "dawn/dawn_proc.h"
-
-#include "rive/renderer/rive_render_factory.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
-#include <array>
-#include <thread>
-
 using namespace rive;
 using namespace rive::gpu;
-
-static void print_device_error(WGPUErrorType errorType,
-                               const char* message,
-                               void*)
-{
-    const char* errorTypeName = "";
-    switch (errorType)
-    {
-        case WGPUErrorType_Validation:
-            errorTypeName = "Validation";
-            break;
-        case WGPUErrorType_OutOfMemory:
-            errorTypeName = "Out of memory";
-            break;
-        case WGPUErrorType_Unknown:
-            errorTypeName = "Unknown";
-            break;
-        case WGPUErrorType_DeviceLost:
-            errorTypeName = "Device lost";
-            break;
-        default:
-            RIVE_UNREACHABLE();
-            return;
-    }
-    printf("%s error: %s\n", errorTypeName, message);
-}
-
-static void device_lost_callback(WGPUDeviceLostReason reason,
-                                 const char* message,
-                                 void*)
-{
-    printf("device lost: %s\n", message);
-}
-
-static void device_log_callback(WGPULoggingType type,
-                                const char* message,
-                                void*)
-{
-    printf("Device log %s\n", message);
-}
-
-#ifdef __APPLE__
-extern float GetDawnWindowBackingScaleFactor(GLFWwindow*, bool retina);
-extern std::unique_ptr<wgpu::ChainedStruct>
-SetupDawnWindowAndGetSurfaceDescriptor(GLFWwindow*, bool retina);
-#else
 
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
 
-static float GetDawnWindowBackingScaleFactor(GLFWwindow*, bool retina)
+#define _CRT_SECURE_NO_DEPRECATE
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+
+// Dawn integration based on:
+// https://gist.github.com/mmozeiko/4c68b91faff8b7026e8c5e44ff810b62
+static void on_device_error(WGPUDevice const* device,
+                            WGPUErrorType type,
+                            WGPUStringView message,
+                            void* userdata1,
+                            void* userdata2)
 {
-    return 1;
+    fprintf(stderr, "WebGPU Error: %s\n", message.data);
+    abort();
 }
 
-static std::unique_ptr<wgpu::ChainedStruct>
-SetupDawnWindowAndGetSurfaceDescriptor(GLFWwindow* window, bool retina)
+static void on_adapter_request_ended(WGPURequestAdapterStatus status,
+                                     WGPUAdapter adapter,
+                                     struct WGPUStringView message,
+                                     void* userdata1,
+                                     void* userdata2)
 {
-    std::unique_ptr<wgpu::SurfaceDescriptorFromWindowsHWND> desc =
-        std::make_unique<wgpu::SurfaceDescriptorFromWindowsHWND>();
-    desc->hwnd = glfwGetWin32Window(window);
-    desc->hinstance = GetModuleHandle(nullptr);
-    return std::move(desc);
+    if (status != WGPURequestAdapterStatus_Success)
+    {
+        // cannot find adapter?
+        fprintf(stderr, "Failed to find an adapter: %s\n", message.data);
+        abort();
+    }
+    else
+    {
+        // use first adapter provided
+        WGPUAdapter* result = (WGPUAdapter*)userdata1;
+        if (*result == NULL)
+        {
+            *result = adapter;
+        }
+    }
 }
-#endif
+
+const WGPUTextureFormat SWAPCHAIN_FORMAT = WGPUTextureFormat_RGBA8Unorm;
 
 class FiddleContextDawnPLS : public FiddleContext
 {
 public:
     FiddleContextDawnPLS(FiddleContextOptions options) : m_options(options)
     {
-        WGPUInstanceDescriptor instanceDescriptor{};
-        instanceDescriptor.features.timedWaitAnyEnable = true;
+        // optionally use WGPUInstanceDescriptor::nextInChain for
+        // WGPUDawnTogglesDescriptor with various toggles enabled or
+        // disabled:
+        // https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/native/Toggles.cpp
+        WGPUInstanceDescriptor instanceDescriptor = {
+            .capabilities.timedWaitAnyEnable = true,
+        };
         m_instance =
-            std::make_unique<dawn::native::Instance>(&instanceDescriptor);
-
-        wgpu::RequestAdapterOptions adapterOptions = {
-            .powerPreference = wgpu::PowerPreference::HighPerformance,
-        };
-
-        // Get an adapter for the backend to use, and create the device.
-        auto adapters = m_instance->EnumerateAdapters(&adapterOptions);
-        wgpu::DawnAdapterPropertiesPowerPreference power_props{};
-        wgpu::AdapterProperties adapterProperties{};
-        adapterProperties.nextInChain = &power_props;
-        // Find the first adapter which satisfies the adapterType requirement.
-        auto isAdapterType = [&adapterProperties](const auto& adapter) -> bool {
-            adapter.GetProperties(&adapterProperties);
-            return adapterProperties.adapterType ==
-                   wgpu::AdapterType::DiscreteGPU;
-        };
-        auto preferredAdapter =
-            std::find_if(adapters.begin(), adapters.end(), isAdapterType);
-        if (preferredAdapter == adapters.end())
-        {
-            fprintf(stderr,
-                    "Failed to find an adapter! Please try another adapter "
-                    "type.\n");
-            return;
-        }
-
-        std::vector<const char*> enableToggleNames = {
-            "allow_unsafe_apis",
-            "turn_off_vsync",
-            // "skip_validation",
-        };
-        std::vector<const char*> disabledToggleNames;
-
-        WGPUDawnTogglesDescriptor toggles = {
-            .chain =
-                {
-                    .next = nullptr,
-                    .sType = WGPUSType_DawnTogglesDescriptor,
-                },
-            .enabledToggleCount = enableToggleNames.size(),
-            .enabledToggles = enableToggleNames.data(),
-            .disabledToggleCount = disabledToggleNames.size(),
-            .disabledToggles = disabledToggleNames.data(),
-        };
-
-        std::vector<WGPUFeatureName> requiredFeatures = {
-            // WGPUFeatureName_IndirectFirstInstance,
-            // WGPUFeatureName_ShaderF16,
-            // WGPUFeatureName_BGRA8UnormStorage,
-            // WGPUFeatureName_Float32Filterable,
-            // WGPUFeatureName_DawnInternalUsages,
-            // WGPUFeatureName_DawnMultiPlanarFormats,
-            // WGPUFeatureName_DawnNative,
-            // WGPUFeatureName_ImplicitDeviceSynchronization,
-            WGPUFeatureName_SurfaceCapabilities,
-            // WGPUFeatureName_TransientAttachments,
-            // WGPUFeatureName_DualSourceBlending,
-            // WGPUFeatureName_Norm16TextureFormats,
-            // WGPUFeatureName_HostMappedPointer,
-            // WGPUFeatureName_ChromiumExperimentalReadWriteStorageTexture,
-        };
-
-        WGPUDeviceDescriptor deviceDesc = {
-            .nextInChain = reinterpret_cast<WGPUChainedStruct*>(&toggles),
-            .requiredFeatureCount = requiredFeatures.size(),
-            .requiredFeatures = requiredFeatures.data(),
-        };
-
-        m_backendDevice = preferredAdapter->CreateDevice(&deviceDesc);
-        DawnProcTable backendProcs = dawn::native::GetProcs();
-        dawnProcSetProcs(&backendProcs);
-        backendProcs.deviceSetUncapturedErrorCallback(m_backendDevice,
-                                                      print_device_error,
-                                                      nullptr);
-        backendProcs.deviceSetDeviceLostCallback(m_backendDevice,
-                                                 device_lost_callback,
-                                                 nullptr);
-        backendProcs.deviceSetLoggingCallback(m_backendDevice,
-                                              device_log_callback,
-                                              nullptr);
-        m_device = wgpu::Device::Acquire(m_backendDevice);
-        m_queue = m_device.GetQueue();
-        m_renderContext = RenderContextWebGPUImpl::MakeContext(
-            m_device,
-            m_queue,
-            RenderContextWebGPUImpl::ContextOptions());
+            wgpu::Instance::Acquire(wgpuCreateInstance(&instanceDescriptor));
+        assert(m_instance && "Failed to create WebGPU instance");
     }
 
-    float dpiScale(GLFWwindow* window) const override
+    ~FiddleContextDawnPLS()
     {
-        return GetDawnWindowBackingScaleFactor(window, m_options.retinaDisplay);
+        // Destroy in reverse order so objects go before their owners.
+        if (m_currentSurfaceTextureView != nullptr)
+        {
+            wgpuTextureViewRelease(m_currentSurfaceTextureView);
+            m_currentSurfaceTextureView = nullptr;
+        }
+        m_queue = nullptr;
+        m_device = nullptr;
+        m_adapter = nullptr;
+        if (m_surfaceIsConfigured)
+        {
+            m_surface.Unconfigure();
+        }
+        m_surface = nullptr;
     }
+
+    float dpiScale(GLFWwindow* window) const override { return 1; }
 
     Factory* factory() override { return m_renderContext.get(); }
 
@@ -208,40 +115,140 @@ public:
                        int height,
                        uint32_t sampleCount) override
     {
-        DawnProcTable backendProcs = dawn::native::GetProcs();
-
-        // Create the swapchain
-        auto surfaceChainedDesc =
-            SetupDawnWindowAndGetSurfaceDescriptor(window,
-                                                   m_options.retinaDisplay);
-        WGPUSurfaceDescriptor surfaceDesc = {
-            .nextInChain =
-                reinterpret_cast<WGPUChainedStruct*>(surfaceChainedDesc.get()),
-        };
-        WGPUSurface surface =
-            backendProcs.instanceCreateSurface(m_instance->Get(), &surfaceDesc);
-
-        WGPUSwapChainDescriptor swapChainDesc = {
-            .usage = WGPUTextureUsage_RenderAttachment,
-            .format = WGPUTextureFormat_BGRA8Unorm,
-            .width = static_cast<uint32_t>(width),
-            .height = static_cast<uint32_t>(height),
-            .presentMode = WGPUPresentMode_Immediate, // No vsync.
-        };
-        if (m_options.enableReadPixels)
+        if (m_renderContext == nullptr)
         {
-            swapChainDesc.usage |= WGPUTextureUsage_CopySrc;
+            WGPUSurfaceSourceWindowsHWND surfaceDescWin = {
+                .chain.sType = WGPUSType_SurfaceSourceWindowsHWND,
+                .hinstance = GetModuleHandle(nullptr),
+                .hwnd = glfwGetWin32Window(window),
+            };
+            WGPUSurfaceDescriptor surfaceDesc = {
+                .nextInChain = &surfaceDescWin.chain,
+            };
+            m_surface = wgpu::Surface::Acquire(
+                wgpuInstanceCreateSurface(m_instance.Get(), &surfaceDesc));
+            assert(m_surface && "Failed to create WebGPU surface");
+
+            WGPURequestAdapterOptions options = {
+                .compatibleSurface = m_surface.Get(),
+                .powerPreference = WGPUPowerPreference_HighPerformance,
+            };
+
+            WGPUAdapter adapter = nullptr;
+            await(wgpuInstanceRequestAdapter(
+                m_instance.Get(),
+                &options,
+                {
+                    .mode = WGPUCallbackMode_WaitAnyOnly,
+                    .callback = on_adapter_request_ended,
+                    .userdata1 = &adapter,
+                }));
+            m_adapter = wgpu::Adapter::Acquire(adapter);
+            assert(m_adapter && "Failed to get WebGPU adapter");
+
+            // can query extra details on what adapter supports:
+            // wgpuAdapterEnumerateFeatures
+            // wgpuAdapterGetLimits
+            // wgpuAdapterGetProperties
+            // wgpuAdapterHasFeature
+
+            WGPUAdapterInfo info = {0};
+            wgpuAdapterGetInfo(m_adapter.Get(), &info);
+            printf("WebGPU GPU: %s\n", info.description.data);
+#if 0
+            const char* adapter_types[] = {
+                [WGPUAdapterType_DiscreteGPU] = "Discrete GPU",
+                [WGPUAdapterType_IntegratedGPU] = "Integrated GPU",
+                [WGPUAdapterType_CPU] = "CPU",
+                [WGPUAdapterType_Unknown] = "unknown",
+            };
+
+            printf("Device        = %.*s\n"
+                   "Description   = %.*s\n"
+                   "Vendor        = %.*s\n"
+                   "Architecture  = %.*s\n"
+                   "Adapter Type  = %s\n",
+                   (int)info.device.length,
+                   info.device.data,
+                   (int)info.description.length,
+                   info.description.data,
+                   (int)info.vendor.length,
+                   info.vendor.data,
+                   (int)info.architecture.length,
+                   info.architecture.data,
+                   adapter_types[info.adapterType]);
+#endif
+
+            // if you want to be sure device will support things you'll use,
+            // you can specify requirements here:
+
+            // WGPUSupportedLimits supported = { 0 };
+            // wgpuAdapterGetLimits(adapter, &supported);
+
+            // supported.limits.maxTextureDimension2D = kTextureWidth;
+            // supported.limits.maxBindGroups = 1;
+            // supported.limits.maxBindingsPerBindGroup = 3; // uniform
+            // buffer for vertex shader, and texture + sampler for fragment
+            // supported.limits.maxSampledTexturesPerShaderStage = 1;
+            // supported.limits.maxSamplersPerShaderStage = 1;
+            // supported.limits.maxUniformBuffersPerShaderStage = 1;
+            // supported.limits.maxUniformBufferBindingSize = 4 * 4 *
+            // sizeof(float);
+            // // 4x4 matrix supported.limits.maxVertexBuffers = 1;
+            // supported.limits.maxBufferSize = sizeof(kVertexData);
+            // supported.limits.maxVertexAttributes = 3; // pos, texcoord,
+            // color supported.limits.maxVertexBufferArrayStride =
+            // kVertexStride; supported.limits.maxColorAttachments = 1;
+
+            WGPUDeviceDescriptor deviceDesc = {
+                // notify on errors
+                .uncapturedErrorCallbackInfo.callback = &on_device_error,
+
+                // extra features:
+                // https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/native/Features.cpp
+                //.requiredFeaturesCount = n
+                //.requiredFeatures = (WGPUFeatureName[]) { ... }
+                //.requiredLimits = &(WGPURequiredLimits) { .limits =
+                // supported.limits },
+            };
+
+            m_device = wgpu::Device::Acquire(
+                wgpuAdapterCreateDevice(m_adapter.Get(), &deviceDesc));
+            assert(m_device && "Failed to create WebGPU device");
+
+            // default device queue
+            m_queue = m_device.GetQueue();
+
+            m_renderContext = RenderContextWebGPUImpl::MakeContext(
+                m_device,
+                m_queue,
+                RenderContextWebGPUImpl::ContextOptions());
         }
 
-        WGPUSwapChain backendSwapChain =
-            backendProcs.deviceCreateSwapChain(m_backendDevice,
-                                               surface,
-                                               &swapChainDesc);
-        m_swapchain = wgpu::SwapChain::Acquire(backendSwapChain);
+        if (m_surfaceIsConfigured)
+        {
+            // release old swap chain
+            m_surface.Unconfigure();
+            m_surfaceIsConfigured = false;
+        }
+
+        WGPUSurfaceConfiguration surfaceConfig = {
+            .device = m_device.Get(),
+            .format = SWAPCHAIN_FORMAT,
+            .usage =
+                WGPUTextureUsage_CopySrc | WGPUTextureUsage_RenderAttachment,
+            // .alphaMode = WGPUCompositeAlphaMode_Premultiplied,
+            .width = static_cast<uint32_t>(width),
+            .height = static_cast<uint32_t>(height),
+            .presentMode = WGPUPresentMode_Immediate,
+        };
+
+        wgpuSurfaceConfigure(m_surface.Get(), &surfaceConfig);
+        m_surfaceIsConfigured = true;
 
         m_renderTarget =
             m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-                ->makeRenderTarget(wgpu::TextureFormat::BGRA8Unorm,
+                ->makeRenderTarget(wgpu::TextureFormat::RGBA8Unorm,
                                    width,
                                    height);
         m_pixelReadBuff = {};
@@ -256,12 +263,26 @@ public:
 
     void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
     {
-        assert(m_swapchain.GetCurrentTexture().GetWidth() ==
+        wgpuSurfaceGetCurrentTexture(m_surface.Get(), &m_currentSurfaceTexture);
+        assert(wgpuTextureGetWidth(m_currentSurfaceTexture.texture) ==
                m_renderTarget->width());
-        assert(m_swapchain.GetCurrentTexture().GetHeight() ==
+        assert(wgpuTextureGetHeight(m_currentSurfaceTexture.texture) ==
                m_renderTarget->height());
-        m_renderTarget->setTargetTextureView(
-            m_swapchain.GetCurrentTextureView());
+        WGPUTextureViewDescriptor textureViewDesc = {
+            .format = SWAPCHAIN_FORMAT,
+            .dimension = WGPUTextureViewDimension_2D,
+            .baseMipLevel = 0,
+            .mipLevelCount = 1,
+            .baseArrayLayer = 0,
+            .arrayLayerCount = 1,
+            .aspect = WGPUTextureAspect_All,
+            .usage =
+                WGPUTextureUsage_CopySrc | WGPUTextureUsage_RenderAttachment,
+        };
+        m_currentSurfaceTextureView =
+            wgpuTextureCreateView(m_currentSurfaceTexture.texture,
+                                  &textureViewDesc);
+        m_renderTarget->setTargetTextureView(m_currentSurfaceTextureView);
         m_renderContext->beginFrame(std::move(frameDescriptor));
     }
 
@@ -295,12 +316,13 @@ public:
             assert(m_pixelReadBuff.GetSize() == h * rowBytesInReadBuff);
 
             // Blit the framebuffer into m_pixelReadBuff.
-            wgpu::CommandEncoder readEncoder = m_device.CreateCommandEncoder();
-            wgpu::ImageCopyTexture srcTexture = {
-                .texture = m_swapchain.GetCurrentTexture(),
+            wgpu::CommandEncoder readEncoder =
+                m_device.CreateCommandEncoder(NULL);
+            wgpu::TexelCopyTextureInfo srcTexture = {
+                .texture = m_currentSurfaceTexture.texture,
                 .origin = {0, 0, 0},
             };
-            wgpu::ImageCopyBuffer dstBuffer = {
+            wgpu::TexelCopyBufferInfo dstBuffer = {
                 .layout =
                     {
                         .offset = 0,
@@ -314,31 +336,24 @@ public:
             };
             readEncoder.CopyTextureToBuffer(&srcTexture, &dstBuffer, &copySize);
 
-            wgpu::CommandBuffer commands = readEncoder.Finish();
+            wgpu::CommandBuffer commands = readEncoder.Finish(NULL);
             m_queue.Submit(1, &commands);
 
             // Request a mapping of m_pixelReadBuff and wait for it to complete.
-            bool mapped = false;
-            m_pixelReadBuff.MapAsync(
+            await(m_pixelReadBuff.MapAsync(
                 wgpu::MapMode::Read,
                 0,
                 h * rowBytesInReadBuff,
-                [](WGPUBufferMapAsyncStatus status, void* mapped) {
-                    if (status != WGPUBufferMapAsyncStatus_Success)
+                wgpu::CallbackMode::WaitAnyOnly,
+                [](wgpu::MapAsyncStatus status, wgpu::StringView message) {
+                    if (status != wgpu::MapAsyncStatus::Success)
                     {
-                        fprintf(stderr, "failed to map m_pixelReadBuff\n");
+                        fprintf(stderr,
+                                "failed to map m_pixelReadBuff: %s\n",
+                                message.data);
                         abort();
                     }
-                    *reinterpret_cast<bool*>(mapped) = true;
-                },
-                &mapped);
-            while (!mapped)
-            {
-                // Spin until the GPU is finished with m_pixelReadBuff and we
-                // can read it.
-                std::this_thread::sleep_for(std::chrono::milliseconds(1));
-                tick();
-            }
+                }));
 
             // Copy the image data from m_pixelReadBuff to pixelData.
             pixelData->resize(h * w * 4);
@@ -350,30 +365,42 @@ public:
                 const uint8_t* src =
                     &pixelReadBuffData[(h - y - 1) * rowBytesInReadBuff];
                 size_t row = y * w * 4;
-                for (size_t x = 0; x < w * 4; x += 4)
-                {
-                    // BGBRA -> RGBA.
-                    (*pixelData)[row + x + 0] = src[x + 2];
-                    (*pixelData)[row + x + 1] = src[x + 1];
-                    (*pixelData)[row + x + 2] = src[x + 0];
-                    (*pixelData)[row + x + 3] = src[x + 3];
-                }
+                memcpy(pixelData->data() + row, src, w * 4);
             }
             m_pixelReadBuff.Unmap();
         }
 
-        m_swapchain.Present();
+        wgpuTextureViewRelease(m_currentSurfaceTextureView);
+        m_currentSurfaceTextureView = nullptr;
+
+        m_surface.Present();
     }
 
-    void tick() override { m_device.Tick(); }
+    void tick() override { wgpuInstanceProcessEvents(m_instance.Get()); }
 
 private:
+    void await(WGPUFuture future)
+    {
+        WGPUFutureWaitInfo futureWait = {future};
+        if (wgpuInstanceWaitAny(m_instance.Get(), 1, &futureWait, -1) !=
+            WGPUWaitStatus_Success)
+        {
+            fprintf(stderr, "wgpuInstanceWaitAny failed.");
+            abort();
+        }
+    }
+
     const FiddleContextOptions m_options;
-    WGPUDevice m_backendDevice = {};
-    wgpu::Device m_device = {};
-    wgpu::Queue m_queue = {};
-    wgpu::SwapChain m_swapchain = {};
-    std::unique_ptr<dawn::native::Instance> m_instance;
+
+    wgpu::Instance m_instance = nullptr;
+    wgpu::Surface m_surface = nullptr;
+    wgpu::Adapter m_adapter = nullptr;
+    wgpu::Device m_device = nullptr;
+    wgpu::Queue m_queue = nullptr;
+    bool m_surfaceIsConfigured = false;
+
+    WGPUSurfaceTexture m_currentSurfaceTexture = {};
+    WGPUTextureView m_currentSurfaceTextureView = {};
     std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetWebGPU> m_renderTarget;
     wgpu::Buffer m_pixelReadBuff;

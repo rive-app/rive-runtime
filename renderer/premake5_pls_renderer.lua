@@ -240,7 +240,6 @@ do
             'dependencies/dawn/include',
             'dependencies/dawn/out/release/gen/include',
         })
-        files({ 'dependencies/dawn/out/release/gen/src/dawn/webgpu_cpp.cpp' })
     end
 
     filter({ 'options:with-webgpu or with-dawn' })

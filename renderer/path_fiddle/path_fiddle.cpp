@@ -732,14 +732,6 @@ static void update_window_title(double fps,
 
 void riveMainLoop()
 {
-    if (rivName && !rivFile)
-    {
-        std::ifstream rivStream(rivName, std::ios::binary);
-        std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
-                                      {});
-        rivFile = File::import(rivBytes, fiddleContext->factory());
-    }
-
 #ifdef __EMSCRIPTEN__
     {
         // Fit the canvas to the browser window size.
@@ -778,6 +770,14 @@ void riveMainLoop()
     {
         update_window_title(0, 1, width, height);
         needsTitleUpdate = false;
+    }
+
+    if (rivName && !rivFile)
+    {
+        std::ifstream rivStream(rivName, std::ios::binary);
+        std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
+                                      {});
+        rivFile = File::import(rivBytes, fiddleContext->factory());
     }
 
     // Call right before begin()
