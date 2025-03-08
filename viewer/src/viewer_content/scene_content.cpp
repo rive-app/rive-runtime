@@ -70,7 +70,7 @@ class SceneContent : public ViewerContent
 
     std::unique_ptr<rive::ArtboardInstance> m_ArtboardInstance;
     std::unique_ptr<rive::Scene> m_CurrentScene;
-    rive::ViewModelInstance* m_ViewModelInstance;
+    rive::rcp<rive::ViewModelInstance> m_ViewModelInstance;
     int m_ArtboardIndex = 0;
     int m_AnimationIndex = 0;
     int m_StateMachineIndex = -1;
@@ -87,11 +87,9 @@ class SceneContent : public ViewerContent
 
         m_ArtboardIndex = (index == REQUEST_DEFAULT_SCENE) ? 0 : index;
         m_ArtboardInstance = m_File->artboardAt(m_ArtboardIndex);
-        // m_ViewModelInstance = m_File->viewModelInstanceNamed("vm-3");
-        // m_ViewModelInstance =
-        //     m_File->createViewModelInstance(m_ArtboardInstance.get());
-        // m_ArtboardInstance->setDataContextFromInstance(m_ViewModelInstance);
-
+        m_ViewModelInstance =
+            m_File->createViewModelInstance(m_ArtboardInstance.get());
+        m_ArtboardInstance->bindViewModelInstance(m_ViewModelInstance);
         m_ArtboardInstance->advance(0.0f,
                                     rive::AdvanceFlags::AdvanceNested |
                                         rive::AdvanceFlags::NewFrame);
@@ -134,6 +132,10 @@ class SceneContent : public ViewerContent
         if (m_CurrentScene)
         {
             m_CurrentScene->inputCount();
+            if (m_ViewModelInstance != nullptr)
+            {
+                m_CurrentScene->bindViewModelInstance(m_ViewModelInstance);
+            }
         }
     }
 

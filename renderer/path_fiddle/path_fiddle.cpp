@@ -87,11 +87,18 @@ static int downRepeat = 0;
 std::unique_ptr<File> rivFile;
 std::vector<std::unique_ptr<Artboard>> artboards;
 std::vector<std::unique_ptr<Scene>> scenes;
+std::vector<rive::rcp<rive::ViewModelInstance>> viewModelInstances;
 
-static void make_scenes(size_t count)
+static void clear_scenes()
 {
     artboards.clear();
     scenes.clear();
+    viewModelInstances.clear();
+}
+
+static void make_scenes(size_t count)
+{
+    clear_scenes();
     for (size_t i = 0; i < count; ++i)
     {
         auto artboard = rivFile->artboardDefault();
@@ -114,6 +121,15 @@ static void make_scenes(size_t count)
             // the artboard.
             scene = std::make_unique<StaticScene>(artboard.get());
         }
+
+        viewModelInstances.push_back(
+            rivFile->createViewModelInstance(artboard.get()));
+        artboard->bindViewModelInstance(viewModelInstances.back());
+        if (viewModelInstances.back() != nullptr)
+        {
+            scene->bindViewModelInstance(viewModelInstances.back());
+        }
+
         scene->advanceAndApply(scene->durationSeconds() * i / count);
         artboards.push_back(std::move(artboard));
         scenes.push_back(std::move(scene));
@@ -273,8 +289,7 @@ static void key_callback(GLFWwindow* window,
                 if (shift)
                 {
                     // Toggle Skia.
-                    scenes.clear();
-                    artboards.clear();
+                    clear_scenes();
                     rivFile = nullptr;
                     skia = !skia;
                     fiddleContext = skia ? FiddleContext::MakeGLSkia()

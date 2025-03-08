@@ -163,6 +163,11 @@ public:
         {
             throw "Can't load artboard";
         }
+
+        // Bind the default view model instance
+        m_viewModelInstance = m_file->createViewModelInstance(m_artboard.get());
+        m_artboard->bindViewModelInstance(m_viewModelInstance);
+
         if (stateMachineName != nullptr && stateMachineName[0] != '\0')
         {
             m_scene = m_artboard->stateMachineNamed(stateMachineName);
@@ -171,10 +176,16 @@ public:
         {
             m_scene = m_artboard->defaultStateMachine();
         }
+
         if (m_scene == nullptr)
         {
             // This is a riv without any state machines. Just draw the artboard.
             m_scene = std::make_unique<rive::StaticScene>(m_artboard.get());
+        }
+
+        if (m_scene != nullptr && m_viewModelInstance != nullptr)
+        {
+            m_scene->bindViewModelInstance(m_viewModelInstance);
         }
     }
 
@@ -184,6 +195,7 @@ private:
     std::unique_ptr<rive::File> m_file;
     std::unique_ptr<rive::ArtboardInstance> m_artboard;
     std::unique_ptr<rive::Scene> m_scene;
+    rive::rcp<rive::ViewModelInstance> m_viewModelInstance;
 };
 
 static bool process_single_golden_file(const std::string file, int cellSize)
