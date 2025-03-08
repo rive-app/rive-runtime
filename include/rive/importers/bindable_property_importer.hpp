@@ -14,7 +14,12 @@ private:
 
 public:
     BindablePropertyImporter(BindableProperty* bindableProperty);
-    BindableProperty* bindableProperty() { return m_bindableProperty; }
+    BindableProperty* bindableProperty()
+    {
+        auto bindableProperty = m_bindableProperty;
+        m_bindableProperty = nullptr;
+        return bindableProperty;
+    }
 };
 } // namespace rive
 #endif
