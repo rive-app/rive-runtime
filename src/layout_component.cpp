@@ -293,11 +293,21 @@ void LayoutComponent::updateRenderPath()
     m_backgroundRect.height(m_layout.height());
     if (style() != nullptr)
     {
+        bool isLTR = actualDirection() != LayoutDirection::rtl;
+        auto linkedValue = style()->cornerRadiusTL();
+        auto tl = isLTR ? style()->cornerRadiusTL() : style()->cornerRadiusTR();
+        auto tr = isLTR ? style()->cornerRadiusTR() : style()->cornerRadiusTL();
+        auto bl = isLTR ? style()->cornerRadiusBL() : style()->cornerRadiusBR();
+        auto br = isLTR ? style()->cornerRadiusBR() : style()->cornerRadiusBL();
         m_backgroundRect.linkCornerRadius(style()->linkCornerRadius());
-        m_backgroundRect.cornerRadiusTL(style()->cornerRadiusTL());
-        m_backgroundRect.cornerRadiusTR(style()->cornerRadiusTR());
-        m_backgroundRect.cornerRadiusBL(style()->cornerRadiusBL());
-        m_backgroundRect.cornerRadiusBR(style()->cornerRadiusBR());
+        m_backgroundRect.cornerRadiusTL(
+            style()->linkCornerRadius() ? linkedValue : tl);
+        m_backgroundRect.cornerRadiusTR(
+            style()->linkCornerRadius() ? linkedValue : tr);
+        m_backgroundRect.cornerRadiusBL(
+            style()->linkCornerRadius() ? linkedValue : bl);
+        m_backgroundRect.cornerRadiusBR(
+            style()->linkCornerRadius() ? linkedValue : br);
     }
     m_backgroundRect.update(ComponentDirt::Path);
 
@@ -696,34 +706,37 @@ void LayoutComponent::syncStyle()
         YGValue{m_style->gapHorizontal(), m_style->gapHorizontalUnits()};
     ygStyle.gap()[YGGutterRow] =
         YGValue{m_style->gapVertical(), m_style->gapVerticalUnits()};
-    ygStyle.border()[YGEdgeLeft] =
+
+    bool isLTR = actualDirection() != LayoutDirection::rtl;
+    auto startEdge = isLTR ? YGEdgeLeft : YGEdgeRight;
+    auto endEdge = isLTR ? YGEdgeRight : YGEdgeLeft;
+    ygStyle.border()[startEdge] =
         YGValue{m_style->borderLeft(), m_style->borderLeftUnits()};
-    ygStyle.border()[YGEdgeRight] =
+    ygStyle.border()[endEdge] =
         YGValue{m_style->borderRight(), m_style->borderRightUnits()};
     ygStyle.border()[YGEdgeTop] =
         YGValue{m_style->borderTop(), m_style->borderTopUnits()};
     ygStyle.border()[YGEdgeBottom] =
         YGValue{m_style->borderBottom(), m_style->borderBottomUnits()};
-
-    ygStyle.margin()[YGEdgeLeft] =
+    ygStyle.margin()[startEdge] =
         YGValue{m_style->marginLeft(), m_style->marginLeftUnits()};
-    ygStyle.margin()[YGEdgeRight] =
+    ygStyle.margin()[endEdge] =
         YGValue{m_style->marginRight(), m_style->marginRightUnits()};
     ygStyle.margin()[YGEdgeTop] =
         YGValue{m_style->marginTop(), m_style->marginTopUnits()};
     ygStyle.margin()[YGEdgeBottom] =
         YGValue{m_style->marginBottom(), m_style->marginBottomUnits()};
-    ygStyle.padding()[YGEdgeLeft] =
+    ygStyle.padding()[startEdge] =
         YGValue{m_style->paddingLeft(), m_style->paddingLeftUnits()};
-    ygStyle.padding()[YGEdgeRight] =
+    ygStyle.padding()[endEdge] =
         YGValue{m_style->paddingRight(), m_style->paddingRightUnits()};
     ygStyle.padding()[YGEdgeTop] =
         YGValue{m_style->paddingTop(), m_style->paddingTopUnits()};
     ygStyle.padding()[YGEdgeBottom] =
         YGValue{m_style->paddingBottom(), m_style->paddingBottomUnits()};
-    ygStyle.position()[YGEdgeLeft] =
+    ygStyle.position()[startEdge] =
         YGValue{m_style->positionLeft(), m_style->positionLeftUnits()};
-    ygStyle.position()[YGEdgeRight] =
+    ygStyle.position()[endEdge] =
         YGValue{m_style->positionRight(), m_style->positionRightUnits()};
     ygStyle.position()[YGEdgeTop] =
         YGValue{m_style->positionTop(), m_style->positionTopUnits()};
@@ -1054,6 +1067,7 @@ void LayoutComponent::cascadeLayoutStyle(
     if (m_inheritedDirection != oldDirection)
     {
         markLayoutNodeDirty(true);
+        addDirt(ComponentDirt::Path);
     }
     for (auto child : children())
     {
