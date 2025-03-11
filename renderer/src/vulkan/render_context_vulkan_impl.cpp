@@ -3387,7 +3387,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .accessMask = VK_ACCESS_SHADER_READ_BIT,
             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         },
-        *m_tessVertexTexture);
+        *m_atlasTexture);
 
     auto* renderTarget = static_cast<RenderTargetVulkan*>(desc.renderTarget);
 
