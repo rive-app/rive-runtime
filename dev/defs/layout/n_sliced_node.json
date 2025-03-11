@@ -32,7 +32,8 @@
         "int": 699,
         "string": "width"
       },
-      "description": "Width of the NSlicedNode."
+      "description": "Width of the text object.",
+      "bindable": true
     },
     "height": {
       "type": "double",
@@ -42,7 +43,8 @@
         "int": 700,
         "string": "height"
       },
-      "description": "Height of the NSlicedNode."
+      "description": "Height of the text object.",
+      "bindable": true
     }
   }
 }
