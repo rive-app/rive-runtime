@@ -348,8 +348,8 @@ void Path::update(ComponentDirt value)
     bool worldTransformChanged = hasDirt(value, ComponentDirt::WorldTransform);
     bool deformerChanged = hasDirt(value, ComponentDirt::NSlicer);
 
-    if (pathChanged ||
-        (deformer() != nullptr && (worldTransformChanged || deformerChanged)))
+    if (pathChanged || deformerChanged ||
+        (deformer() != nullptr && worldTransformChanged))
     {
         if (canDeferPathUpdate())
         {
