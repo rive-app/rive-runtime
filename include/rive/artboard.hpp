@@ -81,6 +81,9 @@ private:
     Artboard* parentArtboard() const;
     NestedArtboard* m_host = nullptr;
     bool sharesLayoutWithHost() const;
+    void cloneObjectDataBinds(const Core* object,
+                              Core* clone,
+                              Artboard* artboard) const;
 
     // Variable that tracks whenever the draw order changes. It is used by the
     // state machine controllers to sort their hittable components when they are
@@ -308,6 +311,7 @@ public:
         artboardClone->m_IsInstance = true;
         artboardClone->m_originalWidth = m_originalWidth;
         artboardClone->m_originalHeight = m_originalHeight;
+        cloneObjectDataBinds(this, artboardClone.get(), artboardClone.get());
 
         std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
         cloneObjects.push_back(artboardClone.get());
@@ -323,23 +327,9 @@ public:
                                                          : object->clone());
                 // For each object, clone its data bind objects and target their
                 // clones
-                for (auto dataBind : m_DataBinds)
-                {
-                    if (dataBind->target() == object)
-                    {
-                        auto dataBindClone =
-                            static_cast<DataBind*>(dataBind->clone());
-                        dataBindClone->target(cloneObjects.back());
-                        if (dataBind->converter() != nullptr)
-                        {
-
-                            dataBindClone->converter(dataBind->converter()
-                                                         ->clone()
-                                                         ->as<DataConverter>());
-                        }
-                        artboardClone->m_DataBinds.push_back(dataBindClone);
-                    }
-                }
+                cloneObjectDataBinds(object,
+                                     cloneObjects.back(),
+                                     artboardClone.get());
             }
         }
 

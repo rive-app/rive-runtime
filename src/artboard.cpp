@@ -607,6 +607,28 @@ bool Artboard::sharesLayoutWithHost() const
 {
     return m_host != nullptr && m_host->is<NestedArtboardLayout>();
 }
+
+void Artboard::cloneObjectDataBinds(const Core* object,
+                                    Core* clone,
+                                    Artboard* artboard) const
+{
+
+    for (auto dataBind : m_DataBinds)
+    {
+        if (dataBind->target() == object)
+        {
+            auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
+            dataBindClone->target(clone);
+            if (dataBind->converter() != nullptr)
+            {
+
+                dataBindClone->converter(
+                    dataBind->converter()->clone()->as<DataConverter>());
+            }
+            artboard->m_DataBinds.push_back(dataBindClone);
+        }
+    }
+}
 void Artboard::host(NestedArtboard* nestedArtboard)
 {
     m_host = nestedArtboard;
