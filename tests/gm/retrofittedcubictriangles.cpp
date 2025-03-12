@@ -63,15 +63,18 @@ public:
             &context->perFrameAllocator());
     }
 
-    bool allocateResourcesAndSubpasses(
-        RenderContext::LogicalFlush* flush) override
+    void determineSubpasses() override
     {
-        if (!PathDraw::allocateResourcesAndSubpasses(flush))
+        m_prepassCount = 0;
+        m_subpassCount = 1;
+    }
+
+    bool allocateResources(RenderContext::LogicalFlush* flush) override
+    {
+        if (!PathDraw::allocateResources(flush))
         {
             return false;
         }
-        m_prepassCount = 0;
-        m_subpassCount = 1;
         return true;
     }
 

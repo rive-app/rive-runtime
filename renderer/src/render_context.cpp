@@ -385,16 +385,11 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
         return false;
     }
 
-    // Allocate final resources and subpasses.
+    // Allocate subpasses.
     int passCountInBatch = 0;
     for (size_t i = 0; i < drawCount; ++i)
     {
-        if (!draws[i]->allocateResourcesAndSubpasses(this))
-        {
-            // The draw failed to allocate resources. Give up and let the caller
-            // flush and try again.
-            return false;
-        }
+        draws[i]->determineSubpasses();
         assert(draws[i]->prepassCount() >= 0);
         assert(draws[i]->subpassCount() >= 0);
         assert(draws[i]->prepassCount() + draws[i]->subpassCount() >= 1);
@@ -408,6 +403,22 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
         m_drawPassCount + passCountInBatch > kMaxReorderedDrawPassCount)
     {
         return false;
+    }
+
+    // Allocate final resources.
+    for (size_t i = 0; i < drawCount; ++i)
+    {
+        if (!draws[i]->allocateResources(this))
+        {
+            // The draw failed to allocate resources. Give up and let the caller
+            // flush and try again.
+            //
+            // FIXME: This works today, but the surrounding code could be
+            // modified to inadvertently leave a stale dangling reference to one
+            // of these draws in m_pendingAtlasDraws. This needs to be
+            // revisited.
+            return false;
+        }
     }
 
     for (size_t i = 0; i < drawCount; ++i)

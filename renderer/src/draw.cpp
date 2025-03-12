@@ -1341,7 +1341,7 @@ void PathDraw::initForInteriorTriangulation(RenderContext* context,
     m_numChops.shrinkToFit(context->numChopsAllocator(), originalNumChopsSize);
 }
 
-bool PathDraw::allocateResourcesAndSubpasses(RenderContext::LogicalFlush* flush)
+bool PathDraw::allocateResources(RenderContext::LogicalFlush* flush)
 {
     // Allocate a gradient if needed. Do this first since it's more expensive to
     // fail after setting up an atlas draw than a gradient draw.
@@ -1415,7 +1415,11 @@ bool PathDraw::allocateResourcesAndSubpasses(RenderContext::LogicalFlush* flush)
             m_coverageBufferRange.offsetY = -visibleBounds.top + PADDING;
         }
     }
+    return true;
+}
 
+void PathDraw::determineSubpasses()
+{
     // Interior triangulation has two subpasses: outer cubics and interior
     // triangles.
     m_subpassCount = m_triangulator != nullptr ? 2 : 1;
@@ -1443,8 +1447,6 @@ bool PathDraw::allocateResourcesAndSubpasses(RenderContext::LogicalFlush* flush)
             std::swap(m_subpassCount, m_prepassCount);
         }
     }
-
-    return true;
 }
 
 void PathDraw::pushToRenderContext(RenderContext::LogicalFlush* flush,

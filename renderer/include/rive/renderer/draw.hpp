@@ -103,18 +103,22 @@ public:
     };
     const Draw* nextDstRead() const { return m_nextDstRead; }
 
-    // Allocates any remaining resources necessary for the draw (gradients,
-    // coverage buffer ranges, etc.), and finalizes m_prepassCount and
-    // m_subpassCount.
-    //
-    // Returns false if any allocation failed due to resource constraints, at
-    // which point the caller will have to issue a logical flush and try again.
-    virtual bool allocateResourcesAndSubpasses(RenderContext::LogicalFlush*)
+    // Finalizes m_prepassCount and m_subpassCount.
+    virtual void determineSubpasses()
     {
         // The subclass must set m_prepassCount and m_subpassCount in this call
         // if they are not 0 & 1.
         assert(m_prepassCount == 0);
         assert(m_subpassCount == 1);
+    }
+
+    // Allocates any remaining resources necessary for the draw (gradients,
+    // coverage buffer ranges, atlas slots, etc.).
+    //
+    // Returns false if any allocation failed due to resource constraints, at
+    // which point the caller will have to issue a logical flush and try again.
+    virtual bool allocateResources(RenderContext::LogicalFlush*)
+    {
         return true;
     }
 
@@ -149,7 +153,7 @@ protected:
 
     // Before issuing the main draws, the renderContext may do a front-to-back
     // pass. Any draw who wants to participate in front-to-back rendering can
-    // register a positive prepass count during allocateResourcesAndSubpasses().
+    // register a positive prepass count during determineSubpasses().
     //
     // For prepasses, pushToRenderContext() gets called with subpassIndex
     // values: [-m_prepassCount, .., -1].
@@ -157,7 +161,7 @@ protected:
 
     // This is the number of low-level draws that the draw requires during main
     // (back-to-front) rendering. A draw can register the number of subpasses it
-    // requires during allocateResourcesAndSubpasses().
+    // requires during determineSubpasses().
     //
     // For subpasses, pushToRenderContext() gets called with subpassIndex
     // values: [0, .., m_subpassCount - 1].
@@ -248,7 +252,8 @@ public:
 
     GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
 
-    bool allocateResourcesAndSubpasses(RenderContext::LogicalFlush*) override;
+    bool allocateResources(RenderContext::LogicalFlush*) override;
+    void determineSubpasses() override;
 
     void pushToRenderContext(RenderContext::LogicalFlush*,
                              int subpassIndex) override;
