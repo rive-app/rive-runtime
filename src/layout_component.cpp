@@ -167,33 +167,22 @@ bool LayoutComponent::isHidden() const
 bool LayoutComponent::isDisplayHidden() const
 {
 #ifdef WITH_RIVE_LAYOUT
-    if (m_displayHidden)
+    if (m_displayHidden || parent() == nullptr ||
+        !parent()->is<LayoutComponent>())
     {
-        return true;
+        return m_displayHidden;
     }
-    auto p = parent();
-    while (p != nullptr)
-    {
-        if (p->is<LayoutComponent>())
-        {
-            auto layout = p->as<LayoutComponent>();
-            if (layout->isDisplayHidden())
-            {
-                return true;
-            }
-        }
-        p = p->parent();
-    }
-    return false;
+    return parent()->as<LayoutComponent>()->isDisplayHidden();
 #endif
     return false;
 }
 
 void LayoutComponent::propagateCollapse(bool collapse)
 {
+    bool displayHidden = isDisplayHidden();
     for (Component* child : children())
     {
-        child->collapse(collapse || isDisplayHidden());
+        child->collapse(collapse || displayHidden);
     }
 }
 
@@ -205,7 +194,7 @@ bool LayoutComponent::collapse(bool value)
     }
     for (Component* child : children())
     {
-        child->collapse(value || isDisplayHidden());
+        child->collapse(value || m_displayHidden);
     }
     return true;
 }
