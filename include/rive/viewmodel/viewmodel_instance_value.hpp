@@ -11,7 +11,8 @@
 namespace rive
 {
 class ViewModelInstance;
-class ViewModelInstanceValue : public ViewModelInstanceValueBase
+class ViewModelInstanceValue : public ViewModelInstanceValueBase,
+                               public RefCnt<ViewModelInstance>
 {
 private:
     ViewModelProperty* m_ViewModelProperty;

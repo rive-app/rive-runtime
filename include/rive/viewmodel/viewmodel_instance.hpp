@@ -20,6 +20,8 @@ public:
     void addValue(ViewModelInstanceValue* value);
     ViewModelInstanceValue* propertyValue(const uint32_t id);
     ViewModelInstanceValue* propertyValue(const std::string& name);
+    bool replaceViewModelByName(const std::string& name,
+                                rcp<ViewModelInstance> value);
     std::vector<ViewModelInstanceValue*> propertyValues();
     ViewModelInstanceValue* propertyFromPath(std::vector<uint32_t>* path,
                                              size_t index);

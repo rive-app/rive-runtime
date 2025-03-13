@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <unordered_map>
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_value_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_boolean_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_color_runtime.hpp"
@@ -12,13 +13,14 @@
 #include "rive/viewmodel/runtime/viewmodel_instance_string_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_enum_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_trigger_runtime.hpp"
+#include "rive/refcnt.hpp"
 
 namespace rive
 {
 class ViewModel;
 struct PropertyData;
 
-class ViewModelInstanceRuntime
+class ViewModelInstanceRuntime : public RefCnt<ViewModelInstanceRuntime>
 {
 
 public:
@@ -38,6 +40,10 @@ public:
     ViewModelInstanceTriggerRuntime* propertyTrigger(
         const std::string& path) const;
     ViewModelInstanceRuntime* propertyViewModel(const std::string& path) const;
+    bool replaceViewModel(const std::string& path,
+                          ViewModelInstanceRuntime* value) const;
+    bool replaceViewModelByName(const std::string& name,
+                                ViewModelInstanceRuntime* value) const;
     ViewModelInstanceValueRuntime* property(const std::string& path) const;
     rcp<ViewModelInstance> instance() { return m_viewModelInstance; };
     std::vector<PropertyData> properties() const;
@@ -46,14 +52,16 @@ private:
     rcp<ViewModelInstance> m_viewModelInstance = nullptr;
 
     std::string getPropertyNameFromPath(const std::string& path) const;
-    const ViewModelInstanceRuntime* getViewModelInstanceFromPath(
+    const ViewModelInstanceRuntime* viewModelInstanceFromFullPath(
         const std::string& path) const;
 
     mutable std::unordered_map<std::string, ViewModelInstanceValueRuntime*>
         m_properties;
-    mutable std::unordered_map<std::string, ViewModelInstanceRuntime*>
+    mutable std::unordered_map<std::string, rcp<ViewModelInstanceRuntime>>
         m_viewModelInstances;
-    ViewModelInstanceRuntime* viewModelInstanceProperty(
+    rcp<ViewModelInstance> viewModelInstanceProperty(
+        const std::string& name) const;
+    rcp<ViewModelInstanceRuntime> instanceRuntime(
         const std::string& name) const;
     ViewModelInstanceRuntime* viewModelInstanceAtPath(
         const std::string& path) const;

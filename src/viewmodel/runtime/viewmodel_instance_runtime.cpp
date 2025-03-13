@@ -36,10 +36,6 @@ ViewModelInstanceRuntime::~ViewModelInstanceRuntime()
     {
         delete it.second;
     }
-    for (auto& it : m_viewModelInstances)
-    {
-        delete it.second;
-    }
 }
 
 std::string ViewModelInstanceRuntime::name() const
@@ -65,12 +61,12 @@ ViewModelInstanceRuntime* ViewModelInstanceRuntime::viewModelInstanceAtPath(
 
     if (!viewModelInstanceName.empty())
     {
-        auto instance = viewModelInstanceProperty(viewModelInstanceName);
+        auto instance = instanceRuntime(viewModelInstanceName);
         if (instance != nullptr)
         {
             if (restOfPath.empty())
             {
-                return instance;
+                return instance.get();
             }
             else
             {
@@ -89,7 +85,7 @@ ViewModelInstanceValueRuntime* ViewModelInstanceRuntime::property(
         return nullptr;
     }
     const auto propertyName = getPropertyNameFromPath(path);
-    auto viewModelInstanceRuntime = getViewModelInstanceFromPath(path);
+    auto viewModelInstanceRuntime = viewModelInstanceFromFullPath(path);
     if (viewModelInstanceRuntime != nullptr)
     {
         auto properties = viewModelInstanceRuntime->properties();
@@ -132,7 +128,7 @@ std::string ViewModelInstanceRuntime::getPropertyNameFromPath(
 }
 
 const ViewModelInstanceRuntime* ViewModelInstanceRuntime::
-    getViewModelInstanceFromPath(const std::string& path) const
+    viewModelInstanceFromFullPath(const std::string& path) const
 {
     std::string delimiter = "/";
     auto propertyNameDelimiter = path.rfind(delimiter);
@@ -147,7 +143,7 @@ ViewModelInstanceNumberRuntime* ViewModelInstanceRuntime::propertyNumber(
     const std::string& path) const
 {
     const auto propertyName = getPropertyNameFromPath(path);
-    auto viewModelInstance = getViewModelInstanceFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
     if (viewModelInstance != nullptr)
     {
 
@@ -162,7 +158,7 @@ ViewModelInstanceBooleanRuntime* ViewModelInstanceRuntime::propertyBoolean(
     const std::string& path) const
 {
     const auto propertyName = getPropertyNameFromPath(path);
-    auto viewModelInstance = getViewModelInstanceFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
     if (viewModelInstance != nullptr)
     {
 
@@ -178,7 +174,7 @@ ViewModelInstanceStringRuntime* ViewModelInstanceRuntime::propertyString(
     const std::string& path) const
 {
     const auto propertyName = getPropertyNameFromPath(path);
-    auto viewModelInstance = getViewModelInstanceFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
     if (viewModelInstance != nullptr)
     {
 
@@ -193,7 +189,7 @@ ViewModelInstanceColorRuntime* ViewModelInstanceRuntime::propertyColor(
     const std::string& path) const
 {
     const auto propertyName = getPropertyNameFromPath(path);
-    auto viewModelInstance = getViewModelInstanceFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
     if (viewModelInstance != nullptr)
     {
 
@@ -208,7 +204,7 @@ ViewModelInstanceTriggerRuntime* ViewModelInstanceRuntime::propertyTrigger(
     const std::string& path) const
 {
     const auto propertyName = getPropertyNameFromPath(path);
-    auto viewModelInstance = getViewModelInstanceFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
     if (viewModelInstance != nullptr)
     {
 
@@ -224,7 +220,7 @@ ViewModelInstanceEnumRuntime* ViewModelInstanceRuntime::propertyEnum(
     const std::string& path) const
 {
     const auto propertyName = getPropertyNameFromPath(path);
-    auto viewModelInstance = getViewModelInstanceFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
     if (viewModelInstance != nullptr)
     {
 
@@ -235,23 +231,34 @@ ViewModelInstanceEnumRuntime* ViewModelInstanceRuntime::propertyEnum(
     return nullptr;
 }
 
-ViewModelInstanceRuntime* ViewModelInstanceRuntime::viewModelInstanceProperty(
+rcp<ViewModelInstance> ViewModelInstanceRuntime::viewModelInstanceProperty(
+    const std::string& name) const
+{
+    auto viewModelInstanceValue = m_viewModelInstance->propertyValue(name);
+    if (viewModelInstanceValue != nullptr &&
+        viewModelInstanceValue->is<ViewModelInstanceViewModel>())
+    {
+        return viewModelInstanceValue->as<ViewModelInstanceViewModel>()
+            ->referenceViewModelInstance();
+    }
+    return nullptr;
+}
+
+rcp<ViewModelInstanceRuntime> ViewModelInstanceRuntime::instanceRuntime(
     const std::string& name) const
 {
     auto itr = m_viewModelInstances.find(name);
     if (itr != m_viewModelInstances.end())
     {
-        return static_cast<ViewModelInstanceRuntime*>(itr->second);
+        return static_cast<rcp<ViewModelInstanceRuntime>>(itr->second);
     }
-    auto viewModelInstanceValue = m_viewModelInstance->propertyValue(name);
-    if (viewModelInstanceValue != nullptr &&
-        viewModelInstanceValue->is<ViewModelInstanceViewModel>())
+    auto viewModelInstance = viewModelInstanceProperty(name);
+    if (viewModelInstance != nullptr)
     {
-        auto runtimeInstance = new ViewModelInstanceRuntime(
-            viewModelInstanceValue->as<ViewModelInstanceViewModel>()
-                ->referenceViewModelInstance());
-        m_viewModelInstances[name] = runtimeInstance;
-        return runtimeInstance;
+        auto viewModelInstanceRef = rcp<ViewModelInstanceRuntime>(
+            new ViewModelInstanceRuntime(viewModelInstance));
+        m_viewModelInstances[name] = viewModelInstanceRef;
+        return viewModelInstanceRef;
     }
     return nullptr;
 }
@@ -260,12 +267,38 @@ ViewModelInstanceRuntime* ViewModelInstanceRuntime::propertyViewModel(
     const std::string& path) const
 {
     const auto propertyName = getPropertyNameFromPath(path);
-    auto viewModelInstance = getViewModelInstanceFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
     if (viewModelInstance != nullptr)
     {
-        return viewModelInstance->viewModelInstanceProperty(propertyName);
+        return viewModelInstance->instanceRuntime(propertyName).get();
     }
     return nullptr;
+}
+
+bool ViewModelInstanceRuntime::replaceViewModel(
+    const std::string& path,
+    ViewModelInstanceRuntime* value) const
+{
+
+    const auto propertyName = getPropertyNameFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
+    if (viewModelInstance != nullptr)
+    {
+        return viewModelInstance->replaceViewModelByName(propertyName, value);
+    }
+    return false;
+}
+
+bool ViewModelInstanceRuntime::replaceViewModelByName(
+    const std::string& name,
+    ViewModelInstanceRuntime* value) const
+{
+    if (m_viewModelInstance->replaceViewModelByName(name, value->instance()))
+    {
+        m_viewModelInstances[name] = rcp<ViewModelInstanceRuntime>(value);
+        return true;
+    }
+    return false;
 }
 
 std::vector<PropertyData> ViewModelInstanceRuntime::properties() const

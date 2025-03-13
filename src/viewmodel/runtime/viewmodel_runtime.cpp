@@ -105,7 +105,7 @@ ViewModelInstanceRuntime* ViewModelRuntime::createInstanceFromIndex(
         auto copy = rcp<ViewModelInstance>(
             viewModelInstance->clone()->as<ViewModelInstance>());
         m_file->completeViewModelInstance(copy);
-        return new ViewModelInstanceRuntime(copy);
+        return createRuntimeInstance(copy);
     }
     return nullptr;
 }
@@ -119,7 +119,7 @@ ViewModelInstanceRuntime* ViewModelRuntime::createInstanceFromName(
         auto copy = rcp<ViewModelInstance>(
             viewModelInstance->clone()->as<ViewModelInstance>());
         m_file->completeViewModelInstance(copy);
-        return new ViewModelInstanceRuntime(copy);
+        return createRuntimeInstance(copy);
     }
     return nullptr;
 }
@@ -130,7 +130,7 @@ ViewModelInstanceRuntime* ViewModelRuntime::createDefaultInstance() const
         m_file->createDefaultViewModelInstance(m_viewModel);
     if (viewModelInstance != nullptr)
     {
-        return new ViewModelInstanceRuntime(viewModelInstance);
+        return createRuntimeInstance(viewModelInstance);
     }
     return createInstance();
 }
@@ -138,9 +138,18 @@ ViewModelInstanceRuntime* ViewModelRuntime::createDefaultInstance() const
 ViewModelInstanceRuntime* ViewModelRuntime::createInstance() const
 {
     auto instance = m_file->createViewModelInstance(m_viewModel);
+    return createRuntimeInstance(instance);
+}
+
+ViewModelInstanceRuntime* ViewModelRuntime::createRuntimeInstance(
+    rcp<ViewModelInstance> instance) const
+{
     if (instance != nullptr)
     {
-        return new ViewModelInstanceRuntime(instance);
+        auto viewModelInstanceRuntime = rcp<ViewModelInstanceRuntime>(
+            new ViewModelInstanceRuntime(instance));
+        m_viewModelInstanceRuntimes.push_back(viewModelInstanceRuntime);
+        return viewModelInstanceRuntime.get();
     }
     return nullptr;
 }

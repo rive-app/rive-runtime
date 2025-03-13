@@ -181,9 +181,13 @@ File::~File()
     {
         delete enumData;
     }
-    for (auto dataConverter : m_DataConverters)
+    for (auto& dataConverter : m_DataConverters)
     {
         delete dataConverter;
+    }
+    for (auto& viewModelRuntime : m_viewModelRuntimes)
+    {
+        delete viewModelRuntime;
     }
     delete m_backboard;
 }
@@ -802,7 +806,7 @@ ViewModelRuntime* File::viewModelByIndex(size_t index) const
 {
     if (index < m_ViewModels.size())
     {
-        return new ViewModelRuntime(m_ViewModels[index], this);
+        return createViewModelRuntime(m_ViewModels[index]);
     }
     return nullptr;
 }
@@ -813,7 +817,7 @@ ViewModelRuntime* File::viewModelByName(std::string name) const
     {
         if (viewModel->name() == name)
         {
-            return new ViewModelRuntime(viewModel, this);
+            return createViewModelRuntime(viewModel);
         }
     }
     return nullptr;
@@ -824,9 +828,17 @@ ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
     if ((size_t)artboard->viewModelId() < m_ViewModels.size())
     {
         auto viewModel = m_ViewModels[artboard->viewModelId()];
-        return new ViewModelRuntime(viewModel, this);
+        return createViewModelRuntime(viewModel);
     }
     return nullptr;
+}
+
+ViewModelRuntime* File::createViewModelRuntime(ViewModel* viewModel) const
+{
+
+    auto viewModelRuntime = new ViewModelRuntime(viewModel, this);
+    m_viewModelRuntimes.push_back(viewModelRuntime);
+    return viewModelRuntime;
 }
 
 const std::vector<FileAsset*>& File::assets() const { return m_fileAssets; }

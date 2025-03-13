@@ -11,6 +11,8 @@ ViewModelInstanceValueRuntime::~ViewModelInstanceValueRuntime()
     if (m_viewModelInstanceValue != nullptr)
     {
         m_viewModelInstanceValue->removeDependent(this);
+        m_viewModelInstanceValue->unref();
+        m_viewModelInstanceValue = nullptr;
     }
 }
 
@@ -18,6 +20,7 @@ ViewModelInstanceValueRuntime::ViewModelInstanceValueRuntime(
     ViewModelInstanceValue* instanceValue) :
     m_viewModelInstanceValue(instanceValue)
 {
+    instanceValue->ref();
     instanceValue->addDependent(this);
 }
 

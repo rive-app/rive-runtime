@@ -7,6 +7,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/importers/viewmodel_importer.hpp"
+#include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/core_context.hpp"
 
 using namespace rive;
@@ -15,12 +16,14 @@ ViewModelInstance::~ViewModelInstance()
 {
     for (auto value : m_PropertyValues)
     {
-        delete value;
+        value->unref();
     }
+    m_PropertyValues.clear();
 }
 
 void ViewModelInstance::addValue(ViewModelInstanceValue* value)
 {
+    value->ref();
     m_PropertyValues.push_back(value);
 }
 
@@ -34,6 +37,31 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(const uint32_t id)
         }
     }
     return nullptr;
+}
+
+bool ViewModelInstance::replaceViewModelByName(const std::string& name,
+                                               rcp<ViewModelInstance> value)
+{
+    auto viewModelProperty = viewModel()->property(name);
+    if (viewModelProperty != nullptr)
+    {
+        for (auto propertyValue : m_PropertyValues)
+        {
+            if (propertyValue->viewModelProperty() == viewModelProperty)
+            {
+                if (value->viewModelId() ==
+                    viewModelProperty->as<ViewModelPropertyViewModel>()
+                        ->viewModelReferenceId())
+                {
+                    propertyValue->as<ViewModelInstanceViewModel>()
+                        ->referenceViewModelInstance(value);
+                    return true;
+                }
+                break;
+            }
+        }
+    }
+    return false;
 }
 
 ViewModelInstanceValue* ViewModelInstance::propertyValue(

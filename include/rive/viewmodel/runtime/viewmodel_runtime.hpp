@@ -40,6 +40,10 @@ public:
 private:
     ViewModel* m_viewModel;
     const File* m_file;
+    mutable std::vector<rcp<ViewModelInstanceRuntime>>
+        m_viewModelInstanceRuntimes;
+    ViewModelInstanceRuntime* createRuntimeInstance(
+        rcp<ViewModelInstance> instance) const;
 };
 } // namespace rive
 #endif

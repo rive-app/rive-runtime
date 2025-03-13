@@ -162,6 +162,8 @@ private:
     std::vector<Artboard*> m_artboards;
 
     std::vector<ViewModel*> m_ViewModels;
+
+    mutable std::vector<ViewModelRuntime*> m_viewModelRuntimes;
     std::vector<DataEnum*> m_Enums;
 
     Factory* m_factory;
@@ -175,6 +177,8 @@ private:
 
     rcp<ViewModelInstance> copyViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) const;
+
+    ViewModelRuntime* createViewModelRuntime(ViewModel* viewModel) const;
 
     uint32_t findViewModelId(ViewModel* search) const;
 };
