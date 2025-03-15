@@ -11,6 +11,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
+#include "rive/animation/keyframe_interpolator.hpp"
 #include <vector>
 #include <set>
 
@@ -156,6 +157,8 @@ private:
     std::vector<FileAsset*> m_fileAssets;
 
     std::vector<DataConverter*> m_DataConverters;
+
+    std::vector<KeyFrameInterpolator*> m_keyframeInterpolators;
 
     /// List of artboards in the file. Each artboard encapsulates a set of
     /// Rive components and animations.

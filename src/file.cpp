@@ -189,6 +189,10 @@ File::~File()
     {
         delete viewModelRuntime;
     }
+    for (auto& keyframeInterpolator : m_keyframeInterpolators)
+    {
+        delete keyframeInterpolator;
+    }
     delete m_backboard;
 }
 
@@ -464,6 +468,18 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         if (object->is<DataConverter>())
         {
             m_DataConverters.push_back(object->as<DataConverter>());
+        }
+        else if (object->is<KeyFrameInterpolator>())
+        {
+            // The file only owns the interpolators that don't belong to a
+            // specific artboard
+            auto artboardImporter =
+                importStack.latest<ArtboardImporter>(ArtboardBase::typeKey);
+            if (artboardImporter == nullptr)
+            {
+                m_keyframeInterpolators.push_back(
+                    object->as<KeyFrameInterpolator>());
+            }
         }
     }
 

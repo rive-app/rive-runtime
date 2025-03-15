@@ -500,7 +500,7 @@ TEST_CASE("double nested solos clipping with animation", "[path]")
     }
 }
 
-TEST_CASE("XXXXX", "[path]")
+TEST_CASE("Path  with feather render", "[path]")
 {
     TestNoOpFactory emptyFactory;
     auto file = ReadRiveFile("assets/feather_render_test.riv", &emptyFactory);

@@ -14,7 +14,7 @@ using namespace rive;
 
 ViewModelInstance::~ViewModelInstance()
 {
-    for (auto value : m_PropertyValues)
+    for (auto& value : m_PropertyValues)
     {
         value->unref();
     }
@@ -23,7 +23,6 @@ ViewModelInstance::~ViewModelInstance()
 
 void ViewModelInstance::addValue(ViewModelInstanceValue* value)
 {
-    value->ref();
     m_PropertyValues.push_back(value);
 }
 

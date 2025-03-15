@@ -69,6 +69,8 @@ private:
     StateTransition* findAllowedTransition(
         StateInstance* stateFromInstance,
         StateMachineLayerInstance* layerInstance);
+
+    bool m_ownsDataContext = false;
     DataContext* m_DataContext = nullptr;
     void addToHitLookup(Component* target,
                         bool isLayoutComponent,
@@ -201,6 +203,8 @@ private:
     std::unordered_map<BindableProperty*, DataBind*>
         m_bindableDataBindsToSource;
     uint8_t m_drawOrderChangeCounter = 0;
+    void internalDataContext(DataContext* dataContext);
+    void clearDataContext();
 
 #ifdef WITH_RIVE_TOOLS
 public:

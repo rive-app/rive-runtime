@@ -1461,6 +1461,10 @@ StateMachineInstance::~StateMachineInstance()
         delete pair.second;
         pair.second = nullptr;
     }
+    if (m_ownsDataContext)
+    {
+        delete m_DataContext;
+    }
     m_bindablePropertyInstances.clear();
 }
 
@@ -1684,10 +1688,18 @@ SMITrigger* StateMachineInstance::getTrigger(const std::string& name) const
 void StateMachineInstance::bindViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance)
 {
-    dataContext(new DataContext(viewModelInstance));
+    clearDataContext();
+    m_ownsDataContext = true;
+    internalDataContext(new DataContext(viewModelInstance));
 }
 
 void StateMachineInstance::dataContext(DataContext* dataContext)
+{
+    clearDataContext();
+    internalDataContext(dataContext);
+}
+
+void StateMachineInstance::internalDataContext(DataContext* dataContext)
 {
     m_DataContext = dataContext;
     for (auto dataBind : m_dataBinds)
@@ -1697,6 +1709,16 @@ void StateMachineInstance::dataContext(DataContext* dataContext)
             dataBind->as<DataBindContext>()->bindFromContext(dataContext);
         }
     }
+}
+
+void StateMachineInstance::clearDataContext()
+{
+    if (m_ownsDataContext && m_DataContext != nullptr)
+    {
+        delete m_DataContext;
+        m_DataContext = nullptr;
+    }
+    m_ownsDataContext = false;
 }
 
 size_t StateMachineInstance::stateChangedCount() const
