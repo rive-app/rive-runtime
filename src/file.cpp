@@ -545,6 +545,15 @@ std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
 void File::completeViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance) const
 {
+    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap;
+    completeViewModelInstance(viewModelInstance, instancesMap);
+}
+
+void File::completeViewModelInstance(
+    rcp<ViewModelInstance> viewModelInstance,
+    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap)
+    const
+{
     auto viewModel = m_ViewModels[viewModelInstance->viewModelId()];
     auto propertyValues = viewModelInstance->propertyValues();
     for (auto& value : propertyValues)
@@ -563,8 +572,21 @@ void File::completeViewModelInstance(
                     valueViewModel->propertyValue());
                 if (viewModelInstance != nullptr)
                 {
-                    valueViewModel->referenceViewModelInstance(
-                        copyViewModelInstance(viewModelInstance));
+                    auto itr = instancesMap.find(viewModelInstance);
+
+                    if (itr == instancesMap.end())
+                    {
+                        auto viewModelInstanceCopy =
+                            copyViewModelInstance(viewModelInstance,
+                                                  instancesMap);
+                        instancesMap[viewModelInstance] = viewModelInstanceCopy;
+                        valueViewModel->referenceViewModelInstance(
+                            viewModelInstanceCopy);
+                    }
+                    else
+                    {
+                        valueViewModel->referenceViewModelInstance(itr->second);
+                    }
                 }
             }
         }
@@ -574,13 +596,29 @@ void File::completeViewModelInstance(
             for (auto& listItem : viewModelList->listItems())
             {
                 auto viewModel = m_ViewModels[listItem->viewModelId()];
-                auto viewModelInstance = rcp<ViewModelInstance>(
-                    viewModel->instance(listItem->viewModelInstanceId()));
-                listItem->viewModelInstance(
-                    copyViewModelInstance(viewModelInstance));
-                if (listItem->artboardId() < m_artboards.size())
+                auto viewModelInstance =
+                    viewModel->instance(listItem->viewModelInstanceId());
+                if (viewModelInstance != nullptr)
                 {
-                    listItem->artboard(m_artboards[listItem->artboardId()]);
+
+                    auto itr = instancesMap.find(viewModelInstance);
+
+                    if (itr == instancesMap.end())
+                    {
+                        auto viewModelInstanceCopy =
+                            copyViewModelInstance(viewModelInstance,
+                                                  instancesMap);
+                        instancesMap[viewModelInstance] = viewModelInstanceCopy;
+                        listItem->viewModelInstance(viewModelInstanceCopy);
+                    }
+                    else
+                    {
+                        listItem->viewModelInstance(itr->second);
+                    }
+                    if (listItem->artboardId() < m_artboards.size())
+                    {
+                        listItem->artboard(m_artboards[listItem->artboardId()]);
+                    }
                 }
             }
         }
@@ -590,20 +628,13 @@ void File::completeViewModelInstance(
 }
 
 rcp<ViewModelInstance> File::copyViewModelInstance(
-    rcp<ViewModelInstance> viewModelInstance) const
+    ViewModelInstance* viewModelInstance,
+    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap)
+    const
 {
     auto copy = rcp<ViewModelInstance>(
         viewModelInstance->clone()->as<ViewModelInstance>());
-    completeViewModelInstance(copy);
-    return copy;
-}
-
-rcp<ViewModelInstance> File::copyViewModelInstance(
-    ViewModelInstance* viewModelInstance) const
-{
-    auto copy = rcp<ViewModelInstance>(
-        viewModelInstance->clone()->as<ViewModelInstance>());
-    completeViewModelInstance(copy);
+    completeViewModelInstance(copy, instancesMap);
     return copy;
 }
 
@@ -633,7 +664,9 @@ rcp<ViewModelInstance> File::createViewModelInstance(
             auto instance = viewModel->instance(instanceName);
             if (instance != nullptr)
             {
-                return copyViewModelInstance(instance);
+                std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
+                    instancesMap;
+                return copyViewModelInstance(instance, instancesMap);
             }
         }
     }
@@ -649,7 +682,9 @@ rcp<ViewModelInstance> File::createViewModelInstance(size_t index,
         auto instance = viewModel->instance(instanceIndex);
         if (instance != nullptr)
         {
-            return copyViewModelInstance(instance);
+            std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
+                instancesMap;
+            return copyViewModelInstance(instance, instancesMap);
         }
     }
     return nullptr;

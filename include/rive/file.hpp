@@ -14,6 +14,7 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include <vector>
 #include <set>
+#include <unordered_map>
 
 ///
 /// Default namespace for Rive Cpp runtime code.
@@ -131,6 +132,10 @@ public:
         rcp<ViewModelInstance> viewModelInstance,
         Artboard* artboard);
     void completeViewModelInstance(
+        rcp<ViewModelInstance> viewModelInstance,
+        std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
+            instancesMap) const;
+    void completeViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) const;
     const std::vector<DataEnum*>& enums() const;
 
@@ -176,10 +181,9 @@ private:
     FileAssetLoader* m_assetLoader;
 
     rcp<ViewModelInstance> copyViewModelInstance(
-        ViewModelInstance* viewModelInstance) const;
-
-    rcp<ViewModelInstance> copyViewModelInstance(
-        rcp<ViewModelInstance> viewModelInstance) const;
+        ViewModelInstance* viewModelInstance,
+        std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
+            instancesMap) const;
 
     ViewModelRuntime* createViewModelRuntime(ViewModel* viewModel) const;
 

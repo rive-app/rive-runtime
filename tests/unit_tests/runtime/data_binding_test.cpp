@@ -19,6 +19,7 @@
 #include <rive/viewmodel/viewmodel_instance_enum.hpp>
 #include <rive/viewmodel/viewmodel_instance_trigger.hpp>
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/nested_artboard.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
@@ -672,4 +673,195 @@ TEST_CASE("Boolean Negate", "[data binding]")
     // Advance state machine
     machine->advanceAndApply(0.0f);
     REQUIRE(customPropertyBoolean1->propertyValue() == false);
+}
+
+TEST_CASE("Instance is shared when the same one is attached to two properties",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/shared_viewmodel_instance.riv");
+
+    auto artboard = file->artboard("main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    auto machine = artboard->defaultStateMachine();
+    machine->bindViewModelInstance(viewModelInstance);
+    REQUIRE(machine != nullptr);
+    // Advance state machine
+    machine->advanceAndApply(0.0f);
+
+    // View model properties
+    auto childInstanceViewModel1 = viewModelInstance->propertyValue("child1");
+    REQUIRE(childInstanceViewModel1 != nullptr);
+    REQUIRE(childInstanceViewModel1->is<rive::ViewModelInstanceViewModel>());
+    auto referencedViewModel =
+        childInstanceViewModel1->as<rive::ViewModelInstanceViewModel>()
+            ->referenceViewModelInstance();
+    REQUIRE(referencedViewModel != nullptr);
+    auto labelProperty = referencedViewModel->propertyValue("label");
+    REQUIRE(labelProperty != nullptr);
+    REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
+
+    // Elements bound to different view model properties that share same view
+    // model instance
+    REQUIRE(artboard->find<rive::NestedArtboard>("child1") != nullptr);
+    auto nestedArtboardChild1 = artboard->find<rive::NestedArtboard>("child1");
+
+    auto nestedArtboardArtboardChild1 =
+        nestedArtboardChild1->artboardInstance();
+    REQUIRE(nestedArtboardArtboardChild1 != nullptr);
+    auto textRunChild1 =
+        nestedArtboardArtboardChild1->find<rive::TextValueRun>("text_run");
+    REQUIRE(textRunChild1 != nullptr);
+    REQUIRE(textRunChild1->text() == "label-vmi-1");
+
+    REQUIRE(artboard->find<rive::NestedArtboard>("child2") != nullptr);
+    auto nestedArtboardChild2 = artboard->find<rive::NestedArtboard>("child2");
+
+    auto nestedArtboardArtboardChild2 =
+        nestedArtboardChild2->artboardInstance();
+    REQUIRE(nestedArtboardArtboardChild2 != nullptr);
+    auto textRunChild2 =
+        nestedArtboardArtboardChild2->find<rive::TextValueRun>("text_run");
+    REQUIRE(textRunChild2 != nullptr);
+    REQUIRE(textRunChild2->text() == "label-vmi-1");
+
+    // Changing the value on a single instance should affect both text although
+    // they are linked to different view model properties
+    labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
+        "label-update");
+    // Advance state machine
+    machine->advanceAndApply(0.0f);
+    REQUIRE(textRunChild1->text() == "label-update");
+    REQUIRE(textRunChild2->text() == "label-update");
+}
+
+TEST_CASE("Instance is not shared when the different ones are attached to two "
+          "properties",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/shared_viewmodel_instance.riv");
+
+    auto artboard = file->artboard("main_2")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    auto machine = artboard->defaultStateMachine();
+    machine->bindViewModelInstance(viewModelInstance);
+    REQUIRE(machine != nullptr);
+    // Advance state machine
+    machine->advanceAndApply(0.0f);
+
+    // View model properties
+    auto childInstanceViewModel1 =
+        viewModelInstance->propertyValue("vm_2_child1");
+    REQUIRE(childInstanceViewModel1 != nullptr);
+    REQUIRE(childInstanceViewModel1->is<rive::ViewModelInstanceViewModel>());
+    auto referencedViewModel =
+        childInstanceViewModel1->as<rive::ViewModelInstanceViewModel>()
+            ->referenceViewModelInstance();
+    REQUIRE(referencedViewModel != nullptr);
+    auto labelProperty = referencedViewModel->propertyValue("label");
+    REQUIRE(labelProperty != nullptr);
+    REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
+
+    // Elements bound to different view model properties that do not share same
+    // view model instance
+    REQUIRE(artboard->find<rive::NestedArtboard>("child1") != nullptr);
+    auto nestedArtboardChild1 = artboard->find<rive::NestedArtboard>("child1");
+
+    auto nestedArtboardArtboardChild1 =
+        nestedArtboardChild1->artboardInstance();
+    REQUIRE(nestedArtboardArtboardChild1 != nullptr);
+    auto textRunChild1 =
+        nestedArtboardArtboardChild1->find<rive::TextValueRun>("text_run");
+    REQUIRE(textRunChild1 != nullptr);
+    REQUIRE(textRunChild1->text() == "label-vmi-1");
+
+    REQUIRE(artboard->find<rive::NestedArtboard>("child2") != nullptr);
+    auto nestedArtboardChild2 = artboard->find<rive::NestedArtboard>("child2");
+
+    auto nestedArtboardArtboardChild2 =
+        nestedArtboardChild2->artboardInstance();
+    REQUIRE(nestedArtboardArtboardChild2 != nullptr);
+    auto textRunChild2 =
+        nestedArtboardArtboardChild2->find<rive::TextValueRun>("text_run");
+    REQUIRE(textRunChild2 != nullptr);
+    REQUIRE(textRunChild2->text() == "label-vmi-2");
+
+    // Changing the value on a single instance should not affect the other
+    // instance because they are not pointing to the same instance
+    labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
+        "label-update");
+    // Advance state machine
+    machine->advanceAndApply(0.0f);
+    REQUIRE(textRunChild1->text() == "label-update");
+    REQUIRE(textRunChild2->text() == "label-vmi-2");
+}
+
+TEST_CASE("Instances are not shared when a new view model instance is created",
+          "[data binding]")
+{
+    auto file = ReadRiveFile("assets/shared_viewmodel_instance.riv");
+
+    auto artboard = file->artboard("main_2")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance = file->createViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    auto machine = artboard->defaultStateMachine();
+    machine->bindViewModelInstance(viewModelInstance);
+    REQUIRE(machine != nullptr);
+    // Advance state machine
+    machine->advanceAndApply(0.0f);
+
+    // View model properties
+    auto childInstanceViewModel1 =
+        viewModelInstance->propertyValue("vm_2_child1");
+    REQUIRE(childInstanceViewModel1 != nullptr);
+    REQUIRE(childInstanceViewModel1->is<rive::ViewModelInstanceViewModel>());
+    auto referencedViewModel =
+        childInstanceViewModel1->as<rive::ViewModelInstanceViewModel>()
+            ->referenceViewModelInstance();
+    REQUIRE(referencedViewModel != nullptr);
+    auto labelProperty = referencedViewModel->propertyValue("label");
+    REQUIRE(labelProperty != nullptr);
+    REQUIRE(labelProperty->is<rive::ViewModelInstanceString>());
+
+    // Elements bound to different view model properties that do not share same
+    // view model instance
+    REQUIRE(artboard->find<rive::NestedArtboard>("child1") != nullptr);
+    auto nestedArtboardChild1 = artboard->find<rive::NestedArtboard>("child1");
+
+    auto nestedArtboardArtboardChild1 =
+        nestedArtboardChild1->artboardInstance();
+    REQUIRE(nestedArtboardArtboardChild1 != nullptr);
+    auto textRunChild1 =
+        nestedArtboardArtboardChild1->find<rive::TextValueRun>("text_run");
+    REQUIRE(textRunChild1 != nullptr);
+    REQUIRE(textRunChild1->text() == "");
+
+    REQUIRE(artboard->find<rive::NestedArtboard>("child2") != nullptr);
+    auto nestedArtboardChild2 = artboard->find<rive::NestedArtboard>("child2");
+
+    auto nestedArtboardArtboardChild2 =
+        nestedArtboardChild2->artboardInstance();
+    REQUIRE(nestedArtboardArtboardChild2 != nullptr);
+    auto textRunChild2 =
+        nestedArtboardArtboardChild2->find<rive::TextValueRun>("text_run");
+    REQUIRE(textRunChild2 != nullptr);
+    REQUIRE(textRunChild2->text() == "");
+
+    // Changing the value on a single instance should not affect the other
+    // instance because they are not pointing to the same instance
+    labelProperty->as<rive::ViewModelInstanceString>()->propertyValue(
+        "label-update");
+    // Advance state machine
+    machine->advanceAndApply(0.0f);
+    REQUIRE(textRunChild1->text() == "label-update");
+    REQUIRE(textRunChild2->text() == "");
 }
