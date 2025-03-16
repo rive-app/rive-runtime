@@ -32,9 +32,9 @@ public:
         flower->moveTo(R, 0);
         for (int i = 1; i <= NUM_PETALS; ++i)
         {
-            float c1 = 2 * M_PI * (i - 2 / 3.f) / NUM_PETALS;
-            float c2 = 2 * M_PI * (i - 1 / 3.f) / NUM_PETALS;
-            float theta = 2 * M_PI * i / NUM_PETALS;
+            float c1 = 2 * rive::math::PI * (i - 2 / 3.f) / NUM_PETALS;
+            float c2 = 2 * rive::math::PI * (i - 1 / 3.f) / NUM_PETALS;
+            float theta = 2 * rive::math::PI * i / NUM_PETALS;
             flower->cubicTo(cosf(c1) * R * 1.65,
                             sinf(c1) * R * 1.65,
                             cosf(c2) * R * 1.65,

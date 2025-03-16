@@ -9,6 +9,7 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "rive/renderer.hpp"
+#include "rive/math/math_types.hpp"
 
 using namespace rivegm;
 using namespace rive;
@@ -29,9 +30,9 @@ static void draw_clipped_flower(Renderer* renderer,
     flower->moveTo(1 * M + A, 0 * M + A);
     for (int i = 1; i <= NUM_PETALS; ++i)
     {
-        float c1 = 2 * M_PI * (i - 2 / 3.f) / NUM_PETALS;
-        float c2 = 2 * M_PI * (i - 1 / 3.f) / NUM_PETALS;
-        float theta = 2 * M_PI * i / NUM_PETALS;
+        float c1 = 2 * rive::math::PI * (i - 2 / 3.f) / NUM_PETALS;
+        float c2 = 2 * rive::math::PI * (i - 1 / 3.f) / NUM_PETALS;
+        float theta = 2 * rive::math::PI * i / NUM_PETALS;
         flower->cubicTo(cosf(c1) * 1.65 * M + A,
                         sinf(c1) * 1.65 * M + A,
                         cosf(c2) * 1.65 * M + A,
