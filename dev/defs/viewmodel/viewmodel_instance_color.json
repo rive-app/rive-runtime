@@ -8,7 +8,7 @@
   "properties": {
     "propertyValue": {
       "type": "Color",
-      "initialValue": "0xFF1D1D1D",
+      "initialValue": "0xFF000000",
       "key": {
         "int": 555,
         "string": "propertyvalue"
@@ -17,7 +17,7 @@
     },
     "playbackValue": {
       "type": "Color",
-      "initialValue": "0xFF1D1D1D",
+      "initialValue": "0xFF000000",
       "key": {
         "int": 556,
         "string": "playbackvalue"

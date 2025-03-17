@@ -31,7 +31,7 @@ public:
     static const uint16_t propertyValuePropertyKey = 555;
 
 protected:
-    int m_PropertyValue = 0xFF1D1D1D;
+    int m_PropertyValue = 0xFF000000;
 
 public:
     inline int propertyValue() const { return m_PropertyValue; }
