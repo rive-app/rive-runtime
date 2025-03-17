@@ -120,7 +120,7 @@ function rive_tools_project(name, project_kind)
     end
 
     -- Match PLS math options for testing simd.
-    filter('system:not windows')
+    filter({'system:not windows', 'options:not no_ffp_contract'})
     do
         buildoptions({
             '-ffp-contract=on',

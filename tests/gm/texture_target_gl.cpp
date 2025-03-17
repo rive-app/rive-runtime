@@ -149,9 +149,7 @@ public:
 
     ~TextureTargetGL()
     {
-#ifdef RIVE_TOOLS_NO_GL
-        assert(m_offscreenTex == 0);
-#else
+#ifndef RIVE_TOOLS_NO_GL
         if (m_offscreenTex != 0)
         {
             glDeleteTextures(1, &m_offscreenTex);
@@ -160,7 +158,9 @@ public:
     }
 
 private:
+#ifndef RIVE_TOOLS_NO_GL
     GLuint m_offscreenTex = 0;
+#endif
 };
 
 GMREGISTER(texture_target_gl, return new TextureTargetGL)

@@ -52,19 +52,19 @@ $typedef float3 packed_float3;
 
 #ifdef @ENABLE_MIN_16_PRECISION
 
-#if COMPILER_HLSL || COMPILER_VULKAN
+#if NEEDS_USHORT_DEFINE
 
 $typedef $min16uint ushort;
 
-#endif // COMPILER_HLSL
+#endif // NEEDS_USHORT_DEFINE
 
 #else
 
-#if COMPILER_HLSL || COMPILER_VULKAN
+#if NEEDS_USHORT_DEFINE
 
 $typedef $uint ushort;
 
-#endif // COMPILER_HLSL
+#endif // NEEDS_USHORT_DEFINE
 
 #endif // ENABLE_MIN_16_PRECISION
 

@@ -48,10 +48,16 @@ do
     end
 end
 
+newoption({
+    trigger = 'force_no_unistd_h',
+    description = "prevent HAVE_UNISTD_H from being defined for zlib"
+})
+
 project('zlib')
 do
     kind('StaticLib')
     defines({ 'ZLIB_IMPLEMENTATION' })
+
     includedirs({ zlib })
     optimize('Speed') -- Always optimize image encoding/decoding, even in debug builds.
     files({
@@ -82,7 +88,7 @@ do
         })
     end
 
-    filter('system:not windows')
+    filter({'system:not windows', 'options:not force_no_unistd_h'})
     do
         defines({ 'HAVE_UNISTD_H' })
     end

@@ -21,7 +21,7 @@ const char* strsignal(int)
 #include <signal.h>
 #endif
 
-#ifdef _WIN32
+#if defined(_WIN32) && !defined(NO_REDIRECT_OUTPUT)
 #include <io.h>
 static int pipe(int pipefd[2]) { return _pipe(pipefd, 65536, 0); }
 #endif
@@ -35,7 +35,9 @@ constexpr static uint32_t REQUEST_TYPE_CLAIM_GM_TEST = 1;
 constexpr static uint32_t REQUEST_TYPE_FETCH_RIV_FILE = 2;
 constexpr static uint32_t REQUEST_TYPE_GET_INPUT = 3;
 constexpr static uint32_t REQUEST_TYPE_CANCEL_INPUT = 4;
+#ifndef NO_REDIRECT_OUTPUT
 constexpr static uint32_t REQUEST_TYPE_PRINT_MESSAGE = 5;
+#endif
 constexpr static uint32_t REQUEST_TYPE_DISCONNECT = 6;
 constexpr static uint32_t REQUEST_TYPE_APPLICATION_CRASH = 7;
 
@@ -62,7 +64,7 @@ const char* strsignal(int signo)
     return "Unknown Signal";
 }
 #endif
-
+#ifndef NO_SIGNAL_FORWARD
 static void sig_handler(int signo)
 {
     printf("Received signal %i (\"%s\")\n", signo, strsignal(signo));
@@ -79,6 +81,7 @@ static void check_early_exit()
         TestHarness::Instance().onApplicationCrash("Early exit.");
     }
 }
+#endif
 
 TestHarness& TestHarness::Instance()
 {
@@ -156,6 +159,7 @@ void TestHarness::initStdioThread()
 
 void TestHarness::monitorStdIOThread()
 {
+#ifndef NO_REDIRECT_OUTPUT
     assert(m_initialized);
 
     std::unique_ptr<TCPClient> threadTCPClient;
@@ -195,6 +199,7 @@ void TestHarness::monitorStdIOThread()
         threadTCPClient->send4(REQUEST_TYPE_DISCONNECT);
         threadTCPClient->send4(false /* Don't shutdown the server yet */);
     }
+#endif
 }
 
 void send_png_data_chunk(png_structp png, png_bytep data, png_size_t length)

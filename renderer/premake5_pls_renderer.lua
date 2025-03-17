@@ -146,6 +146,11 @@ newoption({
     trigger = 'universal-release',
     description = '(Apple only): build a universal binary to release to the store',
 })
+newoption({
+    trigger = 'no_ffp_contract',
+    description = 'exclue -ffp-contract=on and -fassociative-math from builoptions',
+})
+
 project('rive_pls_renderer')
 do
     kind('StaticLib')
@@ -188,7 +193,7 @@ do
     end
 
     -- The Visual Studio clang toolset doesn't recognize -ffp-contract.
-    filter('system:not windows')
+    filter({'system:not windows', 'options:not no_ffp_contract'})
     do
         buildoptions({
             '-ffp-contract=on',
