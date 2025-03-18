@@ -369,7 +369,8 @@
       "key": {
         "int": 632,
         "string": "layoutalignmenttype"
-      }
+      },
+      "bindable": true
     },
     "animationStyleType": {
       "type": "uint",
@@ -418,7 +419,8 @@
         "int": 596,
         "string": "displayvalue"
       },
-      "description": ""
+      "description": "",
+      "bindable": true
     },
     "positionTypeValue": {
       "type": "uint",
@@ -428,7 +430,8 @@
         "int": 597,
         "string": "positiontypevalue"
       },
-      "description": ""
+      "description": "",
+      "bindable": true
     },
     "flexDirectionValue": {
       "type": "uint",
@@ -438,7 +441,8 @@
         "int": 598,
         "string": "flexdirectionvalue"
       },
-      "description": "Flex dir"
+      "description": "Flex dir",
+      "bindable": true
     },
     "directionValue": {
       "type": "uint",
@@ -448,7 +452,8 @@
         "int": 599,
         "string": "directionvalue"
       },
-      "description": ""
+      "description": "",
+      "bindable": true
     },
     "alignContentValue": {
       "type": "uint",
@@ -498,7 +503,8 @@
         "int": 604,
         "string": "flexwrapvalue"
       },
-      "description": ""
+      "description": "",
+      "bindable": true
     },
     "overflowValue": {
       "type": "uint",
