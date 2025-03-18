@@ -2,6 +2,7 @@
 #include "rive/text/text_style_axis.hpp"
 #include "rive/text/text_style_feature.hpp"
 #include "rive/renderer.hpp"
+#include "rive/shapes/paint/feather.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
 #include "rive/backboard.hpp"
 #include "rive/importers/backboard_importer.hpp"
@@ -148,12 +149,13 @@ bool TextStyle::addPath(const RawPath& rawPath, float opacity)
 {
     bool hadContents = m_hasContents;
     m_hasContents = true;
-    if (opacity == 1.0f)
+    if (opacity > 0.0f)
     {
+
+        // m_path contains everything, so inner feather bounds can work.
         m_path.addPathClockwise(rawPath);
-    }
-    else if (opacity > 0.0f)
-    {
+
+        // Bucket by opacity
         auto itr = m_opacityPaths.find(opacity);
         ShapePaintPath* shapePaintPath = nullptr;
         if (itr != m_opacityPaths.end())
@@ -181,7 +183,14 @@ void TextStyle::draw(Renderer* renderer, const Mat2D& worldTransform)
             continue;
         }
         shapePaint->blendMode(parent()->as<Text>()->blendMode());
-        shapePaint->draw(renderer, &m_path, worldTransform, true);
+
+        // For blend modes to work, opaque paths render first
+        auto itr = m_opacityPaths.find(1.0f);
+        if (itr != m_opacityPaths.end())
+        {
+            ShapePaintPath& path = itr->second;
+            shapePaint->draw(renderer, &path, worldTransform, true);
+        }
 
         if (m_paintPool.size() < m_opacityPaths.size())
         {
@@ -194,11 +203,19 @@ void TextStyle::draw(Renderer* renderer, const Mat2D& worldTransform)
         }
 
         uint32_t paintIndex = 0;
-        for (auto itr = m_opacityPaths.begin(); itr != m_opacityPaths.end();
-             itr++)
+        for (itr = m_opacityPaths.begin(); itr != m_opacityPaths.end(); itr++)
         {
+            // Don't render opaque paths twice
+            if (itr->first == 1.0f)
+            {
+                continue;
+            }
             RenderPaint* renderPaint = m_paintPool[paintIndex++].get();
             shapePaint->applyTo(renderPaint, itr->first);
+            if (auto feather = shapePaint->feather())
+            {
+                renderPaint->feather(feather->strength());
+            }
             ShapePaintPath& path = itr->second;
             shapePaint->draw(renderer,
                              &path,
