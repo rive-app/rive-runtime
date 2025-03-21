@@ -6,6 +6,7 @@
 
 #include "rive/rive_types.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
+#include <vk_mem_alloc.h>
 
 namespace rive::gpu::vkutil
 {

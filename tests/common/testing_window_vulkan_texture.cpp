@@ -57,8 +57,7 @@ public:
             m_physicalDevice,
             m_device,
             vulkanFeatures,
-            m_instance.fp_vkGetInstanceProcAddr,
-            m_instance.fp_vkGetDeviceProcAddr);
+            m_instance.fp_vkGetInstanceProcAddr);
         m_vkbTable = m_device.make_table();
 
         m_semaphorePool =

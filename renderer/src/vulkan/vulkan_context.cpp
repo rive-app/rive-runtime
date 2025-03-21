@@ -5,27 +5,23 @@
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 
 #include "rive/rive_types.hpp"
+#include <vk_mem_alloc.h>
 
 namespace rive::gpu
 {
-static VmaAllocator make_vma_allocator(VmaAllocatorCreateInfo vmaCreateInfo)
+static VmaAllocator make_vma_allocator(
+    VmaAllocatorCreateInfo vmaCreateInfo,
+    PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
+    PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr)
 {
     VmaAllocator vmaAllocator;
+    VmaVulkanFunctions vmaVulkanFunctions = {
+        .vkGetInstanceProcAddr = fp_vkGetInstanceProcAddr,
+        .vkGetDeviceProcAddr = fp_vkGetDeviceProcAddr,
+    };
+    vmaCreateInfo.pVulkanFunctions = &vmaVulkanFunctions;
     VK_CHECK(vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator));
     return vmaAllocator;
-}
-
-bool VulkanContext::isFormatSupportedWithGivenFormatFeatureFlags(
-    VkFormat formatInQuestion,
-    VkFormatFeatureFlagBits desiredFeatureFlags)
-{
-    // Can flesch this out, but currently just checks if format's optimal tiling
-    // features include the provided bits.
-    VkFormatProperties properties;
-    GetPhysicalDeviceFormatProperties(physicalDevice,
-                                      formatInQuestion,
-                                      &properties);
-    return (properties.optimalTilingFeatures & desiredFeatureFlags);
 }
 
 VulkanContext::VulkanContext(VkInstance instance,
@@ -38,16 +34,17 @@ VulkanContext::VulkanContext(VkInstance instance,
     physicalDevice(physicalDevice_),
     device(device_),
     features(features_),
-    vmaAllocator(make_vma_allocator({
-        // We are single-threaded.
-        .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-        .physicalDevice = physicalDevice,
-        .device = device,
-        .pVulkanFunctions = &initVmaVulkanFunctions(fp_vkGetInstanceProcAddr,
-                                                    fp_vkGetDeviceProcAddr),
-        .instance = instance,
-        .vulkanApiVersion = features.vulkanApiVersion,
-    }))
+    vmaAllocator(make_vma_allocator(
+        {
+            // We are single-threaded.
+            .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
+            .physicalDevice = physicalDevice,
+            .device = device,
+            .instance = instance,
+            .vulkanApiVersion = features.vulkanApiVersion,
+        },
+        fp_vkGetInstanceProcAddr,
+        fp_vkGetDeviceProcAddr))
 // clang-format off
 #define LOAD_VULKAN_INSTANCE_COMMAND(CMD)                                                          \
     , CMD(reinterpret_cast<PFN_vk##CMD>(fp_vkGetInstanceProcAddr(instance, "vk" #CMD)))
@@ -60,14 +57,14 @@ VulkanContext::VulkanContext(VkInstance instance,
 // clang-format on
 {
     // VK spec says between D24_S8 and D32_S8, one of them must be supported
-    m_supportsD24S8 = isFormatSupportedWithGivenFormatFeatureFlags(
+    m_supportsD24S8 = isFormatSupportedWithFeatureFlags(
         VK_FORMAT_D24_UNORM_S8_UINT,
         VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT);
 
     // This assert should never fire unless some hardware is breaking the VK
     // spec by reporting that it does not support one of these formats.
     assert((m_supportsD24S8 ||
-            isFormatSupportedWithGivenFormatFeatureFlags(
+            isFormatSupportedWithFeatureFlags(
                 VK_FORMAT_D32_SFLOAT_S8_UINT,
                 VK_FORMAT_FEATURE_DEPTH_STENCIL_ATTACHMENT_BIT)) &&
            "No suitable depth format supported!");
@@ -78,6 +75,17 @@ VulkanContext::~VulkanContext()
     assert(m_shutdown);
     assert(m_resourcePurgatory.empty());
     vmaDestroyAllocator(vmaAllocator);
+}
+
+bool VulkanContext::isFormatSupportedWithFeatureFlags(
+    VkFormat format,
+    VkFormatFeatureFlagBits featureFlags)
+{
+    // Can flesch this out, but currently just checks if format's optimal tiling
+    // features include the provided bits.
+    VkFormatProperties properties;
+    GetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
+    return properties.optimalTilingFeatures & featureFlags;
 }
 
 void VulkanContext::onNewFrameBegun()

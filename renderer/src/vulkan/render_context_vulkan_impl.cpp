@@ -2157,6 +2157,9 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_descriptorSetPoolPool(
         make_rcp<vkutil::ResourcePool<DescriptorSetPool>>(m_vk))
 {
+    VkPhysicalDeviceProperties deviceProps;
+    m_vk->GetPhysicalDeviceProperties(m_vk->physicalDevice, &deviceProps);
+
     m_platformFeatures.supportsRasterOrdering =
         features.rasterizationOrderColorAttachmentAccess;
     m_platformFeatures.supportsFragmentShaderAtomics =
@@ -2166,22 +2169,25 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_platformFeatures.clipSpaceBottomUp = false;
     m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.maxCoverageBufferLength =
-        std::min(features.maxStorageBufferRange, 1u << 28) / sizeof(uint32_t);
+        std::min(deviceProps.limits.maxStorageBufferRange, 1u << 28) /
+        sizeof(uint32_t);
 
-    if (features.vendorID == vkutil::kVendorQualcomm)
+    switch (deviceProps.vendorID)
     {
-        // Qualcomm advertises EXT_rasterization_order_attachment_access, but
-        // it's slow. Use atomics instead on this platform.
-        m_platformFeatures.supportsRasterOrdering = false;
-        // Pixel4 struggles with fine-grained fp16 path IDs.
-        m_platformFeatures.pathIDGranularity = 2;
-    }
-    else if (features.vendorID == vkutil::kVendorARM)
-    {
-        // This is undocumented, but raster ordering always works on ARM Mali
-        // GPUs if you define a subpass dependency, even without
-        // EXT_rasterization_order_attachment_access.
-        m_platformFeatures.supportsRasterOrdering = true;
+        case vkutil::VENDOR_QUALCOMM:
+            // Qualcomm advertises EXT_rasterization_order_attachment_access,
+            // but it's slow. Use atomics instead on this platform.
+            m_platformFeatures.supportsRasterOrdering = false;
+            // Pixel4 struggles with fine-grained fp16 path IDs.
+            m_platformFeatures.pathIDGranularity = 2;
+            break;
+
+        case vkutil::VENDOR_ARM:
+            // This is undocumented, but raster ordering always works on ARM
+            // Mali GPUs if you define a subpass dependency, even without
+            // EXT_rasterization_order_attachment_access.
+            m_platformFeatures.supportsRasterOrdering = true;
+            break;
     }
 }
 
@@ -4136,9 +4142,10 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     VkPhysicalDevice physicalDevice,
     VkDevice device,
     const VulkanFeatures& features,
-    PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
-    PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr)
+    PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr)
 {
+    auto fp_vkGetDeviceProcAddr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
+        fp_vkGetInstanceProcAddr(instance, "vkGetDeviceProcAddr"));
     std::unique_ptr<RenderContextVulkanImpl> impl(
         new RenderContextVulkanImpl(instance,
                                     physicalDevice,

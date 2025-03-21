@@ -191,7 +191,6 @@ select_physical_device(vkb::PhysicalDeviceSelector& selector,
 
     rive::gpu::VulkanFeatures riveVulkanFeatures = {
         riveVulkanFeatures.vulkanApiVersion = VK_API_VERSION_1_0,
-        riveVulkanFeatures.vendorID = physicalDevice.properties.vendorID,
         riveVulkanFeatures.independentBlend =
             physicalDevice.features.independentBlend,
         riveVulkanFeatures.fillModeNonSolid =
@@ -218,9 +217,6 @@ select_physical_device(vkb::PhysicalDeviceSelector& selector,
             riveVulkanFeatures.rasterizationOrderColorAttachmentAccess = true;
         }
     }
-
-    riveVulkanFeatures.maxStorageBufferRange =
-        physicalDevice.properties.limits.maxStorageBufferRange;
 
     printf("==== Vulkan GPU (%s): %s [ ",
            physical_device_type_name(physicalDevice.properties.deviceType),

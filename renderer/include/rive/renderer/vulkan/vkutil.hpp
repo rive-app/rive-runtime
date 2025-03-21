@@ -10,7 +10,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <vulkan/vulkan.h>
-#include <vk_mem_alloc.h>
+
+VK_DEFINE_HANDLE(VmaAllocation);
 
 namespace rive::gpu
 {
@@ -34,12 +35,12 @@ inline static void vk_check(VkResult res, const char* file, int line)
 
 #define VK_CHECK(x) ::rive::gpu::vkutil::vk_check(x, __FILE__, __LINE__)
 
-constexpr static uint32_t kVendorAMD = 0x1002;
-constexpr static uint32_t kVendorImgTec = 0x1010;
-constexpr static uint32_t kVendorNVIDIA = 0x10DE;
-constexpr static uint32_t kVendorARM = 0x13B5;
-constexpr static uint32_t kVendorQualcomm = 0x5143;
-constexpr static uint32_t kVendorINTEL = 0x8086;
+constexpr static uint32_t VENDOR_AMD = 0x1002;
+constexpr static uint32_t VENDOR_IMG_TEC = 0x1010;
+constexpr static uint32_t VENDOR_NVIDIA = 0x10DE;
+constexpr static uint32_t VENDOR_ARM = 0x13B5;
+constexpr static uint32_t VENDOR_QUALCOMM = 0x5143;
+constexpr static uint32_t VENDOR_INTEL = 0x8086;
 
 constexpr static VkColorComponentFlags kColorWriteMaskNone = 0;
 constexpr static VkColorComponentFlags kColorWriteMaskRGBA =

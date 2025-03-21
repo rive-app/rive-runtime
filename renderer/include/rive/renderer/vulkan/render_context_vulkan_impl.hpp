@@ -111,12 +111,12 @@ private:
 class RenderContextVulkanImpl : public RenderContextImpl
 {
 public:
-    static std::unique_ptr<RenderContext> MakeContext(VkInstance,
-                                                      VkPhysicalDevice,
-                                                      VkDevice,
-                                                      const VulkanFeatures&,
-                                                      PFN_vkGetInstanceProcAddr,
-                                                      PFN_vkGetDeviceProcAddr);
+    static std::unique_ptr<RenderContext> MakeContext(
+        VkInstance,
+        VkPhysicalDevice,
+        VkDevice,
+        const VulkanFeatures&,
+        PFN_vkGetInstanceProcAddr);
     ~RenderContextVulkanImpl();
 
     VulkanContext* vulkanContext() const { return m_vk.get(); }

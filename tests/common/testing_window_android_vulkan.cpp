@@ -80,8 +80,7 @@ public:
             m_physicalDevice,
             m_device,
             vulkanFeatures,
-            m_instance.fp_vkGetInstanceProcAddr,
-            m_instance.fp_vkGetDeviceProcAddr);
+            m_instance.fp_vkGetInstanceProcAddr);
 
         VkSurfaceCapabilitiesKHR windowCapabilities;
         VK_CHECK(m_instanceFns.fp_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(

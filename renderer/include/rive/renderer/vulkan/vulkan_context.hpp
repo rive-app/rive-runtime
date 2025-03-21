@@ -7,6 +7,8 @@
 #include "rive/renderer/vulkan/vkutil.hpp"
 #include <deque>
 
+VK_DEFINE_HANDLE(VmaAllocator);
+
 namespace rive::gpu
 {
 // Specifies the Vulkan API version and which relevant features have been
@@ -15,7 +17,6 @@ namespace rive::gpu
 struct VulkanFeatures
 {
     uint32_t vulkanApiVersion = VK_API_VERSION_1_0;
-    uint32_t vendorID = 0;
 
     // VkPhysicalDeviceFeatures.
     bool independentBlend = false;
@@ -24,9 +25,6 @@ struct VulkanFeatures
 
     // EXT_rasterization_order_attachment_access.
     bool rasterizationOrderColorAttachmentAccess = false;
-
-    // VkPhysicalDeviceLimits.
-    uint32_t maxStorageBufferRange = 1 << 27;
 };
 
 // Wraps a VkDevice, function dispatch table, and VMA library instance.
@@ -55,7 +53,9 @@ public:
     const VulkanFeatures features;
     const VmaAllocator vmaAllocator;
 
-#define RIVE_VULKAN_INSTANCE_COMMANDS(F) F(GetPhysicalDeviceFormatProperties)
+#define RIVE_VULKAN_INSTANCE_COMMANDS(F)                                       \
+    F(GetPhysicalDeviceFormatProperties)                                       \
+    F(GetPhysicalDeviceProperties)
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
     F(AllocateCommandBuffers)                                                  \
@@ -115,6 +115,7 @@ public:
 
     uint64_t currentFrameIdx() const { return m_currentFrameIdx; }
     bool supportsD24S8() const { return m_supportsD24S8; }
+    bool isFormatSupportedWithFeatureFlags(VkFormat, VkFormatFeatureFlagBits);
 
     // Called at the beginning of a new frame. This is where we purge
     // m_resourcePurgatory, so the client is responsible to guarantee that all
@@ -222,22 +223,6 @@ public:
                      const IAABB&);
 
 private:
-    bool isFormatSupportedWithGivenFormatFeatureFlags(
-        VkFormat formatInQuestion,
-        VkFormatFeatureFlagBits desiredFeatureFlags);
-
-    VmaVulkanFunctions& initVmaVulkanFunctions(
-        PFN_vkGetInstanceProcAddr fn_vkGetInstanceProcAddr,
-        PFN_vkGetDeviceProcAddr fn_vkGetDeviceProcAddr)
-    {
-        return m_vmaVulkanFunctions = {
-                   .vkGetInstanceProcAddr = fn_vkGetInstanceProcAddr,
-                   .vkGetDeviceProcAddr = fn_vkGetDeviceProcAddr,
-               };
-    }
-
-    VmaVulkanFunctions m_vmaVulkanFunctions;
-
     // Temporary storage for vkutil::RenderingResource instances that have been
     // fully released, but need to persist until in-flight command buffers have
     // finished referencing their underlying Vulkan objects.

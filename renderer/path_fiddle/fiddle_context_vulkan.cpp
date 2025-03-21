@@ -68,8 +68,7 @@ public:
             m_physicalDevice,
             m_device,
             vulkanFeatures,
-            m_instance.fp_vkGetInstanceProcAddr,
-            m_instance.fp_vkGetDeviceProcAddr);
+            m_instance.fp_vkGetInstanceProcAddr);
         m_commandBufferPool =
             make_rcp<vkutil::ResourcePool<vkutil::CommandBuffer>>(
                 ref_rcp(vk()),
