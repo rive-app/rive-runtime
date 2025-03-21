@@ -449,7 +449,7 @@ def launch_player(test_harness_server):
         return -1;
 
     tool = os.path.join(args.builddir, "player")
-    if platform.system() == "Windows":
+    if platform.system() == "Windows" and args.target  == 'host':
         tool = tool + ".exe"
     cmd = [tool,
            "--test_harness", "%s:%u" % test_harness_server.server_address,

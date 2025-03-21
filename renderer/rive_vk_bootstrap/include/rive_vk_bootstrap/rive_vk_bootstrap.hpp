@@ -44,17 +44,17 @@ enum class FeatureSet
 
 // Select a GPU, using 'gpuNameFilter' or 'getenv("RIVE_GPU")', otherwise
 // preferring discrete. Abort if the filter matches more than one name.
-std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures>
-select_physical_device(vkb::PhysicalDeviceSelector& selector,
-                       FeatureSet,
-                       const char* gpuNameFilter = nullptr);
+std::tuple<vkb::Device, rive::gpu::VulkanFeatures> select_device(
+    vkb::PhysicalDeviceSelector& selector,
+    FeatureSet,
+    const char* gpuNameFilter = nullptr);
 
-inline std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures>
-select_physical_device(vkb::Instance instance,
-                       FeatureSet featureSet,
-                       const char* gpuNameFilter = nullptr)
+inline std::tuple<vkb::Device, rive::gpu::VulkanFeatures> select_device(
+    vkb::Instance instance,
+    FeatureSet featureSet,
+    const char* gpuNameFilter = nullptr)
 {
     vkb::PhysicalDeviceSelector selector(instance);
-    return select_physical_device(selector, featureSet, gpuNameFilter);
+    return select_device(selector, featureSet, gpuNameFilter);
 }
 } // namespace rive_vkb

@@ -16,7 +16,7 @@ namespace rive::gpu
 // supported.
 struct VulkanFeatures
 {
-    uint32_t vulkanApiVersion = VK_API_VERSION_1_0;
+    uint32_t apiVersion = VK_API_VERSION_1_0;
 
     // VkPhysicalDeviceFeatures.
     bool independentBlend = false;
@@ -42,20 +42,23 @@ public:
                   VkPhysicalDevice,
                   VkDevice,
                   const VulkanFeatures&,
-                  PFN_vkGetInstanceProcAddr,
-                  PFN_vkGetDeviceProcAddr);
+                  PFN_vkGetInstanceProcAddr);
 
     ~VulkanContext();
 
     const VkInstance instance;
+
+#define RIVE_VULKAN_INSTANCE_COMMANDS(F)                                       \
+    F(GetDeviceProcAddr)                                                       \
+    F(GetPhysicalDeviceFormatProperties)                                       \
+    F(GetPhysicalDeviceProperties)
+
+#define DECLARE_VULKAN_COMMAND(CMD) const PFN_vk##CMD CMD;
+    RIVE_VULKAN_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)
+
     const VkPhysicalDevice physicalDevice;
     const VkDevice device;
     const VulkanFeatures features;
-    const VmaAllocator vmaAllocator;
-
-#define RIVE_VULKAN_INSTANCE_COMMANDS(F)                                       \
-    F(GetPhysicalDeviceFormatProperties)                                       \
-    F(GetPhysicalDeviceProperties)
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
     F(AllocateCommandBuffers)                                                  \
@@ -108,10 +111,10 @@ public:
     F(UpdateDescriptorSets)                                                    \
     F(WaitForFences)
 
-#define DECLARE_VULKAN_COMMAND(CMD) const PFN_vk##CMD CMD;
-    RIVE_VULKAN_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)
     RIVE_VULKAN_DEVICE_COMMANDS(DECLARE_VULKAN_COMMAND)
 #undef DECLARE_VULKAN_COMMAND
+
+    const VmaAllocator vmaAllocator;
 
     uint64_t currentFrameIdx() const { return m_currentFrameIdx; }
     bool supportsD24S8() const { return m_supportsD24S8; }

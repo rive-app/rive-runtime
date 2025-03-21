@@ -138,12 +138,11 @@ public:
     void hotloadShaders(rive::Span<const uint32_t> spirvData);
 
 private:
-    RenderContextVulkanImpl(VkInstance instance,
-                            VkPhysicalDevice physicalDevice,
-                            VkDevice device,
-                            const VulkanFeatures& features,
-                            PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
-                            PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr);
+    RenderContextVulkanImpl(VkInstance,
+                            VkPhysicalDevice,
+                            VkDevice,
+                            const VulkanFeatures&,
+                            PFN_vkGetInstanceProcAddr);
 
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();

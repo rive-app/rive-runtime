@@ -39,33 +39,33 @@ public:
         const char** glfwExtensions;
         glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-        m_instance =
-            VKB_CHECK(vkb::InstanceBuilder()
-                          .set_app_name("path_fiddle")
-                          .set_engine_name("Rive Renderer")
+        m_instance = VKB_CHECK(
+            vkb::InstanceBuilder()
+                .set_app_name("path_fiddle")
+                .set_engine_name("Rive Renderer")
 #ifdef DEBUG
-                          .set_debug_callback(rive_vkb::default_debug_callback)
-                          .enable_validation_layers(
-                              m_options.enableVulkanValidationLayers)
+                .set_debug_callback(rive_vkb::default_debug_callback)
+                .enable_validation_layers(
+                    m_options.enableVulkanValidationLayers)
 #endif
-                          .enable_extensions(glfwExtensionCount, glfwExtensions)
-                          .build());
+                .enable_extensions(glfwExtensionCount, glfwExtensions)
+                .require_api_version(1, options.coreFeaturesOnly ? 0 : 3, 0)
+                .set_minimum_instance_version(1, 0, 0)
+                .build());
         m_instanceTable = m_instance.make_table();
 
         VulkanFeatures vulkanFeatures;
-        std::tie(m_physicalDevice, vulkanFeatures) =
-            rive_vkb::select_physical_device(
-                vkb::PhysicalDeviceSelector(m_instance)
-                    .defer_surface_initialization(),
-                m_options.coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
-                                           : rive_vkb::FeatureSet::allAvailable,
-                m_options.gpuNameFilter);
-        m_device = VKB_CHECK(vkb::DeviceBuilder(m_physicalDevice).build());
+        std::tie(m_device, vulkanFeatures) = rive_vkb::select_device(
+            vkb::PhysicalDeviceSelector(m_instance)
+                .defer_surface_initialization(),
+            m_options.coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
+                                       : rive_vkb::FeatureSet::allAvailable,
+            m_options.gpuNameFilter);
         m_vkbTable = m_device.make_table();
         m_queue = VKB_CHECK(m_device.get_queue(vkb::QueueType::graphics));
         m_renderContext = RenderContextVulkanImpl::MakeContext(
             m_instance,
-            m_physicalDevice,
+            m_device.physical_device,
             m_device,
             vulkanFeatures,
             m_instance.fp_vkGetInstanceProcAddr);
@@ -158,7 +158,7 @@ public:
 
         VkSurfaceCapabilitiesKHR windowCapabilities;
         VK_CHECK(m_instanceTable.fp_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-            m_physicalDevice,
+            m_device.physical_device,
             m_windowSurface,
             &windowCapabilities));
 
@@ -427,7 +427,6 @@ private:
     const FiddleContextOptions m_options;
     vkb::Instance m_instance;
     vkb::InstanceDispatchTable m_instanceTable;
-    vkb::PhysicalDevice m_physicalDevice;
     vkb::Device m_device;
     vkb::DispatchTable m_vkbTable;
     VkQueue m_queue;

@@ -114,10 +114,10 @@ static const char* physical_device_type_name(VkPhysicalDeviceType type)
 // Select a GPU name if it contains the substring 'filter' or '$RIVE_GPU'.
 // Return false if 'filter' and '$RIVE_GPU' are both null.
 // Abort if the filter matches more than one name.
-std::tuple<vkb::PhysicalDevice, rive::gpu::VulkanFeatures>
-select_physical_device(vkb::PhysicalDeviceSelector& selector,
-                       FeatureSet featureSet,
-                       const char* gpuNameFilter)
+std::tuple<vkb::Device, rive::gpu::VulkanFeatures> select_device(
+    vkb::PhysicalDeviceSelector& selector,
+    FeatureSet featureSet,
+    const char* gpuNameFilter)
 {
     if (const char* rive_gpu = getenv("RIVE_GPU"))
     {
@@ -190,13 +190,12 @@ select_physical_device(vkb::PhysicalDeviceSelector& selector,
     });
 
     rive::gpu::VulkanFeatures riveVulkanFeatures = {
-        riveVulkanFeatures.vulkanApiVersion = VK_API_VERSION_1_0,
-        riveVulkanFeatures.independentBlend =
-            physicalDevice.features.independentBlend,
-        riveVulkanFeatures.fillModeNonSolid =
-            physicalDevice.features.fillModeNonSolid,
-        riveVulkanFeatures.fragmentStoresAndAtomics =
-            physicalDevice.features.fragmentStoresAndAtomics,
+        .independentBlend =
+            static_cast<bool>(physicalDevice.features.independentBlend),
+        .fillModeNonSolid =
+            static_cast<bool>(physicalDevice.features.fillModeNonSolid),
+        .fragmentStoresAndAtomics =
+            static_cast<bool>(physicalDevice.features.fragmentStoresAndAtomics),
     };
 
     if (featureSet != FeatureSet::coreOnly &&
@@ -218,7 +217,13 @@ select_physical_device(vkb::PhysicalDeviceSelector& selector,
         }
     }
 
-    printf("==== Vulkan GPU (%s): %s [ ",
+    vkb::Device device = VKB_CHECK(vkb::DeviceBuilder(physicalDevice).build());
+    riveVulkanFeatures.apiVersion = device.instance_version,
+
+    printf("==== Vulkan %i.%i.%i GPU (%s): %s [ ",
+           VK_API_VERSION_MAJOR(riveVulkanFeatures.apiVersion),
+           VK_API_VERSION_MINOR(riveVulkanFeatures.apiVersion),
+           VK_API_VERSION_PATCH(riveVulkanFeatures.apiVersion),
            physical_device_type_name(physicalDevice.properties.deviceType),
            physicalDevice.properties.deviceName);
     struct CommaSeparator
@@ -243,6 +248,6 @@ select_physical_device(vkb::PhysicalDeviceSelector& selector,
 #endif
     printf(" ] ====\n");
 
-    return {physicalDevice, riveVulkanFeatures};
+    return {device, riveVulkanFeatures};
 }
 } // namespace rive_vkb

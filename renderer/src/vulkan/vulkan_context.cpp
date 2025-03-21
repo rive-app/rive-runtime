@@ -10,51 +10,48 @@
 namespace rive::gpu
 {
 static VmaAllocator make_vma_allocator(
-    VmaAllocatorCreateInfo vmaCreateInfo,
-    PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
-    PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr)
+    const VulkanContext* vk,
+    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr)
 {
     VmaAllocator vmaAllocator;
     VmaVulkanFunctions vmaVulkanFunctions = {
-        .vkGetInstanceProcAddr = fp_vkGetInstanceProcAddr,
-        .vkGetDeviceProcAddr = fp_vkGetDeviceProcAddr,
+        .vkGetInstanceProcAddr = pfnvkGetInstanceProcAddr,
+        .vkGetDeviceProcAddr = vk->GetDeviceProcAddr,
+        .vkGetPhysicalDeviceProperties = vk->GetPhysicalDeviceProperties,
     };
-    vmaCreateInfo.pVulkanFunctions = &vmaVulkanFunctions;
+    VmaAllocatorCreateInfo vmaCreateInfo = {
+        // We are single-threaded.
+        .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
+        .physicalDevice = vk->physicalDevice,
+        .device = vk->device,
+        .pVulkanFunctions = &vmaVulkanFunctions,
+        .instance = vk->instance,
+        .vulkanApiVersion = vk->features.apiVersion,
+    };
     VK_CHECK(vmaCreateAllocator(&vmaCreateInfo, &vmaAllocator));
     return vmaAllocator;
 }
 
-VulkanContext::VulkanContext(VkInstance instance,
-                             VkPhysicalDevice physicalDevice_,
-                             VkDevice device_,
-                             const VulkanFeatures& features_,
-                             PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
-                             PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr) :
+VulkanContext::VulkanContext(
+    VkInstance instance,
+    VkPhysicalDevice physicalDevice_,
+    VkDevice device_,
+    const VulkanFeatures& features_,
+    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr) :
     instance(instance),
-    physicalDevice(physicalDevice_),
+#define LOAD_VULKAN_INSTANCE_COMMAND(CMD)                                      \
+    CMD(reinterpret_cast<PFN_vk##CMD>(                                         \
+        pfnvkGetInstanceProcAddr(instance, "vk" #CMD))),
+    RIVE_VULKAN_INSTANCE_COMMANDS(LOAD_VULKAN_INSTANCE_COMMAND)
+#undef LOAD_VULKAN_INSTANCE_COMMAND
+        physicalDevice(physicalDevice_),
     device(device_),
     features(features_),
-    vmaAllocator(make_vma_allocator(
-        {
-            // We are single-threaded.
-            .flags = VMA_ALLOCATOR_CREATE_EXTERNALLY_SYNCHRONIZED_BIT,
-            .physicalDevice = physicalDevice,
-            .device = device,
-            .instance = instance,
-            .vulkanApiVersion = features.vulkanApiVersion,
-        },
-        fp_vkGetInstanceProcAddr,
-        fp_vkGetDeviceProcAddr))
-// clang-format off
-#define LOAD_VULKAN_INSTANCE_COMMAND(CMD)                                                          \
-    , CMD(reinterpret_cast<PFN_vk##CMD>(fp_vkGetInstanceProcAddr(instance, "vk" #CMD)))
-    RIVE_VULKAN_INSTANCE_COMMANDS(LOAD_VULKAN_INSTANCE_COMMAND)
-#define LOAD_VULKAN_DEVICE_COMMAND(CMD)                                                            \
-    , CMD(reinterpret_cast<PFN_vk##CMD>(fp_vkGetDeviceProcAddr(device, "vk" #CMD)))
+#define LOAD_VULKAN_DEVICE_COMMAND(CMD)                                        \
+    CMD(reinterpret_cast<PFN_vk##CMD>(GetDeviceProcAddr(device, "vk" #CMD))),
     RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
 #undef LOAD_VULKAN_DEVICE_COMMAND
-#undef LOAD_VULKAN_INSTANCE_COMMAND
-// clang-format on
+        vmaAllocator(make_vma_allocator(this, pfnvkGetInstanceProcAddr))
 {
     // VK spec says between D24_S8 and D32_S8, one of them must be supported
     m_supportsD24S8 = isFormatSupportedWithFeatureFlags(

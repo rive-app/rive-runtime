@@ -41,20 +41,20 @@ public:
                           .enable_validation_layers()
                           .set_debug_callback(rive_vkb::default_debug_callback)
 #endif
+                          .require_api_version(1, coreFeaturesOnly ? 0 : 3, 0)
+                          .set_minimum_instance_version(1, 0, 0)
                           .build());
 
         VulkanFeatures vulkanFeatures;
-        std::tie(m_physicalDevice, vulkanFeatures) =
-            rive_vkb::select_physical_device(
-                m_instance,
-                coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
-                                 : rive_vkb::FeatureSet::allAvailable,
-                gpuNameFilter);
-        m_device = VKB_CHECK(vkb::DeviceBuilder(m_physicalDevice).build());
+        std::tie(m_device, vulkanFeatures) = rive_vkb::select_device(
+            m_instance,
+            coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
+                             : rive_vkb::FeatureSet::allAvailable,
+            gpuNameFilter);
         m_queue = VKB_CHECK(m_device.get_queue(vkb::QueueType::graphics));
         m_renderContext = RenderContextVulkanImpl::MakeContext(
             m_instance,
-            m_physicalDevice,
+            m_device.physical_device,
             m_device,
             vulkanFeatures,
             m_instance.fp_vkGetInstanceProcAddr);
@@ -278,7 +278,6 @@ private:
 
     bool m_clockwiseFill;
     vkb::Instance m_instance;
-    vkb::PhysicalDevice m_physicalDevice;
     vkb::Device m_device;
     VkQueue m_queue;
     std::unique_ptr<RenderContext> m_renderContext;

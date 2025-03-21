@@ -47,6 +47,8 @@ public:
                 .enable_validation_layers(true)
 #endif
                 .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
+                .require_api_version(1, coreFeaturesOnly ? 0 : 3, 0)
+                .set_minimum_instance_version(1, 0, 0)
                 .build());
         m_instanceFns = m_instance.make_table();
 
@@ -66,25 +68,23 @@ public:
                                               &m_windowSurface));
 
         VulkanFeatures vulkanFeatures;
-        std::tie(m_physicalDevice, vulkanFeatures) =
-            rive_vkb::select_physical_device(
-                vkb::PhysicalDeviceSelector(m_instance)
-                    .set_surface(m_windowSurface),
-                coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
-                                 : rive_vkb::FeatureSet::allAvailable);
-        m_device = VKB_CHECK(vkb::DeviceBuilder(m_physicalDevice).build());
+        std::tie(m_device, vulkanFeatures) = rive_vkb::select_device(
+            vkb::PhysicalDeviceSelector(m_instance)
+                .set_surface(m_windowSurface),
+            coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
+                             : rive_vkb::FeatureSet::allAvailable);
         m_vkbTable = m_device.make_table();
         m_queue = VKB_CHECK(m_device.get_queue(vkb::QueueType::graphics));
         m_renderContext = RenderContextVulkanImpl::MakeContext(
             m_instance,
-            m_physicalDevice,
+            m_device.physical_device,
             m_device,
             vulkanFeatures,
             m_instance.fp_vkGetInstanceProcAddr);
 
         VkSurfaceCapabilitiesKHR windowCapabilities;
         VK_CHECK(m_instanceFns.fp_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-            m_physicalDevice,
+            m_device.physical_device,
             m_windowSurface,
             &windowCapabilities));
         vkb::SwapchainBuilder swapchainBuilder(m_device, m_windowSurface);
@@ -303,7 +303,6 @@ private:
     bool m_clockwiseFill;
     vkb::Instance m_instance;
     vkb::InstanceDispatchTable m_instanceFns;
-    vkb::PhysicalDevice m_physicalDevice;
     vkb::Device m_device;
     vkb::DispatchTable m_vkbTable;
     VkQueue m_queue;

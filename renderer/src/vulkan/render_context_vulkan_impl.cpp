@@ -1496,14 +1496,14 @@ public:
             // declare explicit subpass dependencies.
             StackVector<VkSubpassDependency, MAX_SUBPASSES_POSSIBLE>
                 subpassDeps;
-            const bool implicitSubpassDependencies =
+            const bool rasterOrdered =
                 m_interlockMode == gpu::InterlockMode::rasterOrdering &&
                 m_vk->features.rasterizationOrderColorAttachmentAccess;
 
             // Draw subpass
             subpassDescriptions.push_back({
                 .flags =
-                    implicitSubpassDependencies
+                    rasterOrdered
                         ? VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT
                         : 0u,
                 .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
@@ -1573,11 +1573,9 @@ public:
                 .pAttachments = attachmentDescs.data(),
                 .subpassCount = subpassDescriptions.size(),
                 .pSubpasses = subpassDescriptions.data(),
-                .dependencyCount = implicitSubpassDependencies
-                                       ? 0
-                                       : renderPassCreateInfo.subpassCount,
-                .pDependencies =
-                    implicitSubpassDependencies ? nullptr : subpassDeps.data(),
+                .dependencyCount =
+                    rasterOrdered ? 0 : renderPassCreateInfo.subpassCount,
+                .pDependencies = rasterOrdered ? nullptr : subpassDeps.data(),
             };
 
             VK_CHECK(
@@ -2119,14 +2117,12 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     VkPhysicalDevice physicalDevice,
     VkDevice device,
     const VulkanFeatures& features,
-    PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr,
-    PFN_vkGetDeviceProcAddr fp_vkGetDeviceProcAddr) :
+    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr) :
     m_vk(make_rcp<VulkanContext>(instance,
                                  physicalDevice,
                                  device,
                                  features,
-                                 fp_vkGetInstanceProcAddr,
-                                 fp_vkGetDeviceProcAddr)),
+                                 pfnvkGetInstanceProcAddr)),
     m_flushUniformBufferRing(m_vk,
                              VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                              vkutil::Mappability::writeOnly),
@@ -2157,8 +2153,9 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_descriptorSetPoolPool(
         make_rcp<vkutil::ResourcePool<DescriptorSetPool>>(m_vk))
 {
-    VkPhysicalDeviceProperties deviceProps;
-    m_vk->GetPhysicalDeviceProperties(m_vk->physicalDevice, &deviceProps);
+    VkPhysicalDeviceProperties physicalDeviceProps;
+    m_vk->GetPhysicalDeviceProperties(m_vk->physicalDevice,
+                                      &physicalDeviceProps);
 
     m_platformFeatures.supportsRasterOrdering =
         features.rasterizationOrderColorAttachmentAccess;
@@ -2169,10 +2166,10 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_platformFeatures.clipSpaceBottomUp = false;
     m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.maxCoverageBufferLength =
-        std::min(deviceProps.limits.maxStorageBufferRange, 1u << 28) /
+        std::min(physicalDeviceProps.limits.maxStorageBufferRange, 1u << 28) /
         sizeof(uint32_t);
 
-    switch (deviceProps.vendorID)
+    switch (physicalDeviceProps.vendorID)
     {
         case vkutil::VENDOR_QUALCOMM:
             // Qualcomm advertises EXT_rasterization_order_attachment_access,
@@ -4142,17 +4139,14 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     VkPhysicalDevice physicalDevice,
     VkDevice device,
     const VulkanFeatures& features,
-    PFN_vkGetInstanceProcAddr fp_vkGetInstanceProcAddr)
+    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr)
 {
-    auto fp_vkGetDeviceProcAddr = reinterpret_cast<PFN_vkGetDeviceProcAddr>(
-        fp_vkGetInstanceProcAddr(instance, "vkGetDeviceProcAddr"));
     std::unique_ptr<RenderContextVulkanImpl> impl(
         new RenderContextVulkanImpl(instance,
                                     physicalDevice,
                                     device,
                                     features,
-                                    fp_vkGetInstanceProcAddr,
-                                    fp_vkGetDeviceProcAddr));
+                                    pfnvkGetInstanceProcAddr));
     if (!impl->platformFeatures().supportsRasterOrdering &&
         !impl->platformFeatures().supportsFragmentShaderAtomics)
     {
