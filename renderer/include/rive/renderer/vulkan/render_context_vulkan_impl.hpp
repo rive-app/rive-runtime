@@ -21,6 +21,13 @@ public:
     void setTargetTextureView(rcp<vkutil::TextureView> view,
                               VulkanContext::TextureAccess targetLastAccess)
     {
+        // In order to implement blend modes, the target texture needs to either
+        // support input attachment usage (ideal), or else transfers.
+        constexpr static VkImageUsageFlags TRANSFER_SRC_AND_DST =
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        assert((view->usageFlags() & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
+               (view->usageFlags() & TRANSFER_SRC_AND_DST) ==
+                   TRANSFER_SRC_AND_DST);
         m_targetTextureView = std::move(view);
         setTargetLastAccess(targetLastAccess);
     }
@@ -86,6 +93,8 @@ private:
 
     const rcp<VulkanContext> m_vk;
     const VkFormat m_framebufferFormat;
+    // TODO: Once the client is fully responsible for synchronization, this
+    // should turn into just a VkImageView.
     rcp<vkutil::TextureView> m_targetTextureView;
     VulkanContext::TextureAccess m_targetLastAccess;
 
@@ -138,11 +147,8 @@ public:
     void hotloadShaders(rive::Span<const uint32_t> spirvData);
 
 private:
-    RenderContextVulkanImpl(VkInstance,
-                            VkPhysicalDevice,
-                            VkDevice,
-                            const VulkanFeatures&,
-                            PFN_vkGetInstanceProcAddr);
+    RenderContextVulkanImpl(rcp<VulkanContext>,
+                            const VkPhysicalDeviceProperties&);
 
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
@@ -227,6 +233,8 @@ private:
     }
 
     const rcp<VulkanContext> m_vk;
+    const uint32_t m_vendorID;
+    const VkFormat m_atlasFormat;
 
     // PLS buffers.
     vkutil::BufferRing m_flushUniformBufferRing;

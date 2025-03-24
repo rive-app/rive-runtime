@@ -349,71 +349,6 @@ constexpr static VkSubpassDescription SINGLE_ATTACHMENT_SUBPASS = {
 
 namespace rive::gpu
 {
-void RenderContextVulkanImpl::hotloadShaders(
-    rive::Span<const uint32_t> spirvData)
-{
-    m_vk->DeviceWaitIdle(m_vk->device);
-
-    size_t spirvIndex = 0;
-    auto readNextBytecodeSpan = [spirvData,
-                                 &spirvIndex]() -> rive::Span<const uint32_t> {
-        size_t insnCount = spirvData[spirvIndex++];
-        const uint32_t* insnData = spirvData.data() + spirvIndex;
-        spirvIndex += insnCount;
-        return rive::make_span(insnData, insnCount);
-    };
-
-    spirv::color_ramp_vert = readNextBytecodeSpan();
-    spirv::color_ramp_frag = readNextBytecodeSpan();
-    spirv::tessellate_vert = readNextBytecodeSpan();
-    spirv::tessellate_frag = readNextBytecodeSpan();
-    spirv::render_atlas_vert = readNextBytecodeSpan();
-    spirv::render_atlas_fill_frag = readNextBytecodeSpan();
-    spirv::render_atlas_stroke_frag = readNextBytecodeSpan();
-    spirv::draw_path_vert = readNextBytecodeSpan();
-    spirv::draw_path_frag = readNextBytecodeSpan();
-    spirv::draw_interior_triangles_vert = readNextBytecodeSpan();
-    spirv::draw_interior_triangles_frag = readNextBytecodeSpan();
-    spirv::draw_atlas_blit_vert = readNextBytecodeSpan();
-    spirv::draw_atlas_blit_frag = readNextBytecodeSpan();
-    spirv::draw_image_mesh_vert = readNextBytecodeSpan();
-    spirv::draw_image_mesh_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_path_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_path_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_path_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_interior_triangles_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_interior_triangles_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_interior_triangles_fixedcolor_frag =
-        readNextBytecodeSpan();
-    spirv::atomic_draw_atlas_blit_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_atlas_blit_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_image_rect_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_image_rect_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_image_rect_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_image_mesh_vert = readNextBytecodeSpan();
-    spirv::atomic_draw_image_mesh_frag = readNextBytecodeSpan();
-    spirv::atomic_draw_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::atomic_resolve_pls_vert = readNextBytecodeSpan();
-    spirv::atomic_resolve_pls_frag = readNextBytecodeSpan();
-    spirv::atomic_resolve_pls_fixedcolor_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_path_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_path_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_interior_triangles_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_interior_triangles_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_atlas_blit_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_atlas_blit_frag = readNextBytecodeSpan();
-    spirv::draw_clockwise_image_mesh_vert = readNextBytecodeSpan();
-    spirv::draw_clockwise_image_mesh_frag = readNextBytecodeSpan();
-
-    // Delete and replace old shaders
-    m_colorRampPipeline = std::make_unique<ColorRampPipeline>(this);
-    m_tessellatePipeline = std::make_unique<TessellatePipeline>(this);
-    m_atlasPipeline = std::make_unique<AtlasPipeline>(this);
-    m_drawShaders.clear();
-    m_drawPipelines.clear();
-}
-
 static VkFormat get_preferred_depth_stencil_format(bool isD24S8Supported)
 {
     return isD24S8Supported ? VK_FORMAT_D24_UNORM_S8_UINT
@@ -1119,7 +1054,7 @@ public:
         };
 
         VkAttachmentDescription attachment = {
-            .format = VK_FORMAT_R32_SFLOAT,
+            .format = impl->m_atlasFormat,
             .samples = VK_SAMPLE_COUNT_1_BIT,
             .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
             .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
@@ -1878,7 +1813,7 @@ public:
                                                         shaderMiscFlags)
                                            .first->second;
 
-        VkBool32 shaderPermutationFlags[SPECIALIZATION_COUNT] = {
+        uint32_t shaderPermutationFlags[SPECIALIZATION_COUNT] = {
             shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING,
             shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT,
             shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND,
@@ -1888,6 +1823,7 @@ public:
             shaderFeatures & gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES,
             shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill,
             shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass,
+            impl->m_vendorID,
         };
         static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
         static_assert(CLIP_RECT_SPECIALIZATION_IDX == 1);
@@ -1898,15 +1834,16 @@ public:
         static_assert(HSL_BLEND_MODES_SPECIALIZATION_IDX == 6);
         static_assert(CLOCKWISE_FILL_SPECIALIZATION_IDX == 7);
         static_assert(BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX == 8);
-        static_assert(SPECIALIZATION_COUNT == 9);
+        static_assert(VULKAN_VENDOR_ID_SPECIALIZATION_IDX == 9);
+        static_assert(SPECIALIZATION_COUNT == 10);
 
         VkSpecializationMapEntry permutationMapEntries[SPECIALIZATION_COUNT];
         for (uint32_t i = 0; i < SPECIALIZATION_COUNT; ++i)
         {
             permutationMapEntries[i] = {
                 .constantID = i,
-                .offset = i * static_cast<uint32_t>(sizeof(VkBool32)),
-                .size = sizeof(VkBool32),
+                .offset = i * static_cast<uint32_t>(sizeof(uint32_t)),
+                .size = sizeof(uint32_t),
             };
         }
 
@@ -2113,16 +2050,15 @@ private:
 };
 
 RenderContextVulkanImpl::RenderContextVulkanImpl(
-    VkInstance instance,
-    VkPhysicalDevice physicalDevice,
-    VkDevice device,
-    const VulkanFeatures& features,
-    PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr) :
-    m_vk(make_rcp<VulkanContext>(instance,
-                                 physicalDevice,
-                                 device,
-                                 features,
-                                 pfnvkGetInstanceProcAddr)),
+    rcp<VulkanContext> vk,
+    const VkPhysicalDeviceProperties& physicalDeviceProps) :
+    m_vk(std::move(vk)),
+    m_vendorID(physicalDeviceProps.vendorID),
+    m_atlasFormat(m_vk->isFormatSupportedWithFeatureFlags(
+                      VK_FORMAT_R32_SFLOAT,
+                      VK_FORMAT_FEATURE_COLOR_ATTACHMENT_BLEND_BIT)
+                      ? VK_FORMAT_R32_SFLOAT
+                      : VK_FORMAT_R16_SFLOAT),
     m_flushUniformBufferRing(m_vk,
                              VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT,
                              vkutil::Mappability::writeOnly),
@@ -2153,25 +2089,21 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_descriptorSetPoolPool(
         make_rcp<vkutil::ResourcePool<DescriptorSetPool>>(m_vk))
 {
-    VkPhysicalDeviceProperties physicalDeviceProps;
-    m_vk->GetPhysicalDeviceProperties(m_vk->physicalDevice,
-                                      &physicalDeviceProps);
-
     m_platformFeatures.supportsRasterOrdering =
-        features.rasterizationOrderColorAttachmentAccess;
+        m_vk->features.rasterizationOrderColorAttachmentAccess;
     m_platformFeatures.supportsFragmentShaderAtomics =
-        features.fragmentStoresAndAtomics;
+        m_vk->features.fragmentStoresAndAtomics;
     m_platformFeatures.supportsClockwiseAtomicRendering =
-        features.fragmentStoresAndAtomics;
+        m_vk->features.fragmentStoresAndAtomics;
     m_platformFeatures.clipSpaceBottomUp = false;
     m_platformFeatures.framebufferBottomUp = false;
     m_platformFeatures.maxCoverageBufferLength =
         std::min(physicalDeviceProps.limits.maxStorageBufferRange, 1u << 28) /
         sizeof(uint32_t);
 
-    switch (physicalDeviceProps.vendorID)
+    switch (m_vendorID)
     {
-        case vkutil::VENDOR_QUALCOMM:
+        case VULKAN_VENDOR_QUALCOMM:
             // Qualcomm advertises EXT_rasterization_order_attachment_access,
             // but it's slow. Use atomics instead on this platform.
             m_platformFeatures.supportsRasterOrdering = false;
@@ -2179,7 +2111,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
             m_platformFeatures.pathIDGranularity = 2;
             break;
 
-        case vkutil::VENDOR_ARM:
+        case VULKAN_VENDOR_ARM:
             // This is undocumented, but raster ordering always works on ARM
             // Mali GPUs if you define a subpass dependency, even without
             // EXT_rasterization_order_attachment_access.
@@ -2631,7 +2563,7 @@ void RenderContextVulkanImpl::resizeAtlasTexture(uint32_t width,
         m_atlasTexture->info().extent.height != height)
     {
         m_atlasTexture = m_vk->makeTexture({
-            .format = VK_FORMAT_R32_SFLOAT,
+            .format = m_atlasFormat,
             .extent = {width, height, 1},
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                      VK_IMAGE_USAGE_SAMPLED_BIT,
@@ -4134,6 +4066,69 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
 }
 
+void RenderContextVulkanImpl::hotloadShaders(
+    rive::Span<const uint32_t> spirvData)
+{
+    size_t spirvIndex = 0;
+    auto readNextBytecodeSpan = [spirvData,
+                                 &spirvIndex]() -> rive::Span<const uint32_t> {
+        size_t insnCount = spirvData[spirvIndex++];
+        const uint32_t* insnData = spirvData.data() + spirvIndex;
+        spirvIndex += insnCount;
+        return rive::make_span(insnData, insnCount);
+    };
+
+    spirv::color_ramp_vert = readNextBytecodeSpan();
+    spirv::color_ramp_frag = readNextBytecodeSpan();
+    spirv::tessellate_vert = readNextBytecodeSpan();
+    spirv::tessellate_frag = readNextBytecodeSpan();
+    spirv::render_atlas_vert = readNextBytecodeSpan();
+    spirv::render_atlas_fill_frag = readNextBytecodeSpan();
+    spirv::render_atlas_stroke_frag = readNextBytecodeSpan();
+    spirv::draw_path_vert = readNextBytecodeSpan();
+    spirv::draw_path_frag = readNextBytecodeSpan();
+    spirv::draw_interior_triangles_vert = readNextBytecodeSpan();
+    spirv::draw_interior_triangles_frag = readNextBytecodeSpan();
+    spirv::draw_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::draw_atlas_blit_frag = readNextBytecodeSpan();
+    spirv::draw_image_mesh_vert = readNextBytecodeSpan();
+    spirv::draw_image_mesh_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_path_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_path_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_path_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_interior_triangles_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_interior_triangles_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_interior_triangles_fixedcolor_frag =
+        readNextBytecodeSpan();
+    spirv::atomic_draw_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_atlas_blit_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_image_rect_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_image_rect_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_image_rect_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_image_mesh_vert = readNextBytecodeSpan();
+    spirv::atomic_draw_image_mesh_frag = readNextBytecodeSpan();
+    spirv::atomic_draw_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::atomic_resolve_pls_vert = readNextBytecodeSpan();
+    spirv::atomic_resolve_pls_frag = readNextBytecodeSpan();
+    spirv::atomic_resolve_pls_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_path_vert = readNextBytecodeSpan();
+    spirv::draw_clockwise_path_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_interior_triangles_vert = readNextBytecodeSpan();
+    spirv::draw_clockwise_interior_triangles_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::draw_clockwise_atlas_blit_frag = readNextBytecodeSpan();
+    spirv::draw_clockwise_image_mesh_vert = readNextBytecodeSpan();
+    spirv::draw_clockwise_image_mesh_frag = readNextBytecodeSpan();
+
+    // Delete and replace old shaders
+    m_colorRampPipeline = std::make_unique<ColorRampPipeline>(this);
+    m_tessellatePipeline = std::make_unique<TessellatePipeline>(this);
+    m_atlasPipeline = std::make_unique<AtlasPipeline>(this);
+    m_drawShaders.clear();
+    m_drawPipelines.clear();
+}
+
 std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     VkInstance instance,
     VkPhysicalDevice physicalDevice,
@@ -4141,12 +4136,15 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     const VulkanFeatures& features,
     PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr)
 {
+    rcp<VulkanContext> vk = make_rcp<VulkanContext>(instance,
+                                                    physicalDevice,
+                                                    device,
+                                                    features,
+                                                    pfnvkGetInstanceProcAddr);
+    VkPhysicalDeviceProperties physicalDeviceProps;
+    vk->GetPhysicalDeviceProperties(vk->physicalDevice, &physicalDeviceProps);
     std::unique_ptr<RenderContextVulkanImpl> impl(
-        new RenderContextVulkanImpl(instance,
-                                    physicalDevice,
-                                    device,
-                                    features,
-                                    pfnvkGetInstanceProcAddr));
+        new RenderContextVulkanImpl(std::move(vk), physicalDeviceProps));
     if (!impl->platformFeatures().supportsRasterOrdering &&
         !impl->platformFeatures().supportsFragmentShaderAtomics)
     {

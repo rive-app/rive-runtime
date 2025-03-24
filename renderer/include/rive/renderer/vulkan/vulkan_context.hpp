@@ -61,7 +61,6 @@ public:
     const VulkanFeatures features;
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
-    F(AllocateCommandBuffers)                                                  \
     F(AllocateDescriptorSets)                                                  \
     F(CmdBeginRenderPass)                                                      \
     F(CmdBindDescriptorSets)                                                   \
@@ -79,37 +78,26 @@ public:
     F(CmdPipelineBarrier)                                                      \
     F(CmdSetScissor)                                                           \
     F(CmdSetViewport)                                                          \
-    F(CreateCommandPool)                                                       \
     F(CreateDescriptorPool)                                                    \
     F(CreateDescriptorSetLayout)                                               \
-    F(CreateFence)                                                             \
     F(CreateFramebuffer)                                                       \
     F(CreateGraphicsPipelines)                                                 \
     F(CreateImageView)                                                         \
     F(CreatePipelineLayout)                                                    \
     F(CreateRenderPass)                                                        \
     F(CreateSampler)                                                           \
-    F(CreateSemaphore)                                                         \
     F(CreateShaderModule)                                                      \
-    F(DestroyCommandPool)                                                      \
     F(DestroyDescriptorPool)                                                   \
     F(DestroyDescriptorSetLayout)                                              \
-    F(DestroyFence)                                                            \
     F(DestroyFramebuffer)                                                      \
     F(DestroyImageView)                                                        \
     F(DestroyPipeline)                                                         \
     F(DestroyPipelineLayout)                                                   \
     F(DestroyRenderPass)                                                       \
     F(DestroySampler)                                                          \
-    F(DestroySemaphore)                                                        \
     F(DestroyShaderModule)                                                     \
-    F(DeviceWaitIdle)                                                          \
-    F(FreeCommandBuffers)                                                      \
-    F(ResetCommandBuffer)                                                      \
     F(ResetDescriptorPool)                                                     \
-    F(ResetFences)                                                             \
-    F(UpdateDescriptorSets)                                                    \
-    F(WaitForFences)
+    F(UpdateDescriptorSets)
 
     RIVE_VULKAN_DEVICE_COMMANDS(DECLARE_VULKAN_COMMAND)
 #undef DECLARE_VULKAN_COMMAND

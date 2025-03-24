@@ -16,6 +16,8 @@ layout(constant_id = CLOCKWISE_FILL_SPECIALIZATION_IDX) const
     bool kClockwiseFill = true;
 layout(constant_id = BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX) const
     bool kBorrowedCoveragePrepass = true;
+layout(constant_id = VULKAN_VENDOR_ID_SPECIALIZATION_IDX) const uint
+    kVulkanVendorID = 0;
 
 #define @ENABLE_CLIPPING kEnableClipping
 #define @ENABLE_CLIP_RECT kEnableClipRect
@@ -26,3 +28,4 @@ layout(constant_id = BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX) const
 #define @ENABLE_HSL_BLEND_MODES kEnableHSLBlendModes
 #define @CLOCKWISE_FILL kClockwiseFill
 #define @BORROWED_COVERAGE_PREPASS kBorrowedCoveragePrepass
+#define @VULKAN_VENDOR_ID kVulkanVendorID
