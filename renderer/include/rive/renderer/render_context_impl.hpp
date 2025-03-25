@@ -54,9 +54,17 @@ public:
     virtual void resizeTessVertexSpanBuffer(size_t sizeInBytes) = 0;
     virtual void resizeTriangleVertexBuffer(size_t sizeInBytes) = 0;
 
-    // Perform any synchronization or other tasks that need to run immediately
-    // before RenderContext begins mapping buffers for the next flush.
-    virtual void prepareToMapBuffers() {}
+    // Perform any bookkeeping or other tasks that need to run before
+    // RenderContext begins accessing GPU resources for the flush. (Update
+    // counters, advance buffer pools, etc.)
+    //
+    // The provided resource lifetime counters communicate how the client is
+    // performing CPU-GPU synchronization. Resources used during the upcoming
+    // flush will belong to 'nextFrameNumber'. Resources last used on or before
+    // 'safeFrameNumber' are safe to be released or recycled.
+    virtual void prepareToFlush(uint64_t nextFrameNumber,
+                                uint64_t safeFrameNumber)
+    {}
 
     // Map GPU buffers. (The implementation may wish to allocate the mappable
     // buffers in rings, in order to avoid expensive synchronization with the

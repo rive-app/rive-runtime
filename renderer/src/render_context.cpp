@@ -612,6 +612,9 @@ void RenderContext::flush(const FlushResources& flushResources)
     assert(flushResources.renderTarget->height() ==
            m_frameDescriptor.renderTargetHeight);
 
+    m_impl->prepareToFlush(flushResources.currentFrameNumber,
+                           flushResources.safeFrameNumber);
+
     m_clipContentID = 0;
 
     // Layout this frame's resource buffers and textures.
@@ -723,8 +726,6 @@ void RenderContext::flush(const FlushResources& flushResources)
     }
 
     setResourceSizes(allocs);
-
-    // Write out the GPU buffers for this frame.
     mapResourceBuffers(allocs);
 
     for (const auto& flush : m_logicalFlushes)
@@ -988,10 +989,6 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.isFinalFlushOfFrame = isFinalFlushOfFrame;
 
     m_flushDesc.externalCommandBuffer = flushResources.externalCommandBuffer;
-    if (isFinalFlushOfFrame)
-    {
-        m_flushDesc.frameCompletionFence = flushResources.frameCompletionFence;
-    }
 
     *runningFrameResourceCounts =
         runningFrameResourceCounts->toVec() + m_resourceCounts.toVec();
@@ -1825,8 +1822,6 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
 void RenderContext::mapResourceBuffers(
     const ResourceAllocationCounts& mapCounts)
 {
-    m_impl->prepareToMapBuffers();
-
     if (mapCounts.flushUniformBufferCount > 0)
     {
         m_flushUniformData.mapElements(

@@ -90,13 +90,16 @@ public:
             VkImageUsageFlags swapchainUsageFlags =
                 m_coreFeaturesOnly ? VK_IMAGE_USAGE_TRANSFER_DST_BIT
                                    : VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+            uint64_t currentFrameNumber =
+                m_swapchain != nullptr ? m_swapchain->currentFrameNumber() : 0;
             m_swapchain =
                 std::make_unique<rive_vkb::Swapchain>(m_device,
                                                       ref_rcp(vk()),
                                                       m_width,
                                                       m_height,
                                                       swapchainFormat,
-                                                      swapchainUsageFlags);
+                                                      swapchainUsageFlags,
+                                                      currentFrameNumber);
             m_renderTarget =
                 impl()->makeRenderTarget(m_width, m_height, swapchainFormat);
         }
@@ -118,16 +121,19 @@ public:
 
     void flushPLSContext() final
     {
-        if (m_swapchain->currentImage() == nullptr)
+        const rive_vkb::SwapchainImage* swapchainImage =
+            m_swapchain->currentImage();
+        if (swapchainImage == nullptr)
         {
-            const rive_vkb::SwapchainImage* swapchainImage =
-                m_swapchain->acquireNextImage();
+            swapchainImage = m_swapchain->acquireNextImage();
             m_renderTarget->setTargetTextureView(swapchainImage->imageView, {});
         }
 
         m_renderContext->flush({
             .renderTarget = m_renderTarget.get(),
-            .externalCommandBuffer = m_swapchain->currentImage()->commandBuffer,
+            .externalCommandBuffer = swapchainImage->commandBuffer,
+            .currentFrameNumber = swapchainImage->currentFrameNumber,
+            .safeFrameNumber = swapchainImage->safeFrameNumber,
         });
     }
 

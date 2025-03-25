@@ -176,7 +176,8 @@ private:
     // Obtains an exclusive lock on the next buffer ring index, potentially
     // blocking until the GPU has finished rendering with it. This ensures it is
     // safe for the CPU to begin modifying the next buffers in our rings.
-    void prepareToMapBuffers() override;
+    void prepareToFlush(uint64_t nextFrameNumber,
+                        uint64_t safeFrameNumber) override;
 
     // Creates a MTLRenderCommandEncoder and sets the common state for PLS
     // draws.

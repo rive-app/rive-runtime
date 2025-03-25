@@ -47,18 +47,14 @@ public:
     ~VulkanContext();
 
     const VkInstance instance;
+    const VkPhysicalDevice physicalDevice;
+    const VkDevice device;
+    const VulkanFeatures features;
 
 #define RIVE_VULKAN_INSTANCE_COMMANDS(F)                                       \
     F(GetDeviceProcAddr)                                                       \
     F(GetPhysicalDeviceFormatProperties)                                       \
     F(GetPhysicalDeviceProperties)
-
-#define DECLARE_VULKAN_COMMAND(CMD) const PFN_vk##CMD CMD;
-    RIVE_VULKAN_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)
-
-    const VkPhysicalDevice physicalDevice;
-    const VkDevice device;
-    const VulkanFeatures features;
 
 #define RIVE_VULKAN_DEVICE_COMMANDS(F)                                         \
     F(AllocateDescriptorSets)                                                  \
@@ -99,20 +95,25 @@ public:
     F(ResetDescriptorPool)                                                     \
     F(UpdateDescriptorSets)
 
+#define DECLARE_VULKAN_COMMAND(CMD) const PFN_vk##CMD CMD;
+    RIVE_VULKAN_INSTANCE_COMMANDS(DECLARE_VULKAN_COMMAND)
     RIVE_VULKAN_DEVICE_COMMANDS(DECLARE_VULKAN_COMMAND)
 #undef DECLARE_VULKAN_COMMAND
 
-    const VmaAllocator vmaAllocator;
+    VmaAllocator allocator() const { return m_vmaAllocator; }
 
-    uint64_t currentFrameIdx() const { return m_currentFrameIdx; }
-    bool supportsD24S8() const { return m_supportsD24S8; }
     bool isFormatSupportedWithFeatureFlags(VkFormat, VkFormatFeatureFlagBits);
+    bool supportsD24S8() const { return m_supportsD24S8; }
 
-    // Called at the beginning of a new frame. This is where we purge
-    // m_resourcePurgatory, so the client is responsible to guarantee that all
-    // command buffers from frame "N + 1 - gpu::kBufferRingSize" have finished
-    // executing before calling this method.
-    void onNewFrameBegun();
+    // Resource lifetime counters. Resources last used on or before
+    // 'safeFrameNumber' are safe to be released or recycled.
+    uint64_t currentFrameNumber() const { return m_currentFrameNumber; }
+    uint64_t safeFrameNumber() const { return m_safeFrameNumber; }
+
+    // Purges released resources whose lastFrameNumber is on or before
+    // safeFrameNumber, and updates the context's monotonically increasing
+    // m_currentFrameNumber.
+    void advanceFrameNumber(uint64_t nextFrameNumber, uint64_t safeFrameNumber);
 
     // Called when a vkutil::RenderingResource has been fully released (refCnt
     // reaches 0). The resource won't actually be deleted until the current
@@ -214,14 +215,24 @@ public:
                      const IAABB&);
 
 private:
+    const VmaAllocator m_vmaAllocator;
+
     // Temporary storage for vkutil::RenderingResource instances that have been
     // fully released, but need to persist until in-flight command buffers have
     // finished referencing their underlying Vulkan objects.
     std::deque<vkutil::ZombieResource<const vkutil::RenderingResource>>
         m_resourcePurgatory;
 
-    uint64_t m_currentFrameIdx = 0;
-    bool m_shutdown = false; // Indicates that we are in a shutdown cycle.
+    // A m_currentFrameNumber of this value indicates we're in a shutdown cycle
+    // and resources should be deleted immediatly upon release instead of going
+    // through m_resourcePurgatory.
+    constexpr static uint64_t SHUTDOWN_FRAME_NUMBER =
+        std::numeric_limits<uint64_t>::max();
+
+    // Resource lifetime counters. Resources last used on or before
+    // 'safeFrameNumber' are safe to be released or recycled.
+    uint64_t m_currentFrameNumber = 0;
+    uint64_t m_safeFrameNumber = 0;
 
     // Vulkan spec: must support one of D24S8 and D32S8.
     bool m_supportsD24S8 = false;

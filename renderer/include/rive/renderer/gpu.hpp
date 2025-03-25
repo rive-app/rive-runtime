@@ -959,19 +959,6 @@ struct TwoTexelRamp
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
 
-// Blocks the CPU until the GPU has finished executing a command buffer.
-class CommandBufferCompletionFence : public RefCnt<CommandBufferCompletionFence>
-{
-public:
-    virtual void wait() = 0; // Wait until the fence signals.
-
-    // Virtualize the onRefCntReachedZero() hook in case the the subclass wants
-    // to recycle itself in a pool.
-    virtual void onRefCntReachedZero() const { RefCnt::onRefCntReachedZero(); }
-
-    virtual ~CommandBufferCompletionFence() {}
-};
-
 // Detailed description of exactly how a RenderContextImpl should bind its
 // buffers and draw a flush. A typical flush is done in 4 steps:
 //
@@ -1052,10 +1039,6 @@ struct FlushDescriptor
     //  - id<MTLCommandBuffer> on Metal.
     //  - Unused otherwise.
     void* externalCommandBuffer = nullptr;
-
-    // Fence that will be signalled once "externalCommandBuffer" finishes
-    // executing the entire frame. (Null if isFinalFlushOfFrame is false.)
-    gpu::CommandBufferCompletionFence* frameCompletionFence = nullptr;
 
     // List of feathered fills (if any) that must be rendered to the atlas
     // before the main render pass.

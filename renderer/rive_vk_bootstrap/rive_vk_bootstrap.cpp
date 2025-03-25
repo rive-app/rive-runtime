@@ -256,7 +256,8 @@ Swapchain::Swapchain(const vkb::Device& device,
                      rive::rcp<rive::gpu::VulkanContext> vk,
                      uint32_t width,
                      uint32_t height,
-                     vkb::Swapchain&& vkbSwapchain) :
+                     vkb::Swapchain&& vkbSwapchain,
+                     uint64_t currentFrameNumber) :
     m_dispatchTable(device.make_table()),
     m_queue(VKB_CHECK(device.get_queue(vkb::QueueType::graphics))),
     m_vk(vk),
@@ -264,7 +265,8 @@ Swapchain::Swapchain(const vkb::Device& device,
     m_height(height),
     m_imageFormat(vkbSwapchain.image_format),
     m_imageUsageFlags(vkbSwapchain.image_usage_flags),
-    m_vkbSwapchain(std::move(vkbSwapchain))
+    m_vkbSwapchain(std::move(vkbSwapchain)),
+    m_currentFrameNumber(currentFrameNumber)
 {
     assert(m_vkbSwapchain.swapchain != nullptr);
     init(device, *m_vkbSwapchain.get_images());
@@ -276,7 +278,8 @@ Swapchain::Swapchain(const vkb::Device& device,
                      uint32_t width,
                      uint32_t height,
                      VkFormat imageFormat,
-                     VkImageUsageFlags textureUsageFlags) :
+                     VkImageUsageFlags additionalUsageFlags,
+                     uint64_t currentFrameNumber) :
     m_dispatchTable(device.make_table()),
     m_queue(VKB_CHECK(device.get_queue(vkb::QueueType::graphics))),
     m_vk(vk),
@@ -284,12 +287,13 @@ Swapchain::Swapchain(const vkb::Device& device,
     m_height(height),
     m_imageFormat(imageFormat),
     m_imageUsageFlags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | textureUsageFlags),
+                      VK_IMAGE_USAGE_TRANSFER_SRC_BIT | additionalUsageFlags),
     m_offscreenTexture(m_vk->makeTexture({
         .format = m_imageFormat,
         .extent = {m_width, m_height, 1},
         .usage = m_imageUsageFlags,
-    }))
+    })),
+    m_currentFrameNumber(currentFrameNumber)
 {
     init(device, {*m_offscreenTexture});
 
@@ -382,6 +386,9 @@ void Swapchain::init(const vkb::Device& device,
         VK_CHECK(m_dispatchTable.allocateCommandBuffers(
             &commandBufferAllocateInfo,
             &swapchainImage.commandBuffer));
+
+        swapchainImage.currentFrameNumber = swapchainImage.safeFrameNumber =
+            m_currentFrameNumber;
     }
 }
 
@@ -443,6 +450,11 @@ const SwapchainImage* Swapchain::acquireNextImage()
     };
     m_dispatchTable.beginCommandBuffer(swapchainImage->commandBuffer,
                                        &commandBufferBeginInfo);
+
+    // Now that we've waited for the fence, resources from 'currentFrameNumber'
+    // are safe to be released or recycled.
+    swapchainImage->safeFrameNumber = swapchainImage->currentFrameNumber;
+    swapchainImage->currentFrameNumber = ++m_currentFrameNumber;
     return swapchainImage;
 }
 

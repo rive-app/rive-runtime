@@ -950,7 +950,8 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
                                       shaderMiscFlags);
 }
 
-void RenderContextMetalImpl::prepareToMapBuffers()
+void RenderContextMetalImpl::prepareToFlush(uint64_t nextFrameNumber,
+                                            uint64_t safeFrameNumber)
 {
     // Wait until the GPU finishes rendering flush "N + 1 - kBufferRingSize".
     // This ensures it is safe for the CPU to begin modifying the next buffers

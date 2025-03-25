@@ -39,19 +39,19 @@ VulkanContext::VulkanContext(
     const VulkanFeatures& features_,
     PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr) :
     instance(instance),
+    physicalDevice(physicalDevice_),
+    device(device_),
+    features(features_),
 #define LOAD_VULKAN_INSTANCE_COMMAND(CMD)                                      \
     CMD(reinterpret_cast<PFN_vk##CMD>(                                         \
         pfnvkGetInstanceProcAddr(instance, "vk" #CMD))),
     RIVE_VULKAN_INSTANCE_COMMANDS(LOAD_VULKAN_INSTANCE_COMMAND)
 #undef LOAD_VULKAN_INSTANCE_COMMAND
-        physicalDevice(physicalDevice_),
-    device(device_),
-    features(features_),
 #define LOAD_VULKAN_DEVICE_COMMAND(CMD)                                        \
     CMD(reinterpret_cast<PFN_vk##CMD>(GetDeviceProcAddr(device, "vk" #CMD))),
-    RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
+        RIVE_VULKAN_DEVICE_COMMANDS(LOAD_VULKAN_DEVICE_COMMAND)
 #undef LOAD_VULKAN_DEVICE_COMMAND
-        vmaAllocator(make_vma_allocator(this, pfnvkGetInstanceProcAddr))
+            m_vmaAllocator(make_vma_allocator(this, pfnvkGetInstanceProcAddr))
 {
     // VK spec says between D24_S8 and D32_S8, one of them must be supported
     m_supportsD24S8 = isFormatSupportedWithFeatureFlags(
@@ -69,9 +69,9 @@ VulkanContext::VulkanContext(
 
 VulkanContext::~VulkanContext()
 {
-    assert(m_shutdown);
+    assert(m_currentFrameNumber == SHUTDOWN_FRAME_NUMBER);
     assert(m_resourcePurgatory.empty());
-    vmaDestroyAllocator(vmaAllocator);
+    vmaDestroyAllocator(m_vmaAllocator);
 }
 
 bool VulkanContext::isFormatSupportedWithFeatureFlags(
@@ -85,14 +85,20 @@ bool VulkanContext::isFormatSupportedWithFeatureFlags(
     return properties.optimalTilingFeatures & featureFlags;
 }
 
-void VulkanContext::onNewFrameBegun()
+void VulkanContext::advanceFrameNumber(uint64_t nextFrameNumber,
+                                       uint64_t safeFrameNumber)
 {
-    ++m_currentFrameIdx;
+    assert(nextFrameNumber >= m_currentFrameNumber);
+    assert(nextFrameNumber < SHUTDOWN_FRAME_NUMBER);
+    assert(safeFrameNumber >= m_safeFrameNumber);
+    assert(safeFrameNumber < nextFrameNumber);
+    m_currentFrameNumber = nextFrameNumber;
+    m_safeFrameNumber = safeFrameNumber;
 
     // Delete all resources that are no longer referenced by an in-flight
     // command buffer.
     while (!m_resourcePurgatory.empty() &&
-           m_resourcePurgatory.front().expirationFrameIdx <= m_currentFrameIdx)
+           m_resourcePurgatory.front().lastFrameNumber <= m_safeFrameNumber)
     {
         m_resourcePurgatory.pop_front();
     }
@@ -102,11 +108,11 @@ void VulkanContext::onRenderingResourceReleased(
     const vkutil::RenderingResource* resource)
 {
     assert(resource->vulkanContext() == this);
-    if (!m_shutdown)
+    if (m_currentFrameNumber != SHUTDOWN_FRAME_NUMBER)
     {
         // Hold this resource until it is no longer referenced by an in-flight
         // command buffer.
-        m_resourcePurgatory.emplace_back(resource, m_currentFrameIdx);
+        m_resourcePurgatory.emplace_back(resource, m_currentFrameNumber);
     }
     else
     {
@@ -117,17 +123,7 @@ void VulkanContext::onRenderingResourceReleased(
 
 void VulkanContext::shutdown()
 {
-    m_shutdown = true;
-
-    // Validate m_resourcePurgatory: We shouldn't have any resources queued up
-    // with larger expirations than "gpu::kBufferRingSize" frames.
-    for (size_t i = 0; i < gpu::kBufferRingSize; ++i)
-    {
-        onNewFrameBegun();
-    }
-    assert(m_resourcePurgatory.empty());
-
-    // Explicitly delete the resources anyway, just to be safe for release mode.
+    m_currentFrameNumber = SHUTDOWN_FRAME_NUMBER;
     m_resourcePurgatory.clear();
 }
 

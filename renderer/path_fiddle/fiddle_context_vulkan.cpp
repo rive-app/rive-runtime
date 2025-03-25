@@ -112,7 +112,12 @@ public:
                        int height,
                        uint32_t sampleCount) override
     {
-        m_swapchain = nullptr;
+        uint64_t currentFrameNumber = 0;
+        if (m_swapchain != nullptr)
+        {
+            currentFrameNumber = m_swapchain->currentFrameNumber();
+            m_swapchain = nullptr;
+        }
 
         if (m_windowSurface != VK_NULL_HANDLE)
         {
@@ -173,7 +178,8 @@ public:
             ref_rcp(vk()),
             width,
             height,
-            VKB_CHECK(swapchainBuilder.build()));
+            VKB_CHECK(swapchainBuilder.build()),
+            currentFrameNumber);
 
         m_renderTarget =
             impl()->makeRenderTarget(width, height, m_swapchain->imageFormat());
@@ -204,16 +210,19 @@ public:
 
     void flushPLSContext() final
     {
-        if (m_swapchain->currentImage() == nullptr)
+        const rive_vkb::SwapchainImage* swapchainImage =
+            m_swapchain->currentImage();
+        if (swapchainImage == nullptr)
         {
-            const rive_vkb::SwapchainImage* swapchainImage =
-                m_swapchain->acquireNextImage();
+            swapchainImage = m_swapchain->acquireNextImage();
             m_renderTarget->setTargetTextureView(swapchainImage->imageView, {});
         }
 
         m_renderContext->flush({
             .renderTarget = m_renderTarget.get(),
-            .externalCommandBuffer = m_swapchain->currentImage()->commandBuffer,
+            .externalCommandBuffer = swapchainImage->commandBuffer,
+            .currentFrameNumber = swapchainImage->currentFrameNumber,
+            .safeFrameNumber = swapchainImage->safeFrameNumber,
         });
     }
 

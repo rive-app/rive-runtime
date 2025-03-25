@@ -206,9 +206,11 @@ public:
         //  - Unused otherwise.
         void* externalCommandBuffer = nullptr;
 
-        // Fence that will be signalled once "externalCommandBuffer" finishes
-        // executing.
-        gpu::CommandBufferCompletionFence* frameCompletionFence = nullptr;
+        // Resource lifetime counters. Resources used during the upcoming flush
+        // will belong to 'currentFrameNumber'. Resources last used on or before
+        // 'safeFrameNumber' are safe to be released or recycled.
+        uint64_t currentFrameNumber = 0;
+        uint64_t safeFrameNumber = 0;
     };
 
     // Submits all GPU commands that have been built up since beginFrame().

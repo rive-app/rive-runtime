@@ -23,7 +23,7 @@ private:
 // Manages a pool of recyclable Vulkan resources. When onRefCntReachedZero() is
 // called on the resources owned by this pool, they are captured and recycled
 // rather than deleted.
-template <typename T, uint32_t MaxResourcesInPool = 64>
+template <typename T, uint32_t MAX_RESOURCES_IN_POOL = 64>
 class ResourcePool : public RefCnt<ResourcePool<T>>
 {
 public:
@@ -42,13 +42,13 @@ public:
     {
         rcp<T> resource;
         if (!m_releasedResources.empty() &&
-            m_factory.vulkanContext()->currentFrameIdx() >=
-                m_releasedResources.front().expirationFrameIdx)
+            m_releasedResources.front().lastFrameNumber <=
+                m_factory.vulkanContext()->safeFrameNumber())
         {
             resource = ref_rcp(m_releasedResources.front().resource.release());
             m_releasedResources.pop_front();
             resource->reset();
-            cleanExcessExpiredResources();
+            purgeExcessExpiredResources();
         }
         else
         {
@@ -68,18 +68,18 @@ public:
         // Recycle the resource!
         m_releasedResources.emplace_back(
             mutableResource,
-            m_factory.vulkanContext()->currentFrameIdx());
+            m_factory.vulkanContext()->currentFrameNumber());
         // Do this last in case it deletes our "this".
         mutableResource->m_pool = nullptr;
 
-        cleanExcessExpiredResources();
+        purgeExcessExpiredResources();
     }
 
-    void cleanExcessExpiredResources()
+    void purgeExcessExpiredResources()
     {
-        while (m_releasedResources.size() > MaxResourcesInPool &&
-               m_factory.vulkanContext()->currentFrameIdx() >=
-                   m_releasedResources.front().expirationFrameIdx)
+        while (m_releasedResources.size() > MAX_RESOURCES_IN_POOL &&
+               m_releasedResources.front().lastFrameNumber <=
+                   m_factory.vulkanContext()->safeFrameNumber())
         {
             m_releasedResources.pop_front();
         }

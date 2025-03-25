@@ -37,9 +37,9 @@ void Buffer::resizeImmediately(size_t sizeInBytes)
         {
             if (m_mappability != Mappability::none)
             {
-                vmaUnmapMemory(m_vk->vmaAllocator, m_vmaAllocation);
+                vmaUnmapMemory(m_vk->allocator(), m_vmaAllocation);
             }
-            vmaDestroyBuffer(m_vk->vmaAllocator, m_vkBuffer, m_vmaAllocation);
+            vmaDestroyBuffer(m_vk->allocator(), m_vkBuffer, m_vmaAllocation);
         }
         m_info.size = sizeInBytes;
         init();
@@ -69,7 +69,7 @@ void Buffer::init()
             .usage = VMA_MEMORY_USAGE_AUTO,
         };
 
-        VK_CHECK(vmaCreateBuffer(m_vk->vmaAllocator,
+        VK_CHECK(vmaCreateBuffer(m_vk->allocator(),
                                  &m_info,
                                  &allocInfo,
                                  &m_vkBuffer,
@@ -81,7 +81,7 @@ void Buffer::init()
             // Leave the buffer constantly mapped and let the OS/drivers handle
             // the rest.
             VK_CHECK(
-                vmaMapMemory(m_vk->vmaAllocator, m_vmaAllocation, &m_contents));
+                vmaMapMemory(m_vk->allocator(), m_vmaAllocation, &m_contents));
         }
         else
         {
@@ -98,9 +98,7 @@ void Buffer::init()
 
 void Buffer::flushContents(size_t updatedSizeInBytes)
 {
-    // Leave the buffer constantly mapped and let the OS/drivers handle the
-    // rest.
-    vmaFlushAllocation(m_vk->vmaAllocator,
+    vmaFlushAllocation(m_vk->allocator(),
                        m_vmaAllocation,
                        0,
                        updatedSizeInBytes);
@@ -108,64 +106,91 @@ void Buffer::flushContents(size_t updatedSizeInBytes)
 
 void Buffer::invalidateContents(size_t updatedSizeInBytes)
 {
-    vmaInvalidateAllocation(m_vk->vmaAllocator,
+    vmaInvalidateAllocation(m_vk->allocator(),
                             m_vmaAllocation,
                             0,
                             updatedSizeInBytes);
 }
 
-BufferRing::BufferRing(rcp<VulkanContext> vk,
-                       VkBufferUsageFlags usage,
-                       Mappability mappability,
-                       size_t size) :
-    m_targetSize(size)
+void BufferPool::setTargetSize(size_t size)
 {
-    VkBufferCreateInfo bufferCreateInfo = {
-        .size = size,
-        .usage = usage,
-    };
-    for (int i = 0; i < gpu::kBufferRingSize; ++i)
-    {
-        m_buffers[i] = vk->makeBuffer(bufferCreateInfo, mappability);
-    }
-}
+    assert(m_currentBuffer == nullptr); // Call releaseCurrentBuffer() first.
 
-void BufferRing::setTargetSize(size_t size)
-{
     // Buffers always get bound, even if unused, so make sure they aren't empty
     // and we get a valid Vulkan handle.
-    if (m_buffers[0]->info().usage & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
+    size = std::max<size_t>(size, 1);
+
+    if (m_usageFlags & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
     {
-        size = std::max<size_t>(size, 256);
         // Uniform blocks must be multiples of 256 bytes in size.
+        size = std::max<size_t>(size, 256);
         assert(size % 256 == 0);
     }
-    else
-    {
-        size = std::max<size_t>(size, 1);
-    }
+
     m_targetSize = size;
 }
 
-void BufferRing::synchronizeSizeAt(int bufferRingIdx)
+vkutil::Buffer* BufferPool::currentBuffer()
 {
-    if (m_buffers[bufferRingIdx]->info().size != m_targetSize)
+    if (m_currentBuffer == nullptr)
     {
-        m_buffers[bufferRingIdx]->resizeImmediately(m_targetSize);
+        if (!m_pool.empty() &&
+            m_pool.front().lastFrameNumber <= m_vk->safeFrameNumber())
+        {
+            // Recycle the oldest buffer in the pool.
+            m_currentBuffer = std::move(m_pool.front().buffer);
+            if (m_currentBuffer->info().size != m_targetSize)
+            {
+                m_currentBuffer->resizeImmediately(m_targetSize);
+            }
+            m_pool.pop_front();
+
+            // Trim the pool in case it's grown out of control (meaning it was
+            // advanced multiple times in a single frame).
+            constexpr static size_t POOL_MAX_COUNT = 8;
+            while (m_pool.size() > POOL_MAX_COUNT &&
+                   m_pool.front().lastFrameNumber <= m_vk->safeFrameNumber())
+            {
+                m_pool.pop_front();
+            }
+        }
+        else
+        {
+            // There wasn't a free buffer in the pool. Create a new one.
+            m_currentBuffer =
+                m_vk->makeBuffer({.size = m_targetSize, .usage = m_usageFlags},
+                                 Mappability::writeOnly);
+        }
     }
+    m_currentBufferFrameNumber = m_vk->currentFrameNumber();
+    return m_currentBuffer.get();
 }
 
-void* BufferRing::contentsAt(int bufferRingIdx, size_t dirtySize)
+void* BufferPool::mapCurrentBuffer(size_t dirtySize)
 {
     m_pendingFlushSize = dirtySize;
-    return m_buffers[bufferRingIdx]->contents();
+    return currentBuffer()->contents();
 }
 
-void BufferRing::flushContentsAt(int bufferRingIdx)
+void BufferPool::unmapCurrentBuffer()
 {
     assert(m_pendingFlushSize > 0);
-    m_buffers[bufferRingIdx]->flushContents(m_pendingFlushSize);
+    currentBuffer()->flushContents(m_pendingFlushSize);
     m_pendingFlushSize = 0;
+}
+
+void BufferPool::releaseCurrentBuffer()
+{
+    if (m_currentBuffer != nullptr)
+    {
+        // Return the current buffer to the pool.
+        m_pool.emplace_back(std::move(m_currentBuffer),
+                            m_currentBufferFrameNumber);
+        assert(m_currentBuffer == nullptr);
+    }
+
+    // The current buffer's frameNumber will update when it gets accessed.
+    m_currentBufferFrameNumber = 0;
 }
 
 Texture::Texture(rcp<VulkanContext> vk, const VkImageCreateInfo& info) :
@@ -207,7 +232,7 @@ Texture::Texture(rcp<VulkanContext> vk, const VkImageCreateInfo& info) :
             .usage = VMA_MEMORY_USAGE_GPU_LAZILY_ALLOCATED,
         };
 
-        if (vmaCreateImage(m_vk->vmaAllocator,
+        if (vmaCreateImage(m_vk->allocator(),
                            &m_info,
                            &allocInfo,
                            &m_vkImage,
@@ -222,7 +247,7 @@ Texture::Texture(rcp<VulkanContext> vk, const VkImageCreateInfo& info) :
         .usage = VMA_MEMORY_USAGE_AUTO,
     };
 
-    VK_CHECK(vmaCreateImage(m_vk->vmaAllocator,
+    VK_CHECK(vmaCreateImage(m_vk->allocator(),
                             &m_info,
                             &allocInfo,
                             &m_vkImage,
@@ -234,7 +259,7 @@ Texture::~Texture()
 {
     if (m_vmaAllocation != VK_NULL_HANDLE)
     {
-        vmaDestroyImage(m_vk->vmaAllocator, m_vkImage, m_vmaAllocation);
+        vmaDestroyImage(m_vk->allocator(), m_vkImage, m_vmaAllocation);
     }
 }
 

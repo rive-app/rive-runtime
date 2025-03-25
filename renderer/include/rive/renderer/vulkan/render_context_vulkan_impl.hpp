@@ -153,7 +153,8 @@ private:
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
 
-    void prepareToMapBuffers() override;
+    void prepareToFlush(uint64_t nextFrameNumber,
+                        uint64_t safeFrameNumber) override;
 
 #define IMPLEMENT_PLS_BUFFER(Name, m_name)                                     \
     void resize##Name(size_t sizeInBytes) override                             \
@@ -162,9 +163,9 @@ private:
     }                                                                          \
     void* map##Name(size_t mapSizeInBytes) override                            \
     {                                                                          \
-        return m_name.contentsAt(m_bufferRingIdx, mapSizeInBytes);             \
+        return m_name.mapCurrentBuffer(mapSizeInBytes);                        \
     }                                                                          \
-    void unmap##Name() override { m_name.flushContentsAt(m_bufferRingIdx); }
+    void unmap##Name() override { m_name.unmapCurrentBuffer(); }
 
 #define IMPLEMENT_PLS_STRUCTURED_BUFFER(Name, m_name)                          \
     void resize##Name(size_t sizeInBytes, gpu::StorageBufferStructure)         \
@@ -174,19 +175,19 @@ private:
     }                                                                          \
     void* map##Name(size_t mapSizeInBytes) override                            \
     {                                                                          \
-        return m_name.contentsAt(m_bufferRingIdx, mapSizeInBytes);             \
+        return m_name.mapCurrentBuffer(mapSizeInBytes);                        \
     }                                                                          \
-    void unmap##Name() override { m_name.flushContentsAt(m_bufferRingIdx); }
+    void unmap##Name() override { m_name.unmapCurrentBuffer(); }
 
-    IMPLEMENT_PLS_BUFFER(FlushUniformBuffer, m_flushUniformBufferRing)
-    IMPLEMENT_PLS_BUFFER(ImageDrawUniformBuffer, m_imageDrawUniformBufferRing)
-    IMPLEMENT_PLS_STRUCTURED_BUFFER(PathBuffer, m_pathBufferRing)
-    IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintBuffer, m_paintBufferRing)
-    IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintAuxBuffer, m_paintAuxBufferRing)
-    IMPLEMENT_PLS_STRUCTURED_BUFFER(ContourBuffer, m_contourBufferRing)
-    IMPLEMENT_PLS_BUFFER(GradSpanBuffer, m_gradSpanBufferRing)
-    IMPLEMENT_PLS_BUFFER(TessVertexSpanBuffer, m_tessSpanBufferRing)
-    IMPLEMENT_PLS_BUFFER(TriangleVertexBuffer, m_triangleBufferRing)
+    IMPLEMENT_PLS_BUFFER(FlushUniformBuffer, m_flushUniformBufferPool)
+    IMPLEMENT_PLS_BUFFER(ImageDrawUniformBuffer, m_imageDrawUniformBufferPool)
+    IMPLEMENT_PLS_STRUCTURED_BUFFER(PathBuffer, m_pathBufferPool)
+    IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintBuffer, m_paintBufferPool)
+    IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintAuxBuffer, m_paintAuxBufferPool)
+    IMPLEMENT_PLS_STRUCTURED_BUFFER(ContourBuffer, m_contourBufferPool)
+    IMPLEMENT_PLS_BUFFER(GradSpanBuffer, m_gradSpanBufferPool)
+    IMPLEMENT_PLS_BUFFER(TessVertexSpanBuffer, m_tessSpanBufferPool)
+    IMPLEMENT_PLS_BUFFER(TriangleVertexBuffer, m_triangleBufferPool)
 
 #undef IMPLEMENT_PLS_BUFFER
 #undef IMPLEMENT_PLS_STRUCTURED_BUFFER
@@ -236,16 +237,17 @@ private:
     const uint32_t m_vendorID;
     const VkFormat m_atlasFormat;
 
-    // PLS buffers.
-    vkutil::BufferRing m_flushUniformBufferRing;
-    vkutil::BufferRing m_imageDrawUniformBufferRing;
-    vkutil::BufferRing m_pathBufferRing;
-    vkutil::BufferRing m_paintBufferRing;
-    vkutil::BufferRing m_paintAuxBufferRing;
-    vkutil::BufferRing m_contourBufferRing;
-    vkutil::BufferRing m_gradSpanBufferRing;
-    vkutil::BufferRing m_tessSpanBufferRing;
-    vkutil::BufferRing m_triangleBufferRing;
+    // Rive buffers.
+    vkutil::BufferPool m_flushUniformBufferPool;
+    vkutil::BufferPool m_imageDrawUniformBufferPool;
+    vkutil::BufferPool m_pathBufferPool;
+    vkutil::BufferPool m_paintBufferPool;
+    vkutil::BufferPool m_paintAuxBufferPool;
+    vkutil::BufferPool m_contourBufferPool;
+    vkutil::BufferPool m_gradSpanBufferPool;
+    vkutil::BufferPool m_tessSpanBufferPool;
+    vkutil::BufferPool m_triangleBufferPool;
+
     std::chrono::steady_clock::time_point m_localEpoch =
         std::chrono::steady_clock::now();
 
@@ -317,10 +319,6 @@ private:
     rcp<vkutil::Buffer> m_pathPatchIndexBuffer;
     rcp<vkutil::Buffer> m_imageRectVertexBuffer;
     rcp<vkutil::Buffer> m_imageRectIndexBuffer;
-
-    rcp<gpu::CommandBufferCompletionFence>
-        m_frameCompletionFences[gpu::kBufferRingSize];
-    int m_bufferRingIdx = -1;
 
     // Pool of DescriptorSetPools that have been fully released. These will be
     // recycled once their expirationFrameIdx is reached.

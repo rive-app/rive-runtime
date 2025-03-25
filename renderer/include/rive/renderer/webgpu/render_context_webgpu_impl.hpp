@@ -157,8 +157,6 @@ private:
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
     void resizeAtlasTexture(uint32_t width, uint32_t height) override;
 
-    void prepareToMapBuffers() override {}
-
     void flush(const FlushDescriptor&) override;
 
     const wgpu::Device m_device;

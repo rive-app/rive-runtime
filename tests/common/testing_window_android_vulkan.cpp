@@ -195,6 +195,8 @@ public:
         m_renderContext->flush({
             .renderTarget = m_renderTarget.get(),
             .externalCommandBuffer = swapchainImage->commandBuffer,
+            .currentFrameNumber = swapchainImage->currentFrameNumber,
+            .safeFrameNumber = swapchainImage->safeFrameNumber,
         });
         m_renderTarget->setTargetLastAccess(
             m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData));

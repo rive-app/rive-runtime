@@ -68,6 +68,10 @@ struct SwapchainImage
     VkSemaphore frameBeginSemaphore;
     VkSemaphore frameCompleteSemaphore;
     VkCommandBuffer commandBuffer;
+    // Resource lifetime counters. Resources last used on or before
+    // 'safeFrameNumber' are safe to be released or recycled.
+    uint64_t currentFrameNumber = 0;
+    uint64_t safeFrameNumber = 0;
 };
 
 class Swapchain
@@ -78,7 +82,8 @@ public:
               rive::rcp<rive::gpu::VulkanContext>,
               uint32_t width,
               uint32_t height,
-              vkb::Swapchain&&);
+              vkb::Swapchain&&,
+              uint64_t currentFrameNumber = 0);
 
     // Offscreen texture.
     Swapchain(const vkb::Device&,
@@ -86,10 +91,9 @@ public:
               uint32_t width,
               uint32_t height,
               VkFormat imageFormat,
-              VkImageUsageFlags textureUsageFlags =
-                  VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                  VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                  VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+              VkImageUsageFlags additionalUsageFlags =
+                  VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+              uint64_t currentFrameNumber = 0);
 
     ~Swapchain();
 
@@ -97,6 +101,7 @@ public:
     uint32_t height() const { return m_height; }
     VkFormat imageFormat() const { return m_imageFormat; }
     const vkb::DispatchTable& dispatchTable() const { return m_dispatchTable; }
+    uint64_t currentFrameNumber() const { return m_currentFrameNumber; }
 
     const SwapchainImage* acquireNextImage();
     const SwapchainImage* currentImage() const
@@ -131,6 +136,7 @@ private:
     VkSemaphore m_nextAcquireSemaphore;
     std::vector<SwapchainImage> m_swapchainImages;
     uint32_t m_currentImageIndex = INVALID_IMAGE_INDEX;
+    uint64_t m_currentFrameNumber = 0;
     rive::rcp<rive::gpu::vkutil::Buffer> m_pixelReadBuffer;
 };
 
