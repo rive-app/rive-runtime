@@ -22,6 +22,8 @@ static bool verbose = false;
 std::vector<std::tuple<std::function<GM*(void)>, std::string>> gmRegistry;
 extern "C" void gms_build_registry()
 {
+    // Only call gms_build_registry() once!
+    assert(gmRegistry.empty());
 
 #define MAKE_GM(NAME)                                                          \
     extern GM* RIVE_MACRO_CONCAT(make_, NAME)();                               \
@@ -401,10 +403,6 @@ int main(int argc, const char* argv[])
     }
 #endif
     TestingWindow::Init(backend, visibility, gpuNameFilter, platformWindow);
-#ifndef RIVE_UNREAL // unreal calls this directly instead
-    gms_build_registry();
-#endif
-
 #ifndef RIVE_UNREAL // unreal calls this directly instead
     gms_build_registry();
 #endif
