@@ -487,11 +487,10 @@ INLINE void resolve_paint(uint pathID,
     if (@ENABLE_ADVANCED_BLEND && fragColorOut.a != .0 &&
         (blendMode = cast_uint_to_ushort((paintData.x >> 4) & 0xfu)) != 0u)
     {
-        half4 dstColor = PLS_LOAD4F(colorBuffer);
-        fragColorOut.rgb =
-            advanced_color_blend_pre_src_over(fragColorOut.rgb,
-                                              unmultiply(dstColor),
-                                              blendMode);
+        half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
+        fragColorOut.rgb = advanced_color_blend_pre_src_over(fragColorOut.rgb,
+                                                             dstColorPremul,
+                                                             blendMode);
     }
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND
 
@@ -797,14 +796,14 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #if !defined(@FIXED_FUNCTION_COLOR_OUTPUT) && defined(@ENABLE_ADVANCED_BLEND)
     if (@ENABLE_ADVANCED_BLEND && imageDrawUniforms.blendMode != BLEND_SRC_OVER)
     {
-        // Calculate what dstColor will be after applying fragColorOut.
-        half4 dstColor =
+        // Calculate what dstColorPremul will be after applying fragColorOut.
+        half4 dstColorPremul =
             PLS_LOAD4F(colorBuffer) * (1. - fragColorOut.a) + fragColorOut;
         // Calculate the imageColor to emit *BEFORE* src-over blending, such
         // that the post-src-over-blend result is equivalent to the blendMode.
         imageColor.rgb = advanced_color_blend_pre_src_over(
             imageColor.rgb,
-            unmultiply(dstColor),
+            dstColorPremul,
             cast_uint_to_ushort(imageDrawUniforms.blendMode));
     }
 #endif // !FIXED_FUNCTION_COLOR_OUTPUT && ENABLE_ADVANCED_BLEND

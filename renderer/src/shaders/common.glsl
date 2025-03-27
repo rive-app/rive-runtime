@@ -175,21 +175,6 @@ INLINE half4 premultiply(half4 color)
     return make_half4(color.rgb * color.a, color.a);
 }
 
-INLINE half4 unmultiply(half4 color)
-{
-    if (.0 < color.a && color.a < 1.)
-    {
-        color.rgb *= 1. / color.a;
-        // Since multiplying by the reciprocal isn't exact, and to handle
-        // invalid premultiplied data, take extra steps to ensure
-        // color * 1/alpha == 1 when color >= alpha.
-        color.rgb = mix(color.rgb,
-                        make_half3(1.),
-                        greaterThan(color.rgb, make_half3(254.5 / 255.)));
-    }
-    return color;
-}
-
 INLINE half min_value(half4 min4)
 {
     half2 min2 = min(min4.xy, min4.zw);

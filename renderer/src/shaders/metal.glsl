@@ -46,6 +46,7 @@
 #define OUT(ARG_TYPE) $thread ARG_TYPE&
 #define INOUT(ARG_TYPE) $thread ARG_TYPE&
 
+#define equal(A, B) ((A) == (B))
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
 #define lessThan(A, B) ((A) < (B))

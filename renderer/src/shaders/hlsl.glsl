@@ -290,6 +290,7 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
 #define floatBitsToInt $asint
 #define floatBitsToUint $asuint
 #define inversesqrt $rsqrt
+#define equal(A, B) ((A) == (B))
 #define notEqual(A, B) ((A) != (B))
 #define lessThanEqual(A, B) ((A) <= (B))
 #define lessThan(A, B) ((A) < (B))

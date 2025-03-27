@@ -560,24 +560,24 @@ PLS_MAIN(@drawFragmentMain)
         half4 color = find_paint_color(v_paint FRAGMENT_CONTEXT_UNPACK);
         color.a *= coverage;
 
-        half4 dstColor;
+        half4 dstColorPremul;
 #ifdef @ATLAS_BLIT
-        dstColor = PLS_LOAD4F(colorBuffer);
+        dstColorPremul = PLS_LOAD4F(colorBuffer);
 #else
         if (coverageBufferID != v_pathID)
         {
             // This is the first fragment from pathID to touch this pixel.
-            dstColor = PLS_LOAD4F(colorBuffer);
+            dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
             // We don't need to store coverage when drawing interior triangles
             // because they always go last and don't overlap, so every fragment
             // is the final one in the path.
-            PLS_STORE4F(scratchColorBuffer, dstColor);
+            PLS_STORE4F(scratchColorBuffer, dstColorPremul);
 #endif
         }
         else
         {
-            dstColor = PLS_LOAD4F(scratchColorBuffer);
+            dstColorPremul = PLS_LOAD4F(scratchColorBuffer);
 #ifndef @DRAW_INTERIOR_TRIANGLES
             // Since interior triangles are always last, there's no need to
             // preserve this value.
@@ -592,14 +592,14 @@ PLS_MAIN(@drawFragmentMain)
             v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
         {
             color = advanced_blend(color,
-                                   unmultiply(dstColor),
+                                   dstColorPremul,
                                    cast_half_to_ushort(v_blendMode));
         }
         else
 #endif
         {
             color.rgb *= color.a;
-            color = color + dstColor * (1. - color.a);
+            color = color + dstColorPremul * (1. - color.a);
         }
 
         PLS_STORE4F(colorBuffer, color);
@@ -636,10 +636,10 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
     {
-        half4 dstColor =
+        half4 dstColorPremul =
             TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
         color = advanced_blend(color,
-                               unmultiply(dstColor),
+                               dstColorPremul,
                                cast_half_to_ushort(v_blendMode));
     }
     else

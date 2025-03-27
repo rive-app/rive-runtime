@@ -173,19 +173,21 @@ half3 advanced_blend_coeffs(half3 src, half3 dst, ushort mode)
             coeffs = max(src.rgb, dst.rgb);
             break;
         case BLEND_MODE_COLORDODGE:
-            // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0
-            // results in the appropriately signed IEEE Inf.
-            coeffs = mix(min(dst.rgb / (1. - src.rgb), make_half3(1.)),
-                         make_half3(.0),
-                         lessThanEqual(dst.rgb, make_half3(.0)));
+        {
+            half3 denom = 1. - src;
+            coeffs = mix(min(make_half3(1.), dst / denom),
+                         sign(dst),
+                         equal(denom, make_half3(.0)));
             break;
+        }
         case BLEND_MODE_COLORBURN:
-            // ES3 spec, 4.5.1 Range and Precision: dividing a non-zero by 0
-            // results in the appropriately signed IEEE Inf.
-            coeffs = mix(1. - min((1. - dst.rgb) / src.rgb, 1.),
-                         make_half3(1.),
-                         greaterThanEqual(dst.rgb, make_half3(1.)));
+        {
+            half3 numer = 1. - dst;
+            coeffs = 1. - mix(min(make_half3(1.), numer / src),
+                              sign(numer),
+                              equal(src, make_half3(.0)));
             break;
+        }
         case BLEND_MODE_HARDLIGHT:
         {
             for (int i = 0; i < 3; ++i)
@@ -256,8 +258,17 @@ half3 advanced_blend_coeffs(half3 src, half3 dst, ushort mode)
     return coeffs;
 }
 
-INLINE half4 advanced_blend(half4 src, half4 dst, ushort mode)
+INLINE half3 unmultiply_rgb(half4 premul)
 {
+    return premul.a == .0
+               ? make_half3(.0)
+               : clamp(premul.rgb / premul.a, make_half3(.0), make_half3(1.));
+}
+
+INLINE half4 advanced_blend(half4 src, half4 dstPremul, ushort mode)
+{
+    src.rgb = clamp(src.rgb, make_half3(.0), make_half3(1.));
+    half4 dst = make_half4(unmultiply_rgb(dstPremul), dstPremul.a);
     half3 coeffs = advanced_blend_coeffs(src.rgb, dst.rgb, mode);
 
     // The weighting functions p0, p1, and p2 are defined as follows:
@@ -292,9 +303,13 @@ INLINE half4 advanced_blend(half4 src, half4 dst, ushort mode)
 // can just output the paint's alpha value, unmodified, directly to the blend
 // unit.
 INLINE half3 advanced_color_blend_pre_src_over(half3 src,
-                                               half4 dst,
+                                               half4 dstPremul,
                                                ushort mode)
 {
+    src = clamp(src, make_half3(.0), make_half3(1.));
+    half3 dst = unmultiply_rgb(dstPremul);
+    half3 coeffs = advanced_blend_coeffs(src, dst, mode);
+
     // The weighting functions p0, p1, and p2 are commented in advanced_blend().
     //
     // We make two modifications in this variation to account for the fact that
@@ -308,9 +323,7 @@ INLINE half3 advanced_color_blend_pre_src_over(half3 src,
     // or p1
     //    by As.
     //
-    half3 coeffs = advanced_blend_coeffs(src, dst.rgb, mode);
-    half2 p =
-        make_half2(dst.a, 1. - dst.a); // half2 because p2 got cancelled out.
+    half2 p = make_half2(dstPremul.a, 1. - dstPremul.a); // p2 cancelled to 0.
     return MUL(make_half2x3(coeffs, src), p);
 }
 #endif // ENABLE_ADVANCED_BLEND
