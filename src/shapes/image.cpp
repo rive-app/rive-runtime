@@ -214,7 +214,7 @@ void Image::controlSize(Vec2D size,
 void Image::updateImageScale()
 {
     // User-created meshes are not affected by scale
-    if (m_Mesh != nullptr && m_Mesh->type == MeshType::vertex)
+    if (m_Mesh != nullptr && m_Mesh->type() == MeshType::vertex)
     {
         return;
     }
