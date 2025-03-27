@@ -60,10 +60,9 @@ inline std::tuple<vkb::Device, rive::gpu::VulkanFeatures> select_device(
 
 struct SwapchainImage
 {
-    VkImage externalImage;
-    // TODO: Once the client is fully responsible for synchronization, this
-    // should turn into just a VkImageView.
-    rive::rcp<rive::gpu::vkutil::TextureView> imageView;
+    VkImage image;
+    VkImageView imageView;
+    rive::gpu::VulkanContext::TextureAccess imageLastAccess;
     VkFence fence;
     VkSemaphore frameBeginSemaphore;
     VkSemaphore frameCompleteSemaphore;
@@ -100,6 +99,7 @@ public:
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
     VkFormat imageFormat() const { return m_imageFormat; }
+    VkImageUsageFlags imageUsageFlags() const { return m_imageUsageFlags; }
     const vkb::DispatchTable& dispatchTable() const { return m_dispatchTable; }
     uint64_t currentFrameNumber() const { return m_currentFrameNumber; }
 
@@ -114,9 +114,8 @@ public:
     // Submits and presents the current swapchain image.
     // 'lastAccess' lets us know know how to barrier the swapchain image.
     // 'pixelData', if not null, reads the swapchain image being presented.
-    rive::gpu::VulkanContext::TextureAccess submit(
-        rive::gpu::VulkanContext::TextureAccess lastAccess,
-        std::vector<uint8_t>* pixelData = nullptr);
+    void submit(rive::gpu::VulkanContext::TextureAccess lastAccess,
+                std::vector<uint8_t>* pixelData = nullptr);
 
 private:
     constexpr static uint32_t INVALID_IMAGE_INDEX = -1;

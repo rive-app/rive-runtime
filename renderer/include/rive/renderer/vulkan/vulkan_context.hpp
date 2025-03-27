@@ -131,10 +131,9 @@ public:
                                    vkutil::Mappability);
     rcp<vkutil::Texture> makeTexture(const VkImageCreateInfo&);
     rcp<vkutil::TextureView> makeTextureView(rcp<vkutil::Texture>);
-    rcp<vkutil::TextureView> makeTextureView(rcp<vkutil::Texture> texture,
+    rcp<vkutil::TextureView> makeTextureView(rcp<vkutil::Texture>,
                                              const VkImageViewCreateInfo&);
     rcp<vkutil::TextureView> makeExternalTextureView(
-        const VkImageUsageFlags,
         const VkImageViewCreateInfo&);
     rcp<vkutil::Framebuffer> makeFramebuffer(const VkFramebufferCreateInfo&);
 

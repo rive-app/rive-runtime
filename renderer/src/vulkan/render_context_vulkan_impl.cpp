@@ -3311,12 +3311,22 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         pipelineLayout.options() &
         DrawPipelineLayoutOptions::fixedFunctionColorOutput;
 
-    vkutil::TextureView* colorView =
-        renderTarget->targetViewContainsUsageFlag(
-            VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
-                fixedFunctionColorOutput
-            ? renderTarget->targetTextureView()
-            : renderTarget->ensureOffscreenColorTextureView();
+    VkImageView colorImageView;
+    VkImage colorImage;
+    if (fixedFunctionColorOutput || (renderTarget->targetUsageFlags() &
+                                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
+    {
+        colorImageView = renderTarget->targetImageView();
+        colorImage = renderTarget->targetImage();
+    }
+    else
+    {
+        vkutil::TextureView* colorView =
+            renderTarget->ensureOffscreenColorTextureView();
+        colorImageView = *colorView;
+        colorImage = colorView->info().image;
+    }
+
     vkutil::TextureView *clipView = nullptr, *scratchColorTextureView = nullptr,
                         *coverageTextureView = nullptr,
                         *depthStencilTextureView = nullptr;
@@ -3347,7 +3357,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // No need to preserve what was in the render target before.
         initialColorAccess.layout = VK_IMAGE_LAYOUT_UNDEFINED;
     }
-    else if (colorView == renderTarget->offscreenColorTextureView())
+    else if (colorImageView != renderTarget->targetImageView())
     {
         // The access we just declared was actually for the *renderTarget*
         // texture, not the actual color attachment we will render to, which
@@ -3370,7 +3380,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
                 .oldLayout = initialRenderTargetAccess.layout,
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                .image = renderTarget->targetTexture(),
+                .image = renderTarget->targetImage(),
             },
             {
                 .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
@@ -3391,7 +3401,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                   imageMemoryBarriers);
 
         m_vk->blitSubRect(commandBuffer,
-                          renderTarget->targetTexture(),
+                          renderTarget->targetImage(),
                           renderTarget->offscreenColorTexture(),
                           desc.renderTargetUpdateBounds);
     }
@@ -3403,7 +3413,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         pipelineLayout.renderPassAt(renderPassVariantIdx);
 
     VkImageView imageViews[] = {
-        *colorView,
+        colorImageView,
         clipView != nullptr ? *clipView : VK_NULL_HANDLE,
         scratchColorTextureView != nullptr ? *scratchColorTextureView
                                            : VK_NULL_HANDLE,
@@ -3456,7 +3466,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .layout = VK_IMAGE_LAYOUT_GENERAL,
         },
-        colorView->info().image);
+        colorImage);
 
     bool needsBarrierBeforeNextDraw = false;
     if (desc.interlockMode == gpu::InterlockMode::atomics)
@@ -3613,7 +3623,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                 },
                 {{
-                    .imageView = *colorView,
+                    .imageView = colorImageView,
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }});
         }
@@ -3968,7 +3978,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         .layout = VK_IMAGE_LAYOUT_GENERAL,
     };
 
-    if (colorView == renderTarget->offscreenColorTextureView())
+    if (colorImageView != renderTarget->targetImageView())
     {
         // The access we just declared was actually for the offscreen texture,
         // not the final target.
@@ -3998,7 +4008,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .dstAccessMask = finalRenderTargetAccess.accessMask,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .newLayout = finalRenderTargetAccess.layout,
-                .image = renderTarget->targetTexture(),
+                .image = renderTarget->targetImage(),
             },
         };
 
@@ -4013,7 +4023,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         m_vk->blitSubRect(commandBuffer,
                           renderTarget->offscreenColorTexture(),
-                          renderTarget->targetTexture(),
+                          renderTarget->targetImage(),
                           desc.renderTargetUpdateBounds);
     }
 

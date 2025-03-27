@@ -121,9 +121,11 @@ public:
             m_height,
             VKB_CHECK(swapchainBuilder.build()));
 
-        m_renderTarget = impl()->makeRenderTarget(m_width,
-                                                  m_height,
-                                                  m_swapchain->imageFormat());
+        m_renderTarget =
+            impl()->makeRenderTarget(m_width,
+                                     m_height,
+                                     m_swapchain->imageFormat(),
+                                     m_swapchain->imageUsageFlags());
     }
 
     ~TestingWindowAndroidVulkan()
@@ -191,15 +193,16 @@ public:
     {
         const rive_vkb::SwapchainImage* swapchainImage =
             m_swapchain->acquireNextImage();
-        m_renderTarget->setTargetTextureView(swapchainImage->imageView, {});
+        m_renderTarget->setTargetImageView(swapchainImage->imageView,
+                                           swapchainImage->image,
+                                           swapchainImage->imageLastAccess);
         m_renderContext->flush({
             .renderTarget = m_renderTarget.get(),
             .externalCommandBuffer = swapchainImage->commandBuffer,
             .currentFrameNumber = swapchainImage->currentFrameNumber,
             .safeFrameNumber = swapchainImage->safeFrameNumber,
         });
-        m_renderTarget->setTargetLastAccess(
-            m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData));
+        m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData);
     }
 
 private:

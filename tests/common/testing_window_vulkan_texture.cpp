@@ -87,7 +87,7 @@ public:
             VkFormat swapchainFormat = m_coreFeaturesOnly
                                            ? VK_FORMAT_R8G8B8A8_UNORM
                                            : VK_FORMAT_B8G8R8A8_UNORM;
-            VkImageUsageFlags swapchainUsageFlags =
+            VkImageUsageFlags additionalUsageFlags =
                 m_coreFeaturesOnly ? VK_IMAGE_USAGE_TRANSFER_DST_BIT
                                    : VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
             uint64_t currentFrameNumber =
@@ -98,10 +98,13 @@ public:
                                                       m_width,
                                                       m_height,
                                                       swapchainFormat,
-                                                      swapchainUsageFlags,
+                                                      additionalUsageFlags,
                                                       currentFrameNumber);
             m_renderTarget =
-                impl()->makeRenderTarget(m_width, m_height, swapchainFormat);
+                impl()->makeRenderTarget(m_width,
+                                         m_height,
+                                         m_swapchain->imageFormat(),
+                                         m_swapchain->imageUsageFlags());
         }
 
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
@@ -126,7 +129,9 @@ public:
         if (swapchainImage == nullptr)
         {
             swapchainImage = m_swapchain->acquireNextImage();
-            m_renderTarget->setTargetTextureView(swapchainImage->imageView, {});
+            m_renderTarget->setTargetImageView(swapchainImage->imageView,
+                                               swapchainImage->image,
+                                               swapchainImage->imageLastAccess);
         }
 
         m_renderContext->flush({
@@ -140,8 +145,7 @@ public:
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
         flushPLSContext();
-        m_renderTarget->setTargetLastAccess(
-            m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData));
+        m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData);
     }
 
 private:

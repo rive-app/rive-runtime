@@ -199,7 +199,6 @@ public:
     ~TextureView() override;
 
     const VkImageViewCreateInfo& info() { return m_info; }
-    const VkImageUsageFlags usageFlags() { return m_usageFlags; }
     operator VkImageView() const { return m_vkImageView; }
     VkImageView vkImageView() const { return m_vkImageView; }
     const VkImageView* vkImageViewAddressOf() const { return &m_vkImageView; }
@@ -209,11 +208,9 @@ private:
 
     TextureView(rcp<VulkanContext>,
                 rcp<Texture> textureRef,
-                VkImageUsageFlags,
                 const VkImageViewCreateInfo&);
 
     const rcp<Texture> m_textureRefOrNull;
-    VkImageUsageFlags m_usageFlags;
     VkImageViewCreateInfo m_info;
     VkImageView m_vkImageView;
 };

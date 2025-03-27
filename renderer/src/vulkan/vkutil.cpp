@@ -265,13 +265,12 @@ Texture::~Texture()
 
 TextureView::TextureView(rcp<VulkanContext> vk,
                          rcp<Texture> textureRef,
-                         VkImageUsageFlags flags,
                          const VkImageViewCreateInfo& info) :
     RenderingResource(std::move(vk)),
     m_textureRefOrNull(std::move(textureRef)),
-    m_usageFlags(flags),
     m_info(info)
 {
+    assert(m_textureRefOrNull == nullptr || info.image == *m_textureRefOrNull);
     m_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     VK_CHECK(
         m_vk->CreateImageView(m_vk->device, &m_info, nullptr, &m_vkImageView));

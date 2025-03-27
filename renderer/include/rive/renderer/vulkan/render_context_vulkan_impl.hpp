@@ -18,17 +18,18 @@ class TextureVulkanImpl;
 class RenderTargetVulkan : public RenderTarget
 {
 public:
-    void setTargetTextureView(rcp<vkutil::TextureView> view,
-                              VulkanContext::TextureAccess targetLastAccess)
+    const VkFormat framebufferFormat() const { return m_framebufferFormat; }
+    const VkImageUsageFlags targetUsageFlags() const
     {
-        // In order to implement blend modes, the target texture needs to either
-        // support input attachment usage (ideal), or else transfers.
-        constexpr static VkImageUsageFlags TRANSFER_SRC_AND_DST =
-            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
-        assert((view->usageFlags() & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
-               (view->usageFlags() & TRANSFER_SRC_AND_DST) ==
-                   TRANSFER_SRC_AND_DST);
-        m_targetTextureView = std::move(view);
+        return m_targetUsageFlags;
+    }
+
+    void setTargetImageView(VkImageView imageView,
+                            VkImage image,
+                            VulkanContext::TextureAccess targetLastAccess)
+    {
+        m_targetImageView = imageView;
+        m_targetImage = image;
         setTargetLastAccess(targetLastAccess);
     }
 
@@ -37,25 +38,33 @@ public:
         m_targetLastAccess = lastAccess;
     }
 
+    VkImageView targetImageView() const { return m_targetImageView; }
+    VkImage targetImage() const { return m_targetImage; }
     const VulkanContext::TextureAccess& targetLastAccess() const
     {
         return m_targetLastAccess;
     }
 
-    bool targetViewContainsUsageFlag(VkImageUsageFlagBits bit) const
+private:
+    friend class RenderContextVulkanImpl;
+
+    RenderTargetVulkan(rcp<VulkanContext> vk,
+                       uint32_t width,
+                       uint32_t height,
+                       VkFormat framebufferFormat,
+                       VkImageUsageFlags targetUsageFlags) :
+        RenderTarget(width, height),
+        m_vk(std::move(vk)),
+        m_framebufferFormat(framebufferFormat),
+        m_targetUsageFlags(targetUsageFlags)
     {
-        return m_targetTextureView
-                   ? static_cast<bool>(m_targetTextureView->usageFlags() & bit)
-                   : false;
-    }
-
-    const VkFormat framebufferFormat() const { return m_framebufferFormat; }
-
-    VkImage targetTexture() const { return m_targetTextureView->info().image; }
-
-    vkutil::TextureView* targetTextureView() const
-    {
-        return m_targetTextureView.get();
+        // In order to implement blend modes, the target texture needs to either
+        // support input attachment usage (ideal), or else transfers.
+        constexpr static VkImageUsageFlags TRANSFER_SRC_AND_DST =
+            VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        assert((m_targetUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
+               (m_targetUsageFlags & TRANSFER_SRC_AND_DST) ==
+                   TRANSFER_SRC_AND_DST);
     }
 
     vkutil::TextureView* offscreenColorTextureView() const
@@ -79,34 +88,22 @@ public:
     vkutil::TextureView* ensureCoverageAtomicTextureView();
     vkutil::TextureView* ensureDepthStencilTextureView();
 
-private:
-    friend class RenderContextVulkanImpl;
-
-    RenderTargetVulkan(rcp<VulkanContext> vk,
-                       uint32_t width,
-                       uint32_t height,
-                       VkFormat framebufferFormat) :
-        RenderTarget(width, height),
-        m_vk(std::move(vk)),
-        m_framebufferFormat(framebufferFormat)
-    {}
-
     const rcp<VulkanContext> m_vk;
     const VkFormat m_framebufferFormat;
-    // TODO: Once the client is fully responsible for synchronization, this
-    // should turn into just a VkImageView.
-    rcp<vkutil::TextureView> m_targetTextureView;
+    const VkImageUsageFlags m_targetUsageFlags;
+
+    VkImageView m_targetImageView;
+    VkImage m_targetImage;
     VulkanContext::TextureAccess m_targetLastAccess;
 
-    rcp<vkutil::Texture>
-        m_offscreenColorTexture; // Used when m_targetTextureView does not have
-                                 // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
-    rcp<vkutil::Texture>
-        m_coverageTexture; // gpu::InterlockMode::rasterOrdering.
+    // Used when m_targetTextureView does not have
+    // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
+    rcp<vkutil::Texture> m_offscreenColorTexture;
+
+    rcp<vkutil::Texture> m_coverageTexture; // InterlockMode::rasterOrdering.
     rcp<vkutil::Texture> m_clipTexture;
     rcp<vkutil::Texture> m_scratchColorTexture;
-    rcp<vkutil::Texture>
-        m_coverageAtomicTexture; // gpu::InterlockMode::atomics.
+    rcp<vkutil::Texture> m_coverageAtomicTexture; // InterlockMode::atomics.
     rcp<vkutil::Texture> m_depthStencilTexture;
 
     rcp<vkutil::TextureView> m_offscreenColorTextureView;
@@ -132,10 +129,14 @@ public:
 
     rcp<RenderTargetVulkan> makeRenderTarget(uint32_t width,
                                              uint32_t height,
-                                             VkFormat framebufferFormat)
+                                             VkFormat framebufferFormat,
+                                             VkImageUsageFlags targetUsageFlags)
     {
-        return rcp(
-            new RenderTargetVulkan(m_vk, width, height, framebufferFormat));
+        return rcp(new RenderTargetVulkan(m_vk,
+                                          width,
+                                          height,
+                                          framebufferFormat,
+                                          targetUsageFlags));
     }
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType,

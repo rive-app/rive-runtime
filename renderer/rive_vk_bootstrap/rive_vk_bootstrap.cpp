@@ -353,21 +353,25 @@ void Swapchain::init(const vkb::Device& device,
     for (uint32_t i = 0; i < images.size(); ++i)
     {
         SwapchainImage& swapchainImage = m_swapchainImages[i];
-        swapchainImage.externalImage = images[i];
+        swapchainImage.image = images[i];
+        swapchainImage.imageLastAccess = {};
 
-        swapchainImage.imageView = m_vk->makeExternalTextureView(
-            m_imageUsageFlags,
-            {
-                .image = swapchainImage.externalImage,
-                .viewType = VK_IMAGE_VIEW_TYPE_2D,
-                .format = m_imageFormat,
-                .subresourceRange =
-                    {
-                        .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                        .levelCount = 1,
-                        .layerCount = 1,
-                    },
-            });
+        VkImageViewCreateInfo imageViewCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO,
+            .image = swapchainImage.image,
+            .viewType = VK_IMAGE_VIEW_TYPE_2D,
+            .format = m_imageFormat,
+            .subresourceRange =
+                {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .levelCount = 1,
+                    .layerCount = 1,
+                },
+        };
+
+        VK_CHECK(m_dispatchTable.createImageView(&imageViewCreateInfo,
+                                                 nullptr,
+                                                 &swapchainImage.imageView));
 
         VK_CHECK(m_dispatchTable.createFence(&fenceCreateInfo,
                                              nullptr,
@@ -397,7 +401,7 @@ Swapchain::~Swapchain()
     m_dispatchTable.queueWaitIdle(m_queue);
     for (SwapchainImage& swapchainImage : m_swapchainImages)
     {
-        swapchainImage.imageView = nullptr;
+        m_dispatchTable.destroyImageView(swapchainImage.imageView, nullptr);
         m_dispatchTable.destroyFence(swapchainImage.fence, nullptr);
         m_dispatchTable.destroySemaphore(swapchainImage.frameBeginSemaphore,
                                          nullptr);
@@ -458,12 +462,10 @@ const SwapchainImage* Swapchain::acquireNextImage()
     return swapchainImage;
 }
 
-rive::gpu::VulkanContext::TextureAccess Swapchain::submit(
-    rive::gpu::VulkanContext::TextureAccess lastAccess,
-    std::vector<uint8_t>* pixelData)
+void Swapchain::submit(rive::gpu::VulkanContext::TextureAccess lastAccess,
+                       std::vector<uint8_t>* pixelData)
 {
-    const SwapchainImage* swapchainImage =
-        &m_swapchainImages[m_currentImageIndex];
+    SwapchainImage* swapchainImage = &m_swapchainImages[m_currentImageIndex];
 
     if (pixelData != nullptr)
     {
@@ -487,7 +489,7 @@ rive::gpu::VulkanContext::TextureAccess Swapchain::submit(
                 .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
                 .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             },
-            swapchainImage->externalImage);
+            swapchainImage->image);
 
         VkBufferImageCopy imageCopyDesc = {
             .imageSubresource =
@@ -502,7 +504,7 @@ rive::gpu::VulkanContext::TextureAccess Swapchain::submit(
 
         m_dispatchTable.cmdCopyImageToBuffer(
             swapchainImage->commandBuffer,
-            swapchainImage->externalImage,
+            swapchainImage->image,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             *m_pixelReadBuffer,
             1,
@@ -530,7 +532,7 @@ rive::gpu::VulkanContext::TextureAccess Swapchain::submit(
                 .accessMask = VK_ACCESS_NONE,
                 .layout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
             },
-            swapchainImage->externalImage);
+            swapchainImage->image);
     }
 
     VK_CHECK(m_dispatchTable.endCommandBuffer(swapchainImage->commandBuffer));
@@ -595,9 +597,10 @@ rive::gpu::VulkanContext::TextureAccess Swapchain::submit(
         };
 
         m_dispatchTable.queuePresentKHR(m_queue, &presentInfo);
+        lastAccess = {};
     }
 
+    swapchainImage->imageLastAccess = lastAccess;
     m_currentImageIndex = INVALID_IMAGE_INDEX;
-    return lastAccess;
 }
 } // namespace rive_vkb

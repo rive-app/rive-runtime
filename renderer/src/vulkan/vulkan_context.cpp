@@ -198,19 +198,15 @@ rcp<vkutil::TextureView> VulkanContext::makeTextureView(
     const VkImageViewCreateInfo& info)
 {
     assert(texture);
-    auto usage = texture->info().usage;
-    return rcp(new vkutil::TextureView(ref_rcp(this),
-                                       std::move(texture),
-                                       usage,
-                                       info));
+    return rcp(
+        new vkutil::TextureView(ref_rcp(this), std::move(texture), info));
 }
 
 rcp<vkutil::TextureView> VulkanContext::makeExternalTextureView(
-    const VkImageUsageFlags flags,
     const VkImageViewCreateInfo& info)
 {
     return rcp<vkutil::TextureView>(
-        new vkutil::TextureView(ref_rcp(this), nullptr, flags, info));
+        new vkutil::TextureView(ref_rcp(this), nullptr, info));
 }
 
 void VulkanContext::updateImageDescriptorSets(

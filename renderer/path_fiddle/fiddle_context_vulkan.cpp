@@ -182,7 +182,10 @@ public:
             currentFrameNumber);
 
         m_renderTarget =
-            impl()->makeRenderTarget(width, height, m_swapchain->imageFormat());
+            impl()->makeRenderTarget(width,
+                                     height,
+                                     m_swapchain->imageFormat(),
+                                     m_swapchain->imageUsageFlags());
     }
 
     void toggleZoomWindow() override {}
@@ -215,7 +218,9 @@ public:
         if (swapchainImage == nullptr)
         {
             swapchainImage = m_swapchain->acquireNextImage();
-            m_renderTarget->setTargetTextureView(swapchainImage->imageView, {});
+            m_renderTarget->setTargetImageView(swapchainImage->imageView,
+                                               swapchainImage->image,
+                                               swapchainImage->imageLastAccess);
         }
 
         m_renderContext->flush({
@@ -229,8 +234,7 @@ public:
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
         flushPLSContext();
-        m_renderTarget->setTargetLastAccess(
-            m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData));
+        m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData);
     }
 
 private:
