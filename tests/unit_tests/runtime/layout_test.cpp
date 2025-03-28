@@ -310,3 +310,29 @@ TEST_CASE("LayoutComponent Direction", "[layout]")
     REQUIRE(target3->actualDirection() == rive::LayoutDirection::rtl);
     REQUIRE(text->align() == rive::TextAlign::right);
 }
+
+TEST_CASE("LayoutComponent forcedWidth/Height dirt test", "[layout]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_complex1.riv");
+
+    auto artboard = file->artboard();
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutLeftChild1") !=
+            nullptr);
+    auto layout = artboard->find<rive::LayoutComponent>("LayoutLeftChild1");
+    REQUIRE(std::isnan(layout->forcedWidth()));
+    REQUIRE(std::isnan(layout->forcedHeight()));
+    layout->forcedWidth(100);
+    layout->forcedHeight(150);
+    REQUIRE(layout->forcedWidth() == 100.0f);
+    REQUIRE(layout->forcedHeight() == 150.0f);
+    // forcedWidth/Height adds LayoutStyle dirt
+    REQUIRE(layout->hasDirt(rive::ComponentDirt::LayoutStyle) == true);
+    artboard->advance(0.0f);
+    // Advancing clears dirt
+    REQUIRE(layout->hasDirt(rive::ComponentDirt::LayoutStyle) == false);
+    layout->forcedWidth(100);
+    layout->forcedHeight(150);
+    // Setting the same values should result in no added dirt
+    REQUIRE(layout->hasDirt(rive::ComponentDirt::LayoutStyle) == false);
+}

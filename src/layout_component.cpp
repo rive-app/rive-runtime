@@ -117,6 +117,10 @@ void LayoutComponent::heightIntrinsicallySizeOverride(bool intrinsic)
 
 void LayoutComponent::forcedWidth(float width)
 {
+    if (m_forcedWidth == width)
+    {
+        return;
+    }
     m_forcedWidth = width;
     markLayoutStyleDirty();
     markLayoutNodeDirty();
@@ -124,6 +128,10 @@ void LayoutComponent::forcedWidth(float width)
 
 void LayoutComponent::forcedHeight(float height)
 {
+    if (m_forcedHeight == height)
+    {
+        return;
+    }
     m_forcedHeight = height;
     markLayoutStyleDirty();
     markLayoutNodeDirty();
@@ -1026,18 +1034,19 @@ float LayoutComponent::interpolationTime()
     }
 }
 
-void LayoutComponent::cascadeLayoutStyle(
+bool LayoutComponent::cascadeLayoutStyle(
     LayoutStyleInterpolation inheritedInterpolation,
     KeyFrameInterpolator* inheritedInterpolator,
     float inheritedInterpolationTime,
     LayoutDirection direction)
 {
+    bool updated = false;
     if (m_style != nullptr &&
         m_style->animationStyle() == LayoutAnimationStyle::inherit)
     {
-        setInheritedInterpolation(inheritedInterpolation,
-                                  inheritedInterpolator,
-                                  inheritedInterpolationTime);
+        updated = setInheritedInterpolation(inheritedInterpolation,
+                                            inheritedInterpolator,
+                                            inheritedInterpolationTime);
     }
     else
     {
@@ -1057,6 +1066,7 @@ void LayoutComponent::cascadeLayoutStyle(
     {
         markLayoutNodeDirty(true);
         addDirt(ComponentDirt::Path);
+        updated = true;
     }
     for (auto child : children())
     {
@@ -1069,16 +1079,24 @@ void LayoutComponent::cascadeLayoutStyle(
                 actualDirection());
         }
     }
+    return updated;
 }
 
-void LayoutComponent::setInheritedInterpolation(
+bool LayoutComponent::setInheritedInterpolation(
     LayoutStyleInterpolation inheritedInterpolation,
     KeyFrameInterpolator* inheritedInterpolator,
     float inheritedInterpolationTime)
 {
-    m_inheritedInterpolation = inheritedInterpolation;
-    m_inheritedInterpolator = inheritedInterpolator;
-    m_inheritedInterpolationTime = inheritedInterpolationTime;
+    if (inheritedInterpolation != m_inheritedInterpolation ||
+        inheritedInterpolator != m_inheritedInterpolator ||
+        inheritedInterpolationTime != m_inheritedInterpolationTime)
+    {
+        m_inheritedInterpolation = inheritedInterpolation;
+        m_inheritedInterpolator = inheritedInterpolator;
+        m_inheritedInterpolationTime = inheritedInterpolationTime;
+        return true;
+    }
+    return false;
 }
 
 void LayoutComponent::clearInheritedInterpolation()

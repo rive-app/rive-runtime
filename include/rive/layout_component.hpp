@@ -262,11 +262,11 @@ public:
     LayoutStyleInterpolation interpolation();
     float interpolationTime();
 
-    void cascadeLayoutStyle(LayoutStyleInterpolation inheritedInterpolation,
+    bool cascadeLayoutStyle(LayoutStyleInterpolation inheritedInterpolation,
                             KeyFrameInterpolator* inheritedInterpolator,
                             float inheritedInterpolationTime,
                             LayoutDirection direction);
-    void setInheritedInterpolation(
+    bool setInheritedInterpolation(
         LayoutStyleInterpolation inheritedInterpolation,
         KeyFrameInterpolator* inheritedInterpolator,
         float inheritedInterpolationTime);

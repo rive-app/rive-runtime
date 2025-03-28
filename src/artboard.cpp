@@ -724,17 +724,17 @@ void Artboard::update(ComponentDirt value)
 #ifdef WITH_RIVE_LAYOUT
     if (hasDirt(value, ComponentDirt::LayoutStyle))
     {
-        cascadeLayoutStyle(interpolation(),
-                           interpolator(),
-                           interpolationTime(),
-                           actualDirection());
+        bool cascadeChanged = cascadeLayoutStyle(interpolation(),
+                                                 interpolator(),
+                                                 interpolationTime(),
+                                                 actualDirection());
         // TODO: Explore whether we can remove the syncStyleChanges call in
         // updatePass. Since updatePass calls updateComponents, where the first
         // component is the artboard itself, hence calling update, we end up
         // calling this twice. Although it is safe, because syncStyleChanges
         // checks for the list of dirty layouts that would be empty at this
         // point, it seems redundant.
-        if (syncStyleChanges())
+        if (syncStyleChanges() && (m_updatesOwnLayout || cascadeChanged))
         {
             calculateLayout();
             updateLayoutBounds(
