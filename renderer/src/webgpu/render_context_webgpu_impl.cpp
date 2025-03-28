@@ -7,6 +7,8 @@
 #include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
+#include "generated/shaders/spirv/blit_texture_as_draw.vert.h"
+#include "generated/shaders/spirv/blit_texture_as_draw.frag.h"
 #include "generated/shaders/spirv/color_ramp.vert.h"
 #include "generated/shaders/spirv/color_ramp.frag.h"
 #include "generated/shaders/spirv/tessellate.vert.h"
@@ -75,6 +77,12 @@ static void write_texture(wgpu::Queue queue,
         .height = height,
     };
     queue.WriteTexture(&dest, data, dataSize, &layout, &extent);
+}
+
+static bool generate_mipmaps_builtin(wgpu::CommandEncoder encoder,
+                                     wgpu::Texture texture)
+{
+    return false;
 }
 
 static void write_buffer(wgpu::Queue queue,
@@ -151,6 +159,26 @@ static void write_texture(wgpu::Queue queue,
                      height,
                      reinterpret_cast<uintptr_t>(data),
                      dataSize);
+}
+
+EM_JS(bool, generate_mipmaps_builtin_js, (int encoder, int texture), {
+    encoder = JsValStore.get(encoder);
+    texture = JsValStore.get(texture);
+    console.log(encoder.generateMipmap);
+    if (encoder.generateMipmap)
+    {
+        encoder.generateMipmap(texture);
+        return true;
+    }
+    return false;
+});
+
+static bool generate_mipmaps_builtin(wgpu::CommandEncoder encoder,
+                                     wgpu::Texture texture)
+{
+    return generate_mipmaps_builtin_js(
+        emscripten_webgpu_export_command_encoder(encoder.Get()),
+        emscripten_webgpu_export_texture(texture.Get()));
 }
 
 EM_JS(void,
@@ -1499,39 +1527,11 @@ rcp<RenderBuffer> RenderContextWebGPUImpl::makeRenderBuffer(
 class TextureWebGPUImpl : public Texture
 {
 public:
-    TextureWebGPUImpl(wgpu::Device device,
-                      wgpu::Queue queue,
-                      uint32_t width,
-                      uint32_t height,
-                      uint32_t mipLevelCount,
-                      const uint8_t imageDataRGBA[]) :
-        Texture(width, height)
-    {
-        wgpu::TextureDescriptor desc = {
-            .usage = wgpu::TextureUsage::TextureBinding |
-                     wgpu::TextureUsage::CopyDst,
-            .dimension = wgpu::TextureDimension::e2D,
-            .size = {width, height},
-            .format = wgpu::TextureFormat::RGBA8Unorm,
-            // TODO: implement mipmap generation.
-            .mipLevelCount = 1, // mipLevelCount,
-        };
-
-        m_texture = device.CreateTexture(&desc);
-        m_textureView = m_texture.CreateView();
-
-        // Specify the top-level image in the mipmap chain.
-        // TODO: implement mipmap generation.
-        write_texture(queue,
-                      m_texture,
-                      0,
-                      0,
-                      width * 4,
-                      width,
-                      height,
-                      imageDataRGBA,
-                      height * width * 4);
-    }
+    TextureWebGPUImpl(uint32_t width, uint32_t height, wgpu::Texture texture) :
+        Texture(width, height),
+        m_texture(std::move(texture)),
+        m_textureView(m_texture.CreateView())
+    {}
 
     wgpu::TextureView textureView() const { return m_textureView; }
 
@@ -1540,18 +1540,212 @@ private:
     wgpu::TextureView m_textureView;
 };
 
+// Blits texture-to-texture using a draw command.
+class RenderContextWebGPUImpl::BlitTextureAsDrawPipeline
+{
+public:
+    BlitTextureAsDrawPipeline(RenderContextWebGPUImpl* impl)
+    {
+        const wgpu::Device device = impl->device();
+
+        wgpu::BindGroupLayoutEntry bindingEntries[] = {
+            {
+                .binding = 0,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .texture =
+                    {
+                        .sampleType = wgpu::TextureSampleType::Float,
+                        .viewDimension = wgpu::TextureViewDimension::e2D,
+                    },
+            },
+            {
+                .binding = 1,
+                .visibility = wgpu::ShaderStage::Fragment,
+                .sampler =
+                    {
+                        .type = wgpu::SamplerBindingType::Filtering,
+                    },
+            },
+        };
+
+        wgpu::BindGroupLayoutDescriptor bindingsDesc = {
+            .entryCount = std::size(bindingEntries),
+            .entries = bindingEntries,
+        };
+
+        m_bindGroupLayout = device.CreateBindGroupLayout(&bindingsDesc);
+
+        wgpu::PipelineLayoutDescriptor pipelineLayoutDesc = {
+            .bindGroupLayoutCount = 1,
+            .bindGroupLayouts = &m_bindGroupLayout,
+        };
+
+        wgpu::PipelineLayout pipelineLayout =
+            device.CreatePipelineLayout(&pipelineLayoutDesc);
+
+        wgpu::ShaderModule vertexShader =
+            m_vertexShaderHandle.compileSPIRVShaderModule(
+                device,
+                blit_texture_as_draw_vert,
+                std::size(blit_texture_as_draw_vert));
+
+        wgpu::ShaderModule fragmentShader =
+            m_fragmentShaderHandle.compileSPIRVShaderModule(
+                device,
+                blit_texture_as_draw_frag,
+                std::size(blit_texture_as_draw_frag));
+
+        wgpu::ColorTargetState colorTargetState = {
+            .format = wgpu::TextureFormat::RGBA8Unorm,
+        };
+
+        wgpu::FragmentState fragmentState = {
+            .module = fragmentShader,
+            .entryPoint = "main",
+            .targetCount = 1,
+            .targets = &colorTargetState,
+        };
+
+        wgpu::RenderPipelineDescriptor desc = {
+            .layout = pipelineLayout,
+            .vertex =
+                {
+                    .module = vertexShader,
+                    .entryPoint = "main",
+                },
+            .primitive =
+                {
+                    .topology = wgpu::PrimitiveTopology::TriangleStrip,
+                },
+            .fragment = &fragmentState,
+        };
+
+        m_renderPipeline = device.CreateRenderPipeline(&desc);
+    }
+
+    const wgpu::BindGroupLayout& bindGroupLayout() const
+    {
+        return m_bindGroupLayout;
+    }
+    wgpu::RenderPipeline renderPipeline() const { return m_renderPipeline; }
+
+private:
+    wgpu::BindGroupLayout m_bindGroupLayout;
+    EmJsHandle m_vertexShaderHandle;
+    EmJsHandle m_fragmentShaderHandle;
+    wgpu::RenderPipeline m_renderPipeline;
+};
+
+void RenderContextWebGPUImpl::generateMipmaps(wgpu::Texture texture)
+{
+    wgpu::CommandEncoder mipEncoder = m_device.CreateCommandEncoder();
+
+    if (!generate_mipmaps_builtin(mipEncoder, texture))
+    {
+        // Generate the mipmaps manually by drawing each layer.
+        if (m_blitTextureAsDrawPipeline == nullptr)
+        {
+            m_blitTextureAsDrawPipeline =
+                std::make_unique<BlitTextureAsDrawPipeline>(this);
+        }
+
+        wgpu::TextureViewDescriptor textureViewDesc = {
+            .baseMipLevel = 0,
+            .mipLevelCount = 1,
+        };
+
+        wgpu::TextureView dstView,
+            srcView = texture.CreateView(&textureViewDesc);
+
+        for (uint32_t level = 1; level < texture.GetMipLevelCount();
+             ++level, srcView = std::move(dstView))
+        {
+            textureViewDesc.baseMipLevel = level;
+            dstView = texture.CreateView(&textureViewDesc);
+
+            wgpu::RenderPassColorAttachment attachment = {
+                .view = dstView,
+                .loadOp = wgpu::LoadOp::Clear,
+                .storeOp = wgpu::StoreOp::Store,
+                .clearValue = {},
+            };
+
+            wgpu::RenderPassDescriptor mipPassDesc = {
+                .colorAttachmentCount = 1,
+                .colorAttachments = &attachment,
+            };
+
+            wgpu::RenderPassEncoder mipPass =
+                mipEncoder.BeginRenderPass(&mipPassDesc);
+
+            wgpu::BindGroupEntry bindingEntries[] = {
+                {
+                    .binding = 0,
+                    .textureView = srcView,
+                },
+                {
+                    .binding = 1,
+                    .sampler = m_linearSampler,
+                },
+            };
+
+            wgpu::BindGroupDescriptor bindGroupDesc = {
+                .layout = m_blitTextureAsDrawPipeline->bindGroupLayout(),
+                .entryCount = std::size(bindingEntries),
+                .entries = bindingEntries,
+            };
+
+            wgpu::BindGroup bindings = m_device.CreateBindGroup(&bindGroupDesc);
+            mipPass.SetBindGroup(0, bindings);
+
+            mipPass.SetPipeline(m_blitTextureAsDrawPipeline->renderPipeline());
+            mipPass.Draw(4);
+            mipPass.End();
+        }
+    }
+
+    wgpu::CommandBuffer commands = mipEncoder.Finish();
+    m_queue.Submit(1, &commands);
+}
+
 rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
     const uint8_t imageDataRGBA[])
 {
-    return make_rcp<TextureWebGPUImpl>(m_device,
-                                       m_queue,
-                                       width,
-                                       height,
-                                       mipLevelCount,
-                                       imageDataRGBA);
+    wgpu::TextureDescriptor textureDesc = {
+        .usage =
+            wgpu::TextureUsage::TextureBinding | wgpu::TextureUsage::CopyDst,
+        .dimension = wgpu::TextureDimension::e2D,
+        .size = {width, height},
+        .format = wgpu::TextureFormat::RGBA8Unorm,
+        .mipLevelCount = mipLevelCount,
+    };
+    if (mipLevelCount > 1)
+    {
+        textureDesc.usage |= wgpu::TextureUsage::RenderAttachment;
+    }
+
+    wgpu::Texture texture = m_device.CreateTexture(&textureDesc);
+
+    // Specify the top-level image in the mipmap chain.
+    write_texture(m_queue,
+                  texture,
+                  0,
+                  0,
+                  width * 4,
+                  width,
+                  height,
+                  imageDataRGBA,
+                  height * width * 4);
+
+    if (mipLevelCount > 1)
+    {
+        generateMipmaps(texture);
+    }
+
+    return make_rcp<TextureWebGPUImpl>(width, height, std::move(texture));
 }
 
 class BufferWebGPU : public BufferRing

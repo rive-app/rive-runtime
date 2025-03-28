@@ -141,6 +141,8 @@ private:
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
 
+    void generateMipmaps(wgpu::Texture);
+
     // PLS always expects a clockwise front face.
     constexpr static wgpu::FrontFace kFrontFaceForOffscreenDraws =
         wgpu::FrontFace::CW;
@@ -177,6 +179,10 @@ private:
     EmJsHandle m_loadStoreEXTVertexShaderHandle;
     wgpu::ShaderModule m_loadStoreEXTVertexShader;
     std::unique_ptr<BufferRing> m_loadStoreEXTUniforms;
+
+    // Blits texture-to-texture using a draw command.
+    class BlitTextureAsDrawPipeline;
+    std::unique_ptr<BlitTextureAsDrawPipeline> m_blitTextureAsDrawPipeline;
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;

@@ -2016,27 +2016,30 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
 {
     if (m_blitAsDrawProgram == 0)
     {
+        // Define "USE_TEXEL_FETCH_WITH_FRAG_COORD" so the shader uses
+        // texelFetch() on the source texture instead of sampling it. This way
+        // we don't have to configure the texture's sampling parameters, and
+        // since textureID potentially refers to an external texture, it would
+        // be very messy to try and change its sampling params.
+        const char* blitDefines[] = {GLSL_USE_TEXEL_FETCH_WITH_FRAG_COORD};
         const char* blitSources[] = {glsl::constants,
-                                     glsl::common,
                                      glsl::blit_texture_as_draw};
         m_blitAsDrawProgram = glutils::Program();
         m_blitAsDrawProgram.compileAndAttachShader(GL_VERTEX_SHADER,
-                                                   nullptr,
-                                                   0,
+                                                   blitDefines,
+                                                   std::size(blitDefines),
                                                    blitSources,
                                                    std::size(blitSources),
                                                    m_capabilities);
         m_blitAsDrawProgram.compileAndAttachShader(GL_FRAGMENT_SHADER,
-                                                   nullptr,
-                                                   0,
+                                                   blitDefines,
+                                                   std::size(blitDefines),
                                                    blitSources,
                                                    std::size(blitSources),
                                                    m_capabilities);
         m_blitAsDrawProgram.link();
         m_state->bindProgram(m_blitAsDrawProgram);
-        glutils::Uniform1iByName(m_blitAsDrawProgram,
-                                 GLSL_blitTextureSource,
-                                 0);
+        glutils::Uniform1iByName(m_blitAsDrawProgram, GLSL_sourceTexture, 0);
     }
 
     m_state->bindProgram(m_blitAsDrawProgram);

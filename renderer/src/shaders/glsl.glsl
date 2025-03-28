@@ -165,6 +165,8 @@
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                      \
     layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)                  \
         uniform mediump sampler NAME;
+#define SAMPLER_DYNAMIC(SET, BINDING, NAME)                                    \
+    layout(set = SET, binding = BINDING) uniform mediump sampler NAME;
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD)                              \
     texture(sampler2D(NAME, SAMPLER_NAME), COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
@@ -176,6 +178,7 @@
 // parameters are API-level state tied to the texture.
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
+#define SAMPLER_DYNAMIC(SET, BINDING, NAME)
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     textureLod(NAME, COORD, LOD)
@@ -449,7 +452,7 @@
 #define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
 #define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
 
-#define PLS_PRESERVE_4F(PLANE) PLANE = vec4(1, 0, 1, 1)
+#define PLS_PRESERVE_4F(PLANE) PLANE = vec4(0)
 #define PLS_PRESERVE_UI(PLANE) PLANE.r = 0u
 
 #define PLS_INTERLOCK_BEGIN
