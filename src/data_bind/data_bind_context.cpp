@@ -31,14 +31,14 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
 {
     if (dataContext != nullptr)
     {
-        auto value = dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
-        if (value != nullptr)
+        auto source = dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
+        if (source != nullptr)
         {
             if (!bindsOnce())
             {
-                value->addDependent(this);
+                source->addDependent(this);
             }
-            m_Source = value;
+            m_Source = source;
             bind();
         }
         if (m_dataConverter != nullptr)

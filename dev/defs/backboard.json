@@ -312,6 +312,17 @@
       },
       "runtime": false,
       "coop": false
+    },
+    "dataBindDesignActive": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 787,
+        "string": "databinddesignactive"
+      },
+      "description": "If enabled, data bind will be applied.",
+      "runtime": false,
+      "coop": false
     }
   }
 }
