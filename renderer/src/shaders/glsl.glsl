@@ -469,11 +469,11 @@
 #  ifdef @TARGET_VULKAN
 #    define INSTANCE_INDEX gl_InstanceIndex
 #  else
-#    ifdef @ENABLE_SPIRV_CROSS_BASE_INSTANCE
-       // This uniform is specifically named "SPIRV_Cross_BaseInstance" for compatibility with
-       // SPIRV-Cross sytems that search for it by name.
-       uniform highp int $SPIRV_Cross_BaseInstance;
-#      define INSTANCE_INDEX (gl_InstanceID + $SPIRV_Cross_BaseInstance)
+#    ifdef @BASE_INSTANCE_UNIFORM_NAME
+       // gl_BaseInstance isn't supported on this platform. The rendering
+       // backend will set this uniform for us instead.
+       uniform highp int @BASE_INSTANCE_UNIFORM_NAME;
+#      define INSTANCE_INDEX (gl_InstanceID + @BASE_INSTANCE_UNIFORM_NAME)
 #    else
 #        define INSTANCE_INDEX (gl_InstanceID + gl_BaseInstance)
 #    endif

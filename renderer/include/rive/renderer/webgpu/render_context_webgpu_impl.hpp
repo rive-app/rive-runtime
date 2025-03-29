@@ -211,6 +211,7 @@ private:
     wgpu::Sampler m_mipmapSampler;
     wgpu::BindGroup m_samplerBindings;
     wgpu::PipelineLayout m_drawPipelineLayout;
+    wgpu::BindGroupLayout m_emptyBindingsLayout; // For when a set is unused.
     wgpu::Buffer m_pathPatchVertexBuffer;
     wgpu::Buffer m_pathPatchIndexBuffer;
 

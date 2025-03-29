@@ -96,6 +96,11 @@ GLuint CompileShader(GLuint type,
     {
         shaderSource << "#define " << defines[i] << " true\n";
     }
+    if (!capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+    {
+        shaderSource << "#define " << GLSL_BASE_INSTANCE_UNIFORM_NAME << ' '
+                     << BASE_INSTANCE_UNIFORM_NAME << '\n';
+    }
     shaderSource << rive::gpu::glsl::glsl << "\n";
     for (size_t i = 0; i < numInputSources; ++i)
     {

@@ -39,6 +39,11 @@
 #include <sstream>
 #include <string>
 
+// When compiling "glsl-raw" shaders, the WebGPU driver will automatically
+// search for a uniform with this name and update its value when draw commands
+// have a base instance.
+constexpr static char BASE_INSTANCE_UNIFORM_NAME[] = "nrdp_BaseInstance";
+
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
 
@@ -439,7 +444,7 @@ public:
 
         wgpu::BindGroupLayout layouts[] = {
             m_perFlushBindingsLayout,
-            wgpu::BindGroupLayout(),
+            impl->m_emptyBindingsLayout,
             impl->m_drawBindGroupLayouts[SAMPLER_BINDINGS_SET],
         };
         static_assert(SAMPLER_BINDINGS_SET == 2);
@@ -584,7 +589,7 @@ public:
 
         wgpu::BindGroupLayout layouts[] = {
             m_perFlushBindingsLayout,
-            wgpu::BindGroupLayout(),
+            impl->m_emptyBindingsLayout,
             impl->m_drawBindGroupLayouts[SAMPLER_BINDINGS_SET],
         };
         static_assert(SAMPLER_BINDINGS_SET == 2);
@@ -753,6 +758,8 @@ public:
                 {
                     addDefine(GLSL_POST_INVERT_Y);
                 }
+                glsl << "#define " << GLSL_BASE_INSTANCE_UNIFORM_NAME << ' '
+                     << BASE_INSTANCE_UNIFORM_NAME << '\n';
             }
             else
             {
@@ -792,17 +799,9 @@ public:
                 case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
                     addDefine(GLSL_ENABLE_INSTANCE_INDEX);
-                    if (plsType ==
-                        PixelLocalStorageType::EXT_shader_pixel_local_storage)
-                    {
-                        // The WebGPU layer automatically searches for a uniform
-                        // named "SPIRV_Cross_BaseInstance" and manages it for
-                        // us.
-                        addDefine(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
-                    }
                     break;
                 case DrawType::atlasBlit:
-                    addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
+                    addDefine(GLSL_ATLAS_BLIT);
                     [[fallthrough]];
                 case DrawType::interiorTriangulation:
                     addDefine(GLSL_DRAW_INTERIOR_TRIANGLES);
@@ -845,14 +844,12 @@ public:
             {
                 glsl << gpu::glsl::advanced_blend << '\n';
             }
-            if (context->platformFeatures().avoidFlatVaryings)
+            glsl << "#define " << GLSL_OPTIONALLY_FLAT;
+            if (!context->platformFeatures().avoidFlatVaryings)
             {
-                addDefine(GLSL_OPTIONALLY_FLAT);
+                glsl << " flat";
             }
-            else
-            {
-                glsl << "#define " GLSL_OPTIONALLY_FLAT " flat\n";
-            }
+            glsl << '\n';
             switch (drawType)
             {
                 case DrawType::midpointFanPatches:
@@ -1279,6 +1276,9 @@ void RenderContextWebGPUImpl::initGPUObjects()
 
     m_drawPipelineLayout =
         m_device.CreatePipelineLayout(&drawPipelineLayoutDesc);
+
+    wgpu::BindGroupLayoutDescriptor emptyBindingsDesc = {};
+    m_emptyBindingsLayout = m_device.CreateBindGroupLayout(&emptyBindingsDesc);
 
     if (m_contextOptions.plsType ==
         PixelLocalStorageType::EXT_shader_pixel_local_storage)

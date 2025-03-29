@@ -186,15 +186,15 @@ private:
         ~DrawProgram();
 
         GLuint id() const { return m_id; }
-        GLint spirvCrossBaseInstanceLocation() const
+        GLint baseInstanceUniformLocation() const
         {
-            return m_spirvCrossBaseInstanceLocation;
+            return m_baseInstanceUniformLocation;
         }
 
     private:
         DrawShader m_fragmentShader;
         GLuint m_id;
-        GLint m_spirvCrossBaseInstanceLocation = -1;
+        GLint m_baseInstanceUniformLocation = -1;
         const rcp<GLState> m_state;
     };
 
@@ -246,14 +246,14 @@ private:
 
         operator GLuint() const { return m_program; }
 
-        GLint spirvCrossBaseInstanceLocation() const
+        GLint baseInstanceUniformLocation() const
         {
-            return m_spirvCrossBaseInstanceLocation;
+            return m_baseInstanceUniformLocation;
         }
 
     private:
         glutils::Program m_program = glutils::Program::Zero();
-        GLint m_spirvCrossBaseInstanceLocation = -1;
+        GLint m_baseInstanceUniformLocation = -1;
     };
 
     glutils::Shader m_atlasVertexShader;

@@ -11,6 +11,16 @@
 
 namespace glutils
 {
+// Used when the driver doesn't support gl_BaseInstance
+// (GLCapabilities::ANGLE_base_vertex_base_instance_shader_builtin is false).
+//
+// The client must set this uniform value before drawing if the shader needs an
+// instance index.
+//
+// (Begin the variable name with an underscore so it won't collide with any
+// renames from minify.py.)
+constexpr static char BASE_INSTANCE_UNIFORM_NAME[] = "_baseInstance";
+
 void CompileAndAttachShader(GLuint program,
                             GLenum type,
                             const char* source,

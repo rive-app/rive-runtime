@@ -695,8 +695,9 @@ void RenderContextGLImpl::AtlasProgram::compile(
     }
     if (!capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
     {
-        m_spirvCrossBaseInstanceLocation =
-            glGetUniformLocation(m_program, "SPIRV_Cross_BaseInstance");
+        m_baseInstanceUniformLocation =
+            glGetUniformLocation(m_program,
+                                 glutils::BASE_INSTANCE_UNIFORM_NAME);
     }
 }
 
@@ -738,10 +739,6 @@ void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
         defines.push_back(GLSL_DRAW_PATH);
         defines.push_back(GLSL_ENABLE_FEATHER);
         defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
-        if (!m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
-        {
-            defines.push_back(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
-        }
         if (!m_capabilities.ARB_shader_storage_buffer_object)
         {
             defines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
@@ -866,11 +863,6 @@ RenderContextGLImpl::DrawShader::DrawShader(
             if (shaderType == GL_VERTEX_SHADER)
             {
                 defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
-                if (!renderContextImpl->m_capabilities
-                         .ANGLE_base_vertex_base_instance_shader_builtin)
-                {
-                    defines.push_back(GLSL_ENABLE_SPIRV_CROSS_BASE_INSTANCE);
-                }
             }
             defines.push_back(GLSL_DRAW_PATH);
             sources.push_back(gpu::glsl::draw_path_common);
@@ -1064,10 +1056,8 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     if (!renderContextImpl->m_capabilities
              .ANGLE_base_vertex_base_instance_shader_builtin)
     {
-        // This uniform is specifically named "SPIRV_Cross_BaseInstance" for
-        // compatibility with SPIRV-Cross sytems.
-        m_spirvCrossBaseInstanceLocation =
-            glGetUniformLocation(m_id, "SPIRV_Cross_BaseInstance");
+        m_baseInstanceUniformLocation =
+            glGetUniformLocation(m_id, glutils::BASE_INSTANCE_UNIFORM_NAME);
     }
 }
 
@@ -1133,11 +1123,11 @@ void RenderContextGLImpl::PixelLocalStorageImpl::ensureRasterOrderingEnabled(
 class DrawIndexedInstancedHelper
 {
 public:
-    DrawIndexedInstancedHelper(GLint spirvCrossBaseInstanceLocation,
+    DrawIndexedInstancedHelper(GLint baseInstanceUniformLocation,
                                GLenum primitiveTopology,
                                uint32_t instanceCount,
                                uint32_t baseInstance) :
-        m_spirvCrossBaseInstanceLocation(spirvCrossBaseInstanceLocation),
+        m_baseInstanceUniformLocation(baseInstanceUniformLocation),
         m_primitiveTopology(primitiveTopology),
         m_instanceCount(instanceCount),
         m_baseInstance(baseInstance)
@@ -1153,7 +1143,7 @@ public:
     void draw(const GLCapabilities& capabilities) const
     {
         assert(capabilities.ANGLE_base_vertex_base_instance_shader_builtin ==
-               (m_spirvCrossBaseInstanceLocation < 0));
+               (m_baseInstanceUniformLocation < 0));
         for (uint32_t baseInstance = m_baseInstance,
                       endInstance = m_baseInstance + m_instanceCount;
              baseInstance < endInstance;)
@@ -1175,7 +1165,7 @@ public:
             else
 #endif
             {
-                glUniform1i(m_spirvCrossBaseInstanceLocation, baseInstance);
+                glUniform1i(m_baseInstanceUniformLocation, baseInstance);
                 glDrawElementsInstanced(m_primitiveTopology,
                                         m_indexCount,
                                         GL_UNSIGNED_SHORT,
@@ -1202,7 +1192,7 @@ public:
     }
 
 private:
-    const GLint m_spirvCrossBaseInstanceLocation;
+    const GLint m_baseInstanceUniformLocation;
     const GLenum m_primitiveTopology;
     const uint32_t m_instanceCount;
     const uint32_t m_baseInstance;
@@ -1360,7 +1350,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                           fillBatch.scissor.width(),
                           fillBatch.scissor.height());
                 DrawIndexedInstancedHelper drawHelper(
-                    m_atlasFillProgram.spirvCrossBaseInstanceLocation(),
+                    m_atlasFillProgram.baseInstanceUniformLocation(),
                     GL_TRIANGLES,
                     fillBatch.patchCount,
                     fillBatch.basePatch);
@@ -1384,7 +1374,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                           strokeBatch.scissor.width(),
                           strokeBatch.scissor.height());
                 DrawIndexedInstancedHelper drawHelper(
-                    m_atlasStrokeProgram.spirvCrossBaseInstanceLocation(),
+                    m_atlasStrokeProgram.baseInstanceUniformLocation(),
                     GL_TRIANGLES,
                     strokeBatch.patchCount,
                     strokeBatch.basePatch);
@@ -1623,7 +1613,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 // Draw PLS patches that connect the tessellation vertices.
                 m_state->bindVAO(m_drawVAO);
                 DrawIndexedInstancedHelper drawHelper(
-                    drawProgram.spirvCrossBaseInstanceLocation(),
+                    drawProgram.baseInstanceUniformLocation(),
                     GL_TRIANGLES,
                     batch.elementCount,
                     batch.baseElement);
