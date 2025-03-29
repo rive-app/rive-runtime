@@ -3,6 +3,12 @@
 
 using namespace rive;
 
+ElasticScrollPhysics::~ElasticScrollPhysics()
+{
+    delete m_physicsX;
+    delete m_physicsY;
+}
+
 Vec2D ElasticScrollPhysics::advance(float elapsedSeconds)
 {
     float advanceX =

@@ -24,6 +24,7 @@ namespace rive
 class BinaryReader;
 class RuntimeHeader;
 class Factory;
+class ScrollPhysics;
 class ViewModelRuntime;
 
 ///
@@ -164,6 +165,7 @@ private:
     std::vector<DataConverter*> m_DataConverters;
 
     std::vector<KeyFrameInterpolator*> m_keyframeInterpolators;
+    std::vector<ScrollPhysics*> m_scrollPhysics;
 
     /// List of artboards in the file. Each artboard encapsulates a set of
     /// Rive components and animations.

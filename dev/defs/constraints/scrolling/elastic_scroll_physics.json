@@ -9,32 +9,32 @@
     "friction": {
       "type": "double",
       "initialValue": "8.0",
-      "animates": true,
       "key": {
         "int": 728,
         "string": "friction"
       },
-      "description": "Friction value determining how quickly the scroll decelerates"
+      "description": "Friction value determining how quickly the scroll decelerates",
+      "bindable": true
     },
     "speedMultiplier": {
       "type": "double",
       "initialValue": "1.0",
-      "animates": true,
       "key": {
         "int": 729,
         "string": "speedmultiplier"
       },
-      "description": "Multiplier for how fast the scroll initiates"
+      "description": "Multiplier for how fast the scroll initiates",
+      "bindable": true
     },
     "elasticFactor": {
       "type": "double",
       "initialValue": "0.66",
-      "animates": true,
       "key": {
         "int": 730,
         "string": "elasticfactor"
       },
-      "description": "Multiplier for the amount/strength of the rubber banding"
+      "description": "Multiplier for the amount/strength of the rubber banding",
+      "bindable": true
     }
   }
 }

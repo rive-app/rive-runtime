@@ -43,6 +43,7 @@ private:
     ElasticScrollPhysicsHelper* m_physicsY;
 
 public:
+    ~ElasticScrollPhysics();
     bool enabled() override
     {
         return m_physicsX != nullptr || m_physicsY != nullptr;

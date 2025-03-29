@@ -8,6 +8,8 @@
 
 using namespace rive;
 
+ScrollConstraint::~ScrollConstraint() { delete m_physics; }
+
 void ScrollConstraint::constrain(TransformComponent* component)
 {
     m_scrollTransform =

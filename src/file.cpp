@@ -36,6 +36,7 @@
 #include "rive/animation/blend_state_1d_viewmodel.hpp"
 #include "rive/animation/blend_state_direct.hpp"
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
+#include "rive/constraints/scrolling/scroll_physics.hpp"
 #include "rive/data_bind/bindable_property.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
@@ -192,6 +193,10 @@ File::~File()
     for (auto& keyframeInterpolator : m_keyframeInterpolators)
     {
         delete keyframeInterpolator;
+    }
+    for (auto& physics : m_scrollPhysics)
+    {
+        delete physics;
     }
     delete m_backboard;
 }
@@ -480,6 +485,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 m_keyframeInterpolators.push_back(
                     object->as<KeyFrameInterpolator>());
             }
+        }
+        else if (object->is<ScrollPhysics>())
+        {
+            m_scrollPhysics.push_back(object->as<ScrollPhysics>());
         }
     }
 

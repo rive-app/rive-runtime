@@ -30,6 +30,7 @@ private:
     float indexAtPosition(Vec2D pos);
 
 public:
+    ~ScrollConstraint();
     void constrain(TransformComponent* component) override;
     std::vector<DraggableProxy*> draggables() override;
     void buildDependencies() override;
