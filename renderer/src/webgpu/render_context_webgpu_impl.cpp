@@ -169,7 +169,6 @@ static void write_texture(wgpu::Queue queue,
 EM_JS(bool, generate_mipmaps_builtin_js, (int encoder, int texture), {
     encoder = JsValStore.get(encoder);
     texture = JsValStore.get(texture);
-    console.log(encoder.generateMipmap);
     if (encoder.generateMipmap)
     {
         encoder.generateMipmap(texture);
