@@ -204,11 +204,11 @@ TransformComponents Mat2D::decompose() const
     float m0 = m_buffer[0], m1 = m_buffer[1], m2 = m_buffer[2],
           m3 = m_buffer[3];
 
-    float rotation = (float)std::atan2(m1, m0);
+    float rotation = std::atan2(m1, m0);
     float denom = m0 * m0 + m1 * m1;
-    float scaleX = (float)std::sqrt(denom);
+    float scaleX = std::sqrt(denom);
     float scaleY = scaleX == 0.0f ? 0.0f : (m0 * m3 - m2 * m1) / scaleX;
-    float skewX = (float)std::atan2(m0 * m2 + m1 * m3, denom);
+    float skewX = std::atan2(m0 * m2 + m1 * m3, denom);
 
     TransformComponents result;
     result.x(m_buffer[4]);

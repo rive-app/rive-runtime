@@ -11,8 +11,8 @@ static Vec2D get_point(const CubicMirroredVertex& v)
 
 static Vec2D get_vector(const CubicMirroredVertex& v)
 {
-    return Vec2D(cos(v.rotation()) * v.distance(),
-                 sin(v.rotation()) * v.distance());
+    return Vec2D(std::cos(v.rotation()) * v.distance(),
+                 std::sin(v.rotation()) * v.distance());
 }
 
 void CubicMirroredVertex::computeIn()

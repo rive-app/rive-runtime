@@ -11,14 +11,14 @@ static Vec2D get_point(const CubicDetachedVertex& v)
 
 static Vec2D in_vector(const CubicDetachedVertex& v)
 {
-    return Vec2D(cos(v.inRotation()) * v.inDistance(),
-                 sin(v.inRotation()) * v.inDistance());
+    return Vec2D(std::cos(v.inRotation()) * v.inDistance(),
+                 std::sin(v.inRotation()) * v.inDistance());
 }
 
 static Vec2D out_vector(const CubicDetachedVertex& v)
 {
-    return Vec2D(cos(v.outRotation()) * v.outDistance(),
-                 sin(v.outRotation()) * v.outDistance());
+    return Vec2D(std::cos(v.outRotation()) * v.outDistance(),
+                 std::sin(v.outRotation()) * v.outDistance());
 }
 
 void CubicDetachedVertex::computeIn()

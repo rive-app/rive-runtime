@@ -22,6 +22,9 @@ for var in "$@"; do
     echo Starting debugger...
     UTILITY='lldb'
     shift
+  elif [ "$var" = "rebaseline" ]; then
+    export REBASELINE_SILVERS=true
+    shift
   fi
 done
 
@@ -73,7 +76,7 @@ RUNTIME=$PWD
 popd
 
 export PREMAKE_PATH="$RUNTIME/dependencies/export-compile-commands":"$RUNTIME/build":"$PREMAKE_PATH"
-PREMAKE_COMMANDS="--with_rive_text --with_rive_audio=external --with_rive_layout --config=$CONFIG"
+PREMAKE_COMMANDS="--with_rive_text --with_rive_audio=external --with_rive_layout --config=$CONFIG --no_ffp_contract"
 
 out_dir() {
   echo "out/$CONFIG"
@@ -84,6 +87,8 @@ if [[ $machine = "macosx" ]]; then
   pushd $OUT_DIR
   make -j$(($(sysctl -n hw.physicalcpu) + 1))
   popd
+  rm -fR silvers/tarnished
+  mkdir -p silvers/tarnished
   $UTILITY $OUT_DIR/unit_tests
   for var in "$@"; do
     if [[ $var = "coverage" ]]; then
@@ -108,5 +113,7 @@ elif [[ $machine = "windows" ]]; then
   pushd $OUT_DIR
   "$MSBUILD" rive.sln -m:$NUMBER_OF_PROCESSORS
   popd
+  rm -fR silvers/tarnished
+  mkdir -p silvers/tarnished
   $OUT_DIR/unit_tests.exe
 fi

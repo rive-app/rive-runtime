@@ -34,6 +34,7 @@ public:
     Span<const uint8_t> readBytes();
     float readFloat32();
     uint8_t readByte();
+    uint16_t readUint16();
     uint32_t readUint32();
     uint64_t readVarUint64(); // Reads a LEB128 encoded uint64_t
 

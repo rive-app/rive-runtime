@@ -11,14 +11,14 @@ static Vec2D get_point(const CubicAsymmetricVertex& v)
 
 static Vec2D in_vector(const CubicAsymmetricVertex& v)
 {
-    return Vec2D(cos(v.rotation()) * v.inDistance(),
-                 sin(v.rotation()) * v.inDistance());
+    return Vec2D(std::cos(v.rotation()) * v.inDistance(),
+                 std::sin(v.rotation()) * v.inDistance());
 }
 
 static Vec2D out_vector(const CubicAsymmetricVertex& v)
 {
-    return Vec2D(cos(v.rotation()) * v.outDistance(),
-                 sin(v.rotation()) * v.outDistance());
+    return Vec2D(std::cos(v.rotation()) * v.outDistance(),
+                 std::sin(v.rotation()) * v.outDistance());
 }
 
 void CubicAsymmetricVertex::computeIn()

@@ -144,6 +144,29 @@ inline size_t decode_uint_8(const uint8_t* buf,
     return sizeof(uint8_t);
 }
 
+/* Decodes a 16 bit unsigned integer.
+ */
+inline size_t decode_uint_16(const uint8_t* buf,
+                             const uint8_t* buf_end,
+                             uint16_t* r)
+{
+    // Return zero bytes read on buffer overflow
+    if (buf_end - buf < (unsigned)sizeof(uint16_t))
+    {
+        return 0;
+    }
+    if (is_big_endian())
+    {
+        uint8_t inverted[2] = {buf[1], buf[0]};
+        memcpy(r, inverted, sizeof(uint16_t));
+    }
+    else
+    {
+        memcpy(r, buf, sizeof(uint16_t));
+    }
+    return sizeof(uint16_t);
+}
+
 /* Decodes a 32 bit unsigned integer.
  */
 inline size_t decode_uint_32(const uint8_t* buf,

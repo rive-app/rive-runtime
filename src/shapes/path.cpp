@@ -19,14 +19,15 @@ static float computeIdealControlPointDistance(const Vec2D& toPrev,
                                               float radius)
 {
     // Get the angle between next and prev
-    float angle =
-        fabs(atan2(Vec2D::cross(toPrev, toNext), Vec2D::dot(toPrev, toNext)));
+    float angle = fabs(
+        std::atan2(Vec2D::cross(toPrev, toNext), Vec2D::dot(toPrev, toNext)));
 
-    return fmin(
-        radius,
-        (4.0f / 3.0f) * tan(math::PI / (2.0f * ((2.0f * math::PI) / angle))) *
-            radius *
-            (angle < math::PI / 2 ? 1 + cos(angle) : 2.0f - sin(angle)));
+    return fmin(radius,
+                (4.0f / 3.0f) *
+                    std::tan(math::PI / (2.0f * ((2.0f * math::PI) / angle))) *
+                    radius *
+                    (angle < math::PI / 2 ? 1 + std::cos(angle)
+                                          : 2.0f - std::sin(angle)));
 }
 
 static void rotatePoints(const Vec2D& nextPoint,
@@ -38,26 +39,26 @@ static void rotatePoints(const Vec2D& nextPoint,
     // Calculate angle between original pos and new positions
     auto v1 = prevPoint - nextPoint;
     auto v2 = point - nextPoint;
-    auto angle = atan2(Vec2D::cross(v1, v2), Vec2D::dot(v1, v2));
+    float angle = std::atan2(Vec2D::cross(v1, v2), Vec2D::dot(v1, v2));
     {
         // Rotate outPoint around prevPoint twice the angle
-        auto s = sin(angle * 2);
-        auto c = cos(angle * 2);
+        float s = std::sin(angle * 2);
+        float c = std::cos(angle * 2);
         outPoint.x -= prevPoint.x;
         outPoint.y -= prevPoint.y;
-        auto xNew = outPoint.x * c - outPoint.y * s;
-        auto yNew = outPoint.x * s + outPoint.y * c;
+        float xNew = outPoint.x * c - outPoint.y * s;
+        float yNew = outPoint.x * s + outPoint.y * c;
         outPoint.x = xNew + prevPoint.x;
         outPoint.y = yNew + prevPoint.y;
     }
     {
         // Rotate inPoint around nextPoint twice the angle
-        auto s = sin(-angle * 2);
-        auto c = cos(-angle * 2);
+        float s = std::sin(-angle * 2);
+        float c = std::cos(-angle * 2);
         inPoint.x -= nextPoint.x;
         inPoint.y -= nextPoint.y;
-        auto xNew = inPoint.x * c - inPoint.y * s;
-        auto yNew = inPoint.x * s + inPoint.y * c;
+        float xNew = inPoint.x * c - inPoint.y * s;
+        float yNew = inPoint.x * s + inPoint.y * c;
         inPoint.x = xNew + nextPoint.x;
         inPoint.y = yNew + nextPoint.y;
     }

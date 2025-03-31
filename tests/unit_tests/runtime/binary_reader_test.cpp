@@ -1,5 +1,6 @@
 #include <catch.hpp>
-#include <rive/core/binary_reader.hpp>
+#include "rive/core/binary_reader.hpp"
+#include "rive/core/vector_binary_writer.hpp"
 
 template <typename T> void checkFits()
 {
@@ -65,4 +66,18 @@ TEST_CASE("range checks", "[binary_reader]")
     REQUIRE(!checkAs<uint8_t>(100000));
     REQUIRE(!checkAs<uint16_t>(100000));
     REQUIRE(checkAs<uint32_t>(100000));
+}
+
+TEST_CASE("all data types can be written & read", "[binary_reader]")
+{
+    std::vector<uint8_t> buffer;
+    rive::VectorBinaryWriter writer(&buffer);
+    writer.writeVarUint((uint32_t)34);
+    writer.write((uint16_t)22);
+    writer.write(3.14f);
+
+    rive::BinaryReader reader(buffer);
+    REQUIRE(reader.readVarUintAs<uint32_t>() == 34);
+    REQUIRE(reader.readUint16() == 22);
+    REQUIRE(reader.readFloat32() == 3.14f);
 }

@@ -105,6 +105,19 @@ uint8_t BinaryReader::readByte()
     return *m_Position++;
 }
 
+uint16_t BinaryReader::readUint16()
+{
+    uint16_t value;
+    auto readBytes = decode_uint_16(m_Position, m_Bytes.end(), &value);
+    if (readBytes == 0)
+    {
+        overflow();
+        return 0;
+    }
+    m_Position += readBytes;
+    return value;
+}
+
 uint32_t BinaryReader::readUint32()
 {
     uint32_t value;

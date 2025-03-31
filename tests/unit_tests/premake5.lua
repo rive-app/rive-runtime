@@ -1,3 +1,19 @@
+filter({ 'system:not windows' })
+do
+    buildoptions({ '-ffp-model=strict' })
+end
+filter({ 'system:windows' })
+do
+    buildoptions({ '/fp:strict' })
+end
+filter({ 'system:windows', 'options:toolset=clang' })
+do
+    buildoptions({
+        '-Wno-overriding-option',
+    })
+end
+filter({})
+
 dofile('rive_build_config.lua')
 TESTING = true
 defines({
@@ -11,6 +27,8 @@ defines({
     'YOGA_EXPORT=',
     'RIVE_NO_CORETEXT',
 })
+
+-- dofile('premake5_openlibm.lua')
 
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))
 dofile(path.join(path.getabsolute('../../decoders/'), 'premake5_v2.lua'))
@@ -33,6 +51,7 @@ do
         harfbuzz .. '/src',
         miniaudio,
         yoga,
+        -- openlibm .. '/include',
     })
 
     links({
@@ -45,6 +64,7 @@ do
         'zlib',
         'libjpeg',
         'libwebp',
+        -- 'openlibm',
     })
 
     files({
