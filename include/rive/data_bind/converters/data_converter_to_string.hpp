@@ -57,21 +57,29 @@ public:
         }
         return std::to_string(s);
     }
+    std::string toHex(int value)
+    {
+        std::stringstream ss;
+        ss << std::uppercase << std::hex << value;
+        std::string result = ss.str();
+        if (result.length() < 2)
+        {
+            result.insert(0, 2 - result.length(), '0');
+        }
+        return result;
+    }
     void alphaHex(std::stringstream& stream)
     {
-        stream << std::uppercase << std::hex << alphaComponent();
+        stream << toHex(alphaComponent());
     }
-    void redHex(std::stringstream& stream)
-    {
-        stream << std::uppercase << std::hex << redComponent();
-    }
+    void redHex(std::stringstream& stream) { stream << toHex(redComponent()); }
     void greenHex(std::stringstream& stream)
     {
-        stream << std::uppercase << std::hex << greenComponent();
+        stream << toHex(greenComponent());
     }
     void blueHex(std::stringstream& stream)
     {
-        stream << std::uppercase << std::hex << blueComponent();
+        stream << toHex(blueComponent());
     }
 
 private:

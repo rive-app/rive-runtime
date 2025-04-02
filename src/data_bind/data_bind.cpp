@@ -212,6 +212,12 @@ void DataBind::update(ComponentDirt value)
 
 void DataBind::updateSourceBinding(bool invalidate)
 {
+    if ((m_Dirt & ComponentDirt::Dependents) == ComponentDirt::Dependents &&
+        m_dataConverter != nullptr)
+    {
+        m_Dirt &= ~ComponentDirt::Dependents;
+        m_dataConverter->update();
+    }
     auto flagsValue = static_cast<DataBindFlags>(flags());
     if (toSource())
     {

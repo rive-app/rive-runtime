@@ -342,6 +342,19 @@ TEST_CASE("To string converter with color formatters", "[data binding]")
     REQUIRE(hlsTextRunBound->text() ==
             "color: {hue: 20, luminance: 49, saturation: 60}");
     REQUIRE(escapedTextRunBound->text() == "%r %g %b %a \\a");
+
+    // // Update value to "red 0, green 10, blue 16, alpha 100"
+    colorProperty->as<rive::ViewModelInstanceColor>()->propertyValue(
+        rive::colorARGB(100, 0, 10, 15));
+    // // Advance state machine
+    machine->advanceAndApply(0.0f);
+    REQUIRE(RGBATextRunBound->text() ==
+            "color: {red: 00, green: 0A, blue: 0F, alpha: 64}");
+    REQUIRE(rgbaTextRunBound->text() ==
+            "color: {red: 0, green: 10, blue: 15, alpha: 100}");
+    REQUIRE(hlsTextRunBound->text() ==
+            "color: {hue: 200, luminance: 3, saturation: 100}");
+    REQUIRE(escapedTextRunBound->text() == "%r %g %b %a \\a");
 }
 
 struct FormulaResult
@@ -636,7 +649,7 @@ TEST_CASE("Pad String", "[data binding]")
     REQUIRE(customPropertyString3->propertyValue() == "");
 }
 
-TEST_CASE("Boolean Negate", "[data binding]")
+TEST_CASE("Boolean Toggle", "[data binding]")
 {
     auto file = ReadRiveFile("assets/data_binding_test_2.riv");
 
