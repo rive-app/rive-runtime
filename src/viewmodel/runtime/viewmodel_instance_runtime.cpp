@@ -1,4 +1,3 @@
-
 #include "rive/viewmodel/runtime/viewmodel_instance_runtime.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
@@ -38,7 +37,7 @@ ViewModelInstanceRuntime::~ViewModelInstanceRuntime()
     }
 }
 
-std::string ViewModelInstanceRuntime::name() const
+const std::string& ViewModelInstanceRuntime::name() const
 {
     return m_viewModelInstance->name();
 }

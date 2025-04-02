@@ -27,7 +27,7 @@ public:
     ViewModelInstanceRuntime(rcp<ViewModelInstance> instance);
     ~ViewModelInstanceRuntime();
 
-    std::string name() const;
+    const std::string& name() const;
     size_t propertyCount() const;
     ViewModelInstanceNumberRuntime* propertyNumber(
         const std::string& path) const;
