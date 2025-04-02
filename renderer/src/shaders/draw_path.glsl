@@ -591,16 +591,14 @@ PLS_MAIN(@drawFragmentMain)
         if (@ENABLE_ADVANCED_BLEND &&
             v_blendMode != cast_uint_to_half(BLEND_SRC_OVER))
         {
-            color = advanced_blend(color,
-                                   dstColorPremul,
-                                   cast_half_to_ushort(v_blendMode));
+            color.rgb = advanced_color_blend_pre_src_over(
+                color.rgb,
+                dstColorPremul,
+                cast_half_to_ushort(v_blendMode));
         }
-        else
 #endif
-        {
-            color.rgb *= color.a;
-            color = color + dstColorPremul * (1. - color.a);
-        }
+        color.rgb *= color.a;
+        color = color + dstColorPremul * (1. - color.a);
 
         PLS_STORE4F(colorBuffer, color);
         PLS_PRESERVE_UI(clipBuffer);

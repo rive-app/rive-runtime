@@ -16,7 +16,7 @@
 #include "../renderer/cpp.glsl"
 namespace glsl_cross
 {
-#include "shaders/bezier_utils.glsl"
+#include "generated/shaders/bezier_utils.minified.glsl"
 }
 #endif
 

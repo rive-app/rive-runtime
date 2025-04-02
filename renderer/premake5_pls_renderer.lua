@@ -68,6 +68,8 @@ newoption({
 })
 
 -- Minify and compile PLS shaders offline.
+pls_generated_headers = RIVE_BUILD_OUT .. '/include'
+local pls_shaders_absolute_dir = path.getabsolute(pls_generated_headers .. '/generated/shaders')
 local nproc
 if os.host() == 'windows' then
     nproc = os.getenv('NUMBER_OF_PROCESSORS')
@@ -82,8 +84,6 @@ else
 end
 nproc = nproc:gsub('%s+', '') -- remove whitespace
 local python_ply = dependency.github('dabeaz/ply', '5c4dc94d4c6d059ec127ee1493c735963a5d2645')
-local pls_generated_headers = RIVE_BUILD_OUT .. '/include'
-local pls_shaders_absolute_dir = path.getabsolute(pls_generated_headers .. '/generated/shaders')
 local makecommand = 'make -C '
     .. path.getabsolute('src/shaders')
     .. ' -j'

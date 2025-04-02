@@ -32,6 +32,12 @@ defines({
 
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))
 dofile(path.join(path.getabsolute('../../decoders/'), 'premake5_v2.lua'))
+
+-- Force "--raw_shaders" so that we can include the generated shader files and
+-- compile them as C++ for unit tests.
+if _OPTIONS['toolset'] ~= 'msc' then
+    _OPTIONS['raw_shaders'] = true
+end
 dofile(path.join(path.getabsolute('../../renderer/'), 'premake5_pls_renderer.lua'))
 
 dofile('../rive_tools_project.lua')
@@ -51,6 +57,7 @@ do
         harfbuzz .. '/src',
         miniaudio,
         yoga,
+        pls_generated_headers,
         -- openlibm .. '/include',
     })
 

@@ -179,7 +179,7 @@ void TestHarness::monitorStdIOThread()
             threadTCPClient->sendString(buff);
         }
         else if (FILE* f = nullptr/*
-                     fopen((m_outputDir / "rive_log.txt").string().c_str(),
+                     fopen((m_outputDir / "rive_log.png").string().c_str(),
                            "a")*/)
         {
             // Sometimes it can help to also save a log file (e.g., when

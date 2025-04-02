@@ -215,8 +215,8 @@ public:
         // the screen", but if we don't make it large enough here, the
         // fullscreen window will be quarter resultion instead of full. NOTE:
         // glfwGetMonitorPhysicalSize() returns bogus values.
-        m_glfwWindow = glfwCreateWindow(9999,
-                                        9999,
+        m_glfwWindow = glfwCreateWindow(3840,
+                                        2160,
                                         "Rive Renderer",
                                         fullscreenMonitor,
                                         nullptr);
