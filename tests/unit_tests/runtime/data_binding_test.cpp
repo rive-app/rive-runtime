@@ -107,7 +107,6 @@ TEST_CASE("state machine led by enums and triggers", "[data binding]")
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);
@@ -179,7 +178,6 @@ TEST_CASE("calculate and to string converters with numbers", "[data binding]")
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);
@@ -224,7 +222,6 @@ TEST_CASE("trim string converter", "[data binding]")
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);
@@ -285,7 +282,6 @@ TEST_CASE("To string converter with color formatters", "[data binding]")
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);
@@ -377,7 +373,6 @@ struct FormulaResult
 //     auto viewModelInstance =
 //         file->createDefaultViewModelInstance(artboard.get());
 //     REQUIRE(viewModelInstance != nullptr);
-//     artboard->bindViewModelInstance(viewModelInstance);
 //     auto machine = artboard->defaultStateMachine();
 //     machine->bindViewModelInstance(viewModelInstance);
 //     REQUIRE(machine != nullptr);
@@ -444,7 +439,6 @@ struct FormulaResult
 //     auto viewModelInstance =
 //         file->createDefaultViewModelInstance(artboard.get());
 //     REQUIRE(viewModelInstance != nullptr);
-//     artboard->bindViewModelInstance(viewModelInstance);
 //     auto machine = artboard->defaultStateMachine();
 //     machine->bindViewModelInstance(viewModelInstance);
 //     REQUIRE(machine != nullptr);
@@ -484,7 +478,6 @@ TEST_CASE("Range Mapper", "[data binding]")
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);
@@ -594,7 +587,6 @@ TEST_CASE("Pad String", "[data binding]")
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);
@@ -658,7 +650,6 @@ TEST_CASE("Boolean Toggle", "[data binding]")
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);
@@ -698,7 +689,6 @@ TEST_CASE("Instance is shared when the same one is attached to two properties",
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);
@@ -762,7 +752,6 @@ TEST_CASE("Instance is not shared when the different ones are attached to two "
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);
@@ -825,7 +814,6 @@ TEST_CASE("Instances are not shared when a new view model instance is created",
     REQUIRE(artboard != nullptr);
     auto viewModelInstance = file->createViewModelInstance(artboard.get());
     REQUIRE(viewModelInstance != nullptr);
-    artboard->bindViewModelInstance(viewModelInstance);
     auto machine = artboard->defaultStateMachine();
     machine->bindViewModelInstance(viewModelInstance);
     REQUIRE(machine != nullptr);

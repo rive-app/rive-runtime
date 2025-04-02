@@ -1353,6 +1353,7 @@ void Artboard::clearDataContext()
         delete m_DataContext;
     }
     m_DataContext = nullptr;
+    m_ownsDataContext = false;
     for (auto nestedArtboard : m_NestedArtboards)
     {
         if (nestedArtboard->artboardInstance() == nullptr)
@@ -1453,7 +1454,7 @@ void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
     }
     if (isRoot)
     {
-        viewModelInstance->setAsRoot();
+        viewModelInstance->setAsRoot(viewModelInstance);
     }
     m_ownsDataContext = true;
     auto dataContext = new DataContext(viewModelInstance);

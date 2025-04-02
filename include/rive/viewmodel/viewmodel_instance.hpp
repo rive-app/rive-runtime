@@ -28,7 +28,7 @@ public:
     void viewModel(ViewModel* value);
     ViewModel* viewModel() const;
     void onComponentDirty(Component* component);
-    void setAsRoot();
+    void setAsRoot(rcp<ViewModelInstance> instance);
     void setRoot(rcp<ViewModelInstance> value);
     Core* clone() const override;
     StatusCode import(ImportStack& importStack) override;

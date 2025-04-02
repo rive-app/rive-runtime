@@ -279,7 +279,6 @@ bool ViewModelInstanceRuntime::replaceViewModel(
     const std::string& path,
     ViewModelInstanceRuntime* value) const
 {
-
     const auto propertyName = getPropertyNameFromPath(path);
     auto viewModelInstance = viewModelInstanceFromFullPath(path);
     if (viewModelInstance != nullptr)
@@ -295,7 +294,20 @@ bool ViewModelInstanceRuntime::replaceViewModelByName(
 {
     if (m_viewModelInstance->replaceViewModelByName(name, value->instance()))
     {
-        m_viewModelInstances[name] = rcp<ViewModelInstanceRuntime>(value);
+        bool isStored = false;
+        for (const auto& rcpInstance : m_viewModelInstances)
+        {
+            if (rcpInstance.second.get() == value)
+            {
+                isStored = true;
+                break;
+            }
+        }
+        if (!isStored)
+        {
+            value->ref();
+            m_viewModelInstances[name] = rcp<ViewModelInstanceRuntime>(value);
+        }
         return true;
     }
     return false;

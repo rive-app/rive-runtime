@@ -172,7 +172,7 @@ void DataBind::unbind()
 {
     if (m_ContextValue != nullptr)
     {
-        m_ContextValue->dispose();
+        delete m_ContextValue;
         m_ContextValue = nullptr;
     }
 }

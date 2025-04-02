@@ -86,7 +86,10 @@ ViewModel* ViewModelInstance::viewModel() const { return m_ViewModel; }
 
 void ViewModelInstance::onComponentDirty(Component* component) {}
 
-void ViewModelInstance::setAsRoot() { setRoot(rcp<ViewModelInstance>(this)); }
+void ViewModelInstance::setAsRoot(rcp<ViewModelInstance> instance)
+{
+    setRoot(instance);
+}
 
 void ViewModelInstance::setRoot(rcp<ViewModelInstance> value)
 {

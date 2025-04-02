@@ -1690,7 +1690,10 @@ void StateMachineInstance::bindViewModelInstance(
 {
     clearDataContext();
     m_ownsDataContext = true;
-    internalDataContext(new DataContext(viewModelInstance));
+    auto dataContext = new DataContext(viewModelInstance);
+    m_artboardInstance->clearDataContext();
+    m_artboardInstance->internalDataContext(dataContext, true);
+    internalDataContext(dataContext);
 }
 
 void StateMachineInstance::dataContext(DataContext* dataContext)

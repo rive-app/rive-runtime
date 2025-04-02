@@ -31,7 +31,6 @@ public:
                        uint32_t propertyKey,
                        bool isMainDirection){};
     virtual void update(Core* component){};
-    virtual void dispose(){};
     void invalidate() { m_isValid = false; };
     virtual bool syncTargetValue(Core* target, uint32_t propertyKey)
     {
