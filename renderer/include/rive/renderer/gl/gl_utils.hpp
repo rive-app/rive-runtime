@@ -242,4 +242,9 @@ void BlitFramebuffer(rive::IAABB bounds,
                      GLbitfield mask = GL_COLOR_BUFFER_BIT);
 
 void Uniform1iByName(GLuint programID, const char* name, GLint value);
+
+// ANGLE_shader_pixel_local_storage enum values had a breaking change in early
+// 2025. Return true if we can verify that we're running on the latest
+// ANGLE_shader_pixel_local_storage spec.
+bool validate_pixel_local_storage_angle();
 } // namespace glutils

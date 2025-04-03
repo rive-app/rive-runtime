@@ -148,7 +148,7 @@ if not _OPTIONS['with-webgpu'] then
                 '-sUSE_GLFW=3',
                 '-sMIN_WEBGL_VERSION=2',
                 '-sMAX_WEBGL_VERSION=2',
-                '--preload-file ' .. path.getabsolute('../../../gold') .. '/rivs@/',
+                '--preload-file ' .. path.getabsolute('../../../zzzgold') .. '/rivs@/',
             })
             files({ 'path_fiddle/index.html' })
         end

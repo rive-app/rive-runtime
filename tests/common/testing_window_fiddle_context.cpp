@@ -223,7 +223,7 @@ public:
         if (!m_glfwWindow)
         {
             glfwTerminate();
-            fprintf(stderr, "Failed to create GLFW m_glfwWindow.\n");
+            fprintf(stderr, "Failed to create GLFW window.\n");
             abort();
         }
         glfwMakeContextCurrent(m_glfwWindow);

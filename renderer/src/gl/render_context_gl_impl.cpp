@@ -1387,38 +1387,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         glDisable(GL_SCISSOR_TEST);
     }
 
-    // Compile the draw programs before activating pixel local storage.
-    // Cache specific compilations by DrawType and ShaderFeatures.
-    // (ANGLE_shader_pixel_local_storage doesn't allow shader compilation while
-    // active.)
-    for (const DrawBatch& batch : *desc.drawList)
-    {
-        gpu::ShaderFeatures shaderFeatures =
-            desc.interlockMode == gpu::InterlockMode::atomics
-                ? desc.combinedShaderFeatures
-                : batch.shaderFeatures;
-        gpu::ShaderMiscFlags shaderMiscFlags = batch.shaderMiscFlags;
-        if (m_plsImpl != nullptr)
-        {
-            shaderMiscFlags |= m_plsImpl->shaderMiscFlags(desc, batch.drawType);
-        }
-        if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
-            (batch.drawContents & gpu::DrawContents::clockwiseFill))
-        {
-            shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
-        }
-        uint32_t fragmentShaderKey = gpu::ShaderUniqueKey(batch.drawType,
-                                                          shaderFeatures,
-                                                          desc.interlockMode,
-                                                          shaderMiscFlags);
-        m_drawPrograms.try_emplace(fragmentShaderKey,
-                                   this,
-                                   batch.drawType,
-                                   shaderFeatures,
-                                   desc.interlockMode,
-                                   shaderMiscFlags);
-    }
-
     // Bind the currently-submitted buffer in the triangleBufferRing to its
     // vertex array.
     if (desc.hasTriangleVertices)
@@ -1531,14 +1499,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                                           shaderFeatures,
                                                           desc.interlockMode,
                                                           shaderMiscFlags);
-        const DrawProgram& drawProgram =
-            m_drawPrograms.find(fragmentShaderKey)->second;
-        if (drawProgram.id() == 0)
-        {
-            fprintf(stderr,
-                    "WARNING: skipping draw due to missing GL program.\n");
-            continue;
-        }
+        const DrawProgram& drawProgram = m_drawPrograms
+                                             .try_emplace(fragmentShaderKey,
+                                                          this,
+                                                          batch.drawType,
+                                                          shaderFeatures,
+                                                          desc.interlockMode,
+                                                          shaderMiscFlags)
+                                             .first->second;
         m_state->bindProgram(drawProgram.id());
 
         if (auto imageTextureGL =
@@ -2326,10 +2294,10 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     }
 #endif
 
-    // We need four storage buffers in the vertex shader. Disable the extension
-    // if this isn't supported.
     if (capabilities.ARB_shader_storage_buffer_object)
     {
+        // We need four storage buffers in the vertex shader. Disable the
+        // extension if this isn't supported.
         int maxVertexShaderStorageBlocks;
         glGetIntegerv(GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS,
                       &maxVertexShaderStorageBlocks);
@@ -2339,19 +2307,41 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         }
     }
 
-    // Now disable the extensions we don't want to use internally.
+    if (capabilities.ANGLE_shader_pixel_local_storage ||
+        capabilities.ANGLE_shader_pixel_local_storage_coherent)
+    {
+        // ANGLE_shader_pixel_local_storage enum values had a breaking change in
+        // early 2025. Disable the extension if we can't verify that we're
+        // running on the latest spec.
+        if (!glutils::validate_pixel_local_storage_angle())
+        {
+            fprintf(stderr,
+                    "WARNING: detected an old version of "
+                    "ANGLE_shader_pixel_local_storage. Disabling the "
+                    "extension. Please update your drivers.\n");
+            capabilities.ANGLE_shader_pixel_local_storage =
+                capabilities.ANGLE_shader_pixel_local_storage_coherent = false;
+        }
+    }
+
     if (contextOptions.disableFragmentShaderInterlock)
     {
+        // Disable the extensions we don't want to use internally.
         capabilities.ARB_fragment_shader_interlock = false;
         capabilities.INTEL_fragment_shader_ordering = false;
     }
 
+    if (strstr(rendererString, "Metal") != nullptr ||
+        strstr(rendererString, "Direct3D") != nullptr)
+    {
+        // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D
+        // and ANGLE/Metal.
+        // The extension is polyfilled on D3D anyway, and on Metal it crashes.
+        capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
+    }
+
     if (strstr(rendererString, "Direct3D") != nullptr)
     {
-        // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D.
-        // This extension is polyfilled on D3D anyway, and we need to test our
-        // fallback.
-        capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
         // Our use of EXT_multisampled_render_to_texture causes a segfault in
         // the Microsoft WARP (software) renderer. Just don't use this extension
         // on D3D since it's polyfilled anyway.

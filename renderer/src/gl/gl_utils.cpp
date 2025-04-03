@@ -251,4 +251,34 @@ void Uniform1iByName(GLuint programID, const char* name, GLint value)
     assert(location != -1);
     glUniform1i(location, value);
 }
+
+// Setup a small test to verify that GL_PIXEL_LOCAL_FORMAT_ANGLE has the correct
+// value.
+bool validate_pixel_local_storage_angle()
+{
+#if defined(RIVE_DESKTOP_GL) || defined(RIVE_WEBGL)
+    glutils::Texture tex;
+    glBindTexture(GL_TEXTURE_2D, tex);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_R32UI, 1, 1);
+
+    glutils::Framebuffer fbo;
+    glBindFramebuffer(GL_FRAMEBUFFER, fbo);
+    glFramebufferTexturePixelLocalStorageANGLE(0, tex, 0, 0);
+
+    // Clear the error queue. (Should already be empty.)
+    while (GLenum err = glGetError())
+    {
+        fprintf(stderr, "WARNING: unhandled GL error 0x%x\n", err);
+    }
+
+    GLint format = GL_NONE;
+    glGetFramebufferPixelLocalStorageParameterivANGLE(
+        0,
+        GL_PIXEL_LOCAL_FORMAT_ANGLE,
+        &format);
+    return glGetError() == GL_NONE && format == GL_R32UI;
+#else
+    return false;
+#endif
+}
 } // namespace glutils
