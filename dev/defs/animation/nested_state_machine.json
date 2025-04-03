@@ -5,5 +5,5 @@
     "string": "nestedStateMachine"
   },
   "extends": "nested_animation.json",
-  "generic": "animation/state_machine.json"
+  "generic": "animation/state_machine_resolver.json"
 }

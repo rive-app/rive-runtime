@@ -1,0 +1,10 @@
+{
+  "name": "StateMachineResolver",
+  "key": {
+    "int": 551,
+    "string": "statemachineresolver"
+  },
+  "abstract": true,
+  "runtime": false,
+  "extends": "animation/animation.json"
+}

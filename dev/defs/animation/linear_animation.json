@@ -4,7 +4,7 @@
     "int": 31,
     "string": "linearanimation"
   },
-  "extends": "animation/animation.json",
+  "extends": "animation/linear_animation_resolver.json",
   "properties": {
     "fps": {
       "type": "uint",

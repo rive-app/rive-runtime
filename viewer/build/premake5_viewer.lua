@@ -7,8 +7,8 @@ rive_tess = '../../tess'
 rive_skia = '../../skia'
 skia = dependencies .. '/skia'
 
+dofile(rive .. '/decoders/premake5_v2.lua')
 if _OPTIONS.renderer == 'tess' then
-    dofile(rive .. '/decoders/premake5_v2.lua')
     dofile(path.join(path.getabsolute(rive_tess) .. '/build', 'premake5_tess.lua'))
 else
     -- tess renderer includes this
@@ -19,9 +19,7 @@ dofile(path.join(path.getabsolute(rive) .. '/cg_renderer', 'premake5.lua'))
 
 project('rive_viewer')
 do
-    if _OPTIONS.renderer == 'tess' then
-        dependson('rive_decoders')
-    end
+    dependson('rive_decoders')
     kind('ConsoleApp')
 
     defines({ 'WITH_RIVE_TEXT', 'WITH_RIVE_AUDIO', 'WITH_RIVE_LAYOUT', 'YOGA_EXPORT=' })
@@ -29,6 +27,7 @@ do
     includedirs({
         '../include',
         rive .. '/include',
+        rive .. '/decoders/include',
         rive .. '/skia/renderer/include', -- for font backends
         dependencies,
         dependencies .. '/sokol',
@@ -37,7 +36,7 @@ do
         yoga,
     })
 
-    links({ 'rive', 'rive_harfbuzz', 'rive_sheenbidi', 'rive_yoga' })
+    links({ 'rive','rive_decoders', 'rive_harfbuzz', 'rive_sheenbidi', 'rive_yoga' })
 
     libdirs({ rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}' })
 

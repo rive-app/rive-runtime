@@ -1428,17 +1428,21 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         {
             if (animation->is<NestedStateMachine>())
             {
-                auto notifier =
-                    animation->as<NestedStateMachine>()->stateMachineInstance();
-                notifier->setNestedArtboard(nestedArtboard);
-                notifier->addNestedEventListener(this);
+                if (auto notifier = animation->as<NestedStateMachine>()
+                                        ->stateMachineInstance())
+                {
+                    notifier->setNestedArtboard(nestedArtboard);
+                    notifier->addNestedEventListener(this);
+                }
             }
             else if (animation->is<NestedLinearAnimation>())
             {
-                auto notifier =
-                    animation->as<NestedLinearAnimation>()->animationInstance();
-                notifier->setNestedArtboard(nestedArtboard);
-                notifier->addNestedEventListener(this);
+                if (auto notifier = animation->as<NestedLinearAnimation>()
+                                        ->animationInstance())
+                {
+                    notifier->setNestedArtboard(nestedArtboard);
+                    notifier->addNestedEventListener(this);
+                }
             }
         }
     }

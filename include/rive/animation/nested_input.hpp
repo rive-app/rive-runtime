@@ -29,6 +29,10 @@ public:
         {
             StateMachineInstance* smInstance =
                 parent->as<NestedStateMachine>()->stateMachineInstance();
+            if (smInstance == nullptr)
+            {
+                return nullptr;
+            }
             auto inputInstance = smInstance->input(this->inputId());
             return inputInstance;
         }

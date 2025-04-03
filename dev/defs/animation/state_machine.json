@@ -4,7 +4,7 @@
     "int": 53,
     "string": "statemachine"
   },
-  "extends": "animation/animation.json",
+  "extends": "animation/state_machine_resolver.json",
   "properties": {
     "editingLayerId": {
       "type": "Id",

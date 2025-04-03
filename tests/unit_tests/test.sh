@@ -10,22 +10,36 @@ MINGW*) machine=windows ;;
 esac
 
 CONFIG=debug
-
-for var in "$@"; do
-  if [[ $var = "release" ]]; then
-    CONFIG=release
-  elif [ "$var" = "memory" ]; then
-    echo Will perform memory checks...
-    UTILITY='leaks --atExit --'
-    shift
-  elif [ "$var" = "lldb" ]; then
-    echo Starting debugger...
-    UTILITY='lldb'
-    shift
-  elif [ "$var" = "rebaseline" ]; then
-    export REBASELINE_SILVERS=true
-    shift
-  fi
+MATCH=
+while [[ $# -gt 0 ]]; do
+  case $1 in
+    -m|--match)
+      MATCH="$2"
+      shift # past argument
+      shift # past value
+      ;;
+    lldb)
+      echo Starting debugger...
+      UTILITY='lldb'
+      shift # past argument
+      ;;
+    memory)
+      echo Will perform memory checks...
+      UTILITY='leaks --atExit --'
+      shift
+      ;;
+    release)
+      CONFIG=release
+      shift
+      ;;
+    rebaseline)
+      export REBASELINE_SILVERS=true
+      shift
+      ;;
+    *)
+      shift # past argument
+      ;;
+  esac
 done
 
 if [[ ! -f "dependencies/bin/premake5" ]]; then
@@ -36,6 +50,9 @@ if [[ ! -f "dependencies/bin/premake5" ]]; then
     # once a stable one is avaialble that supports it
     git clone --depth 1 --branch v5.0.0-beta3 https://github.com/premake/premake-core.git
     pushd premake-core
+    git pull --tags
+    git checkout v5.0.0-beta3
+    # note, latest premake is not compatible with our fatal warnings...
     if [[ $LOCAL_ARCH == "arm64" ]]; then
       PREMAKE_MAKE_ARCH=ARM
     else
@@ -89,7 +106,7 @@ if [[ $machine = "macosx" ]]; then
   popd
   rm -fR silvers/tarnished
   mkdir -p silvers/tarnished
-  $UTILITY $OUT_DIR/unit_tests
+  $UTILITY $OUT_DIR/unit_tests "$MATCH"
   for var in "$@"; do
     if [[ $var = "coverage" ]]; then
       xcrun llvm-profdata merge -sparse default.profraw -o default.profdata

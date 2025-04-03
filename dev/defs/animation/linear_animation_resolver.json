@@ -1,0 +1,10 @@
+{
+  "name": "LinearAnimationResolver",
+  "key": {
+    "int": 550,
+    "string": "linearanimationresolver"
+  },
+  "abstract": true,
+  "runtime": false, 
+  "extends": "animation/animation.json"
+}

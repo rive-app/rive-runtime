@@ -6,7 +6,6 @@
   },
   "abstract": true,
   "extends": "nested_animation.json",
-  "generic": "animation/linear_animation.json",
   "properties": {
     "mix": {
       "type": "double",
