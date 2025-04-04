@@ -62,6 +62,10 @@ jobs:
           ./build.sh
           ./build.sh release
 
+      - name: Build glfw
+        working-directory: packages/runtime/skia/dependencies/
+        run: ./make_glfw.sh
+
       - name: Tests
         if: matrix.platform == 'macOS'
         run: |
