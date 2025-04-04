@@ -63,7 +63,7 @@ jobs:
           ./build.sh release
 
       - name: Build glfw
-        working-directory: packages/runtime/skia/dependencies/
+        working-directory: skia/dependencies/
         run: ./make_glfw.sh
 
       - name: Tests
