@@ -99,6 +99,26 @@
       },
       "description": "A view model instance attached for editing purposes.",
       "runtime": false
+    },
+    "isLibraryComponent": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 792,
+        "string": "islibrarycomponent"
+      },
+      "description": "A file can publish updates to library components.",
+      "runtime": false
+    },
+    "includeInExport": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 802,
+        "string": "includeinexport"
+      },
+      "description": "If artboard should be exported",
+      "runtime": false
     }
   }
 }

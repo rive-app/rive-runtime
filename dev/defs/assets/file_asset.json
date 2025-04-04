@@ -55,6 +55,16 @@
       },
       "description": "Set the base url of our cdn.",
       "coop": false
+    },
+    "includeInExport": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 801,
+        "string": "includeinexport"
+      },
+      "description": "Whether to export the asset regardless of it being used.",
+      "runtime": false
     }
   }
 }
