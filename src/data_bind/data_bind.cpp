@@ -186,7 +186,6 @@ void DataBind::update(ComponentDirt value)
     }
     if (m_Source != nullptr && m_ContextValue != nullptr)
     {
-
         // Use the ComponentDirt::Components flag to indicate the viewmodel has
         // added or removed an element to a list.
         if ((value & ComponentDirt::Components) == ComponentDirt::Components)
