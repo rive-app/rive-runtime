@@ -70,10 +70,11 @@ protected:
     BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
     BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
 
-    virtual rcp<Texture> makeImageTexture(uint32_t width,
-                                          uint32_t height,
-                                          uint32_t mipLevelCount,
-                                          const uint8_t imageDataRGBA[]) = 0;
+    virtual rcp<Texture> makeImageTexture(
+        uint32_t width,
+        uint32_t height,
+        uint32_t mipLevelCount,
+        const uint8_t imageDataRGBAPremul[]) = 0;
 
     virtual std::unique_ptr<BufferRing> makeUniformBufferRing(
         size_t capacityInBytes) = 0;

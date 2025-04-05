@@ -713,7 +713,7 @@ public:
                      uint32_t width,
                      uint32_t height,
                      uint32_t mipLevelCount,
-                     const uint8_t imageDataRGBA[]) :
+                     const uint8_t imageDataRGBAPremul[]) :
         Texture(width, height)
     {
         // Create the texture.
@@ -730,7 +730,7 @@ public:
         MTLRegion region = MTLRegionMake2D(0, 0, width, height);
         [m_texture replaceRegion:region
                      mipmapLevel:0
-                       withBytes:imageDataRGBA
+                       withBytes:imageDataRGBAPremul
                      bytesPerRow:width * 4];
     }
 
@@ -758,10 +758,10 @@ rcp<Texture> RenderContextMetalImpl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
-    const uint8_t imageDataRGBA[])
+    const uint8_t imageDataRGBAPremul[])
 {
     return make_rcp<TextureMetalImpl>(
-        m_gpu, width, height, mipLevelCount, imageDataRGBA);
+        m_gpu, width, height, mipLevelCount, imageDataRGBAPremul);
 }
 
 std::unique_ptr<BufferRing> RenderContextMetalImpl::makeUniformBufferRing(

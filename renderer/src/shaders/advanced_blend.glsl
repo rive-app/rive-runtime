@@ -142,14 +142,6 @@ half3 set_lum_sat(half3 cbase, half3 csat, half3 clum)
 }
 #endif // ENABLE_HSL_BLEND_MODES
 
-INLINE half3 unmultiply_rgb(half4 premul)
-{
-    // We *could* return preciesly 1 when premul.rgb == premul.a, but we can
-    // also be approximate here. The blend modes that depend on this exact level
-    // of precision (colordodge and colorburn) account for it with dstPremul.
-    return premul.rgb * (premul.a != .0 ? 1. / premul.a : .0);
-}
-
 // The advanced blend coefficients are generated from un-multiplied RGB values,
 // and control the look of each blend mode.
 half3 advanced_blend_coeffs(half3 src, half4 dstPremul, ushort mode)
@@ -273,16 +265,13 @@ half3 advanced_blend_coeffs(half3 src, half4 dstPremul, ushort mode)
     return coeffs;
 }
 
-// Returns an intermediate RGB color that won't produce the desired blend mode
-// until *AFTER* being blended into the framebuffer with hardware coefficients
-// of [SRC_ALPHA, ONE_MINUS_SRC_ALPHA].
+// Performs the given advanced blend operation with a solid RGB src color (no
+// srcAlpha).
 //
-// NOTE: Alpha follows standard src-over rules in all blend modes, so the shader
-// can just output the paint's alpha value, unmodified, directly to the blend
-// unit.
-INLINE half3 advanced_color_blend_pre_src_over(half3 src,
-                                               half4 dstPremul,
-                                               ushort mode)
+// NOTE: This method is sufficient for all blending because alpha in the src
+// can be accounted for afterward using a standard src-over blend operation.
+// (See advanced_blend().)
+INLINE half3 advanced_color_blend(half3 src, half4 dstPremul, ushort mode)
 {
     // The weighting functions p0, p1, and p2 are defined as follows:
     //
@@ -290,27 +279,22 @@ INLINE half3 advanced_color_blend_pre_src_over(half3 src,
     //     p1(As,Ad) = As*(1 - Ad)
     //     p2(As,Ad) = Ad*(1 - As)
     //
+    // Since srcAlpha (As) == 1, this simplifies to:
+    //
+    //     p0(As,Ad) = Ad
+    //     p1(As,Ad) = (1 - Ad)
+    //     p2(As,Ad) = 0
+    //
     // Blending is performed according to the following equations:
     //
-    //     R = coeffs(Rs',Rd')*p0(As,Ad) + Y*Rs'*p1(As,Ad) + Z*Rd'*p2(As,Ad)
-    //     G = coeffs(Gs',Gd')*p0(As,Ad) + Y*Gs'*p1(As,Ad) + Z*Gd'*p2(As,Ad)
-    //     B = coeffs(Bs',Bd')*p0(As,Ad) + Y*Bs'*p1(As,Ad) + Z*Bd'*p2(As,Ad)
-    //     A =               X*p0(As,Ad) +     Y*p1(As,Ad) +     Z*p2(As,Ad)
+    //     R = coeffs(Rs',Rd')*p0 + Y*Rs'*p1 + Z*Rd'*p2
+    //     G = coeffs(Gs',Gd')*p0 + Y*Gs'*p1 + Z*Gd'*p2
+    //     B = coeffs(Bs',Bd')*p0 + Y*Bs'*p1 + Z*Bd'*p2
+    //     A =               X*p0 +     Y*p1 +     Z*p2
     //
     // NOTE: (X,Y,Z) always == 1, so it is ignored in this implementation.
     //       Also, since (X,Y,Z) == 1, alpha simplifies to standard src-over
     //       rules: A = Ad * (1 - As) + As
-    //
-    // Since we are returning an intermediate value for use *BEFORE* src-over
-    // blend, we make two modifications:
-    //
-    //     1) To cancel the effect of the upcoming src-over blend, we subtract
-    //        "RGBd * (1 - As)" from the final RGB values. This cancels out p2
-    //        entirely.
-    //
-    //     2) Since the caller is expected to premultiply alpha, don't multiply
-    //        p0 or p1 by As.
-    //
     half3 coeffs = advanced_blend_coeffs(src, dstPremul, mode);
     half2 p = make_half2(dstPremul.a, 1. - dstPremul.a); // p2 cancelled to 0.
     return MUL(make_half2x3(coeffs, src), p);
@@ -318,9 +302,12 @@ INLINE half3 advanced_color_blend_pre_src_over(half3 src,
 
 INLINE half4 advanced_blend(half4 src, half4 dstPremul, ushort mode)
 {
-    src.rgb = advanced_color_blend_pre_src_over(src.rgb, dstPremul, mode);
+    // First blend without srcAlpha.
+    src.rgb = advanced_color_blend(src.rgb, dstPremul, mode);
+    // All advanced blend operations are structured such that alpha in the src
+    // can be accounted for afterward using a standard src-over blend operation.
     src.rgb *= src.a;
-    return src + dstPremul * (1. - src.a);
+    return dstPremul * (1. - src.a) + src;
 }
 #endif // ENABLE_ADVANCED_BLEND
 

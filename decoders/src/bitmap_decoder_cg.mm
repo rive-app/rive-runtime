@@ -4,7 +4,6 @@
 
 #include "rive/decoders/bitmap_decoder.hpp"
 #include "rive/rive_types.hpp"
-#include "rive/math/simd.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/core/type_conversions.hpp"
 #include "utils/auto_cf.hpp"
@@ -112,57 +111,9 @@ std::unique_ptr<Bitmap> Bitmap::decode(const uint8_t bytes[], size_t byteCount)
         return nullptr;
     }
 
-    // CG only supports premultiplied alpha. Unmultiply now.
-    size_t imageNumPixels = image.height * image.width;
-    size_t imageSizeInBytes = imageNumPixels * 4;
-    // Process 2 pixels at once, deal with odd number of pixels
-    if (imageNumPixels & 1)
-    {
-        imageSizeInBytes -= 4;
-    }
-    size_t i;
-    for (i = 0; i < imageSizeInBytes; i += 8)
-    {
-        // Load 2 pixels into 64 bits
-        auto twoPixels = rive::simd::load<uint8_t, 8>(&image.pixels[i]);
-        auto a0 = twoPixels[3];
-        auto a1 = twoPixels[7];
-        // Avoid computation if both pixels are either fully transparent or
-        // opaque pixels
-        if ((a0 > 0 && a0 < 255) || (a1 > 0 && a1 < 255))
-        {
-            // Avoid potential division by zero
-            a0 = std::max<uint8_t>(a0, 1);
-            a1 = std::max<uint8_t>(a1, 1);
-            // Cast to 16 bits to avoid overflow
-            rive::uint16x8 rgbaWidex2 = rive::simd::cast<uint16_t>(twoPixels);
-            // Unpremult: multiply by RGB by "255.0 / alpha"
-            rgbaWidex2 *= rive::uint16x8{255, 255, 255, 1, 255, 255, 255, 1};
-            rgbaWidex2 /= rive::uint16x8{a0, a0, a0, 1, a1, a1, a1, 1};
-            // Cast back to 8 bits and store
-            twoPixels = rive::simd::cast<uint8_t>(rgbaWidex2);
-            rive::simd::store(&image.pixels[i], twoPixels);
-        }
-    }
-    // Process last odd pixel if needed
-    if (imageNumPixels & 1)
-    {
-        // Load 1 pixel into 32 bits
-        auto rgba = rive::simd::load<uint8_t, 4>(&image.pixels[i]);
-        // Avoid computation for fully transparent or opaque pixels
-        if (rgba.a > 0 && rgba.a < 255)
-        {
-            // Cast to 16 bits to avoid overflow
-            rive::uint16x4 rgbaWide = rive::simd::cast<uint16_t>(rgba);
-            // Unpremult: multiply by RGB by "255.0 / alpha"
-            rgbaWide *= rive::uint16x4{255, 255, 255, 1};
-            rgbaWide /= rive::uint16x4{rgba.a, rgba.a, rgba.a, 1};
-            // Cast back to 8 bits and store
-            rgba = rive::simd::cast<uint8_t>(rgbaWide);
-            rive::simd::store(&image.pixels[i], rgba);
-        }
-    }
-
-    return std::make_unique<Bitmap>(
-        image.width, image.height, PixelFormat::RGBA, std::move(image.pixels));
+    return std::make_unique<Bitmap>(image.width,
+                                    image.height,
+                                    // CG always premultiplies alpha.
+                                    PixelFormat::RGBAPremul,
+                                    std::move(image.pixels));
 }

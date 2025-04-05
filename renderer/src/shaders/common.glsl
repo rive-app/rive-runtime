@@ -175,6 +175,14 @@ INLINE half4 premultiply(half4 color)
     return make_half4(color.rgb * color.a, color.a);
 }
 
+INLINE half3 unmultiply_rgb(half4 premul)
+{
+    // We *could* return preciesly 1 when premul.rgb == premul.a, but we can
+    // also be approximate here. The blend modes that depend on this exact level
+    // of precision (colordodge and colorburn) account for it with dstPremul.
+    return premul.rgb * (premul.a != .0 ? 1. / premul.a : .0);
+}
+
 INLINE half min_value(half4 min4)
 {
     half2 min2 = min(min4.xy, min4.zw);

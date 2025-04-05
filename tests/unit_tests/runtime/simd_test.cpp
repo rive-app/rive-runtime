@@ -571,6 +571,18 @@ TEST_CASE("sqrt", "[simd]")
     CHECK_ALL((simd::sqrt(vec<3>{kInf, 0, 1}) == vec<3>{kInf, 0, 1}));
 }
 
+// Check simd::div255.
+TEST_CASE("div255", "[simd]")
+{
+    for (uint32_t i = 0; i < 255 * 255; i += 8)
+    {
+        uint16x8 x =
+            static_cast<uint16_t>(i) + uint16x8{0, 1, 2, 3, 4, 5, 6, 7};
+        x = simd::min(x, uint16x8(255 * 255));
+        CHECK_ALL(simd::div255(x) == (x + 127) / 255);
+    }
+}
+
 static bool check_fast_acos(float x, float fast_acos_x)
 {
     float acosf_x = acosf(x);

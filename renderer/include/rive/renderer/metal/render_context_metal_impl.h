@@ -124,7 +124,7 @@ public:
     rcp<Texture> makeImageTexture(uint32_t width,
                                   uint32_t height,
                                   uint32_t mipLevelCount,
-                                  const uint8_t imageDataRGBA[]) override;
+                                  const uint8_t imageDataRGBAPremul[]) override;
 
     // Atomic mode requires a barrier between overlapping draws. We have to
     // implement this barrier in various different ways, depending on which

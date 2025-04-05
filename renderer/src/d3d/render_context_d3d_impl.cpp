@@ -679,7 +679,7 @@ public:
                    UINT width,
                    UINT height,
                    UINT mipLevelCount,
-                   const uint8_t imageDataRGBA[]) :
+                   const uint8_t imageDataRGBAPremul[]) :
         Texture(width, height)
     {
         m_texture = renderContextImpl->makeSimple2DTexture(
@@ -701,7 +701,7 @@ public:
         renderContextImpl->gpuContext()->UpdateSubresource(m_texture.Get(),
                                                            0,
                                                            &box,
-                                                           imageDataRGBA,
+                                                           imageDataRGBAPremul,
                                                            width * 4,
                                                            0);
 
@@ -728,13 +728,13 @@ rcp<Texture> RenderContextD3DImpl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
-    const uint8_t imageDataRGBA[])
+    const uint8_t imageDataRGBAPremul[])
 {
     return make_rcp<TextureD3DImpl>(this,
                                     width,
                                     height,
                                     mipLevelCount,
-                                    imageDataRGBA);
+                                    imageDataRGBAPremul);
 }
 
 class BufferRingD3D : public BufferRing

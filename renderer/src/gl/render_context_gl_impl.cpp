@@ -336,7 +336,7 @@ rcp<Texture> RenderContextGLImpl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
-    const uint8_t imageDataRGBA[])
+    const uint8_t imageDataRGBAPremul[])
 {
     GLuint textureID;
     glGenTextures(1, &textureID);
@@ -351,7 +351,7 @@ rcp<Texture> RenderContextGLImpl::makeImageTexture(
                     height,
                     GL_RGBA,
                     GL_UNSIGNED_BYTE,
-                    imageDataRGBA);
+                    imageDataRGBAPremul);
     glutils::SetTexture2DSamplingParams(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
     glGenerateMipmap(GL_TEXTURE_2D);
     return adoptImageTexture(width, height, textureID);

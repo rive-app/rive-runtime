@@ -21,9 +21,9 @@ rcp<Texture> RenderContextHelperImpl::decodeImageTexture(
     if (bitmap)
     {
         // For now, RenderContextImpl::makeImageTexture() only accepts RGBA.
-        if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBA)
+        if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBAPremul)
         {
-            bitmap->pixelFormat(Bitmap::PixelFormat::RGBA);
+            bitmap->pixelFormat(Bitmap::PixelFormat::RGBAPremul);
         }
         uint32_t width = bitmap->width();
         uint32_t height = bitmap->height();

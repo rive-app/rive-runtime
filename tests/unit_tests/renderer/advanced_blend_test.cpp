@@ -12,6 +12,20 @@ namespace glsl_cross
 {
 #include "cpp.glsl"
 #include "generated/shaders/constants.minified.glsl"
+#if 0
+// "common.glsl" is currently too complicated to compile for C++. If we really
+// need it we can make it work, but for now it works to just declare our own
+// version of unmultiply_rgb.
+#include "generated/shaders/common.minified.glsl"
+#else
+static half3 unmultiply_rgb(half4 premul)
+{
+    // We *could* return preciesly 1 when premul.rgb == premul.a, but we can
+    // also be approximate here. The blend modes that depend on this exact level
+    // of precision (colordodge and colorburn) account for it with dstPremul.
+    return premul.rgb * (premul.a != .0 ? 1. / premul.a : .0);
+}
+#endif
 #define FRAGMENT
 #define ENABLE_ADVANCED_BLEND true
 #define ENABLE_HSL_BLEND_MODES true

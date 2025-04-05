@@ -4,9 +4,9 @@
 
 #include "rive/decoders/bitmap_decoder.hpp"
 #include "rive/rive_types.hpp"
+#include "rive/math/simd.hpp"
 #include <stdio.h>
 #include <string.h>
-#include <vector>
 
 Bitmap::Bitmap(uint32_t width,
                uint32_t height,
@@ -25,24 +25,18 @@ Bitmap::Bitmap(uint32_t width,
     Bitmap(width, height, pixelFormat, std::unique_ptr<const uint8_t[]>(bytes))
 {}
 
-size_t Bitmap::bytesPerPixel(PixelFormat format) const
+static size_t bytes_per_pixel(Bitmap::PixelFormat format)
 {
     switch (format)
     {
-        case PixelFormat::RGB:
+        case Bitmap::PixelFormat::RGB:
             return 3;
-        case PixelFormat::RGBA:
+        case Bitmap::PixelFormat::RGBA:
+        case Bitmap::PixelFormat::RGBAPremul:
             return 4;
     }
     RIVE_UNREACHABLE();
 }
-
-size_t Bitmap::byteSize(PixelFormat format) const
-{
-    return m_Width * m_Height * bytesPerPixel(format);
-}
-
-size_t Bitmap::byteSize() const { return byteSize(m_PixelFormat); }
 
 void Bitmap::pixelFormat(PixelFormat format)
 {
@@ -50,22 +44,61 @@ void Bitmap::pixelFormat(PixelFormat format)
     {
         return;
     }
-    auto nextByteSize = byteSize(format);
-    auto nextBytes = std::unique_ptr<uint8_t[]>(new uint8_t[nextByteSize]);
 
-    size_t fromBytesPerPixel = bytesPerPixel(m_PixelFormat);
-    size_t toBytesPerPixel = bytesPerPixel(format);
+    size_t imageNumPixels = m_Height * m_Width;
+    size_t fromBytesPerPixel = bytes_per_pixel(m_PixelFormat);
+    size_t toBytesPerPixel = bytes_per_pixel(format);
+    size_t toSizeInBytes = imageNumPixels * toBytesPerPixel;
+
+    // Round our allocation up to a multiple of 8 so we can premultiply two
+    // pixels at once if needed.
+    size_t allocSize = (toSizeInBytes + 7) & ~7llu;
+    assert(allocSize >= toSizeInBytes && allocSize <= toSizeInBytes + 7);
+    auto toBytes = std::unique_ptr<uint8_t[]>(new uint8_t[allocSize]);
+
+    // Copy into the new pixel buffer.
     int writeIndex = 0;
     int readIndex = 0;
-    for (uint32_t i = 0; i < m_Width * m_Height; i++)
+    for (size_t i = 0; i < imageNumPixels; i++)
     {
         for (size_t j = 0; j < toBytesPerPixel; j++)
         {
-            nextBytes[writeIndex++] =
+            toBytes[writeIndex++] =
                 j < fromBytesPerPixel ? m_Bytes[readIndex++] : 255;
         }
     }
 
-    m_Bytes = std::move(nextBytes);
+    if (format == PixelFormat::RGBAPremul)
+    {
+        // Convert to premultiplied alpha.
+        for (size_t i = 0; i < toSizeInBytes; i += 8)
+        {
+            // Load 2 pixels into 64 bits. We overallocated our buffer to ensure
+            // we could always premultiply in twos.
+            assert(i + 8 <= allocSize);
+            rive::uint8x8 twoPx = rive::simd::load<uint8_t, 8>(&toBytes[i]);
+            uint8_t a0 = twoPx[3];
+            uint8_t a1 = twoPx[7];
+            // Don't premultiply fully opaque pixels.
+            if (a0 != 255 || a1 != 255)
+            {
+                // Cast to 16 bits to avoid overflow.
+                rive::uint16x8 widePx = rive::simd::cast<uint16_t>(twoPx);
+                // Multiply by alpha.
+                rive::uint16x8 alpha = {a0, a0, a0, 255, a1, a1, a1, 255};
+                widePx = rive::simd::div255(widePx * alpha);
+                // Cast back to 8 bits and store.
+                twoPx = rive::simd::cast<uint8_t>(widePx);
+                rive::simd::store(&toBytes[i], twoPx);
+            }
+        }
+    }
+    else
+    {
+        // Unmultiplying alpha is not currently supported.
+        assert(m_PixelFormat != PixelFormat::RGBAPremul);
+    }
+
+    m_Bytes = std::move(toBytes);
     m_PixelFormat = format;
 }

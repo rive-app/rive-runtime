@@ -146,22 +146,19 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
 #endif
 
     // Blend with the framebuffer color.
-    color.a *= imageDrawUniforms.opacity * coverage;
     half4 dstColorPremul = PLS_LOAD4F(colorBuffer);
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND && imageDrawUniforms.blendMode != BLEND_SRC_OVER)
     {
-        color =
-            advanced_blend(color,
-                           dstColorPremul,
-                           cast_uint_to_ushort(imageDrawUniforms.blendMode));
+        color.rgb = advanced_color_blend(
+                        unmultiply_rgb(color),
+                        dstColorPremul,
+                        cast_uint_to_ushort(imageDrawUniforms.blendMode)) *
+                    color.a;
     }
-    else
 #endif
-    {
-        color.rgb *= color.a;
-        color = color + dstColorPremul * (1. - color.a);
-    }
+    color *= imageDrawUniforms.opacity * coverage;
+    color += dstColorPremul * (1. - color.a);
 
     PLS_STORE4F(colorBuffer, color);
     PLS_PRESERVE_UI(clipBuffer);
@@ -178,22 +175,19 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
     VARYING_UNPACK(v_texCoord, float2);
 
-    half4 color = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
-    color.a *= imageDrawUniforms.opacity;
+    half4 color = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord) *
+                  imageDrawUniforms.opacity;
 
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
     {
         half4 dstColorPremul =
             TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
+        color.rgb = unmultiply_rgb(color);
         color =
             advanced_blend(color, dstColorPremul, imageDrawUniforms.blendMode);
     }
-    else
 #endif // !ENABLE_ADVANCED_BLEND
-    {
-        color = premultiply(color);
-    }
 
     EMIT_FRAG_DATA(color);
 }

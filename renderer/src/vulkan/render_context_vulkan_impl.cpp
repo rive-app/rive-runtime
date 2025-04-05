@@ -447,7 +447,7 @@ public:
                       uint32_t height,
                       uint32_t mipLevelCount,
                       TextureFormat format,
-                      const void* imageData) :
+                      const void* imageDataRGBAPremul) :
         Texture(width, height),
         m_vk(std::move(vk)),
         m_texture(m_vk->makeTexture({
@@ -466,7 +466,7 @@ public:
             vkutil::Mappability::writeOnly))
     {
         memcpy(m_imageUploadBuffer->contents(),
-               imageData,
+               imageDataRGBAPremul,
                m_imageUploadBuffer->info().size);
         m_imageUploadBuffer->flushContents();
     }
@@ -635,10 +635,11 @@ rcp<Texture> RenderContextVulkanImpl::decodeImageTexture(
     auto bitmap = Bitmap::decode(encodedBytes.data(), encodedBytes.size());
     if (bitmap)
     {
-        // For now, RenderContextImpl::makeImageTexture() only accepts RGBA.
-        if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBA)
+        // For now, RenderContextImpl::makeImageTexture() only accepts
+        // RGBAPremul.
+        if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBAPremul)
         {
-            bitmap->pixelFormat(Bitmap::PixelFormat::RGBA);
+            bitmap->pixelFormat(Bitmap::PixelFormat::RGBAPremul);
         }
         uint32_t width = bitmap->width();
         uint32_t height = bitmap->height();

@@ -457,6 +457,15 @@ template <> SIMD_ALWAYS_INLINE gvec<float, 2> sqrt(gvec<float, 2> x)
 }
 #endif
 
+// Returns "(x + 127) / 255", for x in the range 0..255*255.
+template <int N>
+SIMD_ALWAYS_INLINE gvec<uint16_t, N> div255(gvec<uint16_t, N> x)
+{
+    assert(all(x <= 255u * 255u));
+    x += 128;
+    return (x + (x >> 8)) >> 8;
+}
+
 // Approximates acos(x) within 0.96 degrees, using the rational polynomial:
 //
 //     acos(x) ~= (bx^3 + ax) / (dx^4 + cx^2 + 1) + pi/2
