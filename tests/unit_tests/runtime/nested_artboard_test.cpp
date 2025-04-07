@@ -69,3 +69,24 @@ TEST_CASE("nested artboards with one shot animations will not main "
     // animation has ended and no events to report
     REQUIRE(stateMachine->advanceAndApply(0.1f) == false);
 }
+
+TEST_CASE(
+    "nested artboard remapped timelines controlled by a timeline controlled "
+    "itself by a joystick correctly apply the time after the joystick ran",
+    "[nested]")
+{
+    auto file = ReadRiveFile("assets/joystick_nested_remap.riv");
+    auto artboard = file->artboard("parent")->instance();
+    artboard->advance(0.0f);
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    REQUIRE(artboard->find<rive::NestedArtboard>("child") != nullptr);
+
+    auto child = artboard->find<rive::NestedArtboard>("child");
+
+    auto nestedArtboardArtboard = child->artboardInstance();
+    REQUIRE(nestedArtboardArtboard != nullptr);
+    auto rect = nestedArtboardArtboard->find<rive::Shape>("rect");
+    REQUIRE(rect != nullptr);
+    REQUIRE(rect->x() == 250.0f);
+}

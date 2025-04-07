@@ -252,6 +252,7 @@ StatusCode Artboard::initialize()
                 {
                     m_JoysticksApplyBeforeUpdate = false;
                 }
+                joystick->addDependents(this);
                 m_Joysticks.push_back(joystick);
                 break;
             }

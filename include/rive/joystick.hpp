@@ -3,6 +3,7 @@
 #include "rive/generated/joystick_base.hpp"
 #include "rive/intrinsically_sizeable.hpp"
 #include "rive/joystick_flags.hpp"
+#include "rive/animation/nested_remap_animation.hpp"
 #include "rive/math/mat2d.hpp"
 #include <stdio.h>
 
@@ -32,6 +33,8 @@ public:
 
     bool canApplyBeforeUpdate() const { return m_handleSource == nullptr; }
 
+    void addDependents(Artboard* artboard);
+
     Vec2D measureLayout(float width,
                         LayoutMeasureMode widthMode,
                         float height,
@@ -51,6 +54,9 @@ private:
     LinearAnimation* m_xAnimation = nullptr;
     LinearAnimation* m_yAnimation = nullptr;
     TransformComponent* m_handleSource = nullptr;
+    std::vector<NestedRemapAnimation*> m_dependents;
+
+    void addAnimationDependents(Artboard* artboard, LinearAnimation* animation);
 };
 } // namespace rive
 

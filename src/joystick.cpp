@@ -1,6 +1,7 @@
 #include "rive/joystick.hpp"
 #include "rive/artboard.hpp"
 #include "rive/transform_component.hpp"
+#include "rive/animation/keyed_object.hpp"
 
 using namespace rive;
 
@@ -95,6 +96,10 @@ void Joystick::apply(Artboard* artboard) const
             ((isJoystickFlagged(JoystickFlags::invertY) ? -y() : y()) + 1.0f) /
                 2.0f * m_yAnimation->durationSeconds());
     }
+    for (const auto& nestedRemapAnimation : m_dependents)
+    {
+        nestedRemapAnimation->advance(0, false);
+    }
 }
 
 Vec2D Joystick::measureLayout(float width,
@@ -134,4 +139,32 @@ void Joystick::widthChanged()
 void Joystick::heightChanged()
 {
     artboard()->addDirt(ComponentDirt::Components);
+}
+
+void Joystick::addAnimationDependents(Artboard* artboard,
+                                      LinearAnimation* animation)
+{
+
+    auto totalObjects = animation->numKeyedObjects();
+    for (int i = 0; i < totalObjects; i++)
+    {
+        auto object = animation->getObject(i);
+        auto coreObject = artboard->resolve(object->objectId());
+        if (coreObject != nullptr && coreObject->is<NestedRemapAnimation>())
+        {
+            m_dependents.push_back(coreObject->as<NestedRemapAnimation>());
+        }
+    }
+}
+
+void Joystick::addDependents(Artboard* artboard)
+{
+    if (m_yAnimation != nullptr)
+    {
+        addAnimationDependents(artboard, m_yAnimation);
+    }
+    if (m_xAnimation != nullptr)
+    {
+        addAnimationDependents(artboard, m_xAnimation);
+    }
 }
