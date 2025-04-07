@@ -43,7 +43,7 @@ NO_PERSPECTIVE VARYING(2, half2, v_coverages);
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
-@OPTIONALLY_FLAT VARYING(4, half, v_clipID);
+@OPTIONALLY_FLAT VARYING(4, half2, v_clipIDs); // [clipID, outerClipID]
 #endif
 #ifdef @ENABLE_CLIP_RECT
 NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
@@ -79,7 +79,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
-    VARYING_INIT(v_clipID, half);
+    VARYING_INIT(v_clipIDs, half2);
 #endif
 #ifdef @ENABLE_CLIP_RECT
     VARYING_INIT(v_clipRect, float4);
@@ -158,11 +158,12 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
         uint clipIDBits =
             (paintType == CLIP_UPDATE_PAINT_TYPE ? paintData.y : paintData.x) >>
             16;
-        v_clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
+        half clipID = id_bits_to_f16(clipIDBits, uniforms.pathIDGranularity);
         // Negative clipID means to update the clip buffer instead of the color
         // buffer.
         if (paintType == CLIP_UPDATE_PAINT_TYPE)
-            v_clipID = -v_clipID;
+            clipID = -clipID;
+        v_clipIDs.x = clipID;
     }
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
@@ -214,7 +215,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
     {
         half outerClipID =
             id_bits_to_f16(paintData.x >> 16, uniforms.pathIDGranularity);
-        v_paint = float4(outerClipID, 0, 0, 0);
+        v_clipIDs.y = outerClipID;
     }
 #endif
     else
@@ -311,7 +312,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
-    VARYING_PACK(v_clipID);
+    VARYING_PACK(v_clipIDs);
 #endif
 #ifdef @ENABLE_CLIP_RECT
     VARYING_PACK(v_clipRect);
@@ -404,7 +405,7 @@ PLS_MAIN(@drawFragmentMain)
 #endif // !@RENDER_MODE_MSAA
 
 #ifdef @ENABLE_CLIPPING
-    VARYING_UNPACK(v_clipID, half);
+    VARYING_UNPACK(v_clipIDs, half2);
 #endif
 #ifdef @ENABLE_CLIP_RECT
     VARYING_UNPACK(v_clipRect, float4);
@@ -508,13 +509,13 @@ PLS_MAIN(@drawFragmentMain)
 #endif // !@ATLAS_BLIT
 
 #ifdef @ENABLE_CLIPPING
-    if (@ENABLE_CLIPPING && v_clipID < .0) // Update the clip buffer.
+    if (@ENABLE_CLIPPING && v_clipIDs.x < .0) // Update the clip buffer.
     {
-        half clipID = -v_clipID;
+        half clipID = -v_clipIDs.x;
 #ifdef @ENABLE_NESTED_CLIPPING
         if (@ENABLE_NESTED_CLIPPING)
         {
-            half outerClipID = v_paint.r;
+            half outerClipID = v_clipIDs.y;
             if (outerClipID != .0)
             {
                 // This is a nested clip. Intersect coverage with the enclosing
@@ -563,16 +564,16 @@ PLS_MAIN(@drawFragmentMain)
         if (@ENABLE_CLIPPING)
         {
             // Apply the clip.
-            if (v_clipID != .0)
+            half clipID = v_clipIDs.x;
+            if (clipID != .0)
             {
                 // Clip IDs are not necessarily drawn in monotonically
                 // increasing order, so always check exact equality of the
                 // clipID.
                 half2 clipData = unpackHalf2x16(PLS_LOADUI(clipBuffer));
                 half clipContentID = clipData.g;
-                coverage = (clipContentID == v_clipID)
-                               ? min(clipData.r, coverage)
-                               : make_half(.0);
+                coverage = (clipContentID == clipID) ? min(clipData.r, coverage)
+                                                     : make_half(.0);
             }
         }
 #endif
