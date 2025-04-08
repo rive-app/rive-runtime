@@ -381,15 +381,9 @@ public:
                    : nullptr;
     }
 
-    ~BufferRingGLImpl()
-    {
-        for (int i = 0; i < kBufferRingSize; ++i)
-        {
-            m_state->deleteBuffer(m_ids[i]);
-        }
-    }
+    ~BufferRingGLImpl() { m_state->deleteBuffer(m_bufferID); }
 
-    GLuint submittedBufferID() const { return m_ids[submittedBufferIdx()]; }
+    GLuint bufferID() const { return m_bufferID; }
 
 protected:
     BufferRingGLImpl(GLenum target,
@@ -397,43 +391,55 @@ protected:
                      rcp<GLState> state) :
         BufferRing(capacityInBytes), m_target(target), m_state(std::move(state))
     {
-        glGenBuffers(kBufferRingSize, m_ids);
-        for (int i = 0; i < kBufferRingSize; ++i)
-        {
-            m_state->bindBuffer(m_target, m_ids[i]);
-            glBufferData(m_target, capacityInBytes, nullptr, GL_DYNAMIC_DRAW);
-        }
+        glGenBuffers(1, &m_bufferID);
+        m_state->bindBuffer(m_target, m_bufferID);
+        glBufferData(m_target, capacityInBytes, nullptr, GL_DYNAMIC_DRAW);
     }
 
     void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
-#ifdef RIVE_WEBGL
-        // WebGL doesn't support buffer mapping.
-        return shadowBuffer();
+        if (m_state->capabilities().isANGLEOrWebGL)
+        {
+            // WebGL doesn't support buffer mapping.
+            return shadowBuffer();
+        }
+        else
+        {
+#ifndef RIVE_WEBGL
+            m_state->bindBuffer(m_target, m_bufferID);
+            return glMapBufferRange(m_target,
+                                    0,
+                                    mapSizeInBytes,
+                                    GL_MAP_WRITE_BIT |
+                                        GL_MAP_INVALIDATE_BUFFER_BIT);
 #else
-        m_state->bindBuffer(m_target, m_ids[bufferIdx]);
-        return glMapBufferRange(m_target,
-                                0,
-                                mapSizeInBytes,
-                                GL_MAP_WRITE_BIT |
-                                    GL_MAP_INVALIDATE_BUFFER_BIT |
-                                    GL_MAP_UNSYNCHRONIZED_BIT);
+            // WebGL doesn't declare glMapBufferRange().
+            RIVE_UNREACHABLE();
 #endif
+        }
     }
 
     void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
-        m_state->bindBuffer(m_target, m_ids[bufferIdx]);
-#ifdef RIVE_WEBGL
-        // WebGL doesn't support buffer mapping.
-        glBufferSubData(m_target, 0, mapSizeInBytes, shadowBuffer());
+        m_state->bindBuffer(m_target, m_bufferID);
+        if (m_state->capabilities().isANGLEOrWebGL)
+        {
+            // WebGL doesn't support buffer mapping.
+            glBufferSubData(m_target, 0, mapSizeInBytes, shadowBuffer());
+        }
+        else
+        {
+#ifndef RIVE_WEBGL
+            glUnmapBuffer(m_target);
 #else
-        glUnmapBuffer(m_target);
+            // WebGL doesn't declare glUnmapBuffer().
+            RIVE_UNREACHABLE();
 #endif
+        }
     }
 
     const GLenum m_target;
-    GLuint m_ids[kBufferRingSize];
+    GLuint m_bufferID;
     const rcp<GLState> m_state;
 };
 
@@ -505,7 +511,7 @@ public:
     {
         glBindBufferRange(GL_SHADER_STORAGE_BUFFER,
                           bindingIdx,
-                          submittedBufferID(),
+                          bufferID(),
                           offsetSizeInBytes,
                           bindingSizeInBytes);
     }
@@ -529,21 +535,15 @@ public:
             gpu::StorageTextureSize(capacityInBytes, m_bufferStructure);
         GLenum internalformat =
             storage_texture_internalformat(m_bufferStructure);
-        glGenTextures(gpu::kBufferRingSize, m_textures);
+        glGenTextures(1, &m_textureID);
         glActiveTexture(GL_TEXTURE0);
-        for (size_t i = 0; i < gpu::kBufferRingSize; ++i)
-        {
-            glBindTexture(GL_TEXTURE_2D, m_textures[i]);
-            glTexStorage2D(GL_TEXTURE_2D, 1, internalformat, width, height);
-            glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
-        }
+        glBindTexture(GL_TEXTURE_2D, m_textureID);
+        glTexStorage2D(GL_TEXTURE_2D, 1, internalformat, width, height);
+        glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
         glBindTexture(GL_TEXTURE_2D, 0);
     }
 
-    ~TexelBufferRingWebGL()
-    {
-        glDeleteTextures(gpu::kBufferRingSize, m_textures);
-    }
+    ~TexelBufferRingWebGL() { glDeleteTextures(1, &m_textureID); }
 
     void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
@@ -559,7 +559,7 @@ public:
         auto [updateWidth, updateHeight] =
             gpu::StorageTextureSize(bindingSizeInBytes, m_bufferStructure);
         glActiveTexture(GL_TEXTURE0 + bindingIdx);
-        glBindTexture(GL_TEXTURE_2D, m_textures[submittedBufferIdx()]);
+        glBindTexture(GL_TEXTURE_2D, m_textureID);
         glTexSubImage2D(GL_TEXTURE_2D,
                         0,
                         0,
@@ -574,7 +574,7 @@ public:
 protected:
     const gpu::StorageBufferStructure m_bufferStructure;
     const rcp<GLState> m_state;
-    GLuint m_textures[gpu::kBufferRingSize];
+    GLuint m_textureID;
 };
 
 std::unique_ptr<BufferRing> RenderContextGLImpl::makeUniformBufferRing(
@@ -1068,8 +1068,7 @@ RenderContextGLImpl::DrawProgram::~DrawProgram()
 
 static GLuint gl_buffer_id(const BufferRing* bufferRing)
 {
-    return static_cast<const BufferRingGLImpl*>(bufferRing)
-        ->submittedBufferID();
+    return static_cast<const BufferRingGLImpl*>(bufferRing)->bufferID();
 }
 
 static void bind_storage_buffer(const GLCapabilities& capabilities,
@@ -1848,13 +1847,12 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                         RenderBufferGLImpl*,
                                         batch.indexBuffer);
                 m_state->bindVAO(m_imageMeshVAO);
-                m_state->bindBuffer(GL_ARRAY_BUFFER,
-                                    vertexBuffer->frontBufferID());
+                m_state->bindBuffer(GL_ARRAY_BUFFER, vertexBuffer->bufferID());
                 glVertexAttribPointer(0, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
-                m_state->bindBuffer(GL_ARRAY_BUFFER, uvBuffer->frontBufferID());
+                m_state->bindBuffer(GL_ARRAY_BUFFER, uvBuffer->bufferID());
                 glVertexAttribPointer(1, 2, GL_FLOAT, GL_FALSE, 0, nullptr);
                 m_state->bindBuffer(GL_ELEMENT_ARRAY_BUFFER,
-                                    indexBuffer->frontBufferID());
+                                    indexBuffer->bufferID());
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                                   gl_buffer_id(imageDrawUniformBufferRing()),
@@ -2029,8 +2027,10 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 #endif
     if (capabilities.isGLES)
     {
-#ifdef RIVE_ANDROID
-        capabilities.isAndroidANGLE = strstr(glVersionStr, "ANGLE") != NULL;
+#ifdef RIVE_WEBGL
+        capabilities.isANGLEOrWebGL = true;
+#else
+        capabilities.isANGLEOrWebGL = strstr(glVersionStr, "ANGLE") != nullptr;
 #endif
 #ifdef _MSC_VER
         sscanf_s(
@@ -2195,6 +2195,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.EXT_base_instance = true;
         }
+#ifdef RIVE_ANDROID
         // Don't use EXT_clip_cull_distance if we're on ANGLE. Galaxy S22
         // (OpenGL Samsung Electronics Co., Ltd.;
         // ANGLE (Samsung Xclipse 920) on Vulkan 1.1.179;
@@ -2202,11 +2203,12 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         // this extension but then doesn't support gl_ClipDistance in the
         // shader. Only use clip planes on ANGLE if ANGLE_clip_cull_distance is
         // supported.
-        else if (!capabilities.isAndroidANGLE &&
+        else if (!capabilities.isANGLEOrWebGL &&
                  strcmp(ext, "GL_EXT_clip_cull_distance") == 0)
         {
             capabilities.EXT_clip_cull_distance = true;
         }
+#endif
         else if (strcmp(ext, "GL_EXT_multisampled_render_to_texture") == 0)
         {
             capabilities.EXT_multisampled_render_to_texture = true;

@@ -125,7 +125,7 @@ struct GLCapabilities
 
     // Driver info.
     bool isGLES : 1;
-    bool isAndroidANGLE : 1;
+    bool isANGLEOrWebGL : 1;
     bool isAdreno : 1;
     bool isMali : 1;
     bool isPowerVR : 1;

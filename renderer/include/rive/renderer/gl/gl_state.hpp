@@ -19,6 +19,8 @@ public:
         invalidate();
     }
 
+    const GLCapabilities& capabilities() const { return m_capabilities; }
+
     void invalidate();
 
     enum class GLBlendMode

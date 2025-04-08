@@ -25,7 +25,7 @@ public:
     ~RenderBufferGLImpl();
 
     // Returns the buffer to submit to GL draw calls, updating it if dirty.
-    GLuint frontBufferID() { return m_bufferIDs[frontBufferIdx()]; }
+    GLuint bufferID() { return m_bufferID; }
 
 protected:
     RenderBufferGLImpl(RenderBufferType type,
@@ -34,9 +34,9 @@ protected:
 
     void init(rcp<GLState>);
 
-    // Used by the android runtime to marshal buffers off to the GL thread for
-    // deletion.
-    std::array<GLuint, gpu::kBufferRingSize> detachBuffers();
+    // Used by the android runtime to marshal the buffer off to the GL thread
+    // for deletion.
+    GLuint detachBuffer();
 
     void* onMap() override;
     void onUnmap() override;
@@ -49,9 +49,9 @@ private:
     bool canMapBuffer() const;
 
     const GLenum m_target;
-    std::array<GLuint, gpu::kBufferRingSize> m_bufferIDs{};
-    std::unique_ptr<uint8_t[]>
-        m_fallbackMappedMemory; // Used when canMapBuffer() is false.
+    GLuint m_bufferID = 0;
+    // Used when canMapBuffer() is false.
+    std::unique_ptr<uint8_t[]> m_fallbackMappedMemory;
     rcp<GLState> m_state;
 };
 } // namespace rive::gpu

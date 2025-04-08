@@ -27,42 +27,31 @@ RenderBufferGLImpl::RenderBufferGLImpl(RenderBufferType RenderBufferType,
 
 RenderBufferGLImpl::~RenderBufferGLImpl()
 {
-    for (GLuint bufferID : m_bufferIDs)
+    if (m_bufferID != 0)
     {
-        if (bufferID != 0)
-        {
-            m_state->deleteBuffer(bufferID);
-        }
+        m_state->deleteBuffer(m_bufferID);
     }
 }
 
 void RenderBufferGLImpl::init(rcp<GLState> state)
 {
     assert(!m_state);
-    assert(!m_bufferIDs[0]);
+    assert(m_bufferID == 0);
     m_state = std::move(state);
-    int bufferCount = (flags() & RenderBufferFlags::mappedOnceAtInitialization)
-                          ? 1
-                          : gpu::kBufferRingSize;
-    glGenBuffers(bufferCount, m_bufferIDs.data());
+    glGenBuffers(1, &m_bufferID);
     m_state->bindVAO(0);
-    for (int i = 0; i < bufferCount; ++i)
-    {
-        m_state->bindBuffer(m_target, m_bufferIDs[i]);
-        glBufferData(m_target,
-                     sizeInBytes(),
-                     nullptr,
-                     (flags() & RenderBufferFlags::mappedOnceAtInitialization)
-                         ? GL_STATIC_DRAW
-                         : GL_DYNAMIC_DRAW);
-    }
+    m_state->bindBuffer(m_target, m_bufferID);
+    glBufferData(m_target,
+                 sizeInBytes(),
+                 nullptr,
+                 (flags() & RenderBufferFlags::mappedOnceAtInitialization)
+                     ? GL_STATIC_DRAW
+                     : GL_DYNAMIC_DRAW);
 }
 
-std::array<GLuint, gpu::kBufferRingSize> RenderBufferGLImpl::detachBuffers()
+GLuint RenderBufferGLImpl::detachBuffer()
 {
-    auto detachedBuffers = m_bufferIDs;
-    m_bufferIDs.fill(0);
-    return detachedBuffers;
+    return std::exchange(m_bufferID, 0);
 }
 
 void* RenderBufferGLImpl::onMap()
@@ -79,15 +68,14 @@ void* RenderBufferGLImpl::onMap()
     {
 #ifndef RIVE_WEBGL
         m_state->bindVAO(0);
-        m_state->bindBuffer(m_target, m_bufferIDs[backBufferIdx()]);
+        m_state->bindBuffer(m_target, m_bufferID);
         return glMapBufferRange(m_target,
                                 0,
                                 sizeInBytes(),
                                 GL_MAP_WRITE_BIT |
-                                    GL_MAP_INVALIDATE_BUFFER_BIT |
-                                    GL_MAP_UNSYNCHRONIZED_BIT);
+                                    GL_MAP_INVALIDATE_BUFFER_BIT);
 #else
-        // WebGL doesn't support buffer mapping.
+        // WebGL doesn't declare glMapBufferRange().
         RIVE_UNREACHABLE();
 #endif
     }
@@ -96,7 +84,7 @@ void* RenderBufferGLImpl::onMap()
 void RenderBufferGLImpl::onUnmap()
 {
     m_state->bindVAO(0);
-    m_state->bindBuffer(m_target, m_bufferIDs[backBufferIdx()]);
+    m_state->bindBuffer(m_target, m_bufferID);
     if (!canMapBuffer())
     {
         glBufferSubData(m_target,
@@ -114,7 +102,7 @@ void RenderBufferGLImpl::onUnmap()
 #ifndef RIVE_WEBGL
         glUnmapBuffer(m_target);
 #else
-        // WebGL doesn't support buffer mapping.
+        // WebGL doesn't declare glUnmapBuffer().
         RIVE_UNREACHABLE();
 #endif
     }
@@ -122,12 +110,10 @@ void RenderBufferGLImpl::onUnmap()
 
 bool RenderBufferGLImpl::canMapBuffer() const
 {
-#ifdef RIVE_WEBGL
     // WebGL doesn't support buffer mapping.
-    return false;
-#else
-    // NVIDIA gives performance warnings when mapping GL_STATIC_DRAW buffers.
-    return !(flags() & RenderBufferFlags::mappedOnceAtInitialization);
-#endif
+    return !m_state->capabilities().isANGLEOrWebGL &&
+           // NVIDIA gives performance warnings when mapping GL_STATIC_DRAW
+           // buffers.
+           !(flags() & RenderBufferFlags::mappedOnceAtInitialization);
 }
 } // namespace rive::gpu
