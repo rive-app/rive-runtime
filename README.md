@@ -29,7 +29,7 @@ Rive makes use of clang [vector builtins](https://reviews.llvm.org/D111529), whi
 ## Building skia projects
 ```sh
 cd skia/dependencies
-./make_skia.sh      // this will invoke get_skia.sh
+./make_skia.sh      # this will invoke get_skia.sh
 ```
 To build viewer (plus you'll needed CMake installed)
 ```sh
