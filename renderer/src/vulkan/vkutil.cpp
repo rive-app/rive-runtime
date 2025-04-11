@@ -10,18 +10,17 @@
 
 namespace rive::gpu::vkutil
 {
-void vkutil::RenderingResource::onRefCntReachedZero() const
+Resource::Resource(rcp<VulkanContext> vk) : GPUResource(std::move(vk)) {}
+
+inline VulkanContext* Resource::vk() const
 {
-    // VulkanContext will hold off on deleting "this" until any in-flight
-    // command buffers have finished (potentially) referencing our underlying
-    // Vulkan objects.
-    m_vk->onRenderingResourceReleased(this);
+    return static_cast<VulkanContext*>(m_manager.get());
 }
 
 Buffer::Buffer(rcp<VulkanContext> vk,
                const VkBufferCreateInfo& info,
                Mappability mappability) :
-    RenderingResource(std::move(vk)), m_mappability(mappability), m_info(info)
+    Resource(std::move(vk)), m_mappability(mappability), m_info(info)
 {
     m_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
     init();
@@ -37,9 +36,9 @@ void Buffer::resizeImmediately(size_t sizeInBytes)
         {
             if (m_mappability != Mappability::none)
             {
-                vmaUnmapMemory(m_vk->allocator(), m_vmaAllocation);
+                vmaUnmapMemory(vk()->allocator(), m_vmaAllocation);
             }
-            vmaDestroyBuffer(m_vk->allocator(), m_vkBuffer, m_vmaAllocation);
+            vmaDestroyBuffer(vk()->allocator(), m_vkBuffer, m_vmaAllocation);
         }
         m_info.size = sizeInBytes;
         init();
@@ -69,7 +68,7 @@ void Buffer::init()
             .usage = VMA_MEMORY_USAGE_AUTO,
         };
 
-        VK_CHECK(vmaCreateBuffer(m_vk->allocator(),
+        VK_CHECK(vmaCreateBuffer(vk()->allocator(),
                                  &m_info,
                                  &allocInfo,
                                  &m_vkBuffer,
@@ -81,7 +80,7 @@ void Buffer::init()
             // Leave the buffer constantly mapped and let the OS/drivers handle
             // the rest.
             VK_CHECK(
-                vmaMapMemory(m_vk->allocator(), m_vmaAllocation, &m_contents));
+                vmaMapMemory(vk()->allocator(), m_vmaAllocation, &m_contents));
         }
         else
         {
@@ -98,7 +97,7 @@ void Buffer::init()
 
 void Buffer::flushContents(size_t updatedSizeInBytes)
 {
-    vmaFlushAllocation(m_vk->allocator(),
+    vmaFlushAllocation(vk()->allocator(),
                        m_vmaAllocation,
                        0,
                        updatedSizeInBytes);
@@ -106,16 +105,27 @@ void Buffer::flushContents(size_t updatedSizeInBytes)
 
 void Buffer::invalidateContents(size_t updatedSizeInBytes)
 {
-    vmaInvalidateAllocation(m_vk->allocator(),
+    vmaInvalidateAllocation(vk()->allocator(),
                             m_vmaAllocation,
                             0,
                             updatedSizeInBytes);
 }
 
+BufferPool::BufferPool(rcp<VulkanContext> vk,
+                       VkBufferUsageFlags usageFlags,
+                       size_t size) :
+    GPUResourcePool(std::move(vk), MAX_POOL_SIZE),
+    m_usageFlags(usageFlags),
+    m_targetSize(size)
+{}
+
+inline VulkanContext* BufferPool::vk() const
+{
+    return static_cast<VulkanContext*>(m_manager.get());
+}
+
 void BufferPool::setTargetSize(size_t size)
 {
-    assert(m_currentBuffer == nullptr); // Call releaseCurrentBuffer() first.
-
     // Buffers always get bound, even if unused, so make sure they aren't empty
     // and we get a valid Vulkan handle.
     size = std::max<size_t>(size, 1);
@@ -130,71 +140,28 @@ void BufferPool::setTargetSize(size_t size)
     m_targetSize = size;
 }
 
-vkutil::Buffer* BufferPool::currentBuffer()
+rcp<vkutil::Buffer> BufferPool::acquire()
 {
-    if (m_currentBuffer == nullptr)
+    auto buffer = static_rcp_cast<vkutil::Buffer>(GPUResourcePool::acquire());
+    if (buffer == nullptr)
     {
-        if (!m_pool.empty() &&
-            m_pool.front().lastFrameNumber <= m_vk->safeFrameNumber())
-        {
-            // Recycle the oldest buffer in the pool.
-            m_currentBuffer = std::move(m_pool.front().buffer);
-            if (m_currentBuffer->info().size != m_targetSize)
+        buffer = vk()->makeBuffer(
             {
-                m_currentBuffer->resizeImmediately(m_targetSize);
-            }
-            m_pool.pop_front();
-
-            // Trim the pool in case it's grown out of control (meaning it was
-            // advanced multiple times in a single frame).
-            constexpr static size_t POOL_MAX_COUNT = 8;
-            while (m_pool.size() > POOL_MAX_COUNT &&
-                   m_pool.front().lastFrameNumber <= m_vk->safeFrameNumber())
-            {
-                m_pool.pop_front();
-            }
-        }
-        else
-        {
-            // There wasn't a free buffer in the pool. Create a new one.
-            m_currentBuffer =
-                m_vk->makeBuffer({.size = m_targetSize, .usage = m_usageFlags},
-                                 Mappability::writeOnly);
-        }
+                .size = m_targetSize,
+                .usage = m_usageFlags,
+            },
+            Mappability::writeOnly);
     }
-    m_currentBufferFrameNumber = m_vk->currentFrameNumber();
-    return m_currentBuffer.get();
-}
-
-void* BufferPool::mapCurrentBuffer(size_t dirtySize)
-{
-    m_pendingFlushSize = dirtySize;
-    return currentBuffer()->contents();
-}
-
-void BufferPool::unmapCurrentBuffer()
-{
-    assert(m_pendingFlushSize > 0);
-    currentBuffer()->flushContents(m_pendingFlushSize);
-    m_pendingFlushSize = 0;
-}
-
-void BufferPool::releaseCurrentBuffer()
-{
-    if (m_currentBuffer != nullptr)
+    else if (buffer->info().size != m_targetSize)
     {
-        // Return the current buffer to the pool.
-        m_pool.emplace_back(std::move(m_currentBuffer),
-                            m_currentBufferFrameNumber);
-        assert(m_currentBuffer == nullptr);
+        buffer->resizeImmediately(m_targetSize);
     }
-
-    // The current buffer's frameNumber will update when it gets accessed.
-    m_currentBufferFrameNumber = 0;
+    return buffer;
 }
 
-Texture::Texture(rcp<VulkanContext> vk, const VkImageCreateInfo& info) :
-    RenderingResource(std::move(vk)), m_info(info)
+Texture::Texture(rcp<VulkanContext> vulkanContext,
+                 const VkImageCreateInfo& info) :
+    Resource(std::move(vulkanContext)), m_info(info)
 {
     m_info = info;
     m_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
@@ -232,7 +199,7 @@ Texture::Texture(rcp<VulkanContext> vk, const VkImageCreateInfo& info) :
             .usage = VMA_MEMORY_USAGE_GPU_LAZILY_ALLOCATED,
         };
 
-        if (vmaCreateImage(m_vk->allocator(),
+        if (vmaCreateImage(vk()->allocator(),
                            &m_info,
                            &allocInfo,
                            &m_vkImage,
@@ -247,7 +214,7 @@ Texture::Texture(rcp<VulkanContext> vk, const VkImageCreateInfo& info) :
         .usage = VMA_MEMORY_USAGE_AUTO,
     };
 
-    VK_CHECK(vmaCreateImage(m_vk->allocator(),
+    VK_CHECK(vmaCreateImage(vk()->allocator(),
                             &m_info,
                             &allocInfo,
                             &m_vkImage,
@@ -259,34 +226,34 @@ Texture::~Texture()
 {
     if (m_vmaAllocation != VK_NULL_HANDLE)
     {
-        vmaDestroyImage(m_vk->allocator(), m_vkImage, m_vmaAllocation);
+        vmaDestroyImage(vk()->allocator(), m_vkImage, m_vmaAllocation);
     }
 }
 
-TextureView::TextureView(rcp<VulkanContext> vk,
+TextureView::TextureView(rcp<VulkanContext> vulkanContext,
                          rcp<Texture> textureRef,
                          const VkImageViewCreateInfo& info) :
-    RenderingResource(std::move(vk)),
+    Resource(std::move(vulkanContext)),
     m_textureRefOrNull(std::move(textureRef)),
     m_info(info)
 {
     assert(m_textureRefOrNull == nullptr || info.image == *m_textureRefOrNull);
     m_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
     VK_CHECK(
-        m_vk->CreateImageView(m_vk->device, &m_info, nullptr, &m_vkImageView));
+        vk()->CreateImageView(vk()->device, &m_info, nullptr, &m_vkImageView));
 }
 
 TextureView::~TextureView()
 {
-    m_vk->DestroyImageView(m_vk->device, m_vkImageView, nullptr);
+    vk()->DestroyImageView(vk()->device, m_vkImageView, nullptr);
 }
 
-Framebuffer::Framebuffer(rcp<VulkanContext> vk,
+Framebuffer::Framebuffer(rcp<VulkanContext> vulkanContext,
                          const VkFramebufferCreateInfo& info) :
-    RenderingResource(std::move(vk)), m_info(info)
+    Resource(std::move(vulkanContext)), m_info(info)
 {
     m_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
-    VK_CHECK(m_vk->CreateFramebuffer(m_vk->device,
+    VK_CHECK(vk()->CreateFramebuffer(vk()->device,
                                      &m_info,
                                      nullptr,
                                      &m_vkFramebuffer));
@@ -294,6 +261,6 @@ Framebuffer::Framebuffer(rcp<VulkanContext> vk,
 
 Framebuffer::~Framebuffer()
 {
-    m_vk->DestroyFramebuffer(m_vk->device, m_vkFramebuffer, nullptr);
+    vk()->DestroyFramebuffer(vk()->device, m_vkFramebuffer, nullptr);
 }
 } // namespace rive::gpu::vkutil

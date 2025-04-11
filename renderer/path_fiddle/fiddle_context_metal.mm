@@ -74,6 +74,7 @@ public:
         m_swapchain.contentsScale = dpiScale(window);
         m_swapchain.displaySyncEnabled = NO;
         view.layer = m_swapchain;
+        m_swapchain.drawableSize = CGSizeMake(width, height);
 
         auto renderContextImpl =
             m_renderContext->static_impl_cast<RenderContextMetalImpl>();

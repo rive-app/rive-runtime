@@ -67,12 +67,7 @@ VulkanContext::VulkanContext(
            "No suitable depth format supported!");
 }
 
-VulkanContext::~VulkanContext()
-{
-    assert(m_currentFrameNumber == SHUTDOWN_FRAME_NUMBER);
-    assert(m_resourcePurgatory.empty());
-    vmaDestroyAllocator(m_vmaAllocator);
-}
+VulkanContext::~VulkanContext() { vmaDestroyAllocator(m_vmaAllocator); }
 
 bool VulkanContext::isFormatSupportedWithFeatureFlags(
     VkFormat format,
@@ -83,48 +78,6 @@ bool VulkanContext::isFormatSupportedWithFeatureFlags(
     VkFormatProperties properties;
     GetPhysicalDeviceFormatProperties(physicalDevice, format, &properties);
     return properties.optimalTilingFeatures & featureFlags;
-}
-
-void VulkanContext::advanceFrameNumber(uint64_t nextFrameNumber,
-                                       uint64_t safeFrameNumber)
-{
-    assert(nextFrameNumber >= m_currentFrameNumber);
-    assert(nextFrameNumber < SHUTDOWN_FRAME_NUMBER);
-    assert(safeFrameNumber >= m_safeFrameNumber);
-    assert(safeFrameNumber < nextFrameNumber);
-    m_currentFrameNumber = nextFrameNumber;
-    m_safeFrameNumber = safeFrameNumber;
-
-    // Delete all resources that are no longer referenced by an in-flight
-    // command buffer.
-    while (!m_resourcePurgatory.empty() &&
-           m_resourcePurgatory.front().lastFrameNumber <= m_safeFrameNumber)
-    {
-        m_resourcePurgatory.pop_front();
-    }
-}
-
-void VulkanContext::onRenderingResourceReleased(
-    const vkutil::RenderingResource* resource)
-{
-    assert(resource->vulkanContext() == this);
-    if (m_currentFrameNumber != SHUTDOWN_FRAME_NUMBER)
-    {
-        // Hold this resource until it is no longer referenced by an in-flight
-        // command buffer.
-        m_resourcePurgatory.emplace_back(resource, m_currentFrameNumber);
-    }
-    else
-    {
-        // We're in a shutdown cycle. Delete immediately.
-        delete resource;
-    }
-}
-
-void VulkanContext::shutdown()
-{
-    m_currentFrameNumber = SHUTDOWN_FRAME_NUMBER;
-    m_resourcePurgatory.clear();
 }
 
 rcp<vkutil::Buffer> VulkanContext::makeBuffer(const VkBufferCreateInfo& info,

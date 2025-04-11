@@ -6,8 +6,8 @@
 
 #include "rive/refcnt.hpp"
 #include "rive/renderer/gpu.hpp"
+#include "rive/renderer/gpu_resource.hpp"
 #include <cassert>
-#include <deque>
 #include <stdio.h>
 #include <stdlib.h>
 #include <vulkan/vulkan.h>
@@ -50,42 +50,18 @@ enum class Mappability
 
 // Base class for a GPU resource that needs to be kept alive until any in-flight
 // command buffers that reference it have completed.
-class RenderingResource : public RefCnt<RenderingResource>
+class Resource : public GPUResource
 {
 public:
-    virtual ~RenderingResource() {}
+    virtual ~Resource() {}
 
-    const VulkanContext* vulkanContext() const { return m_vk.get(); }
+    VulkanContext* vk() const;
 
 protected:
-    RenderingResource(rcp<VulkanContext> vk) : m_vk(std::move(vk)) {}
-
-    const rcp<VulkanContext> m_vk;
-
-private:
-    friend class RefCnt<RenderingResource>;
-
-    // Don't delete RenderingResources immediately when their ref count reaches
-    // zero; wait until any in-flight command buffers are done referencing their
-    // underlying Vulkan objects.
-    void onRefCntReachedZero() const;
+    Resource(rcp<VulkanContext>);
 };
 
-// A RenderingResource that has been fully released, but whose underlying Vulkan
-// object may still be referenced by an in-flight command buffer.
-template <typename T> struct ZombieResource
-{
-    ZombieResource(T* resource_, uint64_t lastFrameNumber_) :
-        resource(resource_), lastFrameNumber(lastFrameNumber_)
-    {
-        assert(resource_->debugging_refcnt() == 0);
-    }
-    std::unique_ptr<T> resource;
-    // Frame number at which the underlying Vulkan resource was last used.
-    const uint64_t lastFrameNumber;
-};
-
-class Buffer : public RenderingResource
+class Buffer : public Resource
 {
 public:
     ~Buffer() override;
@@ -130,51 +106,32 @@ private:
 };
 
 // Wraps a pool of Buffers so we can map one while other(s) are in-flight.
-class BufferPool
+class BufferPool : public GPUResourcePool
 {
 public:
-    BufferPool(rcp<VulkanContext> vk,
-               VkBufferUsageFlags usageFlags,
-               size_t size = 0) :
-        m_vk(std::move(vk)), m_usageFlags(usageFlags), m_targetSize(size)
-    {}
-
-    VulkanContext* vulkanContext() const { return m_vk.get(); }
+    BufferPool(rcp<VulkanContext>, VkBufferUsageFlags, size_t size = 0);
 
     size_t size() const { return m_targetSize; }
     void setTargetSize(size_t size);
 
-    vkutil::Buffer* currentBuffer();
-    uint64_t currentBufferFrameNumber() { return m_currentBufferFrameNumber; }
+    // Returns a Buffer that is guaranteed to exist and be of size
+    // 'm_targetSize'.
+    rcp<vkutil::Buffer> acquire();
 
-    void* mapCurrentBuffer(size_t dirtySize = VK_WHOLE_SIZE);
-    void unmapCurrentBuffer();
-
-    // Returns the current buffer to the pool.
-    void releaseCurrentBuffer();
+    void recycle(rcp<vkutil::Buffer> buffer)
+    {
+        GPUResourcePool::recycle(std::move(buffer));
+    }
 
 private:
-    const rcp<VulkanContext> m_vk;
+    VulkanContext* vk() const;
+
+    constexpr static size_t MAX_POOL_SIZE = 8;
     const VkBufferUsageFlags m_usageFlags;
     size_t m_targetSize;
-    rcp<vkutil::Buffer> m_currentBuffer;
-    uint64_t m_currentBufferFrameNumber = 0;
-    size_t m_pendingFlushSize = 0;
-
-    struct PooledBuffer
-    {
-        PooledBuffer() = default;
-        PooledBuffer(rcp<vkutil::Buffer> buffer_, uint64_t lastFrameNumber_) :
-            buffer(std::move(buffer_)), lastFrameNumber(lastFrameNumber_)
-        {}
-        rcp<vkutil::Buffer> buffer;
-        uint64_t lastFrameNumber = 0;
-    };
-
-    std::deque<PooledBuffer> m_pool;
 };
 
-class Texture : public RenderingResource
+class Texture : public Resource
 {
 public:
     ~Texture() override;
@@ -193,7 +150,7 @@ private:
     VkImage m_vkImage;
 };
 
-class TextureView : public RenderingResource
+class TextureView : public Resource
 {
 public:
     ~TextureView() override;
@@ -215,7 +172,7 @@ private:
     VkImageView m_vkImageView;
 };
 
-class Framebuffer : public RenderingResource
+class Framebuffer : public Resource
 {
 public:
     ~Framebuffer() override;

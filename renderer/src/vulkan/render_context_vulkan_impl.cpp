@@ -377,28 +377,27 @@ public:
                            RenderBufferFlags renderBufferFlags,
                            size_t sizeInBytes) :
         lite_rtti_override(renderBufferType, renderBufferFlags, sizeInBytes),
-        m_bufferPool(std::move(vk),
-                     render_buffer_usage_flags(renderBufferType),
-                     sizeInBytes)
+        m_bufferPool(make_rcp<vkutil::BufferPool>(
+            std::move(vk),
+            render_buffer_usage_flags(renderBufferType),
+            sizeInBytes))
     {}
 
-    vkutil::Buffer* currentBuffer() { return m_bufferPool.currentBuffer(); }
+    vkutil::Buffer* currentBuffer() { return m_currentBuffer.get(); }
 
 protected:
     void* onMap() override
     {
-        // A mesh buffer can't be mapped more than once in a frame or we could
-        // blow out GPU memory.
-        assert(m_bufferPool.currentBufferFrameNumber() !=
-               m_bufferPool.vulkanContext()->currentFrameNumber());
-        m_bufferPool.releaseCurrentBuffer();
-        return m_bufferPool.mapCurrentBuffer();
+        m_bufferPool->recycle(std::move(m_currentBuffer));
+        m_currentBuffer = m_bufferPool->acquire();
+        return m_currentBuffer->contents();
     }
 
-    void onUnmap() override { m_bufferPool.unmapCurrentBuffer(); }
+    void onUnmap() override { m_currentBuffer->flushContents(); }
 
 private:
-    vkutil::BufferPool m_bufferPool;
+    rcp<vkutil::BufferPool> m_bufferPool;
+    rcp<vkutil::Buffer> m_currentBuffer;
 };
 
 rcp<RenderBuffer> RenderContextVulkanImpl::makeRenderBuffer(
@@ -2064,8 +2063,7 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     m_gradSpanBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
     m_tessSpanBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
     m_triangleBufferPool(m_vk, VK_BUFFER_USAGE_VERTEX_BUFFER_BIT),
-    m_descriptorSetPoolPool(
-        make_rcp<vkutil::ResourcePool<DescriptorSetPool>>(m_vk))
+    m_descriptorSetPoolPool(make_rcp<DescriptorSetPoolPool>(m_vk))
 {
     m_platformFeatures.supportsRasterOrdering =
         m_vk->features.rasterizationOrderColorAttachmentAccess;
@@ -2441,6 +2439,17 @@ void RenderContextVulkanImpl::initGPUObjects()
 
 RenderContextVulkanImpl::~RenderContextVulkanImpl()
 {
+    // These should all have gotten recycled at the end of the last frame.
+    assert(m_flushUniformBuffer == nullptr);
+    assert(m_imageDrawUniformBuffer == nullptr);
+    assert(m_pathBuffer == nullptr);
+    assert(m_paintBuffer == nullptr);
+    assert(m_paintAuxBuffer == nullptr);
+    assert(m_contourBuffer == nullptr);
+    assert(m_gradSpanBuffer == nullptr);
+    assert(m_tessSpanBuffer == nullptr);
+    assert(m_triangleBuffer == nullptr);
+
     // Tell the context we are entering our shutdown cycle. After this point,
     // all resources will be deleted immediately upon their refCount reaching
     // zero, as opposed to being kept alive for in-flight command buffers.
@@ -2571,24 +2580,31 @@ void RenderContextVulkanImpl::resizeCoverageBuffer(size_t sizeInBytes)
 void RenderContextVulkanImpl::prepareToFlush(uint64_t nextFrameNumber,
                                              uint64_t safeFrameNumber)
 {
+    // These should all have gotten recycled at the end of the last frame.
+    assert(m_flushUniformBuffer == nullptr);
+    assert(m_imageDrawUniformBuffer == nullptr);
+    assert(m_pathBuffer == nullptr);
+    assert(m_paintBuffer == nullptr);
+    assert(m_paintAuxBuffer == nullptr);
+    assert(m_contourBuffer == nullptr);
+    assert(m_gradSpanBuffer == nullptr);
+    assert(m_tessSpanBuffer == nullptr);
+    assert(m_triangleBuffer == nullptr);
+
     // Advance the context frame and delete resources that are no longer
     // referenced by in-flight command buffers.
     m_vk->advanceFrameNumber(nextFrameNumber, safeFrameNumber);
 
-    // Clean expired resources in our pool of descriptor set pools.
-    m_descriptorSetPoolPool->purgeExcessExpiredResources();
-
-    // Release the current buffers in our pools so we can get new ones for the
-    // next flush.
-    m_flushUniformBufferPool.releaseCurrentBuffer();
-    m_imageDrawUniformBufferPool.releaseCurrentBuffer();
-    m_pathBufferPool.releaseCurrentBuffer();
-    m_paintBufferPool.releaseCurrentBuffer();
-    m_paintAuxBufferPool.releaseCurrentBuffer();
-    m_contourBufferPool.releaseCurrentBuffer();
-    m_gradSpanBufferPool.releaseCurrentBuffer();
-    m_tessSpanBufferPool.releaseCurrentBuffer();
-    m_triangleBufferPool.releaseCurrentBuffer();
+    // Acquire buffers for the flush.
+    m_flushUniformBuffer = m_flushUniformBufferPool.acquire();
+    m_imageDrawUniformBuffer = m_imageDrawUniformBufferPool.acquire();
+    m_pathBuffer = m_pathBufferPool.acquire();
+    m_paintBuffer = m_paintBufferPool.acquire();
+    m_paintAuxBuffer = m_paintAuxBufferPool.acquire();
+    m_contourBuffer = m_contourBufferPool.acquire();
+    m_gradSpanBuffer = m_gradSpanBufferPool.acquire();
+    m_tessSpanBuffer = m_tessSpanBufferPool.acquire();
+    m_triangleBuffer = m_triangleBufferPool.acquire();
 }
 
 namespace descriptor_pool_limits
@@ -2607,8 +2623,8 @@ constexpr static uint32_t kMaxDescriptorSets = 3 + kMaxImageTextureUpdates;
 } // namespace descriptor_pool_limits
 
 RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
-    rcp<VulkanContext> vk) :
-    m_vk(std::move(vk))
+    rcp<VulkanContext> vulkanContext) :
+    vkutil::Resource(std::move(vulkanContext))
 {
     VkDescriptorPoolSize descriptorPoolSizes[] = {
         {
@@ -2646,7 +2662,7 @@ RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
         .pPoolSizes = descriptorPoolSizes,
     };
 
-    VK_CHECK(m_vk->CreateDescriptorPool(m_vk->device,
+    VK_CHECK(vk()->CreateDescriptorPool(vk()->device,
                                         &descriptorPoolCreateInfo,
                                         nullptr,
                                         &m_vkDescriptorPool));
@@ -2654,7 +2670,7 @@ RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
 
 RenderContextVulkanImpl::DescriptorSetPool::~DescriptorSetPool()
 {
-    m_vk->DestroyDescriptorPool(m_vk->device, m_vkDescriptorPool, nullptr);
+    vk()->DestroyDescriptorPool(vk()->device, m_vkDescriptorPool, nullptr);
 }
 
 VkDescriptorSet RenderContextVulkanImpl::DescriptorSetPool::
@@ -2668,7 +2684,7 @@ VkDescriptorSet RenderContextVulkanImpl::DescriptorSetPool::
     };
 
     VkDescriptorSet descriptorSet;
-    VK_CHECK(m_vk->AllocateDescriptorSets(m_vk->device,
+    VK_CHECK(vk()->AllocateDescriptorSets(vk()->device,
                                           &descriptorSetAllocateInfo,
                                           &descriptorSet));
 
@@ -2677,7 +2693,24 @@ VkDescriptorSet RenderContextVulkanImpl::DescriptorSetPool::
 
 void RenderContextVulkanImpl::DescriptorSetPool::reset()
 {
-    m_vk->ResetDescriptorPool(m_vk->device, m_vkDescriptorPool, 0);
+    vk()->ResetDescriptorPool(vk()->device, m_vkDescriptorPool, 0);
+}
+
+rcp<RenderContextVulkanImpl::DescriptorSetPool> RenderContextVulkanImpl::
+    DescriptorSetPoolPool::acquire()
+{
+    auto descriptorSetPool =
+        static_rcp_cast<DescriptorSetPool>(GPUResourcePool::acquire());
+    if (descriptorSetPool == nullptr)
+    {
+        descriptorSetPool = make_rcp<DescriptorSetPool>(
+            static_rcp_cast<VulkanContext>(m_manager));
+    }
+    else
+    {
+        descriptorSetPool->reset();
+    }
+    return descriptorSetPool;
 }
 
 vkutil::TextureView* RenderTargetVulkan::ensureOffscreenColorTextureView()
@@ -2803,7 +2836,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     auto commandBuffer =
         reinterpret_cast<VkCommandBuffer>(desc.externalCommandBuffer);
-    rcp<DescriptorSetPool> descriptorSetPool = m_descriptorSetPoolPool->make();
+    rcp<DescriptorSetPool> descriptorSetPool =
+        m_descriptorSetPoolPool->acquire();
 
     // Apply pending texture updates.
     if (m_featherTexture->hasUpdates())
@@ -2837,7 +2871,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER,
         },
         {{
-            .buffer = *m_flushUniformBufferPool.currentBuffer(),
+            .buffer = *m_flushUniformBuffer,
             .offset = desc.flushUniformDataOffsetInBytes,
             .range = sizeof(gpu::FlushUniforms),
         }});
@@ -2849,7 +2883,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC,
         },
         {{
-            .buffer = *m_imageDrawUniformBufferPool.currentBuffer(),
+            .buffer = *m_imageDrawUniformBuffer,
             .offset = 0,
             .range = sizeof(gpu::ImageDrawUniforms),
         }});
@@ -2861,7 +2895,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         },
         {{
-            .buffer = *m_pathBufferPool.currentBuffer(),
+            .buffer = *m_pathBuffer,
             .offset = desc.firstPath * sizeof(gpu::PathData),
             .range = VK_WHOLE_SIZE,
         }});
@@ -2874,12 +2908,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         },
         {
             {
-                .buffer = *m_paintBufferPool.currentBuffer(),
+                .buffer = *m_paintBuffer,
                 .offset = desc.firstPaint * sizeof(gpu::PaintData),
                 .range = VK_WHOLE_SIZE,
             },
             {
-                .buffer = *m_paintAuxBufferPool.currentBuffer(),
+                .buffer = *m_paintAuxBuffer,
                 .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
                 .range = VK_WHOLE_SIZE,
             },
@@ -2893,7 +2927,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .descriptorType = VK_DESCRIPTOR_TYPE_STORAGE_BUFFER,
         },
         {{
-            .buffer = *m_contourBufferPool.currentBuffer(),
+            .buffer = *m_contourBuffer,
             .offset = desc.firstContour * sizeof(gpu::ContourData),
             .range = VK_WHOLE_SIZE,
         }});
@@ -3013,7 +3047,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         m_vk->CmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
-        VkBuffer gradSpanBuffer = *m_gradSpanBufferPool.currentBuffer();
+        VkBuffer gradSpanBuffer = *m_gradSpanBuffer;
         VkDeviceSize gradSpanOffset =
             desc.firstGradSpan * sizeof(gpu::GradientSpan);
         m_vk->CmdBindVertexBuffers(commandBuffer,
@@ -3097,7 +3131,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         m_vk->CmdSetScissor(commandBuffer, 0, 1, &renderArea);
 
-        VkBuffer tessBuffer = *m_tessSpanBufferPool.currentBuffer();
+        VkBuffer tessBuffer = *m_tessSpanBuffer;
         VkDeviceSize tessOffset =
             desc.firstTessVertexSpan * sizeof(gpu::TessVertexSpan);
         m_vk->CmdBindVertexBuffers(commandBuffer,
@@ -3726,7 +3760,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 {
                     // We ran out of room for image texture updates. Allocate a
                     // new pool.
-                    descriptorSetPool = m_descriptorSetPoolPool->make();
+                    m_descriptorSetPoolPool->recycle(
+                        std::move(descriptorSetPool));
+                    descriptorSetPool = m_descriptorSetPoolPool->acquire();
                     imageTextureUpdateCount = 0;
                 }
 
@@ -3881,7 +3917,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::interiorTriangulation:
             case DrawType::atlasBlit:
             {
-                VkBuffer buffer = *m_triangleBufferPool.currentBuffer();
+                VkBuffer buffer = *m_triangleBuffer;
                 m_vk->CmdBindVertexBuffers(commandBuffer,
                                            0,
                                            1,
@@ -4029,6 +4065,23 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
 
     renderTarget->setTargetLastAccess(finalRenderTargetAccess);
+
+    m_descriptorSetPoolPool->recycle(std::move(descriptorSetPool));
+
+    if (desc.isFinalFlushOfFrame)
+    {
+        // Recycle buffers.
+        m_flushUniformBufferPool.recycle(std::move(m_flushUniformBuffer));
+        m_imageDrawUniformBufferPool.recycle(
+            std::move(m_imageDrawUniformBuffer));
+        m_pathBufferPool.recycle(std::move(m_pathBuffer));
+        m_paintBufferPool.recycle(std::move(m_paintBuffer));
+        m_paintAuxBufferPool.recycle(std::move(m_paintAuxBuffer));
+        m_contourBufferPool.recycle(std::move(m_contourBuffer));
+        m_gradSpanBufferPool.recycle(std::move(m_gradSpanBuffer));
+        m_tessSpanBufferPool.recycle(std::move(m_tessSpanBuffer));
+        m_triangleBufferPool.recycle(std::move(m_triangleBuffer));
+    }
 }
 
 void RenderContextVulkanImpl::hotloadShaders(

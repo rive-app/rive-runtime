@@ -132,48 +132,57 @@ void* RenderContextHelperImpl::mapTriangleVertexBuffer(size_t mapSizeInBytes)
     return m_triangleBuffer->mapBuffer(mapSizeInBytes);
 }
 
-void RenderContextHelperImpl::unmapFlushUniformBuffer()
+void RenderContextHelperImpl::unmapFlushUniformBuffer(size_t mapSizeInBytes)
 {
+    assert(m_flushUniformBuffer->mapSizeInBytes() == mapSizeInBytes);
     m_flushUniformBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapImageDrawUniformBuffer()
+void RenderContextHelperImpl::unmapImageDrawUniformBuffer(size_t mapSizeInBytes)
 {
+    assert(m_imageDrawUniformBuffer->mapSizeInBytes() == mapSizeInBytes);
     m_imageDrawUniformBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapPathBuffer()
+void RenderContextHelperImpl::unmapPathBuffer(size_t mapSizeInBytes)
 {
+    assert(m_pathBuffer->mapSizeInBytes() == mapSizeInBytes);
     m_pathBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapPaintBuffer()
+void RenderContextHelperImpl::unmapPaintBuffer(size_t mapSizeInBytes)
 {
+    assert(m_paintBuffer->mapSizeInBytes() == mapSizeInBytes);
     m_paintBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapPaintAuxBuffer()
+void RenderContextHelperImpl::unmapPaintAuxBuffer(size_t mapSizeInBytes)
 {
+    assert(m_paintAuxBuffer->mapSizeInBytes() == mapSizeInBytes);
     m_paintAuxBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapContourBuffer()
+void RenderContextHelperImpl::unmapContourBuffer(size_t mapSizeInBytes)
 {
+    assert(m_contourBuffer->mapSizeInBytes() == mapSizeInBytes);
     m_contourBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapGradSpanBuffer()
+void RenderContextHelperImpl::unmapGradSpanBuffer(size_t mapSizeInBytes)
 {
+    assert(m_gradSpanBuffer->mapSizeInBytes() == mapSizeInBytes);
     m_gradSpanBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapTessVertexSpanBuffer()
+void RenderContextHelperImpl::unmapTessVertexSpanBuffer(size_t mapSizeInBytes)
 {
+    assert(m_tessSpanBuffer->mapSizeInBytes() == mapSizeInBytes);
     m_tessSpanBuffer->unmapAndSubmitBuffer();
 }
 
-void RenderContextHelperImpl::unmapTriangleVertexBuffer()
+void RenderContextHelperImpl::unmapTriangleVertexBuffer(size_t mapSizeInBytes)
 {
+    assert(m_triangleBuffer->mapSizeInBytes() == mapSizeInBytes);
     m_triangleBuffer->unmapAndSubmitBuffer();
 }
 } // namespace rive::gpu

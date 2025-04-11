@@ -40,15 +40,15 @@ public:
     void* mapTessVertexSpanBuffer(size_t mapSizeInBytes) override;
     void* mapTriangleVertexBuffer(size_t mapSizeInBytes) override;
 
-    void unmapFlushUniformBuffer() override;
-    void unmapImageDrawUniformBuffer() override;
-    void unmapPathBuffer() override;
-    void unmapPaintBuffer() override;
-    void unmapPaintAuxBuffer() override;
-    void unmapContourBuffer() override;
-    void unmapGradSpanBuffer() override;
-    void unmapTessVertexSpanBuffer() override;
-    void unmapTriangleVertexBuffer() override;
+    void unmapFlushUniformBuffer(size_t mapSizeInBytes) override;
+    void unmapImageDrawUniformBuffer(size_t mapSizeInBytes) override;
+    void unmapPathBuffer(size_t mapSizeInBytes) override;
+    void unmapPaintBuffer(size_t mapSizeInBytes) override;
+    void unmapPaintAuxBuffer(size_t mapSizeInBytes) override;
+    void unmapContourBuffer(size_t mapSizeInBytes) override;
+    void unmapGradSpanBuffer(size_t mapSizeInBytes) override;
+    void unmapTessVertexSpanBuffer(size_t mapSizeInBytes) override;
+    void unmapTriangleVertexBuffer(size_t mapSizeInBytes) override;
 
     double secondsNow() const override
     {

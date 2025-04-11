@@ -335,7 +335,7 @@ private:
     void setResourceSizes(ResourceAllocationCounts, bool forceRealloc = false);
 
     void mapResourceBuffers(const ResourceAllocationCounts&);
-    void unmapResourceBuffers();
+    void unmapResourceBuffers(const ResourceAllocationCounts&);
 
     // Returns the next coverage buffer prefix to use in a logical flush.
     // Sets needsCoverageBufferClear if the coverage buffer must be cleared in

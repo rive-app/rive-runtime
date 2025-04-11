@@ -1442,8 +1442,21 @@ public:
                      MapResourceBufferFn mapFn,
                      size_t elementCount)
     {
+        assert(m_mappedMemory == nullptr);
         void* ptr = (impl->*mapFn)(elementCount * sizeof(T));
         reset(reinterpret_cast<T*>(ptr), elementCount);
+    }
+
+    using UnmapResourceBufferFn =
+        void (RenderContextImpl::*)(size_t mapSizeInBytes);
+    void unmapElements(RenderContextImpl* impl,
+                       UnmapResourceBufferFn unmapFn,
+                       size_t elementCount)
+    {
+        assert(m_mappedMemory != nullptr);
+        assert(m_mappingEnd - m_mappedMemory == elementCount);
+        (impl->*unmapFn)(elementCount * sizeof(T));
+        reset();
     }
 
     operator bool() const { return m_mappedMemory; }

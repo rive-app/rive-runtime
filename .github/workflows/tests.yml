@@ -49,8 +49,6 @@ jobs:
 
     steps:
       - uses: actions/checkout@v3
-      - name: Get srivs
-        run: git lfs pull tests/unit_tests/silvers
 
       - name: Install
         run: |

@@ -26,15 +26,15 @@ while [[ $# -gt 0 ]]; do
     memory)
       echo Will perform memory checks...
       UTILITY='leaks --atExit --'
-      shift
+      shift # past argument
       ;;
     release)
       CONFIG=release
-      shift
+      shift # past argument
       ;;
     rebaseline)
       export REBASELINE_SILVERS=true
-      shift
+      shift # past argument
       ;;
     *)
       shift # past argument

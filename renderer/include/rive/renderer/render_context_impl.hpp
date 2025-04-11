@@ -80,15 +80,15 @@ public:
     virtual void* mapTriangleVertexBuffer(size_t mapSizeInBytes) = 0;
 
     // Unmap GPU buffers. All buffers will be unmapped before flush().
-    virtual void unmapFlushUniformBuffer() = 0;
-    virtual void unmapImageDrawUniformBuffer() = 0;
-    virtual void unmapPathBuffer() = 0;
-    virtual void unmapPaintBuffer() = 0;
-    virtual void unmapPaintAuxBuffer() = 0;
-    virtual void unmapContourBuffer() = 0;
-    virtual void unmapGradSpanBuffer() = 0;
-    virtual void unmapTessVertexSpanBuffer() = 0;
-    virtual void unmapTriangleVertexBuffer() = 0;
+    virtual void unmapFlushUniformBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapImageDrawUniformBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapPathBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapPaintBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapPaintAuxBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapContourBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapGradSpanBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapTessVertexSpanBuffer(size_t mapSizeInBytes) = 0;
+    virtual void unmapTriangleVertexBuffer(size_t mapSizeInBytes) = 0;
 
     // Allocate resources that are updated and used during flush().
     virtual void resizeGradientTexture(uint32_t width, uint32_t height) = 0;

@@ -612,9 +612,6 @@ void RenderContext::flush(const FlushResources& flushResources)
     assert(flushResources.renderTarget->height() ==
            m_frameDescriptor.renderTargetHeight);
 
-    m_impl->prepareToFlush(flushResources.currentFrameNumber,
-                           flushResources.safeFrameNumber);
-
     m_clipContentID = 0;
 
     // Layout this frame's resource buffers and textures.
@@ -631,53 +628,58 @@ void RenderContext::flush(const FlushResources& flushResources)
 
     // Determine the minimum required resource allocation sizes to service this
     // flush.
-    ResourceAllocationCounts allocs;
-    allocs.flushUniformBufferCount = m_logicalFlushes.size();
-    allocs.imageDrawUniformBufferCount =
+    ResourceAllocationCounts resourceRequirements;
+    resourceRequirements.flushUniformBufferCount = m_logicalFlushes.size();
+    resourceRequirements.imageDrawUniformBufferCount =
         totalFrameResourceCounts.imageDrawCount;
-    allocs.pathBufferCount =
+    resourceRequirements.pathBufferCount =
         totalFrameResourceCounts.pathCount + layoutCounts.pathPaddingCount;
-    allocs.paintBufferCount =
+    resourceRequirements.paintBufferCount =
         totalFrameResourceCounts.pathCount + layoutCounts.paintPaddingCount;
-    allocs.paintAuxBufferCount =
+    resourceRequirements.paintAuxBufferCount =
         totalFrameResourceCounts.pathCount + layoutCounts.paintAuxPaddingCount;
-    allocs.contourBufferCount = totalFrameResourceCounts.contourCount +
-                                layoutCounts.contourPaddingCount;
-    allocs.gradSpanBufferCount =
+    resourceRequirements.contourBufferCount =
+        totalFrameResourceCounts.contourCount +
+        layoutCounts.contourPaddingCount;
+    resourceRequirements.gradSpanBufferCount =
         layoutCounts.gradSpanCount + layoutCounts.gradSpanPaddingCount;
-    allocs.tessSpanBufferCount =
+    resourceRequirements.tessSpanBufferCount =
         totalFrameResourceCounts.maxTessellatedSegmentCount;
-    allocs.triangleVertexBufferCount =
+    resourceRequirements.triangleVertexBufferCount =
         totalFrameResourceCounts.maxTriangleVertexCount;
-    allocs.gradTextureHeight = layoutCounts.maxGradTextureHeight;
-    allocs.tessTextureHeight = layoutCounts.maxTessTextureHeight;
-    allocs.atlasTextureWidth = layoutCounts.maxAtlasWidth;
-    allocs.atlasTextureHeight = layoutCounts.maxAtlasHeight;
-    allocs.coverageBufferLength = layoutCounts.maxCoverageBufferLength;
+    resourceRequirements.gradTextureHeight = layoutCounts.maxGradTextureHeight;
+    resourceRequirements.tessTextureHeight = layoutCounts.maxTessTextureHeight;
+    resourceRequirements.atlasTextureWidth = layoutCounts.maxAtlasWidth;
+    resourceRequirements.atlasTextureHeight = layoutCounts.maxAtlasHeight;
+    resourceRequirements.coverageBufferLength =
+        layoutCounts.maxCoverageBufferLength;
 
     // Ensure we're within hardware limits.
-    assert(allocs.gradTextureHeight <= kMaxTextureHeight);
-    assert(allocs.tessTextureHeight <= kMaxTextureHeight);
-    assert(allocs.atlasTextureWidth <= atlasMaxSize() ||
-           allocs.atlasTextureWidth <= frameDescriptor().renderTargetWidth);
-    assert(allocs.atlasTextureHeight <= atlasMaxSize() ||
-           allocs.atlasTextureHeight <= frameDescriptor().renderTargetHeight);
-    assert(allocs.coverageBufferLength <=
+    assert(resourceRequirements.gradTextureHeight <= kMaxTextureHeight);
+    assert(resourceRequirements.tessTextureHeight <= kMaxTextureHeight);
+    assert(resourceRequirements.atlasTextureWidth <= atlasMaxSize() ||
+           resourceRequirements.atlasTextureWidth <=
+               frameDescriptor().renderTargetWidth);
+    assert(resourceRequirements.atlasTextureHeight <= atlasMaxSize() ||
+           resourceRequirements.atlasTextureHeight <=
+               frameDescriptor().renderTargetHeight);
+    assert(resourceRequirements.coverageBufferLength <=
            platformFeatures().maxCoverageBufferLength);
 
     // Track m_maxRecentResourceRequirements so we can trim GPU allocations when
     // steady-state usage goes down.
     m_maxRecentResourceRequirements =
-        simd::max(allocs.toVec(), m_maxRecentResourceRequirements.toVec());
+        simd::max(resourceRequirements.toVec(),
+                  m_maxRecentResourceRequirements.toVec());
 
     // Grow resources enough to handle this flush.
     // If "allocs" already fits in our current allocations, then don't change
     // them. If they don't fit, overallocate by 25% in order to create some
     // slack for growth.
-    allocs = simd::if_then_else(allocs.toVec() <=
-                                    m_currentResourceAllocations.toVec(),
-                                m_currentResourceAllocations.toVec(),
-                                allocs.toVec() * size_t(5) / size_t(4));
+    ResourceAllocationCounts allocs = simd::if_then_else(
+        resourceRequirements.toVec() <= m_currentResourceAllocations.toVec(),
+        m_currentResourceAllocations.toVec(),
+        resourceRequirements.toVec() * size_t(5) / size_t(4));
 
     // In case the 25% growth pushed us above limits.
     allocs.gradTextureHeight =
@@ -726,7 +728,11 @@ void RenderContext::flush(const FlushResources& flushResources)
     }
 
     setResourceSizes(allocs);
-    mapResourceBuffers(allocs);
+
+    m_impl->prepareToFlush(flushResources.currentFrameNumber,
+                           flushResources.safeFrameNumber);
+
+    mapResourceBuffers(resourceRequirements);
 
     for (const auto& flush : m_logicalFlushes)
     {
@@ -753,7 +759,7 @@ void RenderContext::flush(const FlushResources& flushResources)
     assert(m_triangleVertexData.elementsWritten() <=
            totalFrameResourceCounts.maxTriangleVertexCount);
 
-    unmapResourceBuffers();
+    unmapResourceBuffers(resourceRequirements);
 
     // Issue logical flushes to the backend.
     for (const auto& flush : m_logicalFlushes)
@@ -1900,52 +1906,66 @@ void RenderContext::mapResourceBuffers(
         m_triangleVertexData.hasRoomFor(mapCounts.triangleVertexBufferCount));
 }
 
-void RenderContext::unmapResourceBuffers()
+void RenderContext::unmapResourceBuffers(
+    const ResourceAllocationCounts& mapCounts)
 {
     if (m_flushUniformData)
     {
-        m_impl->unmapFlushUniformBuffer();
-        m_flushUniformData.reset();
+        m_flushUniformData.unmapElements(
+            m_impl.get(),
+            &RenderContextImpl::unmapFlushUniformBuffer,
+            mapCounts.flushUniformBufferCount);
     }
     if (m_imageDrawUniformData)
     {
-        m_impl->unmapImageDrawUniformBuffer();
-        m_imageDrawUniformData.reset();
+        m_imageDrawUniformData.unmapElements(
+            m_impl.get(),
+            &RenderContextImpl::unmapImageDrawUniformBuffer,
+            mapCounts.imageDrawUniformBufferCount);
     }
     if (m_pathData)
     {
-        m_impl->unmapPathBuffer();
-        m_pathData.reset();
+        m_pathData.unmapElements(m_impl.get(),
+                                 &RenderContextImpl::unmapPathBuffer,
+                                 mapCounts.pathBufferCount);
     }
     if (m_paintData)
     {
-        m_impl->unmapPaintBuffer();
-        m_paintData.reset();
+        m_paintData.unmapElements(m_impl.get(),
+                                  &RenderContextImpl::unmapPaintBuffer,
+                                  mapCounts.paintBufferCount);
     }
     if (m_paintAuxData)
     {
-        m_impl->unmapPaintAuxBuffer();
-        m_paintAuxData.reset();
+        m_paintAuxData.unmapElements(m_impl.get(),
+                                     &RenderContextImpl::unmapPaintAuxBuffer,
+                                     mapCounts.paintAuxBufferCount);
     }
     if (m_contourData)
     {
-        m_impl->unmapContourBuffer();
-        m_contourData.reset();
+        m_contourData.unmapElements(m_impl.get(),
+                                    &RenderContextImpl::unmapContourBuffer,
+                                    mapCounts.contourBufferCount);
     }
     if (m_gradSpanData)
     {
-        m_impl->unmapGradSpanBuffer();
-        m_gradSpanData.reset();
+        m_gradSpanData.unmapElements(m_impl.get(),
+                                     &RenderContextImpl::unmapGradSpanBuffer,
+                                     mapCounts.gradSpanBufferCount);
     }
     if (m_tessSpanData)
     {
-        m_impl->unmapTessVertexSpanBuffer();
-        m_tessSpanData.reset();
+        m_tessSpanData.unmapElements(
+            m_impl.get(),
+            &RenderContextImpl::unmapTessVertexSpanBuffer,
+            mapCounts.tessSpanBufferCount);
     }
     if (m_triangleVertexData)
     {
-        m_impl->unmapTriangleVertexBuffer();
-        m_triangleVertexData.reset();
+        m_triangleVertexData.unmapElements(
+            m_impl.get(),
+            &RenderContextImpl::unmapTriangleVertexBuffer,
+            mapCounts.triangleVertexBufferCount);
     }
 }
 

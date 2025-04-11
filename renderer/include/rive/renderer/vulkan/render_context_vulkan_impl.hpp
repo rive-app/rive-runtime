@@ -6,7 +6,6 @@
 
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
-#include "rive/renderer/vulkan/vkutil_resource_pool.hpp"
 #include <chrono>
 #include <map>
 #include <vulkan/vulkan.h>
@@ -157,38 +156,50 @@ private:
     void prepareToFlush(uint64_t nextFrameNumber,
                         uint64_t safeFrameNumber) override;
 
-#define IMPLEMENT_PLS_BUFFER(Name, m_name)                                     \
+#define IMPLEMENT_PLS_BUFFER(Name, m_buffer)                                   \
     void resize##Name(size_t sizeInBytes) override                             \
     {                                                                          \
-        m_name.setTargetSize(sizeInBytes);                                     \
+        assert(m_buffer == nullptr);                                           \
+        m_buffer##Pool.setTargetSize(sizeInBytes);                             \
     }                                                                          \
     void* map##Name(size_t mapSizeInBytes) override                            \
     {                                                                          \
-        return m_name.mapCurrentBuffer(mapSizeInBytes);                        \
+        assert(m_buffer != nullptr);                                           \
+        return m_buffer->contents();                                           \
     }                                                                          \
-    void unmap##Name() override { m_name.unmapCurrentBuffer(); }
+    void unmap##Name(size_t mapSizeInBytes) override                           \
+    {                                                                          \
+        assert(m_buffer != nullptr);                                           \
+        m_buffer->flushContents(mapSizeInBytes);                               \
+    }
 
-#define IMPLEMENT_PLS_STRUCTURED_BUFFER(Name, m_name)                          \
+#define IMPLEMENT_PLS_STRUCTURED_BUFFER(Name, m_buffer)                        \
     void resize##Name(size_t sizeInBytes, gpu::StorageBufferStructure)         \
         override                                                               \
     {                                                                          \
-        m_name.setTargetSize(sizeInBytes);                                     \
+        assert(m_buffer == nullptr);                                           \
+        m_buffer##Pool.setTargetSize(sizeInBytes);                             \
     }                                                                          \
     void* map##Name(size_t mapSizeInBytes) override                            \
     {                                                                          \
-        return m_name.mapCurrentBuffer(mapSizeInBytes);                        \
+        assert(m_buffer != nullptr);                                           \
+        return m_buffer->contents();                                           \
     }                                                                          \
-    void unmap##Name() override { m_name.unmapCurrentBuffer(); }
+    void unmap##Name(size_t mapSizeInBytes) override                           \
+    {                                                                          \
+        assert(m_buffer != nullptr);                                           \
+        m_buffer->flushContents(mapSizeInBytes);                               \
+    }
 
-    IMPLEMENT_PLS_BUFFER(FlushUniformBuffer, m_flushUniformBufferPool)
-    IMPLEMENT_PLS_BUFFER(ImageDrawUniformBuffer, m_imageDrawUniformBufferPool)
-    IMPLEMENT_PLS_STRUCTURED_BUFFER(PathBuffer, m_pathBufferPool)
-    IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintBuffer, m_paintBufferPool)
-    IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintAuxBuffer, m_paintAuxBufferPool)
-    IMPLEMENT_PLS_STRUCTURED_BUFFER(ContourBuffer, m_contourBufferPool)
-    IMPLEMENT_PLS_BUFFER(GradSpanBuffer, m_gradSpanBufferPool)
-    IMPLEMENT_PLS_BUFFER(TessVertexSpanBuffer, m_tessSpanBufferPool)
-    IMPLEMENT_PLS_BUFFER(TriangleVertexBuffer, m_triangleBufferPool)
+    IMPLEMENT_PLS_BUFFER(FlushUniformBuffer, m_flushUniformBuffer)
+    IMPLEMENT_PLS_BUFFER(ImageDrawUniformBuffer, m_imageDrawUniformBuffer)
+    IMPLEMENT_PLS_STRUCTURED_BUFFER(PathBuffer, m_pathBuffer)
+    IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintBuffer, m_paintBuffer)
+    IMPLEMENT_PLS_STRUCTURED_BUFFER(PaintAuxBuffer, m_paintAuxBuffer)
+    IMPLEMENT_PLS_STRUCTURED_BUFFER(ContourBuffer, m_contourBuffer)
+    IMPLEMENT_PLS_BUFFER(GradSpanBuffer, m_gradSpanBuffer)
+    IMPLEMENT_PLS_BUFFER(TessVertexSpanBuffer, m_tessSpanBuffer)
+    IMPLEMENT_PLS_BUFFER(TriangleVertexBuffer, m_triangleBuffer)
 
 #undef IMPLEMENT_PLS_BUFFER
 #undef IMPLEMENT_PLS_STRUCTURED_BUFFER
@@ -200,10 +211,7 @@ private:
 
     // Wraps a VkDescriptorPool created specifically for a PLS flush, and tracks
     // its allocated descriptor sets.
-    // The vkutil::RenderingResource base ensures this class stays alive until
-    // its command buffer finishes, at which point we free the allocated
-    // descriptor sets and return the VkDescriptor to the renderContext.
-    class DescriptorSetPool final : public RefCnt<DescriptorSetPool>
+    class DescriptorSetPool final : public vkutil::Resource
     {
     public:
         DescriptorSetPool(rcp<VulkanContext>);
@@ -213,16 +221,6 @@ private:
         void reset();
 
     private:
-        friend class RefCnt<DescriptorSetPool>;
-        friend class vkutil::ResourcePool<DescriptorSetPool>;
-
-        void onRefCntReachedZero() const
-        {
-            m_pool->onResourceRefCntReachedZero(this);
-        }
-
-        const rcp<VulkanContext> m_vk;
-        rcp<vkutil::ResourcePool<DescriptorSetPool>> m_pool;
         VkDescriptorPool m_vkDescriptorPool;
     };
 
@@ -238,7 +236,8 @@ private:
     const uint32_t m_vendorID;
     const VkFormat m_atlasFormat;
 
-    // Rive buffers.
+    // Rive buffer pools. These don't need to be rcp<> because the destructor of
+    // RenderContextVulkanImpl is already synchronized.
     vkutil::BufferPool m_flushUniformBufferPool;
     vkutil::BufferPool m_imageDrawUniformBufferPool;
     vkutil::BufferPool m_pathBufferPool;
@@ -248,6 +247,18 @@ private:
     vkutil::BufferPool m_gradSpanBufferPool;
     vkutil::BufferPool m_tessSpanBufferPool;
     vkutil::BufferPool m_triangleBufferPool;
+
+    // Specific Rive buffers that have been acquired for the current frame.
+    // When the frame ends, these get recycled back in their respective pools.
+    rcp<vkutil::Buffer> m_flushUniformBuffer;
+    rcp<vkutil::Buffer> m_imageDrawUniformBuffer;
+    rcp<vkutil::Buffer> m_pathBuffer;
+    rcp<vkutil::Buffer> m_paintBuffer;
+    rcp<vkutil::Buffer> m_paintAuxBuffer;
+    rcp<vkutil::Buffer> m_contourBuffer;
+    rcp<vkutil::Buffer> m_gradSpanBuffer;
+    rcp<vkutil::Buffer> m_tessSpanBuffer;
+    rcp<vkutil::Buffer> m_triangleBuffer;
 
     std::chrono::steady_clock::time_point m_localEpoch =
         std::chrono::steady_clock::now();
@@ -321,8 +332,18 @@ private:
     rcp<vkutil::Buffer> m_imageRectVertexBuffer;
     rcp<vkutil::Buffer> m_imageRectIndexBuffer;
 
-    // Pool of DescriptorSetPools that have been fully released. These will be
-    // recycled once their expirationFrameIdx is reached.
-    rcp<vkutil::ResourcePool<DescriptorSetPool>> m_descriptorSetPoolPool;
+    // Pool of DescriptorSetPool instances for flushing.
+    class DescriptorSetPoolPool : public GPUResourcePool
+    {
+    public:
+        constexpr static size_t MAX_POOL_SIZE = 64;
+        DescriptorSetPoolPool(rcp<GPUResourceManager> manager) :
+            GPUResourcePool(std::move(manager), MAX_POOL_SIZE)
+        {}
+
+        rcp<DescriptorSetPool> acquire();
+    };
+
+    rcp<DescriptorSetPoolPool> m_descriptorSetPoolPool;
 };
 } // namespace rive::gpu

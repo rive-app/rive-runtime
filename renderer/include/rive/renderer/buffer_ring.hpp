@@ -27,6 +27,7 @@ public:
 
     size_t capacityInBytes() const { return m_capacityInBytes; }
     bool isMapped() const { return m_mapSizeInBytes != 0; }
+    size_t mapSizeInBytes() const { return m_mapSizeInBytes; }
 
     // Maps the next buffer in the ring.
     void* mapBuffer(size_t mapSizeInBytes)
