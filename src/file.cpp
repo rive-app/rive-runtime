@@ -868,6 +868,9 @@ ViewModelRuntime* File::viewModelByIndex(size_t index) const
     {
         return createViewModelRuntime(m_ViewModels[index]);
     }
+    fprintf(stderr,
+            "Could not find View Model. Index %zu is out of range.\n",
+            index);
     return nullptr;
 }
 
@@ -880,16 +883,25 @@ ViewModelRuntime* File::viewModelByName(std::string name) const
             return createViewModelRuntime(viewModel);
         }
     }
+    fprintf(stderr, "Could not find View Model named %s.\n", name.c_str());
     return nullptr;
 }
 
 ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
 {
+    if (artboard == nullptr)
+    {
+        fprintf(stderr, "Invalid Artboard\n");
+        return nullptr;
+    }
     if ((size_t)artboard->viewModelId() < m_ViewModels.size())
     {
         auto viewModel = m_ViewModels[artboard->viewModelId()];
         return createViewModelRuntime(viewModel);
     }
+    fprintf(stderr,
+            "Could not find a View Model linked to Artboard %s.\n",
+            artboard->name().c_str());
     return nullptr;
 }
 

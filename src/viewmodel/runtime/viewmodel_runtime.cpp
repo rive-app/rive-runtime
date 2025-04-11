@@ -107,6 +107,13 @@ ViewModelInstanceRuntime* ViewModelRuntime::createInstanceFromIndex(
         m_file->completeViewModelInstance(copy);
         return createRuntimeInstance(copy);
     }
+    else
+    {
+        fprintf(
+            stderr,
+            "Could not find View Model Instance. Index %zu is out of range.\n",
+            index);
+    }
     return nullptr;
 }
 
@@ -121,6 +128,14 @@ ViewModelInstanceRuntime* ViewModelRuntime::createInstanceFromName(
         m_file->completeViewModelInstance(copy);
         return createRuntimeInstance(copy);
     }
+    else
+    {
+        fprintf(stderr,
+                "Could not find View Model Instance named %s. Was it marked to "
+                "export "
+                "with the file?\n",
+                name.c_str());
+    }
     return nullptr;
 }
 
@@ -132,6 +147,8 @@ ViewModelInstanceRuntime* ViewModelRuntime::createDefaultInstance() const
     {
         return createRuntimeInstance(viewModelInstance);
     }
+    fprintf(stderr,
+            "Default instance not found. Creating empty instance instead.\n");
     return createInstance();
 }
 
