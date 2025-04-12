@@ -32,7 +32,7 @@ class Draw
 public:
     // Use a "fullscreen" bounding box that is reasonably larger than any
     // screen, but not so big that it runs the risk of overflowing.
-    constexpr static IAABB kFullscreenPixelBounds = {0, 0, 1 << 24, 1 << 24};
+    constexpr static IAABB FULLSCREEN_PIXEL_BOUNDS = {0, 0, 1 << 24, 1 << 24};
 
     enum class Type : uint8_t
     {
@@ -104,7 +104,7 @@ public:
     const Draw* nextDstRead() const { return m_nextDstRead; }
 
     // Finalizes m_prepassCount and m_subpassCount.
-    virtual void determineSubpasses()
+    virtual void countSubpasses()
     {
         // The subclass must set m_prepassCount and m_subpassCount in this call
         // if they are not 0 & 1.
@@ -153,7 +153,7 @@ protected:
 
     // Before issuing the main draws, the renderContext may do a front-to-back
     // pass. Any draw who wants to participate in front-to-back rendering can
-    // register a positive prepass count during determineSubpasses().
+    // register a positive prepass count during countSubpasses().
     //
     // For prepasses, pushToRenderContext() gets called with subpassIndex
     // values: [-m_prepassCount, .., -1].
@@ -161,7 +161,7 @@ protected:
 
     // This is the number of low-level draws that the draw requires during main
     // (back-to-front) rendering. A draw can register the number of subpasses it
-    // requires during determineSubpasses().
+    // requires during countSubpasses().
     //
     // For subpasses, pushToRenderContext() gets called with subpassIndex
     // values: [0, .., m_subpassCount - 1].
@@ -253,7 +253,7 @@ public:
     GrInnerFanTriangulator* triangulator() const { return m_triangulator; }
 
     bool allocateResources(RenderContext::LogicalFlush*) override;
-    void determineSubpasses() override;
+    void countSubpasses() override;
 
     void pushToRenderContext(RenderContext::LogicalFlush*,
                              int subpassIndex) override;
@@ -291,9 +291,28 @@ protected:
                                       RawPath*,
                                       TriangulatorAxis);
 
+    uint32_t allocateTessellationVertices(RenderContext::LogicalFlush* flush,
+                                          uint32_t tessVertexCount)
+    {
+        if (m_triangulator != nullptr)
+            return flush->allocateOuterCubicTessVertices(tessVertexCount);
+        else
+            return flush->allocateMidpointFanTessVertices(tessVertexCount);
+    }
+
+    // Calls LogicalFlush::pushOuterCubicsDraw() or
+    // LogicalFlush::pushMidpointFanDraw() for this PathDraw.
+    void pushTessellationDraw(
+        RenderContext::LogicalFlush*,
+        uint32_t tessVertexCount,
+        uint32_t tessLocation,
+        gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
+
+    // Pushes TessVertexSpans that will tessellate this PathDraw at the given
+    // location.
     void pushTessellationData(RenderContext::LogicalFlush*,
-                              uint32_t* tessVertexCount,
-                              uint32_t* tessLocation);
+                              uint32_t tessVertexCount,
+                              uint32_t tessLocation);
 
     // Pushes the contours and cubics to the renderContext for a
     // "midpointFanPatches" draw.
@@ -383,10 +402,17 @@ protected:
     // Unique ID used by shaders for the current frame.
     uint32_t m_pathID = 0;
 
-    // Used in clockwiseAtomic mode. The negative triangles get rendered in a
-    // separate prepass, and their tessellations need to be allocated before the
-    // main subpass pushes the path to the renderContext.
-    uint32_t m_prepassTessLocation = 0;
+    union
+    {
+        // Used in clockwiseAtomic mode. The negative triangles get rendered in
+        // a separate prepass, and their tessellations need to be allocated
+        // before the main subpass pushes the path to the renderContext.
+        uint32_t m_prepassTessLocation = 0;
+
+        // Used in msaa mode. Multiple msaa subpasses use the same tesellation
+        // data.
+        uint32_t m_msaaTessLocation;
+    };
 
     // Used to guarantee m_pathRef doesn't change for the entire time we hold
     // it.

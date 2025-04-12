@@ -389,7 +389,7 @@ bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
     int passCountInBatch = 0;
     for (size_t i = 0; i < drawCount; ++i)
     {
-        draws[i]->determineSubpasses();
+        draws[i]->countSubpasses();
         assert(draws[i]->prepassCount() >= 0);
         assert(draws[i]->subpassCount() >= 0);
         assert(draws[i]->prepassCount() + draws[i]->subpassCount() >= 1);
@@ -1216,17 +1216,18 @@ void RenderContext::LogicalFlush::writeResources()
         constexpr static int kDrawTypeShift = 45;
         constexpr static int64_t kDrawTypeMask RIVE_MAYBE_UNUSED =
             7llu << kDrawTypeShift;
-        constexpr static int kTextureHashShift = 30;
-        constexpr static int64_t kTextureHashMask = 0x7fffllu
+        constexpr static int kTextureHashShift = 31;
+        constexpr static int64_t kTextureHashMask = 0x3fffllu
                                                     << kTextureHashShift;
-        constexpr static int kBlendModeShift = 26;
+        constexpr static int kBlendModeShift = 27;
         constexpr static int kBlendModeMask = 0xf << kBlendModeShift;
-        constexpr static int kDrawContentsShift = 17;
+        constexpr static int kDrawContentsShift = 18;
         constexpr static int64_t kDrawContentsMask = 0x1ffllu
                                                      << kDrawContentsShift;
-        constexpr static int kDrawIndexShift = 1;
+        constexpr static int kDrawIndexShift = 2;
         constexpr static int64_t kDrawIndexMask = 0x7fff << kDrawIndexShift;
-        constexpr static int64_t kSubpassIndexMask = 0x1;
+        constexpr static int64_t kSubpassIndexMask = 0x3;
+
         for (size_t i = 0; i < m_draws.size(); ++i)
         {
             Draw* draw = m_draws[i].get();
@@ -1399,7 +1400,7 @@ void RenderContext::LogicalFlush::writeResources()
         // condensed/batched list of low-level draws.
         int64_t priorSignedKey =
             !indirectDrawList.empty() ? indirectDrawList[0] : 0;
-        for (int64_t signedKey : indirectDrawList)
+        for (const int64_t signedKey : indirectDrawList)
         {
             assert(signedKey >= priorSignedKey);
             if ((priorSignedKey & needsBarrierMask) !=
@@ -2356,6 +2357,7 @@ void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t count,
 
 void RenderContext::LogicalFlush::pushMidpointFanDraw(
     const PathDraw* draw,
+    gpu::DrawType drawType,
     uint32_t tessVertexCount,
     uint32_t tessLocation,
     gpu::ShaderMiscFlags shaderMiscFlags)
@@ -2371,17 +2373,12 @@ void RenderContext::LogicalFlush::pushMidpointFanDraw(
     // flush() is responsible for alignment.
     assert(instanceCount * kMidpointFanPatchSegmentSpan == tessVertexCount);
 
-    pushPathDraw(draw,
-                 draw->isFeatheredFill()
-                     ? gpu::DrawType::midpointFanCenterAAPatches
-                     : gpu::DrawType::midpointFanPatches,
-                 shaderMiscFlags,
-                 instanceCount,
-                 baseInstance);
+    pushPathDraw(draw, drawType, shaderMiscFlags, instanceCount, baseInstance);
 }
 
 void RenderContext::LogicalFlush::pushOuterCubicsDraw(
     const PathDraw* draw,
+    gpu::DrawType drawType,
     uint32_t tessVertexCount,
     uint32_t tessLocation,
     gpu::ShaderMiscFlags shaderMiscFlags)
@@ -2397,11 +2394,7 @@ void RenderContext::LogicalFlush::pushOuterCubicsDraw(
     // flush() is responsible for alignment.
     assert(instanceCount * kOuterCurvePatchSegmentSpan == tessVertexCount);
 
-    pushPathDraw(draw,
-                 gpu::DrawType::outerCurvePatches,
-                 shaderMiscFlags,
-                 instanceCount,
-                 baseInstance);
+    pushPathDraw(draw, drawType, shaderMiscFlags, instanceCount, baseInstance);
 }
 
 size_t RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
@@ -2521,7 +2514,7 @@ void RenderContext::LogicalFlush::pushStencilClipResetDraw(
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{l, t}, 0, z);
     m_ctx->m_triangleVertexData.emplace_back(Vec2D{r, t}, 0, z);
     pushDraw(draw,
-             DrawType::stencilClipReset,
+             DrawType::msaaStencilClipReset,
              gpu::ShaderMiscFlags::none,
              PaintType::clipUpdate,
              6,
@@ -2643,7 +2636,14 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::atlasBlit:
-        case DrawType::stencilClipReset:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+        case DrawType::msaaStencilClipReset:
             if (!m_drawList.empty())
             {
                 const DrawBatch& currentBatch = m_drawList.tail();
@@ -2656,6 +2656,18 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                                               draw) &&
                     can_combine_draw_images(currentBatch.imageTexture,
                                             draw->imageTexture());
+                if (canMergeWithPreviousBatch &&
+                    currentBatch.baseElement + currentBatch.elementCount !=
+                        baseElement)
+                {
+                    // In MSAA mode, multiple subpasses reference the same
+                    // tessellation data. Although rare, this breaks the
+                    // guarantee we have in other modes that mergeable batches
+                    // will always have contiguous patches.
+                    assert(m_ctx->frameInterlockMode() ==
+                           gpu::InterlockMode::msaa);
+                    canMergeWithPreviousBatch = false;
+                }
                 break;
             }
             [[fallthrough]];
@@ -2676,9 +2688,6 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         batch = &m_drawList.tail();
         assert(batch->drawType == drawType);
         assert(batch->shaderMiscFlags == shaderMiscFlags);
-        // Since draw data is always uploaded in order, we're guaranteed that
-        // the data for this draw is contiguous with the batch we're merging
-        // into.
         assert(batch->baseElement + batch->elementCount == baseElement);
         batch->elementCount += elementCount;
     }

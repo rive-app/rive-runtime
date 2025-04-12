@@ -392,7 +392,7 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
     }
 
     clipAndPushDraw(gpu::DrawUniquePtr(
-        m_context->make<gpu::ImageMeshDraw>(gpu::Draw::kFullscreenPixelBounds,
+        m_context->make<gpu::ImageMeshDraw>(gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
                                             m_stack.back().matrix,
                                             blendMode,
                                             ref_rcp(texture),

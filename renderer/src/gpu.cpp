@@ -40,6 +40,13 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
             drawTypeKey = 0;
             break;
         case DrawType::interiorTriangulation:
@@ -62,7 +69,7 @@ uint32_t ShaderUniqueKey(DrawType drawType,
             assert(interlockMode == gpu::InterlockMode::atomics);
             drawTypeKey = 6;
             break;
-        case DrawType::stencilClipReset:
+        case DrawType::msaaStencilClipReset:
             assert(interlockMode == gpu::InterlockMode::msaa);
             drawTypeKey = 7;
             break;
@@ -754,6 +761,385 @@ float find_transformed_area(const AABB& bounds, const Mat2D& matrix)
                   screenSpacePts[3] - screenSpacePts[0]};
     return (fabsf(Vec2D::cross(v[0], v[1])) + fabsf(Vec2D::cross(v[1], v[2]))) *
            .5f;
+}
+
+static bool get_color_mask(DrawType drawType, DrawContents drawContents)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaOuterCubics:
+            return true;
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaStencilClipReset:
+            return false;
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanPathsCover:
+            return !(drawContents & gpu::DrawContents::clipUpdate);
+        case DrawType::msaaMidpointFanStencilReset:
+            // For clockwise fill, disable color writes when cleaning up
+            // backward triangles. Clockwise only fills in forward triangles.
+            return !(drawContents & (gpu::DrawContents::clockwiseFill |
+                                     gpu::DrawContents::clipUpdate));
+    }
+    return false;
+}
+
+static void get_depth_state(DrawType drawType,
+                            InterlockMode interlockMode,
+                            DrawContents drawContents,
+                            PipelineState* pipelineState)
+{
+    if (interlockMode != InterlockMode::msaa)
+    {
+        pipelineState->depthTestEnabled = false;
+        pipelineState->depthWriteEnabled = false;
+        return;
+    }
+
+    switch (drawType)
+    {
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::atlasBlit:
+        case DrawType::outerCurvePatches:
+            pipelineState->depthTestEnabled = true;
+            pipelineState->depthWriteEnabled = false;
+            break;
+
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaStencilClipReset:
+            pipelineState->depthTestEnabled = true;
+            pipelineState->depthWriteEnabled = false;
+            break;
+
+        case DrawType::msaaStrokes:
+        case DrawType::msaaOuterCubics:
+            pipelineState->depthTestEnabled = true;
+            pipelineState->depthWriteEnabled = true;
+            break;
+
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanPathsCover:
+            pipelineState->depthTestEnabled = true;
+            pipelineState->depthWriteEnabled =
+                !(drawContents & gpu::DrawContents::clipUpdate);
+            break;
+
+        case DrawType::msaaMidpointFanStencilReset:
+            pipelineState->depthTestEnabled = true;
+            pipelineState->depthWriteEnabled =
+                !(drawContents & (gpu::DrawContents::clockwiseFill |
+                                  gpu::DrawContents::clipUpdate));
+            break;
+
+        case DrawType::interiorTriangulation:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+            RIVE_UNREACHABLE();
+    }
+}
+
+static void get_stencil_state(DrawType drawType,
+                              InterlockMode interlockMode,
+                              DrawContents drawContents,
+                              PipelineState* pipelineState)
+{
+    if (interlockMode != InterlockMode::msaa)
+    {
+        pipelineState->stencilTestEnabled = false;
+        // Use default values since stencil is disabled. This is (mildly)
+        // important because GL sets the stencilWriteMask regardless of whether
+        // stencil is enabled or not.
+        pipelineState->stencilCompareMask = 0xff;
+        pipelineState->stencilWriteMask = 0xff;
+        pipelineState->stencilReference = 0xff;
+        return;
+    }
+
+    const bool hasActiveClip = (drawContents & gpu::DrawContents::activeClip);
+    const bool isClipUpdate = (drawContents & gpu::DrawContents::clipUpdate);
+    switch (drawType)
+    {
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::atlasBlit:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaOuterCubics:
+            pipelineState->stencilTestEnabled = true;
+            pipelineState->stencilDoubleSided = false;
+            pipelineState->stencilCompareMask = 0xff;
+            pipelineState->stencilWriteMask = 0xff;
+            pipelineState->stencilReference = 0x80;
+            pipelineState->stencilFrontOps = {
+                .failOp = StencilOp::keep,
+                .passOp = StencilOp::keep,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = hasActiveClip ? StencilCompareOp::equal
+                                           : StencilCompareOp::always,
+            };
+            break;
+
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+            // Count backward triangle hits (negative coverage) in the stencil
+            // buffer.
+            pipelineState->stencilTestEnabled = true;
+            pipelineState->stencilDoubleSided = false;
+            pipelineState->stencilCompareMask = 0xff;
+            pipelineState->stencilWriteMask = 0x7f;
+            pipelineState->stencilReference = 0x80;
+            pipelineState->stencilFrontOps = {
+                .failOp = StencilOp::keep,
+                .passOp = StencilOp::incrWrap,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = hasActiveClip ? StencilCompareOp::lessOrEqual
+                                           : StencilCompareOp::always,
+            };
+            break;
+
+        case DrawType::msaaMidpointFans:
+            // Draw forward triangles, clipped by the backward triangle counts.
+            // (The depth test prevents double hits.)
+            pipelineState->stencilTestEnabled = true;
+            pipelineState->stencilDoubleSided = true;
+            pipelineState->stencilCompareMask = hasActiveClip ? 0xff : 0x7f;
+            pipelineState->stencilWriteMask = isClipUpdate ? 0xff : 0x7f;
+            pipelineState->stencilReference = 0x80;
+            pipelineState->stencilFrontOps = {
+                .failOp = StencilOp::decrClamp, // Don't wrap; 0 must stay 0
+                                                // outside the clip.
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::keep,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = StencilCompareOp::equal,
+            };
+            pipelineState->stencilBackOps = {
+                .failOp = StencilOp::keep,
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = StencilCompareOp::less,
+            };
+            break;
+
+        case DrawType::msaaMidpointFanStencilReset:
+            // Clean up backward triangles in the stencil buffer, (also filling
+            // negative winding numbers for nonZero fill).
+            pipelineState->stencilTestEnabled = true;
+            pipelineState->stencilDoubleSided = true;
+            pipelineState->stencilCompareMask = hasActiveClip ? 0xff : 0x7f;
+            pipelineState->stencilWriteMask =
+                (drawContents & gpu::DrawContents::clockwiseFill)
+                    // For clockwise fill, disable clip-bit writes when cleaning
+                    // up backward triangles. Clockwise only fills in forward
+                    // triangles.
+                    ? 0x7f
+                    : (isClipUpdate ? 0xff : 0x7f);
+            pipelineState->stencilReference = 0x80;
+            pipelineState->stencilFrontOps = {
+                .failOp = StencilOp::decrClamp, // Don't wrap; 0 must stay 0
+                                                // outside the clip.
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::keep,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = StencilCompareOp::equal,
+            };
+            pipelineState->stencilBackOps = {
+                .failOp = StencilOp::keep,
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = StencilCompareOp::less,
+            };
+            break;
+
+        case DrawType::msaaMidpointFanPathsStencil:
+            // Just stencil the path into the stencil buffer. This is used for
+            // nested clip updates and for evenOdd paths.
+            assert(drawContents & (gpu::DrawContents::evenOddFill) ||
+                   (drawContents & gpu::kNestedClipUpdateMask) ==
+                       gpu::kNestedClipUpdateMask);
+            pipelineState->stencilTestEnabled = true;
+            pipelineState->stencilDoubleSided = true;
+            pipelineState->stencilCompareMask = 0xff;
+            pipelineState->stencilWriteMask =
+                (drawContents & gpu::DrawContents::evenOddFill) ? 0x1 : 0x7f;
+            pipelineState->stencilReference = 0x80;
+            // Decrement front-facing triangles so the MSB is set when
+            // clockwise.
+            pipelineState->stencilFrontOps = {
+                .failOp = StencilOp::keep,
+                .passOp = StencilOp::decrWrap,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = hasActiveClip ? StencilCompareOp::lessOrEqual
+                                           : StencilCompareOp::always,
+            };
+            pipelineState->stencilBackOps = {
+                .failOp = pipelineState->stencilFrontOps.failOp,
+                .passOp = StencilOp::incrWrap,
+                .depthFailOp = pipelineState->stencilFrontOps.depthFailOp,
+                .compareOp = pipelineState->stencilFrontOps.compareOp,
+            };
+            break;
+
+        case DrawType::msaaMidpointFanPathsCover:
+            // Draw & reset stencil winding numbers. This is only needed for
+            // evenOdd paths.
+            assert(drawContents & gpu::DrawContents::evenOddFill);
+            pipelineState->stencilTestEnabled = true;
+            pipelineState->stencilDoubleSided = false;
+            pipelineState->stencilCompareMask = 0x7f;
+            pipelineState->stencilWriteMask = isClipUpdate ? 0xff : 0x1;
+            pipelineState->stencilReference = 0x80;
+            pipelineState->stencilFrontOps = {
+                .failOp = StencilOp::keep,
+                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
+                .depthFailOp = StencilOp::keep,
+                .compareOp = StencilCompareOp::notEqual,
+            };
+            break;
+
+        case DrawType::msaaStencilClipReset:
+            pipelineState->stencilTestEnabled = true;
+            pipelineState->stencilDoubleSided = false;
+            if ((drawContents & gpu::kNestedClipUpdateMask) ==
+                gpu::kNestedClipUpdateMask)
+            {
+                // The nested clip just got stencilled and left in the stencil
+                // buffer. Intersect it with the existing clip. (Erasing regions
+                // of the existing clip that are outside the nested clip.)
+                pipelineState->stencilCompareMask =
+                    (drawContents & gpu::DrawContents::clockwiseFill)
+                        // clockwise: (0x80 & 0xc0) < (stencilValue & 0xc0)
+                        //   => "If clipbit is set and winding is negative"
+                        //   => "If clipbit is set and winding is clockwise"
+                        //      (because clockwise decrements)
+                        //
+                        ? 0xc0
+                        // non-clockwise: 0x80 < stencilValue
+                        //   => "If clipbit is set and winding is nonzero"
+                        : 0xff;
+                pipelineState->stencilWriteMask = 0xff;
+                pipelineState->stencilReference = 0x80;
+                pipelineState->stencilFrontOps = {
+                    .failOp = StencilOp::zero,
+                    .passOp = StencilOp::replace,
+                    .depthFailOp = StencilOp::keep,
+                    .compareOp = StencilCompareOp::less,
+                };
+            }
+            else
+            {
+                // Clear the entire previous clip.
+                pipelineState->stencilCompareMask = 0xff;
+                pipelineState->stencilWriteMask = 0xff;
+                pipelineState->stencilReference = 0x00;
+                pipelineState->stencilFrontOps = {
+                    .failOp = StencilOp::keep,
+                    .passOp = StencilOp::zero,
+                    .depthFailOp = StencilOp::keep,
+                    .compareOp = StencilCompareOp::notEqual,
+                };
+            }
+            break;
+
+        case DrawType::interiorTriangulation:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+            RIVE_UNREACHABLE();
+    }
+}
+
+static CullFace get_cull_face(DrawType drawType)
+{
+    switch (drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaStencilClipReset:
+            return CullFace::counterclockwise;
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFanStencilReset:
+            // clockwise is always the front face in Rive, but for a couple
+            // draws we encode some stencil work in the counterclockwise face.
+            // It's done this way because the cull face is often supported as
+            // dynamic state, so we're keeping the option open to stuff two
+            // operations (clockwise and counterclockwise) into a single
+            // pipeline, and then select between them with the dynamic cull
+            // face.
+            return CullFace::clockwise;
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::atomicResolve:
+        case DrawType::atomicInitialize:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+            return CullFace::none;
+    }
+    RIVE_UNREACHABLE();
+}
+
+void get_pipeline_state(DrawType drawType,
+                        InterlockMode interlockMode,
+                        DrawContents drawContents,
+                        PipelineState* pipelineState)
+{
+#ifndef NDEBUG
+    // Ensure drawType is compatible with the interlock mode.
+    switch (drawType)
+    {
+        case DrawType::atlasBlit:
+        case DrawType::imageMesh:
+            break;
+
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+            assert(interlockMode != InterlockMode::msaa);
+            break;
+
+        case DrawType::imageRect:
+        case DrawType::atomicResolve:
+        case DrawType::atomicInitialize:
+            assert(interlockMode == InterlockMode::atomics);
+            break;
+
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+        case DrawType::msaaStencilClipReset:
+            assert(interlockMode == InterlockMode::msaa);
+            break;
+    }
+#endif
+
+    pipelineState->colorWriteEnabled = get_color_mask(drawType, drawContents);
+    get_depth_state(drawType, interlockMode, drawContents, pipelineState);
+    get_stencil_state(drawType, interlockMode, drawContents, pipelineState);
+    pipelineState->cullFace = get_cull_face(drawType);
 }
 
 // Borrowed from:

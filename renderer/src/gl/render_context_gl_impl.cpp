@@ -40,6 +40,34 @@ const char atomic_draw[] = "";
 
 namespace rive::gpu
 {
+
+static bool is_tessellation_draw(gpu::DrawType drawType)
+{
+    switch (drawType)
+    {
+        case gpu::DrawType::midpointFanPatches:
+        case gpu::DrawType::midpointFanCenterAAPatches:
+        case gpu::DrawType::outerCurvePatches:
+        case gpu::DrawType::msaaStrokes:
+        case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+        case gpu::DrawType::msaaMidpointFans:
+        case gpu::DrawType::msaaMidpointFanStencilReset:
+        case gpu::DrawType::msaaMidpointFanPathsStencil:
+        case gpu::DrawType::msaaMidpointFanPathsCover:
+        case gpu::DrawType::msaaOuterCubics:
+            return true;
+        case gpu::DrawType::imageRect:
+        case gpu::DrawType::imageMesh:
+        case gpu::DrawType::interiorTriangulation:
+        case gpu::DrawType::atlasBlit:
+        case gpu::DrawType::atomicInitialize:
+        case gpu::DrawType::atomicResolve:
+        case gpu::DrawType::msaaStencilClipReset:
+            return false;
+    }
+    RIVE_UNREACHABLE();
+}
+
 RenderContextGLImpl::RenderContextGLImpl(
     const char* rendererString,
     GLCapabilities capabilities,
@@ -860,6 +888,13 @@ RenderContextGLImpl::DrawShader::DrawShader(
         case gpu::DrawType::midpointFanPatches:
         case gpu::DrawType::midpointFanCenterAAPatches:
         case gpu::DrawType::outerCurvePatches:
+        case gpu::DrawType::msaaStrokes:
+        case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+        case gpu::DrawType::msaaMidpointFans:
+        case gpu::DrawType::msaaMidpointFanStencilReset:
+        case gpu::DrawType::msaaMidpointFanPathsStencil:
+        case gpu::DrawType::msaaMidpointFanPathsCover:
+        case gpu::DrawType::msaaOuterCubics:
             if (shaderType == GL_VERTEX_SHADER)
             {
                 defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
@@ -870,7 +905,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                                   ? gpu::glsl::atomic_draw
                                   : gpu::glsl::draw_path);
             break;
-        case gpu::DrawType::stencilClipReset:
+        case gpu::DrawType::msaaStencilClipReset:
             assert(interlockMode == gpu::InterlockMode::msaa);
             sources.push_back(gpu::glsl::stencil_draw);
             break;
@@ -978,10 +1013,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
                           FLUSH_UNIFORM_BUFFER_IDX);
 
     const bool isImageDraw = gpu::DrawTypeIsImageDraw(drawType);
-    const bool isTessellationDraw =
-        drawType == gpu::DrawType::midpointFanPatches ||
-        drawType == gpu::DrawType::midpointFanCenterAAPatches ||
-        drawType == gpu::DrawType::outerCurvePatches;
+    const bool isTessellationDraw = is_tessellation_draw(drawType);
     const bool isPaintDraw = isTessellationDraw ||
                              drawType == gpu::DrawType::interiorTriangulation ||
                              drawType == gpu::DrawType::atlasBlit;
@@ -1117,93 +1149,12 @@ void RenderContextGLImpl::PixelLocalStorageImpl::ensureRasterOrderingEnabled(
     }
 }
 
-// Wraps calls to glDrawElementsInstanced*(), as appropriate for the current
-// platform. Also includes simple helpers for working with stencil.
-class DrawIndexedInstancedHelper
-{
-public:
-    DrawIndexedInstancedHelper(GLint baseInstanceUniformLocation,
-                               GLenum primitiveTopology,
-                               uint32_t instanceCount,
-                               uint32_t baseInstance) :
-        m_baseInstanceUniformLocation(baseInstanceUniformLocation),
-        m_primitiveTopology(primitiveTopology),
-        m_instanceCount(instanceCount),
-        m_baseInstance(baseInstance)
-    {}
-
-    void setIndexRange(uint32_t indexCount, uint32_t baseIndex)
-    {
-        m_indexCount = indexCount;
-        m_indexOffset =
-            reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
-    }
-
-    void draw(const GLCapabilities& capabilities) const
-    {
-        assert(capabilities.ANGLE_base_vertex_base_instance_shader_builtin ==
-               (m_baseInstanceUniformLocation < 0));
-        for (uint32_t baseInstance = m_baseInstance,
-                      endInstance = m_baseInstance + m_instanceCount;
-             baseInstance < endInstance;)
-
-        {
-            uint32_t instanceCount =
-                std::min(endInstance - baseInstance,
-                         capabilities.maxSupportedInstancesPerDrawCommand);
-#ifndef RIVE_WEBGL
-            if (capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
-            {
-                glDrawElementsInstancedBaseInstanceEXT(m_primitiveTopology,
-                                                       m_indexCount,
-                                                       GL_UNSIGNED_SHORT,
-                                                       m_indexOffset,
-                                                       instanceCount,
-                                                       baseInstance);
-            }
-            else
-#endif
-            {
-                glUniform1i(m_baseInstanceUniformLocation, baseInstance);
-                glDrawElementsInstanced(m_primitiveTopology,
-                                        m_indexCount,
-                                        GL_UNSIGNED_SHORT,
-                                        m_indexOffset,
-                                        instanceCount);
-            }
-            baseInstance += instanceCount;
-        }
-    }
-
-    void drawWithStencilSettings(GLenum comparator,
-                                 GLint ref,
-                                 GLuint mask,
-                                 GLenum stencilFailOp,
-                                 GLenum depthPassStencilFailOp,
-                                 GLenum depthPassStencilPassOp,
-                                 const GLCapabilities& capabilities) const
-    {
-        glStencilFunc(comparator, ref, mask);
-        glStencilOp(stencilFailOp,
-                    depthPassStencilFailOp,
-                    depthPassStencilPassOp);
-        draw(capabilities);
-    }
-
-private:
-    const GLint m_baseInstanceUniformLocation;
-    const GLenum m_primitiveTopology;
-    const uint32_t m_instanceCount;
-    const uint32_t m_baseInstance;
-    uint32_t m_indexCount = 0;
-    const void* m_indexOffset = nullptr;
-};
-
 void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 {
     assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
     auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
 
+    m_state->setDepthStencilEnabled(false, false);
     m_state->setWriteMasks(true, true, 0xff);
     m_state->disableBlending();
 
@@ -1348,15 +1299,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                           fillBatch.scissor.top,
                           fillBatch.scissor.width(),
                           fillBatch.scissor.height());
-                DrawIndexedInstancedHelper drawHelper(
-                    m_atlasFillProgram.baseInstanceUniformLocation(),
+                drawIndexedInstancedNoInstancedAttribs(
                     GL_TRIANGLES,
-                    fillBatch.patchCount,
-                    fillBatch.basePatch);
-                drawHelper.setIndexRange(
                     gpu::kMidpointFanCenterAAPatchIndexCount,
-                    gpu::kMidpointFanCenterAAPatchBaseIndex);
-                drawHelper.draw(m_capabilities);
+                    gpu::kMidpointFanCenterAAPatchBaseIndex,
+                    fillBatch.patchCount,
+                    fillBatch.basePatch,
+                    m_atlasFillProgram.baseInstanceUniformLocation());
             }
         }
 
@@ -1372,14 +1321,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                           strokeBatch.scissor.top,
                           strokeBatch.scissor.width(),
                           strokeBatch.scissor.height());
-                DrawIndexedInstancedHelper drawHelper(
-                    m_atlasStrokeProgram.baseInstanceUniformLocation(),
+                drawIndexedInstancedNoInstancedAttribs(
                     GL_TRIANGLES,
+                    gpu::kMidpointFanPatchBorderIndexCount,
+                    gpu::kMidpointFanPatchBaseIndex,
                     strokeBatch.patchCount,
-                    strokeBatch.basePatch);
-                drawHelper.setIndexRange(gpu::kMidpointFanPatchBorderIndexCount,
-                                         gpu::kMidpointFanPatchBaseIndex);
-                drawHelper.draw(m_capabilities);
+                    strokeBatch.basePatch,
+                    m_atlasFillProgram.baseInstanceUniformLocation());
             }
         }
 
@@ -1450,9 +1398,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         }
         glClear(buffersToClear);
 
-        glEnable(GL_STENCIL_TEST);
-        glEnable(GL_DEPTH_TEST);
-
         if (desc.combinedShaderFeatures &
             gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND)
         {
@@ -1480,6 +1425,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             continue;
         }
 
+        const gpu::DrawType drawType = batch.drawType;
         gpu::ShaderFeatures shaderFeatures =
             desc.interlockMode == gpu::InterlockMode::atomics
                 ? desc.combinedShaderFeatures
@@ -1487,21 +1433,21 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         gpu::ShaderMiscFlags shaderMiscFlags = batch.shaderMiscFlags;
         if (m_plsImpl != nullptr)
         {
-            shaderMiscFlags |= m_plsImpl->shaderMiscFlags(desc, batch.drawType);
+            shaderMiscFlags |= m_plsImpl->shaderMiscFlags(desc, drawType);
         }
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&
             (batch.drawContents & gpu::DrawContents::clockwiseFill))
         {
             shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
-        uint32_t fragmentShaderKey = gpu::ShaderUniqueKey(batch.drawType,
+        uint32_t fragmentShaderKey = gpu::ShaderUniqueKey(drawType,
                                                           shaderFeatures,
                                                           desc.interlockMode,
                                                           shaderMiscFlags);
         const DrawProgram& drawProgram = m_drawPrograms
                                              .try_emplace(fragmentShaderKey,
                                                           this,
-                                                          batch.drawType,
+                                                          drawType,
                                                           shaderFeatures,
                                                           desc.interlockMode,
                                                           shaderMiscFlags)
@@ -1571,20 +1517,27 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        switch (gpu::DrawType drawType = batch.drawType)
+        gpu::PipelineState pipelineState;
+        gpu::get_pipeline_state(drawType,
+                                desc.interlockMode,
+                                batch.drawContents,
+                                &pipelineState);
+        m_state->setPipelineState(pipelineState);
+
+        switch (drawType)
         {
             case DrawType::midpointFanPatches:
             case DrawType::midpointFanCenterAAPatches:
             case DrawType::outerCurvePatches:
+            case DrawType::msaaStrokes:
+            case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaMidpointFans:
+            case DrawType::msaaMidpointFanStencilReset:
+            case DrawType::msaaMidpointFanPathsStencil:
+            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubics:
             {
-                // Draw PLS patches that connect the tessellation vertices.
                 m_state->bindVAO(m_drawVAO);
-                DrawIndexedInstancedHelper drawHelper(
-                    drawProgram.baseInstanceUniformLocation(),
-                    GL_TRIANGLES,
-                    batch.elementCount,
-                    batch.baseElement);
-
                 if (desc.interlockMode != gpu::InterlockMode::msaa)
                 {
                     m_plsImpl->ensureRasterOrderingEnabled(
@@ -1592,216 +1545,44 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                         desc,
                         desc.interlockMode ==
                             gpu::InterlockMode::rasterOrdering);
-                    drawHelper.setIndexRange(gpu::PatchIndexCount(drawType),
-                                             gpu::PatchBaseIndex(drawType));
-                    m_state->setCullFace(GL_BACK);
-                    drawHelper.draw(m_capabilities);
-                    break;
                 }
-
-                // MSAA path draws require different stencil settings, depending
-                // on their drawContents.
-                bool hasActiveClip =
-                    ((batch.drawContents & gpu::DrawContents::activeClip));
-                bool isClipUpdate =
-                    ((batch.drawContents & gpu::DrawContents::clipUpdate));
-                bool isNestedClipUpdate =
-                    (batch.drawContents & gpu::kNestedClipUpdateMask) ==
-                    gpu::kNestedClipUpdateMask;
-                bool isEvenOddFill =
-                    (batch.drawContents & gpu::DrawContents::evenOddFill);
-                bool isStroke =
-                    (batch.drawContents & gpu::DrawContents::stroke);
-                if (isStroke)
-                {
-                    // MSAA strokes only use the "border" section of the patch.
-                    // (The depth test prevents double hits.)
-                    assert(drawType == gpu::DrawType::midpointFanPatches);
-                    drawHelper.setIndexRange(
-                        gpu::kMidpointFanPatchBorderIndexCount,
-                        gpu::kMidpointFanPatchBaseIndex);
-                    m_state->setWriteMasks(true, true, 0xff);
-                    m_state->setCullFace(GL_BACK);
-                    drawHelper.drawWithStencilSettings(
-                        hasActiveClip ? GL_EQUAL : GL_ALWAYS,
-                        0x80,
-                        0xff,
-                        GL_KEEP,
-                        GL_KEEP,
-                        GL_KEEP,
-                        m_capabilities);
-                    break;
-                }
-
-                // MSAA fills only use the "fan" section of the patch (they
-                // don't need AA borders).
-                drawHelper.setIndexRange(gpu::PatchFanIndexCount(drawType),
-                                         gpu::PatchFanBaseIndex(drawType));
-
-                // "nonZero" fill rules (that aren't nested clip updates) can be
-                // optimized to render directly instead of using a "stencil then
-                // cover" approach.
-                if (!isEvenOddFill && !isNestedClipUpdate)
-                {
-                    // Count backward triangle hits (negative coverage) in the
-                    // stencil buffer.
-                    m_state->setWriteMasks(false, false, 0x7f);
-                    m_state->setCullFace(GL_FRONT);
-                    drawHelper.drawWithStencilSettings(
-                        hasActiveClip ? GL_LEQUAL : GL_ALWAYS,
-                        0x80,
-                        0xff,
-                        GL_KEEP,
-                        GL_KEEP,
-                        GL_INCR_WRAP,
-                        m_capabilities);
-
-                    // (Configure both stencil faces before issuing the next
-                    // draws, so GL can give them the same internal pipeline
-                    // under the hood.)
-                    GLuint stencilReadMask = hasActiveClip ? 0xff : 0x7f;
-                    glStencilFuncSeparate(GL_FRONT,
-                                          GL_EQUAL,
-                                          0x80,
-                                          stencilReadMask);
-                    glStencilOpSeparate(
-                        GL_FRONT,
-                        GL_DECR, // Don't wrap; 0 must stay 0 outside the clip.
-                        GL_KEEP,
-                        isClipUpdate ? GL_REPLACE : GL_KEEP);
-                    glStencilFuncSeparate(GL_BACK,
-                                          GL_LESS,
-                                          0x80,
-                                          stencilReadMask);
-                    glStencilOpSeparate(GL_BACK,
-                                        GL_KEEP,
-                                        GL_KEEP,
-                                        isClipUpdate ? GL_REPLACE : GL_ZERO);
-                    m_state->setWriteMasks(!isClipUpdate,
-                                           !isClipUpdate,
-                                           isClipUpdate ? 0xff : 0x7f);
-
-                    // Draw forward triangles, clipped by the backward triangle
-                    // counts. (The depth test prevents double hits.)
-                    m_state->setCullFace(GL_BACK);
-                    drawHelper.draw(m_capabilities);
-
-                    // Clean up backward triangles in the stencil buffer, (also
-                    // filling negative winding numbers for nonZero fill).
-                    m_state->setCullFace(GL_FRONT);
-                    if (batch.drawContents & gpu::DrawContents::clockwiseFill)
-                    {
-                        // For clockwise fill, disable color & clip-bit writes
-                        // when cleaning up backward triangles. This mode only
-                        // fills in forward triangles.
-                        m_state->setWriteMasks(false, false, 0x7f);
-                    }
-                    drawHelper.draw(m_capabilities);
-                    break;
-                }
-
-                // Fall back on stencil-then-cover.
-                glStencilFunc(hasActiveClip ? GL_LEQUAL : GL_ALWAYS,
-                              0x80,
-                              0xff);
-                // Decrement front-facing triangles so the MSB is set when
-                // clockwise.
-                glStencilOpSeparate(GL_FRONT, GL_KEEP, GL_KEEP, GL_DECR_WRAP);
-                glStencilOpSeparate(GL_BACK, GL_KEEP, GL_KEEP, GL_INCR_WRAP);
-                m_state->setWriteMasks(false,
-                                       false,
-                                       isEvenOddFill ? 0x1 : 0x7f);
-                m_state->setCullFace(GL_NONE);
-                drawHelper.draw(m_capabilities); // Stencil the path!
-
-                // Nested clip updates do the "cover" operation during
-                // DrawType::stencilClipReset.
-                if (!isNestedClipUpdate)
-                {
-                    assert(isEvenOddFill);
-                    m_state->setWriteMasks(!isClipUpdate,
-                                           !isClipUpdate,
-                                           isClipUpdate ? 0xff : 0x1);
-                    drawHelper.drawWithStencilSettings(
-                        GL_NOTEQUAL, // Cover the path!
-                        0x80,
-                        0x7f,
-                        GL_KEEP,
-                        GL_KEEP,
-                        isClipUpdate ? GL_REPLACE : GL_ZERO,
-                        m_capabilities);
-                }
+                drawIndexedInstancedNoInstancedAttribs(
+                    GL_TRIANGLES,
+                    gpu::PatchIndexCount(drawType),
+                    gpu::PatchBaseIndex(drawType),
+                    batch.elementCount,
+                    batch.baseElement,
+                    drawProgram.baseInstanceUniformLocation());
                 break;
             }
-            case gpu::DrawType::stencilClipReset:
+
+            case gpu::DrawType::msaaStencilClipReset:
             {
-                assert(desc.interlockMode == gpu::InterlockMode::msaa);
                 m_state->bindVAO(m_trianglesVAO);
-                bool isNestedClipUpdate =
-                    (batch.drawContents & gpu::kNestedClipUpdateMask) ==
-                    gpu::kNestedClipUpdateMask;
-                if (isNestedClipUpdate)
-                {
-                    // The nested clip just got stencilled and left in the
-                    // stencil buffer. Intersect it with the existing clip.
-                    // (Erasing regions of the existing clip that are outside
-                    // the nested clip.)
-                    glStencilFunc(
-                        GL_LESS,
-                        0x80,
-                        (batch.drawContents & gpu::DrawContents::clockwiseFill)
-                            // clockwise: (0x80 & 0xc0) < (stencilValue & 0xc0)
-                            //   => "If clipbit is set and winding is negative"
-                            //   => "If clipbit is set and winding is clockwise"
-                            //      (because clockwise decrements)
-                            //
-                            ? 0xc0
-                            // non-clockwise: 0x80 < stencilValue
-                            //   => "If clipbit is set and winding is nonzero"
-                            : 0xff);
-                    glStencilOp(GL_ZERO, GL_KEEP, GL_REPLACE);
-                }
-                else
-                {
-                    // Clear the entire previous clip.
-                    glStencilFunc(GL_NOTEQUAL, 0, 0xff);
-                    glStencilOp(GL_KEEP, GL_KEEP, GL_ZERO);
-                }
-                m_state->setWriteMasks(false, false, 0xff);
-                m_state->setCullFace(GL_BACK);
                 glDrawArrays(GL_TRIANGLES,
                              batch.baseElement,
                              batch.elementCount);
                 break;
             }
+
             case gpu::DrawType::interiorTriangulation:
             case gpu::DrawType::atlasBlit:
             {
-                if (desc.interlockMode == gpu::InterlockMode::msaa)
-                {
-                    bool hasActiveClip =
-                        ((batch.drawContents & gpu::DrawContents::activeClip));
-                    glStencilFunc(hasActiveClip ? GL_EQUAL : GL_ALWAYS,
-                                  0x80,
-                                  0xff);
-                    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-                    m_state->setWriteMasks(true, false, 0x0);
-                }
-                else if (desc.interlockMode ==
-                         gpu::InterlockMode::rasterOrdering)
+                m_state->bindVAO(m_trianglesVAO);
+                if (desc.interlockMode != gpu::InterlockMode::msaa)
                 {
                     // Disable raster ordering if we're drawing true interior
                     // triangles (not atlas coverage). We know the triangulation
                     // is large enough that it's faster to issue a barrier than
                     // to force raster ordering in the fragment shader.
                     const bool needRasterOrdering =
+                        desc.interlockMode ==
+                            gpu::InterlockMode::rasterOrdering &&
                         drawType == gpu::DrawType::atlasBlit;
                     m_plsImpl->ensureRasterOrderingEnabled(this,
                                                            desc,
                                                            needRasterOrdering);
                 }
-                m_state->bindVAO(m_trianglesVAO);
-                m_state->setCullFace(GL_BACK);
                 glDrawArrays(GL_TRIANGLES,
                              batch.baseElement,
                              batch.elementCount);
@@ -1816,25 +1597,25 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 }
                 break;
             }
+
             case gpu::DrawType::imageRect:
             {
-                assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 // m_imageRectVAO should have gotten lazily allocated by now.
                 assert(m_imageRectVAO != 0);
-                m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_imageRectVAO);
+                m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                                   gl_buffer_id(imageDrawUniformBufferRing()),
                                   batch.imageDrawDataOffset,
                                   sizeof(gpu::ImageDrawUniforms));
-                m_state->setCullFace(GL_NONE);
                 glDrawElements(GL_TRIANGLES,
                                std::size(gpu::kImageRectIndices),
                                GL_UNSIGNED_SHORT,
                                nullptr);
                 break;
             }
+
             case gpu::DrawType::imageMesh:
             {
                 LITE_RTTI_CAST_OR_BREAK(vertexBuffer,
@@ -1868,17 +1649,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                         desc,
                         m_platformFeatures.supportsRasterOrdering);
                 }
-                else
-                {
-                    bool hasActiveClip =
-                        ((batch.drawContents & gpu::DrawContents::activeClip));
-                    glStencilFunc(hasActiveClip ? GL_EQUAL : GL_ALWAYS,
-                                  0x80,
-                                  0xff);
-                    glStencilOp(GL_KEEP, GL_KEEP, GL_KEEP);
-                    m_state->setWriteMasks(true, false, 0x00);
-                }
-                m_state->setCullFace(GL_NONE);
                 glDrawElements(GL_TRIANGLES,
                                batch.elementCount,
                                GL_UNSIGNED_SHORT,
@@ -1886,18 +1656,18 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                                              sizeof(uint16_t)));
                 break;
             }
+
             case gpu::DrawType::atomicResolve:
             {
-                assert(desc.interlockMode == gpu::InterlockMode::atomics);
-                m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_state->bindVAO(m_emptyVAO);
+                m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_plsImpl->setupAtomicResolve(this, desc);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
             }
+
             case gpu::DrawType::atomicInitialize:
             {
-                assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 RIVE_UNREACHABLE();
             }
         }
@@ -1939,8 +1709,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         {
             glDisable(GL_BLEND_ADVANCED_COHERENT_KHR);
         }
-        glDisable(GL_DEPTH_TEST);
-        glDisable(GL_STENCIL_TEST);
         if (clipPlanesEnabled)
         {
             glDisable(GL_CLIP_DISTANCE0_EXT);
@@ -1962,6 +1730,49 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         // Qualcomm experiences synchronization issues with multiple flushes per
         // frame if we don't call glFlush in between.
         glFlush();
+    }
+}
+
+void RenderContextGLImpl::drawIndexedInstancedNoInstancedAttribs(
+    GLenum primitiveTopology,
+    uint32_t indexCount,
+    uint32_t baseIndex,
+    uint32_t instanceCount,
+    uint32_t baseInstance,
+    GLint baseInstanceUniformLocation)
+{
+    assert(m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin ==
+           (baseInstanceUniformLocation < 0));
+    const void* indexOffset =
+        reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
+    for (uint32_t endInstance = baseInstance + instanceCount;
+         baseInstance < endInstance;)
+
+    {
+        uint32_t subInstanceCount =
+            std::min(endInstance - baseInstance,
+                     m_capabilities.maxSupportedInstancesPerDrawCommand);
+#ifndef RIVE_WEBGL
+        if (m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+        {
+            glDrawElementsInstancedBaseInstanceEXT(primitiveTopology,
+                                                   indexCount,
+                                                   GL_UNSIGNED_SHORT,
+                                                   indexOffset,
+                                                   subInstanceCount,
+                                                   baseInstance);
+        }
+        else
+#endif
+        {
+            glUniform1i(baseInstanceUniformLocation, baseInstance);
+            glDrawElementsInstanced(primitiveTopology,
+                                    indexCount,
+                                    GL_UNSIGNED_SHORT,
+                                    indexOffset,
+                                    subInstanceCount);
+        }
+        baseInstance += subInstanceCount;
     }
 }
 
@@ -2000,8 +1811,9 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
 
     m_state->bindProgram(m_blitAsDrawProgram);
     m_state->bindVAO(m_emptyVAO);
-    m_state->setWriteMasks(true, true, 0xff);
     m_state->disableBlending();
+    m_state->setDepthStencilEnabled(false, false);
+    m_state->setWriteMasks(true, true, 0xff);
     m_state->setCullFace(GL_NONE);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, textureID);

@@ -1296,7 +1296,14 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
                 s << "#define " << GLSL_RESOLVE_PLS << '\n';
                 break;
             case DrawType::atomicInitialize:
-            case DrawType::stencilClipReset:
+            case DrawType::msaaStrokes:
+            case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaMidpointFans:
+            case DrawType::msaaMidpointFanStencilReset:
+            case DrawType::msaaMidpointFanPathsStencil:
+            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubics:
+            case DrawType::msaaStencilClipReset:
                 RIVE_UNREACHABLE();
         }
         s << glsl::constants << '\n';
@@ -1342,12 +1349,19 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
                 }
                 break;
             case DrawType::atomicResolve:
-            case DrawType::stencilClipReset:
+            case DrawType::msaaStencilClipReset:
                 assert(interlockMode == gpu::InterlockMode::atomics);
                 s << gpu::glsl::draw_path_common << '\n';
                 s << gpu::glsl::atomic_draw << '\n';
                 break;
             case DrawType::atomicInitialize:
+            case DrawType::msaaStrokes:
+            case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaMidpointFans:
+            case DrawType::msaaMidpointFanStencilReset:
+            case DrawType::msaaMidpointFanPathsStencil:
+            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubics:
                 RIVE_UNREACHABLE();
         }
 
@@ -1425,7 +1439,14 @@ void RenderContextD3DImpl::setPipelineLayoutAndShaders(
                     vertexAttribCount = 0;
                     break;
                 case DrawType::atomicInitialize:
-                case DrawType::stencilClipReset:
+                case DrawType::msaaStrokes:
+                case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaMidpointFans:
+                case DrawType::msaaMidpointFanStencilReset:
+                case DrawType::msaaMidpointFanPathsStencil:
+                case DrawType::msaaMidpointFanPathsCover:
+                case DrawType::msaaOuterCubics:
+                case DrawType::msaaStencilClipReset:
                     RIVE_UNREACHABLE();
             }
             VERIFY_OK(m_gpu->CreateInputLayout(layoutDesc,
@@ -2133,7 +2154,14 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 m_gpuContext->Draw(4, 0);
                 break;
             case DrawType::atomicInitialize:
-            case DrawType::stencilClipReset:
+            case DrawType::msaaStrokes:
+            case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaMidpointFans:
+            case DrawType::msaaMidpointFanStencilReset:
+            case DrawType::msaaMidpointFanPathsStencil:
+            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubics:
+            case DrawType::msaaStencilClipReset:
                 RIVE_UNREACHABLE();
         }
     }

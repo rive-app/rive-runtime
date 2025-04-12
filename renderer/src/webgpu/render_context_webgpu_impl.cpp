@@ -824,7 +824,14 @@ public:
                     addDefine(GLSL_RESOLVE_PLS);
                     RIVE_UNREACHABLE();
                     break;
-                case DrawType::stencilClipReset:
+                case DrawType::msaaStrokes:
+                case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaMidpointFans:
+                case DrawType::msaaMidpointFanStencilReset:
+                case DrawType::msaaMidpointFanPathsStencil:
+                case DrawType::msaaMidpointFanPathsCover:
+                case DrawType::msaaOuterCubics:
+                case DrawType::msaaStencilClipReset:
                     RIVE_UNREACHABLE();
                     break;
             }
@@ -869,7 +876,14 @@ public:
                 case DrawType::imageRect:
                 case DrawType::atomicInitialize:
                 case DrawType::atomicResolve:
-                case DrawType::stencilClipReset:
+                case DrawType::msaaStrokes:
+                case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaMidpointFans:
+                case DrawType::msaaMidpointFanStencilReset:
+                case DrawType::msaaMidpointFanPathsStencil:
+                case DrawType::msaaMidpointFanPathsCover:
+                case DrawType::msaaOuterCubics:
+                case DrawType::msaaStencilClipReset:
                     RIVE_UNREACHABLE();
                     break;
             }
@@ -952,7 +966,14 @@ public:
                     break;
                 case DrawType::atomicInitialize:
                 case DrawType::atomicResolve:
-                case DrawType::stencilClipReset:
+                case DrawType::msaaStrokes:
+                case DrawType::msaaMidpointFanBorrowedCoverage:
+                case DrawType::msaaMidpointFans:
+                case DrawType::msaaMidpointFanStencilReset:
+                case DrawType::msaaMidpointFanPathsStencil:
+                case DrawType::msaaMidpointFanPathsCover:
+                case DrawType::msaaOuterCubics:
+                case DrawType::msaaStencilClipReset:
                     RIVE_UNREACHABLE();
             }
         }
@@ -2069,7 +2090,14 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             break;
         case DrawType::atomicInitialize:
         case DrawType::atomicResolve:
-        case DrawType::stencilClipReset:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+        case DrawType::msaaStencilClipReset:
             RIVE_UNREACHABLE();
     }
 
@@ -2710,7 +2738,14 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             }
             case DrawType::atomicInitialize:
             case DrawType::atomicResolve:
-            case DrawType::stencilClipReset:
+            case DrawType::msaaStrokes:
+            case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaMidpointFans:
+            case DrawType::msaaMidpointFanStencilReset:
+            case DrawType::msaaMidpointFanPathsStencil:
+            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubics:
+            case DrawType::msaaStencilClipReset:
                 RIVE_UNREACHABLE();
         }
     }

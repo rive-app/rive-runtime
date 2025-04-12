@@ -9,7 +9,6 @@
 #include "rive/math/mat2d.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/math/simd.hpp"
-#include "rive/refcnt.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
@@ -602,20 +601,45 @@ void GeneratePatchBufferData(PatchVertex[kPatchVertexBufferCount],
 
 enum class DrawType : uint8_t
 {
-    midpointFanPatches,         // Fills, strokes, feathered strokes.
-    midpointFanCenterAAPatches, // Feathered fills.
-    outerCurvePatches, // Just the outer curves of a path; the interior will be
-                       // triangulated.
+    // Fills, strokes, feathered strokes.
+    midpointFanPatches,
+
+    // Feathered fills.
+    midpointFanCenterAAPatches,
+
+    // Just the outer curves of a path; the interior will be triangulated.
+    outerCurvePatches,
+
     interiorTriangulation,
     atlasBlit,
     imageRect,
     imageMesh,
-    atomicInitialize, // Clear/init PLS data when we can't do it with existing
-                      // clear/load APIs.
-    atomicResolve, // Resolve PLS data to the final renderTarget color in atomic
-                   // mode.
-    stencilClipReset, // Clear or intersect (based on DrawContents) the stencil
-                      // clip bit.
+
+    // Clear/init PLS data when we can't do it with existing clear/load APIs.
+    atomicInitialize,
+
+    // Resolve PLS data to the final renderTarget color in atomic mode.
+    atomicResolve,
+
+    // MSAA strokes can't be merged with fills because they require their own
+    // dedicated stencil settings.
+    msaaStrokes,
+
+    // MSAA "fast" path: (effectively) single pass rendering.
+    msaaMidpointFanBorrowedCoverage,
+    msaaMidpointFans,
+    msaaMidpointFanStencilReset,
+
+    // MSAA "slow" path: stencil-then-cover.
+    msaaMidpointFanPathsStencil,
+    msaaMidpointFanPathsCover,
+
+    // MSAA interior triangulation is not currently supported, but this one draw
+    // type is included in order to support the "retrofittedcubictriangles" GM.
+    msaaOuterCubics,
+
+    // Clear or intersect (based on DrawContents) the stencil clip bit.
+    msaaStencilClipReset,
 };
 
 constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
@@ -632,7 +656,14 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::atlasBlit:
         case DrawType::atomicInitialize:
         case DrawType::atomicResolve:
-        case DrawType::stencilClipReset:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+        case DrawType::msaaStencilClipReset:
             return false;
     }
     RIVE_UNREACHABLE();
@@ -648,43 +679,28 @@ constexpr static uint32_t PatchIndexCount(DrawType drawType)
             return kMidpointFanCenterAAPatchIndexCount;
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchIndexCount;
-        case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
-        case DrawType::stencilClipReset:
-            RIVE_UNREACHABLE();
-    }
-    RIVE_UNREACHABLE();
-}
-
-constexpr static uint32_t PatchBorderIndexCount(DrawType drawType)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
+        case DrawType::msaaStrokes:
             return kMidpointFanPatchBorderIndexCount;
-        case DrawType::midpointFanCenterAAPatches:
-            return kMidpointFanCenterAAPatchBorderIndexCount;
-        case DrawType::outerCurvePatches:
-            return kOuterCurvePatchBorderIndexCount;
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+            return kMidpointFanPatchIndexCount -
+                   kMidpointFanPatchBorderIndexCount;
+        case DrawType::msaaOuterCubics:
+            return kOuterCurvePatchIndexCount -
+                   kOuterCurvePatchBorderIndexCount;
         case DrawType::interiorTriangulation:
         case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::atomicInitialize:
         case DrawType::atomicResolve:
-        case DrawType::stencilClipReset:
+        case DrawType::msaaStencilClipReset:
             RIVE_UNREACHABLE();
     }
     RIVE_UNREACHABLE();
-}
-
-constexpr static uint32_t PatchFanIndexCount(DrawType drawType)
-{
-    return PatchIndexCount(drawType) - PatchBorderIndexCount(drawType);
 }
 
 constexpr static uint32_t PatchBaseIndex(DrawType drawType)
@@ -692,26 +708,31 @@ constexpr static uint32_t PatchBaseIndex(DrawType drawType)
     switch (drawType)
     {
         case DrawType::midpointFanPatches:
+        case DrawType::msaaStrokes:
             return kMidpointFanPatchBaseIndex;
         case DrawType::midpointFanCenterAAPatches:
             return kMidpointFanCenterAAPatchBaseIndex;
         case DrawType::outerCurvePatches:
             return kOuterCurvePatchBaseIndex;
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+            return kMidpointFanPatchBaseIndex +
+                   kMidpointFanPatchBorderIndexCount;
+        case DrawType::msaaOuterCubics:
+            return kOuterCurvePatchBaseIndex + kOuterCurvePatchBorderIndexCount;
         case DrawType::interiorTriangulation:
         case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::atomicInitialize:
         case DrawType::atomicResolve:
-        case DrawType::stencilClipReset:
+        case DrawType::msaaStencilClipReset:
             RIVE_UNREACHABLE();
     }
     RIVE_UNREACHABLE();
-}
-
-constexpr static uint32_t PatchFanBaseIndex(DrawType drawType)
-{
-    return PatchBaseIndex(drawType) + PatchBorderIndexCount(drawType);
 }
 
 // Specifies what to do with the render target at the beginning of a flush.
@@ -859,6 +880,13 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
         case DrawType::atomicResolve:
             mask = kAllShaderFeatures;
             break;
@@ -867,7 +895,7 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             mask = ShaderFeatures::ENABLE_CLIPPING |
                    ShaderFeatures::ENABLE_ADVANCED_BLEND;
             break;
-        case DrawType::stencilClipReset:
+        case DrawType::msaaStencilClipReset:
             mask = ShaderFeatures::NONE;
             break;
     }
@@ -1526,14 +1554,66 @@ enum class TriState
     unknown
 };
 
+enum class StencilOp : uint8_t
+{
+    keep,
+    replace,
+    zero,
+    decrClamp,
+    incrWrap,
+    decrWrap
+};
+
+enum class StencilCompareOp : uint8_t
+{
+    less,
+    equal,
+    lessOrEqual,
+    notEqual,
+    always,
+};
+
+struct StencilFaceOps
+{
+    StencilOp failOp;
+    StencilOp passOp;
+    StencilOp depthFailOp;
+    StencilCompareOp compareOp;
+};
+
+enum class CullFace : uint8_t
+{
+    none,
+    clockwise,
+    counterclockwise,
+};
+
+// Common pipeline state that applies to every low-level draw and every backend.
+struct PipelineState
+{
+    bool colorWriteEnabled;
+    bool depthTestEnabled;
+    bool depthWriteEnabled;
+    bool stencilTestEnabled;
+    bool stencilDoubleSided;
+    uint8_t stencilCompareMask;
+    uint8_t stencilWriteMask;
+    uint8_t stencilReference;
+    StencilFaceOps stencilFrontOps;
+    StencilFaceOps stencilBackOps;
+    CullFace cullFace;
+};
+
+void get_pipeline_state(DrawType, InterlockMode, DrawContents, PipelineState*);
+
+float4 cast_f16_to_f32(uint16x4 x);
+uint16x4 cast_f32_to_f16(float4);
+
 // These tables integrate the gaussian function, and its inverse, covering a
 // spread of -FEATHER_TEXTURE_STDDEVS to +FEATHER_TEXTURE_STDDEVS.
 constexpr static uint32_t GAUSSIAN_TABLE_SIZE = 512;
 extern const uint16_t g_gaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
 extern const uint16_t g_inverseGaussianIntegralTableF16[GAUSSIAN_TABLE_SIZE];
-
-float4 cast_f16_to_f32(uint16x4 x);
-uint16x4 cast_f32_to_f16(float4);
 
 // Code to generate g_gaussianIntegralTableF16 and
 // g_inverseGaussianIntegralTableF32. This is left in the codebase but #ifdef'd

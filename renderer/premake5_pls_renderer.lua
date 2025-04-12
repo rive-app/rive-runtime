@@ -181,10 +181,9 @@ do
     filter({
         'system:windows',
         'options:toolset=msc',
-        'options:with-dawn or with-webgpu or with_vulkan',
     })
     do
-        -- Vulkan and WebGPU both make heavy use of designated initializers, which MSVC doesn't accept in C++17.
+        -- MSVC doesn't accept designated initializers in C++17.
         cppdialect('c++latest')
         defines({
             '_SILENCE_CXX20_IS_POD_DEPRECATION_WARNING',

@@ -230,7 +230,14 @@ void BackgroundShaderCompiler::threadMain()
                 [source appendFormat:@"%s\n", gpu::glsl::atomic_draw];
 #endif
                 break;
-            case DrawType::stencilClipReset:
+            case DrawType::msaaStrokes:
+            case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaMidpointFans:
+            case DrawType::msaaMidpointFanStencilReset:
+            case DrawType::msaaMidpointFanPathsStencil:
+            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubics:
+            case DrawType::msaaStencilClipReset:
                 RIVE_UNREACHABLE();
         }
 

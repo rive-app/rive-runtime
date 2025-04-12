@@ -654,6 +654,7 @@ private:
         // required, and if this is the path's first subpass.
         void pushMidpointFanDraw(
             const PathDraw*,
+            gpu::DrawType,
             uint32_t tessVertexCount,
             uint32_t tessLocation,
             gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);
@@ -665,6 +666,7 @@ private:
         // required, and if this is the path's first subpass.
         void pushOuterCubicsDraw(
             const PathDraw*,
+            gpu::DrawType,
             uint32_t tessVertexCount,
             uint32_t tessLocation,
             gpu::ShaderMiscFlags = gpu::ShaderMiscFlags::none);

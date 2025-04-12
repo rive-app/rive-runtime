@@ -35,7 +35,7 @@ class PushRetrofittedTrianglesGMDraw : public PathDraw
 public:
     PushRetrofittedTrianglesGMDraw(RenderContext* context,
                                    const RiveRenderPaint* paint) :
-        PathDraw(kFullscreenPixelBounds,
+        PathDraw(FULLSCREEN_PIXEL_BOUNDS,
                  Mat2D(),
                  make_nonempty_placeholder_path(),
                  context->frameDescriptor().clockwiseFillOverride
@@ -63,10 +63,10 @@ public:
             &context->perFrameAllocator());
     }
 
-    void determineSubpasses() override
+    void countSubpasses() override
     {
-        m_prepassCount = 0;
-        m_subpassCount = 1;
+        assert(m_prepassCount == 0);
+        assert(m_subpassCount == 1);
     }
 
     bool allocateResources(RenderContext::LogicalFlush* flush) override
@@ -95,6 +95,7 @@ public:
 
             uint32_t tessLocation =
                 flush->allocateOuterCubicTessVertices(tessVertexCount);
+
             uint32_t forwardTessVertexCount, forwardTessLocation,
                 mirroredTessVertexCount, mirroredTessLocation;
             if (m_contourDirections ==
@@ -122,7 +123,6 @@ public:
                 mirroredTessVertexCount,
                 mirroredTessLocation);
 
-            // PushRetrofittedTrianglesGMDraw specific push to render
             uint32_t contourID = tessWriter.pushContour(
                 {0, 0},
                 /*isStroke=*/false,
@@ -141,15 +141,18 @@ public:
                                          RETROFITTED_TRIANGLE_CONTOUR_FLAG);
             }
 
-            auto shaderMiscFlags = gpu::ShaderMiscFlags::none;
             if (flush->frameDescriptor().clockwiseFillOverride)
             {
                 m_drawContents |= gpu::DrawContents::clockwiseFill;
             }
+
             flush->pushOuterCubicsDraw(this,
+                                       m_coverageType == CoverageType::msaa
+                                           ? gpu::DrawType::msaaOuterCubics
+                                           : gpu::DrawType::outerCurvePatches,
                                        tessVertexCount,
                                        tessLocation,
-                                       shaderMiscFlags);
+                                       gpu::ShaderMiscFlags::none);
         }
     }
 };

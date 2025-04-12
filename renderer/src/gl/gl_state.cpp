@@ -4,6 +4,7 @@
 
 #include "rive/renderer/gl/gl_state.hpp"
 
+#include "rive/renderer/gpu.hpp"
 #include "shaders/constants.glsl"
 
 namespace rive::gpu
@@ -62,6 +63,192 @@ void GLState::invalidate()
     glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+}
+
+static void gl_enable_disable(GLenum state, bool enabled)
+{
+    if (enabled)
+        glEnable(state);
+    else
+        glDisable(state);
+}
+
+void GLState::setDepthStencilEnabled(bool depthEnabled, bool stencilEnabled)
+{
+    if (!m_validState.depthStencilEnabled || m_depthTestEnabled != depthEnabled)
+    {
+        gl_enable_disable(GL_DEPTH_TEST, depthEnabled);
+        m_depthTestEnabled = depthEnabled;
+    }
+
+    if (!m_validState.depthStencilEnabled ||
+        m_stencilTestEnabled != stencilEnabled)
+    {
+        gl_enable_disable(GL_STENCIL_TEST, stencilEnabled);
+        m_stencilTestEnabled = stencilEnabled;
+    }
+
+    m_validState.depthStencilEnabled = true;
+}
+
+void GLState::setWriteMasks(bool colorWriteMask,
+                            bool depthWriteMask,
+                            uint8_t stencilWriteMask)
+{
+    if (!m_validState.writeMasks)
+    {
+        glColorMask(colorWriteMask,
+                    colorWriteMask,
+                    colorWriteMask,
+                    colorWriteMask);
+        glDepthMask(depthWriteMask);
+        glStencilMask(stencilWriteMask);
+        m_colorWriteMask = colorWriteMask;
+        m_depthWriteMask = depthWriteMask;
+        m_stencilWriteMask = stencilWriteMask;
+        m_validState.writeMasks = true;
+    }
+    else
+    {
+        if (colorWriteMask != m_colorWriteMask)
+        {
+            glColorMask(colorWriteMask,
+                        colorWriteMask,
+                        colorWriteMask,
+                        colorWriteMask);
+            m_colorWriteMask = colorWriteMask;
+        }
+        if (depthWriteMask != m_depthWriteMask)
+        {
+            glDepthMask(depthWriteMask);
+            m_depthWriteMask = depthWriteMask;
+        }
+        if (stencilWriteMask != m_stencilWriteMask)
+        {
+            glStencilMask(stencilWriteMask);
+            m_stencilWriteMask = stencilWriteMask;
+        }
+    }
+}
+
+void GLState::setCullFace(GLenum cullFace)
+{
+    if (!m_validState.cullFace || cullFace != m_cullFace)
+    {
+        if (cullFace == GL_NONE)
+        {
+            glDisable(GL_CULL_FACE);
+        }
+        else
+        {
+            if (!m_validState.cullFace || m_cullFace == GL_NONE)
+            {
+                glEnable(GL_CULL_FACE);
+            }
+            glCullFace(cullFace);
+        }
+        m_cullFace = cullFace;
+        m_validState.cullFace = true;
+    }
+}
+
+static GLenum gl_stencil_op(StencilOp op)
+{
+    switch (op)
+    {
+        case StencilOp::keep:
+            return GL_KEEP;
+        case StencilOp::replace:
+            return GL_REPLACE;
+        case StencilOp::zero:
+            return GL_ZERO;
+        case StencilOp::decrClamp:
+            return GL_DECR;
+        case StencilOp::incrWrap:
+            return GL_INCR_WRAP;
+        case StencilOp::decrWrap:
+            return GL_DECR_WRAP;
+    }
+    RIVE_UNREACHABLE();
+}
+
+static GLenum gl_stencil_func(gpu::StencilCompareOp compareOp)
+{
+    switch (compareOp)
+    {
+        case gpu::StencilCompareOp::less:
+            return GL_LESS;
+        case gpu::StencilCompareOp::equal:
+            return GL_EQUAL;
+        case gpu::StencilCompareOp::lessOrEqual:
+            return GL_LEQUAL;
+        case gpu::StencilCompareOp::notEqual:
+            return GL_NOTEQUAL;
+        case gpu::StencilCompareOp::always:
+            return GL_ALWAYS;
+    }
+    RIVE_UNREACHABLE();
+}
+
+static GLenum gl_cull_face(CullFace riveCullFace)
+{
+    switch (riveCullFace)
+    {
+        case CullFace::none:
+            return GL_NONE;
+        case CullFace::clockwise:
+            return GL_FRONT;
+        case CullFace::counterclockwise:
+            return GL_BACK;
+    }
+    RIVE_UNREACHABLE();
+}
+
+void GLState::setPipelineState(const gpu::PipelineState& pipelineState)
+{
+    setDepthStencilEnabled(pipelineState.depthTestEnabled,
+                           pipelineState.stencilTestEnabled);
+    setWriteMasks(pipelineState.colorWriteEnabled,
+                  pipelineState.depthWriteEnabled,
+                  pipelineState.stencilWriteMask);
+    if (pipelineState.stencilTestEnabled)
+    {
+        if (!pipelineState.stencilDoubleSided)
+        {
+            glStencilFunc(
+                gl_stencil_func(pipelineState.stencilFrontOps.compareOp),
+                pipelineState.stencilReference,
+                pipelineState.stencilCompareMask);
+            glStencilOp(
+                gl_stencil_op(pipelineState.stencilFrontOps.failOp),
+                gl_stencil_op(pipelineState.stencilFrontOps.depthFailOp),
+                gl_stencil_op(pipelineState.stencilFrontOps.passOp));
+        }
+        else
+        {
+            glStencilFuncSeparate(
+                GL_FRONT,
+                gl_stencil_func(pipelineState.stencilFrontOps.compareOp),
+                pipelineState.stencilReference,
+                pipelineState.stencilCompareMask);
+            glStencilOpSeparate(
+                GL_FRONT,
+                gl_stencil_op(pipelineState.stencilFrontOps.failOp),
+                gl_stencil_op(pipelineState.stencilFrontOps.depthFailOp),
+                gl_stencil_op(pipelineState.stencilFrontOps.passOp));
+            glStencilFuncSeparate(
+                GL_BACK,
+                gl_stencil_func(pipelineState.stencilBackOps.compareOp),
+                pipelineState.stencilReference,
+                pipelineState.stencilCompareMask);
+            glStencilOpSeparate(
+                GL_BACK,
+                gl_stencil_op(pipelineState.stencilBackOps.failOp),
+                gl_stencil_op(pipelineState.stencilBackOps.depthFailOp),
+                gl_stencil_op(pipelineState.stencilBackOps.passOp));
+        }
+    }
+    setCullFace(gl_cull_face(pipelineState.cullFace));
 }
 
 void GLState::setGLBlendMode(GLBlendMode blendMode)
@@ -139,67 +326,6 @@ void GLState::setGLBlendMode(GLBlendMode blendMode)
     }
     m_blendMode = blendMode;
     m_validState.blendEquation = true;
-}
-
-void GLState::setWriteMasks(bool colorWriteMask,
-                            bool depthWriteMask,
-                            GLuint stencilWriteMask)
-{
-    if (!m_validState.writeMasks)
-    {
-        glColorMask(colorWriteMask,
-                    colorWriteMask,
-                    colorWriteMask,
-                    colorWriteMask);
-        glDepthMask(depthWriteMask);
-        glStencilMask(stencilWriteMask);
-        m_colorWriteMask = colorWriteMask;
-        m_depthWriteMask = depthWriteMask;
-        m_stencilWriteMask = stencilWriteMask;
-        m_validState.writeMasks = true;
-    }
-    else
-    {
-        if (colorWriteMask != m_colorWriteMask)
-        {
-            glColorMask(colorWriteMask,
-                        colorWriteMask,
-                        colorWriteMask,
-                        colorWriteMask);
-            m_colorWriteMask = colorWriteMask;
-        }
-        if (depthWriteMask != m_depthWriteMask)
-        {
-            glDepthMask(depthWriteMask);
-            m_depthWriteMask = depthWriteMask;
-        }
-        if (stencilWriteMask != m_stencilWriteMask)
-        {
-            glStencilMask(stencilWriteMask);
-            m_stencilWriteMask = stencilWriteMask;
-        }
-    }
-}
-
-void GLState::setCullFace(GLenum cullFace)
-{
-    if (!m_validState.cullFace || cullFace != m_cullFace)
-    {
-        if (cullFace == GL_NONE)
-        {
-            glDisable(GL_CULL_FACE);
-        }
-        else
-        {
-            if (!m_validState.cullFace || m_cullFace == GL_NONE)
-            {
-                glEnable(GL_CULL_FACE);
-            }
-            glCullFace(cullFace);
-        }
-        m_cullFace = cullFace;
-        m_validState.cullFace = true;
-    }
 }
 
 void GLState::bindProgram(GLuint programID)

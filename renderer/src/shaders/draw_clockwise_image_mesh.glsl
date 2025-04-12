@@ -58,7 +58,8 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
     VARYING_UNPACK(v_texCoord, float2);
 
     half4 meshColor = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
-    meshColor.a *= imageDrawUniforms.opacity;
+    meshColor = make_half4(unmultiply_rgb(meshColor),
+                           meshColor.a * imageDrawUniforms.opacity);
 
     EMIT_FRAG_DATA(meshColor);
 }

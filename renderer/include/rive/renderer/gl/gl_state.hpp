@@ -10,6 +10,8 @@
 
 namespace rive::gpu
 {
+struct PipelineState;
+
 // Lightweight wrapper around common GL state.
 class GLState : public RefCnt<GLState>
 {
@@ -22,6 +24,13 @@ public:
     const GLCapabilities& capabilities() const { return m_capabilities; }
 
     void invalidate();
+
+    void setDepthStencilEnabled(bool depthEnabled, bool stencilEnabled);
+    void setWriteMasks(bool colorWriteMask,
+                       bool depthWriteMask,
+                       uint8_t stencilWriteMask);
+    void setCullFace(GLenum);
+    void setPipelineState(const gpu::PipelineState&);
 
     enum class GLBlendMode
     {
@@ -54,11 +63,6 @@ public:
     }
     void disableBlending() { setGLBlendMode(GLBlendMode::none); }
 
-    void setWriteMasks(bool colorWriteMask,
-                       bool depthWriteMask,
-                       GLuint stencilWriteMask);
-    void setCullFace(GLenum);
-
     void bindProgram(GLuint);
     void bindVAO(GLuint);
     void bindBuffer(GLenum target, GLuint);
@@ -70,6 +74,8 @@ public:
 private:
     const GLCapabilities m_capabilities;
     GLBlendMode m_blendMode;
+    bool m_depthTestEnabled;
+    bool m_stencilTestEnabled;
     bool m_colorWriteMask;
     bool m_depthWriteMask;
     GLuint m_stencilWriteMask;
@@ -82,6 +88,7 @@ private:
     struct
     {
         bool blendEquation : 1;
+        bool depthStencilEnabled : 1;
         bool writeMasks : 1;
         bool cullFace : 1;
         bool boundProgramID : 1;
