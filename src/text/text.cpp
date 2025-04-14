@@ -314,15 +314,9 @@ void Text::clearRenderStyles()
     }
     m_renderStyles.clear();
 
-    m_textValueRunToRects.clear();
-    for (uint16_t i = 0; i < m_runs.size(); i++)
+    for (TextValueRun* textValueRun : m_runs)
     {
-        TextValueRun* textValueRun = m_runs[i];
         textValueRun->resetHitTest();
-        if (textValueRun->m_isHitTarget)
-        {
-            m_textValueRunToRects[i] = {};
-        }
     }
 }
 
@@ -656,18 +650,15 @@ void Text::buildRenderStyles()
                 }
 
                 // Bounds of the glyph
-                auto rectsItr = m_textValueRunToRects.find(run->styleId);
-                if (rectsItr != m_textValueRunToRects.end())
+                if (textValueRun->isHitTarget())
                 {
                     Vec2D topLeft = Vec2D(curX, curY + line.top);
                     Vec2D bottomRight =
                         Vec2D(curX + advance, curY + line.bottom);
-                    AABB::expandTo(textValueRun->m_localBounds, topLeft);
-                    AABB::expandTo(textValueRun->m_localBounds, bottomRight);
-                    rectsItr->second.emplace_back(topLeft.x,
+                    textValueRun->addHitRect(AABB(topLeft.x,
                                                   topLeft.y,
                                                   bottomRight.x,
-                                                  bottomRight.y);
+                                                  bottomRight.y));
                 }
                 curX += advance;
             }
@@ -742,12 +733,12 @@ skipLines:
 #endif
 
     // Step 8: cleanup
-    for (auto it = m_textValueRunToRects.begin();
-         it != m_textValueRunToRects.end();
-         ++it)
+    for (TextValueRun* textValueRun : m_runs)
     {
-        m_runs[it->first]->m_contours =
-            RectanglesToContour::makeSelectionContours(it->second);
+        if (textValueRun->isHitTarget())
+        {
+            textValueRun->computeHitContours();
+        }
     }
 }
 

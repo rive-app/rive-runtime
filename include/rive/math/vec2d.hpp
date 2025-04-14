@@ -84,6 +84,19 @@ public:
         y -= v.y;
         return *this;
     }
+
+    float operator[](size_t index) const
+    {
+        switch (index)
+        {
+            case 0:
+                return x;
+            case 1:
+                return y;
+            default:
+                RIVE_UNREACHABLE();
+        }
+    }
 };
 static_assert(std::is_pod<Vec2D>::value, "Vec2D must be plain-old-data");
 

@@ -928,7 +928,7 @@ public:
         m_textValueRun = component;
         if (m_textValueRun)
         {
-            m_textValueRun->m_isHitTarget = true;
+            m_textValueRun->isHitTarget(true);
         }
     }
 
@@ -936,7 +936,7 @@ public:
     {
         if (m_textValueRun != nullptr)
         {
-            m_textValueRun->m_isHitTarget = false;
+            m_textValueRun->isHitTarget(false);
             m_textValueRun->resetHitTest();
         }
     }

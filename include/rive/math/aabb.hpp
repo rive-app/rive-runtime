@@ -91,6 +91,8 @@ public:
     inline float right() const { return maxX; }
     inline float bottom() const { return maxY; }
 
+    Vec2D min() const { return Vec2D(minX, minY); }
+    Vec2D max() const { return Vec2D(maxX, maxY); }
     float width() const { return maxX - minX; }
     float height() const { return maxY - minY; }
     Vec2D size() const { return {width(), height()}; }
@@ -157,6 +159,19 @@ public:
     }
 
     bool contains(Vec2D position) const;
+
+    Vec2D operator[](size_t index) const
+    {
+        switch (index)
+        {
+            case 0:
+                return Vec2D(minX, minY);
+            case 1:
+                return Vec2D(maxX, maxY);
+            default:
+                RIVE_UNREACHABLE();
+        }
+    }
 };
 
 } // namespace rive

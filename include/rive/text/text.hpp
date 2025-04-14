@@ -2,7 +2,6 @@
 #define _RIVE_TEXT_CORE_HPP_
 #include "rive/generated/text/text_base.hpp"
 #include "rive/math/aabb.hpp"
-#include "rive/math/rect.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text_engine.hpp"
 #include "rive/shapes/shape_paint_path.hpp"
@@ -313,10 +312,8 @@ private:
 
     StyledText m_styledText;
     StyledText m_modifierStyledText;
-
     GlyphLookup m_glyphLookup;
 
-    std::unordered_map<uint16_t, std::vector<Rect>> m_textValueRunToRects;
     void clearRenderStyles();
     TextBoundsInfo computeBoundsInfo();
     LineIter shouldDrawLine(float y, float totalHeight, const GlyphLine& line);

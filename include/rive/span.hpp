@@ -79,6 +79,15 @@ public:
     typedef T const* const_iterator;
     typedef std::ptrdiff_t difference_type;
     typedef size_t size_type;
+
+    bool operator!=(const Span<T>& that) const
+    {
+        return m_Ptr != that.m_Ptr || m_Size != that.m_Size;
+    }
+    bool operator==(const Span<T>& that) const
+    {
+        return m_Ptr == that.m_Ptr && m_Size == that.m_Size;
+    }
 };
 
 template <typename T> Span<T> make_span(T* ptr, size_t size)

@@ -89,8 +89,32 @@ bool TextValueRun::canHitTest() const
 
 void TextValueRun::resetHitTest()
 {
-    m_contours.clear();
+    m_glyphHitRects.clear();
     m_localBounds = AABB::forExpansion();
+}
+
+void TextValueRun::addHitRect(const AABB& rect)
+{
+    AABB::expandTo(m_localBounds, rect.min());
+    AABB::expandTo(m_localBounds, rect.max());
+    m_glyphHitRects.push_back(rect);
+}
+
+void TextValueRun::computeHitContours()
+{
+    if (!m_rectanglesToContour)
+    {
+        m_rectanglesToContour = rivestd::make_unique<RectanglesToContour>();
+    }
+    else
+    {
+        m_rectanglesToContour->reset();
+    }
+    for (const AABB& rect : m_glyphHitRects)
+    {
+        m_rectanglesToContour->addRect(rect);
+    }
+    m_rectanglesToContour->computeContours();
 }
 
 bool TextValueRun::hitTestAABB(const Vec2D& position)
@@ -141,14 +165,27 @@ bool TextValueRun::hitTestHiFi(const Vec2D& position, float hitRadius)
     HitTestCommandPath tester(hitArea);
     tester.setXform(textComponent()->worldTransform() *
                     textComponent()->m_transform);
-    for (const std::vector<Vec2D>& contour : m_contours)
+
+    assert(m_rectanglesToContour != nullptr);
+    for (auto contour : *m_rectanglesToContour)
     {
-        tester.moveTo(contour[0].x, contour[0].y);
-        for (auto i = 1; i < contour.size(); i++)
+        assert(contour.begin() != contour.end());
+        auto pointItr = contour.begin();
+        auto end = contour.end();
+
+        Vec2D firstPoint = *pointItr;
+        tester.moveTo(firstPoint.x, firstPoint.y);
+
+        while (++pointItr != end)
         {
-            tester.lineTo(contour[i].x, contour[i].y);
+            Vec2D point = *pointItr;
+            tester.lineTo(point.x, point.y);
         }
+
         tester.close();
     }
+
     return tester.wasHit();
 }
+
+void TextValueRun::isHitTarget(bool value) { m_isHitTarget = value; }

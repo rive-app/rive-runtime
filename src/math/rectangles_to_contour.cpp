@@ -3,80 +3,110 @@
 #include <unordered_map>
 
 using namespace rive;
+using RectEvent = RectanglesToContour::RectEvent;
 
-struct RectEvent
+class SpanOffset
 {
-    int index = 0;
-    float size = 0;
-    int type = 0;
-    float x = 0;
-    float y = 0;
+public:
+    size_t start;
+    size_t size;
 
-    float getValue(int axis) const { return axis == 0 ? x : y; }
+    Span<RectEvent> toSpan(Span<RectEvent> base)
+    {
+        return Span<RectEvent>(base.data() + start, size);
+    }
 };
 
-std::vector<Rect> subdivideRectangles(const std::vector<Rect>& rects)
+// Returns SpanOffset relative to result so it can be called in succession
+// (re-allocating) prior to accessing data.
+static SpanOffset sortRectEvents(const std::vector<AABB>& rects,
+                                 std::vector<RectEvent>& result,
+                                 uint8_t axisA,
+                                 uint8_t axisB)
 {
-    if (rects.empty())
+    size_t index = 0;
+
+    size_t resultStart = result.size();
+
+    for (const AABB& rect : rects)
     {
-        return rects;
-    }
-
-    std::vector<std::vector<std::vector<float>>> vrects;
-    for (const auto& rect : rects)
-    {
-        vrects.push_back({{rect.left, rect.top}, {rect.right, rect.bottom}});
-    }
-
-    auto sortEvents = [&](int axisA, int axisB) -> std::vector<RectEvent> {
-        std::vector<RectEvent> result;
-        int index = 0;
-
-        for (const auto& rect : vrects)
+        for (size_t pointIndex = 0; pointIndex < 2; pointIndex++)
         {
-            int mindex = 0;
-            for (const auto& e : rect)
-            {
-                RectEvent event;
-                event.type = mindex;
-                event.index = index;
-                event.y = axisB == 0 ? e[axisA] : e[axisB];
-                event.x = axisB == 0 ? e[axisB] : e[axisA];
-                event.size = mindex++ == 0 ? rect[1][axisB] - e[axisB]
-                                           : e[axisB] - rect[0][axisB];
-                result.push_back(event);
-            }
-            ++index;
+            Vec2D e = rect[pointIndex];
+            RectEvent event;
+            event.type = (uint8_t)pointIndex;
+            event.index = index;
+            event.y = axisB == 0 ? e[axisA] : e[axisB];
+            event.x = axisB == 0 ? e[axisB] : e[axisA];
+            event.size = pointIndex == 0 ? rect[1][axisB] - e[axisB]
+                                         : e[axisB] - rect[0][axisB];
+            result.push_back(event);
         }
+        ++index;
+    }
 
-        std::sort(result.begin(),
-                  result.end(),
-                  [&](const RectEvent& a, const RectEvent& b) {
-                      return a.getValue(axisB) < b.getValue(axisB);
-                  });
+    std::sort(result.begin() + resultStart,
+              result.end(),
+              [&](const RectEvent& a, const RectEvent& b) {
+                  return a.getValue(axisB) < b.getValue(axisB);
+              });
 
-        std::sort(result.begin(),
-                  result.end(),
-                  [&](const RectEvent& a, const RectEvent& b) {
-                      return a.getValue(axisA) < b.getValue(axisA);
-                  });
+    std::sort(result.begin() + resultStart,
+              result.end(),
+              [&](const RectEvent& a, const RectEvent& b) {
+                  return a.getValue(axisA) < b.getValue(axisA);
+              });
 
-        return result;
-    };
+    return {resultStart, result.size() - resultStart};
+}
 
-    auto ev = sortEvents(0, 1);
-    auto eh = sortEvents(1, 0);
-    std::vector<bool> included(vrects.size(), false);
-    included[ev[0].index] = true;
+bool RectanglesToContour::isRectIncluded(size_t rectIndex)
+{
+    return (m_rectInclusionBitset[rectIndex / 8] & (1 << (rectIndex % 8))) != 0;
+}
+
+void RectanglesToContour::markRectIncluded(size_t rectIndex, bool isIt)
+{
+    if (isIt)
+    {
+        m_rectInclusionBitset[rectIndex / 8] |= 1 << (rectIndex % 8);
+    }
+    else
+    {
+        m_rectInclusionBitset[rectIndex / 8] &= ~(1 << (rectIndex % 8));
+    }
+}
+
+void RectanglesToContour::subdivideRectangles()
+{
+    m_subdividedRects.clear();
+    m_uniquePoints.clear();
+    m_rectEvents.clear();
+
+    if (m_rects.empty())
+    {
+        return;
+    }
+
+    auto evOffset = sortRectEvents(m_rects, m_rectEvents, 0, 1);
+    auto ehOffset = sortRectEvents(m_rects, m_rectEvents, 1, 0);
+
+    auto ev = evOffset.toSpan(m_rectEvents);
+    auto eh = ehOffset.toSpan(m_rectEvents);
+
+    size_t inclusionByteSize = m_rects.size() / 8 + 1;
+    m_rectInclusionBitset.resize(inclusionByteSize);
+    memset(m_rectInclusionBitset.data(), 0, inclusionByteSize);
+    markRectIncluded(ev[0].index, true);
 
     int opened = 0;
     float beginY = 0;
-    std::vector<Rect> result;
+    std::vector<AABB> result;
 
     for (size_t i = 0; i < ev.size() - 1; ++i)
     {
         const auto& eventV = ev[i];
-        included[eventV.index] = (eventV.type == 0);
+        markRectIncluded(ev[0].index, eventV.type == 0);
         const auto& next = ev[i + 1];
         float beginX = eventV.x;
         float endX = next.x;
@@ -89,7 +119,7 @@ std::vector<Rect> subdivideRectangles(const std::vector<Rect>& rects)
         for (size_t j = 0; j < eh.size(); ++j)
         {
             const auto& eventH = eh[j];
-            if (included[eventH.index])
+            if (isRectIncluded(eventH.index))
             {
                 if (eventH.type == 0)
                 {
@@ -103,7 +133,8 @@ std::vector<Rect> subdivideRectangles(const std::vector<Rect>& rects)
                 {
                     --opened;
                     size_t n = 1;
-                    while (j + n < eh.size() && !included[eh[j + n].index])
+                    while (j + n < eh.size() &&
+                           !isRectIncluded(eh[j + n].index))
                     {
                         ++n;
                     }
@@ -112,32 +143,32 @@ std::vector<Rect> subdivideRectangles(const std::vector<Rect>& rects)
                     if (!next || (opened == 0 && next->y != eventH.y))
                     {
                         float endY = eventH.y;
-                        result.push_back(
-                            Rect::fromLTRB(beginX, beginY, endX, endY));
+                        m_subdividedRects.push_back(
+                            AABB(beginX, beginY, endX, endY));
                     }
                 }
             }
         }
     }
-
-    return result;
 }
 
-void RectanglesToContour::addRect(const Rect& rect)
+void RectanglesToContour::reset() { m_rects.clear(); }
+
+void RectanglesToContour::addRect(const AABB& rect)
 {
-    if (!rects.empty())
+    if (!m_rects.empty())
     {
-        auto& last = rects.back();
-        if (last.top == rect.top && last.bottom == rect.bottom &&
-            last.right == rect.left)
+        auto& last = m_rects.back();
+        if (last.minY == rect.minY && last.maxY == rect.maxY &&
+            last.maxX == rect.minX)
         {
-            rects.pop_back();
-            rects.emplace_back(
-                Rect::fromLTRB(last.left, last.top, rect.right, last.bottom));
+            m_rects.pop_back();
+            m_rects.emplace_back(
+                AABB(last.minX, last.minY, rect.maxX, last.maxY));
             return;
         }
     }
-    rects.push_back(rect);
+    m_rects.push_back(rect);
 }
 
 template <typename Compare>
@@ -149,29 +180,33 @@ std::vector<Vec2D> sortPoints(const std::unordered_set<Vec2D>& points,
     return sortedPoints;
 }
 
-std::vector<std::vector<Vec2D>> extractPolygons(
-    std::unordered_map<Vec2D, Vec2D>& edgesH,
-    std::unordered_map<Vec2D, Vec2D>& edgesV)
+// Build contours and append them into contourPoints delineated by
+// contourOffsets.
+void extractPolygons(std::vector<ContourPoint>& contourPoints,
+                     std::vector<size_t>& contourOffsets,
+                     std::unordered_map<Vec2D, Vec2D>& edgesH,
+                     std::unordered_map<Vec2D, Vec2D>& edgesV)
 {
-    std::vector<std::vector<Vec2D>> polygons;
 
     while (!edgesH.empty())
     {
+        size_t contourStartOffset = contourPoints.size();
         Vec2D start = edgesH.begin()->first;
         edgesH.erase(start);
 
-        std::vector<PolygonPoint> polygon = {PolygonPoint(start, 0)};
+        auto first = ContourPoint(start, 0);
+        contourPoints.push_back(first);
 
         while (true)
         {
-            auto& curr = polygon.back();
+            auto& curr = contourPoints.back();
             if (curr.dir == 0)
             {
                 if (edgesV.find(curr.vec) != edgesV.end())
                 {
                     auto next = edgesV[curr.vec];
                     edgesV.erase(curr.vec);
-                    polygon.emplace_back(next, 1);
+                    contourPoints.emplace_back(next, 1);
                 }
                 else
                 {
@@ -184,7 +219,7 @@ std::vector<std::vector<Vec2D>> extractPolygons(
                 {
                     auto next = edgesH[curr.vec];
                     edgesH.erase(curr.vec);
-                    polygon.emplace_back(next, 0);
+                    contourPoints.emplace_back(next, 0);
                 }
                 else
                 {
@@ -192,59 +227,60 @@ std::vector<std::vector<Vec2D>> extractPolygons(
                 }
             }
 
-            if (polygon.front() == polygon.back())
+            // Remove the last point if the first and last in the contour are
+            // the same.
+            if (first == contourPoints.back())
             {
-                polygon.pop_back();
+                contourPoints.pop_back();
                 break;
             }
         }
 
-        std::vector<Vec2D> poly;
-        std::transform(polygon.begin(),
-                       polygon.end(),
-                       std::back_inserter(poly),
-                       [](const PolygonPoint& pp) { return pp.vec; });
-
-        polygons.push_back(poly);
-        for (const Vec2D& vertex : poly)
+        contourOffsets.push_back(contourPoints.size());
+        for (size_t index = contourStartOffset; index < contourPoints.size();
+             index++)
         {
+            Vec2D vertex = contourPoints[index].vec;
             edgesH.erase(vertex);
             edgesV.erase(vertex);
         }
     }
-
-    return polygons;
 }
 
-std::vector<std::vector<Vec2D>> RectanglesToContour::computeContours()
+void RectanglesToContour::computeContours()
 {
-    auto subdividedRects = subdivideRectangles(rects);
-
-    for (const auto& rect : subdividedRects)
+    subdivideRectangles();
+    for (const auto& rect : m_subdividedRects)
     {
-        addUniquePoint(Vec2D(rect.left, rect.top));
-        addUniquePoint(Vec2D(rect.right, rect.top));
-        addUniquePoint(Vec2D(rect.right, rect.bottom));
-        addUniquePoint(Vec2D(rect.left, rect.bottom));
+        addUniquePoint(Vec2D(rect.minX, rect.minY));
+        addUniquePoint(Vec2D(rect.maxX, rect.minY));
+        addUniquePoint(Vec2D(rect.maxX, rect.maxY));
+        addUniquePoint(Vec2D(rect.minX, rect.maxY));
     }
 
-    auto sortX = sortPoints(uniquePoints, [](const Vec2D& a, const Vec2D& b) {
+    auto sortX = sortPoints(m_uniquePoints, [](const Vec2D& a, const Vec2D& b) {
         return a.x < b.x || (a.x == b.x && a.y < b.y);
     });
 
-    auto sortY = sortPoints(uniquePoints, [](const Vec2D& a, const Vec2D& b) {
+    auto sortY = sortPoints(m_uniquePoints, [](const Vec2D& a, const Vec2D& b) {
         return a.y < b.y || (a.y == b.y && a.x < b.x);
     });
 
-    std::unordered_map<Vec2D, Vec2D> edgesH, edgesV;
+    // std::unordered_map isn't guaranteed to reserve memory, so this clear
+    // is more in prep for when we allow using allocators. We could also
+    // experiment with a simple linear search in a vector as usually there
+    // are not a lot of edges to traverse.
+    m_edgesH.clear();
+    m_edgesV.clear();
+
     size_t i = 0;
     while (i < sortY.size())
     {
         float currY = sortY[i].y;
         while (i < sortY.size() && sortY[i].y == currY)
         {
-            edgesH[sortY[i]] = sortY[i + 1];
-            edgesH[sortY[i + 1]] = sortY[i];
+            m_edgesH[sortY[i]] = sortY[i + 1];
+            m_edgesH[sortY[i + 1]] = sortY[i];
             i += 2;
         }
     }
@@ -255,58 +291,59 @@ std::vector<std::vector<Vec2D>> RectanglesToContour::computeContours()
         float currX = sortX[i].x;
         while (i < sortX.size() && sortX[i].x == currX)
         {
-            edgesV[sortX[i]] = sortX[i + 1];
-            edgesV[sortX[i + 1]] = sortX[i];
+            m_edgesV[sortX[i]] = sortX[i + 1];
+            m_edgesV[sortX[i + 1]] = sortX[i];
             i += 2;
         }
     }
 
-    return extractPolygons(edgesH, edgesV);
+    m_contourPoints.clear();
+    m_contourOffsets.clear();
+    extractPolygons(m_contourPoints, m_contourOffsets, m_edgesH, m_edgesV);
 }
 
 void RectanglesToContour::addUniquePoint(const Vec2D& point)
 {
-    if (!uniquePoints.insert(point).second)
+    if (!m_uniquePoints.insert(point).second)
     {
-        uniquePoints.erase(point);
+        m_uniquePoints.erase(point);
     }
 }
 
-std::vector<std::vector<Vec2D>> RectanglesToContour::makeSelectionContours(
-    const std::vector<Rect>& rects)
+ContourItr& ContourItr::operator++()
 {
-    RectanglesToContour converter;
-
-    // Add rectangles to the converter
-    for (const auto& rect : rects)
-    {
-        converter.addRect(rect);
-    }
-
-    std::vector<std::vector<Vec2D>> renderContours;
-    auto contours = converter.computeContours();
-
-    // Process the contours to create renderContours
-    for (const auto& contour : contours)
-    {
-        if (contour.empty())
-        {
-            continue;
-        }
-
-        std::vector<Vec2D> renderContour = {contour.front()};
-
-        for (auto it = std::next(contour.begin()); it != contour.end(); ++it)
-        {
-            if (renderContour.back() == *it)
-            {
-                continue;
-            }
-            renderContour.push_back(*it);
-        }
-
-        renderContours.push_back(renderContour);
-    }
-
-    return renderContours;
+    m_contourIndex++;
+    return *this;
 }
+Contour ContourItr::operator*() const
+{
+    return m_rectanglesToContour->contour(m_contourIndex);
+}
+
+Contour RectanglesToContour::contour(size_t index) const
+{
+    assert(index < m_contourOffsets.size());
+    size_t end = m_contourOffsets[index];
+    size_t start = index == 0 ? 0 : m_contourOffsets[index - 1];
+    const ContourPoint* data = m_contourPoints.data() + start;
+    size_t size = end - start;
+    return Contour(Span<const ContourPoint>(data, size));
+}
+
+ContourPointItr& ContourPointItr::operator++()
+{
+    Vec2D currentPoint = m_pointIndex < m_contour.size() ? *(*this) : Vec2D();
+    m_pointIndex++;
+    while (m_pointIndex < m_contour.size())
+    {
+        auto nextPoint = m_contour[m_pointIndex].vec;
+        if (nextPoint != currentPoint)
+        {
+            break;
+        }
+        m_pointIndex++;
+    }
+    return *this;
+}
+
+Vec2D ContourPointItr::operator*() const { return m_contour[m_pointIndex].vec; }

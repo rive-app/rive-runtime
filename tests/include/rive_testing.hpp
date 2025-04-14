@@ -7,6 +7,11 @@
 
 bool aboutEqual(const rive::Mat2D& a, const rive::Mat2D& b);
 
+// StringMaker doesn't work for Vec2D.
+#define CHECK_VEC2D(a, b)                                                      \
+    CHECK(a.x == b.x);                                                         \
+    CHECK(a.y == b.y);
+
 namespace Catch
 {
 template <> struct StringMaker<rive::Mat2D>
