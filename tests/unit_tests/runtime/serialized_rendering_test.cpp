@@ -92,3 +92,31 @@ TEST_CASE("lock icon listener silver", "[silver]")
 
     CHECK(silver.matches("lock_icon_demo"));
 }
+
+TEST_CASE("validate text run listener works", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/text_listener_simpler.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    // Click in the middle of the state machine.
+    stateMachine->pointerDown(
+        rive::Vec2D(artboard->width() * 0.8, artboard->height() / 2.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("text_listener_simpler"));
+}
