@@ -11,34 +11,39 @@ esac
 
 CONFIG=debug
 MATCH=
+COVERAGE=
 while [[ $# -gt 0 ]]; do
   case $1 in
-    -m|--match)
-      MATCH="$2"
-      shift # past argument
-      shift # past value
-      ;;
-    lldb)
-      echo Starting debugger...
-      UTILITY='lldb'
-      shift # past argument
-      ;;
-    memory)
-      echo Will perform memory checks...
-      UTILITY='leaks --atExit --'
-      shift # past argument
-      ;;
-    release)
-      CONFIG=release
-      shift # past argument
-      ;;
-    rebaseline)
-      export REBASELINE_SILVERS=true
-      shift # past argument
-      ;;
-    *)
-      shift # past argument
-      ;;
+  -m | --match)
+    MATCH="$2"
+    shift # past argument
+    shift # past value
+    ;;
+  lldb)
+    echo Starting debugger...
+    UTILITY='lldb'
+    shift # past argument
+    ;;
+  memory)
+    echo Will perform memory checks...
+    UTILITY='leaks --atExit --'
+    shift # past argument
+    ;;
+  release)
+    CONFIG=release
+    shift # past argument
+    ;;
+  coverage)
+    COVERAGE=true
+    shift #
+    ;;
+  rebaseline)
+    export REBASELINE_SILVERS=true
+    shift # past argument
+    ;;
+  *)
+    shift # past argument
+    ;;
   esac
 done
 
@@ -107,15 +112,13 @@ if [[ $machine = "macosx" ]]; then
   rm -fR silvers/tarnished
   mkdir -p silvers/tarnished
   $UTILITY $OUT_DIR/unit_tests "$MATCH"
-  for var in "$@"; do
-    if [[ $var = "coverage" ]]; then
-      xcrun llvm-profdata merge -sparse default.profraw -o default.profdata
-      xcrun llvm-cov report $OUT_DIR/unit_tests -instr-profile=default.profdata
-      # xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=text >coverage.json
-      xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=lcov >coverage.txt
-      sed -i '' -e 's?'$RUNTIME'?packages/runtime?g' coverage.txt
-    fi
-  done
+  if [[ $COVERAGE = "true" ]]; then
+    xcrun llvm-profdata merge -sparse default.profraw -o default.profdata
+    xcrun llvm-cov report $OUT_DIR/unit_tests -instr-profile=default.profdata
+    # xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=text >coverage.json
+    xcrun llvm-cov export out/debug/unit_tests -instr-profile=default.profdata -format=lcov >coverage.txt
+    sed -i '' -e 's?'$RUNTIME'?packages/runtime?g' coverage.txt
+  fi
 
 elif [[ $machine = "windows" ]]; then
   if [[ -f "$PROGRAMFILES/Microsoft Visual Studio/2022/Enterprise/Msbuild/Current/Bin/MSBuild.exe" ]]; then
