@@ -101,6 +101,8 @@ static void make_scenes(size_t count)
     clear_scenes();
     for (size_t i = 0; i < count; ++i)
     {
+        // Tip: you can change the artboard shown here
+        // auto artboard = rivFile->artboardAt(2);
         auto artboard = rivFile->artboardDefault();
         std::unique_ptr<Scene> scene;
         if (stateMachine >= 0)

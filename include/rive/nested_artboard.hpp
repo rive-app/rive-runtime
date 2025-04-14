@@ -37,6 +37,7 @@ public:
 
     void nest(Artboard* artboard);
     ArtboardInstance* artboardInstance() { return m_Instance.get(); }
+    Artboard* sourceArtboard() { return m_Artboard; }
 
     StatusCode import(ImportStack& importStack) override;
     Core* clone() const override;

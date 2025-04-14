@@ -36,6 +36,7 @@ void NestedArtboard::nest(Artboard* artboard)
     {
         // We're just marking the source artboard so we can later instance from
         // it. No need to advance it or change any of its properties.
+        // E.g. at import time, we return here.
         return;
     }
     m_Artboard->frameOrigin(false);
