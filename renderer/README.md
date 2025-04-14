@@ -6,14 +6,14 @@ This directory contains the renderer code and an example for how to interface wi
 
 ## Clone the rive-runtime repo
 
-```
+```sh
 git clone https://github.com/rive-app/rive-runtime.git
 cd rive-runtime/renderer
 ```
 
 ## Build GLFW
 
-```
+```sh
 pushd ../skia/dependencies
 ./make_glfw.sh
 popd
@@ -21,20 +21,20 @@ popd
 
 ## Add build_rive.sh to $PATH
 
-```
+```sh
 export PATH="$PATH:$(realpath ../build)"
 ```
 
 ## Build & run
 
-```
+```sh
 build_rive.sh release
 out/release/path_fiddle [/path/to/my.riv]
 ```
 
 ## Build & serve for WebGL2
 
-```
+```sh
 build_rive.sh ninja wasm release
 cd out/wasm_release
 python3 -m http.server 5555
