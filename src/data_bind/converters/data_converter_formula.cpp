@@ -143,7 +143,8 @@ void DataConverterFormula::initialize()
                 }
             }
         }
-        else if (token->is<FormulaTokenArgumentSeparator>())
+        else if (token->is<FormulaTokenArgumentSeparator>() &&
+                 operationsStack.size() > 0)
         {
             size_t index = operationsStack.size() - 1;
             while (index >= 0)
