@@ -2,9 +2,27 @@
 #define _RIVE_RECTANGLES_TO_CONTOUR_HPP_
 #include <vector>
 #include <unordered_set>
-#include <unordered_map>
+
 #include "rive/math/mat2d.hpp"
 #include "rive/math/aabb.hpp"
+
+#ifdef TESTING
+// When building for testing we use an ordered map for the EdgeMap so we can get
+// crossplatform stable order of contours. Visually this doesn't matter but for
+// testing across results across different platforms, it does.
+#include <map>
+struct EdgeMapTesting
+{
+    bool operator()(const rive::Vec2D& a, const rive::Vec2D& b) const
+    {
+        return a.x < b.x || (a.x == b.x && a.y < b.y);
+    }
+};
+using EdgeMap = std::map<rive::Vec2D, rive::Vec2D, EdgeMapTesting>;
+#else
+#include <unordered_map>
+using EdgeMap = std::unordered_map<rive::Vec2D, rive::Vec2D>;
+#endif
 
 namespace rive
 {
@@ -148,8 +166,8 @@ private:
     // around when you know you'll need to recompute the contour from a set of
     // rectangles often/in rapid succession.
     std::vector<RectEvent> m_rectEvents;
-    std::unordered_map<Vec2D, Vec2D> m_edgesH;
-    std::unordered_map<Vec2D, Vec2D> m_edgesV;
+    EdgeMap m_edgesH;
+    EdgeMap m_edgesV;
     std::unordered_set<Vec2D> m_uniquePoints;
     std::vector<AABB> m_rects;
     std::vector<AABB> m_subdividedRects;

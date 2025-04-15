@@ -1,8 +1,8 @@
 #include "rive/math/rectangles_to_contour.hpp"
 #include <algorithm>
-#include <unordered_map>
 
 using namespace rive;
+
 using RectEvent = RectanglesToContour::RectEvent;
 
 class SpanOffset
@@ -106,7 +106,7 @@ void RectanglesToContour::subdivideRectangles()
     for (size_t i = 0; i < ev.size() - 1; ++i)
     {
         const auto& eventV = ev[i];
-        markRectIncluded(ev[0].index, eventV.type == 0);
+        markRectIncluded(eventV.index, eventV.type == 0);
         const auto& next = ev[i + 1];
         float beginX = eventV.x;
         float endX = next.x;
@@ -171,21 +171,12 @@ void RectanglesToContour::addRect(const AABB& rect)
     m_rects.push_back(rect);
 }
 
-template <typename Compare>
-std::vector<Vec2D> sortPoints(const std::unordered_set<Vec2D>& points,
-                              Compare comp)
-{
-    std::vector<Vec2D> sortedPoints(points.begin(), points.end());
-    std::sort(sortedPoints.begin(), sortedPoints.end(), comp);
-    return sortedPoints;
-}
-
 // Build contours and append them into contourPoints delineated by
 // contourOffsets.
 void extractPolygons(std::vector<ContourPoint>& contourPoints,
                      std::vector<size_t>& contourOffsets,
-                     std::unordered_map<Vec2D, Vec2D>& edgesH,
-                     std::unordered_map<Vec2D, Vec2D>& edgesV)
+                     EdgeMap& edgesH,
+                     EdgeMap& edgesV)
 {
 
     while (!edgesH.empty())
@@ -258,13 +249,23 @@ void RectanglesToContour::computeContours()
         addUniquePoint(Vec2D(rect.minX, rect.maxY));
     }
 
-    auto sortX = sortPoints(m_uniquePoints, [](const Vec2D& a, const Vec2D& b) {
-        return a.x < b.x || (a.x == b.x && a.y < b.y);
-    });
-
-    auto sortY = sortPoints(m_uniquePoints, [](const Vec2D& a, const Vec2D& b) {
-        return a.y < b.y || (a.y == b.y && a.x < b.x);
-    });
+    m_sortedPointsX.clear();
+    m_sortedPointsY.clear();
+    for (auto pt : m_uniquePoints)
+    {
+        m_sortedPointsX.push_back(pt);
+        m_sortedPointsY.push_back(pt);
+    }
+    std::sort(m_sortedPointsX.begin(),
+              m_sortedPointsX.end(),
+              [](const Vec2D& a, const Vec2D& b) {
+                  return a.x < b.x || (a.x == b.x && a.y < b.y);
+              });
+    std::sort(m_sortedPointsY.begin(),
+              m_sortedPointsY.end(),
+              [](const Vec2D& a, const Vec2D& b) {
+                  return a.y < b.y || (a.y == b.y && a.x < b.x);
+              });
 
     // std::unordered_map isn't guaranteed to reserve memory, so this clear
     // is more in prep for when we allow using allocators. We could also
@@ -274,25 +275,25 @@ void RectanglesToContour::computeContours()
     m_edgesV.clear();
 
     size_t i = 0;
-    while (i < sortY.size())
+    while (i < m_sortedPointsY.size())
     {
-        float currY = sortY[i].y;
-        while (i < sortY.size() && sortY[i].y == currY)
+        float currY = m_sortedPointsY[i].y;
+        while (i < m_sortedPointsY.size() && m_sortedPointsY[i].y == currY)
         {
-            m_edgesH[sortY[i]] = sortY[i + 1];
-            m_edgesH[sortY[i + 1]] = sortY[i];
+            m_edgesH[m_sortedPointsY[i]] = m_sortedPointsY[i + 1];
+            m_edgesH[m_sortedPointsY[i + 1]] = m_sortedPointsY[i];
             i += 2;
         }
     }
 
     i = 0;
-    while (i < sortX.size())
+    while (i < m_sortedPointsX.size())
     {
-        float currX = sortX[i].x;
-        while (i < sortX.size() && sortX[i].x == currX)
+        float currX = m_sortedPointsX[i].x;
+        while (i < m_sortedPointsX.size() && m_sortedPointsX[i].x == currX)
         {
-            m_edgesV[sortX[i]] = sortX[i + 1];
-            m_edgesV[sortX[i + 1]] = sortX[i];
+            m_edgesV[m_sortedPointsX[i]] = m_sortedPointsX[i + 1];
+            m_edgesV[m_sortedPointsX[i + 1]] = m_sortedPointsX[i];
             i += 2;
         }
     }
