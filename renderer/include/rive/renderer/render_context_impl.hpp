@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/render_context.hpp"
+#include "rive/renderer/texture.hpp"
 
 namespace rive::gpu
 {
@@ -26,10 +27,22 @@ public:
                                                RenderBufferFlags,
                                                size_t) = 0;
 
-    // Decodes the image bytes and creates a texture that can be bound to the
-    // draw shader for an image paint.
-    virtual rcp<Texture> decodeImageTexture(
-        Span<const uint8_t> encodedBytes) = 0;
+    // Use platform apis to decode the image bytes and creates a texture if
+    // available. If not available leaving its default implementation will cause
+    // rive decoders to be used instead
+    virtual rcp<Texture> platformDecodeImageTexture(
+        Span<const uint8_t> encodedBytes)
+    {
+        return nullptr;
+    };
+
+    // this is called in the case of the default Bitmap class being used to
+    // decode images so that it can be converted into a backend specific image.
+    virtual rcp<Texture> makeImageTexture(
+        uint32_t width,
+        uint32_t height,
+        uint32_t mipLevelCount,
+        const uint8_t imageDataRGBAPremul[]) = 0;
 
     // Resize GPU buffers. These methods cannot fail, and must allocate the
     // exact size requested.

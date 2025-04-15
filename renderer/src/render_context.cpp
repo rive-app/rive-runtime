@@ -15,6 +15,10 @@
 
 #include <string_view>
 
+#ifdef RIVE_DECODERS
+#include "rive/decoders/bitmap_decoder.hpp"
+#endif
+
 namespace rive::gpu
 {
 constexpr size_t kDefaultSimpleGradientCapacity = 512;
@@ -132,7 +136,28 @@ rcp<RenderBuffer> RenderContext::makeRenderBuffer(RenderBufferType type,
 
 rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
 {
-    rcp<Texture> texture = m_impl->decodeImageTexture(encodedBytes);
+    rcp<Texture> texture = m_impl->platformDecodeImageTexture(encodedBytes);
+#ifdef RIVE_DECODERS
+    if (texture == nullptr)
+    {
+        auto bitmap = Bitmap::decode(encodedBytes.data(), encodedBytes.size());
+        if (bitmap)
+        {
+            // For now, RenderContextImpl::makeImageTexture() only accepts RGBA.
+            if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBAPremul)
+            {
+                bitmap->pixelFormat(Bitmap::PixelFormat::RGBAPremul);
+            }
+            uint32_t width = bitmap->width();
+            uint32_t height = bitmap->height();
+            uint32_t mipLevelCount = math::msb(height | width);
+            texture = m_impl->makeImageTexture(width,
+                                               height,
+                                               mipLevelCount,
+                                               bitmap->bytes());
+        }
+    }
+#endif
     return texture != nullptr ? make_rcp<RiveRenderImage>(std::move(texture))
                               : nullptr;
 }

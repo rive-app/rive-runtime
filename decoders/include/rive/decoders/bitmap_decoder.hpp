@@ -24,11 +24,6 @@ public:
            PixelFormat pixelFormat,
            std::unique_ptr<const uint8_t[]> bytes);
 
-    Bitmap(uint32_t width,
-           uint32_t height,
-           PixelFormat pixelFormat,
-           const uint8_t* bytes);
-
 private:
     uint32_t m_Width;
     uint32_t m_Height;

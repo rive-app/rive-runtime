@@ -18,13 +18,6 @@ Bitmap::Bitmap(uint32_t width,
     m_Bytes(std::move(bytes))
 {}
 
-Bitmap::Bitmap(uint32_t width,
-               uint32_t height,
-               PixelFormat pixelFormat,
-               const uint8_t* bytes) :
-    Bitmap(width, height, pixelFormat, std::unique_ptr<const uint8_t[]>(bytes))
-{}
-
 static size_t bytes_per_pixel(Bitmap::PixelFormat format)
 {
     switch (format)

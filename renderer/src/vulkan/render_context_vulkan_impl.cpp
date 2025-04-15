@@ -627,31 +627,18 @@ private:
         std::numeric_limits<size_t>::max();
 };
 
-rcp<Texture> RenderContextVulkanImpl::decodeImageTexture(
-    Span<const uint8_t> encodedBytes)
+rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
+    uint32_t width,
+    uint32_t height,
+    uint32_t mipLevelCount,
+    const uint8_t imageDataRGBAPremul[])
 {
-#ifdef RIVE_DECODERS
-    auto bitmap = Bitmap::decode(encodedBytes.data(), encodedBytes.size());
-    if (bitmap)
-    {
-        // For now, RenderContextImpl::makeImageTexture() only accepts
-        // RGBAPremul.
-        if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBAPremul)
-        {
-            bitmap->pixelFormat(Bitmap::PixelFormat::RGBAPremul);
-        }
-        uint32_t width = bitmap->width();
-        uint32_t height = bitmap->height();
-        uint32_t mipLevelCount = math::msb(height | width);
-        return make_rcp<TextureVulkanImpl>(m_vk,
-                                           width,
-                                           height,
-                                           mipLevelCount,
-                                           TextureFormat::rgba8,
-                                           bitmap->bytes());
-    }
-#endif
-    return nullptr;
+    return make_rcp<TextureVulkanImpl>(m_vk,
+                                       width,
+                                       height,
+                                       mipLevelCount,
+                                       TextureFormat::rgba8,
+                                       imageDataRGBAPremul);
 }
 
 // Renders color ramps to the gradient texture.

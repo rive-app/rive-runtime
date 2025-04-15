@@ -13,26 +13,6 @@
 
 namespace rive::gpu
 {
-rcp<Texture> RenderContextHelperImpl::decodeImageTexture(
-    Span<const uint8_t> encodedBytes)
-{
-#ifdef RIVE_DECODERS
-    auto bitmap = Bitmap::decode(encodedBytes.data(), encodedBytes.size());
-    if (bitmap)
-    {
-        // For now, RenderContextImpl::makeImageTexture() only accepts RGBA.
-        if (bitmap->pixelFormat() != Bitmap::PixelFormat::RGBAPremul)
-        {
-            bitmap->pixelFormat(Bitmap::PixelFormat::RGBAPremul);
-        }
-        uint32_t width = bitmap->width();
-        uint32_t height = bitmap->height();
-        uint32_t mipLevelCount = math::msb(height | width);
-        return makeImageTexture(width, height, mipLevelCount, bitmap->bytes());
-    }
-#endif
-    return nullptr;
-}
 
 void RenderContextHelperImpl::resizeFlushUniformBuffer(size_t sizeInBytes)
 {

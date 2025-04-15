@@ -14,8 +14,6 @@ namespace rive::gpu
 class RenderContextHelperImpl : public RenderContextImpl
 {
 public:
-    rcp<Texture> decodeImageTexture(Span<const uint8_t> encodedBytes) override;
-
     void resizeFlushUniformBuffer(size_t sizeInBytes) override;
     void resizeImageDrawUniformBuffer(size_t sizeInBytes) override;
     void resizePathBuffer(size_t sizeInBytes,
@@ -69,12 +67,6 @@ protected:
     BufferRing* gradSpanBufferRing() { return m_gradSpanBuffer.get(); }
     BufferRing* tessSpanBufferRing() { return m_tessSpanBuffer.get(); }
     BufferRing* triangleBufferRing() { return m_triangleBuffer.get(); }
-
-    virtual rcp<Texture> makeImageTexture(
-        uint32_t width,
-        uint32_t height,
-        uint32_t mipLevelCount,
-        const uint8_t imageDataRGBAPremul[]) = 0;
 
     virtual std::unique_ptr<BufferRing> makeUniformBufferRing(
         size_t capacityInBytes) = 0;
