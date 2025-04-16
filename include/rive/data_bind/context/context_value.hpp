@@ -85,8 +85,10 @@ public:
             // Calculate new value after converters are applied
             auto value = calculateValue<T, U>(input, isMainDirection, dataBind);
             // Apply value to source
+            dataBind->suppressDirt(true);
             auto source = dataBind->source();
             source->as<V>()->propertyValue(value);
+            dataBind->suppressDirt(false);
             m_isValid = true;
         }
     };

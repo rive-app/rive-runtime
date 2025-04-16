@@ -36,6 +36,7 @@ public:
     bool toSource();
     bool toTarget();
     bool advance(float elapsedTime);
+    void suppressDirt(bool value) { m_suppressDirt = value; };
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;
@@ -45,6 +46,7 @@ protected:
     DataConverter* m_dataConverter = nullptr;
     DataType outputType();
     bool bindsOnce();
+    bool m_suppressDirt = false;
 #ifdef WITH_RIVE_TOOLS
 public:
     void onChanged(DataBindChanged callback) { m_changedCallback = callback; }

@@ -237,7 +237,7 @@ void DataBind::updateSourceBinding(bool invalidate)
 
 void DataBind::addDirt(ComponentDirt value, bool recurse)
 {
-    if ((m_Dirt & value) == value)
+    if (m_suppressDirt || (m_Dirt & value) == value)
     {
         // Already marked.
         return;

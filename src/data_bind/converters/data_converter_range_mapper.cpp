@@ -84,9 +84,9 @@ DataValueNumber* DataConverterRangeMapper::calculateReverseRange(
     float minInput,
     float maxInput,
     float minOutput,
-    float maxOutnput)
+    float maxOutput)
 {
-    return calculateRange(input, minOutput, maxOutnput, minInput, maxInput);
+    return calculateRange(input, minOutput, maxOutput, minInput, maxInput);
 }
 
 void DataConverterRangeMapper::interpolator(KeyFrameInterpolator* interpolator)
