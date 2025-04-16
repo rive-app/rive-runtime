@@ -2631,11 +2631,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     bool needsNewBindings = true;
     for (const DrawBatch& batch : *desc.drawList)
     {
-        if (batch.elementCount == 0)
-        {
-            continue;
-        }
-
         DrawType drawType = batch.drawType;
 
         // Bind the appropriate image texture, if any.

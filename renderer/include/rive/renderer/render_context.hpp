@@ -701,11 +701,6 @@ private:
 
         ClipInfo& getWritableClipInfo(uint32_t clipID);
 
-        // Adds a barrier to the end of the draw list that prevents further
-        // combining/batching and instructs the backend to issue a graphics
-        // barrier, if necessary.
-        void pushBarrier();
-
         // Either appends a new drawBatch to m_drawList or merges into
         // m_drawList.tail(). Updates the batch's ShaderFeatures according to
         // the passed parameters.
@@ -788,6 +783,11 @@ private:
         // Total coverage allocated via allocateCoverageBufferRange().
         // (clockwiseAtomic mode only.)
         uint32_t m_coverageBufferLength = 0;
+
+        // Barriers that must execute before pushing the next DrawBatch
+        // (pushPathDraw()/pushDraw()). If any barriers are pending, this also
+        // prevents DrawBatches from being combined with the existing drawList.
+        BarrierFlags m_pendingBarriers;
 
         // Stateful Z index of the current draw being pushed. Used by msaa mode
         // to avoid double hits and to reverse-sort opaque paths front to back.

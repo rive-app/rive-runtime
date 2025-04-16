@@ -120,6 +120,13 @@ private:
 
         virtual ~PixelLocalStorageImpl() {}
 
+#ifndef NDEBUG
+        bool rasterOrderingKnownDisabled() const
+        {
+            return m_rasterOrderingEnabled == gpu::TriState::no;
+        }
+#endif
+
     private:
         virtual void onEnableRasterOrdering(bool enabled) {}
         virtual void onBarrier(const gpu::FlushDescriptor& desc) {}

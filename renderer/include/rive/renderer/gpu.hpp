@@ -938,6 +938,35 @@ RIVE_MAKE_ENUM_BITSET(DrawContents)
 constexpr static gpu::DrawContents kNestedClipUpdateMask =
     (gpu::DrawContents::activeClip | gpu::DrawContents::clipUpdate);
 
+// Types of barriers that may be required between DrawBatches.
+enum class BarrierFlags : uint8_t
+{
+    none = 0,
+
+    // Pixel-local dependency in the PLS planes. (Atomic mode only.) Ensure
+    // prior draws complete at each pixel before beginning new ones.
+    plsAtomic = 1 << 0,
+    plsAtomicPostInit = 1 << 1,   // Once after the initial clear/load.
+    plsAtomicPreResolve = 1 << 2, // Once before the final resolve.
+
+    // Pixel-local dependency in the coverage buffer. (clockwiseAtomic mode
+    // only.) All "borrowed coverage" draws have now been issued. Ensure they
+    // complete at each pixel before beginning the "forward coverage" draws.
+    clockwiseBorrowedCoverage = 1 << 3,
+
+    // The next DrawBatch needs to perform an advanced blend, but on the current
+    // hardware, we can only fetch the dst color via a separate texture. (MSAA
+    // mode only.) Prepare a dstColorTexture with the current framebuffer
+    // contents. If we're lucky, this will be a Vulkan input attachment. On GL,
+    // this is a literal MSAA resolve & blit to a separate texture.
+    dstColorTexture = 1 << 4,
+
+    // Only prevent future DrawBatches from being combined with the current
+    // drawList. (No GPU dependencies.)
+    drawBatchBreak = 1 << 5,
+};
+RIVE_MAKE_ENUM_BITSET(BarrierFlags);
+
 // Low-level batch of geometry to submit to the GPU.
 struct DrawBatch
 {
@@ -945,12 +974,14 @@ struct DrawBatch
               gpu::ShaderMiscFlags shaderMiscFlags_,
               uint32_t elementCount_,
               uint32_t baseElement_,
-              rive::BlendMode blendMode) :
+              rive::BlendMode blendMode,
+              BarrierFlags barriers_) :
         drawType(drawType_),
         shaderMiscFlags(shaderMiscFlags_),
         elementCount(elementCount_),
         baseElement(baseElement_),
-        firstBlendMode(blendMode)
+        firstBlendMode(blendMode),
+        barriers(barriers_)
     {}
 
     const DrawType drawType;
@@ -958,10 +989,10 @@ struct DrawBatch
     uint32_t elementCount; // Vertex, index, or instance count.
     uint32_t baseElement;  // Base vertex, index, or instance.
     rive::BlendMode firstBlendMode;
+    BarrierFlags barriers; // Barriers to execute before drawing this batch.
+
     DrawContents drawContents = DrawContents::none;
     ShaderFeatures shaderFeatures = ShaderFeatures::NONE;
-    bool needsBarrier = false; // Pixel-local-storage barrier required after
-                               // submitting this batch.
 
     // DrawType::imageRect and DrawType::imageMesh.
     uint32_t imageDrawDataOffset = 0;

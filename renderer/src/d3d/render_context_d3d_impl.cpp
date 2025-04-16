@@ -1976,11 +1976,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     for (const DrawBatch& batch : *desc.drawList)
     {
-        if (batch.elementCount == 0)
-        {
-            continue;
-        }
-
         DrawType drawType = batch.drawType;
         auto shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures

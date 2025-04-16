@@ -1360,6 +1360,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     {
         assert(desc.msaaSampleCount == 0);
         m_plsImpl->activatePixelLocalStorage(this, desc);
+        if (desc.interlockMode == gpu::InterlockMode::atomics)
+        {
+            m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
+        }
     }
     else
     {
@@ -1420,11 +1424,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     // Execute the DrawList.
     for (const DrawBatch& batch : *desc.drawList)
     {
-        if (batch.elementCount == 0)
-        {
-            continue;
-        }
-
         const gpu::DrawType drawType = batch.drawType;
         gpu::ShaderFeatures shaderFeatures =
             desc.interlockMode == gpu::InterlockMode::atomics
@@ -1482,23 +1481,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
             else
             {
-                if (batch.dstReadList != nullptr)
-                {
-                    // Read back the framebuffer where we need a dstColor for
-                    // blending.
-                    renderTarget->bindInternalFramebuffer(
-                        GL_DRAW_FRAMEBUFFER,
-                        RenderTargetGL::DrawBufferMask::color);
-                    for (const Draw* draw = batch.dstReadList; draw != nullptr;
-                         draw = draw->nextDstRead())
-                    {
-                        assert(draw->blendMode() != BlendMode::srcOver);
-                        glutils::BlitFramebuffer(draw->pixelBounds(),
-                                                 renderTarget->height());
-                    }
-                    renderTarget->bindMSAAFramebuffer(this,
-                                                      desc.msaaSampleCount);
-                }
                 m_state->disableBlending(); // Blend in the shader instead.
             }
 
@@ -1524,6 +1506,30 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                 &pipelineState);
         m_state->setPipelineState(pipelineState);
 
+        if (batch.barriers &
+            (BarrierFlags::plsAtomic | BarrierFlags::plsAtomicPreResolve))
+        {
+            assert(desc.interlockMode == gpu::InterlockMode::atomics);
+            m_plsImpl->barrier(desc);
+        }
+        else if (batch.barriers & BarrierFlags::dstColorTexture)
+        {
+            // Read back the framebuffer where we need a dstColor for blending.
+            assert(desc.interlockMode == gpu::InterlockMode::msaa);
+            assert(batch.dstReadList != nullptr);
+            renderTarget->bindInternalFramebuffer(
+                GL_DRAW_FRAMEBUFFER,
+                RenderTargetGL::DrawBufferMask::color);
+            for (const Draw* draw = batch.dstReadList; draw != nullptr;
+                 draw = draw->nextDstRead())
+            {
+                assert(draw->blendMode() != BlendMode::srcOver);
+                glutils::BlitFramebuffer(draw->pixelBounds(),
+                                         renderTarget->height());
+            }
+            renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
+        }
+
         switch (drawType)
         {
             case DrawType::midpointFanPatches:
@@ -1538,13 +1544,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaOuterCubics:
             {
                 m_state->bindVAO(m_drawVAO);
-                if (desc.interlockMode != gpu::InterlockMode::msaa)
+                if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
                 {
-                    m_plsImpl->ensureRasterOrderingEnabled(
-                        this,
-                        desc,
-                        desc.interlockMode ==
-                            gpu::InterlockMode::rasterOrdering);
+                    m_plsImpl->ensureRasterOrderingEnabled(this, desc, true);
                 }
                 drawIndexedInstancedNoInstancedAttribs(
                     GL_TRIANGLES,
@@ -1569,19 +1571,16 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case gpu::DrawType::atlasBlit:
             {
                 m_state->bindVAO(m_trianglesVAO);
-                if (desc.interlockMode != gpu::InterlockMode::msaa)
+                if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
                 {
                     // Disable raster ordering if we're drawing true interior
                     // triangles (not atlas coverage). We know the triangulation
                     // is large enough that it's faster to issue a barrier than
                     // to force raster ordering in the fragment shader.
-                    const bool needRasterOrdering =
-                        desc.interlockMode ==
-                            gpu::InterlockMode::rasterOrdering &&
-                        drawType == gpu::DrawType::atlasBlit;
-                    m_plsImpl->ensureRasterOrderingEnabled(this,
-                                                           desc,
-                                                           needRasterOrdering);
+                    m_plsImpl->ensureRasterOrderingEnabled(
+                        this,
+                        desc,
+                        drawType != gpu::DrawType::interiorTriangulation);
                 }
                 glDrawArrays(GL_TRIANGLES,
                              batch.baseElement,
@@ -1601,9 +1600,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             case gpu::DrawType::imageRect:
             {
                 // m_imageRectVAO should have gotten lazily allocated by now.
+                assert(desc.interlockMode == gpu::InterlockMode::atomics);
+                assert(m_plsImpl->rasterOrderingKnownDisabled());
                 assert(m_imageRectVAO != 0);
                 m_state->bindVAO(m_imageRectVAO);
-                m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 glBindBufferRange(GL_UNIFORM_BUFFER,
                                   IMAGE_DRAW_UNIFORM_BUFFER_IDX,
                                   gl_buffer_id(imageDrawUniformBufferRing()),
@@ -1639,15 +1639,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                   gl_buffer_id(imageDrawUniformBufferRing()),
                                   batch.imageDrawDataOffset,
                                   sizeof(gpu::ImageDrawUniforms));
-                if (desc.interlockMode != gpu::InterlockMode::msaa)
+                if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
                 {
-                    // Try to enable raster ordering for image meshes in
-                    // rasterOrdering and atomic mode both; we have no control
-                    // over whether the internal geometry has self overlaps.
-                    m_plsImpl->ensureRasterOrderingEnabled(
-                        this,
-                        desc,
-                        m_platformFeatures.supportsRasterOrdering);
+                    m_plsImpl->ensureRasterOrderingEnabled(this, desc, true);
                 }
                 glDrawElements(GL_TRIANGLES,
                                batch.elementCount,
@@ -1659,8 +1653,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 
             case gpu::DrawType::atomicResolve:
             {
+                assert(desc.interlockMode == gpu::InterlockMode::atomics);
+                assert(m_plsImpl->rasterOrderingKnownDisabled());
                 m_state->bindVAO(m_emptyVAO);
-                m_plsImpl->ensureRasterOrderingEnabled(this, desc, false);
                 m_plsImpl->setupAtomicResolve(this, desc);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
@@ -1670,12 +1665,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             {
                 RIVE_UNREACHABLE();
             }
-        }
-        if (desc.interlockMode != gpu::InterlockMode::msaa &&
-            batch.needsBarrier)
-        {
-            assert(desc.interlockMode == gpu::InterlockMode::atomics);
-            m_plsImpl->barrier(desc);
         }
     }
 

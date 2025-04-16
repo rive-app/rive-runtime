@@ -1414,11 +1414,6 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         desc, pass, commandBuffer, baselineShaderMiscFlags);
     for (const DrawBatch& batch : *desc.drawList)
     {
-        if (batch.elementCount == 0)
-        {
-            continue;
-        }
-
         // Setup the pipeline for this specific drawType and shaderFeatures.
         gpu::ShaderFeatures shaderFeatures =
             desc.interlockMode == gpu::InterlockMode::atomics
@@ -1472,6 +1467,47 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         {
             [encoder setFragmentTexture:imageTextureMetal->texture()
                                 atIndex:IMAGE_TEXTURE_IDX];
+        }
+
+        // Issue any barriers if needed.
+        if (batch.barriers &
+            (BarrierFlags::plsAtomic | BarrierFlags::plsAtomicPostInit |
+             BarrierFlags::plsAtomicPreResolve))
+        {
+            assert(desc.interlockMode == gpu::InterlockMode::atomics);
+            switch (m_metalFeatures.atomicBarrierType)
+            {
+                case AtomicBarrierType::memoryBarrier:
+#if defined(RIVE_MACOSX)
+                    if (@available(macOS 10.14, *))
+                    {
+                        [encoder
+                            memoryBarrierWithScope:MTLBarrierScopeBuffers |
+                                                   MTLBarrierScopeRenderTargets
+                                       afterStages:MTLRenderStageFragment
+                                      beforeStages:MTLRenderStageFragment];
+                        break;
+                    }
+#endif
+                    // atomicBarrierType shouldn't be "memoryBarrier" in this
+                    // case.
+                    RIVE_UNREACHABLE();
+
+                case AtomicBarrierType::rasterOrderGroup:
+                    break;
+
+                case AtomicBarrierType::renderPassBreak:
+                    // On very old hardware that can't support barriers, we just
+                    // take a sledge hammer and break the entire render pass
+                    // between overlapping draws.
+                    // TODO: Is there a lighter way to achieve this?
+                    [encoder endEncoding];
+                    pass.colorAttachments[COLOR_PLANE_IDX].loadAction =
+                        MTLLoadActionLoad;
+                    encoder = makeRenderPassForDraws(
+                        desc, pass, commandBuffer, baselineShaderMiscFlags);
+                    break;
+            }
         }
 
         DrawType drawType = batch.drawType;
@@ -1589,43 +1625,6 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaStencilClipReset:
             {
                 RIVE_UNREACHABLE();
-            }
-        }
-        if (batch.needsBarrier)
-        {
-            assert(desc.interlockMode == gpu::InterlockMode::atomics);
-            switch (m_metalFeatures.atomicBarrierType)
-            {
-                case AtomicBarrierType::memoryBarrier:
-                {
-#if defined(RIVE_MACOSX)
-                    if (@available(macOS 10.14, *))
-                    {
-                        [encoder
-                            memoryBarrierWithScope:MTLBarrierScopeBuffers |
-                                                   MTLBarrierScopeRenderTargets
-                                       afterStages:MTLRenderStageFragment
-                                      beforeStages:MTLRenderStageFragment];
-                        break;
-                    }
-#endif
-                    // atomicBarrierType shouldn't be "memoryBarrier" in this
-                    // case.
-                    RIVE_UNREACHABLE();
-                }
-                case AtomicBarrierType::rasterOrderGroup:
-                    break;
-                case AtomicBarrierType::renderPassBreak:
-                    // On very old hardware that can't support barriers, we just
-                    // take a sledge hammer and break the entire render pass
-                    // between overlapping draws.
-                    // TODO: Is there a lighter way to achieve this?
-                    [encoder endEncoding];
-                    pass.colorAttachments[COLOR_PLANE_IDX].loadAction =
-                        MTLLoadActionLoad;
-                    encoder = makeRenderPassForDraws(
-                        desc, pass, commandBuffer, baselineShaderMiscFlags);
-                    break;
             }
         }
     }

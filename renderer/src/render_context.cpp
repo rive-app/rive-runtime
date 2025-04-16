@@ -238,6 +238,8 @@ void RenderContext::LogicalFlush::rewind()
 
     m_coverageBufferLength = 0;
 
+    m_pendingBarriers = BarrierFlags::none;
+
     m_currentZIndex = 0;
 
     RIVE_DEBUG_CODE(m_hasDoneLayout = false;)
@@ -1363,22 +1365,27 @@ void RenderContext::LogicalFlush::writeResources()
 
         // Atomic mode sometimes needs to initialize PLS with a draw when the
         // backend can't do it with typical clear/load APIs.
-        if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics &&
-            platformFeatures.atomicPLSMustBeInitializedAsDraw)
+        if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
         {
-            m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                    DrawType::atomicInitialize,
-                                    gpu::ShaderMiscFlags::none,
-                                    1,
-                                    0,
-                                    BlendMode::srcOver);
-            pushBarrier();
+            assert(m_pendingBarriers == BarrierFlags::none);
+            if (platformFeatures.atomicPLSMustBeInitializedAsDraw)
+            {
+                m_drawList.emplace_back(m_ctx->perFrameAllocator(),
+                                        DrawType::atomicInitialize,
+                                        gpu::ShaderMiscFlags::none,
+                                        1,
+                                        0,
+                                        BlendMode::srcOver,
+                                        BarrierFlags::none);
+            }
+            m_pendingBarriers |= BarrierFlags::plsAtomicPostInit;
         }
 
-        // Find a mask that tells us when to insert barriers. When the bits of
-        // two adjacent keys differ within this mask, we push a barrier between
-        // them.
+        // Find a mask that tells us when to insert barriers, and which barriers
+        // are needed. When the keys of two adjacent draws differ within this
+        // bitmask, we insert a barrier between them.
         int64_t needsBarrierMask = 0;
+        BarrierFlags neededBarriers = BarrierFlags::none;
         switch (m_flushDesc.interlockMode)
         {
             case gpu::InterlockMode::rasterOrdering:
@@ -1389,6 +1396,7 @@ void RenderContext::LogicalFlush::writeResources()
                 // In atomic mode, we need barriers any time draws overlap.
                 // Insert a barrier every time the drawGroupIdx changes.
                 needsBarrierMask = kDrawGroupMask;
+                neededBarriers = BarrierFlags::plsAtomic;
                 break;
 
             case gpu::InterlockMode::clockwiseAtomic:
@@ -1397,19 +1405,16 @@ void RenderContext::LogicalFlush::writeResources()
                 // have a negative key, so just insert a barrier when the sign
                 // changes.
                 needsBarrierMask = 1ll << 63;
+                neededBarriers = BarrierFlags::clockwiseBorrowedCoverage;
                 break;
 
             case gpu::InterlockMode::msaa:
-                // FIXME: MSAA doesn't need barriers, but we hack
-                // "pushBarrier()" to break up draw batching. We need a
-                // mechanism to prevent batching without implying a barrier.
-                //
-                // MSAA mode can't batch draws that overlap because they use the
-                // same stencil values. Stop batching every time the
-                // drawGroupIdx changes.
+                // MSAA mode can't batch draws that overlap because they both
+                // rely on the stencil buffer across subpasses. Stop batching
+                // every time the drawGroupIdx changes.
                 needsBarrierMask = kDrawGroupMask;
-                // MSAA mode also draws clips, strokes, fills, and even/odd with
-                // different stencil settings, so these can't be batched either.
+                // MSAA mode draws clips, strokes, fills, and even/odd with
+                // different stencil settings, so these can't be batched.
                 needsBarrierMask |= kDrawContentsMask;
                 if (platformFeatures.supportsKHRBlendEquations)
                 {
@@ -1418,6 +1423,10 @@ void RenderContext::LogicalFlush::writeResources()
                     // blend equation.
                     needsBarrierMask |= kBlendModeMask;
                 }
+                // MSAA barriers only need to prevent batching of draws for now.
+                // If we also need a dstColorTexture barrier, that will be
+                // decided later.
+                neededBarriers = BarrierFlags::drawBatchBreak;
                 break;
         }
 
@@ -1431,7 +1440,7 @@ void RenderContext::LogicalFlush::writeResources()
             if ((priorSignedKey & needsBarrierMask) !=
                 (signedKey & needsBarrierMask))
             {
-                pushBarrier();
+                m_pendingBarriers |= neededBarriers;
             }
             int64_t key = abs(signedKey);
             uint32_t drawIndex = (key & kDrawIndexMask) >> kDrawIndexShift;
@@ -1453,14 +1462,20 @@ void RenderContext::LogicalFlush::writeResources()
         // Atomic mode needs one more draw to resolve all the pixels.
         if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
         {
-            pushBarrier();
-            m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                    DrawType::atomicResolve,
-                                    gpu::ShaderMiscFlags::none,
-                                    1,
-                                    0,
-                                    BlendMode::srcOver);
-            m_drawList.tail().shaderFeatures = m_combinedShaderFeatures;
+            // We can ignore any pending "plsAtomic" barriers; the
+            // plsAtomicPreResolve can replace them.
+            assert((m_pendingBarriers & ~(BarrierFlags::plsAtomic |
+                                          BarrierFlags::plsAtomicPostInit)) ==
+                   BarrierFlags::none);
+            m_drawList
+                .emplace_back(m_ctx->perFrameAllocator(),
+                              DrawType::atomicResolve,
+                              gpu::ShaderMiscFlags::none,
+                              1,
+                              0,
+                              BlendMode::srcOver,
+                              BarrierFlags::plsAtomicPreResolve)
+                .shaderFeatures = m_combinedShaderFeatures;
         }
     }
 
@@ -2546,17 +2561,6 @@ void RenderContext::LogicalFlush::pushStencilClipResetDraw(
              baseVertex);
 }
 
-void RenderContext::LogicalFlush::pushBarrier()
-{
-    assert(m_hasDoneLayout);
-    assert(m_flushDesc.interlockMode != gpu::InterlockMode::rasterOrdering);
-
-    if (!m_drawList.empty())
-    {
-        m_drawList.tail().needsBarrier = true;
-    }
-}
-
 gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     const PathDraw* draw,
     DrawType drawType,
@@ -2652,6 +2656,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     uint32_t baseElement)
 {
     assert(m_hasDoneLayout);
+    assert(elementCount > 0);
 
     bool canMergeWithPreviousBatch;
     switch (drawType)
@@ -2669,13 +2674,12 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStencilClipReset:
-            if (!m_drawList.empty())
+            if (!m_drawList.empty() && m_pendingBarriers == BarrierFlags::none)
             {
                 const DrawBatch& currentBatch = m_drawList.tail();
                 canMergeWithPreviousBatch =
                     currentBatch.drawType == drawType &&
                     currentBatch.shaderMiscFlags == shaderMiscFlags &&
-                    !currentBatch.needsBarrier &&
                     can_combine_draw_contents(m_ctx->frameInterlockMode(),
                                               currentBatch.drawContents,
                                               draw) &&
@@ -2711,6 +2715,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     if (canMergeWithPreviousBatch)
     {
         batch = &m_drawList.tail();
+        assert(m_pendingBarriers == BarrierFlags::none);
         assert(batch->drawType == drawType);
         assert(batch->shaderMiscFlags == shaderMiscFlags);
         assert(batch->baseElement + batch->elementCount == baseElement);
@@ -2718,19 +2723,21 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     }
     else
     {
-        batch = &m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                         drawType,
-                                         shaderMiscFlags,
-                                         elementCount,
-                                         baseElement,
-                                         draw->blendMode());
+        batch = &m_drawList.emplace_back(
+            m_ctx->perFrameAllocator(),
+            drawType,
+            shaderMiscFlags,
+            elementCount,
+            baseElement,
+            draw->blendMode(),
+            std::exchange(m_pendingBarriers, BarrierFlags::none));
     }
 
     // If the batch was merged into a previous one, this ensures it was a valid
     // merge.
     assert(batch->drawType == drawType);
     assert(can_combine_draw_images(batch->imageTexture, draw->imageTexture()));
-    assert(!batch->needsBarrier);
+    assert(m_pendingBarriers == BarrierFlags::none);
 
     auto shaderFeatures = ShaderFeatures::NONE;
     if (draw->clipID() != 0)
@@ -2803,17 +2810,21 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         if (draw->blendMode() != BlendMode::srcOver &&
             !m_ctx->platformFeatures().supportsKHRBlendEquations)
         {
-            // Build up a list of "dstReads" in the batch. In msaa mode, we
-            // don't have a mechanism for shaders to read the framebuffer, so
-            // the backend will blit their bounding boxes to a "dstReadTexture"
-            // that mirrors the framebuffer.
+            // The MSAA shader needs to do a manual blend mode. Add a
+            // "dstColorTexture" barrier and build up a list of "dstReads" for
+            // the batch. In MSAA mode, we don't always have a mechanism for
+            // shaders to read the framebuffer, so the backend may have to blit
+            // their bounding boxes to a separate texture that mirrors the
+            // framebuffer.
             //
-            // If the draw already has a neighbor, do nothing. It means an
-            // earlier subpass will already sync this region of the framebuffer
-            // for us. Since nothing that overlaps will be ordered between that
-            // first subpass and us, that first read is all we need.
+            // (But if the draw already has a "nextDstRead" neighbor, do
+            // nothing. It means an earlier subpass will already issue the
+            // barrier and sync this region of the framebuffer. Since nothing
+            // that overlaps will be ordered between that first subpass and us,
+            // that barrier for the first subpass is all we need.)
             if (draw->nextDstRead() == nullptr)
             {
+                batch->barriers |= BarrierFlags::dstColorTexture;
                 batch->dstReadList = draw->addToDstReadList(batch->dstReadList);
             }
         }

@@ -3518,7 +3518,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         },
         colorImage);
 
-    bool needsBarrierBeforeNextDraw = false;
     if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
         // Clear the coverage texture, which is not an attachment.
@@ -3567,10 +3566,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
                 .image = renderTarget->coverageAtomicTexture(),
             });
-
-        // Make sure we get a barrier between load operations and the first
-        // color attachment accesses.
-        needsBarrierBeforeNextDraw = true;
     }
     else if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic)
     {
@@ -3750,14 +3745,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     uint32_t imageTextureUpdateCount = 0;
     for (const DrawBatch& batch : *desc.drawList)
     {
-        if (batch.elementCount == 0)
-        {
-            needsBarrierBeforeNextDraw =
-                needsBarrierBeforeNextDraw || batch.needsBarrier;
-            continue;
-        }
-
-        DrawType drawType = batch.drawType;
+        assert(batch.elementCount > 0);
+        const DrawType drawType = batch.drawType;
 
         if (batch.imageTexture != nullptr)
         {
@@ -3866,41 +3855,47 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                               VK_PIPELINE_BIND_POINT_GRAPHICS,
                               drawPipeline.vkPipeline());
 
-        if (needsBarrierBeforeNextDraw &&
-            drawType != gpu::DrawType::atomicResolve) // The atomic resolve gets
-                                                      // its barrier via
-                                                      // vkCmdNextSubpass().
+        if (batch.barriers & BarrierFlags::plsAtomicPreResolve)
         {
-            if (desc.interlockMode == gpu::InterlockMode::atomics)
-            {
-                // Wait for color attachment writes to complete before we read
-                // the input attachments again.
-                m_vk->memoryBarrier(
-                    commandBuffer,
-                    VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                    VK_DEPENDENCY_BY_REGION_BIT,
-                    {
-                        .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-                        .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
-                    });
-            }
-            else
-            {
-                assert(desc.interlockMode ==
-                       gpu::InterlockMode::clockwiseAtomic);
-                // Wait for prior fragment shaders to finish updating the
-                // coverage buffer before we read it again.
-                m_vk->memoryBarrier(
-                    commandBuffer,
-                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                    VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                    VK_DEPENDENCY_BY_REGION_BIT,
-                    {
-                        .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
-                        .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                    });
-            }
+            // The atomic resolve gets its barrier via vkCmdNextSubpass().
+            assert(desc.interlockMode == gpu::InterlockMode::atomics);
+            assert(drawType == gpu::DrawType::atomicResolve);
+            m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
+        }
+        else if (batch.barriers &
+                 (BarrierFlags::plsAtomicPostInit | BarrierFlags::plsAtomic))
+        {
+            // Wait for color attachment writes to complete before we read the
+            // input attachments again. (We also checked for "plsAtomicPostInit"
+            // because this barrier has to occur after the Vulkan load
+            // operations as well.)
+            assert(desc.interlockMode == gpu::InterlockMode::atomics);
+            assert(drawType != gpu::DrawType::atomicResolve);
+            // FIXME: Coverage is a storage texture, not an input attachment,
+            // and this barrier needs to account for that.
+            m_vk->memoryBarrier(
+                commandBuffer,
+                VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                VK_DEPENDENCY_BY_REGION_BIT,
+                {
+                    .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+                    .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+                });
+        }
+        else if (batch.barriers & BarrierFlags::clockwiseBorrowedCoverage)
+        {
+            // Wait for prior fragment shaders to finish updating the coverage
+            // buffer before we read it again.
+            assert(desc.interlockMode == gpu::InterlockMode::clockwiseAtomic);
+            m_vk->memoryBarrier(commandBuffer,
+                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                                VK_DEPENDENCY_BY_REGION_BIT,
+                                {
+                                    .srcAccessMask = VK_ACCESS_SHADER_WRITE_BIT,
+                                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
+                                });
         }
 
         switch (drawType)
@@ -4007,7 +4002,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::atomicResolve:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
-                m_vk->CmdNextSubpass(commandBuffer, VK_SUBPASS_CONTENTS_INLINE);
                 m_vk->CmdDraw(commandBuffer, 4, 1, 0, 0);
                 break;
             }
@@ -4023,8 +4017,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaStencilClipReset:
                 RIVE_UNREACHABLE();
         }
-
-        needsBarrierBeforeNextDraw = batch.needsBarrier;
     }
 
     m_vk->CmdEndRenderPass(commandBuffer);
