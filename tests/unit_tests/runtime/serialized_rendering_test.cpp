@@ -120,3 +120,30 @@ TEST_CASE("validate text run listener works", "[silver]")
 
     CHECK(silver.matches("text_listener_simpler"));
 }
+
+TEST_CASE("validate text with modifiers and dashes render correctly",
+          "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/text_stroke_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    // Draw first frame.
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("text_stroke_test"));
+}
