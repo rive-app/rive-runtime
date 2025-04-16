@@ -176,11 +176,15 @@ File::~File()
     }
     for (auto& viewModel : m_ViewModels)
     {
-        delete viewModel;
+        viewModel->unref();
+    }
+    for (auto& viewModelInstance : m_ViewModelInstances)
+    {
+        viewModelInstance->unref();
     }
     for (auto& enumData : m_Enums)
     {
-        delete enumData;
+        enumData->unref();
     }
     for (auto& dataConverter : m_DataConverters)
     {
@@ -294,6 +298,12 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 {
                     auto vmc = object->as<ViewModel>();
                     m_ViewModels.push_back(vmc);
+                    break;
+                }
+                case ViewModelInstance::typeKey:
+                {
+                    auto vmi = object->as<ViewModelInstance>();
+                    m_ViewModelInstances.push_back(vmi);
                     break;
                 }
                 case DataEnum::typeKey:

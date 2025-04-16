@@ -3,10 +3,11 @@
 #include "rive/generated/viewmodel/viewmodel_base.hpp"
 #include "rive/viewmodel/viewmodel_property.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/refcnt.hpp"
 #include <stdio.h>
 namespace rive
 {
-class ViewModel : public ViewModelBase
+class ViewModel : public ViewModelBase, public RefCnt<ViewModel>
 {
 private:
     std::vector<ViewModelProperty*> m_Properties;

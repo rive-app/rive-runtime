@@ -11,10 +11,6 @@ using namespace rive;
 
 ViewModel::~ViewModel()
 {
-    for (auto& instance : m_Instances)
-    {
-        delete instance;
-    }
     for (auto& property : m_Properties)
     {
         delete property;

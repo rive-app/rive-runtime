@@ -2,9 +2,20 @@
 
 using namespace rive;
 
-void ViewModelPropertyEnum::dataEnum(DataEnum* value) { m_DataEnum = value; }
+void ViewModelPropertyEnum::dataEnum(DataEnum* value)
+{
+    value->ref();
+    m_DataEnum = rcp<DataEnum>(value);
+}
 
-DataEnum* ViewModelPropertyEnum::dataEnum() { return m_DataEnum; }
+DataEnum* ViewModelPropertyEnum::dataEnum()
+{
+    if (m_DataEnum == nullptr)
+    {
+        return nullptr;
+    }
+    return m_DataEnum.get();
+}
 
 std::string ViewModelPropertyEnum::value(std::string name)
 {

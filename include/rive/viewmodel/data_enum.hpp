@@ -2,10 +2,11 @@
 #define _RIVE_DATA_ENUM_HPP_
 #include "rive/generated/viewmodel/data_enum_base.hpp"
 #include "rive/viewmodel/data_enum_value.hpp"
+#include "rive/refcnt.hpp"
 #include <stdio.h>
 namespace rive
 {
-class DataEnum : public DataEnumBase
+class DataEnum : public DataEnumBase, public RefCnt<DataEnum>
 {
 private:
     std::vector<DataEnumValue*> m_Values;

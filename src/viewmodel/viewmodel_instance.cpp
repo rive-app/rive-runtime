@@ -9,6 +9,7 @@
 #include "rive/importers/viewmodel_importer.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/core_context.hpp"
+#include "rive/refcnt.hpp"
 
 using namespace rive;
 
@@ -19,6 +20,10 @@ ViewModelInstance::~ViewModelInstance()
         value->unref();
     }
     m_PropertyValues.clear();
+    if (m_ViewModel != nullptr)
+    {
+        m_ViewModel->unref();
+    }
 }
 
 void ViewModelInstance::addValue(ViewModelInstanceValue* value)
@@ -80,7 +85,15 @@ ViewModelInstanceValue* ViewModelInstance::propertyValue(
     return nullptr;
 }
 
-void ViewModelInstance::viewModel(ViewModel* value) { m_ViewModel = value; }
+void ViewModelInstance::viewModel(ViewModel* value)
+{
+    if (m_ViewModel != nullptr)
+    {
+        m_ViewModel->unref();
+    }
+    value->ref();
+    m_ViewModel = value;
+}
 
 ViewModel* ViewModelInstance::viewModel() const { return m_ViewModel; }
 
