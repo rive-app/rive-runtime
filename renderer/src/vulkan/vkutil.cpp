@@ -12,7 +12,7 @@ namespace rive::gpu::vkutil
 {
 Resource::Resource(rcp<VulkanContext> vk) : GPUResource(std::move(vk)) {}
 
-inline VulkanContext* Resource::vk() const
+VulkanContext* Resource::vk() const
 {
     return static_cast<VulkanContext*>(m_manager.get());
 }

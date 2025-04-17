@@ -178,19 +178,6 @@ do
         buildoptions({ '-Wshorten-64-to-32' })
     end
 
-    filter({
-        'system:windows',
-        'options:toolset=msc',
-    })
-    do
-        -- MSVC doesn't accept designated initializers in C++17.
-        cppdialect('c++latest')
-        defines({
-            '_SILENCE_CXX20_IS_POD_DEPRECATION_WARNING',
-            '_SILENCE_ALL_CXX20_DEPRECATION_WARNINGS',
-        })
-    end
-
     -- The Visual Studio clang toolset doesn't recognize -ffp-contract.
     filter({'system:not windows', 'options:not no_ffp_contract'})
     do

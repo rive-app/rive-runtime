@@ -311,12 +311,14 @@ Swapchain::Swapchain(const vkb::Device& device,
 void Swapchain::init(const vkb::Device& device,
                      const std::vector<VkImage>& images)
 {
+#ifndef NDEBUG
     // In order to implement blend modes, the target texture needs to either
     // support input attachment usage (ideal), or else transfers.
-    constexpr static VkImageUsageFlags transferSrcAndDst =
+    constexpr static VkImageUsageFlags TRANSFER_SRC_AND_DST =
         VK_IMAGE_USAGE_TRANSFER_SRC_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
     assert((m_imageUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
-           (m_imageUsageFlags & transferSrcAndDst) == transferSrcAndDst);
+           (m_imageUsageFlags & TRANSFER_SRC_AND_DST) == TRANSFER_SRC_AND_DST);
+#endif
 
     constexpr static VkSemaphoreCreateInfo semaphoreCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO,

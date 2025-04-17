@@ -57,6 +57,7 @@ private:
         m_framebufferFormat(framebufferFormat),
         m_targetUsageFlags(targetUsageFlags)
     {
+#ifndef NDEBUG
         // In order to implement blend modes, the target texture needs to either
         // support input attachment usage (ideal), or else transfers.
         constexpr static VkImageUsageFlags TRANSFER_SRC_AND_DST =
@@ -64,6 +65,7 @@ private:
         assert((m_targetUsageFlags & VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) ||
                (m_targetUsageFlags & TRANSFER_SRC_AND_DST) ==
                    TRANSFER_SRC_AND_DST);
+#endif
     }
 
     vkutil::TextureView* offscreenColorTextureView() const

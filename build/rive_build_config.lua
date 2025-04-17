@@ -294,7 +294,13 @@ end
 
 filter({ 'system:windows', 'options:toolset=msc' })
 do
-    defines({ '_CRT_SECURE_NO_WARNINGS' })
+    -- MSVC doesn't accept designated initializers in C++17.
+    cppdialect('c++latest')
+    defines({
+        '_CRT_SECURE_NO_WARNINGS',
+        '_SILENCE_CXX20_IS_POD_DEPRECATION_WARNING',
+        '_SILENCE_ALL_CXX20_DEPRECATION_WARNINGS',
+    })
 
     -- We currently suppress several warnings for the MSVC build, some serious. Once this build
     -- is fully integrated into GitHub actions, we will definitely want to address these.
