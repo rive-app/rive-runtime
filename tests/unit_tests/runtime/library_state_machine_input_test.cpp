@@ -21,7 +21,7 @@ TEST_CASE("File with library state machine inputs loads", "[state_machine]")
     auto file = ReadRiveFile("assets/library_export_with_smi.riv");
 
     auto nestedArtboard =
-        file->artboard()->find<rive::NestedArtboard>("The nested artboard");
+        file->artboard(1)->find<rive::NestedArtboard>("The nested artboard");
     REQUIRE(nestedArtboard != nullptr);
     REQUIRE(nestedArtboard->name() == "The nested artboard");
     REQUIRE(nestedArtboard->x() == 1);
@@ -29,22 +29,22 @@ TEST_CASE("File with library state machine inputs loads", "[state_machine]")
     REQUIRE(nestedArtboard->artboardId() == -1);
 
     auto nestedSimpleAnimation =
-        file->artboard()->find<rive::NestedStateMachine>("");
+        file->artboard(1)->find<rive::NestedStateMachine>("");
     REQUIRE(nestedSimpleAnimation != nullptr);
     REQUIRE(nestedSimpleAnimation->name() == "");
     REQUIRE(nestedSimpleAnimation->animationId() == -1);
 
-    auto nestedTrigger = file->artboard()->find<rive::NestedTrigger>("");
+    auto nestedTrigger = file->artboard(1)->find<rive::NestedTrigger>("");
     REQUIRE(nestedTrigger != nullptr);
     REQUIRE(nestedTrigger->name() == "");
     REQUIRE(nestedTrigger->inputId() == -1);
 
-    auto nestedBool = file->artboard()->find<rive::NestedBool>("");
+    auto nestedBool = file->artboard(1)->find<rive::NestedBool>("");
     REQUIRE(nestedBool != nullptr);
     REQUIRE(nestedBool->name() == "");
     REQUIRE(nestedBool->inputId() == -1);
 
-    auto nestedNumber = file->artboard()->find<rive::NestedNumber>("");
+    auto nestedNumber = file->artboard(1)->find<rive::NestedNumber>("");
     REQUIRE(nestedNumber != nullptr);
     REQUIRE(nestedNumber->name() == "");
     REQUIRE(nestedNumber->inputId() == -1);
