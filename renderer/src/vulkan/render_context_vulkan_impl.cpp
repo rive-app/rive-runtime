@@ -3336,9 +3336,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     auto* renderTarget = static_cast<RenderTargetVulkan*>(desc.renderTarget);
 
     auto pipelineLayoutOptions = DrawPipelineLayoutOptions::none;
-    if (desc.interlockMode != gpu::InterlockMode::rasterOrdering &&
-        !(desc.combinedShaderFeatures &
-          gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND))
+    if (desc.atomicFixedFunctionColorOutput)
     {
         pipelineLayoutOptions |=
             DrawPipelineLayoutOptions::fixedFunctionColorOutput;
@@ -3357,14 +3355,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
     DrawPipelineLayout& pipelineLayout =
         *m_drawPipelineLayouts[pipelineLayoutIdx];
-    bool fixedFunctionColorOutput =
-        pipelineLayout.options() &
-        DrawPipelineLayoutOptions::fixedFunctionColorOutput;
 
     VkImageView colorImageView;
     VkImage colorImage;
-    if (fixedFunctionColorOutput || (renderTarget->targetUsageFlags() &
-                                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
+    if (desc.atomicFixedFunctionColorOutput ||
+        (renderTarget->targetUsageFlags() &
+         VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
     {
         colorImageView = renderTarget->targetImageView();
         colorImage = renderTarget->targetImage();
@@ -3659,7 +3655,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         inputAttachmentDescriptorSet = descriptorSetPool->allocateDescriptorSet(
             pipelineLayout.plsLayout());
 
-        if (!fixedFunctionColorOutput)
+        if (!desc.atomicFixedFunctionColorOutput)
         {
             m_vk->updateImageDescriptorSets(
                 inputAttachmentDescriptorSet,
@@ -3812,7 +3808,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 ? desc.combinedShaderFeatures
                 : batch.shaderFeatures;
         auto shaderMiscFlags = batch.shaderMiscFlags;
-        if (fixedFunctionColorOutput)
+        if (desc.atomicFixedFunctionColorOutput)
         {
             shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
         }

@@ -1154,10 +1154,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     assert(desc.interlockMode != gpu::InterlockMode::clockwiseAtomic);
     auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
 
-    m_state->setDepthStencilEnabled(false, false);
-    m_state->setWriteMasks(true, true, 0xff);
-    m_state->disableBlending();
-
     // All programs use the same set of per-flush uniforms.
     glBindBufferRange(GL_UNIFORM_BUFFER,
                       FLUSH_UNIFORM_BUFFER_IDX,
@@ -1216,10 +1212,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                             &nullData);
         }
 
+        m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
         m_state->bindBuffer(GL_ARRAY_BUFFER,
                             gl_buffer_id(gradSpanBufferRing()));
         m_state->bindVAO(m_colorRampVAO);
-        m_state->setCullFace(GL_BACK);
         glVertexAttribIPointer(
             0,
             4,
@@ -1241,10 +1237,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
+        m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
         m_state->bindBuffer(GL_ARRAY_BUFFER,
                             gl_buffer_id(tessSpanBufferRing()));
         m_state->bindVAO(m_tessellateVAO);
-        m_state->setCullFace(GL_BACK);
         size_t tessSpanOffsetInBytes =
             desc.firstTessVertexSpan * sizeof(gpu::TessVertexSpan);
         for (GLuint i = 0; i < 3; ++i)
@@ -1285,13 +1281,14 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         glScissor(0, 0, desc.atlasContentWidth, desc.atlasContentHeight);
         glClearColor(0, 0, 0, 0);
         glClear(GL_COLOR_BUFFER_BIT);
-        m_state->setCullFace(GL_FRONT); // Inverted because GL is bottom up.
         m_state->bindVAO(m_drawVAO);
+        // Invert the front face for atlas draws because GL is bottom up.
+        glFrontFace(GL_CCW);
 
         if (desc.atlasFillBatchCount != 0)
         {
+            m_state->setPipelineState(gpu::ATLAS_FILL_PIPELINE_STATE);
             m_state->bindProgram(m_atlasFillProgram);
-            m_state->setGLBlendMode(GLState::GLBlendMode::plus);
             for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
@@ -1311,8 +1308,8 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
 
         if (desc.atlasStrokeBatchCount != 0)
         {
+            m_state->setPipelineState(gpu::ATLAS_STROKE_PIPELINE_STATE);
             m_state->bindProgram(m_atlasStrokeProgram);
-            m_state->setGLBlendMode(GLState::GLBlendMode::max);
             for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& strokeBatch =
@@ -1331,6 +1328,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
         }
 
+        glFrontFace(GL_CW);
         glDisable(GL_SCISSOR_TEST);
     }
 
@@ -1400,6 +1398,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             glClearColor(cc[0], cc[1], cc[2], cc[3]);
             buffersToClear |= GL_COLOR_BUFFER_BIT;
         }
+        m_state->setWriteMasks(true, true, 0xff);
         glClear(buffersToClear);
 
         if (desc.combinedShaderFeatures &
@@ -1460,30 +1459,13 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             glBindTexture(GL_TEXTURE_2D, imageTextureGL->textureID());
         }
 
+        gpu::PipelineState pipelineState;
+        gpu::get_pipeline_state(batch,
+                                desc,
+                                m_platformFeatures,
+                                &pipelineState);
         if (desc.interlockMode == gpu::InterlockMode::msaa)
         {
-            // Set up the next blend.
-            if (batch.drawContents & gpu::DrawContents::opaquePaint)
-            {
-                m_state->disableBlending();
-            }
-            else if (!(batch.drawContents & gpu::DrawContents::advancedBlend))
-            {
-                assert(batch.firstBlendMode == BlendMode::srcOver);
-                m_state->setBlendMode(BlendMode::srcOver);
-            }
-            else if (m_capabilities.KHR_blend_equation_advanced_coherent)
-            {
-                // When m_platformFeatures.supportsKHRBlendEquations is true in
-                // msaa mode, the renderContext does not combine draws when they
-                // have different blend modes.
-                m_state->setBlendMode(batch.firstBlendMode);
-            }
-            else
-            {
-                m_state->disableBlending(); // Blend in the shader instead.
-            }
-
             // Set up the next clipRect.
             bool needsClipPlanes =
                 (shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT);
@@ -1498,12 +1480,17 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 clipPlanesEnabled = needsClipPlanes;
             }
         }
-
-        gpu::PipelineState pipelineState;
-        gpu::get_pipeline_state(drawType,
-                                desc.interlockMode,
-                                batch.drawContents,
-                                &pipelineState);
+        else if (desc.interlockMode == gpu::InterlockMode::atomics)
+        {
+            if (!desc.atomicFixedFunctionColorOutput &&
+                drawType != gpu::DrawType::atomicResolve)
+            {
+                // When rendering to an offscreen texture in atomic mode, GL
+                // leaves the target framebuffer bound the whole time, but
+                // disables color writes until it's time to resolve.
+                pipelineState.colorWriteEnabled = false;
+            }
+        }
         m_state->setPipelineState(pipelineState);
 
         if (batch.barriers &
@@ -1656,7 +1643,6 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 assert(m_plsImpl->rasterOrderingKnownDisabled());
                 m_state->bindVAO(m_emptyVAO);
-                m_plsImpl->setupAtomicResolve(this, desc);
                 glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
                 break;
             }
@@ -1798,12 +1784,9 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
         glutils::Uniform1iByName(m_blitAsDrawProgram, GLSL_sourceTexture, 0);
     }
 
+    m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
     m_state->bindProgram(m_blitAsDrawProgram);
     m_state->bindVAO(m_emptyVAO);
-    m_state->disableBlending();
-    m_state->setDepthStencilEnabled(false, false);
-    m_state->setWriteMasks(true, true, 0xff);
-    m_state->setCullFace(GL_NONE);
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, textureID);
     glEnable(GL_SCISSOR_TEST);

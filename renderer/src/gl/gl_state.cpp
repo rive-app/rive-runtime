@@ -4,7 +4,6 @@
 
 #include "rive/renderer/gl/gl_state.hpp"
 
-#include "rive/renderer/gpu.hpp"
 #include "shaders/constants.glsl"
 
 namespace rive::gpu
@@ -91,46 +90,6 @@ void GLState::setDepthStencilEnabled(bool depthEnabled, bool stencilEnabled)
     m_validState.depthStencilEnabled = true;
 }
 
-void GLState::setWriteMasks(bool colorWriteMask,
-                            bool depthWriteMask,
-                            uint8_t stencilWriteMask)
-{
-    if (!m_validState.writeMasks)
-    {
-        glColorMask(colorWriteMask,
-                    colorWriteMask,
-                    colorWriteMask,
-                    colorWriteMask);
-        glDepthMask(depthWriteMask);
-        glStencilMask(stencilWriteMask);
-        m_colorWriteMask = colorWriteMask;
-        m_depthWriteMask = depthWriteMask;
-        m_stencilWriteMask = stencilWriteMask;
-        m_validState.writeMasks = true;
-    }
-    else
-    {
-        if (colorWriteMask != m_colorWriteMask)
-        {
-            glColorMask(colorWriteMask,
-                        colorWriteMask,
-                        colorWriteMask,
-                        colorWriteMask);
-            m_colorWriteMask = colorWriteMask;
-        }
-        if (depthWriteMask != m_depthWriteMask)
-        {
-            glDepthMask(depthWriteMask);
-            m_depthWriteMask = depthWriteMask;
-        }
-        if (stencilWriteMask != m_stencilWriteMask)
-        {
-            glStencilMask(stencilWriteMask);
-            m_stencilWriteMask = stencilWriteMask;
-        }
-    }
-}
-
 void GLState::setCullFace(GLenum cullFace)
 {
     if (!m_validState.cullFace || cullFace != m_cullFace)
@@ -204,13 +163,128 @@ static GLenum gl_cull_face(CullFace riveCullFace)
     RIVE_UNREACHABLE();
 }
 
+void GLState::setBlendEquation(gpu::BlendEquation blendEquation)
+{
+    if (m_validState.blendEquation && blendEquation == m_blendEquation)
+    {
+        return;
+    }
+    if (!m_validState.blendEquation ||
+        m_blendEquation == gpu::BlendEquation::none)
+    {
+        glEnable(GL_BLEND);
+    }
+    switch (blendEquation)
+    {
+        case gpu::BlendEquation::none:
+            glDisable(GL_BLEND);
+            break;
+        case gpu::BlendEquation::srcOver:
+            glBlendEquation(GL_FUNC_ADD);
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+        case gpu::BlendEquation::screen:
+            glBlendEquation(GL_SCREEN_KHR);
+            break;
+        case gpu::BlendEquation::overlay:
+            glBlendEquation(GL_OVERLAY_KHR);
+            break;
+        case gpu::BlendEquation::darken:
+            glBlendEquation(GL_DARKEN_KHR);
+            break;
+        case gpu::BlendEquation::lighten:
+            glBlendEquation(GL_LIGHTEN_KHR);
+            break;
+        case gpu::BlendEquation::colorDodge:
+            glBlendEquation(GL_COLORDODGE_KHR);
+            break;
+        case gpu::BlendEquation::colorBurn:
+            glBlendEquation(GL_COLORBURN_KHR);
+            break;
+        case gpu::BlendEquation::hardLight:
+            glBlendEquation(GL_HARDLIGHT_KHR);
+            break;
+        case gpu::BlendEquation::softLight:
+            glBlendEquation(GL_SOFTLIGHT_KHR);
+            break;
+        case gpu::BlendEquation::difference:
+            glBlendEquation(GL_DIFFERENCE_KHR);
+            break;
+        case gpu::BlendEquation::exclusion:
+            glBlendEquation(GL_EXCLUSION_KHR);
+            break;
+        case gpu::BlendEquation::multiply:
+            glBlendEquation(GL_MULTIPLY_KHR);
+            break;
+        case gpu::BlendEquation::hue:
+            glBlendEquation(GL_HSL_HUE_KHR);
+            break;
+        case gpu::BlendEquation::saturation:
+            glBlendEquation(GL_HSL_SATURATION_KHR);
+            break;
+        case gpu::BlendEquation::color:
+            glBlendEquation(GL_HSL_COLOR_KHR);
+            break;
+        case gpu::BlendEquation::luminosity:
+            glBlendEquation(GL_HSL_LUMINOSITY_KHR);
+            break;
+        case gpu::BlendEquation::plus:
+            glBlendEquation(GL_FUNC_ADD);
+            glBlendFunc(GL_ONE, GL_ONE);
+            break;
+        case gpu::BlendEquation::max:
+            glBlendEquation(GL_MAX);
+            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            break;
+    }
+    m_blendEquation = blendEquation;
+    m_validState.blendEquation = true;
+}
+
+void GLState::setWriteMasks(bool colorWriteMask,
+                            bool depthWriteMask,
+                            uint8_t stencilWriteMask)
+{
+    if (!m_validState.writeMasks)
+    {
+        glColorMask(colorWriteMask,
+                    colorWriteMask,
+                    colorWriteMask,
+                    colorWriteMask);
+        glDepthMask(depthWriteMask);
+        glStencilMask(stencilWriteMask);
+        m_colorWriteMask = colorWriteMask;
+        m_depthWriteMask = depthWriteMask;
+        m_stencilWriteMask = stencilWriteMask;
+        m_validState.writeMasks = true;
+    }
+    else
+    {
+        if (colorWriteMask != m_colorWriteMask)
+        {
+            glColorMask(colorWriteMask,
+                        colorWriteMask,
+                        colorWriteMask,
+                        colorWriteMask);
+            m_colorWriteMask = colorWriteMask;
+        }
+        if (depthWriteMask != m_depthWriteMask)
+        {
+            glDepthMask(depthWriteMask);
+            m_depthWriteMask = depthWriteMask;
+        }
+        if (stencilWriteMask != m_stencilWriteMask)
+        {
+            glStencilMask(stencilWriteMask);
+            m_stencilWriteMask = stencilWriteMask;
+        }
+    }
+}
+
 void GLState::setPipelineState(const gpu::PipelineState& pipelineState)
 {
     setDepthStencilEnabled(pipelineState.depthTestEnabled,
                            pipelineState.stencilTestEnabled);
-    setWriteMasks(pipelineState.colorWriteEnabled,
-                  pipelineState.depthWriteEnabled,
-                  pipelineState.stencilWriteMask);
     if (pipelineState.stencilTestEnabled)
     {
         if (!pipelineState.stencilDoubleSided)
@@ -249,83 +323,10 @@ void GLState::setPipelineState(const gpu::PipelineState& pipelineState)
         }
     }
     setCullFace(gl_cull_face(pipelineState.cullFace));
-}
-
-void GLState::setGLBlendMode(GLBlendMode blendMode)
-{
-    if (m_validState.blendEquation && blendMode == m_blendMode)
-    {
-        return;
-    }
-    if (!m_validState.blendEquation || m_blendMode == GLBlendMode::none)
-    {
-        glEnable(GL_BLEND);
-    }
-    switch (blendMode)
-    {
-        case GLBlendMode::none:
-            glDisable(GL_BLEND);
-            break;
-        case GLBlendMode::srcOver:
-            glBlendEquation(GL_FUNC_ADD);
-            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-        case GLBlendMode::screen:
-            glBlendEquation(GL_SCREEN_KHR);
-            break;
-        case GLBlendMode::overlay:
-            glBlendEquation(GL_OVERLAY_KHR);
-            break;
-        case GLBlendMode::darken:
-            glBlendEquation(GL_DARKEN_KHR);
-            break;
-        case GLBlendMode::lighten:
-            glBlendEquation(GL_LIGHTEN_KHR);
-            break;
-        case GLBlendMode::colorDodge:
-            glBlendEquation(GL_COLORDODGE_KHR);
-            break;
-        case GLBlendMode::colorBurn:
-            glBlendEquation(GL_COLORBURN_KHR);
-            break;
-        case GLBlendMode::hardLight:
-            glBlendEquation(GL_HARDLIGHT_KHR);
-            break;
-        case GLBlendMode::softLight:
-            glBlendEquation(GL_SOFTLIGHT_KHR);
-            break;
-        case GLBlendMode::difference:
-            glBlendEquation(GL_DIFFERENCE_KHR);
-            break;
-        case GLBlendMode::exclusion:
-            glBlendEquation(GL_EXCLUSION_KHR);
-            break;
-        case GLBlendMode::multiply:
-            glBlendEquation(GL_MULTIPLY_KHR);
-            break;
-        case GLBlendMode::hue:
-            glBlendEquation(GL_HSL_HUE_KHR);
-            break;
-        case GLBlendMode::saturation:
-            glBlendEquation(GL_HSL_SATURATION_KHR);
-            break;
-        case GLBlendMode::color:
-            glBlendEquation(GL_HSL_COLOR_KHR);
-            break;
-        case GLBlendMode::luminosity:
-            glBlendEquation(GL_HSL_LUMINOSITY_KHR);
-            break;
-        case GLBlendMode::plus:
-            glBlendEquation(GL_FUNC_ADD);
-            glBlendFunc(GL_ONE, GL_ONE);
-            break;
-        case GLBlendMode::max:
-            glBlendEquation(GL_MAX);
-            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
-            break;
-    }
-    m_blendMode = blendMode;
-    m_validState.blendEquation = true;
+    setBlendEquation(pipelineState.blendEquation);
+    setWriteMasks(pipelineState.colorWriteEnabled,
+                  pipelineState.depthWriteEnabled,
+                  pipelineState.stencilWriteMask);
 }
 
 void GLState::bindProgram(GLuint programID)

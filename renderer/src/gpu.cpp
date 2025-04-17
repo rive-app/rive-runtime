@@ -763,51 +763,18 @@ float find_transformed_area(const AABB& bounds, const Mat2D& matrix)
            .5f;
 }
 
-static bool get_color_mask(DrawType drawType, DrawContents drawContents)
-{
-    switch (drawType)
-    {
-        case DrawType::midpointFanPatches:
-        case DrawType::midpointFanCenterAAPatches:
-        case DrawType::outerCurvePatches:
-        case DrawType::interiorTriangulation:
-        case DrawType::atlasBlit:
-        case DrawType::imageRect:
-        case DrawType::imageMesh:
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
-        case DrawType::msaaStrokes:
-        case DrawType::msaaOuterCubics:
-            return true;
-        case DrawType::msaaMidpointFanBorrowedCoverage:
-        case DrawType::msaaMidpointFanPathsStencil:
-        case DrawType::msaaStencilClipReset:
-            return false;
-        case DrawType::msaaMidpointFans:
-        case DrawType::msaaMidpointFanPathsCover:
-            return !(drawContents & gpu::DrawContents::clipUpdate);
-        case DrawType::msaaMidpointFanStencilReset:
-            // For clockwise fill, disable color writes when cleaning up
-            // backward triangles. Clockwise only fills in forward triangles.
-            return !(drawContents & (gpu::DrawContents::clockwiseFill |
-                                     gpu::DrawContents::clipUpdate));
-    }
-    return false;
-}
-
-static void get_depth_state(DrawType drawType,
-                            InterlockMode interlockMode,
-                            DrawContents drawContents,
+static void get_depth_state(const DrawBatch& batch,
+                            const FlushDescriptor& flushDesc,
                             PipelineState* pipelineState)
 {
-    if (interlockMode != InterlockMode::msaa)
+    if (flushDesc.interlockMode != InterlockMode::msaa)
     {
         pipelineState->depthTestEnabled = false;
         pipelineState->depthWriteEnabled = false;
         return;
     }
 
-    switch (drawType)
+    switch (batch.drawType)
     {
         case DrawType::imageRect:
         case DrawType::imageMesh:
@@ -834,14 +801,14 @@ static void get_depth_state(DrawType drawType,
         case DrawType::msaaMidpointFanPathsCover:
             pipelineState->depthTestEnabled = true;
             pipelineState->depthWriteEnabled =
-                !(drawContents & gpu::DrawContents::clipUpdate);
+                !(batch.drawContents & gpu::DrawContents::clipUpdate);
             break;
 
         case DrawType::msaaMidpointFanStencilReset:
             pipelineState->depthTestEnabled = true;
             pipelineState->depthWriteEnabled =
-                !(drawContents & (gpu::DrawContents::clockwiseFill |
-                                  gpu::DrawContents::clipUpdate));
+                !(batch.drawContents & (gpu::DrawContents::clockwiseFill |
+                                        gpu::DrawContents::clipUpdate));
             break;
 
         case DrawType::interiorTriangulation:
@@ -853,26 +820,22 @@ static void get_depth_state(DrawType drawType,
     }
 }
 
-static void get_stencil_state(DrawType drawType,
-                              InterlockMode interlockMode,
-                              DrawContents drawContents,
+static void get_stencil_state(const DrawBatch& batch,
+                              const FlushDescriptor& flushDesc,
                               PipelineState* pipelineState)
 {
-    if (interlockMode != InterlockMode::msaa)
+    if (flushDesc.interlockMode != InterlockMode::msaa)
     {
         pipelineState->stencilTestEnabled = false;
-        // Use default values since stencil is disabled. This is (mildly)
-        // important because GL sets the stencilWriteMask regardless of whether
-        // stencil is enabled or not.
-        pipelineState->stencilCompareMask = 0xff;
-        pipelineState->stencilWriteMask = 0xff;
-        pipelineState->stencilReference = 0xff;
+        pipelineState->stencilWriteMask = 0;
         return;
     }
 
-    const bool hasActiveClip = (drawContents & gpu::DrawContents::activeClip);
-    const bool isClipUpdate = (drawContents & gpu::DrawContents::clipUpdate);
-    switch (drawType)
+    const bool hasActiveClip =
+        (batch.drawContents & gpu::DrawContents::activeClip);
+    const bool isClipUpdate =
+        (batch.drawContents & gpu::DrawContents::clipUpdate);
+    switch (batch.drawType)
     {
         case DrawType::imageRect:
         case DrawType::imageMesh:
@@ -940,7 +903,7 @@ static void get_stencil_state(DrawType drawType,
             pipelineState->stencilDoubleSided = true;
             pipelineState->stencilCompareMask = hasActiveClip ? 0xff : 0x7f;
             pipelineState->stencilWriteMask =
-                (drawContents & gpu::DrawContents::clockwiseFill)
+                (batch.drawContents & gpu::DrawContents::clockwiseFill)
                     // For clockwise fill, disable clip-bit writes when cleaning
                     // up backward triangles. Clockwise only fills in forward
                     // triangles.
@@ -965,14 +928,15 @@ static void get_stencil_state(DrawType drawType,
         case DrawType::msaaMidpointFanPathsStencil:
             // Just stencil the path into the stencil buffer. This is used for
             // nested clip updates and for evenOdd paths.
-            assert(drawContents & (gpu::DrawContents::evenOddFill) ||
-                   (drawContents & gpu::kNestedClipUpdateMask) ==
+            assert(batch.drawContents & (gpu::DrawContents::evenOddFill) ||
+                   (batch.drawContents & gpu::kNestedClipUpdateMask) ==
                        gpu::kNestedClipUpdateMask);
             pipelineState->stencilTestEnabled = true;
             pipelineState->stencilDoubleSided = true;
             pipelineState->stencilCompareMask = 0xff;
             pipelineState->stencilWriteMask =
-                (drawContents & gpu::DrawContents::evenOddFill) ? 0x1 : 0x7f;
+                (batch.drawContents & gpu::DrawContents::evenOddFill) ? 0x1
+                                                                      : 0x7f;
             pipelineState->stencilReference = 0x80;
             // Decrement front-facing triangles so the MSB is set when
             // clockwise.
@@ -994,7 +958,7 @@ static void get_stencil_state(DrawType drawType,
         case DrawType::msaaMidpointFanPathsCover:
             // Draw & reset stencil winding numbers. This is only needed for
             // evenOdd paths.
-            assert(drawContents & gpu::DrawContents::evenOddFill);
+            assert(batch.drawContents & gpu::DrawContents::evenOddFill);
             pipelineState->stencilTestEnabled = true;
             pipelineState->stencilDoubleSided = false;
             pipelineState->stencilCompareMask = 0x7f;
@@ -1011,14 +975,14 @@ static void get_stencil_state(DrawType drawType,
         case DrawType::msaaStencilClipReset:
             pipelineState->stencilTestEnabled = true;
             pipelineState->stencilDoubleSided = false;
-            if ((drawContents & gpu::kNestedClipUpdateMask) ==
+            if ((batch.drawContents & gpu::kNestedClipUpdateMask) ==
                 gpu::kNestedClipUpdateMask)
             {
                 // The nested clip just got stencilled and left in the stencil
                 // buffer. Intersect it with the existing clip. (Erasing regions
                 // of the existing clip that are outside the nested clip.)
                 pipelineState->stencilCompareMask =
-                    (drawContents & gpu::DrawContents::clockwiseFill)
+                    (batch.drawContents & gpu::DrawContents::clockwiseFill)
                         // clockwise: (0x80 & 0xc0) < (stencilValue & 0xc0)
                         //   => "If clipbit is set and winding is negative"
                         //   => "If clipbit is set and winding is clockwise"
@@ -1097,14 +1061,89 @@ static CullFace get_cull_face(DrawType drawType)
     RIVE_UNREACHABLE();
 }
 
-void get_pipeline_state(DrawType drawType,
-                        InterlockMode interlockMode,
-                        DrawContents drawContents,
+static BlendEquation get_blend_equation(
+    const FlushDescriptor& flushDesc,
+    const DrawBatch& batch,
+    const PlatformFeatures& platformFeatures)
+{
+    switch (flushDesc.interlockMode)
+    {
+        case InterlockMode::rasterOrdering:
+        case InterlockMode::atomics:
+            return flushDesc.atomicFixedFunctionColorOutput
+                       ? BlendEquation::srcOver
+                       : BlendEquation::none;
+
+        case InterlockMode::clockwiseAtomic:
+            return BlendEquation::srcOver;
+
+        case InterlockMode::msaa:
+            if (batch.drawContents & DrawContents::opaquePaint)
+            {
+                return BlendEquation::none;
+            }
+            else if (!(batch.drawContents & DrawContents::advancedBlend))
+            {
+                assert(batch.firstBlendMode == BlendMode::srcOver);
+                return BlendEquation::srcOver;
+            }
+            else if (platformFeatures.supportsKHRBlendEquations)
+            {
+                // When m_platformFeatures.supportsKHRBlendEquations is true in
+                // MSAA mode, the renderContext does not combine draws that have
+                // different blend modes.
+                return static_cast<BlendEquation>(batch.firstBlendMode);
+            }
+            else
+            {
+                return BlendEquation::none;
+            }
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+static bool get_color_writemask(const DrawBatch& batch)
+{
+    switch (batch.drawType)
+    {
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+        case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
+        case DrawType::imageRect:
+        case DrawType::imageMesh:
+        case DrawType::atomicInitialize:
+        case DrawType::atomicResolve:
+            return true;
+        case DrawType::msaaStrokes:
+        case DrawType::msaaOuterCubics:
+            return true;
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaStencilClipReset:
+            return false;
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanPathsCover:
+            return !(batch.drawContents & DrawContents::clipUpdate);
+        case DrawType::msaaMidpointFanStencilReset:
+            // For clockwise fill, disable color writes when cleaning up
+            // backward triangles. Clockwise only fills in forward triangles.
+            return !(batch.drawContents &
+                     (DrawContents::clockwiseFill | DrawContents::clipUpdate));
+    }
+    return false;
+}
+
+void get_pipeline_state(const DrawBatch& batch,
+                        const FlushDescriptor& flushDesc,
+                        const PlatformFeatures& platformFeatures,
                         PipelineState* pipelineState)
 {
 #ifndef NDEBUG
     // Ensure drawType is compatible with the interlock mode.
-    switch (drawType)
+    switch (batch.drawType)
     {
         case DrawType::atlasBlit:
         case DrawType::imageMesh:
@@ -1114,13 +1153,13 @@ void get_pipeline_state(DrawType drawType,
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
-            assert(interlockMode != InterlockMode::msaa);
+            assert(flushDesc.interlockMode != InterlockMode::msaa);
             break;
 
         case DrawType::imageRect:
         case DrawType::atomicResolve:
         case DrawType::atomicInitialize:
-            assert(interlockMode == InterlockMode::atomics);
+            assert(flushDesc.interlockMode == InterlockMode::atomics);
             break;
 
         case DrawType::msaaStrokes:
@@ -1131,15 +1170,17 @@ void get_pipeline_state(DrawType drawType,
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStencilClipReset:
-            assert(interlockMode == InterlockMode::msaa);
+            assert(flushDesc.interlockMode == InterlockMode::msaa);
             break;
     }
 #endif
 
-    pipelineState->colorWriteEnabled = get_color_mask(drawType, drawContents);
-    get_depth_state(drawType, interlockMode, drawContents, pipelineState);
-    get_stencil_state(drawType, interlockMode, drawContents, pipelineState);
-    pipelineState->cullFace = get_cull_face(drawType);
+    get_depth_state(batch, flushDesc, pipelineState);
+    get_stencil_state(batch, flushDesc, pipelineState);
+    pipelineState->cullFace = get_cull_face(batch.drawType);
+    pipelineState->blendEquation =
+        get_blend_equation(flushDesc, batch, platformFeatures);
+    pipelineState->colorWriteEnabled = get_color_writemask(batch);
 }
 
 // Borrowed from:

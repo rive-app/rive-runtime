@@ -98,12 +98,6 @@ private:
             return gpu::ShaderMiscFlags::none;
         }
 
-        // Called before issuing a plsAtomicResolve draw, so the
-        // PixelLocalStorageImpl can make any necessary GL state changes.
-        virtual void setupAtomicResolve(RenderContextGLImpl*,
-                                        const gpu::FlushDescriptor&)
-        {}
-
         virtual void pushShaderDefines(
             gpu::InterlockMode,
             std::vector<const char*>* defines) const = 0;

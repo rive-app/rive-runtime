@@ -14,14 +14,6 @@ namespace rive::gpu
 {
 using DrawBufferMask = RenderTargetGL::DrawBufferMask;
 
-static bool needs_atomic_fixed_function_color_blend(
-    const gpu::FlushDescriptor& desc)
-{
-    assert(desc.interlockMode == gpu::InterlockMode::atomics);
-    return !(desc.combinedShaderFeatures &
-             gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND);
-}
-
 static bool needs_coalesced_atomic_resolve_and_transfer(
     const gpu::FlushDescriptor& desc)
 {
@@ -54,27 +46,27 @@ class RenderContextGLImpl::PLSImplRWTexture
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->allocateInternalPLSTextures(desc.interlockMode);
 
-        if (desc.interlockMode == gpu::InterlockMode::atomics &&
-            needs_atomic_fixed_function_color_blend(desc))
+        if (!desc.atomicFixedFunctionColorOutput)
         {
-            renderContextImpl->state()->setBlendMode(BlendMode::srcOver);
-        }
-        else if (auto framebufferRenderTarget =
-                     lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
-        {
-            // We're targeting an external FBO but can't render to it directly.
-            // Make sure to allocate and attach an offscreen target texture.
-            framebufferRenderTarget->allocateOffscreenTargetTexture();
-            if (desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget)
+            if (auto framebufferRenderTarget =
+                    lite_rtti_cast<FramebufferRenderTargetGL*>(renderTarget))
             {
-                // Copy the framebuffer's contents to our offscreen texture.
-                framebufferRenderTarget->bindDestinationFramebuffer(
-                    GL_READ_FRAMEBUFFER);
-                framebufferRenderTarget->bindInternalFramebuffer(
-                    GL_DRAW_FRAMEBUFFER,
-                    DrawBufferMask::color);
-                glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
-                                         renderTarget->height());
+                // We're targeting an external FBO but can't render to it
+                // directly. Make sure to allocate and attach an offscreen
+                // target texture.
+                framebufferRenderTarget->allocateOffscreenTargetTexture();
+                if (desc.colorLoadAction ==
+                    gpu::LoadAction::preserveRenderTarget)
+                {
+                    // Copy the framebuffer's contents to our offscreen texture.
+                    framebufferRenderTarget->bindDestinationFramebuffer(
+                        GL_READ_FRAMEBUFFER);
+                    framebufferRenderTarget->bindInternalFramebuffer(
+                        GL_DRAW_FRAMEBUFFER,
+                        DrawBufferMask::color);
+                    glutils::BlitFramebuffer(desc.renderTargetUpdateBounds,
+                                             renderTarget->height());
+                }
             }
         }
 
@@ -134,15 +126,6 @@ class RenderContextGLImpl::PLSImplRWTexture
                     glClearColor(cc[0], cc[1], cc[2], cc[3]);
                     glClear(GL_COLOR_BUFFER_BIT);
                 }
-                else if (needs_coalesced_atomic_resolve_and_transfer(desc))
-                {
-                    // When rendering to an offscreen atomic texture, still bind
-                    // the target framebuffer, but disable color writes until
-                    // it's time to resolve.
-                    renderContextImpl->state()->setWriteMasks(false,
-                                                              true,
-                                                              0xff);
-                }
                 break;
             default:
                 RIVE_UNREACHABLE();
@@ -159,7 +142,7 @@ class RenderContextGLImpl::PLSImplRWTexture
         auto flags = gpu::ShaderMiscFlags::none;
         if (desc.interlockMode == gpu::InterlockMode::atomics)
         {
-            if (needs_atomic_fixed_function_color_blend(desc))
+            if (desc.atomicFixedFunctionColorOutput)
             {
                 flags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
             }
@@ -170,19 +153,6 @@ class RenderContextGLImpl::PLSImplRWTexture
             }
         }
         return flags;
-    }
-
-    void setupAtomicResolve(RenderContextGLImpl* renderContextImpl,
-                            const gpu::FlushDescriptor& desc) override
-    {
-        assert(desc.interlockMode == gpu::InterlockMode::atomics);
-        if (needs_coalesced_atomic_resolve_and_transfer(desc))
-        {
-            // Turn the color mask back on now that we're about to resolve.
-            renderContextImpl->state()->setWriteMasks(true, true, 0xff);
-            renderContextImpl->state()->setGLBlendMode(
-                GLState::GLBlendMode::none);
-        }
     }
 
     void deactivatePixelLocalStorage(RenderContextGLImpl*,

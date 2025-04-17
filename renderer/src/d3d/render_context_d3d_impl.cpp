@@ -1857,13 +1857,10 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     }
 
     // Setup and clear the PLS textures.
-    bool renderDirectToRasterPipeline =
-        desc.interlockMode == InterlockMode::atomics &&
-        !(desc.combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
     switch (desc.colorLoadAction)
     {
         case gpu::LoadAction::clear:
-            if (renderDirectToRasterPipeline)
+            if (desc.atomicFixedFunctionColorOutput)
             {
                 float clearColor4f[4];
                 UnpackColorToRGBA32FPremul(desc.colorClearValue, clearColor4f);
@@ -1888,7 +1885,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             }
             break;
         case gpu::LoadAction::preserveRenderTarget:
-            if (!renderDirectToRasterPipeline &&
+            if (!desc.atomicFixedFunctionColorOutput &&
                 !renderTarget->targetTextureSupportsUAV())
             {
                 // We're rendering to an offscreen UAV and preserving the
@@ -1916,9 +1913,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     // Execute the DrawList.
     ID3D11RenderTargetView* targetRTV =
-        renderDirectToRasterPipeline ? renderTarget->targetRTV() : NULL;
+        desc.atomicFixedFunctionColorOutput ? renderTarget->targetRTV() : NULL;
     ID3D11UnorderedAccessView* plsUAVs[] = {
-        renderDirectToRasterPipeline ? NULL : renderTarget->targetUAV(),
+        desc.atomicFixedFunctionColorOutput ? NULL : renderTarget->targetUAV(),
         renderTarget->clipUAV(),
         desc.interlockMode == gpu::InterlockMode::rasterOrdering
             ? renderTarget->scratchColorUAV()
@@ -1930,16 +1927,16 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
     m_gpuContext->OMSetRenderTargetsAndUnorderedAccessViews(
-        renderDirectToRasterPipeline ? 1 : 0,
+        desc.atomicFixedFunctionColorOutput ? 1 : 0,
         &targetRTV,
         NULL,
-        renderDirectToRasterPipeline ? 1 : 0,
-        renderDirectToRasterPipeline ? std::size(plsUAVs) - 1
-                                     : std::size(plsUAVs),
-        renderDirectToRasterPipeline ? plsUAVs + 1 : plsUAVs,
+        desc.atomicFixedFunctionColorOutput ? 1 : 0,
+        desc.atomicFixedFunctionColorOutput ? std::size(plsUAVs) - 1
+                                            : std::size(plsUAVs),
+        desc.atomicFixedFunctionColorOutput ? plsUAVs + 1 : plsUAVs,
         NULL);
 
-    if (renderDirectToRasterPipeline)
+    if (desc.atomicFixedFunctionColorOutput)
     {
         // When rendering directly to the target RTV, we use the built-in blend
         // hardware for opacity and antialiasing.
@@ -1971,7 +1968,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
     bool renderPassHasCoalescedResolveAndTransfer =
         desc.interlockMode == gpu::InterlockMode::atomics &&
-        !renderDirectToRasterPipeline &&
+        !desc.atomicFixedFunctionColorOutput &&
         !renderTarget->targetTextureSupportsUAV();
 
     for (const DrawBatch& batch : *desc.drawList)
@@ -1987,7 +1984,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             shaderMiscFlags |=
                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
         }
-        if (renderDirectToRasterPipeline)
+        if (desc.atomicFixedFunctionColorOutput)
         {
             shaderMiscFlags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
         }
@@ -2120,7 +2117,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                     // render pass. (And ince we're changing the render target,
                     // this also better be the final batch of the render pass.)
                     assert(&batch == &desc.drawList->tail());
-                    assert(!renderDirectToRasterPipeline);
+                    assert(!desc.atomicFixedFunctionColorOutput);
                     assert(!renderTarget->targetTextureSupportsUAV());
                     ID3D11RenderTargetView* resolveRTV =
                         renderTarget->targetRTV();
@@ -2166,7 +2163,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     {
         // We rendered to an offscreen UAV and did not resolve to the
         // renderTarget. Copy back to the main target.
-        assert(!renderDirectToRasterPipeline);
+        assert(!desc.atomicFixedFunctionColorOutput);
         assert(!renderPassHasCoalescedResolveAndTransfer);
         blit_sub_rect(m_gpuContext.Get(),
                       renderTarget->targetTexture(),

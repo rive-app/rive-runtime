@@ -138,7 +138,6 @@ public:
         m_state->bindProgram(
             findLoadStoreProgram(actions, desc.combinedShaderFeatures).id());
         m_state->bindVAO(m_plsLoadStoreVAO);
-        m_state->setGLBlendMode(GLState::GLBlendMode::none);
         m_state->setCullFace(GL_BACK);
         glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
 

@@ -1596,6 +1596,9 @@ void RenderContext::LogicalFlush::writeResources()
     // Some of the flushDescriptor's data isn't known until after
     // writeResources(). Update it now that it's known.
     m_flushDesc.combinedShaderFeatures = m_combinedShaderFeatures;
+    m_flushDesc.atomicFixedFunctionColorOutput =
+        m_ctx->frameInterlockMode() == InterlockMode::atomics &&
+        !(m_combinedShaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
 
     if (m_coverageBufferLength > 0)
     {

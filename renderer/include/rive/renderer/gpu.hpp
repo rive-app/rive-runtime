@@ -1039,6 +1039,9 @@ struct FlushDescriptor
     RenderTarget* renderTarget = nullptr;
     ShaderFeatures combinedShaderFeatures = ShaderFeatures::NONE;
     InterlockMode interlockMode = InterlockMode::rasterOrdering;
+    // Atomic mode only: there a no advanced blend modes, so we can render
+    // directly to the main target with fixed function (src-over) blending.
+    bool atomicFixedFunctionColorOutput = false;
     int msaaSampleCount = 0; // (0 unless interlockMode is msaa.)
 
     LoadAction colorLoadAction = LoadAction::clear;
@@ -1619,10 +1622,41 @@ enum class CullFace : uint8_t
     counterclockwise,
 };
 
+// Blend equation to select for the fixed-function GPU pipeline (not our own
+// in-shader blending). For now, the backend is free to decide whether it will
+// use premultiplied alpha or not.
+enum class BlendEquation : uint8_t
+{
+    // Hardware blend is disabled.
+    none = 0,
+
+    // Core hardware blend equations supported on all platforms.
+    srcOver = static_cast<int>(rive::BlendMode::srcOver),
+    plus = srcOver + 1,
+    max = plus + 1,
+
+    // "Advanced" hardware blend equations.
+    // PlatformFeatures::supportsKHRBlendEquations is required.
+    screen = static_cast<int>(rive::BlendMode::screen),
+    overlay = static_cast<int>(rive::BlendMode::overlay),
+    darken = static_cast<int>(rive::BlendMode::darken),
+    lighten = static_cast<int>(rive::BlendMode::lighten),
+    colorDodge = static_cast<int>(rive::BlendMode::colorDodge),
+    colorBurn = static_cast<int>(rive::BlendMode::colorBurn),
+    hardLight = static_cast<int>(rive::BlendMode::hardLight),
+    softLight = static_cast<int>(rive::BlendMode::softLight),
+    difference = static_cast<int>(rive::BlendMode::difference),
+    exclusion = static_cast<int>(rive::BlendMode::exclusion),
+    multiply = static_cast<int>(rive::BlendMode::multiply),
+    hue = static_cast<int>(rive::BlendMode::hue),
+    saturation = static_cast<int>(rive::BlendMode::saturation),
+    color = static_cast<int>(rive::BlendMode::color),
+    luminosity = static_cast<int>(rive::BlendMode::luminosity),
+};
+
 // Common pipeline state that applies to every low-level draw and every backend.
 struct PipelineState
 {
-    bool colorWriteEnabled;
     bool depthTestEnabled;
     bool depthWriteEnabled;
     bool stencilTestEnabled;
@@ -1633,9 +1667,44 @@ struct PipelineState
     StencilFaceOps stencilFrontOps;
     StencilFaceOps stencilBackOps;
     CullFace cullFace;
+    BlendEquation blendEquation;
+    bool colorWriteEnabled;
 };
 
-void get_pipeline_state(DrawType, InterlockMode, DrawContents, PipelineState*);
+void get_pipeline_state(const DrawBatch&,
+                        const FlushDescriptor&,
+                        const PlatformFeatures&,
+                        PipelineState*);
+
+constexpr static PipelineState COLOR_ONLY_PIPELINE_STATE = {
+    .depthTestEnabled = false,
+    .depthWriteEnabled = false,
+    .stencilTestEnabled = false,
+    .stencilWriteMask = 0,
+    .cullFace = CullFace::none,
+    .blendEquation = BlendEquation::none,
+    .colorWriteEnabled = true,
+};
+
+constexpr static PipelineState ATLAS_FILL_PIPELINE_STATE = {
+    .depthTestEnabled = false,
+    .depthWriteEnabled = false,
+    .stencilTestEnabled = false,
+    .stencilWriteMask = 0,
+    .cullFace = CullFace::counterclockwise,
+    .blendEquation = BlendEquation::plus,
+    .colorWriteEnabled = true,
+};
+
+constexpr static PipelineState ATLAS_STROKE_PIPELINE_STATE = {
+    .depthTestEnabled = false,
+    .depthWriteEnabled = false,
+    .stencilTestEnabled = false,
+    .stencilWriteMask = 0,
+    .cullFace = CullFace::counterclockwise,
+    .blendEquation = BlendEquation::max,
+    .colorWriteEnabled = true,
+};
 
 float4 cast_f16_to_f32(uint16x4 x);
 uint16x4 cast_f32_to_f16(float4);
