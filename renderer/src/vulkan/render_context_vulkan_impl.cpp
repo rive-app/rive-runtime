@@ -1288,19 +1288,24 @@ public:
             StackVector<VkAttachmentReference, PIXEL_LOCAL_STORAGE_PLANE_COUNT>
                 attachmentRefs;
 
+            auto colorAttachmentLayout =
+                (m_options &
+                 DrawPipelineLayoutOptions::fixedFunctionColorOutput)
+                    ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                    : VK_IMAGE_LAYOUT_GENERAL;
             attachmentDescs.push_back({
                 .format = renderTargetFormat,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .loadOp = colorLoadOp,
                 .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
                 .initialLayout = colorLoadOp == VK_ATTACHMENT_LOAD_OP_LOAD
-                                     ? VK_IMAGE_LAYOUT_GENERAL
+                                     ? colorAttachmentLayout
                                      : VK_IMAGE_LAYOUT_UNDEFINED,
-                .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .finalLayout = colorAttachmentLayout,
             });
             attachmentRefs.push_back({
                 .attachment = COLOR_PLANE_IDX,
-                .layout = VK_IMAGE_LAYOUT_GENERAL,
+                .layout = colorAttachmentLayout,
             });
 
             if (m_interlockMode == gpu::InterlockMode::rasterOrdering ||
@@ -3267,7 +3272,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
         .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
         .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .layout = VK_IMAGE_LAYOUT_GENERAL,
+        .layout = desc.atomicFixedFunctionColorOutput
+                      ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                      : VK_IMAGE_LAYOUT_GENERAL,
     };
 
     VkImageView colorImageView;
