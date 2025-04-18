@@ -1,5 +1,6 @@
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/artboard.hpp"
+#include "rive/artboard_component_list.hpp"
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/drawable.hpp"
 #include "rive/factory.hpp"
@@ -392,12 +393,22 @@ bool LayoutComponent::isLeaf()
 {
     for (auto child : children())
     {
-        if (child->is<LayoutComponent>() || child->is<NestedArtboardLayout>())
+        auto layout = LayoutNodeProvider::from(child);
+        if (layout != nullptr)
         {
             return false;
         }
     }
     return true;
+}
+
+void* LayoutComponent::layoutNode(int index)
+{
+    if (m_layoutData != nullptr)
+    {
+        return &m_layoutData->node;
+    }
+    return nullptr;
 }
 
 void LayoutComponent::syncStyle()
@@ -762,17 +773,36 @@ void LayoutComponent::syncLayoutChildren()
         {
             case LayoutComponentBase::typeKey:
                 node = &child->as<LayoutComponent>()->m_layoutData->node;
+                if (node != nullptr)
+                {
+                    ourNode.insertChild(node, index++);
+                    node->setOwner(&ourNode);
+                    ourNode.markDirtyAndPropagate();
+                }
                 break;
             case NestedArtboardLayoutBase::typeKey:
                 node = static_cast<YGNode*>(
-                    child->as<NestedArtboardLayout>()->layoutNode());
+                    child->as<NestedArtboardLayout>()->layoutNode(0));
+                if (node != nullptr)
+                {
+                    ourNode.insertChild(node, index++);
+                    node->setOwner(&ourNode);
+                    ourNode.markDirtyAndPropagate();
+                }
                 break;
-        }
-        if (node != nullptr)
-        {
-            ourNode.insertChild(node, index++);
-            node->setOwner(&ourNode);
-            ourNode.markDirtyAndPropagate();
+            case ArtboardComponentListBase::typeKey:
+                auto list = child->as<ArtboardComponentList>();
+                for (int i = 0; i < list->artboardCount(); i++)
+                {
+                    node = static_cast<YGNode*>(list->layoutNode(i));
+                    if (node != nullptr)
+                    {
+                        ourNode.insertChild(node, index++);
+                        node->setOwner(&ourNode);
+                        ourNode.markDirtyAndPropagate();
+                    }
+                }
+                break;
         }
     }
     markLayoutNodeDirty();
@@ -896,13 +926,10 @@ void LayoutComponent::updateLayoutBounds(bool animate)
 
     for (auto child : children())
     {
-        if (child->is<LayoutComponent>())
+        auto layout = LayoutNodeProvider::from(child);
+        if (layout != nullptr)
         {
-            child->as<LayoutComponent>()->updateLayoutBounds(animate);
-        }
-        else if (child->is<NestedArtboardLayout>())
-        {
-            child->as<NestedArtboardLayout>()->updateLayoutBounds(animate);
+            layout->updateLayoutBounds(animate);
         }
     }
 
@@ -1304,13 +1331,10 @@ void LayoutComponent::flexDirectionChanged()
     markLayoutNodeDirty();
     for (Component* child : children())
     {
-        if (child->is<LayoutComponent>())
+        auto layout = LayoutNodeProvider::from(child);
+        if (layout != nullptr)
         {
-            child->as<LayoutComponent>()->markLayoutNodeDirty();
-        }
-        else if (child->is<NestedArtboardLayout>())
-        {
-            child->as<NestedArtboardLayout>()->markLayoutNodeDirty();
+            layout->markLayoutNodeDirty();
         }
     }
 }

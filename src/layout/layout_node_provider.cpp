@@ -1,3 +1,4 @@
+#include "rive/artboard_component_list.hpp"
 #include "rive/component.hpp"
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/layout_component.hpp"
@@ -14,6 +15,8 @@ LayoutNodeProvider* LayoutNodeProvider::from(Component* component)
             return component->as<LayoutComponent>();
         case NestedArtboardLayout::typeKey:
             return component->as<NestedArtboardLayout>();
+        case ArtboardComponentListBase::typeKey:
+            return component->as<ArtboardComponentList>();
     }
     return nullptr;
 }

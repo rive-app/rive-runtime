@@ -2,6 +2,7 @@
 #define _RIVE_NESTED_ARTBOARD_HPP_
 
 #include "rive/generated/nested_artboard_base.hpp"
+#include "rive/artboard_host.hpp"
 #include "rive/data_bind/data_context.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/hit_info.hpp"
@@ -17,7 +18,9 @@ class NestedAnimation;
 class NestedInput;
 class NestedStateMachine;
 class StateMachineInstance;
-class NestedArtboard : public NestedArtboardBase, public AdvancingComponent
+class NestedArtboard : public NestedArtboardBase,
+                       public AdvancingComponent,
+                       public ArtboardHost
 {
 protected:
     Artboard* m_Artboard = nullptr; // might point to m_Instance, and might not
@@ -36,7 +39,11 @@ public:
     void addNestedAnimation(NestedAnimation* nestedAnimation);
 
     void nest(Artboard* artboard);
-    ArtboardInstance* artboardInstance() { return m_Instance.get(); }
+    size_t artboardCount() override { return 1; }
+    ArtboardInstance* artboardInstance(int index = 0) override
+    {
+        return m_Instance.get();
+    }
     Artboard* sourceArtboard() { return m_Artboard; }
 
     StatusCode import(ImportStack& importStack) override;
@@ -64,18 +71,23 @@ public:
     /// nested within. Returns true when the conversion succeeds, and false
     /// when one is not possible.
     bool worldToLocal(Vec2D world, Vec2D* local);
-    void syncStyleChanges();
     void decodeDataBindPathIds(Span<const uint8_t> value) override;
     void copyDataBindPathIds(const NestedArtboardBase& object) override;
-    std::vector<uint32_t> dataBindPathIds() { return m_DataBindPathIdsBuffer; };
+    std::vector<uint32_t> dataBindPathIds() override
+    {
+        return m_DataBindPathIdsBuffer;
+    };
+    void populateDataBinds(std::vector<DataBind*>* dataBinds) override;
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
-                               DataContext* parent);
-    void internalDataContext(DataContext* dataContext);
-    void clearDataContext();
+                               DataContext* parent) override;
+    void internalDataContext(DataContext* dataContext) override;
+    void clearDataContext() override;
 
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
+    Artboard* parentArtboard() override { return artboard(); }
+    void markHostTransformDirty() override { markTransformDirty(); }
 };
 } // namespace rive
 

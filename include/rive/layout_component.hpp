@@ -154,7 +154,6 @@ private:
 
 #ifdef WITH_RIVE_LAYOUT
 protected:
-    void syncLayoutChildren();
     void propagateSizeToChildren(ContainerComponent* component);
     bool applyInterpolation(float elapsedSeconds, bool animate = true);
     void calculateLayout();
@@ -250,9 +249,11 @@ public:
     ~LayoutComponent();
 #ifdef WITH_RIVE_LAYOUT
 
+    void* layoutNode(int index) override;
     void syncStyle();
+    void syncLayoutChildren();
     virtual void propagateSize();
-    void updateLayoutBounds(bool animate = true);
+    void updateLayoutBounds(bool animate = true) override;
     StatusCode onAddedDirty(CoreContext* context) override;
     StatusCode onAddedClean(CoreContext* context) override;
     bool advance(float elapsedSeconds);
@@ -282,7 +283,8 @@ public:
 #endif
     void buildDependencies() override;
 
-    void markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds = false);
+    void markLayoutNodeDirty(
+        bool shouldForceUpdateLayoutBounds = false) override;
     void markLayoutStyleDirty();
     void clipChanged() override;
     void widthChanged() override;

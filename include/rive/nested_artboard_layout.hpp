@@ -6,24 +6,28 @@
 
 namespace rive
 {
+class ArtboardInstance;
 class NestedArtboardLayout : public NestedArtboardLayoutBase,
                              public LayoutNodeProvider
 {
 public:
 #ifdef WITH_RIVE_LAYOUT
-    void* layoutNode();
+    void* layoutNode(int index) override;
 #endif
     Core* clone() const override;
-    void markNestedLayoutDirty();
-    void markLayoutNodeDirty();
+    void markHostingLayoutDirty(ArtboardInstance* artboardInstance) override;
+    void markLayoutNodeDirty(
+        bool shouldForceUpdateLayoutBounds = false) override;
     void update(ComponentDirt value) override;
     void updateConstraints() override;
     StatusCode onAddedClean(CoreContext* context) override;
 
     float actualInstanceWidth();
     float actualInstanceHeight();
-    void updateLayoutBounds(bool animate);
+    bool syncStyleChanges() override;
+    void updateLayoutBounds(bool animate = true) override;
     AABB layoutBounds() override;
+    bool isLayoutProvider() override { return true; }
 
     TransformComponent* transformComponent() override
     {

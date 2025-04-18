@@ -1,7 +1,7 @@
 #include "rive/data_bind/context/context_value_list.hpp"
 #include "rive/data_bind/context/context_value_list_item.hpp"
+#include "rive/data_bind/data_bind_list_item_provider.hpp"
 #include "rive/generated/core_registry.hpp"
-#include "rive/node.hpp"
 
 using namespace rive;
 
@@ -9,51 +9,20 @@ DataBindContextValueList::DataBindContextValueList(DataBind* dataBind) :
     DataBindContextValue(dataBind)
 {}
 
-std::unique_ptr<ArtboardInstance> DataBindContextValueList::createArtboard(
-    Component* target,
-    Artboard* artboard,
-    ViewModelInstanceListItem* listItem) const
+DataBindContextValueList::~DataBindContextValueList()
 {
-    if (artboard != nullptr)
+    for (auto& item : m_ListItemsCache)
     {
-
-        auto mainArtboard = target->artboard();
-        auto dataContext = mainArtboard->dataContext();
-        auto artboardCopy = artboard->instance();
-        artboardCopy->advanceInternal(0.0f);
-        artboardCopy->bindViewModelInstance(listItem->viewModelInstance(),
-                                            dataContext,
-                                            false);
-        return artboardCopy;
+        item.reset();
     }
-    return nullptr;
-}
-
-std::unique_ptr<StateMachineInstance> DataBindContextValueList::
-    createStateMachineInstance(ArtboardInstance* artboard)
-{
-    if (artboard != nullptr)
-    {
-        auto stateMachineInstance = artboard->stateMachineAt(0);
-        stateMachineInstance->advance(0.0f, true);
-        return stateMachineInstance;
-    }
-    return nullptr;
 }
 
 void DataBindContextValueList::insertItem(Core* target,
                                           ViewModelInstanceListItem* listItem,
                                           int index)
 {
-    auto artboard = listItem->artboard();
-    auto artboardCopy =
-        createArtboard(target->as<Component>(), artboard, listItem);
-    auto stateMachineInstance = createStateMachineInstance(artboardCopy.get());
     std::unique_ptr<DataBindContextValueListItem> cacheListItem =
-        rivestd::make_unique<DataBindContextValueListItem>(
-            std::move(artboardCopy),
-            std::move(stateMachineInstance),
-            listItem);
+        rivestd::make_unique<DataBindContextValueListItem>(listItem);
     if (index == -1)
     {
         m_ListItemsCache.push_back(std::move(cacheListItem));
@@ -126,11 +95,24 @@ void DataBindContextValueList::update(Core* target)
             listIndex++;
         }
         // remove remaining cached elements backwars to pop from the vector.
-        listIndex = (int)(m_ListItemsCache.size() - 1);
-        while (listIndex >= listItems.size())
+        listIndex = m_ListItemsCache.size() == 0
+                        ? 0
+                        : (int)(m_ListItemsCache.size() - 1);
+        while ((size_t)listIndex > listItems.size())
         {
             popItem(target);
             listIndex--;
+        }
+
+        auto provider = DataBindListItemProvider::from(target);
+        if (provider != nullptr)
+        {
+            std::vector<ViewModelInstanceListItem*> items;
+            for (auto& item : m_ListItemsCache)
+            {
+                items.push_back(item.get()->listItem());
+            }
+            provider->updateList(m_dataBind->propertyKey(), items);
         }
     }
 }

@@ -87,8 +87,11 @@ class SceneContent : public ViewerContent
 
         m_ArtboardIndex = (index == REQUEST_DEFAULT_SCENE) ? 0 : index;
         m_ArtboardInstance = m_File->artboardAt(m_ArtboardIndex);
+        int viewModelId = m_ArtboardInstance.get()->viewModelId();
         m_ViewModelInstance =
-            m_File->createViewModelInstance(m_ArtboardInstance.get());
+            viewModelId == -1
+                ? m_File->createViewModelInstance(m_ArtboardInstance.get())
+                : m_File->createViewModelInstance(viewModelId, 0);
         m_ArtboardInstance->bindViewModelInstance(m_ViewModelInstance);
         m_ArtboardInstance->advance(0.0f,
                                     rive::AdvanceFlags::AdvanceNested |

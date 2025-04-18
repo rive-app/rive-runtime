@@ -1,0 +1,22 @@
+{
+  "name": "ArtboardComponentList",
+  "key": {
+    "int": 559,
+    "string": "artboardcomponentlist"
+  },
+  "extends": "drawable.json",
+  "properties": {
+    "listSource": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 800,
+        "string": "listsource"
+      },
+      "description": "Path to the selected property.",
+      "bindable": true
+    }
+  }
+}

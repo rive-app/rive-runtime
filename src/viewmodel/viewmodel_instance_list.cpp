@@ -8,6 +8,14 @@
 
 using namespace rive;
 
+ViewModelInstanceList::~ViewModelInstanceList()
+{
+    for (auto item : m_ListItems)
+    {
+        delete item;
+    }
+}
+
 void ViewModelInstanceList::propertyValueChanged()
 {
     addDirt(ComponentDirt::Components);

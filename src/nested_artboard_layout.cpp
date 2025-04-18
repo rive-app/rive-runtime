@@ -41,7 +41,7 @@ AABB NestedArtboardLayout::layoutBounds()
 }
 
 #ifdef WITH_RIVE_LAYOUT
-void* NestedArtboardLayout::layoutNode()
+void* NestedArtboardLayout::layoutNode(int index)
 {
     if (artboardInstance() == nullptr)
     {
@@ -51,15 +51,17 @@ void* NestedArtboardLayout::layoutNode()
 }
 #endif
 
-void NestedArtboardLayout::markNestedLayoutDirty()
+void NestedArtboardLayout::markHostingLayoutDirty(
+    ArtboardInstance* artboardInstance)
 {
     if (artboard() != nullptr)
     {
-        artboard()->markLayoutDirty(artboardInstance());
+        artboard()->markLayoutDirty(this->artboardInstance());
     }
 }
 
-void NestedArtboardLayout::markLayoutNodeDirty()
+void NestedArtboardLayout::markLayoutNodeDirty(
+    bool shouldForceUpdateLayoutBounds)
 {
     updateWidthOverride();
     updateHeightOverride();
@@ -154,7 +156,7 @@ void NestedArtboardLayout::updateWidthOverride()
     {
         artboardInstance()->widthIntrinsicallySizeOverride(true);
     }
-    markNestedLayoutDirty();
+    markHostingLayoutDirty(artboardInstance());
 }
 
 void NestedArtboardLayout::updateHeightOverride()
@@ -184,7 +186,7 @@ void NestedArtboardLayout::updateHeightOverride()
     {
         artboardInstance()->heightIntrinsicallySizeOverride(true);
     }
-    markNestedLayoutDirty();
+    markHostingLayoutDirty(artboardInstance());
 }
 
 void NestedArtboardLayout::instanceWidthChanged() { updateWidthOverride(); }
@@ -209,4 +211,13 @@ void NestedArtboardLayout::instanceWidthScaleTypeChanged()
 void NestedArtboardLayout::instanceHeightScaleTypeChanged()
 {
     updateHeightOverride();
+}
+
+bool NestedArtboardLayout::syncStyleChanges()
+{
+    if (m_Artboard == nullptr)
+    {
+        return false;
+    }
+    return m_Artboard->syncStyleChanges();
 }

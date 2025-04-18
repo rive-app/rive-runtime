@@ -8,6 +8,7 @@ namespace rive
 class ViewModelInstanceList : public ViewModelInstanceListBase
 {
 public:
+    ~ViewModelInstanceList();
     void addItem(ViewModelInstanceListItem* listItem);
     void insertItem(int index, ViewModelInstanceListItem* listItem);
     void removeItem(int index);

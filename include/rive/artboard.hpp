@@ -25,6 +25,8 @@
 
 namespace rive
 {
+class ArtboardComponentList;
+class ArtboardHost;
 class File;
 class Drawable;
 class Factory;
@@ -62,6 +64,8 @@ private:
     std::vector<Drawable*> m_Drawables;
     std::vector<DrawTarget*> m_DrawTargets;
     std::vector<NestedArtboard*> m_NestedArtboards;
+    std::vector<ArtboardComponentList*> m_ComponentLists;
+    std::vector<ArtboardHost*> m_ArtboardHosts;
     std::vector<Joystick*> m_Joysticks;
     std::vector<DataBind*> m_DataBinds;
     std::vector<DataBind*> m_AllDataBinds;
@@ -79,7 +83,7 @@ private:
     float m_originalHeight = 0;
     bool m_updatesOwnLayout = true;
     Artboard* parentArtboard() const;
-    NestedArtboard* m_host = nullptr;
+    ArtboardHost* m_host = nullptr;
     bool sharesLayoutWithHost() const;
     void cloneObjectDataBinds(const Core* object,
                               Core* clone,
@@ -101,8 +105,8 @@ private:
     void update(ComponentDirt value) override;
 
 public:
-    void host(NestedArtboard* nestedArtboard);
-    NestedArtboard* host() const;
+    void host(ArtboardHost* artboardHost);
+    ArtboardHost* host() const;
 
     // Implemented for ShapePaintContainer.
     const Mat2D& shapeWorldTransform() const override
@@ -156,7 +160,7 @@ public:
     void markLayoutDirty(LayoutComponent* layoutComponent);
 
     void* takeLayoutNode();
-    bool syncStyleChanges();
+    bool syncStyleChanges() override;
     bool canHaveOverrides() override { return true; }
 
     bool advance(float elapsedSeconds,
@@ -189,6 +193,10 @@ public:
     const std::vector<NestedArtboard*> nestedArtboards() const
     {
         return m_NestedArtboards;
+    }
+    const std::vector<ArtboardComponentList*> artboardComponentLists() const
+    {
+        return m_ComponentLists;
     }
     const std::vector<DataBind*> dataBinds() const { return m_DataBinds; }
     const std::vector<DataBind*> allDataBinds() const { return m_AllDataBinds; }

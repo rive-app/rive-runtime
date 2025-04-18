@@ -10,15 +10,10 @@ class DataBindContextValueListItem
 {
 
 private:
-    std::unique_ptr<ArtboardInstance> m_Artboard;
-    std::unique_ptr<StateMachineInstance> m_StateMachine;
-    ViewModelInstanceListItem* m_ListItem;
+    ViewModelInstanceListItem* m_ListItem = nullptr;
 
 public:
-    DataBindContextValueListItem(
-        std::unique_ptr<ArtboardInstance> artboard,
-        std::unique_ptr<StateMachineInstance> stateMachine,
-        ViewModelInstanceListItem* listItem);
+    DataBindContextValueListItem(ViewModelInstanceListItem* listItem);
     ViewModelInstanceListItem* listItem() { return m_ListItem; };
 };
 } // namespace rive

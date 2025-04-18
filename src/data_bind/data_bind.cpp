@@ -157,7 +157,6 @@ void DataBind::bind()
             break;
         case DataType::list:
             m_ContextValue = new DataBindContextValueList(this);
-            m_ContextValue->update(m_target);
             break;
         case DataType::trigger:
             m_ContextValue = new DataBindContextValueTrigger(this);

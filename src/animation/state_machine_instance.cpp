@@ -24,6 +24,7 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine_fire_event.hpp"
+#include "rive/artboard_component_list.hpp"
 #include "rive/constraints/draggable_constraint.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/event_report.hpp"
@@ -647,7 +648,11 @@ public:
         m_constraint(constraint),
         m_draggable(draggable)
     {}
-    virtual ~DraggableConstraintListenerGroup() {}
+    ~DraggableConstraintListenerGroup()
+    {
+        delete listener();
+        delete m_draggable;
+    }
 
     DraggableConstraint* constraint() { return m_constraint; }
 
@@ -1065,6 +1070,121 @@ public:
     void prepareEvent(Vec2D position, ListenerType hitType) override {}
 };
 
+class HitComponentList : public HitComponent
+{
+public:
+    HitComponentList(Component* componentList,
+                     StateMachineInstance* stateMachineInstance) :
+        HitComponent(componentList, stateMachineInstance)
+    {}
+    ~HitComponentList() override {}
+
+    bool hitTest(Vec2D position) const override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        if (componentList->isCollapsed())
+        {
+            return false;
+        }
+        for (int i = 0; i < componentList->artboardCount(); i++)
+        {
+            Vec2D listPosition;
+            if (!componentList->worldToLocal(position, &listPosition, i))
+            {
+                // Mounted artboard isn't ready or has a 0 scale transform.
+                continue;
+            }
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine != nullptr && stateMachine->hitTest(listPosition))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+    HitResult processEvent(Vec2D position,
+                           ListenerType hitType,
+                           bool canHit) override
+    {
+        auto componentList = m_component->as<ArtboardComponentList>();
+        HitResult hitResult = HitResult::none;
+        bool runningCanHit = canHit;
+        if (componentList->isCollapsed())
+        {
+            return hitResult;
+        }
+        for (int i = 0; i < componentList->artboardCount(); i++)
+        {
+            Vec2D listPosition;
+            bool hit = componentList->worldToLocal(position, &listPosition, i);
+            if (!hit)
+            {
+                continue;
+            }
+            auto stateMachine = componentList->stateMachineInstance(i);
+            if (stateMachine != nullptr)
+            {
+                HitResult itemHitResult = HitResult::none;
+                if (runningCanHit)
+                {
+                    switch (hitType)
+                    {
+                        case ListenerType::down:
+                            itemHitResult =
+                                stateMachine->pointerDown(listPosition);
+                            break;
+                        case ListenerType::up:
+                            itemHitResult =
+                                stateMachine->pointerUp(listPosition);
+                            break;
+                        case ListenerType::move:
+                            itemHitResult =
+                                stateMachine->pointerMove(listPosition);
+                            break;
+                        case ListenerType::enter:
+                        case ListenerType::exit:
+                        case ListenerType::event:
+                        case ListenerType::click:
+                        case ListenerType::draggableConstraint:
+                            break;
+                    }
+                }
+                else
+                {
+                    switch (hitType)
+                    {
+                        case ListenerType::down:
+                        case ListenerType::up:
+                        case ListenerType::move:
+                            stateMachine->pointerExit(listPosition);
+                            break;
+                        case ListenerType::enter:
+                        case ListenerType::exit:
+                        case ListenerType::event:
+                        case ListenerType::click:
+                        case ListenerType::draggableConstraint:
+                            break;
+                    }
+                }
+                if ((hitResult == HitResult::none &&
+                     (itemHitResult == HitResult::hit ||
+                      itemHitResult == HitResult::hitOpaque)) ||
+                    (hitResult == HitResult::hit &&
+                     itemHitResult == HitResult::hitOpaque))
+                {
+                    hitResult = itemHitResult;
+                }
+                if (hitResult == HitResult::hitOpaque)
+                {
+                    runningCanHit = false;
+                }
+            }
+        }
+        return hitResult;
+    }
+    void prepareEvent(Vec2D position, ListenerType hitType) override {}
+};
+
 } // namespace rive
 
 HitResult StateMachineInstance::updateListeners(Vec2D position,
@@ -1446,6 +1566,13 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             }
         }
     }
+    for (auto componentList : instance->artboardComponentLists())
+    {
+        auto hc = rivestd::make_unique<HitComponentList>(
+            componentList->as<Component>(),
+            this);
+        m_hitComponents.push_back(std::move(hc));
+    }
     sortHitComponents();
 }
 
@@ -1454,6 +1581,10 @@ StateMachineInstance::~StateMachineInstance()
     for (auto inst : m_inputInstances)
     {
         delete inst;
+    }
+    for (auto& listenerGroup : m_listenerGroups)
+    {
+        listenerGroup.reset();
     }
     for (auto databind : m_dataBinds)
     {

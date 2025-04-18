@@ -81,6 +81,7 @@
 #include "rive/animation/transition_value_trigger_comparator.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/artboard.hpp"
+#include "rive/artboard_component_list.hpp"
 #include "rive/assets/asset.hpp"
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/drawable_asset.hpp"
@@ -350,6 +351,8 @@ public:
                 return new ForegroundLayoutDrawable();
             case NestedArtboardBase::typeKey:
                 return new NestedArtboard();
+            case ArtboardComponentListBase::typeKey:
+                return new ArtboardComponentList();
             case SoloBase::typeKey:
                 return new Solo();
             case NestedArtboardLayoutBase::typeKey:
@@ -903,6 +906,9 @@ public:
                 break;
             case NestedArtboardBase::artboardIdPropertyKey:
                 object->as<NestedArtboardBase>()->artboardId(value);
+                break;
+            case ArtboardComponentListBase::listSourcePropertyKey:
+                object->as<ArtboardComponentListBase>()->listSource(value);
                 break;
             case NestedAnimationBase::animationIdPropertyKey:
                 object->as<NestedAnimationBase>()->animationId(value);
@@ -2323,6 +2329,8 @@ public:
                 return object->as<DrawableBase>()->drawableFlags();
             case NestedArtboardBase::artboardIdPropertyKey:
                 return object->as<NestedArtboardBase>()->artboardId();
+            case ArtboardComponentListBase::listSourcePropertyKey:
+                return object->as<ArtboardComponentListBase>()->listSource();
             case NestedAnimationBase::animationIdPropertyKey:
                 return object->as<NestedAnimationBase>()->animationId();
             case SoloBase::activeComponentIdPropertyKey:
@@ -3269,6 +3277,7 @@ public:
             case DrawableBase::blendModeValuePropertyKey:
             case DrawableBase::drawableFlagsPropertyKey:
             case NestedArtboardBase::artboardIdPropertyKey:
+            case ArtboardComponentListBase::listSourcePropertyKey:
             case NestedAnimationBase::animationIdPropertyKey:
             case SoloBase::activeComponentIdPropertyKey:
             case NestedArtboardLayoutBase::instanceWidthUnitsValuePropertyKey:
@@ -3830,6 +3839,8 @@ public:
                 return object->is<DrawableBase>();
             case NestedArtboardBase::artboardIdPropertyKey:
                 return object->is<NestedArtboardBase>();
+            case ArtboardComponentListBase::listSourcePropertyKey:
+                return object->is<ArtboardComponentListBase>();
             case NestedAnimationBase::animationIdPropertyKey:
                 return object->is<NestedAnimationBase>();
             case SoloBase::activeComponentIdPropertyKey:
