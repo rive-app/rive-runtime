@@ -464,7 +464,7 @@ const SwapchainImage* Swapchain::acquireNextImage()
     return swapchainImage;
 }
 
-void Swapchain::submit(rive::gpu::VulkanContext::TextureAccess lastAccess,
+void Swapchain::submit(rive::gpu::vkutil::TextureAccess lastAccess,
                        std::vector<uint8_t>* pixelData)
 {
     SwapchainImage* swapchainImage = &m_swapchainImages[m_currentImageIndex];

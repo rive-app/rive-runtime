@@ -18,6 +18,7 @@ TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly,
 #include "rive_vk_bootstrap/rive_vk_bootstrap.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
+#include "rive/renderer/vulkan/render_target_vulkan.hpp"
 
 namespace rive::gpu
 {
@@ -162,7 +163,7 @@ private:
     vkb::Device m_device;
     std::unique_ptr<RenderContext> m_renderContext;
     std::unique_ptr<rive_vkb::Swapchain> m_swapchain;
-    rcp<RenderTargetVulkan> m_renderTarget;
+    rcp<RenderTargetVulkanImpl> m_renderTarget;
 };
 }; // namespace rive::gpu
 

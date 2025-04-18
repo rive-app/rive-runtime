@@ -7,11 +7,8 @@
 #include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/texture.hpp"
 #include "rive/renderer/rive_render_buffer.hpp"
+#include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include "shaders/constants.glsl"
-
-#ifdef RIVE_DECODERS
-#include "rive/decoders/bitmap_decoder.hpp"
-#endif
 
 namespace spirv_embedded
 {
@@ -349,12 +346,6 @@ constexpr static VkSubpassDescription SINGLE_ATTACHMENT_SUBPASS = {
 
 namespace rive::gpu
 {
-static VkFormat get_preferred_depth_stencil_format(bool isD24S8Supported)
-{
-    return isD24S8Supported ? VK_FORMAT_D24_UNORM_S8_UINT
-                            : VK_FORMAT_D32_SFLOAT_S8_UINT;
-}
-
 static VkBufferUsageFlagBits render_buffer_usage_flags(
     RenderBufferType renderBufferType)
 {
@@ -1364,7 +1355,7 @@ public:
             if (usesDepth)
             {
                 attachmentDescs.push_back({
-                    .format = get_preferred_depth_stencil_format(
+                    .format = vkutil::get_preferred_depth_stencil_format(
                         m_vk->supportsD24S8()),
                     .samples = VK_SAMPLE_COUNT_1_BIT,
                     // Clear on render pass start, and don't need to store on
@@ -2730,117 +2721,6 @@ rcp<RenderContextVulkanImpl::DescriptorSetPool> RenderContextVulkanImpl::
     return descriptorSetPool;
 }
 
-vkutil::TextureView* RenderTargetVulkan::ensureOffscreenColorTextureView()
-{
-    if (m_offscreenColorTextureView == nullptr)
-    {
-        m_offscreenColorTexture = m_vk->makeTexture({
-            .format = m_framebufferFormat,
-            .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                     VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        });
-
-        m_offscreenColorTextureView =
-            m_vk->makeTextureView(m_offscreenColorTexture);
-    }
-
-    return m_offscreenColorTextureView.get();
-}
-
-vkutil::TextureView* RenderTargetVulkan::ensureClipTextureView()
-{
-    if (m_clipTextureView == nullptr)
-    {
-        m_clipTexture = m_vk->makeTexture({
-            .format = VK_FORMAT_R32_UINT,
-            .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-        });
-
-        m_clipTextureView = m_vk->makeTextureView(m_clipTexture);
-    }
-
-    return m_clipTextureView.get();
-}
-
-vkutil::TextureView* RenderTargetVulkan::ensureScratchColorTextureView()
-{
-    if (m_scratchColorTextureView == nullptr)
-    {
-        m_scratchColorTexture = m_vk->makeTexture({
-            .format = m_framebufferFormat,
-            .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-        });
-
-        m_scratchColorTextureView =
-            m_vk->makeTextureView(m_scratchColorTexture);
-    }
-
-    return m_scratchColorTextureView.get();
-}
-
-vkutil::TextureView* RenderTargetVulkan::ensureCoverageTextureView()
-{
-    if (m_coverageTextureView == nullptr)
-    {
-        m_coverageTexture = m_vk->makeTexture({
-            .format = VK_FORMAT_R32_UINT,
-            .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_TRANSIENT_ATTACHMENT_BIT |
-                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
-        });
-
-        m_coverageTextureView = m_vk->makeTextureView(m_coverageTexture);
-    }
-
-    return m_coverageTextureView.get();
-}
-
-vkutil::TextureView* RenderTargetVulkan::ensureCoverageAtomicTextureView()
-{
-    if (m_coverageAtomicTextureView == nullptr)
-    {
-        m_coverageAtomicTexture = m_vk->makeTexture({
-            .format = VK_FORMAT_R32_UINT,
-            .extent = {width(), height(), 1},
-            .usage =
-                VK_IMAGE_USAGE_STORAGE_BIT |
-                VK_IMAGE_USAGE_TRANSFER_DST_BIT, // For vkCmdClearColorImage
-        });
-
-        m_coverageAtomicTextureView =
-            m_vk->makeTextureView(m_coverageAtomicTexture);
-    }
-
-    return m_coverageAtomicTextureView.get();
-}
-
-vkutil::TextureView* RenderTargetVulkan::ensureDepthStencilTextureView()
-{
-    if (m_depthStencilTextureView == nullptr)
-    {
-        m_depthStencilTexture = m_vk->makeTexture({
-            .format = get_preferred_depth_stencil_format(m_vk->supportsD24S8()),
-            .extent = {width(), height(), 1},
-            .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
-        });
-
-        m_depthStencilTextureView =
-            m_vk->makeTextureView(m_depthStencilTexture);
-    }
-
-    return m_depthStencilTextureView.get();
-}
-
 void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 {
     constexpr static VkDeviceSize zeroOffset[1] = {0};
@@ -3009,7 +2889,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
 
-    VulkanContext::TextureAccess lastGradTextureAccess, lastTessTextureAccess,
+    vkutil::TextureAccess lastGradTextureAccess, lastTessTextureAccess,
         lastAtlasTextureAccess;
     lastTessTextureAccess = lastGradTextureAccess = lastAtlasTextureAccess = {
         // The last thing to access the gradient and tessellation textures was
@@ -3358,23 +3238,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     DrawPipelineLayout& pipelineLayout =
         *m_drawPipelineLayouts[pipelineLayoutIdx];
 
-    VkImageView colorImageView;
-    VkImage colorImage;
-    if (desc.atomicFixedFunctionColorOutput ||
-        (renderTarget->targetUsageFlags() &
-         VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
-    {
-        colorImageView = renderTarget->targetImageView();
-        colorImage = renderTarget->targetImage();
-    }
-    else
-    {
-        vkutil::TextureView* colorView =
-            renderTarget->ensureOffscreenColorTextureView();
-        colorImageView = *colorView;
-        colorImage = colorView->info().image;
-    }
-
     vkutil::TextureView *clipView = nullptr, *scratchColorTextureView = nullptr,
                         *coverageTextureView = nullptr,
                         *depthStencilTextureView = nullptr;
@@ -3397,61 +3260,63 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         depthStencilTextureView = renderTarget->ensureDepthStencilTextureView();
     }
 
-    VulkanContext::TextureAccess initialColorAccess =
-        renderTarget->targetLastAccess();
+    // Ensure any previous accesses to the color texture complete before we
+    // begin rendering.
+    const vkutil::TextureAccess colorLoadAccess = {
+        // "Load" operations always occur in
+        // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
+        .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+        .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+        .layout = VK_IMAGE_LAYOUT_GENERAL,
+    };
 
-    if (desc.colorLoadAction != gpu::LoadAction::preserveRenderTarget)
+    VkImageView colorImageView;
+    bool colorAttachmentIsOffscreen;
+    if (desc.atomicFixedFunctionColorOutput ||
+        (renderTarget->targetUsageFlags() &
+         VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT))
     {
-        // No need to preserve what was in the render target before.
-        initialColorAccess.layout = VK_IMAGE_LAYOUT_UNDEFINED;
+        colorImageView = renderTarget->accessTargetImageView(
+            commandBuffer,
+            colorLoadAccess,
+            desc.colorLoadAction == gpu::LoadAction::preserveRenderTarget
+                ? vkutil::TextureAccessAction::preserveContents
+                : vkutil::TextureAccessAction::invalidateContents);
+        colorAttachmentIsOffscreen = false;
     }
-    else if (colorImageView != renderTarget->targetImageView())
+    else if (desc.colorLoadAction != gpu::LoadAction::preserveRenderTarget)
     {
-        // The access we just declared was actually for the *renderTarget*
-        // texture, not the actual color attachment we will render to, which
-        // will be the the offscreen texture.
-        VulkanContext::TextureAccess initialRenderTargetAccess =
-            initialColorAccess;
-
-        // The initial *color attachment* (aka offscreenColorTexture) access is
-        // the previous frame's copy into the renderTarget texture.
-        initialColorAccess = {
-            .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-            .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
-            .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        };
-
-        // Copy the target into our offscreen color texture before rendering.
-        VkImageMemoryBarrier imageMemoryBarriers[] = {
-            {
-                .srcAccessMask = initialRenderTargetAccess.accessMask,
-                .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                .oldLayout = initialRenderTargetAccess.layout,
-                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                .image = renderTarget->targetImage(),
-            },
-            {
-                .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                .dstAccessMask = initialColorAccess.accessMask,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = initialColorAccess.layout,
-                .image = renderTarget->offscreenColorTexture(),
-            },
-        };
-
-        m_vk->imageMemoryBarriers(commandBuffer,
-                                  initialRenderTargetAccess.pipelineStages |
-                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                  initialColorAccess.pipelineStages |
-                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                  0,
-                                  std::size(imageMemoryBarriers),
-                                  imageMemoryBarriers);
-
-        m_vk->blitSubRect(commandBuffer,
-                          renderTarget->targetImage(),
-                          renderTarget->offscreenColorTexture(),
-                          desc.renderTargetUpdateBounds);
+        colorImageView = renderTarget->accessOffscreenColorTextureView(
+            commandBuffer,
+            colorLoadAccess,
+            vkutil::TextureAccessAction::invalidateContents);
+        colorAttachmentIsOffscreen = true;
+    }
+    else
+    {
+        // Preserve the target texture by blitting its contents into our
+        // offscreen color texture.
+        m_vk->blitSubRect(
+            commandBuffer,
+            renderTarget->accessTargetImage(
+                commandBuffer,
+                {
+                    .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                }),
+            renderTarget->accessOffscreenColorTexture(
+                commandBuffer,
+                {
+                    .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                }),
+            desc.renderTargetUpdateBounds);
+        colorImageView =
+            renderTarget->accessOffscreenColorTextureView(commandBuffer,
+                                                          colorLoadAccess);
+        colorAttachmentIsOffscreen = true;
     }
 
     int renderPassVariantIdx = DrawPipelineLayout::RenderPassVariantIdx(
@@ -3501,20 +3366,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
     static_assert(DEPTH_STENCIL_IDX == 4);
-
-    // Ensure any previous accesses to the color texture complete before we
-    // begin rendering.
-    m_vk->simpleImageMemoryBarrier(
-        commandBuffer,
-        initialColorAccess,
-        {
-            // "Load" operations always occur in
-            // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
-            .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-            .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-            .layout = VK_IMAGE_LAYOUT_GENERAL,
-        },
-        colorImage);
 
     if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
@@ -4019,64 +3870,27 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     m_vk->CmdEndRenderPass(commandBuffer);
 
-    VulkanContext::TextureAccess finalRenderTargetAccess = {
-        // "Store" operations always occur in
-        // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
-        .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-        .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
-        .layout = VK_IMAGE_LAYOUT_GENERAL,
-    };
-
-    if (colorImageView != renderTarget->targetImageView())
+    if (colorAttachmentIsOffscreen)
     {
-        // The access we just declared was actually for the offscreen texture,
-        // not the final target.
-        VulkanContext::TextureAccess finalOffscreenAccess =
-            finalRenderTargetAccess;
-
-        // The final *renderTarget* access will be a copy from the offscreen
-        // texture.
-        finalRenderTargetAccess = {
-            .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-            .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-            .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-        };
-
-        // Copy our offscreen color texture back to the render target now that
-        // we've finished rendering.
-        VkImageMemoryBarrier imageMemoryBarriers[] = {
-            {
-                .srcAccessMask = finalOffscreenAccess.accessMask,
-                .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                .oldLayout = finalOffscreenAccess.layout,
-                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                .image = renderTarget->offscreenColorTexture(),
-            },
-            {
-                .srcAccessMask = VK_ACCESS_NONE,
-                .dstAccessMask = finalRenderTargetAccess.accessMask,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = finalRenderTargetAccess.layout,
-                .image = renderTarget->targetImage(),
-            },
-        };
-
-        m_vk->imageMemoryBarriers(commandBuffer,
-                                  finalOffscreenAccess.pipelineStages |
-                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                  finalRenderTargetAccess.pipelineStages |
-                                      VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                  0,
-                                  std::size(imageMemoryBarriers),
-                                  imageMemoryBarriers);
-
-        m_vk->blitSubRect(commandBuffer,
-                          renderTarget->offscreenColorTexture(),
-                          renderTarget->targetImage(),
-                          desc.renderTargetUpdateBounds);
+        // Copy from the offscreen texture back to the target.
+        m_vk->blitSubRect(
+            commandBuffer,
+            renderTarget->accessOffscreenColorTexture(
+                commandBuffer,
+                {
+                    .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                    .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                }),
+            renderTarget->accessTargetImage(
+                commandBuffer,
+                {
+                    .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                    .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                    .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                }),
+            desc.renderTargetUpdateBounds);
     }
-
-    renderTarget->setTargetLastAccess(finalRenderTargetAccess);
 
     m_descriptorSetPoolPool->recycle(std::move(descriptorSetPool));
 

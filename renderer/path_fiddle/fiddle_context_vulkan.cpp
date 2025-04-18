@@ -17,6 +17,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeVulkanPLS(
 #include "rive_vk_bootstrap/rive_vk_bootstrap.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
+#include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include "shader_hotload.hpp"
 #include <GLFW/glfw3.h>
 #include <GLFW/glfw3native.h>
@@ -254,7 +255,7 @@ private:
     std::unique_ptr<rive_vkb::Swapchain> m_swapchain;
 
     std::unique_ptr<RenderContext> m_renderContext;
-    rcp<RenderTargetVulkan> m_renderTarget;
+    rcp<RenderTargetVulkanImpl> m_renderTarget;
 };
 
 std::unique_ptr<FiddleContext> FiddleContext::MakeVulkanPLS(

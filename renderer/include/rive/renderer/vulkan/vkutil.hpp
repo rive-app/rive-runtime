@@ -210,6 +210,29 @@ private:
     VkViewport m_viewport;
 };
 
+// Tracks the current layout and access parameters of a VkImage.
+struct TextureAccess
+{
+    VkPipelineStageFlags pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
+    VkAccessFlags accessMask = VK_ACCESS_NONE;
+    VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
+
+    bool operator==(const TextureAccess& rhs) const
+    {
+        return pipelineStages == rhs.pipelineStages &&
+               accessMask == rhs.accessMask && layout == rhs.layout;
+    }
+    bool operator!=(const TextureAccess& rhs) const { return !(*this == rhs); }
+};
+
+// Provides a way to communicate that a VkImage may be invalidated (layout
+// converted to VK_IMAGE_LAYOUT_UNDEFINED) while performing a barrier.
+enum class TextureAccessAction : bool
+{
+    preserveContents,
+    invalidateContents,
+};
+
 inline void set_shader_code(VkShaderModuleCreateInfo& info,
                             const uint32_t* code,
                             size_t codeSize)
@@ -269,5 +292,11 @@ inline VkClearColorValue color_clear_r32ui(uint32_t value)
     VkClearColorValue ret;
     ret.uint32[0] = value;
     return ret;
+}
+
+inline VkFormat get_preferred_depth_stencil_format(bool isD24S8Supported)
+{
+    return isD24S8Supported ? VK_FORMAT_D24_UNORM_S8_UINT
+                            : VK_FORMAT_D32_SFLOAT_S8_UINT;
 }
 } // namespace rive::gpu::vkutil

@@ -18,6 +18,7 @@ TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow,
 #include "rive_vk_bootstrap/rive_vk_bootstrap.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
+#include "rive/renderer/vulkan/render_target_vulkan.hpp"
 #include <vulkan/vulkan_android.h>
 #include <vk_mem_alloc.h>
 #include <android/native_app_glue/android_native_app_glue.h>
@@ -220,7 +221,7 @@ private:
     VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
     std::unique_ptr<rive_vkb::Swapchain> m_swapchain;
     std::unique_ptr<RenderContext> m_renderContext;
-    rcp<RenderTargetVulkan> m_renderTarget;
+    rcp<RenderTargetVulkanImpl> m_renderTarget;
 };
 
 TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow,

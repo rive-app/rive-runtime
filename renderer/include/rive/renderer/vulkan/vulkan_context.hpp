@@ -153,17 +153,10 @@ public:
                             &imageMemoryBarrier);
     }
 
-    struct TextureAccess
-    {
-        VkPipelineStageFlags pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT;
-        VkAccessFlags accessMask = VK_ACCESS_NONE;
-        VkImageLayout layout = VK_IMAGE_LAYOUT_UNDEFINED;
-    };
-
-    const TextureAccess& simpleImageMemoryBarrier(
+    const vkutil::TextureAccess& simpleImageMemoryBarrier(
         VkCommandBuffer commandBuffer,
-        const TextureAccess& srcAccess,
-        const TextureAccess& dstAccess,
+        const vkutil::TextureAccess& srcAccess,
+        const vkutil::TextureAccess& dstAccess,
         VkImage image,
         VkDependencyFlags dependencyFlags = 0)
     {
