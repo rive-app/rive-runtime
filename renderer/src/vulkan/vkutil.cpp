@@ -28,7 +28,7 @@ Buffer::Buffer(rcp<VulkanContext> vk,
 
 Buffer::~Buffer() { resizeImmediately(0); }
 
-void Buffer::resizeImmediately(size_t sizeInBytes)
+void Buffer::resizeImmediately(VkDeviceSize sizeInBytes)
 {
     if (m_info.size != sizeInBytes)
     {
@@ -95,7 +95,7 @@ void Buffer::init()
     }
 }
 
-void Buffer::flushContents(size_t updatedSizeInBytes)
+void Buffer::flushContents(VkDeviceSize updatedSizeInBytes)
 {
     vmaFlushAllocation(vk()->allocator(),
                        m_vmaAllocation,
@@ -103,7 +103,7 @@ void Buffer::flushContents(size_t updatedSizeInBytes)
                        updatedSizeInBytes);
 }
 
-void Buffer::invalidateContents(size_t updatedSizeInBytes)
+void Buffer::invalidateContents(VkDeviceSize updatedSizeInBytes)
 {
     vmaInvalidateAllocation(vk()->allocator(),
                             m_vmaAllocation,
@@ -113,7 +113,7 @@ void Buffer::invalidateContents(size_t updatedSizeInBytes)
 
 BufferPool::BufferPool(rcp<VulkanContext> vk,
                        VkBufferUsageFlags usageFlags,
-                       size_t size) :
+                       VkDeviceSize size) :
     GPUResourcePool(std::move(vk), MAX_POOL_SIZE),
     m_usageFlags(usageFlags),
     m_targetSize(size)
@@ -124,16 +124,16 @@ inline VulkanContext* BufferPool::vk() const
     return static_cast<VulkanContext*>(m_manager.get());
 }
 
-void BufferPool::setTargetSize(size_t size)
+void BufferPool::setTargetSize(VkDeviceSize size)
 {
     // Buffers always get bound, even if unused, so make sure they aren't empty
     // and we get a valid Vulkan handle.
-    size = std::max<size_t>(size, 1);
+    size = std::max<VkDeviceSize>(size, 1);
 
     if (m_usageFlags & VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT)
     {
         // Uniform blocks must be multiples of 256 bytes in size.
-        size = std::max<size_t>(size, 256);
+        size = std::max<VkDeviceSize>(size, 256);
         assert(size % 256 == 0);
     }
 

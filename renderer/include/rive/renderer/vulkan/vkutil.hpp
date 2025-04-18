@@ -73,7 +73,7 @@ public:
     // Resize the underlying VkBuffer without waiting for any pipeline
     // synchronization. The caller is responsible to guarantee the underlying
     // VkBuffer is not queued up in any in-flight command buffers.
-    void resizeImmediately(size_t sizeInBytes);
+    void resizeImmediately(VkDeviceSize sizeInBytes);
 
     void* contents()
     {
@@ -84,12 +84,12 @@ public:
     // Calls through to vkFlushMappedMemoryRanges().
     // Called after modifying contents() with the CPU. Makes those modifications
     // available to the GPU.
-    void flushContents(size_t sizeInBytes = VK_WHOLE_SIZE);
+    void flushContents(VkDeviceSize sizeInBytes = VK_WHOLE_SIZE);
 
     // Calls through to vkInvalidateMappedMemoryRanges().
     // Called after modifying the buffer with the GPU. Makes those modifications
     // available to the CPU via contents().
-    void invalidateContents(size_t sizeInBytes = VK_WHOLE_SIZE);
+    void invalidateContents(VkDeviceSize sizeInBytes = VK_WHOLE_SIZE);
 
 private:
     friend class ::rive::gpu::VulkanContext;
@@ -109,10 +109,10 @@ private:
 class BufferPool : public GPUResourcePool
 {
 public:
-    BufferPool(rcp<VulkanContext>, VkBufferUsageFlags, size_t size = 0);
+    BufferPool(rcp<VulkanContext>, VkBufferUsageFlags, VkDeviceSize size = 0);
 
-    size_t size() const { return m_targetSize; }
-    void setTargetSize(size_t size);
+    VkDeviceSize size() const { return m_targetSize; }
+    void setTargetSize(VkDeviceSize size);
 
     // Returns a Buffer that is guaranteed to exist and be of size
     // 'm_targetSize'.
@@ -126,9 +126,9 @@ public:
 private:
     VulkanContext* vk() const;
 
-    constexpr static size_t MAX_POOL_SIZE = 8;
+    constexpr static VkDeviceSize MAX_POOL_SIZE = 8;
     const VkBufferUsageFlags m_usageFlags;
-    size_t m_targetSize;
+    VkDeviceSize m_targetSize;
 };
 
 class Texture : public Resource

@@ -466,7 +466,8 @@ public:
     {
         memcpy(m_imageUploadBuffer->contents(),
                imageDataRGBAPremul,
-               m_imageUploadBuffer->info().size);
+               math::lossless_numeric_cast<size_t>(
+                   m_imageUploadBuffer->info().size));
         m_imageUploadBuffer->flushContents();
     }
 
@@ -1017,7 +1018,7 @@ public:
         VkShaderModule fragmentStrokeShader;
         VK_CHECK(m_vk->CreateShaderModule(m_vk->device,
                                           &shaderModuleCreateInfo,
-                                          nullptr,
+                                          VK_NULL_HANDLE,
                                           &fragmentStrokeShader));
 
         VkPipelineShaderStageCreateInfo stages[] = {
@@ -1030,7 +1031,8 @@ public:
             {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                 .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .module = nullptr, // Set for individual fill/stroke pipelines.
+                // Set for individual fill/stroke pipelines.
+                .module = VK_NULL_HANDLE,
                 .pName = "main",
             },
         };
@@ -1267,7 +1269,7 @@ public:
 
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
-            .setLayoutCount = m_plsTextureDescriptorSetLayout != nullptr
+            .setLayoutCount = m_plsTextureDescriptorSetLayout != VK_NULL_HANDLE
                                   ? BINDINGS_SET_COUNT
                                   : BINDINGS_SET_COUNT - 1u,
             .pSetLayouts = pipelineDescriptorSetLayouts,
@@ -1777,8 +1779,8 @@ public:
 
 private:
     const rcp<VulkanContext> m_vk;
-    VkShaderModule m_vertexModule = nullptr;
-    VkShaderModule m_fragmentModule = nullptr;
+    VkShaderModule m_vertexModule = VK_NULL_HANDLE;
+    VkShaderModule m_fragmentModule = VK_NULL_HANDLE;
 };
 
 // Pipeline options that don't affect the shader.

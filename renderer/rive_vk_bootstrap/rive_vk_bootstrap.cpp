@@ -268,7 +268,7 @@ Swapchain::Swapchain(const vkb::Device& device,
     m_vkbSwapchain(std::move(vkbSwapchain)),
     m_currentFrameNumber(currentFrameNumber)
 {
-    assert(m_vkbSwapchain.swapchain != nullptr);
+    assert(m_vkbSwapchain.swapchain != VK_NULL_HANDLE);
     init(device, *m_vkbSwapchain.get_images());
 }
 
@@ -429,7 +429,7 @@ static void wait_fence(const vkb::DispatchTable& DispatchTable, VkFence fence)
 const SwapchainImage* Swapchain::acquireNextImage()
 {
     SwapchainImage* swapchainImage;
-    if (m_vkbSwapchain.swapchain != nullptr)
+    if (m_vkbSwapchain.swapchain != VK_NULL_HANDLE)
     {
         m_dispatchTable.acquireNextImageKHR(m_vkbSwapchain,
                                             UINT64_MAX,
@@ -524,7 +524,7 @@ void Swapchain::submit(rive::gpu::VulkanContext::TextureAccess lastAccess,
             });
     }
 
-    if (m_vkbSwapchain.swapchain != nullptr)
+    if (m_vkbSwapchain.swapchain != VK_NULL_HANDLE)
     {
         lastAccess = m_vk->simpleImageMemoryBarrier(
             swapchainImage->commandBuffer,
@@ -587,7 +587,7 @@ void Swapchain::submit(rive::gpu::VulkanContext::TextureAccess lastAccess,
         }
     }
 
-    if (m_vkbSwapchain.swapchain != nullptr)
+    if (m_vkbSwapchain.swapchain != VK_NULL_HANDLE)
     {
         VkPresentInfoKHR presentInfo = {
             .sType = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR,
