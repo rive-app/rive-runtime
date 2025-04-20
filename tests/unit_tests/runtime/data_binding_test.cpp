@@ -866,3 +866,34 @@ TEST_CASE("Instances are not shared when a new view model instance is created",
     REQUIRE(textRunChild1->text() == "label-update");
     REQUIRE(textRunChild2->text() == "");
 }
+
+TEST_CASE("Triggers updated by events correctly update state", "[data binding]")
+{
+    auto file = ReadRiveFile("assets/data_binding_test_triggers.riv");
+
+    auto artboard = file->artboard("root")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance = file->createViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    auto machine = artboard->defaultStateMachine();
+    machine->bindViewModelInstance(viewModelInstance);
+    REQUIRE(machine != nullptr);
+    // Advance state machine
+    machine->advanceAndApply(0.0f);
+
+    REQUIRE(artboard->find<rive::Shape>("main_rect") != nullptr);
+    auto rect = artboard->find<rive::Shape>("main_rect");
+
+    REQUIRE(rect->children()[1]->is<rive::Fill>());
+    rive::Fill* rectMappadFill = rect->children()[1]->as<rive::Fill>();
+    REQUIRE(rectMappadFill->paint()->is<rive::SolidColor>());
+    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+            rive::colorARGB(255, 255, 0, 0));
+
+    // Advance state machine so the child reports the event
+    machine->advanceAndApply(0.7f);
+    // Advance state machine so the parent consumes the event
+    machine->advanceAndApply(0.1f);
+    REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
+            rive::colorARGB(255, 0, 255, 0));
+}

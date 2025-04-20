@@ -1692,7 +1692,6 @@ bool StateMachineInstance::tryChangeState()
 
 bool StateMachineInstance::advance(float seconds, bool newFrame)
 {
-    updateDataBinds();
     if (m_drawOrderChangeCounter !=
         m_artboardInstance->drawOrderChangeCounter())
     {
@@ -1705,6 +1704,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
         m_reportedEvents.clear();
         m_needsAdvance = false;
     }
+    updateDataBinds();
     for (size_t i = 0; i < m_layerCount; i++)
     {
         if (m_layers[i].advance(seconds, newFrame))
@@ -1943,6 +1943,7 @@ void StateMachineInstance::notify(const std::vector<EventReport>& events,
                                   NestedArtboard* context)
 {
     notifyEventListeners(events, context);
+    updateDataBinds();
 }
 
 void StateMachineInstance::notifyEventListeners(
