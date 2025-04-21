@@ -472,6 +472,8 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
 
 #endif // PLS_IMPL_DEVICE_BUFFER
 
+#define PLS_DECL4F_READONLY PLS_DECL4F
+
 #define discard $discard_fragment()
 
 $using $namespace $metal;

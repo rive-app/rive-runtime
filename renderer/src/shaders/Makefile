@@ -157,7 +157,7 @@ SPIRV_OUTPUTS_HEADERS := \
     $(OUT)/spirv/atomic_draw_interior_triangles.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_draw_atlas_blit.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.h \
-    $(OUT)/spirv/atomic_resolve_pls.fixedcolor_frag.h \
+    $(OUT)/spirv/atomic_resolve.fixedcolor_frag.h \
 
 SPIRV_OUTPUTS_BINARY := \
     $(addprefix $(OUT)/, $(patsubst %.main, %.vert.spirv, $(wildcard spirv/*.main))) \
@@ -169,7 +169,7 @@ SPIRV_OUTPUTS_BINARY := \
     $(OUT)/spirv/atomic_draw_interior_triangles.fixedcolor_frag.spirv \
     $(OUT)/spirv/atomic_draw_atlas_blit.fixedcolor_frag.spirv \
     $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.spirv \
-    $(OUT)/spirv/atomic_resolve_pls.fixedcolor_frag.spirv \
+    $(OUT)/spirv/atomic_resolve.fixedcolor_frag.spirv \
 
 ## Compile *.main into vertex shaders. First rule generates the binary spirv, then the .h file after.
 $(OUT)/spirv/%.vert.spirv: spirv/%.main $(MINIFY_STAMP)

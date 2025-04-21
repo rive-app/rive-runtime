@@ -1628,18 +1628,20 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         }
     }
     [encoder endEncoding];
+}
 
-    if (desc.isFinalFlushOfFrame)
-    {
-        // Schedule a callback that will unlock the buffers used by this flush,
-        // after the GPU has finished rendering with them. This unblocks the CPU
-        // from reusing them in a future flush.
-        std::mutex& thisFlushLock = m_bufferRingLocks[m_bufferRingIdx];
-        [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer>) {
-          assert(
-              !thisFlushLock.try_lock()); // The mutex should already be locked.
-          thisFlushLock.unlock();
-        }];
-    }
+void RenderContextMetalImpl::postFlush(
+    const RenderContext::FlushResources& flushResources)
+{
+    // Schedule a callback that will unlock the buffers used by this flush,
+    // after the GPU has finished rendering with them. This unblocks the CPU
+    // from reusing them in a future flush.
+    id<MTLCommandBuffer> commandBuffer =
+        (__bridge id<MTLCommandBuffer>)flushResources.externalCommandBuffer;
+    std::mutex& thisFlushLock = m_bufferRingLocks[m_bufferRingIdx];
+    [commandBuffer addCompletedHandler:^(id<MTLCommandBuffer>) {
+      assert(!thisFlushLock.try_lock()); // The mutex should already be locked.
+      thisFlushLock.unlock();
+    }];
 }
 } // namespace rive::gpu

@@ -1094,7 +1094,6 @@ struct FlushDescriptor
     bool clockwiseFillOverride = false;
     bool hasTriangleVertices = false;
     bool wireframe = false;
-    bool isFinalFlushOfFrame = false;
 
     // Command buffer that rendering commands will be added to.
     //  - VkCommandBuffer on Vulkan.

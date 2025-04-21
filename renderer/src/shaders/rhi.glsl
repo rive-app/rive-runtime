@@ -171,6 +171,7 @@ $typedef $uint ushort;
 #else
 #define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<uint> NAME
 #endif
+#define PLS_DECL4F_READONLY PLS_DECL4F
 #define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME
 #define PLS_DECLUI_ATOMIC PLS_DECLUI
 #define PLS_LOADUI_ATOMIC PLS_LOADUI

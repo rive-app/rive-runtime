@@ -125,6 +125,8 @@ private:
 
     void flush(const FlushDescriptor&) override;
 
+    void postFlush(const RenderContext::FlushResources&) override;
+
     double secondsNow() const override
     {
         auto elapsed = std::chrono::steady_clock::now() - m_localEpoch;
@@ -212,9 +214,10 @@ private:
     // A pipeline for each
     // [rasterOrdering, atomics] x [all DrawPipelineLayoutOptions permutations].
     class DrawPipelineLayout;
-    constexpr static int kDrawPipelineLayoutOptionCount = 1;
+    constexpr static int DRAW_PIPELINE_LAYOUT_OPTION_COUNT = 2;
     std::array<std::unique_ptr<DrawPipelineLayout>,
-               gpu::kInterlockModeCount * (1 << kDrawPipelineLayoutOptionCount)>
+               gpu::kInterlockModeCount *
+                   (1 << DRAW_PIPELINE_LAYOUT_OPTION_COUNT)>
         m_drawPipelineLayouts;
 
     class DrawShader;

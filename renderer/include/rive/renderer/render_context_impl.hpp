@@ -127,10 +127,14 @@ public:
     //  2. Render the TessVertexSpan instances into the tessellation texture.
     //
     //  3. Execute the draw list. (The Rive renderer shaders read the gradient
-    //  and tessellation
-    //     textures in order to do path rendering.)
+    //     and tessellation textures in order to do path rendering.)
     //
+    // A single frame may have multiple logical flushes (and call flush()
+    // multiple times).
     virtual void flush(const gpu::FlushDescriptor&) = 0;
+
+    // Called after all logical flushes in a frame have completed.
+    virtual void postFlush(const RenderContext::FlushResources&) {}
 
     // Steady clock, used to determine when we should trim our resource
     // allocations.

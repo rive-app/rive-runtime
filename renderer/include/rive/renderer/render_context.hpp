@@ -588,7 +588,6 @@ private:
         // Updates the total frame running conters based on layout.
         void layoutResources(const FlushResources&,
                              size_t logicalFlushIdx,
-                             bool isFinalFlushOfFrame,
                              ResourceCounters* runningFrameResourceCounts,
                              LayoutCounters* runningFrameLayoutCounts);
 

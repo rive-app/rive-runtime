@@ -648,7 +648,6 @@ void RenderContext::flush(const FlushResources& flushResources)
     {
         m_logicalFlushes[i]->layoutResources(flushResources,
                                              i,
-                                             i == m_logicalFlushes.size() - 1,
                                              &totalFrameResourceCounts,
                                              &layoutCounts);
     }
@@ -794,6 +793,8 @@ void RenderContext::flush(const FlushResources& flushResources)
         m_impl->flush(flush->desc());
     }
 
+    m_impl->postFlush(flushResources);
+
     if (!m_logicalFlushes.empty())
     {
         m_logicalFlushes.resize(1);
@@ -823,7 +824,6 @@ void RenderContext::flush(const FlushResources& flushResources)
 void RenderContext::LogicalFlush::layoutResources(
     const FlushResources& flushResources,
     size_t logicalFlushIdx,
-    bool isFinalFlushOfFrame,
     ResourceCounters* runningFrameResourceCounts,
     LayoutCounters* runningFrameLayoutCounts)
 {
@@ -1019,7 +1019,6 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.tessDataHeight = tessDataHeight;
     m_flushDesc.clockwiseFillOverride = frameDescriptor.clockwiseFillOverride;
     m_flushDesc.wireframe = frameDescriptor.wireframe;
-    m_flushDesc.isFinalFlushOfFrame = isFinalFlushOfFrame;
 
     m_flushDesc.externalCommandBuffer = flushResources.externalCommandBuffer;
 

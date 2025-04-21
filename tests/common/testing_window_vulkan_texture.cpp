@@ -88,9 +88,10 @@ public:
             VkFormat swapchainFormat = m_coreFeaturesOnly
                                            ? VK_FORMAT_R8G8B8A8_UNORM
                                            : VK_FORMAT_B8G8R8A8_UNORM;
+            // Don't use VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT so we can test our
+            // codepath that makes us work without it.
             VkImageUsageFlags additionalUsageFlags =
-                m_coreFeaturesOnly ? VK_IMAGE_USAGE_TRANSFER_DST_BIT
-                                   : VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+                VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             uint64_t currentFrameNumber =
                 m_swapchain != nullptr ? m_swapchain->currentFrameNumber() : 0;
             m_swapchain =

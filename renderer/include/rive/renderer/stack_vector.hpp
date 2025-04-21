@@ -43,6 +43,16 @@ public:
         return dst;
     }
 
+    T* push_back_n(uint32_t numEles, const T& repeat)
+    {
+        T* dst = push(numEles);
+        for (uint32_t i = 0; i < numEles; ++i)
+        {
+            dst[i] = repeat;
+        }
+        return dst;
+    }
+
     const T* data() const { return m_data; }
     const uint32_t size() const { return m_size; }
 

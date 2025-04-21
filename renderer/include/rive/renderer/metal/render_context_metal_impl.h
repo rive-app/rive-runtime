@@ -198,6 +198,8 @@ private:
 
     void flush(const FlushDescriptor&) override;
 
+    void postFlush(const RenderContext::FlushResources&) override;
+
     const ContextOptions m_contextOptions;
     const id<MTLDevice> m_gpu;
 

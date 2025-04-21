@@ -165,6 +165,7 @@ $typedef float3 packed_float3;
 #else
 #define PLS_DECL4F(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
 #endif
+#define PLS_DECL4F_READONLY PLS_DECL4F
 #define PLS_DECLUI(IDX, NAME) uniform PLS_TEX2D<uint> NAME : $register($u##IDX)
 #define PLS_DECLUI_ATOMIC PLS_DECLUI
 #define PLS_LOADUI_ATOMIC PLS_LOADUI

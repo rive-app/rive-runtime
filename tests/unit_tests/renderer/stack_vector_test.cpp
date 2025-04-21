@@ -65,6 +65,7 @@ TEST_CASE("1 ele - push_back_n", "[stack_vector]")
     StackVector<uint32_t, NUM_TEST_VALUES> vec;
     CHECK(test_values[0] == *vec.push_back_n(1, &test_values[0]));
     CHECK(vec.size() == 1);
+    CHECK(vec[0] == test_values[0]);
 }
 
 TEST_CASE("2 ele - push_back_n", "[stack_vector]")
@@ -72,6 +73,8 @@ TEST_CASE("2 ele - push_back_n", "[stack_vector]")
     StackVector<uint32_t, NUM_TEST_VALUES> vec;
     CHECK(test_values[0] == *vec.push_back_n(2, &test_values[0]));
     CHECK(vec.size() == 2);
+    CHECK(vec[0] == test_values[0]);
+    CHECK(vec[1] == test_values[1]);
 }
 
 TEST_CASE("N ele - push_back_n", "[stack_vector]")
@@ -82,6 +85,42 @@ TEST_CASE("N ele - push_back_n", "[stack_vector]")
     for (uint32_t i = 0; i < NUM_TEST_VALUES; ++i)
     {
         CHECK(vec[i] == test_values[i]);
+    }
+    CHECK(vec.size() == NUM_TEST_VALUES);
+}
+
+TEST_CASE("0 ele - push_back_n repeat", "[stack_vector]")
+{
+    StackVector<uint32_t, NUM_TEST_VALUES> vec;
+    vec.push_back_n(0, nullptr);
+    CHECK(vec.size() == 0);
+}
+
+TEST_CASE("1 ele - push_back_n repeat", "[stack_vector]")
+{
+    StackVector<uint32_t, NUM_TEST_VALUES> vec;
+    CHECK(*vec.push_back_n(1, 48u) == 48u);
+    CHECK(vec.size() == 1);
+    CHECK(vec[0] == 48u);
+}
+
+TEST_CASE("2 ele - push_back_n repeat", "[stack_vector]")
+{
+    StackVector<uint32_t, NUM_TEST_VALUES> vec;
+    CHECK(*vec.push_back_n(2, 101u) == 101u);
+    CHECK(vec.size() == 2);
+    CHECK(vec[0] == 101u);
+    CHECK(vec[1] == 101u);
+}
+
+TEST_CASE("N ele - push_back_n repeat", "[stack_vector]")
+{
+    StackVector<uint32_t, NUM_TEST_VALUES> vec;
+    CHECK(999u == *vec.push_back_n(NUM_TEST_VALUES, 999u));
+
+    for (uint32_t i = 0; i < NUM_TEST_VALUES; ++i)
+    {
+        CHECK(vec[i] == 999u);
     }
     CHECK(vec.size() == NUM_TEST_VALUES);
 }
