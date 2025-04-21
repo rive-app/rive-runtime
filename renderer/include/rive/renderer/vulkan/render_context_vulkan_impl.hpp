@@ -14,6 +14,7 @@ namespace rive::gpu
 {
 class TextureVulkanImpl;
 class RenderTargetVulkanImpl;
+class DrawShaderVulkan;
 
 class RenderContextVulkanImpl : public RenderContextImpl
 {
@@ -220,8 +221,7 @@ private:
                    (1 << DRAW_PIPELINE_LAYOUT_OPTION_COUNT)>
         m_drawPipelineLayouts;
 
-    class DrawShader;
-    std::map<uint32_t, DrawShader> m_drawShaders;
+    std::map<uint32_t, DrawShaderVulkan> m_drawShaders;
 
     class DrawPipeline;
     std::map<uint32_t, DrawPipeline> m_drawPipelines;
