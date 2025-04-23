@@ -1358,8 +1358,10 @@ public:
                 .dstSubpass = 0,
                 .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                 .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                // TODO: Do we need shader SHADER_READ/SHADER_WRITE as well,
-                // for the coverage texture?
+                // TODO: We should add SHADER_READ/SHADER_WRITE flags for the
+                // coverage buffer as well, but ironically, adding those causes
+                // artifacts on Qualcomm. Leave them out for now unless we find
+                // a case where we don't work without them.
                 .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                 .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
                 .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
@@ -1386,8 +1388,10 @@ public:
                 .dstSubpass = 1,
                 .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                 .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                // TODO: Do we need shader SHADER_READ/SHADER_WRITE as well,
-                // for the coverage texture?
+                // TODO: We should add SHADER_READ/SHADER_WRITE flags for the
+                // coverage buffer as well, but ironically, adding those causes
+                // artifacts on Qualcomm. Leave them out for now unless we find
+                // a case where we don't work without them.
                 .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                 .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
                 .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
@@ -3465,14 +3469,16 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             // operations as well.)
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
             assert(drawType != gpu::DrawType::atomicResolve);
-            // FIXME: Coverage is a storage texture, not an input attachment,
-            // and this barrier needs to account for that.
             m_vk->memoryBarrier(
                 commandBuffer,
                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                 VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
                 VK_DEPENDENCY_BY_REGION_BIT,
                 {
+                    // TODO: We should add SHADER_READ/SHADER_WRITE flags for
+                    // the coverage buffer as well, but ironically, adding those
+                    // causes artifacts on Qualcomm. Leave them out for now
+                    // unless we find a case where we don't work without them.
                     .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                     .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
                 });

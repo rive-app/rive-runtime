@@ -575,6 +575,11 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
                 make_half(1.));
     }
 
+    half4 fragColorOut = make_half4(.0);
+#ifdef @ENABLE_CLIPPING
+    CLIP_VALUE_TYPE fragClipOut = MAKE_NON_UPDATING_CLIP_VALUE;
+#endif
+
     // Since v_pathID increases monotonically with every draw, and since it
     // lives in the most significant bits of the coverage data, an atomic max()
     // function will serve 3 purposes:
@@ -609,24 +614,21 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
             PLS_ATOMIC_ADD(coverageAtomicBuffer,
                            fixedCoverage); // Count coverage.
         }
-        discard;
     }
-
-    // We crossed into a new path! Resolve the previous path now that we know
-    // its exact coverage.
-    half coverageCount = from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
-    half4 fragColorOut;
+    else
+    {
+        // We crossed into a new path! Resolve the previous path now that we
+        // know its exact coverage.
+        half coverageCount = from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
+        resolve_paint(lastPathID,
+                      coverageCount,
+                      fragColorOut
 #ifdef @ENABLE_CLIPPING
-    CLIP_VALUE_TYPE fragClipOut = MAKE_NON_UPDATING_CLIP_VALUE;
+                      ,
+                      fragClipOut
 #endif
-    resolve_paint(lastPathID,
-                  coverageCount,
-                  fragColorOut
-#ifdef @ENABLE_CLIPPING
-                  ,
-                  fragClipOut
-#endif
-                      FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
+                          FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
+    }
 
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
@@ -685,30 +687,30 @@ ATOMIC_PLS_MAIN(@drawFragmentMain)
     PLS_STOREUI_ATOMIC(coverageAtomicBuffer,
                        currPathCoverageData + uint(coverageDeltaFixed));
 
-#ifndef @ATLAS_BLIT
-    if (lastPathID == v_pathID)
-    {
-        // This is not the first fragment of the current path to touch this
-        // pixel. We already resolved the previous path, so just move on.
-        discard;
-    }
-#endif
-
-    // We crossed into a new path! Resolve the previous path now that we know
-    // its exact coverage.
-    half lastCoverageCount = from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
-    half4 fragColorOut;
+    half4 fragColorOut = make_half4(.0);
 #ifdef @ENABLE_CLIPPING
     CLIP_VALUE_TYPE fragClipOut = MAKE_NON_UPDATING_CLIP_VALUE;
 #endif
-    resolve_paint(lastPathID,
-                  lastCoverageCount,
-                  fragColorOut
-#ifdef @ENABLE_CLIPPING
-                  ,
-                  fragClipOut
+
+#ifndef @ATLAS_BLIT
+    // If this is not the first fragment of the current path to touch this
+    // pixel, then we've already resolved the previous path and can move on.
+    if (lastPathID != v_pathID)
 #endif
-                      FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
+    {
+        // We crossed into a new path! Resolve the previous path now that we
+        // know its exact coverage.
+        half lastCoverageCount =
+            from_fixed(lastCoverageData & FIXED_COVERAGE_MASK);
+        resolve_paint(lastPathID,
+                      lastCoverageCount,
+                      fragColorOut
+#ifdef @ENABLE_CLIPPING
+                      ,
+                      fragClipOut
+#endif
+                          FRAGMENT_CONTEXT_UNPACK PLS_CONTEXT_UNPACK);
+    }
 
 #ifdef @FIXED_FUNCTION_COLOR_OUTPUT
     _fragColor = fragColorOut;
