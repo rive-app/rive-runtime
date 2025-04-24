@@ -6,9 +6,8 @@
 
 #if !defined(RIVE_ANDROID) || !defined(RIVE_VULKAN)
 
-TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow,
-                                                bool coreFeaturesOnly,
-                                                bool clockwiseFill)
+TestingWindow* TestingWindow::MakeAndroidVulkan(const BackendParams&,
+                                                void* platformWindow)
 {
     return nullptr;
 }
@@ -29,10 +28,9 @@ using namespace rive::gpu;
 class TestingWindowAndroidVulkan : public TestingWindow
 {
 public:
-    TestingWindowAndroidVulkan(ANativeWindow* window,
-                               bool coreFeaturesOnly,
-                               bool clockwiseFill) :
-        m_clockwiseFill(clockwiseFill)
+    TestingWindowAndroidVulkan(const BackendParams& backendParams,
+                               ANativeWindow* window) :
+        m_backendParams(backendParams)
     {
         m_width = ANativeWindow_getWidth(window);
         m_height = ANativeWindow_getHeight(window);
@@ -47,7 +45,9 @@ public:
                 .enable_validation_layers(true)
 #endif
                 .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
-                .require_api_version(1, coreFeaturesOnly ? 0 : 3, 0)
+                .require_api_version(1,
+                                     m_backendParams.coreFeaturesOnly ? 0 : 3,
+                                     0)
                 .set_minimum_instance_version(1, 0, 0)
                 .build());
         m_instanceDispatchTable = m_instance.make_table();
@@ -68,11 +68,12 @@ public:
                                               &m_windowSurface));
 
         VulkanFeatures vulkanFeatures;
-        std::tie(m_device, vulkanFeatures) = rive_vkb::select_device(
-            vkb::PhysicalDeviceSelector(m_instance)
-                .set_surface(m_windowSurface),
-            coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
-                             : rive_vkb::FeatureSet::allAvailable);
+        std::tie(m_device, vulkanFeatures) =
+            rive_vkb::select_device(vkb::PhysicalDeviceSelector(m_instance)
+                                        .set_surface(m_windowSurface),
+                                    m_backendParams.coreFeaturesOnly
+                                        ? rive_vkb::FeatureSet::coreOnly
+                                        : rive_vkb::FeatureSet::allAvailable);
         m_renderContext = RenderContextVulkanImpl::MakeContext(
             m_instance,
             m_device.physical_device,
@@ -89,7 +90,8 @@ public:
         vkb::SwapchainBuilder swapchainBuilder(m_device, m_windowSurface);
         swapchainBuilder
             .set_desired_format({
-                .format = VK_FORMAT_B8G8R8A8_UNORM,
+                .format = m_backendParams.srgb ? VK_FORMAT_R8G8B8A8_SRGB
+                                               : VK_FORMAT_R8G8B8A8_UNORM,
                 .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
             })
             .add_fallback_format({
@@ -177,7 +179,7 @@ public:
             .clearColor = options.clearColor,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
-                m_clockwiseFill || options.clockwiseFillOverride,
+                m_backendParams.clockwiseFill || options.clockwiseFillOverride,
         });
 
         return std::make_unique<RiveRenderer>(m_renderContext.get());
@@ -214,7 +216,7 @@ private:
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
-    bool m_clockwiseFill;
+    const BackendParams m_backendParams;
     vkb::Instance m_instance;
     vkb::InstanceDispatchTable m_instanceDispatchTable;
     vkb::Device m_device;
@@ -224,14 +226,13 @@ private:
     rcp<RenderTargetVulkanImpl> m_renderTarget;
 };
 
-TestingWindow* TestingWindow::MakeAndroidVulkan(void* platformWindow,
-                                                bool coreFeaturesOnly,
-                                                bool clockwiseFill)
+TestingWindow* TestingWindow::MakeAndroidVulkan(
+    const BackendParams& backendParams,
+    void* platformWindow)
 {
     return new TestingWindowAndroidVulkan(
-        reinterpret_cast<ANativeWindow*>(platformWindow),
-        coreFeaturesOnly,
-        clockwiseFill);
+        backendParams,
+        reinterpret_cast<ANativeWindow*>(platformWindow));
 }
 
 #endif

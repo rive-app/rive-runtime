@@ -41,6 +41,8 @@ const char* TestingWindow::BackendName(Backend backend)
             return "vk";
         case TestingWindow::Backend::vkcore:
             return "vkcore";
+        case TestingWindow::Backend::vksrgb:
+            return "vksrgb";
         case TestingWindow::Backend::vkcw:
             return "vkcw";
         case TestingWindow::Backend::moltenvk:
@@ -114,6 +116,8 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         return Backend::vk;
     if (nameStr == "vulkancore" || nameStr == "vkcore")
         return Backend::vkcore;
+    if (nameStr == "vulkansrgb" || nameStr == "vksrgb")
+        return Backend::vksrgb;
     if (nameStr == "vulkancw" || nameStr == "vkcw")
         return Backend::vkcw;
     if (nameStr == "moltenvk" || nameStr == "mvk")
@@ -164,9 +168,12 @@ TestingWindow* TestingWindow::Init(Backend backend,
                                    const std::string& gpuNameFilterStr,
                                    void* platformWindow)
 {
-
-    const char* gpuNameFilter RIVE_MAYBE_UNUSED =
-        !gpuNameFilterStr.empty() ? gpuNameFilterStr.c_str() : nullptr;
+    BackendParams backendParams = {
+        .coreFeaturesOnly = IsCore(backend),
+        .srgb = IsSRGB(backend),
+        .clockwiseFill = IsClockwiseFill(backend),
+        .gpuNameFilter = gpuNameFilterStr,
+    };
 
     if (backend == Backend::rhi)
         assert(s_TestingWindow);
@@ -186,7 +193,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
                 s_TestingWindow =
                     TestingWindow::MakeFiddleContext(backend,
                                                      visibility,
-                                                     gpuNameFilter,
+                                                     backendParams,
                                                      platformWindow);
             }
             else
@@ -197,6 +204,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
             break;
         case Backend::vk:
         case Backend::vkcore:
+        case Backend::vksrgb:
         case Backend::vkcw:
         case Backend::moltenvk:
         case Backend::moltenvkcore:
@@ -234,25 +242,22 @@ TestingWindow* TestingWindow::Init(Backend backend,
             if (platformWindow != nullptr)
             {
                 s_TestingWindow =
-                    TestingWindow::MakeAndroidVulkan(platformWindow,
-                                                     IsCore(backend),
-                                                     IsClockwiseFill(backend));
+                    TestingWindow::MakeAndroidVulkan(backendParams,
+                                                     platformWindow);
                 break;
             }
 #endif
             if (visibility == Visibility::headless)
             {
                 s_TestingWindow =
-                    TestingWindow::MakeVulkanTexture(IsCore(backend),
-                                                     IsClockwiseFill(backend),
-                                                     gpuNameFilter);
+                    TestingWindow::MakeVulkanTexture(backendParams);
             }
             else
             {
                 s_TestingWindow =
                     TestingWindow::MakeFiddleContext(backend,
                                                      visibility,
-                                                     gpuNameFilter,
+                                                     backendParams,
                                                      platformWindow);
             }
             break;
@@ -269,7 +274,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
         case Backend::dawn:
             s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
                                                                visibility,
-                                                               gpuNameFilter,
+                                                               backendParams,
                                                                platformWindow);
             break;
         case Backend::rhi:

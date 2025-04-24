@@ -123,7 +123,7 @@ std::tuple<vkb::Device, rive::gpu::VulkanFeatures> select_device(
     {
         gpuNameFilter = rive_gpu;
     }
-    if (gpuNameFilter == nullptr)
+    if (gpuNameFilter == nullptr || gpuNameFilter[0] == '\0')
     {
         // No active filter. Go with a discrete GPU.
         selector.allow_any_gpu_device_type(false).prefer_gpu_device_type(

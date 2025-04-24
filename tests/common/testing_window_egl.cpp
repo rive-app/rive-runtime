@@ -633,6 +633,7 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
         case Backend::metalatomic:
         case Backend::vk:
         case Backend::vkcore:
+        case Backend::vksrgb:
         case Backend::vkcw:
         case Backend::moltenvk:
         case Backend::moltenvkcore:

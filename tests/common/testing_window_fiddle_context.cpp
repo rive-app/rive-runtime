@@ -7,7 +7,7 @@
 #if defined(TESTING) || defined(RIVE_TOOLS_NO_GLFW)
 TestingWindow* TestingWindow::MakeFiddleContext(Backend,
                                                 Visibility,
-                                                const char*,
+                                                const BackendParams&,
                                                 void* platformWindow)
 {
     return nullptr;
@@ -17,7 +17,6 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend,
 
 #include "fiddle_context.hpp"
 
-#include <deque>
 #include <queue>
 
 #define GLFW_INCLUDE_NONE
@@ -128,8 +127,9 @@ class TestingWindowFiddleContext : public TestingWindow
 public:
     TestingWindowFiddleContext(Backend backend,
                                Visibility visibility,
-                               const char* gpuNameFilter,
-                               void* platformWindow)
+                               const BackendParams& backendParams,
+                               void* platformWindow) :
+        m_backendParams(backendParams)
     {
         // Vulkan headless rendering doesn't need an OS window.
         // It's convenient to run Swiftshader on CI without GLFW.
@@ -178,7 +178,6 @@ public:
             glfwWindowHint(GLFW_STENCIL_BITS, 8);
             glfwWindowHint(GLFW_DEPTH_BITS, 24);
         }
-        m_clockwiseFill = IsClockwiseFill(backend);
 
         glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
         if (visibility == Visibility::headless)
@@ -238,10 +237,11 @@ public:
             .synchronousShaderCompilations = true,
             .enableReadPixels = true,
             .disableRasterOrdering = IsAtomic(backend),
-            .coreFeaturesOnly = IsCore(backend),
+            .coreFeaturesOnly = m_backendParams.coreFeaturesOnly,
+            .srgb = m_backendParams.srgb,
             .allowHeadlessRendering = visibility == Visibility::headless,
             .enableVulkanValidationLayers = true,
-            .gpuNameFilter = gpuNameFilter,
+            .gpuNameFilter = backendParams.gpuNameFilter.c_str(),
         };
 
         switch (backend)
@@ -269,6 +269,7 @@ public:
                 break;
             case Backend::vk:
             case Backend::vkcore:
+            case Backend::vksrgb:
             case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::moltenvkcore:
@@ -337,7 +338,7 @@ public:
             .msaaSampleCount = m_msaaSampleCount,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
-                m_clockwiseFill || options.clockwiseFillOverride,
+                m_backendParams.clockwiseFill || options.clockwiseFillOverride,
         };
         m_fiddleContext->begin(std::move(frameDescriptor));
         return m_fiddleContext->makeRenderer(m_width, m_height);
@@ -398,18 +399,19 @@ public:
 private:
     GLFWwindow* m_glfwWindow = nullptr;
     int m_msaaSampleCount = 0;
-    bool m_clockwiseFill = false;
+    BackendParams m_backendParams;
     std::unique_ptr<FiddleContext> m_fiddleContext;
 };
 
-TestingWindow* TestingWindow::MakeFiddleContext(Backend backend,
-                                                Visibility visibility,
-                                                const char* gpuNameFilter,
-                                                void* platformWindow)
+TestingWindow* TestingWindow::MakeFiddleContext(
+    Backend backend,
+    Visibility visibility,
+    const BackendParams& backendParams,
+    void* platformWindow)
 {
     return new TestingWindowFiddleContext(backend,
                                           visibility,
-                                          gpuNameFilter,
+                                          backendParams,
                                           platformWindow);
 }
 

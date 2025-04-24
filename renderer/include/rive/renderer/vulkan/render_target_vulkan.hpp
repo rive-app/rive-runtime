@@ -60,19 +60,23 @@ protected:
         vkutil::TextureAccessAction =
             vkutil::TextureAccessAction::preserveContents);
 
-    VkImage coverageTexture() const { return *m_coverageTexture; }
-    VkImage clipTexture() const { return *m_clipTexture; }
-    VkImage scratchColorTexture() const { return *m_scratchColorTexture; }
-    VkImage coverageAtomicTexture() const { return *m_coverageAtomicTexture; }
-    VkImage depthStencilTexture() const { return *m_depthStencilTexture; }
+    // InterlockMode::rasterOrdering.
+    vkutil::Texture* clipTextureR32UI();
+    vkutil::TextureView* clipTextureViewR32UI();
+    vkutil::Texture* scratchColorTexture();
+    vkutil::TextureView* scratchColorTextureView();
+    vkutil::Texture* coverageTexture();
+    vkutil::TextureView* coverageTextureView();
 
-    // getters that lazy load if needed.
+    // InterlockMode::atomics.
+    vkutil::Texture* clipTextureRGBA8();
+    vkutil::TextureView* clipTextureViewRGBA8();
+    vkutil::Texture* coverageAtomicTexture();
+    vkutil::TextureView* coverageAtomicTextureView();
 
-    vkutil::TextureView* ensureClipTextureView();
-    vkutil::TextureView* ensureScratchColorTextureView();
-    vkutil::TextureView* ensureCoverageTextureView();
-    vkutil::TextureView* ensureCoverageAtomicTextureView();
-    vkutil::TextureView* ensureDepthStencilTextureView();
+    // InterlockMode::msaa.
+    vkutil::Texture* depthStencilTexture();
+    vkutil::TextureView* depthStencilTextureView();
 
     const rcp<VulkanContext> m_vk;
     const VkFormat m_framebufferFormat;
@@ -81,19 +85,25 @@ protected:
     // Used when m_targetTextureView does not have
     // VK_ACCESS_INPUT_ATTACHMENT_READ_BIT
     rcp<vkutil::Texture> m_offscreenColorTexture;
+    rcp<vkutil::TextureView> m_offscreenColorTextureView;
     vkutil::TextureAccess m_offscreenLastAccess;
 
-    rcp<vkutil::Texture> m_coverageTexture; // InterlockMode::rasterOrdering.
-    rcp<vkutil::Texture> m_clipTexture;
+    // InterlockMode::rasterOrdering.
+    rcp<vkutil::Texture> m_clipTextureR32UI;
+    rcp<vkutil::TextureView> m_clipTextureViewR32UI;
     rcp<vkutil::Texture> m_scratchColorTexture;
-    rcp<vkutil::Texture> m_coverageAtomicTexture; // InterlockMode::atomics.
-    rcp<vkutil::Texture> m_depthStencilTexture;
-
-    rcp<vkutil::TextureView> m_offscreenColorTextureView;
-    rcp<vkutil::TextureView> m_coverageTextureView;
-    rcp<vkutil::TextureView> m_clipTextureView;
     rcp<vkutil::TextureView> m_scratchColorTextureView;
+    rcp<vkutil::Texture> m_coverageTexture;
+    rcp<vkutil::TextureView> m_coverageTextureView;
+
+    // InterlockMode::atomics.
+    rcp<vkutil::Texture> m_clipTextureRGBA8;
+    rcp<vkutil::TextureView> m_clipTextureViewRGBA8;
+    rcp<vkutil::Texture> m_coverageAtomicTexture;
     rcp<vkutil::TextureView> m_coverageAtomicTextureView;
+
+    // InterlockMode::msaa.
+    rcp<vkutil::Texture> m_depthStencilTexture;
     rcp<vkutil::TextureView> m_depthStencilTextureView;
 };
 

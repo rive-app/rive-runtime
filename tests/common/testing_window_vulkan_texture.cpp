@@ -6,9 +6,7 @@
 
 #ifndef RIVE_VULKAN
 
-TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly,
-                                                bool clockwiseFill,
-                                                const char* gpuNameFilter)
+TestingWindow* TestingWindow::MakeVulkanTexture(const BackendParams&)
 {
     return nullptr;
 }
@@ -25,32 +23,33 @@ namespace rive::gpu
 class TestingWindowVulkanTexture : public TestingWindow
 {
 public:
-    TestingWindowVulkanTexture(bool coreFeaturesOnly,
-                               bool clockwiseFill,
-                               const char* gpuNameFilter) :
-        m_coreFeaturesOnly(coreFeaturesOnly), m_clockwiseFill(clockwiseFill)
+    TestingWindowVulkanTexture(const BackendParams& backendParams) :
+        m_backendParams(backendParams)
     {
         rive_vkb::load_vulkan();
 
-        m_instance =
-            VKB_CHECK(vkb::InstanceBuilder()
-                          .set_app_name("rive_tools")
-                          .set_engine_name("Rive Renderer")
-                          .set_headless(true)
+        m_instance = VKB_CHECK(
+            vkb::InstanceBuilder()
+                .set_app_name("rive_tools")
+                .set_engine_name("Rive Renderer")
+                .set_headless(true)
 #ifdef DEBUG
-                          .enable_validation_layers()
-                          .set_debug_callback(rive_vkb::default_debug_callback)
+                .enable_validation_layers()
+                .set_debug_callback(rive_vkb::default_debug_callback)
 #endif
-                          .require_api_version(1, m_coreFeaturesOnly ? 0 : 3, 0)
-                          .set_minimum_instance_version(1, 0, 0)
-                          .build());
+                .require_api_version(1,
+                                     m_backendParams.coreFeaturesOnly ? 0 : 3,
+                                     0)
+                .set_minimum_instance_version(1, 0, 0)
+                .build());
 
         VulkanFeatures vulkanFeatures;
-        std::tie(m_device, vulkanFeatures) = rive_vkb::select_device(
-            m_instance,
-            m_coreFeaturesOnly ? rive_vkb::FeatureSet::coreOnly
-                               : rive_vkb::FeatureSet::allAvailable,
-            gpuNameFilter);
+        std::tie(m_device, vulkanFeatures) =
+            rive_vkb::select_device(m_instance,
+                                    m_backendParams.coreFeaturesOnly
+                                        ? rive_vkb::FeatureSet::coreOnly
+                                        : rive_vkb::FeatureSet::allAvailable,
+                                    m_backendParams.gpuNameFilter.c_str());
         m_renderContext = RenderContextVulkanImpl::MakeContext(
             m_instance,
             m_device.physical_device,
@@ -85,9 +84,10 @@ public:
         if (m_swapchain == nullptr || m_swapchain->width() != m_width ||
             m_swapchain->height() != m_height)
         {
-            VkFormat swapchainFormat = m_coreFeaturesOnly
-                                           ? VK_FORMAT_R8G8B8A8_UNORM
-                                           : VK_FORMAT_B8G8R8A8_UNORM;
+            VkFormat swapchainFormat =
+                m_backendParams.srgb               ? VK_FORMAT_R8G8B8A8_SRGB
+                : m_backendParams.coreFeaturesOnly ? VK_FORMAT_R8G8B8A8_UNORM
+                                                   : VK_FORMAT_B8G8R8A8_UNORM;
             // Don't use VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT so we can test our
             // codepath that makes us work without it.
             VkImageUsageFlags additionalUsageFlags =
@@ -118,7 +118,7 @@ public:
             .clearColor = options.clearColor,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
-                m_clockwiseFill || options.clockwiseFillOverride,
+                m_backendParams.clockwiseFill || options.clockwiseFillOverride,
         };
         m_renderContext->beginFrame(frameDescriptor);
         return std::make_unique<RiveRenderer>(m_renderContext.get());
@@ -158,8 +158,7 @@ private:
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
-    const bool m_coreFeaturesOnly;
-    const bool m_clockwiseFill;
+    const BackendParams m_backendParams;
     vkb::Instance m_instance;
     vkb::Device m_device;
     std::unique_ptr<RenderContext> m_renderContext;
@@ -168,13 +167,10 @@ private:
 };
 }; // namespace rive::gpu
 
-TestingWindow* TestingWindow::MakeVulkanTexture(bool coreFeaturesOnly,
-                                                bool clockwiseFill,
-                                                const char* gpuNameFilter)
+TestingWindow* TestingWindow::MakeVulkanTexture(
+    const BackendParams& backendParams)
 {
-    return new rive::gpu::TestingWindowVulkanTexture(coreFeaturesOnly,
-                                                     clockwiseFill,
-                                                     gpuNameFilter);
+    return new rive::gpu::TestingWindowVulkanTexture(backendParams);
 }
 
 #endif

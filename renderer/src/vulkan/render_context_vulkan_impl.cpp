@@ -990,65 +990,13 @@ private:
     VkPipeline m_strokePipeline;
 };
 
-enum class DrawPipelineLayoutOptions
-{
-    none = 0,
-
-    // No need to attach the COLOR texture as an input attachment. There are no
-    // advanced blend modes so we can use built-in hardware blending.
-    fixedFunctionColorOutput = 1 << 0,
-
-    // Use an offscreen texture to render color, but also attach the real target
-    // texture at the COALESCED_ATOMIC_RESOLVE index, and render directly to it
-    // in the atomic resolve step.
-    coalescedResolveAndTransfer = 1 << 1,
-};
-RIVE_MAKE_ENUM_BITSET(DrawPipelineLayoutOptions);
-
+// VkPipelineLayout wrapper for Rive flushes.
 class RenderContextVulkanImpl::DrawPipelineLayout
 {
 public:
-    // Since DRAW_PIPELINE_LAYOUT_OPTION_COUNT is declared in the header and
-    // DrawPipelineLayoutOptions is declared in the cpp file, assert here that
-    // they both agree.
-    static_assert(DRAW_PIPELINE_LAYOUT_OPTION_COUNT == 2);
-
     // Number of render pass variants that can be used with a single
     // DrawPipelineLayout (framebufferFormat x loadOp).
     constexpr static int kRenderPassVariantCount = 6;
-
-    static int RenderPassVariantIdx(VkFormat framebufferFormat,
-                                    gpu::LoadAction loadAction)
-    {
-        int loadActionIdx = static_cast<int>(loadAction);
-        assert(0 <= loadActionIdx && loadActionIdx < 3);
-        assert(framebufferFormat == VK_FORMAT_B8G8R8A8_UNORM ||
-               framebufferFormat == VK_FORMAT_R8G8B8A8_UNORM);
-        int idx = (loadActionIdx << 1) |
-                  (framebufferFormat == VK_FORMAT_B8G8R8A8_UNORM ? 1 : 0);
-        assert(0 <= idx && idx < kRenderPassVariantCount);
-        return idx;
-    }
-
-    constexpr static VkFormat FormatFromRenderPassVariant(int idx)
-    {
-        return (idx & 1) ? VK_FORMAT_B8G8R8A8_UNORM : VK_FORMAT_R8G8B8A8_UNORM;
-    }
-
-    constexpr static VkAttachmentLoadOp LoadOpFromRenderPassVariant(int idx)
-    {
-        auto loadAction = static_cast<gpu::LoadAction>(idx >> 1);
-        switch (loadAction)
-        {
-            case gpu::LoadAction::preserveRenderTarget:
-                return VK_ATTACHMENT_LOAD_OP_LOAD;
-            case gpu::LoadAction::clear:
-                return VK_ATTACHMENT_LOAD_OP_CLEAR;
-            case gpu::LoadAction::dontCare:
-                return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-        }
-        RIVE_UNREACHABLE();
-    }
 
     DrawPipelineLayout(RenderContextVulkanImpl* impl,
                        gpu::InterlockMode interlockMode,
@@ -1153,24 +1101,129 @@ public:
                                             &m_pipelineLayout));
     }
 
-    VkRenderPass renderPassAt(int renderPassVariantIdx)
+    ~DrawPipelineLayout()
     {
-        if (m_renderPasses[renderPassVariantIdx] != VK_NULL_HANDLE)
-        {
-            return m_renderPasses[renderPassVariantIdx];
-        }
+        m_vk->DestroyDescriptorSetLayout(m_vk->device,
+                                         m_plsTextureDescriptorSetLayout,
+                                         nullptr);
+        m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
+    }
 
-        // Create the render pass.
-        const VkFormat renderTargetFormat =
-            FormatFromRenderPassVariant(renderPassVariantIdx);
-        const VkAttachmentLoadOp colorLoadOp =
-            LoadOpFromRenderPassVariant(renderPassVariantIdx);
-        const VkImageLayout colorAttachmentLayout =
-            (m_options & DrawPipelineLayoutOptions::fixedFunctionColorOutput)
-                ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
-                : VK_IMAGE_LAYOUT_GENERAL;
+    gpu::InterlockMode interlockMode() const { return m_interlockMode; }
+    DrawPipelineLayoutOptions options() const { return m_options; }
+
+    uint32_t attachmentCount(uint32_t subpassIndex) const
+    {
+        switch (m_interlockMode)
+        {
+            case gpu::InterlockMode::rasterOrdering:
+                assert(subpassIndex == 0);
+                return 4;
+            case gpu::InterlockMode::atomics:
+                assert(subpassIndex <= 1);
+                return 2u - subpassIndex; // Subpass 0 -> 2, subpass 1 -> 1.
+            case gpu::InterlockMode::clockwiseAtomic:
+                assert(subpassIndex == 0);
+                return 1;
+            case gpu::InterlockMode::msaa:
+                assert(subpassIndex == 0);
+                return 2;
+        }
+    }
+
+    VkDescriptorSetLayout plsLayout() const
+    {
+        return m_plsTextureDescriptorSetLayout;
+    }
+
+    VkPipelineLayout operator*() const { return m_pipelineLayout; }
+    VkPipelineLayout vkPipelineLayout() const { return m_pipelineLayout; }
+
+private:
+    const rcp<VulkanContext> m_vk;
+    const gpu::InterlockMode m_interlockMode;
+    const DrawPipelineLayoutOptions m_options;
+
+    VkDescriptorSetLayout m_plsTextureDescriptorSetLayout;
+    VkPipelineLayout m_pipelineLayout;
+};
+
+constexpr static VkAttachmentLoadOp vk_load_op(gpu::LoadAction loadAction)
+{
+    switch (loadAction)
+    {
+        case gpu::LoadAction::preserveRenderTarget:
+            return VK_ATTACHMENT_LOAD_OP_LOAD;
+        case gpu::LoadAction::clear:
+            return VK_ATTACHMENT_LOAD_OP_CLEAR;
+        case gpu::LoadAction::dontCare:
+            return VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    }
+    RIVE_UNREACHABLE();
+}
+
+// VkRenderPass wrapper for Rive flushes.
+class RenderContextVulkanImpl::RenderPass
+{
+public:
+    constexpr static uint64_t FORMAT_BIT_COUNT = 19;
+    constexpr static uint64_t LOAD_OP_BIT_COUNT = 2;
+    constexpr static uint64_t KEY_BIT_COUNT =
+        FORMAT_BIT_COUNT + DRAW_PIPELINE_LAYOUT_BIT_COUNT + LOAD_OP_BIT_COUNT;
+    static_assert(KEY_BIT_COUNT <= 32);
+
+    static uint32_t Key(gpu::InterlockMode interlockMode,
+                        DrawPipelineLayoutOptions layoutOptions,
+                        VkFormat renderTargetFormat,
+                        gpu::LoadAction loadAction)
+    {
+        uint32_t formatKey = static_cast<uint32_t>(renderTargetFormat);
+        if (formatKey > VK_FORMAT_ASTC_12x12_SRGB_BLOCK)
+        {
+            assert(formatKey >= VK_FORMAT_G8B8G8R8_422_UNORM);
+            formatKey -= VK_FORMAT_G8B8G8R8_422_UNORM -
+                         VK_FORMAT_ASTC_12x12_SRGB_BLOCK - 1;
+        }
+        assert(formatKey <= 1 << FORMAT_BIT_COUNT);
+
+        uint32_t drawPipelineLayoutIdx =
+            DrawPipelineLayoutIdx(interlockMode, layoutOptions);
+        assert(drawPipelineLayoutIdx < 1 << DRAW_PIPELINE_LAYOUT_BIT_COUNT);
+
+        assert(static_cast<uint32_t>(loadAction) < 1 << LOAD_OP_BIT_COUNT);
+
+        return (formatKey << (DRAW_PIPELINE_LAYOUT_BIT_COUNT +
+                              LOAD_OP_BIT_COUNT)) |
+               (drawPipelineLayoutIdx << LOAD_OP_BIT_COUNT) |
+               static_cast<uint32_t>(loadAction);
+    }
+
+    RenderPass(RenderContextVulkanImpl* impl,
+               gpu::InterlockMode interlockMode,
+               DrawPipelineLayoutOptions layoutOptions,
+               VkFormat renderTargetFormat,
+               gpu::LoadAction loadAction) :
+        m_vk(ref_rcp(impl->vulkanContext()))
+    {
+        uint32_t pipelineLayoutIdx =
+            DrawPipelineLayoutIdx(interlockMode, layoutOptions);
+        assert(pipelineLayoutIdx < impl->m_drawPipelineLayouts.size());
+        if (impl->m_drawPipelineLayouts[pipelineLayoutIdx] == nullptr)
+        {
+            impl->m_drawPipelineLayouts[pipelineLayoutIdx] =
+                std::make_unique<DrawPipelineLayout>(impl,
+                                                     interlockMode,
+                                                     layoutOptions);
+        }
+        m_drawPipelineLayout =
+            impl->m_drawPipelineLayouts[pipelineLayoutIdx].get();
 
         // COLOR attachment.
+        const VkImageLayout colorAttachmentLayout =
+            (layoutOptions &
+             DrawPipelineLayoutOptions::fixedFunctionColorOutput)
+                ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
+                : VK_IMAGE_LAYOUT_GENERAL;
         StackVector<VkAttachmentDescription, PLS_PLANE_COUNT> attachments;
         StackVector<VkAttachmentReference, PLS_PLANE_COUNT> colorAttachments;
         StackVector<VkAttachmentReference, PLS_PLANE_COUNT> resolveAttachments;
@@ -1179,12 +1232,12 @@ public:
         attachments.push_back({
             .format = renderTargetFormat,
             .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = colorLoadOp,
-            .storeOp = (m_options &
+            .loadOp = vk_load_op(loadAction),
+            .storeOp = (layoutOptions &
                         DrawPipelineLayoutOptions::coalescedResolveAndTransfer)
                            ? VK_ATTACHMENT_STORE_OP_DONT_CARE
                            : VK_ATTACHMENT_STORE_OP_STORE,
-            .initialLayout = colorLoadOp == VK_ATTACHMENT_LOAD_OP_LOAD
+            .initialLayout = loadAction == gpu::LoadAction::preserveRenderTarget
                                  ? colorAttachmentLayout
                                  : VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = colorAttachmentLayout,
@@ -1194,16 +1247,17 @@ public:
             .layout = colorAttachmentLayout,
         });
 
-        if (m_interlockMode == gpu::InterlockMode::rasterOrdering ||
-            m_interlockMode == gpu::InterlockMode::atomics)
+        if (interlockMode == gpu::InterlockMode::rasterOrdering ||
+            interlockMode == gpu::InterlockMode::atomics)
         {
             // CLIP attachment.
             assert(attachments.size() == CLIP_PLANE_IDX);
             assert(colorAttachments.size() == CLIP_PLANE_IDX);
             attachments.push_back({
-                // The clip buffer is RGBA8 in atomic mode.
-                .format = m_interlockMode == gpu::InterlockMode::atomics
-                              ? renderTargetFormat
+                // The clip buffer is encoded as RGBA8 in atomic mode so we can
+                // block writes by emitting alpha=0.
+                .format = interlockMode == gpu::InterlockMode::atomics
+                              ? VK_FORMAT_R8G8B8A8_UNORM
                               : VK_FORMAT_R32_UINT,
                 .samples = VK_SAMPLE_COUNT_1_BIT,
                 .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
@@ -1217,7 +1271,7 @@ public:
             });
         }
 
-        if (m_interlockMode == gpu::InterlockMode::rasterOrdering)
+        if (interlockMode == gpu::InterlockMode::rasterOrdering)
         {
             // SCRATCH_COLOR attachment.
             assert(attachments.size() == SCRATCH_COLOR_PLANE_IDX);
@@ -1251,9 +1305,9 @@ public:
                 .layout = VK_IMAGE_LAYOUT_GENERAL,
             });
         }
-        else if (m_interlockMode == gpu::InterlockMode::atomics)
+        else if (interlockMode == gpu::InterlockMode::atomics)
         {
-            if (m_options &
+            if (layoutOptions &
                 DrawPipelineLayoutOptions::coalescedResolveAndTransfer)
             {
                 // COALESCED_ATOMIC_RESOLVE attachment (primary render target).
@@ -1294,11 +1348,12 @@ public:
 
         // Input attachments.
         StackVector<VkAttachmentReference, PLS_PLANE_COUNT> inputAttachments;
-        if (m_interlockMode != gpu::InterlockMode::clockwiseAtomic)
+        if (interlockMode != gpu::InterlockMode::clockwiseAtomic)
         {
             inputAttachments.push_back_n(colorAttachments.size(),
                                          colorAttachments.data());
-            if (m_options & DrawPipelineLayoutOptions::fixedFunctionColorOutput)
+            if (layoutOptions &
+                DrawPipelineLayoutOptions::fixedFunctionColorOutput)
             {
                 // COLOR is not an input attachment if we're using fixed
                 // function blending.
@@ -1309,13 +1364,14 @@ public:
         // Draw subpass.
         constexpr uint32_t MAX_SUBPASSES = 2;
         const bool rasterOrderedAttachmentAccess =
-            m_interlockMode == gpu::InterlockMode::rasterOrdering &&
+            interlockMode == gpu::InterlockMode::rasterOrdering &&
             m_vk->features.rasterizationOrderColorAttachmentAccess;
         StackVector<VkSubpassDescription, MAX_SUBPASSES> subpassDescs;
         StackVector<VkSubpassDependency, MAX_SUBPASSES> subpassDeps;
         assert(subpassDescs.size() == 0);
         assert(subpassDeps.size() == 0);
-        assert(colorAttachments.size() == attachmentCount(0));
+        assert(colorAttachments.size() ==
+               m_drawPipelineLayout->attachmentCount(0));
         subpassDescs.push_back({
             .flags =
                 rasterOrderedAttachmentAccess
@@ -1330,7 +1386,7 @@ public:
         });
 
         // Draw subpass self-dependencies.
-        if (m_interlockMode == gpu::InterlockMode::clockwiseAtomic)
+        if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
         {
             // clockwiseAtomic mode has a dependency when we switch from
             // borrowed coverage into forward.
@@ -1369,11 +1425,12 @@ public:
         }
 
         // Resolve subpass (atomic mode only).
-        if (m_interlockMode == gpu::InterlockMode::atomics)
+        if (interlockMode == gpu::InterlockMode::atomics)
         {
             // The resolve happens in a separate subpass.
             assert(subpassDescs.size() == 1);
-            assert(resolveAttachments.size() == attachmentCount(1));
+            assert(resolveAttachments.size() ==
+                   m_drawPipelineLayout->attachmentCount(1));
             subpassDescs.push_back({
                 .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
                 .inputAttachmentCount = inputAttachments.size(),
@@ -1411,60 +1468,29 @@ public:
         VK_CHECK(m_vk->CreateRenderPass(m_vk->device,
                                         &renderPassCreateInfo,
                                         nullptr,
-                                        &m_renderPasses[renderPassVariantIdx]));
-        return m_renderPasses[renderPassVariantIdx];
+                                        &m_renderPass));
     }
 
-    ~DrawPipelineLayout()
+    ~RenderPass()
     {
-        m_vk->DestroyDescriptorSetLayout(m_vk->device,
-                                         m_plsTextureDescriptorSetLayout,
-                                         nullptr);
-        m_vk->DestroyPipelineLayout(m_vk->device, m_pipelineLayout, nullptr);
-        for (VkRenderPass renderPass : m_renderPasses)
-        {
-            m_vk->DestroyRenderPass(m_vk->device, renderPass, nullptr);
-        }
+        // Don't touch m_drawPipelineLayout in the destructor since destruction
+        // order of us vs. impl->m_drawPipelineLayouts is uncertain.
+        m_vk->DestroyRenderPass(m_vk->device, m_renderPass, nullptr);
     }
 
-    gpu::InterlockMode interlockMode() const { return m_interlockMode; }
-    DrawPipelineLayoutOptions options() const { return m_options; }
-
-    uint32_t attachmentCount(uint32_t subpassIndex) const
+    const DrawPipelineLayout* drawPipelineLayout() const
     {
-        switch (m_interlockMode)
-        {
-            case gpu::InterlockMode::rasterOrdering:
-                assert(subpassIndex == 0);
-                return 4;
-            case gpu::InterlockMode::atomics:
-                assert(subpassIndex <= 1);
-                return 2u - subpassIndex; // Subpass 0 -> 2, subpass 1 -> 1.
-            case gpu::InterlockMode::clockwiseAtomic:
-                assert(subpassIndex == 0);
-                return 1;
-            case gpu::InterlockMode::msaa:
-                assert(subpassIndex == 0);
-                return 2;
-        }
+        return m_drawPipelineLayout;
     }
 
-    VkDescriptorSetLayout plsLayout() const
-    {
-        return m_plsTextureDescriptorSetLayout;
-    }
-
-    VkPipelineLayout operator*() const { return m_pipelineLayout; }
-    VkPipelineLayout vkPipelineLayout() const { return m_pipelineLayout; }
+    operator VkRenderPass() const { return m_renderPass; }
 
 private:
     const rcp<VulkanContext> m_vk;
-    const gpu::InterlockMode m_interlockMode;
-    const DrawPipelineLayoutOptions m_options;
-
-    VkDescriptorSetLayout m_plsTextureDescriptorSetLayout;
-    VkPipelineLayout m_pipelineLayout;
-    std::array<VkRenderPass, kRenderPassVariantCount> m_renderPasses = {};
+    // Raw pointer into impl->m_drawPipelineLayouts. RenderContextVulkanImpl
+    // ensures the pipline layouts outlive this RenderPass instance.
+    const DrawPipelineLayout* m_drawPipelineLayout;
+    VkRenderPass m_renderPass;
 };
 
 // Pipeline options that don't affect the shader.
@@ -1473,12 +1499,38 @@ enum class DrawPipelineOptions
     none = 0,
     wireframe = 1 << 0,
 };
-constexpr static int kDrawPipelineOptionCount = 1;
+constexpr static int DRAW_PIPELINE_OPTION_COUNT = 1;
 RIVE_MAKE_ENUM_BITSET(DrawPipelineOptions);
 
+// VkPipeline wrapper for Rive draw calls.
 class RenderContextVulkanImpl::DrawPipeline
 {
 public:
+    static uint64_t Key(DrawType drawType,
+                        ShaderFeatures shaderFeatures,
+                        InterlockMode interlockMode,
+                        ShaderMiscFlags shaderMiscFlags,
+                        DrawPipelineOptions drawPipelineOptions,
+                        uint32_t renderPassKey)
+    {
+        uint64_t key = gpu::ShaderUniqueKey(drawType,
+                                            shaderFeatures,
+                                            interlockMode,
+                                            shaderMiscFlags);
+
+        assert(key << DRAW_PIPELINE_OPTION_COUNT >>
+                   DRAW_PIPELINE_OPTION_COUNT ==
+               key);
+        key = (key << DRAW_PIPELINE_OPTION_COUNT) |
+              static_cast<uint32_t>(drawPipelineOptions);
+
+        assert(key << RenderPass::KEY_BIT_COUNT >> RenderPass::KEY_BIT_COUNT ==
+               key);
+        key = (key << RenderPass::KEY_BIT_COUNT) | renderPassKey;
+
+        return key;
+    }
+
     DrawPipeline(RenderContextVulkanImpl* impl,
                  gpu::DrawType drawType,
                  const DrawPipelineLayout& pipelineLayout,
@@ -1493,16 +1545,19 @@ public:
                                                   shaderFeatures,
                                                   interlockMode,
                                                   shaderMiscFlags);
-        const DrawShaderVulkan& drawShader = impl->m_drawShaders
-                                                 .try_emplace(shaderKey,
-                                                              m_vk.get(),
-                                                              drawType,
-                                                              interlockMode,
-                                                              shaderFeatures,
-                                                              shaderMiscFlags)
-                                                 .first->second;
         const uint32_t subpassIndex =
             drawType == gpu::DrawType::atomicResolve ? 1u : 0u;
+
+        std::unique_ptr<DrawShaderVulkan>& drawShader =
+            impl->m_drawShaders[shaderKey];
+        if (drawShader == nullptr)
+        {
+            drawShader = std::make_unique<DrawShaderVulkan>(m_vk.get(),
+                                                            drawType,
+                                                            interlockMode,
+                                                            shaderFeatures,
+                                                            shaderMiscFlags);
+        }
 
         uint32_t shaderPermutationFlags[SPECIALIZATION_COUNT] = {
             shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING,
@@ -1549,14 +1604,14 @@ public:
             {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                 .stage = VK_SHADER_STAGE_VERTEX_BIT,
-                .module = drawShader.vertexModule(),
+                .module = drawShader->vertexModule(),
                 .pName = "main",
                 .pSpecializationInfo = &specializationInfo,
             },
             {
                 .sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO,
                 .stage = VK_SHADER_STAGE_FRAGMENT_BIT,
-                .module = drawShader.fragmentModule(),
+                .module = drawShader->fragmentModule(),
                 .pName = "main",
                 .pSpecializationInfo = &specializationInfo,
             },
@@ -1744,7 +1799,7 @@ public:
         m_vk->DestroyPipeline(m_vk->device, m_vkPipeline, nullptr);
     }
 
-    const VkPipeline vkPipeline() const { return m_vkPipeline; }
+    operator VkPipeline() const { return m_vkPipeline; }
 
 private:
     const rcp<VulkanContext> m_vk;
@@ -2925,17 +2980,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         *coverageTextureView;
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {
-        clipView = renderTarget->ensureClipTextureView();
-        scratchColorTextureView = renderTarget->ensureScratchColorTextureView();
-        coverageTextureView = renderTarget->ensureCoverageTextureView();
+        clipView = renderTarget->clipTextureViewR32UI();
+        scratchColorTextureView = renderTarget->scratchColorTextureView();
+        coverageTextureView = renderTarget->coverageTextureView();
     }
     else if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
-        // In atomic mode, the clip plane is RGBA8. Just use the scratch color
-        // texture since it isn't otherwise used in atomic mode.
-        clipView = renderTarget->ensureScratchColorTextureView();
+        clipView = renderTarget->clipTextureViewRGBA8();
         scratchColorTextureView = nullptr;
-        coverageTextureView = renderTarget->ensureCoverageAtomicTextureView();
+        coverageTextureView = renderTarget->coverageAtomicTextureView();
     }
 
     // Ensure any previous accesses to the color texture complete before we
@@ -3022,25 +3075,23 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         }
     }
 
-    int pipelineLayoutIdx = (static_cast<int>(desc.interlockMode)
-                             << DRAW_PIPELINE_LAYOUT_OPTION_COUNT) |
-                            static_cast<int>(pipelineLayoutOptions);
-    assert(pipelineLayoutIdx < m_drawPipelineLayouts.size());
-    if (m_drawPipelineLayouts[pipelineLayoutIdx] == nullptr)
+    const uint32_t renderPassKey =
+        RenderPass::Key(desc.interlockMode,
+                        pipelineLayoutOptions,
+                        renderTarget->framebufferFormat(),
+                        desc.colorLoadAction);
+    std::unique_ptr<RenderPass>& renderPass = m_renderPasses[renderPassKey];
+    if (renderPass == nullptr)
     {
-        m_drawPipelineLayouts[pipelineLayoutIdx] =
-            std::make_unique<DrawPipelineLayout>(this,
-                                                 desc.interlockMode,
-                                                 pipelineLayoutOptions);
+        renderPass =
+            std::make_unique<RenderPass>(this,
+                                         desc.interlockMode,
+                                         pipelineLayoutOptions,
+                                         renderTarget->framebufferFormat(),
+                                         desc.colorLoadAction);
     }
-    DrawPipelineLayout& pipelineLayout =
-        *m_drawPipelineLayouts[pipelineLayoutIdx];
-
-    int renderPassVariantIdx = DrawPipelineLayout::RenderPassVariantIdx(
-        renderTarget->framebufferFormat(),
-        desc.colorLoadAction);
-    VkRenderPass vkRenderPass =
-        pipelineLayout.renderPassAt(renderPassVariantIdx);
+    const DrawPipelineLayout& pipelineLayout =
+        *renderPass->drawPipelineLayout();
 
     // Create the framebuffer.
     StackVector<VkImageView, DEPTH_STENCIL_IDX + 1> framebufferViews;
@@ -3078,7 +3129,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     }
 
     rcp<vkutil::Framebuffer> framebuffer = m_vk->makeFramebuffer({
-        .renderPass = vkRenderPass,
+        .renderPass = *renderPass,
         .attachmentCount = framebufferViews.size(),
         .pAttachments = framebufferViews.data(),
         .width = static_cast<uint32_t>(renderTarget->width()),
@@ -3129,13 +3180,13 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .image = renderTarget->coverageAtomicTexture(),
+                .image = *renderTarget->coverageAtomicTexture(),
             });
 
         const VkClearColorValue coverageClearValue =
             vkutil::color_clear_r32ui(desc.coverageClearValue);
         m_vk->CmdClearColorImage(commandBuffer,
-                                 renderTarget->coverageAtomicTexture(),
+                                 *renderTarget->coverageAtomicTexture(),
                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                  &coverageClearValue,
                                  1,
@@ -3153,7 +3204,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .image = renderTarget->coverageAtomicTexture(),
+                .image = *renderTarget->coverageAtomicTexture(),
             });
     }
     else if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic)
@@ -3222,7 +3273,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
     VkRenderPassBeginInfo renderPassBeginInfo = {
         .sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO,
-        .renderPass = vkRenderPass,
+        .renderPass = *renderPass,
         .framebuffer = *framebuffer,
         .renderArea = renderArea,
         .clearValueCount = std::size(clearValues),
@@ -3402,6 +3453,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             desc.interlockMode == gpu::InterlockMode::atomics
                 ? desc.combinedShaderFeatures
                 : batch.shaderFeatures;
+
         auto shaderMiscFlags = batch.shaderMiscFlags;
         if (desc.atomicFixedFunctionColorOutput)
         {
@@ -3419,39 +3471,33 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             shaderMiscFlags |=
                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
         }
-        uint32_t pipelineKey = gpu::ShaderUniqueKey(drawType,
-                                                    shaderFeatures,
-                                                    desc.interlockMode,
-                                                    shaderMiscFlags);
+
         auto drawPipelineOptions = DrawPipelineOptions::none;
         if (desc.wireframe && m_vk->features.fillModeNonSolid)
         {
             drawPipelineOptions |= DrawPipelineOptions::wireframe;
         }
-        assert(pipelineKey << kDrawPipelineOptionCount >>
-                   kDrawPipelineOptionCount ==
-               pipelineKey);
-        pipelineKey = (pipelineKey << kDrawPipelineOptionCount) |
-                      static_cast<uint32_t>(drawPipelineOptions);
-        assert(pipelineKey * DrawPipelineLayout::kRenderPassVariantCount /
-                   DrawPipelineLayout::kRenderPassVariantCount ==
-               pipelineKey);
-        pipelineKey =
-            (pipelineKey * DrawPipelineLayout::kRenderPassVariantCount) +
-            renderPassVariantIdx;
-        const DrawPipeline& drawPipeline = m_drawPipelines
-                                               .try_emplace(pipelineKey,
-                                                            this,
-                                                            drawType,
-                                                            pipelineLayout,
-                                                            shaderFeatures,
-                                                            shaderMiscFlags,
-                                                            drawPipelineOptions,
-                                                            vkRenderPass)
-                                               .first->second;
+
+        std::unique_ptr<DrawPipeline>& drawPipeline =
+            m_drawPipelines[DrawPipeline::Key(drawType,
+                                              shaderFeatures,
+                                              desc.interlockMode,
+                                              shaderMiscFlags,
+                                              drawPipelineOptions,
+                                              renderPassKey)];
+        if (drawPipeline == nullptr)
+        {
+            drawPipeline = std::make_unique<DrawPipeline>(this,
+                                                          drawType,
+                                                          pipelineLayout,
+                                                          shaderFeatures,
+                                                          shaderMiscFlags,
+                                                          drawPipelineOptions,
+                                                          *renderPass);
+        }
         m_vk->CmdBindPipeline(commandBuffer,
                               VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              drawPipeline.vkPipeline());
+                              *drawPipeline);
 
         if (batch.barriers & BarrierFlags::plsAtomicPreResolve)
         {

@@ -574,7 +574,7 @@ def main():
                 sharedlib = "lib%s.so" % tool
                 shutil.copy(os.path.join(args.builddir, sharedlib),
                             os.path.join(jnidir, arch_full_name))
-            if args.backend in ["vk", "vulkan", "sw", "swiftshader"]:
+            if "vk" in args.backend or "vulkan" in args.backend:
                 layerpath = os.path.join("dependencies", "Vulkan-ValidationLayers")
                 if not os.path.exists(layerpath):
                     # Download the Vulkan validation layers.

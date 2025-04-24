@@ -7,7 +7,6 @@
 
 #include "rive/rive_types.hpp"
 #include "rive/enum_bitset.hpp"
-#include "rive/math/vec2d.hpp"
 #include <memory>
 #include <vector>
 #include <string>
@@ -50,6 +49,7 @@ public:
         // System default Vulkan driver.
         vk,
         vkcore, // Vulkan with as few features enabled as possible.
+        vksrgb,
         vkcw,
 
         // Vulkan on Metal, aka MoltenVK.
@@ -92,6 +92,7 @@ public:
             case Backend::metalatomic:
             case Backend::vk:
             case Backend::vkcore:
+            case Backend::vksrgb:
             case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::moltenvkcore:
@@ -124,6 +125,7 @@ public:
             case Backend::metalatomic:
             case Backend::vk:
             case Backend::vkcore:
+            case Backend::vksrgb:
             case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::moltenvkcore:
@@ -144,6 +146,7 @@ public:
         {
             case Backend::vk:
             case Backend::vkcore:
+            case Backend::vksrgb:
             case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::moltenvkcore:
@@ -180,6 +183,7 @@ public:
             case Backend::metalatomic:
             case Backend::rhi:
             case Backend::vkcore:
+            case Backend::vksrgb:
             case Backend::vkcw:
             case Backend::moltenvkcore:
             case Backend::swiftshadercore:
@@ -220,9 +224,43 @@ public:
             case Backend::metal:
             case Backend::metalcw:
             case Backend::vk:
+            case Backend::vksrgb:
             case Backend::vkcw:
             case Backend::moltenvk:
             case Backend::swiftshader:
+            case Backend::angle:
+            case Backend::anglemsaa:
+            case Backend::dawn:
+            case Backend::rhi:
+            case Backend::coregraphics:
+            case Backend::skia:
+                return false;
+        }
+        RIVE_UNREACHABLE();
+    }
+
+    constexpr static bool IsSRGB(Backend backend)
+    {
+        switch (backend)
+        {
+            case Backend::vksrgb:
+                return true;
+            case Backend::glatomic:
+            case Backend::glcw:
+            case Backend::d3datomic:
+            case Backend::metalatomic:
+            case Backend::gl:
+            case Backend::glmsaa:
+            case Backend::d3d:
+            case Backend::metal:
+            case Backend::metalcw:
+            case Backend::vk:
+            case Backend::vkcore:
+            case Backend::vkcw:
+            case Backend::moltenvk:
+            case Backend::moltenvkcore:
+            case Backend::swiftshader:
+            case Backend::swiftshadercore:
             case Backend::angle:
             case Backend::anglemsaa:
             case Backend::dawn:
@@ -246,6 +284,7 @@ public:
             case Backend::d3datomic:
             case Backend::metalatomic:
             case Backend::vkcore:
+            case Backend::vksrgb:
             case Backend::vkcw:
             case Backend::moltenvkcore:
             case Backend::swiftshadercore:
@@ -278,13 +317,14 @@ public:
             case Backend::glmsaa:
             case Backend::d3datomic:
             case Backend::metalatomic:
-            case Backend::vkcore:
             case Backend::moltenvkcore:
             case Backend::swiftshadercore:
             case Backend::gl:
             case Backend::d3d:
             case Backend::metal:
             case Backend::vk:
+            case Backend::vkcore:
+            case Backend::vksrgb:
             case Backend::moltenvk:
             case Backend::swiftshader:
             case Backend::angle:
@@ -418,7 +458,14 @@ protected:
     uint32_t m_width = 0;
     uint32_t m_height = 0;
 
-private:
+    struct BackendParams
+    {
+        bool coreFeaturesOnly = false;
+        bool srgb = false;
+        bool clockwiseFill = false;
+        std::string gpuNameFilter;
+    };
+
     static TestingWindow* MakeGLFW(Backend, Visibility);
     static TestingWindow* MakeEGL(Backend, void* platformWindow);
 #ifdef _WIN32
@@ -430,14 +477,11 @@ private:
     static TestingWindow* MakeCoreGraphics();
     static TestingWindow* MakeFiddleContext(Backend,
                                             Visibility,
-                                            const char* gpuNameFilter,
+                                            const BackendParams&,
                                             void* platformWindow);
-    static TestingWindow* MakeVulkanTexture(bool coreFeaturesOnly,
-                                            bool clockwiseFill,
-                                            const char* gpuNameFilter);
-    static TestingWindow* MakeAndroidVulkan(void* platformWindow,
-                                            bool coreFeaturesOnly,
-                                            bool clockwiseFill);
+    static TestingWindow* MakeVulkanTexture(const BackendParams&);
+    static TestingWindow* MakeAndroidVulkan(const BackendParams&,
+                                            void* platformWindow);
     static TestingWindow* MakeSkia();
 };
 

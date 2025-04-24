@@ -97,4 +97,33 @@ private:
     }                                                                          \
     inline ENUM& operator|=(ENUM& lhs, ENUM rhs) { return lhs = lhs | rhs; }
 
+#define RIVE_DECL_ENUM_BITSET_FRIENDS(ENUM)                                    \
+    friend constexpr ::rive::EnumBitset<ENUM> operator&(                       \
+        ::rive::EnumBitset<ENUM>,                                              \
+        ::rive::EnumBitset<ENUM>);                                             \
+    friend constexpr ::rive::EnumBitset<ENUM> operator&(                       \
+        ENUM,                                                                  \
+        ::rive::EnumBitset<ENUM>);                                             \
+    friend constexpr ::rive::EnumBitset<ENUM> operator&(                       \
+        ::rive::EnumBitset<ENUM>,                                              \
+        ENUM);                                                                 \
+    friend constexpr ::rive::EnumBitset<ENUM> operator&(ENUM, ENUM);           \
+    friend constexpr ::rive::EnumBitset<ENUM> operator|(                       \
+        ::rive::EnumBitset<ENUM>,                                              \
+        ::rive::EnumBitset<ENUM>);                                             \
+    friend constexpr ::rive::EnumBitset<ENUM> operator|(                       \
+        ENUM,                                                                  \
+        ::rive::EnumBitset<ENUM>);                                             \
+    friend constexpr ::rive::EnumBitset<ENUM> operator|(                       \
+        ::rive::EnumBitset<ENUM>,                                              \
+        ENUM);                                                                 \
+    friend constexpr ::rive::EnumBitset<ENUM> operator|(ENUM lhs, ENUM rhs);   \
+    friend constexpr ::rive::EnumBitset<ENUM> operator~(                       \
+        ::rive::EnumBitset<ENUM> rhs);                                         \
+    friend constexpr ::rive::EnumBitset<ENUM> operator~(ENUM rhs);             \
+    friend ENUM& operator&=(ENUM& lhs, ::rive::EnumBitset<ENUM> rhs);          \
+    friend ENUM& operator&=(ENUM& lhs, ENUM rhs);                              \
+    friend ENUM& operator|=(ENUM& lhs, ::rive::EnumBitset<ENUM> rhs);          \
+    friend ENUM& operator|=(ENUM& lhs, ENUM rhs);
+
 #endif

@@ -7,7 +7,7 @@
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 #include <chrono>
-#include <map>
+#include <unordered_map>
 #include <vulkan/vulkan.h>
 
 namespace rive::gpu
@@ -212,19 +212,56 @@ private:
     // Coverage buffer used by shaders in clockwiseAtomic mode.
     rcp<vkutil::Buffer> m_coverageBuffer;
 
-    // A pipeline for each
-    // [rasterOrdering, atomics] x [all DrawPipelineLayoutOptions permutations].
-    class DrawPipelineLayout;
+    // Rive-specific options for configuring a flush's VkPipelineLayout.
+    enum class DrawPipelineLayoutOptions
+    {
+        none = 0,
+
+        // No need to attach the COLOR texture as an input attachment. There are
+        // no advanced blend modes so we can use built-in hardware blending.
+        fixedFunctionColorOutput = 1 << 0,
+
+        // Use an offscreen texture to render color, but also attach the real
+        // target texture at the COALESCED_ATOMIC_RESOLVE index, and render to
+        // it directly in the atomic resolve step.
+        coalescedResolveAndTransfer = 1 << 1,
+    };
     constexpr static int DRAW_PIPELINE_LAYOUT_OPTION_COUNT = 2;
-    std::array<std::unique_ptr<DrawPipelineLayout>,
-               gpu::kInterlockModeCount *
-                   (1 << DRAW_PIPELINE_LAYOUT_OPTION_COUNT)>
+
+    // A VkPipelineLayout for each
+    // interlockMode x [all DrawPipelineLayoutOptions permutations].
+    constexpr static uint32_t DrawPipelineLayoutIdx(
+        gpu::InterlockMode interlockMode,
+        DrawPipelineLayoutOptions options)
+    {
+        return (static_cast<int>(interlockMode)
+                << DRAW_PIPELINE_LAYOUT_OPTION_COUNT) |
+               static_cast<int>(options);
+    }
+    constexpr static int DRAW_PIPELINE_LAYOUT_COUNT =
+        gpu::kInterlockModeCount * (1 << DRAW_PIPELINE_LAYOUT_OPTION_COUNT);
+    constexpr static int DRAW_PIPELINE_LAYOUT_BIT_COUNT =
+        DRAW_PIPELINE_LAYOUT_OPTION_COUNT + 2;
+    static_assert((1 << DRAW_PIPELINE_LAYOUT_BIT_COUNT) >=
+                  DRAW_PIPELINE_LAYOUT_COUNT);
+    static_assert((1 << (DRAW_PIPELINE_LAYOUT_BIT_COUNT - 1)) <
+                  DRAW_PIPELINE_LAYOUT_COUNT);
+    RIVE_DECL_ENUM_BITSET_FRIENDS(DrawPipelineLayoutOptions);
+
+    // VkPipelineLayout wrapper for Rive flushes.
+    class DrawPipelineLayout;
+    std::array<std::unique_ptr<DrawPipelineLayout>, DRAW_PIPELINE_LAYOUT_COUNT>
         m_drawPipelineLayouts;
 
-    std::map<uint32_t, DrawShaderVulkan> m_drawShaders;
+    // VkRenderPass wrapper for Rive flushes.
+    class RenderPass;
+    std::unordered_map<uint32_t, std::unique_ptr<RenderPass>> m_renderPasses;
 
+    // VkPipeline wrapper for Rive draw calls.
     class DrawPipeline;
-    std::map<uint32_t, DrawPipeline> m_drawPipelines;
+    std::unordered_map<uint32_t, std::unique_ptr<DrawShaderVulkan>>
+        m_drawShaders;
+    std::unordered_map<uint64_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
 
     // Gaussian integral table for feathering.
     rcp<TextureVulkanImpl> m_featherTexture;
@@ -248,4 +285,5 @@ private:
 
     rcp<DescriptorSetPoolPool> m_descriptorSetPoolPool;
 };
+RIVE_MAKE_ENUM_BITSET(RenderContextVulkanImpl::DrawPipelineLayoutOptions);
 } // namespace rive::gpu

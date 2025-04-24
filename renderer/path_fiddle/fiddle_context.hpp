@@ -13,6 +13,7 @@ struct FiddleContextOptions
     bool enableReadPixels = false;
     bool disableRasterOrdering = false;
     bool coreFeaturesOnly = false;
+    bool srgb = false;
     // Allow rendering to a texture instead of an OS window. (Speeds up the
     // execution of goldens & gms significantly on Vulkan/Windows.)
     bool allowHeadlessRendering = false;
