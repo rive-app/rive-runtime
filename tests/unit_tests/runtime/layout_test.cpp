@@ -1,4 +1,5 @@
 #include "rive/layout/layout_component_style.hpp"
+#include "rive/layout/layout_enums.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/rectangle.hpp"
 #include "rive/text/text.hpp"
@@ -335,4 +336,87 @@ TEST_CASE("LayoutComponent forcedWidth/Height dirt test", "[layout]")
     layout->forcedHeight(150);
     // Setting the same values should result in no added dirt
     REQUIRE(layout->hasDirt(rive::ComponentDirt::LayoutStyle) == false);
+}
+
+TEST_CASE("LayoutComponent Alignment", "[layout]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_alignment.riv");
+
+    auto artboard = file->artboard();
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("LayoutContainer") !=
+            nullptr);
+    auto container = artboard->find<rive::LayoutComponent>("LayoutContainer");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("Layout1") != nullptr);
+    auto layout1 = artboard->find<rive::LayoutComponent>("Layout1");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("Layout2") != nullptr);
+    auto layout2 = artboard->find<rive::LayoutComponent>("Layout2");
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("Layout3") != nullptr);
+    auto layout3 = artboard->find<rive::LayoutComponent>("Layout3");
+
+    auto style = container->style();
+    REQUIRE(style != nullptr);
+
+    // LayoutAlignmentType::spaceBetweenStart
+    container->style()->layoutAlignmentType(9);
+
+    artboard->advance(0.0f);
+    auto target1Components = layout1->worldTransform().decompose();
+    auto target2Components = layout2->worldTransform().decompose();
+    auto target3Components = layout3->worldTransform().decompose();
+
+    REQUIRE(target1Components.x() == 0);
+    REQUIRE(target2Components.x() == 200);
+    REQUIRE(target3Components.x() == 400);
+    REQUIRE(target1Components.y() == 0);
+    REQUIRE(target2Components.y() == 0);
+    REQUIRE(target3Components.y() == 0);
+
+    // LayoutAlignmentType::spaceBetweenCenter
+    container->style()->layoutAlignmentType(10);
+
+    artboard->advance(0.0f);
+    target1Components = layout1->worldTransform().decompose();
+    target2Components = layout2->worldTransform().decompose();
+    target3Components = layout3->worldTransform().decompose();
+
+    REQUIRE(target1Components.x() == 0);
+    REQUIRE(target2Components.x() == 200);
+    REQUIRE(target3Components.x() == 400);
+    REQUIRE(target1Components.y() == 200);
+    REQUIRE(target2Components.y() == 200);
+    REQUIRE(target3Components.y() == 200);
+
+    // YGFlexDirectionColumn
+    container->style()->flexDirectionValue(0);
+
+    artboard->advance(0.0f);
+    target1Components = layout1->worldTransform().decompose();
+    target2Components = layout2->worldTransform().decompose();
+    target3Components = layout3->worldTransform().decompose();
+
+    REQUIRE(target1Components.x() == 200);
+    REQUIRE(target2Components.x() == 200);
+    REQUIRE(target3Components.x() == 200);
+    REQUIRE(target1Components.y() == 0);
+    REQUIRE(target2Components.y() == 200);
+    REQUIRE(target3Components.y() == 400);
+
+    // LayoutAlignmentType::spaceBetweenEnd
+    container->style()->layoutAlignmentType(11);
+
+    artboard->advance(0.0f);
+    target1Components = layout1->worldTransform().decompose();
+    target2Components = layout2->worldTransform().decompose();
+    target3Components = layout3->worldTransform().decompose();
+
+    REQUIRE(target1Components.x() == 400);
+    REQUIRE(target2Components.x() == 400);
+    REQUIRE(target3Components.x() == 400);
+    REQUIRE(target1Components.y() == 0);
+    REQUIRE(target2Components.y() == 200);
+    REQUIRE(target3Components.y() == 400);
 }

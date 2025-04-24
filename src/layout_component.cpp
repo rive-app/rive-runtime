@@ -614,7 +614,6 @@ void LayoutComponent::syncStyle()
         case LayoutAlignmentType::topLeft:
         case LayoutAlignmentType::topCenter:
         case LayoutAlignmentType::topRight:
-        case LayoutAlignmentType::spaceBetweenStart:
             if (isRowForAlignment)
             {
                 ygStyle.alignItems() = YGAlignFlexStart;
@@ -628,7 +627,6 @@ void LayoutComponent::syncStyle()
         case LayoutAlignmentType::centerLeft:
         case LayoutAlignmentType::center:
         case LayoutAlignmentType::centerRight:
-        case LayoutAlignmentType::spaceBetweenCenter:
             if (isRowForAlignment)
             {
                 ygStyle.alignItems() = YGAlignCenter;
@@ -642,7 +640,6 @@ void LayoutComponent::syncStyle()
         case LayoutAlignmentType::bottomLeft:
         case LayoutAlignmentType::bottomCenter:
         case LayoutAlignmentType::bottomRight:
-        case LayoutAlignmentType::spaceBetweenEnd:
             if (isRowForAlignment)
             {
                 ygStyle.alignItems() = YGAlignFlexEnd;
@@ -652,6 +649,8 @@ void LayoutComponent::syncStyle()
             {
                 ygStyle.justifyContent() = YGJustifyFlexEnd;
             }
+            break;
+        default:
             break;
     }
     switch (m_style->alignmentType())
@@ -696,8 +695,18 @@ void LayoutComponent::syncStyle()
             }
             break;
         case LayoutAlignmentType::spaceBetweenStart:
+            ygStyle.alignItems() = YGAlignFlexStart;
+            ygStyle.alignContent() = YGAlignFlexStart;
+            ygStyle.justifyContent() = YGJustifySpaceBetween;
+            break;
         case LayoutAlignmentType::spaceBetweenCenter:
+            ygStyle.alignItems() = YGAlignCenter;
+            ygStyle.alignContent() = YGAlignCenter;
+            ygStyle.justifyContent() = YGJustifySpaceBetween;
+            break;
         case LayoutAlignmentType::spaceBetweenEnd:
+            ygStyle.alignItems() = YGAlignFlexEnd;
+            ygStyle.alignContent() = YGAlignFlexEnd;
             ygStyle.justifyContent() = YGJustifySpaceBetween;
             break;
     }
