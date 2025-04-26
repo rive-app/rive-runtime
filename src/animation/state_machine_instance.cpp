@@ -1856,6 +1856,10 @@ void StateMachineInstance::clearDataContext()
         delete m_DataContext;
         m_DataContext = nullptr;
     }
+    for (auto dataBind : m_dataBinds)
+    {
+        dataBind->unbind();
+    }
     m_ownsDataContext = false;
 }
 

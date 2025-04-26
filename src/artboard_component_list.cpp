@@ -95,8 +95,7 @@ std::unique_ptr<StateMachineInstance> ArtboardComponentList::
 {
     if (artboard != nullptr)
     {
-        auto mainArtboard = target->artboard();
-        auto dataContext = mainArtboard->dataContext();
+        auto dataContext = artboard->dataContext();
         auto stateMachineInstance = artboard->stateMachineAt(0);
         stateMachineInstance->dataContext(dataContext);
         return stateMachineInstance;
