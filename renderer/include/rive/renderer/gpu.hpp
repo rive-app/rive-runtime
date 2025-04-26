@@ -1163,7 +1163,9 @@ public:
 
     void operator=(const FlushUniforms& rhs)
     {
-        memcpy(this, &rhs, sizeof(*this) - sizeof(m_padTo256Bytes));
+        memcpy(static_cast<void*>(this),
+               &rhs,
+               sizeof(*this) - sizeof(m_padTo256Bytes));
     }
 
     bool operator!=(const FlushUniforms& rhs) const
@@ -1554,7 +1556,7 @@ public:
         T* dst = push(count);
         if (values != nullptr)
         {
-            memcpy(dst, values, count * sizeof(T));
+            memcpy(static_cast<void*>(dst), values, count * sizeof(T));
         }
     }
     void skip_back() { push(); }
