@@ -62,3 +62,63 @@ int UTF::ToUTF16(Unichar uni, uint16_t utf16[])
     utf16[0] = castTo<uint16_t>(uni);
     return 1;
 }
+
+uint32_t UTF::CountCodePointLength(Span<const Unichar> codepoints)
+{
+    uint32_t length = 0;
+    for (auto codepoint : codepoints)
+    {
+        if (codepoint <= 0x7F)
+        {
+            length += 1;
+        }
+        else if (codepoint <= 0x07FF)
+        {
+            length += 2;
+        }
+        else if (codepoint <= 0xFFFF)
+        {
+            length += 3;
+        }
+        else if (codepoint <= 0x10FFFF)
+        {
+            length += 4;
+        }
+    }
+    return length;
+}
+
+uint32_t UTF::Encode(uint8_t* output, Unichar codepoint)
+{
+    if (codepoint <= 0x7F)
+    {
+        output[0] = (uint8_t)codepoint;
+        return 1;
+    }
+    else if (codepoint <= 0x07FF)
+    {
+        output[0] = (uint8_t)(((codepoint >> 6) & 0x1F) | 0xC0);
+        output[1] = (uint8_t)(((codepoint >> 0) & 0x3F) | 0x80);
+        return 2;
+    }
+    else if (codepoint <= 0xFFFF)
+    {
+        output[0] = (uint8_t)(((codepoint >> 12) & 0x0F) | 0xE0);
+        output[1] = (uint8_t)(((codepoint >> 6) & 0x3F) | 0x80);
+        output[2] = (uint8_t)(((codepoint >> 0) & 0x3F) | 0x80);
+        return 3;
+    }
+    else if (codepoint <= 0x10FFFF)
+    {
+        output[0] = (uint8_t)(((codepoint >> 18) & 0x07) | 0xF0);
+        output[1] = (uint8_t)(((codepoint >> 12) & 0x3F) | 0x80);
+        output[2] = (uint8_t)(((codepoint >> 6) & 0x3F) | 0x80);
+        output[3] = (uint8_t)(((codepoint >> 0) & 0x3F) | 0x80);
+        return 4;
+    }
+    else
+    {
+        // error
+        return 0;
+    }
+}

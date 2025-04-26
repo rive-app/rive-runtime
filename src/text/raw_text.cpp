@@ -26,7 +26,7 @@ void RawText::append(const std::string& text,
     }
     if (styleIndex == m_styles.size())
     {
-        m_styles.push_back({paint, m_factory->makeEmptyRenderPath(), true});
+        m_styles.push_back({paint, true});
     }
     m_styled.append(font, size, lineHeight, letterSpacing, text, styleIndex);
     m_dirty = true;
@@ -108,7 +108,7 @@ void RawText::update()
 {
     for (RenderStyle& style : m_styles)
     {
-        style.path->rewind();
+        style.path.rewind();
         style.isEmpty = true;
     }
     m_renderStyles.clear();
@@ -117,6 +117,7 @@ void RawText::update()
         return;
     }
     auto runs = m_styled.runs();
+
     m_shape = runs[0].font->shapeText(m_styled.unichars(), runs);
     m_lines =
         Text::BreakLines(m_shape,
@@ -263,6 +264,7 @@ void RawText::update()
                     break;
             }
 
+            float renderY = y + line.baseline;
             if (lineIndex >= m_orderedLines.size())
             {
                 // We need to still compute this line's ordered runs.
@@ -272,12 +274,13 @@ void RawText::update()
                                 m_maxWidth,
                                 ellipsisLine == lineIndex,
                                 isEllipsisLineLast,
-                                &m_ellipsisRun));
+                                &m_ellipsisRun,
+                                renderY));
             }
 
             const OrderedLine& orderedLine = m_orderedLines[lineIndex];
             float x = line.startX;
-            float renderY = y + line.baseline;
+
             for (auto glyphItr : orderedLine)
             {
                 const GlyphRun* run = std::get<0>(glyphItr);
@@ -291,19 +294,19 @@ void RawText::update()
 
                 RawPath path = font->getPath(glyphId);
 
-                path.transformInPlace(Mat2D(run->size,
-                                            0.0f,
-                                            0.0f,
-                                            run->size,
-                                            x + offset.x,
-                                            renderY + offset.y));
-
-                x += advance;
-
                 assert(run->styleId < m_styles.size());
                 RenderStyle* style = &m_styles[run->styleId];
                 assert(style != nullptr);
-                path.addTo(style->path.get());
+
+                Mat2D transform(run->size,
+                                0.0f,
+                                0.0f,
+                                run->size,
+                                x + offset.x,
+                                renderY + offset.y);
+
+                x += advance;
+                style->path.addPathClockwise(path, &transform);
 
                 if (style->isEmpty)
                 {
@@ -356,7 +359,7 @@ void RawText::render(Renderer* renderer, rcp<RenderPaint> paint)
         auto renderPaint = paint ? paint.get() : style->paint.get();
         if (renderPaint != nullptr)
         {
-            renderer->drawPath(style->path.get(), renderPaint);
+            renderer->drawPath(style->path.renderPath(m_factory), renderPaint);
         }
     }
     if (m_overflow == TextOverflow::clipped && m_clipRenderPath)

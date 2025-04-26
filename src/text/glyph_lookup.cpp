@@ -52,3 +52,37 @@ uint32_t GlyphLookup::count(uint32_t index) const
     }
     return count;
 }
+
+float GlyphLookup::advanceFactor(int32_t codePointIndex, bool inv) const
+{
+    if (codePointIndex < 0 || codePointIndex >= (int32_t)m_glyphIndices.size())
+    {
+        return 0.0f;
+    }
+    uint32_t glyphIndex = m_glyphIndices[codePointIndex];
+    int32_t start = codePointIndex;
+    while (start > 0)
+    {
+        if (m_glyphIndices[start - 1] != glyphIndex)
+        {
+            break;
+        }
+        start--;
+    }
+    int32_t end = codePointIndex;
+    while (end < m_glyphIndices.size() - 1)
+    {
+        if (m_glyphIndices[end + 1] != glyphIndex)
+        {
+            break;
+        }
+        end++;
+    }
+
+    float f = (codePointIndex - start) / (float)(end - start + 1);
+    if (inv)
+    {
+        return 1.0f - f;
+    }
+    return f;
+}

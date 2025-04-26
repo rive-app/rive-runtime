@@ -14,9 +14,9 @@ using namespace rive;
 /// Compute an ideal control point distance to create a curve of the given
 /// radius. Based on "natural rounding"
 /// https://observablehq.com/@daformat/rounding-polygon-corners
-static float computeIdealControlPointDistance(const Vec2D& toPrev,
-                                              const Vec2D& toNext,
-                                              float radius)
+float Path::computeIdealControlPointDistance(const Vec2D& toPrev,
+                                             const Vec2D& toNext,
+                                             float radius)
 {
     // Get the angle between next and prev
     float angle = fabs(
@@ -183,7 +183,9 @@ void Path::buildPath(RawPath& rawPath) const
                 toPrevLength / 2.0f,
                 std::min(toNextLength / 2.0f, radius > 0 ? radius : -radius));
             float idealDistance =
-                computeIdealControlPointDistance(toPrev, toNext, renderRadius);
+                Path::computeIdealControlPointDistance(toPrev,
+                                                       toNext,
+                                                       renderRadius);
 
             startIn = start = Vec2D::scaleAndAdd(pos, toPrev, renderRadius);
             rawPath.move(startIn);

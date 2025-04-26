@@ -80,10 +80,17 @@ public:
         return ContourPointItr(m_points, m_points.size());
     }
 
-#ifdef TESTING
     size_t size() const { return m_points.size(); }
     Vec2D point(size_t index) const { return m_points[index].vec; }
-#endif
+    Vec2D point(size_t index, bool reversed) const
+    {
+        if (reversed)
+        {
+            return m_points[m_points.size() - 1 - index].vec;
+        }
+        return m_points[index].vec;
+    }
+    bool isClockwise() const;
 
 private:
     Span<const ContourPoint> m_points;

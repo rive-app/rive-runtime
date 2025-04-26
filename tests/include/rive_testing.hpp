@@ -3,7 +3,8 @@
 
 #include <catch.hpp>
 #include <sstream>
-#include <rive/math/mat2d.hpp>
+#include "rive/math/mat2d.hpp"
+#include "rive/text/cursor.hpp"
 
 bool aboutEqual(const rive::Mat2D& a, const rive::Mat2D& b);
 
@@ -21,6 +22,16 @@ template <> struct StringMaker<rive::Mat2D>
         std::ostringstream os;
         os << value[0] << ", " << value[1] << ", " << value[2] << ", "
            << value[3] << ", " << value[4] << ", " << value[5];
+        return os.str();
+    }
+};
+template <> struct StringMaker<rive::CursorPosition>
+{
+    static std::string convert(rive::CursorPosition const& value)
+    {
+        std::ostringstream os;
+        os << "Line: " << value.lineIndex()
+           << ", CodePointIndex: " << value.codePointIndex();
         return os.str();
     }
 };

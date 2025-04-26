@@ -348,3 +348,19 @@ ContourPointItr& ContourPointItr::operator++()
 }
 
 Vec2D ContourPointItr::operator*() const { return m_contour[m_pointIndex].vec; }
+
+bool Contour::isClockwise() const
+{
+    float a = 0.0f;
+    size_t size = m_points.size();
+    if (size < 1)
+    {
+        return true;
+    }
+    for (size_t i = 1; i < size; i++)
+    {
+        a += Vec2D::cross(m_points[i - 1].vec, m_points[i].vec);
+    }
+    a += Vec2D::cross(m_points[size - 1].vec, m_points[0].vec);
+    return a * 0.5f >= 0;
+}

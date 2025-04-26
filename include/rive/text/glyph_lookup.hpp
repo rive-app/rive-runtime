@@ -18,9 +18,29 @@ private:
 
 public:
     uint32_t count(uint32_t index) const;
+    size_t size() const { return m_glyphIndices.size(); }
+
+    // Returns the glyph index from the computed shape given the codePointIndex
+    // in the original text.
+    uint32_t operator[](uint32_t codePointIndex) const
+    {
+        assert(codePointIndex >= 0 &&
+               codePointIndex < (uint32_t)m_glyphIndices.size());
+        return m_glyphIndices[codePointIndex];
+    }
+
+    uint32_t lastCodeUnitIndex() const
+    {
+        return m_glyphIndices.size() == 0
+                   ? 0
+                   : (uint32_t)(m_glyphIndices.size() - 1);
+    }
 
     bool empty() const { return m_glyphIndices.empty(); }
     void clear() { m_glyphIndices.clear(); }
+
+    // How far this codePoint index is within the glyph.
+    float advanceFactor(int32_t codePointIndex, bool inv) const;
 };
 } // namespace rive
 

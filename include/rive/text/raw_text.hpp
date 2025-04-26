@@ -66,8 +66,8 @@ private:
     struct RenderStyle
     {
         rcp<RenderPaint> paint;
-        rcp<RenderPath> path;
         bool isEmpty;
+        ShapePaintPath path;
     };
     SimpleArray<Paragraph> m_shape;
     SimpleArray<SimpleArray<GlyphLine>> m_lines;
