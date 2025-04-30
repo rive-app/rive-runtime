@@ -51,6 +51,66 @@
       },
       "description": "Display style of the node in the editor. 0 for group and 1 for target.",
       "runtime": false
+    },
+    "computedLocalX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 806,
+        "string": "computedlocalx"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedLocalY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 807,
+        "string": "computedlocaly"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedWorldX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 808,
+        "string": "computedworldx"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedWorldY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 809,
+        "string": "computedworldy"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedWidth": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 810,
+        "string": "computedwidth"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedHeight": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 811,
+        "string": "computedheight"
+      },
+      "bindable": true,
+      "passthrough": true
     }
   }
 }

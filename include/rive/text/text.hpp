@@ -104,6 +104,8 @@ public:
     {
         return std::isnan(m_layoutHeight) ? height() : m_layoutHeight;
     }
+    float computedWidth() override { return localBounds().width(); };
+    float computedHeight() override { return localBounds().height(); };
 #ifdef WITH_RIVE_TEXT
     const std::vector<TextValueRun*>& runs() const { return m_runs; }
     static SimpleArray<SimpleArray<GlyphLine>> BreakLines(

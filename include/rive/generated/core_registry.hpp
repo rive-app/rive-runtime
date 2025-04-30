@@ -1619,6 +1619,24 @@ public:
             case NodeBase::yArtboardPropertyKey:
                 object->as<NodeBase>()->y(value);
                 break;
+            case NodeBase::computedLocalXPropertyKey:
+                object->as<NodeBase>()->computedLocalX(value);
+                break;
+            case NodeBase::computedLocalYPropertyKey:
+                object->as<NodeBase>()->computedLocalY(value);
+                break;
+            case NodeBase::computedWorldXPropertyKey:
+                object->as<NodeBase>()->computedWorldX(value);
+                break;
+            case NodeBase::computedWorldYPropertyKey:
+                object->as<NodeBase>()->computedWorldY(value);
+                break;
+            case NodeBase::computedWidthPropertyKey:
+                object->as<NodeBase>()->computedWidth(value);
+                break;
+            case NodeBase::computedHeightPropertyKey:
+                object->as<NodeBase>()->computedHeight(value);
+                break;
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
                 object->as<NestedArtboardLayoutBase>()->instanceWidth(value);
                 break;
@@ -2846,6 +2864,18 @@ public:
             case NodeBase::yPropertyKey:
             case NodeBase::yArtboardPropertyKey:
                 return object->as<NodeBase>()->y();
+            case NodeBase::computedLocalXPropertyKey:
+                return object->as<NodeBase>()->computedLocalX();
+            case NodeBase::computedLocalYPropertyKey:
+                return object->as<NodeBase>()->computedLocalY();
+            case NodeBase::computedWorldXPropertyKey:
+                return object->as<NodeBase>()->computedWorldX();
+            case NodeBase::computedWorldYPropertyKey:
+                return object->as<NodeBase>()->computedWorldY();
+            case NodeBase::computedWidthPropertyKey:
+                return object->as<NodeBase>()->computedWidth();
+            case NodeBase::computedHeightPropertyKey:
+                return object->as<NodeBase>()->computedHeight();
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
                 return object->as<NestedArtboardLayoutBase>()->instanceWidth();
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
@@ -3497,6 +3527,12 @@ public:
             case NodeBase::xArtboardPropertyKey:
             case NodeBase::yPropertyKey:
             case NodeBase::yArtboardPropertyKey:
+            case NodeBase::computedLocalXPropertyKey:
+            case NodeBase::computedLocalYPropertyKey:
+            case NodeBase::computedWorldXPropertyKey:
+            case NodeBase::computedWorldYPropertyKey:
+            case NodeBase::computedWidthPropertyKey:
+            case NodeBase::computedHeightPropertyKey:
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
             case NestedArtboardLayoutBase::instanceHeightPropertyKey:
             case AxisBase::offsetPropertyKey:
@@ -4269,6 +4305,18 @@ public:
                 return object->is<NodeBase>();
             case NodeBase::yPropertyKey:
             case NodeBase::yArtboardPropertyKey:
+                return object->is<NodeBase>();
+            case NodeBase::computedLocalXPropertyKey:
+                return object->is<NodeBase>();
+            case NodeBase::computedLocalYPropertyKey:
+                return object->is<NodeBase>();
+            case NodeBase::computedWorldXPropertyKey:
+                return object->is<NodeBase>();
+            case NodeBase::computedWorldYPropertyKey:
+                return object->is<NodeBase>();
+            case NodeBase::computedWidthPropertyKey:
+                return object->is<NodeBase>();
+            case NodeBase::computedHeightPropertyKey:
                 return object->is<NodeBase>();
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
                 return object->is<NestedArtboardLayoutBase>();

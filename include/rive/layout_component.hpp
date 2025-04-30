@@ -139,6 +139,10 @@ protected:
     bool isDisplayHidden() const;
     void propagateCollapse(bool collapse);
     bool collapse(bool value) override;
+    float computedLocalX() override { return m_layout.left(); };
+    float computedLocalY() override { return m_layout.top(); };
+    float computedWidth() override { return m_layout.width(); };
+    float computedHeight() override { return m_layout.height(); };
 
 private:
     float m_widthOverride = NAN;
