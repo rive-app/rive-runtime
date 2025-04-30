@@ -98,6 +98,12 @@ void LayoutComponent::heightOverride(float height, int unitValue, bool isRow)
     markLayoutNodeDirty();
 }
 
+void LayoutComponent::parentIsRow(bool isRow)
+{
+    m_parentIsRow = isRow;
+    markLayoutNodeDirty();
+}
+
 void LayoutComponent::widthIntrinsicallySizeOverride(bool intrinsic)
 {
     m_widthIntrinsicallySizeOverride = intrinsic;

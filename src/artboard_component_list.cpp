@@ -38,7 +38,21 @@ void* ArtboardComponentList::layoutNode(int index)
 
 void ArtboardComponentList::markLayoutNodeDirty(
     bool shouldForceUpdateLayoutBounds)
-{}
+{
+    bool parentIsRow = true;
+    if (parent()->is<LayoutComponent>())
+    {
+        parentIsRow = parent()->as<LayoutComponent>()->mainAxisIsRow();
+    }
+    for (int i = 0; i < artboardCount(); i++)
+    {
+        auto artboard = artboardInstance(i);
+        if (artboard != nullptr)
+        {
+            artboard->parentIsRow(parentIsRow);
+        }
+    }
+}
 
 void ArtboardComponentList::updateLayoutBounds(bool animate)
 {
@@ -129,6 +143,7 @@ void ArtboardComponentList::updateList(
         parent()->as<LayoutComponent>()->syncLayoutChildren();
 #endif
     }
+    markLayoutNodeDirty();
     addDirt(ComponentDirt::Components);
 }
 

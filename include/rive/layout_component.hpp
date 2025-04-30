@@ -223,6 +223,7 @@ public:
     // layout's width/height and unit values.
     void widthOverride(float width, int unitValue = 1, bool isRow = true);
     void heightOverride(float height, int unitValue = 1, bool isRow = true);
+    void parentIsRow(bool isRow);
     void widthIntrinsicallySizeOverride(bool intrinsic);
     void heightIntrinsicallySizeOverride(bool intrinsic);
     virtual bool canHaveOverrides() { return false; }
