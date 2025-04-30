@@ -10,8 +10,8 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions)
 #else
 
 #include "rive/renderer/rive_renderer.hpp"
-#include "rive/renderer/d3d/render_context_d3d_impl.hpp"
-#include "rive/renderer/d3d/d3d11.hpp"
+#include "rive/renderer/d3d11/render_context_d3d_impl.hpp"
+#include "rive/renderer/d3d11/d3d11.hpp"
 #include <array>
 #include <dxgi1_2.h>
 
@@ -26,11 +26,12 @@ using namespace rive::gpu;
 class FiddleContextD3DPLS : public FiddleContext
 {
 public:
-    FiddleContextD3DPLS(
-        ComPtr<IDXGIFactory2> d3dFactory,
-        ComPtr<ID3D11Device> gpu,
-        ComPtr<ID3D11DeviceContext> gpuContext,
-        const RenderContextD3DImpl::ContextOptions& contextOptions) :
+    FiddleContextD3DPLS(ComPtr<IDXGIFactory2> d3dFactory,
+                        ComPtr<ID3D11Device> gpu,
+                        ComPtr<ID3D11DeviceContext> gpuContext,
+                        bool isHeadless,
+                        const D3DContextOptions& contextOptions) :
+        m_isHeadless(isHeadless),
         m_d3dFactory(std::move(d3dFactory)),
         m_gpu(std::move(gpu)),
         m_gpuContext(std::move(gpuContext)),
@@ -58,24 +59,43 @@ public:
                        int height,
                        uint32_t sampleCount) override
     {
-        m_swapchain.Reset();
+        if (!m_isHeadless)
+        {
+            m_swapchain.Reset();
 
-        DXGI_SWAP_CHAIN_DESC1 scd{};
-        scd.Width = width;
-        scd.Height = height;
-        scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
-        scd.SampleDesc.Count = 1;
-        scd.BufferUsage =
-            DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS;
-        scd.BufferCount = 2;
-        scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
-        VERIFY_OK(m_d3dFactory->CreateSwapChainForHwnd(
-            m_gpu.Get(),
-            glfwGetWin32Window(window),
-            &scd,
-            NULL,
-            NULL,
-            m_swapchain.ReleaseAndGetAddressOf()));
+            DXGI_SWAP_CHAIN_DESC1 scd{};
+            scd.Width = width;
+            scd.Height = height;
+            scd.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            scd.SampleDesc.Count = 1;
+            scd.BufferUsage =
+                DXGI_USAGE_RENDER_TARGET_OUTPUT | DXGI_USAGE_UNORDERED_ACCESS;
+            scd.BufferCount = 2;
+            scd.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+            VERIFY_OK(m_d3dFactory->CreateSwapChainForHwnd(
+                m_gpu.Get(),
+                glfwGetWin32Window(window),
+                &scd,
+                NULL,
+                NULL,
+                m_swapchain.ReleaseAndGetAddressOf()));
+        }
+        else
+        {
+            D3D11_TEXTURE2D_DESC desc{};
+            desc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
+            desc.MipLevels = 1;
+            desc.Width = width;
+            desc.Height = height;
+            desc.SampleDesc.Count = 1;
+            desc.ArraySize = 1;
+            desc.Usage = D3D11_USAGE_DEFAULT;
+            desc.BindFlags = D3D11_BIND_RENDER_TARGET;
+            desc.CPUAccessFlags = 0;
+            desc.MiscFlags = 0;
+            VERIFY_OK(
+                m_gpu->CreateTexture2D(&desc, NULL, &m_headlessDrawTexture));
+        }
 
         auto renderContextImpl =
             m_renderContext->static_impl_cast<RenderContextD3DImpl>();
@@ -100,12 +120,20 @@ public:
     {
         if (m_renderTarget->targetTexture() == nullptr)
         {
-            ComPtr<ID3D11Texture2D> backbuffer;
-            VERIFY_OK(m_swapchain->GetBuffer(
-                0,
-                __uuidof(ID3D11Texture2D),
-                reinterpret_cast<void**>(backbuffer.ReleaseAndGetAddressOf())));
-            m_renderTarget->setTargetTexture(backbuffer);
+            if (m_isHeadless)
+            {
+                m_renderTarget->setTargetTexture(m_headlessDrawTexture);
+            }
+            else
+            {
+                ComPtr<ID3D11Texture2D> backbuffer;
+                VERIFY_OK(m_swapchain->GetBuffer(
+                    0,
+                    __uuidof(ID3D11Texture2D),
+                    reinterpret_cast<void**>(
+                        backbuffer.ReleaseAndGetAddressOf())));
+                m_renderTarget->setTargetTexture(backbuffer);
+            }
         }
         m_renderContext->flush({.renderTarget = m_renderTarget.get()});
     }
@@ -153,17 +181,21 @@ public:
             }
             m_gpuContext->Unmap(m_readbackTexture.Get(), 0);
         }
-        m_swapchain->Present(0, 0);
+
+        if (!m_isHeadless)
+            m_swapchain->Present(0, 0);
 
         m_renderTarget->setTargetTexture(nullptr);
     }
 
 private:
+    const bool m_isHeadless;
     ComPtr<IDXGIFactory2> m_d3dFactory;
     ComPtr<ID3D11Device> m_gpu;
     ComPtr<ID3D11DeviceContext> m_gpuContext;
     ComPtr<IDXGISwapChain1> m_swapchain;
     ComPtr<ID3D11Texture2D> m_readbackTexture;
+    ComPtr<ID3D11Texture2D> m_headlessDrawTexture;
     std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetD3D> m_renderTarget;
 };
@@ -179,7 +211,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(
 
     ComPtr<IDXGIAdapter> adapter;
     DXGI_ADAPTER_DESC adapterDesc{};
-    RenderContextD3DImpl::ContextOptions contextOptions;
+    D3DContextOptions contextOptions;
     if (fiddleOptions.disableRasterOrdering)
     {
         contextOptions.disableRasterizerOrderedViews = true;
@@ -221,10 +253,12 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(
 
     printf("D3D device: %S\n", adapterDesc.Description);
 
-    return std::make_unique<FiddleContextD3DPLS>(std::move(factory),
-                                                 std::move(gpu),
-                                                 std::move(gpuContext),
-                                                 contextOptions);
+    return std::make_unique<FiddleContextD3DPLS>(
+        std::move(factory),
+        std::move(gpu),
+        std::move(gpuContext),
+        fiddleOptions.allowHeadlessRendering,
+        contextOptions);
 }
 
 #endif

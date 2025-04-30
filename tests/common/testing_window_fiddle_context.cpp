@@ -262,6 +262,10 @@ public:
             case Backend::d3datomic:
                 m_fiddleContext = FiddleContext::MakeD3DPLS(fiddleOptions);
                 break;
+            case Backend::d3d12:
+            case Backend::d3d12atomic:
+                m_fiddleContext = FiddleContext::MakeD3D12PLS(fiddleOptions);
+                break;
             case Backend::metal:
             case Backend::metalcw:
             case Backend::metalatomic:

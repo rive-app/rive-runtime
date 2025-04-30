@@ -24,6 +24,10 @@ if _OPTIONS['with_vulkan'] then
     })
 end
 
+if _TARGET_OS == 'windows' then
+    dx12_headers = dependency.github('microsoft/DirectX-Headers', 'v1.615.0')
+end
+
 filter('system:windows or macosx or linux')
 do
     -- Define RIVE_DESKTOP_GL outside of a project so that it also gets defined for consumers. It is
@@ -120,6 +124,10 @@ if os.host() == 'macosx' then
     end
 end
 
+if _TARGET_OS == 'windows' then
+    makecommand = makecommand .. ' d3d'
+end
+
 if _OPTIONS['with_vulkan'] or _OPTIONS['with-dawn'] or _OPTIONS['with-webgpu'] then
     makecommand = makecommand .. ' spirv'
 end
@@ -171,6 +179,12 @@ do
             vulkan_memory_allocator .. '/include',
         })
         files({ 'src/vulkan/*.cpp' })
+    end
+
+    if _TARGET_OS  == 'windows'then
+        externalincludedirs({
+            dx12_headers .. '/include/directx'
+        })
     end
 
     filter({ 'toolset:not msc' })
@@ -256,6 +270,8 @@ do
     do
         architecture('x64')
         files({ 'src/d3d/*.cpp' })
+        files({ 'src/d3d11/*.cpp' })
+        files({ 'src/d3d12/*.cpp' })
     end
 
     filter('system:emscripten')

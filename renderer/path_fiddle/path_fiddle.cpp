@@ -209,6 +209,7 @@ enum class API
     gl,
     metal,
     d3d,
+    d3d12,
     dawn,
     vulkan,
 };
@@ -494,9 +495,18 @@ int main(int argc, const char** argv)
         {
             api = API::d3d;
         }
+        else if (!strcmp(argv[i], "--d3d12"))
+        {
+            api = API::d3d12;
+        }
         else if (!strcmp(argv[i], "--d3datomic"))
         {
             api = API::d3d;
+            forceAtomicMode = true;
+        }
+        else if (!strcmp(argv[i], "--d3d12atomic"))
+        {
+            api = API::d3d12;
             forceAtomicMode = true;
         }
         else if (!strcmp(argv[i], "--vulkan") || !strcmp(argv[i], "--vk"))
@@ -572,6 +582,10 @@ int main(int argc, const char** argv)
         {
             paused = true;
         }
+        else if (!strcmp(argv[i], "--d3d12Warp"))
+        {
+            options.d3d12UseWarpDevice = true;
+        }
         else if (!strcmp(argv[i], "--atomic"))
         {
             forceAtomicMode = true;
@@ -616,6 +630,7 @@ int main(int argc, const char** argv)
     {
         case API::metal:
         case API::d3d:
+        case API::d3d12:
         case API::dawn:
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             glfwWindowHint(GLFW_COCOA_RETINA_FRAMEBUFFER, GLFW_TRUE);
@@ -666,6 +681,9 @@ int main(int argc, const char** argv)
             break;
         case API::d3d:
             fiddleContext = FiddleContext::MakeD3DPLS(options);
+            break;
+        case API::d3d12:
+            fiddleContext = FiddleContext::MakeD3D12PLS(options);
             break;
         case API::dawn:
             fiddleContext = FiddleContext::MakeDawnPLS(options);

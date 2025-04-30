@@ -628,6 +628,8 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
             break;
         case Backend::d3d:
         case Backend::d3datomic:
+        case Backend::d3d12:
+        case Backend::d3d12atomic:
         case Backend::metal:
         case Backend::metalcw:
         case Backend::metalatomic:
@@ -643,6 +645,7 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
         case Backend::rhi:
         case Backend::coregraphics:
         case Backend::skia:
+
             printf("Invalid backend for TestingWindow::MakeEGLPbuffer.");
             abort();
             break;

@@ -2,10 +2,11 @@
  * Copyright 2023 Rive
  */
 
-#include "rive/renderer/d3d/render_context_d3d_impl.hpp"
+#include "rive/renderer/d3d11/render_context_d3d_impl.hpp"
+
+#include "rive/renderer/d3d/d3d_constants.hpp"
 
 #include "rive/renderer/texture.hpp"
-#include "shaders/constants.glsl"
 
 #include <D3DCompiler.h>
 #include <sstream>
@@ -23,16 +24,38 @@
 #include "generated/shaders/render_atlas.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
 
-// D3D11 doesn't let us bind the framebuffer UAV to slot 0 when there is a color
-// output. Use the (unused in this case) SCRATCH_COLOR_PLANE_IDX instead when we
-// are doing a coalesced resolve and transfer.
-#define COALESCED_OFFSCREEN_COLOR_PLANE_IDX SCRATCH_COLOR_PLANE_IDX
-
-constexpr static UINT kPatchVertexDataSlot = 0;
-constexpr static UINT kTriangleVertexDataSlot = 1;
-constexpr static UINT kImageRectVertexDataSlot = 2;
-constexpr static UINT kImageMeshVertexDataSlot = 3;
-constexpr static UINT kImageMeshUVDataSlot = 4;
+// offline shaders
+namespace shader
+{
+namespace tess::vert
+{
+#include "generated/shaders/d3d/tessellate.vert.h"
+}
+namespace tess::frag
+{
+#include "generated/shaders/d3d/tessellate.frag.h"
+}
+namespace grad::vert
+{
+#include "generated/shaders/d3d/color_ramp.vert.h"
+}
+namespace grad::frag
+{
+#include "generated/shaders/d3d/color_ramp.frag.h"
+}
+namespace atlas::vert
+{
+#include "generated/shaders/d3d/render_atlas.vert.h"
+}
+namespace atlas::fill
+{
+#include "generated/shaders/d3d/render_atlas_fill.frag.h"
+}
+namespace atlas::stroke
+{
+#include "generated/shaders/d3d/render_atlas_stroke.frag.h"
+}
+} // namespace shader
 
 namespace rive::gpu
 {
@@ -77,10 +100,268 @@ static ComPtr<ID3D11UnorderedAccessView> make_simple_2d_uav(
     return uav;
 }
 
+D3D11PipelineManager::D3D11PipelineManager(
+    ComPtr<ID3D11DeviceContext> context,
+    ComPtr<ID3D11Device> device,
+    const D3DCapabilities& capabilities) :
+    D3DPipelineManager<D3D11DrawVertexShader,
+                       ComPtr<ID3D11PixelShader>,
+                       ID3D11Device>(device, capabilities, "vs_5_0", "ps_5_0"),
+    m_context(context)
+{
+    D3D11_INPUT_ELEMENT_DESC spanDesc = {GLSL_a_span,
+                                         0,
+                                         DXGI_FORMAT_R32G32B32A32_UINT,
+                                         0,
+                                         0,
+                                         D3D11_INPUT_PER_INSTANCE_DATA,
+                                         1};
+
+    VERIFY_OK(
+        this->device()->CreateInputLayout(&spanDesc,
+                                          1,
+                                          shader::grad::vert::g_main,
+                                          std::size(shader::grad::vert::g_main),
+                                          &m_colorRampLayout));
+    VERIFY_OK(this->device()->CreateVertexShader(
+        shader::grad::vert::g_main,
+        std::size(shader::grad::vert::g_main),
+        nullptr,
+        &m_colorRampVertexShader));
+    VERIFY_OK(
+        this->device()->CreatePixelShader(shader::grad::frag::g_main,
+                                          std::size(shader::grad::frag::g_main),
+                                          nullptr,
+                                          &m_colorRampPixelShader));
+
+    D3D11_INPUT_ELEMENT_DESC attribsDesc[] = {{GLSL_a_p0p1_,
+                                               0,
+                                               DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                               0,
+                                               D3D11_APPEND_ALIGNED_ELEMENT,
+                                               D3D11_INPUT_PER_INSTANCE_DATA,
+                                               1},
+                                              {GLSL_a_p2p3_,
+                                               0,
+                                               DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                               0,
+                                               D3D11_APPEND_ALIGNED_ELEMENT,
+                                               D3D11_INPUT_PER_INSTANCE_DATA,
+                                               1},
+                                              {GLSL_a_joinTan_and_ys,
+                                               0,
+                                               DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                               0,
+                                               D3D11_APPEND_ALIGNED_ELEMENT,
+                                               D3D11_INPUT_PER_INSTANCE_DATA,
+                                               1},
+                                              {GLSL_a_args,
+                                               0,
+                                               DXGI_FORMAT_R32G32B32A32_UINT,
+                                               0,
+                                               D3D11_APPEND_ALIGNED_ELEMENT,
+                                               D3D11_INPUT_PER_INSTANCE_DATA,
+                                               1}};
+    VERIFY_OK(
+        this->device()->CreateInputLayout(attribsDesc,
+                                          std::size(attribsDesc),
+                                          shader::tess::vert::g_main,
+                                          std::size(shader::tess::vert::g_main),
+                                          &m_tessellateLayout));
+    VERIFY_OK(this->device()->CreateVertexShader(
+        shader::tess::vert::g_main,
+        std::size(shader::tess::vert::g_main),
+        nullptr,
+        &m_tessellateVertexShader));
+    VERIFY_OK(
+        this->device()->CreatePixelShader(shader::tess::frag::g_main,
+                                          std::size(shader::tess::frag::g_main),
+                                          nullptr,
+                                          &m_tessellatePixelShader));
+
+    D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
+    layoutDesc[0] = {GLSL_a_patchVertexData,
+                     0,
+                     DXGI_FORMAT_R32G32B32A32_FLOAT,
+                     PATCH_VERTEX_DATA_SLOT,
+                     D3D11_APPEND_ALIGNED_ELEMENT,
+                     D3D11_INPUT_PER_VERTEX_DATA,
+                     0};
+    layoutDesc[1] = {GLSL_a_mirroredVertexData,
+                     0,
+                     DXGI_FORMAT_R32G32B32A32_FLOAT,
+                     PATCH_VERTEX_DATA_SLOT,
+                     D3D11_APPEND_ALIGNED_ELEMENT,
+                     D3D11_INPUT_PER_VERTEX_DATA,
+                     0};
+    VERIFY_OK(this->device()->CreateInputLayout(
+        layoutDesc,
+        2,
+        shader::atlas::vert::g_main,
+        std::size(shader::atlas::vert::g_main),
+        &m_atlasLayout));
+    VERIFY_OK(this->device()->CreateVertexShader(
+        shader::atlas::vert::g_main,
+        std::size(shader::atlas::vert::g_main),
+        nullptr,
+        &m_atlasVertexShader));
+
+    VERIFY_OK(this->device()->CreatePixelShader(
+        shader::atlas::fill::g_main,
+        std::size(shader::atlas::fill::g_main),
+        nullptr,
+        &m_atlasFillPixelShader));
+
+    VERIFY_OK(this->device()->CreatePixelShader(
+        shader::atlas::stroke::g_main,
+        std::size(shader::atlas::stroke::g_main),
+        nullptr,
+        &m_atlasStrokePixelShader));
+}
+
+void D3D11PipelineManager::setPipelineState(
+    rive::gpu::DrawType drawType,
+    rive::gpu::ShaderFeatures features,
+    rive::gpu::InterlockMode interlockMode,
+    rive::gpu::ShaderMiscFlags miscFlags)
+{
+    ShaderCompileResult result{};
+    if (!getShader(
+            {drawType, features, interlockMode, miscFlags, d3dCapabilities()},
+            &result))
+    {
+        // this should never happen
+        RIVE_UNREACHABLE();
+    }
+
+    assert(result.vertexResult.hasResult);
+    assert(result.pixelResult.hasResult);
+
+    m_context->IASetInputLayout(
+        result.vertexResult.vertexShaderResult.layout.Get());
+    m_context->VSSetShader(result.vertexResult.vertexShaderResult.shader.Get(),
+                           NULL,
+                           0);
+    m_context->PSSetShader(result.pixelResult.pixelShaderResult.Get(), NULL, 0);
+}
+
+void D3D11PipelineManager::compileBlobToFinalType(
+    const ShaderCompileRequest& request,
+    ComPtr<ID3DBlob> vertexShader,
+    ComPtr<ID3DBlob> pixelShader,
+    ShaderCompileResult* result)
+{
+    if (result->vertexResult.hasResult == false)
+    {
+        D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
+        uint32_t vertexAttribCount;
+        switch (request.drawType)
+        {
+            case DrawType::midpointFanPatches:
+            case DrawType::midpointFanCenterAAPatches:
+            case DrawType::outerCurvePatches:
+                layoutDesc[0] = {GLSL_a_patchVertexData,
+                                 0,
+                                 DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                 PATCH_VERTEX_DATA_SLOT,
+                                 D3D11_APPEND_ALIGNED_ELEMENT,
+                                 D3D11_INPUT_PER_VERTEX_DATA,
+                                 0};
+                layoutDesc[1] = {GLSL_a_mirroredVertexData,
+                                 0,
+                                 DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                 PATCH_VERTEX_DATA_SLOT,
+                                 D3D11_APPEND_ALIGNED_ELEMENT,
+                                 D3D11_INPUT_PER_VERTEX_DATA,
+                                 0};
+                vertexAttribCount = 2;
+                break;
+            case DrawType::interiorTriangulation:
+            case DrawType::atlasBlit:
+                layoutDesc[0] = {GLSL_a_triangleVertex,
+                                 0,
+                                 DXGI_FORMAT_R32G32B32_FLOAT,
+                                 TRIANGLE_VERTEX_DATA_SLOT,
+                                 0,
+                                 D3D11_INPUT_PER_VERTEX_DATA,
+                                 0};
+                vertexAttribCount = 1;
+                break;
+            case DrawType::imageRect:
+                layoutDesc[0] = {GLSL_a_imageRectVertex,
+                                 0,
+                                 DXGI_FORMAT_R32G32B32A32_FLOAT,
+                                 IMAGE_RECT_VERTEX_DATA_SLOT,
+                                 0,
+                                 D3D11_INPUT_PER_VERTEX_DATA,
+                                 0};
+                vertexAttribCount = 1;
+                break;
+            case DrawType::imageMesh:
+                layoutDesc[0] = {GLSL_a_position,
+                                 0,
+                                 DXGI_FORMAT_R32G32_FLOAT,
+                                 IMAGE_MESH_VERTEX_DATA_SLOT,
+                                 D3D11_APPEND_ALIGNED_ELEMENT,
+                                 D3D11_INPUT_PER_VERTEX_DATA,
+                                 0};
+                layoutDesc[1] = {GLSL_a_texCoord,
+                                 0,
+                                 DXGI_FORMAT_R32G32_FLOAT,
+                                 IMAGE_MESH_UV_DATA_SLOT,
+                                 D3D11_APPEND_ALIGNED_ELEMENT,
+                                 D3D11_INPUT_PER_VERTEX_DATA,
+                                 0};
+                vertexAttribCount = 2;
+                break;
+            case DrawType::atomicResolve:
+                vertexAttribCount = 0;
+                break;
+            case DrawType::atomicInitialize:
+            case DrawType::msaaStrokes:
+            case DrawType::msaaMidpointFanBorrowedCoverage:
+            case DrawType::msaaMidpointFans:
+            case DrawType::msaaMidpointFanStencilReset:
+            case DrawType::msaaMidpointFanPathsStencil:
+            case DrawType::msaaMidpointFanPathsCover:
+            case DrawType::msaaOuterCubics:
+            case DrawType::msaaStencilClipReset:
+                RIVE_UNREACHABLE();
+        }
+
+        VERIFY_OK(device()->CreateInputLayout(
+            layoutDesc,
+            vertexAttribCount,
+            vertexShader->GetBufferPointer(),
+            vertexShader->GetBufferSize(),
+            &result->vertexResult.vertexShaderResult.layout));
+        VERIFY_OK(device()->CreateVertexShader(
+            vertexShader->GetBufferPointer(),
+            vertexShader->GetBufferSize(),
+            nullptr,
+            &result->vertexResult.vertexShaderResult.shader));
+
+        result->vertexResult.hasResult = true;
+    }
+
+    if (result->pixelResult.hasResult == false)
+    {
+        ComPtr<ID3D11PixelShader> pixelShaderResult;
+
+        VERIFY_OK(device()->CreatePixelShader(pixelShader->GetBufferPointer(),
+                                              pixelShader->GetBufferSize(),
+                                              nullptr,
+                                              &pixelShaderResult));
+
+        result->pixelResult.pixelShaderResult = std::move(pixelShaderResult);
+        result->pixelResult.hasResult = true;
+    }
+}
+
 std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
     ComPtr<ID3D11Device> gpu,
     ComPtr<ID3D11DeviceContext> gpuContext,
-    const ContextOptions& contextOptions)
+    const D3DContextOptions& contextOptions)
 {
     D3DCapabilities d3dCapabilities;
     D3D11_FEATURE_DATA_D3D11_OPTIONS2 d3d11Options2;
@@ -149,6 +430,7 @@ std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
     }
 
     d3dCapabilities.isIntel = contextOptions.isIntel;
+    d3dCapabilities.allowsUAVSlot0WithColorOutput = false;
 
     auto renderContextImpl = std::unique_ptr<RenderContextD3DImpl>(
         new RenderContextD3DImpl(std::move(gpu),
@@ -161,6 +443,7 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     ComPtr<ID3D11Device> gpu,
     ComPtr<ID3D11DeviceContext> gpuContext,
     const D3DCapabilities& d3dCapabilities) :
+    m_pipelineManager(gpuContext, gpu, d3dCapabilities),
     m_d3dCapabilities(d3dCapabilities),
     m_gpu(std::move(gpu)),
     m_gpuContext(std::move(gpuContext))
@@ -221,45 +504,6 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         &rasterDesc,
         m_doubleSidedRasterState[1].ReleaseAndGetAddressOf()));
 
-    // Compile the shaders that render gradient color ramps.
-    {
-        std::ostringstream s;
-        s << glsl::hlsl << '\n';
-        s << glsl::constants << '\n';
-        s << glsl::common << '\n';
-        s << glsl::color_ramp << '\n';
-        ComPtr<ID3DBlob> vertexBlob =
-            compileSourceToBlob(GLSL_VERTEX,
-                                s.str().c_str(),
-                                GLSL_colorRampVertexMain,
-                                "vs_5_0");
-        ComPtr<ID3DBlob> pixelBlob =
-            compileSourceToBlob(GLSL_FRAGMENT,
-                                s.str().c_str(),
-                                GLSL_colorRampFragmentMain,
-                                "ps_5_0");
-        D3D11_INPUT_ELEMENT_DESC spanDesc = {GLSL_a_span,
-                                             0,
-                                             DXGI_FORMAT_R32G32B32A32_UINT,
-                                             0,
-                                             0,
-                                             D3D11_INPUT_PER_INSTANCE_DATA,
-                                             1};
-        VERIFY_OK(m_gpu->CreateInputLayout(&spanDesc,
-                                           1,
-                                           vertexBlob->GetBufferPointer(),
-                                           vertexBlob->GetBufferSize(),
-                                           &m_colorRampLayout));
-        VERIFY_OK(m_gpu->CreateVertexShader(vertexBlob->GetBufferPointer(),
-                                            vertexBlob->GetBufferSize(),
-                                            nullptr,
-                                            &m_colorRampVertexShader));
-        VERIFY_OK(m_gpu->CreatePixelShader(pixelBlob->GetBufferPointer(),
-                                           pixelBlob->GetBufferSize(),
-                                           nullptr,
-                                           &m_colorRampPixelShader));
-    }
-
     // Create the feather texture.
     D3D11_TEXTURE1D_DESC featherTextureDesc{};
     featherTextureDesc.Format = DXGI_FORMAT_R16_FLOAT;
@@ -301,67 +545,6 @@ RenderContextD3DImpl::RenderContextD3DImpl(
 
     // Compile the tessellation shaders.
     {
-        std::ostringstream s;
-        s << glsl::hlsl << '\n';
-        s << glsl::constants << '\n';
-        s << glsl::common << '\n';
-        s << glsl::bezier_utils << '\n';
-        s << glsl::tessellate << '\n';
-        ComPtr<ID3DBlob> vertexBlob =
-            compileSourceToBlob(GLSL_VERTEX,
-                                s.str().c_str(),
-                                GLSL_tessellateVertexMain,
-                                "vs_5_0");
-        ComPtr<ID3DBlob> pixelBlob =
-            compileSourceToBlob(GLSL_FRAGMENT,
-                                s.str().c_str(),
-                                GLSL_tessellateFragmentMain,
-                                "ps_5_0");
-        // Draw two instances per TessVertexSpan: one normal and one optional
-        // reflection.
-        D3D11_INPUT_ELEMENT_DESC attribsDesc[] = {
-            {GLSL_a_p0p1_,
-             0,
-             DXGI_FORMAT_R32G32B32A32_FLOAT,
-             0,
-             D3D11_APPEND_ALIGNED_ELEMENT,
-             D3D11_INPUT_PER_INSTANCE_DATA,
-             1},
-            {GLSL_a_p2p3_,
-             0,
-             DXGI_FORMAT_R32G32B32A32_FLOAT,
-             0,
-             D3D11_APPEND_ALIGNED_ELEMENT,
-             D3D11_INPUT_PER_INSTANCE_DATA,
-             1},
-            {GLSL_a_joinTan_and_ys,
-             0,
-             DXGI_FORMAT_R32G32B32A32_FLOAT,
-             0,
-             D3D11_APPEND_ALIGNED_ELEMENT,
-             D3D11_INPUT_PER_INSTANCE_DATA,
-             1},
-            {GLSL_a_args,
-             0,
-             DXGI_FORMAT_R32G32B32A32_UINT,
-             0,
-             D3D11_APPEND_ALIGNED_ELEMENT,
-             D3D11_INPUT_PER_INSTANCE_DATA,
-             1}};
-        VERIFY_OK(m_gpu->CreateInputLayout(attribsDesc,
-                                           std::size(attribsDesc),
-                                           vertexBlob->GetBufferPointer(),
-                                           vertexBlob->GetBufferSize(),
-                                           &m_tessellateLayout));
-        VERIFY_OK(m_gpu->CreateVertexShader(vertexBlob->GetBufferPointer(),
-                                            vertexBlob->GetBufferSize(),
-                                            nullptr,
-                                            &m_tessellateVertexShader));
-        VERIFY_OK(m_gpu->CreatePixelShader(pixelBlob->GetBufferPointer(),
-                                           pixelBlob->GetBufferSize(),
-                                           nullptr,
-                                           &m_tessellatePixelShader));
-
         m_tessSpanIndexBuffer =
             makeSimpleImmutableBuffer(sizeof(gpu::kTessSpanIndices),
                                       D3D11_BIND_INDEX_BUFFER,
@@ -529,53 +712,6 @@ ComPtr<ID3D11Buffer> RenderContextD3DImpl::makeSimpleImmutableBuffer(
     VERIFY_OK(
         m_gpu->CreateBuffer(&desc, &dataDesc, buffer.ReleaseAndGetAddressOf()));
     return buffer;
-}
-
-ComPtr<ID3DBlob> RenderContextD3DImpl::compileSourceToBlob(
-    const char* shaderTypeDefineName,
-    const std::string& commonSource,
-    const char* entrypoint,
-    const char* target)
-{
-    std::ostringstream source;
-    source << "#define " << shaderTypeDefineName << '\n';
-    source << commonSource;
-
-    const std::string& sourceStr = source.str();
-    ComPtr<ID3DBlob> blob;
-    ComPtr<ID3DBlob> errors;
-    HRESULT hr = D3DCompile(sourceStr.c_str(),
-                            sourceStr.length(),
-                            nullptr,
-                            nullptr,
-                            nullptr,
-                            entrypoint,
-                            target,
-                            D3DCOMPILE_ENABLE_STRICTNESS,
-                            0,
-                            &blob,
-                            &errors);
-    if (errors && errors->GetBufferPointer())
-    {
-        fprintf(stderr, "Errors or warnings compiling shader.\n");
-        int l = 1;
-        std::stringstream stream(sourceStr);
-        std::string lineStr;
-        while (std::getline(stream, lineStr, '\n'))
-        {
-            fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
-        }
-        fprintf(stderr,
-                "%s\n",
-                reinterpret_cast<char*>(errors->GetBufferPointer()));
-        abort();
-    }
-    if (FAILED(hr))
-    {
-        fprintf(stderr, "Failed to compile shader.\n");
-        abort();
-    }
-    return blob;
 }
 
 class RenderBufferD3DImpl
@@ -1141,347 +1277,6 @@ void RenderContextD3DImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
             NULL,
             m_atlasTextureRTV.ReleaseAndGetAddressOf()));
     }
-
-    // Don't compile the atlas programs until we get an indication that they
-    // will be used.
-    if (m_atlasVertexShader == 0)
-    {
-        std::ostringstream s;
-        s << "#define " << GLSL_DRAW_PATH << '\n';
-        s << "#define " << GLSL_ENABLE_FEATHER << '\n';
-        s << "#define " << GLSL_DRAW_PATH << '\n';
-        s << "#define " << GLSL_ATLAS_FEATHERED_FILL << '\n';
-        s << "#define " << GLSL_ATLAS_FEATHERED_STROKE << '\n';
-        s << glsl::hlsl << '\n';
-        s << glsl::constants << '\n';
-        s << glsl::common << '\n';
-        s << glsl::draw_path_common << '\n';
-        s << glsl::render_atlas << '\n';
-        ComPtr<ID3DBlob> blob = compileSourceToBlob(GLSL_VERTEX,
-                                                    s.str().c_str(),
-                                                    GLSL_atlasVertexMain,
-                                                    "vs_5_0");
-        D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
-        layoutDesc[0] = {GLSL_a_patchVertexData,
-                         0,
-                         DXGI_FORMAT_R32G32B32A32_FLOAT,
-                         kPatchVertexDataSlot,
-                         D3D11_APPEND_ALIGNED_ELEMENT,
-                         D3D11_INPUT_PER_VERTEX_DATA,
-                         0};
-        layoutDesc[1] = {GLSL_a_mirroredVertexData,
-                         0,
-                         DXGI_FORMAT_R32G32B32A32_FLOAT,
-                         kPatchVertexDataSlot,
-                         D3D11_APPEND_ALIGNED_ELEMENT,
-                         D3D11_INPUT_PER_VERTEX_DATA,
-                         0};
-        VERIFY_OK(m_gpu->CreateInputLayout(layoutDesc,
-                                           2,
-                                           blob->GetBufferPointer(),
-                                           blob->GetBufferSize(),
-                                           &m_atlasLayout));
-        VERIFY_OK(m_gpu->CreateVertexShader(blob->GetBufferPointer(),
-                                            blob->GetBufferSize(),
-                                            nullptr,
-                                            &m_atlasVertexShader));
-
-        blob = compileSourceToBlob(GLSL_FRAGMENT,
-                                   s.str().c_str(),
-                                   GLSL_atlasFillFragmentMain,
-                                   "ps_5_0");
-        VERIFY_OK(m_gpu->CreatePixelShader(blob->GetBufferPointer(),
-                                           blob->GetBufferSize(),
-                                           nullptr,
-                                           &m_atlasFillPixelShader));
-
-        blob = compileSourceToBlob(GLSL_FRAGMENT,
-                                   s.str().c_str(),
-                                   GLSL_atlasStrokeFragmentMain,
-                                   "ps_5_0");
-        VERIFY_OK(m_gpu->CreatePixelShader(blob->GetBufferPointer(),
-                                           blob->GetBufferSize(),
-                                           nullptr,
-                                           &m_atlasStrokePixelShader));
-    }
-}
-
-void RenderContextD3DImpl::setPipelineLayoutAndShaders(
-    DrawType drawType,
-    gpu::ShaderFeatures shaderFeatures,
-    gpu::InterlockMode interlockMode,
-    gpu::ShaderMiscFlags shaderMiscFlags)
-{
-    uint32_t vertexShaderKey =
-        gpu::ShaderUniqueKey(drawType,
-                             shaderFeatures & kVertexShaderFeaturesMask,
-                             interlockMode,
-                             gpu::ShaderMiscFlags::none);
-    auto vertexEntry = m_drawVertexShaders.find(vertexShaderKey);
-
-    uint32_t pixelShaderKey = ShaderUniqueKey(drawType,
-                                              shaderFeatures,
-                                              interlockMode,
-                                              shaderMiscFlags);
-    auto pixelEntry = m_drawPixelShaders.find(pixelShaderKey);
-
-    if (vertexEntry == m_drawVertexShaders.end() ||
-        pixelEntry == m_drawPixelShaders.end())
-    {
-        std::ostringstream s;
-        for (size_t i = 0; i < kShaderFeatureCount; ++i)
-        {
-            ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
-            if (shaderFeatures & feature)
-            {
-                s << "#define " << GetShaderFeatureGLSLName(feature) << " 1\n";
-            }
-        }
-        if (m_d3dCapabilities.supportsRasterizerOrderedViews)
-        {
-            if (interlockMode == gpu::InterlockMode::rasterOrdering &&
-                drawType != DrawType::interiorTriangulation)
-            {
-                s << "#define " << GLSL_ENABLE_RASTERIZER_ORDERED_VIEWS << '\n';
-            }
-        }
-        if (m_d3dCapabilities.supportsTypedUAVLoadStore)
-        {
-            s << "#define " << GLSL_ENABLE_TYPED_UAV_LOAD_STORE << '\n';
-        }
-        if (m_d3dCapabilities.supportsMin16Precision)
-        {
-            s << "#define " << GLSL_ENABLE_MIN_16_PRECISION << '\n';
-        }
-        if (shaderMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput)
-        {
-            s << "#define " << GLSL_FIXED_FUNCTION_COLOR_OUTPUT << '\n';
-        }
-        if (shaderMiscFlags & gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
-        {
-            s << "#define " << GLSL_COALESCED_PLS_RESOLVE_AND_TRANSFER << '\n';
-            s << "#define " << GLSL_COLOR_PLANE_IDX_OVERRIDE << ' '
-              << COALESCED_OFFSCREEN_COLOR_PLANE_IDX << '\n';
-        }
-        if (shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill)
-        {
-            s << "#define " << GLSL_CLOCKWISE_FILL << " 1\n";
-        }
-        switch (drawType)
-        {
-            case DrawType::midpointFanPatches:
-            case DrawType::midpointFanCenterAAPatches:
-            case DrawType::outerCurvePatches:
-                s << "#define " << GLSL_DRAW_PATH << '\n';
-                break;
-            case DrawType::atlasBlit:
-                s << "#define " << GLSL_ATLAS_BLIT << " 1\n";
-                [[fallthrough]];
-            case DrawType::interiorTriangulation:
-                s << "#define " << GLSL_DRAW_INTERIOR_TRIANGLES << '\n';
-                break;
-            case DrawType::imageRect:
-                assert(interlockMode == gpu::InterlockMode::atomics);
-                s << "#define " << GLSL_DRAW_IMAGE << '\n';
-                s << "#define " << GLSL_DRAW_IMAGE_RECT << '\n';
-                break;
-            case DrawType::imageMesh:
-                s << "#define " << GLSL_DRAW_IMAGE << '\n';
-                s << "#define " << GLSL_DRAW_IMAGE_MESH << '\n';
-                break;
-            case DrawType::atomicResolve:
-                assert(interlockMode == gpu::InterlockMode::atomics);
-                s << "#define " << GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS
-                  << '\n';
-                s << "#define " << GLSL_RESOLVE_PLS << '\n';
-                break;
-            case DrawType::atomicInitialize:
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
-            case DrawType::msaaOuterCubics:
-            case DrawType::msaaStencilClipReset:
-                RIVE_UNREACHABLE();
-        }
-        s << glsl::constants << '\n';
-        s << glsl::hlsl << '\n';
-        s << glsl::common << '\n';
-        if (shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND)
-        {
-            s << glsl::advanced_blend << '\n';
-        }
-        switch (drawType)
-        {
-            case DrawType::midpointFanPatches:
-            case DrawType::midpointFanCenterAAPatches:
-            case DrawType::outerCurvePatches:
-                s << gpu::glsl::draw_path_common << '\n';
-                s << (interlockMode == gpu::InterlockMode::rasterOrdering
-                          ? gpu::glsl::draw_path
-                          : gpu::glsl::atomic_draw)
-                  << '\n';
-                break;
-            case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
-                s << gpu::glsl::draw_path_common << '\n';
-                s << (interlockMode == gpu::InterlockMode::rasterOrdering
-                          ? gpu::glsl::draw_path
-                          : gpu::glsl::atomic_draw)
-                  << '\n';
-                break;
-            case DrawType::imageRect:
-                assert(interlockMode == gpu::InterlockMode::atomics);
-                s << gpu::glsl::draw_path_common << '\n';
-                s << gpu::glsl::atomic_draw << '\n';
-                break;
-            case DrawType::imageMesh:
-                if (interlockMode == gpu::InterlockMode::rasterOrdering)
-                {
-                    s << gpu::glsl::draw_image_mesh << '\n';
-                }
-                else
-                {
-                    s << gpu::glsl::draw_path_common << '\n';
-                    s << gpu::glsl::atomic_draw << '\n';
-                }
-                break;
-            case DrawType::atomicResolve:
-            case DrawType::msaaStencilClipReset:
-                assert(interlockMode == gpu::InterlockMode::atomics);
-                s << gpu::glsl::draw_path_common << '\n';
-                s << gpu::glsl::atomic_draw << '\n';
-                break;
-            case DrawType::atomicInitialize:
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
-            case DrawType::msaaOuterCubics:
-                RIVE_UNREACHABLE();
-        }
-
-        const std::string shader = s.str();
-
-        if (vertexEntry == m_drawVertexShaders.end())
-        {
-            DrawVertexShader drawVertexShader;
-            ComPtr<ID3DBlob> blob = compileSourceToBlob(GLSL_VERTEX,
-                                                        shader.c_str(),
-                                                        GLSL_drawVertexMain,
-                                                        "vs_5_0");
-            D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
-            uint32_t vertexAttribCount;
-            switch (drawType)
-            {
-                case DrawType::midpointFanPatches:
-                case DrawType::midpointFanCenterAAPatches:
-                case DrawType::outerCurvePatches:
-                    layoutDesc[0] = {GLSL_a_patchVertexData,
-                                     0,
-                                     DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                     kPatchVertexDataSlot,
-                                     D3D11_APPEND_ALIGNED_ELEMENT,
-                                     D3D11_INPUT_PER_VERTEX_DATA,
-                                     0};
-                    layoutDesc[1] = {GLSL_a_mirroredVertexData,
-                                     0,
-                                     DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                     kPatchVertexDataSlot,
-                                     D3D11_APPEND_ALIGNED_ELEMENT,
-                                     D3D11_INPUT_PER_VERTEX_DATA,
-                                     0};
-                    vertexAttribCount = 2;
-                    break;
-                case DrawType::interiorTriangulation:
-                case DrawType::atlasBlit:
-                    layoutDesc[0] = {GLSL_a_triangleVertex,
-                                     0,
-                                     DXGI_FORMAT_R32G32B32_FLOAT,
-                                     kTriangleVertexDataSlot,
-                                     0,
-                                     D3D11_INPUT_PER_VERTEX_DATA,
-                                     0};
-                    vertexAttribCount = 1;
-                    break;
-                case DrawType::imageRect:
-                    layoutDesc[0] = {GLSL_a_imageRectVertex,
-                                     0,
-                                     DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                     kImageRectVertexDataSlot,
-                                     0,
-                                     D3D11_INPUT_PER_VERTEX_DATA,
-                                     0};
-                    vertexAttribCount = 1;
-                    break;
-                case DrawType::imageMesh:
-                    layoutDesc[0] = {GLSL_a_position,
-                                     0,
-                                     DXGI_FORMAT_R32G32_FLOAT,
-                                     kImageMeshVertexDataSlot,
-                                     D3D11_APPEND_ALIGNED_ELEMENT,
-                                     D3D11_INPUT_PER_VERTEX_DATA,
-                                     0};
-                    layoutDesc[1] = {GLSL_a_texCoord,
-                                     0,
-                                     DXGI_FORMAT_R32G32_FLOAT,
-                                     kImageMeshUVDataSlot,
-                                     D3D11_APPEND_ALIGNED_ELEMENT,
-                                     D3D11_INPUT_PER_VERTEX_DATA,
-                                     0};
-                    vertexAttribCount = 2;
-                    break;
-                case DrawType::atomicResolve:
-                    vertexAttribCount = 0;
-                    break;
-                case DrawType::atomicInitialize:
-                case DrawType::msaaStrokes:
-                case DrawType::msaaMidpointFanBorrowedCoverage:
-                case DrawType::msaaMidpointFans:
-                case DrawType::msaaMidpointFanStencilReset:
-                case DrawType::msaaMidpointFanPathsStencil:
-                case DrawType::msaaMidpointFanPathsCover:
-                case DrawType::msaaOuterCubics:
-                case DrawType::msaaStencilClipReset:
-                    RIVE_UNREACHABLE();
-            }
-            VERIFY_OK(m_gpu->CreateInputLayout(layoutDesc,
-                                               vertexAttribCount,
-                                               blob->GetBufferPointer(),
-                                               blob->GetBufferSize(),
-                                               &drawVertexShader.layout));
-            VERIFY_OK(m_gpu->CreateVertexShader(blob->GetBufferPointer(),
-                                                blob->GetBufferSize(),
-                                                nullptr,
-                                                &drawVertexShader.shader));
-            vertexEntry =
-                m_drawVertexShaders.insert({vertexShaderKey, drawVertexShader})
-                    .first;
-        }
-
-        if (pixelEntry == m_drawPixelShaders.end())
-        {
-            ComPtr<ID3D11PixelShader> pixelShader;
-            ComPtr<ID3DBlob> blob = compileSourceToBlob(GLSL_FRAGMENT,
-                                                        shader.c_str(),
-                                                        GLSL_drawFragmentMain,
-                                                        "ps_5_0");
-            VERIFY_OK(m_gpu->CreatePixelShader(blob->GetBufferPointer(),
-                                               blob->GetBufferSize(),
-                                               nullptr,
-                                               &pixelShader));
-            pixelEntry =
-                m_drawPixelShaders.insert({pixelShaderKey, pixelShader}).first;
-        }
-    }
-
-    m_gpuContext->IASetInputLayout(vertexEntry->second.layout.Get());
-    m_gpuContext->VSSetShader(vertexEntry->second.shader.Get(), NULL, 0);
-    m_gpuContext->PSSetShader(pixelEntry->second.Get(), NULL, 0);
 }
 
 static const char* heap_buffer_contents(const BufferRing* bufferRing)
@@ -1635,10 +1430,12 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_linearSampler.Get(),
         m_mipmapSampler.Get(),
     };
+
     static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
     static_assert(ATLAS_TEXTURE_IDX == FEATHER_TEXTURE_IDX + 1);
     static_assert(IMAGE_TEXTURE_IDX == ATLAS_TEXTURE_IDX + 1);
     m_gpuContext->PSSetSamplers(GRAD_TEXTURE_IDX, 4, samplers);
+    m_gpuContext->VSSetSamplers(GRAD_TEXTURE_IDX, 4, samplers);
 
     // Render the complex color ramps to the gradient texture.
     if (desc.gradSpanCount > 0)
@@ -1652,11 +1449,11 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                          &gradSpanBuffer,
                                          &gradStride,
                                          &gradOffset);
-        m_gpuContext->IASetInputLayout(m_colorRampLayout.Get());
+
         m_gpuContext->IASetPrimitiveTopology(
             D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
 
-        m_gpuContext->VSSetShader(m_colorRampVertexShader.Get(), NULL, 0);
+        m_pipelineManager.setColorRampState();
 
         D3D11_VIEWPORT viewport = {0,
                                    0,
@@ -1671,8 +1468,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_gpuContext->PSSetShaderResources(GRAD_TEXTURE_IDX,
                                            1,
                                            &nullTextureView);
-
-        m_gpuContext->PSSetShader(m_colorRampPixelShader.Get(), NULL, 0);
 
         m_gpuContext->OMSetRenderTargets(1,
                                          m_gradTextureRTV.GetAddressOf(),
@@ -1700,11 +1495,10 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_gpuContext->IASetIndexBuffer(m_tessSpanIndexBuffer.Get(),
                                        DXGI_FORMAT_R16_UINT,
                                        0);
-        m_gpuContext->IASetInputLayout(m_tessellateLayout.Get());
+
+        m_pipelineManager.setTesselationState();
         m_gpuContext->IASetPrimitiveTopology(
             D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
-
-        m_gpuContext->VSSetShader(m_tessellateVertexShader.Get(), NULL, 0);
 
         // Unbind the tessellation texture before rendering it.
         ID3D11ShaderResourceView* nullTessTextureView = NULL;
@@ -1719,8 +1513,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                    0,
                                    1};
         m_gpuContext->RSSetViewports(1, &viewport);
-
-        m_gpuContext->PSSetShader(m_tessellatePixelShader.Get(), NULL, 0);
 
         m_gpuContext->OMSetRenderTargets(1,
                                          m_tessTextureRTV.GetAddressOf(),
@@ -1751,9 +1543,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                              sizeof(gpu::TriangleVertex),
                              sizeof(gpu::ImageRectVertex)};
     UINT vertexOffsets[3] = {0, 0, 0};
-    static_assert(kPatchVertexDataSlot == 0);
-    static_assert(kTriangleVertexDataSlot == 1);
-    static_assert(kImageRectVertexDataSlot == 2);
+    static_assert(PATCH_VERTEX_DATA_SLOT == 0);
+    static_assert(TRIANGLE_VERTEX_DATA_SLOT == 1);
+    static_assert(IMAGE_RECT_VERTEX_DATA_SLOT == 2);
     m_gpuContext->IASetVertexBuffers(0,
                                      3,
                                      vertexBuffers,
@@ -1776,15 +1568,13 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         float clearZero[4]{};
         m_gpuContext->ClearRenderTargetView(m_atlasTextureRTV.Get(), clearZero);
 
-        m_gpuContext->IASetInputLayout(m_atlasLayout.Get());
+        m_pipelineManager.setAtlasVertexState();
         m_gpuContext->IASetPrimitiveTopology(
             D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
         m_gpuContext->IASetIndexBuffer(m_patchIndexBuffer.Get(),
                                        DXGI_FORMAT_R16_UINT,
                                        0);
         m_gpuContext->RSSetState(m_atlasRasterState.Get());
-
-        m_gpuContext->VSSetShader(m_atlasVertexShader.Get(), NULL, 0);
 
         D3D11_VIEWPORT viewport = {0,
                                    0,
@@ -1800,7 +1590,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         if (desc.atlasFillBatchCount != 0)
         {
-            m_gpuContext->PSSetShader(m_atlasFillPixelShader.Get(), NULL, 0);
+            m_pipelineManager.setAtlasFillState();
             m_gpuContext->OMSetBlendState(m_plusBlendState.Get(),
                                           NULL,
                                           0xffffffff);
@@ -1827,7 +1617,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
 
         if (desc.atlasStrokeBatchCount != 0)
         {
-            m_gpuContext->PSSetShader(m_atlasStrokePixelShader.Get(), NULL, 0);
+            m_pipelineManager.setAtlasStrokeState();
             m_gpuContext->OMSetBlendState(m_maxBlendState.Get(),
                                           NULL,
                                           0xffffffff);
@@ -1993,10 +1783,11 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         {
             shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
-        setPipelineLayoutAndShaders(drawType,
-                                    shaderFeatures,
-                                    desc.interlockMode,
-                                    shaderMiscFlags);
+
+        m_pipelineManager.setPipelineState(drawType,
+                                           shaderFeatures,
+                                           desc.interlockMode,
+                                           shaderMiscFlags);
 
         if (auto imageTextureD3D =
                 static_cast<const TextureD3DImpl*>(batch.imageTexture))
@@ -2079,13 +1870,13 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                                     uvBuffer->buffer()};
                 UINT imageMeshStrides[] = {sizeof(Vec2D), sizeof(Vec2D)};
                 UINT imageMeshOffsets[] = {0, 0};
-                m_gpuContext->IASetVertexBuffers(kImageMeshVertexDataSlot,
+                m_gpuContext->IASetVertexBuffers(IMAGE_MESH_VERTEX_DATA_SLOT,
                                                  2,
                                                  imageMeshBuffers,
                                                  imageMeshStrides,
                                                  imageMeshOffsets);
-                static_assert(kImageMeshUVDataSlot ==
-                              kImageMeshVertexDataSlot + 1);
+                static_assert(IMAGE_MESH_UV_DATA_SLOT ==
+                              IMAGE_MESH_VERTEX_DATA_SLOT + 1);
                 m_gpuContext->IASetPrimitiveTopology(
                     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST);
                 m_gpuContext->IASetIndexBuffer(indexBuffer->buffer(),

@@ -87,7 +87,13 @@ if not _OPTIONS['with-webgpu'] then
             libdirs({
                 RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
             })
-            links({ 'glfw3', 'opengl32', 'd3d11', 'dxgi', 'd3dcompiler' })
+            links({ 'glfw3', 'opengl32', 'd3d11', 'd3d12', 'dxguid', 'dxgi', 'd3dcompiler' })
+        end
+
+        if _TARGET_OS  == 'windows'then
+            externalincludedirs({
+                dx12_headers .. '/include/directx'
+            })
         end
 
         filter('system:macosx')

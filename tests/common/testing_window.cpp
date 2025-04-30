@@ -31,6 +31,10 @@ const char* TestingWindow::BackendName(Backend backend)
             return "d3d";
         case TestingWindow::Backend::d3datomic:
             return "d3datomic";
+        case TestingWindow::Backend::d3d12:
+            return "d3d12";
+        case TestingWindow::Backend::d3d12atomic:
+            return "d3d12atomic";
         case TestingWindow::Backend::metal:
             return "metal";
         case TestingWindow::Backend::metalcw:
@@ -106,6 +110,10 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         return Backend::d3d;
     if (nameStr == "d3datomic")
         return Backend::d3datomic;
+    if (nameStr == "d3d12")
+        return Backend::d3d12;
+    if (nameStr == "d3d12atomic")
+        return Backend::d3d12atomic;
     if (nameStr == "metal")
         return Backend::metal;
     if (nameStr == "metalcw")
@@ -271,6 +279,8 @@ TestingWindow* TestingWindow::Init(Backend backend,
             [[fallthrough]];
         case Backend::d3d:
         case Backend::d3datomic:
+        case Backend::d3d12:
+        case Backend::d3d12atomic:
         case Backend::dawn:
             s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
                                                                visibility,

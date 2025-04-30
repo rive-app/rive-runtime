@@ -3,17 +3,8 @@ $CWD = Get-Location
 if (Get-Command -Name "msbuild" -ErrorAction SilentlyContinue){}
 else
 {
-    if (Test-Path "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\Launch-VsDevShell.ps1" -PathType Leaf) {
-        & "C:\Program Files\Microsoft Visual Studio\2022\Enterprise\Common7\Tools\Launch-VsDevShell.ps1"
-    } else {
-        if ("C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\Launch-VsDevShell.ps1") {
-            & 'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\Tools\Launch-VsDevShell.ps1'
-        }
-        else {
-            Write-Error "Visual Studio 2022 does not appear to be installed, please install visual studio to C:\Program Files\Microsoft Visual Studio"
-            exit
-        }
-    }
+    $Rive_Runtime_Root = Split-Path -Parent $PSScriptRoot
+    & $Rive_Runtime_Root\..\..\scripts\setup_windows_dev.ps1
 }
 Set-Location $CWD
 sh build_rive.sh $args

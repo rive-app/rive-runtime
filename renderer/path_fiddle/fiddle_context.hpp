@@ -14,6 +14,8 @@ struct FiddleContextOptions
     bool disableRasterOrdering = false;
     bool coreFeaturesOnly = false;
     bool srgb = false;
+    // request d3d12 to use software d3d11 driver
+    bool d3d12UseWarpDevice = false;
     // Allow rendering to a texture instead of an OS window. (Speeds up the
     // execution of goldens & gms significantly on Vulkan/Windows.)
     bool allowHeadlessRendering = false;
@@ -57,6 +59,8 @@ public:
     }
 #endif
     static std::unique_ptr<FiddleContext> MakeD3DPLS(FiddleContextOptions = {});
+    static std::unique_ptr<FiddleContext> MakeD3D12PLS(
+        FiddleContextOptions = {});
     static std::unique_ptr<FiddleContext> MakeVulkanPLS(
         FiddleContextOptions = {});
     static std::unique_ptr<FiddleContext> MakeDawnPLS(

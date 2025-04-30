@@ -197,7 +197,7 @@ function rive_tools_project(name, project_kind)
             libdirs({
                 RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
             })
-            links({ 'glfw3', 'opengl32', 'd3d11', 'dxgi', 'd3dcompiler', 'ws2_32' })
+            links({ 'glfw3', 'opengl32', 'd3d11', 'd3d12', 'dxguid', 'dxgi', 'd3dcompiler', 'ws2_32' })
         end
 
         filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:macosx' })
@@ -284,9 +284,16 @@ do
         'unit_tests/assets/*.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_gl.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_d3d.cpp',
+        RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_d3d12.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_vulkan.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn.cpp',
     })
+
+    if _TARGET_OS  == 'windows'then
+        externalincludedirs({
+            dx12_headers .. '/include/directx'
+        })
+    end
     
     filter({ 'options:for_unreal'})
     do

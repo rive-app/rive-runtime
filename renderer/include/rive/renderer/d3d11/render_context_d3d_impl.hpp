@@ -4,7 +4,8 @@
 
 #pragma once
 
-#include "rive/renderer/d3d/d3d11.hpp"
+#include "rive/renderer/d3d/pipeline_manager.hpp"
+#include "rive/renderer/d3d11/d3d11.hpp"
 #include "rive/renderer/render_context_helper_impl.hpp"
 #include <map>
 #include <string>
@@ -58,36 +59,93 @@ private:
     ComPtr<ID3D11UnorderedAccessView> m_scratchColorUAV;
 };
 
+struct D3D11DrawVertexShader
+{
+    ComPtr<ID3D11InputLayout> layout;
+    ComPtr<ID3D11VertexShader> shader;
+};
+
+class D3D11PipelineManager
+    : public D3DPipelineManager<D3D11DrawVertexShader,
+                                ComPtr<ID3D11PixelShader>,
+                                ID3D11Device>
+{
+public:
+    D3D11PipelineManager(ComPtr<ID3D11DeviceContext> context,
+                         ComPtr<ID3D11Device> device,
+                         const D3DCapabilities& capabilities);
+
+    void setPipelineState(rive::gpu::DrawType,
+                          rive::gpu::ShaderFeatures,
+                          rive::gpu::InterlockMode,
+                          rive::gpu::ShaderMiscFlags);
+
+    void setColorRampState() const
+    {
+        m_context->IASetInputLayout(m_colorRampLayout.Get());
+        m_context->VSSetShader(m_colorRampVertexShader.Get(), NULL, 0);
+        m_context->PSSetShader(m_colorRampPixelShader.Get(), NULL, 0);
+    }
+
+    void setTesselationState() const
+    {
+        m_context->IASetInputLayout(m_tessellateLayout.Get());
+        m_context->VSSetShader(m_tessellateVertexShader.Get(), NULL, 0);
+        m_context->PSSetShader(m_tessellatePixelShader.Get(), NULL, 0);
+    }
+
+    void setAtlasVertexState() const
+    {
+        m_context->IASetInputLayout(m_atlasLayout.Get());
+        m_context->VSSetShader(m_atlasVertexShader.Get(), NULL, 0);
+    }
+
+    void setAtlasFillState() const
+    {
+        m_context->PSSetShader(m_atlasFillPixelShader.Get(), NULL, 0);
+    }
+
+    void setAtlasStrokeState() const
+    {
+        m_context->PSSetShader(m_atlasStrokePixelShader.Get(), NULL, 0);
+    }
+
+protected:
+    virtual void compileBlobToFinalType(const ShaderCompileRequest&,
+                                        ComPtr<ID3DBlob> vertexShader,
+                                        ComPtr<ID3DBlob> pixelShader,
+                                        ShaderCompileResult*) override;
+
+private:
+    ComPtr<ID3D11DeviceContext> m_context;
+
+    ComPtr<ID3D11InputLayout> m_colorRampLayout;
+    ComPtr<ID3D11VertexShader> m_colorRampVertexShader;
+    ComPtr<ID3D11PixelShader> m_colorRampPixelShader;
+
+    ComPtr<ID3D11InputLayout> m_tessellateLayout;
+    ComPtr<ID3D11VertexShader> m_tessellateVertexShader;
+    ComPtr<ID3D11PixelShader> m_tessellatePixelShader;
+
+    ComPtr<ID3D11InputLayout> m_atlasLayout;
+    ComPtr<ID3D11VertexShader> m_atlasVertexShader;
+    ComPtr<ID3D11PixelShader> m_atlasFillPixelShader;
+    ComPtr<ID3D11PixelShader> m_atlasStrokePixelShader;
+};
+
 // D3D backend implementation of RenderContextImpl.
 class RenderContextD3DImpl : public RenderContextHelperImpl
 {
 public:
-    struct ContextOptions
-    {
-        bool disableRasterizerOrderedViews = false; // Primarily for testing.
-        bool disableTypedUAVLoadStore = false;      // Primarily for testing.
-        bool isIntel = false;
-    };
-
     static std::unique_ptr<RenderContext> MakeContext(
         ComPtr<ID3D11Device>,
         ComPtr<ID3D11DeviceContext>,
-        const ContextOptions&);
+        const D3DContextOptions&);
 
     rcp<RenderTargetD3D> makeRenderTarget(uint32_t width, uint32_t height)
     {
         return make_rcp<RenderTargetD3D>(this, width, height);
     }
-
-    struct D3DCapabilities
-    {
-        bool supportsRasterizerOrderedViews = false;
-        bool supportsTypedUAVLoadStore =
-            false; // Can we load/store all UAV formats used by Rive?
-        bool supportsMin16Precision =
-            false; // Can we use minimum 16-bit types (e.g. min16int)?
-        bool isIntel = false;
-    };
 
     const D3DCapabilities& d3dCapabilities() const { return m_d3dCapabilities; }
     ID3D11Device* gpu() const { return m_gpu.Get(); }
@@ -105,10 +163,6 @@ public:
     ComPtr<ID3D11Buffer> makeSimpleImmutableBuffer(size_t sizeInBytes,
                                                    UINT bindFlags,
                                                    const void* data);
-    ComPtr<ID3DBlob> compileSourceToBlob(const char* shaderTypeDefineName,
-                                         const std::string& commonSource,
-                                         const char* entrypoint,
-                                         const char* target);
 
 private:
     RenderContextD3DImpl(ComPtr<ID3D11Device>,
@@ -138,10 +192,7 @@ private:
 
     void flush(const FlushDescriptor&) override;
 
-    void setPipelineLayoutAndShaders(DrawType,
-                                     gpu::ShaderFeatures,
-                                     gpu::InterlockMode,
-                                     gpu::ShaderMiscFlags shaderMiscFlags);
+    D3D11PipelineManager m_pipelineManager;
 
     const D3DCapabilities m_d3dCapabilities;
 
@@ -159,36 +210,11 @@ private:
     ComPtr<ID3D11Texture2D> m_tessTexture;
     ComPtr<ID3D11ShaderResourceView> m_tessTextureSRV;
     ComPtr<ID3D11RenderTargetView> m_tessTextureRTV;
+    ComPtr<ID3D11Buffer> m_tessSpanIndexBuffer;
 
     ComPtr<ID3D11Texture2D> m_atlasTexture;
     ComPtr<ID3D11ShaderResourceView> m_atlasTextureSRV;
     ComPtr<ID3D11RenderTargetView> m_atlasTextureRTV;
-
-    ComPtr<ID3D11RasterizerState> m_atlasRasterState;
-    ComPtr<ID3D11RasterizerState> m_backCulledRasterState[2];
-    ComPtr<ID3D11RasterizerState> m_doubleSidedRasterState[2];
-
-    ComPtr<ID3D11InputLayout> m_colorRampLayout;
-    ComPtr<ID3D11VertexShader> m_colorRampVertexShader;
-    ComPtr<ID3D11PixelShader> m_colorRampPixelShader;
-
-    ComPtr<ID3D11InputLayout> m_tessellateLayout;
-    ComPtr<ID3D11VertexShader> m_tessellateVertexShader;
-    ComPtr<ID3D11PixelShader> m_tessellatePixelShader;
-    ComPtr<ID3D11Buffer> m_tessSpanIndexBuffer;
-
-    ComPtr<ID3D11InputLayout> m_atlasLayout;
-    ComPtr<ID3D11VertexShader> m_atlasVertexShader;
-    ComPtr<ID3D11PixelShader> m_atlasFillPixelShader;
-    ComPtr<ID3D11PixelShader> m_atlasStrokePixelShader;
-
-    struct DrawVertexShader
-    {
-        ComPtr<ID3D11InputLayout> layout;
-        ComPtr<ID3D11VertexShader> shader;
-    };
-    std::map<uint32_t, DrawVertexShader> m_drawVertexShaders;
-    std::map<uint32_t, ComPtr<ID3D11PixelShader>> m_drawPixelShaders;
 
     // Vertex/index buffers for drawing path patches.
     ComPtr<ID3D11Buffer> m_patchVertexBuffer;
@@ -215,6 +241,10 @@ private:
 
     ComPtr<ID3D11SamplerState> m_linearSampler;
     ComPtr<ID3D11SamplerState> m_mipmapSampler;
+
+    ComPtr<ID3D11RasterizerState> m_atlasRasterState;
+    ComPtr<ID3D11RasterizerState> m_backCulledRasterState[2];
+    ComPtr<ID3D11RasterizerState> m_doubleSidedRasterState[2];
 
     ComPtr<ID3D11BlendState> m_srcOverBlendState;
     ComPtr<ID3D11BlendState> m_plusBlendState;

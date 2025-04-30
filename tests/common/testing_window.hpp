@@ -42,6 +42,8 @@ public:
         glmsaa,
         d3d,
         d3datomic,
+        d3d12,
+        d3d12atomic,
         metal,
         metalcw,
         metalatomic,
@@ -87,6 +89,8 @@ public:
                 return true;
             case Backend::d3d:
             case Backend::d3datomic:
+            case Backend::d3d12:
+            case Backend::d3d12atomic:
             case Backend::metal:
             case Backend::metalcw:
             case Backend::metalatomic:
@@ -120,6 +124,8 @@ public:
             case Backend::glmsaa:
             case Backend::d3d:
             case Backend::d3datomic:
+            case Backend::d3d12:
+            case Backend::d3d12atomic:
             case Backend::metal:
             case Backend::metalcw:
             case Backend::metalatomic:
@@ -159,6 +165,8 @@ public:
             case Backend::glmsaa:
             case Backend::d3d:
             case Backend::d3datomic:
+            case Backend::d3d12:
+            case Backend::d3d12atomic:
             case Backend::metal:
             case Backend::metalcw:
             case Backend::metalatomic:
@@ -180,6 +188,7 @@ public:
             case Backend::glatomic:
             case Backend::glcw:
             case Backend::d3datomic:
+            case Backend::d3d12atomic:
             case Backend::metalatomic:
             case Backend::rhi:
             case Backend::vkcore:
@@ -191,6 +200,7 @@ public:
             case Backend::gl:
             case Backend::glmsaa:
             case Backend::d3d:
+            case Backend::d3d12:
             case Backend::metal:
             case Backend::metalcw:
             case Backend::vk:
@@ -221,6 +231,8 @@ public:
             case Backend::gl:
             case Backend::glmsaa:
             case Backend::d3d:
+            case Backend::d3d12:
+            case Backend::d3d12atomic:
             case Backend::metal:
             case Backend::metalcw:
             case Backend::vk:
@@ -248,10 +260,12 @@ public:
             case Backend::glatomic:
             case Backend::glcw:
             case Backend::d3datomic:
+            case Backend::d3d12atomic:
             case Backend::metalatomic:
             case Backend::gl:
             case Backend::glmsaa:
             case Backend::d3d:
+            case Backend::d3d12:
             case Backend::metal:
             case Backend::metalcw:
             case Backend::vk:
@@ -290,6 +304,8 @@ public:
             case Backend::swiftshadercore:
             case Backend::gl:
             case Backend::d3d:
+            case Backend::d3d12:
+            case Backend::d3d12atomic:
             case Backend::metal:
             case Backend::metalcw:
             case Backend::vk:
@@ -316,6 +332,8 @@ public:
             case Backend::glatomic:
             case Backend::glmsaa:
             case Backend::d3datomic:
+            case Backend::d3d12:
+            case Backend::d3d12atomic:
             case Backend::metalatomic:
             case Backend::moltenvkcore:
             case Backend::swiftshadercore:
