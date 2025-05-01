@@ -1,3 +1,4 @@
+#ifdef WITH_RIVE_TEXT
 #include "rive/text/cursor.hpp"
 #include "rive/text/font_hb.hpp"
 #include "rive/text/raw_text_input.hpp"
@@ -577,3 +578,4 @@ TEST_CASE("text input journal works", "[text_input]")
     CHECK(textInput.text() == "one Two");
     CHECK_CURSOR(textInput.cursor(), 4, 7);
 }
+#endif

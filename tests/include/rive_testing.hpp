@@ -25,6 +25,7 @@ template <> struct StringMaker<rive::Mat2D>
         return os.str();
     }
 };
+#ifdef WITH_RIVE_TEXT
 template <> struct StringMaker<rive::CursorPosition>
 {
     static std::string convert(rive::CursorPosition const& value)
@@ -35,5 +36,6 @@ template <> struct StringMaker<rive::CursorPosition>
         return os.str();
     }
 };
+#endif
 } // namespace Catch
 #endif
