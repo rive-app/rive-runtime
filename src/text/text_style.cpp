@@ -178,7 +178,7 @@ void TextStyle::draw(Renderer* renderer, const Mat2D& worldTransform)
 {
     for (auto shapePaint : m_ShapePaints)
     {
-        if (!shapePaint->isVisible())
+        if (!shapePaint->shouldDraw())
         {
             continue;
         }

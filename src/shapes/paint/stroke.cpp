@@ -31,7 +31,7 @@ void Stroke::update(ComponentDirt value)
     }
 }
 
-void Stroke::applyTo(RenderPaint* renderPaint, float opacityModifier) const
+void Stroke::applyTo(RenderPaint* renderPaint, float opacityModifier)
 {
     renderPaint->style(RenderPaintStyle::stroke);
     renderPaint->thickness(thickness());

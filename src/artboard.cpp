@@ -1002,7 +1002,15 @@ void Artboard::draw(Renderer* renderer) { draw(renderer, DrawOption::kNormal); }
 
 void Artboard::draw(Renderer* renderer, DrawOption option)
 {
-    renderer->save();
+    if (renderOpacity() == 0)
+    {
+        return;
+    }
+    bool save = clip() || m_FrameOrigin;
+    if (save)
+    {
+        renderer->save();
+    }
     if (clip())
     {
         renderer->clipPath(m_worldPath.renderPath(this));
@@ -1020,7 +1028,7 @@ void Artboard::draw(Renderer* renderer, DrawOption option)
     {
         for (auto shapePaint : m_ShapePaints)
         {
-            if (!shapePaint->isVisible())
+            if (!shapePaint->shouldDraw())
             {
                 continue;
             }
@@ -1045,8 +1053,10 @@ void Artboard::draw(Renderer* renderer, DrawOption option)
             drawable->draw(renderer);
         }
     }
-
-    renderer->restore();
+    if (save)
+    {
+        renderer->restore();
+    }
 }
 
 void Artboard::addToRenderPath(RenderPath* path, const Mat2D& transform)

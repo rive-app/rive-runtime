@@ -41,7 +41,7 @@ void ForegroundLayoutDrawable::draw(Renderer* renderer)
 
     for (auto shapePaint : m_ShapePaints)
     {
-        if (!shapePaint->isVisible())
+        if (!shapePaint->shouldDraw())
         {
             continue;
         }

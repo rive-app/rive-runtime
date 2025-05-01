@@ -57,10 +57,14 @@ public:
         return !this->isVisible() || m_PaintMutator->isTranslucent();
     }
 
+    bool shouldDraw() const
+    {
+        return this->isVisible() && m_PaintMutator->isVisible();
+    }
+
     /// Apply this ShapePaint to an external RenderPaint and optionally modulate
     /// the opacity by opacityModifer.
-    virtual void applyTo(RenderPaint* renderPaint,
-                         float opacityModifier) const = 0;
+    virtual void applyTo(RenderPaint* renderPaint, float opacityModifier) = 0;
 
     void feather(Feather* feather);
     Feather* feather() const;

@@ -17,7 +17,7 @@ RenderPaint* Fill::initRenderPaint(ShapePaintMutator* mutator)
     return renderPaint;
 }
 
-void Fill::applyTo(RenderPaint* renderPaint, float opacityModifier) const
+void Fill::applyTo(RenderPaint* renderPaint, float opacityModifier)
 {
     renderPaint->style(RenderPaintStyle::fill);
     renderPaint->shader(nullptr);

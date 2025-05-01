@@ -9,8 +9,7 @@ class Fill : public FillBase
 public:
     RenderPaint* initRenderPaint(ShapePaintMutator* mutator) override;
     PathFlags pathFlags() const override;
-    void applyTo(RenderPaint* renderPaint,
-                 float opacityModifier) const override;
+    void applyTo(RenderPaint* renderPaint, float opacityModifier) override;
     ShapePaintPath* pickPath(ShapePaintContainer* shape) const override;
 };
 } // namespace rive

@@ -26,18 +26,24 @@ void SolidColor::renderOpacityChanged()
     {
         return;
     }
-    renderPaint()->color(colorModulateOpacity(colorValue(), renderOpacity()));
+    auto value = colorModulateOpacity(colorValue(), renderOpacity());
+    renderPaint()->color(value);
+    auto opacity = colorOpacity(value);
+    m_flags = ShapePaintMutator::Flags::none;
+    if (opacity > 0.0f)
+    {
+        m_flags |= ShapePaintMutator::Flags::visible;
+    }
+    else if (opacity < 1.0f)
+    {
+        m_flags |= ShapePaintMutator::Flags::translucent;
+    }
 }
 
-void SolidColor::applyTo(RenderPaint* renderPaint, float opacityModifier) const
+void SolidColor::applyTo(RenderPaint* renderPaint, float opacityModifier)
 {
     renderPaint->color(
         colorModulateOpacity(colorValue(), renderOpacity() * opacityModifier));
 }
 
 void SolidColor::colorValueChanged() { renderOpacityChanged(); }
-
-bool SolidColor::internalIsTranslucent() const
-{
-    return colorAlpha(colorValue()) != 0xFF;
-}

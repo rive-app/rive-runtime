@@ -8,13 +8,11 @@ class SolidColor : public SolidColorBase, public ShapePaintMutator
 {
 public:
     StatusCode onAddedDirty(CoreContext* context) override;
-    void applyTo(RenderPaint* renderPaint,
-                 float opacityModifier) const override;
+    void applyTo(RenderPaint* renderPaint, float opacityModifier) override;
 
 protected:
     void renderOpacityChanged() override;
     void colorValueChanged() override;
-    bool internalIsTranslucent() const override;
 };
 } // namespace rive
 

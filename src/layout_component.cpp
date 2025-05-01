@@ -265,7 +265,7 @@ void LayoutComponent::drawProxy(Renderer* renderer)
     }
     for (auto shapePaint : m_ShapePaints)
     {
-        if (!shapePaint->isVisible())
+        if (!shapePaint->shouldDraw())
         {
             continue;
         }
@@ -323,7 +323,7 @@ void LayoutComponent::updateRenderPath()
 
     for (auto shapePaint : m_ShapePaints)
     {
-        if (!shapePaint->isVisible())
+        if (!shapePaint->shouldDraw())
         {
             continue;
         }

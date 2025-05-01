@@ -18,8 +18,7 @@ public:
     void invalidateEffects();
     bool isVisible() const override;
     void invalidateRendering();
-    void applyTo(RenderPaint* renderPaint,
-                 float opacityModifier) const override;
+    void applyTo(RenderPaint* renderPaint, float opacityModifier) override;
     ShapePaintPath* pickPath(ShapePaintContainer* shape) const override;
 
     void draw(Renderer* renderer,

@@ -2,6 +2,7 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
@@ -37,6 +38,31 @@ TEST_CASE("juice silver", "[silver]")
     }
 
     CHECK(silver.matches("juice"));
+}
+
+TEST_CASE("hide silver", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hide_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    auto vmi = file->createViewModelInstance(1, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("hide_test"));
 }
 
 TEST_CASE("n-slice silver", "[silver]")

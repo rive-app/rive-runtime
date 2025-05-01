@@ -37,19 +37,19 @@ void LinearGradient::buildDependencies()
         // We need to find the container that owns our world space transform.
         // This is the first node up the chain (or none, meaning we are in world
         // space).
-        m_ShapePaintContainer = nullptr;
+        m_shapePaintContainer = nullptr;
         for (ContainerComponent* container = grandParent; container != nullptr;
              container = container->parent())
         {
             if (container->is<Node>())
             {
-                m_ShapePaintContainer = container->as<Node>();
+                m_shapePaintContainer = container->as<Node>();
                 break;
             }
         }
-        if (m_ShapePaintContainer != nullptr)
+        if (m_shapePaintContainer != nullptr)
         {
-            m_ShapePaintContainer->addDependent(this);
+            m_shapePaintContainer->addDependent(this);
         }
         else
         {
@@ -61,14 +61,14 @@ void LinearGradient::buildDependencies()
 
 void LinearGradient::updateDeformer()
 {
-    if (!m_ShapePaintContainer)
+    if (!m_shapePaintContainer)
     {
         return;
     }
-    if (m_ShapePaintContainer->is<Shape>())
+    if (m_shapePaintContainer->is<Shape>())
     {
         if (RenderPathDeformer* deformer =
-                m_ShapePaintContainer->as<Shape>()->deformer())
+                m_shapePaintContainer->as<Shape>()->deformer())
         {
             Component* component = deformer->asComponent();
             m_deformer = PointDeformer::from(component);
@@ -76,7 +76,7 @@ void LinearGradient::updateDeformer()
     }
 }
 
-void LinearGradient::addStop(GradientStop* stop) { m_Stops.push_back(stop); }
+void LinearGradient::addStop(GradientStop* stop) { m_stops.push_back(stop); }
 
 static bool stopsComparer(GradientStop* a, GradientStop* b)
 {
@@ -89,7 +89,7 @@ void LinearGradient::update(ComponentDirt value)
     bool stopsChanged = hasDirt(value, ComponentDirt::Stops);
     if (stopsChanged)
     {
-        std::sort(m_Stops.begin(), m_Stops.end(), stopsComparer);
+        std::sort(m_stops.begin(), m_stops.end(), stopsComparer);
     }
 
     // We rebuild the gradient if the gradient is dirty or we paint in world
@@ -107,11 +107,26 @@ void LinearGradient::update(ComponentDirt value)
     if (rebuildGradient)
     {
         applyTo(renderPaint(), 1.0f);
+        m_flags = ShapePaintMutator::Flags::none;
+        const auto count = m_stops.size();
+        ColorInt* colors = m_colorStorage.data();
+        for (size_t i = 0; i < count; ++i)
+        {
+            auto colorValue = colors[i];
+            auto opacity = colorOpacity(colorValue);
+            if (opacity > 0.0f)
+            {
+                m_flags |= ShapePaintMutator::Flags::visible;
+            }
+            if (opacity < 1.0f)
+            {
+                m_flags |= ShapePaintMutator::Flags::translucent;
+            }
+        }
     }
 }
 
-void LinearGradient::applyTo(RenderPaint* renderPaint,
-                             float opacityModifier) const
+void LinearGradient::applyTo(RenderPaint* renderPaint, float opacityModifier)
 {
     bool paintsInWorldSpace =
         parent()->as<ShapePaint>()->isFlagged(PathFlags::world);
@@ -120,11 +135,11 @@ void LinearGradient::applyTo(RenderPaint* renderPaint,
     // Check if we need to update the world space gradient (if there's no
     // shape container, presumably it's the artboard and we're already in
     // world).
-    if (paintsInWorldSpace && m_ShapePaintContainer != nullptr)
+    if (paintsInWorldSpace && m_shapePaintContainer != nullptr)
     {
         // Get the start and end of the gradient in world coordinates (world
         // transform of the shape).
-        const Mat2D& world = m_ShapePaintContainer->worldTransform();
+        const Mat2D& world = m_shapePaintContainer->worldTransform();
         start = world * start;
         end = world * end;
         if (m_deformer)
@@ -137,7 +152,7 @@ void LinearGradient::applyTo(RenderPaint* renderPaint,
     {
         if (m_deformer)
         {
-            const Mat2D& world = m_ShapePaintContainer->worldTransform();
+            const Mat2D& world = m_shapePaintContainer->worldTransform();
             Mat2D inverseWorld;
             if (world.invert(&inverseWorld))
             {
@@ -150,18 +165,18 @@ void LinearGradient::applyTo(RenderPaint* renderPaint,
 
     // build up the color and positions lists
     const auto ro = opacity() * renderOpacity() * opacityModifier;
-    const auto count = m_Stops.size();
+    const auto count = m_stops.size();
 
     // need some temporary storage. Allocate enough for both arrays
     assert(sizeof(ColorInt) == sizeof(float));
-    std::vector<ColorInt> storage(count * 2);
-    ColorInt* colors = storage.data();
+    m_colorStorage.resize(count * 2);
+    ColorInt* colors = m_colorStorage.data();
     float* stops = (float*)colors + count;
 
     for (size_t i = 0; i < count; ++i)
     {
-        colors[i] = colorModulateOpacity(m_Stops[i]->colorValue(), ro);
-        stops[i] = std::max(0.0f, std::min(m_Stops[i]->position(), 1.0f));
+        colors[i] = colorModulateOpacity(m_stops[i]->colorValue(), ro);
+        stops[i] = std::max(0.0f, std::min(m_stops[i]->position(), 1.0f));
     }
 
     makeGradient(renderPaint, start, end, colors, stops, count);
@@ -197,19 +212,3 @@ void LinearGradient::startYChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::endXChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::endYChanged() { addDirt(ComponentDirt::Transform); }
 void LinearGradient::opacityChanged() { markGradientDirty(); }
-
-bool LinearGradient::internalIsTranslucent() const
-{
-    if (opacity() < 1)
-    {
-        return true;
-    }
-    for (const auto stop : m_Stops)
-    {
-        if (colorAlpha(stop->colorValue()) != 0xFF)
-        {
-            return true;
-        }
-    }
-    return false; // all of our stops are opaque
-}
