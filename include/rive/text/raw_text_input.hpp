@@ -31,11 +31,6 @@ public:
               RenderPaint* selectionPaint,
               RenderPaint* cursorPaint);
 
-    void insert(const std::string& text);
-    void insert(Unichar codePoint);
-    void erase();
-    void backspace(int32_t direction);
-
     float fontSize() const { return m_textRun.size; }
     void fontSize(float value);
 
@@ -63,7 +58,15 @@ public:
     bool separateSelectionText() const;
     void separateSelectionText(bool value);
 
-    bool update(Factory* factory);
+    enum class Flags : uint8_t
+    {
+        none = 0,
+        shapeDirty = 1 << 0,
+        selectionDirty = 1 << 1,
+        separateSelectionText = 1 << 2
+    };
+
+    Flags update(Factory* factory);
 
     ShapePaintPath* textPath() { return &m_textPath; }
     ShapePaintPath* selectedTextPath() { return &m_selectedTextPath; }
@@ -78,6 +81,16 @@ public:
     {
         return position.visualPosition(m_shape);
     }
+
+    CursorVisualPosition cursorVisualPosition() const
+    {
+        return m_cursorVisualPosition;
+    }
+
+    void insert(const std::string& text);
+    void insert(Unichar codePoint);
+    void erase();
+    void backspace(int32_t direction);
 
     void cursorLeft(CursorBoundary boundary = CursorBoundary::character,
                     bool select = false);
@@ -117,14 +130,6 @@ public:
         any =
             lowercase | uppercase | symbol | underscore | whitespace | lowercase
 
-    };
-
-    enum class Flags : uint8_t
-    {
-        none = 0,
-        shapeDirty = 1 << 0,
-        selectionDirty = 1 << 1,
-        separateSelectionText = 1 << 2
     };
 
 private:

@@ -201,13 +201,13 @@ void RawTextInput::computeVisualPositionFromCursor()
     m_cursorVisualPosition = cursorVisualPosition(m_cursor.end());
 }
 
-bool RawTextInput::update(Factory* factory)
+RawTextInput::Flags RawTextInput::update(Factory* factory)
 {
-    bool updated = false;
+    Flags updated = Flags::none;
     bool updateTextPath = false;
     if (unflag(Flags::shapeDirty))
     {
-        updated = true;
+        updated |= Flags::shapeDirty;
         m_textRun.unicharCount = (uint32_t)m_text.size();
         m_shape.shape(m_text,
                       Span<TextRun>(&m_textRun, 1),
@@ -223,7 +223,7 @@ bool RawTextInput::update(Factory* factory)
     }
     if (unflag(Flags::selectionDirty))
     {
-        updated = true;
+        updated |= Flags::selectionDirty;
         if (flagged(Flags::separateSelectionText))
         {
             updateTextPath = true;

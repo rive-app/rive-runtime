@@ -82,12 +82,16 @@ CursorPosition CursorPosition::fromTranslation(const Vec2D translation,
                                                const FullyShapedText& shape)
 {
     const std::vector<OrderedLine>& orderedLines = shape.orderedLines();
+    if (orderedLines.empty())
+    {
+        return CursorPosition::zero();
+    }
 
     uint32_t lineIndex = 0;
-
+    uint32_t maxLine = (uint32_t)(orderedLines.size() - 1);
     for (const OrderedLine& orderedLine : orderedLines)
     {
-        if (orderedLine.bottom() < translation.y)
+        if (orderedLine.bottom() < translation.y && lineIndex != maxLine)
         {
             lineIndex++;
             continue;
