@@ -9,6 +9,7 @@
 #include "rive/viewmodel/runtime/viewmodel_instance_color_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_enum_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_trigger_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_list_runtime.hpp"
 #include "rive/viewmodel/viewmodel_property_string.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
@@ -226,6 +227,21 @@ ViewModelInstanceEnumRuntime* ViewModelInstanceRuntime::propertyEnum(
         return viewModelInstance
             ->getPropertyInstance<ViewModelInstanceEnum,
                                   ViewModelInstanceEnumRuntime>(propertyName);
+    }
+    return nullptr;
+}
+
+ViewModelInstanceListRuntime* ViewModelInstanceRuntime::propertyList(
+    const std::string& path) const
+{
+    const auto propertyName = getPropertyNameFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
+    if (viewModelInstance != nullptr)
+    {
+
+        return viewModelInstance
+            ->getPropertyInstance<ViewModelInstanceList,
+                                  ViewModelInstanceListRuntime>(propertyName);
     }
     return nullptr;
 }

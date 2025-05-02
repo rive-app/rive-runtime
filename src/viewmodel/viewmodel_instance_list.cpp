@@ -12,7 +12,7 @@ ViewModelInstanceList::~ViewModelInstanceList()
 {
     for (auto item : m_ListItems)
     {
-        delete item;
+        item->unref();
     }
 }
 
@@ -23,6 +23,7 @@ void ViewModelInstanceList::propertyValueChanged()
 
 void ViewModelInstanceList::addItem(ViewModelInstanceListItem* item)
 {
+    item->ref();
     m_ListItems.push_back(item);
     propertyValueChanged();
 }
@@ -33,6 +34,7 @@ void ViewModelInstanceList::insertItem(int index,
     // TODO: @hernan decide if we want to return a boolean
     if (index < m_ListItems.size())
     {
+        item->ref();
         m_ListItems.insert(m_ListItems.begin() + index, item);
         propertyValueChanged();
     }
@@ -41,9 +43,11 @@ void ViewModelInstanceList::insertItem(int index,
 void ViewModelInstanceList::removeItem(int index)
 {
     // TODO: @hernan decide if we want to return a boolean
-    if (index < m_ListItems.size())
+    if (index >= 0 && index < m_ListItems.size())
     {
+        auto listItem = m_ListItems[index];
         m_ListItems.erase(m_ListItems.begin() + index);
+        listItem->unref();
         propertyValueChanged();
     }
 }

@@ -261,6 +261,14 @@ void DataBind::addDirt(ComponentDirt value, bool recurse)
 
             target()->as<FormulaToken>()->markDirty();
         }
+        else if (target()->is<Component>())
+        {
+            auto artboard = target()->as<Component>()->artboard();
+            if (artboard != nullptr)
+            {
+                artboard->onComponentDirty(target()->as<Component>());
+            }
+        }
     }
     if ((m_Dirt & ComponentDirt::Dependents) != 0 && m_ContextValue != nullptr)
     {

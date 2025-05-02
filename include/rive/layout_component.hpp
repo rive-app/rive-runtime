@@ -257,6 +257,7 @@ public:
     void* layoutNode(int index) override;
     void syncStyle();
     void syncLayoutChildren();
+    void clearLayoutChildren();
     virtual void propagateSize();
     void updateLayoutBounds(bool animate = true) override;
     StatusCode onAddedDirty(CoreContext* context) override;

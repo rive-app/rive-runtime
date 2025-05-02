@@ -53,66 +53,10 @@ void DataBindContextValueList::update(Core* target)
         auto sourceList = source->as<ViewModelInstanceList>();
         auto listItems = sourceList->listItems();
 
-        int listIndex = 0;
-        while (listIndex < listItems.size())
-        {
-            auto listItem = listItems[listIndex];
-            if (listIndex < m_ListItemsCache.size())
-            {
-                if (m_ListItemsCache[listIndex]->listItem() == listItem)
-                {
-                    // Same item in same position: do nothing
-                }
-                else
-                {
-                    int cacheIndex = listIndex + 1;
-                    bool found = false;
-                    while (cacheIndex < m_ListItemsCache.size())
-                    {
-                        if (m_ListItemsCache[cacheIndex]->listItem() ==
-                            listItem)
-                        {
-                            // swap cache position with new item
-                            swapItems(target, listIndex, cacheIndex);
-                            found = true;
-                            break;
-                        }
-                        cacheIndex++;
-                    }
-                    if (!found)
-                    {
-                        // create new element and insert it in listIndex
-                        insertItem(target, listItem, listIndex);
-                    }
-                }
-            }
-            else
-            {
-                // create new element and cache the listItem in listIndex
-                insertItem(target, listItem, -1);
-            }
-
-            listIndex++;
-        }
-        // remove remaining cached elements backwars to pop from the vector.
-        listIndex = m_ListItemsCache.size() == 0
-                        ? 0
-                        : (int)(m_ListItemsCache.size() - 1);
-        while ((size_t)listIndex > listItems.size())
-        {
-            popItem(target);
-            listIndex--;
-        }
-
         auto provider = DataBindListItemProvider::from(target);
         if (provider != nullptr)
         {
-            std::vector<ViewModelInstanceListItem*> items;
-            for (auto& item : m_ListItemsCache)
-            {
-                items.push_back(item.get()->listItem());
-            }
-            provider->updateList(m_dataBind->propertyKey(), items);
+            provider->updateList(m_dataBind->propertyKey(), listItems);
         }
     }
 }

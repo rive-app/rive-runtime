@@ -1,6 +1,7 @@
 #include "rive/file.hpp"
 #include "rive/runtime_header.hpp"
 #include "rive/animation/animation.hpp"
+#include "rive/artboard_component_list.hpp"
 #include "rive/core/field_types/core_color_type.hpp"
 #include "rive/core/field_types/core_double_type.hpp"
 #include "rive/core/field_types/core_string_type.hpp"
@@ -464,6 +465,8 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                         object->as<DataConverterFormula>());
                 stackType = DataConverterFormulaBase::typeKey;
                 break;
+            case ArtboardComponentList::typeKey:
+                object->as<ArtboardComponentList>()->file(this);
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) !=
             StatusCode::Ok)

@@ -776,6 +776,12 @@ void LayoutComponent::syncStyle()
     ygNode.setStyle(ygStyle);
 }
 
+void LayoutComponent::clearLayoutChildren()
+{
+    YGNode& ourNode = m_layoutData->node;
+    YGNodeRemoveAllChildren(&ourNode);
+}
+
 void LayoutComponent::syncLayoutChildren()
 {
     YGNode& ourNode = m_layoutData->node;

@@ -1,4 +1,5 @@
 #include "rive/component.hpp"
+#include "rive/file.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/layout_constraint.hpp"
@@ -22,6 +23,7 @@ void ArtboardComponentList::reset()
     m_ArtboardInstances.clear();
     m_StateMachineInstances.clear();
     m_ListItems.clear();
+    m_artboardsMap.clear();
 }
 
 #ifdef WITH_RIVE_LAYOUT
@@ -86,16 +88,43 @@ bool ArtboardComponentList::syncStyleChanges()
     return changed;
 }
 
-std::unique_ptr<ArtboardInstance> ArtboardComponentList::createArtboard(
-    Component* target,
-    Artboard* artboard,
+Artboard* ArtboardComponentList::findArtboard(
     ViewModelInstanceListItem* listItem) const
 {
+    auto viewModelInstance = listItem->viewModelInstance();
+    if (viewModelInstance == nullptr)
+    {
+        return nullptr;
+    }
+    auto artboard = m_artboardsMap.find(viewModelInstance->viewModelId());
+    if (artboard != m_artboardsMap.end())
+    {
+        return artboard->second;
+    }
+    auto artboards = m_file->artboards();
+    for (auto& artboard : artboards)
+    {
+        if (artboard->viewModelId() == viewModelInstance->viewModelId())
+        {
+            m_artboardsMap[viewModelInstance->viewModelId()] = artboard;
+            return artboard;
+        }
+    }
+
+    return nullptr;
+}
+
+std::unique_ptr<ArtboardInstance> ArtboardComponentList::createArtboard(
+    Component* target,
+    ViewModelInstanceListItem* listItem) const
+{
+    auto artboard = findArtboard(listItem);
     if (artboard != nullptr)
     {
         auto mainArtboard = target->artboard();
         auto dataContext = mainArtboard->dataContext();
         auto artboardCopy = artboard->instance();
+        artboardCopy->name(artboard->name());
         artboardCopy->bindViewModelInstance(listItem->viewModelInstance(),
                                             dataContext,
                                             true);
@@ -122,11 +151,18 @@ void ArtboardComponentList::updateList(
     std::vector<ViewModelInstanceListItem*> list)
 {
     reset();
+
+    if (parent()->is<LayoutComponent>())
+    {
+#ifdef WITH_RIVE_LAYOUT
+        parent()->as<LayoutComponent>()->clearLayoutChildren();
+#endif
+    }
     m_ListItems = list;
     for (auto& item : list)
     {
-        auto artboard = item->artboard();
-        auto artboardCopy = createArtboard(this, artboard, item);
+
+        auto artboardCopy = createArtboard(this, item);
         auto artboardInstance = artboardCopy.get();
         auto stateMachineCopy =
             createStateMachineInstance(this, artboardInstance);
@@ -346,4 +382,15 @@ bool ArtboardComponentList::worldToLocal(Vec2D world, Vec2D* local, int index)
     *local = toMountedArtboard * world;
 
     return true;
+}
+
+void ArtboardComponentList::file(File* value) { m_file = value; }
+File* ArtboardComponentList::file() const { return m_file; }
+
+Core* ArtboardComponentList::clone() const
+{
+    auto clone =
+        static_cast<ArtboardComponentList*>(ArtboardComponentListBase::clone());
+    clone->file(file());
+    return clone;
 }

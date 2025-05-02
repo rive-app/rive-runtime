@@ -140,6 +140,8 @@ public:
         rcp<ViewModelInstance> viewModelInstance) const;
     const std::vector<DataEnum*>& enums() const;
 
+    std::vector<Artboard*> artboards() { return m_artboards; };
+
 #ifdef WITH_RIVE_TOOLS
     /// Strips FileAssetContents for FileAssets of given typeKeys.
     /// @param data the raw data of the file.

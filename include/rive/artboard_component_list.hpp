@@ -11,6 +11,7 @@
 namespace rive
 {
 class StateMachineInstance;
+class File;
 
 class ArtboardComponentList : public ArtboardComponentListBase,
                               public ArtboardHost,
@@ -75,15 +76,20 @@ public:
         bool shouldForceUpdateLayoutBounds = false) override;
     bool isLayoutProvider() override { return true; }
     void reset();
+    void file(File*);
+    File* file() const;
+    Core* clone() const override;
 
 private:
     std::unique_ptr<ArtboardInstance> createArtboard(
         Component* target,
-        Artboard* artboard,
         ViewModelInstanceListItem* listItem) const;
+    Artboard* findArtboard(ViewModelInstanceListItem* listItem) const;
     std::unique_ptr<StateMachineInstance> createStateMachineInstance(
         Component* target,
         ArtboardInstance* artboard);
+    mutable std::unordered_map<uint32_t, Artboard*> m_artboardsMap;
+    File* m_file;
 };
 } // namespace rive
 

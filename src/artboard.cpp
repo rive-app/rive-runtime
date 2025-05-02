@@ -60,6 +60,7 @@ Artboard::~Artboard()
         audioEngine->stop(this);
     }
 #endif
+    clearDataContext();
     for (auto object : m_Objects)
     {
         // First object is artboard

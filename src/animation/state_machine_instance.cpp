@@ -1578,6 +1578,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
 
 StateMachineInstance::~StateMachineInstance()
 {
+    clearDataContext();
     for (auto inst : m_inputInstances)
     {
         delete inst;

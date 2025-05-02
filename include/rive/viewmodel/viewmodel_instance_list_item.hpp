@@ -6,7 +6,8 @@
 #include <stdio.h>
 namespace rive
 {
-class ViewModelInstanceListItem : public ViewModelInstanceListItemBase
+class ViewModelInstanceListItem : public ViewModelInstanceListItemBase,
+                                  public RefCnt<ViewModelInstanceListItem>
 {
 private:
     rcp<ViewModelInstance> m_viewModelInstance;
