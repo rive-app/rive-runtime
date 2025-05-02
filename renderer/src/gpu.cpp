@@ -1082,21 +1082,23 @@ static BlendEquation get_blend_equation(
             {
                 return BlendEquation::none;
             }
-            else if (!(batch.drawContents & DrawContents::advancedBlend))
+            else if (!platformFeatures.supportsKHRBlendEquations ||
+                     batch.firstBlendMode == BlendMode::srcOver)
             {
-                assert(batch.firstBlendMode == BlendMode::srcOver);
+                // Normal and in-shader blending both use src-over hardware
+                // blend coefficients.
+                //
+                // When drawing an advanced blend mode, the shader only does the
+                // "color" portion of the blend equation, and relies on the
+                // hardware blend unit to finish the "alpha" portion.
                 return BlendEquation::srcOver;
             }
-            else if (platformFeatures.supportsKHRBlendEquations)
+            else
             {
                 // When m_platformFeatures.supportsKHRBlendEquations is true in
                 // MSAA mode, the renderContext does not combine draws that have
                 // different blend modes.
                 return static_cast<BlendEquation>(batch.firstBlendMode);
-            }
-            else
-            {
-                return BlendEquation::none;
             }
     }
 

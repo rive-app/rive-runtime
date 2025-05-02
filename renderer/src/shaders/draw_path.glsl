@@ -670,13 +670,19 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)
     {
-        // GENERATE_PREMULTIPLIED_PAINT_COLORS is false in this case because
-        // advanced blend needs unmultiplied colors.
+        // Do the color portion of the blend mode in the shader.
+        //
+        // NOTE: "color" is already unmultiplied because
+        // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when using advanced
+        // blend.
         half4 dstColorPremul =
             TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
-        color = advanced_blend(color,
-                               dstColorPremul,
-                               cast_half_to_ushort(v_blendMode));
+        color.rgb = advanced_color_blend(color.rgb,
+                                         dstColorPremul,
+                                         cast_half_to_ushort(v_blendMode));
+        // Src-over blending is enabled, so just premultiply and let the HW
+        // finish the the the alpha portion of the blend mode.
+        color.rgb *= color.a;
     }
 #endif // ENABLE_ADVANCED_BLEND
     EMIT_FRAG_DATA(color);

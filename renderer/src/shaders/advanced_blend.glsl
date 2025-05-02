@@ -270,7 +270,10 @@ half3 advanced_blend_coeffs(half3 src, half4 dstPremul, ushort mode)
 //
 // NOTE: This method is sufficient for all blending because alpha in the src
 // can be accounted for afterward using a standard src-over blend operation.
-// (See advanced_blend().)
+//
+// e.g., dst = blend_src_over(
+//           premultiply(advanced_color_blend(src.rgb, dstPremul)),
+//           dstPremul)
 INLINE half3 advanced_color_blend(half3 src, half4 dstPremul, ushort mode)
 {
     // The weighting functions p0, p1, and p2 are defined as follows:
@@ -298,16 +301,6 @@ INLINE half3 advanced_color_blend(half3 src, half4 dstPremul, ushort mode)
     half3 coeffs = advanced_blend_coeffs(src, dstPremul, mode);
     half2 p = make_half2(dstPremul.a, 1. - dstPremul.a); // p2 cancelled to 0.
     return MUL(make_half2x3(coeffs, src), p);
-}
-
-INLINE half4 advanced_blend(half4 src, half4 dstPremul, ushort mode)
-{
-    // First blend without srcAlpha.
-    src.rgb = advanced_color_blend(src.rgb, dstPremul, mode);
-    // All advanced blend operations are structured such that alpha in the src
-    // can be accounted for afterward using a standard src-over blend operation.
-    src.rgb *= src.a;
-    return dstPremul * (1. - src.a) + src;
 }
 #endif // ENABLE_ADVANCED_BLEND
 
