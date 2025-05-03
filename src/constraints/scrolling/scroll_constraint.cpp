@@ -40,8 +40,8 @@ void ScrollConstraint::dragView(Vec2D delta)
     {
         m_physics->accumulate(delta);
     }
-    offsetX(offsetX() + delta.x);
-    offsetY(offsetY() + delta.y);
+    scrollOffsetX(offsetX() + delta.x);
+    scrollOffsetY(offsetY() + delta.y);
 }
 
 void ScrollConstraint::runPhysics()
