@@ -86,6 +86,12 @@ case "$(uname -s)" in
         NUM_CORES=$(grep -c processor /proc/cpuinfo)
         ;;
 esac
+RIVE_NO_BUILD=false
+# don't build if all we want to do is re run premake for shader generation for example.
+if [[ "$1" = "nobuild" ]]; then
+    RIVE_NO_BUILD=true
+    shift
+fi
 
 if [[ "$1" = "rebuild" ]]; then
     # Load args from an existing build.
@@ -236,7 +242,7 @@ fi
 
 popd > /dev/null # leave "$SCRIPT_DIR/dependencies"
 
-if [ -d "$RIVE_OUT" ]; then
+if [[ -d "$RIVE_OUT" && "$RIVE_NO_BUILD" = false ]]; then
     if [[ "$RIVE_PREMAKE_ARGS" != "$(< $RIVE_OUT/.rive_premake_args)" ]]; then
         echo "error: premake5 arguments for current build do not match previous arguments"
         echo "  previous command: premake5 $(< $RIVE_OUT/.rive_premake_args)"
@@ -251,6 +257,11 @@ fi
 
 echo premake5 $RIVE_PREMAKE_ARGS
 premake5 $RIVE_PREMAKE_ARGS | grep -v '^Done ([1-9]*ms).$'
+
+if [[ "$RIVE_NO_BUILD" = true ]]; then
+    echo "Not building as nobuild was specified"
+    exit 0
+fi
 
 case "$RIVE_BUILD_SYSTEM" in
     export-compile-commands)
