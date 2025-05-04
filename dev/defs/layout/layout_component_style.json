@@ -351,7 +351,8 @@
       "key": {
         "int": 655,
         "string": "layoutwidthscaletype"
-      }
+      },
+      "bindable": true
     },
     "layoutHeightScaleType": {
       "type": "uint",
@@ -360,7 +361,8 @@
       "key": {
         "int": 656,
         "string": "layoutheightscaletype"
-      }
+      },
+      "bindable": true
     },
     "layoutAlignmentType": {
       "type": "uint",
@@ -673,7 +675,8 @@
         "int": 621,
         "string": "positionleftunitsvalue"
       },
-      "description": ""
+      "description": "",
+      "bindable": true
     },
     "positionRightUnitsValue": {
       "type": "uint",
@@ -683,7 +686,8 @@
         "int": 622,
         "string": "positionrightunitsvalue"
       },
-      "description": ""
+      "description": "",
+      "bindable": true
     },
     "positionTopUnitsValue": {
       "type": "uint",
@@ -693,7 +697,8 @@
         "int": 623,
         "string": "positiontopunitsvalue"
       },
-      "description": ""
+      "description": "",
+      "bindable": true
     },
     "positionBottomUnitsValue": {
       "type": "uint",
@@ -703,7 +708,8 @@
         "int": 624,
         "string": "positionbottomunitsvalue"
       },
-      "description": ""
+      "description": "",
+      "bindable": true
     },
     "gapHorizontalUnitsValue": {
       "type": "uint",
