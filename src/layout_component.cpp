@@ -419,7 +419,7 @@ void* LayoutComponent::layoutNode(int index)
 
 void LayoutComponent::syncStyle()
 {
-    if (m_style == nullptr)
+    if (m_style == nullptr || m_layoutData == nullptr)
     {
         return;
     }
@@ -1397,7 +1397,18 @@ bool LayoutComponent::mainAxisIsRow() { return true; }
 bool LayoutComponent::mainAxisIsColumn() { return false; }
 #endif
 
-LayoutComponent::~LayoutComponent() { delete m_layoutData; }
+LayoutComponent::~LayoutComponent()
+{
+    if (artboard() != nullptr)
+    {
+        artboard()->cleanLayout(this);
+    }
+#ifdef WITH_RIVE_LAYOUT
+    YGNode& ourNode = m_layoutData->node;
+    YGNodeRemoveAllChildren(&ourNode);
+#endif
+    delete m_layoutData;
+}
 
 void LayoutComponent::clipChanged() { markLayoutNodeDirty(); }
 void LayoutComponent::widthChanged() { markLayoutNodeDirty(); }

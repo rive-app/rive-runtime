@@ -9,7 +9,7 @@ class DataBindListItemProvider
 public:
     static DataBindListItemProvider* from(Core* component);
     virtual void updateList(int propertyKey,
-                            std::vector<ViewModelInstanceListItem*> list) = 0;
+                            std::vector<ViewModelInstanceListItem*>* list) = 0;
 };
 } // namespace rive
 

@@ -45,26 +45,25 @@ void DataBindContextValueList::popItem(Core* target)
     m_ListItemsCache.pop_back();
 }
 
-void DataBindContextValueList::update(Core* target)
-{
-    if (target != nullptr)
-    {
-        auto source = m_dataBind->source();
-        auto sourceList = source->as<ViewModelInstanceList>();
-        auto listItems = sourceList->listItems();
-
-        auto provider = DataBindListItemProvider::from(target);
-        if (provider != nullptr)
-        {
-            provider->updateList(m_dataBind->propertyKey(), listItems);
-        }
-    }
-}
-
 void DataBindContextValueList::apply(Core* target,
                                      uint32_t propertyKey,
                                      bool isMainDirection)
-{}
+{
+    syncSourceValue();
+    auto value =
+        calculateValue<DataValueList, std::vector<ViewModelInstanceListItem*>*>(
+            m_dataValue,
+            isMainDirection,
+            m_dataBind);
+    if (target != nullptr)
+    {
+        auto provider = DataBindListItemProvider::from(target);
+        if (provider != nullptr)
+        {
+            provider->updateList(m_dataBind->propertyKey(), value);
+        }
+    }
+}
 
 void DataBindContextValueList::applyToSource(Core* target,
                                              uint32_t propertyKey,

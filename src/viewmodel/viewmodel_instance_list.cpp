@@ -18,7 +18,7 @@ ViewModelInstanceList::~ViewModelInstanceList()
 
 void ViewModelInstanceList::propertyValueChanged()
 {
-    addDirt(ComponentDirt::Components);
+    addDirt(ComponentDirt::Bindings);
 }
 
 void ViewModelInstanceList::addItem(ViewModelInstanceListItem* item)

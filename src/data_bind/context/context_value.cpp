@@ -8,6 +8,7 @@
 #include "rive/data_bind/data_values/data_value_color.hpp"
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
 #include "rive/data_bind/data_values/data_value_trigger.hpp"
+#include "rive/data_bind/data_values/data_value_list.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;
@@ -52,6 +53,9 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind) :
                 m_dataValue = new DataValueTrigger(
                     source->as<ViewModelInstanceTrigger>()->propertyValue());
                 break;
+            case ViewModelInstanceListBase::typeKey:
+                m_dataValue = new DataValueList();
+                break;
             default:
                 m_dataValue = new DataValue();
         }
@@ -88,6 +92,14 @@ void DataBindContextValue::syncSourceValue()
             case ViewModelInstanceTriggerBase::typeKey:
                 m_dataValue->as<DataValueTrigger>()->value(
                     source->as<ViewModelInstanceTrigger>()->propertyValue());
+                break;
+            case ViewModelInstanceListBase::typeKey:
+                m_dataValue->as<DataValueList>()->clear();
+                auto items = source->as<ViewModelInstanceList>()->listItems();
+                for (auto& item : items)
+                {
+                    m_dataValue->as<DataValueList>()->addItem(item);
+                }
                 break;
         }
     }

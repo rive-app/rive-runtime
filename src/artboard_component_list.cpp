@@ -124,7 +124,7 @@ std::unique_ptr<ArtboardInstance> ArtboardComponentList::createArtboard(
         auto mainArtboard = target->artboard();
         auto dataContext = mainArtboard->dataContext();
         auto artboardCopy = artboard->instance();
-        artboardCopy->name(artboard->name());
+        // artboardCopy->name(artboard->name());
         artboardCopy->bindViewModelInstance(listItem->viewModelInstance(),
                                             dataContext,
                                             true);
@@ -148,7 +148,7 @@ std::unique_ptr<StateMachineInstance> ArtboardComponentList::
 
 void ArtboardComponentList::updateList(
     int propertyKey,
-    std::vector<ViewModelInstanceListItem*> list)
+    std::vector<ViewModelInstanceListItem*>* list)
 {
     reset();
 
@@ -158,10 +158,9 @@ void ArtboardComponentList::updateList(
         parent()->as<LayoutComponent>()->clearLayoutChildren();
 #endif
     }
-    m_ListItems = list;
-    for (auto& item : list)
+    for (auto& item : *list)
     {
-
+        m_ListItems.push_back(item);
         auto artboardCopy = createArtboard(this, item);
         auto artboardInstance = artboardCopy.get();
         auto stateMachineCopy =

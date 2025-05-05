@@ -158,6 +158,7 @@ public:
     void updateWorldTransform() override {}
 
     void markLayoutDirty(LayoutComponent* layoutComponent);
+    void cleanLayout(LayoutComponent* layoutComponent);
 
     void* takeLayoutNode();
     bool syncStyleChanges() override;

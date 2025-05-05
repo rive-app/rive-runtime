@@ -821,6 +821,28 @@ void* Artboard::takeLayoutNode()
 #endif
 }
 
+void Artboard::cleanLayout(LayoutComponent* layoutComponent)
+{
+    if (!m_dirtyLayout.empty())
+    {
+        auto itr = m_dirtyLayout.find(layoutComponent);
+        if (itr != m_dirtyLayout.end())
+        {
+            m_dirtyLayout.erase(itr);
+        }
+    }
+    // If we called cleanLayout on ourselves, make sure to also
+    // call it on our parent artboard in case we were dirtied
+    if (layoutComponent == this)
+    {
+        Artboard* parent = parentArtboard();
+        if (parent != nullptr)
+        {
+            parent->cleanLayout(layoutComponent);
+        }
+    }
+}
+
 void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
 {
 #ifdef WITH_RIVE_TOOLS
@@ -1335,7 +1357,7 @@ StatusCode Artboard::import(ImportStack& importStack)
 void Artboard::internalDataContext(DataContext* value, bool isRoot)
 {
     m_DataContext = value;
-    for (auto artboardHost : m_ArtboardHosts)
+    for (auto artboardHost : m_NestedArtboards)
     {
         auto value = m_DataContext->getViewModelInstance(
             artboardHost->dataBindPathIds());
