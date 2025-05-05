@@ -1,7 +1,7 @@
 # requires Set-ExecutionPolicy Bypass -Scope CurrentUser
 $Rive_Root = Resolve-Path -Path "$PSScriptRoot\..\..\..\"
-$Build_Path = "$Rive_Root"+"\packages\runtime\build"
-$Env:Path += ";" + $Build_Path
+$Build_Path = Resolve-Path -Path "$PSScriptRoot"
+$Env:Path += ";$Build_Path"
 $Env:RIVE_ROOT=$Rive_Root
 # Add windows to path
 $CWD = Get-Location
