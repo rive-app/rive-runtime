@@ -1,3 +1,4 @@
+#include <rive/custom_property_string.hpp>
 #include <rive/file.hpp>
 #include <rive/node.hpp>
 #include <rive/nested_artboard.hpp>
@@ -188,4 +189,31 @@ TEST_CASE("File with multiple libraries including image", "[libraries]")
     REQUIRE(images2.size() == 1);
     REQUIRE(images2[0]->imageAsset() != nullptr);
     REQUIRE(images2[0]->imageAsset()->name() == "MyOtherImageAsset");
+}
+
+TEST_CASE("File with DataEnum", "[libraries]")
+{
+    // This test verifies that a .rev file with LibraryComponents can
+    // export a .riv that has valid DataBind's that reference a DataEnum
+    // coming from a library.
+
+    // created by library_import_export_test.dart in rive_core.
+    auto file = ReadRiveFile("assets/library_data_enum_test.riv");
+    auto artboard = file->artboard("my_artboard")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    auto event = artboard->find<rive::Event>("my_event");
+    REQUIRE(event != nullptr);
+
+    artboard->advance(0.0f);
+
+    auto customPropertyString =
+        artboard->find<rive::CustomPropertyString>("my_event_property");
+    REQUIRE(customPropertyString != nullptr);
+
+    REQUIRE(customPropertyString->propertyValue() == "red3");
 }
