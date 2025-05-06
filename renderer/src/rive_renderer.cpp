@@ -326,6 +326,15 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
 {
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
 
+    rcp<gpu::Texture> imageTexture = image->refTexture();
+    if (imageTexture == nullptr)
+    {
+        // imageTexture may be null if the backend uses a custom factory and/or
+        // updates out-of-band assets asynchronously. If there's no texture yet,
+        // just don't draw anything.
+        return;
+    }
+
     // Scale the view matrix so we can draw this image as the rect [0, 0, 1, 1].
     save();
     scale(image->width(), image->height());
@@ -337,15 +346,13 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
         if (!m_stack.back().clipIsEmpty)
         {
             const Mat2D& m = m_stack.back().matrix;
-            auto riveRenderImage =
-                static_cast<const RiveRenderImage*>(renderImage);
             clipAndPushDraw(
                 gpu::DrawUniquePtr(m_context->make<gpu::ImageRectDraw>(
                     m_context,
                     m.mapBoundingBox(AABB{0, 0, 1, 1}).roundOut(),
                     m,
                     blendMode,
-                    riveRenderImage->refTexture(),
+                    std::move(imageTexture),
                     opacity)));
         }
     }
@@ -362,7 +369,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
         }
 
         RiveRenderPaint paint;
-        paint.image(image->refTexture(), opacity);
+        paint.image(std::move(imageTexture), opacity);
         paint.blendMode(blendMode);
         drawPath(m_unitRectPath.get(), &paint);
     }
@@ -380,7 +387,15 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
                                  float opacity)
 {
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
-    const gpu::Texture* texture = image->getTexture();
+
+    rcp<gpu::Texture> imageTexture = image->refTexture();
+    if (imageTexture == nullptr)
+    {
+        // imageTexture may be null if the backend uses a custom factory and/or
+        // updates out-of-band assets asynchronously. If there's no texture yet,
+        // just don't draw anything.
+        return;
+    }
 
     assert(vertices_f32);
     assert(uvCoords_f32);
@@ -395,7 +410,7 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
         m_context->make<gpu::ImageMeshDraw>(gpu::Draw::FULLSCREEN_PIXEL_BOUNDS,
                                             m_stack.back().matrix,
                                             blendMode,
-                                            ref_rcp(texture),
+                                            std::move(imageTexture),
                                             std::move(vertices_f32),
                                             std::move(uvCoords_f32),
                                             std::move(indices_u16),

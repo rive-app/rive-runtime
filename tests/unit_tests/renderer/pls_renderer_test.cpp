@@ -4,6 +4,7 @@
 
 #include "common/render_context_null.hpp"
 #include "rive/renderer/rive_renderer.hpp"
+#include "rive/renderer/rive_render_image.hpp"
 #include "../src/rive_render_path.hpp"
 #include <catch.hpp>
 
@@ -1202,4 +1203,54 @@ TEST_CASE("infinite-atomic-path", "RiveRenderer")
     renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
+// Ensure the renderer gracefully handles a null texture within a
+// RiveRenderImage.
+TEST_CASE("null-render-texture", "RiveRenderer")
+{
+    std::unique_ptr<RenderContext> renderContext =
+        RenderContextNULL::MakeContext();
+    auto desc = s_frameDescriptor;
+    desc.disableRasterOrdering = true;
+    renderContext->beginFrame(desc);
+
+    RiveRenderer renderer(renderContext.get());
+
+    class NullTextureImage : public RiveRenderImage
+    {
+    public:
+        NullTextureImage(int width, int height) : RiveRenderImage(width, height)
+        {
+            // Never call resetTexture() so that our texture is null.
+        }
+    };
+    auto nullTextureImage = make_rcp<NullTextureImage>(100, 100);
+    CHECK(nullTextureImage->getTexture() == nullptr);
+
+    renderer.drawImage(nullTextureImage.get(), BlendMode::screen, .5f);
+
+    renderer.drawImageMesh(
+        nullTextureImage.get(),
+        renderContext->makeRenderBuffer(RenderBufferType::vertex,
+                                        RenderBufferFlags::none,
+                                        80),
+        renderContext->makeRenderBuffer(RenderBufferType::vertex,
+                                        RenderBufferFlags::none,
+                                        80),
+        renderContext->makeRenderBuffer(RenderBufferType::index,
+                                        RenderBufferFlags::none,
+                                        100),
+        10,
+        50,
+        BlendMode::colorBurn,
+        .5f);
+
+    auto renderTarget =
+        renderContext->static_impl_cast<RenderContextNULL>()->makeRenderTarget(
+            desc.renderTargetWidth,
+            desc.renderTargetHeight);
+    renderContext->flush({.renderTarget = renderTarget.get()});
+
+    // If we don't crash, the test passed.
+    CHECK(nullTextureImage->getTexture() == nullptr);
+}
 } // namespace rive::gpu
