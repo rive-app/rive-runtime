@@ -467,6 +467,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 break;
             case ArtboardComponentList::typeKey:
                 object->as<ArtboardComponentList>()->file(this);
+                break;
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) !=
             StatusCode::Ok)
@@ -636,10 +637,6 @@ void File::completeViewModelInstance(
                     else
                     {
                         listItem->viewModelInstance(itr->second);
-                    }
-                    if (listItem->artboardId() < m_artboards.size())
-                    {
-                        listItem->artboard(m_artboards[listItem->artboardId()]);
                     }
                 }
             }

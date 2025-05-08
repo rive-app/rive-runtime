@@ -5,14 +5,15 @@
     "string": "viewmodelinstancelistitem"
   },
   "properties": {
-    "useLinkedArtboard": {
-      "type": "bool",
-      "initialValue": "true",
+    "name": {
+      "type": "String",
+      "initialValue": "''",
       "key": {
-        "int": 547,
-        "string": "uselinkedartboard"
+        "int": 742,
+        "string": "name"
       },
-      "description": "Whether the artboard linked to the view model should be used."
+      "description": "Non-unique identifier, used to give friendly names to any view model list items.",
+      "runtime": false
     },
     "instanceListId": {
       "type": "Id",
@@ -45,17 +46,6 @@
         "string": "viewmodelinstanceid"
       },
       "description": "The view model instance id."
-    },
-    "artboardId": {
-      "type": "Id",
-      "typeRuntime": "uint",
-      "initialValue": "Core.missingId",
-      "initialValueRuntime": "-1",
-      "key": {
-        "int": 551,
-        "string": "artboardid"
-      },
-      "description": "The artboard id to link the viewmodel to if implicit is set to false."
     },
     "order": {
       "type": "FractionalIndex",
