@@ -122,8 +122,9 @@ StatusCode BackboardImporter::resolve()
         {
             continue;
         }
-        referencer->converter(
-            m_DataConverters[index]->clone()->as<DataConverter>());
+        // Do not clone converters at this point because some of them are
+        // incomplete
+        referencer->converter(m_DataConverters[index]);
     }
     for (auto referencer : m_DataConverterReferencers)
     {

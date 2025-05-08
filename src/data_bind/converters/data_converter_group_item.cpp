@@ -7,7 +7,14 @@
 
 using namespace rive;
 
-DataConverterGroupItem::~DataConverterGroupItem() { delete m_dataConverter; }
+DataConverterGroupItem::~DataConverterGroupItem()
+{
+    if (m_ownsConverter)
+    {
+
+        delete m_dataConverter;
+    }
+}
 
 StatusCode DataConverterGroupItem::import(ImportStack& importStack)
 {
@@ -36,6 +43,7 @@ Core* DataConverterGroupItem::clone() const
     if (converter() != nullptr)
     {
         cloned->converter(converter()->clone()->as<DataConverter>());
+        cloned->ownsConverter(true);
     }
     return cloned;
 }
