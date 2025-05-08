@@ -101,6 +101,10 @@ GLuint CompileShader(GLuint type,
         shaderSource << "#define " << GLSL_BASE_INSTANCE_UNIFORM_NAME << ' '
                      << BASE_INSTANCE_UNIFORM_NAME << '\n';
     }
+    if (capabilities.needsFloatingPointTessellationTexture)
+    {
+        shaderSource << "#define " << GLSL_TESS_TEXTURE_FLOATING_POINT << '\n';
+    }
     shaderSource << rive::gpu::glsl::glsl << "\n";
     for (size_t i = 0; i < numInputSources; ++i)
     {

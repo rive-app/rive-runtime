@@ -389,7 +389,7 @@ static void set_environment_variable(const char* name, const char* value)
 }
 
 std::unique_ptr<Renderer> renderer;
-const char* rivName = nullptr;
+std::string rivName;
 
 void riveMainLoop();
 
@@ -715,7 +715,7 @@ int main(int argc, const char** argv)
         {
             glfwSwapBuffers(window);
         }
-        if (rivName)
+        if (!rivName.empty())
         {
             glfwPollEvents();
         }
@@ -807,7 +807,7 @@ void riveMainLoop()
         needsTitleUpdate = false;
     }
 
-    if (rivName && !rivFile)
+    if (!rivName.empty() && !rivFile)
     {
         std::ifstream rivStream(rivName, std::ios::binary);
         std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),

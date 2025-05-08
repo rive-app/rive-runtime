@@ -26,9 +26,9 @@
 
 #ifdef @VERTEX
 VERTEX_TEXTURE_BLOCK_BEGIN
-TEXTURE_RGBA32UI(PER_FLUSH_BINDINGS_SET,
-                 TESS_VERTEX_TEXTURE_IDX,
-                 @tessVertexTexture);
+TEXTURE_TESSDATA4(PER_FLUSH_BINDINGS_SET,
+                  TESS_VERTEX_TEXTURE_IDX,
+                  @tessVertexTexture);
 #ifdef @ENABLE_FEATHER
 TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
                       FEATHER_TEXTURE_IDX,
@@ -321,9 +321,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     // Fetch a vertex that definitely belongs to the contour we're drawing.
     int vertexIDOnContour = min(localVertexID, patchSegmentSpan - 1);
     int tessVertexIdx = _instanceID * patchSegmentSpan + vertexIDOnContour;
-    uint4 tessVertexData =
+    TESSDATA4 tessVertexData =
         TEXEL_FETCH(@tessVertexTexture, tess_texel_coord(tessVertexIdx));
-    uint contourIDWithFlags = tessVertexData.w;
+    uint contourIDWithFlags = TESSDATA_AS_UINT(tessVertexData.w);
 
     // Fetch and unpack the contour referenced by the tessellation vertex.
     uint4 contourData =
@@ -359,10 +359,10 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // the beginning and end of the data.
         int replacementTessVertexIdx =
             tessVertexIdx + localVertexID - vertexIDOnContour;
-        uint4 replacementTessVertexData =
+        TESSDATA4 replacementTessVertexData =
             TEXEL_FETCH(@tessVertexTexture,
                         tess_texel_coord(replacementTessVertexIdx));
-        if ((replacementTessVertexData.w &
+        if ((TESSDATA_AS_UINT(replacementTessVertexData.w) &
              (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
             (contourIDWithFlags & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
         {
@@ -386,9 +386,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // MIRRORED_CONTOUR_CONTOUR_FLAG is not preserved at vertexIndex0.
         // Preserve it here. By not preserving this flag, the normal and
         // mirrored contour can both share the same contour record.
-        contourIDWithFlags =
-            (tessVertexData.w & ~MIRRORED_CONTOUR_CONTOUR_FLAG) |
-            mirroredContourFlag;
+        contourIDWithFlags = (TESSDATA_AS_UINT(tessVertexData.w) &
+                              ~MIRRORED_CONTOUR_CONTOUR_FLAG) |
+                             mirroredContourFlag;
     }
 
     // Find the tangent angle of the curve at our vertex.
@@ -402,8 +402,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         // Feather joins work out their stepping here in the vertex shader.
         // Instead of emitting just the tangent angle, the tessellation shader
         // gave us the original tessellation parameters.
-        float joinVertexID = float(tessVertexData.z & 0xffffu);
-        float joinSegmentCount = float(tessVertexData.z >> 16);
+        uint joinDataPacked = TESSDATA_AS_UINT(tessVertexData.z);
+        float joinVertexID = float(joinDataPacked & 0xffffu);
+        float joinSegmentCount = float(joinDataPacked >> 16);
 
         // Find the tessellation vertices immediately before and after the
         // feather join in order to work out the corner angles.
@@ -411,23 +412,26 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
             int2(-joinVertexID - 1., joinSegmentCount - joinVertexID + 1.);
         if ((contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) != 0u)
             edgeVertexOffsets = -edgeVertexOffsets;
-        uint4 tessDataBeforeJoin =
+        TESSDATA4 tessDataBeforeJoin =
             TEXEL_FETCH(@tessVertexTexture,
                         tess_texel_coord(tessVertexIdx + edgeVertexOffsets.x));
-        uint4 tesDataAfterJoin =
+        TESSDATA4 tessDataAfterJoin =
             TEXEL_FETCH(@tessVertexTexture,
                         tess_texel_coord(tessVertexIdx + edgeVertexOffsets.y));
-        if ((tesDataAfterJoin.w & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
-            (tessDataBeforeJoin.w & (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
+        if ((TESSDATA_AS_UINT(tessDataAfterJoin.w) &
+             (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)) !=
+            (TESSDATA_AS_UINT(tessDataBeforeJoin.w) &
+             (MIRRORED_CONTOUR_CONTOUR_FLAG | 0xffffu)))
         {
             // We reached over into a new contour. The edge immediately after
             // this feather join is actually the first vertex in the countour.
-            tesDataAfterJoin = TEXEL_FETCH(@tessVertexTexture,
-                                           tess_texel_coord(int(vertexIndex0)));
+            tessDataAfterJoin =
+                TEXEL_FETCH(@tessVertexTexture,
+                            tess_texel_coord(int(vertexIndex0)));
         }
 
-        featherJoinEdge0Theta = uintBitsToFloat(tessDataBeforeJoin.z);
-        float featherJoinEdge1Theta = uintBitsToFloat(tesDataAfterJoin.z);
+        featherJoinEdge0Theta = TESSDATA_AS_FLOAT(tessDataBeforeJoin.z);
+        float featherJoinEdge1Theta = TESSDATA_AS_FLOAT(tessDataAfterJoin.z);
         featherJoinCornerTheta = featherJoinEdge1Theta - featherJoinEdge0Theta;
         if (abs(featherJoinCornerTheta) > PI)
             featherJoinCornerTheta -= _2PI * sign(featherJoinCornerTheta);
@@ -488,10 +492,10 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     else
 #endif // @ENABLE_FEATHER
     {
-        theta = uintBitsToFloat(tessVertexData.z);
+        theta = TESSDATA_AS_FLOAT(tessVertexData.z);
     }
     float2 norm = float2(sin(theta), -cos(theta));
-    float2 origin = uintBitsToFloat(tessVertexData.xy);
+    float2 origin = TESSDATA_AS_FLOAT(tessVertexData.xy);
     float2 postTransformVertexOffset = float2(0, 0);
 
     if (featherRadius != .0)
@@ -556,9 +560,9 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
                 peekDir = -peekDir;
             int2 otherJoinTexelCoord =
                 tess_texel_coord(tessVertexIdx + peekDir);
-            uint4 otherJoinData =
+            TESSDATA4 otherJoinData =
                 TEXEL_FETCH(@tessVertexTexture, otherJoinTexelCoord);
-            float otherJoinTheta = uintBitsToFloat(otherJoinData.z);
+            float otherJoinTheta = TESSDATA_AS_FLOAT(otherJoinData.z);
             float joinAngle = abs(otherJoinTheta - theta);
             if (joinAngle > PI)
                 joinAngle = _2PI - joinAngle;

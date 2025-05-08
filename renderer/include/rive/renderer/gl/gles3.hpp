@@ -133,6 +133,12 @@ struct GLCapabilities
     // Workarounds.
     // Some devices crash when issuing draw commands with a large instancecount.
     uint32_t maxSupportedInstancesPerDrawCommand = ~0u;
+    // Chrome 136 crashes when trying to run Rive because it attempts to enable
+    // blending on the tessellation texture, which is invalid for an integer
+    // render target. The workaround is to use a floating-point tessellation
+    // texture.
+    // https://issues.chromium.org/issues/416294709
+    bool needsFloatingPointTessellationTexture = false;
 
     // Extensions
     bool ANGLE_base_vertex_base_instance_shader_builtin : 1;

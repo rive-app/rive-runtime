@@ -21,6 +21,22 @@
                               uniforms.renderTargetInverseViewportX,           \
                               uniforms.renderTargetInverseViewportY)
 
+#ifdef @TESS_TEXTURE_FLOATING_POINT
+#define TEXTURE_TESSDATA4 TEXTURE_RGBA32F
+#define TESSDATA4 float4
+#define FLOAT_AS_TESSDATA(X) X
+#define TESSDATA_AS_FLOAT(X) X
+#define UINT_AS_TESSDATA(X) uintBitsToFloat(X)
+#define TESSDATA_AS_UINT(X) floatBitsToUint(X)
+#else
+#define TEXTURE_TESSDATA4 TEXTURE_RGBA32UI
+#define TESSDATA4 uint4
+#define FLOAT_AS_TESSDATA(X) floatBitsToUint(X)
+#define TESSDATA_AS_FLOAT(X) uintBitsToFloat(X)
+#define UINT_AS_TESSDATA(X) X
+#define TESSDATA_AS_UINT(X) X
+#endif
+
 // This is a macro because we can't (at least for now) forward texture refs to a
 // function in a way that works in all the languages we support.
 // This is a macro because we can't (at least for now) forward texture refs to a

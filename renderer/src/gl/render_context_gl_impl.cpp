@@ -675,7 +675,13 @@ void RenderContextGLImpl::resizeTessellationTexture(uint32_t width,
     glGenTextures(1, &m_tessVertexTexture);
     glActiveTexture(GL_TEXTURE0 + TESS_VERTEX_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA32UI, width, height);
+    glTexStorage2D(GL_TEXTURE_2D,
+                   1,
+                   m_capabilities.needsFloatingPointTessellationTexture
+                       ? GL_RGBA32F
+                       : GL_RGBA32UI,
+                   width,
+                   height);
     glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
@@ -2132,6 +2138,16 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         // the Microsoft WARP (software) renderer. Just don't use this extension
         // on D3D since it's polyfilled anyway.
         capabilities.EXT_multisampled_render_to_texture = false;
+    }
+
+    if (strstr(rendererString, "ANGLE Metal Renderer") != nullptr &&
+        capabilities.EXT_float_blend)
+    {
+        capabilities.needsFloatingPointTessellationTexture = true;
+    }
+    else
+    {
+        capabilities.needsFloatingPointTessellationTexture = false;
     }
 #ifdef RIVE_ANDROID
     // Android doesn't load extension functions for us.
