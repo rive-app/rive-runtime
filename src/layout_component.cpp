@@ -1403,10 +1403,6 @@ LayoutComponent::~LayoutComponent()
     {
         artboard()->cleanLayout(this);
     }
-#ifdef WITH_RIVE_LAYOUT
-    YGNode& ourNode = m_layoutData->node;
-    YGNodeRemoveAllChildren(&ourNode);
-#endif
     delete m_layoutData;
 }
 
