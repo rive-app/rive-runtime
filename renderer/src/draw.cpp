@@ -1290,7 +1290,8 @@ void PathDraw::initForMidpointFan(RenderContext* context,
         // contour is an exact multiple of kMidpointFanPatchSegmentSpan. This
         // ensures that patch boundaries align with contour boundaries.
         contour->paddingVertexCount =
-            PaddingToAlignUp<kMidpointFanPatchSegmentSpan>(contourVertexCount);
+            math::padding_to_align_up<kMidpointFanPatchSegmentSpan>(
+                contourVertexCount);
         contourVertexCount += contour->paddingVertexCount;
         assert(contourVertexCount % kMidpointFanPatchSegmentSpan == 0);
         RIVE_DEBUG_CODE(contour->tessVertexCount = contourVertexCount;)

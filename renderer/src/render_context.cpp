@@ -837,21 +837,21 @@ void RenderContext::LogicalFlush::layoutResources(
 
     // Storage buffer offsets are required to be aligned on multiples of 256.
     m_pathPaddingCount =
-        gpu::PaddingToAlignUp<gpu::kPathBufferAlignmentInElements>(
+        math::padding_to_align_up<gpu::kPathBufferAlignmentInElements>(
             m_resourceCounts.pathCount);
     m_paintPaddingCount =
-        gpu::PaddingToAlignUp<gpu::kPaintBufferAlignmentInElements>(
+        math::padding_to_align_up<gpu::kPaintBufferAlignmentInElements>(
             m_resourceCounts.pathCount);
     m_paintAuxPaddingCount =
-        gpu::PaddingToAlignUp<gpu::kPaintAuxBufferAlignmentInElements>(
+        math::padding_to_align_up<gpu::kPaintAuxBufferAlignmentInElements>(
             m_resourceCounts.pathCount);
     m_contourPaddingCount =
-        gpu::PaddingToAlignUp<gpu::kContourBufferAlignmentInElements>(
+        math::padding_to_align_up<gpu::kContourBufferAlignmentInElements>(
             m_resourceCounts.contourCount);
 
     // Metal requires vertex buffers to be 256-byte aligned.
     m_gradSpanPaddingCount =
-        gpu::PaddingToAlignUp<gpu::kGradSpanBufferAlignmentInElements>(
+        math::padding_to_align_up<gpu::kGradSpanBufferAlignmentInElements>(
             m_pendingGradSpanCount);
 
     size_t totalTessVertexCountWithPadding = 0;
@@ -870,7 +870,7 @@ void RenderContext::LogicalFlush::layoutResources(
         // outerCubic tessellation vertices reside after the midpointFan
         // vertices, aligned on a multiple of the outerCubic patch size.
         uint32_t interiorPadding =
-            PaddingToAlignUp<gpu::kOuterCurvePatchSegmentSpan>(
+            math::padding_to_align_up<gpu::kOuterCurvePatchSegmentSpan>(
                 m_midpointFanTessEndLocation);
         m_outerCubicTessVertexIdx =
             m_midpointFanTessEndLocation + interiorPadding;
@@ -1083,7 +1083,7 @@ void RenderContext::LogicalFlush::writeResources()
 
     // Metal requires vertex buffers to be 256-byte aligned.
     size_t tessAlignmentPadding =
-        gpu::PaddingToAlignUp<gpu::kTessVertexBufferAlignmentInElements>(
+        math::padding_to_align_up<gpu::kTessVertexBufferAlignmentInElements>(
             firstTessVertexSpan);
     assert(tessAlignmentPadding <= kMaxTessellationAlignmentVertices);
     m_ctx->m_tessSpanData.push_back_n(nullptr, tessAlignmentPadding);
@@ -2157,7 +2157,7 @@ uint32_t RenderContext::TessellationWriter::pushContour(
     // The first curve of the contour will be pre-padded with
     // 'paddingVertexCount' tessellation vertices, colocated at T=0. The caller
     // must use this argument align the end of the contour on a boundary of the
-    // patch size. (See gpu::PaddingToAlignUp().)
+    // patch size. (See math::padding_to_align_up().)
     m_nextCubicPaddingVertexCount = paddingVertexCount;
 
     return m_flush->pushContour(m_pathID,

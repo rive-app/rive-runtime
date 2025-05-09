@@ -1116,18 +1116,6 @@ struct FlushDescriptor
     const BlockAllocatedLinkedList<DrawBatch>* drawList = nullptr;
 };
 
-// Returns the smallest number that can be added to 'value', such that 'value %
-// alignment' == 0.
-template <uint32_t Alignment>
-RIVE_ALWAYS_INLINE uint32_t PaddingToAlignUp(size_t value)
-{
-    constexpr size_t maxMultipleOfAlignment =
-        std::numeric_limits<size_t>::max() / Alignment * Alignment;
-    uint32_t padding = (maxMultipleOfAlignment - value) % Alignment;
-    assert((value + padding) % Alignment == 0);
-    return padding;
-}
-
 // Returns the area of the (potentially non-rectangular) quadrilateral that
 // results from transforming the given bounds by the given matrix.
 float find_transformed_area(const AABB& bounds, const Mat2D&);

@@ -30,3 +30,11 @@ rive_tools_project('player', 'RiveTool')
 do
     files({ 'player/player.cpp', RIVE_PLS_DIR .. '/shader_hotload/**.cpp' })
 end
+
+rive_tools_project('command_buffer_example', 'RiveTool')
+do
+    files({
+        'command_buffer_example/command_buffer_example.cpp',
+        RIVE_PLS_DIR .. '/shader_hotload/**.cpp',
+    })
+end

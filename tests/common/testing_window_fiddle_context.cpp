@@ -370,6 +370,7 @@ public:
 
     bool consumeInputEvent(InputEventData& eventData) override
     {
+        glfwPollEvents();
         const bool hasNewEvent = !inputEvents.empty();
         if (hasNewEvent)
         {

@@ -146,6 +146,22 @@ RIVE_ALWAYS_INLINE static float degreesToRadians(float degrees)
 {
     return degrees * (PI / 180.0f);
 }
+
+// Returns the smallest number that can be added to 'value', such that
+// 'value % alignment' == 0.
+template <uint32_t ALIGNMENT> uint32_t padding_to_align_up(uintptr_t value)
+{
+    constexpr uintptr_t MAX_MULTIPLE_OF_ALIGNMENT =
+        std::numeric_limits<uintptr_t>::max() / ALIGNMENT * ALIGNMENT;
+    uint32_t padding = (MAX_MULTIPLE_OF_ALIGNMENT - value) % ALIGNMENT;
+    assert((value + padding) % ALIGNMENT == 0);
+    return padding;
+}
+
+template <typename T> uint32_t padding_to_align_up(void* ptr)
+{
+    return padding_to_align_up<alignof(T)>(reinterpret_cast<uintptr_t>(ptr));
+}
 } // namespace math
 
 template <typename T> T lerp(const T& a, const T& b, float t)
