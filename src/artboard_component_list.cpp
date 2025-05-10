@@ -5,6 +5,7 @@
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
+#include "rive/layout/layout_data.hpp"
 
 using namespace rive;
 
@@ -33,7 +34,7 @@ void* ArtboardComponentList::layoutNode(int index)
     auto artboard = artboardInstance(index);
     if (artboard != nullptr)
     {
-        return artboard->takeLayoutNode();
+        return static_cast<void*>(&artboard->takeLayoutData()->node);
     }
     return nullptr;
 }

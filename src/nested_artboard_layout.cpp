@@ -1,6 +1,7 @@
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/artboard.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/layout/layout_data.hpp"
 
 using namespace rive;
 
@@ -47,7 +48,7 @@ void* NestedArtboardLayout::layoutNode(int index)
     {
         return nullptr;
     }
-    return artboardInstance()->takeLayoutNode();
+    return static_cast<void*>(&artboardInstance()->takeLayoutData()->node);
 }
 #endif
 

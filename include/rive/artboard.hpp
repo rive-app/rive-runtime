@@ -160,7 +160,7 @@ public:
     void markLayoutDirty(LayoutComponent* layoutComponent);
     void cleanLayout(LayoutComponent* layoutComponent);
 
-    void* takeLayoutNode();
+    LayoutData* takeLayoutData();
     bool syncStyleChanges() override;
     bool canHaveOverrides() override { return true; }
 

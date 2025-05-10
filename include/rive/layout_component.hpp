@@ -16,7 +16,7 @@ namespace rive
 {
 class AABB;
 class KeyFrameInterpolator;
-struct LayoutData;
+class LayoutData;
 class LayoutComponentStyle;
 class LayoutConstraint;
 class Layout

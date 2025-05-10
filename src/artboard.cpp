@@ -811,11 +811,11 @@ bool Artboard::updateComponents()
     return true;
 }
 
-void* Artboard::takeLayoutNode()
+LayoutData* Artboard::takeLayoutData()
 {
 #ifdef WITH_RIVE_LAYOUT
     m_updatesOwnLayout = false;
-    return static_cast<void*>(&m_layoutData->node);
+    return m_layoutData;
 #else
     return nullptr;
 #endif

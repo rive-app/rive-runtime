@@ -25,6 +25,10 @@
 
 using namespace rive;
 
+#if defined(WITH_RIVE_LAYOUT) && defined(WITH_RIVE_TOOLS) && defined(DEBUG)
+uint32_t LayoutData::count = 0;
+#endif
+
 void LayoutComponent::buildDependencies()
 {
     Super::buildDependencies();
@@ -412,7 +416,7 @@ void* LayoutComponent::layoutNode(int index)
 {
     if (m_layoutData != nullptr)
     {
-        return &m_layoutData->node;
+        return static_cast<void*>(&m_layoutData->node);
     }
     return nullptr;
 }
@@ -1403,7 +1407,11 @@ LayoutComponent::~LayoutComponent()
     {
         artboard()->cleanLayout(this);
     }
+#ifdef WITH_RIVE_TOOLS
+    m_layoutData->unref();
+#else
     delete m_layoutData;
+#endif
 }
 
 void LayoutComponent::clipChanged() { markLayoutNodeDirty(); }
