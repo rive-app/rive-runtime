@@ -101,32 +101,18 @@ public:
 
         std::array<float, 4> clearColor4f;
         LoadStoreActionsEXT actions = BuildLoadActionsEXT(desc, &clearColor4f);
-        if ((actions & LoadStoreActionsEXT::clearColor) &&
-            simd::all(simd::load4f(clearColor4f.data()) == 0))
+        const PLSLoadStoreProgram& plsProgram =
+            findLoadStoreProgram(actions, desc.combinedShaderFeatures);
+        m_state->bindProgram(plsProgram.id());
+        if (plsProgram.clearColorUniLocation() >= 0)
         {
-            // glClear() is only well-defined for EXT_shader_pixel_local_storage
-            // when the clear color is zero, and it zeros out every plane of
-            // pixel local storage.
-            glClearColor(0, 0, 0, 0);
-            glClear(GL_COLOR_BUFFER_BIT);
+            glUniform4fv(plsProgram.clearColorUniLocation(),
+                         1,
+                         clearColor4f.data());
         }
-        else
-        {
-            // Otherwise we have to initialize pixel local storage with a
-            // fullscreen draw.
-            const PLSLoadStoreProgram& plsProgram =
-                findLoadStoreProgram(actions, desc.combinedShaderFeatures);
-            m_state->bindProgram(plsProgram.id());
-            if (plsProgram.clearColorUniLocation() >= 0)
-            {
-                glUniform4fv(plsProgram.clearColorUniLocation(),
-                             1,
-                             clearColor4f.data());
-            }
-            m_state->bindVAO(m_plsLoadStoreVAO);
-            m_state->setCullFace(GL_BACK);
-            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-        }
+        m_state->bindVAO(m_plsLoadStoreVAO);
+        m_state->setCullFace(GL_BACK);
+        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
     }
 
     void deactivatePixelLocalStorage(RenderContextGLImpl* impl,
