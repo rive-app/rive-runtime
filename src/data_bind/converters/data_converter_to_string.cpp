@@ -6,6 +6,7 @@
 #include "rive/data_bind/data_values/data_value_string.hpp"
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
 #include "rive/data_bind/data_values/data_value_trigger.hpp"
+#include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
 #include "rive/animation/data_converter_to_string_flags.hpp"
 #include "rive/data_bind/converters/data_converter_string_remove_zeros.hpp"
 #include <iomanip>
@@ -175,6 +176,11 @@ DataValue* DataConverterToString::convert(DataValue* input, DataBind* dataBind)
     {
 
         auto value = input->as<DataValueTrigger>()->value();
+        m_output.value(std::to_string(value));
+    }
+    else if (input->is<DataValueSymbolListIndex>())
+    {
+        auto value = input->as<DataValueSymbolListIndex>()->value();
         m_output.value(std::to_string(value));
     }
     else

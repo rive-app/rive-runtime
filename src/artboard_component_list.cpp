@@ -4,6 +4,7 @@
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/layout_component.hpp"
+#include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 
 using namespace rive;
 
@@ -151,15 +152,26 @@ void ArtboardComponentList::updateList(
     std::vector<ViewModelInstanceListItem*>* list)
 {
     reset();
-
     if (parent()->is<LayoutComponent>())
     {
 #ifdef WITH_RIVE_LAYOUT
         parent()->as<LayoutComponent>()->clearLayoutChildren();
 #endif
     }
+    uint32_t index = 0;
     for (auto& item : *list)
     {
+        auto viewModelInstance = item->viewModelInstance();
+        if (viewModelInstance != nullptr)
+        {
+            auto symbol = viewModelInstance->symbol(
+                ViewModelInstanceSymbolListIndexBase::typeKey);
+            if (symbol != nullptr)
+            {
+                symbol->as<ViewModelInstanceSymbolListIndex>()->propertyValue(
+                    index);
+            }
+        }
         m_ListItems.push_back(item);
         auto artboardCopy = createArtboard(this, item);
         auto artboardInstance = artboardCopy.get();
@@ -171,6 +183,7 @@ void ArtboardComponentList::updateList(
         {
             artboardInstance->host(this);
         }
+        index++;
     }
     if (parent()->is<LayoutComponent>())
     {

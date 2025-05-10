@@ -129,6 +129,7 @@
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
+#include "rive/data_bind/bindable_property_integer.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
@@ -241,6 +242,8 @@
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
+#include "rive/viewmodel/viewmodel_instance_symbol.hpp"
+#include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
@@ -253,6 +256,8 @@
 #include "rive/viewmodel/viewmodel_property_list.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_string.hpp"
+#include "rive/viewmodel/viewmodel_property_symbol.hpp"
+#include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/world_transform_component.hpp"
@@ -285,6 +290,8 @@ public:
                 return new ViewModelPropertyNumber();
             case ViewModelInstanceEnumBase::typeKey:
                 return new ViewModelInstanceEnum();
+            case ViewModelPropertySymbolListIndexBase::typeKey:
+                return new ViewModelPropertySymbolListIndex();
             case ViewModelInstanceStringBase::typeKey:
                 return new ViewModelInstanceString();
             case ViewModelPropertyListBase::typeKey:
@@ -311,6 +318,8 @@ public:
                 return new ViewModelInstanceNumber();
             case ViewModelInstanceTriggerBase::typeKey:
                 return new ViewModelInstanceTrigger();
+            case ViewModelInstanceSymbolListIndexBase::typeKey:
+                return new ViewModelInstanceSymbolListIndex();
             case ViewModelPropertyStringBase::typeKey:
                 return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
@@ -555,6 +564,8 @@ public:
                 return new Backboard();
             case OpenUrlEventBase::typeKey:
                 return new OpenUrlEvent();
+            case BindablePropertyIntegerBase::typeKey:
+                return new BindablePropertyInteger();
             case BindablePropertyTriggerBase::typeKey:
                 return new BindablePropertyTrigger();
             case BindablePropertyBooleanBase::typeKey:
@@ -713,6 +724,10 @@ public:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceTriggerBase>()->propertyValue(
                     value);
+                break;
+            case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
+                object->as<ViewModelInstanceSymbolListIndexBase>()
+                    ->propertyValue(value);
                 break;
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceViewModelBase>()->propertyValue(
@@ -1154,8 +1169,8 @@ public:
             case OpenUrlEventBase::targetValuePropertyKey:
                 object->as<OpenUrlEventBase>()->targetValue(value);
                 break;
-            case BindablePropertyTriggerBase::propertyValuePropertyKey:
-                object->as<BindablePropertyTriggerBase>()->propertyValue(value);
+            case BindablePropertyIntegerBase::propertyValuePropertyKey:
+                object->as<BindablePropertyIntegerBase>()->propertyValue(value);
                 break;
             case DataBindBase::propertyKeyPropertyKey:
                 object->as<DataBindBase>()->propertyKey(value);
@@ -2201,6 +2216,9 @@ public:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceTriggerBase>()
                     ->propertyValue();
+            case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
+                return object->as<ViewModelInstanceSymbolListIndexBase>()
+                    ->propertyValue();
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceViewModelBase>()
                     ->propertyValue();
@@ -2515,8 +2533,8 @@ public:
                 return object->as<JoystickBase>()->handleSourceId();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->as<OpenUrlEventBase>()->targetValue();
-            case BindablePropertyTriggerBase::propertyValuePropertyKey:
-                return object->as<BindablePropertyTriggerBase>()
+            case BindablePropertyIntegerBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyIntegerBase>()
                     ->propertyValue();
             case DataBindBase::propertyKeyPropertyKey:
                 return object->as<DataBindBase>()->propertyKey();
@@ -3234,6 +3252,7 @@ public:
             case ComponentBase::parentIdPropertyKey:
             case ViewModelInstanceBase::viewModelIdPropertyKey:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
+            case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
             case DrawTargetBase::drawableIdPropertyKey:
             case DrawTargetBase::placementValuePropertyKey:
@@ -3366,7 +3385,7 @@ public:
             case JoystickBase::joystickFlagsPropertyKey:
             case JoystickBase::handleSourceIdPropertyKey:
             case OpenUrlEventBase::targetValuePropertyKey:
-            case BindablePropertyTriggerBase::propertyValuePropertyKey:
+            case BindablePropertyIntegerBase::propertyValuePropertyKey:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
             case DataBindBase::converterIdPropertyKey:
@@ -3742,6 +3761,8 @@ public:
                 return object->is<ViewModelInstanceBase>();
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceTriggerBase>();
+            case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
+                return object->is<ViewModelInstanceSymbolListIndexBase>();
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceViewModelBase>();
             case DrawTargetBase::drawableIdPropertyKey:
@@ -4005,8 +4026,8 @@ public:
                 return object->is<JoystickBase>();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->is<OpenUrlEventBase>();
-            case BindablePropertyTriggerBase::propertyValuePropertyKey:
-                return object->is<BindablePropertyTriggerBase>();
+            case BindablePropertyIntegerBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyIntegerBase>();
             case DataBindBase::propertyKeyPropertyKey:
                 return object->is<DataBindBase>();
             case DataBindBase::flagsPropertyKey:

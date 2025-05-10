@@ -43,6 +43,7 @@
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
+#include "rive/data_bind/bindable_property_integer.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
@@ -450,6 +451,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case BindablePropertyEnum::typeKey:
             case BindablePropertyBoolean::typeKey:
             case BindablePropertyTrigger::typeKey:
+            case BindablePropertyInteger::typeKey:
                 stackObject = rivestd::make_unique<BindablePropertyImporter>(
                     object->as<BindableProperty>());
                 stackType = BindablePropertyBase::typeKey;

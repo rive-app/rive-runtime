@@ -8,6 +8,7 @@
 #include "rive/data_bind/bindable_property_enum.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
+#include "rive/data_bind/bindable_property_integer.hpp"
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/context/context_value_boolean.hpp"
 #include "rive/data_bind/context/context_value_number.hpp"
@@ -16,6 +17,7 @@
 #include "rive/data_bind/context/context_value_list.hpp"
 #include "rive/data_bind/context/context_value_color.hpp"
 #include "rive/data_bind/context/context_value_trigger.hpp"
+#include "rive/data_bind/context/context_value_symbol_list_index.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/converters/formula/formula_token.hpp"
@@ -67,6 +69,7 @@ StatusCode DataBind::import(ImportStack& importStack)
                 case BindablePropertyEnumBase::typeKey:
                 case BindablePropertyColorBase::typeKey:
                 case BindablePropertyTriggerBase::typeKey:
+                case BindablePropertyIntegerBase::typeKey:
                 case TransitionPropertyViewModelComparatorBase::typeKey:
                 case StateTransitionBase::typeKey:
                 {
@@ -122,6 +125,8 @@ DataType DataBind::outputType()
             return DataType::list;
         case ViewModelInstanceTriggerBase::typeKey:
             return DataType::trigger;
+        case ViewModelInstanceSymbolListIndexBase::typeKey:
+            return DataType::symbolListIndex;
     }
     return DataType::none;
 }
@@ -160,6 +165,9 @@ void DataBind::bind()
             break;
         case DataType::trigger:
             m_ContextValue = new DataBindContextValueTrigger(this);
+            break;
+        case DataType::symbolListIndex:
+            m_ContextValue = new DataBindContextValueSymbolListIndex(this);
             break;
         default:
             break;

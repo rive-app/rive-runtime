@@ -25,6 +25,7 @@ public:
     std::vector<ViewModelInstanceValue*> propertyValues();
     ViewModelInstanceValue* propertyFromPath(std::vector<uint32_t>* path,
                                              size_t index);
+    ViewModelInstanceValue* symbol(int coreType);
     void viewModel(ViewModel* value);
     ViewModel* viewModel() const;
     void onComponentDirty(Component* component);

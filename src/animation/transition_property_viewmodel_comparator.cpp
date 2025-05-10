@@ -11,6 +11,7 @@
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
+#include "rive/data_bind/bindable_property_integer.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
@@ -202,6 +203,44 @@ bool TransitionPropertyViewModelComparator::compare(
                 }
             }
             break;
+        case BindablePropertyInteger::typeKey:
+            if (comparand->is<TransitionPropertyViewModelComparator>())
+            {
+                auto rightValue =
+                    comparand->as<TransitionPropertyViewModelComparator>()
+                        ->value<BindablePropertyNumber, float>(
+                            stateMachineInstance);
+                return compareNumbers(
+                    value<BindablePropertyNumber, float>(stateMachineInstance),
+                    rightValue,
+                    operation);
+            }
+            else if (comparand->is<TransitionValueNumberComparator>())
+            {
+                auto rightValue =
+                    comparand->as<TransitionValueNumberComparator>()->value();
+                switch (instanceDataType(stateMachineInstance))
+                {
+                    case DataType::number:
+                        return compareNumbers(
+                            value<BindablePropertyNumber, float>(
+                                stateMachineInstance),
+                            rightValue,
+                            operation);
+                    case DataType::integer:
+                    {
+
+                        auto val = value<BindablePropertyInteger, uint32_t>(
+                            stateMachineInstance);
+                        return compareNumbers((float)val,
+                                              rightValue,
+                                              operation);
+                    }
+                    default:
+                        break;
+                }
+            }
+            break;
     }
     return false;
 }
@@ -224,4 +263,34 @@ void TransitionPropertyViewModelComparator::useInLayer(
     {
         source->as<ViewModelInstanceTrigger>()->useInLayer(layerInstance);
     }
+}
+
+DataType TransitionPropertyViewModelComparator::instanceDataType(
+    const StateMachineInstance* stateMachineInstance)
+{
+    auto bindableInstance =
+        stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
+    if (bindableInstance != nullptr)
+    {
+
+        switch (bindableInstance->coreType())
+        {
+            case BindablePropertyNumberBase::typeKey:
+
+                return DataType::number;
+            case BindablePropertyBooleanBase::typeKey:
+                return DataType::boolean;
+            case BindablePropertyColorBase::typeKey:
+                return DataType::color;
+            case BindablePropertyStringBase::typeKey:
+                return DataType::string;
+            case BindablePropertyEnumBase::typeKey:
+                return DataType::enumType;
+            case BindablePropertyTriggerBase::typeKey:
+                return DataType::trigger;
+            case BindablePropertyIntegerBase::typeKey:
+                return DataType::integer;
+        }
+    }
+    return DataType::none;
 }

@@ -177,3 +177,15 @@ void ViewModelInstance::advanced()
         value->advanced();
     }
 }
+
+ViewModelInstanceValue* ViewModelInstance::symbol(int coreType)
+{
+    for (auto& value : m_PropertyValues)
+    {
+        if (value->coreType() == coreType)
+        {
+            return value;
+        }
+    }
+    return nullptr;
+}

@@ -9,6 +9,7 @@
 #include "rive/data_bind/data_values/data_value_boolean.hpp"
 #include "rive/data_bind/data_values/data_value_trigger.hpp"
 #include "rive/data_bind/data_values/data_value_list.hpp"
+#include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;
@@ -56,6 +57,9 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind) :
             case ViewModelInstanceListBase::typeKey:
                 m_dataValue = new DataValueList();
                 break;
+            case ViewModelInstanceSymbolListIndexBase::typeKey:
+                m_dataValue = new DataValueSymbolListIndex();
+                break;
             default:
                 m_dataValue = new DataValue();
         }
@@ -94,12 +98,19 @@ void DataBindContextValue::syncSourceValue()
                     source->as<ViewModelInstanceTrigger>()->propertyValue());
                 break;
             case ViewModelInstanceListBase::typeKey:
+            {
                 m_dataValue->as<DataValueList>()->clear();
                 auto items = source->as<ViewModelInstanceList>()->listItems();
                 for (auto& item : items)
                 {
                     m_dataValue->as<DataValueList>()->addItem(item);
                 }
+                break;
+            }
+            case ViewModelInstanceSymbolListIndexBase::typeKey:
+                m_dataValue->as<DataValueSymbolListIndex>()->value(
+                    source->as<ViewModelInstanceSymbolListIndex>()
+                        ->propertyValue());
                 break;
         }
     }
@@ -176,6 +187,18 @@ void DataBindContextValue::applyToSource(Core* component,
                                                              m_dataBind,
                                                              component,
                                                              propertyKey);
+        }
+        break;
+        case ViewModelInstanceSymbolListIndexBase::typeKey:
+        {
+            calculateValueAndApply<DataValueTrigger,
+                                   uint32_t,
+                                   ViewModelInstanceSymbolListIndex>(
+                targetValue(),
+                isMainDirection,
+                m_dataBind,
+                component,
+                propertyKey);
         }
         break;
     }

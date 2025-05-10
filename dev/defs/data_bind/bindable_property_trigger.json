@@ -4,16 +4,5 @@
     "int": 503,
     "string": "bindablepropertytrigger"
   },
-  "extends": "data_bind/bindable_property.json",
-  "properties": {
-    "propertyValue": {
-      "type": "uint",
-      "initialValue": "0",
-      "key": {
-        "int": 686,
-        "string": "propertyvalue"
-      },
-      "description": "A property of type uint that can be used for data binding."
-    }
-  }
+  "extends": "data_bind/bindable_property_integer.json"
 }
