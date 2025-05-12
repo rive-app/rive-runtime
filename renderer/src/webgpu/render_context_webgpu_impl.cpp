@@ -60,42 +60,10 @@ static void enable_shader_pixel_local_storage_ext(wgpu::RenderPassEncoder,
     RIVE_UNREACHABLE();
 }
 
-static void write_texture(wgpu::Queue queue,
-                          wgpu::Texture texture,
-                          uint32_t x,
-                          uint32_t y,
-                          uint32_t bytesPerRow,
-                          uint32_t width,
-                          uint32_t height,
-                          const void* data,
-                          size_t dataSize)
-{
-    wgpu::ImageCopyTexture dest = {
-        .texture = texture,
-        .origin = {x, y},
-    };
-    wgpu::TextureDataLayout layout = {
-        .bytesPerRow = bytesPerRow,
-    };
-    wgpu::Extent3D extent = {
-        .width = width,
-        .height = height,
-    };
-    queue.WriteTexture(&dest, data, dataSize, &layout, &extent);
-}
-
 static bool generate_mipmaps_builtin(wgpu::CommandEncoder encoder,
                                      wgpu::Texture texture)
 {
     return false;
-}
-
-static void write_buffer(wgpu::Queue queue,
-                         wgpu::Buffer buffer,
-                         const void* data,
-                         size_t dataSize)
-{
-    queue.WriteBuffer(buffer, 0, data, dataSize);
 }
 #endif
 
@@ -122,50 +90,6 @@ static void enable_shader_pixel_local_storage_ext(
         enabled);
 }
 
-EM_JS(void,
-      write_texture_js,
-      (int queue,
-       int texture,
-       uint32_t x,
-       uint32_t y,
-       uint32_t bytesPerRow,
-       uint32_t width,
-       uint32_t height,
-       uintptr_t indexU8,
-       size_t dataSize),
-      {
-          queue = JsValStore.get(queue);
-          texture = JsValStore.get(texture);
-          // Copy data off the WASM heap before sending it to WebGPU bindings.
-          const data = new Uint8Array(dataSize);
-          data.set(Module.HEAPU8.subarray(indexU8, indexU8 + dataSize));
-          queue.writeTexture({texture : texture, origin : [ x, y, 0 ]},
-                             data,
-                             {bytesPerRow : bytesPerRow},
-                             {width : width, height : height});
-      });
-
-static void write_texture(wgpu::Queue queue,
-                          wgpu::Texture texture,
-                          uint32_t x,
-                          uint32_t y,
-                          uint32_t bytesPerRow,
-                          uint32_t width,
-                          uint32_t height,
-                          const void* data,
-                          size_t dataSize)
-{
-    write_texture_js(emscripten_webgpu_export_queue(queue.Get()),
-                     emscripten_webgpu_export_texture(texture.Get()),
-                     x,
-                     y,
-                     bytesPerRow,
-                     width,
-                     height,
-                     reinterpret_cast<uintptr_t>(data),
-                     dataSize);
-}
-
 EM_JS(bool, generate_mipmaps_builtin_js, (int encoder, int texture), {
     encoder = JsValStore.get(encoder);
     texture = JsValStore.get(texture);
@@ -183,29 +107,6 @@ static bool generate_mipmaps_builtin(wgpu::CommandEncoder encoder,
     return generate_mipmaps_builtin_js(
         emscripten_webgpu_export_command_encoder(encoder.Get()),
         emscripten_webgpu_export_texture(texture.Get()));
-}
-
-EM_JS(void,
-      write_buffer_js,
-      (int queue, int buffer, uintptr_t indexU8, size_t dataSize),
-      {
-          queue = JsValStore.get(queue);
-          buffer = JsValStore.get(buffer);
-          // Copy data off the WASM heap before sending it to WebGPU bindings.
-          const data = new Uint8Array(dataSize);
-          data.set(Module.HEAPU8.subarray(indexU8, indexU8 + dataSize));
-          queue.writeBuffer(buffer, 0, data, 0, dataSize);
-      });
-
-static void write_buffer(wgpu::Queue queue,
-                         wgpu::Buffer buffer,
-                         const void* data,
-                         size_t dataSize)
-{
-    write_buffer_js(emscripten_webgpu_export_queue(queue.Get()),
-                    emscripten_webgpu_export_buffer(buffer.Get()),
-                    reinterpret_cast<uintptr_t>(data),
-                    dataSize);
 }
 #endif
 
@@ -1370,24 +1271,25 @@ void RenderContextWebGPUImpl::initGPUObjects()
     };
 
     m_featherTexture = m_device.CreateTexture(&featherTextureDesc);
-    write_texture(m_queue,
-                  m_featherTexture,
-                  0,
-                  0,
-                  sizeof(gpu::g_gaussianIntegralTableF16),
-                  gpu::GAUSSIAN_TABLE_SIZE,
-                  1,
-                  gpu::g_gaussianIntegralTableF16,
-                  sizeof(gpu::g_gaussianIntegralTableF16));
-    write_texture(m_queue,
-                  m_featherTexture,
-                  0,
-                  1,
-                  sizeof(gpu::g_inverseGaussianIntegralTableF16),
-                  gpu::GAUSSIAN_TABLE_SIZE,
-                  1,
-                  gpu::g_inverseGaussianIntegralTableF16,
-                  sizeof(gpu::g_inverseGaussianIntegralTableF16));
+    wgpu::ImageCopyTexture dest = {.texture = m_featherTexture};
+    wgpu::TextureDataLayout layout = {
+        .bytesPerRow = sizeof(gpu::g_gaussianIntegralTableF16),
+    };
+    wgpu::Extent3D extent = {
+        .width = gpu::GAUSSIAN_TABLE_SIZE,
+        .height = 1,
+    };
+    m_queue.WriteTexture(&dest,
+                         gpu::g_gaussianIntegralTableF16,
+                         sizeof(gpu::g_gaussianIntegralTableF16),
+                         &layout,
+                         &extent);
+    dest.origin.y = 1;
+    m_queue.WriteTexture(&dest,
+                         gpu::g_inverseGaussianIntegralTableF16,
+                         sizeof(gpu::g_inverseGaussianIntegralTableF16),
+                         &layout,
+                         &extent);
     m_featherTextureView = m_featherTexture.CreateView();
 
     wgpu::TextureDescriptor nullImagePaintTextureDesc = {
@@ -1517,10 +1419,10 @@ protected:
         }
         else
         {
-            write_buffer(m_queue,
-                         m_buffers[m_submittedBufferIdx],
-                         m_stagingBuffer.get(),
-                         sizeInBytes());
+            m_queue.WriteBuffer(m_buffers[m_submittedBufferIdx],
+                                0,
+                                m_stagingBuffer.get(),
+                                sizeInBytes());
         }
     }
 
@@ -1749,16 +1651,14 @@ rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
 
     wgpu::Texture texture = m_device.CreateTexture(&textureDesc);
 
-    // Specify the top-level image in the mipmap chain.
-    write_texture(m_queue,
-                  texture,
-                  0,
-                  0,
-                  width * 4,
-                  width,
-                  height,
-                  imageDataRGBAPremul,
-                  height * width * 4);
+    wgpu::ImageCopyTexture dest = {.texture = texture};
+    wgpu::TextureDataLayout layout = {.bytesPerRow = width * 4};
+    wgpu::Extent3D extent = {width, height};
+    m_queue.WriteTexture(&dest,
+                         imageDataRGBAPremul,
+                         height * width * 4,
+                         &layout,
+                         &extent);
 
     if (mipLevelCount > 1)
     {
@@ -1814,10 +1714,10 @@ protected:
 
     void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
-        write_buffer(m_queue,
-                     m_buffers[bufferIdx],
-                     shadowBuffer(),
-                     mapSizeInBytes);
+        m_queue.WriteBuffer(m_buffers[bufferIdx],
+                            0,
+                            shadowBuffer(),
+                            mapSizeInBytes);
     }
 
     const wgpu::Queue m_queue;
