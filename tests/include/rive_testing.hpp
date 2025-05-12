@@ -25,6 +25,16 @@ template <> struct StringMaker<rive::Mat2D>
         return os.str();
     }
 };
+template <> struct StringMaker<rive::AABB>
+{
+    static std::string convert(rive::AABB const& value)
+    {
+        std::ostringstream os;
+        os << "min: " << value.minX << ", " << value.minY
+           << " max: " << value.maxX << ", " << value.maxY;
+        return os.str();
+    }
+};
 #ifdef WITH_RIVE_TEXT
 template <> struct StringMaker<rive::CursorPosition>
 {

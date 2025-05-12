@@ -22,6 +22,9 @@ enum class CursorBoundary : uint8_t
 class RawTextInput
 {
 public:
+#ifdef TESTING
+    uint32_t measureCount = 0;
+#endif
     RawTextInput();
 
     void draw(Factory* factory,
@@ -63,7 +66,8 @@ public:
         none = 0,
         shapeDirty = 1 << 0,
         selectionDirty = 1 << 1,
-        separateSelectionText = 1 << 2
+        separateSelectionText = 1 << 2,
+        measureDirty = 1 << 3
     };
 
     Flags update(Factory* factory);
@@ -118,6 +122,8 @@ public:
     void undo();
     void redo();
 
+    AABB measure(float maxWidth, float maxHeight);
+
     enum class Delineator : uint8_t
     {
         unknown = 0,
@@ -167,6 +173,9 @@ private:
     std::vector<Unichar> m_text;
 
     FullyShapedText m_shape;
+    std::unique_ptr<FullyShapedText> m_measuringShape;
+    float m_lastMeasureMaxWidth = 0.0f;
+    float m_lastMeasureMaxHeight = 0.0f;
 
     Flags m_flags = Flags::none;
 

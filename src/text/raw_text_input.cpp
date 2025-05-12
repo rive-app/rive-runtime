@@ -68,7 +68,7 @@ void RawTextInput::backspace(int32_t direction)
     m_text.erase(m_text.begin() + index);
     auto position = CursorPosition(index);
     m_cursor = Cursor::collapsed(position);
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
     captureJournalEntry(startingCursor);
 }
 
@@ -87,7 +87,7 @@ void RawTextInput::erase()
                  m_text.begin() + m_cursor.last().codePointIndex());
     auto position = CursorPosition(m_cursor.first().codePointIndex());
     m_cursor = Cursor::collapsed(position);
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 void RawTextInput::insert(Unichar codePoint)
@@ -103,7 +103,7 @@ void RawTextInput::insert(Unichar codePoint)
     auto position = CursorPosition(m_cursor.first().codePointIndex(1));
     m_cursor = Cursor::collapsed(position);
     captureJournalEntry(startingCursor);
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 void RawTextInput::insert(const std::string& text)
@@ -122,7 +122,7 @@ void RawTextInput::insert(const std::string& text)
     }
     auto position = CursorPosition(codePointIndex);
     m_cursor = Cursor::collapsed(position);
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
     captureJournalEntry(startingCursor);
 }
 
@@ -143,7 +143,7 @@ void RawTextInput::fontSize(float value)
         return;
     }
     m_textRun.size = value;
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 void RawTextInput::maxWidth(float value)
@@ -153,7 +153,7 @@ void RawTextInput::maxWidth(float value)
         return;
     }
     m_maxWidth = value;
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 void RawTextInput::maxHeight(float value)
@@ -163,7 +163,7 @@ void RawTextInput::maxHeight(float value)
         return;
     }
     m_maxHeight = value;
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 void RawTextInput::sizing(TextSizing value)
@@ -173,7 +173,7 @@ void RawTextInput::sizing(TextSizing value)
         return;
     }
     m_sizing = value;
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 void RawTextInput::overflow(TextOverflow value)
@@ -183,7 +183,7 @@ void RawTextInput::overflow(TextOverflow value)
         return;
     }
     m_overflow = value;
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 void RawTextInput::font(rcp<Font> value)
@@ -193,7 +193,7 @@ void RawTextInput::font(rcp<Font> value)
         return;
     }
     m_textRun.font = value;
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 void RawTextInput::computeVisualPositionFromCursor()
@@ -204,6 +204,10 @@ void RawTextInput::computeVisualPositionFromCursor()
 RawTextInput::Flags RawTextInput::update(Factory* factory)
 {
     Flags updated = Flags::none;
+    if (m_textRun.font == nullptr)
+    {
+        return updated;
+    }
     bool updateTextPath = false;
     if (unflag(Flags::shapeDirty))
     {
@@ -389,7 +393,7 @@ void RawTextInput::paragraphSpacing(float value)
         return;
     }
     m_paragraphSpacing = value;
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 void RawTextInput::cursor(Cursor value)
@@ -755,7 +759,7 @@ void RawTextInput::text(std::string value)
     setTextPrivate(value);
     auto position = CursorPosition::zero();
     m_cursor = Cursor::collapsed(position);
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
     captureJournalEntry(startingCursor);
 }
 
@@ -797,7 +801,7 @@ void RawTextInput::undo()
     m_cursor = entryFrom.cursorFrom;
 
     m_journalIndex -= 1;
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 void RawTextInput::redo()
 {
@@ -809,7 +813,7 @@ void RawTextInput::redo()
     setTextPrivate(entryTo.text);
     m_cursor = entryTo.cursorTo;
     m_journalIndex += 1;
-    flag(Flags::shapeDirty | Flags::selectionDirty);
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
 }
 
 bool RawTextInput::flagged(RawTextInput::Flags mask) const
@@ -845,6 +849,42 @@ void RawTextInput::separateSelectionText(bool value)
     {
         unflag(Flags::separateSelectionText);
     }
+    flag(Flags::shapeDirty | Flags::measureDirty | Flags::selectionDirty);
+}
+
+AABB RawTextInput::measure(float maxWidth, float maxHeight)
+{
+    if (m_textRun.font == nullptr)
+    {
+        return AABB();
+    }
+    bool force = m_lastMeasureMaxWidth != maxWidth ||
+                 m_lastMeasureMaxHeight != maxHeight;
+    if (!m_measuringShape)
+    {
+        force = true;
+        m_measuringShape = rivestd::make_unique<FullyShapedText>();
+    }
+    if (unflag(Flags::measureDirty) || force)
+    {
+        m_textRun.unicharCount = (uint32_t)m_text.size();
+        m_measuringShape->shape(m_text,
+                                Span<TextRun>(&m_textRun, 1),
+                                TextSizing::autoHeight,
+                                maxWidth,
+                                maxHeight,
+                                m_align,
+                                m_wrap,
+                                m_origin,
+                                m_overflow,
+                                m_paragraphSpacing);
+        m_lastMeasureMaxWidth = maxWidth;
+        m_lastMeasureMaxHeight = maxHeight;
+#ifdef TESTING
+        measureCount++;
+#endif
+    }
+    return m_measuringShape->bounds();
 }
 
 #endif

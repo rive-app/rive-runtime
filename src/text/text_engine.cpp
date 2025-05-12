@@ -110,14 +110,17 @@ uint32_t OrderedLine::firstCodePointIndex(const GlyphLookup& glyphLookup) const
 uint32_t OrderedLine::lastCodePointIndex(const GlyphLookup& glyphLookup) const
 {
     GlyphItr index = begin();
-    GlyphItr lastIndex;
+    GlyphItr lastIndex = index;
+
     while (index != end())
     {
         lastIndex = index;
         ++index;
     }
+
     auto glyphIndex = lastIndex.glyphIndex();
     auto run = lastIndex.run();
+
     uint32_t lastCodePointIndex = run->textIndices[glyphIndex];
     if (run->dir() == TextDirection::ltr)
     {

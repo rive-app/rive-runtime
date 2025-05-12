@@ -88,24 +88,8 @@ void FullyShapedText::shape(Span<Unichar> text,
 
     int32_t lineIndex = 0;
     paragraphIndex = 0;
-    switch (sizing)
-    {
-        case TextSizing::autoWidth:
-            m_bounds = AABB(0.0f,
-                            minY,
-                            measuredWidth,
-                            std::max(minY, y - paragraphSpacing));
-            break;
-        case TextSizing::autoHeight:
-            m_bounds = AABB(0.0f,
-                            minY,
-                            maxWidth,
-                            std::max(minY, y - paragraphSpacing));
-            break;
-        case TextSizing::fixed:
-            m_bounds = AABB(0.0f, minY, maxWidth, minY + maxHeight);
-            break;
-    }
+    m_bounds =
+        AABB(0.0f, minY, measuredWidth, std::max(minY, y - paragraphSpacing));
 
     y = 0;
     if (origin == TextOrigin::baseline && !m_paragraphLines.empty() &&

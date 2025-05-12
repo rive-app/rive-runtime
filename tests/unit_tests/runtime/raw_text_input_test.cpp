@@ -102,8 +102,22 @@ TEST_CASE("cursor is placed correctly with ltr paragraphs", "[text_input]")
     textInput.maxWidth(maxWidth);
     textInput.fontSize(72.0f);
 
+    CHECK(textInput.bounds() == AABB());
     NoOpFactory factory;
     textInput.update(&factory);
+
+    CHECK(textInput.bounds() == AABB(0, 0, 500, 216));
+    CHECK(textInput.measure(500, 400) == AABB(0, 0, 500, 216));
+    CHECK(textInput.measureCount == 1);
+    // measure count should still be one if we re-measured with same sizes.
+    CHECK(textInput.measure(500, 400) == AABB(0, 0, 500, 216));
+    CHECK(textInput.measureCount == 1);
+    CHECK(textInput.measure(400, 400) == AABB(0, 0, 400, 324));
+    CHECK(textInput.measureCount == 2);
+    textInput.text("one two three four five six");
+    CHECK(textInput.measure(400, 400) == AABB(0, 0, 400, 324));
+    CHECK(textInput.measureCount == 3);
+    textInput.text("one two three four five");
 
     CHECK(textInput.shape().paragraphs().size() == 1);
     Paragraph& paragraph = textInput.shape().paragraphs()[0];

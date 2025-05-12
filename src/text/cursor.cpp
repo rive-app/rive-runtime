@@ -112,7 +112,7 @@ CursorPosition CursorPosition::fromOrderedLine(const OrderedLine& orderedLine,
     float x = orderedLine.glyphLine().startX;
     /// Iterate each glyph and see if it's the one we're looking for.
     auto end = orderedLine.end();
-    GlyphItr lastGlyphItr;
+    GlyphItr lastGlyphItr = orderedLine.begin();
     for (GlyphItr itr = orderedLine.begin(); itr != end; ++itr)
     {
         lastGlyphItr = itr;
@@ -147,12 +147,6 @@ CursorPosition CursorPosition::fromOrderedLine(const OrderedLine& orderedLine,
         {
             x += advance;
         }
-    }
-    // Didn't find it so expect it to be at the end of this line (unless
-    // it's empty).
-    if (orderedLine.begin() == orderedLine.end())
-    {
-        return CursorPosition::zero();
     }
 
     const GlyphRun* run = lastGlyphItr.run();
