@@ -139,6 +139,7 @@
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
+#include "rive/data_bind/converters/data_converter_number_to_list.hpp"
 #include "rive/data_bind/converters/data_converter_operation.hpp"
 #include "rive/data_bind/converters/data_converter_operation_value.hpp"
 #include "rive/data_bind/converters/data_converter_operation_viewmodel.hpp"
@@ -572,6 +573,8 @@ public:
                 return new BindablePropertyBoolean();
             case DataBindBase::typeKey:
                 return new DataBind();
+            case DataConverterNumberToListBase::typeKey:
+                return new DataConverterNumberToList();
             case DataConverterFormulaBase::typeKey:
                 return new DataConverterFormula();
             case DataConverterOperationBase::typeKey:
@@ -1180,6 +1183,9 @@ public:
                 break;
             case DataBindBase::converterIdPropertyKey:
                 object->as<DataBindBase>()->converterId(value);
+                break;
+            case DataConverterNumberToListBase::viewModelIdPropertyKey:
+                object->as<DataConverterNumberToListBase>()->viewModelId(value);
                 break;
             case DataConverterOperationBase::operationTypePropertyKey:
                 object->as<DataConverterOperationBase>()->operationType(value);
@@ -2542,6 +2548,9 @@ public:
                 return object->as<DataBindBase>()->flags();
             case DataBindBase::converterIdPropertyKey:
                 return object->as<DataBindBase>()->converterId();
+            case DataConverterNumberToListBase::viewModelIdPropertyKey:
+                return object->as<DataConverterNumberToListBase>()
+                    ->viewModelId();
             case DataConverterOperationBase::operationTypePropertyKey:
                 return object->as<DataConverterOperationBase>()
                     ->operationType();
@@ -3389,6 +3398,7 @@ public:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
             case DataBindBase::converterIdPropertyKey:
+            case DataConverterNumberToListBase::viewModelIdPropertyKey:
             case DataConverterOperationBase::operationTypePropertyKey:
             case DataConverterRangeMapperBase::interpolationTypePropertyKey:
             case DataConverterRangeMapperBase::interpolatorIdPropertyKey:
@@ -4034,6 +4044,8 @@ public:
                 return object->is<DataBindBase>();
             case DataBindBase::converterIdPropertyKey:
                 return object->is<DataBindBase>();
+            case DataConverterNumberToListBase::viewModelIdPropertyKey:
+                return object->is<DataConverterNumberToListBase>();
             case DataConverterOperationBase::operationTypePropertyKey:
                 return object->is<DataConverterOperationBase>();
             case DataConverterRangeMapperBase::interpolationTypePropertyKey:

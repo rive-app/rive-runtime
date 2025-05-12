@@ -47,6 +47,7 @@
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
+#include "rive/data_bind/converters/data_converter_number_to_list.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/audio_asset.hpp"
 #include "rive/assets/file_asset_contents.hpp"
@@ -467,6 +468,9 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                         object->as<DataConverterFormula>());
                 stackType = DataConverterFormulaBase::typeKey;
                 break;
+            case DataConverterNumberToList::typeKey:
+                object->as<DataConverterNumberToList>()->file(this);
+                break;
             case ArtboardComponentList::typeKey:
                 object->as<ArtboardComponentList>()->file(this);
                 break;
@@ -870,6 +874,15 @@ ViewModel* File::viewModel(std::string name)
         {
             return viewModel;
         }
+    }
+    return nullptr;
+}
+
+ViewModel* File::viewModel(size_t index)
+{
+    if (index < m_ViewModels.size())
+    {
+        return m_ViewModels[index];
     }
     return nullptr;
 }

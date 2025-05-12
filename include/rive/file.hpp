@@ -124,6 +124,7 @@ public:
 
     size_t viewModelCount() const { return m_ViewModels.size(); }
     ViewModel* viewModel(std::string name);
+    ViewModel* viewModel(size_t index);
     ViewModelRuntime* defaultArtboardViewModel(Artboard* artboard) const;
     ViewModelRuntime* viewModelByIndex(size_t index) const;
     ViewModelRuntime* viewModelByName(std::string name) const;
