@@ -139,6 +139,7 @@ else
             "x86") RIVE_ARCH="${RIVE_ARCH:-x86}" ;;
             "universal") RIVE_ARCH="${RIVE_ARCH:-universal}" ;;
             "wasm") RIVE_ARCH="${RIVE_ARCH:-wasm}" ;;
+            "js") RIVE_ARCH="${RIVE_ARCH:-js}" ;;
             "ninja") RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-ninja}" ;;
             "xcode") RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-xcode4}" ;;
             "clean") RIVE_CLEAN="${RIVE_CLEAN:-true}" ;;
@@ -175,7 +176,7 @@ else
         RIVE_OUT="out/$RIVE_OUT"
     fi
 
-    if [[ $RIVE_OS = "android" ]] || [[ $RIVE_ARCH = "wasm" ]]; then
+    if [[ $RIVE_OS = "android" ]] || [[ $RIVE_ARCH = "wasm" ]] || [[ $RIVE_ARCH = "js" ]]; then
         RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-ninja}"
     elif [[ "$HOST_MACHINE" = "windows" ]]; then
         RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-vs2022}"
@@ -229,7 +230,7 @@ if [[ $RIVE_BUILD_SYSTEM = "export-compile-commands" ]]; then
 fi
 
 # Setup emscripten.
-if [[ $RIVE_ARCH = "wasm" ]]; then
+if [[ $RIVE_ARCH = "wasm" ]] || [[ $RIVE_ARCH = "js" ]]; then
     RIVE_EMSDK_VERSION="${RIVE_EMSDK_VERSION:-3.1.61}"
     if [ ! -d "emsdk_${RIVE_EMSDK_VERSION}" ]; then
         echo Installing emsdk ${RIVE_EMSDK_VERSION}...
