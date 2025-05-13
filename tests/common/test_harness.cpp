@@ -3,23 +3,13 @@
  */
 
 #include "common/test_harness.hpp"
-
+#include "common/stacktrace.hpp"
 #include "rive/rive_types.hpp"
 #include "rive/math/math_types.hpp"
 #include "tcp_client.hpp"
 #include "png.h"
 #include "zlib.h"
 #include <vector>
-
-#ifdef SYS_SIGNAL_H
-#include <sys/signal.h>
-const char* strsignal(int)
-{
-    return "(strsignal) not suported on this platform";
-}
-#else
-#include <signal.h>
-#endif
 
 #if defined(_WIN32) && !defined(NO_REDIRECT_OUTPUT)
 #include <io.h>
@@ -41,38 +31,6 @@ constexpr static uint32_t REQUEST_TYPE_PRINT_MESSAGE = 5;
 constexpr static uint32_t REQUEST_TYPE_DISCONNECT = 6;
 constexpr static uint32_t REQUEST_TYPE_APPLICATION_CRASH = 7;
 
-#ifdef _WIN32
-const char* strsignal(int signo)
-{
-    switch (signo)
-    {
-        case SIGINT:
-            return "SIGINT";
-        case SIGILL:
-            return "SIGILL";
-        case SIGFPE:
-            return "SIGFPE";
-        case SIGSEGV:
-            return "SIGSEGV";
-        case SIGTERM:
-            return "SIGTERM";
-        case SIGBREAK:
-            return "SIGBREAK";
-        case SIGABRT:
-            return "SIGABRT";
-    }
-    return "Unknown Signal";
-}
-#endif
-#ifndef NO_SIGNAL_FORWARD
-static void sig_handler(int signo)
-{
-    printf("Received signal %i (\"%s\")\n", signo, strsignal(signo));
-    signal(signo, SIG_DFL);
-    TestHarness::Instance().onApplicationCrash(strsignal(signo));
-    abort();
-}
-
 static void check_early_exit()
 {
     if (TestHarness::Instance().initialized())
@@ -81,7 +39,11 @@ static void check_early_exit()
         TestHarness::Instance().onApplicationCrash("Early exit.");
     }
 }
-#endif
+
+static void signal_wraper(const char* msg)
+{
+    TestHarness::Instance().onApplicationCrash(msg);
+}
 
 TestHarness& TestHarness::Instance()
 {
@@ -91,17 +53,7 @@ TestHarness& TestHarness::Instance()
 
 TestHarness::TestHarness()
 {
-#ifndef NO_SIGNAL_FORWARD
-    // Forward signals to the test harness.
-    for (int i = 1; i <= SIGTERM; ++i)
-    {
-        signal(i, sig_handler);
-    }
-
-    // Check for if the app exits early (before calling
-    // TestHarness::shutdown()).
-    atexit(check_early_exit);
-#endif
+    stacktrace::replace_signal_handlers(signal_wraper, check_early_exit);
 }
 
 void TestHarness::init(std::unique_ptr<TCPClient> tcpClient,

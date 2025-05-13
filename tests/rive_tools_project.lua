@@ -197,7 +197,7 @@ function rive_tools_project(name, project_kind)
             libdirs({
                 RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
             })
-            links({ 'glfw3', 'opengl32', 'd3d11', 'd3d12', 'dxguid', 'dxgi', 'd3dcompiler', 'ws2_32' })
+            links({ 'glfw3', 'opengl32', 'd3d11', 'd3d12', 'dxguid', 'dxgi', 'Dbghelp', 'd3dcompiler', 'ws2_32' })
         end
 
         filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:macosx' })
