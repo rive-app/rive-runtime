@@ -3,7 +3,10 @@
 #include <rive/node.hpp>
 #include <rive/nested_artboard.hpp>
 #include <rive/shapes/clipping_shape.hpp>
+#include <rive/shapes/paint/fill.hpp>
+#include <rive/shapes/paint/solid_color.hpp>
 #include <rive/shapes/rectangle.hpp>
+#include <rive/shapes/shape.hpp>
 #include <rive/assets/image_asset.hpp>
 #include <rive/assets/font_asset.hpp>
 #include <rive/animation/nested_simple_animation.hpp>
@@ -216,4 +219,59 @@ TEST_CASE("File with DataEnum", "[libraries]")
     REQUIRE(customPropertyString != nullptr);
 
     REQUIRE(customPropertyString->propertyValue() == "red3");
+}
+
+TEST_CASE("File with ViewModel", "[libraries]")
+{
+    // This test verifies that a .rev file with LibraryComponents can
+    // export a .riv that has valid DataBind's that reference a ViewModel
+    // coming from a library.
+
+    // created by library_import_export_test.dart in rive_core.
+    auto file = ReadRiveFile("assets/library_view_model_test.riv");
+    auto artboard = file->artboard("host_artboard")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    // There's only 1 nested artboard.
+    auto nestedArtboard = artboard->find<rive::NestedArtboard>("");
+    REQUIRE(nestedArtboard != nullptr);
+
+    auto libArtboard2 = nestedArtboard->artboardInstance();
+    REQUIRE(libArtboard2->name() == "2");
+
+    auto nestedArtboard2 = libArtboard2->find<rive::NestedArtboard>("");
+    auto libArtboard1 = nestedArtboard2->artboardInstance();
+    REQUIRE(libArtboard1->name() == "1");
+
+    artboard->advance(0.0f);
+
+    // There are 5 property types tested.
+    // If any of these works, then the ViewModel property must have worked
+    // String property works
+    auto customPropertyString1 =
+        libArtboard1->find<rive::CustomPropertyString>("for_string");
+    REQUIRE(customPropertyString1 != nullptr);
+    REQUIRE(customPropertyString1->propertyValue() == "hello");
+
+    // Enum property works
+    auto customPropertyString2 =
+        libArtboard1->find<rive::CustomPropertyString>("for_enum");
+    REQUIRE(customPropertyString2->propertyValue() == "uk");
+
+    // Number property works
+    auto rect = libArtboard1->find<rive::Rectangle>("");
+    REQUIRE(rect != nullptr);
+    REQUIRE(rect->width() == 123);
+    REQUIRE(rect->height() == 123);
+
+    // Color property works
+    auto rectShape = libArtboard1->find<rive::Shape>("");
+    REQUIRE(rectShape->children()[1]->is<rive::Fill>());
+    rive::Fill* rectFill = rectShape->children()[1]->as<rive::Fill>();
+    REQUIRE(rectFill->paint()->as<rive::SolidColor>()->colorValue() ==
+            rive::colorARGB(255, 10, 15, 66));
 }
