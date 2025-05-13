@@ -1,5 +1,6 @@
 #include "rive/data_bind/converters/data_converter_formula.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
+#include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
 #include "rive/data_bind/converters/formula/formula_token_value.hpp"
 #include "rive/data_bind/converters/formula/formula_token_argument_separator.hpp"
 #include "rive/data_bind/converters/formula/formula_token_input.hpp"
@@ -397,9 +398,12 @@ float DataConverterFormula::applyFunction(std::vector<float>& stack,
 
 DataValue* DataConverterFormula::convert(DataValue* value, DataBind* dataBind)
 {
-    if (value->is<DataValueNumber>())
+    if (value->is<DataValueNumber>() || value->is<DataValueSymbolListIndex>())
     {
-        float inputValue = value->as<DataValueNumber>()->value();
+        float inputValue =
+            value->is<DataValueNumber>()
+                ? value->as<DataValueNumber>()->value()
+                : (float)(value->as<DataValueSymbolListIndex>()->value());
         float resultValue = inputValue;
 
         std::vector<float> stack;
