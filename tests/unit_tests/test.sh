@@ -104,8 +104,8 @@ if [[ $machine = "macosx" ]]; then
   OUT_DIR="$(out_dir)"
   $PREMAKE $TARGET $PREMAKE_COMMANDS --out=$OUT_DIR
   pushd $OUT_DIR
-  # make -j$(($(sysctl -n hw.physicalcpu) + 1))
-  make
+  make -j$(($(sysctl -n hw.physicalcpu) + 1))
+  # make
   popd
   rm -fR silvers/tarnished
   mkdir -p silvers/tarnished
