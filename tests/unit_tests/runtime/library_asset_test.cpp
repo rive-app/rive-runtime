@@ -24,18 +24,18 @@ TEST_CASE("File with library artboard loads", "[libraries]")
     // created by library_import_export_test.dart in rive_core.
     auto file = ReadRiveFile("assets/library_export_test.riv");
 
-    // Libraries are always exported before host files.
-    // In this file, the first artboard (id=0) is the Artboard in the library
-    // file. The nested artboard that instances it is in the second Artboard.
+    // Libraries artboards are always exported after host file artboards.
+    // In this file, the first artboard (id=0) is the host file's Artboard,
+    // and the second one came from the library.
     auto nestedArtboard =
-        file->artboard(1)->find<rive::NestedArtboard>("The nested artboard");
+        file->artboard(0)->find<rive::NestedArtboard>("The nested artboard");
     REQUIRE(nestedArtboard != nullptr);
     REQUIRE(nestedArtboard->name() == "The nested artboard");
     REQUIRE(nestedArtboard->x() == 1);
     REQUIRE(nestedArtboard->y() == 2);
-    REQUIRE(nestedArtboard->artboardId() == 0);
+    REQUIRE(nestedArtboard->artboardId() == 1);
 
-    auto artboard = file->artboard(0);
+    auto artboard = file->artboard(1);
     REQUIRE(artboard->name() == "Rocket");
     REQUIRE(artboard->width() == 512);
     REQUIRE(artboard->height() == 513);
@@ -51,15 +51,15 @@ TEST_CASE("File with library animation loads", "[libraries]")
     auto file = ReadRiveFile("assets/library_export_animation_test.riv");
 
     auto nestedArtboard =
-        file->artboard(1)->find<rive::NestedArtboard>("The nested artboard");
+        file->artboard(0)->find<rive::NestedArtboard>("The nested artboard");
     REQUIRE(nestedArtboard != nullptr);
     REQUIRE(nestedArtboard->name() == "The nested artboard");
     REQUIRE(nestedArtboard->x() == 1);
     REQUIRE(nestedArtboard->y() == 2);
 
-    REQUIRE(nestedArtboard->artboardId() == 0);
-    REQUIRE(file->artboard(0)->animationCount() == 1);
-    auto simpleAnimation = file->artboard(0)->firstAnimation();
+    REQUIRE(nestedArtboard->artboardId() == 1);
+    REQUIRE(file->artboard(1)->animationCount() == 1);
+    auto simpleAnimation = file->artboard(1)->firstAnimation();
     REQUIRE(simpleAnimation->name() == "LA Rocket");
 
     auto nestedAnimations = nestedArtboard->nestedAnimations();
@@ -81,15 +81,15 @@ TEST_CASE("File with library state machine loads", "[libraries]")
     auto file = ReadRiveFile("assets/library_export_state_machine_test.riv");
 
     auto nestedArtboard =
-        file->artboard(1)->find<rive::NestedArtboard>("The nested artboard");
+        file->artboard(0)->find<rive::NestedArtboard>("The nested artboard");
     REQUIRE(nestedArtboard != nullptr);
     REQUIRE(nestedArtboard->name() == "The nested artboard");
     REQUIRE(nestedArtboard->x() == 1);
     REQUIRE(nestedArtboard->y() == 2);
 
-    REQUIRE(nestedArtboard->artboardId() == 0);
-    REQUIRE(file->artboard(0)->stateMachineCount() == 1);
-    auto stateMachine = file->artboard(0)->firstStateMachine();
+    REQUIRE(nestedArtboard->artboardId() == 1);
+    REQUIRE(file->artboard(1)->stateMachineCount() == 1);
+    auto stateMachine = file->artboard(1)->firstStateMachine();
     REQUIRE(stateMachine->name() == "SM Rocket");
 
     auto nestedAnimations = nestedArtboard->nestedAnimations();
@@ -152,7 +152,7 @@ TEST_CASE("File with library including image", "[libraries]")
     REQUIRE(assets.size() == 1);
 
     auto nestedArtboard =
-        file->artboard(1)->find<rive::NestedArtboard>("The instance");
+        file->artboard(0)->find<rive::NestedArtboard>("The instance");
     REQUIRE(nestedArtboard != nullptr);
 
     auto sourceArtboard = nestedArtboard->sourceArtboard();
@@ -173,8 +173,8 @@ TEST_CASE("File with multiple libraries including image", "[libraries]")
     REQUIRE(assets.size() == 2);
 
     auto nestedArtboard1 =
-        file->artboard(2)->find<rive::NestedArtboard>("The nested artboard");
-    auto nestedArtboard2 = file->artboard(2)->find<rive::NestedArtboard>(
+        file->artboard(0)->find<rive::NestedArtboard>("The nested artboard");
+    auto nestedArtboard2 = file->artboard(0)->find<rive::NestedArtboard>(
         "Another nested artboard");
     REQUIRE(nestedArtboard1 != nullptr);
     REQUIRE(nestedArtboard2 != nullptr);
@@ -202,7 +202,7 @@ TEST_CASE("File with DataEnum", "[libraries]")
 
     // created by library_import_export_test.dart in rive_core.
     auto file = ReadRiveFile("assets/library_data_enum_test.riv");
-    auto artboard = file->artboard("my_artboard")->instance();
+    auto artboard = file->artboard(0)->instance();
     REQUIRE(artboard != nullptr);
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
@@ -229,7 +229,7 @@ TEST_CASE("File with ViewModel", "[libraries]")
 
     // created by library_import_export_test.dart in rive_core.
     auto file = ReadRiveFile("assets/library_view_model_test.riv");
-    auto artboard = file->artboard("host_artboard")->instance();
+    auto artboard = file->artboard(0)->instance();
     REQUIRE(artboard != nullptr);
     auto viewModelInstance =
         file->createDefaultViewModelInstance(artboard.get());
