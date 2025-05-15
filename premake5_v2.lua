@@ -85,77 +85,12 @@ do
         forceincludes({ 'rive_yoga_renames.h' })
     end
 
-    filter({ 'system:linux' })
-    do
-        defines({ 'MA_NO_RUNTIME_LINKING' })
-    end
-
-    filter({ 'system:macosx' })
-    do
-        buildoptions({
-            -- this triggers too much on linux, so just enable here for now
-            '-Wimplicit-float-conversion',
-        })
-    end
-
-    -- filter {'toolset:not msc', 'files:src/audio/audio_engine.cpp'}
-    filter({ 'system:not windows', 'files:src/audio/audio_engine.cpp' })
-    do
-        buildoptions({ '-Wno-implicit-int-conversion' })
-    end
-
-    filter({ 'system:windows', 'files:src/audio/audio_engine.cpp' })
-    do
-        -- Too many warnings from miniaudio.h
-        removeflags({ 'FatalCompileWarnings' })
-    end
-
-    filter({ 'system:windows', 'toolset:clang', 'files:src/audio/audio_engine.cpp' })
-    do
-        buildoptions({
-            '-Wno-nonportable-system-include-path',
-            '-Wno-zero-as-null-pointer-constant',
-            '-Wno-missing-prototypes',
-            '-Wno-cast-qual',
-            '-Wno-format-nonliteral',
-            '-Wno-cast-align',
-            '-Wno-covered-switch-default',
-            '-Wno-comma',
-            '-Wno-tautological-type-limit-compare',
-            '-Wno-extra-semi-stmt',
-            '-Wno-tautological-constant-out-of-range-compare',
-            '-Wno-implicit-fallthrough',
-            '-Wno-implicit-int-conversion',
-            '-Wno-undef',
-            '-Wno-unused-function',
-        })
-    end
-
-    -- filter 'files:src/audio/audio_engine.cpp'
-    -- do
-    --     buildoptions {
-    --         '-Wno-implicit-int-conversion'
-    --     }
-    -- end
-
-    -- Ignore fatal warning for miniaudio on x86 android build.
-    filter({ 'system:android', 'options:arch=x86', 'files:src/audio/audio_engine.cpp' })
-    do
-        buildoptions({ '-Wno-atomic-alignment' })
-    end
-
     filter({ 'system:macosx', 'options:variant=runtime' })
     do
         buildoptions({
             '-Wimplicit-float-conversion -fembed-bitcode -arch arm64 -arch x86_64 -isysroot '
                 .. (os.getenv('MACOS_SYSROOT') or ''),
         })
-    end
-
-    filter('system:ios')
-    do
-        buildoptions({ '-flto=full', '-Wno-implicit-int-conversion' })
-        files({ 'src/audio/audio_engine.m' })
     end
 
     filter('system:windows')

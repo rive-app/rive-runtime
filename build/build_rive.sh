@@ -126,6 +126,24 @@ else
     while [[ $# -gt 0 ]]; do
         case "$1" in
             "release") RIVE_CONFIG="${RIVE_CONFIG:-release}" ;;
+            "xros") 
+                RIVE_OS="${RIVE_OS:-ios}"
+                RIVE_VARIANT="${RIVE_VARIANT:-xros}"
+                ;;
+            "xrsimulator")
+                RIVE_OS=${RIVE_OS:-ios}
+                RIVE_VARIANT="${RIVE_VARIANT:-xrsimulator}"
+                RIVE_ARCH="${RIVE_ARCH:-universal}" # The simulator requires universal builds.
+                ;;
+            "appletvos") 
+                RIVE_OS="${RIVE_OS:-ios}"
+                RIVE_VARIANT="${RIVE_VARIANT:-appletvos}"
+                ;;
+            "appletvsimulator")
+                RIVE_OS=${RIVE_OS:-ios}
+                RIVE_VARIANT="${RIVE_VARIANT:-appletvsimulator}"
+                RIVE_ARCH="${RIVE_ARCH:-universal}" # The simulator requires universal builds.
+                ;;
             "ios") RIVE_OS="${RIVE_OS:-ios}" ;;
             "iossim")
                 RIVE_OS=${RIVE_OS:-ios}

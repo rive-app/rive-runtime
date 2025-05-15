@@ -342,7 +342,7 @@ float ContourMeasureIter::addQuadSegs(ContourMeasure::Segment* segs,
                                       uint32_t ptIndex,
                                       float distance) const
 {
-    const float dt = 1.f / segmentCount;
+    const float dt = 1.f / (float)segmentCount;
     const EvalQuad eval(pts);
 
     float t = dt;
@@ -366,7 +366,7 @@ float ContourMeasureIter::addCubicSegs(ContourMeasure::Segment* segs,
                                        uint32_t ptIndex,
                                        float distance) const
 {
-    const float dt = 1.f / segmentCount;
+    const float dt = 1.f / (float)segmentCount;
     const EvalCubic eval(pts);
 
     float t = dt;

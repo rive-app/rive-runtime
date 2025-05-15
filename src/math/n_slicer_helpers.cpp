@@ -92,7 +92,7 @@ ScaleInfo NSlicerHelpers::analyzeUVStops(const std::vector<float>& uvs,
     float fallbackSize = 0;
     if (!useScale && numEmptyPatch != 0)
     {
-        fallbackSize = (size - fixedSize / scale) / numEmptyPatch;
+        fallbackSize = (size - fixedSize / scale) / (float)numEmptyPatch;
     }
 
     return {useScale, scaleFactor, fallbackSize};

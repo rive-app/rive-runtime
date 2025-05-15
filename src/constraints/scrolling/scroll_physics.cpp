@@ -11,7 +11,7 @@ void ScrollPhysics::accumulate(Vec2D delta)
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(
                   now.time_since_epoch())
                   .count();
-    float elapsedSeconds = (ms - m_lastTime) / 1000000.0f;
+    float elapsedSeconds = (float)(ms - m_lastTime) / 1000000.0f;
     if (elapsedSeconds > 0)
     {
         auto lastSpeed = m_speed;

@@ -38,6 +38,7 @@ function rive_tools_project(name, project_kind)
             'rive_yoga',
             'rive_harfbuzz',
             'rive_sheenbidi',
+            'miniaudio',
         })
     else
         kind(project_kind)
@@ -120,7 +121,7 @@ function rive_tools_project(name, project_kind)
     end
 
     -- Match PLS math options for testing simd.
-    filter({'system:not windows', 'options:not no_ffp_contract'})
+    filter({ 'system:not windows', 'options:not no_ffp_contract' })
     do
         buildoptions({
             '-ffp-contract=on',
@@ -169,6 +170,7 @@ function rive_tools_project(name, project_kind)
             'rive_yoga',
             'rive_harfbuzz',
             'rive_sheenbidi',
+            'miniaudio',
         })
 
         filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:not no_rive_jpeg' })
@@ -197,7 +199,17 @@ function rive_tools_project(name, project_kind)
             libdirs({
                 RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
             })
-            links({ 'glfw3', 'opengl32', 'd3d11', 'd3d12', 'dxguid', 'dxgi', 'Dbghelp', 'd3dcompiler', 'ws2_32' })
+            links({
+                'glfw3',
+                'opengl32',
+                'd3d11',
+                'd3d12',
+                'dxguid',
+                'dxgi',
+                'Dbghelp',
+                'd3dcompiler',
+                'ws2_32',
+            })
         end
 
         filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:macosx' })
@@ -289,13 +301,13 @@ do
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn.cpp',
     })
 
-    if _TARGET_OS  == 'windows'then
+    if _TARGET_OS == 'windows' then
         externalincludedirs({
-            dx12_headers .. '/include/directx'
+            dx12_headers .. '/include/directx',
         })
     end
-    
-    filter({ 'options:for_unreal'})
+
+    filter({ 'options:for_unreal' })
     do
         defines({ 'RIVE_UNREAL', 'RIVE_TOOLS_NO_GLFW', 'RIVE_TOOLS_NO_GL' })
     end

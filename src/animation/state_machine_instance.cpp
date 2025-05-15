@@ -247,13 +247,14 @@ public:
         if (totalWeight > 0)
         {
             double randomWeight = randomValue() * totalWeight * 1.0;
-            float currentWeight = 0;
+            double currentWeight = 0;
             size_t index = 0;
             StateTransition* transition;
             while (index < stateFrom->transitionCount())
             {
                 transition = stateFrom->transition(index);
-                auto transitionWeight = transition->evaluatedRandomWeight();
+                double transitionWeight =
+                    (double)transition->evaluatedRandomWeight();
                 if (currentWeight + transitionWeight > randomWeight)
                 {
                     transition->useLayerInConditions(m_stateMachineInstance,

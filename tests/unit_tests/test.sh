@@ -41,6 +41,10 @@ while [[ $# -gt 0 ]]; do
     export REBASELINE_SILVERS=true
     shift # past argument
     ;;
+  clean)
+    rm -fR out
+    shift # past argument
+    ;;
   *)
     shift # past argument
     ;;
@@ -78,13 +82,6 @@ fi
 
 export PREMAKE=$PWD/dependencies/bin/premake5
 
-for var in "$@"; do
-  if [[ $var = "clean" ]]; then
-    echo 'Cleaning...'
-    rm -fR out
-  fi
-done
-
 mkdir -p out
 
 if [[ $machine = "macosx" ]]; then
@@ -107,7 +104,8 @@ if [[ $machine = "macosx" ]]; then
   OUT_DIR="$(out_dir)"
   $PREMAKE $TARGET $PREMAKE_COMMANDS --out=$OUT_DIR
   pushd $OUT_DIR
-  make -j$(($(sysctl -n hw.physicalcpu) + 1))
+  # make -j$(($(sysctl -n hw.physicalcpu) + 1))
+  make
   popd
   rm -fR silvers/tarnished
   mkdir -p silvers/tarnished

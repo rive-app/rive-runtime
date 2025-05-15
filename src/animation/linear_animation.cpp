@@ -79,11 +79,11 @@ StatusCode LinearAnimation::import(ImportStack& importStack)
 
 float LinearAnimation::startSeconds() const
 {
-    return (enableWorkArea() ? workStart() : 0) / (float)fps();
+    return (enableWorkArea() ? (float)workStart() : 0.0f) / (float)fps();
 }
 float LinearAnimation::endSeconds() const
 {
-    return (enableWorkArea() ? workEnd() : duration()) / (float)fps();
+    return (float)(enableWorkArea() ? workEnd() : duration()) / (float)fps();
 }
 
 float LinearAnimation::startTime() const

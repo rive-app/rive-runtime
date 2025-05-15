@@ -27,7 +27,7 @@ public:
         unsigned m_tValue : 30; // Dot30 t value for the end of this segment
         unsigned m_type : 2;    // [private enum]
 
-        float getT() const { return m_tValue * kInvScaleD30; }
+        float getT() const { return (float)m_tValue * kInvScaleD30; }
 
         bool operator<(const Segment& other) const
         {

@@ -81,12 +81,13 @@ bool LinearAnimationInstance::advance(float elapsedSeconds,
                                        false);
     }
 
-    int fps = animation.fps();
+    float fps = (float)animation.fps();
     float frames = m_time * fps;
-    int start = animation.enableWorkArea() ? animation.workStart() : 0;
-    int end =
-        animation.enableWorkArea() ? animation.workEnd() : animation.duration();
-    int range = end - start;
+    float start =
+        animation.enableWorkArea() ? (float)animation.workStart() : 0.0f;
+    float end = animation.enableWorkArea() ? (float)animation.workEnd()
+                                           : (float)animation.duration();
+    float range = end - start;
 
     bool didLoop = false;
 
@@ -232,8 +233,10 @@ void LinearAnimationInstance::time(float value)
     // can track change even when setting time.
     auto diff = m_totalTime - m_lastTotalTime;
 
-    int start = (m_animation->enableWorkArea() ? m_animation->workStart() : 0) *
-                m_animation->fps();
+    float start =
+        (m_animation->enableWorkArea() ? (float)m_animation->workStart()
+                                       : 0.0f) *
+        (float)m_animation->fps();
     m_totalTime = value - start;
     m_lastTotalTime = m_totalTime - diff;
 

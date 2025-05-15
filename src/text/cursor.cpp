@@ -134,7 +134,7 @@ CursorPosition CursorPosition::fromOrderedLine(const OrderedLine& orderedLine,
                 nextTextIndex++;
             }
             uint32_t parts = nextTextIndex - textIndex;
-            uint32_t part = (uint32_t)std::round(ratio * parts);
+            uint32_t part = (uint32_t)std::round(ratio * (float)parts);
 
             return CursorPosition(
                        lineIndex,
@@ -285,8 +285,8 @@ void Cursor::selectionRects(std::vector<AABB>& rects,
                     subtractUint32(firstCodePointIndex, codePointIndex);
                 uint32_t before =
                     subtractUint32(endCodePointIndex, lastCodePointIndex);
-                float startFactor = after / (float)count;
-                float endFactor = (count - before) / (float)count;
+                float startFactor = (float)after / (float)count;
+                float endFactor = (float)(count - before) / (float)count;
                 if (run->dir() == TextDirection::rtl)
                 {
                     startFactor = 1.0f - startFactor;

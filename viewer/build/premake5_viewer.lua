@@ -36,7 +36,7 @@ do
         yoga,
     })
 
-    links({ 'rive','rive_decoders', 'rive_harfbuzz', 'rive_sheenbidi', 'rive_yoga' })
+    links({ 'rive', 'rive_decoders', 'rive_harfbuzz', 'rive_sheenbidi', 'rive_yoga', 'miniaudio' })
 
     libdirs({ rive .. '/build/%{cfg.system}/bin/%{cfg.buildcfg}' })
 

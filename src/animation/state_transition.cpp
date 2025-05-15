@@ -97,11 +97,11 @@ float StateTransition::mixTime(const LayerState* stateFrom) const
                 animationDuration = animation->durationSeconds();
             }
         }
-        return duration() / 100.0f * animationDuration;
+        return (float)duration() / 100.0f * animationDuration;
     }
     else
     {
-        return duration() / 1000.0f;
+        return (float)duration() / 1000.0f;
     }
 }
 
@@ -122,9 +122,9 @@ float StateTransition::exitTimeSeconds(const LayerState* stateFrom,
             animationDuration = exitAnimation->durationSeconds();
         }
 
-        return start + exitTime() / 100.0f * animationDuration;
+        return start + (float)exitTime() / 100.0f * animationDuration;
     }
-    return exitTime() / 1000.0f;
+    return (float)exitTime() / 1000.0f;
 }
 
 const LinearAnimationInstance* StateTransition::exitTimeAnimationInstance(

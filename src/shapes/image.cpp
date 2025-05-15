@@ -36,8 +36,8 @@ void Image::draw(Renderer* renderer)
 
     if (clipResult != ClipResult::emptyClip)
     {
-        auto width = renderImage->width();
-        auto height = renderImage->height();
+        float width = (float)renderImage->width();
+        float height = (float)renderImage->height();
 
         if (m_Mesh != nullptr)
         {
@@ -59,8 +59,8 @@ Core* Image::hitTest(HitInfo* hinfo, const Mat2D& xform)
     // TODO: handle clip?
 
     auto renderImage = imageAsset()->renderImage();
-    int width = renderImage->width();
-    int height = renderImage->height();
+    float width = (float)renderImage->width();
+    float height = (float)renderImage->height();
 
     if (m_Mesh)
     {
@@ -143,7 +143,7 @@ float Image::width() const
     {
         return 0.0f;
     }
-    return renderImage->width();
+    return (float)renderImage->width();
 }
 
 float Image::height() const
@@ -159,7 +159,7 @@ float Image::height() const
     {
         return 0.0f;
     }
-    return renderImage->height();
+    return (float)renderImage->height();
 }
 
 Vec2D Image::measureLayout(float width,
@@ -214,15 +214,17 @@ void Image::controlSize(Vec2D size,
 void Image::updateImageScale()
 {
     // User-created meshes are not affected by scale
-    if (m_Mesh != nullptr && m_Mesh->type() == MeshType::vertex)
+    if ((m_Mesh != nullptr && m_Mesh->type() == MeshType::vertex) ||
+        imageAsset() == nullptr)
     {
         return;
     }
-    if (imageAsset() != nullptr && imageAsset()->renderImage() != nullptr &&
-        !std::isnan(m_layoutWidth) && !std::isnan(m_layoutHeight))
+    auto renderImage = imageAsset()->renderImage();
+    if (renderImage != nullptr && !std::isnan(m_layoutWidth) &&
+        !std::isnan(m_layoutHeight))
     {
-        auto newScaleX = m_layoutWidth / imageAsset()->renderImage()->width();
-        auto newScaleY = m_layoutHeight / imageAsset()->renderImage()->height();
+        float newScaleX = m_layoutWidth / (float)renderImage->width();
+        float newScaleY = m_layoutHeight / (float)renderImage->height();
         if (newScaleX != scaleX() || newScaleY != scaleY())
         {
             scaleX(newScaleX);

@@ -2,7 +2,7 @@ dofile('rive_build_config.lua')
 
 local dependency = require('dependency')
 libpng = dependency.github('glennrp/libpng', 'libpng16')
-zlib = dependency.github('madler/zlib', '04f42ceca40f73e2978b50e93806c2a18c1281fc')
+zlib = dependency.github('madler/zlib', 'v1.3.1')
 
 includedirs({ './' })
 forceincludes({ 'rive_png_renames.h' })
@@ -50,7 +50,7 @@ end
 
 newoption({
     trigger = 'force_no_unistd_h',
-    description = "prevent HAVE_UNISTD_H from being defined for zlib"
+    description = 'prevent HAVE_UNISTD_H from being defined for zlib',
 })
 
 project('zlib')
@@ -88,7 +88,7 @@ do
         })
     end
 
-    filter({'system:not windows', 'options:not force_no_unistd_h'})
+    filter({ 'system:not windows', 'options:not force_no_unistd_h' })
     do
         defines({ 'HAVE_UNISTD_H' })
     end

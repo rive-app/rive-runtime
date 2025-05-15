@@ -153,14 +153,15 @@ public:
                                     auto value = keyedProperty->first()
                                                      ->as<KeyFrameColor>()
                                                      ->value();
-                                    animationReset->writePropertyValue(value);
+                                    animationReset->writePropertyValue(
+                                        (float)value);
                                 }
                             }
                             else
                             {
                                 animationReset->writePropertyValue(
-                                    CoreRegistry::getColor(component,
-                                                           propertyKey));
+                                    (float)CoreRegistry::getColor(component,
+                                                                  propertyKey));
                             }
                             break;
                     }

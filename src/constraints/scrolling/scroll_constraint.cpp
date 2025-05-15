@@ -234,17 +234,17 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
     {
         return Vec2D();
     }
-    auto i = 0;
+    uint32_t i = 0;
     LayoutNodeProvider* lastChild;
     for (auto child : content()->children())
     {
         auto c = LayoutNodeProvider::from(child);
         if (c != nullptr)
         {
-            auto floorIndex = std::floor(index);
-            if (i == floorIndex)
+            float floorIndex = std::floor(index);
+            if (i == (uint32_t)floorIndex)
             {
-                auto mod = index - floorIndex;
+                float mod = index - floorIndex;
                 auto bounds = c->layoutBounds();
                 return Vec2D(-bounds.left() - bounds.width() * mod,
                              -bounds.top() - bounds.height() * mod);

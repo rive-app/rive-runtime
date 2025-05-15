@@ -58,7 +58,6 @@ do
         miniaudio,
         yoga,
         pls_generated_headers,
-        -- openlibm .. '/include',
     })
 
     links({
@@ -71,7 +70,7 @@ do
         'zlib',
         'libjpeg',
         'libwebp',
-        -- 'openlibm',
+        'miniaudio',
     })
 
     files({

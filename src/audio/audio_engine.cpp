@@ -1,17 +1,5 @@
 #ifdef WITH_RIVE_AUDIO
 #include "rive/math/simd.hpp"
-#ifdef __APPLE__
-#include <TargetConditionals.h>
-#if TARGET_IPHONE_SIMULATOR || TARGET_OS_MACCATALYST || TARGET_OS_IPHONE
-// Don't define MINIAUDIO_IMPLEMENTATION ON iOS
-#elif TARGET_OS_MAC
-#define MINIAUDIO_IMPLEMENTATION
-#else
-#error "Unknown Apple platform"
-#endif
-#else
-#define MINIAUDIO_IMPLEMENTATION
-#endif
 #include "miniaudio.h"
 
 #include "rive/audio/audio_engine.hpp"

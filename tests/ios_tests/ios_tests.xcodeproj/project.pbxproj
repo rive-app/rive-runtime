@@ -324,6 +324,7 @@
 					"-ltools_common",
 					"-lgoldens",
 					"-lgms",
+					'-lminiaudio',
 				);
 				"OTHER_LDFLAGS[sdk=iphonesimulator*]" = (
 					"-lrive",
@@ -337,6 +338,7 @@
 					"-ltools_common",
 					"-lgoldens",
 					"-lgms",
+					'-lminiaudio',
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = "rive.app.golden-test-app";
 				PRODUCT_NAME = rive_ios_tests;

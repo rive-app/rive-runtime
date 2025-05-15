@@ -13,6 +13,10 @@ bool aboutEqual(const rive::Mat2D& a, const rive::Mat2D& b);
     CHECK(a.x == b.x);                                                         \
     CHECK(a.y == b.y);
 
+#define CHECK_AABB(a, b)                                                       \
+    CHECK_VEC2D(a.min(), b.min());                                             \
+    CHECK_VEC2D(a.max(), b.max());
+
 namespace Catch
 {
 template <> struct StringMaker<rive::Mat2D>
