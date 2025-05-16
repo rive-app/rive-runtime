@@ -28,6 +28,13 @@ void ViewModelInstanceList::addItem(ViewModelInstanceListItem* item)
     propertyValueChanged();
 }
 
+void ViewModelInstanceList::internalAddItem(ViewModelInstanceListItem* item)
+{
+    // For ViewModelInstanceListItems that are built as a core object
+    // we skip the ref since core has already reffed it
+    m_ListItems.push_back(item);
+}
+
 void ViewModelInstanceList::insertItem(int index,
                                        ViewModelInstanceListItem* item)
 {
@@ -86,7 +93,7 @@ Core* ViewModelInstanceList::clone() const
     for (auto property : m_ListItems)
     {
         auto clonedValue = property->clone()->as<ViewModelInstanceListItem>();
-        cloned->addItem(clonedValue);
+        cloned->internalAddItem(clonedValue);
     }
     return cloned;
 }

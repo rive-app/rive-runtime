@@ -10,7 +10,7 @@ ViewModelInstanceListImporter::ViewModelInstanceListImporter(
 {}
 void ViewModelInstanceListImporter::addItem(ViewModelInstanceListItem* listItem)
 {
-    m_ViewModelInstanceList->addItem(listItem);
+    m_ViewModelInstanceList->internalAddItem(listItem);
 }
 
 StatusCode ViewModelInstanceListImporter::resolve() { return StatusCode::Ok; }

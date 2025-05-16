@@ -10,6 +10,7 @@ class ViewModelInstanceList : public ViewModelInstanceListBase
 public:
     ~ViewModelInstanceList();
     void addItem(ViewModelInstanceListItem* listItem);
+    void internalAddItem(ViewModelInstanceListItem* listItem);
     void insertItem(int index, ViewModelInstanceListItem* listItem);
     void removeItem(int index);
     void removeItem(ViewModelInstanceListItem* listItem);
