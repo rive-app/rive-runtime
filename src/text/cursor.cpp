@@ -121,9 +121,11 @@ CursorPosition CursorPosition::fromOrderedLine(const OrderedLine& orderedLine,
         float advance = run->advances[glyphIndex];
         if (translationX <= x + advance)
         {
-            float ratio = advance == 0.0f
-                              ? 1.0f
-                              : std::min((translationX - x) / advance, 1.0f);
+            float ratio =
+                advance == 0.0f
+                    ? 1.0f
+                    : std::max(0.0f,
+                               std::min((translationX - x) / advance, 1.0f));
             uint32_t textIndex = run->textIndices[glyphIndex];
             uint32_t nextTextIndex = textIndex;
             uint32_t absoluteGlyphIndex = glyphLookup[textIndex];

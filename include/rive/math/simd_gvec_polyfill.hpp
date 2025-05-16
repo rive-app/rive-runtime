@@ -209,21 +209,27 @@ DECL_UNARY_OP(~)
 
 #define DECL_ARITHMETIC_OP(_OP_)                                               \
     template <typename T, typename U, int N, Swizzle Z0, Swizzle Z1>           \
-    gvec<T, N, Z0>& operator _OP_##=(gvec<T, N, Z0>& a, gvec<U, N, Z1> b)      \
+    typename std::enable_if<std::is_convertible<U, T>::value,                  \
+                            gvec<T, N, Z0>>::type&                             \
+    operator _OP_##=(gvec<T, N, Z0>& a, gvec<U, N, Z1> b)                      \
     {                                                                          \
         for (int i = 0; i < N; ++i)                                            \
             a[i] _OP_## = b[i];                                                \
         return a;                                                              \
     }                                                                          \
     template <typename T, typename U, int N, Swizzle Z>                        \
-    gvec<T, N, Z>& operator _OP_##=(gvec<T, N, Z>& a, U b)                     \
+    typename std::enable_if<std::is_convertible<U, T>::value,                  \
+                            gvec<T, N, Z>>::type&                              \
+    operator _OP_##=(gvec<T, N, Z>& a, U b)                                    \
     {                                                                          \
         for (int i = 0; i < N; ++i)                                            \
             a[i] _OP_## = b;                                                   \
         return a;                                                              \
     }                                                                          \
     template <typename T, typename U, int N, Swizzle Z0, Swizzle Z1>           \
-    gvec<T, N> operator _OP_(gvec<T, N, Z0> a, gvec<U, N, Z1> b)               \
+    typename std::enable_if<std::is_convertible<U, T>::value,                  \
+                            gvec<T, N>>::type                                  \
+    operator _OP_(gvec<T, N, Z0> a, gvec<U, N, Z1> b)                          \
     {                                                                          \
         gvec<T, N> ret;                                                        \
         for (int i = 0; i < N; ++i)                                            \
@@ -231,7 +237,9 @@ DECL_UNARY_OP(~)
         return ret;                                                            \
     }                                                                          \
     template <typename T, typename U, int N, Swizzle Z>                        \
-    gvec<T, N> operator _OP_(gvec<T, N, Z> a, U b)                             \
+    typename std::enable_if<std::is_convertible<U, T>::value,                  \
+                            gvec<T, N>>::type                                  \
+    operator _OP_(gvec<T, N, Z> a, U b)                                        \
     {                                                                          \
         gvec<T, N> ret;                                                        \
         for (int i = 0; i < N; ++i)                                            \
@@ -239,7 +247,9 @@ DECL_UNARY_OP(~)
         return ret;                                                            \
     }                                                                          \
     template <typename T, typename U, int N, Swizzle Z>                        \
-    gvec<U, N> operator _OP_(T a, gvec<U, N, Z> b)                             \
+    typename std::enable_if<std::is_convertible<T, U>::value,                  \
+                            gvec<U, N>>::type                                  \
+    operator _OP_(T a, gvec<U, N, Z> b)                                        \
     {                                                                          \
         gvec<T, N> ret;                                                        \
         for (int i = 0; i < N; ++i)                                            \
@@ -272,9 +282,10 @@ DECL_ARITHMETIC_OP(>>);
         return ret;                                                            \
     }                                                                          \
     template <typename T, typename U, int N, Swizzle Z>                        \
-    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(                \
-        gvec<T, N, Z> a,                                                       \
-        U b)                                                                   \
+    typename std::enable_if<                                                   \
+        std::is_convertible<U, T>::value,                                      \
+        gvec<typename boolean_mask_type<T>::type, N>>::type                    \
+    operator _OP_(gvec<T, N, Z> a, U b)                                        \
     {                                                                          \
         gvec<typename boolean_mask_type<T>::type, N> ret;                      \
         for (int i = 0; i < N; ++i)                                            \
@@ -282,9 +293,10 @@ DECL_ARITHMETIC_OP(>>);
         return ret;                                                            \
     }                                                                          \
     template <typename T, typename U, int N, Swizzle Z>                        \
-    gvec<typename boolean_mask_type<T>::type, N> operator _OP_(                \
-        U a,                                                                   \
-        gvec<T, N, Z> b)                                                       \
+    typename std::enable_if<                                                   \
+        std::is_convertible<U, T>::value,                                      \
+        gvec<typename boolean_mask_type<T>::type, N>>::type                    \
+    operator _OP_(U a, gvec<T, N, Z> b)                                        \
     {                                                                          \
         gvec<typename boolean_mask_type<T>::type, N> ret;                      \
         for (int i = 0; i < N; ++i)                                            \
@@ -324,8 +336,7 @@ DECL_BOOLEAN_OP(||)
         return F((gvec<T, N>)x);                                               \
     }
 #define ENABLE_SWIZZLEUT(F)                                                    \
-    template <typename T, typename U, int N, Swizzle Z0>                       \
-    gvec<U, N> F(gvec<T, N, Z0> x)                                             \
+    template <typename T, int N, Swizzle Z0> gvec<T, N> F(gvec<T, N, Z0> x)    \
     {                                                                          \
         return F((gvec<T, N>)x);                                               \
     }

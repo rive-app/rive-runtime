@@ -28,8 +28,11 @@ defines({
     'RIVE_NO_CORETEXT',
 })
 
--- dofile('premake5_openlibm.lua')
-
+if _OPTIONS['toolset'] == 'msc' then
+    defines({
+        'MA_NO_MP3', -- miniaudio's mp3 decoder + fp:strict causes C2099
+    })
+end
 dofile(path.join(path.getabsolute('../../'), 'premake5_v2.lua'))
 dofile(path.join(path.getabsolute('../../decoders/'), 'premake5_v2.lua'))
 
@@ -38,6 +41,7 @@ dofile(path.join(path.getabsolute('../../decoders/'), 'premake5_v2.lua'))
 if _OPTIONS['toolset'] ~= 'msc' then
     _OPTIONS['raw_shaders'] = true
 end
+
 dofile(path.join(path.getabsolute('../../renderer/'), 'premake5_pls_renderer.lua'))
 
 dofile('../rive_tools_project.lua')
