@@ -67,6 +67,10 @@ while :; do
             DIFF_ARGS="$DIFF_ARGS -H"
             shift
         ;;
+        -t[0-9] | -t[0-9][0-9] )
+            DIFF_ARGS="$DIFF_ARGS --threshold=${1: 2}"
+            shift
+        ;;
         *)
             break
         ;;
