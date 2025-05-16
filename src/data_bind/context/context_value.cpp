@@ -10,6 +10,7 @@
 #include "rive/data_bind/data_values/data_value_trigger.hpp"
 #include "rive/data_bind/data_values/data_value_list.hpp"
 #include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
+#include "rive/data_bind/data_values/data_value_asset_image.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;
@@ -59,6 +60,10 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind) :
                 break;
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 m_dataValue = new DataValueSymbolListIndex();
+                break;
+            case ViewModelInstanceAssetImageBase::typeKey:
+                m_dataValue = new DataValueAssetImage(
+                    source->as<ViewModelInstanceAssetImage>()->propertyValue());
                 break;
             default:
                 m_dataValue = new DataValue();
@@ -111,6 +116,11 @@ void DataBindContextValue::syncSourceValue()
                 m_dataValue->as<DataValueSymbolListIndex>()->value(
                     source->as<ViewModelInstanceSymbolListIndex>()
                         ->propertyValue());
+                break;
+
+            case ViewModelInstanceAssetImageBase::typeKey:
+                m_dataValue->as<DataValueAssetImage>()->value(
+                    source->as<ViewModelInstanceAssetImage>()->propertyValue());
                 break;
         }
     }
@@ -199,6 +209,17 @@ void DataBindContextValue::applyToSource(Core* component,
                 m_dataBind,
                 component,
                 propertyKey);
+        }
+        break;
+        case ViewModelInstanceAssetImageBase::typeKey:
+        {
+            calculateValueAndApply<DataValueAssetImage,
+                                   uint32_t,
+                                   ViewModelInstanceAssetImage>(targetValue(),
+                                                                isMainDirection,
+                                                                m_dataBind,
+                                                                component,
+                                                                propertyKey);
         }
         break;
     }

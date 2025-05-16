@@ -36,7 +36,10 @@ enum class DataType : unsigned int
     integer = 9,
 
     /// Symbol list index.
-    symbolListIndex = 10
+    symbolListIndex = 10,
+
+    /// Asset Image.
+    assetImage = 11
 };
 } // namespace rive
 #endif

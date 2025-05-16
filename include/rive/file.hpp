@@ -140,6 +140,7 @@ public:
     void completeViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) const;
     const std::vector<DataEnum*>& enums() const;
+    FileAsset* asset(size_t index);
 
     std::vector<Artboard*> artboards() { return m_artboards; };
 

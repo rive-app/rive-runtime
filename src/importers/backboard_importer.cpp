@@ -3,6 +3,7 @@
 #include "rive/artboard.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/backboard.hpp"
+#include "rive/file.hpp"
 #include "rive/assets/file_asset_referencer.hpp"
 #include "rive/assets/file_asset.hpp"
 #include "rive/constraints/scrolling/scroll_physics.hpp"
@@ -168,3 +169,5 @@ void BackboardImporter::addPhysics(ScrollPhysics* physics)
 {
     m_physics.push_back(physics);
 }
+
+void BackboardImporter::file(File* value) { m_file = value; }

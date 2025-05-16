@@ -126,6 +126,7 @@
 #include "rive/custom_property_number.hpp"
 #include "rive/custom_property_string.hpp"
 #include "rive/data_bind/bindable_property.hpp"
+#include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
@@ -236,6 +237,8 @@
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset.hpp"
+#include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
@@ -249,6 +252,8 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_property.hpp"
+#include "rive/viewmodel/viewmodel_property_asset.hpp"
+#include "rive/viewmodel/viewmodel_property_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
 #include "rive/viewmodel/viewmodel_property_color.hpp"
 #include "rive/viewmodel/viewmodel_property_enum.hpp"
@@ -301,6 +306,8 @@ public:
                 return new ViewModelPropertyEnumSystem();
             case ViewModelBase::typeKey:
                 return new ViewModel();
+            case ViewModelPropertyAssetBase::typeKey:
+                return new ViewModelPropertyAsset();
             case DataEnumSystemBase::typeKey:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
@@ -311,6 +318,8 @@ public:
                 return new ViewModelPropertyBoolean();
             case ViewModelPropertyColorBase::typeKey:
                 return new ViewModelPropertyColor();
+            case ViewModelPropertyAssetImageBase::typeKey:
+                return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
                 return new ViewModelInstanceBoolean();
             case ViewModelInstanceListBase::typeKey:
@@ -327,6 +336,10 @@ public:
                 return new ViewModelInstanceViewModel();
             case ViewModelPropertyTriggerBase::typeKey:
                 return new ViewModelPropertyTrigger();
+            case ViewModelInstanceAssetBase::typeKey:
+                return new ViewModelInstanceAsset();
+            case ViewModelInstanceAssetImageBase::typeKey:
+                return new ViewModelInstanceAssetImage();
             case DataEnumValueBase::typeKey:
                 return new DataEnumValue();
             case DrawTargetBase::typeKey:
@@ -573,6 +586,8 @@ public:
                 return new BindablePropertyBoolean();
             case DataBindBase::typeKey:
                 return new DataBind();
+            case BindablePropertyAssetBase::typeKey:
+                return new BindablePropertyAsset();
             case DataConverterNumberToListBase::typeKey:
                 return new DataConverterNumberToList();
             case DataConverterFormulaBase::typeKey:
@@ -735,6 +750,9 @@ public:
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceViewModelBase>()->propertyValue(
                     value);
+                break;
+            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
+                object->as<ViewModelInstanceAssetBase>()->propertyValue(value);
                 break;
             case DrawTargetBase::drawableIdPropertyKey:
                 object->as<DrawTargetBase>()->drawableId(value);
@@ -1183,6 +1201,9 @@ public:
                 break;
             case DataBindBase::converterIdPropertyKey:
                 object->as<DataBindBase>()->converterId(value);
+                break;
+            case BindablePropertyAssetBase::propertyValuePropertyKey:
+                object->as<BindablePropertyAssetBase>()->propertyValue(value);
                 break;
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
                 object->as<DataConverterNumberToListBase>()->viewModelId(value);
@@ -2228,6 +2249,9 @@ public:
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceViewModelBase>()
                     ->propertyValue();
+            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
+                return object->as<ViewModelInstanceAssetBase>()
+                    ->propertyValue();
             case DrawTargetBase::drawableIdPropertyKey:
                 return object->as<DrawTargetBase>()->drawableId();
             case DrawTargetBase::placementValuePropertyKey:
@@ -2548,6 +2572,8 @@ public:
                 return object->as<DataBindBase>()->flags();
             case DataBindBase::converterIdPropertyKey:
                 return object->as<DataBindBase>()->converterId();
+            case BindablePropertyAssetBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyAssetBase>()->propertyValue();
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
                 return object->as<DataConverterNumberToListBase>()
                     ->viewModelId();
@@ -3263,6 +3289,7 @@ public:
             case ViewModelInstanceTriggerBase::propertyValuePropertyKey:
             case ViewModelInstanceSymbolListIndexBase::propertyValuePropertyKey:
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
+            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
             case DrawTargetBase::drawableIdPropertyKey:
             case DrawTargetBase::placementValuePropertyKey:
             case TargetedConstraintBase::targetIdPropertyKey:
@@ -3398,6 +3425,7 @@ public:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
             case DataBindBase::converterIdPropertyKey:
+            case BindablePropertyAssetBase::propertyValuePropertyKey:
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
             case DataConverterOperationBase::operationTypePropertyKey:
             case DataConverterRangeMapperBase::interpolationTypePropertyKey:
@@ -3775,6 +3803,8 @@ public:
                 return object->is<ViewModelInstanceSymbolListIndexBase>();
             case ViewModelInstanceViewModelBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceViewModelBase>();
+            case ViewModelInstanceAssetBase::propertyValuePropertyKey:
+                return object->is<ViewModelInstanceAssetBase>();
             case DrawTargetBase::drawableIdPropertyKey:
                 return object->is<DrawTargetBase>();
             case DrawTargetBase::placementValuePropertyKey:
@@ -4044,6 +4074,8 @@ public:
                 return object->is<DataBindBase>();
             case DataBindBase::converterIdPropertyKey:
                 return object->is<DataBindBase>();
+            case BindablePropertyAssetBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyAssetBase>();
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
                 return object->is<DataConverterNumberToListBase>();
             case DataConverterOperationBase::operationTypePropertyKey:

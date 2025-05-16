@@ -290,6 +290,22 @@ ViewModelInstanceRuntime* ViewModelInstanceRuntime::propertyViewModel(
     return nullptr;
 }
 
+ViewModelInstanceAssetImageRuntime* ViewModelInstanceRuntime::propertyImage(
+    const std::string& path) const
+{
+    const auto propertyName = getPropertyNameFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
+    if (viewModelInstance != nullptr)
+    {
+
+        return viewModelInstance
+            ->getPropertyInstance<ViewModelInstanceAssetImage,
+                                  ViewModelInstanceAssetImageRuntime>(
+                propertyName);
+    }
+    return nullptr;
+}
+
 bool ViewModelInstanceRuntime::replaceViewModel(
     const std::string& path,
     ViewModelInstanceRuntime* value) const

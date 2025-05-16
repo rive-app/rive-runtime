@@ -2,6 +2,7 @@
 #include "rive/artboard.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_color.hpp"
@@ -10,6 +11,7 @@
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/bindable_property_integer.hpp"
 #include "rive/data_bind/context/context_value.hpp"
+#include "rive/data_bind/context/context_value_asset_image.hpp"
 #include "rive/data_bind/context/context_value_boolean.hpp"
 #include "rive/data_bind/context/context_value_number.hpp"
 #include "rive/data_bind/context/context_value_string.hpp"
@@ -48,6 +50,7 @@ StatusCode DataBind::import(ImportStack& importStack)
     {
         return StatusCode::MissingObject;
     }
+    file(backboardImporter->file());
     backboardImporter->addDataConverterReferencer(this);
     if (target())
     {
@@ -70,6 +73,7 @@ StatusCode DataBind::import(ImportStack& importStack)
                 case BindablePropertyColorBase::typeKey:
                 case BindablePropertyTriggerBase::typeKey:
                 case BindablePropertyIntegerBase::typeKey:
+                case BindablePropertyAssetBase::typeKey:
                 case TransitionPropertyViewModelComparatorBase::typeKey:
                 case StateTransitionBase::typeKey:
                 {
@@ -127,6 +131,8 @@ DataType DataBind::outputType()
             return DataType::trigger;
         case ViewModelInstanceSymbolListIndexBase::typeKey:
             return DataType::symbolListIndex;
+        case ViewModelInstanceAssetImageBase::typeKey:
+            return DataType::assetImage;
     }
     return DataType::none;
 }
@@ -168,6 +174,9 @@ void DataBind::bind()
             break;
         case DataType::symbolListIndex:
             m_ContextValue = new DataBindContextValueSymbolListIndex(this);
+            break;
+        case DataType::assetImage:
+            m_ContextValue = new DataBindContextValueAssetImage(this);
             break;
         default:
             break;

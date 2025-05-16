@@ -629,6 +629,7 @@ void Artboard::cloneObjectDataBinds(const Core* object,
         {
             auto dataBindClone = static_cast<DataBind*>(dataBind->clone());
             dataBindClone->target(clone);
+            dataBindClone->file(dataBind->file());
             if (dataBind->converter() != nullptr)
             {
 

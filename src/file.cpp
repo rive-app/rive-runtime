@@ -39,6 +39,7 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/constraints/scrolling/scroll_physics.hpp"
 #include "rive/data_bind/bindable_property.hpp"
+#include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_color.hpp"
@@ -46,6 +47,7 @@
 #include "rive/data_bind/bindable_property_integer.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
+#include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_number_to_list.hpp"
 #include "rive/assets/file_asset.hpp"
@@ -343,6 +345,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case Backboard::typeKey:
                 stackObject = rivestd::make_unique<BackboardImporter>(
                     object->as<Backboard>());
+                static_cast<BackboardImporter*>(stackObject.get())->file(this);
                 break;
             case Artboard::typeKey:
                 stackObject = rivestd::make_unique<ArtboardImporter>(
@@ -451,6 +454,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case BindablePropertyColor::typeKey:
             case BindablePropertyEnum::typeKey:
             case BindablePropertyBoolean::typeKey:
+            case BindablePropertyAsset::typeKey:
             case BindablePropertyTrigger::typeKey:
             case BindablePropertyInteger::typeKey:
                 stackObject = rivestd::make_unique<BindablePropertyImporter>(
@@ -782,6 +786,9 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                         createViewModelInstance(viewModelReference));
                 }
                 break;
+                case ViewModelPropertyAssetImageBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceAssetImage();
+                    break;
                 default:
                     break;
             }
@@ -1004,4 +1011,14 @@ const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
     }
     return strippedData;
 }
+
 #endif
+
+FileAsset* File::asset(size_t index)
+{
+    if (index >= 0 && index < m_fileAssets.size())
+    {
+        return m_fileAssets[index];
+    }
+    return nullptr;
+}

@@ -9,6 +9,7 @@
 namespace rive
 {
 class Artboard;
+class File;
 class NestedArtboard;
 class Backboard;
 class FileAsset;
@@ -31,6 +32,7 @@ private:
     std::vector<KeyFrameInterpolator*> m_interpolators;
     std::vector<ScrollPhysics*> m_physics;
     int m_NextArtboardId;
+    File* m_file;
 
 public:
     BackboardImporter(Backboard* backboard);
@@ -46,6 +48,9 @@ public:
     void addInterpolator(KeyFrameInterpolator* interpolator);
     void addPhysics(ScrollPhysics* physics);
     std::vector<ScrollPhysics*> physics() { return m_physics; }
+    std::vector<FileAsset*>* assets() { return &m_FileAssets; }
+    void file(File* value);
+    File* file() { return m_file; };
 
     StatusCode resolve() override;
     const Backboard* backboard() const { return m_Backboard; }
