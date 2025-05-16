@@ -31,13 +31,12 @@ end
 
 if not _OPTIONS["no_rive_webp"] then
     dofile(rive .. '/dependencies/premake5_libwebp_v2.lua')
+else
+    libwebp = ''
 end
-
-dofile(rive .. '/dependencies/premake5_libwebp_v2.lua')
 
 project('rive_decoders')
 do
-    dependson('libwebp')
     kind('StaticLib')
     flags({ 'FatalCompileWarnings' })
 
@@ -49,7 +48,6 @@ do
 
     files({
         'src/bitmap_decoder.cpp',
-        'src/bitmap_decoder_thirdparty.cpp',
     })
 
     filter({ 'options:not no-libjpeg-renames' })
@@ -58,6 +56,22 @@ do
             rive .. '/dependencies',
         })
         forceincludes({ 'rive_libjpeg_renames.h' })
+    end
+
+    filter({
+        'system:macosx or system:ios',
+        'not options:variant=appletvos',
+        'not options:variant=appletvsimulator',
+    })
+    do
+        files({ 'src/**.mm' })
+    end
+
+    filter({ 'options:not no_rive_webp or no_rive_png or no_rive_jpeg'})
+    do
+        files({
+            'src/bitmap_decoder_thirdparty.cpp',
+        })
     end
 
     filter({'options:not no_rive_png'})
@@ -70,7 +84,7 @@ do
         files({ 'src/decode_png.cpp' })
     end
 
-    filter({'options:not no_rive_jpeg'})
+    filter({ 'options:not no_rive_jpeg' })
     do
         includedirs({
             libjpeg
@@ -80,7 +94,7 @@ do
         files({ 'src/decode_jpeg.cpp' })
     end
 
-    filter({'options:not no_rive_webp'})
+    filter({ 'options:not no_rive_webp' })
     do
         includedirs({
             libwebp .. '/src'
@@ -89,4 +103,5 @@ do
         defines({ 'RIVE_WEBP' })
         files({ 'src/decode_webp.cpp' })
     end
+
 end
