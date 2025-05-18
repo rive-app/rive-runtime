@@ -12,6 +12,7 @@
 #include "rive/command_server.hpp"
 #include <stdio.h>
 #include <fstream>
+#include <chrono>
 
 using namespace rive;
 
@@ -51,7 +52,28 @@ private:
     std::deque<char> m_keys;
 } keyQueue;
 
-static void main_thread(void* ptr)
+std::atomic_bool running = true;
+std::atomic_bool shouldDraw = true;
+
+static void input_thread(void* ptr)
+{
+    rcp<CommandQueue> commandBuffer(reinterpret_cast<CommandQueue*>(ptr));
+
+    for (char key = '\0'; key != 'q'; key = keyQueue.pop())
+    {
+        if (key == 'p')
+        {
+            shouldDraw.store(!shouldDraw);
+        }
+    }
+
+    running.store(false);
+    commandBuffer->disconnect();
+}
+
+// this is a seperate thread for testing, it could just as easily be in
+// main_thread
+static void draw_thread(void* ptr)
 {
     rcp<CommandQueue> commandBuffer(reinterpret_cast<CommandQueue*>(ptr));
 
@@ -64,7 +86,8 @@ static void main_thread(void* ptr)
         commandBuffer->instantiateDefaultStateMachine(artboardHandle);
 
     auto drawLoop = [artboardHandle,
-                     stateMachineHandle](CommandServer* server) {
+                     stateMachineHandle](DrawKey drawKey,
+                                         CommandServer* server) {
         ArtboardInstance* artboard =
             server->getArtboardInstance(artboardHandle);
         if (artboard == nullptr)
@@ -103,27 +126,18 @@ static void main_thread(void* ptr)
         TestingWindow::Get()->endFrame();
     };
 
-    DrawLoopHandle drawLoopHandle = commandBuffer->startDrawLoop(drawLoop);
+    auto drawKey = commandBuffer->createDrawKey();
 
-    bool running = true;
-    for (char key = '\0'; key != 'q'; key = keyQueue.pop())
+    // 120 fps
+    constexpr auto duration = std::chrono::microseconds(8330);
+    auto lastFrame = std::chrono::high_resolution_clock::now();
+    while (running.load())
     {
-        if (key == 'p')
-        {
-            if (running)
-            {
-                commandBuffer->stopDrawLoop(drawLoopHandle);
-                drawLoopHandle = RIVE_NULL_HANDLE;
-            }
-            else
-            {
-                drawLoopHandle = commandBuffer->startDrawLoop(drawLoop);
-            }
-            running = !running;
-        }
+        std::this_thread::sleep_until(lastFrame + duration);
+        lastFrame = std::chrono::high_resolution_clock::now();
+        if (shouldDraw.load())
+            commandBuffer->draw(drawKey, drawLoop);
     }
-
-    commandBuffer->disconnect();
 }
 
 #ifdef RIVE_ANDROID
@@ -165,15 +179,17 @@ int main(int argc, const char* argv[])
     }
 
     auto commandBuffer = make_rcp<CommandQueue>();
-    std::thread mainThread(main_thread, safe_ref(commandBuffer.get()));
+    std::thread inputThread(input_thread, safe_ref(commandBuffer.get()));
+    std::thread drawThread(draw_thread, safe_ref(commandBuffer.get()));
 
     TestingWindow::Init(backend,
                         TestingWindow::Visibility::window,
                         gpuNameFilter);
 
-    // Since GLFW has to be used on the main thread, hack a "draw loop" that
-    // polls GLFW inputs.
-    commandBuffer->startDrawLoop([](CommandServer*) {
+    CommandServer server(commandBuffer, TestingWindow::Get()->factory());
+
+    while (server.pollMessages())
+    {
         TestingWindow::InputEventData inputEventData;
         while (TestingWindow::Get()->consumeInputEvent(inputEventData))
         {
@@ -186,14 +202,14 @@ int main(int argc, const char* argv[])
         {
             keyQueue.push('q');
         }
-    });
 
-    CommandServer server(commandBuffer, TestingWindow::Get()->factory());
-    server.serveUntilDisconnect();
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
+    }
 
     printf("\nShutting down\n");
     TestingWindow::Destroy();
-    mainThread.join();
+    inputThread.join();
+    drawThread.join();
     return 0;
 }
 

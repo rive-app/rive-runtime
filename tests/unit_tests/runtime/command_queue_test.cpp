@@ -285,8 +285,15 @@ TEST_CASE("draw loops", "[CommandQueue]")
 
     std::atomic_uint64_t frameNumber1 = 0, frameNumber2 = 0;
     std::atomic_uint64_t lastFrameNumber1, lastFrameNumber2;
-    auto drawLoop1 = [&frameNumber1](CommandServer*) { ++frameNumber1; };
-    auto drawLoop2 = [&frameNumber2](CommandServer*) { ++frameNumber2; };
+    auto drawLoop1 = [&frameNumber1](DrawKey, CommandServer*) {
+        ++frameNumber1;
+    };
+    auto drawLoop2 = [&frameNumber2](DrawKey, CommandServer*) {
+        ++frameNumber2;
+    };
+    DrawKey loopHandle1 = commandBuffer->createDrawKey();
+    DrawKey loopHandle2 = commandBuffer->createDrawKey();
+
     commandBuffer->runOnce([&](CommandServer*) {
         CHECK(frameNumber1 == 0);
         CHECK(frameNumber2 == 0);
@@ -294,23 +301,26 @@ TEST_CASE("draw loops", "[CommandQueue]")
         lastFrameNumber2 = frameNumber2.load();
     });
 
-    DrawLoopHandle loopHandle1 = commandBuffer->startDrawLoop(drawLoop1);
-    DrawLoopHandle loopHandle2 = commandBuffer->startDrawLoop(drawLoop2);
+    commandBuffer->draw(loopHandle1, drawLoop1);
+    commandBuffer->draw(loopHandle2, drawLoop2);
+
     do
     {
         wait_for_server(commandBuffer.get());
     } while (frameNumber1 == lastFrameNumber1 ||
              frameNumber2 == lastFrameNumber2);
+
     commandBuffer->runOnce([&](CommandServer*) {
         CHECK(frameNumber1 > lastFrameNumber1);
         CHECK(frameNumber2 > lastFrameNumber2);
     });
 
-    commandBuffer->stopDrawLoop(loopHandle1);
     commandBuffer->runOnce([&](CommandServer*) {
         lastFrameNumber1 = frameNumber1.load();
         lastFrameNumber2 = frameNumber2.load();
     });
+
+    commandBuffer->draw(loopHandle2, drawLoop2);
 
     do
     {
@@ -321,12 +331,12 @@ TEST_CASE("draw loops", "[CommandQueue]")
         CHECK(frameNumber2 > lastFrameNumber2);
     });
 
-    loopHandle1 = commandBuffer->startDrawLoop(drawLoop1);
-    commandBuffer->stopDrawLoop(loopHandle2);
     commandBuffer->runOnce([&](CommandServer*) {
         lastFrameNumber1 = frameNumber1.load();
         lastFrameNumber2 = frameNumber2.load();
     });
+
+    commandBuffer->draw(loopHandle1, drawLoop1);
 
     do
     {
@@ -337,7 +347,6 @@ TEST_CASE("draw loops", "[CommandQueue]")
         CHECK(frameNumber2 == lastFrameNumber2);
     });
 
-    commandBuffer->stopDrawLoop(loopHandle1);
     commandBuffer->runOnce([&](CommandServer*) {
         lastFrameNumber1 = frameNumber1.load();
         lastFrameNumber2 = frameNumber2.load();
@@ -352,8 +361,9 @@ TEST_CASE("draw loops", "[CommandQueue]")
         CHECK(frameNumber2 == lastFrameNumber2);
     });
 
-    loopHandle1 = commandBuffer->startDrawLoop(drawLoop1);
-    loopHandle2 = commandBuffer->startDrawLoop(drawLoop2);
+    commandBuffer->draw(loopHandle1, drawLoop1);
+    commandBuffer->draw(loopHandle2, drawLoop2);
+
     do
     {
         wait_for_server(commandBuffer.get());
@@ -368,4 +378,75 @@ TEST_CASE("draw loops", "[CommandQueue]")
     // active draw loops.
     commandBuffer->disconnect();
     serverThread.join();
+}
+
+TEST_CASE("stopMesssages command", "[CommandQueue]")
+{
+    auto commandBuffer = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandBuffer, nullContext.get());
+
+    int test = 0;
+
+    commandBuffer->runOnce([&](CommandServer*) { ++test; });
+    commandBuffer->testing_messagePollBreak();
+
+    for (int i = 0; i < 10; i++)
+    {
+        commandBuffer->runOnce([&](CommandServer*) { ++test; });
+        if (i == 5)
+            commandBuffer->testing_messagePollBreak();
+    }
+
+    server.pollMessages();
+
+    CHECK(test == 1);
+    server.pollMessages();
+    CHECK(test == 7);
+    server.pollMessages();
+    CHECK(test == 11);
+
+    commandBuffer->disconnect();
+}
+
+TEST_CASE("draw happens once per poll", "[CommandQueue]")
+{
+    auto commandBuffer = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandBuffer, nullContext.get());
+    int test = 0;
+
+    auto drawLamda = [&test](DrawKey, CommandServer*) { ++test; };
+
+    commandBuffer->draw(0, drawLamda);
+    commandBuffer->draw(0, drawLamda);
+    commandBuffer->draw(0, drawLamda);
+    commandBuffer->draw(0, drawLamda);
+    commandBuffer->draw(0, drawLamda);
+
+    server.pollMessages();
+
+    CHECK(test == 1);
+    commandBuffer->draw(0, drawLamda);
+    server.pollMessages();
+    CHECK(test == 2);
+    server.pollMessages();
+    CHECK(test == 2);
+
+    commandBuffer->disconnect();
+}
+
+TEST_CASE("disconnect", "[CommandQueue]")
+{
+    auto commandBuffer = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandBuffer, nullContext.get());
+    CHECK(!server.getWasDisconnected());
+
+    CHECK(server.pollMessages());
+    commandBuffer->disconnect();
+    CHECK(!server.waitMessages());
 }

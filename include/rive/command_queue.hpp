@@ -39,10 +39,11 @@ class CommandServer;
 RIVE_DEFINE_HANDLE(FileHandle);
 RIVE_DEFINE_HANDLE(ArtboardHandle);
 RIVE_DEFINE_HANDLE(StateMachineHandle);
-RIVE_DEFINE_HANDLE(DrawLoopHandle);
+RIVE_DEFINE_HANDLE(DrawKey);
 
 // Function poimter that gets called back from the server thread.
 using CommandServerCallback = std::function<void(CommandServer*)>;
+using CommandServerDrawCallback = std::function<void(DrawKey, CommandServer*)>;
 
 // Client-side recorder for commands that will be executed by a
 // CommandServer.
@@ -70,13 +71,24 @@ public:
         return instantiateStateMachineNamed(artboardHandle, "");
     }
     void deleteStateMachine(StateMachineHandle);
-
-    DrawLoopHandle startDrawLoop(CommandServerCallback);
-    void stopDrawLoop(DrawLoopHandle);
+    // Create unique draw key for draw.
+    DrawKey createDrawKey();
 
     // Executes a one-time callback on the server. This may eventualy become a
     // testing-only method.
     void runOnce(CommandServerCallback);
+
+    // Run draw function for given draw key, only the latest function passed
+    // will be run per pollMessages.
+    void draw(DrawKey, CommandServerDrawCallback);
+
+#ifdef TESTING
+    // Sends a stopMessages command to server, this will cause the pollMessage
+    // to return even if there are more messages to consume this does not
+    // shutdown the server, it only causes pollMessages to return, to continue
+    // processing messages another call to pollMessages is required.
+    void testing_messagePollBreak();
+#endif
 
     void disconnect();
 
@@ -89,10 +101,10 @@ private:
         deleteArtboard,
         instantiateStateMachine,
         deleteStateMachine,
-        startDrawLoop,
-        stopDrawLoop,
         runOnce,
+        draw,
         disconnect,
+        messagePollBreak,
     };
 
     friend class CommandServer;
@@ -100,7 +112,7 @@ private:
     uint64_t m_currentFileHandleIdx = 0;
     uint64_t m_currentArtboardHandleIdx = 0;
     uint64_t m_currentStateMachineHandleIdx = 0;
-    uint64_t m_currentDrawLoopHandleIdx = 0;
+    uint64_t m_currentDrawKeyIdx = 0;
 
     std::mutex m_mutex;
     std::condition_variable m_conditionVariable;
@@ -108,5 +120,6 @@ private:
     ObjectStream<std::vector<uint8_t>> m_byteVectors;
     ObjectStream<std::string> m_names;
     ObjectStream<CommandServerCallback> m_callbacks;
+    ObjectStream<CommandServerDrawCallback> m_drawCallbacks;
 };
 }; // namespace rive

@@ -37,8 +37,8 @@ CommandQueue::~CommandQueue() {}
 
 FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes)
 {
-    auto handle = reinterpret_cast<FileHandle>(++m_currentFileHandleIdx);
     AutoLockAndNotify lock(m_mutex, m_conditionVariable);
+    auto handle = reinterpret_cast<FileHandle>(++m_currentFileHandleIdx);
     m_commandStream << Command::loadFile;
     m_commandStream << handle;
     m_byteVectors << std::move(rivBytes);
@@ -55,8 +55,8 @@ void CommandQueue::deleteFile(FileHandle fileHandle)
 ArtboardHandle CommandQueue::instantiateArtboardNamed(FileHandle fileHandle,
                                                       std::string name)
 {
-    auto handle = reinterpret_cast<FileHandle>(++m_currentArtboardHandleIdx);
     AutoLockAndNotify lock(m_mutex, m_conditionVariable);
+    auto handle = reinterpret_cast<FileHandle>(++m_currentArtboardHandleIdx);
     m_commandStream << Command::instantiateArtboard;
     m_commandStream << handle;
     m_commandStream << fileHandle;
@@ -75,9 +75,9 @@ StateMachineHandle CommandQueue::instantiateStateMachineNamed(
     ArtboardHandle artboardHandle,
     std::string name)
 {
+    AutoLockAndNotify lock(m_mutex, m_conditionVariable);
     auto handle =
         reinterpret_cast<FileHandle>(++m_currentStateMachineHandleIdx);
-    AutoLockAndNotify lock(m_mutex, m_conditionVariable);
     m_commandStream << Command::instantiateStateMachine;
     m_commandStream << handle;
     m_commandStream << artboardHandle;
@@ -92,24 +92,28 @@ void CommandQueue::deleteStateMachine(StateMachineHandle stateMachineHandle)
     m_commandStream << stateMachineHandle;
 }
 
-DrawLoopHandle CommandQueue::startDrawLoop(CommandServerCallback drawLoop)
+DrawKey CommandQueue::createDrawKey()
 {
-    auto handle =
-        reinterpret_cast<DrawLoopHandle>(++m_currentDrawLoopHandleIdx);
+    // lock here so we can do this from several threads safely
     AutoLockAndNotify lock(m_mutex, m_conditionVariable);
-    m_commandStream << Command::startDrawLoop;
-    m_commandStream << handle;
-    m_callbacks << std::move(drawLoop);
-    return handle;
+    auto key = reinterpret_cast<DrawKey>(++m_currentDrawKeyIdx);
+    return key;
 }
 
-void CommandQueue::stopDrawLoop(DrawLoopHandle handle)
+void CommandQueue::draw(DrawKey drawKey, CommandServerDrawCallback callback)
 {
     AutoLockAndNotify lock(m_mutex, m_conditionVariable);
-    m_commandStream << Command::stopDrawLoop;
-    m_commandStream << handle;
+    m_commandStream << Command::draw;
+    m_commandStream << drawKey;
+    m_drawCallbacks << std::move(callback);
 }
-
+#ifdef TESTING
+void CommandQueue::testing_messagePollBreak()
+{
+    AutoLockAndNotify lock(m_mutex, m_conditionVariable);
+    m_commandStream << Command::messagePollBreak;
+}
+#endif
 void CommandQueue::runOnce(CommandServerCallback callback)
 {
     AutoLockAndNotify lock(m_mutex, m_conditionVariable);
