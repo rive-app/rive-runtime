@@ -4,10 +4,11 @@ namespace rive
 {
 class ViewModelInstanceListItem;
 
-class DataBindListItemProvider
+class DataBindListItemConsumer
 {
 public:
-    static DataBindListItemProvider* from(Core* component);
+    static DataBindListItemConsumer* from(Core* component);
+
     virtual void updateList(int propertyKey,
                             std::vector<ViewModelInstanceListItem*>* list) = 0;
 };

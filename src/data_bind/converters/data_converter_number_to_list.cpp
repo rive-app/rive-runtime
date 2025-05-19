@@ -7,36 +7,78 @@
 
 using namespace rive;
 
+DataConverterNumberToList::~DataConverterNumberToList()
+{
+    for (auto& item : m_listItems)
+    {
+        item->unref();
+    }
+}
+
 DataValue* DataConverterNumberToList::convert(DataValue* input,
                                               DataBind* dataBind)
 {
-    auto output = new DataValueList();
     if (input->is<DataValueList>())
     {
         return input;
     }
     else if (input->is<DataValueNumber>())
     {
-        if (m_file != nullptr)
+        m_output.clear();
+        auto inputNumber = input->as<DataValueNumber>();
+        auto count = std::max(0, (int)std::floor(inputNumber->value()));
+        if (m_file != nullptr && m_file->viewModel(viewModelId()) != nullptr)
         {
-            auto inputNumber = input->as<DataValueNumber>();
-            auto count = std::max(0, (int)std::floor(inputNumber->value()));
             auto viewModel = m_file->viewModel(viewModelId());
-            if (viewModel != nullptr)
+            if (count > m_listItems.size())
             {
                 auto defaultInstance = viewModel->defaultInstance();
-                for (int i = 0; i < count; i++)
+                while (m_listItems.size() < count)
                 {
                     auto item = new ViewModelInstanceListItem();
                     auto copy = rcp<ViewModelInstance>(
                         defaultInstance->clone()->as<ViewModelInstance>());
                     item->viewModelInstance(copy);
-                    output->value()->push_back(item);
+                    m_listItems.push_back(item);
+                }
+            }
+            else if (count < m_listItems.size())
+            {
+                while (m_listItems.size() > count)
+                {
+                    auto item = m_listItems.back();
+                    m_listItems.pop_back();
+                    item->unref();
                 }
             }
         }
+        else
+        {
+            clearItems();
+        }
+        for (auto item : m_listItems)
+        {
+            m_output.addItem(item);
+        }
+        return &m_output;
     }
-    return output;
+    return nullptr;
+}
+
+void DataConverterNumberToList::clearItems()
+{
+    for (auto& item : m_listItems)
+    {
+        item->unref();
+    }
+    m_listItems.clear();
+}
+
+void DataConverterNumberToList::viewModelIdChanged()
+{
+    // Clear the cached items if viewmodel changes
+    clearItems();
+    markConverterDirty();
 }
 
 void DataConverterNumberToList::file(File* value) { m_file = value; }

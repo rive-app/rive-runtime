@@ -1,6 +1,5 @@
 #include "rive/component.hpp"
 #include "rive/file.hpp"
-#include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/layout_component.hpp"
@@ -14,17 +13,21 @@ ArtboardComponentList::~ArtboardComponentList() { reset(); }
 
 void ArtboardComponentList::reset()
 {
-    for (auto& artboard : m_ArtboardInstances)
+    for (auto& artboard : m_artboardInstancesMap)
     {
-        artboard.reset();
+        artboard.second.reset();
     }
-    for (auto& sm : m_StateMachineInstances)
+    for (auto& sm : m_stateMachinesMap)
     {
-        sm.reset();
+        sm.second.reset();
     }
-    m_ArtboardInstances.clear();
-    m_StateMachineInstances.clear();
-    m_ListItems.clear();
+    for (auto& item : m_listItems)
+    {
+        item->unref();
+    }
+    m_artboardInstancesMap.clear();
+    m_stateMachinesMap.clear();
+    m_listItems.clear();
     m_artboardsMap.clear();
 }
 
@@ -116,6 +119,23 @@ Artboard* ArtboardComponentList::findArtboard(
     return nullptr;
 }
 
+void ArtboardComponentList::disposeListItem(ViewModelInstanceListItem* listItem)
+{
+    auto artboard = m_artboardInstancesMap[listItem].get();
+    if (artboard != nullptr)
+    {
+        m_artboardInstancesMap[listItem].reset();
+    }
+    m_artboardInstancesMap.erase(listItem);
+    auto sm = m_stateMachinesMap[listItem].get();
+    if (sm != nullptr)
+    {
+        m_stateMachinesMap[listItem].reset();
+    }
+    m_stateMachinesMap.erase(listItem);
+    listItem->unref();
+}
+
 std::unique_ptr<ArtboardInstance> ArtboardComponentList::createArtboard(
     Component* target,
     ViewModelInstanceListItem* listItem) const
@@ -152,7 +172,18 @@ void ArtboardComponentList::updateList(
     int propertyKey,
     std::vector<ViewModelInstanceListItem*>* list)
 {
-    reset();
+    std::vector<ViewModelInstanceListItem*> oldItems;
+    oldItems.assign(m_listItems.begin(), m_listItems.end());
+    m_listItems.clear();
+    m_listItems.assign(list->begin(), list->end());
+    for (auto item : oldItems)
+    {
+        auto it = std::find(m_listItems.begin(), m_listItems.end(), item);
+        if (it == m_listItems.end())
+        {
+            disposeListItem(item);
+        }
+    }
     if (parent()->is<LayoutComponent>())
     {
 #ifdef WITH_RIVE_LAYOUT
@@ -160,7 +191,7 @@ void ArtboardComponentList::updateList(
 #endif
     }
     uint32_t index = 0;
-    for (auto& item : *list)
+    for (auto& item : m_listItems)
     {
         auto viewModelInstance = item->viewModelInstance();
         if (viewModelInstance != nullptr)
@@ -173,16 +204,22 @@ void ArtboardComponentList::updateList(
                     index);
             }
         }
-        m_ListItems.push_back(item);
-        auto artboardCopy = createArtboard(this, item);
-        auto artboardInstance = artboardCopy.get();
-        auto stateMachineCopy =
-            createStateMachineInstance(this, artboardInstance);
-        m_ArtboardInstances.push_back(std::move(artboardCopy));
-        m_StateMachineInstances.push_back(std::move(stateMachineCopy));
-        if (artboardInstance != nullptr)
+        if (m_artboardInstancesMap[item] == nullptr)
         {
-            artboardInstance->host(this);
+            auto artboardCopy = createArtboard(this, item);
+            if (artboardCopy != nullptr)
+            {
+                auto artboardInstance = artboardCopy.get();
+                auto stateMachineCopy =
+                    createStateMachineInstance(this, artboardInstance);
+                m_artboardInstancesMap[item] = std::move(artboardCopy);
+                m_stateMachinesMap[item] = std::move(stateMachineCopy);
+                item->ref();
+                if (artboardInstance != nullptr)
+                {
+                    artboardInstance->host(this);
+                }
+            }
         }
         index++;
     }

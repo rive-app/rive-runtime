@@ -1,28 +1,27 @@
 #ifndef _RIVE_ARTBOARD_COMPONENT_LIST_HPP_
 #define _RIVE_ARTBOARD_COMPONENT_LIST_HPP_
 #include "rive/generated/artboard_component_list_base.hpp"
-#include "rive/artboard_host.hpp"
 #include "rive/advancing_component.hpp"
-#include "rive/data_bind/data_bind_list_item_provider.hpp"
+#include "rive/animation/state_machine_instance.hpp"
+#include "rive/artboard.hpp"
+#include "rive/artboard_host.hpp"
+#include "rive/data_bind/data_bind_list_item_consumer.hpp"
 #include "rive/layout/layout_node_provider.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include <stdio.h>
 #include <unordered_map>
 namespace rive
 {
-class StateMachineInstance;
 class File;
 
 class ArtboardComponentList : public ArtboardComponentListBase,
                               public ArtboardHost,
                               public AdvancingComponent,
                               public LayoutNodeProvider,
-                              public DataBindListItemProvider
+                              public DataBindListItemConsumer
 {
 private:
-    std::vector<std::unique_ptr<ArtboardInstance>> m_ArtboardInstances;
-    std::vector<std::unique_ptr<StateMachineInstance>> m_StateMachineInstances;
-    std::vector<ViewModelInstanceListItem*> m_ListItems;
+    std::vector<ViewModelInstanceListItem*> m_listItems;
 
 public:
     ArtboardComponentList();
@@ -30,20 +29,28 @@ public:
 #ifdef WITH_RIVE_LAYOUT
     void* layoutNode(int index) override;
 #endif
-    size_t artboardCount() override { return m_ArtboardInstances.size(); }
+    size_t artboardCount() override { return m_listItems.size(); }
+    ViewModelInstanceListItem* listItem(int index)
+    {
+        if (index < m_listItems.size())
+        {
+            return m_listItems[index];
+        }
+        return nullptr;
+    }
     ArtboardInstance* artboardInstance(int index = 0) override
     {
-        if (index < m_ArtboardInstances.size())
+        if (index < m_listItems.size())
         {
-            return m_ArtboardInstances[index].get();
+            return m_artboardInstancesMap[listItem(index)].get();
         }
         return nullptr;
     }
     StateMachineInstance* stateMachineInstance(int index = 0)
     {
-        if (index < m_StateMachineInstances.size())
+        if (index < m_listItems.size())
         {
-            return m_StateMachineInstances[index].get();
+            return m_stateMachinesMap[listItem(index)].get();
         }
         return nullptr;
     }
@@ -81,6 +88,7 @@ public:
     Core* clone() const override;
 
 private:
+    void disposeListItem(ViewModelInstanceListItem* listItem);
     std::unique_ptr<ArtboardInstance> createArtboard(
         Component* target,
         ViewModelInstanceListItem* listItem) const;
@@ -89,6 +97,12 @@ private:
         Component* target,
         ArtboardInstance* artboard);
     mutable std::unordered_map<uint32_t, Artboard*> m_artboardsMap;
+    std::unordered_map<ViewModelInstanceListItem*,
+                       std::unique_ptr<ArtboardInstance>>
+        m_artboardInstancesMap;
+    std::unordered_map<ViewModelInstanceListItem*,
+                       std::unique_ptr<StateMachineInstance>>
+        m_stateMachinesMap;
     File* m_file;
 };
 } // namespace rive
