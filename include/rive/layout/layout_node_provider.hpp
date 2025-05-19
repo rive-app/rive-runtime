@@ -24,10 +24,12 @@ public:
     virtual TransformComponent* transformComponent() = 0;
     void addLayoutConstraint(LayoutConstraint* constraint);
     virtual AABB layoutBounds() = 0;
+    virtual AABB layoutBoundsForNode(int index) { return layoutBounds(); }
     virtual bool syncStyleChanges() { return false; };
     virtual void updateLayoutBounds(bool animate = true){};
     virtual void markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds = false)
     {}
+    virtual size_t numLayoutNodes() = 0;
 };
 } // namespace rive
 

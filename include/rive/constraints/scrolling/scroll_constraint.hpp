@@ -165,6 +165,7 @@ public:
     void setScrollPercentX(float value) override;
     void setScrollPercentY(float value) override;
     void setScrollIndex(float value) override;
+    size_t scrollItemCount();
 };
 } // namespace rive
 

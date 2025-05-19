@@ -27,6 +27,7 @@ public:
     bool syncStyleChanges() override;
     void updateLayoutBounds(bool animate = true) override;
     AABB layoutBounds() override;
+    size_t numLayoutNodes() override { return 1; }
     bool isLayoutProvider() override { return true; }
 
     TransformComponent* transformComponent() override

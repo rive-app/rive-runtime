@@ -59,6 +59,7 @@ public:
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
     AABB layoutBounds() override;
+    AABB layoutBoundsForNode(int index) override;
     void markHostingLayoutDirty(ArtboardInstance* artboardInstance) override;
     TransformComponent* transformComponent() override
     {
@@ -82,6 +83,7 @@ public:
     void markLayoutNodeDirty(
         bool shouldForceUpdateLayoutBounds = false) override;
     bool isLayoutProvider() override { return true; }
+    size_t numLayoutNodes() override { return m_listItems.size(); }
     void reset();
     void file(File*);
     File* file() const;

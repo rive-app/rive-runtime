@@ -296,6 +296,15 @@ bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
 
 AABB ArtboardComponentList::layoutBounds() { return AABB(); }
 
+AABB ArtboardComponentList::layoutBoundsForNode(int index)
+{
+    if (index < numLayoutNodes())
+    {
+        return artboardInstance(index)->layoutBounds();
+    }
+    return AABB();
+}
+
 void ArtboardComponentList::markHostingLayoutDirty(
     ArtboardInstance* artboardInstance)
 {

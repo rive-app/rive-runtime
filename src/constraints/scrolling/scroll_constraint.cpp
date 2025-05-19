@@ -55,8 +55,13 @@ void ScrollConstraint::runPhysics()
             auto c = LayoutNodeProvider::from(child);
             if (c != nullptr)
             {
-                auto bounds = c->layoutBounds();
-                snappingPoints.push_back(Vec2D(bounds.left(), bounds.top()));
+                size_t count = c->numLayoutNodes();
+                for (int j = 0; j < count; j++)
+                {
+                    auto bounds = c->layoutBoundsForNode(j);
+                    snappingPoints.push_back(
+                        Vec2D(bounds.left(), bounds.top()));
+                }
             }
         }
     }
@@ -235,25 +240,27 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
         return Vec2D();
     }
     uint32_t i = 0;
+    float floorIndex = std::floor(index);
     LayoutNodeProvider* lastChild;
     for (auto child : content()->children())
     {
         auto c = LayoutNodeProvider::from(child);
         if (c != nullptr)
         {
-            float floorIndex = std::floor(index);
-            if (i == (uint32_t)floorIndex)
+            size_t count = c->numLayoutNodes();
+            if ((uint32_t)floorIndex < i + count)
             {
                 float mod = index - floorIndex;
-                auto bounds = c->layoutBounds();
+                auto bounds = c->layoutBoundsForNode(floorIndex - i);
                 return Vec2D(-bounds.left() - bounds.width() * mod,
                              -bounds.top() - bounds.height() * mod);
             }
             lastChild = c;
-            i++;
+            i += count;
         }
     }
-    auto bounds = lastChild->layoutBounds();
+    auto bounds =
+        lastChild->layoutBoundsForNode((int)lastChild->numLayoutNodes() - 1);
     return Vec2D(-bounds.left(), -bounds.top());
 }
 
@@ -271,12 +278,17 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
             auto c = LayoutNodeProvider::from(child);
             if (c != nullptr)
             {
-                auto bounds = c->layoutBounds();
-                if (pos.x > -bounds.left() - bounds.width())
+                size_t count = c->numLayoutNodes();
+                for (int j = 0; j < count; j++)
                 {
-                    return i + (-pos.x - bounds.left()) / bounds.width();
+                    auto bounds = c->layoutBoundsForNode(j);
+                    if (pos.x > -bounds.left() - bounds.width())
+                    {
+                        return (i + j) +
+                               (-pos.x - bounds.left()) / bounds.width();
+                    }
                 }
-                i++;
+                i += count;
             }
         }
         return i;
@@ -288,15 +300,34 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
             auto c = LayoutNodeProvider::from(child);
             if (c != nullptr)
             {
-                auto bounds = c->layoutBounds();
-                if (pos.y > -bounds.top() - bounds.height())
+                size_t count = c->numLayoutNodes();
+                for (int j = 0; j < count; j++)
                 {
-                    return i + (-pos.y - bounds.top()) / bounds.height();
+                    auto bounds = c->layoutBoundsForNode(j);
+                    if (pos.y > -bounds.top() - bounds.height())
+                    {
+                        return (i + j) +
+                               (-pos.y - bounds.top()) / bounds.height();
+                    }
                 }
-                i++;
+                i += count;
             }
         }
         return i;
     }
     return 0;
+}
+
+size_t ScrollConstraint::scrollItemCount()
+{
+    size_t count = 0;
+    for (auto child : content()->children())
+    {
+        auto c = LayoutNodeProvider::from(child);
+        if (c != nullptr)
+        {
+            count += c->numLayoutNodes();
+        }
+    }
+    return count;
 }
