@@ -54,9 +54,9 @@ TEST_CASE("ObjectStream -- force deque realloc", "[ObjectStream]")
     CHECK(s.empty());
 }
 
-TEST_CASE("TrivialObjectStream", "[ObjectStream]")
+TEST_CASE("PODStream", "[ObjectStream]")
 {
-    TrivialObjectStream s;
+    PODStream s;
     CHECK(s.empty());
 
     struct Pair
@@ -107,9 +107,9 @@ TEST_CASE("TrivialObjectStream", "[ObjectStream]")
     CHECK(s.empty());
 }
 
-TEST_CASE("TrivialObjectStream -- force deque realloc", "[ObjectStream]")
+TEST_CASE("PODStream -- force deque realloc", "[ObjectStream]")
 {
-    TrivialObjectStream s;
+    PODStream s;
     for (int16_t i16 = 0; i16 < 1 << 12; ++i16)
     {
         int8_t i8 = static_cast<int8_t>(i16 - 3);

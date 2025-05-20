@@ -53,12 +53,12 @@ void CommandServer::serveUntilDisconnect()
 
 bool CommandServer::waitMessages()
 {
-    TrivialObjectStream& commandStream = m_commandBuffer->m_commandStream;
-    while (commandStream.empty())
+    PODStream& commandStream = m_commandBuffer->m_commandStream;
+    if (commandStream.empty())
     {
         std::unique_lock<std::mutex> lock(m_commandBuffer->m_mutex);
-        // If we have no draw loops, block until we get a message.
-        m_commandBuffer->m_conditionVariable.wait(lock);
+        while (commandStream.empty())
+            m_commandBuffer->m_conditionVariable.wait(lock);
     }
 
     return pollMessages();
@@ -69,7 +69,7 @@ bool CommandServer::pollMessages()
     assert(m_wasDisconnectReceived == false);
     assert(std::this_thread::get_id() == m_threadID);
 
-    TrivialObjectStream& commandStream = m_commandBuffer->m_commandStream;
+    PODStream& commandStream = m_commandBuffer->m_commandStream;
     std::unique_lock<std::mutex> lock(m_commandBuffer->m_mutex);
 
     // Early out if we don't have anything to process.

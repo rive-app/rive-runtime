@@ -116,7 +116,7 @@ private:
 
     std::mutex m_mutex;
     std::condition_variable m_conditionVariable;
-    TrivialObjectStream m_commandStream;
+    PODStream m_commandStream;
     ObjectStream<std::vector<uint8_t>> m_byteVectors;
     ObjectStream<std::string> m_names;
     ObjectStream<CommandServerCallback> m_callbacks;
