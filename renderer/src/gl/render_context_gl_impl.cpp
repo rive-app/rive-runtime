@@ -1986,17 +1986,28 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             capabilities.EXT_base_instance = true;
         }
 #ifdef RIVE_ANDROID
-        // Don't use EXT_clip_cull_distance if we're on ANGLE. Galaxy S22
-        // (OpenGL Samsung Electronics Co., Ltd.;
-        // ANGLE (Samsung Xclipse 920) on Vulkan 1.1.179;
-        // OpenGL ES 3.2 ANGLE git hash: c7c78c41d520) advertises support for
-        // this extension but then doesn't support gl_ClipDistance in the
-        // shader. Only use clip planes on ANGLE if ANGLE_clip_cull_distance is
-        // supported.
-        else if (!capabilities.isANGLEOrWebGL &&
-                 strcmp(ext, "GL_EXT_clip_cull_distance") == 0)
+        else if (strcmp(ext, "GL_EXT_clip_cull_distance") == 0)
         {
-            capabilities.EXT_clip_cull_distance = true;
+            GLint isExtensionSupportedCorrectly = 1;
+            if (capabilities.isANGLEOrWebGL)
+            {
+                // Run a mini-test make sure the extension works.
+                // Galaxy S22 (OpenGL Samsung Electronics Co., Ltd.; ANGLE
+                // (Samsung Xclipse 920) on Vulkan 1.1.179; OpenGL ES 3.2 ANGLE
+                // git hash: c7c78c41d520) advertises support for
+                // EXT_clip_cull_distance extension but then doesn't support
+                // gl_ClipDistance in the shader.
+                static const char* TEST_SHADER =
+                    "#version 300 es\n#extension GL_EXT_clip_cull_distance : "
+                    "require\nvoid main(){gl_ClipDistance[0]=.0;}";
+                GLuint shader = glCreateShader(GL_VERTEX_SHADER);
+                glShaderSource(shader, 1, &TEST_SHADER, nullptr);
+                glCompileShader(shader);
+                glGetShaderiv(shader,
+                              GL_COMPILE_STATUS,
+                              &isExtensionSupportedCorrectly);
+            }
+            capabilities.EXT_clip_cull_distance = isExtensionSupportedCorrectly;
         }
 #endif
         else if (strcmp(ext, "GL_EXT_multisampled_render_to_texture") == 0)
