@@ -22,14 +22,14 @@
                               uniforms.renderTargetInverseViewportY)
 
 #ifdef @TESS_TEXTURE_FLOATING_POINT
-#define TEXTURE_TESSDATA4 TEXTURE_RGBA32F
+#define TEXTURE_TESSDATA4(SET, IDX, NAME) TEXTURE_RGBA32F(SET, IDX, NAME)
 #define TESSDATA4 float4
 #define FLOAT_AS_TESSDATA(X) X
 #define TESSDATA_AS_FLOAT(X) X
 #define UINT_AS_TESSDATA(X) uintBitsToFloat(X)
 #define TESSDATA_AS_UINT(X) floatBitsToUint(X)
 #else
-#define TEXTURE_TESSDATA4 TEXTURE_RGBA32UI
+#define TEXTURE_TESSDATA4(SET, IDX, NAME) TEXTURE_RGBA32UI(SET, IDX, NAME)
 #define TESSDATA4 uint4
 #define FLOAT_AS_TESSDATA(X) floatBitsToUint(X)
 #define TESSDATA_AS_FLOAT(X) uintBitsToFloat(X)
