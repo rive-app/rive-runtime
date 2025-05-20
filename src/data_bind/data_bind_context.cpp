@@ -31,14 +31,11 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
 {
     if (dataContext != nullptr)
     {
-        auto source = dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
-        if (source != nullptr)
+        auto vmSource =
+            dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
+        if (vmSource != nullptr)
         {
-            if (!bindsOnce())
-            {
-                source->addDependent(this);
-            }
-            m_Source = source;
+            source(vmSource);
             bind();
         }
         if (m_dataConverter != nullptr)
@@ -46,14 +43,4 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
             m_dataConverter->bindFromContext(dataContext, this);
         }
     }
-}
-
-void DataBindContext::unbind()
-{
-    if (m_Source != nullptr)
-    {
-        m_Source->removeDependent(this);
-        m_Source = nullptr;
-    }
-    DataBind::unbind();
 }

@@ -1396,7 +1396,7 @@ void Artboard::clearDataContext()
     {
         artboardHost->clearDataContext();
     }
-    for (auto dataBind : m_DataBinds)
+    for (auto& dataBind : m_DataBinds)
     {
         dataBind->unbind();
     }

@@ -137,8 +137,33 @@ DataType DataBind::outputType()
     return DataType::none;
 }
 
+void DataBind::source(ViewModelInstanceValue* value)
+{
+    if (!bindsOnce())
+    {
+        value->addDependent(this);
+        value->ref();
+    }
+    m_Source = value;
+}
+
+void DataBind::clearSource()
+{
+    if (m_Source != nullptr)
+    {
+
+        if (!bindsOnce())
+        {
+            m_Source->removeDependent(this);
+            m_Source->unref();
+        }
+        m_Source = nullptr;
+    }
+}
+
 DataBind::~DataBind()
 {
+    clearSource();
     delete m_ContextValue;
     m_ContextValue = nullptr;
     delete m_dataConverter;
@@ -186,6 +211,7 @@ void DataBind::bind()
 
 void DataBind::unbind()
 {
+    clearSource();
     if (m_ContextValue != nullptr)
     {
         delete m_ContextValue;

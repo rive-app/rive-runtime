@@ -34,6 +34,8 @@ public:
     DataConverter* converter() const { return m_dataConverter; };
     void converter(DataConverter* value) { m_dataConverter = value; };
     ViewModelInstanceValue* source() const { return m_Source; };
+    void source(ViewModelInstanceValue* value);
+    void clearSource();
     bool toSource();
     bool toTarget();
     bool advance(float elapsedTime);
