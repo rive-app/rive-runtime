@@ -86,6 +86,7 @@ public:
     ~Texture() { reset(0); }
 
     static Texture Zero() { return Texture(0); }
+    static Texture Adopt(GLuint id) { return Texture(id); }
 
 private:
     explicit Texture(GLuint adoptedID) : GLObject(adoptedID) {}

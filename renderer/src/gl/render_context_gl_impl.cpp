@@ -351,13 +351,13 @@ public:
                   uint32_t height,
                   GLuint textureID,
                   const GLCapabilities& capabilities) :
-        Texture(width, height), m_textureID(textureID)
+        Texture(width, height), m_texture(glutils::Texture::Adopt(textureID))
     {}
 
-    GLuint textureID() const { return m_textureID; }
+    operator GLuint() const { return m_texture; }
 
 private:
-    GLuint m_textureID = 0;
+    glutils::Texture m_texture;
 };
 
 rcp<Texture> RenderContextGLImpl::makeImageTexture(
@@ -1462,7 +1462,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 static_cast<const TextureGLImpl*>(batch.imageTexture))
         {
             glActiveTexture(GL_TEXTURE0 + IMAGE_TEXTURE_IDX);
-            glBindTexture(GL_TEXTURE_2D, imageTextureGL->textureID());
+            glBindTexture(GL_TEXTURE_2D, *imageTextureGL);
         }
 
         gpu::PipelineState pipelineState;
