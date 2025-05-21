@@ -126,7 +126,12 @@ void SkiaRenderPath::fillRule(FillRule value)
     m_Path.setFillType(ToSkia::convert(value));
 }
 
-void SkiaRenderPath::rewind() { m_Path.rewind(); }
+void SkiaRenderPath::rewind()
+{
+    auto fillType = m_Path.getFillType();
+    m_Path.rewind();
+    m_Path.setFillType(fillType);
+}
 void SkiaRenderPath::addRenderPath(RenderPath* path, const Mat2D& transform)
 {
     LITE_RTTI_CAST_OR_RETURN(skPath, SkiaRenderPath*, path);
