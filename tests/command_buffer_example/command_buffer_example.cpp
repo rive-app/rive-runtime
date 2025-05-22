@@ -7,9 +7,13 @@
 
 #include "common/testing_window.hpp"
 #include "rive/artboard.hpp"
+#include "rive/factory.hpp"
+#include "rive/text/raw_text.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/command_queue.hpp"
 #include "rive/command_server.hpp"
+#include "rive/text/font_hb.hpp"
+#include "assets/roboto_flex.ttf.hpp"
 #include <stdio.h>
 #include <fstream>
 #include <chrono>
@@ -52,13 +56,44 @@ private:
     std::deque<char> m_keys;
 } keyQueue;
 
+class SimpleFileListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onArtboardsListed(
+        const FileHandle fileHandle,
+        std::vector<std::string> artboardNames) override
+    {
+        // we can guarantee that this is the only listener that will receive
+        // this callback, so it's fine to move the params
+        m_artboardNames = std::move(artboardNames);
+    }
+
+    std::vector<std::string> m_artboardNames;
+};
+
+class SimpleArtboardListener : public CommandQueue::ArtboardListener
+{
+public:
+    virtual void onStateMachinesListed(
+        const ArtboardHandle fileHandle,
+        std::vector<std::string> stateMachineNames) override
+    {
+        // we can guarantee that this is the only listener that will receive
+        // this callback, so it's fine to move the params
+        m_stateMachineNames = std::move(stateMachineNames);
+    }
+
+    std::vector<std::string> m_stateMachineNames;
+};
+
+class SimpleStateMachineListener : public CommandQueue::StateMachineListener
+{};
+
 std::atomic_bool running = true;
 std::atomic_bool shouldDraw = true;
 
-static void input_thread(void* ptr)
+static void input_thread(rcp<CommandQueue> commandQueue)
 {
-    rcp<CommandQueue> commandBuffer(reinterpret_cast<CommandQueue*>(ptr));
-
     for (char key = '\0'; key != 'q'; key = keyQueue.pop())
     {
         if (key == 'p')
@@ -68,28 +103,39 @@ static void input_thread(void* ptr)
     }
 
     running.store(false);
-    commandBuffer->disconnect();
+    commandQueue->disconnect();
 }
 
 // this is a seperate thread for testing, it could just as easily be in
-// main_thread
-static void draw_thread(void* ptr)
+// input_thread or the main thread
+static void draw_thread(rcp<CommandQueue> commandQueue)
 {
-    rcp<CommandQueue> commandBuffer(reinterpret_cast<CommandQueue*>(ptr));
+    SimpleFileListener fListener;
+    SimpleArtboardListener aListener;
+    SimpleStateMachineListener stmListener;
 
-    FileHandle fileHandle = commandBuffer->loadFile(std::move(rivBytes));
+    FileHandle fileHandle =
+        commandQueue->loadFile(std::move(rivBytes), &fListener);
 
     ArtboardHandle artboardHandle =
-        commandBuffer->instantiateDefaultArtboard(fileHandle);
+        commandQueue->instantiateDefaultArtboard(fileHandle, &aListener);
 
     StateMachineHandle stateMachineHandle =
-        commandBuffer->instantiateDefaultStateMachine(artboardHandle);
+        commandQueue->instantiateDefaultStateMachine(artboardHandle,
+                                                     &stmListener);
+
+    // TODO: This should really be decoded on the server thread. Do we want to
+    // consider adding FontHandles?
+    auto roboto = HBFont::Decode(assets::roboto_flex_ttf());
 
     auto drawLoop = [artboardHandle,
-                     stateMachineHandle](DrawKey drawKey,
-                                         CommandServer* server) {
+                     stateMachineHandle,
+                     roboto,
+                     &fListener,
+                     &aListener](DrawKey drawKey, CommandServer* server) {
         ArtboardInstance* artboard =
             server->getArtboardInstance(artboardHandle);
+
         if (artboard == nullptr)
         {
             return;
@@ -111,6 +157,8 @@ static void draw_thread(void* ptr)
 
         renderer->save();
 
+        auto factory = server->factory();
+
         uint32_t width = TestingWindow::Get()->width();
         uint32_t height = TestingWindow::Get()->height();
 
@@ -123,10 +171,45 @@ static void draw_thread(void* ptr)
         artboard->draw(renderer.get());
         renderer->restore();
 
+        renderer->save();
+        renderer->translate(20, 0);
+
+        auto black = factory->makeRenderPaint();
+        black->color(0xffffffff);
+
+        for (auto name : fListener.m_artboardNames)
+        {
+            auto paint = factory->makeRenderPaint();
+
+            renderer->translate(0, 100);
+            rive::RawText text(factory);
+            text.maxWidth(400);
+            text.sizing(rive::TextSizing::autoWidth);
+            text.append(name + "\n", black, roboto, 72);
+            text.render(renderer.get());
+        }
+
+        for (auto name : aListener.m_stateMachineNames)
+        {
+            auto paint = factory->makeRenderPaint();
+
+            renderer->translate(0, 100);
+            rive::RawText text(factory);
+            text.maxWidth(400);
+            text.sizing(rive::TextSizing::autoWidth);
+            text.append(name + "\n", black, roboto, 72);
+            text.render(renderer.get());
+        }
+
+        renderer->restore();
+
         TestingWindow::Get()->endFrame();
     };
 
-    auto drawKey = commandBuffer->createDrawKey();
+    auto drawKey = commandQueue->createDrawKey();
+
+    commandQueue->requestArtboardNames(fileHandle);
+    commandQueue->requestStateMachineNames(artboardHandle);
 
     // 120 fps
     constexpr auto duration = std::chrono::microseconds(8330);
@@ -136,7 +219,10 @@ static void draw_thread(void* ptr)
         std::this_thread::sleep_until(lastFrame + duration);
         lastFrame = std::chrono::high_resolution_clock::now();
         if (shouldDraw.load())
-            commandBuffer->draw(drawKey, drawLoop);
+            commandQueue->draw(drawKey, drawLoop);
+
+        // should happen in same thread as the listeners
+        commandQueue->processMessages();
     }
 }
 
@@ -178,17 +264,17 @@ int main(int argc, const char* argv[])
         abort();
     }
 
-    auto commandBuffer = make_rcp<CommandQueue>();
-    std::thread inputThread(input_thread, safe_ref(commandBuffer.get()));
-    std::thread drawThread(draw_thread, safe_ref(commandBuffer.get()));
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread inputThread(input_thread, commandQueue);
+    std::thread drawThread(draw_thread, commandQueue);
 
     TestingWindow::Init(backend,
                         TestingWindow::Visibility::window,
                         gpuNameFilter);
 
-    CommandServer server(commandBuffer, TestingWindow::Get()->factory());
+    CommandServer server(commandQueue, TestingWindow::Get()->factory());
 
-    while (server.pollMessages())
+    while (server.processCommands())
     {
         TestingWindow::InputEventData inputEventData;
         while (TestingWindow::Get()->consumeInputEvent(inputEventData))

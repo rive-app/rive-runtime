@@ -25,10 +25,10 @@ public:
     ArtboardInstance* getArtboardInstance(ArtboardHandle) const;
     StateMachineInstance* getStateMachineInstance(StateMachineHandle) const;
     // Wait for queue to not be empty, then returns pollMessages.
-    bool waitMessages();
+    bool waitCommands();
     // Returns imidiatly after checking messages. If there are none just returns
     // returns !m_wasDisconnectReceived.
-    bool pollMessages();
+    bool processCommands();
     // Blocks and runs waitMessages until disconnect is received.
     void serveUntilDisconnect();
 
@@ -36,7 +36,7 @@ private:
     friend class CommandQueue;
 
     bool m_wasDisconnectReceived = false;
-    const rcp<CommandQueue> m_commandBuffer;
+    const rcp<CommandQueue> m_commandQueue;
     Factory* const m_factory;
 #ifndef NDEBUG
     const std::thread::id m_threadID;

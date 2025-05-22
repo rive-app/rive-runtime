@@ -13,6 +13,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <unordered_map>
 
 // Macros for defining and working with command buffer handles.
 #if INTPTR_MAX == INT64_MAX
@@ -50,27 +51,106 @@ using CommandServerDrawCallback = std::function<void(DrawKey, CommandServer*)>;
 class CommandQueue : public RefCnt<CommandQueue>
 {
 public:
+    template <typename ListenerType, typename HandleType> class ListenerBase
+    {
+    public:
+        friend class CommandQueue;
+
+        ListenerBase(const ListenerBase&) = delete;
+        ListenerBase& operator=(const ListenerBase&) = delete;
+        ListenerBase(ListenerBase&& other) :
+            m_owningQueue(std::move(other.m_owningQueue)),
+            m_handle(std::move(other.m_handle))
+        {
+            if (m_owningQueue)
+            {
+                m_owningQueue->unregisterListener(
+                    m_handle,
+                    static_cast<ListenerType*>(&other));
+                m_owningQueue->registerListener(
+                    m_handle,
+                    static_cast<ListenerType*>(this));
+            }
+        }
+        ~ListenerBase()
+        {
+            if (m_owningQueue)
+                m_owningQueue->unregisterListener(
+                    m_handle,
+                    static_cast<ListenerType*>(this));
+        }
+        ListenerBase() : m_handle(RIVE_NULL_HANDLE) {}
+
+    private:
+        rcp<CommandQueue> m_owningQueue;
+        HandleType m_handle;
+    };
+
+    class FileListener
+        : public CommandQueue::ListenerBase<FileListener, FileHandle>
+    {
+    public:
+        virtual void onFileDeleted(const FileHandle) {}
+
+        virtual void onArtboardsListed(const FileHandle,
+                                       std::vector<std::string> artboardNames)
+        {}
+    };
+
+    class ArtboardListener
+        : public CommandQueue::ListenerBase<ArtboardListener, ArtboardHandle>
+    {
+    public:
+        virtual void onArtboardDeleted(const ArtboardHandle) {}
+
+        virtual void onStateMachinesListed(
+            const ArtboardHandle,
+            std::vector<std::string> artboardNames)
+        {}
+    };
+
+    class StateMachineListener
+        : public CommandQueue::ListenerBase<StateMachineListener,
+                                            StateMachineHandle>
+    {
+    public:
+        virtual void onStateMachineDeleted(const StateMachineHandle) {}
+    };
+
     CommandQueue();
     ~CommandQueue();
 
-    FileHandle loadFile(std::vector<uint8_t> rivBytes);
+    FileHandle loadFile(std::vector<uint8_t> rivBytes,
+                        FileListener* listener = nullptr);
+
     void deleteFile(FileHandle);
 
-    ArtboardHandle instantiateArtboardNamed(FileHandle, std::string name);
-    ArtboardHandle instantiateDefaultArtboard(FileHandle fileHandle)
+    ArtboardHandle instantiateArtboardNamed(
+        FileHandle,
+        std::string name,
+        ArtboardListener* listener = nullptr);
+    ArtboardHandle instantiateDefaultArtboard(
+        FileHandle fileHandle,
+        ArtboardListener* listener = nullptr)
     {
-        return instantiateArtboardNamed(fileHandle, "");
+        return instantiateArtboardNamed(fileHandle, "", listener);
     }
+
     void deleteArtboard(ArtboardHandle);
 
-    StateMachineHandle instantiateStateMachineNamed(ArtboardHandle,
-                                                    std::string name);
+    StateMachineHandle instantiateStateMachineNamed(
+        ArtboardHandle,
+        std::string name,
+        StateMachineListener* listener = nullptr);
     StateMachineHandle instantiateDefaultStateMachine(
-        ArtboardHandle artboardHandle)
+        ArtboardHandle artboardHandle,
+        StateMachineListener* listener = nullptr)
     {
-        return instantiateStateMachineNamed(artboardHandle, "");
+        return instantiateStateMachineNamed(artboardHandle, "", listener);
     }
+
     void deleteStateMachine(StateMachineHandle);
+
     // Create unique draw key for draw.
     DrawKey createDrawKey();
 
@@ -79,20 +159,74 @@ public:
     void runOnce(CommandServerCallback);
 
     // Run draw function for given draw key, only the latest function passed
-    // will be run per pollMessages.
+    // will be run per pollCommands.
     void draw(DrawKey, CommandServerDrawCallback);
 
 #ifdef TESTING
-    // Sends a stopMessages command to server, this will cause the pollMessage
-    // to return even if there are more messages to consume this does not
-    // shutdown the server, it only causes pollMessages to return, to continue
-    // processing messages another call to pollMessages is required.
-    void testing_messagePollBreak();
+    // Sends a commandLoopBreak command to the server. This will cause the
+    // processCommands to return even if there are more commands to consume.
+    // This does not shutdown the server, it only causes processCommands to
+    // return. To continue processing commands, another call to processCommands
+    // is required.
+    void testing_commandLoopBreak();
+
+    FileListener* testing_getFileListener(FileHandle);
+    ArtboardListener* testing_getArtboardListener(ArtboardHandle);
+    StateMachineListener* testing_getStateMachineListener(StateMachineHandle);
 #endif
 
     void disconnect();
 
+    void requestArtboardNames(FileHandle);
+    void requestStateMachineNames(ArtboardHandle);
+
+    // Consume all messages received from the server.
+    void processMessages();
+
 private:
+    void registerListener(FileHandle handle, FileListener* listener)
+    {
+        assert(listener);
+        assert(m_fileListeners.find(handle) == m_fileListeners.end());
+        m_fileListeners.insert({handle, listener});
+    }
+
+    void registerListener(ArtboardHandle handle, ArtboardListener* listener)
+    {
+        assert(listener);
+        assert(m_artboardListeners.find(handle) == m_artboardListeners.end());
+        m_artboardListeners.insert({handle, listener});
+    }
+
+    void registerListener(StateMachineHandle handle,
+                          StateMachineListener* listener)
+    {
+        assert(listener);
+        assert(m_stateMachineListeners.find(handle) ==
+               m_stateMachineListeners.end());
+        m_stateMachineListeners.insert({handle, listener});
+    }
+
+    // On 32-bit architectures, Handles are all uint64_t (not unique types), so
+    // it will think we are re-declaring unregisterListener 3 times if we don't
+    // add the listener pointer (even though it is not needed).
+
+    void unregisterListener(FileHandle handle, FileListener* listener)
+    {
+        m_fileListeners.erase(handle);
+    }
+
+    void unregisterListener(ArtboardHandle handle, ArtboardListener* listener)
+    {
+        m_artboardListeners.erase(handle);
+    }
+
+    void unregisterListener(StateMachineHandle handle,
+                            StateMachineListener* listener)
+    {
+        m_stateMachineListeners.erase(handle);
+    }
+
     enum class Command
     {
         loadFile,
@@ -104,7 +238,24 @@ private:
         runOnce,
         draw,
         disconnect,
-        messagePollBreak,
+        // This will cause processCommands to return once received. We want to
+        // ensure that we do not indefinetly block the calling thread. This is
+        // how we achieve that.
+        commandLoopBreak,
+        // messages
+        listArtboards,
+        listStateMachines
+    };
+
+    enum class Message
+    {
+        // Same as commandLoopBreak for processMessages
+        messageLoopBreak,
+        artboardsListed,
+        stateMachinesListed,
+        fileDeleted,
+        artboardDeleted,
+        stateMachineDeleted
     };
 
     friend class CommandServer;
@@ -114,12 +265,24 @@ private:
     uint64_t m_currentStateMachineHandleIdx = 0;
     uint64_t m_currentDrawKeyIdx = 0;
 
-    std::mutex m_mutex;
-    std::condition_variable m_conditionVariable;
+    std::mutex m_commandMutex;
+    std::condition_variable m_commandConditionVariable;
     PODStream m_commandStream;
     ObjectStream<std::vector<uint8_t>> m_byteVectors;
     ObjectStream<std::string> m_names;
     ObjectStream<CommandServerCallback> m_callbacks;
     ObjectStream<CommandServerDrawCallback> m_drawCallbacks;
+
+    // Messages streams
+    std::mutex m_messageMutex;
+    PODStream m_messageStream;
+    ObjectStream<std::string> m_messageNames;
+
+    // Listeners
+    std::unordered_map<FileHandle, FileListener*> m_fileListeners;
+    std::unordered_map<ArtboardHandle, ArtboardListener*> m_artboardListeners;
+    std::unordered_map<StateMachineHandle, StateMachineListener*>
+        m_stateMachineListeners;
 };
+
 }; // namespace rive

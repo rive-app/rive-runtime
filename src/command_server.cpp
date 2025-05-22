@@ -11,7 +11,7 @@ namespace rive
 {
 CommandServer::CommandServer(rcp<CommandQueue> commandBuffer,
                              Factory* factory) :
-    m_commandBuffer(std::move(commandBuffer)),
+    m_commandQueue(std::move(commandBuffer)),
     m_factory(factory)
 #ifndef NDEBUG
     ,
@@ -46,31 +46,31 @@ StateMachineInstance* CommandServer::getStateMachineInstance(
 
 void CommandServer::serveUntilDisconnect()
 {
-    while (waitMessages())
+    while (waitCommands())
     {
     }
 }
 
-bool CommandServer::waitMessages()
+bool CommandServer::waitCommands()
 {
-    PODStream& commandStream = m_commandBuffer->m_commandStream;
+    PODStream& commandStream = m_commandQueue->m_commandStream;
     if (commandStream.empty())
     {
-        std::unique_lock<std::mutex> lock(m_commandBuffer->m_mutex);
+        std::unique_lock<std::mutex> lock(m_commandQueue->m_commandMutex);
         while (commandStream.empty())
-            m_commandBuffer->m_conditionVariable.wait(lock);
+            m_commandQueue->m_commandConditionVariable.wait(lock);
     }
 
-    return pollMessages();
+    return processCommands();
 }
 
-bool CommandServer::pollMessages()
+bool CommandServer::processCommands()
 {
     assert(m_wasDisconnectReceived == false);
     assert(std::this_thread::get_id() == m_threadID);
 
-    PODStream& commandStream = m_commandBuffer->m_commandStream;
-    std::unique_lock<std::mutex> lock(m_commandBuffer->m_mutex);
+    PODStream& commandStream = m_commandQueue->m_commandStream;
+    std::unique_lock<std::mutex> lock(m_commandQueue->m_commandMutex);
 
     // Early out if we don't have anything to process.
     if (commandStream.empty())
@@ -79,13 +79,13 @@ bool CommandServer::pollMessages()
     // Ensure we stop processing messages and get to the draw loop.
     // This avoids a race condition where we never stop processing messages and
     // therefore never draw anything.
-    commandStream << CommandQueue::Command::messagePollBreak;
+    commandStream << CommandQueue::Command::commandLoopBreak;
 
     // The map should be empty at this point.
     assert(m_uniqueDraws.empty());
 
-    bool shouldProcessMessages = true;
-    while (!commandStream.empty() && shouldProcessMessages)
+    bool shouldProcessCommands = true;
+    do
     {
         CommandQueue::Command command;
         commandStream >> command;
@@ -96,7 +96,7 @@ bool CommandServer::pollMessages()
                 FileHandle handle;
                 std::vector<uint8_t> rivBytes;
                 commandStream >> handle;
-                m_commandBuffer->m_byteVectors >> rivBytes;
+                m_commandQueue->m_byteVectors >> rivBytes;
                 lock.unlock();
                 std::unique_ptr<rive::File> file =
                     rive::File::import(rivBytes, m_factory);
@@ -117,6 +117,11 @@ bool CommandServer::pollMessages()
                 commandStream >> handle;
                 lock.unlock();
                 m_files.erase(handle);
+                std::unique_lock<std::mutex> messageLock(
+                    m_commandQueue->m_messageMutex);
+                m_commandQueue->m_messageStream
+                    << CommandQueue::Message::fileDeleted;
+                m_commandQueue->m_messageStream << handle;
                 break;
             }
 
@@ -127,7 +132,7 @@ bool CommandServer::pollMessages()
                 std::string name;
                 commandStream >> handle;
                 commandStream >> fileHandle;
-                m_commandBuffer->m_names >> name;
+                m_commandQueue->m_names >> name;
                 lock.unlock();
                 if (rive::File* file = getFile(fileHandle))
                 {
@@ -153,6 +158,11 @@ bool CommandServer::pollMessages()
                 commandStream >> handle;
                 lock.unlock();
                 m_artboards.erase(handle);
+                std::unique_lock<std::mutex> messageLock(
+                    m_commandQueue->m_messageMutex);
+                m_commandQueue->m_messageStream
+                    << CommandQueue::Message::artboardDeleted;
+                m_commandQueue->m_messageStream << handle;
                 break;
             }
 
@@ -163,7 +173,7 @@ bool CommandServer::pollMessages()
                 std::string name;
                 commandStream >> handle;
                 commandStream >> artboardHandle;
-                m_commandBuffer->m_names >> name;
+                m_commandQueue->m_names >> name;
                 lock.unlock();
                 if (rive::ArtboardInstance* artboard =
                         getArtboardInstance(artboardHandle))
@@ -190,13 +200,18 @@ bool CommandServer::pollMessages()
                 commandStream >> handle;
                 lock.unlock();
                 m_stateMachines.erase(handle);
+                std::unique_lock<std::mutex> messageLock(
+                    m_commandQueue->m_messageMutex);
+                m_commandQueue->m_messageStream
+                    << CommandQueue::Message::stateMachineDeleted;
+                m_commandQueue->m_messageStream << handle;
                 break;
             }
 
             case CommandQueue::Command::runOnce:
             {
                 CommandServerCallback callback;
-                m_commandBuffer->m_callbacks >> callback;
+                m_commandQueue->m_callbacks >> callback;
                 lock.unlock();
                 callback(this);
                 break;
@@ -207,16 +222,65 @@ bool CommandServer::pollMessages()
                 DrawKey drawKey;
                 CommandServerDrawCallback drawCallback;
                 commandStream >> drawKey;
-                m_commandBuffer->m_drawCallbacks >> drawCallback;
+                m_commandQueue->m_drawCallbacks >> drawCallback;
                 lock.unlock();
                 m_uniqueDraws[drawKey] = std::move(drawCallback);
                 break;
             }
 
-            case CommandQueue::Command::messagePollBreak:
+            case CommandQueue::Command::commandLoopBreak:
             {
                 lock.unlock();
-                shouldProcessMessages = false;
+                shouldProcessCommands = false;
+                break;
+            }
+
+            case CommandQueue::Command::listArtboards:
+            {
+                FileHandle handle;
+                commandStream >> handle;
+                lock.unlock();
+                auto file = getFile(handle);
+                if (file)
+                {
+                    auto artboards = file->artboards();
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    m_commandQueue->m_messageStream
+                        << CommandQueue::Message::artboardsListed;
+                    m_commandQueue->m_messageStream << handle;
+                    m_commandQueue->m_messageStream << artboards.size();
+                    for (auto artboard : artboards)
+                    {
+                        m_commandQueue->m_messageNames << artboard->name();
+                    }
+                }
+
+                break;
+            }
+
+            case CommandQueue::Command::listStateMachines:
+            {
+                ArtboardHandle handle;
+                commandStream >> handle;
+                lock.unlock();
+                auto artboard = getArtboardInstance(handle);
+                if (artboard)
+                {
+                    auto numStateMachines = artboard->stateMachineCount();
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    m_commandQueue->m_messageStream
+                        << CommandQueue::Message::stateMachinesListed;
+                    m_commandQueue->m_messageStream << handle;
+                    m_commandQueue->m_messageStream << numStateMachines;
+                    for (int i = 0; i < numStateMachines; ++i)
+                    {
+                        m_commandQueue->m_messageNames
+                            << artboard->stateMachineNameAt(i);
+                    }
+                }
                 break;
             }
 
@@ -231,7 +295,7 @@ bool CommandServer::pollMessages()
         // Should have unlocked by now.
         assert(!lock.owns_lock());
         lock.lock();
-    }
+    } while (!commandStream.empty() && shouldProcessCommands);
 
     for (const auto& drawPair : m_uniqueDraws)
     {

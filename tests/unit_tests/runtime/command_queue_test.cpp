@@ -12,21 +12,21 @@
 
 using namespace rive;
 
-static void server_thread(rcp<CommandQueue> commandBuffer)
+static void server_thread(rcp<CommandQueue> commandQueue)
 {
     std::unique_ptr<gpu::RenderContext> nullContext =
         RenderContextNULL::MakeContext();
-    CommandServer server(std::move(commandBuffer), nullContext.get());
+    CommandServer server(std::move(commandQueue), nullContext.get());
     server.serveUntilDisconnect();
 }
 
-static void wait_for_server(CommandQueue* commandBuffer)
+static void wait_for_server(CommandQueue* commandQueue)
 {
     std::mutex mutex;
     std::condition_variable cv;
     bool complete = false;
     std::unique_lock<std::mutex> lock(mutex);
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         std::unique_lock<std::mutex> serverLock(mutex);
         complete = true;
         cv.notify_one();
@@ -37,25 +37,25 @@ static void wait_for_server(CommandQueue* commandBuffer)
 
 TEST_CASE("artboard management", "[CommandQueue]")
 {
-    auto commandBuffer = make_rcp<CommandQueue>();
-    std::thread serverThread(server_thread, commandBuffer);
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
 
     std::ifstream stream("assets/two_artboards.riv", std::ios::binary);
-    FileHandle fileHandle = commandBuffer->loadFile(
+    FileHandle fileHandle = commandQueue->loadFile(
         std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
-    commandBuffer->runOnce([fileHandle](CommandServer* server) {
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
         CHECK(fileHandle != RIVE_NULL_HANDLE);
         CHECK(server->getFile(fileHandle) != nullptr);
     });
 
     ArtboardHandle artboardHandle1 =
-        commandBuffer->instantiateArtboardNamed(fileHandle, "One");
+        commandQueue->instantiateArtboardNamed(fileHandle, "One");
     ArtboardHandle artboardHandle2 =
-        commandBuffer->instantiateArtboardNamed(fileHandle, "Two");
+        commandQueue->instantiateArtboardNamed(fileHandle, "Two");
     ArtboardHandle artboardHandle3 =
-        commandBuffer->instantiateArtboardNamed(fileHandle, "Three");
-    commandBuffer->runOnce([artboardHandle1, artboardHandle2, artboardHandle3](
-                               CommandServer* server) {
+        commandQueue->instantiateArtboardNamed(fileHandle, "Three");
+    commandQueue->runOnce([artboardHandle1, artboardHandle2, artboardHandle3](
+                              CommandServer* server) {
         CHECK(artboardHandle1 != RIVE_NULL_HANDLE);
         CHECK(server->getArtboardInstance(artboardHandle1) != nullptr);
         CHECK(artboardHandle2 != RIVE_NULL_HANDLE);
@@ -66,44 +66,43 @@ TEST_CASE("artboard management", "[CommandQueue]")
     });
 
     // Deleting an invalid handle has no effect.
-    commandBuffer->deleteArtboard(artboardHandle3);
-    commandBuffer->deleteArtboard(artboardHandle2);
-    commandBuffer->runOnce([artboardHandle1, artboardHandle2, artboardHandle3](
-                               CommandServer* server) {
+    commandQueue->deleteArtboard(artboardHandle3);
+    commandQueue->deleteArtboard(artboardHandle2);
+    commandQueue->runOnce([artboardHandle1, artboardHandle2, artboardHandle3](
+                              CommandServer* server) {
         CHECK(server->getArtboardInstance(artboardHandle1) != nullptr);
         CHECK(server->getArtboardInstance(artboardHandle2) == nullptr);
         CHECK(server->getArtboardInstance(artboardHandle3) == nullptr);
     });
 
     // Deleting the file first still works.
-    commandBuffer->deleteFile(fileHandle);
-    commandBuffer->runOnce(
-        [fileHandle, artboardHandle1](CommandServer* server) {
-            CHECK(server->getFile(fileHandle) == nullptr);
-            CHECK(server->getArtboardInstance(artboardHandle1) != nullptr);
-        });
+    commandQueue->deleteFile(fileHandle);
+    commandQueue->runOnce([fileHandle, artboardHandle1](CommandServer* server) {
+        CHECK(server->getFile(fileHandle) == nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle1) != nullptr);
+    });
 
-    commandBuffer->deleteArtboard(artboardHandle1);
-    commandBuffer->runOnce([artboardHandle1](CommandServer* server) {
+    commandQueue->deleteArtboard(artboardHandle1);
+    commandQueue->runOnce([artboardHandle1](CommandServer* server) {
         CHECK(server->getArtboardInstance(artboardHandle1) == nullptr);
     });
 
-    commandBuffer->disconnect();
+    commandQueue->disconnect();
     serverThread.join();
 }
 
 TEST_CASE("state machine management", "[CommandQueue]")
 {
-    auto commandBuffer = make_rcp<CommandQueue>();
-    std::thread serverThread(server_thread, commandBuffer);
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
 
     std::ifstream stream("assets/multiple_state_machines.riv",
                          std::ios::binary);
-    FileHandle fileHandle = commandBuffer->loadFile(
+    FileHandle fileHandle = commandQueue->loadFile(
         std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
     ArtboardHandle artboardHandle =
-        commandBuffer->instantiateDefaultArtboard(fileHandle);
-    commandBuffer->runOnce([fileHandle, artboardHandle](CommandServer* server) {
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+    commandQueue->runOnce([fileHandle, artboardHandle](CommandServer* server) {
         CHECK(fileHandle != RIVE_NULL_HANDLE);
         CHECK(server->getFile(fileHandle) != nullptr);
         CHECK(artboardHandle != RIVE_NULL_HANDLE);
@@ -111,12 +110,12 @@ TEST_CASE("state machine management", "[CommandQueue]")
     });
 
     StateMachineHandle sm1 =
-        commandBuffer->instantiateStateMachineNamed(artboardHandle, "one");
+        commandQueue->instantiateStateMachineNamed(artboardHandle, "one");
     StateMachineHandle sm2 =
-        commandBuffer->instantiateStateMachineNamed(artboardHandle, "two");
+        commandQueue->instantiateStateMachineNamed(artboardHandle, "two");
     StateMachineHandle sm3 =
-        commandBuffer->instantiateStateMachineNamed(artboardHandle, "blahblah");
-    commandBuffer->runOnce([sm1, sm2, sm3](CommandServer* server) {
+        commandQueue->instantiateStateMachineNamed(artboardHandle, "blahblah");
+    commandQueue->runOnce([sm1, sm2, sm3](CommandServer* server) {
         CHECK(sm1 != RIVE_NULL_HANDLE);
         CHECK(server->getStateMachineInstance(sm1) != nullptr);
         CHECK(sm2 != RIVE_NULL_HANDLE);
@@ -126,10 +125,10 @@ TEST_CASE("state machine management", "[CommandQueue]")
         CHECK(server->getStateMachineInstance(sm3) == nullptr);
     });
 
-    commandBuffer->deleteFile(fileHandle);
-    commandBuffer->deleteArtboard(artboardHandle);
-    commandBuffer->deleteStateMachine(sm1);
-    commandBuffer->runOnce(
+    commandQueue->deleteFile(fileHandle);
+    commandQueue->deleteArtboard(artboardHandle);
+    commandQueue->deleteStateMachine(sm1);
+    commandQueue->runOnce(
         [fileHandle, artboardHandle, sm1, sm2](CommandServer* server) {
             CHECK(server->getFile(fileHandle) == nullptr);
             CHECK(server->getArtboardInstance(artboardHandle) == nullptr);
@@ -137,28 +136,28 @@ TEST_CASE("state machine management", "[CommandQueue]")
             CHECK(server->getStateMachineInstance(sm2) != nullptr);
         });
 
-    commandBuffer->deleteStateMachine(sm2);
-    commandBuffer->runOnce([sm2](CommandServer* server) {
+    commandQueue->deleteStateMachine(sm2);
+    commandQueue->runOnce([sm2](CommandServer* server) {
         CHECK(server->getStateMachineInstance(sm2) == nullptr);
     });
 
-    commandBuffer->disconnect();
+    commandQueue->disconnect();
     serverThread.join();
 }
 
 TEST_CASE("default artboard & state machine", "[CommandQueue]")
 {
-    auto commandBuffer = make_rcp<CommandQueue>();
-    std::thread serverThread(server_thread, commandBuffer);
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
 
     std::ifstream stream("assets/entry.riv", std::ios::binary);
-    FileHandle fileHandle = commandBuffer->loadFile(
+    FileHandle fileHandle = commandQueue->loadFile(
         std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
     ArtboardHandle artboardHandle =
-        commandBuffer->instantiateDefaultArtboard(fileHandle);
+        commandQueue->instantiateDefaultArtboard(fileHandle);
     StateMachineHandle smHandle =
-        commandBuffer->instantiateDefaultStateMachine(artboardHandle);
-    commandBuffer->runOnce([artboardHandle, smHandle](CommandServer* server) {
+        commandQueue->instantiateDefaultStateMachine(artboardHandle);
+    commandQueue->runOnce([artboardHandle, smHandle](CommandServer* server) {
         rive::ArtboardInstance* artboard =
             server->getArtboardInstance(artboardHandle);
         REQUIRE(artboard != nullptr);
@@ -171,10 +170,10 @@ TEST_CASE("default artboard & state machine", "[CommandQueue]")
 
     // Using an empty string is the same as requesting the default.
     ArtboardHandle artboardHandle2 =
-        commandBuffer->instantiateArtboardNamed(fileHandle, "");
+        commandQueue->instantiateArtboardNamed(fileHandle, "");
     StateMachineHandle smHandle2 =
-        commandBuffer->instantiateStateMachineNamed(artboardHandle2, "");
-    commandBuffer->runOnce([artboardHandle2, smHandle2](CommandServer* server) {
+        commandQueue->instantiateStateMachineNamed(artboardHandle2, "");
+    commandQueue->runOnce([artboardHandle2, smHandle2](CommandServer* server) {
         rive::ArtboardInstance* artboard =
             server->getArtboardInstance(artboardHandle2);
         REQUIRE(artboard != nullptr);
@@ -185,21 +184,21 @@ TEST_CASE("default artboard & state machine", "[CommandQueue]")
         CHECK(sm->name() == "State Machine 1");
     });
 
-    commandBuffer->disconnect();
+    commandQueue->disconnect();
     serverThread.join();
 }
 
 TEST_CASE("invalid handles", "[CommandQueue]")
 {
-    auto commandBuffer = make_rcp<CommandQueue>();
-    std::thread serverThread(server_thread, commandBuffer);
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
 
     std::ifstream stream("assets/entry.riv", std::ios::binary);
-    FileHandle goodFile = commandBuffer->loadFile(
+    FileHandle goodFile = commandQueue->loadFile(
         std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
     FileHandle badFile =
-        commandBuffer->loadFile(std::vector<uint8_t>(100 * 1024, 0));
-    commandBuffer->runOnce([goodFile, badFile](CommandServer* server) {
+        commandQueue->loadFile(std::vector<uint8_t>(100 * 1024, 0));
+    commandQueue->runOnce([goodFile, badFile](CommandServer* server) {
         CHECK(goodFile != RIVE_NULL_HANDLE);
         CHECK(server->getFile(goodFile) != nullptr);
         CHECK(badFile != RIVE_NULL_HANDLE);
@@ -207,14 +206,14 @@ TEST_CASE("invalid handles", "[CommandQueue]")
     });
 
     ArtboardHandle goodArtboard =
-        commandBuffer->instantiateArtboardNamed(goodFile, "New Artboard");
+        commandQueue->instantiateArtboardNamed(goodFile, "New Artboard");
     ArtboardHandle badArtboard1 =
-        commandBuffer->instantiateDefaultArtboard(badFile);
+        commandQueue->instantiateDefaultArtboard(badFile);
     ArtboardHandle badArtboard2 =
-        commandBuffer->instantiateArtboardNamed(badFile, "New Artboard");
+        commandQueue->instantiateArtboardNamed(badFile, "New Artboard");
     ArtboardHandle badArtboard3 =
-        commandBuffer->instantiateArtboardNamed(goodFile, "blahblahblah");
-    commandBuffer->runOnce(
+        commandQueue->instantiateArtboardNamed(goodFile, "blahblahblah");
+    commandQueue->runOnce(
         [goodArtboard, badArtboard1, badArtboard2, badArtboard3](
             CommandServer* server) {
             CHECK(goodArtboard != RIVE_NULL_HANDLE);
@@ -228,17 +227,17 @@ TEST_CASE("invalid handles", "[CommandQueue]")
         });
 
     StateMachineHandle goodSM =
-        commandBuffer->instantiateStateMachineNamed(goodArtboard,
-                                                    "State Machine 1");
+        commandQueue->instantiateStateMachineNamed(goodArtboard,
+                                                   "State Machine 1");
     StateMachineHandle badSM1 =
-        commandBuffer->instantiateStateMachineNamed(badArtboard2,
-                                                    "State Machine 1");
+        commandQueue->instantiateStateMachineNamed(badArtboard2,
+                                                   "State Machine 1");
     StateMachineHandle badSM2 =
-        commandBuffer->instantiateStateMachineNamed(goodArtboard,
-                                                    "blahblahblah");
+        commandQueue->instantiateStateMachineNamed(goodArtboard,
+                                                   "blahblahblah");
     StateMachineHandle badSM3 =
-        commandBuffer->instantiateDefaultStateMachine(badArtboard3);
-    commandBuffer->runOnce(
+        commandQueue->instantiateDefaultStateMachine(badArtboard3);
+    commandQueue->runOnce(
         [goodSM, badSM1, badSM2, badSM3](CommandServer* server) {
             CHECK(goodSM != RIVE_NULL_HANDLE);
             CHECK(server->getStateMachineInstance(goodSM) != nullptr);
@@ -250,38 +249,38 @@ TEST_CASE("invalid handles", "[CommandQueue]")
             CHECK(server->getStateMachineInstance(badSM3) == nullptr);
         });
 
-    commandBuffer->deleteStateMachine(badSM3);
-    commandBuffer->deleteStateMachine(badSM2);
-    commandBuffer->deleteStateMachine(badSM1);
-    commandBuffer->deleteArtboard(badArtboard3);
-    commandBuffer->deleteArtboard(badArtboard2);
-    commandBuffer->deleteArtboard(badArtboard1);
-    commandBuffer->deleteFile(badFile);
-    commandBuffer->runOnce(
+    commandQueue->deleteStateMachine(badSM3);
+    commandQueue->deleteStateMachine(badSM2);
+    commandQueue->deleteStateMachine(badSM1);
+    commandQueue->deleteArtboard(badArtboard3);
+    commandQueue->deleteArtboard(badArtboard2);
+    commandQueue->deleteArtboard(badArtboard1);
+    commandQueue->deleteFile(badFile);
+    commandQueue->runOnce(
         [goodFile, goodArtboard, goodSM](CommandServer* server) {
             CHECK(server->getFile(goodFile) != nullptr);
             CHECK(server->getArtboardInstance(goodArtboard) != nullptr);
             CHECK(server->getStateMachineInstance(goodSM) != nullptr);
         });
 
-    commandBuffer->deleteStateMachine(goodSM);
-    commandBuffer->deleteArtboard(goodArtboard);
-    commandBuffer->deleteFile(goodFile);
-    commandBuffer->runOnce(
+    commandQueue->deleteStateMachine(goodSM);
+    commandQueue->deleteArtboard(goodArtboard);
+    commandQueue->deleteFile(goodFile);
+    commandQueue->runOnce(
         [goodFile, goodArtboard, goodSM](CommandServer* server) {
             CHECK(server->getFile(goodFile) == nullptr);
             CHECK(server->getArtboardInstance(goodArtboard) == nullptr);
             CHECK(server->getStateMachineInstance(goodSM) == nullptr);
         });
 
-    commandBuffer->disconnect();
+    commandQueue->disconnect();
     serverThread.join();
 }
 
 TEST_CASE("draw loops", "[CommandQueue]")
 {
-    auto commandBuffer = make_rcp<CommandQueue>();
-    std::thread serverThread(server_thread, commandBuffer);
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
 
     std::atomic_uint64_t frameNumber1 = 0, frameNumber2 = 0;
     std::atomic_uint64_t lastFrameNumber1, lastFrameNumber2;
@@ -291,162 +290,547 @@ TEST_CASE("draw loops", "[CommandQueue]")
     auto drawLoop2 = [&frameNumber2](DrawKey, CommandServer*) {
         ++frameNumber2;
     };
-    DrawKey loopHandle1 = commandBuffer->createDrawKey();
-    DrawKey loopHandle2 = commandBuffer->createDrawKey();
+    DrawKey loopHandle1 = commandQueue->createDrawKey();
+    DrawKey loopHandle2 = commandQueue->createDrawKey();
 
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         CHECK(frameNumber1 == 0);
         CHECK(frameNumber2 == 0);
         lastFrameNumber1 = frameNumber1.load();
         lastFrameNumber2 = frameNumber2.load();
     });
 
-    commandBuffer->draw(loopHandle1, drawLoop1);
-    commandBuffer->draw(loopHandle2, drawLoop2);
+    commandQueue->draw(loopHandle1, drawLoop1);
+    commandQueue->draw(loopHandle2, drawLoop2);
 
     do
     {
-        wait_for_server(commandBuffer.get());
+        wait_for_server(commandQueue.get());
     } while (frameNumber1 == lastFrameNumber1 ||
              frameNumber2 == lastFrameNumber2);
 
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         CHECK(frameNumber1 > lastFrameNumber1);
         CHECK(frameNumber2 > lastFrameNumber2);
     });
 
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         lastFrameNumber1 = frameNumber1.load();
         lastFrameNumber2 = frameNumber2.load();
     });
 
-    commandBuffer->draw(loopHandle2, drawLoop2);
+    commandQueue->draw(loopHandle2, drawLoop2);
 
     do
     {
-        wait_for_server(commandBuffer.get());
+        wait_for_server(commandQueue.get());
     } while (frameNumber2 == lastFrameNumber2);
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         CHECK(frameNumber1 == lastFrameNumber1);
         CHECK(frameNumber2 > lastFrameNumber2);
     });
 
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         lastFrameNumber1 = frameNumber1.load();
         lastFrameNumber2 = frameNumber2.load();
     });
 
-    commandBuffer->draw(loopHandle1, drawLoop1);
+    commandQueue->draw(loopHandle1, drawLoop1);
 
     do
     {
-        wait_for_server(commandBuffer.get());
+        wait_for_server(commandQueue.get());
     } while (frameNumber1 == lastFrameNumber1);
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         CHECK(frameNumber1 > lastFrameNumber1);
         CHECK(frameNumber2 == lastFrameNumber2);
     });
 
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         lastFrameNumber1 = frameNumber1.load();
         lastFrameNumber2 = frameNumber2.load();
     });
 
     for (int i = 0; i < 10; ++i)
     {
-        wait_for_server(commandBuffer.get());
+        wait_for_server(commandQueue.get());
     }
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         CHECK(frameNumber1 == lastFrameNumber1);
         CHECK(frameNumber2 == lastFrameNumber2);
     });
 
-    commandBuffer->draw(loopHandle1, drawLoop1);
-    commandBuffer->draw(loopHandle2, drawLoop2);
+    commandQueue->draw(loopHandle1, drawLoop1);
+    commandQueue->draw(loopHandle2, drawLoop2);
 
     do
     {
-        wait_for_server(commandBuffer.get());
+        wait_for_server(commandQueue.get());
     } while (frameNumber1 == lastFrameNumber1 ||
              frameNumber2 == lastFrameNumber2);
-    commandBuffer->runOnce([&](CommandServer*) {
+    commandQueue->runOnce([&](CommandServer*) {
         CHECK(frameNumber1 > lastFrameNumber1);
         CHECK(frameNumber2 > lastFrameNumber2);
     });
 
     // Leave the draw loops running; test tearing down the command buffer with
     // active draw loops.
-    commandBuffer->disconnect();
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("wait for server race condition", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    auto lambda = [](CommandServer*) {
+        std::this_thread::sleep_for(std::chrono::microseconds(10));
+    };
+    auto drawLambda = [](DrawKey, CommandServer*) {
+        std::this_thread::sleep_for(std::chrono::microseconds(10));
+    };
+
+    commandQueue->runOnce(lambda);
+
+    commandQueue->draw(reinterpret_cast<DrawKey>(0), drawLambda);
+    commandQueue->draw(reinterpret_cast<DrawKey>(1), drawLambda);
+    commandQueue->draw(reinterpret_cast<DrawKey>(2), drawLambda);
+    commandQueue->draw(reinterpret_cast<DrawKey>(3), drawLambda);
+    commandQueue->draw(reinterpret_cast<DrawKey>(4), drawLambda);
+
+    for (size_t i = 0; i < 100; ++i)
+
+    {
+        commandQueue->draw(reinterpret_cast<DrawKey>(i), drawLambda);
+        commandQueue->runOnce(lambda);
+    }
+    for (size_t i = 0; i < 10; ++i)
+
+    {
+        wait_for_server(commandQueue.get());
+    }
+
+    commandQueue->disconnect();
     serverThread.join();
 }
 
 TEST_CASE("stopMesssages command", "[CommandQueue]")
 {
-    auto commandBuffer = make_rcp<CommandQueue>();
+    auto commandQueue = make_rcp<CommandQueue>();
     std::unique_ptr<gpu::RenderContext> nullContext =
         RenderContextNULL::MakeContext();
-    CommandServer server(commandBuffer, nullContext.get());
+    CommandServer server(commandQueue, nullContext.get());
 
     int test = 0;
 
-    commandBuffer->runOnce([&](CommandServer*) { ++test; });
-    commandBuffer->testing_messagePollBreak();
+    commandQueue->runOnce([&](CommandServer*) { ++test; });
+    commandQueue->testing_commandLoopBreak();
 
     for (int i = 0; i < 10; i++)
     {
-        commandBuffer->runOnce([&](CommandServer*) { ++test; });
+        commandQueue->runOnce([&](CommandServer*) { ++test; });
         if (i == 5)
-            commandBuffer->testing_messagePollBreak();
+            commandQueue->testing_commandLoopBreak();
     }
 
-    server.pollMessages();
+    server.processCommands();
 
     CHECK(test == 1);
-    server.pollMessages();
+    server.processCommands();
     CHECK(test == 7);
-    server.pollMessages();
+    server.processCommands();
     CHECK(test == 11);
 
-    commandBuffer->disconnect();
+    commandQueue->disconnect();
 }
 
 TEST_CASE("draw happens once per poll", "[CommandQueue]")
 {
-    auto commandBuffer = make_rcp<CommandQueue>();
+    auto commandQueue = make_rcp<CommandQueue>();
     std::unique_ptr<gpu::RenderContext> nullContext =
         RenderContextNULL::MakeContext();
-    CommandServer server(commandBuffer, nullContext.get());
+    CommandServer server(commandQueue, nullContext.get());
     int test = 0;
 
     auto drawLamda = [&test](DrawKey, CommandServer*) { ++test; };
 
-    commandBuffer->draw(0, drawLamda);
-    commandBuffer->draw(0, drawLamda);
-    commandBuffer->draw(0, drawLamda);
-    commandBuffer->draw(0, drawLamda);
-    commandBuffer->draw(0, drawLamda);
+    commandQueue->draw(0, drawLamda);
+    commandQueue->draw(0, drawLamda);
+    commandQueue->draw(0, drawLamda);
+    commandQueue->draw(0, drawLamda);
+    commandQueue->draw(0, drawLamda);
 
-    server.pollMessages();
+    server.processCommands();
 
     CHECK(test == 1);
-    commandBuffer->draw(0, drawLamda);
-    server.pollMessages();
+    commandQueue->draw(0, drawLamda);
+    server.processCommands();
     CHECK(test == 2);
-    server.pollMessages();
+    server.processCommands();
     CHECK(test == 2);
 
-    commandBuffer->disconnect();
+    commandQueue->disconnect();
 }
 
 TEST_CASE("disconnect", "[CommandQueue]")
 {
-    auto commandBuffer = make_rcp<CommandQueue>();
+    auto commandQueue = make_rcp<CommandQueue>();
     std::unique_ptr<gpu::RenderContext> nullContext =
         RenderContextNULL::MakeContext();
-    CommandServer server(commandBuffer, nullContext.get());
+    CommandServer server(commandQueue, nullContext.get());
     CHECK(!server.getWasDisconnected());
 
-    CHECK(server.pollMessages());
-    commandBuffer->disconnect();
-    CHECK(!server.waitMessages());
+    CHECK(server.processCommands());
+    commandQueue->disconnect();
+    CHECK(!server.processCommands());
+}
+
+class TestFileListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onArtboardsListed(
+        const FileHandle handle,
+        std::vector<std::string> artboardNames) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(artboardNames.size() == m_artboardNames.size());
+        for (auto i = 0; i < artboardNames.size(); ++i)
+        {
+            CHECK(artboardNames[i] == m_artboardNames[i]);
+        }
+
+        m_hasCallback = true;
+    }
+
+    FileHandle m_handle;
+    std::vector<std::string> m_artboardNames;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("listArtboard", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestFileListener fileListener;
+
+    std::ifstream stream("assets/entry.riv", std::ios::binary);
+    FileHandle goodFile = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+
+    fileListener.m_artboardNames = {"New Artboard", "New Artboard"};
+    fileListener.m_handle = goodFile;
+
+    commandQueue->requestArtboardNames(goodFile);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(fileListener.m_hasCallback);
+
+    FileHandle badFile =
+        commandQueue->loadFile(std::vector<uint8_t>(100 * 1024, 0));
+    fileListener.m_handle = goodFile;
+    fileListener.m_hasCallback = false;
+
+    commandQueue->requestArtboardNames(badFile);
+
+    wait_for_server(commandQueue.get());
+
+    CHECK(!fileListener.m_hasCallback);
+
+    commandQueue->processMessages();
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class TestArtboardListener : public CommandQueue::ArtboardListener
+{
+public:
+    virtual void onStateMachinesListed(
+        const ArtboardHandle handle,
+        std::vector<std::string> stateMachineNames) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(stateMachineNames.size() == m_stateMachineNames.size());
+        for (auto i = 0; i < stateMachineNames.size(); ++i)
+        {
+            CHECK(stateMachineNames[i] == m_stateMachineNames[i]);
+        }
+
+        m_hasCallback = true;
+    }
+
+    ArtboardHandle m_handle;
+    std::vector<std::string> m_stateMachineNames;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("listStateMachine", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/entry.riv", std::ios::binary);
+    FileHandle goodFile = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    TestArtboardListener artboardListener;
+
+    auto artboardHandle =
+        commandQueue->instantiateArtboardNamed(goodFile,
+                                               "New Artboard",
+                                               &artboardListener);
+    artboardListener.m_stateMachineNames = {"State Machine 1"};
+    artboardListener.m_handle = artboardHandle;
+
+    commandQueue->requestStateMachineNames(artboardHandle);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(artboardListener.m_hasCallback);
+
+    FileHandle badFile =
+        commandQueue->loadFile(std::vector<uint8_t>(100 * 1024, 0));
+
+    auto badArtbaord = commandQueue->instantiateDefaultArtboard(badFile);
+
+    artboardListener.m_handle = badArtbaord;
+    artboardListener.m_hasCallback = false;
+
+    commandQueue->requestStateMachineNames(badArtbaord);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(!artboardListener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class DeleteFileListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onFileDeleted(const FileHandle handle) override
+    {
+        CHECK(handle == m_handle);
+        m_hasCallback = true;
+    }
+
+    FileHandle m_handle;
+    bool m_hasCallback = false;
+};
+
+class DeleteArtboardListener : public CommandQueue::ArtboardListener
+{
+public:
+    virtual void onArtboardDeleted(const ArtboardHandle handle) override
+    {
+        CHECK(handle == m_handle);
+        m_hasCallback = true;
+    }
+
+    ArtboardHandle m_handle;
+    bool m_hasCallback = false;
+};
+
+class DeleteStateMachineListener : public CommandQueue::StateMachineListener
+{
+public:
+    virtual void onStateMachineDeleted(const StateMachineHandle handle) override
+    {
+        CHECK(handle == m_handle);
+        m_hasCallback = true;
+    }
+
+    StateMachineHandle m_handle;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("listenerDeleteCallbacks", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    DeleteFileListener fileListener;
+    DeleteArtboardListener artboardListener;
+    DeleteStateMachineListener stateMachineListener;
+
+    std::ifstream stream("assets/entry.riv", std::ios::binary);
+    FileHandle goodFile = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+
+    auto artboardHandle =
+        commandQueue->instantiateArtboardNamed(goodFile,
+                                               "New Artboard",
+                                               &artboardListener);
+
+    auto stateMachineHandle =
+        commandQueue->instantiateStateMachineNamed(artboardHandle,
+                                                   "",
+                                                   &stateMachineListener);
+
+    fileListener.m_handle = goodFile;
+    artboardListener.m_handle = artboardHandle;
+    stateMachineListener.m_handle = stateMachineHandle;
+
+    CHECK(!fileListener.m_hasCallback);
+    CHECK(!artboardListener.m_hasCallback);
+    CHECK(!stateMachineListener.m_hasCallback);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(!fileListener.m_hasCallback);
+    CHECK(!artboardListener.m_hasCallback);
+    CHECK(!stateMachineListener.m_hasCallback);
+
+    commandQueue->deleteStateMachine(stateMachineHandle);
+    commandQueue->deleteArtboard(artboardHandle);
+    commandQueue->deleteFile(goodFile);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(fileListener.m_hasCallback);
+    CHECK(artboardListener.m_hasCallback);
+    CHECK(stateMachineListener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("listenerLifeTimes", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/entry.riv", std::ios::binary);
+
+    CommandQueue::FileListener fileListener;
+    CommandQueue::ArtboardListener artboardListener;
+    CommandQueue::StateMachineListener stateMachineListener;
+
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+
+    auto artboardHandle =
+        commandQueue->instantiateArtboardNamed(fileHandle,
+                                               "New Artboard",
+                                               &artboardListener);
+
+    auto stateMachineHandle =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle,
+                                                     &stateMachineListener);
+
+    commandQueue->requestArtboardNames(fileHandle);
+    commandQueue->requestStateMachineNames(artboardHandle);
+
+    CHECK(commandQueue->testing_getFileListener(fileHandle));
+    CHECK(commandQueue->testing_getArtboardListener(artboardHandle));
+    CHECK(commandQueue->testing_getStateMachineListener(stateMachineHandle));
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CommandQueue::FileListener deleteFileListener;
+    CommandQueue::ArtboardListener deleteArtboardListener;
+    CommandQueue::StateMachineListener deleteStateMachineListener;
+
+    FileHandle dFileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &deleteFileListener);
+
+    auto dArtboardHandle =
+        commandQueue->instantiateArtboardNamed(fileHandle,
+                                               "New Artboard",
+                                               &deleteArtboardListener);
+
+    auto dStateMachineHandle = commandQueue->instantiateDefaultStateMachine(
+        artboardHandle,
+        &deleteStateMachineListener);
+
+    CHECK(commandQueue->testing_getFileListener(dFileHandle));
+    CHECK(commandQueue->testing_getArtboardListener(dArtboardHandle));
+    CHECK(commandQueue->testing_getStateMachineListener(dStateMachineHandle));
+
+    commandQueue->deleteFile(dFileHandle);
+    commandQueue->deleteArtboard(dArtboardHandle);
+    commandQueue->deleteStateMachine(dStateMachineHandle);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(!commandQueue->testing_getFileListener(dFileHandle));
+    CHECK(!commandQueue->testing_getArtboardListener(dArtboardHandle));
+    CHECK(!commandQueue->testing_getStateMachineListener(dStateMachineHandle));
+
+    commandQueue->disconnect();
+    serverThread.join();
+
+    FileHandle fh;
+
+    {
+        CommandQueue::FileListener listener;
+        fh = commandQueue->loadFile(std::vector<uint8_t>(100 * 1024, 0),
+                                    &listener);
+        CHECK(commandQueue->testing_getFileListener(fh));
+    }
+
+    CHECK(!commandQueue->testing_getFileListener(fh));
+
+    ArtboardHandle ah;
+    {
+        CommandQueue::ArtboardListener listener;
+        ah = commandQueue->instantiateDefaultArtboard(fh, &listener);
+        CHECK(commandQueue->testing_getArtboardListener(ah));
+    }
+    CHECK(!commandQueue->testing_getArtboardListener(ah));
+
+    StateMachineHandle sh;
+    {
+        CommandQueue::StateMachineListener listener;
+        sh = commandQueue->instantiateDefaultStateMachine(ah, &listener);
+        CHECK(commandQueue->testing_getStateMachineListener(sh));
+    }
+    CHECK(!commandQueue->testing_getStateMachineListener(sh));
+
+    CHECK(commandQueue->testing_getFileListener(fileHandle));
+    CHECK(commandQueue->testing_getArtboardListener(artboardHandle));
+    CHECK(commandQueue->testing_getStateMachineListener(stateMachineHandle));
+
+    // If we move we should now point to the new listener
+    CommandQueue::FileListener newFileListener = std::move(fileListener);
+    auto listenerPtr = commandQueue->testing_getFileListener(fileHandle);
+    CHECK(&newFileListener == listenerPtr);
+
+    CommandQueue::ArtboardListener newArtboardListener =
+        std::move(artboardListener);
+    auto listenerPtr1 =
+        commandQueue->testing_getArtboardListener(artboardHandle);
+    CHECK(&newArtboardListener == listenerPtr1);
+
+    CommandQueue::StateMachineListener newStateMachineListener =
+        std::move(stateMachineListener);
+    auto listenerPtr2 =
+        commandQueue->testing_getStateMachineListener(stateMachineHandle);
+    CHECK(&newStateMachineListener == listenerPtr2);
+
+    // force unref the commandQueue to ensure it stays alive for listeners
+    commandQueue.reset();
+
+    // after this we are checking the destructors for fileListener,
+    // artboardListener and stateMachineListener as they should gracefully
+    // remove themselves from the commandQeueue even though the ref here is gone
 }
