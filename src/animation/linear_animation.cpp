@@ -4,6 +4,7 @@
 #include "rive/artboard.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/import_stack.hpp"
+#include "rive/math/math_types.hpp"
 #include <cmath>
 
 using namespace rive;
@@ -108,12 +109,7 @@ float LinearAnimation::durationSeconds() const
 static float positiveMod(float value, float range)
 {
     assert(range > 0.0f);
-    float v = fmodf(value, range);
-    if (v < 0.0f)
-    {
-        v += range;
-    }
-    return v;
+    return math::positive_mod(value, range);
 }
 
 float LinearAnimation::globalToLocalSeconds(float seconds) const

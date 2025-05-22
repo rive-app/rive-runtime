@@ -11,6 +11,7 @@
 #include "rive/data_bind/converters/formula/formula_token_parenthesis_close.hpp"
 #include "rive/animation/arithmetic_operation.hpp"
 #include "rive/function_type.hpp"
+#include "rive/math/math_types.hpp"
 #include <cmath>
 
 using namespace rive;
@@ -209,7 +210,7 @@ float DataConverterFormula::applyOperation(float left,
         case ArithmeticOperation::divide:
             return left / right;
         case ArithmeticOperation::modulo:
-            return fmodf(left, right);
+            return math::positive_mod(left, right);
         default:
             return 0.0f;
     }

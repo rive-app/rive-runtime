@@ -50,7 +50,8 @@ DataValueNumber* DataConverterRangeMapper::calculateRange(DataValue* input,
                 // apply modulo to value to wrap whithin the min - max input if
                 // it exceeds its range
                 value =
-                    std::abs(fmodf(value, (maxInput - minInput)) + minInput);
+                    std::abs(math::positive_mod(value, (maxInput - minInput)) +
+                             minInput);
             }
             float perc = (value - minInput) / (maxInput - minInput);
             // If reverse flag is on, flip the values

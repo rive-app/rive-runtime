@@ -128,3 +128,14 @@ TEST_CASE("round_up_to_multiple_of", "[math]")
     }
     CHECK(math::round_up_to_multiple_of<2>(~size_t(0)) == 0);
 }
+
+// Check math::positive_mod.
+TEST_CASE("positive_mod", "[math]")
+{
+    CHECK(math::positive_mod(1, 1) == 0);
+    CHECK(math::positive_mod(10, 7) == 3);
+    CHECK(math::positive_mod(-4, 3) == 2);
+    CHECK(math::positive_mod(-5.5f, 7.0f) == 1.5f);
+    CHECK(math::positive_mod(-5.5f, -70.0f) == 64.5f);
+    CHECK(math::positive_mod(45.5f, -12.0f) == 9.5f);
+}

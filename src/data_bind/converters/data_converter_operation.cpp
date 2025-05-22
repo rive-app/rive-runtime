@@ -30,7 +30,7 @@ DataValue* DataConverterOperation::convertValue(DataValue* input, float value)
                 resultValue = inputValue / resultValue;
                 break;
             case ArithmeticOperation::modulo:
-                resultValue = fmodf(inputValue, resultValue);
+                resultValue = math::positive_mod(inputValue, resultValue);
                 break;
             case ArithmeticOperation::squareRoot:
                 resultValue = sqrtf(inputValue);

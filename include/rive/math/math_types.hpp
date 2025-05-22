@@ -140,6 +140,23 @@ RIVE_ALWAYS_INLINE static float clamp(float x, float lo, float hi)
     return fminf(fmaxf(lo, x), hi);
 }
 
+// Matches Dart modulus:
+// https://api.dart.dev/stable/2.19.0/dart-core/double/operator_modulo.html
+RIVE_ALWAYS_INLINE static float positive_mod(float value, float range)
+{
+    // assert(range > 0.0f);
+    if (range < 0)
+    {
+        range = -range;
+    }
+    float v = fmodf(value, range);
+    if (v < 0.0f)
+    {
+        v += range;
+    }
+    return v;
+}
+
 inline float degrees_to_radians(float degrees) { return degrees * PI / 180.0f; }
 
 RIVE_ALWAYS_INLINE static float degreesToRadians(float degrees)
