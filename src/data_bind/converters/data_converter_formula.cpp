@@ -513,6 +513,14 @@ void DataConverterFormula::bindFromContext(DataContext* dataContext,
     }
 }
 
+void DataConverterFormula::unbind()
+{
+    for (auto& token : m_outputQueue)
+    {
+        token->unbind();
+    }
+}
+
 void DataConverterFormula::update()
 {
     for (auto& token : m_outputQueue)

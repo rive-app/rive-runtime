@@ -44,6 +44,14 @@ void FormulaToken::bindFromContext(DataContext* dataContext, DataBind* dataBind)
     }
 }
 
+void FormulaToken::unbind()
+{
+    for (auto dataBind : m_dataBinds)
+    {
+        dataBind->unbind();
+    }
+}
+
 void FormulaToken::update()
 {
     for (auto dataBind : m_dataBinds)

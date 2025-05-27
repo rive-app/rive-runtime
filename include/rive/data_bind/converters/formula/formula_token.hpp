@@ -13,6 +13,7 @@ public:
     StatusCode import(ImportStack& importStack) override;
 
     virtual void bindFromContext(DataContext* dataContext, DataBind* dataBind);
+    virtual void unbind();
     virtual void update();
     void markDirty();
     void addDataBind(DataBind* dataBind);

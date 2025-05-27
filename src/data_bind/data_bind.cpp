@@ -157,6 +157,10 @@ void DataBind::clearSource()
             m_Source->removeDependent(this);
             m_Source->unref();
         }
+        if (m_dataConverter != nullptr)
+        {
+            m_dataConverter->unbind();
+        }
         m_Source = nullptr;
     }
 }

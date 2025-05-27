@@ -47,6 +47,14 @@ void DataConverter::bindFromContext(DataContext* dataContext,
     }
 }
 
+void DataConverter::unbind()
+{
+    for (auto dataBind : m_dataBinds)
+    {
+        dataBind->unbind();
+    }
+}
+
 void DataConverter::markConverterDirty()
 {
     m_parentDataBind->addDirt(ComponentDirt::Dependents |

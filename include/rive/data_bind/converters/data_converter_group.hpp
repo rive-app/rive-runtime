@@ -24,6 +24,7 @@ public:
     const std::vector<DataConverterGroupItem*>& items() { return m_items; }
     Core* clone() const override;
     void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
+    void unbind() override;
     void update() override;
     bool advance(float elapsedSeconds) override;
 

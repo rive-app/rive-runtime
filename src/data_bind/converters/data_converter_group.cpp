@@ -73,6 +73,18 @@ void DataConverterGroup::bindFromContext(DataContext* dataContext,
     }
 }
 
+void DataConverterGroup::unbind()
+{
+    for (auto& item : m_items)
+    {
+        auto converter = item->converter();
+        if (converter != nullptr)
+        {
+            converter->unbind();
+        }
+    }
+}
+
 void DataConverterGroup::update()
 {
     for (auto& item : m_items)
