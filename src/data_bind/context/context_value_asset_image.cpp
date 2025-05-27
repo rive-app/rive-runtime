@@ -46,6 +46,14 @@ void DataBindContextValueAssetImage::apply(Core* target,
                 source->as<ViewModelInstanceAssetImage>()->asset());
         }
     }
+    else
+    {
+        auto source = m_dataBind->source();
+        CoreRegistry::setUint(
+            target,
+            propertyKey,
+            source->as<ViewModelInstanceAssetImage>()->propertyValue());
+    }
 }
 
 bool DataBindContextValueAssetImage::syncTargetValue(Core* target,
