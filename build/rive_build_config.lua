@@ -78,6 +78,7 @@ newoption({
         { 'xrsimulator', 'Builds for Apple Vision Pro simulator' },
         { 'appletvos', 'Builds for Apple TV' },
         { 'appletvsimulator', 'Builds for Apple TV simulator' },
+        { 'maccatalyst', 'Builds for Mac Catalyst' },
         {
             'runtime',
             'Build the static library specifically targeting our runtimes',
@@ -593,7 +594,7 @@ if os.host() == 'macosx' then
         buildoptions({ '-fobjc-arc' })
     end
 
-    filter({ 'system:macosx' })
+    filter({ 'system:macosx', 'options:not variant=maccatalyst' })
     do
         buildoptions({
             '-mmacosx-version-min=11.0',
@@ -645,6 +646,24 @@ if os.host() == 'macosx' then
     })
     do
         buildoptions({ '-arch arm64' })
+    end
+
+    filter({
+        'system:macosx',
+        'options:variant=maccatalyst',
+        'options:arch=arm64'
+    })
+    do
+        buildoptions({ '-target arm64-apple-ios14.0-macabi' })
+    end
+
+    filter({
+        'system:macosx',
+        'options:variant=maccatalyst',
+        'options:arch=x64'
+    })
+    do
+        buildoptions({ '-target x86_64-apple-ios14.0-macabi' })
     end
 
     filter({})

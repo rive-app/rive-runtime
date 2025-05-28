@@ -11,6 +11,13 @@ do
     do
         files({ 'miniaudio.m' })
     end
+
+    filter('system:macosx', 'options:variant=maccatalyst')
+    do
+        files({ 'miniaudio.m' })
+        compileas "Objective-C++"
+    end
+    
     filter('system:not ios')
     do
         files({ miniaudio .. '/miniaudio.c' })
