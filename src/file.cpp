@@ -68,6 +68,7 @@
 #include "rive/viewmodel/viewmodel_property_enum_system.hpp"
 #include "rive/viewmodel/viewmodel_property_list.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
+#include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 
 // Default namespace for Rive Cpp code
@@ -788,6 +789,10 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                 break;
                 case ViewModelPropertyAssetImageBase::typeKey:
                     viewModelInstanceValue = new ViewModelInstanceAssetImage();
+                    break;
+                case ViewModelPropertySymbolListIndexBase::typeKey:
+                    viewModelInstanceValue =
+                        new ViewModelInstanceSymbolListIndex();
                     break;
                 default:
                     break;
