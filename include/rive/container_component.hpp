@@ -1,14 +1,22 @@
 #ifndef _RIVE_CONTAINER_COMPONENT_HPP_
 #define _RIVE_CONTAINER_COMPONENT_HPP_
 #include "rive/generated/container_component_base.hpp"
+#include "rive/typed_children.hpp"
 #include <vector>
 #include <functional>
 
 namespace rive
 {
+
 class ContainerComponent : public ContainerComponentBase
 {
 public:
+    template <typename T> TypedChildren<T> children()
+    {
+        return TypedChildren<T>(
+            Span<Core*>((Core**)m_children.data(), m_children.size()));
+    }
+
     const std::vector<Component*>& children() const { return m_children; }
     virtual void addChild(Component* component);
     bool collapse(bool value) override;
@@ -17,7 +25,8 @@ public:
     bool forAll(std::function<bool(Component*)> predicate);
 
     // Recursively descend onto all the children in the hierarchy tree.
-    // If predicate returns false, it won't recurse down a particular branch.
+    // If predicate returns false, it won't recurse down a particular
+    // branch.
     void forEachChild(std::function<bool(Component*)> predicate);
 
 private:

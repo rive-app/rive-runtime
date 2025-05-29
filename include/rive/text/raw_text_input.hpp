@@ -80,7 +80,7 @@ public:
 
     /// Returns the bounds of the text object (helpful for aligning multiple
     /// text objects/procredurally drawn shapes).
-    AABB bounds();
+    AABB bounds() const;
     CursorVisualPosition cursorVisualPosition(CursorPosition position)
     {
         return position.visualPosition(m_shape);

@@ -1,6 +1,6 @@
 #include "rive/core_context.hpp"
 #include "rive/text/text.hpp"
-#include "rive/text/text_style.hpp"
+#include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/artboard.hpp"
 #include "rive/hittest_command_path.hpp"
@@ -41,12 +41,12 @@ StatusCode TextValueRun::onAddedDirty(CoreContext* context)
         return code;
     }
     auto coreObject = context->resolve(styleId());
-    if (coreObject == nullptr || !coreObject->is<TextStyle>())
+    if (coreObject == nullptr || !coreObject->is<TextStylePaint>())
     {
         return StatusCode::MissingObject;
     }
 
-    m_style = static_cast<TextStyle*>(coreObject);
+    m_style = static_cast<TextStylePaint*>(coreObject);
 
     return StatusCode::Ok;
 }
@@ -54,9 +54,9 @@ StatusCode TextValueRun::onAddedDirty(CoreContext* context)
 void TextValueRun::styleIdChanged()
 {
     auto coreObject = artboard()->resolve(styleId());
-    if (coreObject != nullptr && coreObject->is<TextStyle>())
+    if (coreObject != nullptr && coreObject->is<TextStylePaint>())
     {
-        m_style = static_cast<TextStyle*>(coreObject);
+        m_style = static_cast<TextStylePaint*>(coreObject);
         parent()->as<Text>()->markShapeDirty();
     }
 }

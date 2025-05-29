@@ -4,7 +4,7 @@
 #include "rive/text/text_shape_modifier.hpp"
 #include "rive/text/text_modifier_range.hpp"
 #include "rive/text/glyph_lookup.hpp"
-#include "rive/text/text_style.hpp"
+#include "rive/text/text_style_paint.hpp"
 #include "rive/artboard.hpp"
 #include <limits>
 
@@ -288,7 +288,7 @@ TextRun TextModifierGroup::modifyShape(const Text& text,
                                        TextRun run,
                                        float strength)
 {
-    const TextStyle* style = text.styleFromShaperId(run.styleId);
+    const TextStylePaint* style = text.styleFromShaperId(run.styleId);
     if (style == nullptr || style->font() == nullptr)
     {
         return run;

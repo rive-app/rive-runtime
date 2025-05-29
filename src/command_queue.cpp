@@ -36,8 +36,11 @@ CommandQueue::CommandQueue() {}
 CommandQueue::~CommandQueue() {}
 
 FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
-                                  FileListener* listener)
+                                  rcp<FileAssetLoader> loader,
+                                  FileListener* listener,
+                                  RequestId* outId)
 {
+    auto requestId = ++m_currentRequestIdIdx;
     auto handle = reinterpret_cast<FileHandle>(++m_currentFileHandleIdx);
 
     if (listener)
@@ -47,26 +50,40 @@ FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
         registerListener(handle, listener);
     }
 
+    if (outId)
+    {
+        *outId = requestId;
+    }
+
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::loadFile;
     m_commandStream << handle;
+    m_commandStream << requestId;
+    m_commandStream << loader;
     m_byteVectors << std::move(rivBytes);
 
     return handle;
 }
 
-void CommandQueue::deleteFile(FileHandle fileHandle)
+RequestId CommandQueue::deleteFile(FileHandle fileHandle)
 {
+    auto requestId = ++m_currentRequestIdIdx;
+
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::deleteFile;
     m_commandStream << fileHandle;
+    m_commandStream << requestId;
+
+    return requestId;
 }
 
 ArtboardHandle CommandQueue::instantiateArtboardNamed(
     FileHandle fileHandle,
     std::string name,
-    ArtboardListener* listener)
+    ArtboardListener* listener,
+    RequestId* outId)
 {
+    auto requestId = ++m_currentRequestIdIdx;
     auto handle =
         reinterpret_cast<ArtboardHandle>(++m_currentArtboardHandleIdx);
 
@@ -77,27 +94,40 @@ ArtboardHandle CommandQueue::instantiateArtboardNamed(
         registerListener(handle, listener);
     }
 
+    if (outId)
+    {
+        *outId = requestId;
+    }
+
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::instantiateArtboard;
     m_commandStream << handle;
     m_commandStream << fileHandle;
+    m_commandStream << requestId;
     m_names << std::move(name);
 
     return handle;
 }
 
-void CommandQueue::deleteArtboard(ArtboardHandle artboardHandle)
+RequestId CommandQueue::deleteArtboard(ArtboardHandle artboardHandle)
 {
+    auto requestId = ++m_currentRequestIdIdx;
+
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::deleteArtboard;
     m_commandStream << artboardHandle;
+    m_commandStream << requestId;
+
+    return requestId;
 }
 
 StateMachineHandle CommandQueue::instantiateStateMachineNamed(
     ArtboardHandle artboardHandle,
     std::string name,
-    StateMachineListener* listener)
+    StateMachineListener* listener,
+    RequestId* outId)
 {
+    auto requestId = ++m_currentRequestIdIdx;
     auto handle =
         reinterpret_cast<StateMachineHandle>(++m_currentStateMachineHandleIdx);
 
@@ -108,20 +138,32 @@ StateMachineHandle CommandQueue::instantiateStateMachineNamed(
         registerListener(handle, listener);
     }
 
+    if (outId)
+    {
+        *outId = requestId;
+    }
+
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::instantiateStateMachine;
     m_commandStream << handle;
     m_commandStream << artboardHandle;
+    m_commandStream << requestId;
     m_names << std::move(name);
 
     return handle;
 }
 
-void CommandQueue::deleteStateMachine(StateMachineHandle stateMachineHandle)
+RequestId CommandQueue::deleteStateMachine(
+    StateMachineHandle stateMachineHandle)
 {
+    auto requestId = ++m_currentRequestIdIdx;
+
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::deleteStateMachine;
     m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+
+    return requestId;
 }
 
 DrawKey CommandQueue::createDrawKey()
@@ -187,18 +229,28 @@ void CommandQueue::disconnect()
     m_commandStream << Command::disconnect;
 }
 
-void CommandQueue::requestArtboardNames(FileHandle fileHandle)
+RequestId CommandQueue::requestArtboardNames(FileHandle fileHandle)
 {
+    auto requestId = ++m_currentRequestIdIdx;
+
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::listArtboards;
     m_commandStream << fileHandle;
+    m_commandStream << requestId;
+
+    return requestId;
 }
 
-void CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle)
+RequestId CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle)
 {
+    auto requestId = ++m_currentRequestIdIdx;
+
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::listStateMachines;
     m_commandStream << artboardHandle;
+    m_commandStream << requestId;
+
+    return requestId;
 }
 
 void CommandQueue::processMessages()
@@ -226,7 +278,9 @@ void CommandQueue::processMessages()
             {
                 size_t numArtboards;
                 FileHandle handle;
+                RequestId requestId;
                 m_messageStream >> handle;
+                m_messageStream >> requestId;
                 m_messageStream >> numArtboards;
                 std::vector<std::string> artboardNames(numArtboards);
                 for (auto& name : artboardNames)
@@ -239,6 +293,7 @@ void CommandQueue::processMessages()
                 if (itr != m_fileListeners.end())
                 {
                     itr->second->onArtboardsListed(itr->first,
+                                                   requestId,
                                                    std::move(artboardNames));
                 }
                 break;
@@ -247,7 +302,9 @@ void CommandQueue::processMessages()
             {
                 size_t numStateMachines;
                 ArtboardHandle handle;
+                RequestId requestId;
                 m_messageStream >> handle;
+                m_messageStream >> requestId;
                 m_messageStream >> numStateMachines;
                 std::vector<std::string> stateMachineNames(numStateMachines);
                 for (auto& name : stateMachineNames)
@@ -261,6 +318,7 @@ void CommandQueue::processMessages()
                 {
                     itr->second->onStateMachinesListed(
                         itr->first,
+                        requestId,
                         std::move(stateMachineNames));
                 }
 
@@ -269,12 +327,14 @@ void CommandQueue::processMessages()
             case Message::fileDeleted:
             {
                 FileHandle handle;
+                RequestId requestId;
                 m_messageStream >> handle;
+                m_messageStream >> requestId;
                 lock.unlock();
                 auto itr = m_fileListeners.find(handle);
                 if (itr != m_fileListeners.end())
                 {
-                    itr->second->onFileDeleted(handle);
+                    itr->second->onFileDeleted(handle, requestId);
                     m_fileListeners.erase(itr);
                 }
                 break;
@@ -282,12 +342,14 @@ void CommandQueue::processMessages()
             case Message::artboardDeleted:
             {
                 ArtboardHandle handle;
+                RequestId requestId;
                 m_messageStream >> handle;
+                m_messageStream >> requestId;
                 lock.unlock();
                 auto itr = m_artboardListeners.find(handle);
                 if (itr != m_artboardListeners.end())
                 {
-                    itr->second->onArtboardDeleted(handle);
+                    itr->second->onArtboardDeleted(handle, requestId);
                     m_artboardListeners.erase(itr);
                 }
                 break;
@@ -295,12 +357,14 @@ void CommandQueue::processMessages()
             case Message::stateMachineDeleted:
             {
                 StateMachineHandle handle;
+                RequestId requestId;
                 m_messageStream >> handle;
+                m_messageStream >> requestId;
                 lock.unlock();
                 auto itr = m_stateMachineListeners.find(handle);
                 if (itr != m_stateMachineListeners.end())
                 {
-                    itr->second->onStateMachineDeleted(handle);
+                    itr->second->onStateMachineDeleted(handle, requestId);
                     m_stateMachineListeners.erase(itr);
                 }
                 break;

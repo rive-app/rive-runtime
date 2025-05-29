@@ -384,7 +384,7 @@ void RawTextInput::buildTextPaths(Factory* factory)
     }
 }
 
-AABB RawTextInput::bounds() { return m_shape.bounds(); }
+AABB RawTextInput::bounds() const { return m_shape.bounds(); }
 
 void RawTextInput::paragraphSpacing(float value)
 {

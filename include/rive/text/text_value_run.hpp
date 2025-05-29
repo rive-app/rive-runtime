@@ -7,7 +7,7 @@
 
 namespace rive
 {
-class TextStyle;
+class TextStylePaint;
 class Text;
 class TextValueRun : public TextValueRunBase, public Hittable
 {
@@ -16,7 +16,7 @@ class TextValueRun : public TextValueRunBase, public Hittable
 public:
     StatusCode onAddedClean(CoreContext* context) override;
     StatusCode onAddedDirty(CoreContext* context) override;
-    TextStyle* style() { return m_style; }
+    TextStylePaint* style() { return m_style; }
     Text* textComponent() const;
     uint32_t length()
     {
@@ -62,7 +62,7 @@ private:
     AABB m_localBounds;
     bool m_isHitTarget = false;
     std::vector<AABB> m_glyphHitRects;
-    TextStyle* m_style = nullptr;
+    TextStylePaint* m_style = nullptr;
     uint32_t m_length = -1;
     bool canHitTest() const;
 };

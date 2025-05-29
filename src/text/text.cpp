@@ -5,7 +5,7 @@ using namespace rive;
 #include "rive/component_dirt.hpp"
 #include "rive/math/rectangles_to_contour.hpp"
 #include "rive/math/transform_components.hpp"
-#include "rive/text/text_style.hpp"
+#include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_modifier_group.hpp"
 #include "rive/shapes/paint/shape_paint.hpp"
@@ -59,7 +59,7 @@ TextSizing Text::effectiveSizing() const
 
 void Text::clearRenderStyles()
 {
-    for (TextStyle* style : m_renderStyles)
+    for (TextStylePaint* style : m_renderStyles)
     {
         style->rewindPath();
     }
@@ -389,7 +389,7 @@ void Text::buildRenderStyles()
 
                 assert(run->styleId < m_runs.size());
                 TextValueRun* textValueRun = m_runs[run->styleId];
-                TextStyle* style = textValueRun->style();
+                TextStylePaint* style = textValueRun->style();
                 // TextValueRun::onAddedDirty botches loading if it cannot
                 // resolve a style, so we're confident we have a style here.
                 assert(style != nullptr);
@@ -495,7 +495,7 @@ skipLines:
     }
 }
 
-const TextStyle* Text::styleFromShaperId(uint16_t id) const
+const TextStylePaint* Text::styleFromShaperId(uint16_t id) const
 {
     assert(id < m_runs.size());
     return m_runs[id]->style();
@@ -536,6 +536,8 @@ void Text::addModifierGroup(TextModifierGroup* group)
     m_modifierGroups.push_back(group);
 }
 
+void Text::markShapeDirty() { markShapeDirty(true); }
+
 void Text::markShapeDirty(bool sendToLayout)
 {
     addDirt(ComponentDirt::Path);
@@ -551,19 +553,6 @@ void Text::markShapeDirty(bool sendToLayout)
     }
 #endif
 }
-
-#ifdef WITH_RIVE_LAYOUT
-void Text::markLayoutNodeDirty()
-{
-    for (ContainerComponent* p = parent(); p != nullptr; p = p->parent())
-    {
-        if (p->is<LayoutComponent>())
-        {
-            p->as<LayoutComponent>()->markLayoutNodeDirty();
-        }
-    }
-}
-#endif
 
 void Text::modifierShapeDirty() { addDirt(ComponentDirt::Path); }
 
@@ -717,7 +706,7 @@ void Text::onDirty(ComponentDirt value)
     }
     if (hasDirt(value, ComponentDirt::Path | ComponentDirt::Paint))
     {
-        for (TextStyle* style : m_renderStyles)
+        for (TextStylePaint* style : m_renderStyles)
         {
             style->invalidateStrokeEffects();
         }
@@ -808,7 +797,7 @@ void Text::update(ComponentDirt value)
     {
         // Note that buildRenderStyles does this too, which is why we can get
         // away doing this in the else.
-        for (TextStyle* style : m_renderStyles)
+        for (TextStylePaint* style : m_renderStyles)
         {
             style->propagateOpacity(renderOpacity());
         }
@@ -963,6 +952,7 @@ Core* Text::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 void Text::addRun(TextValueRun* run) {}
 void Text::addModifierGroup(TextModifierGroup* group) {}
 void Text::markShapeDirty(bool sendToLayout) {}
+void Text::markShapeDirty() {}
 void Text::update(ComponentDirt value) {}
 void Text::onDirty(ComponentDirt value) {}
 void Text::alignValueChanged() {}
@@ -973,7 +963,10 @@ void Text::heightChanged() {}
 void Text::markPaintDirty() {}
 void Text::modifierShapeDirty() {}
 bool Text::modifierRangesNeedShape() const { return false; }
-const TextStyle* Text::styleFromShaperId(uint16_t id) const { return nullptr; }
+const TextStylePaint* Text::styleFromShaperId(uint16_t id) const
+{
+    return nullptr;
+}
 void Text::paragraphSpacingChanged() {}
 AABB Text::localBounds() const { return AABB(); }
 void Text::originValueChanged() {}

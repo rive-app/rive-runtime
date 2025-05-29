@@ -1,6 +1,7 @@
 #ifndef _RIVE_FILE_ASSET_IMPORTER_HPP_
 #define _RIVE_FILE_ASSET_IMPORTER_HPP_
 
+#include "rive/refcnt.hpp"
 #include "rive/importers/import_stack.hpp"
 #include <unordered_map>
 #include <vector>
@@ -16,13 +17,13 @@ class FileAssetImporter : public ImportStackObject
 {
 private:
     FileAsset* m_FileAsset;
-    FileAssetLoader* m_FileAssetLoader;
+    rcp<FileAssetLoader> m_FileAssetLoader;
     Factory* m_Factory;
     // we will delete this when we go out of scope
     std::unique_ptr<FileAssetContents> m_Content;
 
 public:
-    FileAssetImporter(FileAsset*, FileAssetLoader*, Factory*);
+    FileAssetImporter(FileAsset*, rcp<FileAssetLoader>, Factory*);
     void onFileAssetContents(std::unique_ptr<FileAssetContents> contents);
     StatusCode resolve() override;
 };

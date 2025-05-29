@@ -4,6 +4,8 @@
 
 #pragma once
 
+#include "rive/refcnt.hpp"
+
 #include <cassert>
 #include <deque>
 
@@ -60,6 +62,19 @@ public:
         std::copy(m_byteStream.begin(), m_byteStream.begin() + sizeof(T), data);
         m_byteStream.erase(m_byteStream.begin(),
                            m_byteStream.begin() + sizeof(T));
+        return *this;
+    }
+
+    template <typename T> PODStream& operator<<(rcp<T> obj)
+    {
+        return *this << obj.release();
+    }
+
+    template <typename T> PODStream& operator>>(rcp<T>& obj)
+    {
+        T* raw;
+        *this >> raw;
+        obj = rcp<T>(raw);
         return *this;
     }
 

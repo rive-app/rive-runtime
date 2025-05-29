@@ -219,6 +219,12 @@
 #include "rive/solo.hpp"
 #include "rive/text/text.hpp"
 #include "rive/text/text_follow_path_modifier.hpp"
+#include "rive/text/text_input.hpp"
+#include "rive/text/text_input_cursor.hpp"
+#include "rive/text/text_input_drawable.hpp"
+#include "rive/text/text_input_selected_text.hpp"
+#include "rive/text/text_input_selection.hpp"
+#include "rive/text/text_input_text.hpp"
 #include "rive/text/text_modifier.hpp"
 #include "rive/text/text_modifier_group.hpp"
 #include "rive/text/text_modifier_range.hpp"
@@ -226,6 +232,7 @@
 #include "rive/text/text_style.hpp"
 #include "rive/text/text_style_axis.hpp"
 #include "rive/text/text_style_feature.hpp"
+#include "rive/text/text_style_paint.hpp"
 #include "rive/text/text_target_modifier.hpp"
 #include "rive/text/text_value_run.hpp"
 #include "rive/text/text_variation_modifier.hpp"
@@ -312,12 +319,18 @@ public:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
-            case ViewModelInstanceBase::typeKey:
-                return new ViewModelInstance();
-            case ViewModelPropertyBooleanBase::typeKey:
-                return new ViewModelPropertyBoolean();
+            case DataEnumValueBase::typeKey:
+                return new DataEnumValue();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
+            case ViewModelPropertyStringBase::typeKey:
+                return new ViewModelPropertyString();
             case ViewModelPropertyColorBase::typeKey:
                 return new ViewModelPropertyColor();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
+            case ViewModelInstanceBase::typeKey:
+                return new ViewModelInstance();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -330,18 +343,12 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
-            case ViewModelPropertyStringBase::typeKey:
-                return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
-            case ViewModelPropertyTriggerBase::typeKey:
-                return new ViewModelPropertyTrigger();
             case ViewModelInstanceAssetBase::typeKey:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
-            case DataEnumValueBase::typeKey:
-                return new DataEnumValue();
             case DrawTargetBase::typeKey:
                 return new DrawTarget();
             case CustomPropertyNumberBase::typeKey:
@@ -670,6 +677,10 @@ public:
                 return new TextModifierRange();
             case TextFollowPathModifierBase::typeKey:
                 return new TextFollowPathModifier();
+            case TextInputCursorBase::typeKey:
+                return new TextInputCursor();
+            case TextInputTextBase::typeKey:
+                return new TextInputText();
             case TextStyleFeatureBase::typeKey:
                 return new TextStyleFeature();
             case TextVariationModifierBase::typeKey:
@@ -678,8 +689,16 @@ public:
                 return new TextModifierGroup();
             case TextStyleBase::typeKey:
                 return new TextStyle();
+            case TextStylePaintBase::typeKey:
+                return new TextStylePaint();
+            case TextInputSelectedTextBase::typeKey:
+                return new TextInputSelectedText();
+            case TextInputBase::typeKey:
+                return new TextInput();
             case TextStyleAxisBase::typeKey:
                 return new TextStyleAxis();
+            case TextInputSelectionBase::typeKey:
+                return new TextInputSelection();
             case TextBase::typeKey:
                 return new Text();
             case TextValueRunBase::typeKey:
@@ -1383,14 +1402,14 @@ public:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceStringBase>()->propertyValue(value);
                 break;
-            case ComponentBase::namePropertyKey:
-                object->as<ComponentBase>()->name(value);
-                break;
             case DataEnumValueBase::keyPropertyKey:
                 object->as<DataEnumValueBase>()->key(value);
                 break;
             case DataEnumValueBase::valuePropertyKey:
                 object->as<DataEnumValueBase>()->value(value);
+                break;
+            case ComponentBase::namePropertyKey:
+                object->as<ComponentBase>()->name(value);
                 break;
             case AnimationBase::namePropertyKey:
                 object->as<AnimationBase>()->name(value);
@@ -1418,6 +1437,9 @@ public:
                 break;
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 object->as<BindablePropertyStringBase>()->propertyValue(value);
+                break;
+            case TextInputBase::textPropertyKey:
+                object->as<TextInputBase>()->text(value);
                 break;
             case TextValueRunBase::textPropertyKey:
                 object->as<TextValueRunBase>()->text(value);
@@ -2169,6 +2191,9 @@ public:
             case TextStyleBase::letterSpacingPropertyKey:
                 object->as<TextStyleBase>()->letterSpacing(value);
                 break;
+            case TextInputBase::selectionRadiusPropertyKey:
+                object->as<TextInputBase>()->selectionRadius(value);
+                break;
             case TextStyleAxisBase::axisValuePropertyKey:
                 object->as<TextStyleAxisBase>()->axisValue(value);
                 break;
@@ -2705,12 +2730,12 @@ public:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceStringBase>()
                     ->propertyValue();
-            case ComponentBase::namePropertyKey:
-                return object->as<ComponentBase>()->name();
             case DataEnumValueBase::keyPropertyKey:
                 return object->as<DataEnumValueBase>()->key();
             case DataEnumValueBase::valuePropertyKey:
                 return object->as<DataEnumValueBase>()->value();
+            case ComponentBase::namePropertyKey:
+                return object->as<ComponentBase>()->name();
             case AnimationBase::namePropertyKey:
                 return object->as<AnimationBase>()->name();
             case StateMachineComponentBase::namePropertyKey:
@@ -2731,6 +2756,8 @@ public:
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyStringBase>()
                     ->propertyValue();
+            case TextInputBase::textPropertyKey:
+                return object->as<TextInputBase>()->text();
             case TextValueRunBase::textPropertyKey:
                 return object->as<TextValueRunBase>()->text();
             case CustomPropertyStringBase::propertyValuePropertyKey:
@@ -3250,6 +3277,8 @@ public:
                 return object->as<TextStyleBase>()->lineHeight();
             case TextStyleBase::letterSpacingPropertyKey:
                 return object->as<TextStyleBase>()->letterSpacing();
+            case TextInputBase::selectionRadiusPropertyKey:
+                return object->as<TextInputBase>()->selectionRadius();
             case TextStyleAxisBase::axisValuePropertyKey:
                 return object->as<TextStyleAxisBase>()->axisValue();
             case TextBase::widthPropertyKey:
@@ -3482,9 +3511,9 @@ public:
             case ViewModelComponentBase::namePropertyKey:
             case DataEnumCustomBase::namePropertyKey:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
-            case ComponentBase::namePropertyKey:
             case DataEnumValueBase::keyPropertyKey:
             case DataEnumValueBase::valuePropertyKey:
+            case ComponentBase::namePropertyKey:
             case AnimationBase::namePropertyKey:
             case StateMachineComponentBase::namePropertyKey:
             case KeyFrameStringBase::valuePropertyKey:
@@ -3494,6 +3523,7 @@ public:
             case DataConverterStringPadBase::textPropertyKey:
             case DataConverterToStringBase::colorFormatPropertyKey:
             case BindablePropertyStringBase::propertyValuePropertyKey:
+            case TextInputBase::textPropertyKey:
             case TextValueRunBase::textPropertyKey:
             case CustomPropertyStringBase::propertyValuePropertyKey:
             case AssetBase::namePropertyKey:
@@ -3740,6 +3770,7 @@ public:
             case TextStyleBase::fontSizePropertyKey:
             case TextStyleBase::lineHeightPropertyKey:
             case TextStyleBase::letterSpacingPropertyKey:
+            case TextInputBase::selectionRadiusPropertyKey:
             case TextStyleAxisBase::axisValuePropertyKey:
             case TextBase::widthPropertyKey:
             case TextBase::heightPropertyKey:
@@ -4184,12 +4215,12 @@ public:
                 return object->is<DataEnumCustomBase>();
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceStringBase>();
-            case ComponentBase::namePropertyKey:
-                return object->is<ComponentBase>();
             case DataEnumValueBase::keyPropertyKey:
                 return object->is<DataEnumValueBase>();
             case DataEnumValueBase::valuePropertyKey:
                 return object->is<DataEnumValueBase>();
+            case ComponentBase::namePropertyKey:
+                return object->is<ComponentBase>();
             case AnimationBase::namePropertyKey:
                 return object->is<AnimationBase>();
             case StateMachineComponentBase::namePropertyKey:
@@ -4208,6 +4239,8 @@ public:
                 return object->is<DataConverterToStringBase>();
             case BindablePropertyStringBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyStringBase>();
+            case TextInputBase::textPropertyKey:
+                return object->is<TextInputBase>();
             case TextValueRunBase::textPropertyKey:
                 return object->is<TextValueRunBase>();
             case CustomPropertyStringBase::propertyValuePropertyKey:
@@ -4694,6 +4727,8 @@ public:
                 return object->is<TextStyleBase>();
             case TextStyleBase::letterSpacingPropertyKey:
                 return object->is<TextStyleBase>();
+            case TextInputBase::selectionRadiusPropertyKey:
+                return object->is<TextInputBase>();
             case TextStyleAxisBase::axisValuePropertyKey:
                 return object->is<TextStyleAxisBase>();
             case TextBase::widthPropertyKey:

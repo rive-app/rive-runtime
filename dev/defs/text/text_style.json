@@ -1,7 +1,7 @@
 {
   "name": "TextStyle",
   "key": {
-    "int": 137,
+    "int": 573,
     "string": "textstyle"
   },
   "extends": "container_component.json",

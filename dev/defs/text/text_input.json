@@ -1,0 +1,41 @@
+{
+  "name": "TextInput",
+  "key": {
+    "int": 569,
+    "string": "textinput"
+  },
+  "extends": "drawable.json",
+  "properties": {
+    "text": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 817,
+        "string": "text"
+      },
+      "bindable": true
+    },
+    "selectionRadius": {
+      "type": "double",
+      "initialValue": "5.0",
+      "animates": true,
+      "key": {
+        "int": 818,
+        "string": "selectionradius"
+      },
+      "description": "Selection radius applied to the selection geometry",
+      "bindable": true
+    },
+    "fieldHeight": {
+      "type": "double",
+      "initialValue": "98.0",
+      "key": {
+        "int": 819,
+        "string": "fieldheight"
+      },
+      "description": "An edit time property used to track the height of the field in the inspector",
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

@@ -6,7 +6,11 @@
 #include "rive/foreground_layout_drawable.hpp"
 #include "rive/shapes/paint/stroke.hpp"
 #include "rive/shapes/shape.hpp"
-#include "rive/text/text_style.hpp"
+#include "rive/text/text_style_paint.hpp"
+#include "rive/text/text_input_selected_text.hpp"
+#include "rive/text/text_input_cursor.hpp"
+#include "rive/text/text_input_selection.hpp"
+#include "rive/text/text_input_text.hpp"
 
 using namespace rive;
 
@@ -20,10 +24,18 @@ ShapePaintContainer* ShapePaintContainer::from(Component* component)
             return component->as<LayoutComponent>();
         case Shape::typeKey:
             return component->as<Shape>();
-        case TextStyle::typeKey:
-            return component->as<TextStyle>();
+        case TextStylePaint::typeKey:
+            return component->as<TextStylePaint>();
         case ForegroundLayoutDrawable::typeKey:
             return component->as<ForegroundLayoutDrawable>();
+        case TextInputCursor::typeKey:
+            return component->as<TextInputCursor>();
+        case TextInputSelection::typeKey:
+            return component->as<TextInputSelection>();
+        case TextInputText::typeKey:
+            return component->as<TextInputText>();
+        case TextInputSelectedText::typeKey:
+            return component->as<TextInputSelectedText>();
     }
     return nullptr;
 }

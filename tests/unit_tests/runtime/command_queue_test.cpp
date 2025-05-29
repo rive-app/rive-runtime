@@ -7,6 +7,7 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/command_queue.hpp"
 #include "rive/command_server.hpp"
+#include "rive/file.hpp"
 #include "common/render_context_null.hpp"
 #include <fstream>
 
@@ -33,6 +34,35 @@ static void wait_for_server(CommandQueue* commandQueue)
     });
     while (!complete)
         cv.wait(lock);
+}
+
+class TestPODStream : public RefCnt<TestPODStream>
+{
+public:
+    static constexpr int MAG_NUMBER = 0x99;
+    int m_number = MAG_NUMBER;
+};
+
+TEST_CASE("POD Stream RCP", "[PODStream]")
+{
+    PODStream stream;
+    rcp<TestPODStream> t1 = make_rcp<TestPODStream>();
+    TestPODStream* orig = t1.get();
+    stream << t1;
+
+    CHECK(t1.get() != nullptr);
+    CHECK(t1.get() == orig);
+
+    rcp<TestPODStream> t2;
+    stream >> t2;
+    CHECK(t2.get() == orig);
+    CHECK(t2->m_number == TestPODStream::MAG_NUMBER);
+
+    rcp<TestPODStream> t3;
+    stream << t3;
+    rcp<TestPODStream> t4;
+    stream >> t4;
+    CHECK(t4.get() == nullptr);
 }
 
 TEST_CASE("artboard management", "[CommandQueue]")
@@ -486,13 +516,106 @@ TEST_CASE("disconnect", "[CommandQueue]")
     CHECK(!server.processCommands());
 }
 
+static constexpr uint32_t MAGIC_NUMBER = 0x50;
+
+class TestFileAssetLoader : public FileAssetLoader
+{
+public:
+    virtual bool loadContents(FileAsset& asset,
+                              Span<const uint8_t> inBandBytes,
+                              Factory* factory)
+    {
+        return false;
+    }
+
+    uint32_t m_magicNumber = MAGIC_NUMBER;
+};
+
+TEST_CASE("load file with asset loader", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+
+    CommandServer server(commandQueue, nullContext.get());
+    rcp<TestFileAssetLoader> loader = make_rcp<TestFileAssetLoader>();
+
+    std::ifstream stream("assets/entry.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        loader);
+
+    CHECK(fileHandle != RIVE_NULL_HANDLE);
+
+    server.processCommands();
+
+    {
+        auto aal = server.getFile(fileHandle)->testing_getAssetLoader();
+        CHECK(aal == loader.get());
+        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
+              MAGIC_NUMBER);
+    }
+
+    std::ifstream hstream("assets/entry.riv", std::ios::binary);
+    rcp<TestFileAssetLoader> heapLoader(new TestFileAssetLoader);
+    FileHandle heapFileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(hstream), {}),
+        heapLoader);
+
+    server.processCommands();
+
+    {
+        auto aal = server.getFile(fileHandle)->testing_getAssetLoader();
+        CHECK(aal == loader.get());
+        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
+              MAGIC_NUMBER);
+    }
+    {
+        auto aal = server.getFile(heapFileHandle)->testing_getAssetLoader();
+        CHECK(aal == heapLoader.get());
+        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
+              MAGIC_NUMBER);
+    }
+
+    rcp<TestFileAssetLoader> nullLoader = nullptr;
+
+    std::ifstream nstream("assets/entry.riv", std::ios::binary);
+    FileHandle nullFileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(nstream), {}),
+        nullLoader);
+
+    server.processCommands();
+
+    {
+        auto aal = server.getFile(fileHandle)->testing_getAssetLoader();
+        CHECK(aal == loader.get());
+        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
+              MAGIC_NUMBER);
+    }
+    {
+        auto aal = server.getFile(heapFileHandle)->testing_getAssetLoader();
+        CHECK(aal == heapLoader.get());
+        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
+              MAGIC_NUMBER);
+    }
+    {
+        auto aal = server.getFile(nullFileHandle)->testing_getAssetLoader();
+        CHECK(aal == nullLoader.get());
+    }
+
+    // How to test this better ??
+    commandQueue->disconnect();
+}
+
 class TestFileListener : public CommandQueue::FileListener
 {
 public:
     virtual void onArtboardsListed(
         const FileHandle handle,
+        RequestId requestId,
         std::vector<std::string> artboardNames) override
     {
+        CHECK(requestId == m_requestId);
         CHECK(handle == m_handle);
         CHECK(artboardNames.size() == m_artboardNames.size());
         for (auto i = 0; i < artboardNames.size(); ++i)
@@ -503,6 +626,7 @@ public:
         m_hasCallback = true;
     }
 
+    RequestId m_requestId;
     FileHandle m_handle;
     std::vector<std::string> m_artboardNames;
     bool m_hasCallback = false;
@@ -523,7 +647,7 @@ TEST_CASE("listArtboard", "[CommandQueue]")
     fileListener.m_artboardNames = {"New Artboard", "New Artboard"};
     fileListener.m_handle = goodFile;
 
-    commandQueue->requestArtboardNames(goodFile);
+    fileListener.m_requestId = commandQueue->requestArtboardNames(goodFile);
 
     wait_for_server(commandQueue.get());
 
@@ -553,8 +677,10 @@ class TestArtboardListener : public CommandQueue::ArtboardListener
 public:
     virtual void onStateMachinesListed(
         const ArtboardHandle handle,
+        RequestId requestId,
         std::vector<std::string> stateMachineNames) override
     {
+        CHECK(requestId == m_requestId);
         CHECK(handle == m_handle);
         CHECK(stateMachineNames.size() == m_stateMachineNames.size());
         for (auto i = 0; i < stateMachineNames.size(); ++i)
@@ -565,6 +691,7 @@ public:
         m_hasCallback = true;
     }
 
+    RequestId m_requestId;
     ArtboardHandle m_handle;
     std::vector<std::string> m_stateMachineNames;
     bool m_hasCallback = false;
@@ -588,7 +715,8 @@ TEST_CASE("listStateMachine", "[CommandQueue]")
     artboardListener.m_stateMachineNames = {"State Machine 1"};
     artboardListener.m_handle = artboardHandle;
 
-    commandQueue->requestStateMachineNames(artboardHandle);
+    artboardListener.m_requestId =
+        commandQueue->requestStateMachineNames(artboardHandle);
 
     wait_for_server(commandQueue.get());
 
@@ -604,7 +732,8 @@ TEST_CASE("listStateMachine", "[CommandQueue]")
     artboardListener.m_handle = badArtbaord;
     artboardListener.m_hasCallback = false;
 
-    commandQueue->requestStateMachineNames(badArtbaord);
+    artboardListener.m_requestId =
+        commandQueue->requestStateMachineNames(badArtbaord);
 
     wait_for_server(commandQueue.get());
 
@@ -619,12 +748,15 @@ TEST_CASE("listStateMachine", "[CommandQueue]")
 class DeleteFileListener : public CommandQueue::FileListener
 {
 public:
-    virtual void onFileDeleted(const FileHandle handle) override
+    virtual void onFileDeleted(const FileHandle handle,
+                               RequestId requestId) override
     {
+        CHECK(requestId == m_requestId);
         CHECK(handle == m_handle);
         m_hasCallback = true;
     }
 
+    RequestId m_requestId;
     FileHandle m_handle;
     bool m_hasCallback = false;
 };
@@ -632,12 +764,15 @@ public:
 class DeleteArtboardListener : public CommandQueue::ArtboardListener
 {
 public:
-    virtual void onArtboardDeleted(const ArtboardHandle handle) override
+    virtual void onArtboardDeleted(const ArtboardHandle handle,
+                                   RequestId requestId) override
     {
+        CHECK(requestId == m_requestId);
         CHECK(handle == m_handle);
         m_hasCallback = true;
     }
 
+    RequestId m_requestId;
     ArtboardHandle m_handle;
     bool m_hasCallback = false;
 };
@@ -645,12 +780,15 @@ public:
 class DeleteStateMachineListener : public CommandQueue::StateMachineListener
 {
 public:
-    virtual void onStateMachineDeleted(const StateMachineHandle handle) override
+    virtual void onStateMachineDeleted(const StateMachineHandle handle,
+                                       RequestId requestId) override
     {
+        CHECK(requestId == m_requestId);
         CHECK(handle == m_handle);
         m_hasCallback = true;
     }
 
+    RequestId m_requestId;
     StateMachineHandle m_handle;
     bool m_hasCallback = false;
 };
@@ -694,9 +832,10 @@ TEST_CASE("listenerDeleteCallbacks", "[CommandQueue]")
     CHECK(!artboardListener.m_hasCallback);
     CHECK(!stateMachineListener.m_hasCallback);
 
-    commandQueue->deleteStateMachine(stateMachineHandle);
-    commandQueue->deleteArtboard(artboardHandle);
-    commandQueue->deleteFile(goodFile);
+    stateMachineListener.m_requestId =
+        commandQueue->deleteStateMachine(stateMachineHandle);
+    artboardListener.m_requestId = commandQueue->deleteArtboard(artboardHandle);
+    fileListener.m_requestId = commandQueue->deleteFile(goodFile);
 
     wait_for_server(commandQueue.get());
     commandQueue->processMessages();
@@ -833,4 +972,23 @@ TEST_CASE("listenerLifeTimes", "[CommandQueue]")
     // after this we are checking the destructors for fileListener,
     // artboardListener and stateMachineListener as they should gracefully
     // remove themselves from the commandQeueue even though the ref here is gone
+}
+
+TEST_CASE("empty test for code cove", "[CommandQueue]")
+{
+    CommandQueue::FileListener fileL;
+    CommandQueue::ArtboardListener artboardL;
+    CommandQueue::StateMachineListener statemachineL;
+
+    std::vector<std::string> emptyVector;
+
+    fileL.onFileDeleted(0, 0);
+    fileL.onArtboardsListed(0, 0, emptyVector);
+
+    artboardL.onArtboardDeleted(0, 0);
+    artboardL.onStateMachinesListed(0, 0, emptyVector);
+
+    statemachineL.onStateMachineDeleted(0, 0);
+
+    CHECK(true);
 }

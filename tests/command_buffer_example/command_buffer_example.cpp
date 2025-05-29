@@ -61,6 +61,7 @@ class SimpleFileListener : public CommandQueue::FileListener
 public:
     virtual void onArtboardsListed(
         const FileHandle fileHandle,
+        RequestId requestId,
         std::vector<std::string> artboardNames) override
     {
         // we can guarantee that this is the only listener that will receive
@@ -76,6 +77,7 @@ class SimpleArtboardListener : public CommandQueue::ArtboardListener
 public:
     virtual void onStateMachinesListed(
         const ArtboardHandle fileHandle,
+        RequestId requestId,
         std::vector<std::string> stateMachineNames) override
     {
         // we can guarantee that this is the only listener that will receive
@@ -106,6 +108,16 @@ static void input_thread(rcp<CommandQueue> commandQueue)
     commandQueue->disconnect();
 }
 
+class DefaultFileAssetLoader : public rive::FileAssetLoader
+{
+    virtual bool loadContents(FileAsset& asset,
+                              Span<const uint8_t> inBandBytes,
+                              Factory* factory)
+    {
+        return false;
+    }
+};
+
 // this is a seperate thread for testing, it could just as easily be in
 // input_thread or the main thread
 static void draw_thread(rcp<CommandQueue> commandQueue)
@@ -114,8 +126,12 @@ static void draw_thread(rcp<CommandQueue> commandQueue)
     SimpleArtboardListener aListener;
     SimpleStateMachineListener stmListener;
 
-    FileHandle fileHandle =
-        commandQueue->loadFile(std::move(rivBytes), &fListener);
+    rcp<DefaultFileAssetLoader> defaultLoader =
+        make_rcp<DefaultFileAssetLoader>();
+
+    FileHandle fileHandle = commandQueue->loadFile(std::move(rivBytes),
+                                                   defaultLoader.get(),
+                                                   &fListener);
 
     ArtboardHandle artboardHandle =
         commandQueue->instantiateDefaultArtboard(fileHandle, &aListener);

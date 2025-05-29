@@ -1,5 +1,6 @@
 #include "rive/node.hpp"
 #include "rive/world_transform_component.hpp"
+#include "rive/layout_component.hpp"
 
 using namespace rive;
 
@@ -26,3 +27,16 @@ Mat2D Node::localTransform()
     }
     return m_LocalTransform;
 }
+
+#ifdef WITH_RIVE_LAYOUT
+void Node::markLayoutNodeDirty()
+{
+    for (ContainerComponent* p = parent(); p != nullptr; p = p->parent())
+    {
+        if (p->is<LayoutComponent>())
+        {
+            p->as<LayoutComponent>()->markLayoutNodeDirty();
+        }
+    }
+}
+#endif

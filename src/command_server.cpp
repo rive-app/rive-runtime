@@ -94,12 +94,19 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::loadFile:
             {
                 FileHandle handle;
+                RequestId requestId;
                 std::vector<uint8_t> rivBytes;
+                rcp<FileAssetLoader> loader;
                 commandStream >> handle;
+                commandStream >> requestId;
+                commandStream >> loader;
                 m_commandQueue->m_byteVectors >> rivBytes;
                 lock.unlock();
                 std::unique_ptr<rive::File> file =
-                    rive::File::import(rivBytes, m_factory);
+                    rive::File::import(rivBytes,
+                                       m_factory,
+                                       nullptr,
+                                       std::move(loader));
                 if (file != nullptr)
                 {
                     m_files[handle] = std::move(file);
@@ -114,7 +121,9 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::deleteFile:
             {
                 FileHandle handle;
+                RequestId requestId;
                 commandStream >> handle;
+                commandStream >> requestId;
                 lock.unlock();
                 m_files.erase(handle);
                 std::unique_lock<std::mutex> messageLock(
@@ -122,6 +131,7 @@ bool CommandServer::processCommands()
                 m_commandQueue->m_messageStream
                     << CommandQueue::Message::fileDeleted;
                 m_commandQueue->m_messageStream << handle;
+                m_commandQueue->m_messageStream << requestId;
                 break;
             }
 
@@ -129,9 +139,11 @@ bool CommandServer::processCommands()
             {
                 ArtboardHandle handle;
                 FileHandle fileHandle;
+                RequestId requestId;
                 std::string name;
                 commandStream >> handle;
                 commandStream >> fileHandle;
+                commandStream >> requestId;
                 m_commandQueue->m_names >> name;
                 lock.unlock();
                 if (rive::File* file = getFile(fileHandle))
@@ -155,7 +167,9 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::deleteArtboard:
             {
                 ArtboardHandle handle;
+                RequestId requestId;
                 commandStream >> handle;
+                commandStream >> requestId;
                 lock.unlock();
                 m_artboards.erase(handle);
                 std::unique_lock<std::mutex> messageLock(
@@ -163,6 +177,7 @@ bool CommandServer::processCommands()
                 m_commandQueue->m_messageStream
                     << CommandQueue::Message::artboardDeleted;
                 m_commandQueue->m_messageStream << handle;
+                m_commandQueue->m_messageStream << requestId;
                 break;
             }
 
@@ -170,9 +185,11 @@ bool CommandServer::processCommands()
             {
                 StateMachineHandle handle;
                 ArtboardHandle artboardHandle;
+                RequestId requestId;
                 std::string name;
                 commandStream >> handle;
                 commandStream >> artboardHandle;
+                commandStream >> requestId;
                 m_commandQueue->m_names >> name;
                 lock.unlock();
                 if (rive::ArtboardInstance* artboard =
@@ -197,7 +214,9 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::deleteStateMachine:
             {
                 StateMachineHandle handle;
+                RequestId requestId;
                 commandStream >> handle;
+                commandStream >> requestId;
                 lock.unlock();
                 m_stateMachines.erase(handle);
                 std::unique_lock<std::mutex> messageLock(
@@ -205,6 +224,7 @@ bool CommandServer::processCommands()
                 m_commandQueue->m_messageStream
                     << CommandQueue::Message::stateMachineDeleted;
                 m_commandQueue->m_messageStream << handle;
+                m_commandQueue->m_messageStream << requestId;
                 break;
             }
 
@@ -238,7 +258,9 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::listArtboards:
             {
                 FileHandle handle;
+                RequestId requestId;
                 commandStream >> handle;
+                commandStream >> requestId;
                 lock.unlock();
                 auto file = getFile(handle);
                 if (file)
@@ -250,6 +272,7 @@ bool CommandServer::processCommands()
                     m_commandQueue->m_messageStream
                         << CommandQueue::Message::artboardsListed;
                     m_commandQueue->m_messageStream << handle;
+                    m_commandQueue->m_messageStream << requestId;
                     m_commandQueue->m_messageStream << artboards.size();
                     for (auto artboard : artboards)
                     {
@@ -263,7 +286,9 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::listStateMachines:
             {
                 ArtboardHandle handle;
+                RequestId requestId;
                 commandStream >> handle;
+                commandStream >> requestId;
                 lock.unlock();
                 auto artboard = getArtboardInstance(handle);
                 if (artboard)
@@ -274,6 +299,7 @@ bool CommandServer::processCommands()
                     m_commandQueue->m_messageStream
                         << CommandQueue::Message::stateMachinesListed;
                     m_commandQueue->m_messageStream << handle;
+                    m_commandQueue->m_messageStream << requestId;
                     m_commandQueue->m_messageStream << numStateMachines;
                     for (int i = 0; i < numStateMachines; ++i)
                     {

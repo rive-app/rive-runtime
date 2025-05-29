@@ -4,12 +4,13 @@
 #include <cstdint>
 #include <vector>
 #include "rive/span.hpp"
+#include "rive/refcnt.hpp"
 
 namespace rive
 {
 class Factory;
 class FileAsset;
-class FileAssetLoader
+class FileAssetLoader : public RefCnt<FileAssetLoader>
 {
 public:
     virtual ~FileAssetLoader() {}

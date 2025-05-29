@@ -8,9 +8,11 @@
 using namespace rive;
 
 FileAssetImporter::FileAssetImporter(FileAsset* fileAsset,
-                                     FileAssetLoader* assetLoader,
+                                     rcp<FileAssetLoader> assetLoader,
                                      Factory* factory) :
-    m_FileAsset(fileAsset), m_FileAssetLoader(assetLoader), m_Factory(factory)
+    m_FileAsset(fileAsset),
+    m_FileAssetLoader(std::move(assetLoader)),
+    m_Factory(factory)
 {}
 
 // if file asset contents are found when importing a rive file, store those for

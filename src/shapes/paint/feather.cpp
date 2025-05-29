@@ -3,7 +3,6 @@
 #include "rive/shapes/paint/fill.hpp"
 #include "rive/shapes/shape.hpp"
 #include "rive/artboard.hpp"
-#include "rive/factory.hpp"
 
 #include "rive/core_context.hpp"
 

@@ -11,7 +11,7 @@ protected:
     typedef ContainerComponent Super;
 
 public:
-    static const uint16_t typeKey = 137;
+    static const uint16_t typeKey = 573;
 
     /// Helper to quickly determine if a core object extends another without
     /// RTTI at runtime.

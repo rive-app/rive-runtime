@@ -45,6 +45,10 @@ protected:
     void computedWorldYChanged() override {}
     void computedWidthChanged() override {}
     void computedHeightChanged() override {}
+
+#ifdef WITH_RIVE_LAYOUT
+    void markLayoutNodeDirty();
+#endif
 };
 } // namespace rive
 

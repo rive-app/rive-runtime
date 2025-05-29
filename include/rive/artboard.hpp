@@ -18,6 +18,7 @@
 #include "rive/event.hpp"
 #include "rive/audio/audio_engine.hpp"
 #include "rive/math/raw_path.hpp"
+#include "rive/typed_children.hpp"
 
 #include <queue>
 #include <unordered_set>
@@ -191,6 +192,12 @@ public:
 #endif
 
     const std::vector<Core*>& objects() const { return m_Objects; }
+    template <typename T> TypedChildren<T> objects()
+    {
+        return TypedChildren<T>(
+            Span<Core*>(m_Objects.data(), m_Objects.size()));
+    }
+
     const std::vector<NestedArtboard*> nestedArtboards() const
     {
         return m_NestedArtboards;

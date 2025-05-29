@@ -51,7 +51,7 @@ public:
     /// Minor version number supported by the runtime.
     static const int minorVersion = 0;
 
-    File(Factory*, FileAssetLoader*);
+    File(Factory*, rcp<FileAssetLoader>);
 
 public:
     ~File();
@@ -64,9 +64,17 @@ public:
     /// cannot be found in-band.
     /// @returns a pointer to the file, or null on failure.
     static std::unique_ptr<File> import(Span<const uint8_t> data,
-                                        Factory*,
+                                        Factory* factory,
                                         ImportResult* result = nullptr,
-                                        FileAssetLoader* assetLoader = nullptr);
+                                        FileAssetLoader* assetLoader = nullptr)
+    {
+        return import(data, factory, result, ref_rcp(assetLoader));
+    }
+
+    static std::unique_ptr<File> import(Span<const uint8_t> data,
+                                        Factory*,
+                                        ImportResult* result,
+                                        rcp<FileAssetLoader> assetLoader);
 
     /// @returns the file's backboard. All files have exactly one backboard.
     Backboard* backboard() const { return m_backboard; }
@@ -156,6 +164,13 @@ public:
         ImportResult* result = nullptr);
 #endif
 
+#ifdef TESTING
+    FileAssetLoader* testing_getAssetLoader() const
+    {
+        return m_assetLoader.get();
+    }
+#endif
+
 private:
     ImportResult read(BinaryReader&, const RuntimeHeader&);
 
@@ -191,7 +206,7 @@ private:
 
     /// The helper used to load assets when they're not provided in-band
     /// with the file.
-    FileAssetLoader* m_assetLoader;
+    rcp<FileAssetLoader> m_assetLoader;
 
     rcp<ViewModelInstance> copyViewModelInstance(
         ViewModelInstance* viewModelInstance,

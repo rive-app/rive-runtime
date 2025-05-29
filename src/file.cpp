@@ -163,8 +163,8 @@ static Core* readRuntimeObject(BinaryReader& reader,
     return object;
 }
 
-File::File(Factory* factory, FileAssetLoader* assetLoader) :
-    m_factory(factory), m_assetLoader(assetLoader)
+File::File(Factory* factory, rcp<FileAssetLoader> assetLoader) :
+    m_factory(factory), m_assetLoader(std::move(assetLoader))
 {
     assert(factory);
 }
@@ -214,7 +214,7 @@ File::~File()
 std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
                                    Factory* factory,
                                    ImportResult* result,
-                                   FileAssetLoader* assetLoader)
+                                   rcp<FileAssetLoader> assetLoader)
 {
     BinaryReader reader(bytes);
     RuntimeHeader header;
@@ -241,7 +241,7 @@ std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
         }
         return nullptr;
     }
-    auto file = rivestd::make_unique<File>(factory, assetLoader);
+    auto file = rivestd::make_unique<File>(factory, std::move(assetLoader));
 
     auto readResult = file->read(reader, header);
     if (result)
