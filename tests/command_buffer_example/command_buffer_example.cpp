@@ -126,12 +126,10 @@ static void draw_thread(rcp<CommandQueue> commandQueue)
     SimpleArtboardListener aListener;
     SimpleStateMachineListener stmListener;
 
-    rcp<DefaultFileAssetLoader> defaultLoader =
-        make_rcp<DefaultFileAssetLoader>();
-
-    FileHandle fileHandle = commandQueue->loadFile(std::move(rivBytes),
-                                                   defaultLoader.get(),
-                                                   &fListener);
+    FileHandle fileHandle =
+        commandQueue->loadFile(std::move(rivBytes),
+                               make_rcp<DefaultFileAssetLoader>(),
+                               &fListener);
 
     ArtboardHandle artboardHandle =
         commandQueue->instantiateDefaultArtboard(fileHandle, &aListener);
