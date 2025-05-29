@@ -104,7 +104,30 @@ void draw_image(rive::Renderer* ren, rive::RenderImage* img, rive::AABB dst)
 
     ren->save();
     ren->transform(mat);
-    ren->drawImage(img, rive::BlendMode::srcOver, 1);
+    ren->drawImage(img,
+                   rive::ImageSampler::LinearClamp(),
+                   rive::BlendMode::srcOver,
+                   1);
+    ren->restore();
+}
+
+void draw_image(rive::Renderer* ren,
+                rive::RenderImage* img,
+                const rive::ImageSampler& options,
+                rive::AABB dst)
+{
+    if (!img)
+    {
+        return;
+    }
+
+    rive::Mat2D mat = rive::Mat2D::fromTranslate(dst.left(), dst.top()) *
+                      rive::Mat2D::fromScale(dst.width() / img->width(),
+                                             dst.height() / img->height());
+
+    ren->save();
+    ren->transform(mat);
+    ren->drawImage(img, options, rive::BlendMode::srcOver, 1);
     ren->restore();
 }
 

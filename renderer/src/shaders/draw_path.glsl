@@ -366,7 +366,10 @@ INLINE half4 find_paint_color(float4 paint,
     else // The paint is an image.
     {
         half lod = -paint.a - 2.;
-        color = TEXTURE_SAMPLE_LOD(@imageTexture, imageSampler, paint.rg, lod);
+        color = TEXTURE_SAMPLE_DYNAMIC_LOD(@imageTexture,
+                                           imageSampler,
+                                           paint.rg,
+                                           lod);
         half opacity = paint.b * coverage;
         // Images are always premultiplied so the (transparent) background color
         // doesn't bleed into the edges during the hardware filter.

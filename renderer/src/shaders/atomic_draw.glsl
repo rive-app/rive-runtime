@@ -741,7 +741,8 @@ ATOMIC_PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     // @imageTexture binding is liable to change, and furthermore in the case of
     // imageMeshes, we can't calculate UV coordinates based on fragment
     // position.
-    half4 imageColor = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
+    half4 imageColor =
+        TEXTURE_SAMPLE_DYNAMIC(@imageTexture, imageSampler, v_texCoord);
     half imageCoverage = 1.;
 #ifdef @DRAW_IMAGE_RECT
     imageCoverage = min(v_edgeCoverage, imageCoverage);

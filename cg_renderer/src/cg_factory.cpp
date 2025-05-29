@@ -431,6 +431,7 @@ void CGRenderer::clipPath(RenderPath* path)
 }
 
 void CGRenderer::drawImage(const RenderImage* image,
+                           const ImageSampler,
                            BlendMode blendMode,
                            float opacity)
 {
@@ -454,6 +455,7 @@ static Mat2D basis_matrix(Vec2D p0, Vec2D p1, Vec2D p2)
 }
 
 void CGRenderer::drawImageMesh(const RenderImage* image,
+                               const ImageSampler,
                                rcp<RenderBuffer> vertices,
                                rcp<RenderBuffer> uvCoords,
                                rcp<RenderBuffer> indices,

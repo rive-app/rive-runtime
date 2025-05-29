@@ -24,6 +24,7 @@ SliceMesh::SliceMesh(NSlicer* nslicer) : m_nslicer(nslicer) {}
 
 void SliceMesh::draw(Renderer* renderer,
                      const RenderImage* renderImage,
+                     ImageSampler ImageSampler,
                      BlendMode blendMode,
                      float opacity)
 {
@@ -40,6 +41,7 @@ void SliceMesh::draw(Renderer* renderer,
     renderer->translate(-image->width() * image->originX(),
                         -image->height() * image->originY());
     renderer->drawImageMesh(renderImage,
+                            ImageSampler,
                             m_VertexRenderBuffer,
                             m_UVRenderBuffer,
                             m_IndexRenderBuffer,

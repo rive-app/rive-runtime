@@ -48,7 +48,9 @@ FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 FRAG_TEXTURE_BLOCK_END
 
-SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
+DYNAMIC_SAMPLER_BLOCK_BEGIN
+SAMPLER_DYNAMIC(IMAGE_SAMPLER_IDX, imageSampler)
+DYNAMIC_SAMPLER_BLOCK_END
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
@@ -57,7 +59,8 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
     VARYING_UNPACK(v_texCoord, float2);
 
-    half4 meshColor = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
+    half4 meshColor =
+        TEXTURE_SAMPLE_DYNAMIC(@imageTexture, imageSampler, v_texCoord);
     meshColor = make_half4(unmultiply_rgb(meshColor),
                            meshColor.a * imageDrawUniforms.opacity);
 

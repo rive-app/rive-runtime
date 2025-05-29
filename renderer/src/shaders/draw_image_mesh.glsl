@@ -97,7 +97,9 @@ TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
 #endif
 FRAG_TEXTURE_BLOCK_END
 
-SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
+DYNAMIC_SAMPLER_BLOCK_BEGIN
+SAMPLER_DYNAMIC(IMAGE_SAMPLER_IDX, imageSampler)
+DYNAMIC_SAMPLER_BLOCK_END
 
 FRAG_STORAGE_BUFFER_BLOCK_BEGIN
 FRAG_STORAGE_BUFFER_BLOCK_END
@@ -121,7 +123,8 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     VARYING_UNPACK(v_clipRect, float4);
 #endif
 
-    half4 color = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord);
+    half4 color =
+        TEXTURE_SAMPLE_DYNAMIC(@imageTexture, imageSampler, v_texCoord);
     half coverage = 1.;
 
 #ifdef @ENABLE_CLIP_RECT
@@ -175,8 +178,9 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
     VARYING_UNPACK(v_texCoord, float2);
 
-    half4 color = TEXTURE_SAMPLE(@imageTexture, imageSampler, v_texCoord) *
-                  imageDrawUniforms.opacity;
+    half4 color =
+        TEXTURE_SAMPLE_DYNAMIC(@imageTexture, imageSampler, v_texCoord) *
+        imageDrawUniforms.opacity;
 
 #ifdef @ENABLE_ADVANCED_BLEND
     if (@ENABLE_ADVANCED_BLEND)

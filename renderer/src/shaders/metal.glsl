@@ -131,6 +131,13 @@
     }                                                                          \
     ;
 
+#define DYNAMIC_SAMPLER_BLOCK_BEGIN                                            \
+    struct DynamicSamplers                                                     \
+    {
+#define DYNAMIC_SAMPLER_BLOCK_END                                              \
+    }                                                                          \
+    ;
+
 #define TEXTURE_RGBA32UI(SET, IDX, NAME) [[$texture(IDX)]] $texture2d<uint> NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME) [[$texture(IDX)]] $texture2d<float> NAME
 #define TEXTURE_RGBA8(SET, IDX, NAME) [[$texture(IDX)]] $texture2d<half> NAME
@@ -142,7 +149,8 @@
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$none);
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                      \
     $constexpr $sampler NAME($filter::$linear, $mip_filter::$linear);
-
+#define SAMPLER_DYNAMIC(SAMPLER_IDX, NAME)                                     \
+    [[$sampler(SAMPLER_IDX)]] $sampler NAME;
 #define TEXEL_FETCH(TEXTURE, COORD) _textures.TEXTURE.$read(uint2(COORD))
 #define TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD)                           \
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD)
@@ -152,6 +160,10 @@
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
 #define TEXTURE_GATHER(TEXTURE, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)     \
     _textures.TEXTURE.$gather(SAMPLER_NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
+#define TEXTURE_SAMPLE_DYNAMIC(TEXTURE, SAMPLER_NAME, COORD)                   \
+    _textures.TEXTURE.$sample(_dynamicSampler.SAMPLER_NAME, COORD)
+#define TEXTURE_SAMPLE_DYNAMIC_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)          \
+    _textures.TEXTURE.$sample(_dynamicSampler.SAMPLER_NAME, COORD, $level(LOD))
 #define TEXTURE_SAMPLE_LOD_1D_ARRAY(TEXTURE,                                   \
                                     SAMPLER_NAME,                              \
                                     X,                                         \
@@ -241,8 +253,9 @@
 
 #define FRAGMENT_CONTEXT_DECL                                                  \
     , float2 _fragCoord, FragmentTextures _textures,                           \
-        FragmentStorageBuffers _buffers
-#define FRAGMENT_CONTEXT_UNPACK , _fragCoord, _textures, _buffers
+        FragmentStorageBuffers _buffers, DynamicSamplers _dynamicSampler
+#define FRAGMENT_CONTEXT_UNPACK                                                \
+    , _fragCoord, _textures, _buffers, _dynamicSampler
 
 #define TEXTURE_CONTEXT_DECL , FragmentTextures _textures
 #define TEXTURE_CONTEXT_FORWARD , _textures
@@ -322,6 +335,7 @@
         [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         Varyings _varyings [[$stage_in]],                                      \
         FragmentTextures _textures,                                            \
+        DynamicSamplers _dynamicSampler,                                       \
         FragmentStorageBuffers _buffers)                                       \
     {                                                                          \
         float2 _fragCoord = _varyings._pos.xy;                                 \
@@ -336,6 +350,7 @@
         $constant @ImageDrawUniforms& imageDrawUniforms                        \
         [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]],          \
         Varyings _varyings [[$stage_in]],                                      \
+        DynamicSamplers _dynamicSampler,                                       \
         FragmentTextures _textures,                                            \
         FragmentStorageBuffers _buffers)                                       \
     {                                                                          \
@@ -419,6 +434,7 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
                    $constant @FlushUniforms& uniforms                          \
                    [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],    \
                    Varyings _varyings [[$stage_in]],                           \
+                   DynamicSamplers _dynamicSampler,                            \
                    FragmentTextures _textures,                                 \
                    FragmentStorageBuffers _buffers)
 
@@ -429,6 +445,7 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
         Varyings _varyings [[$stage_in]],                                      \
         FragmentTextures _textures,                                            \
         FragmentStorageBuffers _buffers,                                       \
+        DynamicSamplers _dynamicSampler,                                       \
         $constant @ImageDrawUniforms& imageDrawUniforms                        \
         [[$buffer(METAL_BUFFER_IDX(IMAGE_DRAW_UNIFORM_BUFFER_IDX))]])
 

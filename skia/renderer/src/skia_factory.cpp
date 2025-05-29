@@ -240,6 +240,7 @@ void SkiaRenderer::clipPath(RenderPath* path)
 }
 
 void SkiaRenderer::drawImage(const RenderImage* image,
+                             const rive::ImageSampler,
                              BlendMode blendMode,
                              float opacity)
 {
@@ -253,6 +254,7 @@ void SkiaRenderer::drawImage(const RenderImage* image,
 #define SKIA_BUG_13047
 
 void SkiaRenderer::drawImageMesh(const RenderImage* image,
+                                 const rive::ImageSampler,
                                  rcp<RenderBuffer> vertices,
                                  rcp<RenderBuffer> uvCoords,
                                  rcp<RenderBuffer> indices,

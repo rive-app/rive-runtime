@@ -71,7 +71,9 @@ SAMPLER_LINEAR(GRAD_TEXTURE_IDX, gradSampler)
 #ifdef @ATLAS_BLIT
 SAMPLER_LINEAR(ATLAS_TEXTURE_IDX, atlasSampler)
 #endif
-SAMPLER_MIPMAP(IMAGE_TEXTURE_IDX, imageSampler)
+DYNAMIC_SAMPLER_BLOCK_BEGIN
+SAMPLER_DYNAMIC(IMAGE_SAMPLER_IDX, imageSampler)
+DYNAMIC_SAMPLER_BLOCK_END
 #endif // @FRAGMENT
 
 // We distinguish between strokes and fills by the sign of coverages.y,

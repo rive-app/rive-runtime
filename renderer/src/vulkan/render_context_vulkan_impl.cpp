@@ -487,6 +487,8 @@ private:
     mutable VkDescriptorSet m_imageTextureDescriptorSet = VK_NULL_HANDLE;
     mutable uint64_t m_descriptorSetFrameNumber =
         std::numeric_limits<size_t>::max();
+    mutable ImageSampler m_descriptorSetSamplerOptions =
+        ImageSampler::LinearClamp();
 };
 
 rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
@@ -660,7 +662,7 @@ public:
             impl->m_immutableSamplerDescriptorSetLayout,
         };
         static_assert(PER_FLUSH_BINDINGS_SET == 0);
-        static_assert(SAMPLER_BINDINGS_SET == 2);
+        static_assert(IMMUTABLE_SAMPLER_BINDINGS_SET == 2);
 
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -833,7 +835,7 @@ public:
             impl->m_immutableSamplerDescriptorSetLayout,
         };
         static_assert(PER_FLUSH_BINDINGS_SET == 0);
-        static_assert(SAMPLER_BINDINGS_SET == 2);
+        static_assert(IMMUTABLE_SAMPLER_BINDINGS_SET == 2);
 
         VkPipelineLayoutCreateInfo pipelineLayoutCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO,
@@ -1858,6 +1860,47 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
     }
 }
 
+static VkFilter vk_filter(rive::ImageFilter option)
+{
+    switch (option)
+    {
+        case rive::ImageFilter::trilinear:
+            return VK_FILTER_LINEAR;
+        case rive::ImageFilter::nearest:
+            return VK_FILTER_NEAREST;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+static VkSamplerMipmapMode vk_sampler_mipmap_mode(rive::ImageFilter option)
+{
+    switch (option)
+    {
+        case rive::ImageFilter::trilinear:
+            return VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        case rive::ImageFilter::nearest:
+            return VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+static VkSamplerAddressMode vk_sampler_address_mode(rive::ImageWrap option)
+{
+    switch (option)
+    {
+        case rive::ImageWrap::clamp:
+            return VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        case rive::ImageWrap::repeat:
+            return VK_SAMPLER_ADDRESS_MODE_REPEAT;
+        case rive::ImageWrap::mirror:
+            return VK_SAMPLER_ADDRESS_MODE_MIRRORED_REPEAT;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
 void RenderContextVulkanImpl::initGPUObjects()
 {
     // Create the immutable samplers.
@@ -1877,21 +1920,29 @@ void RenderContextVulkanImpl::initGPUObjects()
                                  nullptr,
                                  &m_linearSampler));
 
-    VkSamplerCreateInfo mipmapSamplerCreateInfo = {
-        .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
-        .magFilter = VK_FILTER_LINEAR,
-        .minFilter = VK_FILTER_LINEAR,
-        .mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR,
-        .addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE,
-        .minLod = 0,
-        .maxLod = VK_LOD_CLAMP_NONE,
-    };
+    for (size_t i = 0; i < ImageSampler::MAX_SAMPLER_PERMUTATIONS; ++i)
+    {
+        ImageWrap wrapX = ImageSampler::GetWrapXOptionFromKey(i);
+        ImageWrap wrapY = ImageSampler::GetWrapYOptionFromKey(i);
+        ImageFilter filter = ImageSampler::GetFilterOptionFromKey(i);
+        VkFilter minMagFilter = vk_filter(filter);
 
-    VK_CHECK(m_vk->CreateSampler(m_vk->device,
-                                 &mipmapSamplerCreateInfo,
-                                 nullptr,
-                                 &m_mipmapSampler));
+        VkSamplerCreateInfo samplerCreateInfo = {
+            .sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO,
+            .magFilter = minMagFilter,
+            .minFilter = minMagFilter,
+            .mipmapMode = vk_sampler_mipmap_mode(filter),
+            .addressModeU = vk_sampler_address_mode(wrapX),
+            .addressModeV = vk_sampler_address_mode(wrapY),
+            .minLod = 0,
+            .maxLod = VK_LOD_CLAMP_NONE,
+        };
+
+        VK_CHECK(m_vk->CreateSampler(m_vk->device,
+                                     &samplerCreateInfo,
+                                     nullptr,
+                                     m_imageSamplers + i));
+    }
 
     // Bound when there is not an image paint.
     constexpr static uint8_t black[] = {0, 0, 0, 1};
@@ -1992,6 +2043,12 @@ void RenderContextVulkanImpl::initGPUObjects()
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
         },
+        {
+            .binding = IMAGE_SAMPLER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        },
     };
 
     VkDescriptorSetLayoutCreateInfo perDrawLayoutInfo = {
@@ -2028,13 +2085,6 @@ void RenderContextVulkanImpl::initGPUObjects()
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
             .pImmutableSamplers = &m_linearSampler,
-        },
-        {
-            .binding = IMAGE_TEXTURE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-            .pImmutableSamplers = &m_mipmapSampler,
         },
     };
 
@@ -2110,8 +2160,18 @@ void RenderContextVulkanImpl::initGPUObjects()
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
 
-    // Create an empty descriptor set for SAMPLER_BINDINGS_SET. Vulkan requires
-    // this even though the samplers are all immutable.
+    m_vk->updateImageDescriptorSets(
+        m_nullImageDescriptorSet,
+        {
+            .dstBinding = IMAGE_SAMPLER_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+        },
+        {{
+            .sampler = m_imageSamplers[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY],
+        }});
+
+    // Create an empty descriptor set for IMMUTABLE_SAMPLER_BINDINGS_SET. Vulkan
+    // requires this even though the samplers are all immutable.
     VkDescriptorSetAllocateInfo immutableSamplerDescriptorSetInfo = {
         .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO,
         .descriptorPool = m_staticDescriptorPool,
@@ -2230,7 +2290,10 @@ RenderContextVulkanImpl::~RenderContextVulkanImpl()
     m_vk->DestroyDescriptorSetLayout(m_vk->device,
                                      m_emptyDescriptorSetLayout,
                                      nullptr);
-    m_vk->DestroySampler(m_vk->device, m_mipmapSampler, nullptr);
+    for (VkSampler sampler : m_imageSamplers)
+    {
+        m_vk->DestroySampler(m_vk->device, sampler, nullptr);
+    }
     m_vk->DestroySampler(m_vk->device, m_linearSampler, nullptr);
 }
 
@@ -2401,6 +2464,10 @@ RenderContextVulkanImpl::DescriptorSetPool::DescriptorSetPool(
         {
             .type = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
             .descriptorCount = descriptor_pool_limits::kMaxSampledImageUpdates,
+        },
+        {
+            .type = VK_DESCRIPTOR_TYPE_SAMPLER,
+            .descriptorCount = descriptor_pool_limits::kMaxImageTextureUpdates,
         },
         {
             .type = VK_DESCRIPTOR_TYPE_STORAGE_IMAGE,
@@ -2812,7 +2879,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         m_vk->CmdBindDescriptorSets(commandBuffer,
                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                                     m_tessellatePipeline->pipelineLayout(),
-                                    SAMPLER_BINDINGS_SET,
+                                    IMMUTABLE_SAMPLER_BINDINGS_SET,
                                     1,
                                     &m_immutableSamplerDescriptorSet,
                                     0,
@@ -2901,7 +2968,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         m_vk->CmdBindDescriptorSets(commandBuffer,
                                     VK_PIPELINE_BIND_POINT_GRAPHICS,
                                     m_atlasPipeline->pipelineLayout(),
-                                    SAMPLER_BINDINGS_SET,
+                                    IMMUTABLE_SAMPLER_BINDINGS_SET,
                                     1,
                                     &m_immutableSamplerDescriptorSet,
                                     0,
@@ -3367,7 +3434,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     };
     static_assert(PER_FLUSH_BINDINGS_SET == 0);
     static_assert(PER_DRAW_BINDINGS_SET == 1);
-    static_assert(SAMPLER_BINDINGS_SET == 2);
+    static_assert(IMMUTABLE_SAMPLER_BINDINGS_SET == 2);
     static_assert(PLS_TEXTURE_BINDINGS_SET == 3);
     static_assert(BINDINGS_SET_COUNT == 4);
 
@@ -3397,7 +3464,9 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             auto imageTexture =
                 static_cast<const TextureVulkanImpl*>(batch.imageTexture);
             if (imageTexture->m_descriptorSetFrameNumber !=
-                m_vk->currentFrameNumber())
+                    m_vk->currentFrameNumber() ||
+                imageTexture->m_descriptorSetSamplerOptions !=
+                    batch.imageSampler)
             {
                 // Update the image's "texture binding" descriptor set. (These
                 // expire every frame, so we need to make a new one each frame.)
@@ -3427,9 +3496,21 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     }});
 
+                m_vk->updateImageDescriptorSets(
+                    imageTexture->m_imageTextureDescriptorSet,
+                    {
+                        .dstBinding = IMAGE_SAMPLER_IDX,
+                        .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
+                    },
+                    {{
+                        .sampler = m_imageSamplers[batch.imageSampler.asKey()],
+                    }});
+
                 ++imageTextureUpdateCount;
                 imageTexture->m_descriptorSetFrameNumber =
                     m_vk->currentFrameNumber();
+                imageTexture->m_descriptorSetSamplerOptions =
+                    batch.imageSampler;
             }
 
             VkDescriptorSet imageDescriptorSets[] = {

@@ -569,9 +569,10 @@ public:
         m_writer->writeVarUint(static_cast<SerializingRenderPath*>(path)->id());
     }
 
-    void drawImage(const RenderImage* image,
-                   BlendMode blendMode,
-                   float opacity) override
+    virtual void drawImage(const RenderImage* image,
+                           ImageSampler samplerOptions,
+                           BlendMode blendMode,
+                           float opacity) override
     {
         m_writer->writeVarUint((uint32_t)SerializeOp::drawImage);
         m_writer->writeVarUint(
@@ -580,14 +581,15 @@ public:
         m_writer->writeFloat(opacity);
     }
 
-    void drawImageMesh(const RenderImage* image,
-                       rcp<RenderBuffer> positions,
-                       rcp<RenderBuffer> uvs,
-                       rcp<RenderBuffer> indices,
-                       uint32_t vertexCount,
-                       uint32_t indexCount,
-                       BlendMode blendMode,
-                       float opacity) override
+    virtual void drawImageMesh(const RenderImage* image,
+                               ImageSampler samplerOptions,
+                               rcp<RenderBuffer> positions,
+                               rcp<RenderBuffer> uvs,
+                               rcp<RenderBuffer> indices,
+                               uint32_t vertexCount,
+                               uint32_t indexCount,
+                               BlendMode blendMode,
+                               float opacity) override
     {
         m_writer->writeVarUint((uint32_t)SerializeOp::drawImageMesh);
         m_writer->writeVarUint(

@@ -31,8 +31,12 @@ public:
     void transform(const Mat2D& transform) override;
     void clipPath(RenderPath* path) override;
     void drawPath(RenderPath* path, RenderPaint* paint) override;
-    void drawImage(const RenderImage*, BlendMode, float opacity) override;
+    void drawImage(const RenderImage*,
+                   const ImageSampler,
+                   BlendMode,
+                   float opacity) override;
     void drawImageMesh(const RenderImage*,
+                       const ImageSampler,
                        rcp<RenderBuffer> vertices_f32,
                        rcp<RenderBuffer> uvCoords_f32,
                        rcp<RenderBuffer> indices_u16,

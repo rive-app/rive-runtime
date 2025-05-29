@@ -56,6 +56,7 @@
 #define IMAGE_SIG_INDEX 5
 #define UAV_SIG_INDEX 6
 #define SAMPLER_SIG_INDEX 7
+#define DYNAMIC_SAMPLER_SIG_INDEX 8
 
 #define SRV_START_HEAP_INDEX PATH_BUFFER_HEAP_OFFSET
 #define UAV_START_HEAP_INDEX ATOMIC_COLOR_HEAP_OFFSET
@@ -88,5 +89,5 @@
     "DescriptorTable(Sampler(s8),"\
                     "Sampler(s9),"\
                     "Sampler(s10),"\
-                    "Sampler(s11),"\
-                    "Sampler(s12), visibility=SHADER_VISIBILITY_ALL)"
+                    "Sampler(s11), visibility=SHADER_VISIBILITY_ALL),"\
+    "DescriptorTable(Sampler(s13, flags=DESCRIPTORS_VOLATILE), visibility=SHADER_VISIBILITY_PIXEL) "

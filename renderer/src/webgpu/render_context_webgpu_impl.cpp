@@ -345,9 +345,9 @@ public:
         wgpu::BindGroupLayout layouts[] = {
             m_perFlushBindingsLayout,
             impl->m_emptyBindingsLayout,
-            impl->m_drawBindGroupLayouts[SAMPLER_BINDINGS_SET],
+            impl->m_drawBindGroupLayouts[IMMUTABLE_SAMPLER_BINDINGS_SET],
         };
-        static_assert(SAMPLER_BINDINGS_SET == 2);
+        static_assert(IMMUTABLE_SAMPLER_BINDINGS_SET == 2);
 
         wgpu::PipelineLayoutDescriptor pipelineLayoutDesc = {
             .bindGroupLayoutCount = std::size(layouts),
@@ -490,9 +490,9 @@ public:
         wgpu::BindGroupLayout layouts[] = {
             m_perFlushBindingsLayout,
             impl->m_emptyBindingsLayout,
-            impl->m_drawBindGroupLayouts[SAMPLER_BINDINGS_SET],
+            impl->m_drawBindGroupLayouts[IMMUTABLE_SAMPLER_BINDINGS_SET],
         };
-        static_assert(SAMPLER_BINDINGS_SET == 2);
+        static_assert(IMMUTABLE_SAMPLER_BINDINGS_SET == 2);
 
         wgpu::PipelineLayoutDescriptor pipelineLayoutDesc = {
             .bindGroupLayoutCount = std::size(layouts),
@@ -1131,7 +1131,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
         .entries = drawBindingSamplerLayouts,
     };
 
-    m_drawBindGroupLayouts[SAMPLER_BINDINGS_SET] =
+    m_drawBindGroupLayouts[IMMUTABLE_SAMPLER_BINDINGS_SET] =
         m_device.CreateBindGroupLayout(&samplerBindingsDesc);
 
     wgpu::SamplerDescriptor linearSamplerDesc = {
@@ -1174,7 +1174,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
     };
 
     wgpu::BindGroupDescriptor samplerBindGroupDesc = {
-        .layout = m_drawBindGroupLayouts[SAMPLER_BINDINGS_SET],
+        .layout = m_drawBindGroupLayouts[IMMUTABLE_SAMPLER_BINDINGS_SET],
         .entryCount = std::size(samplerBindingEntries),
         .entries = samplerBindingEntries,
     };
@@ -2323,7 +2323,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                 wgpu::IndexFormat::Uint16);
         tessPass.SetBindGroup(PER_FLUSH_BINDINGS_SET,
                               m_device.CreateBindGroup(&tessBindGroupDesc));
-        tessPass.SetBindGroup(SAMPLER_BINDINGS_SET, m_samplerBindings);
+        tessPass.SetBindGroup(IMMUTABLE_SAMPLER_BINDINGS_SET,
+                              m_samplerBindings);
         tessPass.DrawIndexed(std::size(gpu::kTessSpanIndices),
                              desc.tessVertexSpanCount,
                              0,
@@ -2366,7 +2367,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                  wgpu::IndexFormat::Uint16);
         atlasPass.SetBindGroup(PER_FLUSH_BINDINGS_SET,
                                m_device.CreateBindGroup(&atlasBindGroupDesc));
-        atlasPass.SetBindGroup(SAMPLER_BINDINGS_SET, m_samplerBindings);
+        atlasPass.SetBindGroup(IMMUTABLE_SAMPLER_BINDINGS_SET,
+                               m_samplerBindings);
 
         if (desc.atlasFillBatchCount != 0)
         {
@@ -2516,7 +2518,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         drawPass.Draw(4);
     }
 
-    drawPass.SetBindGroup(SAMPLER_BINDINGS_SET, m_samplerBindings);
+    drawPass.SetBindGroup(IMMUTABLE_SAMPLER_BINDINGS_SET, m_samplerBindings);
 
     wgpu::BindGroupDescriptor perFlushBindGroupDesc = {
         .layout = m_drawBindGroupLayouts[PER_FLUSH_BINDINGS_SET],

@@ -4,6 +4,7 @@
 
 #pragma once
 
+#include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/renderer/d3d12/d3d12_utils.hpp"
 #include "rive/renderer/d3d12/d3d12_pipeline_manager.hpp"
 #include "rive/renderer/render_context_impl.hpp"
@@ -242,6 +243,10 @@ private:
 
     // this is needed for multiple logical flushes and is also used for images
     UINT m_heapDescriptorOffset;
+    // this is needed for multiple logical flushes and is also used for image
+    // samplers
+    UINT m_samplerHeapDescriptorOffset;
+    ImageSampler m_lastDynamicSampler = ImageSampler::LinearClamp();
     // this is a max number of bound descriptors at once.
     // TODO: replace this with a refactor that allows being told up front how
     // many reosurces will need to be bound per total flush (that means all
@@ -250,6 +255,8 @@ private:
     // our stress testing only needed about 10012, so we will use 10x that here
     // for now
     static constexpr int MAX_DESCRIPTOR_HEAPS_PER_FLUSH = 100000;
+    // same as above, but for samplers
+    static constexpr int MAX_DESCRIPTOR_SAMPLER_HEAPS_PER_FLUSH = 2000;
 
     // these buffers are created once and potentially used every frame
     rcp<D3D12Buffer> m_pathPatchVertexBuffer;
@@ -259,7 +266,8 @@ private:
     rcp<D3D12Buffer> m_imageRectIndexBuffer;
 
     D3D12_SAMPLER_DESC m_linearSampler;
-    D3D12_SAMPLER_DESC m_mipSampler;
+    D3D12_SAMPLER_DESC
+    m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 
     std::chrono::steady_clock::time_point m_localEpoch =
         std::chrono::steady_clock::now();

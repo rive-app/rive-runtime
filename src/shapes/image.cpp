@@ -39,15 +39,24 @@ void Image::draw(Renderer* renderer)
         float width = (float)renderImage->width();
         float height = (float)renderImage->height();
 
+        // until image loading and saving is done, use default sampling for
+        // image assets
         if (m_Mesh != nullptr)
         {
-            m_Mesh->draw(renderer, renderImage, blendMode(), renderOpacity());
+            m_Mesh->draw(renderer,
+                         renderImage,
+                         rive::ImageSampler::LinearClamp(),
+                         blendMode(),
+                         renderOpacity());
         }
         else
         {
             renderer->transform(worldTransform());
             renderer->translate(-width * originX(), -height * originY());
-            renderer->drawImage(renderImage, blendMode(), renderOpacity());
+            renderer->drawImage(renderImage,
+                                rive::ImageSampler::LinearClamp(),
+                                blendMode(),
+                                renderOpacity());
         }
     }
 

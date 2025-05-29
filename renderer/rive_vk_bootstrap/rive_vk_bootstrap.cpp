@@ -28,7 +28,7 @@ vkb::SystemInfo load_vulkan()
 }
 
 #ifdef DEBUG
-static std::array<const char*, 2> s_ignoredValidationMsgList = {
+static std::array<const char*, 3> s_ignoredValidationMsgList = {
     // Swiftshader generates this error during
     // vkEnumeratePhysicalDevices. It seems fine to ignore.
     "Copying old device 0 into new device 0",
@@ -36,6 +36,7 @@ static std::array<const char*, 2> s_ignoredValidationMsgList = {
     "terminator_CreateInstance: Received return code -3 from call to "
     "vkCreateInstance in ICD /usr/lib/x86_64-linux-gnu/libvulkan_virtio.so. "
     "Skipping this driver.",
+    "Override layer has override paths set to D:\\VulkanSDK\\1.3.296.0\\Bin",
 };
 
 VKAPI_ATTR VkBool32 VKAPI_CALL default_debug_callback(

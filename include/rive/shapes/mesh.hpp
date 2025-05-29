@@ -32,6 +32,7 @@ public:
     void update(ComponentDirt value) override;
     void draw(Renderer* renderer,
               const RenderImage* image,
+              ImageSampler,
               BlendMode blendMode,
               float opacity) override;
 

@@ -87,8 +87,10 @@ public:
         m_pathPaints->push_back({ref_rcp(renderPath), ref_rcp(renderPaint)});
     }
     void clipPath(RenderPath* path) override {}
-    void drawImage(const RenderImage*, BlendMode, float) override {}
+    void drawImage(const RenderImage*, ImageSampler, BlendMode, float) override
+    {}
     void drawImageMesh(const RenderImage*,
+                       ImageSampler,
                        rcp<RenderBuffer>,
                        rcp<RenderBuffer>,
                        rcp<RenderBuffer>,

@@ -12,6 +12,7 @@
 #include "rive/shapes/paint/blend_mode.hpp"
 #include "rive/shapes/paint/color.hpp"
 #include "rive/renderer/trivial_block_allocator.hpp"
+#include "rive/shapes/paint/image_sampler.hpp"
 
 namespace rive
 {
@@ -974,14 +975,16 @@ struct DrawBatch
               gpu::ShaderMiscFlags shaderMiscFlags_,
               uint32_t elementCount_,
               uint32_t baseElement_,
-              rive::BlendMode blendMode,
-              BarrierFlags barriers_) :
+              rive::BlendMode blendMode_,
+              rive::ImageSampler imageSampler_,
+              BarrierFlags barrierFlags_) :
         drawType(drawType_),
         shaderMiscFlags(shaderMiscFlags_),
         elementCount(elementCount_),
         baseElement(baseElement_),
-        firstBlendMode(blendMode),
-        barriers(barriers_)
+        firstBlendMode(blendMode_),
+        barriers(barrierFlags_),
+        imageSampler(imageSampler_)
     {}
 
     const DrawType drawType;
@@ -997,6 +1000,7 @@ struct DrawBatch
     // DrawType::imageRect and DrawType::imageMesh.
     uint32_t imageDrawDataOffset = 0;
     const Texture* imageTexture = nullptr;
+    const ImageSampler imageSampler = ImageSampler::LinearClamp();
 
     // DrawType::imageMesh.
     RenderBuffer* vertexBuffer;

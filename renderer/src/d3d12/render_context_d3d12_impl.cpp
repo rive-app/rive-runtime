@@ -18,9 +18,39 @@
 // this is defined here instead of root_sig becaise the gpu does not care about
 // the number of rtvs this is gradient, tess, atlas and color
 static constexpr UINT NUM_RTV_HEAP_DESCRIPTORS = 4;
-
 namespace rive::gpu
 {
+
+static constexpr D3D12_FILTER filter_for_sampler_options(ImageFilter option)
+{
+    switch (option)
+    {
+        case ImageFilter::trilinear:
+            return D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+        case ImageFilter::nearest:
+            return D3D12_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
+    }
+
+    RIVE_UNREACHABLE();
+    return D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
+};
+
+static constexpr D3D12_TEXTURE_ADDRESS_MODE address_mode_for_sampler_option(
+    ImageWrap option)
+{
+    switch (option)
+    {
+        case ImageWrap::clamp:
+            return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        case ImageWrap::repeat:
+            return D3D12_TEXTURE_ADDRESS_MODE_WRAP;
+        case ImageWrap::mirror:
+            return D3D12_TEXTURE_ADDRESS_MODE_MIRROR;
+    }
+
+    RIVE_UNREACHABLE();
+    return D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+}
 
 void RenderContextD3D12Impl::blitSubRect(ID3D12GraphicsCommandList* cmdList,
                                          D3D12Texture* dst,
@@ -507,7 +537,7 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
                            D3D12_DESCRIPTOR_HEAP_TYPE_CBV_SRV_UAV,
                            D3D12_DESCRIPTOR_HEAP_FLAG_NONE),
     m_samplerHeapPool(m_resourceManager,
-                      NUM_SAMPLER_HEAP_DESCRIPTORS,
+                      MAX_DESCRIPTOR_SAMPLER_HEAPS_PER_FLUSH,
                       D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER,
                       D3D12_DESCRIPTOR_HEAP_FLAG_SHADER_VISIBLE)
 {
@@ -537,16 +567,23 @@ RenderContextD3D12Impl::RenderContextD3D12Impl(
     m_linearSampler.MinLOD = 0;
     m_linearSampler.MaxLOD = 0;
 
-    // Create a mipmap sampler for the image textures.
-    m_mipSampler.Filter = D3D12_FILTER_MIN_MAG_MIP_LINEAR;
-    m_mipSampler.AddressU = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    m_mipSampler.AddressV = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    m_mipSampler.AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
-    m_mipSampler.MipLODBias = 0.0f;
-    m_mipSampler.MaxAnisotropy = 1;
-    m_mipSampler.ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
-    m_mipSampler.MinLOD = 0;
-    m_mipSampler.MaxLOD = D3D12_FLOAT32_MAX;
+    for (int i = 0; i < ImageSampler::MAX_SAMPLER_PERMUTATIONS; ++i)
+    {
+        auto wrapX = ImageSampler::GetWrapXOptionFromKey(i);
+        auto wrapY = ImageSampler::GetWrapYOptionFromKey(i);
+        auto filter = ImageSampler::GetFilterOptionFromKey(i);
+
+        m_imageSamplers[i].Filter = filter_for_sampler_options(filter);
+        m_imageSamplers[i].AddressU = address_mode_for_sampler_option(wrapX);
+        m_imageSamplers[i].AddressV = address_mode_for_sampler_option(wrapY);
+        m_imageSamplers[i].AddressW = D3D12_TEXTURE_ADDRESS_MODE_CLAMP;
+        m_imageSamplers[i].MipLODBias = 0.0f;
+        m_imageSamplers[i].MaxAnisotropy = 1;
+        m_imageSamplers[i].ComparisonFunc = D3D12_COMPARISON_FUNC_NEVER;
+        m_imageSamplers[i].MinLOD = 0;
+        // this should be D3D12_FLOAT32_MAX but currently we don't generate mips
+        m_imageSamplers[i].MaxLOD = 0;
+    }
 
     PatchVertex patchVertices[kPatchVertexBufferCount];
     uint16_t patchIndices[kPatchIndexBufferCount];
@@ -769,6 +806,8 @@ void RenderContextD3D12Impl::prepareToFlush(uint64_t nextFrameNumber,
     m_isFirstFlushOfFrame = true;
 
     m_heapDescriptorOffset = 0;
+    m_samplerHeapDescriptorOffset = IMAGE_SAMPLER_HEAP_OFFSET;
+    m_lastDynamicSampler = ImageSampler::LinearClamp();
 }
 
 void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
@@ -938,6 +977,10 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
         cmdList->SetGraphicsRootDescriptorTable(
             SAMPLER_SIG_INDEX,
             m_samplerHeap->gpuHandleForIndex(0));
+
+        cmdList->SetGraphicsRootDescriptorTable(
+            DYNAMIC_SAMPLER_SIG_INDEX,
+            m_samplerHeap->gpuHandleForIndex(IMAGE_SAMPLER_HEAP_OFFSET));
     }
 
     // note that flush could have been left a heap but it would be pointless
@@ -1421,11 +1464,46 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             m_srvUavCbvHeap->markSrvToIndex(m_device.Get(),
                                             imageTexture,
                                             m_heapDescriptorOffset);
-
             cmdList->SetGraphicsRootDescriptorTable(
                 IMAGE_SIG_INDEX,
                 m_srvUavCbvHeap->gpuHandleForIndex(m_heapDescriptorOffset));
             ++m_heapDescriptorOffset;
+
+            // we want to update this as little as possible, so only set it if
+            // it's changed
+            if (m_lastDynamicSampler != batch.imageSampler)
+            {
+                if (++m_samplerHeapDescriptorOffset >=
+                    MAX_DESCRIPTOR_SAMPLER_HEAPS_PER_FLUSH)
+                {
+                    auto oldHeap = m_samplerHeap;
+                    m_samplerHeap = m_samplerHeapPool.acquire();
+                    m_samplerHeapDescriptorOffset = IMAGE_SAMPLER_HEAP_OFFSET;
+                    // copy the imutable sampelrs to the new heap
+                    m_device->CopyDescriptorsSimple(
+                        IMAGE_SAMPLER_HEAP_OFFSET,
+                        m_samplerHeap->cpuHandleForUpload(0),
+                        oldHeap->cpuHandleForUpload(0),
+                        D3D12_DESCRIPTOR_HEAP_TYPE_SAMPLER);
+
+                    ID3D12DescriptorHeap* ppHeaps[] = {m_srvUavCbvHeap->heap(),
+                                                       m_samplerHeap->heap()};
+
+                    cmdList->SetDescriptorHeaps(_countof(ppHeaps), ppHeaps);
+                }
+
+                m_samplerHeap->markSamplerToIndex(
+                    m_device.Get(),
+                    m_imageSamplers[batch.imageSampler.asKey()],
+                    m_samplerHeapDescriptorOffset);
+
+                cmdList->SetGraphicsRootDescriptorTable(
+                    DYNAMIC_SAMPLER_SIG_INDEX,
+                    m_samplerHeap->gpuHandleForIndex(
+                        m_samplerHeapDescriptorOffset));
+
+                m_lastDynamicSampler = batch.imageSampler;
+            }
         }
 
         switch (drawType)

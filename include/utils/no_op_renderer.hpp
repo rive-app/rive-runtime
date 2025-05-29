@@ -18,8 +18,10 @@ public:
     void transform(const Mat2D&) override {}
     void drawPath(RenderPath* path, RenderPaint* paint) override {}
     void clipPath(RenderPath* path) override {}
-    void drawImage(const RenderImage*, BlendMode, float) override {}
+    void drawImage(const RenderImage*, ImageSampler, BlendMode, float) override
+    {}
     void drawImageMesh(const RenderImage*,
+                       ImageSampler,
                        rcp<RenderBuffer>,
                        rcp<RenderBuffer>,
                        rcp<RenderBuffer>,

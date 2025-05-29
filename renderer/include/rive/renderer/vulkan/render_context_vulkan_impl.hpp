@@ -9,6 +9,7 @@
 #include <chrono>
 #include <unordered_map>
 #include <vulkan/vulkan.h>
+#include "rive/shapes/paint/image_sampler.hpp"
 
 namespace rive::gpu
 {
@@ -165,9 +166,9 @@ private:
     std::chrono::steady_clock::time_point m_localEpoch =
         std::chrono::steady_clock::now();
 
-    // Immutable samplers.
+    // Samplers.
     VkSampler m_linearSampler;
-    VkSampler m_mipmapSampler;
+    VkSampler m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 
     // Bound when there is not an image paint.
     rcp<TextureVulkanImpl> m_nullImageTexture;
@@ -179,7 +180,6 @@ private:
     VkDescriptorSetLayout m_immutableSamplerDescriptorSetLayout;
     VkDescriptorSetLayout m_emptyDescriptorSetLayout; // For when a set isn't
                                                       // used by a shader.
-
     VkDescriptorPool m_staticDescriptorPool; // For descriptorSets that never
                                              // change between frames.
     VkDescriptorSet m_nullImageDescriptorSet;

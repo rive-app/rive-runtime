@@ -4,6 +4,7 @@
 #pragma once
 
 #include "rive/refcnt.hpp"
+#include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/renderer/d3d12/d3d12.hpp"
 #include "rive/renderer/gpu_resource.hpp"
 #include <iostream>

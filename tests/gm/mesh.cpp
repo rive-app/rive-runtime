@@ -146,6 +146,7 @@ public:
                 if (img != nullptr)
                 {
                     ren->drawImageMesh(img.get(),
+                                       rive::ImageSampler::LinearClamp(),
                                        mesh.pts,
                                        mesh.uvs,
                                        mesh.indices,

@@ -114,6 +114,9 @@ $typedef float3 packed_float3;
 #define FRAG_TEXTURE_BLOCK_END
 #endif
 
+#define DYNAMIC_SAMPLER_BLOCK_BEGIN
+#define DYNAMIC_SAMPLER_BLOCK_END
+
 #define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
     uniform $Texture2D<uint4> NAME : $register($t##IDX)
 #define TEXTURE_RGBA32F(SET, IDX, NAME)                                        \
@@ -131,6 +134,7 @@ $typedef float3 packed_float3;
     $SamplerState NAME : $register($s##TEXTURE_IDX);
 #define SAMPLER_LINEAR SAMPLER
 #define SAMPLER_MIPMAP SAMPLER
+#define SAMPLER_DYNAMIC SAMPLER
 
 #define TEXEL_FETCH(NAME, COORD) NAME[COORD]
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD)                              \
@@ -148,6 +152,11 @@ $typedef float3 packed_float3;
                                     ARRAY_INDEX_NORMALIZED,                    \
                                     LOD)                                       \
     NAME.$SampleLevel(SAMPLER_NAME, float2(X, ARRAY_INDEX), LOD)
+
+#define TEXTURE_SAMPLE_DYNAMIC(TEXTURE, SAMPLER_NAME, COORD)                   \
+    TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD)
+#define TEXTURE_SAMPLE_DYNAMIC_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)          \
+    TEXTURE_SAMPLE_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)
 
 #define PLS_INTERLOCK_BEGIN
 #define PLS_INTERLOCK_END

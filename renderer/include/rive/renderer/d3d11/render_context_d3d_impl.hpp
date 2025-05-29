@@ -240,7 +240,8 @@ private:
     ComPtr<ID3D11Buffer> m_imageDrawUniforms;
 
     ComPtr<ID3D11SamplerState> m_linearSampler;
-    ComPtr<ID3D11SamplerState> m_mipmapSampler;
+    ComPtr<ID3D11SamplerState>
+        m_samplerStates[rive::ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 
     ComPtr<ID3D11RasterizerState> m_atlasRasterState;
     ComPtr<ID3D11RasterizerState> m_backCulledRasterState[2];

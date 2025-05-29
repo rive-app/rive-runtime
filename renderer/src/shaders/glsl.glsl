@@ -133,6 +133,9 @@
 #define FRAG_TEXTURE_BLOCK_END
 #endif
 
+#define DYNAMIC_SAMPLER_BLOCK_BEGIN
+#define DYNAMIC_SAMPLER_BLOCK_END
+
 #ifdef @TARGET_VULKAN
 #define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
     layout(set = SET, binding = IDX) uniform highp utexture2D NAME
@@ -160,13 +163,14 @@
 
 #ifdef @TARGET_VULKAN
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)                                      \
-    layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)                  \
+    layout(set = IMMUTABLE_SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)        \
         uniform mediump sampler NAME;
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                      \
-    layout(set = SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)                  \
+    layout(set = IMMUTABLE_SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)        \
         uniform mediump sampler NAME;
-#define SAMPLER_DYNAMIC(SET, BINDING, NAME)                                    \
-    layout(set = SET, binding = BINDING) uniform mediump sampler NAME;
+#define SAMPLER_DYNAMIC(TEXTURE_IDX, NAME)                                     \
+    layout(set = PER_DRAW_BINDINGS_SET, binding = TEXTURE_IDX)                 \
+        uniform mediump sampler NAME;
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD)                              \
     texture(sampler2D(NAME, SAMPLER_NAME), COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
@@ -178,13 +182,18 @@
 // parameters are API-level state tied to the texture.
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
-#define SAMPLER_DYNAMIC(SET, BINDING, NAME)
+#define SAMPLER_DYNAMIC(TEXTURE_IDX, NAME)
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     textureLod(NAME, COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(NAME, COORD, DDX, DDY)
 #endif // !@TARGET_VULKAN
+
+#define TEXTURE_SAMPLE_DYNAMIC(TEXTURE, SAMPLER_NAME, COORD)                   \
+    TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD)
+#define TEXTURE_SAMPLE_DYNAMIC_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)          \
+    TEXTURE_SAMPLE_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)
 
 // Polyfill the feather texture as a sampler2D since ES doesn't support
 // sampler1DArray. This is why the macro needs "ARRAY_INDEX_NORMALIZED": when

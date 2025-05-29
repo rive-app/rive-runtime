@@ -52,6 +52,48 @@ static id<MTLRenderPipelineState> make_pipeline_state(
     return state;
 }
 
+static MTLSamplerAddressMode address_mode_for_image_wrap(ImageWrap wrap)
+{
+    switch (wrap)
+    {
+        case ImageWrap::clamp:
+            return MTLSamplerAddressModeClampToEdge;
+        case ImageWrap::repeat:
+            return MTLSamplerAddressModeRepeat;
+        case ImageWrap::mirror:
+            return MTLSamplerAddressModeMirrorRepeat;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+static MTLSamplerMinMagFilter min_mag_filter_for_image_filter(
+    ImageFilter option)
+{
+    switch (option)
+    {
+        case ImageFilter::trilinear:
+            return MTLSamplerMinMagFilterLinear;
+        case ImageFilter::nearest:
+            return MTLSamplerMinMagFilterNearest;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+static MTLSamplerMipFilter mip_filter_for_image_filter(ImageFilter option)
+{
+    switch (option)
+    {
+        case ImageFilter::trilinear:
+            return MTLSamplerMipFilterLinear;
+        case ImageFilter::nearest:
+            return MTLSamplerMipFilterNearest;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
 // Renders color ramps to the gradient texture.
 class RenderContextMetalImpl::ColorRampPipeline
 {
@@ -465,6 +507,23 @@ RenderContextMetalImpl::RenderContextMetalImpl(
         m_metalFeatures.atomicBarrierType = AtomicBarrierType::renderPassBreak;
     }
 #endif
+
+    for (int i = 0; i < rive::ImageSampler::MAX_SAMPLER_PERMUTATIONS; ++i)
+    {
+        auto wrapX = ImageSampler::GetWrapXOptionFromKey(i);
+        auto wrapY = ImageSampler::GetWrapYOptionFromKey(i);
+        auto filter = ImageSampler::GetFilterOptionFromKey(i);
+
+        MTLSamplerDescriptor* samplerDescriptor = [MTLSamplerDescriptor new];
+        samplerDescriptor.minFilter = min_mag_filter_for_image_filter(filter);
+        samplerDescriptor.magFilter = min_mag_filter_for_image_filter(filter);
+        samplerDescriptor.mipFilter = mip_filter_for_image_filter(filter);
+        samplerDescriptor.sAddressMode = address_mode_for_image_wrap(wrapX);
+        samplerDescriptor.tAddressMode = address_mode_for_image_wrap(wrapY);
+
+        m_imageSamplers[i] =
+            [gpu newSamplerStateWithDescriptor:samplerDescriptor];
+    }
 
     m_backgroundShaderCompiler =
         std::make_unique<BackgroundShaderCompiler>(m_gpu, m_metalFeatures);
@@ -1466,6 +1525,16 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         {
             [encoder setFragmentTexture:imageTextureMetal->texture()
                                 atIndex:IMAGE_TEXTURE_IDX];
+
+            [encoder setFragmentSamplerState:m_imageSamplers[batch.imageSampler
+                                                                 .asKey()]
+                                     atIndex:IMAGE_SAMPLER_IDX];
+        }
+        else
+        {
+            [encoder setFragmentSamplerState:
+                         m_imageSamplers[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY]
+                                     atIndex:IMAGE_SAMPLER_IDX];
         }
 
         // Issue any barriers if needed.

@@ -3,6 +3,7 @@
  */
 
 #include "rive/renderer/gl/gl_utils.hpp"
+#include "rive/shapes/paint/image_sampler.hpp"
 
 #include <stdio.h>
 #include <sstream>
@@ -231,6 +232,63 @@ void SetTexture2DSamplingParams(GLenum minFilter, GLenum magFilter)
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_MAG_FILTER, magFilter);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_S, GL_CLAMP_TO_EDGE);
     glTexParameteri(GL_TEXTURE_2D, GL_TEXTURE_WRAP_T, GL_CLAMP_TO_EDGE);
+}
+
+GLint gl_wrap_from_image_wrap(rive::ImageWrap wrap)
+{
+    switch (wrap)
+    {
+        case rive::ImageWrap::clamp:
+            return GL_CLAMP_TO_EDGE;
+        case rive::ImageWrap::repeat:
+            return GL_REPEAT;
+        case rive::ImageWrap::mirror:
+            return GL_MIRRORED_REPEAT;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+GLint gl_min_filter_for_image_filter(rive::ImageFilter filter)
+{
+    switch (filter)
+    {
+        case rive::ImageFilter::trilinear:
+            return GL_LINEAR_MIPMAP_LINEAR;
+        case rive::ImageFilter::nearest:
+            return GL_NEAREST;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+GLint gl_mag_filter_for_image_filter(rive::ImageFilter filter)
+{
+    switch (filter)
+    {
+        case rive::ImageFilter::trilinear:
+            return GL_LINEAR;
+        case rive::ImageFilter::nearest:
+            return GL_NEAREST;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+void SetTexture2DSamplingParams(rive::ImageSampler samplingParams)
+{
+    glTexParameteri(GL_TEXTURE_2D,
+                    GL_TEXTURE_MIN_FILTER,
+                    gl_min_filter_for_image_filter(samplingParams.filter));
+    glTexParameteri(GL_TEXTURE_2D,
+                    GL_TEXTURE_MAG_FILTER,
+                    gl_mag_filter_for_image_filter(samplingParams.filter));
+    glTexParameteri(GL_TEXTURE_2D,
+                    GL_TEXTURE_WRAP_S,
+                    gl_wrap_from_image_wrap(samplingParams.wrapX));
+    glTexParameteri(GL_TEXTURE_2D,
+                    GL_TEXTURE_WRAP_T,
+                    gl_wrap_from_image_wrap(samplingParams.wrapY));
 }
 
 void BlitFramebuffer(rive::IAABB bounds,

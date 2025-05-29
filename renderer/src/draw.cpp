@@ -345,12 +345,15 @@ Draw::Draw(IAABB pixelBounds,
            const Mat2D& matrix,
            BlendMode blendMode,
            rcp<const Texture> imageTexture,
+           ImageSampler imageSampler,
            Type type) :
     m_imageTextureRef(imageTexture.release()),
+    m_imageSampler(imageSampler),
     m_pixelBounds(pixelBounds),
     m_matrix(matrix),
     m_blendMode(blendMode),
     m_type(type)
+
 {
     if (m_blendMode != BlendMode::srcOver)
     {
@@ -533,6 +536,7 @@ PathDraw::PathDraw(IAABB pixelBounds,
          matrix,
          paint->getBlendMode(),
          ref_rcp(paint->getImageTexture()),
+         paint->getImageSampler(),
          Type::path),
     m_pathRef(path.release()),
     m_pathFillRule(frameDesc.clockwiseFillOverride ? FillRule::clockwise
@@ -2444,11 +2448,13 @@ ImageRectDraw::ImageRectDraw(RenderContext* context,
                              const Mat2D& matrix,
                              BlendMode blendMode,
                              rcp<const Texture> imageTexture,
+                             const ImageSampler imageSampler,
                              float opacity) :
     Draw(pixelBounds,
          matrix,
          blendMode,
          std::move(imageTexture),
+         imageSampler,
          Type::imageRect),
     m_opacity(opacity)
 {
@@ -2469,6 +2475,7 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
                              const Mat2D& matrix,
                              BlendMode blendMode,
                              rcp<const Texture> imageTexture,
+                             const ImageSampler imageSampler,
                              rcp<RenderBuffer> vertexBuffer,
                              rcp<RenderBuffer> uvBuffer,
                              rcp<RenderBuffer> indexBuffer,
@@ -2478,6 +2485,8 @@ ImageMeshDraw::ImageMeshDraw(IAABB pixelBounds,
          matrix,
          blendMode,
          std::move(imageTexture),
+
+         imageSampler,
          Type::imageMesh),
     m_vertexBufferRef(vertexBuffer.release()),
     m_uvBufferRef(uvBuffer.release()),
@@ -2514,6 +2523,7 @@ StencilClipReset::StencilClipReset(RenderContext* context,
          Mat2D(),
          BlendMode::srcOver,
          nullptr,
+         ImageSampler::LinearClamp(),
          Type::stencilClipReset),
     m_previousClipID(previousClipID)
 {

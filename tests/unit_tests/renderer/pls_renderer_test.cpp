@@ -1203,6 +1203,70 @@ TEST_CASE("infinite-atomic-path", "RiveRenderer")
     renderContext->flush({.renderTarget = renderTarget.get()});
 }
 
+#define filter(a) rive::ImageSampler::GetFilterOptionFromKey(a)
+#define wrapx(a) rive::ImageSampler::GetWrapXOptionFromKey(a)
+#define wrapy(a) rive::ImageSampler::GetWrapYOptionFromKey(a)
+
+TEST_CASE("image-sample-option-conversions", "RiveRenderer")
+{
+    rive::ImageSampler defaultOptions = rive::ImageSampler::LinearClamp();
+    rive::ImageSampler repeatNearestOptions = {rive::ImageWrap::repeat,
+                                               rive::ImageWrap::repeat,
+                                               rive::ImageFilter::nearest};
+
+    auto defaultKey = defaultOptions.asKey();
+    CHECK(defaultKey == 0);
+    auto repeatNearestOptionsKey = repeatNearestOptions.asKey();
+    CHECK(defaultKey != repeatNearestOptionsKey);
+    CHECK(wrapx(repeatNearestOptionsKey) == rive::ImageWrap::repeat);
+    CHECK(wrapy(repeatNearestOptionsKey) == rive::ImageWrap::repeat);
+    CHECK(filter(repeatNearestOptionsKey) == rive::ImageFilter::nearest);
+
+    rive::ImageSampler clampMirrorLinearOptions = {
+        rive::ImageWrap::clamp,
+        rive::ImageWrap::mirror,
+        rive::ImageFilter::trilinear};
+
+    auto clampMirrorLinearOptionsKey = clampMirrorLinearOptions.asKey();
+    CHECK(wrapx(clampMirrorLinearOptionsKey) == rive::ImageWrap::clamp);
+    CHECK(wrapy(clampMirrorLinearOptionsKey) == rive::ImageWrap::mirror);
+    CHECK(filter(clampMirrorLinearOptionsKey) == rive::ImageFilter::trilinear);
+    CHECK(clampMirrorLinearOptions != repeatNearestOptions);
+
+    rive::ImageSampler repeatClampMipLinearOptions = {
+        rive::ImageWrap::repeat,
+        rive::ImageWrap::clamp,
+        rive::ImageFilter::trilinear};
+
+    auto repearClampMipLinearOptionsKey = repeatClampMipLinearOptions.asKey();
+    CHECK(wrapx(repearClampMipLinearOptionsKey) == rive::ImageWrap::repeat);
+    CHECK(wrapy(repearClampMipLinearOptionsKey) == rive::ImageWrap::clamp);
+    CHECK(filter(repearClampMipLinearOptionsKey) ==
+          rive::ImageFilter::trilinear);
+
+    rive::ImageSampler clampRepeatMipNearestOptions = {
+        rive::ImageWrap::clamp,
+        rive::ImageWrap::repeat,
+        rive::ImageFilter::trilinear};
+
+    auto clampRepeatMipNearestOptionsKey = clampRepeatMipNearestOptions.asKey();
+    CHECK(wrapx(clampRepeatMipNearestOptionsKey) == rive::ImageWrap::clamp);
+    CHECK(wrapy(clampRepeatMipNearestOptionsKey) == rive::ImageWrap::repeat);
+    CHECK(filter(clampRepeatMipNearestOptionsKey) ==
+          rive::ImageFilter::trilinear);
+
+    rive::ImageSampler mirrorClampMipNearestOptions = {
+        rive::ImageWrap::mirror,
+        rive::ImageWrap::clamp,
+        rive::ImageFilter::nearest};
+
+    auto mirrorClampMipNearestOptionsKey = mirrorClampMipNearestOptions.asKey();
+    CHECK(wrapx(mirrorClampMipNearestOptionsKey) == rive::ImageWrap::mirror);
+    CHECK(wrapy(mirrorClampMipNearestOptionsKey) == rive::ImageWrap::clamp);
+    CHECK(filter(mirrorClampMipNearestOptionsKey) ==
+          rive::ImageFilter::nearest);
+}
+
 // Ensure the renderer gracefully handles a null texture within a
 // RiveRenderImage.
 TEST_CASE("null-render-texture", "RiveRenderer")
@@ -1226,10 +1290,14 @@ TEST_CASE("null-render-texture", "RiveRenderer")
     auto nullTextureImage = make_rcp<NullTextureImage>(100, 100);
     CHECK(nullTextureImage->getTexture() == nullptr);
 
-    renderer.drawImage(nullTextureImage.get(), BlendMode::screen, .5f);
+    renderer.drawImage(nullTextureImage.get(),
+                       ImageSampler::LinearClamp(),
+                       BlendMode::screen,
+                       .5f);
 
     renderer.drawImageMesh(
         nullTextureImage.get(),
+        ImageSampler::LinearClamp(),
         renderContext->makeRenderBuffer(RenderBufferType::vertex,
                                         RenderBufferFlags::none,
                                         80),

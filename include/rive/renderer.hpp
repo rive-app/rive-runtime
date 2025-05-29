@@ -13,6 +13,7 @@
 #include "rive/math/aabb.hpp"
 #include "rive/math/mat2d.hpp"
 #include "rive/shapes/paint/blend_mode.hpp"
+#include "rive/shapes/paint/image_sampler.hpp"
 #include "rive/shapes/paint/stroke_cap.hpp"
 #include "rive/shapes/paint/stroke_join.hpp"
 #include "utils/lite_rtti.hpp"
@@ -205,8 +206,12 @@ public:
     virtual void transform(const Mat2D& transform) = 0;
     virtual void drawPath(RenderPath* path, RenderPaint* paint) = 0;
     virtual void clipPath(RenderPath* path) = 0;
-    virtual void drawImage(const RenderImage*, BlendMode, float opacity) = 0;
+    virtual void drawImage(const RenderImage*,
+                           ImageSampler,
+                           BlendMode,
+                           float opacity) = 0;
     virtual void drawImageMesh(const RenderImage*,
+                               ImageSampler,
                                rcp<RenderBuffer> vertices_f32,
                                rcp<RenderBuffer> uvCoords_f32,
                                rcp<RenderBuffer> indices_u16,

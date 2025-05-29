@@ -5,6 +5,7 @@
 #pragma once
 
 #include "rive/renderer/render_context_helper_impl.hpp"
+#include "rive/shapes/paint/image_sampler.hpp"
 #include <map>
 #include <mutex>
 
@@ -227,6 +228,8 @@ private:
     std::unique_ptr<AtlasPipeline> m_atlasFillPipeline;
     std::unique_ptr<AtlasPipeline> m_atlasStrokePipeline;
     id<MTLTexture> m_atlasTexture = nullptr;
+
+    id<MTLSamplerState> m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 
     std::map<uint32_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
 

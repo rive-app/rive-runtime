@@ -1463,6 +1463,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         {
             glActiveTexture(GL_TEXTURE0 + IMAGE_TEXTURE_IDX);
             glBindTexture(GL_TEXTURE_2D, *imageTextureGL);
+            glutils::SetTexture2DSamplingParams(batch.imageSampler);
         }
 
         gpu::PipelineState pipelineState;

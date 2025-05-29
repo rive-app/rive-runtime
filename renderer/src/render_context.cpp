@@ -1375,6 +1375,7 @@ void RenderContext::LogicalFlush::writeResources()
                                         1,
                                         0,
                                         BlendMode::srcOver,
+                                        ImageSampler::LinearClamp(),
                                         BarrierFlags::none);
             }
             m_pendingBarriers |= BarrierFlags::plsAtomicPostInit;
@@ -1473,6 +1474,7 @@ void RenderContext::LogicalFlush::writeResources()
                               1,
                               0,
                               BlendMode::srcOver,
+                              ImageSampler::LinearClamp(),
                               BarrierFlags::plsAtomicPreResolve)
                 .shaderFeatures = m_combinedShaderFeatures;
         }
@@ -2636,7 +2638,9 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_contents(
 
 RIVE_ALWAYS_INLINE static bool can_combine_draw_images(
     const Texture* currentDrawTexture,
-    const Texture* nextDrawTexture)
+    const Texture* nextDrawTexture,
+    const ImageSampler currentImageSamplerKey,
+    const ImageSampler nextImageSamplerKey)
 {
     if (currentDrawTexture == nullptr || nextDrawTexture == nullptr)
     {
@@ -2646,7 +2650,8 @@ RIVE_ALWAYS_INLINE static bool can_combine_draw_images(
     }
     // Since the image paint's texture must be bound to a specific slot, we
     // can't combine draws that use different textures.
-    return currentDrawTexture == nextDrawTexture;
+    return (currentDrawTexture == nextDrawTexture) &&
+           (currentImageSamplerKey == nextImageSamplerKey);
 }
 
 gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
@@ -2686,7 +2691,9 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                                               currentBatch.drawContents,
                                               draw) &&
                     can_combine_draw_images(currentBatch.imageTexture,
-                                            draw->imageTexture());
+                                            draw->imageTexture(),
+                                            currentBatch.imageSampler,
+                                            draw->imageSampler());
                 if (canMergeWithPreviousBatch &&
                     currentBatch.baseElement + currentBatch.elementCount !=
                         baseElement)
@@ -2732,13 +2739,17 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
             elementCount,
             baseElement,
             draw->blendMode(),
+            draw->imageSampler(),
             std::exchange(m_pendingBarriers, BarrierFlags::none));
     }
 
     // If the batch was merged into a previous one, this ensures it was a valid
     // merge.
     assert(batch->drawType == drawType);
-    assert(can_combine_draw_images(batch->imageTexture, draw->imageTexture()));
+    assert(can_combine_draw_images(batch->imageTexture,
+                                   draw->imageTexture(),
+                                   batch->imageSampler,
+                                   draw->imageSampler()));
     assert(m_pendingBarriers == BarrierFlags::none);
 
     auto shaderFeatures = ShaderFeatures::NONE;

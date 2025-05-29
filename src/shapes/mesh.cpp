@@ -168,6 +168,7 @@ void Mesh::update(ComponentDirt value)
 
 void Mesh::draw(Renderer* renderer,
                 const RenderImage* image,
+                ImageSampler ImageSampler,
                 BlendMode blendMode,
                 float opacity)
 {
@@ -189,6 +190,7 @@ void Mesh::draw(Renderer* renderer,
             parent()->as<WorldTransformComponent>()->worldTransform());
     }
     renderer->drawImageMesh(image,
+                            ImageSampler,
                             m_VertexRenderBuffer,
                             m_UVRenderBuffer,
                             m_IndexRenderBuffer,

@@ -6,7 +6,7 @@
 #include "gmutils.hpp"
 #include "common/rand.hpp"
 #include "common/write_png_file.hpp"
-
+#include "rive/shapes/paint/image_sampler.hpp"
 #ifndef RIVE_TOOLS_NO_GL
 #include "rive/renderer/gl/render_context_gl_impl.hpp"
 #endif
@@ -251,10 +251,65 @@ public:
 
         AutoRestore ar(renderer, /*doSave=*/true);
         renderer->scale(size / image->width(), size / image->height());
-        renderer->drawImage(image.get(), rive::BlendMode::srcOver, 1);
+        renderer->drawImage(image.get(),
+                            rive::ImageSampler::LinearClamp(),
+                            rive::BlendMode::srcOver,
+                            1);
     }
 
 private:
     rive::rcp<rive::RenderImage> m_images[512];
 };
 GMREGISTER(lots_of_images, return new LotsOfImagesGM)
+
+// Run out of kMaxImageTextureUpdates descriptors, requiring the Vulkan
+// backend to allocate a new VkDescriptorPool during flush.
+class LotsOfImagesSampledGM : public LotsOfSquaresGM
+{
+public:
+    LotsOfImagesSampledGM() : LotsOfSquaresGM() {}
+
+    void drawSquare(rive::Renderer* renderer,
+                    float size,
+                    size_t i,
+                    size_t j) override
+    {
+        auto flatIndex = (j * kCols + i);
+        auto sampler = rive::ImageSampler::SamplerFromKey(
+            flatIndex % rive::ImageSampler::MAX_SAMPLER_PERMUTATIONS);
+
+        if (m_image == nullptr)
+        {
+            constexpr static size_t pngSize = 4;
+            rive::Factory* factory = TestingWindow::Get()->factory();
+            auto color = randColor();
+            std::vector<uint8_t> imagePixels(pngSize * pngSize * 4);
+            for (auto it = imagePixels.begin(); it != imagePixels.end();
+                 it += 4)
+            {
+                rive::UnpackColorToRGBA8(color, &(*it));
+            }
+            std::vector<uint8_t> encodedData =
+                EncodePNGToBuffer(pngSize,
+                                  pngSize,
+                                  imagePixels.data(),
+                                  PNGCompression::fast_rle);
+            m_image = factory->decodeImage(rive::Span<uint8_t>(encodedData));
+            if (m_image == nullptr)
+            {
+                return;
+            }
+        }
+
+        AutoRestore ar(renderer, /*doSave=*/true);
+        renderer->scale(size / m_image->width(), size / m_image->height());
+        renderer->drawImage(m_image.get(),
+                            sampler,
+                            rive::BlendMode::srcOver,
+                            1);
+    }
+
+private:
+    rive::rcp<rive::RenderImage> m_image;
+};
+GMREGISTER(lots_of_images_sampled, return new LotsOfImagesSampledGM)

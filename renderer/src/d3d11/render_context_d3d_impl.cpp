@@ -358,6 +358,37 @@ void D3D11PipelineManager::compileBlobToFinalType(
     }
 }
 
+static D3D11_FILTER filter_for_sampler_filter_options(ImageFilter option)
+{
+    switch (option)
+    {
+        case ImageFilter::trilinear:
+            return D3D11_FILTER::D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+        case ImageFilter::nearest:
+            return D3D11_FILTER::D3D11_FILTER_MIN_MAG_MIP_POINT;
+    }
+
+    RIVE_UNREACHABLE();
+    return D3D11_FILTER_MIN_MAG_MIP_LINEAR;
+}
+
+static D3D11_TEXTURE_ADDRESS_MODE address_mode_for_sampler_filter_options(
+    ImageWrap option)
+{
+    switch (option)
+    {
+        case ImageWrap::clamp:
+            return D3D11_TEXTURE_ADDRESS_CLAMP;
+        case ImageWrap::repeat:
+            return D3D11_TEXTURE_ADDRESS_WRAP;
+        case ImageWrap::mirror:
+            return D3D11_TEXTURE_ADDRESS_MIRROR;
+    }
+
+    RIVE_UNREACHABLE();
+    return D3D11_TEXTURE_ADDRESS_CLAMP;
+}
+
 std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
     ComPtr<ID3D11Device> gpu,
     ComPtr<ID3D11DeviceContext> gpuContext,
@@ -615,20 +646,30 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         m_gpu->CreateSamplerState(&linearSamplerDesc,
                                   m_linearSampler.ReleaseAndGetAddressOf()));
 
-    // Create a mipmap sampler for the image textures.
-    D3D11_SAMPLER_DESC mipmapSamplerDesc;
-    mipmapSamplerDesc.Filter = D3D11_FILTER_MIN_MAG_MIP_LINEAR;
-    mipmapSamplerDesc.AddressU = D3D11_TEXTURE_ADDRESS_CLAMP;
-    mipmapSamplerDesc.AddressV = D3D11_TEXTURE_ADDRESS_CLAMP;
-    mipmapSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-    mipmapSamplerDesc.MipLODBias = 0.0f;
-    mipmapSamplerDesc.MaxAnisotropy = 1;
-    mipmapSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
-    mipmapSamplerDesc.MinLOD = 0;
-    mipmapSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
-    VERIFY_OK(
-        m_gpu->CreateSamplerState(&mipmapSamplerDesc,
-                                  m_mipmapSampler.ReleaseAndGetAddressOf()));
+    // Create a mipmap sampler for each sampler permutation option.
+    for (int samplerKey = 0;
+         samplerKey < ImageSampler::MAX_SAMPLER_PERMUTATIONS;
+         ++samplerKey)
+    {
+        auto xWrap = ImageSampler::GetWrapXOptionFromKey(samplerKey);
+        auto yWrap = ImageSampler::GetWrapYOptionFromKey(samplerKey);
+        D3D11_SAMPLER_DESC mipmapSamplerDesc;
+        mipmapSamplerDesc.Filter = filter_for_sampler_filter_options(
+            ImageSampler::GetFilterOptionFromKey(samplerKey));
+        mipmapSamplerDesc.AddressU =
+            address_mode_for_sampler_filter_options(xWrap);
+        mipmapSamplerDesc.AddressV =
+            address_mode_for_sampler_filter_options(yWrap);
+        mipmapSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
+        mipmapSamplerDesc.MipLODBias = 0.0f;
+        mipmapSamplerDesc.MaxAnisotropy = 1;
+        mipmapSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+        mipmapSamplerDesc.MinLOD = 0;
+        mipmapSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
+        VERIFY_OK(m_gpu->CreateSamplerState(
+            &mipmapSamplerDesc,
+            m_samplerStates[samplerKey].ReleaseAndGetAddressOf()));
+    }
 
     m_gpuContext->VSSetSamplers(FEATHER_TEXTURE_IDX,
                                 1,
@@ -1428,7 +1469,8 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_linearSampler.Get(),
         m_linearSampler.Get(),
         m_linearSampler.Get(),
-        m_mipmapSampler.Get(),
+        // 0 is the default which is MIN_MAG_MIP_LINEAR
+        m_samplerStates[ImageSampler::LINEAR_CLAMP_SAMPLER_KEY].Get(),
     };
 
     static_assert(FEATHER_TEXTURE_IDX == GRAD_TEXTURE_IDX + 1);
@@ -1795,6 +1837,13 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             m_gpuContext->PSSetShaderResources(IMAGE_TEXTURE_IDX,
                                                1,
                                                imageTextureD3D->srvAddressOf());
+            // we should never get a sampler option that is greater then our
+            // array size
+            assert(batch.imageSampler.asKey() <
+                   ImageSampler::MAX_SAMPLER_PERMUTATIONS);
+            ID3D11SamplerState* samplers[1] = {
+                m_samplerStates[batch.imageSampler.asKey()].Get()};
+            m_gpuContext->PSSetSamplers(IMAGE_SAMPLER_IDX, 1, samplers);
         }
 
         switch (drawType)

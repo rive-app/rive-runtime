@@ -90,6 +90,10 @@ void path_addOval(rive::RenderPath*,
 void draw_rect(rive::Renderer* r, rive::AABB rect, rive::RenderPaint*);
 void draw_oval(rive::Renderer* r, rive::AABB rect, rive::RenderPaint*);
 void draw_image(rive::Renderer*, rive::RenderImage*, rive::AABB);
+void draw_image(rive::Renderer* ren,
+                rive::RenderImage* img,
+                const rive::ImageSampler& options,
+                rive::AABB dst);
 
 rive::rcp<rive::RenderPath> renderPathFromRawPath(
     rive::RawPath& path,

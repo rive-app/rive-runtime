@@ -321,6 +321,7 @@ void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
 }
 
 void RiveRenderer::drawImage(const RenderImage* renderImage,
+                             ImageSampler imageSampler,
                              BlendMode blendMode,
                              float opacity)
 {
@@ -353,6 +354,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
                     m,
                     blendMode,
                     std::move(imageTexture),
+                    imageSampler,
                     opacity)));
         }
     }
@@ -371,6 +373,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
         RiveRenderPaint paint;
         paint.image(std::move(imageTexture), opacity);
         paint.blendMode(blendMode);
+        paint.imageSampler(imageSampler);
         drawPath(m_unitRectPath.get(), &paint);
     }
 
@@ -378,6 +381,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
 }
 
 void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
+                                 ImageSampler imageSampler,
                                  rcp<RenderBuffer> vertices_f32,
                                  rcp<RenderBuffer> uvCoords_f32,
                                  rcp<RenderBuffer> indices_u16,
@@ -411,6 +415,7 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
                                             m_stack.back().matrix,
                                             blendMode,
                                             std::move(imageTexture),
+                                            imageSampler,
                                             std::move(vertices_f32),
                                             std::move(uvCoords_f32),
                                             std::move(indices_u16),
