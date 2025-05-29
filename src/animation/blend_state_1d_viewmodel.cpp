@@ -6,6 +6,15 @@
 
 using namespace rive;
 
+BlendState1DViewModel::~BlendState1DViewModel()
+{
+    if (m_bindableProperty != nullptr)
+    {
+        delete m_bindableProperty;
+        m_bindableProperty = nullptr;
+    }
+}
+
 StatusCode BlendState1DViewModel::import(ImportStack& importStack)
 {
     auto stateMachineImporter =

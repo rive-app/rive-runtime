@@ -808,7 +808,7 @@ static bool gradientMatches(uint64_t op,
     {
         std::string colorName = std::string("make_") + name +
                                 std::string("_color_") + std::to_string(i);
-        if (!varUintMatches(op, colorName, readerA, readerB, &count))
+        if (!varUintMatches(op, colorName, readerA, readerB))
         {
             return false;
         }

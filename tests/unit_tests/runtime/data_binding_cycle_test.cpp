@@ -194,12 +194,7 @@ TEST_CASE("view model changed by parent target to source prop changes on the "
     REQUIRE(textRunParent->text() == "parent-after");
 }
 
-// TEST_CASE("view model changed by parent target to source prop changes on the
-// "
-//           "same frame on child",
-//           "[data binding]")
-// {
-TEST_CASE("XXXXX", "[data binding]")
+TEST_CASE("view model changed by three artboard levels", "[data binding]")
 {
     auto file = ReadRiveFile("assets/data_binding_test_3.riv");
 

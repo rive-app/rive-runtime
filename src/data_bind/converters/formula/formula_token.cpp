@@ -6,6 +6,14 @@
 
 using namespace rive;
 
+FormulaToken::~FormulaToken()
+{
+    for (auto dataBind : m_dataBinds)
+    {
+        delete dataBind;
+    }
+}
+
 StatusCode FormulaToken::import(ImportStack& importStack)
 {
     auto dataConveterFormulaImporter =

@@ -10,6 +10,7 @@ namespace rive
 class FormulaToken : public FormulaTokenBase
 {
 public:
+    ~FormulaToken();
     StatusCode import(ImportStack& importStack) override;
 
     virtual void bindFromContext(DataContext* dataContext, DataBind* dataBind);

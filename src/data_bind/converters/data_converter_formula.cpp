@@ -218,9 +218,16 @@ float DataConverterFormula::applyOperation(float left,
 
 float DataConverterFormula::getRandom(int randomIndex)
 {
+#ifdef TESTING
+    int testInt = 0;
+#endif
     while (m_randoms.size() <= randomIndex)
     {
+#ifdef TESTING
+        m_randoms.push_back(testInt++);
+#else
         m_randoms.push_back((float)rand() / float(RAND_MAX));
+#endif
     }
     return m_randoms[randomIndex];
 }
