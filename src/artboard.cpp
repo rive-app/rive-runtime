@@ -824,6 +824,15 @@ LayoutData* Artboard::takeLayoutData()
 
 void Artboard::cleanLayout(LayoutComponent* layoutComponent)
 {
+    assert(!m_isCleaningDirtyLayouts);
+    if (m_isCleaningDirtyLayouts)
+    {
+        fprintf(stderr,
+                "Artboard::cleanLayout - trying to remove a dirty layout "
+                "during clean pass!\n");
+        return;
+    }
+
     if (!m_dirtyLayout.empty())
     {
         auto itr = m_dirtyLayout.find(layoutComponent);
@@ -846,6 +855,14 @@ void Artboard::cleanLayout(LayoutComponent* layoutComponent)
 
 void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
 {
+    assert(!m_isCleaningDirtyLayouts);
+    if (m_isCleaningDirtyLayouts)
+    {
+        fprintf(stderr,
+                "Artboard::markLayoutDirty - trying to mark a layout dirty "
+                "during clean pass!\n");
+        return;
+    }
 #ifdef WITH_RIVE_TOOLS
     if (m_dirtyLayout.empty() && m_layoutDirtyCallback != nullptr)
     {
@@ -863,6 +880,7 @@ void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
 bool Artboard::syncStyleChanges()
 {
     bool updated = false;
+    m_isCleaningDirtyLayouts = true;
 #ifdef WITH_RIVE_LAYOUT
     if (!m_dirtyLayout.empty())
     {
@@ -898,6 +916,7 @@ bool Artboard::syncStyleChanges()
         updated = true;
     }
 #endif
+    m_isCleaningDirtyLayouts = false;
     return updated;
 }
 

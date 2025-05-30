@@ -80,6 +80,7 @@ private:
     bool m_IsInstance = false;
     bool m_FrameOrigin = true;
     std::unordered_set<LayoutComponent*> m_dirtyLayout;
+    bool m_isCleaningDirtyLayouts = false;
     float m_originalWidth = 0;
     float m_originalHeight = 0;
     bool m_updatesOwnLayout = true;
