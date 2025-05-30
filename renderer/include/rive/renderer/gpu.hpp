@@ -1098,6 +1098,13 @@ struct FlushDescriptor
     bool clockwiseFillOverride = false;
     bool hasTriangleVertices = false;
     bool wireframe = false;
+#ifdef WITH_RIVE_TOOLS
+    // Synthesize compilation failures to make sure the device handles them
+    // gracefully. (e.g., by falling back on an uber shader or at least not
+    // crashing.) Valid compilations may fail in the real world if the device is
+    // pressed for resources or in a bad state.
+    bool synthesizeCompilationFailures = false;
+#endif
 
     // Command buffer that rendering commands will be added to.
     //  - VkCommandBuffer on Vulkan.

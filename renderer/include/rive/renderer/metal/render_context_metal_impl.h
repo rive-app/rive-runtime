@@ -6,7 +6,7 @@
 
 #include "rive/renderer/render_context_helper_impl.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
-#include <map>
+#include <unordered_map>
 #include <mutex>
 
 #ifndef RIVE_OBJC_NOP
@@ -194,7 +194,7 @@ private:
     // the given features.
     const DrawPipeline* findCompatibleDrawPipeline(gpu::DrawType,
                                                    gpu::ShaderFeatures,
-                                                   gpu::InterlockMode,
+                                                   const gpu::FlushDescriptor&,
                                                    gpu::ShaderMiscFlags);
 
     void flush(const FlushDescriptor&) override;
@@ -231,7 +231,7 @@ private:
 
     id<MTLSamplerState> m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
 
-    std::map<uint32_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
+    std::unordered_map<uint32_t, std::unique_ptr<DrawPipeline>> m_drawPipelines;
 
     // Vertex/index buffers for drawing path patches.
     id<MTLBuffer> m_pathPatchVertexBuffer;

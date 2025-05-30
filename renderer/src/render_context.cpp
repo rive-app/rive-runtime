@@ -1019,6 +1019,10 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.tessDataHeight = tessDataHeight;
     m_flushDesc.clockwiseFillOverride = frameDescriptor.clockwiseFillOverride;
     m_flushDesc.wireframe = frameDescriptor.wireframe;
+#ifdef WITH_RIVE_TOOLS
+    m_flushDesc.synthesizeCompilationFailures =
+        frameDescriptor.synthesizeCompilationFailures;
+#endif
 
     m_flushDesc.externalCommandBuffer = flushResources.externalCommandBuffer;
 

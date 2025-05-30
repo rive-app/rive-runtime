@@ -258,24 +258,51 @@ void BackgroundShaderCompiler::threadMain()
             compileOptions.preserveInvariance = YES;
         }
         compileOptions.preprocessorMacros = defines;
-        job.compiledLibrary = [m_gpu newLibraryWithSource:source
-                                                  options:compileOptions
-                                                    error:&err];
-        if (job.compiledLibrary == nil)
+#ifdef WITH_RIVE_TOOLS
+        if (job.synthesizeCompilationFailure)
         {
-            int lineNumber = 1;
-            std::stringstream stream(source.UTF8String);
-            std::string lineStr;
-            while (std::getline(stream, lineStr, '\n'))
-            {
-                fprintf(stderr, "%4i| %s\n", lineNumber++, lineStr.c_str());
-            }
-            fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
-            fprintf(stderr, "Failed to compile shader.\n\n");
-            abort();
+            assert(job.compiledLibrary == nil);
+        }
+        else
+#endif
+        {
+            job.compiledLibrary = [m_gpu newLibraryWithSource:source
+                                                      options:compileOptions
+                                                        error:&err];
         }
 
         lock.lock();
+
+        if (job.compiledLibrary == nil)
+        {
+#ifdef WITH_RIVE_TOOLS
+            if (job.synthesizeCompilationFailure)
+            {
+                fprintf(stderr, "Synthesizing shader compilation failure...\n");
+            }
+            else
+#endif
+            {
+                // The compile job failed, most likely to external environmental
+                // factors. Give up on this shader and let the render context
+                // fall back on an uber shader instead.
+                int lineNumber = 1;
+                std::stringstream stream(source.UTF8String);
+                std::string lineStr;
+                while (std::getline(stream, lineStr, '\n'))
+                {
+                    fprintf(stderr, "%4i| %s\n", lineNumber++, lineStr.c_str());
+                }
+                fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
+            }
+
+            fprintf(stderr, "Failed to compile shader.\n");
+            assert(false
+#ifdef WITH_RIVE_TOOLS
+                   || job.synthesizeCompilationFailure
+#endif
+            );
+        }
 
         m_finishedJobs.push_back(std::move(job));
         m_workFinishedCondition.notify_all();

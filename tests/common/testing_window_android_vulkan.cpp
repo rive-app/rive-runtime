@@ -36,20 +36,22 @@ public:
         m_height = ANativeWindow_getHeight(window);
         rive_vkb::load_vulkan();
 
-        m_instance = VKB_CHECK(
-            vkb::InstanceBuilder()
-                .set_app_name("path_fiddle")
-                .set_engine_name("Rive Renderer")
+        vkb::InstanceBuilder instanceBuilder;
+        instanceBuilder.set_app_name("path_fiddle")
+            .set_engine_name("Rive Renderer")
+            .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
+            .require_api_version(1, m_backendParams.coreFeaturesOnly ? 0 : 3, 0)
+            .set_minimum_instance_version(1, 0, 0);
 #ifdef DEBUG
-                .set_debug_callback(rive_vkb::default_debug_callback)
-                .enable_validation_layers(true)
+        instanceBuilder.enable_validation_layers(
+            !backendParams.disableValidationLayers);
+        if (!backendParams.disableDebugCallbacks)
+        {
+            instanceBuilder.set_debug_callback(
+                rive_vkb::default_debug_callback);
+        }
 #endif
-                .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
-                .require_api_version(1,
-                                     m_backendParams.coreFeaturesOnly ? 0 : 3,
-                                     0)
-                .set_minimum_instance_version(1, 0, 0)
-                .build());
+        m_instance = VKB_CHECK(instanceBuilder.build());
         m_instanceDispatchTable = m_instance.make_table();
 
         VkAndroidSurfaceCreateInfoKHR androidSurfaceCreateInfo = {
@@ -177,9 +179,12 @@ public:
                               ? gpu::LoadAction::clear
                               : gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
+            .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
                 m_backendParams.clockwiseFill || options.clockwiseFillOverride,
+            .synthesizeCompilationFailures =
+                options.synthesizeCompilationFailures,
         });
 
         return std::make_unique<RiveRenderer>(m_renderContext.get());

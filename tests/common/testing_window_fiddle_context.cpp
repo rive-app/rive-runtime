@@ -4,7 +4,7 @@
 
 #include "testing_window.hpp"
 
-#if defined(TESTING) || defined(RIVE_TOOLS_NO_GLFW)
+#if defined(RIVE_TOOLS_NO_GLFW)
 TestingWindow* TestingWindow::MakeFiddleContext(Backend,
                                                 Visibility,
                                                 const BackendParams&,
@@ -240,7 +240,9 @@ public:
             .coreFeaturesOnly = m_backendParams.coreFeaturesOnly,
             .srgb = m_backendParams.srgb,
             .allowHeadlessRendering = visibility == Visibility::headless,
-            .enableVulkanValidationLayers = true,
+            .enableVulkanValidationLayers =
+                !backendParams.disableValidationLayers,
+            .disableDebugCallbacks = backendParams.disableDebugCallbacks,
             .gpuNameFilter = backendParams.gpuNameFilter.c_str(),
         };
 
@@ -288,10 +290,7 @@ public:
 
         if (m_fiddleContext == nullptr)
         {
-            fprintf(stderr,
-                    "error: unable to create FiddleContext for %s.\n",
-                    BackendName(backend));
-            abort();
+            return;
         }
         // On Mac we need to call glfwSetWindowSize even though we created the
         // window with these same dimensions.
@@ -313,6 +312,8 @@ public:
             glfwTerminate();
         }
     }
+
+    bool valid() const { return m_fiddleContext != nullptr; }
 
     rive::Factory* factory() override { return m_fiddleContext->factory(); }
 
@@ -340,9 +341,14 @@ public:
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
             .msaaSampleCount = m_msaaSampleCount,
+            .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
                 m_backendParams.clockwiseFill || options.clockwiseFillOverride,
+#ifdef WITH_RIVE_TOOLS
+            .synthesizeCompilationFailures =
+                options.synthesizeCompilationFailures,
+#endif
         };
         m_fiddleContext->begin(std::move(frameDescriptor));
         return m_fiddleContext->makeRenderer(m_width, m_height);
@@ -414,10 +420,13 @@ TestingWindow* TestingWindow::MakeFiddleContext(
     const BackendParams& backendParams,
     void* platformWindow)
 {
-    return new TestingWindowFiddleContext(backend,
-                                          visibility,
-                                          backendParams,
-                                          platformWindow);
+    auto window = std::make_unique<TestingWindowFiddleContext>(backend,
+                                                               visibility,
+                                                               backendParams,
+                                                               platformWindow);
+    if (!window->valid())
+        window = nullptr;
+    return window.release();
 }
 
 #endif

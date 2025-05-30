@@ -128,6 +128,11 @@ template <class T, class... Args> std::unique_ptr<T> make_unique(Args&&... args)
 {
     return std::unique_ptr<T>(new T(std::forward<Args>(args)...));
 }
+
+template <typename T> static std::unique_ptr<T> adopt_unique(T* window)
+{
+    return std::unique_ptr<T>(window);
+}
 } // namespace rivestd
 
 #endif // rive_types

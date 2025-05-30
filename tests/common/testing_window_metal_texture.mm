@@ -4,7 +4,7 @@
 
 #include "testing_window.hpp"
 
-#if defined(__APPLE__) && !defined(TESTING) && !defined(RIVE_UNREAL)
+#if defined(__APPLE__) && !defined(RIVE_UNREAL)
 
 #include "rive/renderer/metal/render_context_metal_impl.h"
 #include "rive/renderer/rive_renderer.hpp"
@@ -34,9 +34,6 @@ public:
         return m_renderContext.get();
     }
 
-    // rive::gpu::RenderTarget* renderTarget() const override { return
-    // m_renderTarget.get(); }
-
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {
@@ -47,8 +44,11 @@ public:
                               ? rive::gpu::LoadAction::clear
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
+            .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride = options.clockwiseFillOverride,
+            .synthesizeCompilationFailures =
+                options.synthesizeCompilationFailures,
         };
         m_renderContext->beginFrame(frameDescriptor);
         m_flushCommandBuffer = [m_queue commandBuffer];

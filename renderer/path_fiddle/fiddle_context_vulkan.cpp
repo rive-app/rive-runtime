@@ -39,19 +39,22 @@ public:
         const char** glfwExtensions;
         glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-        m_instance = VKB_CHECK(
-            vkb::InstanceBuilder()
-                .set_app_name("path_fiddle")
-                .set_engine_name("Rive Renderer")
+        vkb::InstanceBuilder instanceBuilder;
+        instanceBuilder.set_app_name("path_fiddle")
+            .set_engine_name("Rive Renderer")
+            .enable_extensions(glfwExtensionCount, glfwExtensions)
+            .require_api_version(1, options.coreFeaturesOnly ? 0 : 3, 0)
+            .set_minimum_instance_version(1, 0, 0);
+        m_instance = VKB_CHECK(instanceBuilder.build());
 #ifdef DEBUG
-                .set_debug_callback(rive_vkb::default_debug_callback)
-                .enable_validation_layers(
-                    m_options.enableVulkanValidationLayers)
+        instanceBuilder.enable_validation_layers(
+            m_options.enableVulkanValidationLayers);
+        if (!m_options.disableDebugCallbacks)
+        {
+            instanceBuilder.set_debug_callback(
+                rive_vkb::default_debug_callback);
+        }
 #endif
-                .enable_extensions(glfwExtensionCount, glfwExtensions)
-                .require_api_version(1, options.coreFeaturesOnly ? 0 : 3, 0)
-                .set_minimum_instance_version(1, 0, 0)
-                .build());
         m_instanceDispatchTable = m_instance.make_table();
 
         VulkanFeatures vulkanFeatures;

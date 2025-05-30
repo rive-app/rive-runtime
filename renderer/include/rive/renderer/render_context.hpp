@@ -102,6 +102,13 @@ public:
         // Override all paths' fill rules (winding or even/odd) to emulate
         // clockwiseAtomic mode.
         bool clockwiseFillOverride = false;
+#ifdef WITH_RIVE_TOOLS
+        // Synthesize compilation failures to make sure the device handles them
+        // gracefully. (e.g., by falling back on an uber shader or at least not
+        // crashing.) Valid compilations may fail in the real world if the
+        // device is pressed for resources or in a bad state.
+        bool synthesizeCompilationFailures = false;
+#endif
     };
 
     // Called at the beginning of a frame and establishes where and how it will

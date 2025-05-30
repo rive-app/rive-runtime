@@ -263,6 +263,13 @@ public:
                  gpu::ShaderFeatures shaderFeatures,
                  gpu::ShaderMiscFlags shaderMiscFlags)
     {
+        if (library == nil)
+        {
+            // This pipeline is being built from a shader that failed to
+            // compile. Leave everything nil and let draws fail.
+            return;
+        }
+
         auto makePipelineState = [=](id<MTLFunction> vertexMain,
                                      id<MTLFunction> fragmentMain,
                                      MTLPixelFormat pixelFormat) {
@@ -341,8 +348,15 @@ public:
             vertexMain, fragmentMain, MTLPixelFormatBGRA8Unorm);
     }
 
+    bool valid() const
+    {
+        assert((m_pipelineStateRGBA8 != nil) == (m_pipelineStateBGRA8 != nil));
+        return m_pipelineStateRGBA8 != nil;
+    }
+
     id<MTLRenderPipelineState> pipelineState(MTLPixelFormat pixelFormat) const
     {
+        assert(valid());
         assert(pixelFormat == MTLPixelFormatRGBA8Unorm ||
                pixelFormat == MTLPixelFormatRGBA16Float ||
                pixelFormat == MTLPixelFormatRGBA8Unorm_sRGB ||
@@ -361,8 +375,8 @@ public:
     }
 
 private:
-    id<MTLRenderPipelineState> m_pipelineStateRGBA8;
-    id<MTLRenderPipelineState> m_pipelineStateBGRA8;
+    id<MTLRenderPipelineState> m_pipelineStateRGBA8 = nil;
+    id<MTLRenderPipelineState> m_pipelineStateBGRA8 = nil;
 };
 
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_APPLETVOS)
@@ -925,37 +939,14 @@ void RenderContextMetalImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
 const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     findCompatibleDrawPipeline(gpu::DrawType drawType,
                                gpu::ShaderFeatures shaderFeatures,
-                               gpu::InterlockMode interlockMode,
+                               const gpu::FlushDescriptor& desc,
                                gpu::ShaderMiscFlags shaderMiscFlags)
 {
-    uint32_t pipelineKey = gpu::ShaderUniqueKey(
-        drawType, shaderFeatures, interlockMode, shaderMiscFlags);
-    auto pipelineIter = m_drawPipelines.find(pipelineKey);
-    if (pipelineIter == m_drawPipelines.end())
-    {
-        // The shader for this pipeline hasn't been scheduled for compiling yet.
-        // Schedule it to compile in the background.
-        m_backgroundShaderCompiler->pushJob({
-            .drawType = drawType,
-            .shaderFeatures = shaderFeatures,
-            .interlockMode = interlockMode,
-            .shaderMiscFlags = shaderMiscFlags,
-        });
-        pipelineIter = m_drawPipelines.insert({pipelineKey, nullptr}).first;
-    }
-
-    if (pipelineIter->second != nullptr)
-    {
-        // The pipeline is fully compiled and loaded.
-        return pipelineIter->second.get();
-    }
-
-    // The shader for this pipeline hasn't finished compiling yet. Start by
-    // finding a fully-featured superset of features whose pipeline we can fall
+    // Find a fully-featured superset of features whose pipeline we can fall
     // back on while waiting for it to compile.
     ShaderFeatures fullyFeaturedPipelineFeatures =
-        gpu::ShaderFeaturesMaskFor(drawType, interlockMode);
-    if (interlockMode == gpu::InterlockMode::atomics)
+        gpu::ShaderFeaturesMaskFor(drawType, desc.interlockMode);
+    if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
         // Never add ENABLE_ADVANCED_BLEND to an atomic pipeline that doesn't
         // use advanced blend, since in atomic mode, the shaders behave
@@ -971,49 +962,76 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     }
     shaderFeatures &= fullyFeaturedPipelineFeatures;
 
-    // Fully-featured "rasterOrdering" pipelines should have already been
-    // pre-loaded from the static library.
-    assert(shaderFeatures != fullyFeaturedPipelineFeatures ||
-           interlockMode != gpu::InterlockMode::rasterOrdering);
-
-    // Poll to see if the shader is actually done compiling, but only wait if
-    // it's a fully-feature pipeline. Otherwise, we can fall back on the
-    // fully-featured pipeline while we wait for compilation.
-    BackgroundCompileJob job;
-    bool shouldWaitForBackgroundCompilation =
-        shaderFeatures == fullyFeaturedPipelineFeatures ||
-        m_contextOptions.synchronousShaderCompilations;
-    while (m_backgroundShaderCompiler->popFinishedJob(
-        &job, shouldWaitForBackgroundCompilation))
+    uint32_t pipelineKey = gpu::ShaderUniqueKey(
+        drawType, shaderFeatures, desc.interlockMode, shaderMiscFlags);
+    auto pipelineIter = m_drawPipelines.find(pipelineKey);
+    if (pipelineIter == m_drawPipelines.end())
     {
-        uint32_t jobKey = gpu::ShaderUniqueKey(job.drawType,
-                                               job.shaderFeatures,
-                                               job.interlockMode,
-                                               job.shaderMiscFlags);
-        m_drawPipelines[jobKey] =
-            std::make_unique<DrawPipeline>(m_gpu,
-                                           job.compiledLibrary,
-                                           @GLSL_drawVertexMain,
-                                           @GLSL_drawFragmentMain,
-                                           job.drawType,
-                                           job.interlockMode,
-                                           job.shaderFeatures,
-                                           job.shaderMiscFlags);
-        if (jobKey == pipelineKey)
+        // The shader for this pipeline hasn't been scheduled for compiling yet.
+        // Schedule it to compile in the background.
+        m_backgroundShaderCompiler->pushJob({
+            .drawType = drawType,
+            .shaderFeatures = shaderFeatures,
+            .interlockMode = desc.interlockMode,
+            .shaderMiscFlags = shaderMiscFlags,
+#ifdef WITH_RIVE_TOOLS
+            .synthesizeCompilationFailure = desc.synthesizeCompilationFailures,
+#endif
+        });
+        pipelineIter = m_drawPipelines.insert({pipelineKey, nullptr}).first;
+    }
+
+    if (pipelineIter->second == nullptr)
+    {
+        // The shader for this pipeline hasn't finished compiling yet.
+        // Fully-featured "rasterOrdering" pipelines should have already been
+        // pre-loaded from the static library.
+        assert(shaderFeatures != fullyFeaturedPipelineFeatures ||
+               desc.interlockMode != gpu::InterlockMode::rasterOrdering);
+
+        // Poll to see if the shader is actually done compiling, but only wait
+        // if it's a fully-feature pipeline. Otherwise, we can fall back on the
+        // fully-featured pipeline while we wait for compilation.
+        BackgroundCompileJob job;
+        bool shouldWaitForBackgroundCompilation =
+            shaderFeatures == fullyFeaturedPipelineFeatures ||
+            m_contextOptions.synchronousShaderCompilations;
+        while (m_backgroundShaderCompiler->popFinishedJob(
+            &job, shouldWaitForBackgroundCompilation))
         {
-            // The shader we wanted was actually done compiling and pending
-            // being built into a pipeline.
-            return pipelineIter->second.get();
+            uint32_t jobKey = gpu::ShaderUniqueKey(job.drawType,
+                                                   job.shaderFeatures,
+                                                   job.interlockMode,
+                                                   job.shaderMiscFlags);
+            m_drawPipelines[jobKey] =
+                std::make_unique<DrawPipeline>(m_gpu,
+                                               job.compiledLibrary,
+                                               @GLSL_drawVertexMain,
+                                               @GLSL_drawFragmentMain,
+                                               job.drawType,
+                                               job.interlockMode,
+                                               job.shaderFeatures,
+                                               job.shaderMiscFlags);
+            if (jobKey == pipelineKey)
+            {
+                // The shader we wanted was actually done compiling and pending
+                // being built into a pipeline.
+                break;
+            }
         }
     }
 
-    // The shader for this feature set hasn't finished compiling. Use the
-    // pipeline that has all features enabled while we wait for it to finish.
-    assert(shaderFeatures != fullyFeaturedPipelineFeatures);
-    return findCompatibleDrawPipeline(drawType,
-                                      fullyFeaturedPipelineFeatures,
-                                      interlockMode,
-                                      shaderMiscFlags);
+    if ((pipelineIter->second == nullptr || !pipelineIter->second->valid()) &&
+        shaderFeatures != fullyFeaturedPipelineFeatures)
+    {
+        // The shader for this feature set hasn't finished compiling (or it
+        // failed to compile). Use the uber-shader pipeline that has all
+        // features enabled while we wait for it to finish.
+        return findCompatibleDrawPipeline(
+            drawType, fullyFeaturedPipelineFeatures, desc, shaderMiscFlags);
+    }
+
+    return pipelineIter->second.get();
 }
 
 void RenderContextMetalImpl::prepareToFlush(uint64_t nextFrameNumber,
@@ -1512,12 +1530,18 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 }
             }
         }
+        const DrawPipeline* drawPipeline = findCompatibleDrawPipeline(
+            batch.drawType, shaderFeatures, desc, batchMiscFlags);
+        if (drawPipeline == nullptr || !drawPipeline->valid())
+        {
+            // The shader for this draw AND the uber-shader both failed to
+            // compile. This should virtually never happen, and can only happen
+            // on non-Apple Silicon, where we don't use precompiled shaders.
+            // Skip the draw.
+            continue;
+        }
         id<MTLRenderPipelineState> drawPipelineState =
-            findCompatibleDrawPipeline(batch.drawType,
-                                       shaderFeatures,
-                                       desc.interlockMode,
-                                       batchMiscFlags)
-                ->pipelineState(renderTarget->pixelFormat());
+            drawPipeline->pipelineState(renderTarget->pixelFormat());
 
         // Bind the appropriate image texture, if any.
         if (auto imageTextureMetal =

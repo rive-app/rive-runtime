@@ -20,6 +20,7 @@ struct FiddleContextOptions
     // execution of goldens & gms significantly on Vulkan/Windows.)
     bool allowHeadlessRendering = false;
     bool enableVulkanValidationLayers = false;
+    bool disableDebugCallbacks = false;
     const char* gpuNameFilter = nullptr; // Substring of GPU name to use.
 };
 

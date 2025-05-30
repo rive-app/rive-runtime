@@ -97,12 +97,16 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
                         : 0,
                 .disableRasterOrdering =
                     (m_rendererFlags &
-                     TestingWindow::RendererFlags::disableRasterOrdering),
+                     TestingWindow::RendererFlags::disableRasterOrdering) ||
+                    options.disableRasterOrdering,
                 .wireframe = options.wireframe,
                 .clockwiseFillOverride =
                     (m_rendererFlags &
                      TestingWindow::RendererFlags::clockwiseFillOverride) ||
-                    options.clockwiseFillOverride};
+                    options.clockwiseFillOverride,
+                .synthesizeCompilationFailures =
+                    options.synthesizeCompilationFailures,
+            };
             m_renderContext->beginFrame(frameDescriptor);
         }
 

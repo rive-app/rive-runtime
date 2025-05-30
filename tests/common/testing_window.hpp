@@ -441,8 +441,10 @@ public:
     {
         uint32_t clearColor;
         bool doClear = true;
+        bool disableRasterOrdering = false;
         bool wireframe = false;
         bool clockwiseFillOverride = false;
+        bool synthesizeCompilationFailures = false;
     };
     virtual std::unique_ptr<rive::Renderer> beginFrame(const FrameOptions&) = 0;
     virtual void endFrame(std::vector<uint8_t>* pixelData = nullptr) = 0;
@@ -472,23 +474,18 @@ public:
 
     virtual ~TestingWindow() {}
 
-protected:
-    uint32_t m_width = 0;
-    uint32_t m_height = 0;
-
     struct BackendParams
     {
         bool coreFeaturesOnly = false;
         bool srgb = false;
         bool clockwiseFill = false;
+        bool disableValidationLayers = false;
+        bool disableDebugCallbacks = false;
         std::string gpuNameFilter;
     };
 
     static TestingWindow* MakeGLFW(Backend, Visibility);
     static TestingWindow* MakeEGL(Backend, void* platformWindow);
-#ifdef _WIN32
-    static TestingWindow* MakeD3D(Visibility);
-#endif
 #if defined(__APPLE__) && !defined(RIVE_UNREAL)
     static TestingWindow* MakeMetalTexture();
 #endif
@@ -501,6 +498,10 @@ protected:
     static TestingWindow* MakeAndroidVulkan(const BackendParams&,
                                             void* platformWindow);
     static TestingWindow* MakeSkia();
+
+protected:
+    uint32_t m_width = 0;
+    uint32_t m_height = 0;
 };
 
 RIVE_MAKE_ENUM_BITSET(TestingWindow::RendererFlags);

@@ -200,16 +200,11 @@
 // polyfilled as a 2D texture, the "array index" needs to be a 0..1 normalized
 // y coordinate instead of the literal array index.
 #define TEXTURE_R16F_1D_ARRAY(SET, IDX, NAME) TEXTURE_R16F(SET, IDX, NAME)
-#define TEXTURE_SAMPLE_LOD_1D_ARRAY(NAME,                                      \
-                                    SAMPLER_NAME,                              \
-                                    X,                                         \
-                                    ARRAY_INDEX,                               \
-                                    ARRAY_INDEX_NORMALIZED,                    \
-                                    LOD)                                       \
-    TEXTURE_SAMPLE_LOD(NAME,                                                   \
-                       SAMPLER_NAME,                                           \
-                       float2(X, ARRAY_INDEX_NORMALIZED),                      \
-                       LOD)
+// clang-format off
+// Clang formatting on this line trips up the Qualcomm compiler.
+#define TEXTURE_SAMPLE_LOD_1D_ARRAY(NAME, SAMPLER_NAME, X, ARRAY_INDEX, ARRAY_INDEX_NORMALIZED, LOD)                                       \
+    TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, float2(X, ARRAY_INDEX_NORMALIZED), LOD)
+// clang-format on
 
 #define TEXTURE_RG32UI(SET, IDX, NAME) TEXTURE_RGBA32UI(SET, IDX, NAME)
 

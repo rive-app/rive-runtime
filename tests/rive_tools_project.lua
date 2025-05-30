@@ -1,4 +1,5 @@
 dofile('rive_build_config.lua')
+defines({ 'WITH_RIVE_TOOLS' })
 
 RIVE_RUNTIME_DIR = path.getabsolute('..')
 RIVE_PLS_DIR = path.getabsolute('../renderer')
@@ -299,6 +300,7 @@ do
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_d3d12.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_vulkan.cpp',
         RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn.cpp',
+        RIVE_PLS_DIR .. '/shader_hotload/**.cpp',
     })
 
     if _TARGET_OS == 'windows' then

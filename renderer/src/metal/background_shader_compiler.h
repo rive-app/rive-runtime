@@ -22,7 +22,10 @@ struct BackgroundCompileJob
     gpu::ShaderFeatures shaderFeatures;
     gpu::InterlockMode interlockMode;
     gpu::ShaderMiscFlags shaderMiscFlags;
-    id<MTLLibrary> compiledLibrary;
+    id<MTLLibrary> compiledLibrary = nil;
+#ifdef WITH_RIVE_TOOLS
+    bool synthesizeCompilationFailure = false;
+#endif
 };
 
 // Compiles "draw" shaders in a background thread. A "draw" shaders is either
