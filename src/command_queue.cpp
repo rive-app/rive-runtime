@@ -38,9 +38,8 @@ CommandQueue::~CommandQueue() {}
 FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
                                   rcp<FileAssetLoader> loader,
                                   FileListener* listener,
-                                  RequestId* outId)
+                                  uint64_t requestId)
 {
-    auto requestId = ++m_currentRequestIdIdx;
     auto handle = reinterpret_cast<FileHandle>(++m_currentFileHandleIdx);
 
     if (listener)
@@ -48,11 +47,6 @@ FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
         listener->m_handle = handle;
         listener->m_owningQueue = ref_rcp(this);
         registerListener(handle, listener);
-    }
-
-    if (outId)
-    {
-        *outId = requestId;
     }
 
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
@@ -65,25 +59,20 @@ FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
     return handle;
 }
 
-RequestId CommandQueue::deleteFile(FileHandle fileHandle)
+void CommandQueue::deleteFile(FileHandle fileHandle, uint64_t requestId)
 {
-    auto requestId = ++m_currentRequestIdIdx;
-
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::deleteFile;
     m_commandStream << fileHandle;
     m_commandStream << requestId;
-
-    return requestId;
 }
 
 ArtboardHandle CommandQueue::instantiateArtboardNamed(
     FileHandle fileHandle,
     std::string name,
     ArtboardListener* listener,
-    RequestId* outId)
+    uint64_t requestId)
 {
-    auto requestId = ++m_currentRequestIdIdx;
     auto handle =
         reinterpret_cast<ArtboardHandle>(++m_currentArtboardHandleIdx);
 
@@ -92,11 +81,6 @@ ArtboardHandle CommandQueue::instantiateArtboardNamed(
         listener->m_handle = handle;
         listener->m_owningQueue = ref_rcp(this);
         registerListener(handle, listener);
-    }
-
-    if (outId)
-    {
-        *outId = requestId;
     }
 
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
@@ -109,25 +93,21 @@ ArtboardHandle CommandQueue::instantiateArtboardNamed(
     return handle;
 }
 
-RequestId CommandQueue::deleteArtboard(ArtboardHandle artboardHandle)
+void CommandQueue::deleteArtboard(ArtboardHandle artboardHandle,
+                                  uint64_t requestId)
 {
-    auto requestId = ++m_currentRequestIdIdx;
-
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::deleteArtboard;
     m_commandStream << artboardHandle;
     m_commandStream << requestId;
-
-    return requestId;
 }
 
 StateMachineHandle CommandQueue::instantiateStateMachineNamed(
     ArtboardHandle artboardHandle,
     std::string name,
     StateMachineListener* listener,
-    RequestId* outId)
+    uint64_t requestId)
 {
-    auto requestId = ++m_currentRequestIdIdx;
     auto handle =
         reinterpret_cast<StateMachineHandle>(++m_currentStateMachineHandleIdx);
 
@@ -136,11 +116,6 @@ StateMachineHandle CommandQueue::instantiateStateMachineNamed(
         listener->m_handle = handle;
         listener->m_owningQueue = ref_rcp(this);
         registerListener(handle, listener);
-    }
-
-    if (outId)
-    {
-        *outId = requestId;
     }
 
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
@@ -153,32 +128,24 @@ StateMachineHandle CommandQueue::instantiateStateMachineNamed(
     return handle;
 }
 
-RequestId CommandQueue::advanceStateMachine(
-    StateMachineHandle stateMachineHandle,
-    float timeToAdvance)
+void CommandQueue::advanceStateMachine(StateMachineHandle stateMachineHandle,
+                                       float timeToAdvance,
+                                       uint64_t requestId)
 {
-    auto requestId = ++m_currentRequestIdIdx;
-
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::advanceStateMachine;
     m_commandStream << stateMachineHandle;
     m_commandStream << requestId;
     m_commandStream << timeToAdvance;
-
-    return requestId;
 }
 
-RequestId CommandQueue::deleteStateMachine(
-    StateMachineHandle stateMachineHandle)
+void CommandQueue::deleteStateMachine(StateMachineHandle stateMachineHandle,
+                                      uint64_t requestId)
 {
-    auto requestId = ++m_currentRequestIdIdx;
-
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::deleteStateMachine;
     m_commandStream << stateMachineHandle;
     m_commandStream << requestId;
-
-    return requestId;
 }
 
 DrawKey CommandQueue::createDrawKey()
@@ -244,28 +211,22 @@ void CommandQueue::disconnect()
     m_commandStream << Command::disconnect;
 }
 
-RequestId CommandQueue::requestArtboardNames(FileHandle fileHandle)
+void CommandQueue::requestArtboardNames(FileHandle fileHandle,
+                                        uint64_t requestId)
 {
-    auto requestId = ++m_currentRequestIdIdx;
-
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::listArtboards;
     m_commandStream << fileHandle;
     m_commandStream << requestId;
-
-    return requestId;
 }
 
-RequestId CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle)
+void CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle,
+                                            uint64_t requestId)
 {
-    auto requestId = ++m_currentRequestIdIdx;
-
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::listStateMachines;
     m_commandStream << artboardHandle;
     m_commandStream << requestId;
-
-    return requestId;
 }
 
 void CommandQueue::processMessages()
@@ -293,7 +254,7 @@ void CommandQueue::processMessages()
             {
                 size_t numArtboards;
                 FileHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 m_messageStream >> handle;
                 m_messageStream >> requestId;
                 m_messageStream >> numArtboards;
@@ -317,7 +278,7 @@ void CommandQueue::processMessages()
             {
                 size_t numStateMachines;
                 ArtboardHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 m_messageStream >> handle;
                 m_messageStream >> requestId;
                 m_messageStream >> numStateMachines;
@@ -342,7 +303,7 @@ void CommandQueue::processMessages()
             case Message::fileDeleted:
             {
                 FileHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 m_messageStream >> handle;
                 m_messageStream >> requestId;
                 lock.unlock();
@@ -357,7 +318,7 @@ void CommandQueue::processMessages()
             case Message::artboardDeleted:
             {
                 ArtboardHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 m_messageStream >> handle;
                 m_messageStream >> requestId;
                 lock.unlock();
@@ -372,7 +333,7 @@ void CommandQueue::processMessages()
             case Message::stateMachineSettled:
             {
                 StateMachineHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 m_messageStream >> handle;
                 m_messageStream >> requestId;
                 lock.unlock();
@@ -386,7 +347,7 @@ void CommandQueue::processMessages()
             case Message::stateMachineDeleted:
             {
                 StateMachineHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 m_messageStream >> handle;
                 m_messageStream >> requestId;
                 lock.unlock();

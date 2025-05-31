@@ -612,7 +612,7 @@ class TestFileListener : public CommandQueue::FileListener
 public:
     virtual void onArtboardsListed(
         const FileHandle handle,
-        RequestId requestId,
+        uint64_t requestId,
         std::vector<std::string> artboardNames) override
     {
         CHECK(requestId == m_requestId);
@@ -626,7 +626,7 @@ public:
         m_hasCallback = true;
     }
 
-    RequestId m_requestId;
+    uint64_t m_requestId;
     FileHandle m_handle;
     std::vector<std::string> m_artboardNames;
     bool m_hasCallback = false;
@@ -647,7 +647,8 @@ TEST_CASE("listArtboard", "[CommandQueue]")
     fileListener.m_artboardNames = {"New Artboard", "New Artboard"};
     fileListener.m_handle = goodFile;
 
-    fileListener.m_requestId = commandQueue->requestArtboardNames(goodFile);
+    fileListener.m_requestId = 0x40;
+    commandQueue->requestArtboardNames(goodFile, fileListener.m_requestId);
 
     wait_for_server(commandQueue.get());
 
@@ -677,7 +678,7 @@ class TestArtboardListener : public CommandQueue::ArtboardListener
 public:
     virtual void onStateMachinesListed(
         const ArtboardHandle handle,
-        RequestId requestId,
+        uint64_t requestId,
         std::vector<std::string> stateMachineNames) override
     {
         CHECK(requestId == m_requestId);
@@ -691,7 +692,7 @@ public:
         m_hasCallback = true;
     }
 
-    RequestId m_requestId;
+    uint64_t m_requestId;
     ArtboardHandle m_handle;
     std::vector<std::string> m_stateMachineNames;
     bool m_hasCallback = false;
@@ -715,8 +716,9 @@ TEST_CASE("listStateMachine", "[CommandQueue]")
     artboardListener.m_stateMachineNames = {"State Machine 1"};
     artboardListener.m_handle = artboardHandle;
 
-    artboardListener.m_requestId =
-        commandQueue->requestStateMachineNames(artboardHandle);
+    artboardListener.m_requestId = 0x40;
+    commandQueue->requestStateMachineNames(artboardHandle,
+                                           artboardListener.m_requestId);
 
     wait_for_server(commandQueue.get());
 
@@ -732,8 +734,9 @@ TEST_CASE("listStateMachine", "[CommandQueue]")
     artboardListener.m_handle = badArtbaord;
     artboardListener.m_hasCallback = false;
 
-    artboardListener.m_requestId =
-        commandQueue->requestStateMachineNames(badArtbaord);
+    artboardListener.m_requestId = 0x40;
+    commandQueue->requestStateMachineNames(badArtbaord,
+                                           artboardListener.m_requestId);
 
     wait_for_server(commandQueue.get());
 
@@ -749,14 +752,13 @@ class TestStateMachineListener : public CommandQueue::StateMachineListener
 {
 public:
     virtual void onStateMachineDeleted(const StateMachineHandle handle,
-                                       RequestId requestId)
+                                       uint64_t requestId)
     {
         CHECK(m_handle == handle);
     }
-    /* RequestId in this case is the specific request that caused the
-     * statemachine to settle */
+
     virtual void onStateMachineSettled(const StateMachineHandle handle,
-                                       RequestId requestId)
+                                       uint64_t requestId)
     {
         CHECK(m_handle == handle);
         CHECK(m_requestId == requestId);
@@ -764,7 +766,7 @@ public:
     }
 
     StateMachineHandle m_handle = RIVE_NULL_HANDLE;
-    RequestId m_requestId = 0;
+    uint64_t m_requestId = 0;
     bool m_hasCallbck = false;
 };
 
@@ -787,12 +789,16 @@ TEST_CASE("advanceStateMachine", "[CommandQueue]")
                                                      &stateMachineListener);
 
     commandQueue->advanceStateMachine(stateMachineListener.m_handle, 10);
-    stateMachineListener.m_requestId =
-        commandQueue->advanceStateMachine(stateMachineListener.m_handle, 10.0);
+    commandQueue->advanceStateMachine(stateMachineListener.m_handle,
+                                      10.0,
+                                      stateMachineListener.m_requestId);
     // the last advance is what actually settles the statemachine, so we store
     // that id.
-    stateMachineListener.m_requestId =
-        commandQueue->advanceStateMachine(stateMachineListener.m_handle, 10.0);
+
+    stateMachineListener.m_requestId = 0x50;
+    commandQueue->advanceStateMachine(stateMachineListener.m_handle,
+                                      10.0,
+                                      stateMachineListener.m_requestId);
 
     server.processCommands();
     commandQueue->processMessages();
@@ -806,8 +812,9 @@ TEST_CASE("advanceStateMachine", "[CommandQueue]")
                                                    "blah blah",
                                                    &badStateMachineListener);
     badStateMachineListener.m_requestId = 0x51;
-    badStateMachineListener.m_requestId =
-        commandQueue->advanceStateMachine(badStateMachineListener.m_handle, 10);
+    commandQueue->advanceStateMachine(badStateMachineListener.m_handle,
+                                      10,
+                                      badStateMachineListener.m_requestId);
 
     server.processCommands();
     commandQueue->processMessages();
@@ -819,14 +826,14 @@ class DeleteFileListener : public CommandQueue::FileListener
 {
 public:
     virtual void onFileDeleted(const FileHandle handle,
-                               RequestId requestId) override
+                               uint64_t requestId) override
     {
         CHECK(requestId == m_requestId);
         CHECK(handle == m_handle);
         m_hasCallback = true;
     }
 
-    RequestId m_requestId;
+    uint64_t m_requestId;
     FileHandle m_handle;
     bool m_hasCallback = false;
 };
@@ -835,14 +842,14 @@ class DeleteArtboardListener : public CommandQueue::ArtboardListener
 {
 public:
     virtual void onArtboardDeleted(const ArtboardHandle handle,
-                                   RequestId requestId) override
+                                   uint64_t requestId) override
     {
         CHECK(requestId == m_requestId);
         CHECK(handle == m_handle);
         m_hasCallback = true;
     }
 
-    RequestId m_requestId;
+    uint64_t m_requestId;
     ArtboardHandle m_handle;
     bool m_hasCallback = false;
 };
@@ -851,14 +858,14 @@ class DeleteStateMachineListener : public CommandQueue::StateMachineListener
 {
 public:
     virtual void onStateMachineDeleted(const StateMachineHandle handle,
-                                       RequestId requestId) override
+                                       uint64_t requestId) override
     {
         CHECK(requestId == m_requestId);
         CHECK(handle == m_handle);
         m_hasCallback = true;
     }
 
-    RequestId m_requestId;
+    uint64_t m_requestId;
     StateMachineHandle m_handle;
     bool m_hasCallback = false;
 };
@@ -902,10 +909,13 @@ TEST_CASE("listenerDeleteCallbacks", "[CommandQueue]")
     CHECK(!artboardListener.m_hasCallback);
     CHECK(!stateMachineListener.m_hasCallback);
 
-    stateMachineListener.m_requestId =
-        commandQueue->deleteStateMachine(stateMachineHandle);
-    artboardListener.m_requestId = commandQueue->deleteArtboard(artboardHandle);
-    fileListener.m_requestId = commandQueue->deleteFile(goodFile);
+    stateMachineListener.m_requestId = 0x50;
+    commandQueue->deleteStateMachine(stateMachineHandle,
+                                     stateMachineListener.m_requestId);
+    artboardListener.m_requestId = 0x51,
+    commandQueue->deleteArtboard(artboardHandle, artboardListener.m_requestId);
+    fileListener.m_requestId = 0x52;
+    commandQueue->deleteFile(goodFile, fileListener.m_requestId);
 
     wait_for_server(commandQueue.get());
     commandQueue->processMessages();

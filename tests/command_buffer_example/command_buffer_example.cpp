@@ -61,7 +61,7 @@ class SimpleFileListener : public CommandQueue::FileListener
 public:
     virtual void onArtboardsListed(
         const FileHandle fileHandle,
-        RequestId requestId,
+        uint64_t requestId,
         std::vector<std::string> artboardNames) override
     {
         // we can guarantee that this is the only listener that will receive
@@ -77,7 +77,7 @@ class SimpleArtboardListener : public CommandQueue::ArtboardListener
 public:
     virtual void onStateMachinesListed(
         const ArtboardHandle fileHandle,
-        RequestId requestId,
+        uint64_t requestId,
         std::vector<std::string> stateMachineNames) override
     {
         // we can guarantee that this is the only listener that will receive

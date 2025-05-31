@@ -94,7 +94,7 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::loadFile:
             {
                 FileHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 std::vector<uint8_t> rivBytes;
                 rcp<FileAssetLoader> loader;
                 commandStream >> handle;
@@ -121,7 +121,7 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::deleteFile:
             {
                 FileHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 commandStream >> handle;
                 commandStream >> requestId;
                 lock.unlock();
@@ -139,7 +139,7 @@ bool CommandServer::processCommands()
             {
                 ArtboardHandle handle;
                 FileHandle fileHandle;
-                RequestId requestId;
+                uint64_t requestId;
                 std::string name;
                 commandStream >> handle;
                 commandStream >> fileHandle;
@@ -167,7 +167,7 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::deleteArtboard:
             {
                 ArtboardHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 commandStream >> handle;
                 commandStream >> requestId;
                 lock.unlock();
@@ -185,7 +185,7 @@ bool CommandServer::processCommands()
             {
                 StateMachineHandle handle;
                 ArtboardHandle artboardHandle;
-                RequestId requestId;
+                uint64_t requestId;
                 std::string name;
                 commandStream >> handle;
                 commandStream >> artboardHandle;
@@ -215,7 +215,7 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::advanceStateMachine:
             {
                 StateMachineHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 float timeToAdvance;
                 commandStream >> handle;
                 commandStream >> requestId;
@@ -248,7 +248,7 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::deleteStateMachine:
             {
                 StateMachineHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 commandStream >> handle;
                 commandStream >> requestId;
                 lock.unlock();
@@ -292,7 +292,7 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::listArtboards:
             {
                 FileHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 commandStream >> handle;
                 commandStream >> requestId;
                 lock.unlock();
@@ -320,7 +320,7 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::listStateMachines:
             {
                 ArtboardHandle handle;
-                RequestId requestId;
+                uint64_t requestId;
                 commandStream >> handle;
                 commandStream >> requestId;
                 lock.unlock();

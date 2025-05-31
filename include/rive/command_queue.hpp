@@ -43,8 +43,6 @@ RIVE_DEFINE_HANDLE(ArtboardHandle);
 RIVE_DEFINE_HANDLE(StateMachineHandle);
 RIVE_DEFINE_HANDLE(DrawKey);
 
-using RequestId = uint64_t;
-
 // Function poimter that gets called back from the server thread.
 using CommandServerCallback = std::function<void(CommandServer*)>;
 using CommandServerDrawCallback = std::function<void(DrawKey, CommandServer*)>;
@@ -93,10 +91,10 @@ public:
         : public CommandQueue::ListenerBase<FileListener, FileHandle>
     {
     public:
-        virtual void onFileDeleted(const FileHandle, RequestId) {}
+        virtual void onFileDeleted(const FileHandle, uint64_t requestId) {}
 
         virtual void onArtboardsListed(const FileHandle,
-                                       RequestId,
+                                       uint64_t requestId,
                                        std::vector<std::string> artboardNames)
         {}
     };
@@ -105,11 +103,12 @@ public:
         : public CommandQueue::ListenerBase<ArtboardListener, ArtboardHandle>
     {
     public:
-        virtual void onArtboardDeleted(const ArtboardHandle, RequestId) {}
+        virtual void onArtboardDeleted(const ArtboardHandle, uint64_t requestId)
+        {}
 
         virtual void onStateMachinesListed(
             const ArtboardHandle,
-            RequestId,
+            uint64_t requestId,
             std::vector<std::string> artboardNames)
         {}
     };
@@ -119,11 +118,13 @@ public:
                                             StateMachineHandle>
     {
     public:
-        virtual void onStateMachineDeleted(const StateMachineHandle, RequestId)
+        virtual void onStateMachineDeleted(const StateMachineHandle,
+                                           uint64_t requestId)
         {}
-        // RequestId in this case is the specific request that caused the
+        // requestId in this case is the specific request that caused the
         // statemachine to settle
-        virtual void onStateMachineSettled(const StateMachineHandle, RequestId)
+        virtual void onStateMachineSettled(const StateMachineHandle,
+                                           uint64_t requestId)
         {}
     };
 
@@ -133,51 +134,53 @@ public:
     FileHandle loadFile(std::vector<uint8_t> rivBytes,
                         rcp<FileAssetLoader>,
                         FileListener* listener = nullptr,
-                        RequestId* outId = nullptr);
+                        uint64_t requestId = 0);
 
     FileHandle loadFile(std::vector<uint8_t> rivBytes,
                         FileListener* listener = nullptr,
-                        RequestId* outId = nullptr)
+                        uint64_t requestId = 0)
     {
-        return loadFile(std::move(rivBytes), nullptr, listener, outId);
+        return loadFile(std::move(rivBytes), nullptr, listener, requestId);
     }
 
-    RequestId deleteFile(FileHandle);
+    void deleteFile(FileHandle, uint64_t requestId = 0);
 
     ArtboardHandle instantiateArtboardNamed(
         FileHandle,
         std::string name,
         ArtboardListener* listener = nullptr,
-        RequestId* outId = nullptr);
+        uint64_t requestId = 0);
     ArtboardHandle instantiateDefaultArtboard(
         FileHandle fileHandle,
         ArtboardListener* listener = nullptr,
-        RequestId* outId = nullptr)
+        uint64_t requestId = 0)
     {
-        return instantiateArtboardNamed(fileHandle, "", listener, outId);
+        return instantiateArtboardNamed(fileHandle, "", listener, requestId);
     }
 
-    RequestId deleteArtboard(ArtboardHandle);
+    void deleteArtboard(ArtboardHandle, uint64_t requestId = 0);
 
     StateMachineHandle instantiateStateMachineNamed(
         ArtboardHandle,
         std::string name,
         StateMachineListener* listener = nullptr,
-        RequestId* outId = nullptr);
+        uint64_t requestId = 0);
     StateMachineHandle instantiateDefaultStateMachine(
         ArtboardHandle artboardHandle,
         StateMachineListener* listener = nullptr,
-        RequestId* outId = nullptr)
+        uint64_t requestId = 0)
     {
         return instantiateStateMachineNamed(artboardHandle,
                                             "",
                                             listener,
-                                            outId);
+                                            requestId);
     }
 
-    RequestId advanceStateMachine(StateMachineHandle, float timeToAdvance);
+    void advanceStateMachine(StateMachineHandle,
+                             float timeToAdvance,
+                             uint64_t requestId = 0);
 
-    RequestId deleteStateMachine(StateMachineHandle);
+    void deleteStateMachine(StateMachineHandle, uint64_t requestId = 0);
 
     // Create unique draw key for draw.
     DrawKey createDrawKey();
@@ -205,8 +208,8 @@ public:
 
     void disconnect();
 
-    RequestId requestArtboardNames(FileHandle);
-    RequestId requestStateMachineNames(ArtboardHandle);
+    void requestArtboardNames(FileHandle, uint64_t requestId = 0);
+    void requestStateMachineNames(ArtboardHandle, uint64_t requestId = 0);
 
     // Consume all messages received from the server.
     void processMessages();
@@ -293,7 +296,6 @@ private:
     uint64_t m_currentFileHandleIdx = 0;
     uint64_t m_currentArtboardHandleIdx = 0;
     uint64_t m_currentStateMachineHandleIdx = 0;
-    uint64_t m_currentRequestIdIdx = 0;
     uint64_t m_currentDrawKeyIdx = 0;
 
     std::mutex m_commandMutex;
