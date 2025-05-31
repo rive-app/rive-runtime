@@ -121,6 +121,10 @@ public:
     public:
         virtual void onStateMachineDeleted(const StateMachineHandle, RequestId)
         {}
+        // RequestId in this case is the specific request that caused the
+        // statemachine to settle
+        virtual void onStateMachineSettled(const StateMachineHandle, RequestId)
+        {}
     };
 
     CommandQueue();
@@ -170,6 +174,8 @@ public:
                                             listener,
                                             outId);
     }
+
+    RequestId advanceStateMachine(StateMachineHandle, float timeToAdvance);
 
     RequestId deleteStateMachine(StateMachineHandle);
 
@@ -257,6 +263,7 @@ private:
         deleteArtboard,
         instantiateStateMachine,
         deleteStateMachine,
+        advanceStateMachine,
         runOnce,
         draw,
         disconnect,
@@ -277,7 +284,8 @@ private:
         stateMachinesListed,
         fileDeleted,
         artboardDeleted,
-        stateMachineDeleted
+        stateMachineDeleted,
+        stateMachineSettled
     };
 
     friend class CommandServer;

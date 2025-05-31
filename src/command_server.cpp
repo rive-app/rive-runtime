@@ -204,10 +204,44 @@ bool CommandServer::processCommands()
                     else
                     {
                         fprintf(stderr,
-                                "ERROR: state machine \"%s\" not found.\n",
+                                "ERROR: Could not create state machine with "
+                                "name \"%s\" because it was not found.\n",
                                 name.c_str());
                     }
                 }
+                break;
+            }
+
+            case CommandQueue::Command::advanceStateMachine:
+            {
+                StateMachineHandle handle;
+                RequestId requestId;
+                float timeToAdvance;
+                commandStream >> handle;
+                commandStream >> requestId;
+                commandStream >> timeToAdvance;
+                lock.unlock();
+
+                if (auto stateMachine = getStateMachineInstance(handle))
+                {
+                    if (!stateMachine->advanceAndApply(timeToAdvance))
+                    {
+                        std::unique_lock<std::mutex> messageLock(
+                            m_commandQueue->m_messageMutex);
+                        m_commandQueue->m_messageStream
+                            << CommandQueue::Message::stateMachineSettled;
+                        m_commandQueue->m_messageStream << handle;
+                        m_commandQueue->m_messageStream << requestId;
+                    }
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "ERROR: State machine \"%llu\" not found for "
+                            "advance.\n",
+                            reinterpret_cast<unsigned long long>(handle));
+                }
+
                 break;
             }
 

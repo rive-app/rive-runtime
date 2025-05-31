@@ -745,6 +745,76 @@ TEST_CASE("listStateMachine", "[CommandQueue]")
     serverThread.join();
 }
 
+class TestStateMachineListener : public CommandQueue::StateMachineListener
+{
+public:
+    virtual void onStateMachineDeleted(const StateMachineHandle handle,
+                                       RequestId requestId)
+    {
+        CHECK(m_handle == handle);
+    }
+    /* RequestId in this case is the specific request that caused the
+     * statemachine to settle */
+    virtual void onStateMachineSettled(const StateMachineHandle handle,
+                                       RequestId requestId)
+    {
+        CHECK(m_handle == handle);
+        CHECK(m_requestId == requestId);
+        m_hasCallbck = true;
+    }
+
+    StateMachineHandle m_handle = RIVE_NULL_HANDLE;
+    RequestId m_requestId = 0;
+    bool m_hasCallbck = false;
+};
+
+TEST_CASE("advanceStateMachine", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/settler.riv", std::ios::binary);
+    FileHandle goodFile = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(goodFile);
+
+    TestStateMachineListener stateMachineListener;
+    stateMachineListener.m_handle =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle,
+                                                     &stateMachineListener);
+
+    commandQueue->advanceStateMachine(stateMachineListener.m_handle, 10);
+    stateMachineListener.m_requestId =
+        commandQueue->advanceStateMachine(stateMachineListener.m_handle, 10.0);
+    // the last advance is what actually settles the statemachine, so we store
+    // that id.
+    stateMachineListener.m_requestId =
+        commandQueue->advanceStateMachine(stateMachineListener.m_handle, 10.0);
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(stateMachineListener.m_hasCallbck);
+
+    TestStateMachineListener badStateMachineListener;
+
+    badStateMachineListener.m_handle =
+        commandQueue->instantiateStateMachineNamed(artboardHandle,
+                                                   "blah blah",
+                                                   &badStateMachineListener);
+    badStateMachineListener.m_requestId = 0x51;
+    badStateMachineListener.m_requestId =
+        commandQueue->advanceStateMachine(badStateMachineListener.m_handle, 10);
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(!badStateMachineListener.m_hasCallbck);
+}
+
 class DeleteFileListener : public CommandQueue::FileListener
 {
 public:
@@ -989,6 +1059,7 @@ TEST_CASE("empty test for code cove", "[CommandQueue]")
     artboardL.onStateMachinesListed(0, 0, emptyVector);
 
     statemachineL.onStateMachineDeleted(0, 0);
+    statemachineL.onStateMachineSettled(0, 0);
 
     CHECK(true);
 }

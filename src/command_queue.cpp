@@ -153,6 +153,21 @@ StateMachineHandle CommandQueue::instantiateStateMachineNamed(
     return handle;
 }
 
+RequestId CommandQueue::advanceStateMachine(
+    StateMachineHandle stateMachineHandle,
+    float timeToAdvance)
+{
+    auto requestId = ++m_currentRequestIdIdx;
+
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::advanceStateMachine;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << requestId;
+    m_commandStream << timeToAdvance;
+
+    return requestId;
+}
+
 RequestId CommandQueue::deleteStateMachine(
     StateMachineHandle stateMachineHandle)
 {
@@ -351,6 +366,20 @@ void CommandQueue::processMessages()
                 {
                     itr->second->onArtboardDeleted(handle, requestId);
                     m_artboardListeners.erase(itr);
+                }
+                break;
+            }
+            case Message::stateMachineSettled:
+            {
+                StateMachineHandle handle;
+                RequestId requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                auto itr = m_stateMachineListeners.find(handle);
+                if (itr != m_stateMachineListeners.end())
+                {
+                    itr->second->onStateMachineSettled(handle, requestId);
                 }
                 break;
             }
