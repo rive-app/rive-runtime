@@ -96,6 +96,12 @@ void ViewModelInstanceListRuntime::removeInstanceAt(int index)
     }
 }
 
+void ViewModelInstanceListRuntime::swap(uint32_t a, uint32_t b)
+{
+    auto instanceList = m_viewModelInstanceValue->as<ViewModelInstanceList>();
+    instanceList->swap(a, b);
+}
+
 size_t ViewModelInstanceListRuntime::size() const
 {
     auto listItems =

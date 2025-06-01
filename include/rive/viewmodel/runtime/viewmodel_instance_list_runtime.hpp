@@ -24,6 +24,7 @@ public:
     void addInstance(ViewModelInstanceRuntime*);
     void removeInstance(ViewModelInstanceRuntime*);
     void removeInstanceAt(int);
+    void swap(uint32_t, uint32_t);
     size_t size() const;
 
 private:
