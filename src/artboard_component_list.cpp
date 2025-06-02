@@ -298,7 +298,7 @@ AABB ArtboardComponentList::layoutBounds() { return AABB(); }
 
 AABB ArtboardComponentList::layoutBoundsForNode(int index)
 {
-    if (index < numLayoutNodes())
+    if (index >= 0 && index < numLayoutNodes())
     {
         return artboardInstance(index)->layoutBounds();
     }
