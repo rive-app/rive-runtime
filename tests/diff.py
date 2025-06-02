@@ -534,7 +534,8 @@ def main(argv=None):
             # note could add these to the html output but w/e
             missing_candidates = [os.path.basename(entry.candidates_path_abs) for entry in missing if entry.type == 'missing_candidate']
             write_csv(entries, args.goldens, args.candidates, args.output, missing_candidates)
-            print("Found", len(entries) - len(identical), "differences.")
+            print("Found", len(entries) - len(identical), "differences,",
+                  len(failed), "failing.")
 
             # here we have to do a lot less work than the diff_directory_deep since we know goldens are not shared with other TestEntries
             if args.fails_only:

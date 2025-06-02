@@ -159,17 +159,11 @@ rcp<vkutil::Buffer> BufferPool::acquire()
     return buffer;
 }
 
-Texture::Texture(rcp<VulkanContext> vulkanContext,
-                 const VkImageCreateInfo& info) :
+Image::Image(rcp<VulkanContext> vulkanContext, const VkImageCreateInfo& info) :
     Resource(std::move(vulkanContext)), m_info(info)
 {
     m_info = info;
     m_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-
-    if (m_info.imageType == 0)
-    {
-        m_info.imageType = VK_IMAGE_TYPE_2D;
-    }
 
     if (m_info.mipLevels == 0)
     {
@@ -222,7 +216,7 @@ Texture::Texture(rcp<VulkanContext> vulkanContext,
                             nullptr));
 }
 
-Texture::~Texture()
+Image::~Image()
 {
     if (m_vmaAllocation != VK_NULL_HANDLE)
     {
@@ -230,9 +224,9 @@ Texture::~Texture()
     }
 }
 
-TextureView::TextureView(rcp<VulkanContext> vulkanContext,
-                         rcp<Texture> textureRef,
-                         const VkImageViewCreateInfo& info) :
+ImageView::ImageView(rcp<VulkanContext> vulkanContext,
+                     rcp<Image> textureRef,
+                     const VkImageViewCreateInfo& info) :
     Resource(std::move(vulkanContext)),
     m_textureRefOrNull(std::move(textureRef)),
     m_info(info)
@@ -243,9 +237,212 @@ TextureView::TextureView(rcp<VulkanContext> vulkanContext,
         vk()->CreateImageView(vk()->device, &m_info, nullptr, &m_vkImageView));
 }
 
-TextureView::~TextureView()
+ImageView::~ImageView()
 {
     vk()->DestroyImageView(vk()->device, m_vkImageView, nullptr);
+}
+
+Texture2D::Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo info) :
+    rive::gpu::Texture(info.extent.width, info.extent.height),
+    m_lastAccess({
+        .pipelineStages = VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+        .accessMask = VK_ACCESS_NONE,
+        .layout = VK_IMAGE_LAYOUT_UNDEFINED,
+    })
+{
+    assert(info.imageType == 0 || info.imageType == VK_IMAGE_TYPE_2D);
+    if (info.imageType == 0)
+    {
+        info.imageType = VK_IMAGE_TYPE_2D;
+    }
+    if (info.extent.depth == 0)
+    {
+        info.extent.depth = 1;
+    }
+    if (info.usage == 0)
+    {
+        info.usage =
+            VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+    }
+    m_image = vk->makeImage(info);
+    m_imageView = vk->makeImageView(m_image);
+}
+
+void Texture2D::stageContentsForUpload(const void* imageData,
+                                       size_t imageDataSizeInBytes)
+{
+    m_imageUploadBuffer = m_image->vk()->makeBuffer(
+        {
+            .size = imageDataSizeInBytes,
+            .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
+        },
+        vkutil::Mappability::writeOnly);
+    memcpy(m_imageUploadBuffer->contents(), imageData, imageDataSizeInBytes);
+    m_imageUploadBuffer->flushContents();
+}
+
+void Texture2D::synchronize(VkCommandBuffer commandBuffer)
+{
+    assert(hasUpdates());
+    assert(m_imageUploadBuffer != nullptr);
+
+    VkBufferImageCopy bufferImageCopy = {
+        .imageSubresource =
+            {
+                .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                .layerCount = 1,
+            },
+        .imageExtent = {width(), height(), 1},
+    };
+
+    barrier(commandBuffer,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            },
+            vkutil::ImageAccessAction::invalidateContents);
+
+    m_image->vk()->CmdCopyBufferToImage(commandBuffer,
+                                        *m_imageUploadBuffer,
+                                        *m_image,
+                                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                        1,
+                                        &bufferImageCopy);
+
+    generateMipmaps(commandBuffer,
+                    {
+                        .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                        .accessMask = VK_ACCESS_SHADER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+                    });
+
+    m_imageUploadBuffer = nullptr;
+}
+
+void Texture2D::barrier(VkCommandBuffer commandBuffer,
+                        const vkutil::ImageAccess& dstAccess,
+                        vkutil::ImageAccessAction imageAccessAction,
+                        VkDependencyFlags dependencyFlags)
+{
+    m_lastAccess = m_image->vk()->simpleImageMemoryBarrier(commandBuffer,
+                                                           m_lastAccess,
+                                                           dstAccess,
+                                                           *m_image,
+                                                           imageAccessAction,
+                                                           dependencyFlags);
+}
+
+void Texture2D::generateMipmaps(VkCommandBuffer commandBuffer,
+                                const ImageAccess& dstAccess)
+{
+    VulkanContext* vk = m_image->vk();
+    uint32_t mipLevels = m_image->info().mipLevels;
+    if (mipLevels <= 1)
+    {
+        barrier(commandBuffer, dstAccess);
+        return;
+    }
+
+    barrier(commandBuffer,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            });
+
+    int2 dstSize, srcSize = {static_cast<int32_t>(width()),
+                             static_cast<int32_t>(height())};
+    for (uint32_t level = 1; level < mipLevels; ++level, srcSize = dstSize)
+    {
+        dstSize = simd::max(srcSize >> 1, int2(1));
+
+        VkImageBlit imageBlit = {
+            .srcSubresource =
+                {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .mipLevel = level - 1,
+                    .layerCount = 1,
+                },
+            .dstSubresource =
+                {
+                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
+                    .mipLevel = level,
+                    .layerCount = 1,
+                },
+        };
+
+        imageBlit.srcOffsets[0] = {0, 0, 0};
+        imageBlit.srcOffsets[1] = {srcSize.x, srcSize.y, 1};
+
+        imageBlit.dstOffsets[0] = {0, 0, 0};
+        imageBlit.dstOffsets[1] = {dstSize.x, dstSize.y, 1};
+
+        vk->imageMemoryBarrier(
+            commandBuffer,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            VK_PIPELINE_STAGE_TRANSFER_BIT,
+            0,
+            {
+                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                .image = *m_image,
+                .subresourceRange =
+                    {
+                        .baseMipLevel = level - 1,
+                        .levelCount = 1,
+                    },
+            });
+
+        vk->CmdBlitImage(commandBuffer,
+                         *m_image,
+                         VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                         *m_image,
+                         VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                         1,
+                         &imageBlit,
+                         VK_FILTER_LINEAR);
+    }
+
+    VkImageMemoryBarrier barriers[] = {
+        {
+            // The first N - 1 layers are in TRANSFER_READ.
+            .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .dstAccessMask = dstAccess.accessMask,
+            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+            .newLayout = dstAccess.layout,
+            .image = *m_image,
+            .subresourceRange =
+                {
+                    .baseMipLevel = 0,
+                    .levelCount = mipLevels - 1,
+                },
+        },
+        {
+            // The final layer is still in TRANSFER_WRITE.
+            .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+            .dstAccessMask = dstAccess.accessMask,
+            .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            .newLayout = dstAccess.layout,
+            .image = *m_image,
+            .subresourceRange =
+                {
+                    .baseMipLevel = mipLevels - 1,
+                    .levelCount = 1,
+                },
+        },
+    };
+
+    vk->imageMemoryBarriers(commandBuffer,
+                            VK_PIPELINE_STAGE_TRANSFER_BIT,
+                            dstAccess.pipelineStages,
+                            0,
+                            std::size(barriers),
+                            barriers);
+
+    m_lastAccess = dstAccess;
 }
 
 Framebuffer::Framebuffer(rcp<VulkanContext> vulkanContext,

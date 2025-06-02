@@ -31,7 +31,7 @@ void RiveRenderPaint::shader(rcp<RenderShader> shader)
     m_imageTexture.reset();
 }
 
-void RiveRenderPaint::image(rcp<const gpu::Texture> imageTexture, float opacity)
+void RiveRenderPaint::image(rcp<gpu::Texture> imageTexture, float opacity)
 {
     m_paintType = gpu::PaintType::image;
     m_simpleValue.imageOpacity = opacity;

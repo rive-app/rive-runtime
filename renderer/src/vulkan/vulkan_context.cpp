@@ -86,9 +86,9 @@ rcp<vkutil::Buffer> VulkanContext::makeBuffer(const VkBufferCreateInfo& info,
     return rcp(new vkutil::Buffer(ref_rcp(this), info, mappability));
 }
 
-rcp<vkutil::Texture> VulkanContext::makeTexture(const VkImageCreateInfo& info)
+rcp<vkutil::Image> VulkanContext::makeImage(const VkImageCreateInfo& info)
 {
-    return rcp(new vkutil::Texture(ref_rcp(this), info));
+    return rcp(new vkutil::Image(ref_rcp(this), info));
 }
 
 rcp<vkutil::Framebuffer> VulkanContext::makeFramebuffer(
@@ -126,15 +126,14 @@ static VkImageAspectFlags image_aspect_flags_for_format(VkFormat format)
     RIVE_UNREACHABLE();
 }
 
-rcp<vkutil::TextureView> VulkanContext::makeTextureView(
-    rcp<vkutil::Texture> texture)
+rcp<vkutil::ImageView> VulkanContext::makeImageView(rcp<vkutil::Image> image)
 {
-    const VkImageCreateInfo& texInfo = texture->info();
+    const VkImageCreateInfo& texInfo = image->info();
 
-    return makeTextureView(
-        texture,
+    return makeImageView(
+        image,
         {
-            .image = *texture,
+            .image = *image,
             .viewType = image_view_type_for_image_type(texInfo.imageType),
             .format = texInfo.format,
             .subresourceRange =
@@ -146,20 +145,25 @@ rcp<vkutil::TextureView> VulkanContext::makeTextureView(
         });
 }
 
-rcp<vkutil::TextureView> VulkanContext::makeTextureView(
-    rcp<vkutil::Texture> texture,
+rcp<vkutil::ImageView> VulkanContext::makeImageView(
+    rcp<vkutil::Image> image,
     const VkImageViewCreateInfo& info)
 {
-    assert(texture);
-    return rcp(
-        new vkutil::TextureView(ref_rcp(this), std::move(texture), info));
+    assert(image);
+    return rcp(new vkutil::ImageView(ref_rcp(this), std::move(image), info));
 }
 
-rcp<vkutil::TextureView> VulkanContext::makeExternalTextureView(
+rcp<vkutil::ImageView> VulkanContext::makeExternalImageView(
     const VkImageViewCreateInfo& info)
 {
-    return rcp<vkutil::TextureView>(
-        new vkutil::TextureView(ref_rcp(this), nullptr, info));
+    return rcp<vkutil::ImageView>(
+        new vkutil::ImageView(ref_rcp(this), nullptr, info));
+}
+
+rcp<vkutil::Texture2D> VulkanContext::makeTexture2D(
+    const VkImageCreateInfo& info)
+{
+    return rcp<vkutil::Texture2D>(new vkutil::Texture2D(ref_rcp(this), info));
 }
 
 void VulkanContext::updateImageDescriptorSets(
@@ -226,11 +230,13 @@ void VulkanContext::imageMemoryBarriers(
         }
         if (imageMemoryBarrier.subresourceRange.levelCount == 0)
         {
-            imageMemoryBarrier.subresourceRange.levelCount = 1;
+            imageMemoryBarrier.subresourceRange.levelCount =
+                VK_REMAINING_MIP_LEVELS;
         }
         if (imageMemoryBarrier.subresourceRange.layerCount == 0)
         {
-            imageMemoryBarrier.subresourceRange.layerCount = 1;
+            imageMemoryBarrier.subresourceRange.layerCount =
+                VK_REMAINING_ARRAY_LAYERS;
         }
     }
     CmdPipelineBarrier(commandBuffer,
@@ -243,6 +249,36 @@ void VulkanContext::imageMemoryBarriers(
                        nullptr,
                        count,
                        imageMemoryBarriers);
+}
+
+const vkutil::ImageAccess& VulkanContext::simpleImageMemoryBarrier(
+    VkCommandBuffer commandBuffer,
+    const vkutil::ImageAccess& srcAccess,
+    const vkutil::ImageAccess& dstAccess,
+    VkImage image,
+    vkutil::ImageAccessAction imageAccessAction,
+    VkDependencyFlags dependencyFlags)
+{
+    assert(image != VK_NULL_HANDLE);
+    if (srcAccess != dstAccess)
+    {
+        imageMemoryBarrier(
+            commandBuffer,
+            srcAccess.pipelineStages,
+            dstAccess.pipelineStages,
+            dependencyFlags,
+            {
+                .srcAccessMask = srcAccess.accessMask,
+                .dstAccessMask = dstAccess.accessMask,
+                .oldLayout = imageAccessAction ==
+                                     vkutil::ImageAccessAction::preserveContents
+                                 ? srcAccess.layout
+                                 : VK_IMAGE_LAYOUT_UNDEFINED,
+                .newLayout = dstAccess.layout,
+                .image = image,
+            });
+    }
+    return dstAccess;
 }
 
 void VulkanContext::bufferMemoryBarrier(

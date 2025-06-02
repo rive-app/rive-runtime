@@ -62,7 +62,7 @@ struct SwapchainImage
 {
     VkImage image;
     VkImageView imageView;
-    rive::gpu::vkutil::TextureAccess imageLastAccess;
+    rive::gpu::vkutil::ImageAccess imageLastAccess;
     VkFence fence;
     VkSemaphore frameBeginSemaphore;
     VkSemaphore frameCompleteSemaphore;
@@ -114,7 +114,7 @@ public:
     // Submits and presents the current swapchain image.
     // 'lastAccess' lets us know know how to barrier the swapchain image.
     // 'pixelData', if not null, reads the swapchain image being presented.
-    void submit(rive::gpu::vkutil::TextureAccess lastAccess,
+    void submit(rive::gpu::vkutil::ImageAccess lastAccess,
                 std::vector<uint8_t>* pixelData = nullptr);
 
 private:
@@ -129,7 +129,7 @@ private:
     const uint32_t m_height;
     const VkFormat m_imageFormat;
     const VkImageUsageFlags m_imageUsageFlags;
-    const rive::rcp<rive::gpu::vkutil::Texture> m_offscreenTexture;
+    const rive::rcp<rive::gpu::vkutil::Image> m_offscreenImage;
     vkb::Swapchain m_vkbSwapchain;
     VkCommandPool m_commandPool;
     VkSemaphore m_nextAcquireSemaphore;

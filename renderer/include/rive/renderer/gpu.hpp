@@ -999,7 +999,7 @@ struct DrawBatch
 
     // DrawType::imageRect and DrawType::imageMesh.
     uint32_t imageDrawDataOffset = 0;
-    const Texture* imageTexture = nullptr;
+    Texture* imageTexture = nullptr;
     const ImageSampler imageSampler = ImageSampler::LinearClamp();
 
     // DrawType::imageMesh.

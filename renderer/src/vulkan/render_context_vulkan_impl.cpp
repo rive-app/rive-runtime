@@ -269,240 +269,19 @@ rcp<RenderBuffer> RenderContextVulkanImpl::makeRenderBuffer(
     return make_rcp<RenderBufferVulkanImpl>(m_vk, type, flags, sizeInBytes);
 }
 
-enum class TextureFormat
-{
-    rgba8,
-    r16f,
-};
-
-constexpr static VkFormat vulkan_texture_format(TextureFormat format)
-{
-    switch (format)
-    {
-        case TextureFormat::rgba8:
-            return VK_FORMAT_R8G8B8A8_UNORM;
-        case TextureFormat::r16f:
-            return VK_FORMAT_R16_SFLOAT;
-    }
-    RIVE_UNREACHABLE();
-}
-
-constexpr static size_t vulkan_texture_bytes_per_pixel(TextureFormat format)
-{
-    switch (format)
-    {
-        case TextureFormat::rgba8:
-            return 4;
-        case TextureFormat::r16f:
-            return 2;
-    }
-    RIVE_UNREACHABLE();
-}
-
-class TextureVulkanImpl : public Texture
-{
-public:
-    TextureVulkanImpl(rcp<VulkanContext> vk,
-                      uint32_t width,
-                      uint32_t height,
-                      uint32_t mipLevelCount,
-                      TextureFormat format,
-                      const void* imageDataRGBAPremul) :
-        Texture(width, height),
-        m_vk(std::move(vk)),
-        m_texture(m_vk->makeTexture({
-            .format = vulkan_texture_format(format),
-            .extent = {width, height, 1},
-            .mipLevels = mipLevelCount,
-            .usage =
-                VK_IMAGE_USAGE_SAMPLED_BIT | VK_IMAGE_USAGE_TRANSFER_DST_BIT,
-        })),
-        m_textureView(m_vk->makeTextureView(m_texture)),
-        m_imageUploadBuffer(m_vk->makeBuffer(
-            {
-                .size = height * width * vulkan_texture_bytes_per_pixel(format),
-                .usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT,
-            },
-            vkutil::Mappability::writeOnly))
-    {
-        memcpy(m_imageUploadBuffer->contents(),
-               imageDataRGBAPremul,
-               math::lossless_numeric_cast<size_t>(
-                   m_imageUploadBuffer->info().size));
-        m_imageUploadBuffer->flushContents();
-    }
-
-    bool hasUpdates() const { return m_imageUploadBuffer != nullptr; }
-
-    void synchronize(VkCommandBuffer commandBuffer) const
-    {
-        assert(hasUpdates());
-
-        // Upload the new image.
-        VkBufferImageCopy bufferImageCopy = {
-            .imageSubresource =
-                {
-                    .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                    .layerCount = 1,
-                },
-            .imageExtent = {width(), height(), 1},
-        };
-
-        m_vk->imageMemoryBarrier(
-            commandBuffer,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            0,
-            {
-                .srcAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-                .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .image = *m_texture,
-                .subresourceRange =
-                    {
-                        .baseMipLevel = 0,
-                        .levelCount = m_texture->info().mipLevels,
-                    },
-            });
-
-        m_vk->CmdCopyBufferToImage(commandBuffer,
-                                   *m_imageUploadBuffer,
-                                   *m_texture,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   1,
-                                   &bufferImageCopy);
-
-        uint32_t mipLevels = m_texture->info().mipLevels;
-        if (mipLevels > 1)
-        {
-            // Generate mipmaps.
-            int2 dstSize, srcSize = {static_cast<int32_t>(width()),
-                                     static_cast<int32_t>(height())};
-            for (uint32_t level = 1; level < mipLevels;
-                 ++level, srcSize = dstSize)
-            {
-                dstSize = simd::max(srcSize >> 1, int2(1));
-
-                VkImageBlit imageBlit = {
-                    .srcSubresource =
-                        {
-                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                            .mipLevel = level - 1,
-                            .layerCount = 1,
-                        },
-                    .dstSubresource =
-                        {
-                            .aspectMask = VK_IMAGE_ASPECT_COLOR_BIT,
-                            .mipLevel = level,
-                            .layerCount = 1,
-                        },
-                };
-
-                imageBlit.srcOffsets[0] = {0, 0, 0};
-                imageBlit.srcOffsets[1] = {srcSize.x, srcSize.y, 1};
-
-                imageBlit.dstOffsets[0] = {0, 0, 0};
-                imageBlit.dstOffsets[1] = {dstSize.x, dstSize.y, 1};
-
-                m_vk->imageMemoryBarrier(
-                    commandBuffer,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    0,
-                    {
-                        .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                        .dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                        .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                        .newLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                        .image = *m_texture,
-                        .subresourceRange =
-                            {
-                                .baseMipLevel = level - 1,
-                                .levelCount = 1,
-                            },
-                    });
-
-                m_vk->CmdBlitImage(commandBuffer,
-                                   *m_texture,
-                                   VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                   *m_texture,
-                                   VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                   1,
-                                   &imageBlit,
-                                   VK_FILTER_LINEAR);
-            }
-
-            m_vk->imageMemoryBarrier(
-                commandBuffer,
-                VK_PIPELINE_STAGE_TRANSFER_BIT,
-                VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-                0,
-                {
-                    .srcAccessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                    .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                    .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                    .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                    .image = *m_texture,
-                    .subresourceRange =
-                        {
-                            .baseMipLevel = 0,
-                            .levelCount = mipLevels - 1,
-                        },
-                });
-        }
-
-        m_vk->imageMemoryBarrier(
-            commandBuffer,
-            VK_PIPELINE_STAGE_TRANSFER_BIT,
-            VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            0,
-            {
-                .srcAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
-                .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .newLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-                .image = *m_texture,
-                .subresourceRange =
-                    {
-                        .baseMipLevel = mipLevels - 1,
-                        .levelCount = 1,
-                    },
-            });
-
-        m_imageUploadBuffer = nullptr;
-    }
-
-private:
-    friend class RenderContextVulkanImpl;
-
-    rcp<VulkanContext> m_vk;
-    rcp<vkutil::Texture> m_texture;
-    rcp<vkutil::TextureView> m_textureView;
-
-    mutable rcp<vkutil::Buffer> m_imageUploadBuffer;
-
-    // Location for RenderContextVulkanImpl to store a descriptor set for the
-    // current flush that binds this image texture.
-    mutable VkDescriptorSet m_imageTextureDescriptorSet = VK_NULL_HANDLE;
-    mutable uint64_t m_descriptorSetFrameNumber =
-        std::numeric_limits<size_t>::max();
-    mutable ImageSampler m_descriptorSetSamplerOptions =
-        ImageSampler::LinearClamp();
-};
-
 rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
     uint32_t width,
     uint32_t height,
     uint32_t mipLevelCount,
     const uint8_t imageDataRGBAPremul[])
 {
-    return make_rcp<TextureVulkanImpl>(m_vk,
-                                       width,
-                                       height,
-                                       mipLevelCount,
-                                       TextureFormat::rgba8,
-                                       imageDataRGBAPremul);
+    auto texture = m_vk->makeTexture2D({
+        .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .extent = {width, height},
+        .mipLevels = mipLevelCount,
+    });
+    texture->stageContentsForUpload(imageDataRGBAPremul, height * width * 4);
+    return texture;
 }
 
 // Renders color ramps to the gradient texture.
@@ -1946,8 +1725,11 @@ void RenderContextVulkanImpl::initGPUObjects()
 
     // Bound when there is not an image paint.
     constexpr static uint8_t black[] = {0, 0, 0, 1};
-    m_nullImageTexture =
-        make_rcp<TextureVulkanImpl>(m_vk, 1, 1, 1, TextureFormat::rgba8, black);
+    m_nullImageTexture = m_vk->makeTexture2D({
+        .format = VK_FORMAT_R8G8B8A8_UNORM,
+        .extent = {1, 1},
+    });
+    m_nullImageTexture->stageContentsForUpload(black, sizeof(black));
 
     // All pipelines share the same perFlush bindings.
     VkDescriptorSetLayoutBinding perFlushLayoutBindings[] = {
@@ -2156,7 +1938,7 @@ void RenderContextVulkanImpl::initGPUObjects()
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         },
         {{
-            .imageView = *m_nullImageTexture->m_textureView,
+            .imageView = m_nullImageTexture->vkImageView(),
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
 
@@ -2200,13 +1982,16 @@ void RenderContextVulkanImpl::initGPUObjects()
            sizeof(gpu::g_inverseGaussianIntegralTableF16));
     static_assert(FEATHER_FUNCTION_ARRAY_INDEX == 0);
     static_assert(FEATHER_INVERSE_FUNCTION_ARRAY_INDEX == 1);
-    m_featherTexture =
-        make_rcp<TextureVulkanImpl>(m_vk,
-                                    gpu::GAUSSIAN_TABLE_SIZE,
-                                    FEATHER_TEXTURE_1D_ARRAY_LENGTH,
-                                    1,
-                                    TextureFormat::r16f,
-                                    featherTextureData);
+    m_featherTexture = m_vk->makeTexture2D({
+        .format = VK_FORMAT_R16_SFLOAT,
+        .extent =
+            {
+                .width = gpu::GAUSSIAN_TABLE_SIZE,
+                .height = FEATHER_TEXTURE_1D_ARRAY_LENGTH,
+            },
+    });
+    m_featherTexture->stageContentsForUpload(featherTextureData,
+                                             sizeof(featherTextureData));
 
     m_tessSpanIndexBuffer = m_vk->makeBuffer(
         {
@@ -2302,23 +2087,20 @@ void RenderContextVulkanImpl::resizeGradientTexture(uint32_t width,
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
-    if (m_gradientTexture == nullptr ||
-        m_gradientTexture->info().extent.width != width ||
-        m_gradientTexture->info().extent.height != height)
+    if (m_gradTexture == nullptr || m_gradTexture->width() != width ||
+        m_gradTexture->height() != height)
     {
-        m_gradientTexture = m_vk->makeTexture({
+        m_gradTexture = m_vk->makeTexture2D({
             .format = VK_FORMAT_R8G8B8A8_UNORM,
-            .extent = {width, height, 1},
+            .extent = {width, height},
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                      VK_IMAGE_USAGE_SAMPLED_BIT,
         });
 
-        m_gradTextureView = m_vk->makeTextureView(m_gradientTexture);
-
         m_gradTextureFramebuffer = m_vk->makeFramebuffer({
             .renderPass = m_colorRampPipeline->renderPass(),
             .attachmentCount = 1,
-            .pAttachments = m_gradTextureView->vkImageViewAddressOf(),
+            .pAttachments = m_gradTexture->vkImageViewAddressOf(),
             .width = width,
             .height = height,
             .layers = 1,
@@ -2331,23 +2113,20 @@ void RenderContextVulkanImpl::resizeTessellationTexture(uint32_t width,
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
-    if (m_tessVertexTexture == nullptr ||
-        m_tessVertexTexture->info().extent.width != width ||
-        m_tessVertexTexture->info().extent.height != height)
+    if (m_tessTexture == nullptr || m_tessTexture->width() != width ||
+        m_tessTexture->height() != height)
     {
-        m_tessVertexTexture = m_vk->makeTexture({
+        m_tessTexture = m_vk->makeTexture2D({
             .format = VK_FORMAT_R32G32B32A32_UINT,
-            .extent = {width, height, 1},
+            .extent = {width, height},
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                      VK_IMAGE_USAGE_SAMPLED_BIT,
         });
 
-        m_tessVertexTextureView = m_vk->makeTextureView(m_tessVertexTexture);
-
         m_tessTextureFramebuffer = m_vk->makeFramebuffer({
             .renderPass = m_tessellatePipeline->renderPass(),
             .attachmentCount = 1,
-            .pAttachments = m_tessVertexTextureView->vkImageViewAddressOf(),
+            .pAttachments = m_tessTexture->vkImageViewAddressOf(),
             .width = width,
             .height = height,
             .layers = 1,
@@ -2360,23 +2139,20 @@ void RenderContextVulkanImpl::resizeAtlasTexture(uint32_t width,
 {
     width = std::max(width, 1u);
     height = std::max(height, 1u);
-    if (m_atlasTexture == nullptr ||
-        m_atlasTexture->info().extent.width != width ||
-        m_atlasTexture->info().extent.height != height)
+    if (m_atlasTexture == nullptr || m_atlasTexture->width() != width ||
+        m_atlasTexture->height() != height)
     {
-        m_atlasTexture = m_vk->makeTexture({
+        m_atlasTexture = m_vk->makeTexture2D({
             .format = m_atlasFormat,
-            .extent = {width, height, 1},
+            .extent = {width, height},
             .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                      VK_IMAGE_USAGE_SAMPLED_BIT,
         });
 
-        m_atlasTextureView = m_vk->makeTextureView(m_atlasTexture);
-
         m_atlasFramebuffer = m_vk->makeFramebuffer({
             .renderPass = m_atlasPipeline->renderPass(),
             .attachmentCount = 1,
-            .pAttachments = m_atlasTextureView->vkImageViewAddressOf(),
+            .pAttachments = m_atlasTexture->vkImageViewAddressOf(),
             .width = width,
             .height = height,
             .layers = 1,
@@ -2574,7 +2350,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     for (const DrawBatch& batch : *desc.drawList)
     {
         if (auto imageTextureVulkan =
-                static_cast<const TextureVulkanImpl*>(batch.imageTexture))
+                static_cast<vkutil::Texture2D*>(batch.imageTexture))
         {
             if (imageTextureVulkan->hasUpdates())
             {
@@ -2678,7 +2454,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         },
         {{
-            .imageView = *m_tessVertexTextureView,
+            .imageView = m_tessTexture->vkImageView(),
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
 
@@ -2689,7 +2465,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         },
         {{
-            .imageView = *m_gradTextureView,
+            .imageView = m_gradTexture->vkImageView(),
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
 
@@ -2700,7 +2476,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         },
         {{
-            .imageView = *m_featherTexture->m_textureView,
+            .imageView = m_featherTexture->vkImageView(),
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
 
@@ -2711,38 +2487,23 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
         },
         {{
-            .imageView = *m_atlasTextureView,
+            .imageView = m_atlasTexture->vkImageView(),
             .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
         }});
-
-    vkutil::TextureAccess lastGradTextureAccess, lastTessTextureAccess,
-        lastAtlasTextureAccess;
-    lastTessTextureAccess = lastGradTextureAccess = lastAtlasTextureAccess = {
-        // The last thing to access the gradient and tessellation textures was
-        // the previous flush.
-        // Make sure our barriers account for this so we don't overwrite these
-        // textures before previous draws are done reading them.
-        .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-        .accessMask = VK_ACCESS_SHADER_READ_BIT,
-        // Transition from an "UNDEFINED" layout because we don't care about
-        // preserving color ramp content from the previous frame.
-        .layout = VK_IMAGE_LAYOUT_UNDEFINED,
-    };
 
     // Render the complex color ramps to the gradient texture.
     if (desc.gradSpanCount > 0)
     {
         // Wait for previous accesses to finish before rendering to the gradient
         // texture.
-        lastGradTextureAccess = m_vk->simpleImageMemoryBarrier(
+        m_gradTexture->barrier(
             commandBuffer,
-            lastGradTextureAccess,
             {
                 .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                 .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                 .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             },
-            *m_gradientTexture);
+            vkutil::ImageAccessAction::invalidateContents);
 
         VkRect2D renderArea = {
             .extent = {gpu::kGradTextureWidth, desc.gradDataHeight},
@@ -2798,35 +2559,33 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         // The render pass transitioned the gradient texture to
         // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
-        lastGradTextureAccess.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        m_gradTexture->lastAccess().layout =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
     // Ensure the gradient texture has finished updating before the path
     // fragment shaders read it.
-    m_vk->simpleImageMemoryBarrier(
+    m_gradTexture->barrier(
         commandBuffer,
-        lastGradTextureAccess,
         {
             .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             .accessMask = VK_ACCESS_SHADER_READ_BIT,
             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        },
-        *m_gradientTexture);
+        });
 
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
         // Don't render new vertices until the previous flush has finished using
         // the tessellation texture.
-        lastTessTextureAccess = m_vk->simpleImageMemoryBarrier(
+        m_tessTexture->barrier(
             commandBuffer,
-            lastTessTextureAccess,
             {
                 .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                 .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                 .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             },
-            *m_tessVertexTexture);
+            vkutil::ImageAccessAction::invalidateContents);
 
         VkRect2D renderArea = {
             .extent = {gpu::kTessTextureWidth, desc.tessDataHeight},
@@ -2896,35 +2655,33 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         // The render pass transitioned the tessellation texture to
         // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
-        lastTessTextureAccess.layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        m_tessTexture->lastAccess().layout =
+            VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
     // Ensure the tessellation texture has finished rendering before the path
     // vertex shaders read it.
-    m_vk->simpleImageMemoryBarrier(
+    m_tessTexture->barrier(
         commandBuffer,
-        lastTessTextureAccess,
         {
             .pipelineStages = VK_PIPELINE_STAGE_VERTEX_SHADER_BIT,
             .accessMask = VK_ACCESS_SHADER_READ_BIT,
             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        },
-        *m_tessVertexTexture);
+        });
 
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
         // Don't render new vertices until the previous flush has finished using
         // the atlas texture.
-        lastAtlasTextureAccess = m_vk->simpleImageMemoryBarrier(
+        m_atlasTexture->barrier(
             commandBuffer,
-            lastAtlasTextureAccess,
             {
                 .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
                 .accessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
                 .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             },
-            *m_atlasTexture);
+            vkutil::ImageAccessAction::invalidateContents);
 
         VkRect2D renderArea = {
             .extent = {desc.atlasContentWidth, desc.atlasContentHeight},
@@ -3025,42 +2782,39 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
 
         // The render pass transitioned the atlas texture to
         // VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL.
-        lastAtlasTextureAccess.layout =
+        m_atlasTexture->lastAccess().layout =
             VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
     }
 
     // Ensure the atlas texture has finished rendering before the fragment
     // shaders read it.
-    m_vk->simpleImageMemoryBarrier(
+    m_atlasTexture->barrier(
         commandBuffer,
-        lastAtlasTextureAccess,
         {
             .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             .accessMask = VK_ACCESS_SHADER_READ_BIT,
             .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
-        },
-        *m_atlasTexture);
+        });
 
     auto* renderTarget = static_cast<RenderTargetVulkan*>(desc.renderTarget);
 
-    vkutil::TextureView *clipView, *scratchColorTextureView,
-        *coverageTextureView;
+    vkutil::Texture2D *clipTexture, *scratchColorTexture, *coverageTexture;
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {
-        clipView = renderTarget->clipTextureViewR32UI();
-        scratchColorTextureView = renderTarget->scratchColorTextureView();
-        coverageTextureView = renderTarget->coverageTextureView();
+        clipTexture = renderTarget->clipTextureR32UI();
+        scratchColorTexture = renderTarget->scratchColorTexture();
+        coverageTexture = renderTarget->coverageTexture();
     }
     else if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
-        clipView = renderTarget->clipTextureViewRGBA8();
-        scratchColorTextureView = nullptr;
-        coverageTextureView = renderTarget->coverageAtomicTextureView();
+        clipTexture = renderTarget->clipTextureRGBA8();
+        scratchColorTexture = nullptr;
+        coverageTexture = renderTarget->coverageAtomicTexture();
     }
 
     // Ensure any previous accesses to the color texture complete before we
     // begin rendering.
-    const vkutil::TextureAccess colorLoadAccess = {
+    const vkutil::ImageAccess colorLoadAccess = {
         // "Load" operations always occur in
         // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.
         .pipelineStages = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
@@ -3087,16 +2841,18 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             colorLoadAccess,
             renderAreaIsFullTarget && desc.colorLoadAction !=
                                           gpu::LoadAction::preserveRenderTarget
-                ? vkutil::TextureAccessAction::invalidateContents
-                : vkutil::TextureAccessAction::preserveContents);
+                ? vkutil::ImageAccessAction::invalidateContents
+                : vkutil::ImageAccessAction::preserveContents);
         colorAttachmentIsOffscreen = false;
     }
     else if (desc.colorLoadAction != gpu::LoadAction::preserveRenderTarget)
     {
-        colorImageView = renderTarget->accessOffscreenColorTextureView(
-            commandBuffer,
-            colorLoadAccess,
-            vkutil::TextureAccessAction::invalidateContents);
+        colorImageView = renderTarget
+                             ->accessOffscreenColorTexture(
+                                 commandBuffer,
+                                 colorLoadAccess,
+                                 vkutil::ImageAccessAction::invalidateContents)
+                             ->vkImageView();
         colorAttachmentIsOffscreen = true;
     }
     else
@@ -3112,18 +2868,21 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
                     .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                 }),
-            renderTarget->accessOffscreenColorTexture(
-                commandBuffer,
-                {
-                    .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
-                    .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                },
-                vkutil::TextureAccessAction::invalidateContents),
+            renderTarget
+                ->accessOffscreenColorTexture(
+                    commandBuffer,
+                    {
+                        .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                        .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    },
+                    vkutil::ImageAccessAction::invalidateContents)
+                ->vkImage(),
             desc.renderTargetUpdateBounds);
         colorImageView =
-            renderTarget->accessOffscreenColorTextureView(commandBuffer,
-                                                          colorLoadAccess);
+            renderTarget
+                ->accessOffscreenColorTexture(commandBuffer, colorLoadAccess)
+                ->vkImageView();
         colorAttachmentIsOffscreen = true;
     }
 
@@ -3167,16 +2926,16 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
     if (desc.interlockMode == gpu::InterlockMode::rasterOrdering)
     {
         assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(*clipView);
+        framebufferViews.push_back(clipTexture->vkImageView());
         assert(framebufferViews.size() == SCRATCH_COLOR_PLANE_IDX);
-        framebufferViews.push_back(*scratchColorTextureView);
+        framebufferViews.push_back(scratchColorTexture->vkImageView());
         assert(framebufferViews.size() == COVERAGE_PLANE_IDX);
-        framebufferViews.push_back(*coverageTextureView);
+        framebufferViews.push_back(coverageTexture->vkImageView());
     }
     else if (desc.interlockMode == gpu::InterlockMode::atomics)
     {
         assert(framebufferViews.size() == CLIP_PLANE_IDX);
-        framebufferViews.push_back(*clipView);
+        framebufferViews.push_back(clipTexture->vkImageView());
         if (pipelineLayout.options() &
             DrawPipelineLayoutOptions::coalescedResolveAndTransfer)
         {
@@ -3190,8 +2949,8 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 },
                 renderAreaIsFullTarget
-                    ? vkutil::TextureAccessAction::invalidateContents
-                    : vkutil::TextureAccessAction::preserveContents));
+                    ? vkutil::ImageAccessAction::invalidateContents
+                    : vkutil::ImageAccessAction::preserveContents));
         }
     }
 
@@ -3247,17 +3006,18 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_UNDEFINED,
                 .newLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                .image = *renderTarget->coverageAtomicTexture(),
+                .image = renderTarget->coverageAtomicTexture()->vkImage(),
             });
 
         const VkClearColorValue coverageClearValue =
             vkutil::color_clear_r32ui(desc.coverageClearValue);
-        m_vk->CmdClearColorImage(commandBuffer,
-                                 *renderTarget->coverageAtomicTexture(),
-                                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                 &coverageClearValue,
-                                 1,
-                                 &clearRange);
+        m_vk->CmdClearColorImage(
+            commandBuffer,
+            renderTarget->coverageAtomicTexture()->vkImage(),
+            VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+            &coverageClearValue,
+            1,
+            &clearRange);
 
         // Don't use the coverage texture in shaders until the clear finishes.
         m_vk->imageMemoryBarrier(
@@ -3271,7 +3031,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_SHADER_WRITE_BIT,
                 .oldLayout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 .newLayout = VK_IMAGE_LAYOUT_GENERAL,
-                .image = *renderTarget->coverageAtomicTexture(),
+                .image = renderTarget->coverageAtomicTexture()->vkImage(),
             });
     }
     else if (desc.interlockMode == gpu::InterlockMode::clockwiseAtomic)
@@ -3389,7 +3149,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             },
             {{
-                .imageView = *clipView,
+                .imageView = clipTexture->vkImageView(),
                 .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
             }});
 
@@ -3402,12 +3162,12 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
                 },
                 {{
-                    .imageView = *scratchColorTextureView,
+                    .imageView = scratchColorTexture->vkImageView(),
                     .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
                 }});
         }
 
-        assert(coverageTextureView != nullptr);
+        assert(coverageTexture != nullptr);
         m_vk->updateImageDescriptorSets(
             inputAttachmentDescriptorSet,
             {
@@ -3418,7 +3178,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                         : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             },
             {{
-                .imageView = *coverageTextureView,
+                .imageView = coverageTexture->vkImageView(),
                 .imageLayout = VK_IMAGE_LAYOUT_GENERAL,
             }});
     }
@@ -3462,11 +3222,11 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
             // Update the imageTexture binding and the dynamic offset into the
             // imageDraw uniform buffer.
             auto imageTexture =
-                static_cast<const TextureVulkanImpl*>(batch.imageTexture);
-            if (imageTexture->m_descriptorSetFrameNumber !=
-                    m_vk->currentFrameNumber() ||
-                imageTexture->m_descriptorSetSamplerOptions !=
-                    batch.imageSampler)
+                static_cast<vkutil::Texture2D*>(batch.imageTexture);
+            VkDescriptorSet imageDescriptorSet =
+                imageTexture->getCachedDescriptorSet(m_vk->currentFrameNumber(),
+                                                     batch.imageSampler);
+            if (imageDescriptorSet == VK_NULL_HANDLE)
             {
                 // Update the image's "texture binding" descriptor set. (These
                 // expire every frame, so we need to make a new one each frame.)
@@ -3481,23 +3241,22 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     imageTextureUpdateCount = 0;
                 }
 
-                imageTexture->m_imageTextureDescriptorSet =
-                    descriptorSetPool->allocateDescriptorSet(
-                        m_perDrawDescriptorSetLayout);
+                imageDescriptorSet = descriptorSetPool->allocateDescriptorSet(
+                    m_perDrawDescriptorSetLayout);
 
                 m_vk->updateImageDescriptorSets(
-                    imageTexture->m_imageTextureDescriptorSet,
+                    imageDescriptorSet,
                     {
                         .dstBinding = IMAGE_TEXTURE_IDX,
                         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLED_IMAGE,
                     },
                     {{
-                        .imageView = *imageTexture->m_textureView,
+                        .imageView = imageTexture->vkImageView(),
                         .imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
                     }});
 
                 m_vk->updateImageDescriptorSets(
-                    imageTexture->m_imageTextureDescriptorSet,
+                    imageDescriptorSet,
                     {
                         .dstBinding = IMAGE_SAMPLER_IDX,
                         .descriptorType = VK_DESCRIPTOR_TYPE_SAMPLER,
@@ -3507,15 +3266,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     }});
 
                 ++imageTextureUpdateCount;
-                imageTexture->m_descriptorSetFrameNumber =
-                    m_vk->currentFrameNumber();
-                imageTexture->m_descriptorSetSamplerOptions =
-                    batch.imageSampler;
+                imageTexture->updateCachedDescriptorSet(
+                    imageDescriptorSet,
+                    m_vk->currentFrameNumber(),
+                    batch.imageSampler);
             }
 
             VkDescriptorSet imageDescriptorSets[] = {
                 perFlushDescriptorSet, // Dynamic offset to imageDraw uniforms.
-                imageTexture->m_imageTextureDescriptorSet, // imageTexture.
+                imageDescriptorSet,    // imageTexture.
             };
             static_assert(PER_DRAW_BINDINGS_SET == PER_FLUSH_BINDINGS_SET + 1);
 
@@ -3755,13 +3514,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         // Copy from the offscreen texture back to the target.
         m_vk->blitSubRect(
             commandBuffer,
-            renderTarget->accessOffscreenColorTexture(
-                commandBuffer,
-                {
-                    .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                    .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                    .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                }),
+            renderTarget
+                ->accessOffscreenColorTexture(
+                    commandBuffer,
+                    {
+                        .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    })
+                ->vkImage(),
             renderTarget->accessTargetImage(
                 commandBuffer,
                 {
@@ -3769,7 +3530,7 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                     .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                     .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 },
-                vkutil::TextureAccessAction::invalidateContents),
+                vkutil::ImageAccessAction::invalidateContents),
             desc.renderTargetUpdateBounds);
     }
 

@@ -33,7 +33,7 @@ public:
     void feather(float feather) override { m_feather = fabsf(feather); }
     void blendMode(BlendMode mode) override { m_blendMode = mode; }
     void shader(rcp<RenderShader> shader) override;
-    void image(rcp<const gpu::Texture>, float opacity);
+    void image(rcp<gpu::Texture>, float opacity);
     void imageSampler(ImageSampler imageSampler)
     {
         m_imageSampler = imageSampler;
@@ -45,7 +45,7 @@ public:
     bool getIsStroked() const { return m_stroked; }
     ColorInt getColor() const { return m_simpleValue.color; }
     const gpu::Gradient* getGradient() const { return m_gradient.get(); }
-    const gpu::Texture* getImageTexture() const { return m_imageTexture.get(); }
+    gpu::Texture* getImageTexture() const { return m_imageTexture.get(); }
     ImageSampler getImageSampler() const { return m_imageSampler; }
     float getImageOpacity() const { return m_simpleValue.imageOpacity; }
     float getOuterClipID() const { return m_simpleValue.outerClipID; }
@@ -69,7 +69,7 @@ private:
     gpu::PaintType m_paintType = gpu::PaintType::solidColor;
     gpu::SimplePaintValue m_simpleValue;
     rcp<const gpu::Gradient> m_gradient;
-    rcp<const gpu::Texture> m_imageTexture;
+    rcp<gpu::Texture> m_imageTexture;
     ImageSampler m_imageSampler = ImageSampler::LinearClamp();
     float m_thickness = 1;
     StrokeJoin m_join = StrokeJoin::miter;

@@ -289,14 +289,15 @@ Swapchain::Swapchain(const vkb::Device& device,
     m_imageFormat(imageFormat),
     m_imageUsageFlags(VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT | additionalUsageFlags),
-    m_offscreenTexture(m_vk->makeTexture({
+    m_offscreenImage(m_vk->makeImage({
+        .imageType = VK_IMAGE_TYPE_2D,
         .format = m_imageFormat,
         .extent = {m_width, m_height, 1},
         .usage = m_imageUsageFlags,
     })),
     m_currentFrameNumber(currentFrameNumber)
 {
-    init(device, {*m_offscreenTexture});
+    init(device, {*m_offscreenImage});
 
     // Signal the frame completion semaphore so we can blindly wait for it on
     // the first frame, just like all the other frames.
@@ -465,7 +466,7 @@ const SwapchainImage* Swapchain::acquireNextImage()
     return swapchainImage;
 }
 
-void Swapchain::submit(rive::gpu::vkutil::TextureAccess lastAccess,
+void Swapchain::submit(rive::gpu::vkutil::ImageAccess lastAccess,
                        std::vector<uint8_t>* pixelData)
 {
     SwapchainImage* swapchainImage = &m_swapchainImages[m_currentImageIndex];
