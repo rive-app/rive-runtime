@@ -4,6 +4,7 @@
 
 #include "catch.hpp"
 
+#include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/command_queue.hpp"
 #include "rive/command_server.hpp"
@@ -1072,4 +1073,105 @@ TEST_CASE("empty test for code cove", "[CommandQueue]")
     statemachineL.onStateMachineSettled(0, 0);
 
     CHECK(true);
+}
+
+// Helps with repetition of checks in the following test
+void checkStateMachineBool(rcp<CommandQueue>& commandQueue,
+                           StateMachineHandle handle,
+                           const char* boolName,
+                           bool expectedValue)
+{
+    commandQueue->runOnce(
+        [handle, boolName, expectedValue](CommandServer* server) {
+            rive::StateMachineInstance* sm =
+                server->getStateMachineInstance(handle);
+            CHECK(sm->getBool(boolName)->value() == expectedValue);
+        });
+}
+
+TEST_CASE("pointer input", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/pointer_events.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    ArtboardHandle artboardHandle =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+    StateMachineHandle smHandle =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle);
+
+    commandQueue->runOnce(
+        [fileHandle, artboardHandle, smHandle](CommandServer* server) {
+            CHECK(fileHandle != RIVE_NULL_HANDLE);
+            CHECK(server->getFile(fileHandle) != nullptr);
+            CHECK(artboardHandle != RIVE_NULL_HANDLE);
+            CHECK(server->getArtboardInstance(artboardHandle) != nullptr);
+            CHECK(smHandle != RIVE_NULL_HANDLE);
+            CHECK(server->getStateMachineInstance(smHandle) != nullptr);
+        });
+
+    // Prime for events by advancing once
+    commandQueue->advanceStateMachine(smHandle, 0.0f);
+
+    // The listener object in the bottom-left corner,
+    // which toggles `isDown` when receiving down events.
+    Vec2D toggleOnDownCorner(425.0f, 425.0f);
+    commandQueue->pointerDown(smHandle, toggleOnDownCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    commandQueue->pointerUp(smHandle, toggleOnDownCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    commandQueue->pointerDown(smHandle, toggleOnDownCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", false);
+
+    // The listener object in the top-left corner,
+    // which toggles `isDown` when receiving down or up events.
+    Vec2D toggleOnDownOrUpCorner(75.0f, 75.0f);
+    commandQueue->pointerDown(smHandle, toggleOnDownOrUpCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    commandQueue->pointerUp(smHandle, toggleOnDownOrUpCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", false);
+
+    // The listener object in the top-right corner,
+    // which toggles `isDown` when hovered.
+    Vec2D toggleOnHoverCorner(425.0f, 75.0f);
+    // Center, which has no pointer listener.
+    Vec2D center(250.0f, 250.0f);
+    commandQueue->pointerMove(smHandle, center);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", false);
+    commandQueue->pointerMove(smHandle, toggleOnHoverCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    commandQueue->pointerMove(smHandle, center);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    commandQueue->pointerMove(smHandle, toggleOnHoverCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", false);
+
+    // A position off of the artboard, which can be used for pointer exits.
+    Vec2D offArtboard(-25.0f, -25.0f);
+    commandQueue->pointerDown(smHandle, toggleOnDownOrUpCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    // Slide off while "holding down" the pointer.
+    commandQueue->pointerExit(smHandle, offArtboard);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    // Release the pointer while off the artboard - should not toggle
+    commandQueue->pointerUp(smHandle, offArtboard);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    // Reset
+    commandQueue->pointerUp(smHandle, toggleOnDownOrUpCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", false);
+
+    // New test, sliding off and back, but this time releasing back on the
+    // artboard.
+    commandQueue->pointerDown(smHandle, toggleOnDownOrUpCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    commandQueue->pointerExit(smHandle, offArtboard);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    commandQueue->pointerMove(smHandle, toggleOnDownOrUpCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", true);
+    commandQueue->pointerUp(smHandle, toggleOnDownOrUpCorner);
+    checkStateMachineBool(commandQueue, smHandle, "isDown", false);
+
+    commandQueue->disconnect();
+    serverThread.join();
 }

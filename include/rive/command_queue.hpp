@@ -6,6 +6,7 @@
 
 #include "rive/object_stream.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/math/vec2d.hpp"
 
 #include <condition_variable>
 #include <cstdint>
@@ -109,7 +110,7 @@ public:
         virtual void onStateMachinesListed(
             const ArtboardHandle,
             uint64_t requestId,
-            std::vector<std::string> artboardNames)
+            std::vector<std::string> stateMachineNames)
         {}
     };
 
@@ -179,6 +180,12 @@ public:
     void advanceStateMachine(StateMachineHandle,
                              float timeToAdvance,
                              uint64_t requestId = 0);
+
+    // Pointer events
+    void pointerMove(StateMachineHandle, Vec2D position);
+    void pointerDown(StateMachineHandle, Vec2D position);
+    void pointerUp(StateMachineHandle, Vec2D position);
+    void pointerExit(StateMachineHandle, Vec2D position);
 
     void deleteStateMachine(StateMachineHandle, uint64_t requestId = 0);
 
@@ -269,6 +276,10 @@ private:
         advanceStateMachine,
         runOnce,
         draw,
+        pointerMove,
+        pointerDown,
+        pointerUp,
+        pointerExit,
         disconnect,
         // This will cause processCommands to return once received. We want to
         // ensure that we do not indefinetly block the calling thread. This is

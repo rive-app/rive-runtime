@@ -128,6 +128,42 @@ StateMachineHandle CommandQueue::instantiateStateMachineNamed(
     return handle;
 }
 
+void CommandQueue::pointerMove(StateMachineHandle stateMachineHandle,
+                               Vec2D position)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::pointerMove;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << position;
+}
+
+void CommandQueue::pointerDown(StateMachineHandle stateMachineHandle,
+                               Vec2D position)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::pointerDown;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << position;
+}
+
+void CommandQueue::pointerUp(StateMachineHandle stateMachineHandle,
+                             Vec2D position)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::pointerUp;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << position;
+}
+
+void CommandQueue::pointerExit(StateMachineHandle stateMachineHandle,
+                               Vec2D position)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::pointerExit;
+    m_commandStream << stateMachineHandle;
+    m_commandStream << position;
+}
+
 void CommandQueue::advanceStateMachine(StateMachineHandle stateMachineHandle,
                                        float timeToAdvance,
                                        uint64_t requestId)

@@ -344,6 +344,87 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::pointerMove:
+            {
+                StateMachineHandle handle;
+                Vec2D position;
+                commandStream >> handle;
+                commandStream >> position;
+                lock.unlock();
+                if (auto stateMachine = getStateMachineInstance(handle))
+                {
+                    stateMachine->pointerMove(position);
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "ERROR: State machine \"%llu\" not found for "
+                            "pointerMove.\n",
+                            reinterpret_cast<unsigned long long>(handle));
+                }
+                break;
+            }
+
+            case CommandQueue::Command::pointerDown:
+            {
+                StateMachineHandle handle;
+                Vec2D position;
+                commandStream >> handle;
+                commandStream >> position;
+                lock.unlock();
+                if (auto stateMachine = getStateMachineInstance(handle))
+                {
+                    stateMachine->pointerDown(position);
+                }
+                {
+                    fprintf(stderr,
+                            "ERROR: State machine \"%llu\" not found for "
+                            "pointerDown.\n",
+                            reinterpret_cast<unsigned long long>(handle));
+                }
+                break;
+            }
+
+            case CommandQueue::Command::pointerUp:
+            {
+                StateMachineHandle handle;
+                Vec2D position;
+                commandStream >> handle;
+                commandStream >> position;
+                lock.unlock();
+                if (auto stateMachine = getStateMachineInstance(handle))
+                {
+                    stateMachine->pointerUp(position);
+                }
+                {
+                    fprintf(stderr,
+                            "ERROR: State machine \"%llu\" not found for "
+                            "pointerUp.\n",
+                            reinterpret_cast<unsigned long long>(handle));
+                }
+                break;
+            }
+
+            case CommandQueue::Command::pointerExit:
+            {
+                StateMachineHandle handle;
+                Vec2D position;
+                commandStream >> handle;
+                commandStream >> position;
+                lock.unlock();
+                if (auto stateMachine = getStateMachineInstance(handle))
+                {
+                    stateMachine->pointerExit(position);
+                }
+                {
+                    fprintf(stderr,
+                            "ERROR: State machine \"%llu\" not found for "
+                            "pointerExit.\n",
+                            reinterpret_cast<unsigned long long>(handle));
+                }
+                break;
+            }
+
             case CommandQueue::Command::disconnect:
             {
                 lock.unlock();
