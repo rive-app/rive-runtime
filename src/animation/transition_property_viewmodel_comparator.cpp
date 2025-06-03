@@ -42,6 +42,27 @@ StatusCode TransitionPropertyViewModelComparator::import(
     return Super::import(importStack);
 }
 
+float TransitionPropertyViewModelComparator::valueToFloat(
+    const StateMachineInstance* stateMachineInstance)
+{
+    auto bindableInstance =
+        stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
+    if (bindableInstance != nullptr)
+    {
+        if (bindableInstance->is<BindablePropertyInteger>())
+        {
+            return (float)this->value<BindablePropertyInteger, uint32_t>(
+                stateMachineInstance);
+        }
+        else if (bindableInstance->is<BindablePropertyNumber>())
+        {
+            return this->value<BindablePropertyNumber, float>(
+                stateMachineInstance);
+        }
+    }
+    return 0;
+}
+
 bool TransitionPropertyViewModelComparator::compare(
     TransitionComparator* comparand,
     TransitionConditionOp operation,
@@ -55,21 +76,18 @@ bool TransitionPropertyViewModelComparator::compare(
             {
                 auto rightValue =
                     comparand->as<TransitionPropertyViewModelComparator>()
-                        ->value<BindablePropertyNumber, float>(
-                            stateMachineInstance);
-                return compareNumbers(
-                    value<BindablePropertyNumber, float>(stateMachineInstance),
-                    rightValue,
-                    operation);
+                        ->valueToFloat(stateMachineInstance);
+                return compareNumbers(valueToFloat(stateMachineInstance),
+                                      rightValue,
+                                      operation);
             }
             else if (comparand->is<TransitionValueNumberComparator>())
             {
                 auto rightValue =
                     comparand->as<TransitionValueNumberComparator>()->value();
-                return compareNumbers(
-                    value<BindablePropertyNumber, float>(stateMachineInstance),
-                    rightValue,
-                    operation);
+                return compareNumbers(valueToFloat(stateMachineInstance),
+                                      rightValue,
+                                      operation);
             }
             break;
         case BindablePropertyString::typeKey:
@@ -208,12 +226,10 @@ bool TransitionPropertyViewModelComparator::compare(
             {
                 auto rightValue =
                     comparand->as<TransitionPropertyViewModelComparator>()
-                        ->value<BindablePropertyNumber, float>(
-                            stateMachineInstance);
-                return compareNumbers(
-                    value<BindablePropertyNumber, float>(stateMachineInstance),
-                    rightValue,
-                    operation);
+                        ->valueToFloat(stateMachineInstance);
+                return compareNumbers(valueToFloat(stateMachineInstance),
+                                      rightValue,
+                                      operation);
             }
             else if (comparand->is<TransitionValueNumberComparator>())
             {
@@ -223,8 +239,7 @@ bool TransitionPropertyViewModelComparator::compare(
                 {
                     case DataType::number:
                         return compareNumbers(
-                            value<BindablePropertyNumber, float>(
-                                stateMachineInstance),
+                            valueToFloat(stateMachineInstance),
                             rightValue,
                             operation);
                     case DataType::integer:
