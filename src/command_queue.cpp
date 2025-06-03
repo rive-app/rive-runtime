@@ -311,7 +311,6 @@ void CommandQueue::processMessages()
                 if (itr != m_fileListeners.end())
                 {
                     itr->second->onFileDeleted(handle, requestId);
-                    m_fileListeners.erase(itr);
                 }
                 break;
             }
@@ -326,7 +325,6 @@ void CommandQueue::processMessages()
                 if (itr != m_artboardListeners.end())
                 {
                     itr->second->onArtboardDeleted(handle, requestId);
-                    m_artboardListeners.erase(itr);
                 }
                 break;
             }
@@ -355,7 +353,6 @@ void CommandQueue::processMessages()
                 if (itr != m_stateMachineListeners.end())
                 {
                     itr->second->onStateMachineDeleted(handle, requestId);
-                    m_stateMachineListeners.erase(itr);
                 }
                 break;
             }

@@ -991,9 +991,9 @@ TEST_CASE("listenerLifeTimes", "[CommandQueue]")
     wait_for_server(commandQueue.get());
     commandQueue->processMessages();
 
-    CHECK(!commandQueue->testing_getFileListener(dFileHandle));
-    CHECK(!commandQueue->testing_getArtboardListener(dArtboardHandle));
-    CHECK(!commandQueue->testing_getStateMachineListener(dStateMachineHandle));
+    CHECK(commandQueue->testing_getFileListener(dFileHandle));
+    CHECK(commandQueue->testing_getArtboardListener(dArtboardHandle));
+    CHECK(commandQueue->testing_getStateMachineListener(dStateMachineHandle));
 
     commandQueue->disconnect();
     serverThread.join();
