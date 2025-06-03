@@ -8,15 +8,15 @@ Rive is built to be platform and subsystem agnostic so you can plug-in any rende
 We currently provide build files for MacOS but we will be adding Windows and others soon too.
 ### MacOS
 All the build scripts are in viewer/build/macosx.
-```
+```sh
 cd viewer/build/macosx
 ```
 You can tell the build script to build and run a Viewer that's backed by a Metal view with our Skia renderer:
-```
+```sh
 ./build_viewer.sh metal skia run
 ```
 An OpenGL example using a tessellating renderer:
-```
+```sh
 ./build_viewer.sh gl tess run
 ```
 Both the Skia and Tess renderers work with either gl or metal options.
