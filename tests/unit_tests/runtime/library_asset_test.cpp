@@ -275,3 +275,37 @@ TEST_CASE("File with ViewModel", "[libraries]")
     REQUIRE(rectFill->paint()->as<rive::SolidColor>()->colorValue() ==
             rive::colorARGB(255, 10, 15, 66));
 }
+
+TEST_CASE("library_vmtest_1_host", "[libraries]")
+{
+    // This test verifies that a .rev file with LibraryComponents can
+    // export a .riv that has valid DataBind's that reference a ViewModel
+    // and Artboard coming from two different libraries.
+
+    // created by library_import_export_test.dart in rive_core.
+    auto file = ReadRiveFile("assets/library_vmtest_1_host.riv");
+    auto artboard = file->artboard(0)->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    // There's only 1 nested artboard.
+    auto nestedArtboard = artboard->find<rive::NestedArtboard>("");
+    REQUIRE(nestedArtboard != nullptr);
+
+    auto lib2Artboard = nestedArtboard->artboardInstance();
+    REQUIRE(lib2Artboard->name() == "lib2artboard");
+
+    artboard->advance(0.0f);
+
+    // Color property works
+    auto paints = lib2Artboard->shapePaints();
+    REQUIRE(paints.size() == 1);
+    auto paint = paints[0];
+    REQUIRE(paint->is<rive::Fill>());
+    rive::Fill* fill = paint->as<rive::Fill>();
+    REQUIRE(fill->paint()->as<rive::SolidColor>()->colorValue() ==
+            rive::colorARGB(255, 16, 21, 102));
+}

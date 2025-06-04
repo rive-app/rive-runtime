@@ -124,8 +124,11 @@ static void make_scenes(size_t count)
             scene = std::make_unique<StaticScene>(artboard.get());
         }
 
+        int viewModelId = artboard.get()->viewModelId();
         viewModelInstances.push_back(
-            rivFile->createViewModelInstance(artboard.get()));
+            viewModelId == -1
+                ? rivFile->createViewModelInstance(artboard.get())
+                : rivFile->createViewModelInstance(viewModelId, 0));
         artboard->bindViewModelInstance(viewModelInstances.back());
         if (viewModelInstances.back() != nullptr)
         {
