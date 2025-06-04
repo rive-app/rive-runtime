@@ -30,7 +30,7 @@ TEST_CASE("ScrollConstraint vertical offset", "[layoutscroll]")
     REQUIRE(scroll->scrollPercentY() == 1.0f);
     REQUIRE(scroll->offsetY() == -610.0f);
     REQUIRE(scroll->clampedOffsetY() == -610.0f);
-    REQUIRE(scroll->scrollIndex() == 5.6f);
+    REQUIRE(scroll->scrollIndex() == Approx(5.54545f));
     // scrollIndex
     scroll->setScrollIndex(2);
     REQUIRE(scroll->offsetY() == -220.0f);
@@ -63,7 +63,7 @@ TEST_CASE("ScrollConstraint horizontal offset", "[layoutscroll]")
     REQUIRE(scroll->scrollPercentX() == 1.0f);
     REQUIRE(scroll->offsetX() == -610.0f);
     REQUIRE(scroll->clampedOffsetX() == -610.0f);
-    REQUIRE(scroll->scrollIndex() == 5.6f);
+    REQUIRE(scroll->scrollIndex() == Approx(5.54545f));
     // scrollIndex
     scroll->setScrollIndex(2);
     REQUIRE(scroll->offsetX() == -220.0f);

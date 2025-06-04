@@ -166,6 +166,7 @@ public:
     void setScrollPercentY(float value) override;
     void setScrollIndex(float value) override;
     size_t scrollItemCount();
+    Vec2D gap();
 };
 } // namespace rive
 

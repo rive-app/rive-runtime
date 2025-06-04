@@ -240,6 +240,7 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
         return Vec2D();
     }
     uint32_t i = 0;
+    Vec2D contentGap = gap();
     float floorIndex = std::floor(index);
     LayoutNodeProvider* lastChild;
     for (auto child : content()->children())
@@ -252,8 +253,9 @@ Vec2D ScrollConstraint::positionAtIndex(float index)
             {
                 float mod = index - floorIndex;
                 auto bounds = c->layoutBoundsForNode(floorIndex - i);
-                return Vec2D(-bounds.left() - bounds.width() * mod,
-                             -bounds.top() - bounds.height() * mod);
+                return Vec2D(
+                    -bounds.left() - (bounds.width() + contentGap.x) * mod,
+                    -bounds.top() - (bounds.height() + contentGap.y) * mod);
             }
             lastChild = c;
             i += count;
@@ -271,6 +273,7 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
         return 0;
     }
     float i = 0.0f;
+    Vec2D contentGap = gap();
     if (constrainsHorizontal())
     {
         for (auto child : content()->children())
@@ -282,10 +285,11 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
                 for (int j = 0; j < count; j++)
                 {
                     auto bounds = c->layoutBoundsForNode(j);
-                    if (pos.x > -bounds.left() - bounds.width())
+                    if (pos.x >
+                        -bounds.left() - (bounds.width() + contentGap.x))
                     {
-                        return (i + j) +
-                               (-pos.x - bounds.left()) / bounds.width();
+                        return (i + j) + (-pos.x - bounds.left()) /
+                                             (bounds.width() + contentGap.x);
                     }
                 }
                 i += count;
@@ -304,10 +308,11 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
                 for (int j = 0; j < count; j++)
                 {
                     auto bounds = c->layoutBoundsForNode(j);
-                    if (pos.y > -bounds.top() - bounds.height())
+                    if (pos.y >
+                        -bounds.top() - (bounds.height() + contentGap.y))
                     {
-                        return (i + j) +
-                               (-pos.y - bounds.top()) / bounds.height();
+                        return (i + j) + (-pos.y - bounds.top()) /
+                                             (bounds.height() + contentGap.y);
                     }
                 }
                 i += count;
@@ -330,4 +335,13 @@ size_t ScrollConstraint::scrollItemCount()
         }
     }
     return count;
+}
+
+Vec2D ScrollConstraint::gap()
+{
+    if (content() == nullptr)
+    {
+        return Vec2D();
+    }
+    return Vec2D(content()->gapHorizontal(), content()->gapVertical());
 }

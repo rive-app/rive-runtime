@@ -224,6 +224,9 @@ public:
     float paddingTop() { return m_layoutPadding.top(); }
     float paddingBottom() { return m_layoutPadding.bottom(); }
 
+    float gapHorizontal();
+    float gapVertical();
+
     // We provide a way for nested artboards (or other objects) to override this
     // layout's width/height and unit values.
     void widthOverride(float width, int unitValue = 1, bool isRow = true);

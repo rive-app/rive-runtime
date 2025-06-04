@@ -226,6 +226,28 @@ LayoutComponent::LayoutComponent() :
     m_layoutData->node.getConfig()->setPointScaleFactor(0);
 }
 
+float LayoutComponent::gapHorizontal()
+{
+    if (m_style == nullptr)
+    {
+        return 0;
+    }
+    return m_style->gapHorizontalUnits() == YGUnitPercent
+               ? (m_style->gapHorizontal() / 100.0f) * layoutWidth()
+               : m_style->gapHorizontal();
+}
+
+float LayoutComponent::gapVertical()
+{
+    if (m_style == nullptr)
+    {
+        return 0;
+    }
+    return m_style->gapVerticalUnits() == YGUnitPercent
+               ? (m_style->gapVertical() / 100.0f) * layoutHeight()
+               : m_style->gapVertical();
+}
+
 StatusCode LayoutComponent::onAddedDirty(CoreContext* context)
 {
     auto code = Super::onAddedDirty(context);
@@ -1373,6 +1395,9 @@ void LayoutComponent::directionChanged()
 LayoutComponent::LayoutComponent() :
     m_layoutData(new LayoutData()), m_proxy(this)
 {}
+
+float LayoutComponent::gapHorizontal() { return 0; }
+float LayoutComponent::gapVertical() { return 0; }
 
 void LayoutComponent::drawProxy(Renderer* renderer) {}
 
