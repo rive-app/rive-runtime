@@ -45,7 +45,7 @@ public:
                hasDirt(ComponentDirt::Collapsed);
     }
 
-    inline bool isTargetOpaque() const
+    virtual bool isTargetOpaque()
     {
         return (static_cast<DrawableFlag>(drawableFlags()) &
                 DrawableFlag::Opaque) == DrawableFlag::Opaque;
@@ -84,7 +84,7 @@ public:
 
     Drawable* hittableComponent() override;
 
-    bool isTargetOpaque();
+    bool isTargetOpaque() override;
 
     Core* hitTest(HitInfo*, const Mat2D&) override { return nullptr; }
 
