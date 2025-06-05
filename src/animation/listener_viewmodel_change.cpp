@@ -49,5 +49,9 @@ void ListenerViewModelChange::perform(
         stateMachineInstance->bindableDataBindToSource(bindableInstance);
     // Apply the change that will assign the value of the bindable property to
     // the view model property instance
-    dataBind->updateSourceBinding(true);
+    if (dataBind != nullptr)
+    {
+
+        dataBind->updateSourceBinding(true);
+    }
 }
