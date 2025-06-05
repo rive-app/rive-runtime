@@ -87,7 +87,6 @@ void FullyShapedText::shape(Span<Unichar> text,
     isEllipsisLineLast = lastLineIndex == ellipsisLine;
 
     int32_t lineIndex = 0;
-    paragraphIndex = 0;
     m_bounds =
         AABB(0.0f, minY, measuredWidth, std::max(minY, y - paragraphSpacing));
 

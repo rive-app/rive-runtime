@@ -261,7 +261,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
     // TODO: @hernan consider moving this to a special importer. It's not that
     // simple because Core doesn't have a typeKey, so it should be treated as
     // a special case. In any case, it's not that bad having it here for now.
-    Core* lastBindableObject;
+    Core* lastBindableObject = nullptr;
     while (!reader.reachedEnd())
     {
         auto object = readRuntimeObject(reader, header);
@@ -332,6 +332,10 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
         }
         else
         {
+            if (lastBindableObject == object)
+            {
+                lastBindableObject = nullptr;
+            }
             fprintf(stderr,
                     "Failed to import object of type %d\n",
                     object->coreType());

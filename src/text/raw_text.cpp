@@ -189,7 +189,6 @@ void RawText::update()
     isEllipsisLineLast = lastLineIndex == ellipsisLine;
 
     int lineIndex = 0;
-    paragraphIndex = 0;
     switch (m_sizing)
     {
         case TextSizing::autoWidth:

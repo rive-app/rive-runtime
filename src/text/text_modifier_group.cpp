@@ -134,7 +134,7 @@ float TextModifierGroup::glyphCoverage(uint32_t textIndex,
     {
         c += coverage(textIndex + i);
     }
-    return c /= (float)codePointCount;
+    return c / (float)codePointCount;
 }
 
 void TextModifierGroup::onTextWorldTransformDirty()

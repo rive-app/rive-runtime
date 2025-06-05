@@ -12,7 +12,16 @@ template <typename T> class TypedChild
 public:
     TypedChild(Core** child, Core** end) : m_child(child), m_end(end) {}
 
-    T* operator*() const { return (*m_child)->template as<T>(); }
+    T* operator*() const
+    {
+        auto child = *m_child;
+        if (child == nullptr)
+        {
+            return nullptr;
+        }
+        return child->template as<T>();
+    }
+
     TypedChild& operator++()
     {
         m_child++;

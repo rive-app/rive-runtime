@@ -132,6 +132,7 @@ void LinearGradient::applyTo(RenderPaint* renderPaint, float opacityModifier)
         parent()->as<ShapePaint>()->isFlagged(PathFlags::world);
     Vec2D start(startX(), startY());
     Vec2D end(endX(), endY());
+
     // Check if we need to update the world space gradient (if there's no
     // shape container, presumably it's the artboard and we're already in
     // world).
@@ -150,7 +151,7 @@ void LinearGradient::applyTo(RenderPaint* renderPaint, float opacityModifier)
     }
     else
     {
-        if (m_deformer)
+        if (m_deformer && m_shapePaintContainer != nullptr)
         {
             const Mat2D& world = m_shapePaintContainer->worldTransform();
             Mat2D inverseWorld;
