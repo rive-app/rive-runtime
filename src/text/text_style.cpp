@@ -26,11 +26,13 @@ void TextStyle::addFeature(TextStyleFeature* feature)
 
 void TextStyle::onDirty(ComponentDirt dirt)
 {
+    // This can happen if the Text is in a Solo which is propagating its
+    // collapsed state during its onAddedClean (which could be called before
+    // ours, so m_text might still be null).
     if (m_text != nullptr)
     {
         if ((dirt & ComponentDirt::TextShape) == ComponentDirt::TextShape)
         {
-
             m_text->markShapeDirty();
             if (m_variationHelper != nullptr)
             {

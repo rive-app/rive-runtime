@@ -53,7 +53,7 @@ private:
     std::vector<TextStyleAxis*> m_variations;
     std::vector<TextStyleFeature*> m_styleFeatures;
     std::vector<Font::Feature> m_features;
-    TextInterface* m_text;
+    TextInterface* m_text = nullptr;
 };
 } // namespace rive
 
