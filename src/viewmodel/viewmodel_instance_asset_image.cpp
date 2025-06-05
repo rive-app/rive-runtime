@@ -21,13 +21,20 @@ void ViewModelInstanceAssetImage::propertyValueChanged()
 
 void ViewModelInstanceAssetImage::value(RenderImage* image)
 {
-    if (m_imageAsset.renderImage() == image || image == nullptr)
+    if (m_imageAsset.renderImage() == image)
     {
         return;
     }
     propertyValue(-1);
-    image->ref();
-    m_imageAsset.renderImage(rcp<RenderImage>(image));
+    if (image == nullptr)
+    {
+        m_imageAsset.renderImage(nullptr);
+    }
+    else
+    {
+        image->ref();
+        m_imageAsset.renderImage(rcp<RenderImage>(image));
+    }
     addDirt(ComponentDirt::Bindings);
 }
 

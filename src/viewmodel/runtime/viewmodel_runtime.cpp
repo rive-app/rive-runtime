@@ -1,6 +1,7 @@
 
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_property_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_property_string.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
@@ -10,6 +11,7 @@
 #include "rive/viewmodel/viewmodel_property_enum_custom.hpp"
 #include "rive/viewmodel/viewmodel_property_enum_system.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
+#include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
 #include "rive/file.hpp"
 #include "rive/refcnt.hpp"
@@ -70,6 +72,12 @@ std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
                 break;
             case ViewModelPropertyViewModelBase::typeKey:
                 type = DataType::viewModel;
+                break;
+            case ViewModelPropertySymbolListIndex::typeKey:
+                type = DataType::symbolListIndex;
+                break;
+            case ViewModelPropertyAssetImage::typeKey:
+                type = DataType::assetImage;
                 break;
             default:
                 break;
