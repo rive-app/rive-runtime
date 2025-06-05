@@ -26,12 +26,16 @@ void TextStyle::addFeature(TextStyleFeature* feature)
 
 void TextStyle::onDirty(ComponentDirt dirt)
 {
-    if ((dirt & ComponentDirt::TextShape) == ComponentDirt::TextShape)
+    if (m_text != nullptr)
     {
-        m_text->markShapeDirty();
-        if (m_variationHelper != nullptr)
+        if ((dirt & ComponentDirt::TextShape) == ComponentDirt::TextShape)
         {
-            m_variationHelper->addDirt(ComponentDirt::TextShape);
+
+            m_text->markShapeDirty();
+            if (m_variationHelper != nullptr)
+            {
+                m_variationHelper->addDirt(ComponentDirt::TextShape);
+            }
         }
     }
 }
