@@ -13,38 +13,7 @@
 namespace rive::gpu
 {
 class RenderContextWebGPUVulkan;
-
-class RenderTargetWebGPU : public RenderTarget
-{
-public:
-    wgpu::TextureFormat framebufferFormat() const
-    {
-        return m_framebufferFormat;
-    }
-
-    void setTargetTextureView(wgpu::TextureView);
-
-private:
-    friend class RenderContextWebGPUImpl;
-    friend class RenderContextWebGPUVulkan;
-
-    RenderTargetWebGPU(wgpu::Device device,
-                       wgpu::TextureFormat framebufferFormat,
-                       uint32_t width,
-                       uint32_t height,
-                       wgpu::TextureUsage additionalTextureFlags);
-
-    const wgpu::TextureFormat m_framebufferFormat;
-
-    wgpu::Texture m_coverageTexture;
-    wgpu::Texture m_clipTexture;
-    wgpu::Texture m_scratchColorTexture;
-
-    wgpu::TextureView m_targetTextureView;
-    wgpu::TextureView m_coverageTextureView;
-    wgpu::TextureView m_clipTextureView;
-    wgpu::TextureView m_scratchColorTextureView;
-};
+class RenderTargetWebGPU;
 
 class RenderContextWebGPUImpl : public RenderContextHelperImpl
 {
@@ -126,6 +95,7 @@ protected:
         EmJsHandle* renderPassJSHandleIfNeeded);
 
     wgpu::Device device() const { return m_device; }
+    const ContextOptions& contextOptions() const { return m_contextOptions; }
     wgpu::FrontFace frontFaceForRenderTargetDraws() const
     {
         return m_contextOptions.invertRenderTargetFrontFace
@@ -222,5 +192,38 @@ private:
     // Bound when there is not an image paint.
     wgpu::Texture m_nullImagePaintTexture;
     wgpu::TextureView m_nullImagePaintTextureView;
+};
+
+class RenderTargetWebGPU : public RenderTarget
+{
+public:
+    wgpu::TextureFormat framebufferFormat() const
+    {
+        return m_framebufferFormat;
+    }
+
+    void setTargetTextureView(wgpu::TextureView);
+
+private:
+    friend class RenderContextWebGPUImpl;
+    friend class RenderContextWebGPUVulkan;
+
+    RenderTargetWebGPU(wgpu::Device device,
+                       const RenderContextWebGPUImpl::ContextOptions&,
+                       wgpu::TextureFormat framebufferFormat,
+                       uint32_t width,
+                       uint32_t height,
+                       wgpu::TextureUsage additionalTextureFlags);
+
+    const wgpu::TextureFormat m_framebufferFormat;
+
+    wgpu::Texture m_coverageTexture;
+    wgpu::Texture m_clipTexture;
+    wgpu::Texture m_scratchColorTexture;
+
+    wgpu::TextureView m_targetTextureView;
+    wgpu::TextureView m_coverageTextureView;
+    wgpu::TextureView m_clipTextureView;
+    wgpu::TextureView m_scratchColorTextureView;
 };
 } // namespace rive::gpu

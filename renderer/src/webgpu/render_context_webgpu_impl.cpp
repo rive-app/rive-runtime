@@ -1312,28 +1312,42 @@ RenderContextWebGPUImpl::~RenderContextWebGPUImpl() {}
 
 RenderTargetWebGPU::RenderTargetWebGPU(
     wgpu::Device device,
+    const RenderContextWebGPUImpl::ContextOptions& contextOptions,
     wgpu::TextureFormat framebufferFormat,
     uint32_t width,
     uint32_t height,
     wgpu::TextureUsage additionalTextureFlags) :
     RenderTarget(width, height), m_framebufferFormat(framebufferFormat)
 {
-    wgpu::TextureDescriptor desc = {
-        .usage = wgpu::TextureUsage::RenderAttachment | additionalTextureFlags,
-        .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
-    };
-
-    desc.format = wgpu::TextureFormat::R32Uint;
-    m_coverageTexture = device.CreateTexture(&desc);
-    m_clipTexture = device.CreateTexture(&desc);
-
-    desc.format = m_framebufferFormat;
-    m_scratchColorTexture = device.CreateTexture(&desc);
-
     m_targetTextureView = {}; // Will be configured later by setTargetTexture().
-    m_coverageTextureView = m_coverageTexture.CreateView();
-    m_clipTextureView = m_clipTexture.CreateView();
-    m_scratchColorTextureView = m_scratchColorTexture.CreateView();
+
+    // EXT_shader_pixel_local_storage doesn't need to allocate textures for
+    // clip, scratch, and coverage. These are instead kept in explicit tiled PLS
+    // memory.
+    // When using Vulkan subpass loads, 'additionalTextureFlags' will contain
+    // hints to make the textures transient input attachments.
+    if (contextOptions.plsType !=
+        RenderContextWebGPUImpl::PixelLocalStorageType::
+            EXT_shader_pixel_local_storage)
+    {
+        wgpu::TextureDescriptor desc = {
+            .usage =
+                wgpu::TextureUsage::RenderAttachment | additionalTextureFlags,
+            .size = {static_cast<uint32_t>(width),
+                     static_cast<uint32_t>(height)},
+        };
+
+        desc.format = wgpu::TextureFormat::R32Uint;
+        m_coverageTexture = device.CreateTexture(&desc);
+        m_clipTexture = device.CreateTexture(&desc);
+
+        desc.format = m_framebufferFormat;
+        m_scratchColorTexture = device.CreateTexture(&desc);
+
+        m_coverageTextureView = m_coverageTexture.CreateView();
+        m_clipTextureView = m_clipTexture.CreateView();
+        m_scratchColorTextureView = m_scratchColorTexture.CreateView();
+    }
 }
 
 void RenderTargetWebGPU::setTargetTextureView(wgpu::TextureView textureView)
@@ -1347,6 +1361,7 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUImpl::makeRenderTarget(
     uint32_t height)
 {
     return rcp(new RenderTargetWebGPU(m_device,
+                                      m_contextOptions,
                                       framebufferFormat,
                                       width,
                                       height,

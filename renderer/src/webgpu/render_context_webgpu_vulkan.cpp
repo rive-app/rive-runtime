@@ -69,6 +69,7 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUVulkan::makeRenderTarget(
 {
     return rcp(new RenderTargetWebGPU(
         device(),
+        contextOptions(),
         framebufferFormat,
         width,
         height,
