@@ -5,6 +5,7 @@
 #include "rive/command_server.hpp"
 
 #include "rive/file.hpp"
+#include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 
 namespace rive
@@ -44,6 +45,14 @@ StateMachineInstance* CommandServer::getStateMachineInstance(
     return it != m_stateMachines.end() ? it->second.get() : nullptr;
 }
 
+ViewModelInstanceRuntime* CommandServer::getViewModelInstance(
+    ViewModelInstanceHandle handle) const
+{
+    assert(std::this_thread::get_id() == m_threadID);
+    auto it = m_viewModels.find(handle);
+    return it != m_viewModels.end() ? it->second.get() : nullptr;
+}
+
 void CommandServer::serveUntilDisconnect()
 {
     while (waitCommands())
@@ -70,6 +79,7 @@ bool CommandServer::processCommands()
     assert(std::this_thread::get_id() == m_threadID);
 
     PODStream& commandStream = m_commandQueue->m_commandStream;
+    PODStream& messageStream = m_commandQueue->m_messageStream;
     std::unique_lock<std::mutex> lock(m_commandQueue->m_commandMutex);
 
     // Early out if we don't have anything to process.
@@ -128,10 +138,9 @@ bool CommandServer::processCommands()
                 m_files.erase(handle);
                 std::unique_lock<std::mutex> messageLock(
                     m_commandQueue->m_messageMutex);
-                m_commandQueue->m_messageStream
-                    << CommandQueue::Message::fileDeleted;
-                m_commandQueue->m_messageStream << handle;
-                m_commandQueue->m_messageStream << requestId;
+                messageStream << CommandQueue::Message::fileDeleted;
+                messageStream << handle;
+                messageStream << requestId;
                 break;
             }
 
@@ -174,13 +183,134 @@ bool CommandServer::processCommands()
                 m_artboards.erase(handle);
                 std::unique_lock<std::mutex> messageLock(
                     m_commandQueue->m_messageMutex);
-                m_commandQueue->m_messageStream
-                    << CommandQueue::Message::artboardDeleted;
-                m_commandQueue->m_messageStream << handle;
-                m_commandQueue->m_messageStream << requestId;
+                messageStream << CommandQueue::Message::artboardDeleted;
+                messageStream << handle;
+                messageStream << requestId;
                 break;
             }
 
+            case CommandQueue::Command::instantiateViewModel:
+            case CommandQueue::Command::instantiateBlankViewModel:
+            case CommandQueue::Command::instantiateViewModelForArtboard:
+            case CommandQueue::Command::instantiateBlankViewModelForArtboard:
+            {
+                bool usesInstanceName =
+                    command == CommandQueue::Command::instantiateViewModel ||
+                    command ==
+                        CommandQueue::Command::instantiateViewModelForArtboard;
+                bool usesArtboard =
+                    command == CommandQueue::Command::
+                                   instantiateBlankViewModelForArtboard ||
+                    command ==
+                        CommandQueue::Command::instantiateViewModelForArtboard;
+
+                FileHandle fileHandle;
+                ArtboardHandle artboardHandle;
+                ViewModelInstanceHandle viewHandle;
+                uint64_t requestId;
+                std::string viewModelName;
+                std::string viewModelInstanceName;
+                commandStream >> fileHandle;
+                if (usesArtboard)
+                {
+                    commandStream >> artboardHandle;
+                }
+                commandStream >> viewHandle;
+                commandStream >> requestId;
+                if (!usesArtboard)
+                {
+                    m_commandQueue->m_names >> viewModelName;
+                }
+                if (usesInstanceName)
+                {
+                    m_commandQueue->m_names >> viewModelInstanceName;
+                }
+                lock.unlock();
+                if (auto file = getFile(fileHandle))
+                {
+                    ViewModelRuntime* viewModel = nullptr;
+
+                    if (usesArtboard)
+                    {
+                        if (auto artboardInstance =
+                                getArtboardInstance(artboardHandle))
+                        {
+                            viewModel = file->defaultArtboardViewModel(
+                                artboardInstance);
+                        }
+                        else
+                        {
+                            fprintf(stderr,
+                                    "ERROR: artboardInstance not found when "
+                                    "trying to create default view model\n");
+                        }
+                    }
+                    else
+                    {
+                        viewModel = file->viewModelByName(viewModelName);
+                    }
+
+                    if (viewModel)
+                    {
+                        rcp<ViewModelInstanceRuntime> instance;
+
+                        if (usesInstanceName)
+                        {
+                            if (viewModelInstanceName.empty())
+                            {
+                                instance =
+                                    ref_rcp(viewModel->createDefaultInstance());
+                            }
+                            else
+                            {
+                                instance =
+                                    ref_rcp(viewModel->createInstanceFromName(
+                                        viewModelInstanceName));
+                            }
+                        }
+                        else
+                        {
+                            instance = ref_rcp(viewModel->createInstance());
+                        }
+
+                        if (instance)
+                        {
+                            m_viewModels[viewHandle] = std::move(instance);
+                        }
+                        else
+                        {
+                            fprintf(stderr,
+                                    "ERROR: Could not create view instance\n");
+                        }
+                    }
+                    else
+                    {
+                        fprintf(stderr, "ERROR: view model not found\n");
+                    }
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "ERROR: file not found for view model runtime\n");
+                }
+                break;
+            }
+
+            case CommandQueue::Command::deleteViewModel:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                m_viewModels.erase(handle);
+                std::unique_lock<std::mutex> messageLock(
+                    m_commandQueue->m_messageMutex);
+                messageStream << CommandQueue::Message::viewModelDeleted;
+                messageStream << handle;
+                messageStream << requestId;
+                break;
+            }
             case CommandQueue::Command::instantiateStateMachine:
             {
                 StateMachineHandle handle;
@@ -212,6 +342,40 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::bindViewModelInstance:
+            {
+                StateMachineHandle handle;
+                ViewModelInstanceHandle viewModel;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> viewModel;
+                commandStream >> requestId;
+                lock.unlock();
+
+                if (auto stateMachine = getStateMachineInstance(handle))
+                {
+                    if (auto viewModelInstance =
+                            getViewModelInstance(viewModel))
+                    {
+                        stateMachine->bindViewModelInstance(
+                            viewModelInstance->instance());
+                    }
+                    else
+                    {
+                        fprintf(stderr,
+                                "ERROR: View Model not found for bind\n");
+                    }
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "ERROR: State machine \"%llu\" not found for "
+                            "binding view model.\n",
+                            reinterpret_cast<unsigned long long>(handle));
+                }
+                break;
+            }
+
             case CommandQueue::Command::advanceStateMachine:
             {
                 StateMachineHandle handle;
@@ -228,10 +392,10 @@ bool CommandServer::processCommands()
                     {
                         std::unique_lock<std::mutex> messageLock(
                             m_commandQueue->m_messageMutex);
-                        m_commandQueue->m_messageStream
+                        messageStream
                             << CommandQueue::Message::stateMachineSettled;
-                        m_commandQueue->m_messageStream << handle;
-                        m_commandQueue->m_messageStream << requestId;
+                        messageStream << handle;
+                        messageStream << requestId;
                     }
                 }
                 else
@@ -255,10 +419,9 @@ bool CommandServer::processCommands()
                 m_stateMachines.erase(handle);
                 std::unique_lock<std::mutex> messageLock(
                     m_commandQueue->m_messageMutex);
-                m_commandQueue->m_messageStream
-                    << CommandQueue::Message::stateMachineDeleted;
-                m_commandQueue->m_messageStream << handle;
-                m_commandQueue->m_messageStream << requestId;
+                messageStream << CommandQueue::Message::stateMachineDeleted;
+                messageStream << handle;
+                messageStream << requestId;
                 break;
             }
 
@@ -303,11 +466,10 @@ bool CommandServer::processCommands()
 
                     std::unique_lock<std::mutex> messageLock(
                         m_commandQueue->m_messageMutex);
-                    m_commandQueue->m_messageStream
-                        << CommandQueue::Message::artboardsListed;
-                    m_commandQueue->m_messageStream << handle;
-                    m_commandQueue->m_messageStream << requestId;
-                    m_commandQueue->m_messageStream << artboards.size();
+                    messageStream << CommandQueue::Message::artboardsListed;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << artboards.size();
                     for (auto artboard : artboards)
                     {
                         m_commandQueue->m_messageNames << artboard->name();
@@ -330,15 +492,110 @@ bool CommandServer::processCommands()
                     auto numStateMachines = artboard->stateMachineCount();
                     std::unique_lock<std::mutex> messageLock(
                         m_commandQueue->m_messageMutex);
-                    m_commandQueue->m_messageStream
-                        << CommandQueue::Message::stateMachinesListed;
-                    m_commandQueue->m_messageStream << handle;
-                    m_commandQueue->m_messageStream << requestId;
-                    m_commandQueue->m_messageStream << numStateMachines;
+                    messageStream << CommandQueue::Message::stateMachinesListed;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << numStateMachines;
                     for (int i = 0; i < numStateMachines; ++i)
                     {
                         m_commandQueue->m_messageNames
                             << artboard->stateMachineNameAt(i);
+                    }
+                }
+                break;
+            }
+
+            case CommandQueue::Command::listViewModels:
+            {
+                FileHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                auto file = getFile(handle);
+                if (file)
+                {
+                    auto numViewModels = file->viewModelCount();
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::viewModelsListend;
+                    messageStream << handle;
+                    messageStream << requestId;
+                    messageStream << numViewModels;
+                    for (int i = 0; i < numViewModels; ++i)
+                    {
+                        m_commandQueue->m_messageNames
+                            << file->viewModelByIndex(i)->name();
+                    }
+                }
+                break;
+            }
+
+            case CommandQueue::Command::listViewModelInstanceNames:
+            {
+                FileHandle handle;
+                uint64_t requestId;
+                std::string viewModelName;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> viewModelName;
+                lock.unlock();
+                auto file = getFile(handle);
+                if (file)
+                {
+                    auto model = file->viewModelByName(viewModelName);
+                    if (model)
+                    {
+                        auto names = model->instanceNames();
+
+                        std::unique_lock<std::mutex> messageLock(
+                            m_commandQueue->m_messageMutex);
+                        messageStream << CommandQueue::Message::
+                                viewModelInstanceNamesListed;
+                        messageStream << handle;
+                        messageStream << requestId;
+                        messageStream << names.size();
+                        m_commandQueue->m_messageNames << viewModelName;
+                        for (auto& name : names)
+                        {
+                            m_commandQueue->m_messageNames << name;
+                        }
+                    }
+                }
+                break;
+            }
+
+            case CommandQueue::Command::listViewModelProperties:
+            {
+                FileHandle handle;
+                uint64_t requestId;
+                std::string viewModelName;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> viewModelName;
+                lock.unlock();
+                auto file = getFile(handle);
+                if (file)
+                {
+                    auto model = file->viewModelByName(viewModelName);
+                    if (model)
+                    {
+                        auto properties = model->properties();
+
+                        std::unique_lock<std::mutex> messageLock(
+                            m_commandQueue->m_messageMutex);
+                        messageStream
+                            << CommandQueue::Message::viewModelPropertiesListed;
+                        messageStream << handle;
+                        messageStream << requestId;
+                        messageStream << properties.size();
+                        m_commandQueue->m_messageNames << viewModelName;
+                        for (auto& property : properties)
+                        {
+                            messageStream << property.type;
+                            m_commandQueue->m_messageNames << property.name;
+                        }
                     }
                 }
                 break;
@@ -376,6 +633,7 @@ bool CommandServer::processCommands()
                 {
                     stateMachine->pointerDown(position);
                 }
+                else
                 {
                     fprintf(stderr,
                             "ERROR: State machine \"%llu\" not found for "
@@ -396,6 +654,7 @@ bool CommandServer::processCommands()
                 {
                     stateMachine->pointerUp(position);
                 }
+                else
                 {
                     fprintf(stderr,
                             "ERROR: State machine \"%llu\" not found for "
@@ -416,6 +675,7 @@ bool CommandServer::processCommands()
                 {
                     stateMachine->pointerExit(position);
                 }
+                else
                 {
                     fprintf(stderr,
                             "ERROR: State machine \"%llu\" not found for "

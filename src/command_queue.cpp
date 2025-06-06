@@ -44,6 +44,7 @@ FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
 
     if (listener)
     {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
         listener->m_handle = handle;
         listener->m_owningQueue = ref_rcp(this);
         registerListener(handle, listener);
@@ -78,6 +79,7 @@ ArtboardHandle CommandQueue::instantiateArtboardNamed(
 
     if (listener)
     {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
         listener->m_handle = handle;
         listener->m_owningQueue = ref_rcp(this);
         registerListener(handle, listener);
@@ -102,6 +104,119 @@ void CommandQueue::deleteArtboard(ArtboardHandle artboardHandle,
     m_commandStream << requestId;
 }
 
+ViewModelInstanceHandle CommandQueue::instantiateBlankViewModelInstance(
+    FileHandle fileHandle,
+    ArtboardHandle artboardHandle,
+    ViewModelInstanceListener* listener,
+    uint64_t requestId)
+{
+    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+        ++m_currentViewModelHandleIdx);
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = viewHandle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(viewHandle, listener);
+    }
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::instantiateBlankViewModelForArtboard;
+    m_commandStream << fileHandle;
+    m_commandStream << artboardHandle;
+    m_commandStream << viewHandle;
+    m_commandStream << requestId;
+
+    return viewHandle;
+}
+
+ViewModelInstanceHandle CommandQueue::instantiateBlankViewModelInstance(
+    FileHandle fileHandle,
+    std::string viewModelName,
+    ViewModelInstanceListener* listener,
+    uint64_t requestId)
+{
+    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+        ++m_currentViewModelHandleIdx);
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = viewHandle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(viewHandle, listener);
+    }
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::instantiateBlankViewModel;
+    m_commandStream << fileHandle;
+    m_commandStream << viewHandle;
+    m_commandStream << requestId;
+    m_names << viewModelName;
+
+    return viewHandle;
+}
+
+ViewModelInstanceHandle CommandQueue::instantiateViewModelInstanceNamed(
+    FileHandle fileHandle,
+    ArtboardHandle artboardHandle,
+    std::string viewModelInstanceName,
+    ViewModelInstanceListener* listener,
+    uint64_t requestId)
+{
+    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+        ++m_currentViewModelHandleIdx);
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = viewHandle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(viewHandle, listener);
+    }
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::instantiateViewModelForArtboard;
+    m_commandStream << fileHandle;
+    m_commandStream << artboardHandle;
+    m_commandStream << viewHandle;
+    m_commandStream << requestId;
+    m_names << viewModelInstanceName;
+
+    return viewHandle;
+}
+
+ViewModelInstanceHandle CommandQueue::instantiateViewModelInstanceNamed(
+    FileHandle fileHandle,
+    std::string viewModelName,
+    std::string viewModelInstanceName,
+    ViewModelInstanceListener* listener,
+    uint64_t requestId)
+{
+    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+        ++m_currentViewModelHandleIdx);
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = viewHandle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(viewHandle, listener);
+    }
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::instantiateViewModel;
+    m_commandStream << fileHandle;
+    m_commandStream << viewHandle;
+    m_commandStream << requestId;
+    m_names << viewModelName;
+    m_names << viewModelInstanceName;
+
+    return viewHandle;
+}
+
+void CommandQueue::deleteViewModelInstance(ViewModelInstanceHandle handle,
+                                           uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::deleteViewModel;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+}
+
 StateMachineHandle CommandQueue::instantiateStateMachineNamed(
     ArtboardHandle artboardHandle,
     std::string name,
@@ -113,6 +228,7 @@ StateMachineHandle CommandQueue::instantiateStateMachineNamed(
 
     if (listener)
     {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
         listener->m_handle = handle;
         listener->m_owningQueue = ref_rcp(this);
         registerListener(handle, listener);
@@ -162,6 +278,17 @@ void CommandQueue::pointerExit(StateMachineHandle stateMachineHandle,
     m_commandStream << Command::pointerExit;
     m_commandStream << stateMachineHandle;
     m_commandStream << position;
+}
+
+void CommandQueue::bindViewModelInstance(StateMachineHandle handle,
+                                         ViewModelInstanceHandle viewModel,
+                                         uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::bindViewModelInstance;
+    m_commandStream << handle;
+    m_commandStream << viewModel;
+    m_commandStream << requestId;
 }
 
 void CommandQueue::advanceStateMachine(StateMachineHandle stateMachineHandle,
@@ -247,6 +374,15 @@ void CommandQueue::disconnect()
     m_commandStream << Command::disconnect;
 }
 
+void CommandQueue::requestViewModelNames(FileHandle fileHandle,
+                                         uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listViewModels;
+    m_commandStream << fileHandle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::requestArtboardNames(FileHandle fileHandle,
                                         uint64_t requestId)
 {
@@ -254,6 +390,29 @@ void CommandQueue::requestArtboardNames(FileHandle fileHandle,
     m_commandStream << Command::listArtboards;
     m_commandStream << fileHandle;
     m_commandStream << requestId;
+}
+
+void CommandQueue::requestViewModelPropertyDefinitions(
+    FileHandle handle,
+    std::string viewModelName,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listViewModelProperties;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << viewModelName;
+}
+
+void CommandQueue::requestViewModelInstanceNames(FileHandle handle,
+                                                 std::string viewModelName,
+                                                 uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listViewModelInstanceNames;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << viewModelName;
 }
 
 void CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle,
@@ -336,6 +495,94 @@ void CommandQueue::processMessages()
 
                 break;
             }
+            case Message::viewModelsListend:
+            {
+                size_t numViewModels;
+                FileHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> numViewModels;
+                std::vector<std::string> viewModelNames(numViewModels);
+                for (auto& name : viewModelNames)
+                {
+                    m_messageNames >> name;
+                }
+                lock.unlock();
+
+                auto itr = m_fileListeners.find(handle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onViewModelsListed(itr->first,
+                                                    requestId,
+                                                    std::move(viewModelNames));
+                }
+
+                break;
+            }
+
+            case Message::viewModelInstanceNamesListed:
+            {
+                size_t numViewModels;
+                FileHandle handle;
+                uint64_t requestId;
+                std::string viewModelName;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> numViewModels;
+                m_messageNames >> viewModelName;
+                std::vector<std::string> viewModelInstanceNames(numViewModels);
+                for (auto& name : viewModelInstanceNames)
+                {
+                    m_messageNames >> name;
+                }
+                lock.unlock();
+
+                auto itr = m_fileListeners.find(handle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onViewModelInstanceNamesListed(
+                        itr->first,
+                        requestId,
+                        std::move(viewModelName),
+                        std::move(viewModelInstanceNames));
+                }
+                break;
+            }
+
+            case Message::viewModelPropertiesListed:
+            {
+                size_t numViewProperties;
+                FileHandle handle;
+                uint64_t requestId;
+                std::string viewModelName;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> numViewProperties;
+                m_messageNames >> viewModelName;
+                std::vector<PropertyData> viewModelProperties(
+                    numViewProperties);
+
+                for (auto& property : viewModelProperties)
+                {
+                    m_messageStream >> property.type;
+                    m_messageNames >> property.name;
+                }
+                lock.unlock();
+
+                auto itr = m_fileListeners.find(handle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onViewModelPropertiesListed(
+                        itr->first,
+                        requestId,
+                        std::move(viewModelName),
+                        std::move(viewModelProperties));
+                }
+
+                break;
+            }
+
             case Message::fileDeleted:
             {
                 FileHandle handle;
@@ -361,6 +608,20 @@ void CommandQueue::processMessages()
                 if (itr != m_artboardListeners.end())
                 {
                     itr->second->onArtboardDeleted(handle, requestId);
+                }
+                break;
+            }
+            case Message::viewModelDeleted:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                auto itr = m_viewModelListeners.find(handle);
+                if (itr != m_viewModelListeners.end())
+                {
+                    itr->second->onViewModelDeleted(handle, requestId);
                 }
                 break;
             }

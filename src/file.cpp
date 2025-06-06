@@ -196,10 +196,6 @@ File::~File()
     {
         delete dataConverter;
     }
-    for (auto& viewModelRuntime : m_viewModelRuntimes)
-    {
-        delete viewModelRuntime;
-    }
     for (auto& keyframeInterpolator : m_keyframeInterpolators)
     {
         delete keyframeInterpolator;
@@ -907,7 +903,7 @@ ViewModelRuntime* File::viewModelByIndex(size_t index) const
 {
     if (index < m_ViewModels.size())
     {
-        return createViewModelRuntime(m_ViewModels[index]);
+        return createViewModelRuntime(m_ViewModels[index]).get();
     }
     fprintf(stderr,
             "Could not find View Model. Index %zu is out of range.\n",
@@ -921,7 +917,7 @@ ViewModelRuntime* File::viewModelByName(std::string name) const
     {
         if (viewModel->name() == name)
         {
-            return createViewModelRuntime(viewModel);
+            return createViewModelRuntime(viewModel).get();
         }
     }
     fprintf(stderr, "Could not find View Model named %s.\n", name.c_str());
@@ -938,7 +934,7 @@ ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
     if ((size_t)artboard->viewModelId() < m_ViewModels.size())
     {
         auto viewModel = m_ViewModels[artboard->viewModelId()];
-        return createViewModelRuntime(viewModel);
+        return createViewModelRuntime(viewModel).get();
     }
     fprintf(stderr,
             "Could not find a View Model linked to Artboard %s.\n",
@@ -946,10 +942,9 @@ ViewModelRuntime* File::defaultArtboardViewModel(Artboard* artboard) const
     return nullptr;
 }
 
-ViewModelRuntime* File::createViewModelRuntime(ViewModel* viewModel) const
+rcp<ViewModelRuntime> File::createViewModelRuntime(ViewModel* viewModel) const
 {
-
-    auto viewModelRuntime = new ViewModelRuntime(viewModel, this);
+    auto viewModelRuntime = make_rcp<ViewModelRuntime>(viewModel, this);
     m_viewModelRuntimes.push_back(viewModelRuntime);
     return viewModelRuntime;
 }

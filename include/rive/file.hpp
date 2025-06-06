@@ -199,7 +199,7 @@ private:
     /// reference to instances created by users.
     std::vector<ViewModelInstance*> m_ViewModelInstances;
 
-    mutable std::vector<ViewModelRuntime*> m_viewModelRuntimes;
+    mutable std::vector<rcp<ViewModelRuntime>> m_viewModelRuntimes;
     std::vector<DataEnum*> m_Enums;
 
     Factory* m_factory;
@@ -213,7 +213,7 @@ private:
         std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
             instancesMap) const;
 
-    ViewModelRuntime* createViewModelRuntime(ViewModel* viewModel) const;
+    rcp<ViewModelRuntime> createViewModelRuntime(ViewModel* viewModel) const;
 
     uint32_t findViewModelId(ViewModel* search) const;
 };

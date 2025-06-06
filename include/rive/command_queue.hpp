@@ -7,6 +7,7 @@
 #include "rive/object_stream.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/math/vec2d.hpp"
+#include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 
 #include <condition_variable>
 #include <cstdint>
@@ -42,6 +43,7 @@ class CommandServer;
 RIVE_DEFINE_HANDLE(FileHandle);
 RIVE_DEFINE_HANDLE(ArtboardHandle);
 RIVE_DEFINE_HANDLE(StateMachineHandle);
+RIVE_DEFINE_HANDLE(ViewModelInstanceHandle);
 RIVE_DEFINE_HANDLE(DrawKey);
 
 // Function poimter that gets called back from the server thread.
@@ -98,6 +100,25 @@ public:
                                        uint64_t requestId,
                                        std::vector<std::string> artboardNames)
         {}
+
+        virtual void onViewModelsListed(const FileHandle,
+                                        uint64_t requestId,
+                                        std::vector<std::string> viewModelNames)
+        {}
+
+        virtual void onViewModelInstanceNamesListed(
+            const FileHandle,
+            uint64_t requestId,
+            std::string viewModelName,
+            std::vector<std::string> instanceNames)
+        {}
+
+        virtual void onViewModelPropertiesListed(
+            const FileHandle,
+            uint64_t requestId,
+            std::string viewModelName,
+            std::vector<PropertyData> properties)
+        {}
     };
 
     class ArtboardListener
@@ -111,6 +132,16 @@ public:
             const ArtboardHandle,
             uint64_t requestId,
             std::vector<std::string> stateMachineNames)
+        {}
+    };
+
+    class ViewModelInstanceListener
+        : public CommandQueue::ListenerBase<ViewModelInstanceListener,
+                                            ViewModelInstanceHandle>
+    {
+    public:
+        virtual void onViewModelDeleted(const ViewModelInstanceHandle,
+                                        uint64_t requestId)
         {}
     };
 
@@ -161,6 +192,61 @@ public:
 
     void deleteArtboard(ArtboardHandle, uint64_t requestId = 0);
 
+    ViewModelInstanceHandle instantiateBlankViewModelInstance(
+        FileHandle fileHandle,
+        ArtboardHandle artboardHandle,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0);
+
+    ViewModelInstanceHandle instantiateBlankViewModelInstance(
+        FileHandle fileHandle,
+        std::string viewModelName,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0);
+
+    ViewModelInstanceHandle instantiateDefaultViewModelInstance(
+        FileHandle fileHandle,
+        ArtboardHandle artboardHandle,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0)
+    {
+        return instantiateViewModelInstanceNamed(fileHandle,
+                                                 artboardHandle,
+                                                 "",
+                                                 listener,
+                                                 requestId);
+    }
+
+    ViewModelInstanceHandle instantiateDefaultViewModelInstance(
+        FileHandle fileHandle,
+        std::string viewModelName,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0)
+    {
+        return instantiateViewModelInstanceNamed(fileHandle,
+                                                 viewModelName,
+                                                 "",
+                                                 listener,
+                                                 requestId);
+    }
+
+    ViewModelInstanceHandle instantiateViewModelInstanceNamed(
+        FileHandle,
+        ArtboardHandle,
+        std::string viewModelInstanceName,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0);
+
+    ViewModelInstanceHandle instantiateViewModelInstanceNamed(
+        FileHandle,
+        std::string viewModelName,
+        std::string viewModelInstanceName,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0);
+
+    void deleteViewModelInstance(ViewModelInstanceHandle,
+                                 uint64_t requestId = 0);
+
     StateMachineHandle instantiateStateMachineNamed(
         ArtboardHandle,
         std::string name,
@@ -176,6 +262,10 @@ public:
                                             listener,
                                             requestId);
     }
+
+    void bindViewModelInstance(StateMachineHandle,
+                               ViewModelInstanceHandle,
+                               uint64_t requestId = 0);
 
     void advanceStateMachine(StateMachineHandle,
                              float timeToAdvance,
@@ -215,7 +305,14 @@ public:
 
     void disconnect();
 
+    void requestViewModelNames(FileHandle, uint64_t requestId = 0);
     void requestArtboardNames(FileHandle, uint64_t requestId = 0);
+    void requestViewModelPropertyDefinitions(FileHandle,
+                                             std::string viewModelName,
+                                             uint64_t requestId = 0);
+    void requestViewModelInstanceNames(FileHandle,
+                                       std::string viewModelName,
+                                       uint64_t requestId = 0);
     void requestStateMachineNames(ArtboardHandle, uint64_t requestId = 0);
 
     // Consume all messages received from the server.
@@ -234,6 +331,14 @@ private:
         assert(listener);
         assert(m_artboardListeners.find(handle) == m_artboardListeners.end());
         m_artboardListeners.insert({handle, listener});
+    }
+
+    void registerListener(ViewModelInstanceHandle handle,
+                          ViewModelInstanceListener* listener)
+    {
+        assert(listener);
+        assert(m_viewModelListeners.find(handle) == m_viewModelListeners.end());
+        m_viewModelListeners.insert({handle, listener});
     }
 
     void registerListener(StateMachineHandle handle,
@@ -259,6 +364,12 @@ private:
         m_artboardListeners.erase(handle);
     }
 
+    void unregisterListener(ViewModelInstanceHandle handle,
+                            ViewModelInstanceListener* listener)
+    {
+        m_viewModelListeners.erase(handle);
+    }
+
     void unregisterListener(StateMachineHandle handle,
                             StateMachineListener* listener)
     {
@@ -271,9 +382,15 @@ private:
         deleteFile,
         instantiateArtboard,
         deleteArtboard,
+        instantiateViewModel,
+        instantiateBlankViewModel,
+        instantiateViewModelForArtboard,
+        instantiateBlankViewModelForArtboard,
+        deleteViewModel,
         instantiateStateMachine,
         deleteStateMachine,
         advanceStateMachine,
+        bindViewModelInstance,
         runOnce,
         draw,
         pointerMove,
@@ -287,7 +404,10 @@ private:
         commandLoopBreak,
         // messages
         listArtboards,
-        listStateMachines
+        listStateMachines,
+        listViewModels,
+        listViewModelInstanceNames,
+        listViewModelProperties
     };
 
     enum class Message
@@ -296,8 +416,12 @@ private:
         messageLoopBreak,
         artboardsListed,
         stateMachinesListed,
+        viewModelsListend,
+        viewModelInstanceNamesListed,
+        viewModelPropertiesListed,
         fileDeleted,
         artboardDeleted,
+        viewModelDeleted,
         stateMachineDeleted,
         stateMachineSettled
     };
@@ -306,6 +430,7 @@ private:
 
     uint64_t m_currentFileHandleIdx = 0;
     uint64_t m_currentArtboardHandleIdx = 0;
+    uint64_t m_currentViewModelHandleIdx = 0;
     uint64_t m_currentStateMachineHandleIdx = 0;
     uint64_t m_currentDrawKeyIdx = 0;
 
@@ -325,6 +450,8 @@ private:
     // Listeners
     std::unordered_map<FileHandle, FileListener*> m_fileListeners;
     std::unordered_map<ArtboardHandle, ArtboardListener*> m_artboardListeners;
+    std::unordered_map<ViewModelInstanceHandle, ViewModelInstanceListener*>
+        m_viewModelListeners;
     std::unordered_map<StateMachineHandle, StateMachineListener*>
         m_stateMachineListeners;
 };

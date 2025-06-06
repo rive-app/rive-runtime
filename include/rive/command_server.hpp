@@ -10,6 +10,7 @@
 
 namespace rive
 {
+
 // Server-side worker that executes commands from a CommandQueue.
 class CommandServer
 {
@@ -24,6 +25,8 @@ public:
 
     ArtboardInstance* getArtboardInstance(ArtboardHandle) const;
     StateMachineInstance* getStateMachineInstance(StateMachineHandle) const;
+    ViewModelInstanceRuntime* getViewModelInstance(
+        ViewModelInstanceHandle) const;
     // Wait for queue to not be empty, then returns pollMessages.
     bool waitCommands();
     // Returns imidiatly after checking messages. If there are none just returns
@@ -45,6 +48,8 @@ private:
     std::unordered_map<FileHandle, std::unique_ptr<File>> m_files;
     std::unordered_map<ArtboardHandle, std::unique_ptr<ArtboardInstance>>
         m_artboards;
+    std::unordered_map<ViewModelInstanceHandle, rcp<ViewModelInstanceRuntime>>
+        m_viewModels;
     std::unordered_map<StateMachineHandle,
                        std::unique_ptr<StateMachineInstance>>
         m_stateMachines;

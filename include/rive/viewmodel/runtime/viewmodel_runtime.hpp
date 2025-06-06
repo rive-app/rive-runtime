@@ -18,7 +18,7 @@ struct PropertyData
     std::string name;
 };
 
-class ViewModelRuntime
+class ViewModelRuntime : public RefCnt<ViewModelRuntime>
 {
 
 public:

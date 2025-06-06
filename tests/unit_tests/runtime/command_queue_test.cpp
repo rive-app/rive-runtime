@@ -608,6 +608,425 @@ TEST_CASE("load file with asset loader", "[CommandQueue]")
     commandQueue->disconnect();
 }
 
+TEST_CASE("View Models", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto bviewModel =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle, "Test All");
+    auto dviewModel =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          "Test All");
+    auto nviewModel =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Test All",
+                                                        "Test Alternate");
+
+    commandQueue->runOnce(
+        [bviewModel, dviewModel, nviewModel](CommandServer* server) {
+            CHECK(server->getViewModelInstance(bviewModel) != nullptr);
+            CHECK(server->getViewModelInstance(dviewModel) != nullptr);
+            CHECK(server->getViewModelInstance(nviewModel) != nullptr);
+        });
+
+    auto bbviewModel =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle, "Blah");
+    auto bdviewModel =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle, "Blah");
+    auto bnviewModel =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Blah",
+                                                        "Blah");
+    auto bnnviewModel =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Blah",
+                                                        "Test Alternate");
+    auto bnbviewModel =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Test All",
+                                                        "Blah");
+    commandQueue->runOnce(
+        [bbviewModel, bdviewModel, bnviewModel, bnnviewModel, bnbviewModel](
+            CommandServer* server) {
+            CHECK(server->getViewModelInstance(bbviewModel) == nullptr);
+            CHECK(server->getViewModelInstance(bdviewModel) == nullptr);
+            CHECK(server->getViewModelInstance(bnviewModel) == nullptr);
+            CHECK(server->getViewModelInstance(bnnviewModel) == nullptr);
+            CHECK(server->getViewModelInstance(bnbviewModel) == nullptr);
+        });
+
+    auto artboard =
+        commandQueue->instantiateArtboardNamed(fileHandle, "Test Artboard");
+
+    auto abviewModel =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle, artboard);
+    auto adviewModel =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle, artboard);
+    auto anviewModel =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        artboard,
+                                                        "Test Alternate");
+
+    commandQueue->runOnce(
+        [abviewModel, adviewModel, anviewModel](CommandServer* server) {
+            CHECK(server->getViewModelInstance(abviewModel) != nullptr);
+            CHECK(server->getViewModelInstance(adviewModel) != nullptr);
+            CHECK(server->getViewModelInstance(anviewModel) != nullptr);
+        });
+
+    auto badArtboard =
+        commandQueue->instantiateArtboardNamed(fileHandle, "Blah");
+
+    auto babviewModel =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle,
+                                                        badArtboard);
+    auto badviewModel =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          badArtboard);
+    auto banviewModel =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        badArtboard,
+                                                        "Test Alternate");
+
+    commandQueue->runOnce(
+        [babviewModel, badviewModel, banviewModel](CommandServer* server) {
+            CHECK(server->getViewModelInstance(babviewModel) == nullptr);
+            CHECK(server->getViewModelInstance(badviewModel) == nullptr);
+            CHECK(server->getViewModelInstance(banviewModel) == nullptr);
+        });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class ViewModelListedListenerCallback : public CommandQueue::FileListener
+{
+public:
+    virtual void onViewModelsListed(
+        const FileHandle fileHandle,
+        uint64_t requestId,
+        std::vector<std::string> viewModelNames) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(m_fileHandle == fileHandle);
+        CHECK(viewModelNames.size() == std::size(m_expectedViewModelNames));
+
+        for (int i = 0; i < std::size(m_expectedViewModelNames); ++i)
+        {
+            CHECK(viewModelNames[i] == m_expectedViewModelNames[i]);
+        }
+
+        m_hasCallback = true;
+    }
+
+    std::array<std::string, 6> m_expectedViewModelNames = {"Empty VM",
+                                                           "Test All",
+                                                           "Nested VM",
+                                                           "State Transition",
+                                                           "Alternate VM",
+                                                           "Test Slash"};
+    bool m_hasCallback = false;
+    FileHandle m_fileHandle = RIVE_NULL_HANDLE;
+    uint64_t m_requestId;
+};
+
+TEST_CASE("View Model Listed Listener", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    {
+        ViewModelListedListenerCallback listener;
+
+        std::ifstream stream("assets/data_bind_test_cmdq.riv",
+                             std::ios::binary);
+        FileHandle fileHandle = commandQueue->loadFile(
+            std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+            &listener);
+
+        listener.m_requestId = 2;
+        listener.m_fileHandle = fileHandle;
+
+        commandQueue->requestViewModelNames(fileHandle, listener.m_requestId);
+
+        wait_for_server(commandQueue.get());
+
+        commandQueue->processMessages();
+
+        CHECK(listener.m_hasCallback);
+    }
+
+    {
+        ViewModelListedListenerCallback listener;
+
+        FileHandle fileHandle =
+            commandQueue->loadFile(std::vector<uint8_t>(1024 * 1024, {}),
+                                   &listener);
+
+        listener.m_requestId = 2;
+        listener.m_fileHandle = fileHandle;
+
+        commandQueue->requestViewModelNames(fileHandle, listener.m_requestId);
+
+        wait_for_server(commandQueue.get());
+
+        commandQueue->processMessages();
+
+        CHECK(!listener.m_hasCallback);
+    }
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+namespace rive
+{
+bool operator==(const PropertyData& l, const PropertyData& r)
+{
+    return l.name == r.name && l.type == r.type;
+}
+} // namespace rive
+
+class TestViewModelFileListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onViewModelInstanceNamesListed(
+        const FileHandle handle,
+        uint64_t requestId,
+        std::string viewModelName,
+        std::vector<std::string> instanceNames) override
+    {
+        CHECK(requestId == m_instanceRequestId);
+        CHECK(m_handle == handle);
+        CHECK(m_viewModelName == viewModelName);
+        CHECK(instanceNames.size() == std::size(m_expectedInstanceNames));
+
+        for (int i = 0; i < std::size(m_expectedInstanceNames); ++i)
+        {
+            CHECK(instanceNames[i] == m_expectedInstanceNames[i]);
+        }
+
+        m_hasInstanceCallback = true;
+    }
+
+    virtual void onViewModelPropertiesListed(
+        const FileHandle handle,
+        uint64_t requestId,
+        std::string viewModelName,
+        std::vector<PropertyData> properties) override
+    {
+        CHECK(requestId == m_propertyRequestId);
+        CHECK(m_handle == handle);
+        CHECK(m_viewModelName == viewModelName);
+        CHECK(properties.size() == std::size(m_expectedProperties));
+
+        for (int i = 0; i < std::size(m_expectedProperties); ++i)
+        {
+            CHECK(properties[i] == m_expectedProperties[i]);
+        }
+
+        m_hasPropertyCallback = true;
+    }
+
+    std::array<std::string, 2> m_expectedInstanceNames = {"Test Default",
+                                                          "Test Alternate"};
+    std::array<PropertyData, 7> m_expectedProperties = {
+        PropertyData{DataType::number, "Test Num"},
+        PropertyData{DataType::string, "Test String"},
+        PropertyData{DataType::enumType, "Test Enum"},
+        PropertyData{DataType::boolean, "Test Bool"},
+        PropertyData{DataType::color, "Test Color"},
+        PropertyData{DataType::trigger, "Test Trigger"},
+        PropertyData{DataType::viewModel, "Test Nested"}};
+
+    bool m_hasInstanceCallback = false;
+    bool m_hasPropertyCallback = false;
+    FileHandle m_handle = RIVE_NULL_HANDLE;
+    std::string m_viewModelName = "Test All";
+    uint64_t m_instanceRequestId = 2;
+    uint64_t m_propertyRequestId = 3;
+};
+
+TEST_CASE("View Model Listener", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    {
+        TestViewModelFileListener listener;
+
+        std::ifstream stream("assets/data_bind_test_cmdq.riv",
+                             std::ios::binary);
+        listener.m_handle = commandQueue->loadFile(
+            std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+            &listener);
+
+        commandQueue->requestViewModelInstanceNames(
+            listener.m_handle,
+            listener.m_viewModelName,
+            listener.m_instanceRequestId);
+        commandQueue->requestViewModelPropertyDefinitions(
+            listener.m_handle,
+            listener.m_viewModelName,
+            listener.m_propertyRequestId);
+
+        wait_for_server(commandQueue.get());
+
+        commandQueue->processMessages();
+
+        CHECK(listener.m_hasInstanceCallback);
+        CHECK(listener.m_hasPropertyCallback);
+    }
+
+    {
+        TestViewModelFileListener listener;
+
+        listener.m_handle =
+            commandQueue->loadFile(std::vector<uint8_t>(1024 * 1024, {}));
+
+        commandQueue->requestViewModelInstanceNames(
+            listener.m_handle,
+            listener.m_viewModelName,
+            listener.m_instanceRequestId);
+        commandQueue->requestViewModelPropertyDefinitions(
+            listener.m_handle,
+            listener.m_viewModelName,
+            listener.m_propertyRequestId);
+
+        wait_for_server(commandQueue.get());
+
+        commandQueue->processMessages();
+
+        CHECK(!listener.m_hasInstanceCallback);
+        CHECK(!listener.m_hasPropertyCallback);
+    }
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class TestViewModelInstanceListener
+    : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    virtual void onViewModelDeleted(const ViewModelInstanceHandle handle,
+                                    uint64_t requestId) override
+    {
+        CHECK(requestId == m_deleteRequestId);
+        CHECK(m_handle == handle);
+        m_hasDeleteCallback = true;
+    }
+
+    bool m_hasDeleteCallback = false;
+
+    ViewModelInstanceHandle m_handle = RIVE_NULL_HANDLE;
+    uint64_t m_deleteRequestId = std::rand();
+};
+
+TEST_CASE("View Model Instance Listener", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestViewModelInstanceListener bListener;
+    TestViewModelInstanceListener dListener;
+    TestViewModelInstanceListener nListener;
+
+    TestViewModelInstanceListener badListener;
+
+    TestViewModelInstanceListener aListener;
+    TestViewModelInstanceListener adListener;
+    TestViewModelInstanceListener anListener;
+    TestViewModelInstanceListener badAListener;
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    bListener.m_handle =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle,
+                                                        "Test All",
+                                                        &bListener);
+    dListener.m_handle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          "Test All",
+                                                          &dListener);
+    nListener.m_handle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Test All",
+                                                        "Test Alternate",
+                                                        &nListener);
+
+    badListener.m_handle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Blah",
+                                                        "Blah",
+                                                        &badListener);
+
+    auto artboard =
+        commandQueue->instantiateArtboardNamed(fileHandle, "Test Artboard");
+
+    auto badArtboard =
+        commandQueue->instantiateArtboardNamed(fileHandle, "Blah");
+
+    aListener.m_handle =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle,
+                                                        artboard,
+                                                        &aListener);
+    adListener.m_handle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboard,
+                                                          &adListener);
+    anListener.m_handle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        artboard,
+                                                        "Test Alternate",
+                                                        &anListener);
+
+    badAListener.m_handle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        badArtboard,
+                                                        "Test Alternate",
+                                                        &badAListener);
+
+    commandQueue->deleteViewModelInstance(bListener.m_handle,
+                                          bListener.m_deleteRequestId);
+    commandQueue->deleteViewModelInstance(dListener.m_handle,
+                                          dListener.m_deleteRequestId);
+    commandQueue->deleteViewModelInstance(nListener.m_handle,
+                                          nListener.m_deleteRequestId);
+    commandQueue->deleteViewModelInstance(badListener.m_handle,
+                                          badListener.m_deleteRequestId);
+
+    commandQueue->deleteViewModelInstance(aListener.m_handle,
+                                          aListener.m_deleteRequestId);
+    commandQueue->deleteViewModelInstance(adListener.m_handle,
+                                          adListener.m_deleteRequestId);
+    commandQueue->deleteViewModelInstance(anListener.m_handle,
+                                          anListener.m_deleteRequestId);
+    commandQueue->deleteViewModelInstance(badAListener.m_handle,
+                                          badAListener.m_deleteRequestId);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(bListener.m_hasDeleteCallback);
+    CHECK(dListener.m_hasDeleteCallback);
+    CHECK(nListener.m_hasDeleteCallback);
+    CHECK(badListener.m_hasDeleteCallback);
+
+    CHECK(aListener.m_hasDeleteCallback);
+    CHECK(adListener.m_hasDeleteCallback);
+    CHECK(anListener.m_hasDeleteCallback);
+    CHECK(badAListener.m_hasDeleteCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 class TestFileListener : public CommandQueue::FileListener
 {
 public:
@@ -770,6 +1189,60 @@ public:
     uint64_t m_requestId = 0;
     bool m_hasCallbck = false;
 };
+
+TEST_CASE("bindViewModelInstance", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto viewModelHandle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Test All",
+                                                        "Test Alternate");
+
+    auto artboard = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto stateMachineHandle =
+        commandQueue->instantiateDefaultStateMachine(artboard);
+
+    commandQueue->bindViewModelInstance(stateMachineHandle, viewModelHandle);
+
+    commandQueue->runOnce([stateMachineHandle,
+                           viewModelHandle](CommandServer* server) {
+        auto stateMachine = server->getStateMachineInstance(stateMachineHandle);
+        CHECK(stateMachine != nullptr);
+        auto viewModel = server->getViewModelInstance(viewModelHandle);
+        CHECK(viewModel != nullptr);
+
+        CHECK(stateMachine->artboard()->dataContext()->viewModelInstance() ==
+              viewModel->instance());
+    });
+
+    auto badInstanceHandle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "blah",
+                                                        "Test Alternate");
+
+    auto badStateMachineHandle =
+        commandQueue->instantiateStateMachineNamed(artboard, "blah");
+
+    // every combo of good / bad handles
+
+    commandQueue->bindViewModelInstance(stateMachineHandle, badInstanceHandle);
+    commandQueue->bindViewModelInstance(badStateMachineHandle, viewModelHandle);
+    commandQueue->bindViewModelInstance(badStateMachineHandle,
+                                        badInstanceHandle);
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    commandQueue->disconnect();
+}
 
 TEST_CASE("advanceStateMachine", "[CommandQueue]")
 {
