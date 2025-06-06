@@ -35,8 +35,20 @@ public:
     // Blocks and runs waitMessages until disconnect is received.
     void serveUntilDisconnect();
 
+#ifdef TESTING
+    // Expose cursorPosForPointerEvent for testing.
+    Vec2D testing_cursorPosForPointerEvent(StateMachineInstance* instance,
+                                           CommandQueue::PointerEvent event)
+    {
+        return cursorPosForPointerEvent(instance, event);
+    }
+#endif
+
 private:
     friend class CommandQueue;
+
+    Vec2D cursorPosForPointerEvent(StateMachineInstance*,
+                                   const CommandQueue::PointerEvent&);
 
     bool m_wasDisconnectReceived = false;
     const rcp<CommandQueue> m_commandQueue;

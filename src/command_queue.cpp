@@ -245,39 +245,39 @@ StateMachineHandle CommandQueue::instantiateStateMachineNamed(
 }
 
 void CommandQueue::pointerMove(StateMachineHandle stateMachineHandle,
-                               Vec2D position)
+                               PointerEvent pointerEvent)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::pointerMove;
     m_commandStream << stateMachineHandle;
-    m_commandStream << position;
+    m_pointerEvents << std::move(pointerEvent);
 }
 
 void CommandQueue::pointerDown(StateMachineHandle stateMachineHandle,
-                               Vec2D position)
+                               PointerEvent pointerEvent)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::pointerDown;
     m_commandStream << stateMachineHandle;
-    m_commandStream << position;
+    m_pointerEvents << std::move(pointerEvent);
 }
 
 void CommandQueue::pointerUp(StateMachineHandle stateMachineHandle,
-                             Vec2D position)
+                             PointerEvent pointerEvent)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::pointerUp;
     m_commandStream << stateMachineHandle;
-    m_commandStream << position;
+    m_pointerEvents << std::move(pointerEvent);
 }
 
 void CommandQueue::pointerExit(StateMachineHandle stateMachineHandle,
-                               Vec2D position)
+                               PointerEvent pointerEvent)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
     m_commandStream << Command::pointerExit;
     m_commandStream << stateMachineHandle;
-    m_commandStream << position;
+    m_pointerEvents << std::move(pointerEvent);
 }
 
 void CommandQueue::bindViewModelInstance(StateMachineHandle handle,

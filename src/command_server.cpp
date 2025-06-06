@@ -53,6 +53,30 @@ ViewModelInstanceRuntime* CommandServer::getViewModelInstance(
     return it != m_viewModels.end() ? it->second.get() : nullptr;
 }
 
+Vec2D CommandServer::cursorPosForPointerEvent(
+    StateMachineInstance* instance,
+    const CommandQueue::PointerEvent& pointerEvent)
+{
+    AABB artboardBounds = instance->artboard()->bounds();
+    AABB surfaceBounds = AABB(Vec2D{0.0f, 0.0f}, pointerEvent.screenBounds);
+
+    if (surfaceBounds == artboardBounds || surfaceBounds.width() == 0.0f ||
+        surfaceBounds.height() == 0.0f)
+    {
+        return pointerEvent.position;
+    }
+
+    Mat2D forward = rive::computeAlignment(pointerEvent.fit,
+                                           pointerEvent.alignment,
+                                           surfaceBounds,
+                                           artboardBounds,
+                                           pointerEvent.scaleFactor);
+
+    Mat2D inverse = forward.invertOrIdentity();
+
+    return inverse * pointerEvent.position;
+}
+
 void CommandServer::serveUntilDisconnect()
 {
     while (waitCommands())
@@ -604,12 +628,14 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::pointerMove:
             {
                 StateMachineHandle handle;
-                Vec2D position;
+                CommandQueue::PointerEvent pointerEvent;
                 commandStream >> handle;
-                commandStream >> position;
+                m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
                 if (auto stateMachine = getStateMachineInstance(handle))
                 {
+                    Vec2D position =
+                        cursorPosForPointerEvent(stateMachine, pointerEvent);
                     stateMachine->pointerMove(position);
                 }
                 else
@@ -625,12 +651,14 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::pointerDown:
             {
                 StateMachineHandle handle;
-                Vec2D position;
+                CommandQueue::PointerEvent pointerEvent;
                 commandStream >> handle;
-                commandStream >> position;
+                m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
                 if (auto stateMachine = getStateMachineInstance(handle))
                 {
+                    Vec2D position =
+                        cursorPosForPointerEvent(stateMachine, pointerEvent);
                     stateMachine->pointerDown(position);
                 }
                 else
@@ -646,12 +674,14 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::pointerUp:
             {
                 StateMachineHandle handle;
-                Vec2D position;
+                CommandQueue::PointerEvent pointerEvent;
                 commandStream >> handle;
-                commandStream >> position;
+                m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
                 if (auto stateMachine = getStateMachineInstance(handle))
                 {
+                    Vec2D position =
+                        cursorPosForPointerEvent(stateMachine, pointerEvent);
                     stateMachine->pointerUp(position);
                 }
                 else
@@ -667,12 +697,14 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::pointerExit:
             {
                 StateMachineHandle handle;
-                Vec2D position;
+                CommandQueue::PointerEvent pointerEvent;
                 commandStream >> handle;
-                commandStream >> position;
+                m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
                 if (auto stateMachine = getStateMachineInstance(handle))
                 {
+                    Vec2D position =
+                        cursorPosForPointerEvent(stateMachine, pointerEvent);
                     stateMachine->pointerExit(position);
                 }
                 else

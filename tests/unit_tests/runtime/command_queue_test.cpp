@@ -1591,19 +1591,19 @@ TEST_CASE("pointer input", "[CommandQueue]")
     // The listener object in the bottom-left corner,
     // which toggles `isDown` when receiving down events.
     Vec2D toggleOnDownCorner(425.0f, 425.0f);
-    commandQueue->pointerDown(smHandle, toggleOnDownCorner);
+    commandQueue->pointerDown(smHandle, {.position = toggleOnDownCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
-    commandQueue->pointerUp(smHandle, toggleOnDownCorner);
+    commandQueue->pointerUp(smHandle, {.position = toggleOnDownCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
-    commandQueue->pointerDown(smHandle, toggleOnDownCorner);
+    commandQueue->pointerDown(smHandle, {.position = toggleOnDownCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", false);
 
     // The listener object in the top-left corner,
     // which toggles `isDown` when receiving down or up events.
     Vec2D toggleOnDownOrUpCorner(75.0f, 75.0f);
-    commandQueue->pointerDown(smHandle, toggleOnDownOrUpCorner);
+    commandQueue->pointerDown(smHandle, {.position = toggleOnDownOrUpCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
-    commandQueue->pointerUp(smHandle, toggleOnDownOrUpCorner);
+    commandQueue->pointerUp(smHandle, {.position = toggleOnDownOrUpCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", false);
 
     // The listener object in the top-right corner,
@@ -1611,40 +1611,148 @@ TEST_CASE("pointer input", "[CommandQueue]")
     Vec2D toggleOnHoverCorner(425.0f, 75.0f);
     // Center, which has no pointer listener.
     Vec2D center(250.0f, 250.0f);
-    commandQueue->pointerMove(smHandle, center);
+    commandQueue->pointerMove(smHandle, {.position = center});
     checkStateMachineBool(commandQueue, smHandle, "isDown", false);
-    commandQueue->pointerMove(smHandle, toggleOnHoverCorner);
+    commandQueue->pointerMove(smHandle, {.position = toggleOnHoverCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
-    commandQueue->pointerMove(smHandle, center);
+    commandQueue->pointerMove(smHandle, {.position = center});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
-    commandQueue->pointerMove(smHandle, toggleOnHoverCorner);
+    commandQueue->pointerMove(smHandle, {.position = toggleOnHoverCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", false);
 
     // A position off of the artboard, which can be used for pointer exits.
     Vec2D offArtboard(-25.0f, -25.0f);
-    commandQueue->pointerDown(smHandle, toggleOnDownOrUpCorner);
+    commandQueue->pointerDown(smHandle, {.position = toggleOnDownOrUpCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
     // Slide off while "holding down" the pointer.
-    commandQueue->pointerExit(smHandle, offArtboard);
+    commandQueue->pointerExit(smHandle, {.position = offArtboard});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
     // Release the pointer while off the artboard - should not toggle
-    commandQueue->pointerUp(smHandle, offArtboard);
+    commandQueue->pointerUp(smHandle, {.position = offArtboard});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
     // Reset
-    commandQueue->pointerUp(smHandle, toggleOnDownOrUpCorner);
+    commandQueue->pointerUp(smHandle, {.position = toggleOnDownOrUpCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", false);
 
     // New test, sliding off and back, but this time releasing back on the
     // artboard.
-    commandQueue->pointerDown(smHandle, toggleOnDownOrUpCorner);
+    commandQueue->pointerDown(smHandle, {.position = toggleOnDownOrUpCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
-    commandQueue->pointerExit(smHandle, offArtboard);
+    commandQueue->pointerExit(smHandle, {.position = offArtboard});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
-    commandQueue->pointerMove(smHandle, toggleOnDownOrUpCorner);
+    commandQueue->pointerMove(smHandle, {.position = toggleOnDownOrUpCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", true);
-    commandQueue->pointerUp(smHandle, toggleOnDownOrUpCorner);
+    commandQueue->pointerUp(smHandle, {.position = toggleOnDownOrUpCorner});
     checkStateMachineBool(commandQueue, smHandle, "isDown", false);
 
     commandQueue->disconnect();
     serverThread.join();
+}
+
+static bool aboutEquals(const Vec2D& l, const Vec2D& r, float theta = 0.0001)
+{
+    auto b = l - r;
+    return abs(b.x) < theta && abs(b.y) < theta;
+}
+
+TEST_CASE("pointer input translation", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    ArtboardHandle artboardHandle =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
+    StateMachineHandle smHandle =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle);
+    // artboard is 500x500 so 50x50 should translate to 250,250
+
+    // expected result
+    Vec2D expected(250, 250);
+    // Inputs
+    Vec2D center(50, 50);
+    Vec2D size(100, 100);
+
+    commandQueue->runOnce([expected, center, size, smHandle](
+                              CommandServer* server) {
+        auto instance = server->getStateMachineInstance(smHandle);
+        CHECK(instance != nullptr);
+        auto translated = server->testing_cursorPosForPointerEvent(
+            instance,
+            {.fit = Fit::contain, .screenBounds = size, .position = center});
+        CHECK(aboutEquals(translated, expected));
+    });
+
+    // expected result
+    Vec2D expectedTL(125, 125);
+    // Inputs
+    Vec2D topLeft(25, 25);
+
+    commandQueue->runOnce([expectedTL, topLeft, size, smHandle](
+                              CommandServer* server) {
+        auto instance = server->getStateMachineInstance(smHandle);
+        CHECK(instance != nullptr);
+        auto translated = server->testing_cursorPosForPointerEvent(
+            instance,
+            {.fit = Fit::contain, .screenBounds = size, .position = topLeft});
+        CHECK(aboutEquals(translated, expectedTL));
+    });
+
+    // expected result
+    Vec2D expectedTR(375, 375);
+    // Inputs
+    Vec2D topRight(75, 75);
+
+    commandQueue->runOnce([expectedTR, topRight, size, smHandle](
+                              CommandServer* server) {
+        auto instance = server->getStateMachineInstance(smHandle);
+        CHECK(instance != nullptr);
+        auto translated = server->testing_cursorPosForPointerEvent(
+            instance,
+            {.fit = Fit::contain, .screenBounds = size, .position = topRight});
+        CHECK(aboutEquals(translated, expectedTR));
+    });
+
+    // expected result
+    Vec2D expectedBR(375, 125);
+    // Inputs
+    Vec2D bottomRight(75, 25);
+
+    commandQueue->runOnce([bottomRight, expectedBR, size, smHandle](
+                              CommandServer* server) {
+        auto instance = server->getStateMachineInstance(smHandle);
+        CHECK(instance != nullptr);
+        auto translated =
+            server->testing_cursorPosForPointerEvent(instance,
+                                                     {.fit = Fit::contain,
+                                                      .screenBounds = size,
+                                                      .position = bottomRight});
+        CHECK(aboutEquals(translated, expectedBR));
+    });
+
+    // expected result
+    Vec2D expectedBL(125, 375);
+    // Inputs
+    Vec2D bottomLeft(25, 75);
+
+    commandQueue->runOnce([bottomLeft, expectedBL, size, smHandle](
+                              CommandServer* server) {
+        auto instance = server->getStateMachineInstance(smHandle);
+        CHECK(instance != nullptr);
+        auto translated =
+            server->testing_cursorPosForPointerEvent(instance,
+                                                     {.fit = Fit::contain,
+                                                      .screenBounds = size,
+                                                      .position = bottomLeft});
+        CHECK(aboutEquals(translated, expectedBL));
+    });
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    commandQueue->disconnect();
 }

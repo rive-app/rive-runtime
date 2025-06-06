@@ -272,10 +272,22 @@ public:
                              uint64_t requestId = 0);
 
     // Pointer events
-    void pointerMove(StateMachineHandle, Vec2D position);
-    void pointerDown(StateMachineHandle, Vec2D position);
-    void pointerUp(StateMachineHandle, Vec2D position);
-    void pointerExit(StateMachineHandle, Vec2D position);
+    struct PointerEvent
+    {
+        Fit fit = Fit::none; // the fit the artboard is drawn with
+        Alignment alignment; // the alignment the artboard is drawn with
+        Vec2D screenBounds;  // the bounds of coordinate system of the cursor
+        Vec2D position;      // the cursor position
+        float scaleFactor = 1.0f; // scale factor for things like retina display
+    };
+
+    // All pointer events will automatically convert between artboard and screen
+    // space for you based on the values passed in the PointerEvent struct.
+
+    void pointerMove(StateMachineHandle, PointerEvent);
+    void pointerDown(StateMachineHandle, PointerEvent);
+    void pointerUp(StateMachineHandle, PointerEvent);
+    void pointerExit(StateMachineHandle, PointerEvent);
 
     void deleteStateMachine(StateMachineHandle, uint64_t requestId = 0);
 
@@ -438,6 +450,7 @@ private:
     std::condition_variable m_commandConditionVariable;
     PODStream m_commandStream;
     ObjectStream<std::vector<uint8_t>> m_byteVectors;
+    ObjectStream<PointerEvent> m_pointerEvents;
     ObjectStream<std::string> m_names;
     ObjectStream<CommandServerCallback> m_callbacks;
     ObjectStream<CommandServerDrawCallback> m_drawCallbacks;
