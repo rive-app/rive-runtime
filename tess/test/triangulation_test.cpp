@@ -22,7 +22,7 @@ protected:
 
 TEST_CASE("simple triangle path triangulates as expected", "[file]")
 {
-    auto file = ReadRiveFile("../test/assets/triangle.riv");
+    auto file = ReadRiveFile("test/assets/triangle.riv");
     auto artboard = file->artboard();
     artboard->advance(0.0f);
 

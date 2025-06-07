@@ -605,6 +605,7 @@ void SokolTessRenderer::orthographicProjection(float left,
 }
 
 void SokolTessRenderer::drawImage(const RenderImage* image,
+                                  ImageSampler,
                                   BlendMode,
                                   float opacity)
 {
@@ -631,6 +632,7 @@ void SokolTessRenderer::drawImage(const RenderImage* image,
 }
 
 void SokolTessRenderer::drawImageMesh(const RenderImage* renderImage,
+                                      ImageSampler,
                                       rcp<RenderBuffer> vertices_f32,
                                       rcp<RenderBuffer> uvCoords_f32,
                                       rcp<RenderBuffer> indices_u16,

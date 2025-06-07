@@ -36,8 +36,13 @@ void TessRenderer::clipPath(RenderPath* path)
     m_IsClippingDirty = true;
 }
 
-void TessRenderer::drawImage(const RenderImage*, BlendMode, float opacity) {}
+void TessRenderer::drawImage(const RenderImage*,
+                             ImageSampler,
+                             BlendMode,
+                             float opacity)
+{}
 void TessRenderer::drawImageMesh(const RenderImage*,
+                                 ImageSampler,
                                  rcp<RenderBuffer> vertices_f32,
                                  rcp<RenderBuffer> uvCoords_f32,
                                  rcp<RenderBuffer> indices_u16,

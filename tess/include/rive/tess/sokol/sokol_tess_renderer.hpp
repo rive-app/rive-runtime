@@ -93,8 +93,12 @@ public:
                                 float near,
                                 float far) override;
     void drawPath(RenderPath* path, RenderPaint* paint) override;
-    void drawImage(const RenderImage*, BlendMode, float opacity) override;
+    void drawImage(const RenderImage*,
+                   ImageSampler,
+                   BlendMode,
+                   float opacity) override;
     void drawImageMesh(const RenderImage*,
+                       ImageSampler,
                        rcp<RenderBuffer> vertices_f32,
                        rcp<RenderBuffer> uvCoords_f32,
                        rcp<RenderBuffer> indices_u16,
