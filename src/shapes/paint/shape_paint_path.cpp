@@ -57,6 +57,7 @@ RenderPath* ShapePaintPath::renderPath(const Component* component)
 
 RenderPath* ShapePaintPath::renderPath(Factory* factory)
 {
+    assert(factory != nullptr);
     if (!m_renderPath)
     {
         m_renderPath = factory->makeEmptyRenderPath();
