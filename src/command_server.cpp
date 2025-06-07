@@ -320,6 +320,46 @@ bool CommandServer::processCommands()
                 break;
             }
 
+            case CommandQueue::Command::refNestedViewModel:
+            {
+                ViewModelInstanceHandle rootViewHandle;
+                ViewModelInstanceHandle nestedViewHandle;
+                uint64_t requestId;
+                std::string path;
+                commandStream >> rootViewHandle;
+                commandStream >> nestedViewHandle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> path;
+                lock.unlock();
+
+                if (auto rootViewInstance =
+                        getViewModelInstance(rootViewHandle))
+                {
+                    if (auto nestedViewModel =
+                            rootViewInstance->propertyViewModel(path))
+                    {
+                        m_viewModels[nestedViewHandle] =
+                            ref_rcp(nestedViewModel);
+                    }
+                    else
+                    {
+                        fprintf(
+                            stderr,
+                            "ERROR: nested view not found when refing nested "
+                            "view model at path %s\n",
+                            path.c_str());
+                    }
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "ERROR: root view not found when refing nested "
+                            "view model at path %s\n",
+                            path.c_str());
+                }
+                break;
+            }
+
             case CommandQueue::Command::deleteViewModel:
             {
                 ViewModelInstanceHandle handle;
@@ -621,6 +661,351 @@ bool CommandServer::processCommands()
                             m_commandQueue->m_messageNames << property.name;
                         }
                     }
+                }
+                break;
+            }
+
+            case CommandQueue::Command::setViewModelInstanceValue:
+            {
+                ViewModelInstanceHandle handle = RIVE_NULL_HANDLE;
+                ViewModelInstanceHandle nestedHandle = RIVE_NULL_HANDLE;
+                uint64_t requestId;
+                CommandQueue::ViewModelInstanceData value;
+
+                commandStream >> handle;
+                commandStream >> value.metaData.type;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> value.metaData.name;
+
+                switch (value.metaData.type)
+                {
+                    case DataType::boolean:
+                        commandStream >> value.boolValue;
+                        break;
+                    case DataType::number:
+                        commandStream >> value.numberValue;
+                        break;
+                    case DataType::color:
+                        commandStream >> value.colorValue;
+                        break;
+                    case DataType::string:
+                    case DataType::enumType:
+                        m_commandQueue->m_names >> value.stringValue;
+                        break;
+                    case DataType::viewModel:
+                        commandStream >> nestedHandle;
+                        break;
+                    default:
+                        RIVE_UNREACHABLE();
+                }
+                lock.unlock();
+
+                if (auto viewModelInstance = getViewModelInstance(handle))
+                {
+                    switch (value.metaData.type)
+                    {
+                        case DataType::boolean:
+                        {
+                            if (auto property =
+                                    viewModelInstance->propertyBoolean(
+                                        value.metaData.name))
+                            {
+                                property->value(value.boolValue);
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "setting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        case DataType::number:
+                        {
+                            if (auto property =
+                                    viewModelInstance->propertyNumber(
+                                        value.metaData.name))
+                            {
+                                property->value(value.numberValue);
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "setting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        case DataType::color:
+                        {
+                            if (auto property =
+                                    viewModelInstance->propertyColor(
+                                        value.metaData.name))
+                            {
+                                property->value(value.colorValue);
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "setting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        case DataType::string:
+                        {
+                            if (auto property =
+                                    viewModelInstance->propertyString(
+                                        value.metaData.name))
+                            {
+                                property->value(value.stringValue);
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "setting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        case DataType::enumType:
+                        {
+                            if (auto property = viewModelInstance->propertyEnum(
+                                    value.metaData.name))
+                            {
+                                property->value(value.stringValue);
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "setting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        case DataType::viewModel:
+                        {
+                            if (auto nestedViewModel =
+                                    getViewModelInstance(nestedHandle))
+                            {
+                                if (!viewModelInstance->replaceViewModel(
+                                        value.metaData.name,
+                                        nestedViewModel))
+                                {
+                                    fprintf(stderr,
+                                            "Could not replace view model at "
+                                            "path %s",
+                                            value.metaData.name.c_str());
+                                }
+                            }
+                            else
+                            {
+                                fprintf(stderr,
+                                        "Could not find view model to set for "
+                                        "view model "
+                                        "instance when "
+                                        "setting property with path %s\n",
+                                        value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        default:
+                            RIVE_UNREACHABLE();
+                    }
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "Could not find view model instance when "
+                            "setting property type %u with path %s\n",
+                            static_cast<unsigned int>(value.metaData.type),
+                            value.metaData.name.c_str());
+                }
+                break;
+            }
+
+            case CommandQueue::Command::listViewModelPropertieValue:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                CommandQueue::ViewModelInstanceData value;
+                commandStream >> value.metaData.type;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> value.metaData.name;
+                lock.unlock();
+
+                if (auto viewModelInstance = getViewModelInstance(handle))
+                {
+                    switch (value.metaData.type)
+                    {
+                        case DataType::boolean:
+                        {
+                            if (auto property =
+                                    viewModelInstance->propertyBoolean(
+                                        value.metaData.name))
+                            {
+                                value.boolValue = property->value();
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "getting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        case DataType::number:
+                        {
+                            if (auto property =
+                                    viewModelInstance->propertyNumber(
+                                        value.metaData.name))
+                            {
+                                value.numberValue = property->value();
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "getting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        case DataType::color:
+                        {
+                            if (auto property =
+                                    viewModelInstance->propertyColor(
+                                        value.metaData.name))
+                            {
+                                value.colorValue = property->value();
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "getting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        case DataType::string:
+                        {
+                            if (auto property =
+                                    viewModelInstance->propertyString(
+                                        value.metaData.name))
+                            {
+                                value.stringValue = property->value();
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "getting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        case DataType::enumType:
+                        {
+                            if (auto property = viewModelInstance->propertyEnum(
+                                    value.metaData.name))
+                            {
+                                value.stringValue = property->value();
+                            }
+                            else
+                            {
+                                fprintf(
+                                    stderr,
+                                    "Could not find view model property "
+                                    "instance when "
+                                    "getting property type %u with path %s\n",
+                                    static_cast<unsigned int>(
+                                        value.metaData.type),
+                                    value.metaData.name.c_str());
+                            }
+                            break;
+                        }
+                        default:
+                            RIVE_UNREACHABLE();
+                    }
+
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::
+                            viewModelPropertyValueReceived;
+                    messageStream << handle;
+                    messageStream << value.metaData.type;
+                    m_commandQueue->m_messageNames << value.metaData.name;
+                    messageStream << requestId;
+                    switch (value.metaData.type)
+                    {
+                        case DataType::boolean:
+                            messageStream << value.boolValue;
+                            break;
+                        case DataType::number:
+                            messageStream << value.numberValue;
+                            break;
+                        case DataType::color:
+                            messageStream << value.colorValue;
+                            break;
+                        case DataType::enumType:
+                        case DataType::string:
+                            m_commandQueue->m_messageNames << value.stringValue;
+                            break;
+                        default:
+                            RIVE_UNREACHABLE();
+                    }
+                }
+                else
+                {
+                    fprintf(stderr,
+                            "Could not find view model instance when "
+                            "getting property type %u with path %s\n",
+                            static_cast<unsigned int>(value.metaData.type),
+                            value.metaData.name.c_str());
                 }
                 break;
             }

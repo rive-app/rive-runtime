@@ -55,7 +55,6 @@ public:
 
 private:
     rcp<ViewModelInstance> m_viewModelInstance = nullptr;
-
     std::string getPropertyNameFromPath(const std::string& path) const;
     const ViewModelInstanceRuntime* viewModelInstanceFromFullPath(
         const std::string& path) const;

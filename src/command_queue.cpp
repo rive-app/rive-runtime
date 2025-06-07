@@ -208,6 +208,116 @@ ViewModelInstanceHandle CommandQueue::instantiateViewModelInstanceNamed(
     return viewHandle;
 }
 
+ViewModelInstanceHandle CommandQueue::referenceNestedViewModelInstance(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    ViewModelInstanceListener* listener,
+    uint64_t requestId)
+{
+    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+        ++m_currentViewModelHandleIdx);
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = viewHandle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(viewHandle, listener);
+    }
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::refNestedViewModel;
+    m_commandStream << handle;
+    m_commandStream << viewHandle;
+    m_commandStream << requestId;
+    m_names << path;
+
+    return viewHandle;
+}
+
+void CommandQueue::setViewModelInstanceBool(ViewModelInstanceHandle handle,
+                                            std::string path,
+                                            bool value,
+                                            uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::boolean;
+    m_commandStream << requestId;
+    m_commandStream << value;
+    m_names << path;
+}
+
+void CommandQueue::setViewModelInstanceNumber(ViewModelInstanceHandle handle,
+                                              std::string path,
+                                              float value,
+                                              uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::number;
+    m_commandStream << requestId;
+    m_commandStream << value;
+    m_names << path;
+}
+
+void CommandQueue::setViewModelInstanceColor(ViewModelInstanceHandle handle,
+                                             std::string path,
+                                             ColorInt value,
+                                             uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::color;
+    m_commandStream << requestId;
+    m_commandStream << value;
+    m_names << path;
+}
+
+void CommandQueue::setViewModelInstanceEnum(ViewModelInstanceHandle handle,
+                                            std::string path,
+                                            std::string value,
+                                            uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::enumType;
+    m_commandStream << requestId;
+    m_names << path;
+    m_names << value;
+}
+
+void CommandQueue::setViewModelInstanceString(ViewModelInstanceHandle handle,
+                                              std::string path,
+                                              std::string value,
+                                              uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::string;
+    m_commandStream << requestId;
+    m_names << path;
+    m_names << value;
+}
+
+void CommandQueue::setViewModelInstanceNestedViewModel(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    ViewModelInstanceHandle value,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::viewModel;
+    m_commandStream << requestId;
+    m_commandStream << value;
+    m_names << path;
+}
+
 void CommandQueue::deleteViewModelInstance(ViewModelInstanceHandle handle,
                                            uint64_t requestId)
 {
@@ -415,6 +525,68 @@ void CommandQueue::requestViewModelInstanceNames(FileHandle handle,
     m_names << viewModelName;
 }
 
+void CommandQueue::requestViewModelInstanceBool(ViewModelInstanceHandle handle,
+                                                std::string path,
+                                                uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << DataType::boolean;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
+void CommandQueue::requestViewModelInstanceNumber(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << DataType::number;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
+void CommandQueue::requestViewModelInstanceColor(ViewModelInstanceHandle handle,
+                                                 std::string path,
+                                                 uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << DataType::color;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
+void CommandQueue::requestViewModelInstanceEnum(ViewModelInstanceHandle handle,
+                                                std::string path,
+                                                uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << DataType::enumType;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
+void CommandQueue::requestViewModelInstanceString(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << DataType::string;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
 void CommandQueue::requestStateMachineNames(ArtboardHandle artboardHandle,
                                             uint64_t requestId)
 {
@@ -578,6 +750,49 @@ void CommandQueue::processMessages()
                         requestId,
                         std::move(viewModelName),
                         std::move(viewModelProperties));
+                }
+
+                break;
+            }
+
+            case Message::viewModelPropertyValueReceived:
+            {
+                ViewModelInstanceHandle handle;
+                uint64_t requestId;
+                ViewModelInstanceData value;
+
+                m_messageStream >> handle;
+                m_messageStream >> value.metaData.type;
+                m_messageStream >> requestId;
+                m_messageNames >> value.metaData.name;
+
+                switch (value.metaData.type)
+                {
+                    case DataType::boolean:
+                        m_messageStream >> value.boolValue;
+                        break;
+                    case DataType::number:
+                        m_messageStream >> value.numberValue;
+                        break;
+                    case DataType::color:
+                        m_messageStream >> value.colorValue;
+                        break;
+                    case DataType::enumType:
+                    case DataType::string:
+                        m_messageNames >> value.stringValue;
+                        break;
+                    default:
+                        RIVE_UNREACHABLE();
+                }
+
+                lock.unlock();
+
+                auto itr = m_viewModelListeners.find(handle);
+                if (itr != m_viewModelListeners.end())
+                {
+                    itr->second->onViewModelDataReceived(handle,
+                                                         value,
+                                                         requestId);
                 }
 
                 break;

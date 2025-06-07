@@ -135,6 +135,25 @@ public:
         {}
     };
 
+    struct ViewModelInstanceData
+    {
+        // The path and type of this property
+        PropertyData metaData;
+
+        // The specific value of this property, you must use the correct union
+        // member base on type in metaData, both enumType and string use
+        // stringValue
+
+        // std::string is non trival, so it stays outside the union
+        std::string stringValue;
+        union
+        {
+            bool boolValue;
+            float numberValue;
+            ColorInt colorValue;
+        };
+    };
+
     class ViewModelInstanceListener
         : public CommandQueue::ListenerBase<ViewModelInstanceListener,
                                             ViewModelInstanceHandle>
@@ -142,6 +161,11 @@ public:
     public:
         virtual void onViewModelDeleted(const ViewModelInstanceHandle,
                                         uint64_t requestId)
+        {}
+
+        virtual void onViewModelDataReceived(const ViewModelInstanceHandle,
+                                             ViewModelInstanceData,
+                                             uint64_t requestId)
         {}
     };
 
@@ -244,6 +268,37 @@ public:
         ViewModelInstanceListener* listener = nullptr,
         uint64_t requestId = 0);
 
+    ViewModelInstanceHandle referenceNestedViewModelInstance(
+        ViewModelInstanceHandle,
+        std::string path,
+        ViewModelInstanceListener* listener = nullptr,
+        uint64_t requestId = 0);
+
+    void setViewModelInstanceBool(ViewModelInstanceHandle,
+                                  std::string path,
+                                  bool value,
+                                  uint64_t requestId = 0);
+    void setViewModelInstanceNumber(ViewModelInstanceHandle,
+                                    std::string path,
+                                    float value,
+                                    uint64_t requestId = 0);
+    void setViewModelInstanceColor(ViewModelInstanceHandle,
+                                   std::string path,
+                                   ColorInt value,
+                                   uint64_t requestId = 0);
+    void setViewModelInstanceEnum(ViewModelInstanceHandle,
+                                  std::string path,
+                                  std::string value,
+                                  uint64_t requestId = 0);
+    void setViewModelInstanceString(ViewModelInstanceHandle,
+                                    std::string path,
+                                    std::string value,
+                                    uint64_t requestId = 0);
+    void setViewModelInstanceNestedViewModel(ViewModelInstanceHandle,
+                                             std::string path,
+                                             ViewModelInstanceHandle value,
+                                             uint64_t requestId = 0);
+
     void deleteViewModelInstance(ViewModelInstanceHandle,
                                  uint64_t requestId = 0);
 
@@ -322,9 +377,31 @@ public:
     void requestViewModelPropertyDefinitions(FileHandle,
                                              std::string viewModelName,
                                              uint64_t requestId = 0);
+
     void requestViewModelInstanceNames(FileHandle,
                                        std::string viewModelName,
                                        uint64_t requestId = 0);
+
+    void requestViewModelInstanceBool(ViewModelInstanceHandle,
+                                      std::string path,
+                                      uint64_t requestId = 0);
+
+    void requestViewModelInstanceNumber(ViewModelInstanceHandle,
+                                        std::string path,
+                                        uint64_t requestId = 0);
+
+    void requestViewModelInstanceColor(ViewModelInstanceHandle,
+                                       std::string path,
+                                       uint64_t requestId = 0);
+
+    void requestViewModelInstanceEnum(ViewModelInstanceHandle,
+                                      std::string path,
+                                      uint64_t requestId = 0);
+
+    void requestViewModelInstanceString(ViewModelInstanceHandle,
+                                        std::string path,
+                                        uint64_t requestId = 0);
+
     void requestStateMachineNames(ArtboardHandle, uint64_t requestId = 0);
 
     // Consume all messages received from the server.
@@ -395,9 +472,11 @@ private:
         instantiateArtboard,
         deleteArtboard,
         instantiateViewModel,
+        refNestedViewModel,
         instantiateBlankViewModel,
         instantiateViewModelForArtboard,
         instantiateBlankViewModelForArtboard,
+        setViewModelInstanceValue,
         deleteViewModel,
         instantiateStateMachine,
         deleteStateMachine,
@@ -419,7 +498,8 @@ private:
         listStateMachines,
         listViewModels,
         listViewModelInstanceNames,
-        listViewModelProperties
+        listViewModelProperties,
+        listViewModelPropertieValue
     };
 
     enum class Message
@@ -431,6 +511,7 @@ private:
         viewModelsListend,
         viewModelInstanceNamesListed,
         viewModelPropertiesListed,
+        viewModelPropertyValueReceived,
         fileDeleted,
         artboardDeleted,
         viewModelDeleted,
