@@ -19,8 +19,12 @@
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive_file_reader.hpp"
+#include "utils/serializing_factory.hpp"
 #include <catch.hpp>
 #include <cstdio>
+#include <cstring>
+
+using namespace rive;
 
 TEST_CASE("Test data binding images from file assets", "[data binding]")
 {
@@ -93,4 +97,37 @@ TEST_CASE("Test data binding images from file assets", "[data binding]")
     REQUIRE(imageAsset == updatedMainAsset);
     sub1ImageAsset = sub1Image->imageAsset();
     REQUIRE(sub1ImageAsset == updatedSub1Asset);
+}
+
+TEST_CASE("Embedded images can be reset by passing null", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/viewmodel_image_reset.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    auto vmiImage =
+        vmi->propertyValue("img")->as<ViewModelInstanceAssetImage>();
+    vmiImage->value(nullptr);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("viewmodel_image_reset"));
 }

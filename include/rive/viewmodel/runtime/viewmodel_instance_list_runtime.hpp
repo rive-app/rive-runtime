@@ -22,6 +22,7 @@ public:
     {}
     ViewModelInstanceRuntime* instanceAt(int index);
     void addInstance(ViewModelInstanceRuntime*);
+    bool addInstanceAt(ViewModelInstanceRuntime*, int);
     void removeInstance(ViewModelInstanceRuntime*);
     void removeInstanceAt(int);
     void swap(uint32_t, uint32_t);

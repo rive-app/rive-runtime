@@ -28,6 +28,19 @@ void ViewModelInstanceList::addItem(ViewModelInstanceListItem* item)
     propertyValueChanged();
 }
 
+bool ViewModelInstanceList::addItemAt(ViewModelInstanceListItem* item,
+                                      int index)
+{
+    if (index <= m_ListItems.size())
+    {
+        item->ref();
+        m_ListItems.insert(m_ListItems.begin() + index, item);
+        propertyValueChanged();
+        return true;
+    }
+    return false;
+}
+
 void ViewModelInstanceList::internalAddItem(ViewModelInstanceListItem* item)
 {
     // For ViewModelInstanceListItems that are built as a core object
@@ -96,4 +109,15 @@ Core* ViewModelInstanceList::clone() const
         cloned->internalAddItem(clonedValue);
     }
     return cloned;
+}
+
+void ViewModelInstanceList::advanced()
+{
+    for (auto item : m_ListItems)
+    {
+        if (item->viewModelInstance() != nullptr)
+        {
+            item->viewModelInstance()->advanced();
+        }
+    }
 }

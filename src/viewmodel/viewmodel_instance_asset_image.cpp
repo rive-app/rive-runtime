@@ -21,11 +21,11 @@ void ViewModelInstanceAssetImage::propertyValueChanged()
 
 void ViewModelInstanceAssetImage::value(RenderImage* image)
 {
+    propertyValue(-1);
     if (m_imageAsset.renderImage() == image)
     {
         return;
     }
-    propertyValue(-1);
     if (image == nullptr)
     {
         m_imageAsset.renderImage(nullptr);

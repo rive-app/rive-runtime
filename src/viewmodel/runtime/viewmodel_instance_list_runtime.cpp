@@ -19,7 +19,7 @@ ViewModelInstanceRuntime* ViewModelInstanceListRuntime::instanceAt(int index)
 {
     auto listItems =
         m_viewModelInstanceValue->as<ViewModelInstanceList>()->listItems();
-    if (index > listItems.size() || index < 0)
+    if (index >= listItems.size() || index < 0)
     {
         return nullptr;
     }
@@ -48,6 +48,23 @@ void ViewModelInstanceListRuntime::addInstance(
     auto list = m_viewModelInstanceValue->as<ViewModelInstanceList>();
     m_itemsMap[listItem] = instanceRuntime;
     list->addItem(listItem);
+}
+
+bool ViewModelInstanceListRuntime::addInstanceAt(
+    ViewModelInstanceRuntime* instanceRuntime,
+    int index)
+{
+    auto listItem = new ViewModelInstanceListItem();
+    auto list = m_viewModelInstanceValue->as<ViewModelInstanceList>();
+    if (list->addItemAt(listItem, index))
+    {
+        instanceRuntime->ref();
+        listItem->viewModelInstance(instanceRuntime->instance());
+        m_itemsMap[listItem] = instanceRuntime;
+        return true;
+    }
+    delete listItem;
+    return false;
 }
 
 void ViewModelInstanceListRuntime::removeInstance(

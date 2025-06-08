@@ -10,6 +10,7 @@ class ViewModelInstanceList : public ViewModelInstanceListBase
 public:
     ~ViewModelInstanceList();
     void addItem(ViewModelInstanceListItem* listItem);
+    bool addItemAt(ViewModelInstanceListItem* listItem, int index);
     void internalAddItem(ViewModelInstanceListItem* listItem);
     void insertItem(int index, ViewModelInstanceListItem* listItem);
     void removeItem(int index);
@@ -18,6 +19,7 @@ public:
     ViewModelInstanceListItem* item(uint32_t index);
     void swap(uint32_t index1, uint32_t index2);
     Core* clone() const override;
+    void advanced() override;
 
 protected:
     std::vector<ViewModelInstanceListItem*> m_ListItems;
