@@ -143,7 +143,7 @@ public:
         Artboard* artboard);
     void completeViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance,
-        std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
+        std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
             instancesMap) const;
     void completeViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) const;
@@ -210,7 +210,7 @@ private:
 
     rcp<ViewModelInstance> copyViewModelInstance(
         ViewModelInstance* viewModelInstance,
-        std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>
+        std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
             instancesMap) const;
 
     rcp<ViewModelRuntime> createViewModelRuntime(ViewModel* viewModel) const;

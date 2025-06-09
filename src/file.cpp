@@ -585,8 +585,8 @@ void File::completeViewModelInstance(
 
 void File::completeViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance,
-    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap)
-    const
+    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
+        instancesMap) const
 {
     auto viewModel = m_ViewModels[viewModelInstance->viewModelId()];
     auto propertyValues = viewModelInstance->propertyValues();
@@ -659,8 +659,8 @@ void File::completeViewModelInstance(
 
 rcp<ViewModelInstance> File::copyViewModelInstance(
     ViewModelInstance* viewModelInstance,
-    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>> instancesMap)
-    const
+    std::unordered_map<ViewModelInstance*, rcp<ViewModelInstance>>&
+        instancesMap) const
 {
     auto copy = rcp<ViewModelInstance>(
         viewModelInstance->clone()->as<ViewModelInstance>());
