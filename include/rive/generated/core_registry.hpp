@@ -131,6 +131,7 @@
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
 #include "rive/data_bind/bindable_property_integer.hpp"
+#include "rive/data_bind/bindable_property_list.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
@@ -140,6 +141,7 @@
 #include "rive/data_bind/converters/data_converter_group.hpp"
 #include "rive/data_bind/converters/data_converter_group_item.hpp"
 #include "rive/data_bind/converters/data_converter_interpolator.hpp"
+#include "rive/data_bind/converters/data_converter_list_to_length.hpp"
 #include "rive/data_bind/converters/data_converter_number_to_list.hpp"
 #include "rive/data_bind/converters/data_converter_operation.hpp"
 #include "rive/data_bind/converters/data_converter_operation_value.hpp"
@@ -319,18 +321,12 @@ public:
                 return new DataEnumSystem();
             case ViewModelPropertyViewModelBase::typeKey:
                 return new ViewModelPropertyViewModel();
-            case DataEnumValueBase::typeKey:
-                return new DataEnumValue();
-            case ViewModelPropertyTriggerBase::typeKey:
-                return new ViewModelPropertyTrigger();
-            case ViewModelPropertyStringBase::typeKey:
-                return new ViewModelPropertyString();
-            case ViewModelPropertyColorBase::typeKey:
-                return new ViewModelPropertyColor();
-            case ViewModelPropertyBooleanBase::typeKey:
-                return new ViewModelPropertyBoolean();
             case ViewModelInstanceBase::typeKey:
                 return new ViewModelInstance();
+            case ViewModelPropertyBooleanBase::typeKey:
+                return new ViewModelPropertyBoolean();
+            case ViewModelPropertyColorBase::typeKey:
+                return new ViewModelPropertyColor();
             case ViewModelPropertyAssetImageBase::typeKey:
                 return new ViewModelPropertyAssetImage();
             case ViewModelInstanceBooleanBase::typeKey:
@@ -343,12 +339,18 @@ public:
                 return new ViewModelInstanceTrigger();
             case ViewModelInstanceSymbolListIndexBase::typeKey:
                 return new ViewModelInstanceSymbolListIndex();
+            case ViewModelPropertyStringBase::typeKey:
+                return new ViewModelPropertyString();
             case ViewModelInstanceViewModelBase::typeKey:
                 return new ViewModelInstanceViewModel();
+            case ViewModelPropertyTriggerBase::typeKey:
+                return new ViewModelPropertyTrigger();
             case ViewModelInstanceAssetBase::typeKey:
                 return new ViewModelInstanceAsset();
             case ViewModelInstanceAssetImageBase::typeKey:
                 return new ViewModelInstanceAssetImage();
+            case DataEnumValueBase::typeKey:
+                return new DataEnumValue();
             case DrawTargetBase::typeKey:
                 return new DrawTarget();
             case CustomPropertyNumberBase::typeKey:
@@ -611,6 +613,8 @@ public:
                 return new DataConverterInterpolator();
             case DataConverterSystemNormalizerBase::typeKey:
                 return new DataConverterSystemNormalizer();
+            case DataConverterListToLengthBase::typeKey:
+                return new DataConverterListToLength();
             case DataConverterGroupItemBase::typeKey:
                 return new DataConverterGroupItem();
             case DataConverterGroupBase::typeKey:
@@ -651,6 +655,8 @@ public:
                 return new DataConverterToString();
             case DataBindContextBase::typeKey:
                 return new DataBindContext();
+            case BindablePropertyListBase::typeKey:
+                return new BindablePropertyList();
             case BindablePropertyStringBase::typeKey:
                 return new BindablePropertyString();
             case BindablePropertyNumberBase::typeKey:
@@ -1276,6 +1282,9 @@ public:
             case DataConverterToStringBase::decimalsPropertyKey:
                 object->as<DataConverterToStringBase>()->decimals(value);
                 break;
+            case BindablePropertyListBase::propertyValuePropertyKey:
+                object->as<BindablePropertyListBase>()->propertyValue(value);
+                break;
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 object->as<BindablePropertyEnumBase>()->propertyValue(value);
                 break;
@@ -1402,14 +1411,14 @@ public:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceStringBase>()->propertyValue(value);
                 break;
+            case ComponentBase::namePropertyKey:
+                object->as<ComponentBase>()->name(value);
+                break;
             case DataEnumValueBase::keyPropertyKey:
                 object->as<DataEnumValueBase>()->key(value);
                 break;
             case DataEnumValueBase::valuePropertyKey:
                 object->as<DataEnumValueBase>()->value(value);
-                break;
-            case ComponentBase::namePropertyKey:
-                object->as<ComponentBase>()->name(value);
                 break;
             case AnimationBase::namePropertyKey:
                 object->as<AnimationBase>()->name(value);
@@ -2637,6 +2646,8 @@ public:
                 return object->as<DataConverterToStringBase>()->flags();
             case DataConverterToStringBase::decimalsPropertyKey:
                 return object->as<DataConverterToStringBase>()->decimals();
+            case BindablePropertyListBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyListBase>()->propertyValue();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyEnumBase>()->propertyValue();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -2730,12 +2741,12 @@ public:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceStringBase>()
                     ->propertyValue();
+            case ComponentBase::namePropertyKey:
+                return object->as<ComponentBase>()->name();
             case DataEnumValueBase::keyPropertyKey:
                 return object->as<DataEnumValueBase>()->key();
             case DataEnumValueBase::valuePropertyKey:
                 return object->as<DataEnumValueBase>()->value();
-            case ComponentBase::namePropertyKey:
-                return object->as<ComponentBase>()->name();
             case AnimationBase::namePropertyKey:
                 return object->as<AnimationBase>()->name();
             case StateMachineComponentBase::namePropertyKey:
@@ -3471,6 +3482,7 @@ public:
             case FormulaTokenFunctionBase::functionTypePropertyKey:
             case DataConverterToStringBase::flagsPropertyKey:
             case DataConverterToStringBase::decimalsPropertyKey:
+            case BindablePropertyListBase::propertyValuePropertyKey:
             case BindablePropertyEnumBase::propertyValuePropertyKey:
             case NestedArtboardLeafBase::fitPropertyKey:
             case WeightBase::valuesPropertyKey:
@@ -3511,9 +3523,9 @@ public:
             case ViewModelComponentBase::namePropertyKey:
             case DataEnumCustomBase::namePropertyKey:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
+            case ComponentBase::namePropertyKey:
             case DataEnumValueBase::keyPropertyKey:
             case DataEnumValueBase::valuePropertyKey:
-            case ComponentBase::namePropertyKey:
             case AnimationBase::namePropertyKey:
             case StateMachineComponentBase::namePropertyKey:
             case KeyFrameStringBase::valuePropertyKey:
@@ -4139,6 +4151,8 @@ public:
                 return object->is<DataConverterToStringBase>();
             case DataConverterToStringBase::decimalsPropertyKey:
                 return object->is<DataConverterToStringBase>();
+            case BindablePropertyListBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyListBase>();
             case BindablePropertyEnumBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyEnumBase>();
             case NestedArtboardLeafBase::fitPropertyKey:
@@ -4215,12 +4229,12 @@ public:
                 return object->is<DataEnumCustomBase>();
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceStringBase>();
+            case ComponentBase::namePropertyKey:
+                return object->is<ComponentBase>();
             case DataEnumValueBase::keyPropertyKey:
                 return object->is<DataEnumValueBase>();
             case DataEnumValueBase::valuePropertyKey:
                 return object->is<DataEnumValueBase>();
-            case ComponentBase::namePropertyKey:
-                return object->is<ComponentBase>();
             case AnimationBase::namePropertyKey:
                 return object->is<AnimationBase>();
             case StateMachineComponentBase::namePropertyKey:
