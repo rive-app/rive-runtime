@@ -91,10 +91,11 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
                                   ? rive::gpu::LoadAction::clear
                                   : rive::gpu::LoadAction::preserveRenderTarget,
                 .clearColor = options.clearColor,
-                .msaaSampleCount =
-                    (m_rendererFlags & TestingWindow::RendererFlags::useMSAA)
-                        ? 4
-                        : 0,
+                .msaaSampleCount = ((m_rendererFlags &
+                                     TestingWindow::RendererFlags::useMSAA) ||
+                                    options.forceMSAA)
+                                       ? 4
+                                       : 0,
                 .disableRasterOrdering =
                     (m_rendererFlags &
                      TestingWindow::RendererFlags::disableRasterOrdering) ||

@@ -69,6 +69,8 @@ const char* TestingWindow::BackendName(Backend backend)
             return "coregraphics";
         case TestingWindow::Backend::skia:
             return "skia";
+        case TestingWindow::Backend::null:
+            return "null";
     }
     RIVE_UNREACHABLE();
 }
@@ -148,6 +150,8 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
         return Backend::coregraphics;
     if (nameStr == "skia")
         return Backend::skia;
+    if (nameStr == "null")
+        return Backend::null;
     fprintf(stderr, "'%s': invalid TestingWindow::Backend\n", name);
     abort();
 }
@@ -272,11 +276,18 @@ TestingWindow* TestingWindow::Init(Backend backend,
         case Backend::metal:
         case Backend::metalcw:
         case Backend::metalatomic:
-#if defined(__APPLE__) && defined(RIVE_TOOLS_NO_GLFW) && !defined(RIVE_UNREAL)
-            s_TestingWindow = TestingWindow::MakeMetalTexture();
-            break;
+#if defined(__APPLE__)
+            if (visibility == Visibility::headless)
+            {
+                s_TestingWindow = TestingWindow::MakeMetalTexture();
+                break;
+            }
 #endif
-            [[fallthrough]];
+            s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
+                                                               visibility,
+                                                               backendParams,
+                                                               platformWindow);
+            break;
         case Backend::d3d:
         case Backend::d3datomic:
         case Backend::d3d12:
@@ -294,6 +305,9 @@ TestingWindow* TestingWindow::Init(Backend backend,
             break;
         case Backend::skia:
             s_TestingWindow = MakeSkia();
+            break;
+        case Backend::null:
+            s_TestingWindow = MakeNULL();
             break;
     }
     if (!s_TestingWindow)

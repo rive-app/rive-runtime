@@ -251,6 +251,7 @@ public:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::null:
                 break;
             case Backend::gl:
             case Backend::glatomic:
@@ -340,7 +341,8 @@ public:
                               ? rive::gpu::LoadAction::clear
                               : rive::gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
-            .msaaSampleCount = m_msaaSampleCount,
+            .msaaSampleCount =
+                std::max(m_msaaSampleCount, options.forceMSAA ? 4 : 0),
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =

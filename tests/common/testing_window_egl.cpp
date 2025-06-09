@@ -645,7 +645,7 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
         case Backend::rhi:
         case Backend::coregraphics:
         case Backend::skia:
-
+        case Backend::null:
             printf("Invalid backend for TestingWindow::MakeEGLPbuffer.");
             abort();
             break;

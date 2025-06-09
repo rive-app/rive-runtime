@@ -74,6 +74,7 @@ public:
 
         coregraphics,
         skia,
+        null,
     };
 
     constexpr static bool IsGL(Backend backend)
@@ -106,6 +107,7 @@ public:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::null:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -141,6 +143,7 @@ public:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::null:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -176,6 +179,7 @@ public:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::null:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -211,6 +215,7 @@ public:
             case Backend::dawn:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::null:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -246,6 +251,7 @@ public:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::null:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -281,6 +287,7 @@ public:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::null:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -316,6 +323,7 @@ public:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::null:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -351,6 +359,7 @@ public:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:
+            case Backend::null:
                 return false;
         }
         RIVE_UNREACHABLE();
@@ -441,6 +450,7 @@ public:
     {
         uint32_t clearColor;
         bool doClear = true;
+        bool forceMSAA = false;
         bool disableRasterOrdering = false;
         bool wireframe = false;
         bool clockwiseFillOverride = false;
@@ -498,6 +508,7 @@ public:
     static TestingWindow* MakeAndroidVulkan(const BackendParams&,
                                             void* platformWindow);
     static TestingWindow* MakeSkia();
+    static TestingWindow* MakeNULL();
 
 protected:
     uint32_t m_width = 0;
