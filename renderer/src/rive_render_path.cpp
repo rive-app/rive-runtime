@@ -307,14 +307,14 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
                     // Cross through cusps with short lines to avoid unstable
                     // math. Large cusp padding empirically gets better results.
                     constexpr static float CUSP_PADDING = 1e-2f;
-                    for (int i = 0; i < n; ++i)
+                    for (int i = n - 1; i >= 0; --i)
                     {
                         // If the cusps are extremely close together, don't
                         // allow the straddle points to cross.
                         float minT = i == 0 ? 0.f : (T[i - 1] + T[i]) * .5f;
                         float maxT = i + 1 == n ? 1.f : (T[i + 1] + T[i]) * .5f;
-                        T[i * 2 + 0] = fmaxf(T[i] - CUSP_PADDING, minT);
                         T[i * 2 + 1] = fminf(T[i] + CUSP_PADDING, maxT);
+                        T[i * 2 + 0] = fmaxf(T[i] - CUSP_PADDING, minT);
                     }
                     n *= 2;
                 }
