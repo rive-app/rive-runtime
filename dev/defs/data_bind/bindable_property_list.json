@@ -12,7 +12,7 @@
       "initialValue": "Core.missingId",
       "initialValueRuntime": "-1",
       "key": {
-        "int": 833,
+        "int": 835,
         "string": "propertyvalue"
       },
       "description": "The id of the asset used for dta binding",

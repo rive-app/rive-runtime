@@ -9,7 +9,7 @@ protected:
     typedef DataConverter Super;
 
 public:
-    static const uint16_t typeKey = 589;
+    static const uint16_t typeKey = 591;
 
     /// Helper to quickly determine if a core object extends another without
     /// RTTI at runtime.
