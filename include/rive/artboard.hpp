@@ -102,11 +102,11 @@ private:
 
     void sortDependencies();
     void sortDrawOrder();
-    void updateDataBinds();
     void updateRenderPath() override;
     void update(ComponentDirt value) override;
 
 public:
+    void updateDataBinds();
     void host(ArtboardHost* artboardHost);
     ArtboardHost* host() const;
 
@@ -227,18 +227,13 @@ public:
     bool isTranslucent(const LinearAnimation*) const;
     bool isTranslucent(const LinearAnimationInstance*) const;
     void dataContext(DataContext* dataContext);
-    void internalDataContext(DataContext* dataContext, bool isRoot);
+    void internalDataContext(DataContext* dataContext);
     void clearDataContext();
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                DataContext* parent);
-    void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
-                               DataContext* parent,
-                               bool isRoot);
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
     void addDataBind(DataBind* dataBind);
-    void populateDataBinds(std::vector<DataBind*>* dataBinds);
     void sortDataBinds();
-    void collectDataBinds();
 
     bool hasAudio() const;
 

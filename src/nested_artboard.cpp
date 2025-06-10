@@ -285,7 +285,7 @@ void NestedArtboard::internalDataContext(DataContext* value)
 {
     if (artboardInstance() != nullptr)
     {
-        artboardInstance()->internalDataContext(value, false);
+        artboardInstance()->internalDataContext(value);
         for (auto& animation : m_NestedAnimations)
         {
             if (animation->is<NestedStateMachine>())
@@ -304,11 +304,11 @@ void NestedArtboard::clearDataContext()
     }
 }
 
-void NestedArtboard::populateDataBinds(std::vector<DataBind*>* dataBinds)
+void NestedArtboard::updateDataBinds()
 {
     if (artboardInstance() != nullptr)
     {
-        artboardInstance()->populateDataBinds(dataBinds);
+        artboardInstance()->updateDataBinds();
     }
 }
 
@@ -318,9 +318,7 @@ void NestedArtboard::bindViewModelInstance(
 {
     if (artboardInstance() != nullptr)
     {
-        artboardInstance()->bindViewModelInstance(viewModelInstance,
-                                                  parent,
-                                                  false);
+        artboardInstance()->bindViewModelInstance(viewModelInstance, parent);
         for (auto& animation : m_NestedAnimations)
         {
             if (animation->is<NestedStateMachine>())

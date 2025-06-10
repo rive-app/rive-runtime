@@ -758,7 +758,11 @@ void Artboard::update(ComponentDirt value)
 
 void Artboard::updateDataBinds()
 {
-    for (auto dataBind : m_AllDataBinds)
+    for (auto artboardHost : m_ArtboardHosts)
+    {
+        artboardHost->updateDataBinds();
+    }
+    for (auto dataBind : m_DataBinds)
     {
         dataBind->updateSourceBinding();
         auto d = dataBind->dirt();
@@ -922,6 +926,7 @@ bool Artboard::syncStyleChanges()
 
 bool Artboard::updatePass(bool isRoot)
 {
+    updateDataBinds();
     bool didUpdate = false;
 #ifdef WITH_RIVE_LAYOUT
     if (syncStyleChanges() && m_updatesOwnLayout)
@@ -938,7 +943,6 @@ bool Artboard::updatePass(bool isRoot)
             joystick->apply(this);
         }
     }
-    updateDataBinds();
     if (updateComponents())
     {
         didUpdate = true;
@@ -978,7 +982,7 @@ bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
             didUpdate = true;
         }
     }
-    for (auto dataBind : m_AllDataBinds)
+    for (auto dataBind : m_DataBinds)
     {
         if (dataBind->advance(elapsedSeconds))
         {
@@ -1374,7 +1378,7 @@ StatusCode Artboard::import(ImportStack& importStack)
     return result;
 }
 
-void Artboard::internalDataContext(DataContext* value, bool isRoot)
+void Artboard::internalDataContext(DataContext* value)
 {
     m_DataContext = value;
     for (auto artboardHost : m_NestedArtboards)
@@ -1397,10 +1401,7 @@ void Artboard::internalDataContext(DataContext* value, bool isRoot)
             dataBind->as<DataBindContext>()->bindFromContext(m_DataContext);
         }
     }
-    if (isRoot)
-    {
-        collectDataBinds();
-    }
+    sortDataBinds();
 }
 
 void Artboard::clearDataContext()
@@ -1424,15 +1425,15 @@ void Artboard::clearDataContext()
 void Artboard::sortDataBinds()
 {
     size_t currentToSourceIndex = 0;
-    for (size_t i = 0; i < m_AllDataBinds.size(); i++)
+    for (size_t i = 0; i < m_DataBinds.size(); i++)
     {
-        if (m_AllDataBinds[i]->toSource())
+        if (m_DataBinds[i]->toSource())
         {
             if (i != currentToSourceIndex)
             {
 
-                std::iter_swap(m_AllDataBinds.begin() + currentToSourceIndex,
-                               m_AllDataBinds.begin() + i);
+                std::iter_swap(m_DataBinds.begin() + currentToSourceIndex,
+                               m_DataBinds.begin() + i);
             }
             currentToSourceIndex += 1;
         }
@@ -1456,63 +1457,30 @@ void Artboard::volume(float value)
     }
 }
 
-void Artboard::populateDataBinds(std::vector<DataBind*>* dataBinds)
-{
-    for (auto dataBind : m_DataBinds)
-    {
-        dataBinds->push_back(dataBind);
-    }
-    for (auto artboardHost : m_ArtboardHosts)
-    {
-        artboardHost->populateDataBinds(dataBinds);
-    }
-}
-
-void Artboard::collectDataBinds()
-{
-    m_AllDataBinds.clear();
-    populateDataBinds(&m_AllDataBinds);
-    sortDataBinds();
-}
-
 void Artboard::addDataBind(DataBind* dataBind)
 {
     m_DataBinds.push_back(dataBind);
 }
 
-void Artboard::dataContext(DataContext* value)
-{
-    internalDataContext(value, true);
-}
+void Artboard::dataContext(DataContext* value) { internalDataContext(value); }
 
 void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance)
 {
-    bindViewModelInstance(viewModelInstance, nullptr, true);
+    bindViewModelInstance(viewModelInstance, nullptr);
 }
 
 void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                      DataContext* parent)
-{
-    bindViewModelInstance(viewModelInstance, parent, true);
-}
-
-void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
-                                     DataContext* parent,
-                                     bool isRoot)
 {
     clearDataContext();
     if (viewModelInstance == nullptr)
     {
         return;
     }
-    if (isRoot)
-    {
-        viewModelInstance->setAsRoot(viewModelInstance);
-    }
     m_ownsDataContext = true;
     auto dataContext = new DataContext(viewModelInstance);
     dataContext->parent(parent);
-    internalDataContext(dataContext, isRoot);
+    internalDataContext(dataContext);
 }
 
 ////////// ArtboardInstance

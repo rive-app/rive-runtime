@@ -71,11 +71,11 @@ public:
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void update(ComponentDirt value) override;
     void updateConstraints() override;
-    void populateDataBinds(std::vector<DataBind*>* dataBinds) override;
     void internalDataContext(DataContext* dataContext) override;
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                DataContext* parent) override;
     void clearDataContext() override;
+    void updateDataBinds() override;
     Artboard* parentArtboard() override { return artboard(); }
     void markHostTransformDirty() override { markTransformDirty(); }
     bool syncStyleChanges() override;

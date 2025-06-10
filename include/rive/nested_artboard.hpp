@@ -77,11 +77,11 @@ public:
     {
         return m_DataBindPathIdsBuffer;
     };
-    void populateDataBinds(std::vector<DataBind*>* dataBinds) override;
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                DataContext* parent) override;
     void internalDataContext(DataContext* dataContext) override;
     void clearDataContext() override;
+    void updateDataBinds() override;
 
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |

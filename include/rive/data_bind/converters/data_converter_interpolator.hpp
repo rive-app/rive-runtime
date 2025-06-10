@@ -38,7 +38,8 @@ public:
 private:
     DataValueNumber m_output;
     float m_currentValue;
-    bool m_isFirstRun = true;
+    uint8_t m_advanceCount = 0;
+    bool isFirstRun() { return m_advanceCount < 2; }
 
     InterpolatorAnimationData m_animationDataA;
     InterpolatorAnimationData m_animationDataB;

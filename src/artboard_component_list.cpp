@@ -148,8 +148,7 @@ std::unique_ptr<ArtboardInstance> ArtboardComponentList::createArtboard(
         auto artboardCopy = artboard->instance();
         // artboardCopy->name(artboard->name());
         artboardCopy->bindViewModelInstance(listItem->viewModelInstance(),
-                                            dataContext,
-                                            true);
+                                            dataContext);
         return artboardCopy;
     }
     return nullptr;
@@ -402,14 +401,6 @@ void ArtboardComponentList::internalDataContext(DataContext* value)
     // new datacontext passed in here
 }
 
-void ArtboardComponentList::populateDataBinds(std::vector<DataBind*>* dataBinds)
-{
-    // At the time this is called, artboards will not yet have been instanced
-    // so its essentially a no-op and the data binds will be populated at
-    // artboard creation time by calling artboard->bindViewModelInstance
-    // passing isRoot=true
-}
-
 void ArtboardComponentList::bindViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance,
     DataContext* parent)
@@ -420,6 +411,22 @@ void ArtboardComponentList::bindViewModelInstance(
 }
 
 void ArtboardComponentList::clearDataContext() { reset(); }
+void ArtboardComponentList::updateDataBinds()
+{
+    for (int i = 0; i < artboardCount(); i++)
+    {
+        auto stateMachine = stateMachineInstance(i);
+        if (stateMachine != nullptr)
+        {
+            stateMachine->updateDataBinds();
+        }
+        auto artboard = artboardInstance(i);
+        if (artboard != nullptr)
+        {
+            artboard->updateDataBinds();
+        }
+    }
+}
 
 bool ArtboardComponentList::worldToLocal(Vec2D world, Vec2D* local, int index)
 {

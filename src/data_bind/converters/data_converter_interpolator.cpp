@@ -81,6 +81,17 @@ void DataConverterInterpolator::advanceAnimationData(float elapsedTime)
 bool DataConverterInterpolator::advance(float elapsedTime)
 {
     auto animationData = currentAnimationData();
+    if (elapsedTime == 0)
+    {
+        return false;
+    }
+    // Advance can be called multiple times in a single frame.
+    // We want to make sure that two advances with time > 0 have elapsed before
+    // considering the state as second frame.
+    if (m_advanceCount < 2)
+    {
+        m_advanceCount++;
+    }
     if (animationData->to == m_currentValue)
     {
         return false;
@@ -101,12 +112,11 @@ DataValue* DataConverterInterpolator::convert(DataValue* input,
     {
         auto animationData = currentAnimationData();
         auto numberInput = input->as<DataValueNumber>();
-        if (m_isFirstRun)
+        if (isFirstRun())
         {
             animationData->from = numberInput->value();
             animationData->to = numberInput->value();
             m_currentValue = numberInput->value();
-            m_isFirstRun = false;
         }
         else
         {
