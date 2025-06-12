@@ -178,7 +178,7 @@ private:
     std::map<uint32_t, DrawPipeline> m_drawPipelines;
     wgpu::BindGroupLayout m_drawBindGroupLayouts[4 /*BINDINGS_SET_COUNT*/];
     wgpu::Sampler m_linearSampler;
-    wgpu::Sampler m_mipmapSampler;
+    wgpu::Sampler m_imageSamplers[ImageSampler::MAX_SAMPLER_PERMUTATIONS];
     wgpu::BindGroup m_samplerBindings;
     wgpu::PipelineLayout m_drawPipelineLayout;
     wgpu::BindGroupLayout m_emptyBindingsLayout; // For when a set is unused.

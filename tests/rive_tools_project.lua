@@ -17,7 +17,6 @@ end
 
 function rive_tools_project(name, project_kind)
     project(name)
-    cppdialect('C++17')
     if project_kind == 'RiveTool' then
         kind(
             _OPTIONS['for_unreal'] and 'StaticLib'
@@ -135,7 +134,6 @@ function rive_tools_project(name, project_kind)
     filter({ 'system:windows', 'options:toolset=msc' })
     do
         -- MSVC doesn't allow designated initializers on C++17.
-        cppdialect('c++latest')
         defines({
             '_SILENCE_CXX20_IS_POD_DEPRECATION_WARNING',
             '_SILENCE_ALL_CXX20_DEPRECATION_WARNINGS',

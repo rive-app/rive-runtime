@@ -71,7 +71,7 @@ public:
         // disabled:
         // https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/native/Toggles.cpp
         WGPUInstanceDescriptor instanceDescriptor = {
-            .capabilities.timedWaitAnyEnable = true,
+            .capabilities = {.timedWaitAnyEnable = true},
         };
         m_instance =
             wgpu::Instance::Acquire(wgpuCreateInstance(&instanceDescriptor));
@@ -118,7 +118,7 @@ public:
         if (m_renderContext == nullptr)
         {
             WGPUSurfaceSourceWindowsHWND surfaceDescWin = {
-                .chain.sType = WGPUSType_SurfaceSourceWindowsHWND,
+                .chain = {.sType = WGPUSType_SurfaceSourceWindowsHWND},
                 .hinstance = GetModuleHandle(nullptr),
                 .hwnd = glfwGetWin32Window(window),
             };
@@ -202,7 +202,7 @@ public:
 
             WGPUDeviceDescriptor deviceDesc = {
                 // notify on errors
-                .uncapturedErrorCallbackInfo.callback = &on_device_error,
+                .uncapturedErrorCallbackInfo = {.callback = &on_device_error},
 
                 // extra features:
                 // https://dawn.googlesource.com/dawn/+/refs/heads/main/src/dawn/native/Features.cpp

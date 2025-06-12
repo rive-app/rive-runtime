@@ -1,7 +1,6 @@
 #version 460
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
-#define PLS_IMPL_SUBPASS_LOAD
 #define OPTIONALLY_FLAT flat
 #define DRAW_IMAGE
 #define DRAW_IMAGE_MESH

@@ -130,11 +130,10 @@ $typedef float3 packed_float3;
 
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are the same because in d3d11, sampler
 // parameters are defined at the API level.
-#define SAMPLER(TEXTURE_IDX, NAME)                                             \
-    $SamplerState NAME : $register($s##TEXTURE_IDX);
+#define SAMPLER(IDX, NAME) $SamplerState NAME : $register($s##IDX);
 #define SAMPLER_LINEAR SAMPLER
 #define SAMPLER_MIPMAP SAMPLER
-#define SAMPLER_DYNAMIC SAMPLER
+#define SAMPLER_DYNAMIC(SET, IDX, NAME) SAMPLER(IDX, NAME)
 
 #define TEXEL_FETCH(NAME, COORD) NAME[COORD]
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD)                              \

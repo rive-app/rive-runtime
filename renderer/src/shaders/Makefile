@@ -158,6 +158,13 @@ SPIRV_OUTPUTS_HEADERS := \
     $(OUT)/spirv/atomic_draw_atlas_blit.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_resolve.fixedcolor_frag.h \
+    $(OUT)/spirv/draw_path.webgpu_vert.h \
+    $(OUT)/spirv/draw_path.webgpu_frag.h \
+    $(OUT)/spirv/draw_interior_triangles.webgpu_vert.h \
+    $(OUT)/spirv/draw_interior_triangles.webgpu_frag.h \
+    $(OUT)/spirv/draw_atlas_blit.webgpu_vert.h \
+    $(OUT)/spirv/draw_atlas_blit.webgpu_frag.h \
+    $(OUT)/spirv/draw_image_mesh.webgpu_frag.h
 
 SPIRV_OUTPUTS_BINARY := \
     $(addprefix $(OUT)/, $(patsubst %.main, %.vert.spirv, $(wildcard spirv/*.main))) \
@@ -183,20 +190,20 @@ $(OUT)/spirv/%.vert.h: spirv/%.main $(MINIFY_STAMP)
 ## Compile *.main again into fragment shaders.
 $(OUT)/spirv/%.frag.spirv: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V -o $@ $<
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DPLS_IMPL_SUBPASS_LOAD -I$(OUT) -V -o $@ $<
 
 $(OUT)/spirv/%.frag.h: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V --vn $(subst .main,_frag,$(notdir $<)) -o $@ $<
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DPLS_IMPL_SUBPASS_LOAD -I$(OUT) -V --vn $(subst .main,_frag,$(notdir $<)) -o $@ $<
 
 ## Compile atomic fragment shaders again with FIXED_FUNCTION_COLOR_OUTPUT defined.
 $(OUT)/spirv/%.fixedcolor_frag.spirv: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DFIXED_FUNCTION_COLOR_OUTPUT -I$(OUT) -V -o $@ $<
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DPLS_IMPL_SUBPASS_LOAD -DFIXED_FUNCTION_COLOR_OUTPUT -I$(OUT) -V -o $@ $<
 
 $(OUT)/spirv/%.fixedcolor_frag.h: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DFIXED_FUNCTION_COLOR_OUTPUT -I$(OUT) -V --vn $(subst .main,_fixedcolor_frag,$(notdir $<)) -o $@ $<
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DPLS_IMPL_SUBPASS_LOAD -DFIXED_FUNCTION_COLOR_OUTPUT -I$(OUT) -V --vn $(subst .main,_fixedcolor_frag,$(notdir $<)) -o $@ $<
 
 ## Compile *.vert into vertex shaders.
 $(OUT)/spirv/%.vert.spirv: spirv/%.vert $(MINIFY_STAMP)
@@ -210,11 +217,20 @@ $(OUT)/spirv/%.vert.h: spirv/%.vert $(MINIFY_STAMP)
 ## Compile *.frag into fragment shaders.
 $(OUT)/spirv/%.frag.spirv: spirv/%.frag $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V -o $@ $<
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DPLS_IMPL_SUBPASS_LOAD -I$(OUT) -V -o $@ $<
 
 $(OUT)/spirv/%.frag.h: spirv/%.frag $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
-	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -I$(OUT) -V --vn $(subst .frag,_frag,$(notdir $<)) -o $@ $<
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DPLS_IMPL_SUBPASS_LOAD -I$(OUT) -V --vn $(subst .frag,_frag,$(notdir $<)) -o $@ $<
+
+## Compile fragment shaders in a way that is compatible with webgpu.
+$(OUT)/spirv/%.webgpu_vert.h: spirv/%.main $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -DSPEC_CONST_NONE -I$(OUT) -V --vn $(subst .main,_webgpu_vert,$(notdir $<)) -o $@ $<
+
+$(OUT)/spirv/%.webgpu_frag.h: spirv/%.main $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DPLS_IMPL_NONE -DSPEC_CONST_NONE -I$(OUT) -V --vn $(subst .main,_webgpu_frag,$(notdir $<)) -o $@ $<
 
 spirv: $(SPIRV_OUTPUTS_HEADERS)
 spirv-binary: $(SPIRV_OUTPUTS_BINARY)

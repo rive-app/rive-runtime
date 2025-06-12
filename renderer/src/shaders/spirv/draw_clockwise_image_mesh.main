@@ -2,7 +2,6 @@
 #extension GL_GOOGLE_include_directive : require
 #extension GL_EXT_samplerless_texture_functions : require
 #define ENABLE_INSTANCE_INDEX
-#define PLS_IMPL_SUBPASS_LOAD
 #define OPTIONALLY_FLAT flat
 #define DRAW_IMAGE
 #include "glsl.minified.glsl"

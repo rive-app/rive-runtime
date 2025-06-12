@@ -168,9 +168,8 @@
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)                                      \
     layout(set = IMMUTABLE_SAMPLER_BINDINGS_SET, binding = TEXTURE_IDX)        \
         uniform mediump sampler NAME;
-#define SAMPLER_DYNAMIC(TEXTURE_IDX, NAME)                                     \
-    layout(set = PER_DRAW_BINDINGS_SET, binding = TEXTURE_IDX)                 \
-        uniform mediump sampler NAME;
+#define SAMPLER_DYNAMIC(SET, IDX, NAME)                                        \
+    layout(set = SET, binding = IDX) uniform mediump sampler NAME;
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD)                              \
     texture(sampler2D(NAME, SAMPLER_NAME), COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
@@ -182,7 +181,7 @@
 // parameters are API-level state tied to the texture.
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
 #define SAMPLER_MIPMAP(TEXTURE_IDX, NAME)
-#define SAMPLER_DYNAMIC(TEXTURE_IDX, NAME)
+#define SAMPLER_DYNAMIC(SET, IDX, NAME)
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     textureLod(NAME, COORD, LOD)

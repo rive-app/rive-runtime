@@ -1,3 +1,5 @@
+#ifndef @SPEC_CONST_NONE
+
 layout(constant_id = CLIPPING_SPECIALIZATION_IDX) const
     bool kEnableClipping = true;
 layout(constant_id = CLIP_RECT_SPECIALIZATION_IDX) const
@@ -29,3 +31,19 @@ layout(constant_id = VULKAN_VENDOR_ID_SPECIALIZATION_IDX) const uint
 #define @CLOCKWISE_FILL kClockwiseFill
 #define @BORROWED_COVERAGE_PREPASS kBorrowedCoveragePrepass
 #define @VULKAN_VENDOR_ID kVulkanVendorID
+
+#else
+
+// Specialization constants aren't supported; just compile an ubershader.
+#define @ENABLE_CLIPPING true
+#define @ENABLE_CLIP_RECT true
+#define @ENABLE_ADVANCED_BLEND true
+#define @ENABLE_FEATHER true
+#define @ENABLE_EVEN_ODD true
+#define @ENABLE_NESTED_CLIPPING true
+#define @ENABLE_HSL_BLEND_MODES true
+#define @CLOCKWISE_FILL true
+#define @BORROWED_COVERAGE_PREPASS true
+#define @VULKAN_VENDOR_ID 0
+
+#endif

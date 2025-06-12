@@ -4,7 +4,6 @@
 
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
-#include "rive/renderer/rive_render_image.hpp"
 #include "shaders/constants.glsl"
 
 #include "generated/shaders/spirv/blit_texture_as_draw.vert.h"
@@ -16,14 +15,14 @@
 #include "generated/shaders/spirv/render_atlas.vert.h"
 #include "generated/shaders/spirv/render_atlas_fill.frag.h"
 #include "generated/shaders/spirv/render_atlas_stroke.frag.h"
-#include "generated/shaders/spirv/draw_path.vert.h"
-#include "generated/shaders/spirv/draw_path.frag.h"
-#include "generated/shaders/spirv/draw_interior_triangles.vert.h"
-#include "generated/shaders/spirv/draw_interior_triangles.frag.h"
-#include "generated/shaders/spirv/draw_atlas_blit.vert.h"
-#include "generated/shaders/spirv/draw_atlas_blit.frag.h"
+#include "generated/shaders/spirv/draw_path.webgpu_vert.h"
+#include "generated/shaders/spirv/draw_path.webgpu_frag.h"
+#include "generated/shaders/spirv/draw_interior_triangles.webgpu_vert.h"
+#include "generated/shaders/spirv/draw_interior_triangles.webgpu_frag.h"
+#include "generated/shaders/spirv/draw_atlas_blit.webgpu_vert.h"
+#include "generated/shaders/spirv/draw_atlas_blit.webgpu_frag.h"
 #include "generated/shaders/spirv/draw_image_mesh.vert.h"
-#include "generated/shaders/spirv/draw_image_mesh.frag.h"
+#include "generated/shaders/spirv/draw_image_mesh.webgpu_frag.h"
 
 #include "generated/shaders/glsl.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
@@ -819,37 +818,37 @@ public:
                     vertexShader =
                         m_vertexShaderHandle.compileSPIRVShaderModule(
                             context->m_device,
-                            draw_path_vert,
-                            std::size(draw_path_vert));
+                            draw_path_webgpu_vert,
+                            std::size(draw_path_webgpu_vert));
                     fragmentShader =
                         m_fragmentShaderHandle.compileSPIRVShaderModule(
                             context->m_device,
-                            draw_path_frag,
-                            std::size(draw_path_frag));
+                            draw_path_webgpu_frag,
+                            std::size(draw_path_webgpu_frag));
                     break;
                 case DrawType::interiorTriangulation:
                     vertexShader =
                         m_vertexShaderHandle.compileSPIRVShaderModule(
                             context->m_device,
-                            draw_interior_triangles_vert,
-                            std::size(draw_interior_triangles_vert));
+                            draw_interior_triangles_webgpu_vert,
+                            std::size(draw_interior_triangles_webgpu_vert));
                     fragmentShader =
                         m_fragmentShaderHandle.compileSPIRVShaderModule(
                             context->m_device,
-                            draw_interior_triangles_frag,
-                            std::size(draw_interior_triangles_frag));
+                            draw_interior_triangles_webgpu_frag,
+                            std::size(draw_interior_triangles_webgpu_frag));
                     break;
                 case DrawType::atlasBlit:
                     vertexShader =
                         m_vertexShaderHandle.compileSPIRVShaderModule(
                             context->m_device,
-                            draw_atlas_blit_vert,
-                            std::size(draw_atlas_blit_vert));
+                            draw_atlas_blit_webgpu_vert,
+                            std::size(draw_atlas_blit_webgpu_vert));
                     fragmentShader =
                         m_fragmentShaderHandle.compileSPIRVShaderModule(
                             context->m_device,
-                            draw_atlas_blit_frag,
-                            std::size(draw_atlas_blit_frag));
+                            draw_atlas_blit_webgpu_frag,
+                            std::size(draw_atlas_blit_webgpu_frag));
                     break;
                 case DrawType::imageRect:
                     RIVE_UNREACHABLE();
@@ -862,8 +861,8 @@ public:
                     fragmentShader =
                         m_fragmentShaderHandle.compileSPIRVShaderModule(
                             context->m_device,
-                            draw_image_mesh_frag,
-                            std::size(draw_image_mesh_frag));
+                            draw_image_mesh_webgpu_frag,
+                            std::size(draw_image_mesh_webgpu_frag));
                     break;
                 case DrawType::atomicInitialize:
                 case DrawType::atomicResolve:
@@ -923,6 +922,48 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     m_platformFeatures.supportsRasterOrdering = true;
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
+}
+
+static wgpu::AddressMode webgpu_address_mode(rive::ImageWrap wrap)
+{
+    switch (wrap)
+    {
+        case rive::ImageWrap::clamp:
+            return wgpu::AddressMode::ClampToEdge;
+        case rive::ImageWrap::repeat:
+            return wgpu::AddressMode::Repeat;
+        case rive::ImageWrap::mirror:
+            return wgpu::AddressMode::MirrorRepeat;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+static wgpu::FilterMode webgpu_filter_mode(rive::ImageFilter filter)
+{
+    switch (filter)
+    {
+        case rive::ImageFilter::trilinear:
+            return wgpu::FilterMode::Linear;
+        case rive::ImageFilter::nearest:
+            return wgpu::FilterMode::Nearest;
+    }
+
+    RIVE_UNREACHABLE();
+}
+
+static wgpu::MipmapFilterMode webgpu_mipmap_filter_mode(
+    rive::ImageFilter filter)
+{
+    switch (filter)
+    {
+        case rive::ImageFilter::trilinear:
+            return wgpu::MipmapFilterMode::Linear;
+        case rive::ImageFilter::nearest:
+            return wgpu::MipmapFilterMode::Nearest;
+    }
+
+    RIVE_UNREACHABLE();
 }
 
 void RenderContextWebGPUImpl::initGPUObjects()
@@ -1080,6 +1121,11 @@ void RenderContextWebGPUImpl::initGPUObjects()
                     .viewDimension = wgpu::TextureViewDimension::e2D,
                 },
         },
+        {
+            .binding = IMAGE_SAMPLER_IDX,
+            .visibility = wgpu::ShaderStage::Fragment,
+            .sampler = {.type = wgpu::SamplerBindingType::Filtering},
+        },
     };
 
     wgpu::BindGroupLayoutDescriptor perDrawBindingsDesc = {
@@ -1116,14 +1162,6 @@ void RenderContextWebGPUImpl::initGPUObjects()
                     .type = wgpu::SamplerBindingType::Filtering,
                 },
         },
-        {
-            .binding = IMAGE_TEXTURE_IDX,
-            .visibility = wgpu::ShaderStage::Fragment,
-            .sampler =
-                {
-                    .type = wgpu::SamplerBindingType::Filtering,
-                },
-        },
     };
 
     wgpu::BindGroupLayoutDescriptor samplerBindingsDesc = {
@@ -1144,15 +1182,23 @@ void RenderContextWebGPUImpl::initGPUObjects()
 
     m_linearSampler = m_device.CreateSampler(&linearSamplerDesc);
 
-    wgpu::SamplerDescriptor mipmapSamplerDesc = {
-        .addressModeU = wgpu::AddressMode::ClampToEdge,
-        .addressModeV = wgpu::AddressMode::ClampToEdge,
-        .magFilter = wgpu::FilterMode::Linear,
-        .minFilter = wgpu::FilterMode::Linear,
-        .mipmapFilter = wgpu::MipmapFilterMode::Nearest,
-    };
+    for (size_t i = 0; i < ImageSampler::MAX_SAMPLER_PERMUTATIONS; ++i)
+    {
+        ImageWrap wrapX = ImageSampler::GetWrapXOptionFromKey(i);
+        ImageWrap wrapY = ImageSampler::GetWrapYOptionFromKey(i);
+        ImageFilter filter = ImageSampler::GetFilterOptionFromKey(i);
+        wgpu::FilterMode minMagFilter = webgpu_filter_mode(filter);
 
-    m_mipmapSampler = m_device.CreateSampler(&mipmapSamplerDesc);
+        wgpu::SamplerDescriptor samplerDesc = {
+            .addressModeU = webgpu_address_mode(wrapX),
+            .addressModeV = webgpu_address_mode(wrapY),
+            .magFilter = minMagFilter,
+            .minFilter = minMagFilter,
+            .mipmapFilter = webgpu_mipmap_filter_mode(filter),
+        };
+
+        m_imageSamplers[i] = m_device.CreateSampler(&samplerDesc);
+    }
 
     wgpu::BindGroupEntry samplerBindingEntries[] = {
         {
@@ -1166,10 +1212,6 @@ void RenderContextWebGPUImpl::initGPUObjects()
         {
             .binding = ATLAS_TEXTURE_IDX,
             .sampler = m_linearSampler,
-        },
-        {
-            .binding = IMAGE_TEXTURE_IDX,
-            .sampler = m_mipmapSampler,
         },
     };
 
@@ -2552,10 +2594,12 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
         // Bind the appropriate image texture, if any.
         wgpu::TextureView imageTextureView = m_nullImagePaintTextureView;
+        uint8_t imageSamplerKey = ImageSampler::LINEAR_CLAMP_SAMPLER_KEY;
         if (auto imageTexture =
                 static_cast<const TextureWebGPUImpl*>(batch.imageTexture))
         {
             imageTextureView = imageTexture->textureView();
+            imageSamplerKey = batch.imageSampler.asKey();
             needsNewBindings = true;
         }
 
@@ -2573,6 +2617,10 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 {
                     .binding = IMAGE_TEXTURE_IDX,
                     .textureView = imageTextureView,
+                },
+                {
+                    .binding = IMAGE_SAMPLER_IDX,
+                    .sampler = m_imageSamplers[imageSamplerKey],
                 },
             };
 
