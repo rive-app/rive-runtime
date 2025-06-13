@@ -5,10 +5,12 @@
 #pragma once
 
 #include "rive/renderer/render_context_helper_impl.hpp"
-#include "rive/renderer/webgpu/em_js_handle.hpp"
-#include "rive/renderer/gl/load_store_actions_ext.hpp"
 #include <map>
 #include <webgpu/webgpu_cpp.h>
+
+#ifdef RIVE_WAGYU
+#include "rive/renderer/gl/load_store_actions_ext.hpp"
+#endif
 
 namespace rive::gpu
 {
@@ -24,6 +26,7 @@ public:
         // effort to draw shapes.
         none,
 
+#ifdef RIVE_WAGYU
         // Backend is OpenGL ES 3.1+ and has GL_EXT_shader_pixel_local_storage.
         // Use "raw-glsl" shaders that take advantage of the extension.
         EXT_shader_pixel_local_storage,
@@ -32,12 +35,15 @@ public:
         // Use nonstandard WebGPU APIs to set up vulkan input attachments and
         // subpassLoad() in shaders.
         subpassLoad,
+#endif
     };
 
     struct ContextOptions
     {
         PixelLocalStorageType plsType = PixelLocalStorageType::none;
+#ifdef RIVE_WAGYU
         bool disableStorageBuffers = false;
+#endif
         // Invert Y when drawing to client-provided RenderTargets.
         // TODO: We may need to eventually make this configurable
         // per-RenderTarget.
@@ -70,29 +76,17 @@ protected:
                             wgpu::Queue queue,
                             const ContextOptions&);
 
-    // Create the BindGroupLayout that binds the PLS attachments as textures.
-    // This is not necessary on all implementations.
-    virtual wgpu::BindGroupLayout initTextureBindGroup()
-    {
-        // Only supported by RenderContextWebGPUVulkan for now.
-        RIVE_UNREACHABLE();
-    }
-
     // Create a standard PLS "draw" pipeline for the current implementation.
-    virtual wgpu::RenderPipeline makeDrawPipeline(
-        rive::gpu::DrawType drawType,
-        wgpu::TextureFormat framebufferFormat,
-        wgpu::ShaderModule vertexShader,
-        wgpu::ShaderModule fragmentShader,
-        EmJsHandle* pipelineJSHandleIfNeeded);
+    wgpu::RenderPipeline makeDrawPipeline(rive::gpu::DrawType drawType,
+                                          wgpu::TextureFormat framebufferFormat,
+                                          wgpu::ShaderModule vertexShader,
+                                          wgpu::ShaderModule fragmentShader);
 
     // Create a standard PLS "draw" render pass for the current implementation.
-    virtual wgpu::RenderPassEncoder makePLSRenderPass(
-        wgpu::CommandEncoder,
-        const RenderTargetWebGPU*,
-        wgpu::LoadOp,
-        const wgpu::Color& clearColor,
-        EmJsHandle* renderPassJSHandleIfNeeded);
+    wgpu::RenderPassEncoder makePLSRenderPass(wgpu::CommandEncoder,
+                                              const RenderTargetWebGPU*,
+                                              wgpu::LoadOp,
+                                              const wgpu::Color& clearColor);
 
     wgpu::Device device() const { return m_device; }
     const ContextOptions& contextOptions() const { return m_contextOptions; }
@@ -142,13 +136,14 @@ private:
     std::array<wgpu::BindGroupLayoutEntry, DRAW_BINDINGS_COUNT>
         m_perFlushBindingLayouts;
 
+#ifdef RIVE_WAGYU
     // Draws emulated render-pass load/store actions for
     // EXT_shader_pixel_local_storage.
     class LoadStoreEXTPipeline;
     std::map<LoadStoreActionsEXT, LoadStoreEXTPipeline> m_loadStoreEXTPipelines;
-    EmJsHandle m_loadStoreEXTVertexShaderHandle;
     wgpu::ShaderModule m_loadStoreEXTVertexShader;
     std::unique_ptr<BufferRing> m_loadStoreEXTUniforms;
+#endif
 
     // Blits texture-to-texture using a draw command.
     class BlitTextureAsDrawPipeline;
@@ -212,8 +207,7 @@ private:
                        const RenderContextWebGPUImpl::ContextOptions&,
                        wgpu::TextureFormat framebufferFormat,
                        uint32_t width,
-                       uint32_t height,
-                       wgpu::TextureUsage additionalTextureFlags);
+                       uint32_t height);
 
     const wgpu::TextureFormat m_framebufferFormat;
 

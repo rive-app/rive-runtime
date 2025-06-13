@@ -195,34 +195,6 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
         files({
             'webgpu_player/webgpu_player.cpp',
             'webgpu_player/index.html',
-            'webgpu_player/icons.html',
-            'webgpu_player/rive.js',
-            'webgpu_player/rivs/Santa_Claus.riv',
-            'webgpu_player/rivs/Coffee_Cup.riv',
-            'webgpu_player/rivs/skull_404.riv',
-            'webgpu_player/rivs/octopus_loop.riv',
-            'webgpu_player/rivs/planets.riv',
-            'webgpu_player/rivs/Timer.riv',
-            'webgpu_player/rivs/adventuretime_marceline-pb.riv',
-            'webgpu_player/rivs/towersDemo.riv',
-            'webgpu_player/rivs/skills_demov1.riv',
-            'webgpu_player/rivs/car_demo.riv',
-            'webgpu_player/rivs/cloud_icon.riv',
-            'webgpu_player/rivs/coffee_loader.riv',
-            'webgpu_player/rivs/documentation.riv',
-            'webgpu_player/rivs/fire_button.riv',
-            'webgpu_player/rivs/lumberjackfinal.riv',
-            'webgpu_player/rivs/mail_box.riv',
-            'webgpu_player/rivs/new_file.riv',
-            'webgpu_player/rivs/poison_loader.riv',
-            'webgpu_player/rivs/popsicle_loader.riv',
-            'webgpu_player/rivs/radio_button_example.riv',
-            'webgpu_player/rivs/avatar_demo.riv',
-            'webgpu_player/rivs/stopwatch.riv',
-            'webgpu_player/rivs/volume_bars.riv',
-            'webgpu_player/rivs/travel_icons.riv',
-            'webgpu_player/rivs/falling.riv',
-            'webgpu_player/rivs/tape.riv',
         })
 
         links({
@@ -300,11 +272,12 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
         do
             targetname('webgpu_player.js')
             linkoptions({
-                '-sEXPORTED_FUNCTIONS=_RiveInitialize,_RiveBeginRendering,_RiveFlushRendering,_RiveLoadFile,_File_artboardNamed,_File_artboardDefault,_File_destroy,_ArtboardInstance_width,_ArtboardInstance_height,_ArtboardInstance_stateMachineNamed,_ArtboardInstance_animationNamed,_ArtboardInstance_defaultStateMachine,_ArtboardInstance_align,_ArtboardInstance_destroy,_StateMachineInstance_setBool,_StateMachineInstance_setNumber,_StateMachineInstance_fireTrigger,_StateMachineInstance_pointerDown,_StateMachineInstance_pointerMove,_StateMachineInstance_pointerUp,_StateMachineInstance_advanceAndApply,_StateMachineInstance_draw,_StateMachineInstance_destroy,_LinearAnimationInstance_advanceAndApply,_LinearAnimationInstance_draw,_LinearAnimationInstance_destroy,_Renderer_save,_Renderer_restore,_Renderer_translate,_Renderer_transform,_malloc,_free',
+                '-sEXPORTED_FUNCTIONS=_animationFrame,_main,_start,_malloc,_free',
                 '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap',
-                '-sSINGLE_FILE',
                 '-sUSE_WEBGPU',
                 '-sENVIRONMENT=web,shell',
+                '-sWARN_ON_UNDEFINED_SYMBOLS=0',
+                '-sERROR_ON_UNDEFINED_SYMBOLS=0',
             })
         end
 

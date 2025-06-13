@@ -51,6 +51,15 @@ do
 end
 
 newoption({
+    trigger = 'with_wagyu',
+    description = 'compile in support for wagyu webgpu extensions',
+})
+filter({ 'options:with_wagyu' })
+do
+    defines({ 'RIVE_WAGYU' })
+end
+
+newoption({
     trigger = 'with-webgpu',
     description = 'compile in native support for webgpu',
 })

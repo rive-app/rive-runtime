@@ -12,17 +12,22 @@
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
-#include "rive/renderer/webgpu/em_js_handle.hpp"
 
 #include <cmath>
 #include <iterator>
 #include <vector>
 #include <filesystem>
 
+#include "marty.h"
+#include "egg_v2.h"
+#include "rope.h"
+
 #ifdef RIVE_WEBGPU
+#include "../src/webgpu/webgpu_compat.h"
 #include <webgpu/webgpu_cpp.h>
 #include <emscripten.h>
 #include <emscripten/html5_webgpu.h>
+#include <emscripten/html5.h>
 #else
 #include <dawn/webgpu_cpp.h>
 #include "dawn/native/DawnNative.h"
@@ -35,312 +40,178 @@ using namespace rive::gpu;
 using PixelLocalStorageType = RenderContextWebGPUImpl::PixelLocalStorageType;
 
 #ifdef RIVE_WEBGPU
-static std::unique_ptr<RenderContext> s_renderContext;
-static rcp<RenderTargetWebGPU> s_renderTarget;
-static std::unique_ptr<Renderer> s_renderer;
+static std::unique_ptr<RenderContext> renderContext;
+static rcp<RenderTargetWebGPU> renderTarget;
+static std::unique_ptr<Renderer> renderer;
 
-void riveInitPlayer(int w,
-                    int h,
-                    bool invertRenderTargetFrontFace,
-                    wgpu::Device gpu,
-                    wgpu::Queue queue,
-                    PixelLocalStorageType plsType,
-                    int maxVertexStorageBlocks)
+static WGPUInstance instance;
+static WGPUAdapter adapter;
+static wgpu::Device device;
+static WGPUSurface surface;
+static WGPUTextureFormat format = WGPUTextureFormat_Undefined;
+static wgpu::Queue queue;
+
+static std::unique_ptr<File> rivFile;
+static std::unique_ptr<ArtboardInstance> artboard;
+static std::unique_ptr<Scene> scene;
+
+extern "C" EM_BOOL animationFrame(double time, void* userData);
+extern "C" void start(void);
+
+static void requestDeviceCallback(WGPURequestDeviceStatus status,
+                                  WGPUDevice deviceArg,
+                                  const char* message,
+                                  void* userdata);
+static void requestAdapterCallback(WGPURequestAdapterStatus status,
+                                   WGPUAdapter adapterArg,
+                                   const char* message,
+                                   void* userdata);
+
+void requestDeviceCallback(WGPURequestDeviceStatus status,
+                           WGPUDevice deviceArg,
+                           const char* message,
+                           void* userdata)
 {
-    RenderContextWebGPUImpl::ContextOptions contextOptions = {
-        .plsType = plsType,
-        .disableStorageBuffers =
-            maxVertexStorageBlocks < gpu::kMaxStorageBuffers,
-        .invertRenderTargetY = h < 0,
-        .invertRenderTargetFrontFace = invertRenderTargetFrontFace,
-    };
-    s_renderContext =
-        RenderContextWebGPUImpl::MakeContext(gpu, queue, contextOptions);
-    s_renderTarget =
-        s_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-            ->makeRenderTarget(wgpu::TextureFormat::BGRA8Unorm, w, abs(h));
-    s_renderer = std::make_unique<RiveRenderer>(s_renderContext.get());
+    assert(userdata == instance);
+
+    device = wgpu::Device::Acquire(deviceArg);
+    assert(device.Get());
+
+    queue = device.GetQueue();
+    assert(queue.Get());
+
+    RenderContextWebGPUImpl::ContextOptions contextOptions;
+#ifdef RIVE_WAGYU
+    contextOptions.plsType =
+        PixelLocalStorageType::EXT_shader_pixel_local_storage;
+    // TODO: Disable storage buffers if the hardware doesn't support 4 in the
+    // vertex shader.
+    // contextOptions.disableStorageBuffers = true;
+#endif
+    renderContext =
+        RenderContextWebGPUImpl::MakeContext(device, queue, contextOptions);
+    renderTarget =
+        renderContext->static_impl_cast<RenderContextWebGPUImpl>()
+            ->makeRenderTarget(wgpu::TextureFormat::RGBA8Unorm, 1920, 1080);
+    renderer = std::make_unique<RiveRenderer>(renderContext.get());
+
+    rivFile = File::import({marty, marty_len}, renderContext.get());
+    // rivFile = File::import({egg_v2, egg_v2_len}, renderContext.get());
+    // rivFile = File::import({rope, rope_len}, renderContext.get());
+    artboard = rivFile->artboardDefault();
+    scene = artboard->defaultScene();
+    scene->advanceAndApply(0);
+
+    {
+        WGPUSurfaceDescriptorFromCanvasHTMLSelector htmlSelector = {};
+        htmlSelector.chain.sType =
+            WGPUSType_SurfaceDescriptorFromCanvasHTMLSelector;
+        htmlSelector.selector = "#canvas";
+
+        WGPUSurfaceDescriptor surfaceDesc = WGPU_SURFACE_DESCRIPTOR_INIT;
+        surfaceDesc.nextInChain = (WGPUChainedStruct*)&htmlSelector;
+
+        surface = wgpuInstanceCreateSurface(instance, &surfaceDesc);
+        assert(surface);
+    }
+
+    {
+        format = wgpuSurfaceGetPreferredFormat(surface, adapter);
+        assert(format);
+    }
+
+    {
+        WGPUSurfaceConfiguration conf = WGPU_SURFACE_CONFIGURATION_INIT;
+        conf.device = device.Get();
+        conf.format = format;
+
+        wgpuSurfaceConfigure(surface, &conf);
+    }
+
+    emscripten_set_canvas_element_size("#canvas", 1920, 1080);
+
+    emscripten_request_animation_frame_loop(animationFrame, (void*)100);
 }
 
-EmJsHandle s_deviceHandle;
-EmJsHandle s_queueHandle;
-EmJsHandle s_textureViewHandle;
-
-extern "C"
+void requestAdapterCallback(WGPURequestAdapterStatus status,
+                            WGPUAdapter adapterArg,
+                            const char* message,
+                            void* userdata)
 {
-    void EMSCRIPTEN_KEEPALIVE RiveInitialize(int deviceID,
-                                             int queueID,
-                                             int canvasWidth,
-                                             int canvasHeight,
-                                             bool invertRenderTargetFrontFace,
-                                             int pixelLocalStorageType,
-                                             int maxVertexStorageBlocks)
-    {
-        s_deviceHandle = EmJsHandle(deviceID);
-        s_queueHandle = EmJsHandle(queueID);
-        riveInitPlayer(
-            canvasWidth,
-            canvasHeight,
-            invertRenderTargetFrontFace,
-            wgpu::Device::Acquire(
-                emscripten_webgpu_import_device(s_deviceHandle.get())),
-            emscripten_webgpu_import_queue(s_queueHandle.get()),
-            static_cast<PixelLocalStorageType>(pixelLocalStorageType),
-            maxVertexStorageBlocks);
-    }
+    assert(adapterArg);
+    assert(status == WGPURequestAdapterStatus_Success);
+    assert(userdata == instance);
+    adapter = adapterArg;
 
-    intptr_t EMSCRIPTEN_KEEPALIVE RiveBeginRendering(int textureViewID,
-                                                     int loadAction,
-                                                     ColorInt clearColor)
-    {
-        s_textureViewHandle = EmJsHandle(textureViewID);
-        auto targetTextureView = wgpu::TextureView::Acquire(
-            emscripten_webgpu_import_texture_view(s_textureViewHandle.get()));
-        s_renderTarget->setTargetTextureView(targetTextureView);
+    WGPUDeviceDescriptor descriptor = WGPU_DEVICE_DESCRIPTOR_INIT;
 
-        s_renderContext->beginFrame({
-            .renderTargetWidth = s_renderTarget->width(),
-            .renderTargetHeight = s_renderTarget->height(),
-            .loadAction = static_cast<gpu::LoadAction>(loadAction),
-            .clearColor = clearColor,
-        });
-
-        s_renderer->save();
-        return reinterpret_cast<intptr_t>(s_renderer.get());
-    }
-
-    void EMSCRIPTEN_KEEPALIVE RiveFlushRendering()
-    {
-        s_renderer->restore();
-        s_renderContext->flush({.renderTarget = s_renderTarget.get()});
-        s_textureViewHandle = EmJsHandle();
-    }
-
-    intptr_t EMSCRIPTEN_KEEPALIVE RiveLoadFile(intptr_t wasmBytesPtr,
-                                               size_t length)
-    {
-        const uint8_t* bytes = reinterpret_cast<const uint8_t*>(wasmBytesPtr);
-        std::unique_ptr<File> file =
-            File::import({bytes, length}, s_renderContext.get());
-        return reinterpret_cast<intptr_t>(file.release());
-    }
-
-    intptr_t EMSCRIPTEN_KEEPALIVE File_artboardNamed(intptr_t nativePtr,
-                                                     const char* name)
-    {
-        auto file = reinterpret_cast<File*>(nativePtr);
-        std::unique_ptr<ArtboardInstance> artboard = file->artboardNamed(name);
-        return reinterpret_cast<intptr_t>(artboard.release());
-    }
-
-    intptr_t EMSCRIPTEN_KEEPALIVE File_artboardDefault(intptr_t nativePtr)
-    {
-        auto file = reinterpret_cast<File*>(nativePtr);
-        std::unique_ptr<ArtboardInstance> artboard = file->artboardDefault();
-        return reinterpret_cast<intptr_t>(artboard.release());
-    }
-
-    void EMSCRIPTEN_KEEPALIVE File_destroy(intptr_t nativePtr)
-    {
-        auto file = reinterpret_cast<File*>(nativePtr);
-        delete file;
-    }
-
-    int EMSCRIPTEN_KEEPALIVE ArtboardInstance_width(intptr_t nativePtr)
-    {
-        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        return artboard->bounds().width();
-    }
-
-    int EMSCRIPTEN_KEEPALIVE ArtboardInstance_height(intptr_t nativePtr)
-    {
-        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        return artboard->bounds().height();
-    }
-
-    intptr_t EMSCRIPTEN_KEEPALIVE
-    ArtboardInstance_stateMachineNamed(intptr_t nativePtr, const char* name)
-    {
-        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        std::unique_ptr<StateMachineInstance> stateMachine =
-            artboard->stateMachineNamed(name);
-        return reinterpret_cast<intptr_t>(stateMachine.release());
-    }
-
-    intptr_t EMSCRIPTEN_KEEPALIVE
-    ArtboardInstance_animationNamed(intptr_t nativePtr, const char* name)
-    {
-        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        std::unique_ptr<LinearAnimationInstance> animation =
-            artboard->animationNamed(name);
-        return reinterpret_cast<intptr_t>(animation.release());
-    }
-
-    intptr_t EMSCRIPTEN_KEEPALIVE
-    ArtboardInstance_defaultStateMachine(intptr_t nativePtr)
-    {
-        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        std::unique_ptr<StateMachineInstance> stateMachine =
-            artboard->defaultStateMachine();
-        return reinterpret_cast<intptr_t>(stateMachine.release());
-    }
-
-    void EMSCRIPTEN_KEEPALIVE ArtboardInstance_align(intptr_t nativePtr,
-                                                     intptr_t rendererNativePtr,
-                                                     float frameLeft,
-                                                     float frameTop,
-                                                     float frameRight,
-                                                     float frameBot,
-                                                     int fitValue,
-                                                     float alignmentX,
-                                                     float alignmentY)
-    {
-        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        auto renderer = reinterpret_cast<RiveRenderer*>(rendererNativePtr);
-        auto fit = static_cast<Fit>(fitValue);
-        Alignment alignment = {alignmentX, alignmentY};
-        AABB frame = {frameLeft, frameTop, frameRight, frameBot};
-        renderer->align(fit, alignment, frame, artboard->bounds());
-    }
-
-    void EMSCRIPTEN_KEEPALIVE ArtboardInstance_destroy(intptr_t nativePtr)
-    {
-        auto artboard = reinterpret_cast<ArtboardInstance*>(nativePtr);
-        delete artboard;
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    StateMachineInstance_setBool(intptr_t nativePtr,
-                                 const char* inputName,
-                                 int value)
-    {
-        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        if (SMIBool* input = stateMachine->getBool(inputName))
-        {
-            input->value(static_cast<bool>(value));
-        }
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    StateMachineInstance_setNumber(intptr_t nativePtr,
-                                   const char* inputName,
-                                   float value)
-    {
-        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        if (SMINumber* input = stateMachine->getNumber(inputName))
-        {
-            input->value(value);
-        }
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    StateMachineInstance_fireTrigger(intptr_t nativePtr, const char* inputName)
-    {
-        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        if (SMITrigger* input = stateMachine->getTrigger(inputName))
-        {
-            input->fire();
-        }
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    StateMachineInstance_pointerDown(intptr_t nativePtr, float x, float y)
-    {
-        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        stateMachine->pointerDown({x, y});
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    StateMachineInstance_pointerMove(intptr_t nativePtr, float x, float y)
-    {
-        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        stateMachine->pointerMove({x, y});
-    }
-
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_pointerUp(intptr_t nativePtr,
-                                                             float x,
-                                                             float y)
-    {
-        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        stateMachine->pointerUp({x, y});
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    StateMachineInstance_advanceAndApply(intptr_t nativePtr, double elapsed)
-    {
-        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        stateMachine->advanceAndApply(elapsed);
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    StateMachineInstance_draw(intptr_t nativePtr, intptr_t rendererNativePtr)
-    {
-        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        auto renderer = reinterpret_cast<RiveRenderer*>(rendererNativePtr);
-        stateMachine->draw(renderer);
-    }
-
-    void EMSCRIPTEN_KEEPALIVE StateMachineInstance_destroy(intptr_t nativePtr)
-    {
-        auto stateMachine = reinterpret_cast<StateMachineInstance*>(nativePtr);
-        delete stateMachine;
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    LinearAnimationInstance_advanceAndApply(intptr_t nativePtr, double elapsed)
-    {
-        auto animation = reinterpret_cast<LinearAnimationInstance*>(nativePtr);
-        animation->advanceAndApply(elapsed);
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    LinearAnimationInstance_draw(intptr_t nativePtr, intptr_t rendererNativePtr)
-    {
-        auto animation = reinterpret_cast<LinearAnimationInstance*>(nativePtr);
-        auto renderer = reinterpret_cast<RiveRenderer*>(rendererNativePtr);
-        animation->draw(renderer);
-    }
-
-    void EMSCRIPTEN_KEEPALIVE
-    LinearAnimationInstance_destroy(intptr_t nativePtr)
-    {
-        auto animation = reinterpret_cast<LinearAnimationInstance*>(nativePtr);
-        delete animation;
-    }
-
-    void EMSCRIPTEN_KEEPALIVE Renderer_save(intptr_t nativePtr)
-    {
-        auto renderer = reinterpret_cast<RiveRenderer*>(nativePtr);
-        renderer->save();
-    }
-
-    void EMSCRIPTEN_KEEPALIVE Renderer_restore(intptr_t nativePtr)
-    {
-        auto renderer = reinterpret_cast<RiveRenderer*>(nativePtr);
-        renderer->restore();
-    }
-
-    void EMSCRIPTEN_KEEPALIVE Renderer_translate(intptr_t nativePtr,
-                                                 float x,
-                                                 float y)
-    {
-        auto renderer = reinterpret_cast<RiveRenderer*>(nativePtr);
-        renderer->translate(x, y);
-    }
-
-    void EMSCRIPTEN_KEEPALIVE Renderer_transform(intptr_t nativePtr,
-                                                 float xx,
-                                                 float xy,
-                                                 float yx,
-                                                 float yy,
-                                                 float tx,
-                                                 float ty)
-    {
-        auto renderer = reinterpret_cast<RiveRenderer*>(nativePtr);
-        Mat2D matrix(xx, xy, yx, yy, tx, ty);
-        renderer->transform(matrix);
-    }
+    wgpuAdapterRequestDevice(adapter,
+                             &descriptor,
+                             requestDeviceCallback,
+                             userdata);
 }
+
+static double lastTime = 0;
+extern "C" EM_BOOL animationFrame(double time, void* userData)
+{
+    (void)time;
+    (void)userData;
+
+    WGPUSurfaceTexture surfaceTexture = WGPU_SURFACE_TEXTURE_INIT;
+
+    wgpuSurfaceGetCurrentTexture(surface, &surfaceTexture);
+
+    WGPUTexture texture = surfaceTexture.texture;
+
+    WGPUTextureViewDescriptor textureViewDesc =
+        WGPU_TEXTURE_VIEW_DESCRIPTOR_INIT;
+    textureViewDesc.format = format;
+    textureViewDesc.dimension = WGPUTextureViewDimension_2D;
+
+    WGPUTextureView textureView =
+        wgpuTextureCreateView(texture, &textureViewDesc);
+
+    scene->advanceAndApply(lastTime == 0 ? 0 : (time - lastTime) * 1e-3f);
+    lastTime = time;
+
+    renderContext->beginFrame({
+        .renderTargetWidth = renderTarget->width(),
+        .renderTargetHeight = renderTarget->height(),
+        .loadAction = gpu::LoadAction::clear,
+        .clearColor = 0xff8030ff,
+    });
+
+    renderer->save();
+    renderer->transform(computeAlignment(rive::Fit::contain,
+                                         rive::Alignment::center,
+                                         rive::AABB(0, 0, 1920, 1080),
+                                         artboard->bounds()));
+    scene->draw(renderer.get());
+    renderer->restore();
+
+    renderTarget->setTargetTextureView(textureView);
+    renderContext->flush({.renderTarget = renderTarget.get()});
+
+    wgpuTextureViewRelease(textureView);
+    wgpuTextureRelease(texture);
+
+    return EM_TRUE;
+}
+
+int main(void)
+{
+    instance = wgpuCreateInstance(NULL);
+    assert(instance);
+
+    wgpuInstanceRequestAdapter(instance,
+                               NULL,
+                               requestAdapterCallback,
+                               instance);
+
+    return 0;
+}
+
+extern "C" void start(void) { main(); }
 
 #endif
 
