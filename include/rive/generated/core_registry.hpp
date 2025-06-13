@@ -122,6 +122,7 @@
 #include "rive/container_component.hpp"
 #include "rive/custom_property.hpp"
 #include "rive/custom_property_boolean.hpp"
+#include "rive/custom_property_color.hpp"
 #include "rive/custom_property_group.hpp"
 #include "rive/custom_property_number.hpp"
 #include "rive/custom_property_string.hpp"
@@ -385,6 +386,8 @@ public:
                 return new NestedArtboard();
             case ArtboardComponentListBase::typeKey:
                 return new ArtboardComponentList();
+            case CustomPropertyColorBase::typeKey:
+                return new CustomPropertyColor();
             case SoloBase::typeKey:
                 return new Solo();
             case NestedArtboardLayoutBase::typeKey:
@@ -1380,6 +1383,9 @@ public:
         {
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceColorBase>()->propertyValue(value);
+                break;
+            case CustomPropertyColorBase::propertyValuePropertyKey:
+                object->as<CustomPropertyColorBase>()->propertyValue(value);
                 break;
             case KeyFrameColorBase::valuePropertyKey:
                 object->as<KeyFrameColorBase>()->value(value);
@@ -2716,6 +2722,8 @@ public:
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceColorBase>()
                     ->propertyValue();
+            case CustomPropertyColorBase::propertyValuePropertyKey:
+                return object->as<CustomPropertyColorBase>()->propertyValue();
             case KeyFrameColorBase::valuePropertyKey:
                 return object->as<KeyFrameColorBase>()->value();
             case TransitionValueColorComparatorBase::valuePropertyKey:
@@ -3514,6 +3522,7 @@ public:
             case AudioEventBase::assetIdPropertyKey:
                 return CoreUintType::id;
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
+            case CustomPropertyColorBase::propertyValuePropertyKey:
             case KeyFrameColorBase::valuePropertyKey:
             case TransitionValueColorComparatorBase::valuePropertyKey:
             case SolidColorBase::colorValuePropertyKey:
@@ -4213,6 +4222,8 @@ public:
                 return object->is<AudioEventBase>();
             case ViewModelInstanceColorBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceColorBase>();
+            case CustomPropertyColorBase::propertyValuePropertyKey:
+                return object->is<CustomPropertyColorBase>();
             case KeyFrameColorBase::valuePropertyKey:
                 return object->is<KeyFrameColorBase>();
             case TransitionValueColorComparatorBase::valuePropertyKey:
