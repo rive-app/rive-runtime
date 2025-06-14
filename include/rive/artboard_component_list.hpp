@@ -105,7 +105,7 @@ private:
     std::unordered_map<ViewModelInstanceListItem*,
                        std::unique_ptr<StateMachineInstance>>
         m_stateMachinesMap;
-    File* m_file;
+    File* m_file = nullptr;
 };
 } // namespace rive
 
