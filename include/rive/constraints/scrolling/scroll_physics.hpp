@@ -41,6 +41,7 @@ public:
     virtual bool isRunning() { return m_isRunning; }
     virtual void prepare(DraggableConstraintDirection dir)
     {
+        reset();
         m_direction = dir;
     }
     virtual Vec2D clamp(Vec2D range, Vec2D value) { return Vec2D(); };
