@@ -52,3 +52,48 @@ TEST_CASE("data bind lists reset triggers", "[silver]")
 
     CHECK(silver.matches("viewmodel_list_trigger"));
 }
+
+TEST_CASE("data bind list with number to list and lists children", "[silver]")
+{
+    SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/number_to_list_nested_children.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    // First frame
+    artboard->draw(renderer.get());
+    // Second frame
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    // Third frame: tapping on first nested child of first child should turn
+    // green only that instance
+    stateMachine->pointerDown(rive::Vec2D(20, 80));
+    stateMachine->pointerUp(rive::Vec2D(20, 80));
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    // Fourth frame: tapping on last nested child of last child should turn
+    // green only that instance
+    stateMachine->pointerDown(rive::Vec2D(460, 180));
+    stateMachine->pointerUp(rive::Vec2D(460, 180));
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("number_to_list_nested_children"));
+}

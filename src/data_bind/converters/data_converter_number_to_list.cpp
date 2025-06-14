@@ -32,12 +32,11 @@ DataValue* DataConverterNumberToList::convert(DataValue* input,
             auto viewModel = m_file->viewModel(viewModelId());
             if (count > m_listItems.size())
             {
-                auto defaultInstance = viewModel->defaultInstance();
                 while (m_listItems.size() < count)
                 {
                     auto item = new ViewModelInstanceListItem();
-                    auto copy = rcp<ViewModelInstance>(
-                        defaultInstance->clone()->as<ViewModelInstance>());
+                    auto copy =
+                        m_file->createDefaultViewModelInstance(viewModel);
                     item->viewModelInstance(copy);
                     m_listItems.push_back(item);
                 }
