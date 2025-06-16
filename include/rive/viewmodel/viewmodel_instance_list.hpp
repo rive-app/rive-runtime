@@ -12,7 +12,6 @@ public:
     void addItem(ViewModelInstanceListItem* listItem);
     bool addItemAt(ViewModelInstanceListItem* listItem, int index);
     void internalAddItem(ViewModelInstanceListItem* listItem);
-    void insertItem(int index, ViewModelInstanceListItem* listItem);
     void removeItem(int index);
     void removeItem(ViewModelInstanceListItem* listItem);
     std::vector<ViewModelInstanceListItem*> listItems() { return m_ListItems; };

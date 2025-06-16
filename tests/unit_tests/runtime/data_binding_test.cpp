@@ -18,8 +18,11 @@
 #include <rive/viewmodel/viewmodel_instance_boolean.hpp>
 #include <rive/viewmodel/viewmodel_instance_enum.hpp>
 #include <rive/viewmodel/viewmodel_instance_trigger.hpp>
+#include <rive/viewmodel/viewmodel_instance_list.hpp>
+#include <rive/viewmodel/viewmodel_instance_list_item.hpp>
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/nested_artboard.hpp"
+#include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
 #include <cstdio>
@@ -896,4 +899,180 @@ TEST_CASE("Triggers updated by events correctly update state", "[data binding]")
     machine->advanceAndApply(0.1f);
     REQUIRE(rectMappadFill->paint()->as<rive::SolidColor>()->colorValue() ==
             rive::colorARGB(255, 0, 255, 0));
+}
+
+TEST_CASE("Transition self conditions", "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/transition_self_comparator_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    auto numProp =
+        vmi->propertyValue("num")->as<rive::ViewModelInstanceNumber>();
+    auto triggerProp =
+        vmi->propertyValue("tri")->as<rive::ViewModelInstanceTrigger>();
+    auto colorProp =
+        vmi->propertyValue("col")->as<rive::ViewModelInstanceColor>();
+    auto bolProp =
+        vmi->propertyValue("bol")->as<rive::ViewModelInstanceBoolean>();
+    auto stringProp =
+        vmi->propertyValue("str")->as<rive::ViewModelInstanceString>();
+    auto lisProp = vmi->propertyValue("lis")->as<rive::ViewModelInstanceList>();
+
+    // Number value changes once triggering a state transition
+    silver.addFrame();
+    numProp->propertyValue(20);
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Setting number property to same value doesn't trigger state transition
+    silver.addFrame();
+    numProp->propertyValue(20);
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Updating number property twice triggers single state transition
+    silver.addFrame();
+    numProp->propertyValue(10);
+    numProp->propertyValue(20);
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Updating two properties triggers transition in different layers
+    silver.addFrame();
+    numProp->propertyValue(10);
+    triggerProp->trigger();
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Updating color property twice triggers state transition
+    silver.addFrame();
+    colorProp->propertyValue(rive::colorARGB(100, 0, 10, 15));
+    colorProp->propertyValue(rive::colorARGB(101, 0, 10, 15));
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Updating color property once more triggers state transition
+    silver.addFrame();
+    colorProp->propertyValue(rive::colorARGB(102, 0, 10, 15));
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Updating boolean property twice triggers state transition
+    silver.addFrame();
+    bolProp->propertyValue(true);
+    bolProp->propertyValue(false);
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Updating boolean property once more triggers state transition
+    silver.addFrame();
+    bolProp->propertyValue(true);
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Updating string property twice triggers state transition
+    silver.addFrame();
+    stringProp->propertyValue("a");
+    stringProp->propertyValue("b");
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Updating string property once more triggers state transition
+    silver.addFrame();
+    stringProp->propertyValue("c");
+    stateMachine->advanceAndApply(0.0f);
+    artboard->draw(renderer.get());
+
+    // Updating list property by adding two items to the list triggers a single
+    // state transition
+    {
+        silver.addFrame();
+        auto itemList = new rive::ViewModelInstanceListItem();
+        lisProp->addItem(itemList);
+        itemList->unref();
+        auto itemList2 = new rive::ViewModelInstanceListItem();
+        lisProp->addItem(itemList2);
+        itemList2->unref();
+        stateMachine->advanceAndApply(0.0f);
+        artboard->draw(renderer.get());
+    }
+
+    // Updating list property by adding one item to the list triggers a single
+    // state transition
+    {
+        silver.addFrame();
+        auto itemList = new rive::ViewModelInstanceListItem();
+        lisProp->addItem(itemList);
+        itemList->unref();
+        stateMachine->advanceAndApply(0.0f);
+        artboard->draw(renderer.get());
+    }
+
+    // Updating list property by adding one item at a specific position triggers
+    // a state transition
+    {
+        silver.addFrame();
+        auto itemList = new rive::ViewModelInstanceListItem();
+        lisProp->addItemAt(itemList, 0);
+        itemList->unref();
+        stateMachine->advanceAndApply(0.0f);
+        artboard->draw(renderer.get());
+    }
+
+    // Updating list property by adding one item at a at an invalid position
+    // does not trigger a state transition
+    {
+        silver.addFrame();
+        auto itemList = new rive::ViewModelInstanceListItem();
+        lisProp->addItemAt(itemList, 10);
+        itemList->unref();
+        stateMachine->advanceAndApply(0.0f);
+        artboard->draw(renderer.get());
+    }
+
+    // Updating list property swapping items triggers a state transition
+    {
+        silver.addFrame();
+        lisProp->swap(0, 1);
+        stateMachine->advanceAndApply(0.0f);
+        artboard->draw(renderer.get());
+    }
+
+    // Removing item from list by index triggers a state transition
+    {
+        silver.addFrame();
+        lisProp->removeItem(0);
+        stateMachine->advanceAndApply(0.0f);
+        artboard->draw(renderer.get());
+    }
+
+    // Removing item from list by index outside of range doesn't trigger a state
+    // transition
+    {
+        silver.addFrame();
+        lisProp->removeItem(10);
+        stateMachine->advanceAndApply(0.0f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("transition_self_comparator_test"));
 }

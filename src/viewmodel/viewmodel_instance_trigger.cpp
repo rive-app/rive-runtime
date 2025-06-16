@@ -16,10 +16,11 @@ void ViewModelInstanceTrigger::propertyValueChanged()
         m_changedCallback(this, propertyValue());
     }
 #endif
+    onValueChanged();
 }
 
 void ViewModelInstanceTrigger::advanced()
 {
     propertyValue(0);
-    m_usedLayers.clear();
+    ViewModelInstanceValue::advanced();
 }

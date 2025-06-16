@@ -17,6 +17,7 @@ void ViewModelInstanceEnum::propertyValueChanged()
         m_changedCallback(this, propertyValue());
     }
 #endif
+    onValueChanged();
 }
 
 bool ViewModelInstanceEnum::value(std::string name)

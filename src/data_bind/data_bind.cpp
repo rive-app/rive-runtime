@@ -7,6 +7,7 @@
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
+#include "rive/data_bind/bindable_property_list.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/bindable_property_integer.hpp"
@@ -74,6 +75,7 @@ StatusCode DataBind::import(ImportStack& importStack)
                 case BindablePropertyTriggerBase::typeKey:
                 case BindablePropertyIntegerBase::typeKey:
                 case BindablePropertyAssetBase::typeKey:
+                case BindablePropertyListBase::typeKey:
                 case TransitionPropertyViewModelComparatorBase::typeKey:
                 case StateTransitionBase::typeKey:
                 {

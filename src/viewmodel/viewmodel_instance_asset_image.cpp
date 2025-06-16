@@ -17,6 +17,7 @@ void ViewModelInstanceAssetImage::propertyValueChanged()
         m_changedCallback(this, propertyValue());
     }
 #endif
+    onValueChanged();
 }
 
 void ViewModelInstanceAssetImage::value(RenderImage* image)

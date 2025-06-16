@@ -458,6 +458,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case BindablePropertyAsset::typeKey:
             case BindablePropertyTrigger::typeKey:
             case BindablePropertyInteger::typeKey:
+            case BindablePropertyList::typeKey:
                 stackObject = rivestd::make_unique<BindablePropertyImporter>(
                     object->as<BindableProperty>());
                 stackType = BindablePropertyBase::typeKey;

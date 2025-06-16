@@ -19,6 +19,7 @@ ViewModelInstanceList::~ViewModelInstanceList()
 void ViewModelInstanceList::propertyValueChanged()
 {
     addDirt(ComponentDirt::Bindings);
+    onValueChanged();
 }
 
 void ViewModelInstanceList::addItem(ViewModelInstanceListItem* item)
@@ -46,18 +47,6 @@ void ViewModelInstanceList::internalAddItem(ViewModelInstanceListItem* item)
     // For ViewModelInstanceListItems that are built as a core object
     // we skip the ref since core has already reffed it
     m_ListItems.push_back(item);
-}
-
-void ViewModelInstanceList::insertItem(int index,
-                                       ViewModelInstanceListItem* item)
-{
-    // TODO: @hernan decide if we want to return a boolean
-    if (index < m_ListItems.size())
-    {
-        item->ref();
-        m_ListItems.insert(m_ListItems.begin() + index, item);
-        propertyValueChanged();
-    }
 }
 
 void ViewModelInstanceList::removeItem(int index)
@@ -120,4 +109,5 @@ void ViewModelInstanceList::advanced()
             item->viewModelInstance()->advanced();
         }
     }
+    ViewModelInstanceValue::advanced();
 }

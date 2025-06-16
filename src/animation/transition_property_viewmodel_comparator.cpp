@@ -1,4 +1,5 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
+#include "rive/animation/transition_self_comparator.hpp"
 #include "rive/animation/transition_value_number_comparator.hpp"
 #include "rive/animation/transition_value_string_comparator.hpp"
 #include "rive/animation/transition_value_color_comparator.hpp"
@@ -69,6 +70,27 @@ bool TransitionPropertyViewModelComparator::compare(
     const StateMachineInstance* stateMachineInstance,
     StateMachineLayerInstance* layerInstance)
 {
+    if (comparand->is<TransitionSelfComparator>())
+    {
+        auto bindableInstance =
+            stateMachineInstance->bindablePropertyInstance(m_bindableProperty);
+        auto dataBind =
+            stateMachineInstance->bindableDataBindToTarget(bindableInstance);
+        if (dataBind != nullptr)
+        {
+            auto source = dataBind->source();
+            if (source != nullptr && source->hasChanged())
+            {
+                if (source->isUsedInLayer(layerInstance))
+                {
+
+                    return false;
+                }
+                return true;
+            }
+        }
+        return false;
+    }
     switch (m_bindableProperty->coreType())
     {
         case BindablePropertyNumber::typeKey:
@@ -274,9 +296,9 @@ void TransitionPropertyViewModelComparator::useInLayer(
     auto dataBind =
         stateMachineInstance->bindableDataBindToTarget(bindableInstance);
     auto source = dataBind->source();
-    if (source != nullptr && source->is<ViewModelInstanceTrigger>())
+    if (source != nullptr)
     {
-        source->as<ViewModelInstanceTrigger>()->useInLayer(layerInstance);
+        source->useInLayer(layerInstance);
     }
 }
 

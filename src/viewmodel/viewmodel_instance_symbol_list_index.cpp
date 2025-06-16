@@ -16,4 +16,5 @@ void ViewModelInstanceSymbolListIndex::propertyValueChanged()
         m_changedCallback(this, propertyValue());
     }
 #endif
+    onValueChanged();
 }

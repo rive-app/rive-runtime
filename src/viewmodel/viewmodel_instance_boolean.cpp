@@ -16,4 +16,5 @@ void ViewModelInstanceBoolean::propertyValueChanged()
         m_changedCallback(this, propertyValue());
     }
 #endif
+    onValueChanged();
 }

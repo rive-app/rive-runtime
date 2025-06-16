@@ -70,6 +70,7 @@
 #include "rive/animation/transition_property_artboard_comparator.hpp"
 #include "rive/animation/transition_property_comparator.hpp"
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
+#include "rive/animation/transition_self_comparator.hpp"
 #include "rive/animation/transition_trigger_condition.hpp"
 #include "rive/animation/transition_value_boolean_comparator.hpp"
 #include "rive/animation/transition_value_color_comparator.hpp"
@@ -406,6 +407,8 @@ public:
                 return new NSlicedNode();
             case ListenerFireEventBase::typeKey:
                 return new ListenerFireEvent();
+            case TransitionSelfComparatorBase::typeKey:
+                return new TransitionSelfComparator();
             case TransitionValueTriggerComparatorBase::typeKey:
                 return new TransitionValueTriggerComparator();
             case KeyFrameUintBase::typeKey:

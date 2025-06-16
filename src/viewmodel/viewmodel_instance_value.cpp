@@ -63,3 +63,9 @@ const std::string& ViewModelInstanceValue::name() const
     };
     return defaultName;
 }
+
+void ViewModelInstanceValue::advanced()
+{
+    m_usedLayers.clear();
+    m_hasChanged = false;
+};
