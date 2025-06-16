@@ -158,13 +158,16 @@ void RectanglesToContour::addRect(const AABB& rect)
 {
     if (!m_rects.empty())
     {
-        auto& last = m_rects.back();
+        AABB& last = m_rects.back();
         if (last.minY == rect.minY && last.maxY == rect.maxY &&
             last.maxX == rect.minX)
         {
+            float minX = last.minX;
+            float minY = last.minY;
+            float maxY = last.maxY;
+
             m_rects.pop_back();
-            m_rects.emplace_back(
-                AABB(last.minX, last.minY, rect.maxX, last.maxY));
+            m_rects.emplace_back(AABB(minX, minY, rect.maxX, maxY));
             return;
         }
     }
