@@ -60,9 +60,10 @@ TEST_CASE("list to length converter", "[silver]")
         artboard->draw(renderer.get());
     }
 
-    CHECK(silver.matches("list_to_length_test"));
     for (auto& item : items)
     {
         delete item;
     }
+
+    CHECK(silver.matches("list_to_length_test"));
 }
