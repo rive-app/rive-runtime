@@ -233,6 +233,45 @@ ViewModelInstanceHandle CommandQueue::referenceNestedViewModelInstance(
     return viewHandle;
 }
 
+ViewModelInstanceHandle CommandQueue::referenceListViewModelInstance(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    int index,
+    ViewModelInstanceListener* listener,
+    uint64_t requestId)
+{
+    auto viewHandle = reinterpret_cast<ViewModelInstanceHandle>(
+        ++m_currentViewModelHandleIdx);
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = handle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(viewHandle, listener);
+    }
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::refListViewModel;
+    m_commandStream << handle;
+    m_commandStream << index;
+    m_commandStream << viewHandle;
+    m_commandStream << requestId;
+    m_names << path;
+
+    return viewHandle;
+}
+
+void CommandQueue::fireViewModelTrigger(ViewModelInstanceHandle handle,
+                                        std::string path,
+                                        uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::trigger;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
 void CommandQueue::setViewModelInstanceBool(ViewModelInstanceHandle handle,
                                             std::string path,
                                             bool value,
@@ -303,6 +342,20 @@ void CommandQueue::setViewModelInstanceString(ViewModelInstanceHandle handle,
     m_names << value;
 }
 
+void CommandQueue::setViewModelInstanceImage(ViewModelInstanceHandle handle,
+                                             std::string path,
+                                             RenderImageHandle value,
+                                             uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::assetImage;
+    m_commandStream << requestId;
+    m_commandStream << value;
+    m_names << path;
+}
+
 void CommandQueue::setViewModelInstanceNestedViewModel(
     ViewModelInstanceHandle handle,
     std::string path,
@@ -315,6 +368,81 @@ void CommandQueue::setViewModelInstanceNestedViewModel(
     m_commandStream << DataType::viewModel;
     m_commandStream << requestId;
     m_commandStream << value;
+    m_names << path;
+}
+
+void CommandQueue::insertViewModelInstanceListViewModel(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    ViewModelInstanceHandle value,
+    int index,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::addViewModelListValue;
+    m_commandStream << handle;
+    m_commandStream << value;
+    m_commandStream << index;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
+void CommandQueue::removeViewModelInstanceListViewModel(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    int index,
+    ViewModelInstanceHandle value,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::removeViewModelListValue;
+    m_commandStream << handle;
+    m_commandStream << value;
+    m_commandStream << index;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
+void CommandQueue::swapViewModelInstanceListValues(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    int indexa,
+    int indexb,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::swapViewModelListValue;
+    m_commandStream << handle;
+    m_commandStream << indexa;
+    m_commandStream << indexb;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
+void CommandQueue::subscribeToViewModelProperty(ViewModelInstanceHandle handle,
+                                                std::string path,
+                                                DataType type,
+                                                uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::subscribeViewModelProperty;
+    m_commandStream << handle;
+    m_commandStream << type;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
+void CommandQueue::unsubscribeToViewModelProperty(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    DataType type,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::unsubscribeViewModelProperty;
+    m_commandStream << handle;
+    m_commandStream << type;
+    m_commandStream << requestId;
     m_names << path;
 }
 
@@ -421,6 +549,38 @@ void CommandQueue::deleteStateMachine(StateMachineHandle stateMachineHandle,
     m_commandStream << requestId;
 }
 
+RenderImageHandle CommandQueue::decodeImage(
+    std::vector<uint8_t> imageEncodedBytes,
+    RenderImageListener* listener,
+    uint64_t requestId)
+{
+    auto handle =
+        reinterpret_cast<RenderImageHandle>(++m_currentRenderImageHandleIdx);
+
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = handle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(handle, listener);
+    }
+
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::decodeImage;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_byteVectors << std::move(imageEncodedBytes);
+    return handle;
+}
+
+void CommandQueue::deleteImage(RenderImageHandle handle, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::deleteImage;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+}
+
 DrawKey CommandQueue::createDrawKey()
 {
     // lock here so we can do this from several threads safely
@@ -502,6 +662,15 @@ void CommandQueue::requestArtboardNames(FileHandle fileHandle,
     m_commandStream << requestId;
 }
 
+void CommandQueue::requestViewModelEnums(FileHandle fileHandle,
+                                         uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::listViewModelEnums;
+    m_commandStream << fileHandle;
+    m_commandStream << requestId;
+}
+
 void CommandQueue::requestViewModelPropertyDefinitions(
     FileHandle handle,
     std::string viewModelName,
@@ -530,7 +699,7 @@ void CommandQueue::requestViewModelInstanceBool(ViewModelInstanceHandle handle,
                                                 uint64_t requestId)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << Command::listViewModelPropertyValue;
     m_commandStream << DataType::boolean;
     m_commandStream << handle;
     m_commandStream << requestId;
@@ -543,7 +712,7 @@ void CommandQueue::requestViewModelInstanceNumber(
     uint64_t requestId)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << Command::listViewModelPropertyValue;
     m_commandStream << DataType::number;
     m_commandStream << handle;
     m_commandStream << requestId;
@@ -555,7 +724,7 @@ void CommandQueue::requestViewModelInstanceColor(ViewModelInstanceHandle handle,
                                                  uint64_t requestId)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << Command::listViewModelPropertyValue;
     m_commandStream << DataType::color;
     m_commandStream << handle;
     m_commandStream << requestId;
@@ -567,7 +736,7 @@ void CommandQueue::requestViewModelInstanceEnum(ViewModelInstanceHandle handle,
                                                 uint64_t requestId)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << Command::listViewModelPropertyValue;
     m_commandStream << DataType::enumType;
     m_commandStream << handle;
     m_commandStream << requestId;
@@ -580,8 +749,20 @@ void CommandQueue::requestViewModelInstanceString(
     uint64_t requestId)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
-    m_commandStream << Command::listViewModelPropertieValue;
+    m_commandStream << Command::listViewModelPropertyValue;
     m_commandStream << DataType::string;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << path;
+}
+
+void CommandQueue::requestViewModelInstanceListSize(
+    ViewModelInstanceHandle handle,
+    std::string path,
+    uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::getViewModelListSize;
     m_commandStream << handle;
     m_commandStream << requestId;
     m_names << path;
@@ -617,6 +798,37 @@ void CommandQueue::processMessages()
             case Message::messageLoopBreak:
                 lock.unlock();
                 return;
+            case Message::viewModelEnumsListed:
+            {
+                size_t numEnums;
+                FileHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                m_messageStream >> numEnums;
+                std::vector<ViewModelEnum> enums(numEnums);
+                for (auto& enumData : enums)
+                {
+                    size_t numEnumDataValue;
+                    m_messageStream >> numEnumDataValue;
+                    m_messageNames >> enumData.name;
+                    enumData.enumerants.resize(numEnumDataValue);
+                    for (auto& enumDataValue : enumData.enumerants)
+                    {
+                        m_messageNames >> enumDataValue;
+                    }
+                }
+                lock.unlock();
+
+                auto itr = m_fileListeners.find(handle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onViewModelEnumsListed(itr->first,
+                                                        requestId,
+                                                        std::move(enums));
+                }
+                break;
+            }
             case Message::artboardsListed:
             {
                 size_t numArtboards;
@@ -768,6 +980,10 @@ void CommandQueue::processMessages()
 
                 switch (value.metaData.type)
                 {
+                    case DataType::assetImage:
+                    case DataType::list:
+                    case DataType::trigger:
+                        break;
                     case DataType::boolean:
                         m_messageStream >> value.boolValue;
                         break;
@@ -798,6 +1014,43 @@ void CommandQueue::processMessages()
                 break;
             }
 
+            case Message::viewModelListSizeReceived:
+            {
+                ViewModelInstanceHandle handle;
+                std::string path;
+                size_t size;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> size;
+                m_messageStream >> requestId;
+                m_messageNames >> path;
+                lock.unlock();
+                auto itr = m_viewModelListeners.find(handle);
+                if (itr != m_viewModelListeners.end())
+                {
+                    itr->second->onViewModelListSizeReceived(handle,
+                                                             std::move(path),
+                                                             size,
+                                                             requestId);
+                }
+                break;
+            }
+
+            case Message::fileLoaded:
+            {
+                FileHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                auto itr = m_fileListeners.find(handle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onFileLoaded(handle, requestId);
+                }
+                break;
+            }
+
             case Message::fileDeleted:
             {
                 FileHandle handle;
@@ -809,6 +1062,20 @@ void CommandQueue::processMessages()
                 if (itr != m_fileListeners.end())
                 {
                     itr->second->onFileDeleted(handle, requestId);
+                }
+                break;
+            }
+            case Message::imageDeleted:
+            {
+                RenderImageHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                auto itr = m_imageListeners.find(handle);
+                if (itr != m_imageListeners.end())
+                {
+                    itr->second->onRenderImageDeleted(handle, requestId);
                 }
                 break;
             }
@@ -866,11 +1133,6 @@ void CommandQueue::processMessages()
                 {
                     itr->second->onStateMachineDeleted(handle, requestId);
                 }
-                break;
-            }
-            default:
-            {
-                RIVE_UNREACHABLE();
                 break;
             }
         }

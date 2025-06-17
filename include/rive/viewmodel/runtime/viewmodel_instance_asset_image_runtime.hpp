@@ -18,6 +18,10 @@ public:
         ViewModelInstanceValueRuntime(viewModelInstance)
     {}
     void value(RenderImage* renderImage);
+
+#ifdef TESTING
+    RenderImage* testing_value();
+#endif
 };
 } // namespace rive
 #endif

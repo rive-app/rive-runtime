@@ -175,6 +175,16 @@ void ArtboardComponentList::updateList(
     oldItems.assign(m_listItems.begin(), m_listItems.end());
     m_listItems.clear();
     m_listItems.assign(list->begin(), list->end());
+
+    if (parent()->is<LayoutComponent>())
+    {
+#ifdef WITH_RIVE_LAYOUT
+        parent()->as<LayoutComponent>()->clearLayoutChildren();
+#endif
+    }
+    // We need to dispose old items after the layout children of the parent have
+    // updated to ensure no bad YGNodes are being hosted from the old data
+    // during clearLayoutChildren.
     for (auto item : oldItems)
     {
         auto it = std::find(m_listItems.begin(), m_listItems.end(), item);
@@ -182,12 +192,6 @@ void ArtboardComponentList::updateList(
         {
             disposeListItem(item);
         }
-    }
-    if (parent()->is<LayoutComponent>())
-    {
-#ifdef WITH_RIVE_LAYOUT
-        parent()->as<LayoutComponent>()->clearLayoutChildren();
-#endif
     }
     uint32_t index = 0;
     for (auto& item : m_listItems)

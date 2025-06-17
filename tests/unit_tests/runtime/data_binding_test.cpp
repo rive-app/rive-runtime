@@ -1033,7 +1033,6 @@ TEST_CASE("Transition self conditions", "[data binding]")
         silver.addFrame();
         auto itemList = new rive::ViewModelInstanceListItem();
         lisProp->addItemAt(itemList, 0);
-        itemList->unref();
         stateMachine->advanceAndApply(0.0f);
         artboard->draw(renderer.get());
     }

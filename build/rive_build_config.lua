@@ -122,6 +122,11 @@ newoption({
     description = 'compile for unreal engine',
 })
 
+newoption({
+    trigger = 'with-asan',
+    description = 'enable AddressSanitizer',
+})
+
 location(RIVE_BUILD_OUT)
 targetdir(RIVE_BUILD_OUT)
 objdir(RIVE_BUILD_OUT .. '/obj')
@@ -137,6 +142,16 @@ filter({ 'options:not with-exceptions' })
 exceptionhandling('Off')
 filter({ 'options:with-exceptions' })
 exceptionhandling('On')
+
+filter({ 'options:with-asan' })
+do
+    buildoptions({
+        '-fsanitize=address',
+    })
+    linkoptions({
+        '-fsanitize=address',
+    })
+end
 
 filter({ 'options:with-pic' })
 do
@@ -651,7 +666,7 @@ if os.host() == 'macosx' then
     filter({
         'system:macosx',
         'options:variant=maccatalyst',
-        'options:arch=arm64'
+        'options:arch=arm64',
     })
     do
         buildoptions({ '-target arm64-apple-ios14.0-macabi' })
@@ -660,7 +675,7 @@ if os.host() == 'macosx' then
     filter({
         'system:macosx',
         'options:variant=maccatalyst',
-        'options:arch=x64'
+        'options:arch=x64',
     })
     do
         buildoptions({ '-target x86_64-apple-ios14.0-macabi' })

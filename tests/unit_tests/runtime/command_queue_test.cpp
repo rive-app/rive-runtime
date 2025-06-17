@@ -629,13 +629,42 @@ TEST_CASE("View Models", "[CommandQueue]")
     auto neviewModel =
         commandQueue->referenceNestedViewModelInstance(bviewModel,
                                                        "Test Nested");
-
-    commandQueue->runOnce([bviewModel, dviewModel, nviewModel, neviewModel](
-                              CommandServer* server) {
+    commandQueue->insertViewModelInstanceListViewModel(bviewModel,
+                                                       "Test List",
+                                                       neviewModel,
+                                                       0);
+    auto listViewModel =
+        commandQueue->referenceListViewModelInstance(bviewModel,
+                                                     "Test List",
+                                                     0);
+    commandQueue->runOnce([bviewModel,
+                           dviewModel,
+                           nviewModel,
+                           neviewModel,
+                           listViewModel](CommandServer* server) {
         CHECK(server->getViewModelInstance(bviewModel) != nullptr);
         CHECK(server->getViewModelInstance(dviewModel) != nullptr);
         CHECK(server->getViewModelInstance(nviewModel) != nullptr);
         CHECK(server->getViewModelInstance(neviewModel) != nullptr);
+        CHECK(server->getViewModelInstance(listViewModel) != nullptr);
+        CHECK(server->getViewModelInstance(listViewModel) ==
+              server->getViewModelInstance(neviewModel));
+        auto list =
+            server->getViewModelInstance(bviewModel)->propertyList("Test List");
+        CHECK(list != nullptr);
+        CHECK(list->instanceAt(0) ==
+              server->getViewModelInstance(listViewModel));
+    });
+
+    commandQueue->removeViewModelInstanceListViewModel(bviewModel,
+                                                       "Test List",
+                                                       neviewModel);
+
+    commandQueue->runOnce([bviewModel](CommandServer* server) {
+        auto list =
+            server->getViewModelInstance(bviewModel)->propertyList("Test List");
+        CHECK(list != nullptr);
+        CHECK(list->size() == 0);
     });
 
     auto bbviewModel =
@@ -654,6 +683,14 @@ TEST_CASE("View Models", "[CommandQueue]")
         commandQueue->instantiateViewModelInstanceNamed(fileHandle,
                                                         "Test All",
                                                         "Blah");
+
+    commandQueue->removeViewModelInstanceListViewModel(bviewModel,
+                                                       "Blah",
+                                                       neviewModel);
+
+    commandQueue->removeViewModelInstanceListViewModel(bviewModel,
+                                                       "Test List",
+                                                       bnbviewModel);
     auto badPathNeviewModel =
         commandQueue->referenceNestedViewModelInstance(bviewModel, "Blah");
 
@@ -661,13 +698,23 @@ TEST_CASE("View Models", "[CommandQueue]")
         commandQueue->referenceNestedViewModelInstance(bnnviewModel,
                                                        "Test Nested");
 
+    auto badListViewModel =
+        commandQueue->referenceListViewModelInstance(bviewModel, "Blah", 0);
+
+    auto badListViewModel2 =
+        commandQueue->referenceListViewModelInstance(bviewModel,
+                                                     "Test List",
+                                                     5);
+
     commandQueue->runOnce([bbviewModel,
                            bdviewModel,
                            bnviewModel,
                            bnnviewModel,
                            bnbviewModel,
                            badPathNeviewModel,
-                           badNeviewModel](CommandServer* server) {
+                           badNeviewModel,
+                           badListViewModel,
+                           badListViewModel2](CommandServer* server) {
         CHECK(server->getViewModelInstance(bbviewModel) == nullptr);
         CHECK(server->getViewModelInstance(bdviewModel) == nullptr);
         CHECK(server->getViewModelInstance(bnviewModel) == nullptr);
@@ -675,6 +722,8 @@ TEST_CASE("View Models", "[CommandQueue]")
         CHECK(server->getViewModelInstance(bnbviewModel) == nullptr);
         CHECK(server->getViewModelInstance(badPathNeviewModel) == nullptr);
         CHECK(server->getViewModelInstance(badNeviewModel) == nullptr);
+        CHECK(server->getViewModelInstance(badListViewModel) == nullptr);
+        CHECK(server->getViewModelInstance(badListViewModel2) == nullptr);
     });
 
     auto artboard =
@@ -862,7 +911,9 @@ public:
 
     std::array<std::string, 2> m_expectedInstanceNames = {"Test Default",
                                                           "Test Alternate"};
-    std::array<PropertyData, 7> m_expectedProperties = {
+    std::array<PropertyData, 9> m_expectedProperties = {
+        PropertyData{DataType::list, "Test List"},
+        PropertyData{DataType::assetImage, "Test Image"},
         PropertyData{DataType::number, "Test Num"},
         PropertyData{DataType::string, "Test String"},
         PropertyData{DataType::enumType, "Test Enum"},
@@ -1056,6 +1107,38 @@ TEST_CASE("View Model Instance Listener", "[CommandQueue]")
     serverThread.join();
 }
 
+TEST_CASE("RenderImage", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/batdude.png", std::ios::binary);
+    RenderImageHandle imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+    RenderImageHandle badImageHandle =
+        commandQueue->decodeImage(std::vector<uint8_t>(1024, {}));
+
+    commandQueue->runOnce([imageHandle, badImageHandle](CommandServer* server) {
+        auto image = server->getImage(imageHandle);
+        CHECK(image != nullptr);
+        auto badImage = server->getImage(badImageHandle);
+        CHECK(badImage == nullptr);
+    });
+
+    commandQueue->deleteImage(imageHandle);
+    commandQueue->deleteImage(badImageHandle);
+
+    commandQueue->runOnce([imageHandle, badImageHandle](CommandServer* server) {
+        auto image = server->getImage(imageHandle);
+        CHECK(image == nullptr);
+        auto badImage = server->getImage(badImageHandle);
+        CHECK(badImage == nullptr);
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 namespace rive
 {
 bool operator==(const CommandQueue::ViewModelInstanceData& l,
@@ -1066,20 +1149,20 @@ bool operator==(const CommandQueue::ViewModelInstanceData& l,
     switch (l.metaData.type)
     {
         case DataType::boolean:
-            ret |= l.boolValue == r.boolValue;
+            ret &= l.boolValue == r.boolValue;
             break;
         case DataType::number:
-            ret |= l.numberValue == r.numberValue;
+            ret &= l.numberValue == r.numberValue;
             break;
         case DataType::color:
-            ret |= l.colorValue == r.colorValue;
+            ret &= l.colorValue == r.colorValue;
             break;
         case DataType::string:
         case DataType::enumType:
-            ret |= l.stringValue == r.stringValue;
+            ret &= l.stringValue == r.stringValue;
             break;
         default:
-            RIVE_UNREACHABLE();
+            break;
     }
 
     return ret;
@@ -1332,6 +1415,58 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
                                  "Test String",
                                  "Some String");
 
+    // Images don't have a "get" equivalent so we test it with a run once
+    // directly.
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+    commandQueue->setViewModelInstanceImage(tester.m_handle,
+                                            "Test Image",
+                                            imageHandle);
+    commandQueue->runOnce(
+        [imageHandle, handle = tester.m_handle](CommandServer* server) {
+            auto image = server->getImage(imageHandle);
+            CHECK(image != nullptr);
+            auto viewModel = server->getViewModelInstance(handle);
+            CHECK(viewModel != nullptr);
+            auto imageProperty = viewModel->propertyImage("Test Image");
+            CHECK(imageProperty != nullptr);
+            CHECK(imageProperty->testing_value() == image);
+        });
+
+    auto badImageHandle =
+        commandQueue->decodeImage(std::vector<uint8_t>(1024 * 1024, {}));
+    commandQueue->setViewModelInstanceImage(tester.m_handle,
+                                            "Test Image",
+                                            badImageHandle);
+    commandQueue->runOnce([imageHandle,
+                           badImageHandle,
+                           handle = tester.m_handle](CommandServer* server) {
+        auto image = server->getImage(imageHandle);
+        auto badImage = server->getImage(badImageHandle);
+        CHECK(image != nullptr);
+        CHECK(badImage == nullptr);
+        auto viewModel = server->getViewModelInstance(handle);
+        CHECK(viewModel != nullptr);
+        auto imageProperty = viewModel->propertyImage("Test Image");
+        CHECK(imageProperty != nullptr);
+        CHECK(imageProperty->testing_value() == image);
+    });
+
+    commandQueue->setViewModelInstanceImage(tester.m_handle,
+                                            "Blah",
+                                            imageHandle);
+    commandQueue->runOnce(
+        [imageHandle, handle = tester.m_handle](CommandServer* server) {
+            auto image = server->getImage(imageHandle);
+            CHECK(image != nullptr);
+            auto viewModel = server->getViewModelInstance(handle);
+            CHECK(viewModel != nullptr);
+            auto imageProperty = viewModel->propertyImage("Test Image");
+            CHECK(imageProperty != nullptr);
+            CHECK(imageProperty->testing_value() == image);
+        });
+
     // We should set / get in order as it goes through the list.
     for (int i = 0; i < 10; ++i)
     {
@@ -1404,6 +1539,683 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
     serverThread.join();
 }
 
+class ViewModelPropertySubscriptionListener
+    : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    virtual void onViewModelDeleted(const ViewModelInstanceHandle handle,
+                                    uint64_t requestId) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(!n_wasDeleted);
+        n_wasDeleted = true;
+    }
+
+    virtual void onViewModelDataReceived(
+        const ViewModelInstanceHandle handle,
+        CommandQueue::ViewModelInstanceData data,
+        uint64_t requestId) override
+    {
+        // We only get one sub callback per value, so instead of a dequeue we
+        // use a map of names to values that we expect, it should always be the
+        // last value set.
+        CHECK(m_expectedData.size());
+        auto itr = m_expectedData.find(data.metaData.name);
+        CHECK(itr != m_expectedData.end());
+        auto& expectedData = itr->second;
+
+        CHECK(handle == m_handle);
+        CHECK(data == expectedData);
+
+        ++m_receivedCallbacks;
+    }
+
+    void pushTriggerExpectation(CommandQueue* queue, std::string name)
+    {
+        ++m_requestIdx;
+        m_expectedData[name] = {.metaData = {DataType::trigger, name}};
+        queue->fireViewModelTrigger(m_handle, name, m_requestIdx);
+    }
+
+    void pushExpectation(CommandQueue* queue, std::string name, float value)
+    {
+        ++m_requestIdx;
+        queue->setViewModelInstanceNumber(m_handle, name, value, m_requestIdx);
+        m_expectedData[name] = {.metaData = {DataType::number, name},
+                                .numberValue = value};
+    }
+
+    void pushExpectation(CommandQueue* queue, std::string name, ColorInt value)
+    {
+        ++m_requestIdx;
+        queue->setViewModelInstanceColor(m_handle, name, value, m_requestIdx);
+        m_expectedData[name] = {.metaData = {DataType::color, name},
+                                .colorValue = value};
+    }
+
+    void pushExpectation(CommandQueue* queue, std::string name, bool value)
+    {
+        ++m_requestIdx;
+        queue->setViewModelInstanceBool(m_handle, name, value, m_requestIdx);
+        m_expectedData[name] = {.metaData = {DataType::boolean, name},
+                                .boolValue = value};
+    }
+
+    void pushExpectation(CommandQueue* queue,
+                         std::string name,
+                         ViewModelInstanceHandle value)
+    {
+        ++m_requestIdx;
+        queue->setViewModelInstanceNestedViewModel(m_handle,
+                                                   name,
+                                                   value,
+                                                   m_requestIdx);
+        // there is no subscription for view models, you must subscribe to the
+        // nested property instead
+    }
+
+    void pushListExpectation(CommandQueue* queue,
+                             std::string name,
+                             ViewModelInstanceHandle value)
+    {
+        ++m_requestIdx;
+        queue->appendViewModelInstanceListViewModel(m_handle,
+                                                    name,
+                                                    value,
+                                                    m_requestIdx);
+        // there is no value for view models list subscription callbacks
+        m_expectedData[name] = {.metaData = {DataType::viewModel, name}};
+    }
+
+    void pushStringExpectation(CommandQueue* queue,
+                               std::string name,
+                               std::string value)
+    {
+        ++m_requestIdx;
+        queue->setViewModelInstanceString(m_handle, name, value, m_requestIdx);
+        m_expectedData[name] = {.metaData = {DataType::string, name},
+                                .stringValue = value};
+    }
+
+    void pushEnumExpectation(CommandQueue* queue,
+                             std::string name,
+                             std::string value)
+    {
+        ++m_requestIdx;
+        queue->setViewModelInstanceEnum(m_handle, name, value, m_requestIdx);
+        m_expectedData[name] = {.metaData = {DataType::enumType, name},
+                                .stringValue = value};
+    }
+
+    void pushExpectation(CommandQueue* queue,
+                         std::string name,
+                         RenderImageHandle value)
+    {
+        queue->setViewModelInstanceImage(m_handle, "Test Image", value);
+        // no value for image subscriptions
+        m_expectedData[name] = {.metaData = {DataType::assetImage, name}};
+    }
+
+    void pushBadExpectation(CommandQueue* queue, std::string name, float value)
+    {
+        queue->setViewModelInstanceNumber(m_handle, name, value, m_requestIdx);
+    }
+
+    void pushBadExpectation(CommandQueue* queue,
+                            std::string name,
+                            ColorInt value)
+    {
+        queue->setViewModelInstanceColor(m_handle, name, value, m_requestIdx);
+    }
+
+    void pushBadExpectation(CommandQueue* queue, std::string name, bool value)
+    {
+        queue->setViewModelInstanceBool(m_handle, name, value, m_requestIdx);
+    }
+
+    void pushBadExpectation(CommandQueue* queue,
+                            std::string name,
+                            RenderImageHandle value)
+    {
+        queue->setViewModelInstanceImage(m_handle, name, value, m_requestIdx);
+    }
+
+    void pushBadExpectation(CommandQueue* queue,
+                            std::string name,
+                            ViewModelInstanceHandle value)
+    {
+        queue->setViewModelInstanceNestedViewModel(m_handle,
+                                                   name,
+                                                   value,
+                                                   m_requestIdx);
+    }
+
+    void pushBadStringExpectation(CommandQueue* queue,
+                                  std::string name,
+                                  std::string value)
+    {
+        queue->setViewModelInstanceString(m_handle, name, value, m_requestIdx);
+    }
+
+    void pushBadEnumExpectation(CommandQueue* queue,
+                                std::string name,
+                                std::string value)
+    {
+        queue->setViewModelInstanceEnum(m_handle, name, value, m_requestIdx);
+    }
+
+    void pushBadTriggerExpectation(CommandQueue* queue, std::string name)
+    {
+        queue->fireViewModelTrigger(m_handle, name);
+    }
+
+    // One data and id per callback.
+    std::unordered_map<std::string, CommandQueue::ViewModelInstanceData>
+        m_expectedData;
+    // All of the handles should be the same.
+    ViewModelInstanceHandle m_handle;
+    bool n_wasDeleted = false;
+
+    uint64_t m_requestIdx = 1;
+    int m_receivedCallbacks = 0;
+};
+
+TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::unique_ptr<gpu::RenderContext> nullContext =
+        RenderContextNULL::MakeContext();
+    // The subscriptions happens once at the end of processCommands, so it's not
+    // order dependent, that makes it more difficult to test. To get around
+    // this, we just make the server on the same thread. Different tests will be
+    // used for testing async.
+    CommandServer server(commandQueue, nullContext.get());
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    ViewModelPropertySubscriptionListener tester;
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    tester.m_handle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle,
+                                                          &tester);
+
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test Nested/Nested Number",
+                                               DataType::number);
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test Bool",
+                                               DataType::boolean);
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test Num",
+                                               DataType::number);
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test Color",
+                                               DataType::color);
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test Enum",
+                                               DataType::enumType);
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test String",
+                                               DataType::string);
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test Trigger",
+                                               DataType::trigger);
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test List",
+                                               DataType::list);
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test Image",
+                                               DataType::assetImage);
+
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Bad property",
+                                               DataType::assetImage);
+    // bad type
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test Image",
+                                               DataType::integer);
+
+    commandQueue->runOnce([](CommandServer* server) {
+        auto subs = server->testing_getSubsciptions();
+        CHECK(subs.size() == 9);
+    });
+
+    auto blankHandle =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle,
+                                                        "Nested VM");
+    auto alternateHandle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Nested VM",
+                                                        "Alternate Nested");
+
+    tester.pushExpectation(commandQueue.get(), "Test Bool", true);
+    tester.pushExpectation(commandQueue.get(), "Test Num", 10.0f);
+    tester.pushExpectation(commandQueue.get(),
+                           "Test Nested/Nested Number",
+                           10.0f);
+    tester.pushExpectation(commandQueue.get(), "Test Nested", blankHandle);
+    tester.pushExpectation(commandQueue.get(),
+                           "Test Nested/Nested Number",
+                           10.0f);
+
+    tester.pushExpectation(commandQueue.get(),
+                           "Test Color",
+                           rive::colorARGB(255, 255, 0, 0));
+    tester.pushEnumExpectation(commandQueue.get(), "Test Enum", "Value 2");
+    tester.pushStringExpectation(commandQueue.get(),
+                                 "Test String",
+                                 "Some String");
+
+    tester.pushTriggerExpectation(commandQueue.get(), "Test Trigger");
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+    tester.pushExpectation(commandQueue.get(), "Test Image", imageHandle);
+
+    for (int i = 0; i < 10; ++i)
+    {
+        tester.pushExpectation(commandQueue.get(),
+                               "Test Bool",
+                               static_cast<bool>(i % 2));
+        tester.pushExpectation(commandQueue.get(),
+                               "Test Num",
+                               static_cast<float>(i));
+        tester.pushExpectation(commandQueue.get(),
+                               "Test Nested",
+                               i % 2 ? blankHandle : alternateHandle);
+        tester.pushExpectation(commandQueue.get(),
+                               "Test Color",
+                               rive::colorARGB(i, i, i, i));
+        tester.pushEnumExpectation(commandQueue.get(),
+                                   "Test Enum",
+                                   i % 2 ? "Value 2" : "Value 1");
+        tester.pushStringExpectation(commandQueue.get(),
+                                     "Test String",
+                                     std::to_string(i));
+    }
+
+    // Bad values
+
+    auto badImageHandle =
+        commandQueue->decodeImage(std::vector<uint8_t>(1024 * 1024, {}));
+
+    tester.pushBadExpectation(commandQueue.get(), "Test Image", badImageHandle);
+
+    commandQueue->deleteViewModelInstance(blankHandle);
+    commandQueue->deleteViewModelInstance(alternateHandle);
+
+    // Good property path bad value
+    tester.pushBadEnumExpectation(commandQueue.get(), "Test Enum", "Blah");
+    tester.pushBadExpectation(commandQueue.get(), "Test Nested", blankHandle);
+
+    // Bad everything
+    tester.pushBadExpectation(commandQueue.get(), "Blah", true);
+    tester.pushBadExpectation(commandQueue.get(), "Blah", 10.0f);
+    tester.pushBadExpectation(commandQueue.get(), "Blah", alternateHandle);
+    tester.pushBadExpectation(commandQueue.get(),
+                              "Blah",
+                              rive::colorARGB(255, 255, 0, 0));
+    tester.pushBadEnumExpectation(commandQueue.get(), "Blah", "Value 2");
+    tester.pushBadStringExpectation(commandQueue.get(), "Blah", "Some String");
+
+    tester.pushBadTriggerExpectation(commandQueue.get(), "Blah");
+
+    // Bad handle for trigger test.
+    commandQueue->fireViewModelTrigger(0, "Blah");
+
+    server.processCommands();
+    commandQueue->processMessages();
+
+    // Once the handle is delted subscriptions will stop, so we do this after
+    // processMessages.
+    commandQueue->deleteViewModelInstance(tester.m_handle);
+
+    // Call sets on deleted handle
+    tester.pushBadExpectation(commandQueue.get(), "Test Bool", true);
+    tester.pushBadExpectation(commandQueue.get(), "Test Num", 10.0f);
+    tester.pushBadExpectation(commandQueue.get(),
+                              "Test Color",
+                              rive::colorARGB(255, 255, 0, 0));
+    tester.pushBadEnumExpectation(commandQueue.get(), "Test Enum", "Value 2");
+    tester.pushBadStringExpectation(commandQueue.get(),
+                                    "Test String",
+                                    "Some String");
+    server.processCommands();
+    commandQueue->processMessages();
+
+    // We should have received the deleted event.
+    CHECK(tester.n_wasDeleted);
+    // We should have received the same number of callbacks as entries in the
+    // map.
+    CHECK(tester.m_receivedCallbacks == tester.m_expectedData.size());
+
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test Nested/Nested Number",
+                                                 DataType::number);
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test Bool",
+                                                 DataType::boolean);
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test Num",
+                                                 DataType::number);
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test Color",
+                                                 DataType::color);
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test Enum",
+                                                 DataType::enumType);
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test String",
+                                                 DataType::string);
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test Trigger",
+                                                 DataType::trigger);
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test List",
+                                                 DataType::list);
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test Image",
+                                                 DataType::assetImage);
+    // Unsub something that doesn't exist.
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Blah",
+                                                 DataType::boolean);
+
+    commandQueue->runOnce([](CommandServer* server) {
+        auto subs = server->testing_getSubsciptions();
+        CHECK(subs.empty());
+    });
+
+    server.processCommands();
+    commandQueue->disconnect();
+}
+
+class AsyncSubListener : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    virtual void onViewModelDataReceived(
+        const ViewModelInstanceHandle handle,
+        CommandQueue::ViewModelInstanceData data,
+        uint64_t requestId) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(!m_hasCallback);
+        m_hasCallback = true;
+        // we are just expecting the one sub so the value should be correct
+        CHECK(data.numberValue == 10);
+    }
+
+    ViewModelInstanceHandle m_handle;
+    bool m_hasCallback = false;
+};
+
+// The above tests are to check that all subscription types work and that values
+// come through correctlu This is just checking to make sure subscriptions work
+// while the server is in a seperate thread but we don't care about the exact
+// callback happening since that is tested above
+
+TEST_CASE("View Model Property Async Subscriptions", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    AsyncSubListener tester;
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    tester.m_handle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle,
+                                                          &tester);
+
+    commandQueue->subscribeToViewModelProperty(tester.m_handle,
+                                               "Test Num",
+                                               DataType::number);
+
+    commandQueue->setViewModelInstanceNumber(tester.m_handle, "Test Num", 10);
+
+    commandQueue->runOnce([](CommandServer* server) {
+        auto subs = server->testing_getSubsciptions();
+        CHECK(subs.size() == 1);
+    });
+
+    commandQueue->testing_commandLoopBreak();
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(tester.m_hasCallback);
+
+    commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
+                                                 "Test Num",
+                                                 DataType::number);
+
+    commandQueue->runOnce([](CommandServer* server) {
+        auto subs = server->testing_getSubsciptions();
+        CHECK(subs.empty());
+    });
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class ListViewModelPropertyListener
+    : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    ListViewModelPropertyListener(rcp<CommandQueue> queue) :
+        m_queue(std::move(queue))
+    {}
+
+    virtual void onViewModelListSizeReceived(
+        const ViewModelInstanceHandle handle,
+        std::string path,
+        size_t size,
+        uint64_t requestId) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(path == m_path);
+        CHECK(size == m_expectedSize);
+        CHECK(requestId == m_requestIdx);
+        m_receivedSize = true;
+    }
+
+    virtual void onViewModelDeleted(const ViewModelInstanceHandle handle,
+                                    uint64_t requestId) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(!n_wasDeleted);
+        n_wasDeleted = true;
+    }
+
+    void pushRequestExpectation(std::string path, size_t expectedSize)
+    {
+        m_path = path;
+        m_expectedSize = expectedSize;
+        ++m_requestIdx;
+        m_receivedSize = false;
+        m_queue->requestViewModelInstanceListSize(m_handle,
+                                                  m_path,
+                                                  m_requestIdx);
+
+        wait_for_server(m_queue.get());
+        m_queue->processMessages();
+        CHECK(m_receivedSize);
+    }
+
+    void pushExpectation(std::string name,
+                         ViewModelInstanceHandle expectedValueAtIndex1,
+                         ViewModelInstanceHandle expectedValueAtIndex2,
+                         int index,
+                         int index2)
+    {
+        m_queue->swapViewModelInstanceListValues(m_handle, name, index, index2);
+        m_queue->runOnce([handle = m_handle,
+                          name,
+                          expectedValueAtIndex1,
+                          expectedValueAtIndex2,
+                          index,
+                          index2](CommandServer* server) {
+            auto instance = server->getViewModelInstance(handle);
+            CHECK(instance != nullptr);
+            auto value1Instance =
+                server->getViewModelInstance(expectedValueAtIndex1);
+            CHECK(value1Instance != nullptr);
+            auto value2Instance =
+                server->getViewModelInstance(expectedValueAtIndex2);
+            CHECK(value2Instance != nullptr);
+            auto property = instance->propertyList(name);
+            CHECK(property != nullptr);
+            CHECK(property->instanceAt(index) == value1Instance);
+            CHECK(property->instanceAt(index2) == value2Instance);
+        });
+    }
+
+    void pushExpectation(std::string name,
+                         ViewModelInstanceHandle value,
+                         int index)
+    {
+        m_queue->insertViewModelInstanceListViewModel(m_handle,
+                                                      name,
+                                                      value,
+                                                      index);
+        m_queue->runOnce(
+            [handle = m_handle, name, value, index](CommandServer* server) {
+                auto instance = server->getViewModelInstance(handle);
+                CHECK(instance != nullptr);
+                auto property = instance->propertyList(name);
+                CHECK(property != nullptr);
+                auto valueModel = server->getViewModelInstance(value);
+                CHECK(property->instanceAt(index) == valueModel);
+            });
+    }
+
+    void pushExpectation(std::string name, ViewModelInstanceHandle value)
+    {
+        m_queue->appendViewModelInstanceListViewModel(m_handle, name, value);
+        m_queue->runOnce(
+            [handle = m_handle, name, value](CommandServer* server) {
+                auto instance = server->getViewModelInstance(handle);
+                CHECK(instance != nullptr);
+                auto property = instance->propertyList(name);
+                CHECK(property != nullptr);
+                auto valueModel = server->getViewModelInstance(value);
+                CHECK(property->instanceAt(static_cast<int>(property->size()) -
+                                           1) == valueModel);
+            });
+    }
+
+    void pushBadExpectation(std::string name,
+                            ViewModelInstanceHandle value,
+                            int index)
+    {
+        m_queue->insertViewModelInstanceListViewModel(m_handle,
+                                                      name,
+                                                      value,
+                                                      index);
+    }
+
+    void pushBadExpectation(std::string name, ViewModelInstanceHandle value)
+    {
+        m_queue->appendViewModelInstanceListViewModel(m_handle, name, value);
+    }
+
+    void pushBadExpectation(std::string name, int index, int index2)
+    {
+        m_queue->swapViewModelInstanceListValues(m_handle, name, index, index2);
+    }
+
+    void pushBadRequestExpectation(std::string name)
+    {
+        m_receivedSize = false;
+        m_queue->requestViewModelInstanceListSize(m_handle, name);
+
+        wait_for_server(m_queue.get());
+        m_queue->processMessages();
+        CHECK(!m_receivedSize);
+    }
+
+    rcp<CommandQueue> m_queue;
+    ViewModelInstanceHandle m_handle;
+    bool n_wasDeleted = false;
+    // size callback test values
+
+    std::string m_path;
+    size_t m_expectedSize;
+    uint64_t m_requestIdx = 1;
+    bool m_receivedSize = false;
+};
+
+TEST_CASE("List View Model Property Set/Get", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    ListViewModelPropertyListener tester(commandQueue);
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    tester.m_handle =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle,
+                                                          &tester);
+    auto blankHandle =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle,
+                                                        "Nested VM");
+    auto alternateHandle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Nested VM",
+                                                        "Alternate Nested");
+    tester.pushExpectation("Test List", blankHandle);
+    tester.pushExpectation("Test List", alternateHandle);
+    tester.pushExpectation("Test List", alternateHandle, blankHandle, 0, 1);
+    tester.pushRequestExpectation("Test List", 2);
+    tester.pushExpectation("Test List", blankHandle, 0);
+    tester.pushExpectation("Test List", alternateHandle, 0);
+    tester.pushExpectation("Test List", blankHandle, alternateHandle, 0, 1);
+    tester.pushRequestExpectation("Test List", 4);
+
+    auto badBlankHandle =
+        commandQueue->instantiateBlankViewModelInstance(fileHandle, "blah");
+    auto badAlternateHandle =
+        commandQueue->instantiateViewModelInstanceNamed(fileHandle,
+                                                        "Nested VM",
+                                                        "blah");
+    tester.pushBadExpectation("Test List", badBlankHandle);
+    tester.pushBadExpectation("Test List", badAlternateHandle);
+    tester.pushBadExpectation("Test List", badBlankHandle, 0);
+    tester.pushBadExpectation("Test List", badAlternateHandle, 0);
+
+    tester.pushBadExpectation("blah", blankHandle);
+    tester.pushBadExpectation("blah", alternateHandle);
+    tester.pushBadExpectation("blah", blankHandle, 0);
+    tester.pushBadExpectation("blah", alternateHandle, 0);
+
+    tester.pushBadExpectation("Test List", 10, 1);
+    tester.pushBadExpectation("Test List", 0, 10);
+    tester.pushBadExpectation("Blah", 0, 1);
+    tester.pushBadExpectation("Blah", 10, 1);
+    tester.pushBadExpectation("Blah", 0, 10);
+
+    tester.pushRequestExpectation("Test List", 4);
+
+    tester.pushBadRequestExpectation("Blah");
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 class TestFileListener : public CommandQueue::FileListener
 {
 public:
@@ -1459,6 +2271,75 @@ TEST_CASE("listArtboard", "[CommandQueue]")
     fileListener.m_hasCallback = false;
 
     commandQueue->requestArtboardNames(badFile);
+
+    wait_for_server(commandQueue.get());
+
+    CHECK(!fileListener.m_hasCallback);
+
+    commandQueue->processMessages();
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class TestFileEnumListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onViewModelEnumsListed(const FileHandle handle,
+                                        uint64_t requestId,
+                                        std::vector<ViewModelEnum> enums)
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        CHECK(enums.size() == m_enums.size());
+        for (auto i = 0; i < enums.size(); ++i)
+        {
+            CHECK(enums[i].name == m_enums[i].name);
+            for (auto k = 0; k < enums[i].enumerants.size(); ++k)
+            {
+                CHECK(enums[i].enumerants[k] == m_enums[i].enumerants[k]);
+            }
+        }
+
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId;
+    FileHandle m_handle;
+    std::array<ViewModelEnum, 1> m_enums = {
+        ViewModelEnum{"Test Enum Values", {"Value 1", "Value 2"}}};
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("listEnums", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestFileEnumListener fileListener;
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle goodFile = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+
+    fileListener.m_handle = goodFile;
+
+    fileListener.m_requestId = 0x40;
+    commandQueue->requestViewModelEnums(goodFile, fileListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(fileListener.m_hasCallback);
+
+    FileHandle badFile =
+        commandQueue->loadFile(std::vector<uint8_t>(100 * 1024, 0));
+    fileListener.m_handle = goodFile;
+    fileListener.m_hasCallback = false;
+
+    commandQueue->requestViewModelEnums(badFile);
 
     wait_for_server(commandQueue.get());
 
@@ -1721,6 +2602,22 @@ public:
     bool m_hasCallback = false;
 };
 
+class DeleteRenderImageListener : public CommandQueue::RenderImageListener
+{
+public:
+    virtual void onRenderImageDeleted(const RenderImageHandle handle,
+                                      uint64_t requestId) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId;
+    RenderImageHandle m_handle;
+    bool m_hasCallback = false;
+};
+
 TEST_CASE("listenerDeleteCallbacks", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
@@ -1729,6 +2626,7 @@ TEST_CASE("listenerDeleteCallbacks", "[CommandQueue]")
     DeleteFileListener fileListener;
     DeleteArtboardListener artboardListener;
     DeleteStateMachineListener stateMachineListener;
+    DeleteRenderImageListener renderImageListener;
 
     std::ifstream stream("assets/entry.riv", std::ios::binary);
     FileHandle goodFile = commandQueue->loadFile(
@@ -1745,13 +2643,20 @@ TEST_CASE("listenerDeleteCallbacks", "[CommandQueue]")
                                                    "",
                                                    &stateMachineListener);
 
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto renderImage = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &renderImageListener);
+
     fileListener.m_handle = goodFile;
     artboardListener.m_handle = artboardHandle;
     stateMachineListener.m_handle = stateMachineHandle;
+    renderImageListener.m_handle = renderImage;
 
     CHECK(!fileListener.m_hasCallback);
     CHECK(!artboardListener.m_hasCallback);
     CHECK(!stateMachineListener.m_hasCallback);
+    CHECK(!renderImageListener.m_hasCallback);
 
     wait_for_server(commandQueue.get());
     commandQueue->processMessages();
@@ -1759,6 +2664,7 @@ TEST_CASE("listenerDeleteCallbacks", "[CommandQueue]")
     CHECK(!fileListener.m_hasCallback);
     CHECK(!artboardListener.m_hasCallback);
     CHECK(!stateMachineListener.m_hasCallback);
+    CHECK(!renderImageListener.m_hasCallback);
 
     stateMachineListener.m_requestId = 0x50;
     commandQueue->deleteStateMachine(stateMachineHandle,
@@ -1767,6 +2673,8 @@ TEST_CASE("listenerDeleteCallbacks", "[CommandQueue]")
     commandQueue->deleteArtboard(artboardHandle, artboardListener.m_requestId);
     fileListener.m_requestId = 0x52;
     commandQueue->deleteFile(goodFile, fileListener.m_requestId);
+    renderImageListener.m_requestId = 0x53;
+    commandQueue->deleteImage(renderImage, renderImageListener.m_requestId);
 
     wait_for_server(commandQueue.get());
     commandQueue->processMessages();
@@ -1774,6 +2682,56 @@ TEST_CASE("listenerDeleteCallbacks", "[CommandQueue]")
     CHECK(fileListener.m_hasCallback);
     CHECK(artboardListener.m_hasCallback);
     CHECK(stateMachineListener.m_hasCallback);
+    CHECK(renderImageListener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class LoadedFileListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onFileLoaded(const FileHandle handle,
+                              uint64_t requestId) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId = 0x10;
+    FileHandle m_handle = RIVE_NULL_HANDLE;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("fileLoadedCallback", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    std::ifstream stream("assets/entry.riv", std::ios::binary);
+
+    LoadedFileListener fileListener;
+
+    fileListener.m_handle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener,
+        fileListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(fileListener.m_hasCallback);
+
+    LoadedFileListener badFileListener;
+    badFileListener.m_handle =
+        commandQueue->loadFile(std::vector<uint8_t>(1024, {}),
+                               &badFileListener,
+                               badFileListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(!badFileListener.m_hasCallback);
 
     commandQueue->disconnect();
     serverThread.join();

@@ -9,3 +9,12 @@ void ViewModelInstanceAssetImageRuntime::value(RenderImage* renderImage)
     m_viewModelInstanceValue->as<ViewModelInstanceAssetImage>()->value(
         renderImage);
 }
+
+#ifdef TESTING
+RenderImage* ViewModelInstanceAssetImageRuntime::testing_value()
+{
+    return m_viewModelInstanceValue->as<ViewModelInstanceAssetImage>()
+        ->asset()
+        ->renderImage();
+}
+#endif

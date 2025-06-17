@@ -12,6 +12,7 @@ esac
 CONFIG=debug
 MATCH=
 COVERAGE=
+EXTRA_CONFIG=
 while [[ $# -gt 0 ]]; do
   case $1 in
   -m | --match)
@@ -27,6 +28,11 @@ while [[ $# -gt 0 ]]; do
   memory)
     echo Will perform memory checks...
     UTILITY='leaks --atExit --'
+    shift # past argument
+    ;;
+  asan)
+    echo Will perform address sanitization...
+    EXTRA_CONFIG=$EXTRA_CONFIG'--with-asan '
     shift # past argument
     ;;
   release)
@@ -95,7 +101,7 @@ RUNTIME=$PWD
 popd
 
 export PREMAKE_PATH="$RUNTIME/dependencies/export-compile-commands":"$RUNTIME/build":"$PREMAKE_PATH"
-PREMAKE_COMMANDS="--with_rive_text --with_rive_audio=external --with_rive_layout --config=$CONFIG --no_ffp_contract"
+PREMAKE_COMMANDS="--with_rive_text --with_rive_audio=external --with_rive_layout --config=$CONFIG --no_ffp_contract $EXTRA_CONFIG"
 
 out_dir() {
   echo "out/$CONFIG"

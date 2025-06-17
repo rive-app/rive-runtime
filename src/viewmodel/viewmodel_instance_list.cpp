@@ -34,7 +34,6 @@ bool ViewModelInstanceList::addItemAt(ViewModelInstanceListItem* item,
 {
     if (index <= m_ListItems.size())
     {
-        item->ref();
         m_ListItems.insert(m_ListItems.begin() + index, item);
         propertyValueChanged();
         return true;

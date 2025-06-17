@@ -104,6 +104,21 @@ ViewModelInstanceValueRuntime* ViewModelInstanceRuntime::property(
                     case DataType::boolean:
                         return viewModelInstanceRuntime->propertyBoolean(
                             propertyName);
+                    case DataType::color:
+                        return viewModelInstanceRuntime->propertyColor(
+                            propertyName);
+                    case DataType::assetImage:
+                        return viewModelInstanceRuntime->propertyImage(
+                            propertyName);
+                    case DataType::list:
+                        return viewModelInstanceRuntime->propertyList(
+                            propertyName);
+                    case DataType::enumType:
+                        return viewModelInstanceRuntime->propertyEnum(
+                            propertyName);
+                    case DataType::trigger:
+                        return viewModelInstanceRuntime->propertyTrigger(
+                            propertyName);
                     default:
                         break;
                 }
@@ -265,13 +280,13 @@ rcp<ViewModelInstanceRuntime> ViewModelInstanceRuntime::instanceRuntime(
     auto itr = m_viewModelInstances.find(name);
     if (itr != m_viewModelInstances.end())
     {
-        return static_cast<rcp<ViewModelInstanceRuntime>>(itr->second);
+        return itr->second;
     }
     auto viewModelInstance = viewModelInstanceProperty(name);
     if (viewModelInstance != nullptr)
     {
-        auto viewModelInstanceRef = rcp<ViewModelInstanceRuntime>(
-            new ViewModelInstanceRuntime(viewModelInstance));
+        auto viewModelInstanceRef =
+            make_rcp<ViewModelInstanceRuntime>(viewModelInstance);
         m_viewModelInstances[name] = viewModelInstanceRef;
         return viewModelInstanceRef;
     }
@@ -336,8 +351,7 @@ bool ViewModelInstanceRuntime::replaceViewModelByName(
         }
         if (!isStored)
         {
-            value->ref();
-            m_viewModelInstances[name] = rcp<ViewModelInstanceRuntime>(value);
+            m_viewModelInstances[name] = ref_rcp(value);
         }
         return true;
     }
