@@ -232,4 +232,18 @@ inline bool operator!=(const rcp<T>& a, const rcp<U>& b)
 
 } // namespace rive
 
+namespace std
+{
+template <typename T> struct hash<rive::rcp<T>>
+{
+    using result_type = std::size_t;
+    using argument_type = rive::rcp<T>;
+
+    std::size_t operator()(const rive::rcp<T>& up) const
+    {
+        return hash<T*>()(up.get());
+    }
+};
+
+} // namespace std
 #endif
