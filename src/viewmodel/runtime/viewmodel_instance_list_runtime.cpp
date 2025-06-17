@@ -110,7 +110,7 @@ void ViewModelInstanceListRuntime::removeInstanceAt(int index)
         {
             it->first->unref();
             it->second->unref();
-            m_itemsMap.erase(listItem);
+            m_itemsMap.erase(it);
         }
     }
 }

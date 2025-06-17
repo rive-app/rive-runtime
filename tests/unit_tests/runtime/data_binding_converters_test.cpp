@@ -62,7 +62,7 @@ TEST_CASE("list to length converter", "[silver]")
 
     for (auto& item : items)
     {
-        delete item;
+        item->unref();
     }
 
     CHECK(silver.matches("list_to_length_test"));
