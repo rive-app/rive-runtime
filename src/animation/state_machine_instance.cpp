@@ -1592,7 +1592,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
 
 StateMachineInstance::~StateMachineInstance()
 {
-    clearDataContext();
+    unbind();
     for (auto inst : m_inputInstances)
     {
         delete inst;
@@ -1871,11 +1871,17 @@ void StateMachineInstance::clearDataContext()
         delete m_DataContext;
         m_DataContext = nullptr;
     }
+
+    m_ownsDataContext = false;
+}
+
+void StateMachineInstance::unbind()
+{
+    clearDataContext();
     for (auto dataBind : m_dataBinds)
     {
         dataBind->unbind();
     }
-    m_ownsDataContext = false;
 }
 
 size_t StateMachineInstance::stateChangedCount() const

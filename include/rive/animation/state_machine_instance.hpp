@@ -105,6 +105,7 @@ public:
     void bindViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) override;
     void dataContext(DataContext* dataContext);
+    DataContext* dataContext() { return m_DataContext; };
 
     size_t currentAnimationCount() const;
     const LinearAnimationInstance* currentAnimationByIndex(size_t index) const;
@@ -170,6 +171,8 @@ public:
     DataBind* bindableDataBindToTarget(
         BindableProperty* bindableProperty) const;
     bool hasListeners() { return m_hitComponents.size() > 0; }
+    void clearDataContext();
+    void internalDataContext(DataContext* dataContext);
 #ifdef TESTING
     size_t hitComponentsCount() { return m_hitComponents.size(); };
     HitComponent* hitComponent(size_t index)
@@ -203,8 +206,7 @@ private:
     std::unordered_map<BindableProperty*, DataBind*>
         m_bindableDataBindsToSource;
     uint8_t m_drawOrderChangeCounter = 0;
-    void internalDataContext(DataContext* dataContext);
-    void clearDataContext();
+    void unbind();
 
 #ifdef WITH_RIVE_TOOLS
 public:

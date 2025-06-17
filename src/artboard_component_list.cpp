@@ -397,8 +397,25 @@ void ArtboardComponentList::updateConstraints()
 
 void ArtboardComponentList::internalDataContext(DataContext* value)
 {
-    // In the future, we may need to reconcile existing artboards with the
-    // new datacontext passed in here
+    // Reconcile the existing data contexts with the new parent
+    for (auto& artboard : m_artboardInstancesMap)
+    {
+        auto dataContext = artboard.second->dataContext();
+        if (dataContext != nullptr)
+        {
+            dataContext->parent(value);
+            artboard.second->internalDataContext(dataContext);
+        }
+    }
+    for (auto& sm : m_stateMachinesMap)
+    {
+        auto dataContext = sm.second->dataContext();
+        if (dataContext != nullptr)
+        {
+            dataContext->parent(value);
+            sm.second->internalDataContext(dataContext);
+        }
+    }
 }
 
 void ArtboardComponentList::bindViewModelInstance(
@@ -410,7 +427,8 @@ void ArtboardComponentList::bindViewModelInstance(
     // each artboard is made at the time of artboard instancing
 }
 
-void ArtboardComponentList::clearDataContext() { reset(); }
+void ArtboardComponentList::clearDataContext() {}
+void ArtboardComponentList::unbind() { reset(); }
 void ArtboardComponentList::updateDataBinds()
 {
     for (int i = 0; i < artboardCount(); i++)

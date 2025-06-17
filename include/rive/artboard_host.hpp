@@ -19,6 +19,7 @@ public:
     virtual void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                        DataContext* parent) = 0;
     virtual void clearDataContext() = 0;
+    virtual void unbind() = 0;
     virtual void updateDataBinds() = 0;
     virtual void markHostingLayoutDirty(ArtboardInstance* artboardInstance) {}
     // The artboard that contains this ArtboardHost

@@ -159,17 +159,13 @@ void DataBind::clearSource()
             m_Source->removeDependent(this);
             m_Source->unref();
         }
-        if (m_dataConverter != nullptr)
-        {
-            m_dataConverter->unbind();
-        }
         m_Source = nullptr;
     }
 }
 
 DataBind::~DataBind()
 {
-    clearSource();
+    unbind();
     delete m_ContextValue;
     m_ContextValue = nullptr;
     delete m_dataConverter;
@@ -218,6 +214,10 @@ void DataBind::bind()
 void DataBind::unbind()
 {
     clearSource();
+    if (m_dataConverter != nullptr)
+    {
+        m_dataConverter->unbind();
+    }
     if (m_ContextValue != nullptr)
     {
         delete m_ContextValue;

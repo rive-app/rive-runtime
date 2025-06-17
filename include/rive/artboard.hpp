@@ -229,6 +229,7 @@ public:
     void dataContext(DataContext* dataContext);
     void internalDataContext(DataContext* dataContext);
     void clearDataContext();
+    void unbind();
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                DataContext* parent);
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);

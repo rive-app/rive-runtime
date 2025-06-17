@@ -75,6 +75,7 @@ public:
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                DataContext* parent) override;
     void clearDataContext() override;
+    void unbind() override;
     void updateDataBinds() override;
     Artboard* parentArtboard() override { return artboard(); }
     void markHostTransformDirty() override { markTransformDirty(); }

@@ -60,7 +60,7 @@ Artboard::~Artboard()
         audioEngine->stop(this);
     }
 #endif
-    clearDataContext();
+    unbind();
     for (auto object : m_Objects)
     {
         // First object is artboard
@@ -1381,7 +1381,7 @@ StatusCode Artboard::import(ImportStack& importStack)
 void Artboard::internalDataContext(DataContext* value)
 {
     m_DataContext = value;
-    for (auto artboardHost : m_NestedArtboards)
+    for (auto artboardHost : m_ArtboardHosts)
     {
         auto value = m_DataContext->getViewModelInstance(
             artboardHost->dataBindPathIds());
@@ -1404,6 +1404,19 @@ void Artboard::internalDataContext(DataContext* value)
     sortDataBinds();
 }
 
+void Artboard::unbind()
+{
+    clearDataContext();
+    for (auto& dataBind : m_DataBinds)
+    {
+        dataBind->unbind();
+    }
+    for (auto artboardHost : m_ArtboardHosts)
+    {
+        artboardHost->unbind();
+    }
+}
+
 void Artboard::clearDataContext()
 {
     if (m_ownsDataContext && m_DataContext != nullptr)
@@ -1415,10 +1428,6 @@ void Artboard::clearDataContext()
     for (auto artboardHost : m_ArtboardHosts)
     {
         artboardHost->clearDataContext();
-    }
-    for (auto& dataBind : m_DataBinds)
-    {
-        dataBind->unbind();
     }
 }
 
@@ -1472,11 +1481,12 @@ void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance)
 void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                      DataContext* parent)
 {
-    clearDataContext();
     if (viewModelInstance == nullptr)
     {
+        unbind();
         return;
     }
+    clearDataContext();
     m_ownsDataContext = true;
     auto dataContext = new DataContext(viewModelInstance);
     dataContext->parent(parent);

@@ -33,10 +33,22 @@ void DataBindContext::bindFromContext(DataContext* dataContext)
     {
         auto vmSource =
             dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
-        if (vmSource != nullptr)
+        if (vmSource != m_Source)
         {
-            source(vmSource);
-            bind();
+            if (vmSource != nullptr)
+            {
+                clearSource();
+                source(vmSource);
+                bind();
+            }
+            else
+            {
+                unbind();
+            }
+        }
+        else
+        {
+            addDirt(ComponentDirt::Bindings, true);
         }
         if (m_dataConverter != nullptr)
         {

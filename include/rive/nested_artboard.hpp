@@ -81,6 +81,7 @@ public:
                                DataContext* parent) override;
     void internalDataContext(DataContext* dataContext) override;
     void clearDataContext() override;
+    void unbind() override;
     void updateDataBinds() override;
 
     bool advanceComponent(float elapsedSeconds,

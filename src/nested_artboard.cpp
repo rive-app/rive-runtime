@@ -304,6 +304,14 @@ void NestedArtboard::clearDataContext()
     }
 }
 
+void NestedArtboard::unbind()
+{
+    if (artboardInstance() != nullptr)
+    {
+        artboardInstance()->unbind();
+    }
+}
+
 void NestedArtboard::updateDataBinds()
 {
     if (artboardInstance() != nullptr)
