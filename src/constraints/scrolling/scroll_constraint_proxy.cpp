@@ -5,19 +5,19 @@
 
 using namespace rive;
 
-void ViewportDraggableProxy::drag(Vec2D mousePosition)
+void ViewportDraggableProxy::drag(Vec2D mousePosition, float timeStamp)
 {
-    m_constraint->dragView(mousePosition - m_lastPosition);
+    m_constraint->dragView(mousePosition - m_lastPosition, timeStamp);
     m_lastPosition = mousePosition;
 }
 
-void ViewportDraggableProxy::startDrag(Vec2D mousePosition)
+void ViewportDraggableProxy::startDrag(Vec2D mousePosition, float timeStamp)
 {
     m_constraint->initPhysics();
     m_lastPosition = mousePosition;
 }
 
-void ViewportDraggableProxy::endDrag(Vec2D mousePosition)
+void ViewportDraggableProxy::endDrag(Vec2D mousePosition, float timeStamp)
 {
     m_constraint->runPhysics();
 }

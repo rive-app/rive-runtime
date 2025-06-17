@@ -24,7 +24,7 @@ public:
     void initializeAnimation(ArtboardInstance*) override;
     StateMachineInstance* stateMachineInstance();
 
-    HitResult pointerMove(Vec2D position);
+    HitResult pointerMove(Vec2D position, float timeStamp = 0);
     HitResult pointerDown(Vec2D position);
     HitResult pointerUp(Vec2D position);
     HitResult pointerExit(Vec2D position);

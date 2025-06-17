@@ -549,6 +549,7 @@ public:
         Vec2D position,
         ListenerType hitEvent,
         bool canHit,
+        float timeStamp,
         StateMachineInstance* stateMachineInstance)
     {
         // Because each group is tested individually for its hover state, a
@@ -680,6 +681,7 @@ public:
         Vec2D position,
         ListenerType hitEvent,
         bool canHit,
+        float timeStamp,
         StateMachineInstance* stateMachineInstance) override
     {
         auto prevPhase = clickPhase();
@@ -687,12 +689,13 @@ public:
                                     position,
                                     hitEvent,
                                     canHit,
+                                    timeStamp,
                                     stateMachineInstance);
         if (prevPhase == GestureClickPhase::down &&
             (clickPhase() == GestureClickPhase::clicked ||
              clickPhase() == GestureClickPhase::out))
         {
-            m_draggable->endDrag(position);
+            m_draggable->endDrag(position, timeStamp);
             if (hasScrolled)
             {
                 return ProcessEventResult::scroll;
@@ -702,13 +705,13 @@ public:
         else if (prevPhase != GestureClickPhase::down &&
                  clickPhase() == GestureClickPhase::down)
         {
-            m_draggable->startDrag(position);
+            m_draggable->startDrag(position, timeStamp);
             hasScrolled = false;
         }
         else if (hitEvent == ListenerType::move &&
                  clickPhase() == GestureClickPhase::down)
         {
-            m_draggable->drag(position);
+            m_draggable->drag(position, timeStamp);
             hasScrolled = true;
             return ProcessEventResult::scroll;
         }
@@ -838,7 +841,8 @@ public:
 
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
-                           bool canHit) override
+                           bool canHit,
+                           float timeStamp) override
     {
         // If the shape doesn't have any ListenerType::move / enter / exit and
         // the event being processed is not of the type it needs to handle.
@@ -862,6 +866,7 @@ public:
                                             position,
                                             hitType,
                                             canHit,
+                                            timeStamp,
                                             m_stateMachineInstance) ==
                 ProcessEventResult::scroll)
             {
@@ -1014,7 +1019,8 @@ public:
     }
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
-                           bool canHit) override
+                           bool canHit,
+                           float timeStamp) override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
         HitResult hitResult = HitResult::none;
@@ -1049,7 +1055,8 @@ public:
                             break;
                         case ListenerType::move:
                             hitResult =
-                                nestedStateMachine->pointerMove(nestedPosition);
+                                nestedStateMachine->pointerMove(nestedPosition,
+                                                                timeStamp);
                             break;
                         case ListenerType::enter:
                         case ListenerType::exit:
@@ -1117,7 +1124,8 @@ public:
     }
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
-                           bool canHit) override
+                           bool canHit,
+                           float timeStamp) override
     {
         auto componentList = m_component->as<ArtboardComponentList>();
         HitResult hitResult = HitResult::none;
@@ -1201,7 +1209,8 @@ public:
 } // namespace rive
 
 HitResult StateMachineInstance::updateListeners(Vec2D position,
-                                                ListenerType hitType)
+                                                ListenerType hitType,
+                                                float timeStamp)
 {
     if (m_artboardInstance->frameOrigin())
     {
@@ -1227,7 +1236,7 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
         // TODO: quick reject.
 
         HitResult hitResult =
-            hitShape->processEvent(position, hitType, !hitOpaque);
+            hitShape->processEvent(position, hitType, !hitOpaque, timeStamp);
         if (hitResult != HitResult::none)
         {
             hitSomething = true;
@@ -1262,9 +1271,9 @@ bool StateMachineInstance::hitTest(Vec2D position) const
     return false;
 }
 
-HitResult StateMachineInstance::pointerMove(Vec2D position)
+HitResult StateMachineInstance::pointerMove(Vec2D position, float timeStamp)
 {
-    return updateListeners(position, ListenerType::move);
+    return updateListeners(position, ListenerType::move, timeStamp);
 }
 HitResult StateMachineInstance::pointerDown(Vec2D position)
 {

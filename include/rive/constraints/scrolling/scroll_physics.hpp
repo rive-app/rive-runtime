@@ -46,7 +46,7 @@ public:
     }
     virtual Vec2D clamp(Vec2D range, Vec2D value) { return Vec2D(); };
     virtual Vec2D advance(float elapsedSeconds) { return Vec2D(); };
-    virtual void accumulate(Vec2D delta);
+    virtual void accumulate(Vec2D delta, float timeStamp);
     virtual void run(Vec2D range,
                      Vec2D value,
                      std::vector<Vec2D> snappingPoints)

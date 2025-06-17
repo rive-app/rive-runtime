@@ -55,7 +55,9 @@ class StateMachineInstance : public Scene,
 private:
     /// Provide a hitListener if you want to process a down or an up for the
     /// pointer position too.
-    HitResult updateListeners(Vec2D position, ListenerType hitListener);
+    HitResult updateListeners(Vec2D position,
+                              ListenerType hitListener,
+                              float timeStamp = 0);
 
     template <typename SMType, typename InstType>
     InstType* getNamedInput(const std::string& name) const;
@@ -122,7 +124,7 @@ public:
     bool advanceAndApply(float secs) override;
     void advancedDataContext();
     std::string name() const override;
-    HitResult pointerMove(Vec2D position) override;
+    HitResult pointerMove(Vec2D position, float timeStamp = 0) override;
     HitResult pointerDown(Vec2D position) override;
     HitResult pointerUp(Vec2D position) override;
     HitResult pointerExit(Vec2D position) override;
@@ -230,7 +232,8 @@ public:
     virtual ~HitComponent() {}
     virtual HitResult processEvent(Vec2D position,
                                    ListenerType hitType,
-                                   bool canHit) = 0;
+                                   bool canHit,
+                                   float timeStamp = 0) = 0;
     virtual void prepareEvent(Vec2D position, ListenerType hitType) = 0;
     virtual bool hitTest(Vec2D position) const = 0;
 #ifdef TESTING

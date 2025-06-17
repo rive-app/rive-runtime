@@ -43,6 +43,58 @@ TEST_CASE("ScrollConstraint vertical offset", "[layoutscroll]")
     REQUIRE(scroll->clampedOffsetY() == -220.0f);
 }
 
+TEST_CASE("ScrollConstraint vertical offset manual", "[layoutscroll]")
+{
+    auto file = ReadRiveFile("assets/layout/layout_scroll_vertical.riv");
+
+    auto artboard = file->artboard();
+
+    REQUIRE(artboard->find<rive::LayoutComponent>("Content") != nullptr);
+
+    auto artboardInstance = artboard->instance();
+    auto stateMachine = artboard->stateMachine("State Machine 1");
+
+    REQUIRE(artboardInstance != nullptr);
+    REQUIRE(artboardInstance->stateMachineCount() == 1);
+
+    REQUIRE(stateMachine != nullptr);
+
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, artboardInstance.get());
+
+    REQUIRE(artboardInstance->find<rive::ScrollConstraint>().size() == 1);
+    REQUIRE(artboardInstance->find<rive::ScrollConstraint>()[0] != nullptr);
+    auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+
+    REQUIRE(scroll->scrollPercentY() == 0.0f);
+    REQUIRE(scroll->offsetY() == 0.0f);
+    REQUIRE(scroll->scrollIndex() == Approx(0.0f));
+    REQUIRE(scroll->physics()->isRunning() == false);
+
+    artboardInstance->advance(0.0f);
+
+    stateMachineInstance->pointerMove(rive::Vec2D(50.0f, 250.0f));
+    // Start drag
+    stateMachineInstance->pointerDown(rive::Vec2D(50.0f, 250.0f));
+    artboardInstance->advance(0.1f);
+    stateMachineInstance->advanceAndApply(0.1f);
+    // Move up 200px in 0.1 seconds
+    stateMachineInstance->pointerMove(rive::Vec2D(50.0f, 50.0f));
+    artboardInstance->advance(0.0f);
+    stateMachineInstance->advanceAndApply(0.0f);
+
+    REQUIRE(scroll->scrollPercentY() == Approx(0.32787f));
+    REQUIRE(scroll->offsetY() == -200.0f);
+    REQUIRE(scroll->scrollIndex() == Approx(1.818182f));
+
+    // End drag
+    stateMachineInstance->pointerUp(rive::Vec2D(50.0f, 50.0f));
+
+    REQUIRE(scroll->physics()->isRunning() == true);
+
+    delete stateMachineInstance;
+}
+
 TEST_CASE("ScrollConstraint horizontal offset", "[layoutscroll]")
 {
     auto file = ReadRiveFile("assets/layout/layout_scroll_horizontal.riv");

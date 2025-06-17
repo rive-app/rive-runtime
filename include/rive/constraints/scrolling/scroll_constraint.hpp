@@ -37,7 +37,7 @@ public:
     StatusCode import(ImportStack& importStack) override;
     StatusCode onAddedDirty(CoreContext* context) override;
     Core* clone() const override;
-    void dragView(Vec2D delta);
+    void dragView(Vec2D delta, float timeStamp);
     void runPhysics();
     void constrainChild(LayoutNodeProvider* child) override;
     bool advanceComponent(float elapsedSeconds,

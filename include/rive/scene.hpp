@@ -53,7 +53,7 @@ public:
         rcp<ViewModelInstance> viewModelInstance);
 
     virtual HitResult pointerDown(Vec2D);
-    virtual HitResult pointerMove(Vec2D);
+    virtual HitResult pointerMove(Vec2D position, float timeStamp = 0);
     virtual HitResult pointerUp(Vec2D);
     virtual HitResult pointerExit(Vec2D);
 

@@ -16,7 +16,10 @@ float Scene::height() const { return m_artboardInstance->height(); }
 void Scene::draw(Renderer* renderer) { m_artboardInstance->draw(renderer); }
 
 HitResult Scene::pointerDown(Vec2D) { return HitResult::none; }
-HitResult Scene::pointerMove(Vec2D) { return HitResult::none; }
+HitResult Scene::pointerMove(Vec2D position, float timeStamp)
+{
+    return HitResult::none;
+}
 HitResult Scene::pointerUp(Vec2D) { return HitResult::none; }
 HitResult Scene::pointerExit(Vec2D) { return HitResult::none; }
 

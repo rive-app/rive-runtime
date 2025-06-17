@@ -34,11 +34,11 @@ void ScrollConstraint::constrainChild(LayoutNodeProvider* child)
                                         strength());
 }
 
-void ScrollConstraint::dragView(Vec2D delta)
+void ScrollConstraint::dragView(Vec2D delta, float timeStamp)
 {
     if (m_physics != nullptr)
     {
-        m_physics->accumulate(delta);
+        m_physics->accumulate(delta, timeStamp);
     }
     scrollOffsetX(offsetX() + delta.x);
     scrollOffsetY(offsetY() + delta.y);

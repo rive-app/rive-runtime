@@ -21,9 +21,9 @@ protected:
 public:
     virtual ~DraggableProxy() {}
     virtual bool isOpaque() { return false; }
-    virtual void startDrag(Vec2D mousePosition) = 0;
-    virtual void drag(Vec2D mousePosition) = 0;
-    virtual void endDrag(Vec2D mousePosition) = 0;
+    virtual void startDrag(Vec2D mousePosition, float timeStamp = 0) = 0;
+    virtual void drag(Vec2D mousePosition, float timeStamp = 0) = 0;
+    virtual void endDrag(Vec2D mousePosition, float timeStamp = 0) = 0;
     Drawable* hittable() { return m_hittable; }
 };
 

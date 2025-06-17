@@ -48,11 +48,11 @@ bool NestedStateMachine::hitTest(Vec2D position) const
     return false;
 }
 
-HitResult NestedStateMachine::pointerMove(Vec2D position)
+HitResult NestedStateMachine::pointerMove(Vec2D position, float timeStamp)
 {
     if (m_StateMachineInstance != nullptr)
     {
-        return m_StateMachineInstance->pointerMove(position);
+        return m_StateMachineInstance->pointerMove(position, timeStamp);
     }
     return HitResult::none;
 }
