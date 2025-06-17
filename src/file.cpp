@@ -175,11 +175,6 @@ File::~File()
     {
         delete artboard;
     }
-    // Assets delete after artboards as they reference them.
-    for (auto asset : m_fileAssets)
-    {
-        delete asset;
-    }
     for (auto& viewModel : m_ViewModels)
     {
         viewModel->unref();
@@ -293,7 +288,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 case AudioAsset::typeKey:
                 {
                     auto fa = object->as<FileAsset>();
-                    m_fileAssets.push_back(fa);
+                    m_fileAssets.push_back(rcp<FileAsset>(fa));
                 }
                 break;
                 case ViewModel::typeKey:
@@ -950,7 +945,7 @@ rcp<ViewModelRuntime> File::createViewModelRuntime(ViewModel* viewModel) const
     return viewModelRuntime;
 }
 
-const std::vector<FileAsset*>& File::assets() const { return m_fileAssets; }
+Span<const rcp<FileAsset>> File::assets() const { return m_fileAssets; }
 
 const std::vector<DataEnum*>& File::enums() const { return m_Enums; }
 
@@ -1019,7 +1014,7 @@ const std::vector<uint8_t> File::stripAssets(Span<const uint8_t> bytes,
 
 #endif
 
-FileAsset* File::asset(size_t index)
+rcp<FileAsset> File::asset(size_t index)
 {
     if (index >= 0 && index < m_fileAssets.size())
     {

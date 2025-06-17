@@ -1,15 +1,16 @@
 #ifndef _RIVE_FILE_ASSET_HPP_
 #define _RIVE_FILE_ASSET_HPP_
-#include "rive/assets/file_asset_referencer.hpp"
 #include "rive/generated/assets/file_asset_base.hpp"
 #include "rive/span.hpp"
+#include "rive/refcnt.hpp"
 #include "rive/simple_array.hpp"
 #include <string>
 
 namespace rive
 {
 class Factory;
-class FileAsset : public FileAssetBase
+class FileAssetReferencer;
+class FileAsset : public FileAssetBase, public RefCnt<FileAsset>
 {
 private:
     std::vector<uint8_t> m_cdnUuid;

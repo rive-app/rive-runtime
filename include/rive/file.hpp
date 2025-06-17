@@ -83,7 +83,7 @@ public:
     size_t artboardCount() const { return m_artboards.size(); }
     std::string artboardNameAt(size_t index) const;
 
-    const std::vector<FileAsset*>& assets() const;
+    Span<const rcp<FileAsset>> assets() const;
 
     // Instances
     std::unique_ptr<ArtboardInstance> artboardDefault() const;
@@ -148,7 +148,7 @@ public:
     void completeViewModelInstance(
         rcp<ViewModelInstance> viewModelInstance) const;
     const std::vector<DataEnum*>& enums() const;
-    FileAsset* asset(size_t index);
+    rcp<FileAsset> asset(size_t index);
 
     std::vector<Artboard*> artboards() { return m_artboards; };
 
@@ -179,7 +179,7 @@ private:
     Backboard* m_backboard;
 
     /// We just keep these alive for the life of this File
-    std::vector<FileAsset*> m_fileAssets;
+    std::vector<rcp<FileAsset>> m_fileAssets;
 
     std::vector<DataConverter*> m_DataConverters;
 

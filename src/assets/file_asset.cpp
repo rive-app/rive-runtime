@@ -16,7 +16,7 @@ StatusCode FileAsset::import(ImportStack& importStack)
     {
         return StatusCode::MissingObject;
     }
-    backboardImporter->addFileAsset(this);
+    backboardImporter->addFileAsset(ref_rcp(this));
 
     return Super::import(importStack);
 }

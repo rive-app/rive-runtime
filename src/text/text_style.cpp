@@ -124,7 +124,7 @@ void TextStyle::buildDependencies()
 
 uint32_t TextStyle::assetId() { return this->fontAssetId(); }
 
-void TextStyle::setAsset(FileAsset* asset)
+void TextStyle::setAsset(rcp<FileAsset> asset)
 {
     if (asset->is<FontAsset>())
     {

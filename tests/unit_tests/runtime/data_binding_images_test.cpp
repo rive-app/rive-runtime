@@ -76,18 +76,18 @@ TEST_CASE("Test data binding images from file assets", "[data binding]")
     REQUIRE(sub1Image != nullptr);
     // Validations
     // Ensure view model image asset is the same as the image's image asset
-    auto mainAsset = assets[mainImgProperty->propertyValue()];
+    auto mainAsset = assets[mainImgProperty->propertyValue()].get();
     auto imageAsset = rootImage->imageAsset();
     REQUIRE(imageAsset == mainAsset);
-    auto sub1Asset = assets[sub1ImgProperty->propertyValue()];
+    auto sub1Asset = assets[sub1ImgProperty->propertyValue()].get();
     auto sub1ImageAsset = sub1Image->imageAsset();
     REQUIRE(sub1Asset == sub1ImageAsset);
     // Change values
     mainImgProperty->propertyValue(2);
     sub1ImgProperty->propertyValue(6);
     artboard->advance(0.0f);
-    auto updatedMainAsset = assets[mainImgProperty->propertyValue()];
-    auto updatedSub1Asset = assets[sub1ImgProperty->propertyValue()];
+    auto updatedMainAsset = assets[mainImgProperty->propertyValue()].get();
+    auto updatedSub1Asset = assets[sub1ImgProperty->propertyValue()].get();
     // Ensure image is no longer the same
     REQUIRE(imageAsset != updatedMainAsset);
     REQUIRE(sub1ImageAsset != updatedSub1Asset);

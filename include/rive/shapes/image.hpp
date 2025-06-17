@@ -24,11 +24,11 @@ private:
 
 public:
     void setMesh(MeshDrawable* mesh);
-    ImageAsset* imageAsset() const { return (ImageAsset*)m_fileAsset; }
+    ImageAsset* imageAsset() const;
     void draw(Renderer* renderer) override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     StatusCode import(ImportStack& importStack) override;
-    void setAsset(FileAsset*) override;
+    void setAsset(rcp<FileAsset>) override;
     uint32_t assetId() override;
     Core* clone() const override;
     Vec2D measureLayout(float width,

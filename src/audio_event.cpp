@@ -9,8 +9,8 @@ using namespace rive;
 void AudioEvent::play()
 {
 #ifdef WITH_RIVE_AUDIO
-    auto audioAsset = (AudioAsset*)m_fileAsset;
-    if (audioAsset == nullptr)
+    auto audioAsset = (AudioAsset*)m_fileAsset.get();
+    if (m_fileAsset == nullptr)
     {
         return;
     }
@@ -62,9 +62,9 @@ StatusCode AudioEvent::import(ImportStack& importStack)
     return Super::import(importStack);
 }
 
-void AudioEvent::setAsset(FileAsset* asset)
+void AudioEvent::setAsset(rcp<FileAsset> asset)
 {
-    if (asset->is<AudioAsset>())
+    if (asset != nullptr && asset->is<AudioAsset>())
     {
         FileAssetReferencer::setAsset(asset);
     }
@@ -81,3 +81,7 @@ Core* AudioEvent::clone() const
 }
 
 uint32_t AudioEvent::assetId() { return AudioEventBase::assetId(); }
+
+#ifdef TESTING
+AudioAsset* AudioEvent::asset() const { return (AudioAsset*)m_fileAsset.get(); }
+#endif

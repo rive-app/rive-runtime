@@ -26,7 +26,7 @@ StatusCode FileAssetReferencer::registerReferencer(ImportStack& importStack)
     return StatusCode::Ok;
 }
 
-void FileAssetReferencer::setAsset(FileAsset* asset)
+void FileAssetReferencer::setAsset(rcp<FileAsset> asset)
 {
     if (m_fileAsset != nullptr)
     {

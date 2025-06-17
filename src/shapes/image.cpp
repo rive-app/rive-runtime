@@ -105,9 +105,9 @@ StatusCode Image::import(ImportStack& importStack)
 // getAssetId...)
 uint32_t Image::assetId() { return ImageBase::assetId(); }
 
-void Image::setAsset(FileAsset* asset)
+void Image::setAsset(rcp<FileAsset> asset)
 {
-    if (asset->is<ImageAsset>())
+    if (asset != nullptr && asset->is<ImageAsset>())
     {
         FileAssetReferencer::setAsset(asset);
 
@@ -242,6 +242,8 @@ void Image::updateImageScale()
         }
     }
 }
+
+ImageAsset* Image::imageAsset() const { return (ImageAsset*)m_fileAsset.get(); }
 
 #ifdef TESTING
 #include "rive/shapes/mesh.hpp"

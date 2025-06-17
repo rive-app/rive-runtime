@@ -14,7 +14,7 @@ public:
                uint32_t propertyKey,
                bool isMainDirection) override;
     bool syncTargetValue(Core* target, uint32_t propertyKey) override;
-    ImageAsset* fileAsset();
+    rcp<ImageAsset> fileAsset();
 
 protected:
     DataValue* targetValue() override { return &m_targetDataValue; }

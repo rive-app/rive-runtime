@@ -26,7 +26,7 @@ void BackboardImporter::addNestedArtboard(NestedArtboard* artboard)
     m_NestedArtboards.push_back(artboard);
 }
 
-void BackboardImporter::addFileAsset(FileAsset* asset)
+void BackboardImporter::addFileAsset(rcp<FileAsset> asset)
 {
     m_FileAssets.push_back(asset);
     {

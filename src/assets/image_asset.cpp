@@ -1,6 +1,7 @@
 #include "rive/assets/image_asset.hpp"
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
+#include "rive/assets/file_asset_referencer.hpp"
 
 using namespace rive;
 

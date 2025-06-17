@@ -10,7 +10,7 @@ DataBindContextValueAssetImage::DataBindContextValueAssetImage(
     DataBindContextValue(dataBind)
 {}
 
-ImageAsset* DataBindContextValueAssetImage::fileAsset()
+rcp<ImageAsset> DataBindContextValueAssetImage::fileAsset()
 {
     auto file = m_dataBind->file();
     auto source = m_dataBind->source();
@@ -20,9 +20,9 @@ ImageAsset* DataBindContextValueAssetImage::fileAsset()
 
         auto asset = file->asset(
             source->as<ViewModelInstanceAssetImage>()->propertyValue());
-        if (asset != nullptr)
+        if (asset != nullptr && asset->is<ImageAsset>())
         {
-            return asset->as<ImageAsset>();
+            return static_rcp_cast<ImageAsset>(asset);
         }
     }
     return nullptr;

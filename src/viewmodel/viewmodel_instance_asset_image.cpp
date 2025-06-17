@@ -8,6 +8,10 @@
 
 using namespace rive;
 
+ViewModelInstanceAssetImage::ViewModelInstanceAssetImage() :
+    m_imageAsset(rcp<ImageAsset>(new ImageAsset()))
+{}
+
 void ViewModelInstanceAssetImage::propertyValueChanged()
 {
     addDirt(ComponentDirt::Bindings);
@@ -23,18 +27,18 @@ void ViewModelInstanceAssetImage::propertyValueChanged()
 void ViewModelInstanceAssetImage::value(RenderImage* image)
 {
     propertyValue(-1);
-    if (m_imageAsset.renderImage() == image)
+    if (m_imageAsset->renderImage() == image)
     {
         return;
     }
     if (image == nullptr)
     {
-        m_imageAsset.renderImage(nullptr);
+        m_imageAsset->renderImage(nullptr);
     }
     else
     {
         image->ref();
-        m_imageAsset.renderImage(rcp<RenderImage>(image));
+        m_imageAsset->renderImage(rcp<RenderImage>(image));
     }
     addDirt(ComponentDirt::Bindings);
 }
