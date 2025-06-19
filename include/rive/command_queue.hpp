@@ -101,6 +101,8 @@ public:
         : public CommandQueue::ListenerBase<FileListener, FileHandle>
     {
     public:
+        virtual void onFileError(const FileHandle, std::string error) {}
+
         virtual void onFileDeleted(const FileHandle, uint64_t requestId) {}
 
         virtual void onFileLoaded(const FileHandle, uint64_t requestId) {}
@@ -140,6 +142,10 @@ public:
                                             RenderImageHandle>
     {
     public:
+        virtual void onRenderImageError(const RenderImageHandle,
+                                        std::string error)
+        {}
+
         virtual void onRenderImageDeleted(const RenderImageHandle,
                                           uint64_t requestId)
         {}
@@ -149,6 +155,8 @@ public:
         : public CommandQueue::ListenerBase<ArtboardListener, ArtboardHandle>
     {
     public:
+        virtual void onArtboardError(const ArtboardHandle, std::string error) {}
+
         virtual void onArtboardDeleted(const ArtboardHandle, uint64_t requestId)
         {}
 
@@ -183,6 +191,10 @@ public:
                                             ViewModelInstanceHandle>
     {
     public:
+        virtual void onViewModelInstanceError(const ViewModelInstanceHandle,
+                                              std::string error)
+        {}
+
         virtual void onViewModelDeleted(const ViewModelInstanceHandle,
                                         uint64_t requestId)
         {}
@@ -204,6 +216,10 @@ public:
                                             StateMachineHandle>
     {
     public:
+        virtual void onStateMachineError(const StateMachineHandle,
+                                         std::string error)
+        {}
+
         virtual void onStateMachineDeleted(const StateMachineHandle,
                                            uint64_t requestId)
         {}
@@ -652,7 +668,12 @@ private:
         artboardDeleted,
         viewModelDeleted,
         stateMachineDeleted,
-        stateMachineSettled
+        stateMachineSettled,
+        fileError,
+        artboardError,
+        viewModelError,
+        imageError,
+        stateMachineError
     };
 
     friend class CommandServer;

@@ -5,8 +5,11 @@
 #pragma once
 
 #include "rive/command_queue.hpp"
+#include <iostream>
+#include <sstream>
 #include <thread>
 #include <unordered_map>
+#include <type_traits>
 
 namespace rive
 {
@@ -62,6 +65,51 @@ public:
 
 private:
     friend class CommandQueue;
+
+    template <typename HandleType> class ErrorReporter
+    {
+    public:
+        ErrorReporter(CommandServer* server,
+                      HandleType handle,
+                      CommandQueue::Message message) :
+            m_server(server), m_lock(m_server->m_commandQueue->m_messageMutex)
+        {
+            assert(server);
+            assert(message >= CommandQueue::Message::fileError &&
+                   message <= CommandQueue::Message::stateMachineError);
+
+            std::cerr << "ERROR : ";
+            m_server->m_commandQueue->m_messageStream << message;
+            m_server->m_commandQueue->m_messageStream << handle;
+        }
+
+        ErrorReporter& operator<<(std::vector<std::string> vector)
+        {
+            m_ostringstream << "{ ";
+            for (auto& s : vector)
+                m_ostringstream << s << ",";
+            m_ostringstream << "} ";
+            return *this;
+        }
+
+        template <typename T> ErrorReporter& operator<<(const T& t)
+        {
+            m_ostringstream << t;
+            return *this;
+        }
+
+        ~ErrorReporter()
+        {
+            std::string str = m_ostringstream.str();
+            assert(!str.empty());
+            std::cerr << str << "\n";
+            m_server->m_commandQueue->m_messageNames << std::move(str);
+        }
+
+        CommandServer* m_server;
+        std::unique_lock<std::mutex> m_lock;
+        std::ostringstream m_ostringstream;
+    };
 
     void checkPropertySubscriptions();
 

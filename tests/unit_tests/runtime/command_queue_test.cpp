@@ -1172,6 +1172,13 @@ bool operator==(const CommandQueue::ViewModelInstanceData& l,
 class ViewModelPropertyListener : public CommandQueue::ViewModelInstanceListener
 {
 public:
+    virtual void onViewModelInstanceError(const ViewModelInstanceHandle handle,
+                                          std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        ++m_receivedErrors;
+    }
     virtual void onViewModelDeleted(const ViewModelInstanceHandle handle,
                                     uint64_t requestId) override
     {
@@ -1313,6 +1320,7 @@ public:
     void pushBadExpectation(CommandQueue* queue, std::string name, float value)
     {
         queue->setViewModelInstanceNumber(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadExpectation(CommandQueue* queue,
@@ -1320,11 +1328,13 @@ public:
                             ColorInt value)
     {
         queue->setViewModelInstanceColor(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadExpectation(CommandQueue* queue, std::string name, bool value)
     {
         queue->setViewModelInstanceBool(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadExpectation(CommandQueue* queue,
@@ -1335,6 +1345,7 @@ public:
                                                    name,
                                                    value,
                                                    m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadStringExpectation(CommandQueue* queue,
@@ -1342,6 +1353,7 @@ public:
                                   std::string value)
     {
         queue->setViewModelInstanceString(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadEnumExpectation(CommandQueue* queue,
@@ -1349,6 +1361,7 @@ public:
                                 std::string value)
     {
         queue->setViewModelInstanceEnum(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     // one data and id per callback
@@ -1359,6 +1372,9 @@ public:
     bool n_wasDeleted = false;
 
     uint64_t m_requestIdx = 1;
+
+    uint64_t m_expectedErrors = 0;
+    uint64_t m_receivedErrors = 0;
 };
 
 TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
@@ -1439,6 +1455,8 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
     commandQueue->setViewModelInstanceImage(tester.m_handle,
                                             "Test Image",
                                             badImageHandle);
+    ++tester.m_expectedErrors;
+
     commandQueue->runOnce([imageHandle,
                            badImageHandle,
                            handle = tester.m_handle](CommandServer* server) {
@@ -1456,6 +1474,9 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
     commandQueue->setViewModelInstanceImage(tester.m_handle,
                                             "Blah",
                                             imageHandle);
+    // Account for bad image request.
+    ++tester.m_expectedErrors;
+
     commandQueue->runOnce(
         [imageHandle, handle = tester.m_handle](CommandServer* server) {
             auto image = server->getImage(imageHandle);
@@ -1532,6 +1553,8 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
     CHECK(tester.m_expectedData.size() == 0);
     CHECK(tester.m_expectedRequestIds.size() == 0);
 
+    CHECK(tester.m_expectedErrors == tester.m_receivedErrors);
+
     // We should have received the deleted event
     CHECK(tester.n_wasDeleted);
 
@@ -1543,6 +1566,14 @@ class ViewModelPropertySubscriptionListener
     : public CommandQueue::ViewModelInstanceListener
 {
 public:
+    virtual void onViewModelInstanceError(const ViewModelInstanceHandle handle,
+                                          std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        ++m_receivedErrors;
+    }
+
     virtual void onViewModelDeleted(const ViewModelInstanceHandle handle,
                                     uint64_t requestId) override
     {
@@ -1659,6 +1690,7 @@ public:
     void pushBadExpectation(CommandQueue* queue, std::string name, float value)
     {
         queue->setViewModelInstanceNumber(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadExpectation(CommandQueue* queue,
@@ -1666,11 +1698,13 @@ public:
                             ColorInt value)
     {
         queue->setViewModelInstanceColor(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadExpectation(CommandQueue* queue, std::string name, bool value)
     {
         queue->setViewModelInstanceBool(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadExpectation(CommandQueue* queue,
@@ -1678,6 +1712,7 @@ public:
                             RenderImageHandle value)
     {
         queue->setViewModelInstanceImage(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadExpectation(CommandQueue* queue,
@@ -1688,6 +1723,7 @@ public:
                                                    name,
                                                    value,
                                                    m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadStringExpectation(CommandQueue* queue,
@@ -1695,6 +1731,7 @@ public:
                                   std::string value)
     {
         queue->setViewModelInstanceString(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadEnumExpectation(CommandQueue* queue,
@@ -1702,11 +1739,13 @@ public:
                                 std::string value)
     {
         queue->setViewModelInstanceEnum(m_handle, name, value, m_requestIdx);
+        ++m_expectedErrors;
     }
 
     void pushBadTriggerExpectation(CommandQueue* queue, std::string name)
     {
         queue->fireViewModelTrigger(m_handle, name);
+        ++m_expectedErrors;
     }
 
     // One data and id per callback.
@@ -1718,6 +1757,9 @@ public:
 
     uint64_t m_requestIdx = 1;
     int m_receivedCallbacks = 0;
+
+    size_t m_expectedErrors = 0;
+    size_t m_receivedErrors = 0;
 };
 
 TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
@@ -1774,10 +1816,13 @@ TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
     commandQueue->subscribeToViewModelProperty(tester.m_handle,
                                                "Bad property",
                                                DataType::assetImage);
+    ++tester.m_expectedErrors;
+
     // bad type
     commandQueue->subscribeToViewModelProperty(tester.m_handle,
                                                "Test Image",
                                                DataType::integer);
+    ++tester.m_expectedErrors;
 
     commandQueue->runOnce([](CommandServer* server) {
         auto subs = server->testing_getSubsciptions();
@@ -1925,6 +1970,8 @@ TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
     commandQueue->unsubscribeToViewModelProperty(tester.m_handle,
                                                  "Blah",
                                                  DataType::boolean);
+    // Note we don't increment tester.m_expectedErrors because unsubing
+    // something invalid is ok to do, we just ignore it.
 
     commandQueue->runOnce([](CommandServer* server) {
         auto subs = server->testing_getSubsciptions();
@@ -1932,6 +1979,10 @@ TEST_CASE("View Model Property Subscriptions", "[CommandQueue]")
     });
 
     server.processCommands();
+    commandQueue->processMessages();
+
+    CHECK(tester.m_receivedErrors == tester.m_expectedErrors);
+
     commandQueue->disconnect();
 }
 
@@ -1955,7 +2006,7 @@ public:
 };
 
 // The above tests are to check that all subscription types work and that values
-// come through correctlu This is just checking to make sure subscriptions work
+// come through correctly This is just checking to make sure subscriptions work
 // while the server is in a seperate thread but we don't care about the exact
 // callback happening since that is tested above
 
@@ -2216,6 +2267,76 @@ TEST_CASE("List View Model Property Set/Get", "[CommandQueue]")
     serverThread.join();
 }
 
+class TestFileErrorListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onFileError(const FileHandle handle,
+                             std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        ++m_receivedErrors;
+    }
+
+    FileHandle m_handle;
+    size_t m_receivedErrors = 0;
+};
+
+TEST_CASE("file Error Messages", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestFileErrorListener fileListener;
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    fileListener.m_handle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &fileListener);
+
+    commandQueue->instantiateArtboardNamed(fileListener.m_handle, "Blah");
+    commandQueue->instantiateViewModelInstanceNamed(fileListener.m_handle,
+                                                    "Test All",
+                                                    "blah");
+    commandQueue->instantiateViewModelInstanceNamed(fileListener.m_handle,
+                                                    "blah",
+                                                    "blah");
+    commandQueue->instantiateViewModelInstanceNamed(fileListener.m_handle,
+                                                    nullptr,
+                                                    "blah");
+
+    commandQueue->instantiateDefaultViewModelInstance(fileListener.m_handle,
+                                                      "Blah");
+    commandQueue->instantiateDefaultViewModelInstance(fileListener.m_handle,
+                                                      nullptr);
+
+    commandQueue->instantiateBlankViewModelInstance(fileListener.m_handle,
+                                                    "Blah");
+    commandQueue->instantiateBlankViewModelInstance(fileListener.m_handle,
+                                                    nullptr);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(fileListener.m_receivedErrors == 8);
+
+    TestFileErrorListener badFileListener;
+    badFileListener.m_handle =
+        commandQueue->loadFile(std::vector<uint8_t>(100 * 1024, 0),
+                               &badFileListener);
+
+    commandQueue->instantiateDefaultArtboard(badFileListener.m_handle);
+    commandQueue->instantiateDefaultViewModelInstance(badFileListener.m_handle,
+                                                      nullptr);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+    CHECK(badFileListener.m_receivedErrors == 3);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 class TestFileListener : public CommandQueue::FileListener
 {
 public:
@@ -2346,6 +2467,154 @@ TEST_CASE("listEnums", "[CommandQueue]")
     CHECK(!fileListener.m_hasCallback);
 
     commandQueue->processMessages();
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class TestRenderImageErrorListener : public CommandQueue::RenderImageListener
+{
+public:
+    virtual void onRenderImageError(const RenderImageHandle handle,
+                                    std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        CHECK(!m_hasCallback);
+        m_hasCallback = true;
+    }
+
+    RenderImageHandle m_handle;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("render image error", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestRenderImageErrorListener listener;
+
+    listener.m_handle =
+        commandQueue->decodeImage(std::vector<uint8_t>(1024, 0), &listener);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(listener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class TestStateMachineErrorListener : public CommandQueue::StateMachineListener
+{
+public:
+    virtual void onStateMachineError(const StateMachineHandle handle,
+                                     std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        ++m_receivedErrors;
+    }
+
+    StateMachineHandle m_handle;
+    size_t m_receivedErrors = 0;
+};
+
+TEST_CASE("state machine error", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    TestStateMachineErrorListener listener;
+
+    std::ifstream stream("assets/entry.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+
+    listener.m_handle =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle, &listener);
+    commandQueue->bindViewModelInstance(listener.m_handle, nullptr);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(listener.m_receivedErrors == 1);
+
+    TestStateMachineErrorListener badListener;
+    badListener.m_handle =
+        commandQueue->instantiateDefaultStateMachine(nullptr, &badListener);
+
+    commandQueue->advanceStateMachine(badListener.m_handle, 0);
+    commandQueue->pointerDown(badListener.m_handle, {});
+    commandQueue->pointerExit(badListener.m_handle, {});
+    commandQueue->pointerUp(badListener.m_handle, {});
+    commandQueue->pointerMove(badListener.m_handle, {});
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(badListener.m_receivedErrors == 5);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class TestArtboardErrorListener : public CommandQueue::ArtboardListener
+{
+public:
+    virtual void onArtboardError(const ArtboardHandle handle,
+                                 std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        ++m_receivedErrors;
+    }
+
+    size_t m_receivedErrors = 0;
+    ArtboardHandle m_handle;
+};
+
+TEST_CASE("artboard errors", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/entry.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    TestArtboardErrorListener artboardListener;
+
+    artboardListener.m_handle =
+        commandQueue->instantiateArtboardNamed(fileHandle,
+                                               "New Artboard",
+                                               &artboardListener);
+
+    commandQueue->instantiateStateMachineNamed(artboardListener.m_handle,
+                                               "Blah");
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(artboardListener.m_receivedErrors == 1);
+
+    TestArtboardErrorListener badArtboardListener;
+    badArtboardListener.m_handle =
+        commandQueue->instantiateArtboardNamed(fileHandle,
+                                               "Blah",
+                                               &badArtboardListener);
+
+    commandQueue->requestStateMachineNames(badArtboardListener.m_handle);
+    commandQueue->instantiateDefaultStateMachine(badArtboardListener.m_handle);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(badArtboardListener.m_receivedErrors == 2);
 
     commandQueue->disconnect();
     serverThread.join();

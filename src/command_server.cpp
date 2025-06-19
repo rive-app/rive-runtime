@@ -10,6 +10,53 @@
 
 namespace rive
 {
+std::ostream& operator<<(std::ostream& os, DataType t)
+{
+    switch (t)
+    {
+        case DataType::none:
+            os << "None";
+            break;
+        case DataType::string:
+            os << "String";
+            break;
+        case DataType::number:
+            os << "Number";
+            break;
+        case DataType::boolean:
+            os << "Boolean";
+            break;
+        case DataType::color:
+            os << "Color";
+            break;
+        case DataType::list:
+            os << "List";
+            break;
+        case DataType::enumType:
+            os << "Enum";
+            break;
+        case DataType::trigger:
+            os << "Trigger";
+            break;
+        case DataType::viewModel:
+            os << "View Model";
+            break;
+        case DataType::integer:
+            os << "Integer";
+            break;
+        case DataType::symbolListIndex:
+            os << "Symbol List Index";
+            break;
+        case DataType::assetImage:
+            os << "Asset Image";
+            break;
+        default:
+            os << "Unknown DataType";
+            break;
+    }
+    return os;
+}
+
 CommandServer::CommandServer(rcp<CommandQueue> commandBuffer,
                              Factory* factory) :
     m_commandQueue(std::move(commandBuffer)),
@@ -150,11 +197,13 @@ void CommandServer::checkPropertySubscriptions()
                             }
                             break;
                         default:
-                            fprintf(
-                                stderr,
-                                "ERROR: Invalid data type {%i} when checking "
-                                "subscriptions",
-                                static_cast<unsigned int>(data.metaData.type));
+                            ErrorReporter<ViewModelInstanceHandle>(
+                                this,
+                                handle,
+                                CommandQueue::Message::viewModelError)
+                                << "ERROR : Invalid data type {"
+                                << data.metaData.type << "} when checking"
+                                << "subscriptions";
                             continue;
                     }
 
@@ -276,7 +325,10 @@ bool CommandServer::processCommands()
                 }
                 else
                 {
-                    fprintf(stderr, "ERROR: failed to load Rive file.\n");
+                    ErrorReporter<FileHandle>(this,
+                                              handle,
+                                              CommandQueue::Message::fileError)
+                        << "failed to load Rive file.";
                 }
                 break;
             }
@@ -314,8 +366,11 @@ bool CommandServer::processCommands()
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: Command Server failed to decode image\n");
+                    ErrorReporter<RenderImageHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::imageError)
+                        << "Command Server failed to decode image";
                 }
 
                 break;
@@ -358,10 +413,20 @@ bool CommandServer::processCommands()
                     }
                     else
                     {
-                        fprintf(stderr,
-                                "ERROR: artboard \"%s\" not found.\n",
-                                name.c_str());
+                        ErrorReporter<FileHandle>(
+                            this,
+                            fileHandle,
+                            CommandQueue::Message::fileError)
+                            << "artboard \"" << name << "\" not found.";
                     }
+                }
+                else
+                {
+                    ErrorReporter<FileHandle>(this,
+                                              fileHandle,
+                                              CommandQueue::Message::fileError)
+                        << "file " << fileHandle
+                        << " not found when trying to create artboard";
                 }
                 break;
             }
@@ -433,14 +498,58 @@ bool CommandServer::processCommands()
                         }
                         else
                         {
-                            fprintf(stderr,
-                                    "ERROR: artboardInstance not found when "
-                                    "trying to create default view model\n");
+                            if (usesInstanceName)
+                            {
+                                if (viewModelInstanceName.empty())
+                                {
+                                    ErrorReporter<FileHandle>(
+                                        this,
+                                        fileHandle,
+                                        CommandQueue::Message::fileError)
+                                        << "ArtboardInstance " << artboardHandle
+                                        << " Not found when trying to create"
+                                        << " default view model with default "
+                                           "view "
+                                        << "model instance";
+                                }
+                                else
+                                {
+                                    ErrorReporter<FileHandle>(
+                                        this,
+                                        fileHandle,
+                                        CommandQueue::Message::fileError)
+                                        << "ArtboardInstance " << artboardHandle
+                                        << " Not found when trying to create "
+                                        << "default view model with "
+                                        << "view model instance name "
+                                        << viewModelInstanceName;
+                                }
+                            }
+                            else
+                            {
+                                ErrorReporter<FileHandle>(
+                                    this,
+                                    fileHandle,
+                                    CommandQueue::Message::fileError)
+                                    << "ArtboardInstance " << artboardHandle
+                                    << " Not found when trying to create "
+                                    << "default view model with blank view "
+                                    << "model instance";
+                            }
                         }
                     }
                     else
                     {
                         viewModel = file->viewModelByName(viewModelName);
+                        if (viewModel == nullptr)
+                        {
+                            ErrorReporter<FileHandle>(
+                                this,
+                                fileHandle,
+                                CommandQueue::Message::fileError)
+                                << "View model " << viewModelName
+                                << " not found";
+                        }
                     }
 
                     if (viewModel)
@@ -453,38 +562,63 @@ bool CommandServer::processCommands()
                             {
                                 instance =
                                     ref_rcp(viewModel->createDefaultInstance());
+                                if (instance == nullptr)
+                                {
+                                    ErrorReporter<FileHandle>(
+                                        this,
+                                        fileHandle,
+                                        CommandQueue::Message::fileError)
+                                        << "Could not create "
+                                        << "default view model instance "
+                                        << "from view model " << viewModelName;
+                                }
                             }
                             else
                             {
                                 instance =
                                     ref_rcp(viewModel->createInstanceFromName(
                                         viewModelInstanceName));
+                                if (instance == nullptr)
+                                {
+                                    ErrorReporter<FileHandle>(
+                                        this,
+                                        fileHandle,
+                                        CommandQueue::Message::fileError)
+                                        << "Could not create "
+                                           "view model instance named "
+                                        << viewModelInstanceName
+                                        << "from view model " << viewModelName;
+                                }
                             }
                         }
                         else
                         {
                             instance = ref_rcp(viewModel->createInstance());
+                            if (instance == nullptr)
+                            {
+                                ErrorReporter<FileHandle>(
+                                    this,
+                                    fileHandle,
+                                    CommandQueue::Message::fileError)
+                                    << "Could not create "
+                                    << "blank view model instance "
+                                    << "from view model " << viewModelName;
+                            }
                         }
 
                         if (instance)
                         {
                             m_viewModels[viewHandle] = std::move(instance);
                         }
-                        else
-                        {
-                            fprintf(stderr,
-                                    "ERROR: Could not create view instance\n");
-                        }
-                    }
-                    else
-                    {
-                        fprintf(stderr, "ERROR: view model not found\n");
                     }
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: file not found for view model runtime\n");
+                    ErrorReporter<FileHandle>(this,
+                                              fileHandle,
+                                              CommandQueue::Message::fileError)
+                        << "File " << fileHandle
+                        << " not found when creating view model instance ";
                 }
                 break;
             }
@@ -516,24 +650,32 @@ bool CommandServer::processCommands()
                         }
                         else
                         {
-                            fprintf(stderr,
-                                    "ERROR: failed to find list at path %s for "
-                                    "add list\n",
-                                    path.c_str());
+                            ErrorReporter<ViewModelInstanceHandle>(
+                                this,
+                                rootHandle,
+                                CommandQueue::Message::viewModelError)
+                                << "failed to find list at path " << path
+                                << " when trying to add to a list";
                         }
                     }
                     else
                     {
-                        fprintf(stderr,
-                                "ERROR: failed to find value view model "
-                                "instance for add list\n");
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            rootHandle,
+                            CommandQueue::Message::viewModelError)
+                            << "failed to find value view model " << viewHandle
+                            << "isntance for add list";
                     }
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: failed to find root view model instance "
-                            "for add list\n");
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        rootHandle,
+                        CommandQueue::Message::viewModelError)
+                        << "failed to find root view model isntance "
+                        << rootHandle << "for add list";
                 }
 
                 break;
@@ -569,18 +711,24 @@ bool CommandServer::processCommands()
                     }
                     else
                     {
-                        fprintf(stderr,
-                                "ERROR: failed to find list on view model "
-                                "instance for "
-                                "remove at path %s\n",
-                                path.c_str());
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            rootHandle,
+                            CommandQueue::Message::viewModelError)
+                            << "failed to find list on view model "
+                               "isntance for "
+                               "remove at path "
+                            << path;
                     }
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: failed to find view model instance for "
-                            "remove list\n");
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        rootHandle,
+                        CommandQueue::Message::viewModelError)
+                        << "failed to find view model instance " << rootHandle
+                        << " for remove list";
                 }
 
                 break;
@@ -606,18 +754,24 @@ bool CommandServer::processCommands()
                     }
                     else
                     {
-                        fprintf(stderr,
-                                "ERROR: failed to find list on view model "
-                                "instance for "
-                                "swap at path %s\n",
-                                path.c_str());
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            rootHandle,
+                            CommandQueue::Message::viewModelError)
+                            << "failed to find list on view model "
+                               "isntance for "
+                               "swap at path "
+                            << path;
                     }
                 }
                 else
                 {
-                    fprintf(
-                        stderr,
-                        "ERROR: failed to find view model instance for swap\n");
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        rootHandle,
+                        CommandQueue::Message::viewModelError)
+                        << "failed to find view model instance " << rootHandle
+                        << " for swap";
                 }
                 break;
             }
@@ -653,26 +807,35 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(stderr,
-                                        "ERROR: property %s not found "
-                                        "when subscribing\n",
-                                        data.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    rootHandle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Property " << data.name
+                                    << " not found when subscribing";
                             }
                         }
                         else
                         {
-                            fprintf(stderr,
-                                    "ERROR: property type %i is not valid when "
-                                    "subscribing\n",
-                                    static_cast<unsigned int>(data.type));
+                            ErrorReporter<ViewModelInstanceHandle>(
+                                this,
+                                rootHandle,
+                                CommandQueue::Message::viewModelError)
+                                << "Property type " << data.type
+                                << " is not valid when "
+                                << "subscribing";
                         }
                     }
                     else
                     {
-                        fprintf(stderr,
-                                "ERROR: root view not found when subscribing "
-                                "to property %s\n",
-                                data.name.c_str());
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            rootHandle,
+                            CommandQueue::Message::viewModelError)
+                            << "Root view model " << rootHandle
+                            << " not found when subscribing "
+                               "to property "
+                            << data.name;
                     }
                 }
                 else
@@ -717,19 +880,25 @@ bool CommandServer::processCommands()
                     }
                     else
                     {
-                        fprintf(
-                            stderr,
-                            "ERROR: nested view not found when refing nested "
-                            "view model at path %s\n",
-                            path.c_str());
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            nestedViewHandle,
+                            CommandQueue::Message::viewModelError)
+                            << "Nested view not found at path" << path
+                            << " when refing nested "
+                               "view model";
                     }
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: root view not found when refing nested "
-                            "view model at path %s\n",
-                            path.c_str());
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        nestedViewHandle,
+                        CommandQueue::Message::viewModelError)
+                        << "Root view model " << rootViewHandle
+                        << " not found when refing nested "
+                           "view model at path "
+                        << path;
                 }
                 break;
             }
@@ -761,28 +930,34 @@ bool CommandServer::processCommands()
                         }
                         else
                         {
-                            fprintf(stderr,
-                                    "ERROR: View model not found on list %s at "
-                                    "index %i\n",
-                                    path.c_str(),
-                                    index);
+                            ErrorReporter<ViewModelInstanceHandle>(
+                                this,
+                                rootViewHandle,
+                                CommandQueue::Message::viewModelError)
+                                << "View model not found on list " << path
+                                << " at index " << index;
                         }
                     }
                     else
                     {
-                        fprintf(stderr,
-                                "ERROR: list not found at path %s when refing "
-                                "view model at index %i\n",
-                                path.c_str(),
-                                index);
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            rootViewHandle,
+                            CommandQueue::Message::viewModelError)
+                            << "List not found at path " << path
+                            << " when refing  view model at index " << index;
                     }
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: root view not found when refing nested "
-                            "view model at path %s\n",
-                            path.c_str());
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        rootViewHandle,
+                        CommandQueue::Message::viewModelError)
+                        << "Root view model" << rootViewHandle
+                        << " not found when refing nested "
+                           "view model at path "
+                        << path;
                 }
                 break;
             }
@@ -824,11 +999,25 @@ bool CommandServer::processCommands()
                     }
                     else
                     {
-                        fprintf(stderr,
-                                "ERROR: Could not create state machine with "
-                                "name \"%s\" because it was not found.\n",
-                                name.c_str());
+                        ErrorReporter<ArtboardHandle>(
+                            this,
+                            artboardHandle,
+                            CommandQueue::Message::artboardError)
+                            << "Could not create state "
+                               "machine with name \""
+                            << name << "\" because it was not found.";
                     }
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        artboardHandle,
+                        CommandQueue::Message::artboardError)
+                        << "Could not create state "
+                           "machine with name \""
+                        << name << "\" because the owning artboard "
+                        << artboardHandle << " was not found.";
                 }
                 break;
             }
@@ -853,16 +1042,23 @@ bool CommandServer::processCommands()
                     }
                     else
                     {
-                        fprintf(stderr,
-                                "ERROR: View Model not found for bind\n");
+                        ErrorReporter<StateMachineHandle>(
+                            this,
+                            handle,
+                            CommandQueue::Message::stateMachineError)
+                            << "View model instance " << viewModel
+                            << " not found for when trying to bind "
+                               "to a state machine";
                     }
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: State machine \"%llu\" not found for "
-                            "binding view model.\n",
-                            reinterpret_cast<unsigned long long>(handle));
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for binding view model.";
                 }
                 break;
             }
@@ -891,10 +1087,13 @@ bool CommandServer::processCommands()
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: State machine \"%llu\" not found for "
-                            "advance.\n",
-                            reinterpret_cast<unsigned long long>(handle));
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine " << handle
+                        << " not found for "
+                           "advance.";
                 }
 
                 break;
@@ -966,6 +1165,14 @@ bool CommandServer::processCommands()
                         m_commandQueue->m_messageNames << artboard->name();
                     }
                 }
+                else
+                {
+                    ErrorReporter<FileHandle>(this,
+                                              handle,
+                                              CommandQueue::Message::fileError)
+                        << "Invalid file handle " << handle
+                        << " when getting list of artboards";
+                }
 
                 break;
             }
@@ -1011,6 +1218,14 @@ bool CommandServer::processCommands()
                             m_commandQueue->m_messageNames << enumValueName;
                     }
                 }
+                else
+                {
+                    ErrorReporter<FileHandle>(this,
+                                              handle,
+                                              CommandQueue::Message::fileError)
+                        << "Invalid file handle " << handle
+                        << " when getting list of enums";
+                }
                 break;
             }
 
@@ -1036,6 +1251,15 @@ bool CommandServer::processCommands()
                         m_commandQueue->m_messageNames
                             << artboard->stateMachineNameAt(i);
                     }
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::artboardError)
+                        << "Invalid artboard handle " << handle
+                        << " when getting list of state machines";
                 }
                 break;
             }
@@ -1063,6 +1287,14 @@ bool CommandServer::processCommands()
                         m_commandQueue->m_messageNames
                             << file->viewModelByIndex(i)->name();
                     }
+                }
+                else
+                {
+                    ErrorReporter<FileHandle>(this,
+                                              handle,
+                                              CommandQueue::Message::fileError)
+                        << "Invalid file handle " << handle
+                        << " when getting list of view models";
                 }
                 break;
             }
@@ -1097,6 +1329,25 @@ bool CommandServer::processCommands()
                             m_commandQueue->m_messageNames << name;
                         }
                     }
+                    else
+                    {
+                        ErrorReporter<FileHandle>(
+                            this,
+                            handle,
+                            CommandQueue::Message::viewModelError)
+                            << "Invalid view model name " << viewModelName
+                            << " when getting list of view model instance "
+                               "names";
+                    }
+                }
+                else
+                {
+                    ErrorReporter<FileHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::viewModelError)
+                        << "Invalid file handle " << handle
+                        << " when getting list of view model instance names";
                 }
                 break;
             }
@@ -1132,6 +1383,23 @@ bool CommandServer::processCommands()
                             m_commandQueue->m_messageNames << property.name;
                         }
                     }
+                    else
+                    {
+                        ErrorReporter<FileHandle>(
+                            this,
+                            handle,
+                            CommandQueue::Message::fileError)
+                            << "Invalid view model name " << viewModelName
+                            << " when getting list of view model properties";
+                    }
+                }
+                else
+                {
+                    ErrorReporter<FileHandle>(this,
+                                              handle,
+                                              CommandQueue::Message::fileError)
+                        << "Invalid file handle " << handle
+                        << " when getting list of view model properties";
                 }
                 break;
             }
@@ -1192,14 +1460,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "setting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when setting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1213,14 +1482,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "setting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when setting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1234,14 +1504,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "setting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when setting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1255,14 +1526,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "setting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when setting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1276,14 +1548,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "setting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when setting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1292,18 +1565,42 @@ bool CommandServer::processCommands()
                             if (auto property = viewModelInstance->propertyEnum(
                                     value.metaData.name))
                             {
-                                property->value(value.stringValue);
+                                // As far as I can tell, there is no built in
+                                // way to do this from the core runtime. So we
+                                // just verify manually ourselves.
+                                auto values = property->values();
+                                if (std::find(values.begin(),
+                                              values.end(),
+                                              value.stringValue) !=
+                                    values.end())
+                                {
+                                    property->value(value.stringValue);
+                                }
+                                else
+                                {
+                                    ErrorReporter<ViewModelInstanceHandle>(
+                                        this,
+                                        handle,
+                                        CommandQueue::Message::viewModelError)
+                                        << "Invalid enum value for "
+                                           "property "
+                                        << value.metaData.name
+                                        << " when trying to set enum to "
+                                        << value.stringValue
+                                        << " possible values " << values;
+                                }
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "setting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when setting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1316,22 +1613,28 @@ bool CommandServer::processCommands()
                                         value.metaData.name,
                                         nestedViewModel))
                                 {
-                                    fprintf(stderr,
-                                            "ERROR: Could not replace view "
-                                            "model at "
-                                            "path %s",
-                                            value.metaData.name.c_str());
+                                    ErrorReporter<ViewModelInstanceHandle>(
+                                        this,
+                                        handle,
+                                        CommandQueue::Message::viewModelError)
+                                        << "Could not replace "
+                                           "view model at path "
+                                        << value.metaData.name;
                                 }
                             }
                             else
                             {
-                                fprintf(stderr,
-                                        "ERROR: Could not find view model to "
-                                        "set for "
-                                        "view model "
-                                        "instance when "
-                                        "setting property with path %s\n",
-                                        value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find nested view "
+                                       "model "
+                                       "with handle "
+                                    << nestedHandle
+                                    << " to set for view model instance when "
+                                       "setting property with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1347,22 +1650,25 @@ bool CommandServer::processCommands()
                                 }
                                 else
                                 {
-                                    fprintf(stderr,
-                                            "ERROR: Could not find image "
-                                            "property at "
-                                            "path %s",
-                                            value.metaData.name.c_str());
+                                    ErrorReporter<ViewModelInstanceHandle>(
+                                        this,
+                                        handle,
+                                        CommandQueue::Message::viewModelError)
+                                        << "Could not find "
+                                           "image property at path "
+                                        << value.metaData.name;
                                 }
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find image to set for "
-                                    "view model "
-                                    "instance when "
-                                    "setting property with path %s\n",
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find image " << imageHandle
+                                    << " to set for view model instance when "
+                                       "setting property with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1372,11 +1678,14 @@ bool CommandServer::processCommands()
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: Could not find view model instance when "
-                            "setting property type %u with path %s\n",
-                            static_cast<unsigned int>(value.metaData.type),
-                            value.metaData.name.c_str());
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::viewModelError)
+                        << "Could not find view model instance when "
+                           "setting property type "
+                        << value.metaData.type << " with path "
+                        << value.metaData.name;
                 }
                 break;
             }
@@ -1406,14 +1715,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "getting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when getting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1427,14 +1737,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "getting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when getting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1448,14 +1759,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "getting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when getting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1469,14 +1781,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "getting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when getting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1489,14 +1802,15 @@ bool CommandServer::processCommands()
                             }
                             else
                             {
-                                fprintf(
-                                    stderr,
-                                    "ERROR: Could not find view model property "
-                                    "instance when "
-                                    "getting property type %u with path %s\n",
-                                    static_cast<unsigned int>(
-                                        value.metaData.type),
-                                    value.metaData.name.c_str());
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find view model "
+                                       "property "
+                                       "instance when getting property type "
+                                    << value.metaData.type << " with path "
+                                    << value.metaData.name;
                             }
                             break;
                         }
@@ -1533,11 +1847,14 @@ bool CommandServer::processCommands()
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: Could not find view model instance when "
-                            "getting property type %u with path %s\n",
-                            static_cast<unsigned int>(value.metaData.type),
-                            value.metaData.name.c_str());
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::viewModelError)
+                        << "Could not find view model instance when "
+                           "getting property type "
+                        << value.metaData.type << " with path "
+                        << value.metaData.name;
                 }
                 break;
             }
@@ -1568,18 +1885,22 @@ bool CommandServer::processCommands()
                     }
                     else
                     {
-                        fprintf(
-                            stderr,
-                            "ERROR: failed to get list at path %s when getting "
-                            "list size\n",
-                            path.c_str());
+                        ErrorReporter<ViewModelInstanceHandle>(
+                            this,
+                            handle,
+                            CommandQueue::Message::viewModelError)
+                            << "failed to get list at path " << path
+                            << " when getting list size";
                     }
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: failed to get view model when getting list "
-                            "size\n");
+                    ErrorReporter<ViewModelInstanceHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::viewModelError)
+                        << "failed to get view model " << handle
+                        << " when getting list size";
                 }
 
                 break;
@@ -1600,10 +1921,12 @@ bool CommandServer::processCommands()
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: State machine \"%llu\" not found for "
-                            "pointerMove.\n",
-                            reinterpret_cast<unsigned long long>(handle));
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine \"" << handle
+                        << "\" not found for pointerMove.";
                 }
                 break;
             }
@@ -1623,10 +1946,12 @@ bool CommandServer::processCommands()
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: State machine \"%llu\" not found for "
-                            "pointerDown.\n",
-                            reinterpret_cast<unsigned long long>(handle));
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine \"" << handle
+                        << "\" not found for pointerDown.";
                 }
                 break;
             }
@@ -1646,10 +1971,12 @@ bool CommandServer::processCommands()
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: State machine \"%llu\" not found for "
-                            "pointerUp.\n",
-                            reinterpret_cast<unsigned long long>(handle));
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine \"" << handle
+                        << "\" not found for pointerUp.";
                 }
                 break;
             }
@@ -1669,10 +1996,12 @@ bool CommandServer::processCommands()
                 }
                 else
                 {
-                    fprintf(stderr,
-                            "ERROR: State machine \"%llu\" not found for "
-                            "pointerExit.\n",
-                            reinterpret_cast<unsigned long long>(handle));
+                    ErrorReporter<StateMachineHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::stateMachineError)
+                        << "State machine \"" << handle
+                        << "\" not found for pointerExit.";
                 }
                 break;
             }

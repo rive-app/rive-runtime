@@ -1135,6 +1135,84 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+
+            case Message::fileError:
+            {
+                FileHandle handle;
+                std::string error;
+                m_messageStream >> handle;
+                m_messageNames >> error;
+                lock.unlock();
+
+                auto itr = m_fileListeners.find(handle);
+                if (itr != m_fileListeners.end())
+                {
+                    itr->second->onFileError(handle, std::move(error));
+                }
+
+                break;
+            }
+            case Message::viewModelError:
+            {
+                ViewModelInstanceHandle handle;
+                std::string error;
+                m_messageStream >> handle;
+                m_messageNames >> error;
+                lock.unlock();
+
+                auto itr = m_viewModelListeners.find(handle);
+                if (itr != m_viewModelListeners.end())
+                {
+                    itr->second->onViewModelInstanceError(handle,
+                                                          std::move(error));
+                }
+                break;
+            }
+            case Message::imageError:
+            {
+                RenderImageHandle handle;
+                std::string error;
+                m_messageStream >> handle;
+                m_messageNames >> error;
+                lock.unlock();
+
+                auto itr = m_imageListeners.find(handle);
+                if (itr != m_imageListeners.end())
+                {
+                    itr->second->onRenderImageError(handle, std::move(error));
+                }
+                break;
+            }
+            case Message::stateMachineError:
+            {
+                StateMachineHandle handle;
+                std::string error;
+                m_messageStream >> handle;
+                m_messageNames >> error;
+                lock.unlock();
+
+                auto itr = m_stateMachineListeners.find(handle);
+                if (itr != m_stateMachineListeners.end())
+                {
+                    itr->second->onStateMachineError(handle, std::move(error));
+                }
+                break;
+            }
+            case Message::artboardError:
+            {
+                ArtboardHandle handle;
+                std::string error;
+                m_messageStream >> handle;
+                m_messageNames >> error;
+                lock.unlock();
+
+                auto itr = m_artboardListeners.find(handle);
+                if (itr != m_artboardListeners.end())
+                {
+                    itr->second->onArtboardError(handle, std::move(error));
+                }
+                break;
+            }
         }
 
         assert(!lock.owns_lock());
