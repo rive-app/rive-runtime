@@ -21,10 +21,6 @@ void ArtboardComponentList::reset()
     {
         sm.second.reset();
     }
-    for (auto& item : m_listItems)
-    {
-        item->unref();
-    }
     m_artboardInstancesMap.clear();
     m_stateMachinesMap.clear();
     m_listItems.clear();
@@ -94,7 +90,7 @@ bool ArtboardComponentList::syncStyleChanges()
 }
 
 Artboard* ArtboardComponentList::findArtboard(
-    ViewModelInstanceListItem* listItem) const
+    const rcp<ViewModelInstanceListItem>& listItem) const
 {
     auto viewModelInstance = listItem->viewModelInstance();
     if (viewModelInstance == nullptr)
@@ -119,26 +115,16 @@ Artboard* ArtboardComponentList::findArtboard(
     return nullptr;
 }
 
-void ArtboardComponentList::disposeListItem(ViewModelInstanceListItem* listItem)
+void ArtboardComponentList::disposeListItem(
+    const rcp<ViewModelInstanceListItem>& listItem)
 {
-    auto artboard = m_artboardInstancesMap[listItem].get();
-    if (artboard != nullptr)
-    {
-        m_artboardInstancesMap[listItem].reset();
-    }
     m_artboardInstancesMap.erase(listItem);
-    auto sm = m_stateMachinesMap[listItem].get();
-    if (sm != nullptr)
-    {
-        m_stateMachinesMap[listItem].reset();
-    }
     m_stateMachinesMap.erase(listItem);
-    listItem->unref();
 }
 
 std::unique_ptr<ArtboardInstance> ArtboardComponentList::createArtboard(
     Component* target,
-    ViewModelInstanceListItem* listItem) const
+    rcp<ViewModelInstanceListItem> listItem) const
 {
     auto artboard = findArtboard(listItem);
     if (artboard != nullptr)
@@ -169,10 +155,10 @@ std::unique_ptr<StateMachineInstance> ArtboardComponentList::
 
 void ArtboardComponentList::updateList(
     int propertyKey,
-    std::vector<ViewModelInstanceListItem*>* list)
+    std::vector<rcp<ViewModelInstanceListItem>>* list)
 {
-    std::vector<ViewModelInstanceListItem*> oldItems;
-    oldItems.assign(m_listItems.begin(), m_listItems.end());
+    m_oldItems.clear();
+    m_oldItems.assign(m_listItems.begin(), m_listItems.end());
     m_listItems.clear();
     m_listItems.assign(list->begin(), list->end());
 
@@ -185,7 +171,7 @@ void ArtboardComponentList::updateList(
     // We need to dispose old items after the layout children of the parent have
     // updated to ensure no bad YGNodes are being hosted from the old data
     // during clearLayoutChildren.
-    for (auto item : oldItems)
+    for (auto item : m_oldItems)
     {
         auto it = std::find(m_listItems.begin(), m_listItems.end(), item);
         if (it == m_listItems.end())
@@ -207,7 +193,8 @@ void ArtboardComponentList::updateList(
                     index);
             }
         }
-        if (m_artboardInstancesMap[item] == nullptr)
+        auto itr = m_artboardInstancesMap.find(item);
+        if (itr == m_artboardInstancesMap.end())
         {
             auto artboardCopy = createArtboard(this, item);
             if (artboardCopy != nullptr)
@@ -217,7 +204,6 @@ void ArtboardComponentList::updateList(
                     createStateMachineInstance(this, artboardInstance);
                 m_artboardInstancesMap[item] = std::move(artboardCopy);
                 m_stateMachinesMap[item] = std::move(stateMachineCopy);
-                item->ref();
                 if (artboardInstance != nullptr)
                 {
                     artboardInstance->host(this);

@@ -8,13 +8,7 @@
 
 using namespace rive;
 
-ViewModelInstanceList::~ViewModelInstanceList()
-{
-    for (auto item : m_ListItems)
-    {
-        item->unref();
-    }
-}
+ViewModelInstanceList::~ViewModelInstanceList() {}
 
 void ViewModelInstanceList::propertyValueChanged()
 {
@@ -22,14 +16,13 @@ void ViewModelInstanceList::propertyValueChanged()
     onValueChanged();
 }
 
-void ViewModelInstanceList::addItem(ViewModelInstanceListItem* item)
+void ViewModelInstanceList::addItem(rcp<ViewModelInstanceListItem> item)
 {
-    item->ref();
     m_ListItems.push_back(item);
     propertyValueChanged();
 }
 
-bool ViewModelInstanceList::addItemAt(ViewModelInstanceListItem* item,
+bool ViewModelInstanceList::addItemAt(rcp<ViewModelInstanceListItem> item,
                                       int index)
 {
     if (index <= m_ListItems.size())
@@ -41,7 +34,7 @@ bool ViewModelInstanceList::addItemAt(ViewModelInstanceListItem* item,
     return false;
 }
 
-void ViewModelInstanceList::internalAddItem(ViewModelInstanceListItem* item)
+void ViewModelInstanceList::internalAddItem(rcp<ViewModelInstanceListItem> item)
 {
     // For ViewModelInstanceListItems that are built as a core object
     // we skip the ref since core has already reffed it
@@ -55,12 +48,11 @@ void ViewModelInstanceList::removeItem(int index)
     {
         auto listItem = m_ListItems[index];
         m_ListItems.erase(m_ListItems.begin() + index);
-        listItem->unref();
         propertyValueChanged();
     }
 }
 
-void ViewModelInstanceList::removeItem(ViewModelInstanceListItem* listItem)
+void ViewModelInstanceList::removeItem(rcp<ViewModelInstanceListItem> listItem)
 {
     auto noSpaceEnd =
         std::remove(m_ListItems.begin(), m_ListItems.end(), listItem);
@@ -68,7 +60,7 @@ void ViewModelInstanceList::removeItem(ViewModelInstanceListItem* listItem)
     propertyValueChanged();
 }
 
-ViewModelInstanceListItem* ViewModelInstanceList::item(uint32_t index)
+rcp<ViewModelInstanceListItem> ViewModelInstanceList::item(uint32_t index)
 {
     if (index < m_ListItems.size())
     {
@@ -94,7 +86,7 @@ Core* ViewModelInstanceList::clone() const
     for (auto property : m_ListItems)
     {
         auto clonedValue = property->clone()->as<ViewModelInstanceListItem>();
-        cloned->internalAddItem(clonedValue);
+        cloned->internalAddItem(rcp<ViewModelInstanceListItem>(clonedValue));
     }
     return cloned;
 }

@@ -13,6 +13,7 @@
 #include "rive/data_bind/data_values/data_value_asset_image.hpp"
 #include "rive/data_bind/data_values/data_value_artboard.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/refcnt.hpp"
 
 using namespace rive;
 

@@ -18,7 +18,10 @@ public:
     {
         m_viewModelInstance = value;
     };
-    rcp<ViewModelInstance> viewModelInstance() { return m_viewModelInstance; }
+    const rcp<ViewModelInstance>& viewModelInstance()
+    {
+        return m_viewModelInstance;
+    }
     void artboard(Artboard* value) { m_artboard = value; };
     Artboard* artboard() { return m_artboard; }
     StatusCode import(ImportStack& importStack) override;

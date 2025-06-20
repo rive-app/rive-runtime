@@ -10,7 +10,7 @@ namespace rive
 class DataValueList : public DataValue
 {
 private:
-    std::vector<ViewModelInstanceListItem*> m_value;
+    std::vector<rcp<ViewModelInstanceListItem>> m_value;
 
 public:
     DataValueList(){};
@@ -19,12 +19,15 @@ public:
     {
         return typeKey == DataType::list;
     }
-    std::vector<ViewModelInstanceListItem*>* value() { return &m_value; };
+    std::vector<rcp<ViewModelInstanceListItem>>* value() { return &m_value; };
     void clear() { m_value.clear(); };
-    void addItem(ViewModelInstanceListItem* item) { m_value.push_back(item); };
+    void addItem(rcp<ViewModelInstanceListItem> item)
+    {
+        m_value.push_back(item);
+    };
     // void value(std::vector<ViewModelInstanceListItem*>* value) { m_value =
     // value; };
-    constexpr static std::vector<ViewModelInstanceListItem*>* defaultValue =
+    constexpr static std::vector<rcp<ViewModelInstanceListItem>>* defaultValue =
         nullptr;
 };
 } // namespace rive

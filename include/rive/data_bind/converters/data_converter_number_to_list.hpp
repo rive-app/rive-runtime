@@ -16,11 +16,10 @@ class DataConverterNumberToList : public DataConverterNumberToListBase
 private:
     File* m_file = nullptr;
     DataValueList m_output;
-    std::vector<ViewModelInstanceListItem*> m_listItems;
+    std::vector<rcp<ViewModelInstanceListItem>> m_listItems;
     void clearItems();
 
 public:
-    ~DataConverterNumberToList();
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
     DataType outputType() override { return DataType::list; };
     void file(File*);

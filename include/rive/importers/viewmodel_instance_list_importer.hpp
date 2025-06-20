@@ -2,6 +2,7 @@
 #define _RIVE_VIEWMODEL_INSTANCE_LIST_IMPORTER_HPP_
 
 #include "rive/importers/import_stack.hpp"
+#include "rive/refcnt.hpp"
 
 namespace rive
 {
@@ -15,7 +16,7 @@ private:
 
 public:
     ViewModelInstanceListImporter(ViewModelInstanceList* viewModelInstanceList);
-    void addItem(ViewModelInstanceListItem* listItem);
+    void addItem(rcp<ViewModelInstanceListItem> listItem);
     StatusCode resolve() override;
 };
 } // namespace rive

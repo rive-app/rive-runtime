@@ -17,7 +17,7 @@ StatusCode ViewModelInstanceListItem::import(ImportStack& importStack)
     {
         return StatusCode::MissingObject;
     }
-    viewModelInstanceList->addItem(this);
+    viewModelInstanceList->addItem(rcp<ViewModelInstanceListItem>(this));
 
     return Super::import(importStack);
 }

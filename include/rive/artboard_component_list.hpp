@@ -21,7 +21,8 @@ class ArtboardComponentList : public ArtboardComponentListBase,
                               public DataBindListItemConsumer
 {
 private:
-    std::vector<ViewModelInstanceListItem*> m_listItems;
+    std::vector<rcp<ViewModelInstanceListItem>> m_listItems;
+    std::vector<rcp<ViewModelInstanceListItem>> m_oldItems;
 
 public:
     ArtboardComponentList();
@@ -30,7 +31,7 @@ public:
     void* layoutNode(int index) override;
 #endif
     size_t artboardCount() override { return m_listItems.size(); }
-    ViewModelInstanceListItem* listItem(int index)
+    rcp<ViewModelInstanceListItem> listItem(int index)
     {
         if (index < m_listItems.size())
         {
@@ -66,7 +67,7 @@ public:
         return this->as<TransformComponent>();
     }
     void updateList(int propertyKey,
-                    std::vector<ViewModelInstanceListItem*>* list) override;
+                    std::vector<rcp<ViewModelInstanceListItem>>* list) override;
     void draw(Renderer* renderer) override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void update(ComponentDirt value) override;
@@ -91,19 +92,20 @@ public:
     Core* clone() const override;
 
 private:
-    void disposeListItem(ViewModelInstanceListItem* listItem);
+    void disposeListItem(const rcp<ViewModelInstanceListItem>& listItem);
     std::unique_ptr<ArtboardInstance> createArtboard(
         Component* target,
-        ViewModelInstanceListItem* listItem) const;
-    Artboard* findArtboard(ViewModelInstanceListItem* listItem) const;
+        rcp<ViewModelInstanceListItem> listItem) const;
+    Artboard* findArtboard(
+        const rcp<ViewModelInstanceListItem>& listItem) const;
     std::unique_ptr<StateMachineInstance> createStateMachineInstance(
         Component* target,
         ArtboardInstance* artboard);
     mutable std::unordered_map<uint32_t, Artboard*> m_artboardsMap;
-    std::unordered_map<ViewModelInstanceListItem*,
+    std::unordered_map<rcp<ViewModelInstanceListItem>,
                        std::unique_ptr<ArtboardInstance>>
         m_artboardInstancesMap;
-    std::unordered_map<ViewModelInstanceListItem*,
+    std::unordered_map<rcp<ViewModelInstanceListItem>,
                        std::unique_ptr<StateMachineInstance>>
         m_stateMachinesMap;
     File* m_file = nullptr;

@@ -40,15 +40,13 @@ TEST_CASE("list to length converter", "[silver]")
     auto list = vmi->propertyValue("lis");
     auto childVM = file->viewModel("child");
     int cnt = 0;
-    std::vector<ViewModelInstanceListItem*> items;
     while (cnt++ < 4)
     {
         silver.addFrame();
         auto childVMI = file->createDefaultViewModelInstance(childVM);
         if (childVMI != nullptr)
         {
-            auto listItem = new ViewModelInstanceListItem();
-            items.push_back(listItem);
+            auto listItem = make_rcp<ViewModelInstanceListItem>();
             listItem->viewModelInstance(childVMI);
             list->as<ViewModelInstanceList>()->addItem(listItem);
         }
@@ -58,11 +56,6 @@ TEST_CASE("list to length converter", "[silver]")
         stateMachine->advanceAndApply(0.1f);
 
         artboard->draw(renderer.get());
-    }
-
-    for (auto& item : items)
-    {
-        item->unref();
     }
 
     CHECK(silver.matches("list_to_length_test"));

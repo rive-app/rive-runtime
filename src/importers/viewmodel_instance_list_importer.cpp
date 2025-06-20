@@ -8,7 +8,8 @@ ViewModelInstanceListImporter::ViewModelInstanceListImporter(
     ViewModelInstanceList* viewModelInstanceList) :
     m_ViewModelInstanceList(viewModelInstanceList)
 {}
-void ViewModelInstanceListImporter::addItem(ViewModelInstanceListItem* listItem)
+void ViewModelInstanceListImporter::addItem(
+    rcp<ViewModelInstanceListItem> listItem)
 {
     m_ViewModelInstanceList->internalAddItem(listItem);
 }

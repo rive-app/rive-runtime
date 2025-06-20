@@ -1006,12 +1006,10 @@ TEST_CASE("Transition self conditions", "[data binding]")
     // state transition
     {
         silver.addFrame();
-        auto itemList = new rive::ViewModelInstanceListItem();
+        auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
         lisProp->addItem(itemList);
-        itemList->unref();
-        auto itemList2 = new rive::ViewModelInstanceListItem();
+        auto itemList2 = rive::make_rcp<rive::ViewModelInstanceListItem>();
         lisProp->addItem(itemList2);
-        itemList2->unref();
         stateMachine->advanceAndApply(0.0f);
         artboard->draw(renderer.get());
     }
@@ -1020,9 +1018,8 @@ TEST_CASE("Transition self conditions", "[data binding]")
     // state transition
     {
         silver.addFrame();
-        auto itemList = new rive::ViewModelInstanceListItem();
+        auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
         lisProp->addItem(itemList);
-        itemList->unref();
         stateMachine->advanceAndApply(0.0f);
         artboard->draw(renderer.get());
     }
@@ -1031,7 +1028,7 @@ TEST_CASE("Transition self conditions", "[data binding]")
     // a state transition
     {
         silver.addFrame();
-        auto itemList = new rive::ViewModelInstanceListItem();
+        auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
         lisProp->addItemAt(itemList, 0);
         stateMachine->advanceAndApply(0.0f);
         artboard->draw(renderer.get());
@@ -1041,9 +1038,8 @@ TEST_CASE("Transition self conditions", "[data binding]")
     // does not trigger a state transition
     {
         silver.addFrame();
-        auto itemList = new rive::ViewModelInstanceListItem();
+        auto itemList = rive::make_rcp<rive::ViewModelInstanceListItem>();
         lisProp->addItemAt(itemList, 10);
-        itemList->unref();
         stateMachine->advanceAndApply(0.0f);
         artboard->draw(renderer.get());
     }
