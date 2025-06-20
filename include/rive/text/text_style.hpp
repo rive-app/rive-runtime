@@ -5,6 +5,7 @@
 #include "rive/assets/file_asset.hpp"
 #include "rive/assets/font_asset.hpp"
 #include "rive/text/text_interface.hpp"
+#include "rive/text/text_variation_helper.hpp"
 
 namespace rive
 {

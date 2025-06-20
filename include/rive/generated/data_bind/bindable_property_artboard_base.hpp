@@ -1,15 +1,15 @@
-#ifndef _RIVE_TEXT_STYLE_PAINT_BASE_HPP_
-#define _RIVE_TEXT_STYLE_PAINT_BASE_HPP_
-#include "rive/text/text_style.hpp"
+#ifndef _RIVE_BINDABLE_PROPERTY_ARTBOARD_BASE_HPP_
+#define _RIVE_BINDABLE_PROPERTY_ARTBOARD_BASE_HPP_
+#include "rive/data_bind/bindable_property_id.hpp"
 namespace rive
 {
-class TextStylePaintBase : public TextStyle
+class BindablePropertyArtboardBase : public BindablePropertyId
 {
 protected:
-    typedef TextStyle Super;
+    typedef BindablePropertyId Super;
 
 public:
-    static const uint16_t typeKey = 137;
+    static const uint16_t typeKey = 597;
 
     /// Helper to quickly determine if a core object extends another without
     /// RTTI at runtime.
@@ -17,10 +17,9 @@ public:
     {
         switch (typeKey)
         {
-            case TextStylePaintBase::typeKey:
-            case TextStyleBase::typeKey:
-            case ContainerComponentBase::typeKey:
-            case ComponentBase::typeKey:
+            case BindablePropertyArtboardBase::typeKey:
+            case BindablePropertyIdBase::typeKey:
+            case BindablePropertyBase::typeKey:
                 return true;
             default:
                 return false;

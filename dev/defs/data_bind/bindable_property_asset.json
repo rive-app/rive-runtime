@@ -4,19 +4,5 @@
     "int": 588,
     "string": "bindablepropertyasset"
   },
-  "extends": "data_bind/bindable_property.json",
-  "properties": {
-    "propertyValue": {
-      "type": "Id",
-      "typeRuntime": "uint",
-      "initialValue": "Core.missingId",
-      "initialValueRuntime": "-1",
-      "key": {
-        "int": 823,
-        "string": "propertyvalue"
-      },
-      "description": "The id of the asset used for dta binding",
-      "bindable": true
-    }
-  }
+  "extends": "data_bind/bindable_property_id.json"
 }

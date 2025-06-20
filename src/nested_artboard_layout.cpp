@@ -9,6 +9,7 @@ Core* NestedArtboardLayout::clone() const
 {
     NestedArtboardLayout* nestedArtboard =
         static_cast<NestedArtboardLayout*>(NestedArtboardLayoutBase::clone());
+    nestedArtboard->file(file());
     if (m_Artboard == nullptr)
     {
         return nestedArtboard;
@@ -221,4 +222,22 @@ bool NestedArtboardLayout::syncStyleChanges()
         return false;
     }
     return m_Artboard->syncStyleChanges();
+}
+
+void NestedArtboardLayout::updateArtboard(
+    ViewModelInstanceArtboard* viewModelInstanceArtboard)
+{
+#ifdef WITH_RIVE_LAYOUT
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->clearLayoutChildren();
+    }
+#endif
+    NestedArtboard::updateArtboard(viewModelInstanceArtboard);
+#ifdef WITH_RIVE_LAYOUT
+    if (parent()->is<LayoutComponent>())
+    {
+        parent()->as<LayoutComponent>()->syncLayoutChildren();
+    }
+#endif
 }

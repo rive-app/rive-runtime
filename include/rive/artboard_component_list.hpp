@@ -86,8 +86,8 @@ public:
     bool isLayoutProvider() override { return true; }
     size_t numLayoutNodes() override { return m_listItems.size(); }
     void reset();
-    void file(File*);
-    File* file() const;
+    void file(File*) override;
+    File* file() const override;
     Core* clone() const override;
 
 private:

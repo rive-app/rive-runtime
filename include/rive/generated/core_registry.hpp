@@ -128,10 +128,12 @@
 #include "rive/custom_property_number.hpp"
 #include "rive/custom_property_string.hpp"
 #include "rive/data_bind/bindable_property.hpp"
+#include "rive/data_bind/bindable_property_artboard.hpp"
 #include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_color.hpp"
 #include "rive/data_bind/bindable_property_enum.hpp"
+#include "rive/data_bind/bindable_property_id.hpp"
 #include "rive/data_bind/bindable_property_integer.hpp"
 #include "rive/data_bind/bindable_property_list.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
@@ -248,6 +250,7 @@
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset.hpp"
 #include "rive/viewmodel/viewmodel_instance_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_instance_boolean.hpp"
@@ -263,6 +266,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_property.hpp"
+#include "rive/viewmodel/viewmodel_property_artboard.hpp"
 #include "rive/viewmodel/viewmodel_property_asset.hpp"
 #include "rive/viewmodel/viewmodel_property_asset_image.hpp"
 #include "rive/viewmodel/viewmodel_property_boolean.hpp"
@@ -289,12 +293,14 @@ public:
         {
             case ViewModelInstanceListItemBase::typeKey:
                 return new ViewModelInstanceListItem();
-            case ViewModelInstanceColorBase::typeKey:
-                return new ViewModelInstanceColor();
             case ViewModelComponentBase::typeKey:
                 return new ViewModelComponent();
             case ViewModelPropertyBase::typeKey:
                 return new ViewModelProperty();
+            case ViewModelPropertyArtboardBase::typeKey:
+                return new ViewModelPropertyArtboard();
+            case ViewModelInstanceColorBase::typeKey:
+                return new ViewModelInstanceColor();
             case ViewModelPropertyEnumBase::typeKey:
                 return new ViewModelPropertyEnum();
             case ViewModelPropertyEnumCustomBase::typeKey:
@@ -309,6 +315,8 @@ public:
                 return new ViewModelInstanceEnum();
             case ViewModelPropertySymbolListIndexBase::typeKey:
                 return new ViewModelPropertySymbolListIndex();
+            case ViewModelInstanceArtboardBase::typeKey:
+                return new ViewModelInstanceArtboard();
             case ViewModelInstanceStringBase::typeKey:
                 return new ViewModelInstanceString();
             case ViewModelPropertyListBase::typeKey:
@@ -593,6 +601,8 @@ public:
                 return new Backboard();
             case OpenUrlEventBase::typeKey:
                 return new OpenUrlEvent();
+            case BindablePropertyArtboardBase::typeKey:
+                return new BindablePropertyArtboard();
             case BindablePropertyIntegerBase::typeKey:
                 return new BindablePropertyInteger();
             case BindablePropertyTriggerBase::typeKey:
@@ -752,6 +762,10 @@ public:
                 break;
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
                 object->as<ViewModelInstanceEnumBase>()->propertyValue(value);
+                break;
+            case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
+                object->as<ViewModelInstanceArtboardBase>()->propertyValue(
+                    value);
                 break;
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
                 object->as<ViewModelPropertyEnumSystemBase>()->enumType(value);
@@ -1221,6 +1235,9 @@ public:
             case OpenUrlEventBase::targetValuePropertyKey:
                 object->as<OpenUrlEventBase>()->targetValue(value);
                 break;
+            case BindablePropertyIdBase::propertyValuePropertyKey:
+                object->as<BindablePropertyIdBase>()->propertyValue(value);
+                break;
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
                 object->as<BindablePropertyIntegerBase>()->propertyValue(value);
                 break;
@@ -1232,9 +1249,6 @@ public:
                 break;
             case DataBindBase::converterIdPropertyKey:
                 object->as<DataBindBase>()->converterId(value);
-                break;
-            case BindablePropertyAssetBase::propertyValuePropertyKey:
-                object->as<BindablePropertyAssetBase>()->propertyValue(value);
                 break;
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
                 object->as<DataConverterNumberToListBase>()->viewModelId(value);
@@ -1380,33 +1394,6 @@ public:
                 break;
         }
     }
-    static void setColor(Core* object, int propertyKey, int value)
-    {
-        switch (propertyKey)
-        {
-            case ViewModelInstanceColorBase::propertyValuePropertyKey:
-                object->as<ViewModelInstanceColorBase>()->propertyValue(value);
-                break;
-            case CustomPropertyColorBase::propertyValuePropertyKey:
-                object->as<CustomPropertyColorBase>()->propertyValue(value);
-                break;
-            case KeyFrameColorBase::valuePropertyKey:
-                object->as<KeyFrameColorBase>()->value(value);
-                break;
-            case TransitionValueColorComparatorBase::valuePropertyKey:
-                object->as<TransitionValueColorComparatorBase>()->value(value);
-                break;
-            case SolidColorBase::colorValuePropertyKey:
-                object->as<SolidColorBase>()->colorValue(value);
-                break;
-            case GradientStopBase::colorValuePropertyKey:
-                object->as<GradientStopBase>()->colorValue(value);
-                break;
-            case BindablePropertyColorBase::propertyValuePropertyKey:
-                object->as<BindablePropertyColorBase>()->propertyValue(value);
-                break;
-        }
-    }
     static void setString(Core* object, int propertyKey, std::string value)
     {
         switch (propertyKey)
@@ -1470,6 +1457,33 @@ public:
                 break;
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 object->as<FileAssetBase>()->cdnBaseUrl(value);
+                break;
+        }
+    }
+    static void setColor(Core* object, int propertyKey, int value)
+    {
+        switch (propertyKey)
+        {
+            case ViewModelInstanceColorBase::propertyValuePropertyKey:
+                object->as<ViewModelInstanceColorBase>()->propertyValue(value);
+                break;
+            case CustomPropertyColorBase::propertyValuePropertyKey:
+                object->as<CustomPropertyColorBase>()->propertyValue(value);
+                break;
+            case KeyFrameColorBase::valuePropertyKey:
+                object->as<KeyFrameColorBase>()->value(value);
+                break;
+            case TransitionValueColorComparatorBase::valuePropertyKey:
+                object->as<TransitionValueColorComparatorBase>()->value(value);
+                break;
+            case SolidColorBase::colorValuePropertyKey:
+                object->as<SolidColorBase>()->colorValue(value);
+                break;
+            case GradientStopBase::colorValuePropertyKey:
+                object->as<GradientStopBase>()->colorValue(value);
+                break;
+            case BindablePropertyColorBase::propertyValuePropertyKey:
+                object->as<BindablePropertyColorBase>()->propertyValue(value);
                 break;
         }
     }
@@ -2270,6 +2284,9 @@ public:
                 return object->as<ViewModelPropertyEnumCustomBase>()->enumId();
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceEnumBase>()->propertyValue();
+            case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
+                return object->as<ViewModelInstanceArtboardBase>()
+                    ->propertyValue();
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
                 return object->as<ViewModelPropertyEnumSystemBase>()
                     ->enumType();
@@ -2606,6 +2623,8 @@ public:
                 return object->as<JoystickBase>()->handleSourceId();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->as<OpenUrlEventBase>()->targetValue();
+            case BindablePropertyIdBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyIdBase>()->propertyValue();
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
                 return object->as<BindablePropertyIntegerBase>()
                     ->propertyValue();
@@ -2615,8 +2634,6 @@ public:
                 return object->as<DataBindBase>()->flags();
             case DataBindBase::converterIdPropertyKey:
                 return object->as<DataBindBase>()->converterId();
-            case BindablePropertyAssetBase::propertyValuePropertyKey:
-                return object->as<BindablePropertyAssetBase>()->propertyValue();
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
                 return object->as<DataConverterNumberToListBase>()
                     ->viewModelId();
@@ -2718,29 +2735,6 @@ public:
         }
         return 0;
     }
-    static int getColor(Core* object, int propertyKey)
-    {
-        switch (propertyKey)
-        {
-            case ViewModelInstanceColorBase::propertyValuePropertyKey:
-                return object->as<ViewModelInstanceColorBase>()
-                    ->propertyValue();
-            case CustomPropertyColorBase::propertyValuePropertyKey:
-                return object->as<CustomPropertyColorBase>()->propertyValue();
-            case KeyFrameColorBase::valuePropertyKey:
-                return object->as<KeyFrameColorBase>()->value();
-            case TransitionValueColorComparatorBase::valuePropertyKey:
-                return object->as<TransitionValueColorComparatorBase>()
-                    ->value();
-            case SolidColorBase::colorValuePropertyKey:
-                return object->as<SolidColorBase>()->colorValue();
-            case GradientStopBase::colorValuePropertyKey:
-                return object->as<GradientStopBase>()->colorValue();
-            case BindablePropertyColorBase::propertyValuePropertyKey:
-                return object->as<BindablePropertyColorBase>()->propertyValue();
-        }
-        return 0;
-    }
     static std::string getString(Core* object, int propertyKey)
     {
         switch (propertyKey)
@@ -2790,6 +2784,29 @@ public:
                 return object->as<FileAssetBase>()->cdnBaseUrl();
         }
         return "";
+    }
+    static int getColor(Core* object, int propertyKey)
+    {
+        switch (propertyKey)
+        {
+            case ViewModelInstanceColorBase::propertyValuePropertyKey:
+                return object->as<ViewModelInstanceColorBase>()
+                    ->propertyValue();
+            case CustomPropertyColorBase::propertyValuePropertyKey:
+                return object->as<CustomPropertyColorBase>()->propertyValue();
+            case KeyFrameColorBase::valuePropertyKey:
+                return object->as<KeyFrameColorBase>()->value();
+            case TransitionValueColorComparatorBase::valuePropertyKey:
+                return object->as<TransitionValueColorComparatorBase>()
+                    ->value();
+            case SolidColorBase::colorValuePropertyKey:
+                return object->as<SolidColorBase>()->colorValue();
+            case GradientStopBase::colorValuePropertyKey:
+                return object->as<GradientStopBase>()->colorValue();
+            case BindablePropertyColorBase::propertyValuePropertyKey:
+                return object->as<BindablePropertyColorBase>()->propertyValue();
+        }
+        return 0;
     }
     static bool getBool(Core* object, int propertyKey)
     {
@@ -3331,6 +3348,7 @@ public:
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
             case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
+            case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
             case DataEnumSystemBase::enumTypePropertyKey:
             case ViewModelPropertyViewModelBase::
@@ -3472,11 +3490,11 @@ public:
             case JoystickBase::joystickFlagsPropertyKey:
             case JoystickBase::handleSourceIdPropertyKey:
             case OpenUrlEventBase::targetValuePropertyKey:
+            case BindablePropertyIdBase::propertyValuePropertyKey:
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
             case DataBindBase::propertyKeyPropertyKey:
             case DataBindBase::flagsPropertyKey:
             case DataBindBase::converterIdPropertyKey:
-            case BindablePropertyAssetBase::propertyValuePropertyKey:
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
             case DataConverterOperationBase::operationTypePropertyKey:
             case DataConverterRangeMapperBase::interpolationTypePropertyKey:
@@ -3524,14 +3542,6 @@ public:
             case FileAssetBase::assetIdPropertyKey:
             case AudioEventBase::assetIdPropertyKey:
                 return CoreUintType::id;
-            case ViewModelInstanceColorBase::propertyValuePropertyKey:
-            case CustomPropertyColorBase::propertyValuePropertyKey:
-            case KeyFrameColorBase::valuePropertyKey:
-            case TransitionValueColorComparatorBase::valuePropertyKey:
-            case SolidColorBase::colorValuePropertyKey:
-            case GradientStopBase::colorValuePropertyKey:
-            case BindablePropertyColorBase::propertyValuePropertyKey:
-                return CoreColorType::id;
             case ViewModelComponentBase::namePropertyKey:
             case DataEnumCustomBase::namePropertyKey:
             case ViewModelInstanceStringBase::propertyValuePropertyKey:
@@ -3553,6 +3563,14 @@ public:
             case AssetBase::namePropertyKey:
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 return CoreStringType::id;
+            case ViewModelInstanceColorBase::propertyValuePropertyKey:
+            case CustomPropertyColorBase::propertyValuePropertyKey:
+            case KeyFrameColorBase::valuePropertyKey:
+            case TransitionValueColorComparatorBase::valuePropertyKey:
+            case SolidColorBase::colorValuePropertyKey:
+            case GradientStopBase::colorValuePropertyKey:
+            case BindablePropertyColorBase::propertyValuePropertyKey:
+                return CoreColorType::id;
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
             case TransformComponentConstraintBase::offsetPropertyKey:
             case TransformComponentConstraintBase::doesCopyPropertyKey:
@@ -3841,6 +3859,8 @@ public:
                 return object->is<ViewModelPropertyEnumCustomBase>();
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceEnumBase>();
+            case ViewModelInstanceArtboardBase::propertyValuePropertyKey:
+                return object->is<ViewModelInstanceArtboardBase>();
             case ViewModelPropertyEnumSystemBase::enumTypePropertyKey:
                 return object->is<ViewModelPropertyEnumSystemBase>();
             case DataEnumSystemBase::enumTypePropertyKey:
@@ -4121,6 +4141,8 @@ public:
                 return object->is<JoystickBase>();
             case OpenUrlEventBase::targetValuePropertyKey:
                 return object->is<OpenUrlEventBase>();
+            case BindablePropertyIdBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyIdBase>();
             case BindablePropertyIntegerBase::propertyValuePropertyKey:
                 return object->is<BindablePropertyIntegerBase>();
             case DataBindBase::propertyKeyPropertyKey:
@@ -4129,8 +4151,6 @@ public:
                 return object->is<DataBindBase>();
             case DataBindBase::converterIdPropertyKey:
                 return object->is<DataBindBase>();
-            case BindablePropertyAssetBase::propertyValuePropertyKey:
-                return object->is<BindablePropertyAssetBase>();
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
                 return object->is<DataConverterNumberToListBase>();
             case DataConverterOperationBase::operationTypePropertyKey:
@@ -4223,20 +4243,6 @@ public:
                 return object->is<FileAssetBase>();
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();
-            case ViewModelInstanceColorBase::propertyValuePropertyKey:
-                return object->is<ViewModelInstanceColorBase>();
-            case CustomPropertyColorBase::propertyValuePropertyKey:
-                return object->is<CustomPropertyColorBase>();
-            case KeyFrameColorBase::valuePropertyKey:
-                return object->is<KeyFrameColorBase>();
-            case TransitionValueColorComparatorBase::valuePropertyKey:
-                return object->is<TransitionValueColorComparatorBase>();
-            case SolidColorBase::colorValuePropertyKey:
-                return object->is<SolidColorBase>();
-            case GradientStopBase::colorValuePropertyKey:
-                return object->is<GradientStopBase>();
-            case BindablePropertyColorBase::propertyValuePropertyKey:
-                return object->is<BindablePropertyColorBase>();
             case ViewModelComponentBase::namePropertyKey:
                 return object->is<ViewModelComponentBase>();
             case DataEnumCustomBase::namePropertyKey:
@@ -4277,6 +4283,20 @@ public:
                 return object->is<AssetBase>();
             case FileAssetBase::cdnBaseUrlPropertyKey:
                 return object->is<FileAssetBase>();
+            case ViewModelInstanceColorBase::propertyValuePropertyKey:
+                return object->is<ViewModelInstanceColorBase>();
+            case CustomPropertyColorBase::propertyValuePropertyKey:
+                return object->is<CustomPropertyColorBase>();
+            case KeyFrameColorBase::valuePropertyKey:
+                return object->is<KeyFrameColorBase>();
+            case TransitionValueColorComparatorBase::valuePropertyKey:
+                return object->is<TransitionValueColorComparatorBase>();
+            case SolidColorBase::colorValuePropertyKey:
+                return object->is<SolidColorBase>();
+            case GradientStopBase::colorValuePropertyKey:
+                return object->is<GradientStopBase>();
+            case BindablePropertyColorBase::propertyValuePropertyKey:
+                return object->is<BindablePropertyColorBase>();
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceBooleanBase>();
             case TransformComponentConstraintBase::offsetPropertyKey:

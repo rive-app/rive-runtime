@@ -2,6 +2,7 @@
 #include "rive/artboard.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/generated/core_registry.hpp"
+#include "rive/data_bind/bindable_property_artboard.hpp"
 #include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
@@ -13,6 +14,7 @@
 #include "rive/data_bind/bindable_property_integer.hpp"
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/context/context_value_asset_image.hpp"
+#include "rive/data_bind/context/context_value_artboard.hpp"
 #include "rive/data_bind/context/context_value_boolean.hpp"
 #include "rive/data_bind/context/context_value_number.hpp"
 #include "rive/data_bind/context/context_value_string.hpp"
@@ -71,6 +73,7 @@ StatusCode DataBind::import(ImportStack& importStack)
                 case BindablePropertyStringBase::typeKey:
                 case BindablePropertyBooleanBase::typeKey:
                 case BindablePropertyEnumBase::typeKey:
+                case BindablePropertyArtboardBase::typeKey:
                 case BindablePropertyColorBase::typeKey:
                 case BindablePropertyTriggerBase::typeKey:
                 case BindablePropertyIntegerBase::typeKey:
@@ -135,6 +138,8 @@ DataType DataBind::outputType()
             return DataType::symbolListIndex;
         case ViewModelInstanceAssetImageBase::typeKey:
             return DataType::assetImage;
+        case ViewModelInstanceArtboardBase::typeKey:
+            return DataType::artboard;
     }
     return DataType::none;
 }
@@ -204,6 +209,9 @@ void DataBind::bind()
             break;
         case DataType::assetImage:
             m_ContextValue = new DataBindContextValueAssetImage(this);
+            break;
+        case DataType::artboard:
+            m_ContextValue = new DataBindContextValueArtboard(this);
             break;
         default:
             break;

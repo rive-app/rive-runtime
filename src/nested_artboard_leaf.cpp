@@ -9,6 +9,7 @@ Core* NestedArtboardLeaf::clone() const
 {
     NestedArtboardLeaf* nestedArtboard =
         static_cast<NestedArtboardLeaf*>(NestedArtboardLeafBase::clone());
+    nestedArtboard->file(file());
     if (m_Artboard == nullptr)
     {
         return nestedArtboard;

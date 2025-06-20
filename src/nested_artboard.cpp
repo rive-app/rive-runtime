@@ -1,6 +1,7 @@
 #include "rive/nested_artboard.hpp"
 #include "rive/artboard.hpp"
 #include "rive/backboard.hpp"
+#include "rive/file.hpp"
 #include "rive/importers/import_stack.hpp"
 #include "rive/importers/backboard_importer.hpp"
 #include "rive/nested_animation.hpp"
@@ -18,6 +19,7 @@ Core* NestedArtboard::clone() const
 {
     NestedArtboard* nestedArtboard =
         static_cast<NestedArtboard*>(NestedArtboardBase::clone());
+    nestedArtboard->file(file());
     if (m_Artboard == nullptr)
     {
         return nestedArtboard;
@@ -51,6 +53,56 @@ void NestedArtboard::nest(Artboard* artboard)
     // This allows for swapping after initial load (after onAddedClean has
     // already been called).
     m_Artboard->host(this);
+}
+
+Artboard* NestedArtboard::findArtboard(
+    ViewModelInstanceArtboard* viewModelInstanceArtboard)
+{
+    if (viewModelInstanceArtboard->asset() != nullptr)
+    {
+        return viewModelInstanceArtboard->asset();
+    }
+    else if (m_file != nullptr)
+    {
+        if (m_file != nullptr && viewModelInstanceArtboard != nullptr &&
+            viewModelInstanceArtboard->is<ViewModelInstanceArtboard>())
+        {
+            auto asset = m_file->artboard(
+                viewModelInstanceArtboard->as<ViewModelInstanceArtboard>()
+                    ->propertyValue());
+            if (asset != nullptr)
+            {
+                return asset->as<Artboard>();
+            }
+        }
+    }
+    return nullptr;
+}
+
+void NestedArtboard::updateArtboard(
+    ViewModelInstanceArtboard* viewModelInstanceArtboard)
+{
+    clearDataContext();
+    m_NestedAnimations.clear();
+    Artboard* artboard = findArtboard(viewModelInstanceArtboard);
+    if (artboard != nullptr)
+    {
+        auto artboardInstance = artboard->instance();
+        // TODO: @hernan create state machine with nested state machine wrapper
+        // stateMachine->initializeAnimation(artboardInstance);
+        // m_NestedAnimations.push_back(stateMachine);
+        nest(artboardInstance.release());
+        if (m_dataContext != nullptr && m_viewModelInstance == nullptr)
+        {
+            internalDataContext(m_dataContext);
+        }
+        else if (m_viewModelInstance != nullptr)
+        {
+            bindViewModelInstance(m_viewModelInstance, m_dataContext);
+        }
+        // TODO: @hernan review what dirt to add
+        addDirt(ComponentDirt::Filthy);
+    }
 }
 
 static Mat2D makeTranslate(const Artboard* artboard)
@@ -283,6 +335,8 @@ void NestedArtboard::copyDataBindPathIds(const NestedArtboardBase& object)
 
 void NestedArtboard::internalDataContext(DataContext* value)
 {
+    m_dataContext = value;
+    m_viewModelInstance = nullptr;
     if (artboardInstance() != nullptr)
     {
         artboardInstance()->internalDataContext(value);
@@ -301,6 +355,13 @@ void NestedArtboard::clearDataContext()
     if (artboardInstance() != nullptr)
     {
         artboardInstance()->clearDataContext();
+        for (auto& animation : m_NestedAnimations)
+        {
+            if (animation->is<NestedStateMachine>())
+            {
+                animation->as<NestedStateMachine>()->clearDataContext();
+            }
+        }
     }
 }
 
@@ -324,6 +385,8 @@ void NestedArtboard::bindViewModelInstance(
     rcp<ViewModelInstance> viewModelInstance,
     DataContext* parent)
 {
+    m_dataContext = parent;
+    m_viewModelInstance = viewModelInstance;
     if (artboardInstance() != nullptr)
     {
         artboardInstance()->bindViewModelInstance(viewModelInstance, parent);
@@ -395,3 +458,7 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
 
     return keepGoing;
 }
+
+void NestedArtboard::file(File* value) { m_file = value; }
+
+File* NestedArtboard::file() const { return m_file; }

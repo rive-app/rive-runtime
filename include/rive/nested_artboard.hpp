@@ -8,6 +8,7 @@
 #include "rive/hit_info.hpp"
 #include "rive/span.hpp"
 #include "rive/advancing_component.hpp"
+#include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include <stdio.h>
 
 namespace rive
@@ -18,6 +19,7 @@ class NestedAnimation;
 class NestedInput;
 class NestedStateMachine;
 class StateMachineInstance;
+class File;
 class NestedArtboard : public NestedArtboardBase,
                        public AdvancingComponent,
                        public ArtboardHost
@@ -26,9 +28,16 @@ protected:
     Artboard* m_Artboard = nullptr; // might point to m_Instance, and might not
     std::unique_ptr<ArtboardInstance> m_Instance; // may be null
     std::vector<NestedAnimation*> m_NestedAnimations;
+    File* m_file = nullptr;
+    rcp<ViewModelInstance> m_viewModelInstance = nullptr;
+    DataContext* m_dataContext = nullptr;
 
 protected:
     std::vector<uint32_t> m_DataBindPathIdsBuffer;
+
+private:
+    Artboard* findArtboard(
+        ViewModelInstanceArtboard* viewModelInstanceArtboard);
 
 public:
     NestedArtboard();
@@ -39,6 +48,8 @@ public:
     void addNestedAnimation(NestedAnimation* nestedAnimation);
 
     void nest(Artboard* artboard);
+    virtual void updateArtboard(
+        ViewModelInstanceArtboard* viewModelInstanceArtboard);
     size_t artboardCount() override { return 1; }
     ArtboardInstance* artboardInstance(int index = 0) override
     {
@@ -89,6 +100,8 @@ public:
                                                AdvanceFlags::NewFrame) override;
     Artboard* parentArtboard() override { return artboard(); }
     void markHostTransformDirty() override { markTransformDirty(); }
+    void file(File*) override;
+    File* file() const override;
 };
 } // namespace rive
 

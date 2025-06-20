@@ -37,6 +37,7 @@ public:
     NestedInput* input(std::string name);
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
     void dataContext(DataContext* dataContext);
+    void clearDataContext();
 };
 } // namespace rive
 

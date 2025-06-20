@@ -39,6 +39,7 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/constraints/scrolling/scroll_physics.hpp"
 #include "rive/data_bind/bindable_property.hpp"
+#include "rive/data_bind/bindable_property_artboard.hpp"
 #include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
@@ -451,6 +452,7 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
             case BindablePropertyEnum::typeKey:
             case BindablePropertyBoolean::typeKey:
             case BindablePropertyAsset::typeKey:
+            case BindablePropertyArtboard::typeKey:
             case BindablePropertyTrigger::typeKey:
             case BindablePropertyInteger::typeKey:
             case BindablePropertyList::typeKey:
@@ -474,6 +476,11 @@ ImportResult File::read(BinaryReader& reader, const RuntimeHeader& header)
                 break;
             case ArtboardComponentList::typeKey:
                 object->as<ArtboardComponentList>()->file(this);
+                break;
+            case NestedArtboard::typeKey:
+            case NestedArtboardLayout::typeKey:
+            case NestedArtboardLeaf::typeKey:
+                object->as<NestedArtboard>()->file(this);
                 break;
         }
         if (importStack.makeLatest(stackType, std::move(stackObject)) !=

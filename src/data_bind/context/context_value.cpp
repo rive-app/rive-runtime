@@ -11,6 +11,7 @@
 #include "rive/data_bind/data_values/data_value_list.hpp"
 #include "rive/data_bind/data_values/data_value_symbol_list_index.hpp"
 #include "rive/data_bind/data_values/data_value_asset_image.hpp"
+#include "rive/data_bind/data_values/data_value_artboard.hpp"
 #include "rive/generated/core_registry.hpp"
 
 using namespace rive;
@@ -64,6 +65,10 @@ DataBindContextValue::DataBindContextValue(DataBind* dataBind) :
             case ViewModelInstanceAssetImageBase::typeKey:
                 m_dataValue = new DataValueAssetImage(
                     source->as<ViewModelInstanceAssetImage>()->propertyValue());
+                break;
+            case ViewModelInstanceArtboardBase::typeKey:
+                m_dataValue = new DataValueArtboard(
+                    source->as<ViewModelInstanceArtboard>()->propertyValue());
                 break;
             default:
                 m_dataValue = new DataValue();
@@ -121,6 +126,10 @@ void DataBindContextValue::syncSourceValue()
             case ViewModelInstanceAssetImageBase::typeKey:
                 m_dataValue->as<DataValueAssetImage>()->value(
                     source->as<ViewModelInstanceAssetImage>()->propertyValue());
+                break;
+            case ViewModelInstanceArtboardBase::typeKey:
+                m_dataValue->as<DataValueArtboard>()->value(
+                    source->as<ViewModelInstanceArtboard>()->propertyValue());
                 break;
         }
     }
@@ -220,6 +229,17 @@ void DataBindContextValue::applyToSource(Core* component,
                                                                 m_dataBind,
                                                                 component,
                                                                 propertyKey);
+        }
+        break;
+        case ViewModelInstanceArtboardBase::typeKey:
+        {
+            calculateValueAndApply<DataValueArtboard,
+                                   uint32_t,
+                                   ViewModelInstanceArtboard>(targetValue(),
+                                                              isMainDirection,
+                                                              m_dataBind,
+                                                              component,
+                                                              propertyKey);
         }
         break;
     }

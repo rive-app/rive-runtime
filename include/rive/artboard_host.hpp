@@ -8,6 +8,7 @@ class ArtboardInstance;
 class DataBind;
 class DataContext;
 class ViewModelInstance;
+class File;
 
 class ArtboardHost
 {
@@ -26,6 +27,8 @@ public:
     virtual Artboard* parentArtboard() = 0;
     virtual void markHostTransformDirty() = 0;
     virtual bool isLayoutProvider() { return false; }
+    virtual void file(File* value) = 0;
+    virtual File* file() const = 0;
 };
 } // namespace rive
 

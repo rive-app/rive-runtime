@@ -3,6 +3,7 @@
 #include "rive/generated/nested_artboard_layout_base.hpp"
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/layout/layout_node_provider.hpp"
+#include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 
 namespace rive
 {
@@ -29,6 +30,8 @@ public:
     AABB layoutBounds() override;
     size_t numLayoutNodes() override { return 1; }
     bool isLayoutProvider() override { return true; }
+    void updateArtboard(
+        ViewModelInstanceArtboard* viewModelInstanceArtboard) override;
 
     TransformComponent* transformComponent() override
     {

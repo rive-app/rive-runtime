@@ -127,6 +127,14 @@ void NestedStateMachine::dataContext(DataContext* dataContext)
     }
 }
 
+void NestedStateMachine::clearDataContext()
+{
+    if (m_StateMachineInstance != nullptr)
+    {
+        m_StateMachineInstance->clearDataContext();
+    }
+}
+
 bool NestedStateMachine::tryChangeState()
 {
     if (m_StateMachineInstance != nullptr)
