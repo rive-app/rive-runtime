@@ -12,9 +12,9 @@ Rive C++ is a runtime library for [Rive](https://rive.app), a real-time interact
 The C++ runtime for Rive provides these runtime features:
 - Loading Artboards and their contents from **.riv** files.
 - Querying LinearAnimations and StateMachines from Artboards.
-- Making changes to Artboard hierarchy (fundamentally same guts used by LinearAnimations and StateMachines) and effienclty solving those changes via Artboard::advance.
-- Abstract Renderer for submitting high level vector path commands with retained path objects to optimize and minimize path re-computation (ultimately up to the concrete rendering implementation).
-- Example concrete renderer written in C++ with [Skia](https://skia.org/). Skia renderer code is in [skia/renderer/src/skia_factory.cpp](skia/renderer/src/skia_factory.cpp).
+- Making changes to Artboard hierarchy (fundamentally same guts used by LinearAnimations and StateMachines) and efficiently solving those changes via Artboard::advance.
+- State of the art vector renderer that delivers top performance & quality without comprimise. Currently support Graphics APIs are Metal, Vulkan, D3D12, D3D11, and OpenGL/WebGL.
+- Abstract Renderer interface for hooking up an external vector renderer.
 
 ## Build system
 We use [premake5](https://premake.github.io/). The Rive dev team primarily works on MacOS. There is some work done by the community to also support Windows and Linux. PRs welcomed for specific platforms you wish to support! We encourage you to use premake as it's highly extensible and configurable for a variety of platforms.
@@ -25,16 +25,6 @@ In the ```rive-cpp``` directory, run ```build.sh``` to debug build and ```build.
 If you've put the `premake5` executable in the `rive-cpp/build` folder, you can run it with `PATH=.:$PATH ./build.sh`
 
 Rive makes use of clang [vector builtins](https://reviews.llvm.org/D111529), which are, as of 2022, still a work in progress. Please use clang and ensure you have the latest version.
-
-## Building skia projects
-```
-cd skia/dependencies
-./make_skia.sh      // this will invoke get_skia.sh
-```
-To build viewer (plus you'll needed CMake installed)
-```
-./make_viewer_dependencies.sh
-```
 
 ## Testing
 Uses the [Catch2](https://github.com/catchorg/Catch2) testing framework.
