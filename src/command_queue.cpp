@@ -36,7 +36,6 @@ CommandQueue::CommandQueue() {}
 CommandQueue::~CommandQueue() {}
 
 FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
-                                  rcp<FileAssetLoader> loader,
                                   FileListener* listener,
                                   uint64_t requestId)
 {
@@ -54,7 +53,6 @@ FileHandle CommandQueue::loadFile(std::vector<uint8_t> rivBytes,
     m_commandStream << Command::loadFile;
     m_commandStream << handle;
     m_commandStream << requestId;
-    m_commandStream << loader;
     m_byteVectors << std::move(rivBytes);
 
     return handle;
@@ -66,6 +64,63 @@ void CommandQueue::deleteFile(FileHandle fileHandle, uint64_t requestId)
     m_commandStream << Command::deleteFile;
     m_commandStream << fileHandle;
     m_commandStream << requestId;
+}
+
+void CommandQueue::addGlobalImageAsset(std::string name,
+                                       RenderImageHandle handle,
+                                       uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::addImageFileAsset;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << name;
+}
+
+void CommandQueue::addGlobalFontAsset(std::string name,
+                                      FontHandle handle,
+                                      uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::addFontFileAsset;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << name;
+}
+
+void CommandQueue::addGlobalAudioAsset(std::string name,
+                                       AudioSourceHandle handle,
+                                       uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::addAudioFileAsset;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_names << name;
+}
+
+void CommandQueue::removeGlobalImageAsset(std::string name, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::removeImageFileAsset;
+    m_commandStream << requestId;
+    m_names << name;
+}
+
+void CommandQueue::removeGlobalFontAsset(std::string name, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::removeFontFileAsset;
+    m_commandStream << requestId;
+    m_names << name;
+}
+
+void CommandQueue::removeGlobalAudioAsset(std::string name, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::removeAudioFileAsset;
+    m_commandStream << requestId;
+    m_names << name;
 }
 
 ArtboardHandle CommandQueue::instantiateArtboardNamed(
@@ -581,6 +636,68 @@ void CommandQueue::deleteImage(RenderImageHandle handle, uint64_t requestId)
     m_commandStream << requestId;
 }
 
+AudioSourceHandle CommandQueue::decodeAudio(
+    std::vector<uint8_t> imageEncodedBytes,
+    AudioSourceListener* listener,
+    uint64_t requestId)
+{
+    auto handle =
+        reinterpret_cast<AudioSourceHandle>(++m_currentAudioSourceHandleIdx);
+
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = handle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(handle, listener);
+    }
+
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::decodeAudio;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_byteVectors << std::move(imageEncodedBytes);
+    return handle;
+}
+
+void CommandQueue::deleteAudio(AudioSourceHandle handle, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::deleteAudio;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+}
+
+FontHandle CommandQueue::decodeFont(std::vector<uint8_t> imageEncodedBytes,
+                                    FontListener* listener,
+                                    uint64_t requestId)
+{
+    auto handle = reinterpret_cast<FontHandle>(++m_currentFontHandleIdx);
+
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = handle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(handle, listener);
+    }
+
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::decodeFont;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_byteVectors << std::move(imageEncodedBytes);
+    return handle;
+}
+
+void CommandQueue::deleteFont(FontHandle handle, uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::deleteFont;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+}
+
 DrawKey CommandQueue::createDrawKey()
 {
     // lock here so we can do this from several threads safely
@@ -1079,6 +1196,34 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+            case Message::audioDeleted:
+            {
+                AudioSourceHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                auto itr = m_audioListeners.find(handle);
+                if (itr != m_audioListeners.end())
+                {
+                    itr->second->onAudioSourceDeleted(handle, requestId);
+                }
+                break;
+            }
+            case Message::fontDeleted:
+            {
+                FontHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                auto itr = m_fontListeners.find(handle);
+                if (itr != m_fontListeners.end())
+                {
+                    itr->second->onFontDeleted(handle, requestId);
+                }
+                break;
+            }
             case Message::artboardDeleted:
             {
                 ArtboardHandle handle;
@@ -1183,6 +1328,36 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+
+            case Message::audioError:
+            {
+                AudioSourceHandle handle;
+                std::string error;
+                m_messageStream >> handle;
+                m_messageNames >> error;
+                lock.unlock();
+                auto itr = m_audioListeners.find(handle);
+                if (itr != m_audioListeners.end())
+                {
+                    itr->second->onAudioSourceError(handle, std::move(error));
+                }
+                break;
+            }
+            case Message::fontError:
+            {
+                FontHandle handle;
+                std::string error;
+                m_messageStream >> handle;
+                m_messageNames >> error;
+                lock.unlock();
+                auto itr = m_fontListeners.find(handle);
+                if (itr != m_fontListeners.end())
+                {
+                    itr->second->onFontError(handle, std::move(error));
+                }
+                break;
+            }
+
             case Message::stateMachineError:
             {
                 StateMachineHandle handle;

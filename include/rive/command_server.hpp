@@ -26,6 +26,8 @@ public:
     File* getFile(FileHandle) const;
     bool getWasDisconnected() const { return m_wasDisconnectReceived; }
     RenderImage* getImage(RenderImageHandle) const;
+    AudioSource* getAudioSource(AudioSourceHandle) const;
+    Font* getFont(FontHandle) const;
     ArtboardInstance* getArtboardInstance(ArtboardHandle) const;
     StateMachineInstance* getStateMachineInstance(StateMachineHandle) const;
     ViewModelInstanceRuntime* getViewModelInstance(
@@ -61,6 +63,13 @@ public:
         return m_propertySubscriptions;
     }
 
+    RenderImageHandle testing_globalImageNamed(std::string name);
+    AudioSourceHandle testing_globalAudioNamed(std::string name);
+    FontHandle testing_globalFontNamed(std::string name);
+
+    bool testing_globalImageContains(std::string name);
+    bool testing_globalAudioContains(std::string name);
+    bool testing_globalFontContains(std::string name);
 #endif
 
 private:
@@ -128,7 +137,9 @@ private:
     std::vector<Subscription> m_propertySubscriptions;
 
     std::unordered_map<FileHandle, std::unique_ptr<File>> m_files;
+    std::unordered_map<FontHandle, rcp<Font>> m_fonts;
     std::unordered_map<RenderImageHandle, rcp<RenderImage>> m_images;
+    std::unordered_map<AudioSourceHandle, rcp<AudioSource>> m_audioSources;
     std::unordered_map<ArtboardHandle, std::unique_ptr<ArtboardInstance>>
         m_artboards;
     std::unordered_map<ViewModelInstanceHandle, rcp<ViewModelInstanceRuntime>>
@@ -138,5 +149,8 @@ private:
         m_stateMachines;
 
     std::unordered_map<DrawKey, CommandServerDrawCallback> m_uniqueDraws;
+
+    class CommandFileAssetLoader;
+    rcp<CommandFileAssetLoader> m_fileAssetLoader;
 };
 }; // namespace rive

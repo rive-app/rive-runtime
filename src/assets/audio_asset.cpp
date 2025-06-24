@@ -11,7 +11,7 @@ bool AudioAsset::decode(SimpleArray<uint8_t>& bytes, Factory* factory)
 {
 #ifdef WITH_RIVE_AUDIO
     // Steal the bytes.
-    m_audioSource = rcp<AudioSource>(new AudioSource(std::move(bytes)));
+    m_audioSource = AudioSource::MakeAudioSource((std::move(bytes)));
 #endif
     return true;
 }

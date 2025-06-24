@@ -31,8 +31,8 @@ rcp<Font> Factory::decodeFont(Span<const uint8_t> span)
 rcp<AudioSource> Factory::decodeAudio(Span<const uint8_t> span)
 {
 #ifdef WITH_RIVE_AUDIO
-    return rcp<AudioSource>(
-        new AudioSource(SimpleArray<uint8_t>(span.data(), span.size())));
+    return AudioSource::MakeAudioSource(
+        SimpleArray<uint8_t>(span.data(), span.size()));
 #else
     return nullptr;
 #endif

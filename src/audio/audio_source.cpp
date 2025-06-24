@@ -9,6 +9,44 @@
 using namespace rive;
 
 #ifdef WITH_RIVE_AUDIO
+// Both of these should be make_rcp but it is currently getting refed directy
+// somewhere else so until we refactor that we have to not ref here.
+rcp<AudioSource> AudioSource::MakeAudioSource(rive::Span<uint8_t> fileBytes)
+{
+    ma_decoder decoder;
+    ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 0, 0);
+    if (ma_decoder_init_memory(fileBytes.data(),
+                               fileBytes.size(),
+                               &config,
+                               &decoder) != MA_SUCCESS)
+    {
+        return nullptr;
+    }
+    ma_decoder_uninit(&decoder);
+    return rcp<AudioSource>(new AudioSource(std::move(fileBytes)));
+}
+
+rcp<AudioSource> AudioSource::MakeAudioSource(
+    rive::SimpleArray<uint8_t> fileBytes)
+{
+    ma_decoder decoder;
+    ma_decoder_config config = ma_decoder_config_init(ma_format_f32, 0, 0);
+    auto result = ma_decoder_init_memory(fileBytes.data(),
+                                         fileBytes.size(),
+                                         &config,
+                                         &decoder);
+    if (result != MA_SUCCESS)
+    {
+        fprintf(stderr,
+                "Failed to decode audio with error %s\n",
+                ma_result_description(result));
+        return nullptr;
+    }
+
+    ma_decoder_uninit(&decoder);
+    return rcp<AudioSource>(new AudioSource(std::move(fileBytes)));
+}
+
 AudioSource::AudioSource(rive::Span<float> samples,
                          uint32_t numChannels,
                          uint32_t sampleRate) :
@@ -161,6 +199,16 @@ rcp<AudioReader> AudioSource::makeReader(uint32_t numChannels,
     return reader;
 }
 #else
+rcp<AudioSource> AudioSource::MakeAudioSource(rive::Span<uint8_t> fileBytes)
+{
+    return nullptr;
+}
+
+rcp<AudioSource> AudioSource::MakeAudioSource(
+    rive::SimpleArray<uint8_t> fileBytes)
+{
+    return nullptr;
+}
 AudioSource::AudioSource(rive::Span<uint8_t> fileBytes) {}
 AudioSource::AudioSource(rive::SimpleArray<uint8_t> fileBytes) {}
 AudioSource::AudioSource(rive::Span<float> samples,

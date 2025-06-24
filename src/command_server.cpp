@@ -5,11 +5,168 @@
 #include "rive/command_server.hpp"
 
 #include "rive/file.hpp"
+#include "rive/assets/image_asset.hpp"
+#include "rive/assets/audio_asset.hpp"
+#include "rive/assets/font_asset.hpp"
 #include "rive/viewmodel/runtime/viewmodel_runtime.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 
 namespace rive
 {
+
+class CommandServer::CommandFileAssetLoader : public FileAssetLoader
+{
+public:
+    CommandFileAssetLoader(CommandServer* server) : m_server(server) {}
+
+    virtual bool loadContents(FileAsset& asset,
+                              Span<const uint8_t> inBandBytes,
+                              Factory* factory) override
+    {
+        if (asset.is<ImageAsset>())
+        {
+            // No need for another if because as just asserts the above
+            // condition anyway
+            auto imageAsset = asset.as<ImageAsset>();
+            auto itr = m_imageAssets.find(asset.uniqueName());
+            if (itr != m_imageAssets.end())
+            {
+                auto image = m_server->getImage(itr->second);
+                if (image)
+                {
+                    imageAsset->renderImage(ref_rcp(image));
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        else if (asset.is<AudioAsset>())
+        {
+            auto audioAsset = asset.as<AudioAsset>();
+            auto itr = m_audioAssets.find(asset.uniqueName());
+            if (itr != m_audioAssets.end())
+            {
+                auto audioSource = m_server->getAudioSource(itr->second);
+                if (audioSource)
+                {
+                    audioAsset->audioSource(ref_rcp(audioSource));
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        else if (asset.is<FontAsset>())
+        {
+            auto fontAsset = asset.as<FontAsset>();
+            auto itr = m_fontAssets.find(asset.uniqueName());
+            if (itr != m_fontAssets.end())
+            {
+                auto font = m_server->getFont(itr->second);
+                if (font)
+                {
+                    fontAsset->font(ref_rcp(font));
+                    return true;
+                }
+                return false;
+            }
+        }
+
+        else
+        {
+            RIVE_UNREACHABLE();
+        }
+
+        return false;
+    }
+
+    void addRenderImage(std::string name, RenderImageHandle handle)
+    {
+        m_imageAssets[name] = handle;
+    }
+
+    void addAudioSource(std::string name, AudioSourceHandle handle)
+    {
+        m_audioAssets[name] = handle;
+    }
+
+    void addFont(std::string name, FontHandle handle)
+    {
+        m_fontAssets[name] = handle;
+    }
+
+    void removeRenderImage(RenderImageHandle handle)
+    {
+        using ItrType = std::pair<std::string, RenderImageHandle>;
+        auto itr = std::find_if(
+            m_imageAssets.begin(),
+            m_imageAssets.end(),
+            [handle](const ItrType& p) { return p.second == handle; });
+        if (itr != m_imageAssets.end())
+            m_imageAssets.erase(itr);
+    }
+
+    void removeAudioSource(AudioSourceHandle handle)
+    {
+        using ItrType = std::pair<std::string, AudioSourceHandle>;
+        auto itr = std::find_if(
+            m_audioAssets.begin(),
+            m_audioAssets.end(),
+            [handle](const ItrType& p) { return p.second == handle; });
+        if (itr != m_audioAssets.end())
+            m_audioAssets.erase(itr);
+    }
+
+    void removeFont(FontHandle handle)
+    {
+        using ItrType = std::pair<std::string, FontHandle>;
+        auto itr = std::find_if(
+            m_fontAssets.begin(),
+            m_fontAssets.end(),
+            [handle](const ItrType& p) { return p.second == handle; });
+        if (itr != m_fontAssets.end())
+            m_fontAssets.erase(itr);
+    }
+
+    void removeRenderImage(std::string name) { m_imageAssets.erase(name); }
+    void removeAudioSource(std::string name) { m_audioAssets.erase(name); }
+    void removeFont(std::string name) { m_fontAssets.erase(name); }
+
+#ifdef TESTING
+    RenderImageHandle testing_imageNamed(std::string name)
+    {
+        auto itr = m_imageAssets.find(name);
+        if (itr != m_imageAssets.end())
+            return itr->second;
+        return nullptr;
+    }
+
+    AudioSourceHandle testing_audioNamed(std::string name)
+    {
+        auto itr = m_audioAssets.find(name);
+        if (itr != m_audioAssets.end())
+            return itr->second;
+        return nullptr;
+    }
+
+    FontHandle testing_fontNamed(std::string name)
+    {
+        auto itr = m_fontAssets.find(name);
+        if (itr != m_fontAssets.end())
+            return itr->second;
+        return nullptr;
+    }
+#endif
+
+private:
+    const CommandServer* m_server;
+
+    std::unordered_map<std::string, RenderImageHandle> m_imageAssets;
+    std::unordered_map<std::string, AudioSourceHandle> m_audioAssets;
+    std::unordered_map<std::string, FontHandle> m_fontAssets;
+};
+
 std::ostream& operator<<(std::ostream& os, DataType t)
 {
     switch (t)
@@ -57,14 +214,48 @@ std::ostream& operator<<(std::ostream& os, DataType t)
     return os;
 }
 
+#ifdef TESTING
+
+RenderImageHandle CommandServer::testing_globalImageNamed(std::string name)
+{
+    return m_fileAssetLoader->testing_imageNamed(name);
+}
+
+AudioSourceHandle CommandServer::testing_globalAudioNamed(std::string name)
+{
+    return m_fileAssetLoader->testing_audioNamed(name);
+}
+
+FontHandle CommandServer::testing_globalFontNamed(std::string name)
+{
+    return m_fileAssetLoader->testing_fontNamed(name);
+}
+
+bool CommandServer::testing_globalImageContains(std::string name)
+{
+    return m_fileAssetLoader->testing_imageNamed(name) != nullptr;
+}
+
+bool CommandServer::testing_globalAudioContains(std::string name)
+{
+    return m_fileAssetLoader->testing_audioNamed(name) != nullptr;
+}
+
+bool CommandServer::testing_globalFontContains(std::string name)
+{
+    return m_fileAssetLoader->testing_fontNamed(name) != nullptr;
+}
+
+#endif
+
 CommandServer::CommandServer(rcp<CommandQueue> commandBuffer,
                              Factory* factory) :
     m_commandQueue(std::move(commandBuffer)),
-    m_factory(factory)
+    m_factory(factory),
 #ifndef NDEBUG
-    ,
-    m_threadID(std::this_thread::get_id())
+    m_threadID(std::this_thread::get_id()),
 #endif
+    m_fileAssetLoader(make_rcp<CommandFileAssetLoader>(this))
 {}
 
 CommandServer::~CommandServer() {}
@@ -81,6 +272,20 @@ RenderImage* CommandServer::getImage(RenderImageHandle handle) const
     assert(std::this_thread::get_id() == m_threadID);
     auto it = m_images.find(handle);
     return it != m_images.end() ? it->second.get() : nullptr;
+}
+
+AudioSource* CommandServer::getAudioSource(AudioSourceHandle handle) const
+{
+    assert(std::this_thread::get_id() == m_threadID);
+    auto it = m_audioSources.find(handle);
+    return it != m_audioSources.end() ? it->second.get() : nullptr;
+}
+
+Font* CommandServer::getFont(FontHandle handle) const
+{
+    assert(std::this_thread::get_id() == m_threadID);
+    auto it = m_fonts.find(handle);
+    return it != m_fonts.end() ? it->second.get() : nullptr;
 }
 
 ArtboardInstance* CommandServer::getArtboardInstance(
@@ -302,17 +507,15 @@ bool CommandServer::processCommands()
                 FileHandle handle;
                 uint64_t requestId;
                 std::vector<uint8_t> rivBytes;
-                rcp<FileAssetLoader> loader;
                 commandStream >> handle;
                 commandStream >> requestId;
-                commandStream >> loader;
                 m_commandQueue->m_byteVectors >> rivBytes;
                 lock.unlock();
                 std::unique_ptr<rive::File> file =
                     rive::File::import(rivBytes,
                                        m_factory,
                                        nullptr,
-                                       loader ? std::move(loader) : nullptr);
+                                       m_fileAssetLoader);
                 if (file != nullptr)
                 {
                     m_files[handle] = std::move(file);
@@ -384,9 +587,97 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 lock.unlock();
                 m_images.erase(handle);
+                m_fileAssetLoader->removeRenderImage(handle);
                 std::unique_lock<std::mutex> messageLock(
                     m_commandQueue->m_messageMutex);
                 messageStream << CommandQueue::Message::imageDeleted;
+                messageStream << handle;
+                messageStream << requestId;
+                break;
+            }
+
+            case CommandQueue::Command::decodeAudio:
+            {
+                AudioSourceHandle handle;
+                uint64_t requestId;
+                std::vector<uint8_t> bytes;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_byteVectors >> bytes;
+                lock.unlock();
+
+                auto audio = factory()->decodeAudio(bytes);
+                if (audio)
+                {
+                    m_audioSources[handle] = std::move(audio);
+                }
+                else
+                {
+                    ErrorReporter<AudioSourceHandle>(
+                        this,
+                        handle,
+                        CommandQueue::Message::audioError)
+                        << "Command Server failed to decode image";
+                }
+
+                break;
+            }
+
+            case CommandQueue::Command::deleteAudio:
+            {
+                AudioSourceHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                m_audioSources.erase(handle);
+                m_fileAssetLoader->removeAudioSource(handle);
+                std::unique_lock<std::mutex> messageLock(
+                    m_commandQueue->m_messageMutex);
+                messageStream << CommandQueue::Message::audioDeleted;
+                messageStream << handle;
+                messageStream << requestId;
+                break;
+            }
+
+            case CommandQueue::Command::decodeFont:
+            {
+                FontHandle handle;
+                uint64_t requestId;
+                std::vector<uint8_t> bytes;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_byteVectors >> bytes;
+                lock.unlock();
+
+                auto font = factory()->decodeFont(bytes);
+                if (font)
+                {
+                    m_fonts[handle] = std::move(font);
+                }
+                else
+                {
+                    ErrorReporter<FontHandle>(this,
+                                              handle,
+                                              CommandQueue::Message::fontError)
+                        << "ERROR: Command Server failed to decode font";
+                }
+
+                break;
+            }
+
+            case CommandQueue::Command::deleteFont:
+            {
+                FontHandle handle;
+                uint64_t requestId;
+                commandStream >> handle;
+                commandStream >> requestId;
+                lock.unlock();
+                m_fonts.erase(handle);
+                m_fileAssetLoader->removeFont(handle);
+                std::unique_lock<std::mutex> messageLock(
+                    m_commandQueue->m_messageMutex);
+                messageStream << CommandQueue::Message::fontDeleted;
                 messageStream << handle;
                 messageStream << requestId;
                 break;
@@ -2003,6 +2294,93 @@ bool CommandServer::processCommands()
                         << "State machine \"" << handle
                         << "\" not found for pointerExit.";
                 }
+                break;
+            }
+
+            case CommandQueue::Command::addImageFileAsset:
+            {
+                RenderImageHandle handle;
+                std::string name;
+                uint64_t requestId;
+                CommandQueue::PointerEvent pointerEvent;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> name;
+                lock.unlock();
+                if (handle && getImage(handle) != nullptr)
+                {
+                    m_fileAssetLoader->addRenderImage(std::move(name), handle);
+                }
+                break;
+            }
+
+            case CommandQueue::Command::removeImageFileAsset:
+            {
+                std::string name;
+                uint64_t requestId;
+                CommandQueue::PointerEvent pointerEvent;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> name;
+                lock.unlock();
+                m_fileAssetLoader->removeRenderImage(std::move(name));
+                break;
+            }
+
+            case CommandQueue::Command::addAudioFileAsset:
+            {
+                AudioSourceHandle handle;
+                std::string name;
+                uint64_t requestId;
+                CommandQueue::PointerEvent pointerEvent;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> name;
+                lock.unlock();
+                if (handle && getAudioSource(handle) != nullptr)
+                {
+                    m_fileAssetLoader->addAudioSource(std::move(name), handle);
+                }
+                break;
+            }
+
+            case CommandQueue::Command::removeAudioFileAsset:
+            {
+                std::string name;
+                uint64_t requestId;
+                CommandQueue::PointerEvent pointerEvent;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> name;
+                lock.unlock();
+                m_fileAssetLoader->removeAudioSource(std::move(name));
+                break;
+            }
+
+            case CommandQueue::Command::addFontFileAsset:
+            {
+                FontHandle handle;
+                std::string name;
+                uint64_t requestId;
+                CommandQueue::PointerEvent pointerEvent;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> name;
+                lock.unlock();
+                if (handle && getFont(handle) != nullptr)
+                {
+                    m_fileAssetLoader->addFont(std::move(name), handle);
+                }
+                break;
+            }
+
+            case CommandQueue::Command::removeFontFileAsset:
+            {
+                std::string name;
+                uint64_t requestId;
+                CommandQueue::PointerEvent pointerEvent;
+                commandStream >> requestId;
+                m_commandQueue->m_names >> name;
+                lock.unlock();
+                m_fileAssetLoader->removeFont(std::move(name));
                 break;
             }
 

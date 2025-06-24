@@ -600,6 +600,7 @@
 #define hb_face_collect_variation_unicodes rive_hb_face_collect_variation_unicodes
 #define hb_face_count rive_hb_face_count
 #define hb_face_create rive_hb_face_create
+#define hb_face_create_or_fail rive_hb_face_create_or_fail
 #define hb_face_create_for_tables rive_hb_face_create_for_tables
 #define hb_face_destroy rive_hb_face_destroy
 #define hb_face_get_empty rive_hb_face_get_empty

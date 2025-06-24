@@ -33,7 +33,7 @@ rive::rcp<rive::Font> HBFont::Decode(rive::Span<const uint8_t> span)
                                        nullptr);
     if (blob)
     {
-        auto face = hb_face_create(blob, 0);
+        auto face = hb_face_create_or_fail(blob, 0);
         hb_blob_destroy(blob);
         if (face)
         {

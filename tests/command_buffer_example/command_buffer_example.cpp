@@ -108,16 +108,6 @@ static void input_thread(rcp<CommandQueue> commandQueue)
     commandQueue->disconnect();
 }
 
-class DefaultFileAssetLoader : public rive::FileAssetLoader
-{
-    virtual bool loadContents(FileAsset& asset,
-                              Span<const uint8_t> inBandBytes,
-                              Factory* factory)
-    {
-        return false;
-    }
-};
-
 // this is a seperate thread for testing, it could just as easily be in
 // input_thread or the main thread
 static void draw_thread(rcp<CommandQueue> commandQueue)
@@ -127,9 +117,7 @@ static void draw_thread(rcp<CommandQueue> commandQueue)
     SimpleStateMachineListener stmListener;
 
     FileHandle fileHandle =
-        commandQueue->loadFile(std::move(rivBytes),
-                               make_rcp<DefaultFileAssetLoader>(),
-                               &fListener);
+        commandQueue->loadFile(std::move(rivBytes), &fListener);
 
     ArtboardHandle artboardHandle =
         commandQueue->instantiateDefaultArtboard(fileHandle, &aListener);

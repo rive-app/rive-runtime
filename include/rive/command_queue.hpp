@@ -40,8 +40,10 @@ class ArtboardInstance;
 class StateMachineInstance;
 class CommandServer;
 
+RIVE_DEFINE_HANDLE(FontHandle);
 RIVE_DEFINE_HANDLE(FileHandle);
 RIVE_DEFINE_HANDLE(ArtboardHandle);
+RIVE_DEFINE_HANDLE(AudioSourceHandle);
 RIVE_DEFINE_HANDLE(RenderImageHandle);
 RIVE_DEFINE_HANDLE(StateMachineHandle);
 RIVE_DEFINE_HANDLE(ViewModelInstanceHandle);
@@ -151,6 +153,29 @@ public:
         {}
     };
 
+    class AudioSourceListener
+        : public CommandQueue::ListenerBase<AudioSourceListener,
+                                            AudioSourceHandle>
+    {
+    public:
+        virtual void onAudioSourceError(const AudioSourceHandle,
+                                        std::string error)
+        {}
+
+        virtual void onAudioSourceDeleted(const AudioSourceHandle,
+                                          uint64_t requestId)
+        {}
+    };
+
+    class FontListener
+        : public CommandQueue::ListenerBase<FontListener, FontHandle>
+    {
+    public:
+        virtual void onFontError(const FontHandle, std::string error) {}
+
+        virtual void onFontDeleted(const FontHandle, uint64_t requestId) {}
+    };
+
     class ArtboardListener
         : public CommandQueue::ListenerBase<ArtboardListener, ArtboardHandle>
     {
@@ -234,18 +259,24 @@ public:
     ~CommandQueue();
 
     FileHandle loadFile(std::vector<uint8_t> rivBytes,
-                        rcp<FileAssetLoader>,
                         FileListener* listener = nullptr,
                         uint64_t requestId = 0);
 
-    FileHandle loadFile(std::vector<uint8_t> rivBytes,
-                        FileListener* listener = nullptr,
-                        uint64_t requestId = 0)
-    {
-        return loadFile(std::move(rivBytes), nullptr, listener, requestId);
-    }
-
     void deleteFile(FileHandle, uint64_t requestId = 0);
+
+    void addGlobalImageAsset(std::string name,
+                             RenderImageHandle,
+                             uint64_t requestId = 0);
+    void addGlobalFontAsset(std::string name,
+                            FontHandle,
+                            uint64_t requestId = 0);
+    void addGlobalAudioAsset(std::string name,
+                             AudioSourceHandle,
+                             uint64_t requestId = 0);
+
+    void removeGlobalImageAsset(std::string name, uint64_t requestId = 0);
+    void removeGlobalFontAsset(std::string name, uint64_t requestId = 0);
+    void removeGlobalAudioAsset(std::string name, uint64_t requestId = 0);
 
     ArtboardHandle instantiateArtboardNamed(
         FileHandle,
@@ -465,6 +496,18 @@ public:
 
     void deleteImage(RenderImageHandle, uint64_t requestId = 0);
 
+    AudioSourceHandle decodeAudio(std::vector<uint8_t> imageEncodedBytes,
+                                  AudioSourceListener* listener = nullptr,
+                                  uint64_t requestId = 0);
+
+    void deleteAudio(AudioSourceHandle, uint64_t requestId = 0);
+
+    FontHandle decodeFont(std::vector<uint8_t> imageEncodedBytes,
+                          FontListener* listener = nullptr,
+                          uint64_t requestId = 0);
+
+    void deleteFont(FontHandle, uint64_t requestId = 0);
+
     // Create unique draw key for draw.
     DrawKey createDrawKey();
 
@@ -547,6 +590,21 @@ private:
         m_imageListeners.insert({handle, listener});
     }
 
+    void registerListener(AudioSourceHandle handle,
+                          AudioSourceListener* listener)
+    {
+        assert(listener);
+        assert(m_audioListeners.find(handle) == m_audioListeners.end());
+        m_audioListeners.insert({handle, listener});
+    }
+
+    void registerListener(FontHandle handle, FontListener* listener)
+    {
+        assert(listener);
+        assert(m_fontListeners.find(handle) == m_fontListeners.end());
+        m_fontListeners.insert({handle, listener});
+    }
+
     void registerListener(ArtboardHandle handle, ArtboardListener* listener)
     {
         assert(listener);
@@ -586,6 +644,17 @@ private:
         m_imageListeners.erase(handle);
     }
 
+    void unregisterListener(AudioSourceHandle handle,
+                            AudioSourceListener* listener)
+    {
+        m_audioListeners.erase(handle);
+    }
+
+    void unregisterListener(FontHandle handle, FontListener* listener)
+    {
+        m_fontListeners.erase(handle);
+    }
+
     void unregisterListener(ArtboardHandle handle, ArtboardListener* listener)
     {
         m_artboardListeners.erase(handle);
@@ -608,7 +677,17 @@ private:
         loadFile,
         deleteFile,
         decodeImage,
+        decodeAudio,
+        decodeFont,
         deleteImage,
+        deleteAudio,
+        deleteFont,
+        addImageFileAsset,
+        addAudioFileAsset,
+        addFontFileAsset,
+        removeImageFileAsset,
+        removeAudioFileAsset,
+        removeFontFileAsset,
         instantiateArtboard,
         deleteArtboard,
         instantiateViewModel,
@@ -665,6 +744,8 @@ private:
         fileLoaded,
         fileDeleted,
         imageDeleted,
+        audioDeleted,
+        fontDeleted,
         artboardDeleted,
         viewModelDeleted,
         stateMachineDeleted,
@@ -673,6 +754,8 @@ private:
         artboardError,
         viewModelError,
         imageError,
+        audioError,
+        fontError,
         stateMachineError
     };
 
@@ -680,9 +763,11 @@ private:
 
     uint64_t m_currentFileHandleIdx = 0;
     uint64_t m_currentListHandleIdx = 0;
+    uint64_t m_currentFontHandleIdx = 0;
     uint64_t m_currentArtboardHandleIdx = 0;
     uint64_t m_currentViewModelHandleIdx = 0;
     uint64_t m_currentRenderImageHandleIdx = 0;
+    uint64_t m_currentAudioSourceHandleIdx = 0;
     uint64_t m_currentStateMachineHandleIdx = 0;
     uint64_t m_currentDrawKeyIdx = 0;
 
@@ -704,6 +789,9 @@ private:
     std::unordered_map<FileHandle, FileListener*> m_fileListeners;
     std::unordered_map<RenderImageHandle, RenderImageListener*>
         m_imageListeners;
+    std::unordered_map<AudioSourceHandle, AudioSourceListener*>
+        m_audioListeners;
+    std::unordered_map<FontHandle, FontListener*> m_fontListeners;
     std::unordered_map<ArtboardHandle, ArtboardListener*> m_artboardListeners;
     std::unordered_map<ViewModelInstanceHandle, ViewModelInstanceListener*>
         m_viewModelListeners;

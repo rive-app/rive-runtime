@@ -517,94 +517,165 @@ TEST_CASE("disconnect", "[CommandQueue]")
     CHECK(!server.processCommands());
 }
 
-static constexpr uint32_t MAGIC_NUMBER = 0x50;
-
-class TestFileAssetLoader : public FileAssetLoader
-{
-public:
-    virtual bool loadContents(FileAsset& asset,
-                              Span<const uint8_t> inBandBytes,
-                              Factory* factory)
-    {
-        return false;
-    }
-
-    uint32_t m_magicNumber = MAGIC_NUMBER;
-};
-
-TEST_CASE("load file with asset loader", "[CommandQueue]")
+TEST_CASE("global asset set / remove", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
     std::unique_ptr<gpu::RenderContext> nullContext =
         RenderContextNULL::MakeContext();
 
     CommandServer server(commandQueue, nullContext.get());
-    rcp<TestFileAssetLoader> loader = make_rcp<TestFileAssetLoader>();
 
-    std::ifstream stream("assets/entry.riv", std::ios::binary);
-    FileHandle fileHandle = commandQueue->loadFile(
-        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
-        loader);
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
 
-    CHECK(fileHandle != RIVE_NULL_HANDLE);
+    auto imageHandle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    commandQueue->addGlobalImageAsset("image", imageHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->testing_globalImageNamed("image") == imageHandle);
+    });
+
+    commandQueue->removeGlobalImageAsset("image");
+    commandQueue->removeGlobalFontAsset("font");
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalImageContains("image"));
+    });
+
+    // should not add nullptr or invalid values to maps
+    commandQueue->addGlobalImageAsset("image", nullptr);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalImageContains("image"));
+    });
+
+    auto badImageHandle =
+        commandQueue->decodeImage(std::vector<uint8_t>(1024, 0));
+
+    commandQueue->addGlobalImageAsset("image", badImageHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalImageContains("image"));
+    });
+
+    commandQueue->removeGlobalImageAsset("blah");
+    commandQueue->removeGlobalFontAsset("blah");
+    commandQueue->removeGlobalAudioAsset("blah");
+
+    commandQueue->addGlobalImageAsset("image", imageHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->testing_globalImageNamed("image") == imageHandle);
+    });
+
+    commandQueue->deleteImage(imageHandle);
+
+    // These should be removed automatically
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalImageContains("image"));
+    });
+
+#ifdef WITH_RIVE_AUDIO
+    std::ifstream audioStream("assets/audio/what.wav", std::ios::binary);
+
+    auto audioHandle = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(audioStream), {}));
+
+    commandQueue->addGlobalAudioAsset("audio", audioHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->testing_globalAudioNamed("audio") == audioHandle);
+    });
+
+    commandQueue->removeGlobalAudioAsset("audio");
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalAudioContains("audio"));
+    });
+
+    // should not add nullptr or invalid values to maps
+    commandQueue->addGlobalAudioAsset("audio", nullptr);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalAudioContains("audio"));
+    });
+
+    auto badAudioHandle =
+        commandQueue->decodeAudio(std::vector<uint8_t>(1024, 0));
+
+    commandQueue->addGlobalAudioAsset("audio", badAudioHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalAudioContains("audio"));
+    });
+
+    commandQueue->addGlobalAudioAsset("audio", audioHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->testing_globalAudioNamed("audio") == audioHandle);
+    });
+
+    commandQueue->deleteAudio(audioHandle);
+
+    // These should be removed automatically
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalImageContains("image"));
+        CHECK(!server->testing_globalFontContains("font"));
+        CHECK(!server->testing_globalAudioContains("audio"));
+    });
+#endif
+
+#ifdef WITH_RIVE_TEXT
+    std::ifstream fontStream("assets/fonts/OpenSans-Italic.ttf",
+                             std::ios::binary);
+
+    auto fontHandle = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream), {}));
+
+    commandQueue->addGlobalFontAsset("font", fontHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->testing_globalFontNamed("font") == fontHandle);
+    });
+
+    commandQueue->removeGlobalFontAsset("font");
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalFontContains("font"));
+    });
+
+    // should not add nullptr or invalid values to maps
+    commandQueue->addGlobalFontAsset("font", nullptr);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalFontContains("font"));
+    });
+
+    auto badFontHandle =
+        commandQueue->decodeFont(std::vector<uint8_t>(1024, 0));
+
+    commandQueue->addGlobalFontAsset("font", badFontHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalFontContains("font"));
+    });
+
+    commandQueue->addGlobalFontAsset("font", fontHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->testing_globalFontNamed("font") == fontHandle);
+    });
+
+    commandQueue->deleteFont(fontHandle);
+
+    // These should be removed automatically
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(!server->testing_globalFontContains("font"));
+    });
+#endif
 
     server.processCommands();
-
-    {
-        auto aal = server.getFile(fileHandle)->testing_getAssetLoader();
-        CHECK(aal == loader.get());
-        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
-              MAGIC_NUMBER);
-    }
-
-    std::ifstream hstream("assets/entry.riv", std::ios::binary);
-    rcp<TestFileAssetLoader> heapLoader(new TestFileAssetLoader);
-    FileHandle heapFileHandle = commandQueue->loadFile(
-        std::vector<uint8_t>(std::istreambuf_iterator<char>(hstream), {}),
-        heapLoader);
-
-    server.processCommands();
-
-    {
-        auto aal = server.getFile(fileHandle)->testing_getAssetLoader();
-        CHECK(aal == loader.get());
-        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
-              MAGIC_NUMBER);
-    }
-    {
-        auto aal = server.getFile(heapFileHandle)->testing_getAssetLoader();
-        CHECK(aal == heapLoader.get());
-        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
-              MAGIC_NUMBER);
-    }
-
-    rcp<TestFileAssetLoader> nullLoader = nullptr;
-
-    std::ifstream nstream("assets/entry.riv", std::ios::binary);
-    FileHandle nullFileHandle = commandQueue->loadFile(
-        std::vector<uint8_t>(std::istreambuf_iterator<char>(nstream), {}),
-        nullLoader);
-
-    server.processCommands();
-
-    {
-        auto aal = server.getFile(fileHandle)->testing_getAssetLoader();
-        CHECK(aal == loader.get());
-        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
-              MAGIC_NUMBER);
-    }
-    {
-        auto aal = server.getFile(heapFileHandle)->testing_getAssetLoader();
-        CHECK(aal == heapLoader.get());
-        CHECK(static_cast<TestFileAssetLoader*>(aal)->m_magicNumber ==
-              MAGIC_NUMBER);
-    }
-    {
-        auto aal = server.getFile(nullFileHandle)->testing_getAssetLoader();
-        CHECK(aal == nullLoader.get());
-    }
-
-    // How to test this better ??
     commandQueue->disconnect();
 }
 
@@ -1138,6 +1209,130 @@ TEST_CASE("RenderImage", "[CommandQueue]")
     commandQueue->disconnect();
     serverThread.join();
 }
+#ifdef WITH_RIVE_AUDIO
+class AudioSourceDeletedListener : public CommandQueue::AudioSourceListener
+{
+public:
+    virtual void onAudioSourceDeleted(const AudioSourceHandle handle,
+                                      uint64_t requestId)
+    {
+        CHECK(m_handle == handle);
+        CHECK(m_requestId == requestId);
+        CHECK(!m_hasCallback);
+        m_hasCallback = true;
+    }
+
+    AudioSourceHandle m_handle;
+    bool m_hasCallback = false;
+    uint64_t m_requestId = 0x10;
+};
+
+TEST_CASE("AudioSource", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/audio/what.wav", std::ios::binary);
+
+    AudioSourceDeletedListener listener;
+
+    AudioSourceHandle audioHandle = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener,
+        10);
+    listener.m_handle = audioHandle;
+    AudioSourceHandle badAudioHandle =
+        commandQueue->decodeAudio(std::vector<uint8_t>(1024, {}));
+
+    commandQueue->runOnce([audioHandle, badAudioHandle](CommandServer* server) {
+        auto audio = server->getAudioSource(audioHandle);
+        CHECK(audio != nullptr);
+        auto badAudio = server->getAudioSource(badAudioHandle);
+        CHECK(badAudio == nullptr);
+    });
+
+    commandQueue->deleteAudio(audioHandle, listener.m_requestId);
+    commandQueue->deleteAudio(badAudioHandle);
+
+    commandQueue->runOnce([audioHandle, badAudioHandle](CommandServer* server) {
+        auto audio = server->getAudioSource(audioHandle);
+        CHECK(audio == nullptr);
+        auto badAudio = server->getAudioSource(badAudioHandle);
+        CHECK(badAudio == nullptr);
+    });
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(listener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+#endif
+
+#if WITH_RIVE_TEXT
+
+class FontDeletedListener : public CommandQueue::FontListener
+{
+public:
+    virtual void onFontDeleted(const FontHandle handle, uint64_t requestId)
+    {
+        CHECK(m_handle == handle);
+        CHECK(m_requestId == requestId);
+        CHECK(!m_hasCallback);
+        m_hasCallback = true;
+    }
+
+    FontHandle m_handle;
+    bool m_hasCallback = false;
+    uint64_t m_requestId = 0x10;
+};
+
+TEST_CASE("Font", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    FontDeletedListener listener;
+
+    std::ifstream stream("assets/fonts/OpenSans-Italic.ttf", std::ios::binary);
+    FontHandle fontHandle = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        &listener,
+        10);
+    listener.m_handle = fontHandle;
+    FontHandle badFontHandle =
+        commandQueue->decodeFont(std::vector<uint8_t>(1024, {}));
+
+    commandQueue->runOnce([fontHandle, badFontHandle](CommandServer* server) {
+        auto font = server->getFont(fontHandle);
+        CHECK(font != nullptr);
+        auto badFont = server->getFont(badFontHandle);
+        CHECK(badFont == nullptr);
+    });
+
+    commandQueue->deleteFont(fontHandle, listener.m_requestId);
+    commandQueue->deleteFont(badFontHandle);
+
+    commandQueue->runOnce([fontHandle, badFontHandle](CommandServer* server) {
+        auto font = server->getFont(fontHandle);
+        CHECK(font == nullptr);
+        auto badFont = server->getFont(badFontHandle);
+        CHECK(badFont == nullptr);
+    });
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(listener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+#endif
 
 namespace rive
 {
@@ -2488,20 +2683,62 @@ public:
     bool m_hasCallback = false;
 };
 
-TEST_CASE("render image error", "[CommandQueue]")
+class TestAudioSourceErrorListener : public CommandQueue::AudioSourceListener
+{
+public:
+    virtual void onAudioSourceError(const AudioSourceHandle handle,
+                                    std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        CHECK(!m_hasCallback);
+        m_hasCallback = true;
+    }
+
+    AudioSourceHandle m_handle;
+    bool m_hasCallback = false;
+};
+
+class TestFontErrorListener : public CommandQueue::FontListener
+{
+public:
+    virtual void onFontError(const FontHandle handle,
+                             std::string error) override
+    {
+        CHECK(handle == m_handle);
+        CHECK(error.size());
+        CHECK(!m_hasCallback);
+        m_hasCallback = true;
+    }
+
+    FontHandle m_handle;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("render image / audio source / font error", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
     std::thread serverThread(server_thread, commandQueue);
 
-    TestRenderImageErrorListener listener;
+    TestRenderImageErrorListener imageListener;
+    TestAudioSourceErrorListener audioListener;
+    TestFontErrorListener fontListener;
 
-    listener.m_handle =
-        commandQueue->decodeImage(std::vector<uint8_t>(1024, 0), &listener);
+    imageListener.m_handle =
+        commandQueue->decodeImage(std::vector<uint8_t>(1024, 0),
+                                  &imageListener);
+    audioListener.m_handle =
+        commandQueue->decodeAudio(std::vector<uint8_t>(1024, 0),
+                                  &audioListener);
+    fontListener.m_handle =
+        commandQueue->decodeFont(std::vector<uint8_t>(1024, 0), &fontListener);
 
     wait_for_server(commandQueue.get());
     commandQueue->processMessages();
 
-    CHECK(listener.m_hasCallback);
+    CHECK(imageListener.m_hasCallback);
+    CHECK(audioListener.m_hasCallback);
+    CHECK(fontListener.m_hasCallback);
 
     commandQueue->disconnect();
     serverThread.join();

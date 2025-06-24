@@ -14,6 +14,13 @@ class AudioSound;
 class AudioSource : public RefCnt<AudioSource>
 {
 public:
+    // Validates the bytes before passing through to constructor. Returns
+    // nullptr if fails
+    static rcp<AudioSource> MakeAudioSource(rive::Span<uint8_t> fileBytes);
+    // Validates the bytes before passing through to constructor. Returns
+    // nullptr if fails
+    static rcp<AudioSource> MakeAudioSource(
+        rive::SimpleArray<uint8_t> fileBytes);
     // Makes an audio source that does not own it's backing bytes.
     AudioSource(rive::Span<uint8_t> fileBytes);
 
