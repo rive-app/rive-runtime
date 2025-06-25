@@ -280,7 +280,7 @@ private:
     // True of the path is nonempty and the most recent verb is not "close".
     bool m_contourIsOpen = false;
 
-    void addPoints(std::vector<Vec2D>::const_iterator& rev_iter,
+    void addPoints(std::vector<Vec2D>::const_reverse_iterator& rev_iter,
                    int count,
                    const Mat2D* = nullptr);
 };

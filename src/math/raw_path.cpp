@@ -231,7 +231,7 @@ void RawPath::addPoly(Span<const Vec2D> span, bool isClosed)
     }
 }
 
-void RawPath::addPoints(std::vector<Vec2D>::const_iterator& ptIter,
+void RawPath::addPoints(std::vector<Vec2D>::const_reverse_iterator& ptIter,
                         int count,
                         const Mat2D* mat)
 {
@@ -247,7 +247,7 @@ void RawPath::addPoints(std::vector<Vec2D>::const_iterator& ptIter,
         {
             m_Points.emplace_back(point);
         }
-        ptIter--;
+        ptIter++;
         count--;
     }
 }
@@ -286,21 +286,21 @@ RawPath::Iter RawPath::addPathBackwards(const RawPath& src, const Mat2D* mat)
     {
         bool isClosed = src.m_Verbs.back() == PathVerb::close;
 
-        auto reversePointIterator = src.m_Points.end() - 1;
+        auto reversePointIterator = src.m_Points.rbegin();
         // Move to first point
         m_Verbs.emplace_back(PathVerb::move);
         addPoints(reversePointIterator, 1, mat);
 
-        auto reverseVerbIterator = src.m_Verbs.end() - 1;
+        auto reverseVerbIterator = src.m_Verbs.rbegin();
         if (isClosed)
         {
-            reverseVerbIterator--;
+            reverseVerbIterator++;
         }
 
         bool hasPendingMoveCommand = false;
 
-        for (; reverseVerbIterator != src.m_Verbs.begin();
-             reverseVerbIterator--)
+        for (; reverseVerbIterator != src.m_Verbs.rend() - 1;
+             reverseVerbIterator++)
         {
             PathVerb verb = *reverseVerbIterator;
             // For paths that have multiple segments (like in certain font
