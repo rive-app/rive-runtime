@@ -1816,15 +1816,10 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 #ifdef RIVE_WEBGL
     capabilities.isGLES = true;
 #else
-    capabilities.isGLES = strstr(glVersionStr, "OpenGL ES") != NULL;
+    capabilities.isGLES = strstr(glVersionStr, "OpenGL ES") != nullptr;
 #endif
     if (capabilities.isGLES)
     {
-#ifdef RIVE_WEBGL
-        capabilities.isANGLEOrWebGL = true;
-#else
-        capabilities.isANGLEOrWebGL = strstr(glVersionStr, "ANGLE") != nullptr;
-#endif
 #ifdef _MSC_VER
         sscanf_s(
 #else
@@ -1889,6 +1884,12 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 #endif
     const char* rendererString =
         reinterpret_cast<const char*>(glGetString(rendererToken));
+#ifdef RIVE_WEBGL
+    capabilities.isANGLEOrWebGL = true;
+#else
+    capabilities.isANGLEOrWebGL = strstr(glVersionStr, "ANGLE") != nullptr ||
+                                  strstr(rendererString, "ANGLE") != nullptr;
+#endif
     capabilities.isAdreno = strstr(rendererString, "Adreno");
     capabilities.isMali = strstr(rendererString, "Mali");
     capabilities.isPowerVR = strstr(rendererString, "PowerVR");
@@ -1988,27 +1989,21 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.EXT_base_instance = true;
         }
-#ifdef RIVE_ANDROID
-        // Don't use EXT_clip_cull_distance if we're on ANGLE. Galaxy S22
-        // (OpenGL Samsung Electronics Co., Ltd.;
-        // ANGLE (Samsung Xclipse 920) on Vulkan 1.1.179;
-        // OpenGL ES 3.2 ANGLE git hash: c7c78c41d520) advertises support for
-        // this extension but then doesn't support gl_ClipDistance in the
-        // shader. Only use clip planes on ANGLE if ANGLE_clip_cull_distance is
-        // supported.
-        else if (!capabilities.isANGLEOrWebGL &&
-                 strcmp(ext, "GL_EXT_clip_cull_distance") == 0)
+        else if (strcmp(ext, "GL_EXT_clip_cull_distance") == 0 ||
+                 strcmp(ext, "GL_ANGLE_clip_cull_distance") == 0)
         {
+#ifdef RIVE_ANDROID
+            // Don't use EXT_clip_cull_distance or ANGLE_clip_cull_distance if
+            // we're on ANGLE. Various Galaxy devices using ANGLE have bugs with
+            // these extensions.
+            capabilities.EXT_clip_cull_distance = !capabilities.isANGLEOrWebGL;
+#else
             capabilities.EXT_clip_cull_distance = true;
-        }
 #endif
+        }
         else if (strcmp(ext, "GL_EXT_multisampled_render_to_texture") == 0)
         {
             capabilities.EXT_multisampled_render_to_texture = true;
-        }
-        else if (strcmp(ext, "GL_ANGLE_clip_cull_distance") == 0)
-        {
-            capabilities.EXT_clip_cull_distance = true;
         }
         else if (strcmp(ext, "GL_INTEL_fragment_shader_ordering") == 0)
         {
