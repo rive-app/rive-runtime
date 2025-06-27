@@ -226,50 +226,51 @@ public:
         }
     }
 
-    rive::Factory* factory() override { return m_renderContext.get(); }
+    rive::Factory* factory() final { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* renderContextOrNull() override
+    RenderContext* renderContextOrNull() final { return m_renderContext.get(); }
+
+    RenderContextGLImpl* renderContextGLImpl() const final
     {
-        return m_renderContext.get();
+        return m_renderContext->static_impl_cast<RenderContextGLImpl>();
     }
 
-    rive::gpu::RenderTarget* renderTargetOrNull() override
-    {
-        return m_renderTarget.get();
-    }
+    RenderTarget* renderTargetOrNull() final { return m_renderTarget.get(); }
 
     void onSizeChanged(GLFWwindow* window,
                        int width,
                        int height,
-                       uint32_t sampleCount) override
+                       uint32_t sampleCount) final
     {
         m_renderTarget =
             make_rcp<FramebufferRenderTargetGL>(width, height, 0, sampleCount);
         glViewport(0, 0, width, height);
     }
 
-    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
+    std::unique_ptr<Renderer> makeRenderer(int width, int height) final
     {
         return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
-    void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
+    void begin(const RenderContext::FrameDescriptor& frameDescriptor) final
     {
-        m_renderContext->static_impl_cast<RenderContextGLImpl>()
-            ->invalidateGLState();
+        renderContextGLImpl()->invalidateGLState();
         m_renderContext->beginFrame(frameDescriptor);
     }
 
-    void flushPLSContext() final
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
-        m_renderContext->flush({.renderTarget = m_renderTarget.get()});
+        m_renderContext->flush({
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTarget.get(),
+        });
     }
 
-    void onEnd(std::vector<uint8_t>* pixelData) override
+    void onEnd(std::vector<uint8_t>* pixelData) final
     {
-        flushPLSContext();
-        m_renderContext->static_impl_cast<RenderContextGLImpl>()
-            ->unbindGLInternalResources();
+        flushPLSContext(nullptr);
+        renderContextGLImpl()->unbindGLInternalResources();
         glBindFramebuffer(GL_FRAMEBUFFER, 0);
         if (pixelData)
         {
@@ -331,13 +332,13 @@ public:
         }
     }
 
-    rive::Factory* factory() override { return &m_factory; }
+    rive::Factory* factory() final { return &m_factory; }
 
-    rive::gpu::RenderContext* renderContextOrNull() override { return nullptr; }
+    RenderContext* renderContextOrNull() final { return nullptr; }
 
-    rive::gpu::RenderTarget* renderTargetOrNull() override { return nullptr; }
+    RenderTarget* renderTargetOrNull() final { return nullptr; }
 
-    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
+    std::unique_ptr<Renderer> makeRenderer(int width, int height) final
     {
         GrBackendRenderTarget backendRT(width,
                                         height,
@@ -362,20 +363,20 @@ public:
         return std::make_unique<SkiaRenderer>(m_skSurface->getCanvas());
     }
 
-    void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
+    void begin(const RenderContext::FrameDescriptor& frameDescriptor) final
     {
         m_skSurface->getCanvas()->clear(frameDescriptor.clearColor);
         m_grContext->resetContext();
         m_skSurface->getCanvas()->save();
     }
 
-    void onEnd(std::vector<uint8_t>* pixelData) override
+    void onEnd(std::vector<uint8_t>* pixelData) final
     {
         m_skSurface->getCanvas()->restore();
         m_skSurface->flush();
     }
 
-    void flushPLSContext() override {}
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final {}
 
 private:
     SkiaFactory m_factory;

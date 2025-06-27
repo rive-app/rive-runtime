@@ -268,8 +268,8 @@ Texture2D::Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo info) :
     m_imageView = vk->makeImageView(m_image);
 }
 
-void Texture2D::stageContentsForUpload(const void* imageData,
-                                       size_t imageDataSizeInBytes)
+void Texture2D::scheduleUpload(const void* imageData,
+                               size_t imageDataSizeInBytes)
 {
     m_imageUploadBuffer = m_image->vk()->makeBuffer(
         {
@@ -281,9 +281,8 @@ void Texture2D::stageContentsForUpload(const void* imageData,
     m_imageUploadBuffer->flushContents();
 }
 
-void Texture2D::synchronize(VkCommandBuffer commandBuffer)
+void Texture2D::applyImageUploadBuffer(VkCommandBuffer commandBuffer)
 {
-    assert(hasUpdates());
     assert(m_imageUploadBuffer != nullptr);
 
     VkBufferImageCopy bufferImageCopy = {
@@ -325,12 +324,16 @@ void Texture2D::barrier(VkCommandBuffer commandBuffer,
                         vkutil::ImageAccessAction imageAccessAction,
                         VkDependencyFlags dependencyFlags)
 {
-    m_lastAccess = m_image->vk()->simpleImageMemoryBarrier(commandBuffer,
-                                                           m_lastAccess,
-                                                           dstAccess,
-                                                           *m_image,
-                                                           imageAccessAction,
-                                                           dependencyFlags);
+    if (m_lastAccess != dstAccess)
+    {
+        m_lastAccess =
+            m_image->vk()->simpleImageMemoryBarrier(commandBuffer,
+                                                    m_lastAccess,
+                                                    dstAccess,
+                                                    *m_image,
+                                                    imageAccessAction,
+                                                    dependencyFlags);
+    }
 }
 
 void Texture2D::generateMipmaps(VkCommandBuffer commandBuffer,

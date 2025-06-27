@@ -55,7 +55,7 @@ public:
         return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
-    void flushPLSContext() final
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
         if (!m_renderTarget || m_renderTarget->height() != m_height ||
             m_renderTarget->width() != m_width)
@@ -78,14 +78,17 @@ public:
                 [m_gpu newBufferWithLength:m_height * m_width * 4
                                    options:MTLResourceStorageModeShared];
         }
-        m_renderContext->flush(
-            {.renderTarget = m_renderTarget.get(),
-             .externalCommandBuffer = (__bridge void*)m_flushCommandBuffer});
+        m_renderContext->flush({
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTarget.get(),
+            .externalCommandBuffer = (__bridge void*)m_flushCommandBuffer,
+        });
     }
 
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
-        flushPLSContext();
+        flushPLSContext(nullptr);
 
         if (pixelData)
         {

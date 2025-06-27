@@ -16,7 +16,8 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend,
 #else
 
 #include "fiddle_context.hpp"
-
+#include "common/offscreen_render_target.hpp"
+#include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include <queue>
 
 #define GLFW_INCLUDE_NONE
@@ -331,6 +332,33 @@ public:
 
     void hotloadShaders() override { m_fiddleContext->hotloadShaders(); }
 
+    rive::rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
+        uint32_t width,
+        uint32_t height,
+        bool riveRenderable) const override
+    {
+#ifndef RIVE_TOOLS_NO_GL
+        if (auto* renderContextGL = m_fiddleContext->renderContextGLImpl())
+        {
+            return rive_tests::OffscreenRenderTarget::MakeGL(renderContextGL,
+                                                             width,
+                                                             height);
+        }
+#endif
+#ifdef RIVE_VULKAN
+        if (auto* renderContextVulkan =
+                m_fiddleContext->renderContextVulkanImpl())
+        {
+            return rive_tests::OffscreenRenderTarget::MakeVulkan(
+                renderContextVulkan->vulkanContext(),
+                width,
+                height,
+                riveRenderable);
+        }
+#endif
+        return nullptr;
+    }
+
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {
@@ -369,12 +397,20 @@ public:
         return m_fiddleContext->renderContextOrNull();
     }
 
+    rive::gpu::RenderContextGLImpl* renderContextGLImpl() const override
+    {
+        return m_fiddleContext->renderContextGLImpl();
+    }
+
     rive::gpu::RenderTarget* renderTarget() const override
     {
         return m_fiddleContext->renderTargetOrNull();
     }
 
-    void flushPLSContext() override { m_fiddleContext->flushPLSContext(); }
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) override
+    {
+        m_fiddleContext->flushPLSContext(offscreenRenderTarget);
+    }
 
     bool consumeInputEvent(InputEventData& eventData) override
     {

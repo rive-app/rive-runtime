@@ -11,7 +11,6 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions)
 
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/d3d11/render_context_d3d_impl.hpp"
-#include "rive/renderer/d3d11/d3d11.hpp"
 #include <array>
 #include <dxgi1_2.h>
 
@@ -116,7 +115,7 @@ public:
         m_renderContext->beginFrame(frameDescriptor);
     }
 
-    void flushPLSContext() final
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
         if (m_renderTarget->targetTexture() == nullptr)
         {
@@ -135,12 +134,16 @@ public:
                 m_renderTarget->setTargetTexture(backbuffer);
             }
         }
-        m_renderContext->flush({.renderTarget = m_renderTarget.get()});
+        m_renderContext->flush({
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTarget.get(),
+        });
     }
 
     void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) override
     {
-        flushPLSContext();
+        flushPLSContext(nullptr);
         if (pixelData != nullptr)
         {
             uint32_t w = m_renderTarget->width();

@@ -463,6 +463,10 @@
 
 #endif
 
+#ifndef PLS_DECL4F_READONLY
+#define PLS_DECL4F_READONLY PLS_DECL4F
+#endif
+
 #ifdef @TARGET_VULKAN
 #define gl_VertexID gl_VertexIndex
 #endif

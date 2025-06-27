@@ -95,7 +95,7 @@ public:
         m_renderContext->beginFrame(frameDescriptor);
     }
 
-    void flushPLSContext() final
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
         if (m_currentFrameSurface == nil)
         {
@@ -108,15 +108,18 @@ public:
         }
 
         id<MTLCommandBuffer> flushCommandBuffer = [m_queue commandBuffer];
-        m_renderContext->flush(
-            {.renderTarget = m_renderTarget.get(),
-             .externalCommandBuffer = (__bridge void*)flushCommandBuffer});
+        m_renderContext->flush({
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTarget.get(),
+            .externalCommandBuffer = (__bridge void*)flushCommandBuffer,
+        });
         [flushCommandBuffer commit];
     }
 
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
-        flushPLSContext();
+        flushPLSContext(nullptr);
 
         if (pixelData != nil)
         {

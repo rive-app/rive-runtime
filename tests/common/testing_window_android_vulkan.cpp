@@ -14,6 +14,7 @@ TestingWindow* TestingWindow::MakeAndroidVulkan(const BackendParams&,
 
 #else
 
+#include "common/offscreen_render_target.hpp"
 #include "rive_vk_bootstrap/rive_vk_bootstrap.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
@@ -169,6 +170,17 @@ public:
         abort();
     }
 
+    rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
+        uint32_t width,
+        uint32_t height,
+        bool riveRenderable) const override
+    {
+        return rive_tests::OffscreenRenderTarget::MakeVulkan(vk(),
+                                                             width,
+                                                             height,
+                                                             riveRenderable);
+    }
+
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {
@@ -190,7 +202,7 @@ public:
         return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
-    void flushPLSContext() override
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) override
     {
         fprintf(stderr,
                 "TestingWindowAndroidVulkan::flushPLSContext not supported.");

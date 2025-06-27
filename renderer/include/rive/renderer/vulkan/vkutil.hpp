@@ -209,10 +209,7 @@ public:
     ImageAccess& lastAccess() { return m_lastAccess; }
 
     // Deferred mechanism for uploading image data without a command buffer.
-    void stageContentsForUpload(const void* imageData,
-                                size_t imageDataSizeInBytes);
-    bool hasUpdates() const { return m_imageUploadBuffer != nullptr; }
-    void synchronize(VkCommandBuffer);
+    void scheduleUpload(const void* imageData, size_t imageDataSizeInBytes);
 
     void barrier(VkCommandBuffer,
                  const ImageAccess& dstAccess,
@@ -225,6 +222,25 @@ public:
     // a wrap mode of "repeat". We may want to add a "wrap" argument at some
     // point.
     void generateMipmaps(VkCommandBuffer, const ImageAccess& dstAccess);
+
+    // This method is inlined intentionally, in order to avoid function calls in
+    // the common usecase.
+    inline void prepareForFragmentShaderRead(VkCommandBuffer commandBuffer)
+    {
+        if (m_imageUploadBuffer != nullptr)
+        {
+            applyImageUploadBuffer(commandBuffer);
+        }
+        constexpr static ImageAccess READ_ACCESS = {
+            .pipelineStages = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .accessMask = VK_ACCESS_SHADER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL,
+        };
+        if (m_lastAccess != READ_ACCESS)
+        {
+            barrier(commandBuffer, READ_ACCESS);
+        }
+    }
 
     // Simple mechanism for caching and reusing a descriptor set for this
     // texture within a frame.
@@ -248,6 +264,8 @@ public:
 
 protected:
     friend class ::rive::gpu::VulkanContext;
+
+    void applyImageUploadBuffer(VkCommandBuffer);
 
     Texture2D(rcp<VulkanContext> vk, VkImageCreateInfo);
 

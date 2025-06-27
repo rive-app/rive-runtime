@@ -5,14 +5,11 @@
 #include "gm.hpp"
 #include "gmutils.hpp"
 #include "common/testing_window.hpp"
+#include "common/offscreen_render_target.hpp"
 #include "rive/renderer/render_context.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 
 #ifdef RIVE_TOOLS_NO_GL
-namespace rive::gpu
-{
-class TextureRenderTargetGL;
-};
 using GLuint = uint32_t;
 #else
 #include "rive/renderer/gl/render_context_gl_impl.hpp"
@@ -25,78 +22,61 @@ using namespace rive::gpu;
 
 // Most gms render directly to the framebuffer. This GM checks that texture
 // targets work in GL.
-class TextureTargetGL : public GM
+class OffscreenRenderTarget : public GM
 {
 public:
-    TextureTargetGL() : GM(256, 256) {}
+    OffscreenRenderTarget(bool riveRenderable) :
+        GM(256, 256), m_riveRenderable(riveRenderable)
+    {}
 
     ColorInt clearColor() const override { return 0xffff0000; }
 
     void onDraw(rive::Renderer* originalRenderer) override
     {
-#ifndef RIVE_TOOLS_NO_GL
-        if (auto plsImplGL = TestingWindow::Get()->renderContextGLImpl())
+        if (rcp<rive_tests::OffscreenRenderTarget> renderImageTarget =
+                TestingWindow::Get()
+                    ->makeOffscreenRenderTarget(256, 256, m_riveRenderable))
         {
             // Intercept the current frameDescriptor and end the PLS frame.
             auto renderContext = TestingWindow::Get()->renderContext();
             auto originalFrameDescriptor = renderContext->frameDescriptor();
-            auto originalRenderTarget = static_cast<RenderTargetGL*>(
-                TestingWindow::Get()->renderTarget());
             TestingWindow::Get()->flushPLSContext();
-            plsImplGL->unbindGLInternalResources();
-
-            // Create an offscreen texture.
-            if (m_offscreenTex == 0)
-            {
-                glGenTextures(1, &m_offscreenTex);
-                glBindTexture(GL_TEXTURE_2D, m_offscreenTex);
-                glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, 256, 256);
-                glTexParameteri(GL_TEXTURE_2D,
-                                GL_TEXTURE_MIN_FILTER,
-                                GL_NEAREST);
-                glTexParameteri(GL_TEXTURE_2D,
-                                GL_TEXTURE_MAG_FILTER,
-                                GL_NEAREST);
-                glTexParameteri(GL_TEXTURE_2D,
-                                GL_TEXTURE_WRAP_S,
-                                GL_CLAMP_TO_EDGE);
-                glTexParameteri(GL_TEXTURE_2D,
-                                GL_TEXTURE_WRAP_T,
-                                GL_CLAMP_TO_EDGE);
-            }
-            auto textureTargetGL = make_rcp<TextureRenderTargetGL>(256, 256);
-            textureTargetGL->setTargetTexture(m_offscreenTex);
-            plsImplGL->invalidateGLState();
 
             // Draw to the offscreen texture.
             auto textureFrameDescriptor = originalFrameDescriptor;
             textureFrameDescriptor.clearColor = 0xffff00ff;
             renderContext->beginFrame(std::move(textureFrameDescriptor));
             RiveRenderer renderer(renderContext);
-            drawInternal(&renderer, textureTargetGL.get());
-            renderContext->flush({.renderTarget = textureTargetGL.get()});
+            drawInternal(&renderer, renderImageTarget->asRenderTarget());
+            TestingWindow::Get()->flushPLSContext(
+                renderImageTarget->asRenderTarget());
 
             // Copy the offscreen texture back to the destination framebuffer.
+            RenderImage* renderImage = renderImageTarget->asRenderImage();
             auto copyFrameDescriptor = originalFrameDescriptor;
             copyFrameDescriptor.loadAction =
                 gpu::LoadAction::preserveRenderTarget;
             copyFrameDescriptor.clearColor = 0xffff0000;
             renderContext->beginFrame(std::move(copyFrameDescriptor));
-            originalRenderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
-            plsImplGL->blitTextureToFramebufferAsDraw(m_offscreenTex,
-                                                      {0, 0, 256, 256},
-                                                      256);
+            renderer.save();
+            if (renderContext->platformFeatures().framebufferBottomUp)
+            {
+                renderer.translate(0, 256);
+                renderer.scale(1, -1);
+            }
+            renderer.drawImage(renderImage,
+                               {.filter = ImageFilter::nearest},
+                               BlendMode::srcOver,
+                               1);
+            renderer.restore();
         }
         else
-#endif
         {
-            // We aren't PLS/GL, but still draw with a red background, just for
-            // fun.
             drawInternal(originalRenderer, nullptr);
         }
     }
 
-    virtual void drawInternal(Renderer* renderer, TextureRenderTargetGL*)
+    virtual void drawInternal(Renderer* renderer, RenderTarget*)
     {
         drawStar5(renderer, Paint(0x8000ffff));
         drawStar13(renderer, Paint(0x80ffff00));
@@ -136,36 +116,27 @@ public:
         renderer->restore();
     }
 
-    ~TextureTargetGL()
-    {
-#ifndef RIVE_TOOLS_NO_GL
-        if (m_offscreenTex != 0)
-        {
-            glDeleteTextures(1, &m_offscreenTex);
-        }
-#endif
-    }
-
 private:
-#ifndef RIVE_TOOLS_NO_GL
-    GLuint m_offscreenTex = 0;
-#endif
+    const bool m_riveRenderable;
 };
 
-GMREGISTER(texture_target_gl, return new TextureTargetGL)
+GMREGISTER(offscreen_render_target, return new OffscreenRenderTarget(true))
+GMREGISTER(offscreen_render_target_nonrenderable,
+           return new OffscreenRenderTarget(false))
 
 // This GM checks that texture targets (including MSAA targets) work with
 // LoadAction::preserveRenderTarget.
-class TextureTargetGLPreserve : public TextureTargetGL
+class OffscreenRenderTargetPreserve : public OffscreenRenderTarget
 {
 public:
-    TextureTargetGLPreserve(BlendMode blendMode) :
-        TextureTargetGL(), m_blendMode(blendMode)
+    OffscreenRenderTargetPreserve(BlendMode blendMode, bool riveRenderable) :
+        OffscreenRenderTarget(riveRenderable), m_blendMode(blendMode)
     {}
-    TextureTargetGLPreserve() : TextureTargetGLPreserve(BlendMode::srcOver) {}
+    OffscreenRenderTargetPreserve(bool riveRenderable) :
+        OffscreenRenderTargetPreserve(BlendMode::srcOver, riveRenderable)
+    {}
 
-    virtual void drawInternal(Renderer* renderer,
-                              TextureRenderTargetGL* renderTextureTargetGL)
+    virtual void drawInternal(Renderer* renderer, RenderTarget* renderTarget)
     {
         ColorInt colors[2];
         float stops[2];
@@ -196,8 +167,8 @@ public:
 #ifndef RIVE_TOOLS_NO_GL
             if (auto plsImplGL = TestingWindow::Get()->renderContextGLImpl())
             {
-                assert(renderTextureTargetGL);
-                renderContext->flush({.renderTarget = renderTextureTargetGL});
+                assert(renderTarget);
+                TestingWindow::Get()->flushPLSContext(renderTarget);
                 if (int sampleCount = frameDescriptor.msaaSampleCount)
                 {
                     // If the MSAA framebuffer target is not the target texture,
@@ -207,6 +178,8 @@ public:
                     if (!plsImplGL->capabilities()
                              .EXT_multisampled_render_to_texture)
                     {
+                        auto renderTextureTargetGL =
+                            static_cast<RenderTargetGL*>(renderTarget);
                         renderTextureTargetGL->bindMSAAFramebuffer(plsImplGL,
                                                                    sampleCount,
                                                                    nullptr,
@@ -219,7 +192,7 @@ public:
             else
 #endif
             {
-                TestingWindow::Get()->flushPLSContext();
+                TestingWindow::Get()->flushPLSContext(renderTarget);
             }
             frameDescriptor.loadAction = gpu::LoadAction::preserveRenderTarget;
             renderContext->beginFrame(std::move(frameDescriptor));
@@ -234,8 +207,8 @@ public:
 #ifndef RIVE_TOOLS_NO_GL
             if (auto plsImplGL = TestingWindow::Get()->renderContextGLImpl())
             {
-                assert(renderTextureTargetGL);
-                renderContext->flush({.renderTarget = renderTextureTargetGL});
+                assert(renderTarget);
+                TestingWindow::Get()->flushPLSContext(renderTarget);
                 if (int sampleCount = frameDescriptor.msaaSampleCount)
                 {
                     // If the MSAA framebuffer target is not the target texture,
@@ -245,6 +218,8 @@ public:
                     if (!plsImplGL->capabilities()
                              .EXT_multisampled_render_to_texture)
                     {
+                        auto renderTextureTargetGL =
+                            static_cast<RenderTargetGL*>(renderTarget);
                         renderTextureTargetGL->bindMSAAFramebuffer(plsImplGL,
                                                                    sampleCount,
                                                                    nullptr,
@@ -257,7 +232,7 @@ public:
             else
 #endif
             {
-                TestingWindow::Get()->flushPLSContext();
+                TestingWindow::Get()->flushPLSContext(renderTarget);
             }
             frameDescriptor.loadAction = gpu::LoadAction::preserveRenderTarget;
             renderContext->beginFrame(std::move(frameDescriptor));
@@ -270,15 +245,20 @@ public:
 private:
     BlendMode m_blendMode;
 };
-GMREGISTER(texture_target_gl_preserve, return new TextureTargetGLPreserve)
+GMREGISTER(offscreen_render_target_preserve,
+           return new OffscreenRenderTargetPreserve(true))
+GMREGISTER(offscreen_render_target_preserve_nonrenderable,
+           return new OffscreenRenderTargetPreserve(false))
 
 // ...And verify that blend modes work on a texture target.
-class TextureTargetGLPreserveLum : public TextureTargetGLPreserve
+class OffscreenRenderTargetPreserveLum : public OffscreenRenderTargetPreserve
 {
 public:
-    TextureTargetGLPreserveLum() :
-        TextureTargetGLPreserve(BlendMode::luminosity)
+    OffscreenRenderTargetPreserveLum(bool riveRenderable) :
+        OffscreenRenderTargetPreserve(BlendMode::luminosity, riveRenderable)
     {}
 };
-GMREGISTER(texture_target_gl_preserve_lum,
-           return new TextureTargetGLPreserveLum)
+GMREGISTER(offscreen_render_target_preserve_lum,
+           return new OffscreenRenderTargetPreserveLum(true))
+GMREGISTER(offscreen_render_target_preserve_lum_nonrenderable,
+           return new OffscreenRenderTargetPreserveLum(false))

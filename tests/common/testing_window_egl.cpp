@@ -13,8 +13,6 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
 
 #else
 
-#include "rive/renderer.hpp"
-#include "testing_gl_renderer.hpp"
 #include <cassert>
 #include <stdio.h>
 
@@ -23,8 +21,12 @@ TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
 #include <EGL/eglext.h>
 
 // Include after Windows headers due to conflicts with #defines.
+#include "common/offscreen_render_target.hpp"
 #include "rive/renderer/gl/render_context_gl_impl.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
+#include "rive/renderer.hpp"
+#include "rive/renderer/gl/render_target_gl.hpp"
+#include "testing_gl_renderer.hpp"
 
 #if defined(_WIN32)
 
@@ -583,7 +585,21 @@ public:
         return m_renderer->renderTarget();
     }
 
-    void flushPLSContext() override { m_renderer->flushPLSContext(); }
+    rive::rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
+        uint32_t width,
+        uint32_t height,
+        bool riveRenderable) const override
+    {
+        return rive_tests::OffscreenRenderTarget::MakeGL(renderContextGLImpl(),
+                                                         width,
+                                                         height);
+    }
+
+    void flushPLSContext(
+        rive::gpu::RenderTarget* offscreenRenderTarget) override
+    {
+        m_renderer->flushPLSContext(offscreenRenderTarget);
+    }
 
 private:
     const std::unique_ptr<TestingGLRenderer> m_renderer;

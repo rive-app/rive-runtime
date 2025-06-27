@@ -12,8 +12,6 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
 
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/d3d12/render_context_d3d12_impl.hpp"
-#include "rive/renderer/d3d12/d3d12.hpp"
-#include <array>
 #include <dxgi1_6.h>
 
 #define GLFW_INCLUDE_NONE
@@ -373,7 +371,7 @@ public:
                                          m_previousFrames[m_frameIndex]));
     }
 
-    void flushPLSContext() final
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
         m_frameIndex = getFrameIndex();
 
@@ -392,11 +390,14 @@ public:
             m_copyCommandList.Get(),
             m_commandList.Get()};
 
-        m_renderContext->flush(
-            {.renderTarget = m_renderTargets[m_frameIndex].get(),
-             .externalCommandBuffer = &cmdLists,
-             .currentFrameNumber = m_currentFrame,
-             .safeFrameNumber = safeFrame});
+        m_renderContext->flush({
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTargets[m_frameIndex].get(),
+            .externalCommandBuffer = &cmdLists,
+            .currentFrameNumber = m_currentFrame,
+            .safeFrameNumber = safeFrame,
+        });
 
         moveToNextFrame();
     }
@@ -500,7 +501,7 @@ public:
 
     void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) override
     {
-        flushPLSContext();
+        flushPLSContext(nullptr);
 
         if (pixelData != nullptr)
         {

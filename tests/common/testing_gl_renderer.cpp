@@ -111,7 +111,7 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
             m_renderContext->beginFrame(frameDescriptor);
         }
 
-        void flush(int dpiScale) override { flushPLSContext(); }
+        void flush(int dpiScale) override { flushPLSContext(nullptr); }
 
         rive::gpu::RenderContext* renderContext() const override
         {
@@ -122,9 +122,14 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
             return m_renderTarget.get();
         }
 
-        void flushPLSContext() override
+        void flushPLSContext(
+            rive::gpu::RenderTarget* offscreenRenderTarget) override
         {
-            m_renderContext->flush({.renderTarget = m_renderTarget.get()});
+            m_renderContext->flush({
+                .renderTarget = offscreenRenderTarget != nullptr
+                                    ? offscreenRenderTarget
+                                    : m_renderTarget.get(),
+            });
         }
 
     private:

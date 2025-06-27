@@ -371,17 +371,19 @@ rcp<Texture> RenderContextGLImpl::makeImageTexture(
     glActiveTexture(GL_TEXTURE0 + IMAGE_TEXTURE_IDX);
     glBindTexture(GL_TEXTURE_2D, textureID);
     glTexStorage2D(GL_TEXTURE_2D, mipLevelCount, GL_RGBA8, width, height);
-    glTexSubImage2D(GL_TEXTURE_2D,
-                    0,
-                    0,
-                    0,
-                    width,
-                    height,
-                    GL_RGBA,
-                    GL_UNSIGNED_BYTE,
-                    imageDataRGBAPremul);
-    glutils::SetTexture2DSamplingParams(GL_LINEAR_MIPMAP_LINEAR, GL_LINEAR);
-    glGenerateMipmap(GL_TEXTURE_2D);
+    if (imageDataRGBAPremul != nullptr)
+    {
+        glTexSubImage2D(GL_TEXTURE_2D,
+                        0,
+                        0,
+                        0,
+                        width,
+                        height,
+                        GL_RGBA,
+                        GL_UNSIGNED_BYTE,
+                        imageDataRGBAPremul);
+        glGenerateMipmap(GL_TEXTURE_2D);
+    }
     return adoptImageTexture(width, height, textureID);
 }
 

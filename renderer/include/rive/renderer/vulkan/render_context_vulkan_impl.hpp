@@ -4,6 +4,8 @@
 
 #pragma once
 
+#ifdef RIVE_VULKAN
+
 #include "rive/renderer/render_context_impl.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 #include <chrono>
@@ -283,3 +285,5 @@ private:
 };
 RIVE_MAKE_ENUM_BITSET(RenderContextVulkanImpl::DrawPipelineLayoutOptions);
 } // namespace rive::gpu
+
+#endif

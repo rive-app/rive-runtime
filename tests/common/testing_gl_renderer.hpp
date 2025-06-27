@@ -40,7 +40,8 @@ public:
 
     // For testing render pass breaks. Caller must call
     // renderContext()->beginFrame() again.
-    virtual void flushPLSContext() {}
+    virtual void flushPLSContext(rive::gpu::RenderTarget* offscreenRenderTarget)
+    {}
 
     virtual ~TestingGLRenderer();
 };

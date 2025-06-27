@@ -5,8 +5,10 @@
 #ifndef TESTING_WINDOW_HPP
 #define TESTING_WINDOW_HPP
 
+#include "common/offscreen_render_target.hpp"
 #include "rive/rive_types.hpp"
 #include "rive/enum_bitset.hpp"
+#include "rive/refcnt.hpp"
 #include <memory>
 #include <vector>
 #include <string>
@@ -20,6 +22,8 @@ namespace gpu
 class RenderContext;
 class RenderContextGLImpl;
 class RenderTarget;
+class Texture;
+class TextureRenderTarget;
 } // namespace gpu
 }; // namespace rive
 
@@ -446,6 +450,7 @@ public:
         m_width = width;
         m_height = height;
     }
+
     struct FrameOptions
     {
         uint32_t clearColor;
@@ -467,9 +472,23 @@ public:
     }
     virtual rive::gpu::RenderTarget* renderTarget() const { return nullptr; }
 
+    // Creates a new render target, for testing offscreen rendering.
+    // If riveRenderable is false, the texture will lack features required by
+    // Rive for rendering directly to it (e.g., input attachment, UAV, etc.),
+    // which will exercise indirect rendering fallbacks.
+    virtual rive::rcp<rive_tests::OffscreenRenderTarget>
+    makeOffscreenRenderTarget(uint32_t width,
+                              uint32_t height,
+                              bool riveRenderable) const
+    {
+        return nullptr;
+    }
+
     // For testing render pass breaks. Caller must call
     // renderContext()->beginFrame() again.
-    virtual void flushPLSContext() {}
+    virtual void flushPLSContext(
+        rive::gpu::RenderTarget* offscreenRenderTarget = nullptr)
+    {}
 
     virtual bool consumeInputEvent(InputEventData& eventData) { return false; }
     virtual InputEventData waitForInputEvent()

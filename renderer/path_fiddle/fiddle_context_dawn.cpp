@@ -286,14 +286,18 @@ public:
         m_renderContext->beginFrame(std::move(frameDescriptor));
     }
 
-    void flushPLSContext() final
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
-        m_renderContext->flush({.renderTarget = m_renderTarget.get()});
+        m_renderContext->flush({
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTarget.get(),
+        });
     }
 
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
-        flushPLSContext();
+        flushPLSContext(nullptr);
 
         if (pixelData != nullptr)
         {

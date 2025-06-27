@@ -6,6 +6,12 @@
 
 struct GLFWwindow;
 
+namespace rive::gpu
+{
+class RenderContextGLImpl;
+class RenderContextVulkanImpl;
+} // namespace rive::gpu
+
 struct FiddleContextOptions
 {
     bool retinaDisplay = true;
@@ -31,7 +37,16 @@ public:
     virtual float dpiScale(GLFWwindow*) const = 0;
     virtual rive::Factory* factory() = 0;
     virtual rive::gpu::RenderContext* renderContextOrNull() = 0;
+    virtual rive::gpu::RenderContextGLImpl* renderContextGLImpl() const
+    {
+        return nullptr;
+    }
+    virtual rive::gpu::RenderContextVulkanImpl* renderContextVulkanImpl() const
+    {
+        return nullptr;
+    }
     virtual rive::gpu::RenderTarget* renderTargetOrNull() = 0;
+
     virtual void onSizeChanged(GLFWwindow*,
                                int width,
                                int height,
@@ -41,7 +56,9 @@ public:
     virtual std::unique_ptr<rive::Renderer> makeRenderer(int width,
                                                          int height) = 0;
     virtual void begin(const rive::gpu::RenderContext::FrameDescriptor&) = 0;
-    virtual void flushPLSContext() = 0; // Called by end()
+    // Called by end().
+    virtual void flushPLSContext(
+        rive::gpu::RenderTarget* offscreenRenderTarget = nullptr) = 0;
     virtual void end(GLFWwindow*,
                      std::vector<uint8_t>* pixelData = nullptr) = 0;
     virtual void tick(){};

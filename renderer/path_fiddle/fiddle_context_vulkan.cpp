@@ -90,7 +90,7 @@ public:
         vkb::destroy_instance(m_instance);
     }
 
-    float dpiScale(GLFWwindow* window) const override
+    float dpiScale(GLFWwindow* window) const final
     {
 #ifdef __APPLE__
         return 2;
@@ -99,14 +99,19 @@ public:
 #endif
     }
 
-    Factory* factory() override { return m_renderContext.get(); }
+    Factory* factory() final { return m_renderContext.get(); }
 
-    rive::gpu::RenderContext* renderContextOrNull() override
+    rive::gpu::RenderContext* renderContextOrNull() final
     {
         return m_renderContext.get();
     }
 
-    rive::gpu::RenderTarget* renderTargetOrNull() override
+    rive::gpu::RenderContextVulkanImpl* renderContextVulkanImpl() const final
+    {
+        return m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
+    }
+
+    rive::gpu::RenderTarget* renderTargetOrNull() final
     {
         return m_renderTarget.get();
     }
@@ -114,7 +119,7 @@ public:
     void onSizeChanged(GLFWwindow* window,
                        int width,
                        int height,
-                       uint32_t sampleCount) override
+                       uint32_t sampleCount) final
     {
         uint64_t currentFrameNumber = 0;
         if (m_swapchain != nullptr)
@@ -186,37 +191,37 @@ public:
             VKB_CHECK(swapchainBuilder.build()),
             currentFrameNumber);
 
-        m_renderTarget =
-            impl()->makeRenderTarget(width,
-                                     height,
-                                     m_swapchain->imageFormat(),
-                                     m_swapchain->imageUsageFlags());
+        m_renderTarget = renderContextVulkanImpl()->makeRenderTarget(
+            width,
+            height,
+            m_swapchain->imageFormat(),
+            m_swapchain->imageUsageFlags());
     }
 
-    void toggleZoomWindow() override {}
+    void toggleZoomWindow() final {}
 
-    void hotloadShaders() override
+    void hotloadShaders() final
     {
         m_swapchain->dispatchTable().deviceWaitIdle();
         rive::Span<const uint32_t> newShaderBytecodeData =
             loadNewShaderFileData();
         if (newShaderBytecodeData.size() > 0)
         {
-            impl()->hotloadShaders(newShaderBytecodeData);
+            renderContextVulkanImpl()->hotloadShaders(newShaderBytecodeData);
         }
     }
 
-    std::unique_ptr<Renderer> makeRenderer(int width, int height) override
+    std::unique_ptr<Renderer> makeRenderer(int width, int height) final
     {
         return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
-    void begin(const RenderContext::FrameDescriptor& frameDescriptor) override
+    void begin(const RenderContext::FrameDescriptor& frameDescriptor) final
     {
         m_renderContext->beginFrame(std::move(frameDescriptor));
     }
 
-    void flushPLSContext() final
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
         const rive_vkb::SwapchainImage* swapchainImage =
             m_swapchain->currentImage();
@@ -229,7 +234,9 @@ public:
         }
 
         m_renderContext->flush({
-            .renderTarget = m_renderTarget.get(),
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTarget.get(),
             .externalCommandBuffer = swapchainImage->commandBuffer,
             .currentFrameNumber = swapchainImage->currentFrameNumber,
             .safeFrameNumber = swapchainImage->safeFrameNumber,
@@ -238,17 +245,15 @@ public:
 
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final
     {
-        flushPLSContext();
+        flushPLSContext(nullptr);
         m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData);
     }
 
 private:
-    RenderContextVulkanImpl* impl() const
+    VulkanContext* vk() const
     {
-        return m_renderContext->static_impl_cast<RenderContextVulkanImpl>();
+        return renderContextVulkanImpl()->vulkanContext();
     }
-
-    VulkanContext* vk() const { return impl()->vulkanContext(); }
 
     const FiddleContextOptions m_options;
     vkb::Instance m_instance;

@@ -40,16 +40,21 @@ public:
         return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
-    void flushPLSContext() final
+    void flushPLSContext(RenderTarget* renderTarget) final
     {
-        auto nullTarget = m_renderContext->static_impl_cast<RenderContextNULL>()
-                              ->makeRenderTarget(m_width, m_height);
-        m_renderContext->flush({.renderTarget = nullTarget.get()});
+        rcp<RenderTarget> nullTarget;
+        if (renderTarget == nullptr)
+        {
+            nullTarget = m_renderContext->static_impl_cast<RenderContextNULL>()
+                             ->makeRenderTarget(m_width, m_height);
+            renderTarget = nullTarget.get();
+        }
+        m_renderContext->flush({.renderTarget = renderTarget});
     }
 
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
-        flushPLSContext();
+        flushPLSContext(nullptr);
 
         if (pixelData)
         {

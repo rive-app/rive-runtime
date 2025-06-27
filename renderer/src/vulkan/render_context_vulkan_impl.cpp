@@ -280,7 +280,7 @@ rcp<Texture> RenderContextVulkanImpl::makeImageTexture(
         .extent = {width, height},
         .mipLevels = mipLevelCount,
     });
-    texture->stageContentsForUpload(imageDataRGBAPremul, height * width * 4);
+    texture->scheduleUpload(imageDataRGBAPremul, height * width * 4);
     return texture;
 }
 
@@ -1729,7 +1729,7 @@ void RenderContextVulkanImpl::initGPUObjects()
         .format = VK_FORMAT_R8G8B8A8_UNORM,
         .extent = {1, 1},
     });
-    m_nullImageTexture->stageContentsForUpload(black, sizeof(black));
+    m_nullImageTexture->scheduleUpload(black, sizeof(black));
 
     // All pipelines share the same perFlush bindings.
     VkDescriptorSetLayoutBinding perFlushLayoutBindings[] = {
@@ -1990,8 +1990,8 @@ void RenderContextVulkanImpl::initGPUObjects()
                 .height = FEATHER_TEXTURE_1D_ARRAY_LENGTH,
             },
     });
-    m_featherTexture->stageContentsForUpload(featherTextureData,
-                                             sizeof(featherTextureData));
+    m_featherTexture->scheduleUpload(featherTextureData,
+                                     sizeof(featherTextureData));
 
     m_tessSpanIndexBuffer = m_vk->makeBuffer(
         {
@@ -2339,23 +2339,14 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
         m_descriptorSetPoolPool->acquire();
 
     // Apply pending texture updates.
-    if (m_featherTexture->hasUpdates())
-    {
-        m_featherTexture->synchronize(commandBuffer);
-    }
-    if (m_nullImageTexture->hasUpdates())
-    {
-        m_nullImageTexture->synchronize(commandBuffer);
-    }
+    m_featherTexture->prepareForFragmentShaderRead(commandBuffer);
+    m_nullImageTexture->prepareForFragmentShaderRead(commandBuffer);
     for (const DrawBatch& batch : *desc.drawList)
     {
         if (auto imageTextureVulkan =
                 static_cast<vkutil::Texture2D*>(batch.imageTexture))
         {
-            if (imageTextureVulkan->hasUpdates())
-            {
-                imageTextureVulkan->synchronize(commandBuffer);
-            }
+            imageTextureVulkan->prepareForFragmentShaderRead(commandBuffer);
         }
     }
 

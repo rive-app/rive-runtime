@@ -13,6 +13,7 @@ TestingWindow* TestingWindow::MakeVulkanTexture(const BackendParams&)
 
 #else
 
+#include "common/offscreen_render_target.hpp"
 #include "rive_vk_bootstrap/rive_vk_bootstrap.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
@@ -80,6 +81,17 @@ public:
         return m_renderContext.get();
     }
 
+    rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
+        uint32_t width,
+        uint32_t height,
+        bool riveRenderable) const override
+    {
+        return rive_tests::OffscreenRenderTarget::MakeVulkan(vk(),
+                                                             width,
+                                                             height,
+                                                             riveRenderable);
+    }
+
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {
@@ -129,7 +141,7 @@ public:
         return std::make_unique<RiveRenderer>(m_renderContext.get());
     }
 
-    void flushPLSContext() final
+    void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
         const rive_vkb::SwapchainImage* swapchainImage =
             m_swapchain->currentImage();
@@ -142,7 +154,9 @@ public:
         }
 
         m_renderContext->flush({
-            .renderTarget = m_renderTarget.get(),
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTarget.get(),
             .externalCommandBuffer = swapchainImage->commandBuffer,
             .currentFrameNumber = swapchainImage->currentFrameNumber,
             .safeFrameNumber = swapchainImage->safeFrameNumber,
@@ -151,7 +165,7 @@ public:
 
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
-        flushPLSContext();
+        flushPLSContext(nullptr);
         m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData);
     }
 
