@@ -120,7 +120,8 @@ struct PlatformFeatures
     // Experimental rendering mode selected by InterlockMode::clockwiseAtomic.
     bool supportsClockwiseAtomicRendering = false;
     // Use KHR_blend_equation_advanced in msaa mode?
-    bool supportsKHRBlendEquations = false;
+    bool supportsBlendAdvancedKHR = false;
+    bool supportsBlendAdvancedCoherentKHR = false;
     // Required for @ENABLE_CLIP_RECT in msaa mode.
     bool supportsClipPlanes = false;
     bool avoidFlatVaryings = false;
@@ -955,12 +956,11 @@ enum class BarrierFlags : uint8_t
     // complete at each pixel before beginning the "forward coverage" draws.
     clockwiseBorrowedCoverage = 1 << 3,
 
-    // The next DrawBatch needs to perform an advanced blend, but on the current
-    // hardware, we can only fetch the dst color via a separate texture. (MSAA
-    // mode only.) Prepare a dstColorTexture with the current framebuffer
-    // contents. If we're lucky, this will be a Vulkan input attachment. On GL,
-    // this is a literal MSAA resolve & blit to a separate texture.
-    dstColorTexture = 1 << 4,
+    // The next DrawBatch needs to perform an advanced blend, but the current
+    // hardware requires an implementation-dependent barrier before reading the
+    // dstColor (pipeline barrier for input attachments, KHR blend barrier, or
+    // even a full MSAA resolve & blit into a separate texture.)
+    dstBlend = 1 << 4,
 
     // Only prevent future DrawBatches from being combined with the current
     // drawList. (No GPU dependencies.)

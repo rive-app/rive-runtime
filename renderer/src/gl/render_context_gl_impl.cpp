@@ -84,9 +84,14 @@ RenderContextGLImpl::RenderContextGLImpl(
         m_platformFeatures.supportsFragmentShaderAtomics =
             m_plsImpl->supportsFragmentShaderAtomics(m_capabilities);
     }
+    if (m_capabilities.KHR_blend_equation_advanced ||
+        m_capabilities.KHR_blend_equation_advanced_coherent)
+    {
+        m_platformFeatures.supportsBlendAdvancedKHR = true;
+    }
     if (m_capabilities.KHR_blend_equation_advanced_coherent)
     {
-        m_platformFeatures.supportsKHRBlendEquations = true;
+        m_platformFeatures.supportsBlendAdvancedCoherentKHR = true;
     }
     if (m_capabilities.EXT_clip_cull_distance)
     {
@@ -857,8 +862,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                    shaderType == GL_FRAGMENT_SHADER);
             if (interlockMode == gpu::InterlockMode::msaa &&
                 feature == gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND &&
-                renderContextImpl->m_capabilities
-                    .KHR_blend_equation_advanced_coherent)
+                renderContextImpl->m_capabilities.KHR_blend_equation_advanced)
             {
                 defines.push_back(GLSL_ENABLE_KHR_BLEND);
             }
@@ -1087,7 +1091,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     }
     if (interlockMode == gpu::InterlockMode::msaa &&
         (shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND) &&
-        !renderContextImpl->m_capabilities.KHR_blend_equation_advanced_coherent)
+        !renderContextImpl->m_capabilities.KHR_blend_equation_advanced)
     {
         glutils::Uniform1iByName(m_id,
                                  GLSL_dstColorTexture,
@@ -1508,22 +1512,31 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
             m_plsImpl->barrier(desc);
         }
-        else if (batch.barriers & BarrierFlags::dstColorTexture)
+        else if (batch.barriers & BarrierFlags::dstBlend)
         {
-            // Read back the framebuffer where we need a dstColor for blending.
-            assert(desc.interlockMode == gpu::InterlockMode::msaa);
-            assert(batch.dstReadList != nullptr);
-            renderTarget->bindInternalFramebuffer(
-                GL_DRAW_FRAMEBUFFER,
-                RenderTargetGL::DrawBufferMask::color);
-            for (const Draw* draw = batch.dstReadList; draw != nullptr;
-                 draw = draw->nextDstRead())
+            assert(!m_capabilities.KHR_blend_equation_advanced_coherent);
+            if (m_capabilities.KHR_blend_equation_advanced)
             {
-                assert(draw->blendMode() != BlendMode::srcOver);
-                glutils::BlitFramebuffer(draw->pixelBounds(),
-                                         renderTarget->height());
+                glBlendBarrierKHR();
             }
-            renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
+            else
+            {
+                // Read back the framebuffer where we need a dstColor for
+                // blending.
+                assert(desc.interlockMode == gpu::InterlockMode::msaa);
+                assert(batch.dstReadList != nullptr);
+                renderTarget->bindInternalFramebuffer(
+                    GL_DRAW_FRAMEBUFFER,
+                    RenderTargetGL::DrawBufferMask::color);
+                for (const Draw* draw = batch.dstReadList; draw != nullptr;
+                     draw = draw->nextDstRead())
+                {
+                    assert(draw->blendMode() != BlendMode::srcOver);
+                    glutils::BlitFramebuffer(draw->pixelBounds(),
+                                             renderTarget->height());
+                }
+                renderTarget->bindMSAAFramebuffer(this, desc.msaaSampleCount);
+            }
         }
 
         switch (drawType)

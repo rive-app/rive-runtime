@@ -1082,7 +1082,7 @@ static BlendEquation get_blend_equation(
             {
                 return BlendEquation::none;
             }
-            else if (!platformFeatures.supportsKHRBlendEquations ||
+            else if (!platformFeatures.supportsBlendAdvancedKHR ||
                      batch.firstBlendMode == BlendMode::srcOver)
             {
                 // Normal and in-shader blending both use src-over hardware
@@ -1095,7 +1095,7 @@ static BlendEquation get_blend_equation(
             }
             else
             {
-                // When m_platformFeatures.supportsKHRBlendEquations is true in
+                // When m_platformFeatures.supportsBlendAdvancedKHR is true in
                 // MSAA mode, the renderContext does not combine draws that have
                 // different blend modes.
                 return static_cast<BlendEquation>(batch.firstBlendMode);

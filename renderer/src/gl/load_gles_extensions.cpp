@@ -17,6 +17,7 @@ PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC
 glFramebufferTexture2DMultisampleEXT = nullptr;
 PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC glRenderbufferStorageMultisampleEXT =
     nullptr;
+PFNGLBLENDBARRIERKHRPROC glBlendBarrierKHR = nullptr;
 
 void LoadGLESExtensions(const GLCapabilities& extensions)
 {
@@ -53,5 +54,12 @@ void LoadGLESExtensions(const GLCapabilities& extensions)
             (PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC)eglGetProcAddress(
                 "glRenderbufferStorageMultisampleEXT");
         loadedExtensions.EXT_multisampled_render_to_texture = true;
+    }
+    if (extensions.KHR_blend_equation_advanced &&
+        !loadedExtensions.KHR_blend_equation_advanced)
+    {
+        glBlendBarrierKHR =
+            (PFNGLBLENDBARRIERKHRPROC)eglGetProcAddress("glBlendBarrierKHR");
+        loadedExtensions.KHR_blend_equation_advanced = true;
     }
 }

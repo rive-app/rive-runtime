@@ -1420,7 +1420,7 @@ void RenderContext::LogicalFlush::writeResources()
                 // MSAA mode draws clips, strokes, fills, and even/odd with
                 // different stencil settings, so these can't be batched.
                 needsBarrierMask |= kDrawContentsMask;
-                if (platformFeatures.supportsKHRBlendEquations)
+                if (platformFeatures.supportsBlendAdvancedKHR)
                 {
                     // If using KHR_blend_equation_advanced, we also need to
                     // stop batching between blend modes in order to change the
@@ -1428,8 +1428,8 @@ void RenderContext::LogicalFlush::writeResources()
                     needsBarrierMask |= kBlendModeMask;
                 }
                 // MSAA barriers only need to prevent batching of draws for now.
-                // If we also need a dstColorTexture barrier, that will be
-                // decided later.
+                // If we also need a dstBlend barrier, that will be decided
+                // later.
                 neededBarriers = BarrierFlags::drawBatchBreak;
                 break;
         }
@@ -2822,17 +2822,16 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
                (draw->blendMode() != BlendMode::srcOver));
         // If using KHR_blend_equation_advanced, we can't mix blend modes in a
         // batch.
-        assert(!m_ctx->platformFeatures().supportsKHRBlendEquations ||
+        assert(!m_ctx->platformFeatures().supportsBlendAdvancedKHR ||
                batch->firstBlendMode == draw->blendMode());
         if (draw->blendMode() != BlendMode::srcOver &&
-            !m_ctx->platformFeatures().supportsKHRBlendEquations)
+            !m_ctx->platformFeatures().supportsBlendAdvancedCoherentKHR)
         {
-            // The MSAA shader needs to do a manual blend mode. Add a
-            // "dstColorTexture" barrier and build up a list of "dstReads" for
-            // the batch. In MSAA mode, we don't always have a mechanism for
-            // shaders to read the framebuffer, so the backend may have to blit
-            // their bounding boxes to a separate texture that mirrors the
-            // framebuffer.
+            // An implementation-dependent barrier is required between
+            // overlapping draws. Add a "dstBlend" barrier and build up a list
+            // of "dstReads" for the batch. The dstRead list will be required in
+            // the event that the implementation has to handle dstReads by
+            // copying out a texture.
             //
             // (But if the draw already has a "nextDstRead" neighbor, do
             // nothing. It means an earlier subpass will already issue the
@@ -2841,7 +2840,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
             // that barrier for the first subpass is all we need.)
             if (draw->nextDstRead() == nullptr)
             {
-                batch->barriers |= BarrierFlags::dstColorTexture;
+                batch->barriers |= BarrierFlags::dstBlend;
                 batch->dstReadList = draw->addToDstReadList(batch->dstReadList);
             }
         }

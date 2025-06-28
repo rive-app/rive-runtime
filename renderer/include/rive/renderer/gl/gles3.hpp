@@ -90,6 +90,7 @@ extern void glProvokingVertexANGLE(GLenum provokeMode);
 #define GL_HSL_COLOR_KHR 0x92AF
 #define GL_HSL_LUMINOSITY_KHR 0x92B0
 #define GL_BLEND_ADVANCED_COHERENT_KHR 0x9285
+#define glBlendBarrierKHR(...) RIVE_UNREACHABLE()
 #endif
 
 #ifndef GL_EXT_clip_cull_distance
@@ -176,5 +177,6 @@ extern PFNGLFRAMEBUFFERTEXTURE2DMULTISAMPLEEXTPROC
     glFramebufferTexture2DMultisampleEXT;
 extern PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC
     glRenderbufferStorageMultisampleEXT;
+extern PFNGLBLENDBARRIERKHRPROC glBlendBarrierKHR;
 void LoadGLESExtensions(const GLCapabilities&);
 #endif
