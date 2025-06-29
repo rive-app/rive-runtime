@@ -797,7 +797,11 @@ rcp<ViewModelInstance> File::createViewModelInstance(ViewModel* viewModel) const
                     viewModelInstanceValue =
                         new ViewModelInstanceSymbolListIndex();
                     break;
+                case ViewModelPropertyArtboardBase::typeKey:
+                    viewModelInstanceValue = new ViewModelInstanceArtboard();
+                    break;
                 default:
+                    fprintf(stderr, "Missing view model property type\n");
                     break;
             }
             if (viewModelInstanceValue != nullptr)

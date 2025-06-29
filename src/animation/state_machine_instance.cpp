@@ -1703,6 +1703,7 @@ void StateMachineInstance::updateDataBinds()
 
 bool StateMachineInstance::tryChangeState()
 {
+    updateDataBinds();
     bool hasChangedState = false;
     for (size_t i = 0; i < m_layerCount; i++)
     {

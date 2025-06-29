@@ -15,6 +15,7 @@
 #include "rive/viewmodel/runtime/viewmodel_instance_trigger_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_list_runtime.hpp"
 #include "rive/viewmodel/runtime/viewmodel_instance_asset_image_runtime.hpp"
+#include "rive/viewmodel/runtime/viewmodel_instance_artboard_runtime.hpp"
 #include "rive/refcnt.hpp"
 
 namespace rive
@@ -44,6 +45,8 @@ public:
     ViewModelInstanceListRuntime* propertyList(const std::string& path) const;
     ViewModelInstanceRuntime* propertyViewModel(const std::string& path) const;
     ViewModelInstanceAssetImageRuntime* propertyImage(
+        const std::string& path) const;
+    ViewModelInstanceArtboardRuntime* propertyArtboard(
         const std::string& path) const;
     bool replaceViewModel(const std::string& path,
                           ViewModelInstanceRuntime* value) const;

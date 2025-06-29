@@ -84,13 +84,22 @@ void NestedArtboard::updateArtboard(
 {
     clearDataContext();
     m_NestedAnimations.clear();
+    m_boundNestedStateMachine = nullptr;
     Artboard* artboard = findArtboard(viewModelInstanceArtboard);
     if (artboard != nullptr)
     {
         auto artboardInstance = artboard->instance();
-        // TODO: @hernan create state machine with nested state machine wrapper
-        // stateMachine->initializeAnimation(artboardInstance);
-        // m_NestedAnimations.push_back(stateMachine);
+        if (artboard->stateMachineCount() > 0)
+        {
+
+            auto nestedStateMachine = new NestedStateMachine();
+            nestedStateMachine->animationId(0);
+            nestedStateMachine->initializeAnimation(artboardInstance.get());
+            addNestedAnimation(nestedStateMachine);
+
+            m_boundNestedStateMachine.reset(static_cast<NestedStateMachine*>(
+                nestedStateMachine)); // take ownership
+        }
         nest(artboardInstance.release());
         if (m_dataContext != nullptr && m_viewModelInstance == nullptr)
         {

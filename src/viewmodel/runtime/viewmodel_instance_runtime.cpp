@@ -110,6 +110,9 @@ ViewModelInstanceValueRuntime* ViewModelInstanceRuntime::property(
                     case DataType::assetImage:
                         return viewModelInstanceRuntime->propertyImage(
                             propertyName);
+                    case DataType::artboard:
+                        return viewModelInstanceRuntime->propertyArtboard(
+                            propertyName);
                     case DataType::list:
                         return viewModelInstanceRuntime->propertyList(
                             propertyName);
@@ -316,6 +319,22 @@ ViewModelInstanceAssetImageRuntime* ViewModelInstanceRuntime::propertyImage(
         return viewModelInstance
             ->getPropertyInstance<ViewModelInstanceAssetImage,
                                   ViewModelInstanceAssetImageRuntime>(
+                propertyName);
+    }
+    return nullptr;
+}
+
+ViewModelInstanceArtboardRuntime* ViewModelInstanceRuntime::propertyArtboard(
+    const std::string& path) const
+{
+    const auto propertyName = getPropertyNameFromPath(path);
+    auto viewModelInstance = viewModelInstanceFromFullPath(path);
+    if (viewModelInstance != nullptr)
+    {
+
+        return viewModelInstance
+            ->getPropertyInstance<ViewModelInstanceArtboard,
+                                  ViewModelInstanceArtboardRuntime>(
                 propertyName);
     }
     return nullptr;

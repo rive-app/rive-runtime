@@ -15,7 +15,7 @@ protected:
     void propertyValueChanged() override;
 
 public:
-    void asset(Artboard* value) { m_artboard = value; }
+    void asset(Artboard* value);
     Artboard* asset() { return m_artboard; }
 
 private:

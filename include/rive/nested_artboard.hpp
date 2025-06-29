@@ -27,6 +27,8 @@ class NestedArtboard : public NestedArtboardBase,
 protected:
     Artboard* m_Artboard = nullptr; // might point to m_Instance, and might not
     std::unique_ptr<ArtboardInstance> m_Instance; // may be null
+    std::unique_ptr<NestedStateMachine>
+        m_boundNestedStateMachine; // may be null
     std::vector<NestedAnimation*> m_NestedAnimations;
     File* m_file = nullptr;
     rcp<ViewModelInstance> m_viewModelInstance = nullptr;
