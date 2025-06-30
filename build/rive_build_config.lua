@@ -127,6 +127,11 @@ newoption({
     description = 'enable AddressSanitizer',
 })
 
+newoption({
+    trigger = 'with_ubsan',
+    description = 'enable UndefinedBehaviorSanitizer',
+})
+
 location(RIVE_BUILD_OUT)
 targetdir(RIVE_BUILD_OUT)
 objdir(RIVE_BUILD_OUT .. '/obj')
@@ -145,11 +150,22 @@ exceptionhandling('On')
 
 filter({ 'options:with-asan' })
 do
+    sanitize({ 'Address' })
+
+    -- Edit & continue and incremental link are not compatible with ASAN in MSVC.
+    editandcontinue('Off')
+    flags({ 'NoIncrementalLink' })
+end
+
+filter({ 'options:with_ubsan', 'system:not windows' })
+do
     buildoptions({
-        '-fsanitize=address',
+        '-fsanitize=undefined',
+        '-fno-sanitize-recover=all'
     })
     linkoptions({
-        '-fsanitize=address',
+        '-fsanitize=undefined',
+        '-fno-sanitize-recover=all'
     })
 end
 

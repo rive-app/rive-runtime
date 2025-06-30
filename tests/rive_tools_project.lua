@@ -40,6 +40,15 @@ function rive_tools_project(name, project_kind)
             'rive_sheenbidi',
             'miniaudio',
         })
+
+        filter({ 'system:windows', 'options:with-asan', 'options:toolset=clang' })
+        do
+            links({
+                'clang_rt.asan_dbg_dynamic-x86_64.lib',
+                'clang_rt.asan_dynamic_runtime_thunk-x86_64.lib',
+            })
+        end
+        filter({})
     else
         kind(project_kind)
     end
