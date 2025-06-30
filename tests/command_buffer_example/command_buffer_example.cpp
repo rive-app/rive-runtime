@@ -28,7 +28,7 @@ auto backend =
 #else
     TestingWindow::Backend::vk;
 #endif
-std::string gpuNameFilter;
+TestingWindow::BackendParams backendParams;
 
 class
 {
@@ -244,12 +244,12 @@ int main(int argc, const char* argv[])
     {
         if (strcmp(argv[i], "--backend") == 0 || strcmp(argv[i], "-b") == 0)
         {
-            backend = TestingWindow::ParseBackend(argv[++i], &gpuNameFilter);
+            backend = TestingWindow::ParseBackend(argv[++i], &backendParams);
         }
         else if (argv[i][0] == '-' &&
                  argv[i][1] == 'b') // "-bvk" without a space.
         {
-            backend = TestingWindow::ParseBackend(argv[i] + 2, &gpuNameFilter);
+            backend = TestingWindow::ParseBackend(argv[i] + 2, &backendParams);
         }
         else
         {
@@ -271,8 +271,8 @@ int main(int argc, const char* argv[])
     std::thread drawThread(draw_thread, commandQueue);
 
     TestingWindow::Init(backend,
-                        TestingWindow::Visibility::window,
-                        gpuNameFilter);
+                        backendParams,
+                        TestingWindow::Visibility::window);
 
     CommandServer server(commandQueue, TestingWindow::Get()->factory());
 

@@ -41,7 +41,7 @@ public:
         instanceBuilder.set_app_name("path_fiddle")
             .set_engine_name("Rive Renderer")
             .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
-            .require_api_version(1, m_backendParams.coreFeaturesOnly ? 0 : 3, 0)
+            .require_api_version(1, m_backendParams.core ? 0 : 3, 0)
             .set_minimum_instance_version(1, 0, 0);
 #ifdef DEBUG
         instanceBuilder.enable_validation_layers(
@@ -71,12 +71,11 @@ public:
                                               &m_windowSurface));
 
         VulkanFeatures vulkanFeatures;
-        std::tie(m_device, vulkanFeatures) =
-            rive_vkb::select_device(vkb::PhysicalDeviceSelector(m_instance)
-                                        .set_surface(m_windowSurface),
-                                    m_backendParams.coreFeaturesOnly
-                                        ? rive_vkb::FeatureSet::coreOnly
-                                        : rive_vkb::FeatureSet::allAvailable);
+        std::tie(m_device, vulkanFeatures) = rive_vkb::select_device(
+            vkb::PhysicalDeviceSelector(m_instance)
+                .set_surface(m_windowSurface),
+            m_backendParams.core ? rive_vkb::FeatureSet::coreOnly
+                                 : rive_vkb::FeatureSet::allAvailable);
         m_renderContext = RenderContextVulkanImpl::MakeContext(
             m_instance,
             m_device.physical_device,
@@ -194,7 +193,7 @@ public:
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
-                m_backendParams.clockwiseFill || options.clockwiseFillOverride,
+                m_backendParams.clockwise || options.clockwiseFillOverride,
             .synthesizeCompilationFailures =
                 options.synthesizeCompilationFailures,
         });

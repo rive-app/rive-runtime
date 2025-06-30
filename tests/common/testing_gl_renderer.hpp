@@ -5,7 +5,6 @@
 #ifndef RENDER_CONTEXT_HPP
 #define RENDER_CONTEXT_HPP
 
-#include "rive/shapes/paint/color.hpp"
 #include "testing_window.hpp"
 #include <memory>
 
@@ -21,9 +20,7 @@ class TestingGLRenderer
 {
 public:
     static std::unique_ptr<TestingGLRenderer> Make(
-        TestingWindow::RendererFlags);
-    static std::unique_ptr<TestingGLRenderer> MakePLS(
-        TestingWindow::RendererFlags = TestingWindow::RendererFlags::none);
+        const TestingWindow::BackendParams&);
 
     virtual void init(void* getGLProcAddress) = 0;
     virtual rive::Factory* factory() = 0;

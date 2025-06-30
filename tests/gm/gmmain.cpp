@@ -320,7 +320,7 @@ int main(int argc, const char* argv[])
     const char* match = "";
     bool interactive = false;
     auto backend = TestingWindow::Backend::gl;
-    std::string gpuNameFilter;
+    TestingWindow::BackendParams backendParams;
     auto visibility = TestingWindow::Visibility::window;
     int pngThreads = 2;
 
@@ -355,7 +355,7 @@ int main(int argc, const char* argv[])
         }
         if (is_arg(argv[i], "--backend", "-b"))
         {
-            backend = TestingWindow::ParseBackend(argv[++i], &gpuNameFilter);
+            backend = TestingWindow::ParseBackend(argv[++i], &backendParams);
             continue;
         }
         if (is_arg(argv[i], "--headless", "-d"))
@@ -397,7 +397,7 @@ int main(int argc, const char* argv[])
         // some other automation process, always do verbose output.
         verbose = true;
     }
-    if (TestingWindow::IsGL(backend))
+    if (backend == TestingWindow::Backend::gl)
     {
         // Android can render directly to the main window in GL.
         // TOOD: add this support to TestingWindowAndroidVulkan as well.
@@ -408,7 +408,7 @@ int main(int argc, const char* argv[])
         }
     }
 #endif
-    TestingWindow::Init(backend, visibility, gpuNameFilter, platformWindow);
+    TestingWindow::Init(backend, backendParams, visibility, platformWindow);
 #ifndef RIVE_UNREAL // unreal calls this directly instead
     gms_build_registry();
 #endif

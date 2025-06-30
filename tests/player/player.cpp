@@ -156,7 +156,7 @@ int main(int argc, const char* argv[])
         TestingWindow::Backend::vk;
 #endif
     auto visibility = TestingWindow::Visibility::fullscreen;
-    std::string gpuNameFilter;
+    TestingWindow::BackendParams backendParams;
     for (int i = 0; i < argc; ++i)
     {
         if (strcmp(argv[i], "--test_harness") == 0)
@@ -171,12 +171,12 @@ int main(int argc, const char* argv[])
         else if (strcmp(argv[i], "--backend") == 0 ||
                  strcmp(argv[i], "-b") == 0)
         {
-            backend = TestingWindow::ParseBackend(argv[++i], &gpuNameFilter);
+            backend = TestingWindow::ParseBackend(argv[++i], &backendParams);
         }
         else if (argv[i][0] == '-' &&
                  argv[i][1] == 'b') // "-bvk" without a space.
         {
-            backend = TestingWindow::ParseBackend(argv[i] + 2, &gpuNameFilter);
+            backend = TestingWindow::ParseBackend(argv[i] + 2, &backendParams);
         }
         else if (strcmp(argv[i], "--options") == 0 ||
                  strcmp(argv[i], "-k") == 0)
@@ -214,8 +214,8 @@ int main(int argc, const char* argv[])
     }
 
     TestingWindow::Init(backend,
+                        backendParams,
                         visibility,
-                        gpuNameFilter,
 #ifdef RIVE_ANDROID
                         rive_android_app_wait_for_window()
 #else

@@ -6,8 +6,8 @@
 
 #if defined(RIVE_TOOLS_NO_GLFW)
 TestingWindow* TestingWindow::MakeFiddleContext(Backend,
-                                                Visibility,
                                                 const BackendParams&,
+                                                Visibility,
                                                 void* platformWindow)
 {
     return nullptr;
@@ -127,14 +127,14 @@ class TestingWindowFiddleContext : public TestingWindow
 {
 public:
     TestingWindowFiddleContext(Backend backend,
-                               Visibility visibility,
                                const BackendParams& backendParams,
+                               Visibility visibility,
                                void* platformWindow) :
         m_backendParams(backendParams)
     {
         // Vulkan headless rendering doesn't need an OS window.
         // It's convenient to run Swiftshader on CI without GLFW.
-        if (IsANGLE(backend))
+        if (backend == Backend::angle)
         {
 #ifdef __APPLE__
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
@@ -153,13 +153,13 @@ public:
             abort();
         }
 
-        if (!IsGL(backend))
+        if (backend != Backend::gl && backend != Backend::angle)
         {
             glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
             glfwWindowHint(GLFW_SAMPLES, 0);
             glfwWindowHint(GLFW_RESIZABLE, GLFW_TRUE);
         }
-        else if (IsANGLE(backend))
+        else if (backend == Backend::angle)
         {
             glfwWindowHint(GLFW_CONTEXT_CREATION_API, GLFW_EGL_CONTEXT_API);
             glfwWindowHint(GLFW_CLIENT_API, GLFW_OPENGL_ES_API);
@@ -172,7 +172,7 @@ public:
             glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 4);
             glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 2);
         }
-        if (IsMSAA(backend))
+        if (backendParams.msaa)
         {
             m_msaaSampleCount = 4;
             glfwWindowHint(GLFW_SAMPLES, m_msaaSampleCount);
@@ -237,8 +237,8 @@ public:
             .retinaDisplay = visibility == Visibility::fullscreen,
             .synchronousShaderCompilations = true,
             .enableReadPixels = true,
-            .disableRasterOrdering = IsAtomic(backend),
-            .coreFeaturesOnly = m_backendParams.coreFeaturesOnly,
+            .disableRasterOrdering = backendParams.atomic,
+            .coreFeaturesOnly = backendParams.core,
             .srgb = m_backendParams.srgb,
             .allowHeadlessRendering = visibility == Visibility::headless,
             .enableVulkanValidationLayers =
@@ -255,34 +255,21 @@ public:
             case Backend::null:
                 break;
             case Backend::gl:
-            case Backend::glatomic:
-            case Backend::glcw:
-            case Backend::glmsaa:
             case Backend::angle:
-            case Backend::anglemsaa:
                 m_fiddleContext = FiddleContext::MakeGLPLS(fiddleOptions);
                 break;
             case Backend::d3d:
-            case Backend::d3datomic:
                 m_fiddleContext = FiddleContext::MakeD3DPLS(fiddleOptions);
                 break;
             case Backend::d3d12:
-            case Backend::d3d12atomic:
                 m_fiddleContext = FiddleContext::MakeD3D12PLS(fiddleOptions);
                 break;
             case Backend::metal:
-            case Backend::metalcw:
-            case Backend::metalatomic:
                 m_fiddleContext = FiddleContext::MakeMetalPLS(fiddleOptions);
                 break;
             case Backend::vk:
-            case Backend::vkcore:
-            case Backend::vksrgb:
-            case Backend::vkcw:
             case Backend::moltenvk:
-            case Backend::moltenvkcore:
             case Backend::swiftshader:
-            case Backend::swiftshadercore:
                 m_fiddleContext = FiddleContext::MakeVulkanPLS(fiddleOptions);
                 break;
             case Backend::dawn:
@@ -374,7 +361,7 @@ public:
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
-                m_backendParams.clockwiseFill || options.clockwiseFillOverride,
+                m_backendParams.clockwise || options.clockwiseFillOverride,
 #ifdef WITH_RIVE_TOOLS
             .synthesizeCompilationFailures =
                 options.synthesizeCompilationFailures,
@@ -454,13 +441,13 @@ private:
 
 TestingWindow* TestingWindow::MakeFiddleContext(
     Backend backend,
-    Visibility visibility,
     const BackendParams& backendParams,
+    Visibility visibility,
     void* platformWindow)
 {
     auto window = std::make_unique<TestingWindowFiddleContext>(backend,
-                                                               visibility,
                                                                backendParams,
+                                                               visibility,
                                                                platformWindow);
     if (!window->valid())
         window = nullptr;

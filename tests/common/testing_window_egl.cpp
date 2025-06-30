@@ -6,7 +6,9 @@
 
 #ifdef RIVE_TOOLS_NO_GL
 
-TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
+TestingWindow* TestingWindow::MakeEGL(Backend backend,
+                                      const BackendParams& backendParams,
+                                      void* platformWindow)
 {
     return nullptr;
 }
@@ -286,13 +288,14 @@ public:
 class TestingWindowEGL : public TestingWindow
 {
 public:
-    TestingWindowEGL(EGLint angleBackend,
-                     int samples,
-                     std::unique_ptr<TestingGLRenderer> renderer,
+    TestingWindowEGL(const BackendParams& backendParams,
+                     EGLint angleBackend,
                      void* platformWindow) :
-        m_renderer(std::move(renderer))
+        m_renderer(TestingGLRenderer::Make(backendParams))
     {
         init_egl();
+
+        int samples = backendParams.msaa ? 4 : 0;
 
 #ifdef RIVE_DESKTOP_GL
         if (angleBackend != EGL_NONE)
@@ -312,6 +315,7 @@ public:
                 fprintf(stderr, "eglGetPlatformDisplayEXT failed.\n");
                 abort();
             }
+            samples = 0; // Test our offscreen MSAA path on ANGLE.
         }
         else
 #endif
@@ -609,71 +613,22 @@ private:
     glutils::Texture m_headlessRenderTexture = glutils::Texture::Zero();
 };
 
-TestingWindow* TestingWindow::MakeEGL(Backend backend, void* platformWindow)
+TestingWindow* TestingWindow::MakeEGL(Backend backend,
+                                      const BackendParams& backendParams,
+                                      void* platformWindow)
 {
-    auto rendererFlags = RendererFlags::none;
     EGLint angleBackend = EGL_NONE;
-    int samples = 0;
-    switch (backend)
+    if (backend == Backend::angle)
     {
-        case Backend::glatomic:
-        case Backend::glcw:
-            rendererFlags |= RendererFlags::disableRasterOrdering;
-            break;
-        case Backend::glmsaa:
-            rendererFlags |= RendererFlags::useMSAA;
-#ifdef RIVE_ANDROID
-            samples = 0; // Test EXT_multisampled_render_to_texture on Android.
-#else
-            samples = 4;
-#endif
-            break;
-        case Backend::gl:
-            break;
-        case Backend::anglemsaa:
-            rendererFlags |= RendererFlags::useMSAA;
-            samples = 0; // Test our offscreen MSAA path on ANGLE.
-        case Backend::angle:
 #ifdef __APPLE__
-            angleBackend = EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE;
+        angleBackend = EGL_PLATFORM_ANGLE_TYPE_METAL_ANGLE;
 #elif defined(_WIN32)
-            angleBackend = EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE;
+        angleBackend = EGL_PLATFORM_ANGLE_TYPE_D3D11_ANGLE;
 #else
-            angleBackend = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
+        angleBackend = EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE;
 #endif
-            break;
-        case Backend::d3d:
-        case Backend::d3datomic:
-        case Backend::d3d12:
-        case Backend::d3d12atomic:
-        case Backend::metal:
-        case Backend::metalcw:
-        case Backend::metalatomic:
-        case Backend::vk:
-        case Backend::vkcore:
-        case Backend::vksrgb:
-        case Backend::vkcw:
-        case Backend::moltenvk:
-        case Backend::moltenvkcore:
-        case Backend::swiftshader:
-        case Backend::swiftshadercore:
-        case Backend::dawn:
-        case Backend::rhi:
-        case Backend::coregraphics:
-        case Backend::skia:
-        case Backend::null:
-            printf("Invalid backend for TestingWindow::MakeEGLPbuffer.");
-            abort();
-            break;
     }
-    if (IsClockwiseFill(backend))
-    {
-        rendererFlags |= RendererFlags::clockwiseFillOverride;
-    }
-    return new TestingWindowEGL(angleBackend,
-                                samples,
-                                TestingGLRenderer::Make(rendererFlags),
-                                platformWindow);
+    return new TestingWindowEGL(backendParams, angleBackend, platformWindow);
 }
 
 #endif

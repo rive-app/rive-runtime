@@ -55,7 +55,8 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
         {
             return;
         }
-        if (strstr(message, "is being recompiled based on GL state"))
+        if (strstr(message, "is being recompiled based on GL state") ||
+            strstr(message, "shader recompiled due to state change"))
         {
             return;
         }

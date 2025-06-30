@@ -21,46 +21,20 @@ const char* TestingWindow::BackendName(Backend backend)
     {
         case TestingWindow::Backend::gl:
             return "gl";
-        case TestingWindow::Backend::glatomic:
-            return "glatomic";
-        case TestingWindow::Backend::glcw:
-            return "glcw";
-        case TestingWindow::Backend::glmsaa:
-            return "glmsaa";
         case TestingWindow::Backend::d3d:
             return "d3d";
-        case TestingWindow::Backend::d3datomic:
-            return "d3datomic";
         case TestingWindow::Backend::d3d12:
             return "d3d12";
-        case TestingWindow::Backend::d3d12atomic:
-            return "d3d12atomic";
         case TestingWindow::Backend::metal:
             return "metal";
-        case TestingWindow::Backend::metalcw:
-            return "metalcw";
-        case TestingWindow::Backend::metalatomic:
-            return "metalatomic";
         case TestingWindow::Backend::vk:
             return "vk";
-        case TestingWindow::Backend::vkcore:
-            return "vkcore";
-        case TestingWindow::Backend::vksrgb:
-            return "vksrgb";
-        case TestingWindow::Backend::vkcw:
-            return "vkcw";
         case TestingWindow::Backend::moltenvk:
             return "moltenvk";
-        case TestingWindow::Backend::moltenvkcore:
-            return "moltenvkcore";
         case TestingWindow::Backend::swiftshader:
             return "swiftshader";
-        case TestingWindow::Backend::swiftshadercore:
-            return "swiftshadercore";
         case TestingWindow::Backend::angle:
             return "angle";
-        case TestingWindow::Backend::anglemsaa:
-            return "anglemsaa";
         case TestingWindow::Backend::dawn:
             return "dawn";
         case Backend::rhi:
@@ -88,70 +62,132 @@ static std::vector<std::string> split(const char* str, char delimiter)
 }
 
 TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
-                                                   std::string* gpuNameFilter)
+                                                   BackendParams* params)
 {
+    *params = {};
     // Backends can come in the form <backendName>, or
     // <gpuNameFilter>/<backendName>.
     std::vector<std::string> tokens = split(name, '/');
     assert(!tokens.empty());
-    if (gpuNameFilter != nullptr)
-    {
-        *gpuNameFilter =
-            tokens.size() > 1 ? tokens[tokens.size() - 2].c_str() : "";
-    }
+    params->gpuNameFilter =
+        tokens.size() > 1 ? tokens[tokens.size() - 2].c_str() : "";
     const std::string nameStr = tokens.back();
     if (nameStr == "gl")
+    {
         return Backend::gl;
+    }
     if (nameStr == "glatomic")
-        return Backend::glatomic;
+    {
+        params->atomic = true;
+        return Backend::gl;
+    }
     if (nameStr == "glcw")
-        return Backend::glcw;
+    {
+        params->clockwise = true;
+        return Backend::gl;
+    }
     if (nameStr == "glmsaa")
-        return Backend::glmsaa;
+    {
+        params->msaa = true;
+        return Backend::gl;
+    }
     if (nameStr == "d3d")
+    {
         return Backend::d3d;
+    }
     if (nameStr == "d3datomic")
-        return Backend::d3datomic;
+    {
+        params->atomic = true;
+        return Backend::d3d;
+    }
     if (nameStr == "d3d12")
+    {
         return Backend::d3d12;
+    }
     if (nameStr == "d3d12atomic")
-        return Backend::d3d12atomic;
+    {
+        params->atomic = true;
+        return Backend::d3d12;
+    }
     if (nameStr == "metal")
+    {
         return Backend::metal;
+    }
     if (nameStr == "metalcw")
-        return Backend::metalcw;
+    {
+        params->clockwise = true;
+        return Backend::metal;
+    }
     if (nameStr == "metalatomic")
-        return Backend::metalatomic;
+    {
+        params->atomic = true;
+        return Backend::metal;
+    }
     if (nameStr == "vulkan" || nameStr == "vk")
+    {
         return Backend::vk;
+    }
     if (nameStr == "vulkancore" || nameStr == "vkcore")
-        return Backend::vkcore;
+    {
+        return Backend::vk;
+    }
     if (nameStr == "vulkansrgb" || nameStr == "vksrgb")
-        return Backend::vksrgb;
+    {
+        params->core = true;
+        return Backend::vk;
+    }
     if (nameStr == "vulkancw" || nameStr == "vkcw")
-        return Backend::vkcw;
+    {
+        params->clockwise = true;
+        return Backend::vk;
+    }
     if (nameStr == "moltenvk" || nameStr == "mvk")
+    {
         return Backend::moltenvk;
+    }
     if (nameStr == "moltenvkcore" || nameStr == "mvkcore")
-        return Backend::moltenvkcore;
+    {
+        params->core = true;
+        return Backend::moltenvk;
+    }
     if (nameStr == "swiftshader" || nameStr == "sw")
+    {
         return Backend::swiftshader;
+    }
     if (nameStr == "swiftshadercore" || nameStr == "swcore")
-        return Backend::swiftshadercore;
+    {
+        params->core = true;
+        return Backend::swiftshader;
+    }
     if (nameStr == "angle")
+    {
         return Backend::angle;
+    }
     if (nameStr == "anglemsaa")
-        return Backend::anglemsaa;
+    {
+        params->msaa = true;
+        return Backend::angle;
+    }
     if (nameStr == "dawn")
+    {
         return Backend::dawn;
+    }
     if (nameStr == "rhi")
+    {
         return Backend::rhi;
+    }
     if (nameStr == "coregraphics")
+    {
         return Backend::coregraphics;
+    }
     if (nameStr == "skia")
+    {
         return Backend::skia;
+    }
     if (nameStr == "null")
+    {
         return Backend::null;
+    }
     fprintf(stderr, "'%s': invalid TestingWindow::Backend\n", name);
     abort();
 }
@@ -176,17 +212,10 @@ static void set_environment_variable(const char* name, const char* value)
 }
 
 TestingWindow* TestingWindow::Init(Backend backend,
+                                   const BackendParams& backendParams,
                                    Visibility visibility,
-                                   const std::string& gpuNameFilterStr,
                                    void* platformWindow)
 {
-    BackendParams backendParams = {
-        .coreFeaturesOnly = IsCore(backend),
-        .srgb = IsSRGB(backend),
-        .clockwiseFill = IsClockwiseFill(backend),
-        .gpuNameFilter = gpuNameFilterStr,
-    };
-
     if (backend == Backend::rhi)
         assert(s_TestingWindow);
     else
@@ -194,36 +223,27 @@ TestingWindow* TestingWindow::Init(Backend backend,
     switch (backend)
     {
         case Backend::gl:
-        case Backend::glatomic:
-        case Backend::glcw:
-        case Backend::glmsaa:
         case Backend::angle:
-        case Backend::anglemsaa:
 #ifndef RIVE_TOOLS_NO_GLFW
-            if (!IsANGLE(backend) || visibility != Visibility::headless)
+            if (backend != Backend::angle || visibility != Visibility::headless)
             {
                 s_TestingWindow =
                     TestingWindow::MakeFiddleContext(backend,
-                                                     visibility,
                                                      backendParams,
+                                                     visibility,
                                                      platformWindow);
             }
             else
 #endif
             {
-                s_TestingWindow = MakeEGL(backend, platformWindow);
+                s_TestingWindow =
+                    MakeEGL(backend, backendParams, platformWindow);
             }
             break;
         case Backend::vk:
-        case Backend::vkcore:
-        case Backend::vksrgb:
-        case Backend::vkcw:
         case Backend::moltenvk:
-        case Backend::moltenvkcore:
         case Backend::swiftshader:
-        case Backend::swiftshadercore:
-            if (backend == Backend::moltenvk ||
-                backend == Backend::moltenvkcore)
+            if (backend == Backend::moltenvk)
             {
                 // Use the MoltenVK built by
                 // packages/runtime/renderer/make_moltenvk.sh
@@ -232,8 +252,7 @@ TestingWindow* TestingWindow::Init(Backend backend,
                     "MoltenVK/dynamic/dylib/macOS/MoltenVK_icd.json";
                 set_environment_variable("VK_ICD_FILENAMES", kMoltenVKICD);
             }
-            else if (backend == Backend::swiftshader ||
-                     backend == Backend::swiftshadercore)
+            else if (backend == Backend::swiftshader)
             {
                 // Use the swiftshader built by
                 // packages/runtime/renderer/make_swiftshader.sh
@@ -268,14 +287,12 @@ TestingWindow* TestingWindow::Init(Backend backend,
             {
                 s_TestingWindow =
                     TestingWindow::MakeFiddleContext(backend,
-                                                     visibility,
                                                      backendParams,
+                                                     visibility,
                                                      platformWindow);
             }
             break;
         case Backend::metal:
-        case Backend::metalcw:
-        case Backend::metalatomic:
 #if defined(__APPLE__)
             if (visibility == Visibility::headless)
             {
@@ -284,18 +301,16 @@ TestingWindow* TestingWindow::Init(Backend backend,
             }
 #endif
             s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
-                                                               visibility,
                                                                backendParams,
+                                                               visibility,
                                                                platformWindow);
             break;
         case Backend::d3d:
-        case Backend::d3datomic:
         case Backend::d3d12:
-        case Backend::d3d12atomic:
         case Backend::dawn:
             s_TestingWindow = TestingWindow::MakeFiddleContext(backend,
-                                                               visibility,
                                                                backendParams,
+                                                               visibility,
                                                                platformWindow);
             break;
         case Backend::rhi:

@@ -6,8 +6,6 @@
 #define TESTING_WINDOW_HPP
 
 #include "common/offscreen_render_target.hpp"
-#include "rive/rive_types.hpp"
-#include "rive/enum_bitset.hpp"
 #include "rive/refcnt.hpp"
 #include <memory>
 #include <vector>
@@ -41,340 +39,39 @@ public:
     enum class Backend
     {
         gl,
-        glatomic,
-        glcw,
-        glmsaa,
         d3d,
-        d3datomic,
         d3d12,
-        d3d12atomic,
         metal,
-        metalcw,
-        metalatomic,
-
-        // System default Vulkan driver.
         vk,
-        vkcore, // Vulkan with as few features enabled as possible.
-        vksrgb,
-        vkcw,
 
         // Vulkan on Metal, aka MoltenVK.
         // (defaults to /usr/local/share/vulkan/icd.d/MoltenVK_icd.json if
         // VK_ICD_FILENAMES is not set.)
         moltenvk,
-        moltenvkcore,
 
         // Swiftshader, Google's CPU implementation of Vulkan.
         // (defaults to ./vk_swiftshader_icd.json if VK_ICD_FILENAMES is not
         // set.)
         swiftshader,
-        swiftshadercore,
 
         angle,
-        anglemsaa,
         dawn,
-
         rhi,
-
         coregraphics,
         skia,
         null,
     };
 
-    constexpr static bool IsGL(Backend backend)
+    struct BackendParams
     {
-        switch (backend)
-        {
-            case Backend::gl:
-            case Backend::glatomic:
-            case Backend::glcw:
-            case Backend::glmsaa:
-            case Backend::angle:
-            case Backend::anglemsaa:
-                return true;
-            case Backend::d3d:
-            case Backend::d3datomic:
-            case Backend::d3d12:
-            case Backend::d3d12atomic:
-            case Backend::metal:
-            case Backend::metalcw:
-            case Backend::metalatomic:
-            case Backend::vk:
-            case Backend::vkcore:
-            case Backend::vksrgb:
-            case Backend::vkcw:
-            case Backend::moltenvk:
-            case Backend::moltenvkcore:
-            case Backend::swiftshader:
-            case Backend::swiftshadercore:
-            case Backend::dawn:
-            case Backend::rhi:
-            case Backend::coregraphics:
-            case Backend::skia:
-            case Backend::null:
-                return false;
-        }
-        RIVE_UNREACHABLE();
-    }
-
-    constexpr static bool IsANGLE(Backend backend)
-    {
-        switch (backend)
-        {
-            case Backend::angle:
-            case Backend::anglemsaa:
-                return true;
-            case Backend::gl:
-            case Backend::glatomic:
-            case Backend::glcw:
-            case Backend::glmsaa:
-            case Backend::d3d:
-            case Backend::d3datomic:
-            case Backend::d3d12:
-            case Backend::d3d12atomic:
-            case Backend::metal:
-            case Backend::metalcw:
-            case Backend::metalatomic:
-            case Backend::vk:
-            case Backend::vkcore:
-            case Backend::vksrgb:
-            case Backend::vkcw:
-            case Backend::moltenvk:
-            case Backend::moltenvkcore:
-            case Backend::swiftshader:
-            case Backend::swiftshadercore:
-            case Backend::dawn:
-            case Backend::rhi:
-            case Backend::coregraphics:
-            case Backend::skia:
-            case Backend::null:
-                return false;
-        }
-        RIVE_UNREACHABLE();
-    }
-
-    constexpr static bool IsVulkan(Backend backend)
-    {
-        switch (backend)
-        {
-            case Backend::vk:
-            case Backend::vkcore:
-            case Backend::vksrgb:
-            case Backend::vkcw:
-            case Backend::moltenvk:
-            case Backend::moltenvkcore:
-            case Backend::swiftshader:
-            case Backend::swiftshadercore:
-                return true;
-            case Backend::gl:
-            case Backend::glatomic:
-            case Backend::glcw:
-            case Backend::glmsaa:
-            case Backend::d3d:
-            case Backend::d3datomic:
-            case Backend::d3d12:
-            case Backend::d3d12atomic:
-            case Backend::metal:
-            case Backend::metalcw:
-            case Backend::metalatomic:
-            case Backend::dawn:
-            case Backend::angle:
-            case Backend::anglemsaa:
-            case Backend::rhi:
-            case Backend::coregraphics:
-            case Backend::skia:
-            case Backend::null:
-                return false;
-        }
-        RIVE_UNREACHABLE();
-    }
-
-    constexpr static bool IsAtomic(Backend backend)
-    {
-        switch (backend)
-        {
-            case Backend::glatomic:
-            case Backend::glcw:
-            case Backend::d3datomic:
-            case Backend::d3d12atomic:
-            case Backend::metalatomic:
-            case Backend::rhi:
-            case Backend::vkcore:
-            case Backend::vksrgb:
-            case Backend::vkcw:
-            case Backend::moltenvkcore:
-            case Backend::swiftshadercore:
-                return true;
-            case Backend::gl:
-            case Backend::glmsaa:
-            case Backend::d3d:
-            case Backend::d3d12:
-            case Backend::metal:
-            case Backend::metalcw:
-            case Backend::vk:
-            case Backend::moltenvk:
-            case Backend::swiftshader:
-            case Backend::angle:
-            case Backend::anglemsaa:
-            case Backend::dawn:
-            case Backend::coregraphics:
-            case Backend::skia:
-            case Backend::null:
-                return false;
-        }
-        RIVE_UNREACHABLE();
-    }
-
-    constexpr static bool IsCore(Backend backend)
-    {
-        switch (backend)
-        {
-            case Backend::vkcore:
-            case Backend::moltenvkcore:
-            case Backend::swiftshadercore:
-                return true;
-            case Backend::glatomic:
-            case Backend::glcw:
-            case Backend::d3datomic:
-            case Backend::metalatomic:
-            case Backend::gl:
-            case Backend::glmsaa:
-            case Backend::d3d:
-            case Backend::d3d12:
-            case Backend::d3d12atomic:
-            case Backend::metal:
-            case Backend::metalcw:
-            case Backend::vk:
-            case Backend::vksrgb:
-            case Backend::vkcw:
-            case Backend::moltenvk:
-            case Backend::swiftshader:
-            case Backend::angle:
-            case Backend::anglemsaa:
-            case Backend::dawn:
-            case Backend::rhi:
-            case Backend::coregraphics:
-            case Backend::skia:
-            case Backend::null:
-                return false;
-        }
-        RIVE_UNREACHABLE();
-    }
-
-    constexpr static bool IsSRGB(Backend backend)
-    {
-        switch (backend)
-        {
-            case Backend::vksrgb:
-                return true;
-            case Backend::glatomic:
-            case Backend::glcw:
-            case Backend::d3datomic:
-            case Backend::d3d12atomic:
-            case Backend::metalatomic:
-            case Backend::gl:
-            case Backend::glmsaa:
-            case Backend::d3d:
-            case Backend::d3d12:
-            case Backend::metal:
-            case Backend::metalcw:
-            case Backend::vk:
-            case Backend::vkcore:
-            case Backend::vkcw:
-            case Backend::moltenvk:
-            case Backend::moltenvkcore:
-            case Backend::swiftshader:
-            case Backend::swiftshadercore:
-            case Backend::angle:
-            case Backend::anglemsaa:
-            case Backend::dawn:
-            case Backend::rhi:
-            case Backend::coregraphics:
-            case Backend::skia:
-            case Backend::null:
-                return false;
-        }
-        RIVE_UNREACHABLE();
-    }
-
-    constexpr static bool IsMSAA(Backend backend)
-    {
-        switch (backend)
-        {
-            case Backend::glmsaa:
-            case Backend::anglemsaa:
-                return true;
-            case Backend::glatomic:
-            case Backend::glcw:
-            case Backend::d3datomic:
-            case Backend::metalatomic:
-            case Backend::vkcore:
-            case Backend::vksrgb:
-            case Backend::vkcw:
-            case Backend::moltenvkcore:
-            case Backend::swiftshadercore:
-            case Backend::gl:
-            case Backend::d3d:
-            case Backend::d3d12:
-            case Backend::d3d12atomic:
-            case Backend::metal:
-            case Backend::metalcw:
-            case Backend::vk:
-            case Backend::moltenvk:
-            case Backend::swiftshader:
-            case Backend::angle:
-            case Backend::dawn:
-            case Backend::rhi:
-            case Backend::coregraphics:
-            case Backend::skia:
-            case Backend::null:
-                return false;
-        }
-        RIVE_UNREACHABLE();
-    }
-
-    constexpr static bool IsClockwiseFill(Backend backend)
-    {
-        switch (backend)
-        {
-            case Backend::glcw:
-            case Backend::metalcw:
-            case Backend::vkcw:
-                return true;
-            case Backend::glatomic:
-            case Backend::glmsaa:
-            case Backend::d3datomic:
-            case Backend::d3d12:
-            case Backend::d3d12atomic:
-            case Backend::metalatomic:
-            case Backend::moltenvkcore:
-            case Backend::swiftshadercore:
-            case Backend::gl:
-            case Backend::d3d:
-            case Backend::metal:
-            case Backend::vk:
-            case Backend::vkcore:
-            case Backend::vksrgb:
-            case Backend::moltenvk:
-            case Backend::swiftshader:
-            case Backend::angle:
-            case Backend::anglemsaa:
-            case Backend::dawn:
-            case Backend::rhi:
-            case Backend::coregraphics:
-            case Backend::skia:
-            case Backend::null:
-                return false;
-        }
-        RIVE_UNREACHABLE();
-    }
-
-    enum class RendererFlags
-    {
-        none = 0,
-        useMSAA = 1 << 0,
-        disableRasterOrdering = 1 << 1,
-        clockwiseFillOverride = 1 << 2,
+        bool atomic = false;
+        bool core = false;
+        bool msaa = false;
+        bool srgb = false;
+        bool clockwise = false;
+        bool disableValidationLayers = false;
+        bool disableDebugCallbacks = false;
+        std::string gpuNameFilter;
     };
 
     enum class Visibility
@@ -432,10 +129,11 @@ public:
     };
 
     static const char* BackendName(Backend);
-    static Backend ParseBackend(const char* name, std::string* gpuNameFilter);
+
+    static Backend ParseBackend(const char* name, BackendParams*);
     static TestingWindow* Init(Backend,
+                               const BackendParams&,
                                Visibility,
-                               const std::string& gpuNameFilter,
                                void* platformWindow = nullptr);
     static TestingWindow* Get();
     static void Set(TestingWindow* inWindow);
@@ -503,25 +201,16 @@ public:
 
     virtual ~TestingWindow() {}
 
-    struct BackendParams
-    {
-        bool coreFeaturesOnly = false;
-        bool srgb = false;
-        bool clockwiseFill = false;
-        bool disableValidationLayers = false;
-        bool disableDebugCallbacks = false;
-        std::string gpuNameFilter;
-    };
-
-    static TestingWindow* MakeGLFW(Backend, Visibility);
-    static TestingWindow* MakeEGL(Backend, void* platformWindow);
+    static TestingWindow* MakeEGL(Backend,
+                                  const BackendParams&,
+                                  void* platformWindow);
 #if defined(__APPLE__) && !defined(RIVE_UNREAL)
     static TestingWindow* MakeMetalTexture();
 #endif
     static TestingWindow* MakeCoreGraphics();
     static TestingWindow* MakeFiddleContext(Backend,
-                                            Visibility,
                                             const BackendParams&,
+                                            Visibility,
                                             void* platformWindow);
     static TestingWindow* MakeVulkanTexture(const BackendParams&);
     static TestingWindow* MakeAndroidVulkan(const BackendParams&,
@@ -533,7 +222,5 @@ protected:
     uint32_t m_width = 0;
     uint32_t m_height = 0;
 };
-
-RIVE_MAKE_ENUM_BITSET(TestingWindow::RendererFlags);
 
 #endif

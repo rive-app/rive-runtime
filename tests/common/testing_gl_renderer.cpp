@@ -14,26 +14,19 @@
 TestingGLRenderer::~TestingGLRenderer() {}
 
 std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
-    TestingWindow::RendererFlags rendererFlags)
-{
-    return TestingGLRenderer::MakePLS(rendererFlags);
-}
-
-std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
-    TestingWindow::RendererFlags rendererFlags)
+    const TestingWindow::BackendParams& backendParams)
 {
     class RiveRenderer : public TestingGLRenderer
     {
     public:
-        RiveRenderer(TestingWindow::RendererFlags rendererFlags) :
-            m_rendererFlags(rendererFlags)
+        RiveRenderer(const TestingWindow::BackendParams& backendParams) :
+            m_backendParams(backendParams)
         {
-            if (m_rendererFlags & TestingWindow::RendererFlags::useMSAA)
+            if (m_backendParams.msaa)
             {
                 m_contextOptions.disablePixelLocalStorage = true;
             }
-            if (m_rendererFlags &
-                TestingWindow::RendererFlags::disableRasterOrdering)
+            if (m_backendParams.atomic)
             {
                 m_contextOptions.disableFragmentShaderInterlock = true;
             }
@@ -91,20 +84,13 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
                                   ? rive::gpu::LoadAction::clear
                                   : rive::gpu::LoadAction::preserveRenderTarget,
                 .clearColor = options.clearColor,
-                .msaaSampleCount = ((m_rendererFlags &
-                                     TestingWindow::RendererFlags::useMSAA) ||
-                                    options.forceMSAA)
-                                       ? 4
-                                       : 0,
+                .msaaSampleCount =
+                    (m_backendParams.msaa || options.forceMSAA) ? 4 : 0,
                 .disableRasterOrdering =
-                    (m_rendererFlags &
-                     TestingWindow::RendererFlags::disableRasterOrdering) ||
-                    options.disableRasterOrdering,
+                    m_backendParams.atomic || options.disableRasterOrdering,
                 .wireframe = options.wireframe,
                 .clockwiseFillOverride =
-                    (m_rendererFlags &
-                     TestingWindow::RendererFlags::clockwiseFillOverride) ||
-                    options.clockwiseFillOverride,
+                    m_backendParams.clockwise || options.clockwiseFillOverride,
                 .synthesizeCompilationFailures =
                     options.synthesizeCompilationFailures,
             };
@@ -133,12 +119,12 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::MakePLS(
         }
 
     private:
-        const TestingWindow::RendererFlags m_rendererFlags;
+        const TestingWindow::BackendParams m_backendParams;
         rive::gpu::RenderContextGLImpl::ContextOptions m_contextOptions;
         std::unique_ptr<rive::gpu::RenderContext> m_renderContext;
         rive::rcp<rive::gpu::RenderTargetGL> m_renderTarget;
     };
-    return std::make_unique<RiveRenderer>(rendererFlags);
+    return std::make_unique<RiveRenderer>(backendParams);
 }
 
 #endif

@@ -33,7 +33,7 @@ public:
         instanceBuilder.set_app_name("rive_tools")
             .set_engine_name("Rive Renderer")
             .set_headless(true)
-            .require_api_version(1, m_backendParams.coreFeaturesOnly ? 0 : 3, 0)
+            .require_api_version(1, m_backendParams.core ? 0 : 3, 0)
             .set_minimum_instance_version(1, 0, 0);
 #ifdef DEBUG
         instanceBuilder.enable_validation_layers(
@@ -47,12 +47,11 @@ public:
         m_instance = VKB_CHECK(instanceBuilder.build());
 
         VulkanFeatures vulkanFeatures;
-        std::tie(m_device, vulkanFeatures) =
-            rive_vkb::select_device(m_instance,
-                                    m_backendParams.coreFeaturesOnly
-                                        ? rive_vkb::FeatureSet::coreOnly
-                                        : rive_vkb::FeatureSet::allAvailable,
-                                    m_backendParams.gpuNameFilter.c_str());
+        std::tie(m_device, vulkanFeatures) = rive_vkb::select_device(
+            m_instance,
+            m_backendParams.core ? rive_vkb::FeatureSet::coreOnly
+                                 : rive_vkb::FeatureSet::allAvailable,
+            m_backendParams.gpuNameFilter.c_str());
         m_renderContext = RenderContextVulkanImpl::MakeContext(
             m_instance,
             m_device.physical_device,
@@ -99,9 +98,9 @@ public:
             m_swapchain->height() != m_height)
         {
             VkFormat swapchainFormat =
-                m_backendParams.srgb               ? VK_FORMAT_R8G8B8A8_SRGB
-                : m_backendParams.coreFeaturesOnly ? VK_FORMAT_R8G8B8A8_UNORM
-                                                   : VK_FORMAT_B8G8R8A8_UNORM;
+                m_backendParams.srgb   ? VK_FORMAT_R8G8B8A8_SRGB
+                : m_backendParams.core ? VK_FORMAT_R8G8B8A8_UNORM
+                                       : VK_FORMAT_B8G8R8A8_UNORM;
             // Don't use VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT so we can test our
             // codepath that makes us work without it.
             VkImageUsageFlags additionalUsageFlags =
@@ -133,7 +132,7 @@ public:
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
-                m_backendParams.clockwiseFill || options.clockwiseFillOverride,
+                m_backendParams.clockwise || options.clockwiseFillOverride,
             .synthesizeCompilationFailures =
                 options.synthesizeCompilationFailures,
         };

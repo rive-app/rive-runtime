@@ -237,18 +237,18 @@ int main(int argc, const char* argv[])
     try
     {
         s_args.parse(argc, argv);
-        std::string gpuNameFilter;
+        TestingWindow::BackendParams backendParams;
         auto backend =
             s_args.backend().empty()
                 ? TestingWindow::Backend::gl
                 : TestingWindow::ParseBackend(s_args.backend().c_str(),
-                                              &gpuNameFilter);
+                                              &backendParams);
         auto visibility = s_args.headless()
                               ? TestingWindow::Visibility::headless
                               : TestingWindow::Visibility::window;
         void* platformWindow = nullptr;
 #ifdef RIVE_ANDROID
-        if (TestingWindow::IsGL(backend))
+        if (backend == TestingWindow::Backend::gl)
         {
             // Android can render directly to the main window in GL.
             // TOOD: add this support to TestingWindowAndroidVulkan as well.
@@ -259,7 +259,7 @@ int main(int argc, const char* argv[])
             }
         }
 #endif
-        TestingWindow::Init(backend, visibility, gpuNameFilter, platformWindow);
+        TestingWindow::Init(backend, backendParams, visibility, platformWindow);
 
         if (!s_args.testHarness().empty())
         {

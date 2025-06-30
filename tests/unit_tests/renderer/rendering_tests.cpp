@@ -44,15 +44,17 @@ static std::function<std::unique_ptr<TestingWindow>()>
         []() {
             return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
                 TestingWindow::Backend::d3d,
+                {.atomic = true},
                 TestingWindow::Visibility::headless,
-                {},
                 nullptr));
         },
 #endif
 #ifdef RIVE_ANDROID
         []() {
             return rivestd::adopt_unique(
-                TestingWindow::MakeEGL(TestingWindow::Backend::gl, nullptr));
+                TestingWindow::MakeEGL(TestingWindow::Backend::gl,
+                                       {},
+                                       nullptr));
         },
 #endif
 };
