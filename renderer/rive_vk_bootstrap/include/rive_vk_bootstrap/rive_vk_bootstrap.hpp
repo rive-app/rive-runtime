@@ -115,7 +115,9 @@ public:
     // 'lastAccess' lets us know know how to barrier the swapchain image.
     // 'pixelData', if not null, reads the swapchain image being presented.
     void submit(rive::gpu::vkutil::ImageAccess lastAccess,
-                std::vector<uint8_t>* pixelData = nullptr);
+                std::vector<uint8_t>* pixelData = nullptr,
+                rive::IAABB pixelReadBounds = {},
+                rive::gpu::vkutil::Texture2D* pixelReadTexture = nullptr);
 
 private:
     constexpr static uint32_t INVALID_IMAGE_INDEX = -1;

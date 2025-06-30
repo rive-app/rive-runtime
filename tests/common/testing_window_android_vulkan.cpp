@@ -33,8 +33,8 @@ public:
                                ANativeWindow* window) :
         m_backendParams(backendParams)
     {
-        m_width = ANativeWindow_getWidth(window);
-        m_height = ANativeWindow_getHeight(window);
+        m_androidWindowWidth = m_width = ANativeWindow_getWidth(window);
+        m_androidWindowHeight = m_height = ANativeWindow_getHeight(window);
         rive_vkb::load_vulkan();
 
         vkb::InstanceBuilder instanceBuilder;
@@ -89,41 +89,32 @@ public:
                          m_device.physical_device,
                          m_windowSurface,
                          &windowCapabilities));
-        vkb::SwapchainBuilder swapchainBuilder(m_device, m_windowSurface);
-        swapchainBuilder
-            .set_desired_format({
-                .format = m_backendParams.srgb ? VK_FORMAT_R8G8B8A8_SRGB
-                                               : VK_FORMAT_R8G8B8A8_UNORM,
-                .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-            })
-            .add_fallback_format({
-                .format = VK_FORMAT_R8G8B8A8_UNORM,
-                .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-            })
-            .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
-            .add_fallback_present_mode(VK_PRESENT_MODE_FIFO_KHR);
+        auto swapchainBuilder =
+            vkb::SwapchainBuilder(m_device, m_windowSurface)
+                .set_desired_format({
+                    .format = m_backendParams.srgb ? VK_FORMAT_R8G8B8A8_SRGB
+                                                   : VK_FORMAT_R8G8B8A8_UNORM,
+                    .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                })
+                .add_fallback_format({
+                    .format = VK_FORMAT_R8G8B8A8_UNORM,
+                    .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                })
+                .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
+                .add_fallback_present_mode(VK_PRESENT_MODE_FIFO_KHR)
+                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
+                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         if (windowCapabilities.supportedUsageFlags &
             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
         {
-            printf("Android window supports "
-                   "VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT\n");
             swapchainBuilder.add_image_usage_flags(
                 VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
-        }
-        else
-        {
-            printf("Android window does NOT support "
-                   "VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT. "
-                   "Performance will suffer.\n");
-            swapchainBuilder
-                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
-                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
         }
         m_swapchain = std::make_unique<rive_vkb::Swapchain>(
             m_device,
             ref_rcp(vk()),
-            m_width,
-            m_height,
+            m_androidWindowWidth,
+            m_androidWindowHeight,
             VKB_CHECK(swapchainBuilder.build()));
 
         m_renderTarget =
@@ -141,6 +132,7 @@ public:
 
         m_renderContext.reset();
         m_renderTarget.reset();
+        m_overflowTexture.reset();
 
         if (m_windowSurface != VK_NULL_HANDLE)
         {
@@ -165,8 +157,33 @@ public:
 
     void resize(int width, int height) override
     {
-        fprintf(stderr, "TestingWindowAndroidVulkan::resize not supported.");
-        abort();
+        TestingWindow::resize(width, height);
+        m_renderTarget =
+            impl()->makeRenderTarget(m_width,
+                                     m_height,
+                                     m_swapchain->imageFormat(),
+                                     m_swapchain->imageUsageFlags());
+        if (m_width > m_androidWindowWidth || m_height > m_androidWindowHeight)
+        {
+            VkImageUsageFlags overflowTextureUsageFlags =
+                m_swapchain->imageUsageFlags();
+            // Some ARM Mali GPUs experience a device loss when rendering to the
+            // overflow texture as an input attachment. The current assumption
+            // is that it has to do with some combination of input attachment
+            // usage and pixel readbacks. For now, just don't enable the input
+            // attachment flag on the overflow texture.
+            overflowTextureUsageFlags &= ~VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
+            m_overflowTexture = vk()->makeTexture2D({
+                .format = m_swapchain->imageFormat(),
+                .extent = {static_cast<uint32_t>(m_width),
+                           static_cast<uint32_t>(m_height)},
+                .usage = m_swapchain->imageUsageFlags(),
+            });
+        }
+        else
+        {
+            m_overflowTexture.reset();
+        }
     }
 
     rcp<rive_tests::OffscreenRenderTarget> makeOffscreenRenderTarget(
@@ -203,25 +220,82 @@ public:
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) override
     {
-        fprintf(stderr,
-                "TestingWindowAndroidVulkan::flushPLSContext not supported.");
-        abort();
+        if (m_swapchainImage == nullptr)
+        {
+            m_swapchainImage = m_swapchain->acquireNextImage();
+            if (m_overflowTexture != nullptr)
+            {
+                m_renderTarget->setTargetImageView(
+                    m_overflowTexture->vkImageView(),
+                    m_overflowTexture->vkImage(),
+                    m_overflowTexture->lastAccess());
+            }
+            else
+            {
+                m_renderTarget->setTargetImageView(
+                    m_swapchainImage->imageView,
+                    m_swapchainImage->image,
+                    m_swapchainImage->imageLastAccess);
+            }
+        }
+        m_renderContext->flush({
+            .renderTarget = offscreenRenderTarget != nullptr
+                                ? offscreenRenderTarget
+                                : m_renderTarget.get(),
+            .externalCommandBuffer = m_swapchainImage->commandBuffer,
+            .currentFrameNumber = m_swapchainImage->currentFrameNumber,
+            .safeFrameNumber = m_swapchainImage->safeFrameNumber,
+        });
     }
 
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
-        const rive_vkb::SwapchainImage* swapchainImage =
-            m_swapchain->acquireNextImage();
-        m_renderTarget->setTargetImageView(swapchainImage->imageView,
-                                           swapchainImage->image,
-                                           swapchainImage->imageLastAccess);
-        m_renderContext->flush({
-            .renderTarget = m_renderTarget.get(),
-            .externalCommandBuffer = swapchainImage->commandBuffer,
-            .currentFrameNumber = swapchainImage->currentFrameNumber,
-            .safeFrameNumber = swapchainImage->safeFrameNumber,
-        });
-        m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData);
+        flushPLSContext(nullptr);
+        if (m_overflowTexture == nullptr)
+        {
+            // We rendered directly to the window. Submit and read back
+            // normally.
+            m_swapchain->submit(m_renderTarget->targetLastAccess(),
+                                pixelData,
+                                IAABB::MakeWH(m_width, m_height));
+        }
+        else
+        {
+            // Blit the overflow texture onto the screen in order to give some
+            // visual feedback.
+            vkutil::ImageAccess swapchainLastAccess =
+                vk()->simpleImageMemoryBarrier(
+                    m_swapchainImage->commandBuffer,
+                    m_swapchainImage->imageLastAccess,
+                    {
+                        .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                        .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                    },
+                    m_swapchainImage->image);
+            vk()->blitSubRect(
+                m_swapchainImage->commandBuffer,
+                m_renderTarget->accessTargetImage(
+                    m_swapchainImage->commandBuffer,
+                    {
+                        .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                        .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                        .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                    }),
+                m_swapchainImage->image,
+                IAABB{0,
+                      0,
+                      std::min<int>(m_width, m_androidWindowWidth),
+                      std::min<int>(m_height, m_androidWindowHeight)});
+            m_overflowTexture->lastAccess() =
+                m_renderTarget->targetLastAccess();
+            // Readback from the overflow texture when we submit.
+            m_swapchain->submit(swapchainLastAccess,
+                                pixelData,
+                                IAABB::MakeWH(m_width, m_height),
+                                m_overflowTexture.get());
+        }
+        m_swapchainImage = nullptr;
     }
 
 private:
@@ -233,6 +307,8 @@ private:
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
     const BackendParams m_backendParams;
+    uint32_t m_androidWindowWidth;
+    uint32_t m_androidWindowHeight;
     vkb::Instance m_instance;
     vkb::InstanceDispatchTable m_instanceDispatchTable;
     vkb::Device m_device;
@@ -240,6 +316,9 @@ private:
     std::unique_ptr<rive_vkb::Swapchain> m_swapchain;
     std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetVulkanImpl> m_renderTarget;
+    rcp<vkutil::Texture2D> m_overflowTexture; // Used when the desired render
+                                              // size doesn't fit in the window.
+    const rive_vkb::SwapchainImage* m_swapchainImage = nullptr;
 };
 
 TestingWindow* TestingWindow::MakeAndroidVulkan(

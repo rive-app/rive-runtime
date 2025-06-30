@@ -51,6 +51,8 @@ template <typename T> struct TAABB
         return left <= rhs.left && top <= rhs.top && right >= rhs.right &&
                bottom >= rhs.bottom;
     }
+
+    static TAABB MakeWH(T width, T height) { return {0, 0, width, height}; }
 };
 
 using IAABB = TAABB<int32_t>;

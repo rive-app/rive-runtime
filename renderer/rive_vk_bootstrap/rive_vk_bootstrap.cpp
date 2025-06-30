@@ -467,33 +467,49 @@ const SwapchainImage* Swapchain::acquireNextImage()
 }
 
 void Swapchain::submit(rive::gpu::vkutil::ImageAccess lastAccess,
-                       std::vector<uint8_t>* pixelData)
+                       std::vector<uint8_t>* pixelData,
+                       rive::IAABB pixelReadBounds,
+                       rive::gpu::vkutil::Texture2D* pixelReadTexture)
 {
     SwapchainImage* swapchainImage = &m_swapchainImages[m_currentImageIndex];
+    VkCommandBuffer commandBuffer = swapchainImage->commandBuffer;
 
     if (pixelData != nullptr)
     {
+        if (pixelReadBounds.empty())
+        {
+            pixelReadBounds = rive::IAABB::MakeWH(m_width, m_height);
+        }
         // Copy the framebuffer out to a buffer.
-        if (m_pixelReadBuffer == nullptr)
+        VkDeviceSize requiredBufferSize =
+            pixelReadBounds.height() * pixelReadBounds.width() * 4;
+        if (m_pixelReadBuffer == nullptr ||
+            m_pixelReadBuffer->info().size < requiredBufferSize)
         {
             m_pixelReadBuffer = m_vk->makeBuffer(
                 {
-                    .size = m_height * m_width * 4,
+                    .size = requiredBufferSize,
                     .usage = VK_BUFFER_USAGE_TRANSFER_DST_BIT,
                 },
                 rive::gpu::vkutil::Mappability::readWrite);
         }
-        assert(m_pixelReadBuffer->info().size == m_height * m_width * 4);
 
-        lastAccess = m_vk->simpleImageMemoryBarrier(
-            swapchainImage->commandBuffer,
-            lastAccess,
-            {
-                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
-                .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
-                .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-            },
-            swapchainImage->image);
+        constexpr rive::gpu::vkutil::ImageAccess TRANSFER_SRC_ACCESS = {
+            .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+            .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+            .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+        };
+        if (pixelReadTexture != nullptr)
+        {
+            pixelReadTexture->barrier(commandBuffer, TRANSFER_SRC_ACCESS);
+        }
+        else
+        {
+            lastAccess = m_vk->simpleImageMemoryBarrier(commandBuffer,
+                                                        lastAccess,
+                                                        TRANSFER_SRC_ACCESS,
+                                                        swapchainImage->image);
+        }
 
         VkBufferImageCopy imageCopyDesc = {
             .imageSubresource =
@@ -503,19 +519,23 @@ void Swapchain::submit(rive::gpu::vkutil::ImageAccess lastAccess,
                     .baseArrayLayer = 0,
                     .layerCount = 1,
                 },
-            .imageExtent = {m_width, m_height, 1},
+            .imageOffset = {pixelReadBounds.left, pixelReadBounds.top, 0},
+            .imageExtent = {static_cast<uint32_t>(pixelReadBounds.width()),
+                            static_cast<uint32_t>(pixelReadBounds.height()),
+                            1},
         };
 
         m_dispatchTable.cmdCopyImageToBuffer(
-            swapchainImage->commandBuffer,
-            swapchainImage->image,
+            commandBuffer,
+            pixelReadTexture != nullptr ? pixelReadTexture->vkImage()
+                                        : swapchainImage->image,
             VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
             *m_pixelReadBuffer,
             1,
             &imageCopyDesc);
 
         m_vk->bufferMemoryBarrier(
-            swapchainImage->commandBuffer,
+            commandBuffer,
             VK_PIPELINE_STAGE_TRANSFER_BIT,
             VK_PIPELINE_STAGE_HOST_BIT,
             0,
@@ -529,7 +549,7 @@ void Swapchain::submit(rive::gpu::vkutil::ImageAccess lastAccess,
     if (m_vkbSwapchain.swapchain != VK_NULL_HANDLE)
     {
         lastAccess = m_vk->simpleImageMemoryBarrier(
-            swapchainImage->commandBuffer,
+            commandBuffer,
             lastAccess,
             {
                 .pipelineStages = VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
@@ -539,7 +559,7 @@ void Swapchain::submit(rive::gpu::vkutil::ImageAccess lastAccess,
             swapchainImage->image);
     }
 
-    VK_CHECK(m_dispatchTable.endCommandBuffer(swapchainImage->commandBuffer));
+    VK_CHECK(m_dispatchTable.endCommandBuffer(commandBuffer));
 
     VkPipelineStageFlags waitDstStageMask =
         VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT;
@@ -550,7 +570,7 @@ void Swapchain::submit(rive::gpu::vkutil::ImageAccess lastAccess,
         .pWaitSemaphores = &swapchainImage->frameBeginSemaphore,
         .pWaitDstStageMask = &waitDstStageMask,
         .commandBufferCount = 1,
-        .pCommandBuffers = &swapchainImage->commandBuffer,
+        .pCommandBuffers = &commandBuffer,
         .signalSemaphoreCount = 1,
         .pSignalSemaphores = &swapchainImage->frameCompleteSemaphore,
     };
@@ -568,20 +588,22 @@ void Swapchain::submit(rive::gpu::vkutil::ImageAccess lastAccess,
         m_pixelReadBuffer->invalidateContents();
 
         // Copy the buffer containing the framebuffer contents to pixelData.
-        pixelData->resize(m_height * m_width * 4);
+        uint32_t w = pixelReadBounds.width();
+        uint32_t h = pixelReadBounds.height();
+        pixelData->resize(h * w * 4);
 
-        assert(m_pixelReadBuffer->info().size == m_height * m_width * 4);
-        for (uint32_t y = 0; y < m_height; ++y)
+        assert(m_pixelReadBuffer->info().size >= h * w * 4);
+        for (uint32_t y = 0; y < h; ++y)
         {
             auto src =
                 static_cast<const uint8_t*>(m_pixelReadBuffer->contents()) +
-                m_width * 4 * y;
-            uint8_t* dst = pixelData->data() + (m_height - y - 1) * m_width * 4;
-            memcpy(dst, src, m_width * 4);
+                w * 4 * y;
+            uint8_t* dst = pixelData->data() + (h - y - 1) * w * 4;
+            memcpy(dst, src, w * 4);
             if (m_imageFormat == VK_FORMAT_B8G8R8A8_UNORM)
             {
                 // Reverse bgr -> rgb.
-                for (uint32_t x = 0; x < m_width * 4; x += 4)
+                for (uint32_t x = 0; x < w * 4; x += 4)
                 {
                     std::swap(dst[x], dst[x + 2]);
                 }

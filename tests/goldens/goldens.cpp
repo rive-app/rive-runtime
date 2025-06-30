@@ -248,15 +248,11 @@ int main(int argc, const char* argv[])
                               : TestingWindow::Visibility::window;
         void* platformWindow = nullptr;
 #ifdef RIVE_ANDROID
-        if (backend == TestingWindow::Backend::gl)
+        // Render directly to the main window to give feedback.
+        platformWindow = rive_android_app_wait_for_window();
+        if (platformWindow != nullptr)
         {
-            // Android can render directly to the main window in GL.
-            // TOOD: add this support to TestingWindowAndroidVulkan as well.
-            platformWindow = rive_android_app_wait_for_window();
-            if (platformWindow != nullptr)
-            {
-                visibility = TestingWindow::Visibility::fullscreen;
-            }
+            visibility = TestingWindow::Visibility::fullscreen;
         }
 #endif
         TestingWindow::Init(backend, backendParams, visibility, platformWindow);
