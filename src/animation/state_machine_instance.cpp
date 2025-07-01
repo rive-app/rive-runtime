@@ -936,31 +936,18 @@ public:
     }
 };
 
-// Wrapper around HitExpandable to garbage collect text run contours.
 class HitTextRun : public HitExpandable
 {
 public:
-    TextValueRun* m_textValueRun;
-
     HitTextRun(Drawable* drawable,
                TextValueRun* component,
                StateMachineInstance* stateMachineInstance,
                bool isOpaque = false) :
         HitExpandable(drawable, component, stateMachineInstance, isOpaque)
     {
-        m_textValueRun = component;
-        if (m_textValueRun)
+        if (component)
         {
-            m_textValueRun->isHitTarget(true);
-        }
-    }
-
-    ~HitTextRun()
-    {
-        if (m_textValueRun != nullptr)
-        {
-            m_textValueRun->isHitTarget(false);
-            m_textValueRun->resetHitTest();
+            component->isHitTarget(true);
         }
     }
 };
