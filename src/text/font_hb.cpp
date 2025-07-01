@@ -476,8 +476,14 @@ static void perform_fallback(rive::rcp<rive::Font> fallbackFont,
             {
                 ++endI;
             }
+
             auto textStart = orig.textIndices[startI];
-            auto textCount = orig.textIndices[endI - 1] - textStart + 1;
+            auto textCount =
+                endI == count
+                    ? origTextRun.unicharCount -
+                          (orig.textIndices[startI] - orig.textIndices[0])
+                    : orig.textIndices[endI] - textStart;
+
             auto tr = rive::TextRun{
                 fallbackFont,
                 orig.size,
@@ -539,7 +545,7 @@ void HBFont::shapeFallbackRun(rive::SimpleArrayBuilder<rive::GlyphRun>& gruns,
                              gruns,
                              text,
                              gr,
-                             originalTextRun,
+                             textRun,
                              fallbackIndex + 1);
         }
         else if (gr.glyphs.size() > 0)
