@@ -80,6 +80,7 @@ private:
     public:
         ErrorReporter(CommandServer* server,
                       HandleType handle,
+                      uint64_t requestId,
                       CommandQueue::Message message) :
             m_server(server), m_lock(m_server->m_commandQueue->m_messageMutex)
         {
@@ -90,6 +91,7 @@ private:
             std::cerr << "ERROR : ";
             m_server->m_commandQueue->m_messageStream << message;
             m_server->m_commandQueue->m_messageStream << handle;
+            m_server->m_commandQueue->m_messageStream << requestId;
         }
 
         ErrorReporter& operator<<(std::vector<std::string> vector)

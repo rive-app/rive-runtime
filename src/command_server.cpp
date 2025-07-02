@@ -405,6 +405,7 @@ void CommandServer::checkPropertySubscriptions()
                             ErrorReporter<ViewModelInstanceHandle>(
                                 this,
                                 handle,
+                                requestId,
                                 CommandQueue::Message::viewModelError)
                                 << "ERROR : Invalid data type {"
                                 << data.metaData.type << "} when checking"
@@ -530,6 +531,7 @@ bool CommandServer::processCommands()
                 {
                     ErrorReporter<FileHandle>(this,
                                               handle,
+                                              requestId,
                                               CommandQueue::Message::fileError)
                         << "failed to load Rive file.";
                 }
@@ -572,6 +574,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<RenderImageHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::imageError)
                         << "Command Server failed to decode image";
                 }
@@ -616,6 +619,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<AudioSourceHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::audioError)
                         << "Command Server failed to decode image";
                 }
@@ -659,6 +663,7 @@ bool CommandServer::processCommands()
                 {
                     ErrorReporter<FontHandle>(this,
                                               handle,
+                                              requestId,
                                               CommandQueue::Message::fontError)
                         << "ERROR: Command Server failed to decode font";
                 }
@@ -707,6 +712,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<FileHandle>(
                             this,
                             fileHandle,
+                            requestId,
                             CommandQueue::Message::fileError)
                             << "artboard \"" << name << "\" not found.";
                     }
@@ -715,6 +721,7 @@ bool CommandServer::processCommands()
                 {
                     ErrorReporter<FileHandle>(this,
                                               fileHandle,
+                                              requestId,
                                               CommandQueue::Message::fileError)
                         << "file " << fileHandle
                         << " not found when trying to create artboard";
@@ -796,6 +803,7 @@ bool CommandServer::processCommands()
                                     ErrorReporter<FileHandle>(
                                         this,
                                         fileHandle,
+                                        requestId,
                                         CommandQueue::Message::fileError)
                                         << "ArtboardInstance " << artboardHandle
                                         << " Not found when trying to create"
@@ -808,6 +816,7 @@ bool CommandServer::processCommands()
                                     ErrorReporter<FileHandle>(
                                         this,
                                         fileHandle,
+                                        requestId,
                                         CommandQueue::Message::fileError)
                                         << "ArtboardInstance " << artboardHandle
                                         << " Not found when trying to create "
@@ -821,6 +830,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<FileHandle>(
                                     this,
                                     fileHandle,
+                                    requestId,
                                     CommandQueue::Message::fileError)
                                     << "ArtboardInstance " << artboardHandle
                                     << " Not found when trying to create "
@@ -837,6 +847,7 @@ bool CommandServer::processCommands()
                             ErrorReporter<FileHandle>(
                                 this,
                                 fileHandle,
+                                requestId,
                                 CommandQueue::Message::fileError)
                                 << "View model " << viewModelName
                                 << " not found";
@@ -858,6 +869,7 @@ bool CommandServer::processCommands()
                                     ErrorReporter<FileHandle>(
                                         this,
                                         fileHandle,
+                                        requestId,
                                         CommandQueue::Message::fileError)
                                         << "Could not create "
                                         << "default view model instance "
@@ -874,6 +886,7 @@ bool CommandServer::processCommands()
                                     ErrorReporter<FileHandle>(
                                         this,
                                         fileHandle,
+                                        requestId,
                                         CommandQueue::Message::fileError)
                                         << "Could not create "
                                            "view model instance named "
@@ -890,6 +903,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<FileHandle>(
                                     this,
                                     fileHandle,
+                                    requestId,
                                     CommandQueue::Message::fileError)
                                     << "Could not create "
                                     << "blank view model instance "
@@ -907,6 +921,7 @@ bool CommandServer::processCommands()
                 {
                     ErrorReporter<FileHandle>(this,
                                               fileHandle,
+                                              requestId,
                                               CommandQueue::Message::fileError)
                         << "File " << fileHandle
                         << " not found when creating view model instance ";
@@ -944,6 +959,7 @@ bool CommandServer::processCommands()
                             ErrorReporter<ViewModelInstanceHandle>(
                                 this,
                                 rootHandle,
+                                requestId,
                                 CommandQueue::Message::viewModelError)
                                 << "failed to find list at path " << path
                                 << " when trying to add to a list";
@@ -954,6 +970,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<ViewModelInstanceHandle>(
                             this,
                             rootHandle,
+                            requestId,
                             CommandQueue::Message::viewModelError)
                             << "failed to find value view model " << viewHandle
                             << "isntance for add list";
@@ -964,6 +981,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<ViewModelInstanceHandle>(
                         this,
                         rootHandle,
+                        requestId,
                         CommandQueue::Message::viewModelError)
                         << "failed to find root view model isntance "
                         << rootHandle << "for add list";
@@ -1005,6 +1023,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<ViewModelInstanceHandle>(
                             this,
                             rootHandle,
+                            requestId,
                             CommandQueue::Message::viewModelError)
                             << "failed to find list on view model "
                                "isntance for "
@@ -1017,6 +1036,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<ViewModelInstanceHandle>(
                         this,
                         rootHandle,
+                        requestId,
                         CommandQueue::Message::viewModelError)
                         << "failed to find view model instance " << rootHandle
                         << " for remove list";
@@ -1048,6 +1068,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<ViewModelInstanceHandle>(
                             this,
                             rootHandle,
+                            requestId,
                             CommandQueue::Message::viewModelError)
                             << "failed to find list on view model "
                                "isntance for "
@@ -1060,6 +1081,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<ViewModelInstanceHandle>(
                         this,
                         rootHandle,
+                        requestId,
                         CommandQueue::Message::viewModelError)
                         << "failed to find view model instance " << rootHandle
                         << " for swap";
@@ -1101,6 +1123,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     rootHandle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Property " << data.name
                                     << " not found when subscribing";
@@ -1111,6 +1134,7 @@ bool CommandServer::processCommands()
                             ErrorReporter<ViewModelInstanceHandle>(
                                 this,
                                 rootHandle,
+                                requestId,
                                 CommandQueue::Message::viewModelError)
                                 << "Property type " << data.type
                                 << " is not valid when "
@@ -1122,6 +1146,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<ViewModelInstanceHandle>(
                             this,
                             rootHandle,
+                            requestId,
                             CommandQueue::Message::viewModelError)
                             << "Root view model " << rootHandle
                             << " not found when subscribing "
@@ -1174,6 +1199,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<ViewModelInstanceHandle>(
                             this,
                             nestedViewHandle,
+                            requestId,
                             CommandQueue::Message::viewModelError)
                             << "Nested view not found at path" << path
                             << " when refing nested "
@@ -1185,6 +1211,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<ViewModelInstanceHandle>(
                         this,
                         nestedViewHandle,
+                        requestId,
                         CommandQueue::Message::viewModelError)
                         << "Root view model " << rootViewHandle
                         << " not found when refing nested "
@@ -1224,6 +1251,7 @@ bool CommandServer::processCommands()
                             ErrorReporter<ViewModelInstanceHandle>(
                                 this,
                                 rootViewHandle,
+                                requestId,
                                 CommandQueue::Message::viewModelError)
                                 << "View model not found on list " << path
                                 << " at index " << index;
@@ -1234,6 +1262,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<ViewModelInstanceHandle>(
                             this,
                             rootViewHandle,
+                            requestId,
                             CommandQueue::Message::viewModelError)
                             << "List not found at path " << path
                             << " when refing  view model at index " << index;
@@ -1244,6 +1273,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<ViewModelInstanceHandle>(
                         this,
                         rootViewHandle,
+                        requestId,
                         CommandQueue::Message::viewModelError)
                         << "Root view model" << rootViewHandle
                         << " not found when refing nested "
@@ -1293,6 +1323,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<ArtboardHandle>(
                             this,
                             artboardHandle,
+                            requestId,
                             CommandQueue::Message::artboardError)
                             << "Could not create state "
                                "machine with name \""
@@ -1304,6 +1335,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<ArtboardHandle>(
                         this,
                         artboardHandle,
+                        requestId,
                         CommandQueue::Message::artboardError)
                         << "Could not create state "
                            "machine with name \""
@@ -1336,6 +1368,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<StateMachineHandle>(
                             this,
                             handle,
+                            requestId,
                             CommandQueue::Message::stateMachineError)
                             << "View model instance " << viewModel
                             << " not found for when trying to bind "
@@ -1347,6 +1380,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<StateMachineHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::stateMachineError)
                         << "State machine " << handle
                         << " not found for binding view model.";
@@ -1381,6 +1415,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<StateMachineHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::stateMachineError)
                         << "State machine " << handle
                         << " not found for "
@@ -1460,6 +1495,7 @@ bool CommandServer::processCommands()
                 {
                     ErrorReporter<FileHandle>(this,
                                               handle,
+                                              requestId,
                                               CommandQueue::Message::fileError)
                         << "Invalid file handle " << handle
                         << " when getting list of artboards";
@@ -1513,6 +1549,7 @@ bool CommandServer::processCommands()
                 {
                     ErrorReporter<FileHandle>(this,
                                               handle,
+                                              requestId,
                                               CommandQueue::Message::fileError)
                         << "Invalid file handle " << handle
                         << " when getting list of enums";
@@ -1548,9 +1585,94 @@ bool CommandServer::processCommands()
                     ErrorReporter<ArtboardHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::artboardError)
                         << "Invalid artboard handle " << handle
                         << " when getting list of state machines";
+                }
+                break;
+            }
+
+            case CommandQueue::Command::getDefaultViewModel:
+            {
+                FileHandle fileHandle;
+                ArtboardHandle artboardHandle;
+                uint64_t requestId;
+                commandStream >> fileHandle;
+                commandStream >> artboardHandle;
+                commandStream >> requestId;
+                lock.unlock();
+                auto artboard = getArtboardInstance(artboardHandle);
+                if (artboard)
+                {
+                    auto file = getFile(fileHandle);
+                    if (file)
+                    {
+                        auto defaultViewModel =
+                            file->defaultArtboardViewModel(artboard);
+
+                        if (defaultViewModel)
+                        {
+                            auto defaultInstance =
+                                defaultViewModel->createDefaultInstance();
+                            if (defaultInstance)
+                            {
+                                std::unique_lock<std::mutex> messageLock(
+                                    m_commandQueue->m_messageMutex);
+                                messageStream << CommandQueue::Message::
+                                        defaultViewModelReceived;
+                                messageStream << artboardHandle;
+                                messageStream << requestId;
+                                m_commandQueue->m_messageNames
+                                    << defaultViewModel->name();
+                                m_commandQueue->m_messageNames
+                                    << defaultInstance->name();
+                            }
+                            else
+                            {
+                                ErrorReporter<ArtboardHandle>(
+                                    this,
+                                    artboardHandle,
+                                    requestId,
+                                    CommandQueue::Message::artboardError)
+                                    << "Could not find default view model "
+                                       "instance for "
+                                       "artboard"
+                                    << " when getting default view model info";
+                            }
+                        }
+                        else
+                        {
+                            ErrorReporter<ArtboardHandle>(
+                                this,
+                                artboardHandle,
+                                requestId,
+                                CommandQueue::Message::artboardError)
+                                << "Could not find default view model for "
+                                   "artboard"
+                                << " when getting default view model info";
+                        }
+                    }
+                    else
+                    {
+                        ErrorReporter<ArtboardHandle>(
+                            this,
+                            artboardHandle,
+                            requestId,
+                            CommandQueue::Message::artboardError)
+                            << "Invalid file handle " << fileHandle
+                            << " when getting default view model info";
+                    }
+                }
+                else
+                {
+                    ErrorReporter<ArtboardHandle>(
+                        this,
+                        artboardHandle,
+                        requestId,
+                        CommandQueue::Message::artboardError)
+                        << "Invalid artboard handle " << artboardHandle
+                        << " when getting default view model info";
                 }
                 break;
             }
@@ -1583,6 +1705,7 @@ bool CommandServer::processCommands()
                 {
                     ErrorReporter<FileHandle>(this,
                                               handle,
+                                              requestId,
                                               CommandQueue::Message::fileError)
                         << "Invalid file handle " << handle
                         << " when getting list of view models";
@@ -1625,6 +1748,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<FileHandle>(
                             this,
                             handle,
+                            requestId,
                             CommandQueue::Message::viewModelError)
                             << "Invalid view model name " << viewModelName
                             << " when getting list of view model instance "
@@ -1636,6 +1760,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<FileHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::viewModelError)
                         << "Invalid file handle " << handle
                         << " when getting list of view model instance names";
@@ -1679,6 +1804,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<FileHandle>(
                             this,
                             handle,
+                            requestId,
                             CommandQueue::Message::fileError)
                             << "Invalid view model name " << viewModelName
                             << " when getting list of view model properties";
@@ -1688,6 +1814,7 @@ bool CommandServer::processCommands()
                 {
                     ErrorReporter<FileHandle>(this,
                                               handle,
+                                              requestId,
                                               CommandQueue::Message::fileError)
                         << "Invalid file handle " << handle
                         << " when getting list of view model properties";
@@ -1754,6 +1881,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -1776,6 +1904,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -1798,6 +1927,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -1820,6 +1950,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -1842,6 +1973,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -1872,6 +2004,7 @@ bool CommandServer::processCommands()
                                     ErrorReporter<ViewModelInstanceHandle>(
                                         this,
                                         handle,
+                                        requestId,
                                         CommandQueue::Message::viewModelError)
                                         << "Invalid enum value for "
                                            "property "
@@ -1886,6 +2019,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -1907,6 +2041,7 @@ bool CommandServer::processCommands()
                                     ErrorReporter<ViewModelInstanceHandle>(
                                         this,
                                         handle,
+                                        requestId,
                                         CommandQueue::Message::viewModelError)
                                         << "Could not replace "
                                            "view model at path "
@@ -1918,6 +2053,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find nested view "
                                        "model "
@@ -1944,6 +2080,7 @@ bool CommandServer::processCommands()
                                     ErrorReporter<ViewModelInstanceHandle>(
                                         this,
                                         handle,
+                                        requestId,
                                         CommandQueue::Message::viewModelError)
                                         << "Could not find "
                                            "image property at path "
@@ -1955,6 +2092,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find image " << imageHandle
                                     << " to set for view model instance when "
@@ -1972,6 +2110,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<ViewModelInstanceHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::viewModelError)
                         << "Could not find view model instance when "
                            "setting property type "
@@ -2009,6 +2148,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -2031,6 +2171,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -2053,6 +2194,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -2075,6 +2217,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -2096,6 +2239,7 @@ bool CommandServer::processCommands()
                                 ErrorReporter<ViewModelInstanceHandle>(
                                     this,
                                     handle,
+                                    requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find view model "
                                        "property "
@@ -2141,6 +2285,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<ViewModelInstanceHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::viewModelError)
                         << "Could not find view model instance when "
                            "getting property type "
@@ -2179,6 +2324,7 @@ bool CommandServer::processCommands()
                         ErrorReporter<ViewModelInstanceHandle>(
                             this,
                             handle,
+                            requestId,
                             CommandQueue::Message::viewModelError)
                             << "failed to get list at path " << path
                             << " when getting list size";
@@ -2189,6 +2335,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<ViewModelInstanceHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::viewModelError)
                         << "failed to get view model " << handle
                         << " when getting list size";
@@ -2200,8 +2347,10 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::pointerMove:
             {
                 StateMachineHandle handle;
+                uint64_t requestId;
                 CommandQueue::PointerEvent pointerEvent;
                 commandStream >> handle;
+                commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
                 if (auto stateMachine = getStateMachineInstance(handle))
@@ -2215,6 +2364,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<StateMachineHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::stateMachineError)
                         << "State machine \"" << handle
                         << "\" not found for pointerMove.";
@@ -2225,8 +2375,10 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::pointerDown:
             {
                 StateMachineHandle handle;
+                uint64_t requestId;
                 CommandQueue::PointerEvent pointerEvent;
                 commandStream >> handle;
+                commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
                 if (auto stateMachine = getStateMachineInstance(handle))
@@ -2240,6 +2392,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<StateMachineHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::stateMachineError)
                         << "State machine \"" << handle
                         << "\" not found for pointerDown.";
@@ -2250,8 +2403,10 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::pointerUp:
             {
                 StateMachineHandle handle;
+                uint64_t requestId;
                 CommandQueue::PointerEvent pointerEvent;
                 commandStream >> handle;
+                commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
                 if (auto stateMachine = getStateMachineInstance(handle))
@@ -2265,6 +2420,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<StateMachineHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::stateMachineError)
                         << "State machine \"" << handle
                         << "\" not found for pointerUp.";
@@ -2275,8 +2431,10 @@ bool CommandServer::processCommands()
             case CommandQueue::Command::pointerExit:
             {
                 StateMachineHandle handle;
+                uint64_t requestId;
                 CommandQueue::PointerEvent pointerEvent;
                 commandStream >> handle;
+                commandStream >> requestId;
                 m_commandQueue->m_pointerEvents >> pointerEvent;
                 lock.unlock();
                 if (auto stateMachine = getStateMachineInstance(handle))
@@ -2290,6 +2448,7 @@ bool CommandServer::processCommands()
                     ErrorReporter<StateMachineHandle>(
                         this,
                         handle,
+                        requestId,
                         CommandQueue::Message::stateMachineError)
                         << "State machine \"" << handle
                         << "\" not found for pointerExit.";

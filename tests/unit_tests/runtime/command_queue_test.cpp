@@ -1368,6 +1368,7 @@ class ViewModelPropertyListener : public CommandQueue::ViewModelInstanceListener
 {
 public:
     virtual void onViewModelInstanceError(const ViewModelInstanceHandle handle,
+                                          uint64_t requestId,
                                           std::string error) override
     {
         CHECK(handle == m_handle);
@@ -1384,8 +1385,8 @@ public:
 
     virtual void onViewModelDataReceived(
         const ViewModelInstanceHandle handle,
-        CommandQueue::ViewModelInstanceData data,
-        uint64_t requestId) override
+        uint64_t requestId,
+        CommandQueue::ViewModelInstanceData data) override
     {
         // the callback order should be garunteed.
         // so getting these in the order they are requested should work
@@ -1762,6 +1763,7 @@ class ViewModelPropertySubscriptionListener
 {
 public:
     virtual void onViewModelInstanceError(const ViewModelInstanceHandle handle,
+                                          uint64_t requestId,
                                           std::string error) override
     {
         CHECK(handle == m_handle);
@@ -1779,8 +1781,8 @@ public:
 
     virtual void onViewModelDataReceived(
         const ViewModelInstanceHandle handle,
-        CommandQueue::ViewModelInstanceData data,
-        uint64_t requestId) override
+        uint64_t requestId,
+        CommandQueue::ViewModelInstanceData data) override
     {
         // We only get one sub callback per value, so instead of a dequeue we
         // use a map of names to values that we expect, it should always be the
@@ -2186,8 +2188,8 @@ class AsyncSubListener : public CommandQueue::ViewModelInstanceListener
 public:
     virtual void onViewModelDataReceived(
         const ViewModelInstanceHandle handle,
-        CommandQueue::ViewModelInstanceData data,
-        uint64_t requestId) override
+        uint64_t requestId,
+        CommandQueue::ViewModelInstanceData data) override
     {
         CHECK(handle == m_handle);
         CHECK(!m_hasCallback);
@@ -2264,9 +2266,9 @@ public:
 
     virtual void onViewModelListSizeReceived(
         const ViewModelInstanceHandle handle,
+        uint64_t requestId,
         std::string path,
-        size_t size,
-        uint64_t requestId) override
+        size_t size) override
     {
         CHECK(handle == m_handle);
         CHECK(path == m_path);
@@ -2466,6 +2468,7 @@ class TestFileErrorListener : public CommandQueue::FileListener
 {
 public:
     virtual void onFileError(const FileHandle handle,
+                             uint64_t requestId,
                              std::string error) override
     {
         CHECK(handle == m_handle);
@@ -2671,6 +2674,7 @@ class TestRenderImageErrorListener : public CommandQueue::RenderImageListener
 {
 public:
     virtual void onRenderImageError(const RenderImageHandle handle,
+                                    uint64_t requestId,
                                     std::string error) override
     {
         CHECK(handle == m_handle);
@@ -2687,6 +2691,7 @@ class TestAudioSourceErrorListener : public CommandQueue::AudioSourceListener
 {
 public:
     virtual void onAudioSourceError(const AudioSourceHandle handle,
+                                    uint64_t requestId,
                                     std::string error) override
     {
         CHECK(handle == m_handle);
@@ -2703,6 +2708,7 @@ class TestFontErrorListener : public CommandQueue::FontListener
 {
 public:
     virtual void onFontError(const FontHandle handle,
+                             uint64_t requestId,
                              std::string error) override
     {
         CHECK(handle == m_handle);
@@ -2748,6 +2754,7 @@ class TestStateMachineErrorListener : public CommandQueue::StateMachineListener
 {
 public:
     virtual void onStateMachineError(const StateMachineHandle handle,
+                                     uint64_t requestId,
                                      std::string error) override
     {
         CHECK(handle == m_handle);
@@ -2804,6 +2811,7 @@ class TestArtboardErrorListener : public CommandQueue::ArtboardListener
 {
 public:
     virtual void onArtboardError(const ArtboardHandle handle,
+                                 uint64_t requestId,
                                  std::string error) override
     {
         CHECK(handle == m_handle);
@@ -2927,6 +2935,118 @@ TEST_CASE("listStateMachine", "[CommandQueue]")
     commandQueue->processMessages();
 
     CHECK(!artboardListener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+class TestArtboardDefaultViewModelListener
+    : public CommandQueue::ArtboardListener
+{
+public:
+    virtual void onArtboardError(const ArtboardHandle handle,
+                                 uint64_t requestId,
+                                 std::string error) override
+    {
+        CHECK(m_hasErrorCallback == false);
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        m_hasErrorCallback = true;
+    }
+
+    virtual void onDefaultViewModelInfoReceived(
+        const ArtboardHandle handle,
+        uint64_t requestId,
+        std::string viewModelName,
+        std::string viewModelInstanceName) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        CHECK(viewModelName == m_expectedViewModel);
+        CHECK(viewModelInstanceName == m_expectedViewModelInstance);
+
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId;
+    ArtboardHandle m_handle;
+    std::string m_expectedViewModel = "Test All";
+    std::string m_expectedViewModelInstance = "Test Default";
+    bool m_hasCallback = false;
+    bool m_hasErrorCallback = false;
+};
+
+TEST_CASE("requestDefaultViewModel", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle goodFile = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}));
+
+    TestArtboardDefaultViewModelListener artboardListener;
+
+    auto artboardHandle =
+        commandQueue->instantiateArtboardNamed(goodFile,
+                                               "Test Artboard",
+                                               &artboardListener);
+    artboardListener.m_handle = artboardHandle;
+
+    artboardListener.m_requestId = 0x40;
+    commandQueue->requestDefaultViewModelInfo(artboardHandle,
+                                              goodFile,
+                                              artboardListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(artboardListener.m_hasCallback);
+    CHECK(!artboardListener.m_hasErrorCallback);
+
+    FileHandle badFile =
+        commandQueue->loadFile(std::vector<uint8_t>(100 * 1024, 0));
+
+    auto badArtbaord = commandQueue->instantiateDefaultArtboard(badFile);
+
+    artboardListener.m_hasCallback = false;
+
+    commandQueue->requestDefaultViewModelInfo(badArtbaord,
+                                              goodFile,
+                                              artboardListener.m_requestId);
+    commandQueue->requestDefaultViewModelInfo(artboardHandle,
+                                              badFile,
+                                              artboardListener.m_requestId);
+    commandQueue->requestDefaultViewModelInfo(badArtbaord,
+                                              badFile,
+                                              artboardListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(!artboardListener.m_hasCallback);
+    CHECK(artboardListener.m_hasErrorCallback);
+
+    std::ifstream tstream("assets/entry.riv", std::ios::binary);
+    FileHandle noViewModelFile = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(tstream), {}));
+
+    TestArtboardDefaultViewModelListener noViewModelListener;
+    noViewModelListener.m_handle =
+        commandQueue->instantiateDefaultArtboard(noViewModelFile,
+                                                 &noViewModelListener);
+
+    commandQueue->requestDefaultViewModelInfo(noViewModelListener.m_handle,
+                                              noViewModelFile,
+                                              noViewModelListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+
+    commandQueue->processMessages();
+
+    CHECK(artboardListener.m_hasErrorCallback);
 
     commandQueue->disconnect();
     serverThread.join();
@@ -3596,4 +3716,401 @@ TEST_CASE("pointer input translation", "[CommandQueue]")
     commandQueue->processMessages();
 
     commandQueue->disconnect();
+}
+
+namespace rive
+{
+bool operator==(const ViewModelEnum& left, const ViewModelEnum& right)
+{
+    if (left.name != right.name ||
+        left.enumerants.size() != right.enumerants.size())
+        return false;
+
+    for (int i = 0; i < left.enumerants.size(); ++i)
+    {
+        if (left.enumerants[i] != right.enumerants[i])
+            return false;
+    }
+
+    return true;
+}
+bool operator!=(const ViewModelEnum& left, const ViewModelEnum& right)
+{
+    return !(left == right);
+}
+bool operator!=(const PropertyData& left, const PropertyData& right)
+{
+    return !(left == right);
+}
+} // namespace rive
+
+template <typename t>
+bool operator==(const std::vector<t>& left, const std::vector<t>& right)
+{
+    if (left.size() != right.size())
+        return false;
+
+    for (int i = 0; i < left.size(); ++i)
+    {
+        if (left[i] != right[i])
+            return false;
+    }
+
+    return true;
+}
+
+template <typename t, size_t arraySize>
+bool operator==(const std::vector<t>& left,
+                const std::array<t, arraySize>& right)
+{
+    if (left.size() != arraySize)
+        return false;
+
+    for (int i = 0; i < left.size(); ++i)
+    {
+        if (left[i] != right[i])
+            return false;
+    }
+
+    return true;
+}
+// clang format is removing the needed space between the func names and the (
+// clang-format off
+#define DEFINE_TEST_CALLBACK(fun, handleType, expectedRequestId)               \
+    bool m_##fun##WasCalled = false;                                           \
+    virtual void fun (const handleType handle, uint64_t requestId) override    \
+    {                                                                          \
+        assert(handle == m_handle);                                            \
+        assert(requestId == expectedRequestId);                                \
+        m_##fun##WasCalled = true;                                             \
+    }
+
+#define DEFINE_TEST_CALLBACK_ONE_PARAM(fun,                                    \
+                                       handleType,                             \
+                                       expectedRequestId,                      \
+                                       paramType,                              \
+                                       param)                                  \
+    bool m_##fun##WasCalled = false;                                           \
+    virtual void fun (const handleType handle,                                 \
+                     uint64_t requestId,                                       \
+                     paramType param) override                                 \
+    {                                                                          \
+        assert(handle == m_handle);                                            \
+        assert(requestId == expectedRequestId);                                \
+        assert(param == m_##param);                                            \
+        m_##fun##WasCalled = true;                                             \
+    }
+
+#define DEFINE_TEST_CALLBACK_TWO_PARAM(fun,                                    \
+                                       handleType,                             \
+                                       expectedRequestId,                      \
+                                       paramType,                              \
+                                       param,                                  \
+                                       param2Type,                             \
+                                       param2)                                 \
+    bool m_##fun##WasCalled = false;                                           \
+    virtual void fun (const handleType handle,                                 \
+                     uint64_t requestId,                                       \
+                     paramType param,                                          \
+                     param2Type param2) override                               \
+    {                                                                          \
+        assert(handle == m_handle);                                            \
+        assert(requestId == expectedRequestId);                                \
+        assert(param == m_##param);                                            \
+        assert(param2 == m_##param2);                                          \
+        m_##fun##WasCalled = true;                                             \
+    }
+// clang-format on
+#define CHECK_CALLBACK(obj, func) assert(obj.m_##func##WasCalled)
+
+class GlobalFileListener : public CommandQueue::FileListener
+{
+public:
+    virtual void onFileError(const FileHandle,
+                             uint64_t requestId,
+                             std::string error) override
+    {}
+
+    DEFINE_TEST_CALLBACK(onFileDeleted, FileHandle, 7);
+    DEFINE_TEST_CALLBACK(onFileLoaded, FileHandle, 1);
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onArtboardsListed,
+                                   FileHandle,
+                                   2,
+                                   std::vector<std::string>,
+                                   artboardNames);
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onViewModelsListed,
+                                   FileHandle,
+                                   3,
+                                   std::vector<std::string>,
+                                   viewModelNames);
+
+    DEFINE_TEST_CALLBACK_TWO_PARAM(onViewModelInstanceNamesListed,
+                                   FileHandle,
+                                   4,
+                                   std::string,
+                                   viewModelNameI,
+                                   std::vector<std::string>,
+                                   instanceNames);
+    DEFINE_TEST_CALLBACK_TWO_PARAM(onViewModelPropertiesListed,
+                                   FileHandle,
+                                   5,
+                                   std::string,
+                                   viewModelNameP,
+                                   std::vector<PropertyData>,
+                                   properties);
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onViewModelEnumsListed,
+                                   FileHandle,
+                                   6,
+                                   std::vector<ViewModelEnum>,
+                                   enums);
+
+    FileHandle m_handle;
+    std::array<std::string, 3> m_artboardNames = {"Test Artboard",
+                                                  "Test Transitions",
+                                                  "Test Observation"};
+    std::array<std::string, 6> m_viewModelNames = {"Empty VM",
+                                                   "Test All",
+                                                   "Nested VM",
+                                                   "State Transition",
+                                                   "Alternate VM",
+                                                   "Test Slash"};
+    std::array<std::string, 2> m_instanceNames = {"Test Default",
+                                                  "Test Alternate"};
+    std::array<PropertyData, 9> m_properties = {
+        PropertyData{DataType::list, "Test List"},
+        PropertyData{DataType::assetImage, "Test Image"},
+        PropertyData{DataType::number, "Test Num"},
+        PropertyData{DataType::string, "Test String"},
+        PropertyData{DataType::enumType, "Test Enum"},
+        PropertyData{DataType::boolean, "Test Bool"},
+        PropertyData{DataType::color, "Test Color"},
+        PropertyData{DataType::trigger, "Test Trigger"},
+        PropertyData{DataType::viewModel, "Test Nested"}};
+    std::array<ViewModelEnum, 1> m_enums = {
+        ViewModelEnum{"Test Enum Values", {"Value 1", "Value 2"}}};
+    std::string m_viewModelNameI = "Test All";
+    std::string m_viewModelNameP = "Test All";
+};
+
+class GlobalRenderImageListener : public CommandQueue::RenderImageListener
+{
+public:
+    virtual void onRenderImageError(const RenderImageHandle,
+                                    uint64_t requestId,
+                                    std::string error) override
+    {}
+
+    DEFINE_TEST_CALLBACK(onRenderImageDeleted, RenderImageHandle, 8);
+
+    RenderImageHandle m_handle;
+};
+
+class GlobalAudioSourceListener : public CommandQueue::AudioSourceListener
+{
+public:
+    virtual void onAudioSourceError(const AudioSourceHandle,
+                                    uint64_t requestId,
+                                    std::string error) override
+    {}
+
+    DEFINE_TEST_CALLBACK(onAudioSourceDeleted, AudioSourceHandle, 9);
+
+    AudioSourceHandle m_handle;
+};
+
+class GlobalFontListener : public CommandQueue::FontListener
+{
+public:
+    virtual void onFontError(const FontHandle,
+                             uint64_t requestId,
+                             std::string error) override
+    {}
+
+    DEFINE_TEST_CALLBACK(onFontDeleted, FontHandle, 10);
+
+    FontHandle m_handle;
+};
+
+class GlobalArtboardListener : public CommandQueue::ArtboardListener
+{
+public:
+    virtual void onArtboardError(const ArtboardHandle,
+                                 uint64_t requestId,
+                                 std::string error) override
+    {}
+
+    DEFINE_TEST_CALLBACK(onArtboardDeleted, ArtboardHandle, 12);
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onStateMachinesListed,
+                                   ArtboardHandle,
+                                   11,
+                                   std::vector<std::string>,
+                                   stateMachineNames);
+    DEFINE_TEST_CALLBACK_TWO_PARAM(onDefaultViewModelInfoReceived,
+                                   ArtboardHandle,
+                                   20,
+                                   std::string,
+                                   viewModelName,
+                                   std::string,
+                                   instanceName);
+
+    ArtboardHandle m_handle;
+    std::array<std::string, 1> m_stateMachineNames = {"SM"};
+    std::string m_viewModelName = "Test All";
+    std::string m_instanceName = "Test Default";
+};
+
+class GlobalViewModelInstanceListener
+    : public CommandQueue::ViewModelInstanceListener
+{
+public:
+    virtual void onViewModelInstanceError(const ViewModelInstanceHandle,
+                                          uint64_t requestId,
+                                          std::string error) override
+    {}
+
+    DEFINE_TEST_CALLBACK(onViewModelDeleted, ViewModelInstanceHandle, 15);
+
+    DEFINE_TEST_CALLBACK_ONE_PARAM(onViewModelDataReceived,
+                                   ViewModelInstanceHandle,
+                                   13,
+                                   CommandQueue::ViewModelInstanceData,
+                                   instanceData);
+
+    DEFINE_TEST_CALLBACK_TWO_PARAM(onViewModelListSizeReceived,
+                                   ViewModelInstanceHandle,
+                                   14,
+                                   std::string,
+                                   path,
+                                   size_t,
+                                   size);
+
+    size_t m_size = 0;
+    std::string m_path = "Test List";
+    ViewModelInstanceHandle m_handle;
+    CommandQueue::ViewModelInstanceData m_instanceData = {
+        .metaData = PropertyData{DataType::boolean, "Test Bool"},
+        .boolValue = true};
+};
+
+class GlobalStateMachineListener : public CommandQueue::StateMachineListener
+{
+public:
+    virtual void onStateMachineError(const StateMachineHandle,
+                                     uint64_t requestId,
+                                     std::string error) override
+    {}
+
+    DEFINE_TEST_CALLBACK(onStateMachineDeleted, StateMachineHandle, 17);
+    DEFINE_TEST_CALLBACK(onStateMachineSettled, StateMachineHandle, 16);
+
+    StateMachineHandle m_handle;
+};
+
+TEST_CASE("global Listener", "[CommandQueue]")
+{
+    GlobalStateMachineListener globalStateMachineListener;
+    GlobalViewModelInstanceListener globalViewModelInstanceListener;
+    GlobalArtboardListener globalArtboardListener;
+    GlobalFontListener globalFontListener;
+    GlobalAudioSourceListener globalAudioSourceListener;
+    GlobalRenderImageListener globalRenderImageListener;
+    GlobalFileListener globalFileListener;
+
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    commandQueue->setGlobalFileListener(&globalFileListener);
+    commandQueue->setGlobalArtboardListener(&globalArtboardListener);
+    commandQueue->setGlobalStateMachineListener(&globalStateMachineListener);
+    commandQueue->setGlobalRenderImageListener(&globalRenderImageListener);
+    commandQueue->setGlobalAudioSourceListener(&globalAudioSourceListener);
+    commandQueue->setGlobalViewModelInstanceListener(
+        &globalViewModelInstanceListener);
+    commandQueue->setGlobalFontListener(&globalFontListener);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        nullptr,
+        1);
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto stateMachineHandle =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle);
+    auto viewModel =
+        commandQueue->instantiateDefaultViewModelInstance(fileHandle,
+                                                          artboardHandle);
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    auto renderImage = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}));
+
+    std::ifstream audioStream("assets/audio/what.wav", std::ios::binary);
+    auto audioSource = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(audioStream), {}));
+
+    std::ifstream fontStream("assets/fonts/OpenSans-Italic.ttf",
+                             std::ios::binary);
+    auto font = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream), {}));
+
+    globalFileListener.m_handle = fileHandle;
+    globalArtboardListener.m_handle = artboardHandle;
+    globalStateMachineListener.m_handle = stateMachineHandle;
+    globalViewModelInstanceListener.m_handle = viewModel;
+    globalRenderImageListener.m_handle = renderImage;
+    globalAudioSourceListener.m_handle = audioSource;
+    globalFontListener.m_handle = font;
+
+    // 1 is create file or fileLoaded callback
+    commandQueue->requestArtboardNames(fileHandle, 2);
+    commandQueue->requestViewModelNames(fileHandle, 3);
+    commandQueue->requestViewModelInstanceNames(fileHandle, "Test All", 4);
+    commandQueue->requestViewModelPropertyDefinitions(fileHandle,
+                                                      "Test All",
+                                                      5);
+    commandQueue->requestViewModelEnums(fileHandle, 6);
+    commandQueue->requestStateMachineNames(artboardHandle, 11);
+    commandQueue->requestDefaultViewModelInfo(artboardHandle, fileHandle, 20);
+    commandQueue->requestViewModelInstanceBool(viewModel, "Test Bool", 13);
+    commandQueue->requestViewModelInstanceListSize(viewModel, "Test List", 14);
+    commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
+    commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
+    commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
+
+    commandQueue->deleteFont(font, 10);
+    commandQueue->deleteArtboard(artboardHandle, 12);
+    commandQueue->deleteStateMachine(stateMachineHandle, 17);
+    commandQueue->deleteViewModelInstance(viewModel, 15);
+    commandQueue->deleteImage(renderImage, 8);
+    commandQueue->deleteFile(fileHandle, 7);
+    commandQueue->deleteAudio(audioSource, 9);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK_CALLBACK(globalStateMachineListener, onStateMachineDeleted);
+    CHECK_CALLBACK(globalStateMachineListener, onStateMachineSettled);
+
+    CHECK_CALLBACK(globalViewModelInstanceListener, onViewModelDeleted);
+    CHECK_CALLBACK(globalViewModelInstanceListener, onViewModelDataReceived);
+    CHECK_CALLBACK(globalViewModelInstanceListener,
+                   onViewModelListSizeReceived);
+
+    CHECK_CALLBACK(globalArtboardListener, onArtboardDeleted);
+    CHECK_CALLBACK(globalArtboardListener, onStateMachinesListed);
+
+    CHECK_CALLBACK(globalFileListener, onFileDeleted);
+    CHECK_CALLBACK(globalFileListener, onFileLoaded);
+    CHECK_CALLBACK(globalFileListener, onArtboardsListed);
+    CHECK_CALLBACK(globalFileListener, onViewModelsListed);
+    CHECK_CALLBACK(globalFileListener, onViewModelEnumsListed);
+    CHECK_CALLBACK(globalFileListener, onViewModelPropertiesListed);
+    CHECK_CALLBACK(globalFileListener, onViewModelInstanceNamesListed);
+
+    CHECK_CALLBACK(globalFontListener, onFontDeleted);
+    CHECK_CALLBACK(globalAudioSourceListener, onAudioSourceDeleted);
+    CHECK_CALLBACK(globalRenderImageListener, onRenderImageDeleted);
+
+    commandQueue->disconnect();
+    serverThread.join();
 }

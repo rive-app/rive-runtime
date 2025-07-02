@@ -103,7 +103,10 @@ public:
         : public CommandQueue::ListenerBase<FileListener, FileHandle>
     {
     public:
-        virtual void onFileError(const FileHandle, std::string error) {}
+        virtual void onFileError(const FileHandle,
+                                 uint64_t requestId,
+                                 std::string error)
+        {}
 
         virtual void onFileDeleted(const FileHandle, uint64_t requestId) {}
 
@@ -145,6 +148,7 @@ public:
     {
     public:
         virtual void onRenderImageError(const RenderImageHandle,
+                                        uint64_t requestId,
                                         std::string error)
         {}
 
@@ -159,6 +163,7 @@ public:
     {
     public:
         virtual void onAudioSourceError(const AudioSourceHandle,
+                                        uint64_t requestId,
                                         std::string error)
         {}
 
@@ -171,7 +176,10 @@ public:
         : public CommandQueue::ListenerBase<FontListener, FontHandle>
     {
     public:
-        virtual void onFontError(const FontHandle, std::string error) {}
+        virtual void onFontError(const FontHandle,
+                                 uint64_t requestId,
+                                 std::string error)
+        {}
 
         virtual void onFontDeleted(const FontHandle, uint64_t requestId) {}
     };
@@ -180,7 +188,16 @@ public:
         : public CommandQueue::ListenerBase<ArtboardListener, ArtboardHandle>
     {
     public:
-        virtual void onArtboardError(const ArtboardHandle, std::string error) {}
+        virtual void onArtboardError(const ArtboardHandle,
+                                     uint64_t requestId,
+                                     std::string error)
+        {}
+
+        virtual void onDefaultViewModelInfoReceived(const ArtboardHandle,
+                                                    uint64_t requestId,
+                                                    std::string viewModelName,
+                                                    std::string instanceName)
+        {}
 
         virtual void onArtboardDeleted(const ArtboardHandle, uint64_t requestId)
         {}
@@ -217,6 +234,7 @@ public:
     {
     public:
         virtual void onViewModelInstanceError(const ViewModelInstanceHandle,
+                                              uint64_t requestId,
                                               std::string error)
         {}
 
@@ -225,14 +243,14 @@ public:
         {}
 
         virtual void onViewModelDataReceived(const ViewModelInstanceHandle,
-                                             ViewModelInstanceData,
-                                             uint64_t requestId)
+                                             uint64_t requestId,
+                                             ViewModelInstanceData)
         {}
 
         virtual void onViewModelListSizeReceived(const ViewModelInstanceHandle,
+                                                 uint64_t requestId,
                                                  std::string path,
-                                                 size_t size,
-                                                 uint64_t requestId)
+                                                 size_t size)
         {}
     };
 
@@ -242,6 +260,7 @@ public:
     {
     public:
         virtual void onStateMachineError(const StateMachineHandle,
+                                         uint64_t requestId,
                                          std::string error)
         {}
 
@@ -483,10 +502,10 @@ public:
     // All pointer events will automatically convert between artboard and screen
     // space for you based on the values passed in the PointerEvent struct.
 
-    void pointerMove(StateMachineHandle, PointerEvent);
-    void pointerDown(StateMachineHandle, PointerEvent);
-    void pointerUp(StateMachineHandle, PointerEvent);
-    void pointerExit(StateMachineHandle, PointerEvent);
+    void pointerMove(StateMachineHandle, PointerEvent, uint64_t requestId = 0);
+    void pointerDown(StateMachineHandle, PointerEvent, uint64_t requestId = 0);
+    void pointerUp(StateMachineHandle, PointerEvent, uint64_t requestId = 0);
+    void pointerExit(StateMachineHandle, PointerEvent, uint64_t requestId = 0);
 
     void deleteStateMachine(StateMachineHandle, uint64_t requestId = 0);
 
@@ -570,9 +589,41 @@ public:
                                           uint64_t requestId = 0);
 
     void requestStateMachineNames(ArtboardHandle, uint64_t requestId = 0);
+    void requestDefaultViewModelInfo(ArtboardHandle,
+                                     FileHandle,
+                                     uint64_t requestId = 0);
 
     // Consume all messages received from the server.
     void processMessages();
+
+    void setGlobalFileListener(FileListener* listener)
+    {
+        m_globalFileListener = listener;
+    }
+    void setGlobalArtboardListener(ArtboardListener* listener)
+    {
+        m_globalArtboardListener = listener;
+    }
+    void setGlobalStateMachineListener(StateMachineListener* listener)
+    {
+        m_globalStateMachineListener = listener;
+    }
+    void setGlobalViewModelInstanceListener(ViewModelInstanceListener* listener)
+    {
+        m_globalViewModelListener = listener;
+    }
+    void setGlobalRenderImageListener(RenderImageListener* listener)
+    {
+        m_globalImageListener = listener;
+    }
+    void setGlobalAudioSourceListener(AudioSourceListener* listener)
+    {
+        m_globalAudioListener = listener;
+    }
+    void setGlobalFontListener(FontListener* listener)
+    {
+        m_globalFontListener = listener;
+    }
 
 private:
     void registerListener(FileHandle handle, FileListener* listener)
@@ -722,6 +773,7 @@ private:
         listViewModelEnums,
         listArtboards,
         listStateMachines,
+        getDefaultViewModel,
         listViewModels,
         listViewModelInstanceNames,
         listViewModelProperties,
@@ -736,6 +788,7 @@ private:
         viewModelEnumsListed,
         artboardsListed,
         stateMachinesListed,
+        defaultViewModelReceived,
         viewModelsListend,
         viewModelInstanceNamesListed,
         viewModelPropertiesListed,
@@ -786,6 +839,14 @@ private:
     ObjectStream<std::string> m_messageNames;
 
     // Listeners
+    FileListener* m_globalFileListener = nullptr;
+    RenderImageListener* m_globalImageListener = nullptr;
+    AudioSourceListener* m_globalAudioListener = nullptr;
+    FontListener* m_globalFontListener = nullptr;
+    ArtboardListener* m_globalArtboardListener = nullptr;
+    ViewModelInstanceListener* m_globalViewModelListener = nullptr;
+    StateMachineListener* m_globalStateMachineListener = nullptr;
+
     std::unordered_map<FileHandle, FileListener*> m_fileListeners;
     std::unordered_map<RenderImageHandle, RenderImageListener*>
         m_imageListeners;
