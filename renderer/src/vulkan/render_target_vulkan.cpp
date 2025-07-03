@@ -149,18 +149,34 @@ vkutil::Texture2D* RenderTargetVulkan::coverageAtomicTexture()
     return m_coverageAtomicTexture.get();
 }
 
-vkutil::Texture2D* RenderTargetVulkan::depthStencilTexture()
+vkutil::Texture2D* RenderTargetVulkan::msaaColorTexture()
 {
-    if (m_depthStencilTexture == nullptr)
+    if (m_msaaColorTexture == nullptr)
     {
-        m_depthStencilTexture = m_vk->makeTexture2D({
+        m_msaaColorTexture = m_vk->makeTexture2D({
+            .format = m_framebufferFormat,
+            .extent = {width(), height(), 1},
+            .samples = VK_SAMPLE_COUNT_4_BIT,
+            .usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                     VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT,
+        });
+    }
+    return m_msaaColorTexture.get();
+}
+
+vkutil::Texture2D* RenderTargetVulkan::msaaDepthStencilTexture()
+{
+    if (m_msaaDepthStencilTexture == nullptr)
+    {
+        m_msaaDepthStencilTexture = m_vk->makeTexture2D({
             .format = vkutil::get_preferred_depth_stencil_format(
                 m_vk->supportsD24S8()),
-            .extent = {width(), height()},
+            .extent = {width(), height(), 1},
+            .samples = VK_SAMPLE_COUNT_4_BIT,
             .usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT,
         });
     }
-    return m_depthStencilTexture.get();
+    return m_msaaDepthStencilTexture.get();
 }
 
 rcp<RenderTargetVulkanImpl> RenderContextVulkanImpl::makeRenderTarget(

@@ -275,7 +275,7 @@ INLINE float4 find_clip_rect_coverage_distances(float2x2 clipRectInverseMatrix,
     }
 }
 
-#else // RENDER_MODE_MSAA
+#else // !@RENDER_MODE_MSAA => @RENDER_MODE_MSAA
 
 INLINE float normalize_z_index(uint zIndex)
 {
@@ -306,7 +306,8 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
     }
 }
 #endif // ENABLE_CLIP_RECT
-#endif // RENDER_MODE_MSAA
+
+#endif // @RENDER_MODE_MSAA
 #endif // VERTEX
 
 #ifdef @DRAW_IMAGE

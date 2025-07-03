@@ -54,6 +54,7 @@ public:
     }
 
     const T* data() const { return m_data; }
+    const T* dataOrNull() const { return m_size != 0 ? m_data : nullptr; }
     const uint32_t size() const { return m_size; }
 
 private:
@@ -73,7 +74,7 @@ private:
         return ret;
     }
 
-    static_assert(std::is_pod<T>::value ==
-                  true); // Currently only supports POD types
+    // Currently only supports POD types.
+    static_assert(std::is_pod<T>::value == true);
 };
 } // namespace rive

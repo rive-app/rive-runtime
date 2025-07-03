@@ -763,18 +763,19 @@ float find_transformed_area(const AABB& bounds, const Mat2D& matrix)
            .5f;
 }
 
-static void get_depth_state(const DrawBatch& batch,
-                            const FlushDescriptor& flushDesc,
+static void get_depth_state(InterlockMode interlockMode,
+                            DrawType drawType,
+                            DrawContents drawContents,
                             PipelineState* pipelineState)
 {
-    if (flushDesc.interlockMode != InterlockMode::msaa)
+    if (interlockMode != InterlockMode::msaa)
     {
         pipelineState->depthTestEnabled = false;
         pipelineState->depthWriteEnabled = false;
         return;
     }
 
-    switch (batch.drawType)
+    switch (drawType)
     {
         case DrawType::imageRect:
         case DrawType::imageMesh:
@@ -801,14 +802,14 @@ static void get_depth_state(const DrawBatch& batch,
         case DrawType::msaaMidpointFanPathsCover:
             pipelineState->depthTestEnabled = true;
             pipelineState->depthWriteEnabled =
-                !(batch.drawContents & gpu::DrawContents::clipUpdate);
+                !(drawContents & DrawContents::clipUpdate);
             break;
 
         case DrawType::msaaMidpointFanStencilReset:
             pipelineState->depthTestEnabled = true;
             pipelineState->depthWriteEnabled =
-                !(batch.drawContents & (gpu::DrawContents::clockwiseFill |
-                                        gpu::DrawContents::clipUpdate));
+                !(drawContents &
+                  (DrawContents::clockwiseFill | DrawContents::clipUpdate));
             break;
 
         case DrawType::interiorTriangulation:
@@ -820,30 +821,43 @@ static void get_depth_state(const DrawBatch& batch,
     }
 }
 
-static void get_stencil_state(const DrawBatch& batch,
-                              const FlushDescriptor& flushDesc,
-                              PipelineState* pipelineState)
+// Returns an 8-bit key that uniquely identifies the stencil settings.
+static uint8_t get_stencil_settings(InterlockMode interlockMode,
+                                    DrawType drawType,
+                                    DrawContents drawContents,
+                                    PipelineState* pipelineState)
 {
-    if (flushDesc.interlockMode != InterlockMode::msaa)
+    if (interlockMode != InterlockMode::msaa)
     {
         pipelineState->stencilTestEnabled = false;
         pipelineState->stencilWriteMask = 0;
-        return;
+        return 0;
     }
 
-    const bool hasActiveClip =
-        (batch.drawContents & gpu::DrawContents::activeClip);
-    const bool isClipUpdate =
-        (batch.drawContents & gpu::DrawContents::clipUpdate);
-    switch (batch.drawType)
+    pipelineState->stencilTestEnabled = true;
+
+    // Draw contents that affect on the stencil settings for this particular
+    // drawType.
+    struct
+    {
+        bool isClockwiseFill = false;
+        bool isEvenOddFill = false;
+        bool hasActiveClip = false;
+        bool isClipUpdate = false;
+    } effectiveDrawContents;
+
+    uint8_t stencilKey = 0;
+
+    switch (drawType)
     {
         case DrawType::imageRect:
         case DrawType::imageMesh:
         case DrawType::atlasBlit:
         case DrawType::msaaStrokes:
         case DrawType::msaaOuterCubics:
-            pipelineState->stencilTestEnabled = true;
-            pipelineState->stencilDoubleSided = false;
+        {
+            effectiveDrawContents.hasActiveClip =
+                drawContents & DrawContents::activeClip;
             pipelineState->stencilCompareMask = 0xff;
             pipelineState->stencilWriteMask = 0xff;
             pipelineState->stencilReference = 0x80;
@@ -851,16 +865,21 @@ static void get_stencil_state(const DrawBatch& batch,
                 .failOp = StencilOp::keep,
                 .passOp = StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
-                .compareOp = hasActiveClip ? StencilCompareOp::equal
-                                           : StencilCompareOp::always,
+                .compareOp = effectiveDrawContents.hasActiveClip
+                                 ? StencilCompareOp::equal
+                                 : StencilCompareOp::always,
             };
+            pipelineState->stencilDoubleSided = false;
+            stencilKey = 1;
             break;
+        }
 
         case DrawType::msaaMidpointFanBorrowedCoverage:
+        {
             // Count backward triangle hits (negative coverage) in the stencil
             // buffer.
-            pipelineState->stencilTestEnabled = true;
-            pipelineState->stencilDoubleSided = false;
+            effectiveDrawContents.hasActiveClip =
+                drawContents & DrawContents::activeClip;
             pipelineState->stencilCompareMask = 0xff;
             pipelineState->stencilWriteMask = 0x7f;
             pipelineState->stencilReference = 0x80;
@@ -868,75 +887,106 @@ static void get_stencil_state(const DrawBatch& batch,
                 .failOp = StencilOp::keep,
                 .passOp = StencilOp::incrWrap,
                 .depthFailOp = StencilOp::keep,
-                .compareOp = hasActiveClip ? StencilCompareOp::lessOrEqual
-                                           : StencilCompareOp::always,
+                .compareOp = effectiveDrawContents.hasActiveClip
+                                 ? StencilCompareOp::lessOrEqual
+                                 : StencilCompareOp::always,
             };
+            pipelineState->stencilDoubleSided = false;
+            stencilKey = 2;
             break;
+        }
 
         case DrawType::msaaMidpointFans:
+        {
             // Draw forward triangles, clipped by the backward triangle counts.
             // (The depth test prevents double hits.)
-            pipelineState->stencilTestEnabled = true;
-            pipelineState->stencilDoubleSided = true;
-            pipelineState->stencilCompareMask = hasActiveClip ? 0xff : 0x7f;
-            pipelineState->stencilWriteMask = isClipUpdate ? 0xff : 0x7f;
+            effectiveDrawContents.hasActiveClip =
+                drawContents & DrawContents::activeClip;
+            effectiveDrawContents.isClipUpdate =
+                drawContents & DrawContents::clipUpdate;
+            pipelineState->stencilCompareMask =
+                effectiveDrawContents.hasActiveClip ? 0xff : 0x7f;
+            pipelineState->stencilWriteMask =
+                effectiveDrawContents.isClipUpdate ? 0xff : 0x7f;
             pipelineState->stencilReference = 0x80;
             pipelineState->stencilFrontOps = {
                 .failOp = StencilOp::decrClamp, // Don't wrap; 0 must stay 0
                                                 // outside the clip.
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::keep,
+                .passOp = effectiveDrawContents.isClipUpdate
+                              ? StencilOp::replace
+                              : StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::equal,
             };
             pipelineState->stencilBackOps = {
                 .failOp = StencilOp::keep,
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
+                .passOp = effectiveDrawContents.isClipUpdate
+                              ? StencilOp::replace
+                              : StencilOp::zero,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::less,
             };
+            pipelineState->stencilDoubleSided = true;
+            stencilKey = 3;
             break;
+        }
 
         case DrawType::msaaMidpointFanStencilReset:
+        {
             // Clean up backward triangles in the stencil buffer, (also filling
             // negative winding numbers for nonZero fill).
-            pipelineState->stencilTestEnabled = true;
-            pipelineState->stencilDoubleSided = true;
-            pipelineState->stencilCompareMask = hasActiveClip ? 0xff : 0x7f;
+            effectiveDrawContents.isClockwiseFill =
+                drawContents & DrawContents::clockwiseFill;
+            effectiveDrawContents.hasActiveClip =
+                drawContents & DrawContents::activeClip;
+            effectiveDrawContents.isClipUpdate =
+                drawContents & DrawContents::clipUpdate;
+            pipelineState->stencilCompareMask =
+                effectiveDrawContents.hasActiveClip ? 0xff : 0x7f;
             pipelineState->stencilWriteMask =
-                (batch.drawContents & gpu::DrawContents::clockwiseFill)
+                effectiveDrawContents.isClockwiseFill
                     // For clockwise fill, disable clip-bit writes when cleaning
                     // up backward triangles. Clockwise only fills in forward
                     // triangles.
                     ? 0x7f
-                    : (isClipUpdate ? 0xff : 0x7f);
+                    : (effectiveDrawContents.isClipUpdate ? 0xff : 0x7f);
             pipelineState->stencilReference = 0x80;
             pipelineState->stencilFrontOps = {
                 .failOp = StencilOp::decrClamp, // Don't wrap; 0 must stay 0
                                                 // outside the clip.
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::keep,
+                .passOp = effectiveDrawContents.isClipUpdate
+                              ? StencilOp::replace
+                              : StencilOp::keep,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::equal,
             };
             pipelineState->stencilBackOps = {
                 .failOp = StencilOp::keep,
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
+                .passOp = effectiveDrawContents.isClipUpdate
+                              ? StencilOp::replace
+                              : StencilOp::zero,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::less,
             };
+            pipelineState->stencilDoubleSided = true;
+            stencilKey = 4;
             break;
+        }
 
         case DrawType::msaaMidpointFanPathsStencil:
+        {
             // Just stencil the path into the stencil buffer. This is used for
             // nested clip updates and for evenOdd paths.
-            assert(batch.drawContents & (gpu::DrawContents::evenOddFill) ||
-                   (batch.drawContents & gpu::kNestedClipUpdateMask) ==
-                       gpu::kNestedClipUpdateMask);
-            pipelineState->stencilTestEnabled = true;
-            pipelineState->stencilDoubleSided = true;
+            assert(drawContents & (DrawContents::evenOddFill) ||
+                   (drawContents & kNestedClipUpdateMask) ==
+                       kNestedClipUpdateMask);
+            effectiveDrawContents.isEvenOddFill =
+                drawContents & DrawContents::evenOddFill;
+            effectiveDrawContents.hasActiveClip =
+                drawContents & DrawContents::activeClip;
             pipelineState->stencilCompareMask = 0xff;
             pipelineState->stencilWriteMask =
-                (batch.drawContents & gpu::DrawContents::evenOddFill) ? 0x1
-                                                                      : 0x7f;
+                effectiveDrawContents.isEvenOddFill ? 0x1 : 0x7f;
             pipelineState->stencilReference = 0x80;
             // Decrement front-facing triangles so the MSB is set when
             // clockwise.
@@ -944,8 +994,9 @@ static void get_stencil_state(const DrawBatch& batch,
                 .failOp = StencilOp::keep,
                 .passOp = StencilOp::decrWrap,
                 .depthFailOp = StencilOp::keep,
-                .compareOp = hasActiveClip ? StencilCompareOp::lessOrEqual
-                                           : StencilCompareOp::always,
+                .compareOp = effectiveDrawContents.hasActiveClip
+                                 ? StencilCompareOp::lessOrEqual
+                                 : StencilCompareOp::always,
             };
             pipelineState->stencilBackOps = {
                 .failOp = pipelineState->stencilFrontOps.failOp,
@@ -953,36 +1004,46 @@ static void get_stencil_state(const DrawBatch& batch,
                 .depthFailOp = pipelineState->stencilFrontOps.depthFailOp,
                 .compareOp = pipelineState->stencilFrontOps.compareOp,
             };
+            pipelineState->stencilDoubleSided = true;
+            stencilKey = 5;
             break;
+        }
 
         case DrawType::msaaMidpointFanPathsCover:
+        {
             // Draw & reset stencil winding numbers. This is only needed for
             // evenOdd paths.
-            assert(batch.drawContents & gpu::DrawContents::evenOddFill);
-            pipelineState->stencilTestEnabled = true;
-            pipelineState->stencilDoubleSided = false;
+            assert(drawContents & DrawContents::evenOddFill);
+            effectiveDrawContents.isClipUpdate =
+                drawContents & DrawContents::clipUpdate;
             pipelineState->stencilCompareMask = 0x7f;
-            pipelineState->stencilWriteMask = isClipUpdate ? 0xff : 0x1;
+            pipelineState->stencilWriteMask =
+                effectiveDrawContents.isClipUpdate ? 0xff : 0x1;
             pipelineState->stencilReference = 0x80;
             pipelineState->stencilFrontOps = {
                 .failOp = StencilOp::keep,
-                .passOp = isClipUpdate ? StencilOp::replace : StencilOp::zero,
+                .passOp = effectiveDrawContents.isClipUpdate
+                              ? StencilOp::replace
+                              : StencilOp::zero,
                 .depthFailOp = StencilOp::keep,
                 .compareOp = StencilCompareOp::notEqual,
             };
+            pipelineState->stencilDoubleSided = false;
+            stencilKey = 6;
             break;
+        }
 
         case DrawType::msaaStencilClipReset:
-            pipelineState->stencilTestEnabled = true;
-            pipelineState->stencilDoubleSided = false;
-            if ((batch.drawContents & gpu::kNestedClipUpdateMask) ==
-                gpu::kNestedClipUpdateMask)
+        {
+            if ((drawContents & kNestedClipUpdateMask) == kNestedClipUpdateMask)
             {
                 // The nested clip just got stencilled and left in the stencil
                 // buffer. Intersect it with the existing clip. (Erasing regions
                 // of the existing clip that are outside the nested clip.)
+                effectiveDrawContents.isClockwiseFill =
+                    drawContents & DrawContents::clockwiseFill;
                 pipelineState->stencilCompareMask =
-                    (batch.drawContents & gpu::DrawContents::clockwiseFill)
+                    effectiveDrawContents.isClockwiseFill
                         // clockwise: (0x80 & 0xc0) < (stencilValue & 0xc0)
                         //   => "If clipbit is set and winding is negative"
                         //   => "If clipbit is set and winding is clockwise"
@@ -1000,6 +1061,8 @@ static void get_stencil_state(const DrawBatch& batch,
                     .depthFailOp = StencilOp::keep,
                     .compareOp = StencilCompareOp::less,
                 };
+                pipelineState->stencilDoubleSided = false;
+                stencilKey = 7;
             }
             else
             {
@@ -1013,8 +1076,11 @@ static void get_stencil_state(const DrawBatch& batch,
                     .depthFailOp = StencilOp::keep,
                     .compareOp = StencilCompareOp::notEqual,
                 };
+                pipelineState->stencilDoubleSided = false;
+                stencilKey = 8;
             }
             break;
+        }
 
         case DrawType::interiorTriangulation:
         case DrawType::atomicInitialize:
@@ -1024,6 +1090,18 @@ static void get_stencil_state(const DrawBatch& batch,
         case DrawType::outerCurvePatches:
             RIVE_UNREACHABLE();
     }
+
+    assert(stencilKey != 0);
+    assert(stencilKey < 1 << 4);
+    if (effectiveDrawContents.hasActiveClip)
+        stencilKey |= (1 << 4);
+    if (effectiveDrawContents.isClipUpdate)
+        stencilKey |= (1 << 5);
+    if (effectiveDrawContents.isClockwiseFill)
+        stencilKey |= (1 << 6);
+    if (effectiveDrawContents.isEvenOddFill)
+        stencilKey |= (1 << 7);
+    return stencilKey;
 }
 
 static CullFace get_cull_face(DrawType drawType)
@@ -1177,12 +1255,30 @@ void get_pipeline_state(const DrawBatch& batch,
     }
 #endif
 
-    get_depth_state(batch, flushDesc, pipelineState);
-    get_stencil_state(batch, flushDesc, pipelineState);
+    get_depth_state(flushDesc.interlockMode,
+                    batch.drawType,
+                    batch.drawContents,
+                    pipelineState);
+    uint8_t stencilKey = get_stencil_settings(flushDesc.interlockMode,
+                                              batch.drawType,
+                                              batch.drawContents,
+                                              pipelineState);
     pipelineState->cullFace = get_cull_face(batch.drawType);
     pipelineState->blendEquation =
         get_blend_equation(flushDesc, batch, platformFeatures);
     pipelineState->colorWriteEnabled = get_color_writemask(batch);
+
+    // Work out a pipeline key (for backends that cache pipelines objects).
+    uint32_t key = pipelineState->depthTestEnabled;
+    key = (key << 1) | static_cast<uint32_t>(pipelineState->depthWriteEnabled);
+    key = (key << 8) | stencilKey;
+    assert(static_cast<uint32_t>(pipelineState->cullFace) < 1 << 2);
+    key = (key << 2) | static_cast<uint32_t>(pipelineState->cullFace);
+    assert(static_cast<uint32_t>(pipelineState->blendEquation) < 1 << 5);
+    key = (key << 5) | static_cast<uint32_t>(pipelineState->blendEquation);
+    key = (key << 1) | static_cast<uint32_t>(pipelineState->colorWriteEnabled);
+    assert(key < 1 << PipelineState::UNIQUE_KEY_BIT_COUNT);
+    pipelineState->uniqueKey = key;
 }
 
 // Borrowed from:

@@ -50,7 +50,7 @@ using TextureDataLayout = TexelCopyBufferLayout;
 #endif
 
 #ifdef RIVE_WAGYU
-#include "wagyu_extensions.h"
+#include "webgpu_wagyu.h"
 
 #include <sstream>
 
@@ -72,10 +72,11 @@ constexpr static char BASE_INSTANCE_UNIFORM_NAME[] = "nrdp_BaseInstance";
 
 wgpu::ShaderModule compile_shader_module_wagyu(wgpu::Device device,
                                                const char* source,
-                                               WagyuShaderLanguage language)
+                                               WGPUWagyuShaderLanguage language)
 {
     WGPUChainedStruct* chainedShaderModuleDescriptor = nullptr;
-    WagyuShaderModuleDescriptor wagyuDesc = WAGYU_SHADER_MODULE_DESCRIPTOR_INIT;
+    WGPUWagyuShaderModuleDescriptor wagyuDesc =
+        WGPU_WAGYU_SHADER_MODULE_DESCRIPTOR_INIT;
     wagyuDesc.codeSize = strlen(source);
     wagyuDesc.code = source;
     wagyuDesc.language = language;
@@ -166,7 +167,7 @@ public:
         fragmentShader =
             compile_shader_module_wagyu(context->m_device,
                                         glsl.str().c_str(),
-                                        WagyuShaderLanguage_GLSLRAW);
+                                        WGPUWagyuShaderLanguage_GLSLRAW);
 
         wgpu::ColorTargetState colorTargetState = {
             .format = framebufferFormat,
@@ -368,7 +369,7 @@ public:
             vertexShader =
                 compile_shader_module_wagyu(device,
                                             vertexGLSL.str().c_str(),
-                                            WagyuShaderLanguage_GLSL);
+                                            WGPUWagyuShaderLanguage_GLSL);
         }
         else
 #endif
@@ -514,7 +515,7 @@ public:
             vertexShader =
                 compile_shader_module_wagyu(device,
                                             vertexGLSL.str().c_str(),
-                                            WagyuShaderLanguage_GLSL);
+                                            WGPUWagyuShaderLanguage_GLSL);
         }
         else
 #endif
@@ -628,7 +629,7 @@ public:
             plsType == PixelLocalStorageType::EXT_shader_pixel_local_storage ||
             contextOptions.disableStorageBuffers)
         {
-            WagyuShaderLanguage language;
+            WGPUWagyuShaderLanguage language;
             const char* versionString;
             std::ostringstream glsl;
             auto addDefine = [&glsl](const char* name) {
@@ -637,7 +638,7 @@ public:
             if (plsType ==
                 PixelLocalStorageType::EXT_shader_pixel_local_storage)
             {
-                language = WagyuShaderLanguage_GLSLRAW;
+                language = WGPUWagyuShaderLanguage_GLSLRAW;
                 versionString = "#version 310 es";
                 if (context->m_contextOptions.invertRenderTargetY)
                 {
@@ -648,7 +649,7 @@ public:
             }
             else
             {
-                language = WagyuShaderLanguage_GLSL;
+                language = WGPUWagyuShaderLanguage_GLSL;
                 versionString = "#version 460";
                 addDefine(GLSL_TARGET_VULKAN);
             }
@@ -1211,8 +1212,8 @@ void RenderContextWebGPUImpl::initGPUObjects()
         m_contextOptions.plsType == PixelLocalStorageType::subpassLoad;
     if (needsInputAttachmentBindings)
     {
-        WagyuInputTextureBindingLayout inputAttachmentLayout =
-            WAGYU_INPUT_TEXTURE_BINDING_LAYOUT_INIT;
+        WGPUWagyuInputTextureBindingLayout inputAttachmentLayout =
+            WGPU_WAGYU_INPUT_TEXTURE_BINDING_LAYOUT_INIT;
         inputAttachmentLayout.viewDimension = WGPUTextureViewDimension_2D;
 
         WGPUBindGroupLayoutEntry inputAttachments[4];
@@ -1276,7 +1277,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
         m_loadStoreEXTVertexShader =
             compile_shader_module_wagyu(m_device,
                                         glsl.str().c_str(),
-                                        WagyuShaderLanguage_GLSLRAW);
+                                        WGPUWagyuShaderLanguage_GLSLRAW);
         m_loadStoreEXTUniforms = makeUniformBufferRing(sizeof(float) * 4);
     }
 #endif
@@ -1393,8 +1394,8 @@ RenderTargetWebGPU::RenderTargetWebGPU(
         RenderContextWebGPUImpl::PixelLocalStorageType::subpassLoad)
     {
         desc.usage |= static_cast<wgpu::TextureUsage>(
-            WagyuTextureUsage_InputAttachment |
-            WagyuTextureUsage_TransientAttachment);
+            WGPUTextureUsage_WagyuInputAttachment |
+            WGPUTextureUsage_WagyuTransientAttachment);
     }
 #endif
 
@@ -1633,7 +1634,7 @@ void RenderContextWebGPUImpl::generateMipmaps(wgpu::Texture texture)
     wgpu::CommandEncoder mipEncoder = m_device.CreateCommandEncoder();
 
 #ifdef RIVE_WAGYU
-    wagyuCommandEncoderGenerateMipmap(mipEncoder.Get(), texture.Get());
+    wgpuWagyuCommandEncoderGenerateMipmap(mipEncoder.Get(), texture.Get());
 #else
     // Generate the mipmaps manually by drawing each layer.
     if (m_blitTextureAsDrawPipeline == nullptr)
@@ -2089,10 +2090,11 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
 
     WGPUChainedStruct* extraColorTargetState = nullptr;
 #ifdef RIVE_WAGYU
-    WagyuColorTargetState wagyuColorTargetState = WAGYU_COLOR_TARGET_STATE_INIT;
+    WGPUWagyuColorTargetState wagyuColorTargetState =
+        WGPU_WAGYU_COLOR_TARGET_STATE_INIT;
     if (m_contextOptions.plsType == PixelLocalStorageType::subpassLoad)
     {
-        // Wagyu needs us to tell it when color attachments are also used as
+        // WGPUWagyu needs us to tell it when color attachments are also used as
         // input attachments.
         // TODO: finish input attachments.
         // wagyuColorTargetState.usedAsInput = true;
@@ -2144,11 +2146,11 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     };
 
 #ifdef RIVE_WAGYU
-    WagyuFragmentState wagyuFragmentState = WAGYU_FRAGMENT_STATE_INIT;
+    WGPUWagyuFragmentState wagyuFragmentState = WGPU_WAGYU_FRAGMENT_STATE_INIT;
     if (m_contextOptions.plsType == PixelLocalStorageType::subpassLoad)
     {
         wagyuFragmentState.featureFlags =
-            WagyuFragmentStateFeaturesFlags_RasterizationOrderAttachmentAccess;
+            WGPUWagyuFragmentStateFeaturesFlags_RasterizationOrderAttachmentAccess;
         fragmentState.nextInChain = &wagyuFragmentState.chain;
     }
 #endif
@@ -2241,7 +2243,7 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
     };
 
 #ifdef RIVE_WAGYU
-    WagyuRenderPassInputAttachment inputAttachments[] = {
+    WGPUWagyuRenderPassInputAttachment inputAttachments[] = {
         {.view = renderTarget->m_targetTextureView.Get()},
         {.view = renderTarget->m_clipTextureView.Get()},
         {.view = renderTarget->m_scratchColorTextureView.Get()},
@@ -2252,8 +2254,8 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
 
-    WagyuRenderPassDescriptor wagyuRenderPassDescriptor =
-        WAGYU_RENDER_PASS_DESCRIPTOR_INIT;
+    WGPUWagyuRenderPassDescriptor wagyuRenderPassDescriptor =
+        WGPU_WAGYU_RENDER_PASS_DESCRIPTOR_INIT;
     if (m_contextOptions.plsType == PixelLocalStorageType::subpassLoad)
     {
         wagyuRenderPassDescriptor.inputAttachmentCount =
@@ -2640,8 +2642,9 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     if (m_contextOptions.plsType ==
         PixelLocalStorageType::EXT_shader_pixel_local_storage)
     {
-        wagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(drawPass.Get(),
-                                                                true);
+        wgpuWagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(
+            drawPass.Get(),
+            true);
 
         // Draw the load action for EXT_shader_pixel_local_storage.
         std::array<float, 4> clearColor;
@@ -2837,8 +2840,9 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             storePipeline->renderPipeline(renderTarget->framebufferFormat()));
         drawPass.Draw(4);
 
-        wagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(drawPass.Get(),
-                                                                false);
+        wgpuWagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(
+            drawPass.Get(),
+            false);
     }
 #endif
 

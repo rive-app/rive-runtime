@@ -186,8 +186,10 @@ std::tuple<vkb::Device, rive::gpu::VulkanFeatures> select_device(
 
     physicalDevice.enable_features_if_present({
         .independentBlend = featureSet != FeatureSet::coreOnly,
-        .fillModeNonSolid = VK_TRUE,
+        .fillModeNonSolid = VK_TRUE, // Wireframe is a debug feature, so leave
+                                     // it on even for "core features" mode.
         .fragmentStoresAndAtomics = VK_TRUE,
+        .shaderClipDistance = featureSet != FeatureSet::coreOnly,
     });
 
     rive::gpu::VulkanFeatures riveVulkanFeatures = {
@@ -197,6 +199,8 @@ std::tuple<vkb::Device, rive::gpu::VulkanFeatures> select_device(
             static_cast<bool>(physicalDevice.features.fillModeNonSolid),
         .fragmentStoresAndAtomics =
             static_cast<bool>(physicalDevice.features.fragmentStoresAndAtomics),
+        .shaderClipDistance =
+            static_cast<bool>(physicalDevice.features.shaderClipDistance),
     };
 
     if (featureSet != FeatureSet::coreOnly &&

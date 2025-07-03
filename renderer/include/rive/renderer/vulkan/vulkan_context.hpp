@@ -22,6 +22,7 @@ struct VulkanFeatures
     bool independentBlend = false;
     bool fillModeNonSolid = false;
     bool fragmentStoresAndAtomics = false;
+    bool shaderClipDistance = false;
 
     // EXT_rasterization_order_attachment_access.
     bool rasterizationOrderColorAttachmentAccess = false;

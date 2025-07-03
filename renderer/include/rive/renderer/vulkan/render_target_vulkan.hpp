@@ -62,8 +62,8 @@ protected:
     vkutil::Texture2D* coverageAtomicTexture();
 
     // InterlockMode::msaa.
-    vkutil::Texture2D* depthStencilTexture();
-    vkutil::ImageView* depthStencilTextureView();
+    vkutil::Texture2D* msaaColorTexture();
+    vkutil::Texture2D* msaaDepthStencilTexture();
 
     const rcp<VulkanContext> m_vk;
     const VkFormat m_framebufferFormat;
@@ -83,7 +83,8 @@ protected:
     rcp<vkutil::Texture2D> m_coverageAtomicTexture;
 
     // InterlockMode::msaa.
-    rcp<vkutil::Texture2D> m_depthStencilTexture;
+    rcp<vkutil::Texture2D> m_msaaColorTexture;
+    rcp<vkutil::Texture2D> m_msaaDepthStencilTexture;
 };
 
 class RenderTargetVulkanImpl : public RenderTargetVulkan

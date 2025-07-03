@@ -63,12 +63,12 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
             make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
             imageDrawUniforms.clipRectInverseTranslate,
             vertexPosition);
-#else  // RENDER_MODE_MSAA
+#else
         set_clip_rect_plane_distances(
             make_float2x2(imageDrawUniforms.clipRectInverseMatrix),
             imageDrawUniforms.clipRectInverseTranslate,
             vertexPosition);
-#endif // RENDER_MODE_MSAA
+#endif
     }
 #endif // ENABLE_CLIP_RECT
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
@@ -90,10 +90,8 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @FRAGMENT
 FRAG_TEXTURE_BLOCK_BEGIN
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-#ifdef @RENDER_MODE_MSAA
-#ifdef @ENABLE_ADVANCED_BLEND
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
-#endif
+#if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_ADVANCED_BLEND)
+DST_COLOR_TEXTURE(@dstColorTexture);
 #endif
 FRAG_TEXTURE_BLOCK_END
 
@@ -172,7 +170,7 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     EMIT_PLS;
 }
 
-#else // RENDER_MODE_MSAA
+#else // !@RENDER_MODE_MSAA => @RENDER_MODE_MSAA
 
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
@@ -182,12 +180,11 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
         TEXTURE_SAMPLE_DYNAMIC(@imageTexture, imageSampler, v_texCoord) *
         imageDrawUniforms.opacity;
 
-#ifdef @ENABLE_ADVANCED_BLEND
+#if defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
     if (@ENABLE_ADVANCED_BLEND)
     {
         // Do the color portion of the blend mode in the shader.
-        half4 dstColorPremul =
-            TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
+        half4 dstColorPremul = DST_COLOR_FETCH(@dstColorTexture);
         color.rgb = advanced_color_blend(unmultiply_rgb(color),
                                          dstColorPremul,
                                          imageDrawUniforms.blendMode);
@@ -195,10 +192,10 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
         // finish the the the alpha portion of the blend mode.
         color.rgb *= color.a;
     }
-#endif // !ENABLE_ADVANCED_BLEND
+#endif // @ENABLE_ADVANCED_BLEND && !@FIXED_FUNCTION_COLOR_OUTPUT
 
     EMIT_FRAG_DATA(color);
 }
 
-#endif // RENDER_MODE_MSAA
+#endif // @RENDER_MODE_MSAA
 #endif // FRAGMENT

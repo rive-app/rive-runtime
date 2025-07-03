@@ -145,6 +145,12 @@
     layout(set = SET, binding = IDX) uniform mediump texture2D NAME
 #define TEXTURE_R16F(SET, IDX, NAME)                                           \
     layout(binding = IDX) uniform mediump texture2D NAME
+#if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA)
+#define DST_COLOR_TEXTURE(NAME)                                                \
+    layout(input_attachment_index = 0,                                         \
+           binding = COLOR_PLANE_IDX,                                          \
+           set = PLS_TEXTURE_BINDINGS_SET) uniform lowp subpassInputMS NAME
+#endif // @FRAGMENT && @RENDER_MODE_MSAA
 #elif @GLSL_VERSION >= 310
 #define TEXTURE_RGBA32UI(SET, IDX, NAME)                                       \
     layout(binding = IDX) uniform highp usampler2D NAME
@@ -154,11 +160,15 @@
     layout(binding = IDX) uniform mediump sampler2D NAME
 #define TEXTURE_R16F(SET, IDX, NAME)                                           \
     layout(binding = IDX) uniform mediump sampler2D NAME
+#define DST_COLOR_TEXTURE(NAME)                                                \
+    TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, NAME)
 #else
 #define TEXTURE_RGBA32UI(SET, IDX, NAME) uniform highp usampler2D NAME
 #define TEXTURE_RGBA32F(SET, IDX, NAME) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(SET, IDX, NAME) uniform mediump sampler2D NAME
 #define TEXTURE_R16F(SET, IDX, NAME) uniform mediump sampler2D NAME
+#define DST_COLOR_TEXTURE(NAME)                                                \
+    TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, NAME)
 #endif
 
 #ifdef @TARGET_VULKAN
@@ -176,7 +186,15 @@
     textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
-#else
+#if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA)
+#extension GL_OES_sample_variables : require
+#define DST_COLOR_FETCH(NAME)                                                  \
+    dst_color_fetch(mat4(subpassLoad(NAME, 0),                                 \
+                         subpassLoad(NAME, 1),                                 \
+                         subpassLoad(NAME, 2),                                 \
+                         subpassLoad(NAME, 3)))
+#endif // @FRAGMENT && @RENDER_MODE_MSAA
+#else  // @TARGET_VULKAN -> !@TARGET_VULKAN
 // SAMPLER_LINEAR and SAMPLER_MIPMAP are no-ops because in GL, sampling
 // parameters are API-level state tied to the texture.
 #define SAMPLER_LINEAR(TEXTURE_IDX, NAME)
@@ -187,6 +205,7 @@
     textureLod(NAME, COORD, LOD)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(NAME, COORD, DDX, DDY)
+#define DST_COLOR_FETCH(NAME) texelFetch(NAME, ivec2(floor(_fragCoord.xy)), 0)
 #endif // !@TARGET_VULKAN
 
 #define TEXTURE_SAMPLE_DYNAMIC(TEXTURE, SAMPLER_NAME, COORD)                   \
@@ -587,8 +606,10 @@ INLINE half4 unpackUnorm4x8(uint u)
 }
 #endif
 
+// The Qualcomm compiler can't handle line breaks in #ifs.
 // clang-format off
 #if @GLSL_VERSION >= 310 && defined(@VERTEX) && defined(@RENDER_MODE_MSAA) && defined(@ENABLE_CLIP_RECT)
+// clang-format on
 out gl_PerVertex
 {
     // Redeclare gl_ClipDistance with exactly 4 clip planes.
@@ -596,4 +617,33 @@ out gl_PerVertex
     float4 gl_Position;
 };
 #endif
+
+// The Qualcomm compiler can't handle line breaks in #ifs.
+// clang-format off
+#if defined(@TARGET_VULKAN) && defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
 // clang-format on
+half4 dst_color_fetch(mediump mat4 dstSamples)
+{
+    if (gl_SampleMaskIn[0] == 0xf)
+    {
+        // Average together all samples for this fragment.
+        return (dstSamples[0] + dstSamples[1] + dstSamples[2] + dstSamples[3]) *
+               .25;
+    }
+    else
+    {
+        // Average together only the samples that are inside the sample mask.
+        half4 mask =
+            vec4(notEqual(gl_SampleMaskIn[0] & ivec4(1, 2, 4, 8), ivec4(0)));
+        half4 ret = dstSamples * mask;
+        // Since the sample mask can only have 4 bits, counting them is faster
+        // this way on Galaxy S24 than calling bitCount().
+        int numSamples =
+            (gl_SampleMaskIn[0] & 5) + ((gl_SampleMaskIn[0] >> 1) & 5);
+        numSamples = (numSamples & 3) + (numSamples >> 2);
+        ret *= 1. / float(numSamples);
+        return ret;
+    }
+}
+#endif // @TARGET_VULKAN && @FRAGMENT && @RENDER_MODE_MSAA &&
+       // !@FIXED_FUNCTION_COLOR_OUTPUT

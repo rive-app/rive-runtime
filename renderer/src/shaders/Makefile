@@ -158,6 +158,10 @@ SPIRV_OUTPUTS_HEADERS := \
     $(OUT)/spirv/atomic_draw_atlas_blit.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.h \
     $(OUT)/spirv/atomic_resolve.fixedcolor_frag.h \
+    $(OUT)/spirv/draw_msaa_atlas_blit.fixedcolor_frag.h \
+    $(OUT)/spirv/draw_msaa_image_mesh.fixedcolor_frag.h \
+    $(OUT)/spirv/draw_msaa_path.fixedcolor_frag.h \
+    $(OUT)/spirv/draw_msaa_stencil.fixedcolor_frag.h \
     $(OUT)/spirv/draw_path.webgpu_vert.h \
     $(OUT)/spirv/draw_path.webgpu_frag.h \
     $(OUT)/spirv/draw_interior_triangles.webgpu_vert.h \
@@ -177,6 +181,10 @@ SPIRV_OUTPUTS_BINARY := \
     $(OUT)/spirv/atomic_draw_atlas_blit.fixedcolor_frag.spirv \
     $(OUT)/spirv/atomic_draw_path.fixedcolor_frag.spirv \
     $(OUT)/spirv/atomic_resolve.fixedcolor_frag.spirv \
+    $(OUT)/spirv/draw_msaa_atlas_blit.fixedcolor_frag.spirv \
+    $(OUT)/spirv/draw_msaa_image_mesh.fixedcolor_frag.spirv \
+    $(OUT)/spirv/draw_msaa_path.fixedcolor_frag.spirv \
+    $(OUT)/spirv/draw_msaa_stencil.fixedcolor_frag.spirv
 
 ## Compile *.main into vertex shaders. First rule generates the binary spirv, then the .h file after.
 $(OUT)/spirv/%.vert.spirv: spirv/%.main $(MINIFY_STAMP)

@@ -78,6 +78,7 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_atlas_blit.frag.spirv",
         riveSpirvPath / "draw_image_mesh.vert.spirv",
         riveSpirvPath / "draw_image_mesh.frag.spirv",
+
         riveSpirvPath / "atomic_draw_path.vert.spirv",
         riveSpirvPath / "atomic_draw_path.frag.spirv",
         riveSpirvPath / "atomic_draw_path.fixedcolor_frag.spirv",
@@ -98,6 +99,7 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "atomic_resolve.fixedcolor_frag.spirv",
         riveSpirvPath / "atomic_resolve_coalesced.vert.spirv",
         riveSpirvPath / "atomic_resolve_coalesced.frag.spirv",
+
         riveSpirvPath / "draw_clockwise_path.vert.spirv",
         riveSpirvPath / "draw_clockwise_path.frag.spirv",
         riveSpirvPath / "draw_clockwise_interior_triangles.vert.spirv",
@@ -106,6 +108,19 @@ rive::Span<const uint32_t> loadNewShaderFileData()
         riveSpirvPath / "draw_clockwise_atlas_blit.frag.spirv",
         riveSpirvPath / "draw_clockwise_image_mesh.vert.spirv",
         riveSpirvPath / "draw_clockwise_image_mesh.frag.spirv",
+
+        riveSpirvPath / "draw_msaa_path.vert",
+        riveSpirvPath / "draw_msaa_path.frag",
+        riveSpirvPath / "draw_msaa_path.fixedcolor_frag",
+        riveSpirvPath / "draw_msaa_stencil.vert",
+        riveSpirvPath / "draw_msaa_stencil.frag",
+        riveSpirvPath / "draw_msaa_stencil.fixedcolor_frag",
+        riveSpirvPath / "draw_msaa_atlas_blit.vert",
+        riveSpirvPath / "draw_msaa_atlas_blit.frag",
+        riveSpirvPath / "draw_msaa_atlas_blit.fixedcolor_frag",
+        riveSpirvPath / "draw_msaa_image_mesh.vert",
+        riveSpirvPath / "draw_msaa_image_mesh.frag",
+        riveSpirvPath / "draw_msaa_image_mesh.fixedcolor_frag",
     };
     constexpr size_t numFiles = std::size(spirvFileNames);
 

@@ -207,6 +207,7 @@ public:
                               ? gpu::LoadAction::clear
                               : gpu::LoadAction::preserveRenderTarget,
             .clearColor = options.clearColor,
+            .msaaSampleCount = m_backendParams.msaa ? 4 : 0,
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride =

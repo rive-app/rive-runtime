@@ -127,6 +127,11 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     {
         return Backend::vk;
     }
+    if (nameStr == "vulkanmsaa" || nameStr == "vkmsaa")
+    {
+        params->msaa = true;
+        return Backend::vk;
+    }
     if (nameStr == "vulkancore" || nameStr == "vkcore")
     {
         return Backend::vk;

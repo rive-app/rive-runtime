@@ -108,7 +108,7 @@ constexpr static uint32_t kGradTextureWidthInSimpleRamps =
 // Depth/stencil parameters
 constexpr static float DEPTH_MIN = 0.0f;
 constexpr static float DEPTH_MAX = 1.0f;
-constexpr static uint32_t STENCIL_CLEAR = 0u;
+constexpr static uint8_t STENCIL_CLEAR = 0u;
 
 // Backend-specific capabilities/workarounds and fine tunin// g.
 struct PlatformFeatures
@@ -1052,7 +1052,7 @@ struct FlushDescriptor
     ColorInt colorClearValue = 0; // When loadAction == LoadAction::clear.
     uint32_t coverageClearValue = 0;
     float depthClearValue = DEPTH_MAX;
-    ColorInt stencilClearValue = STENCIL_CLEAR;
+    uint8_t stencilClearValue = STENCIL_CLEAR;
 
     IAABB renderTargetUpdateBounds; // drawBounds, or renderTargetBounds if
                                     // loadAction == LoadAction::clear.
@@ -1654,21 +1654,29 @@ enum class BlendEquation : uint8_t
     luminosity = static_cast<int>(rive::BlendMode::luminosity),
 };
 
-// Common pipeline state that applies to every low-level draw and every backend.
+// Common pipeline state that applies to every Rive draw and every backend.
 struct PipelineState
 {
+    // Depth.
     bool depthTestEnabled;
     bool depthWriteEnabled;
+
+    // Stencil.
     bool stencilTestEnabled;
-    bool stencilDoubleSided;
     uint8_t stencilCompareMask;
     uint8_t stencilWriteMask;
     uint8_t stencilReference;
     StencilFaceOps stencilFrontOps;
     StencilFaceOps stencilBackOps;
+    bool stencilDoubleSided; // If true, use stencilFrontOps for both faces.
+
     CullFace cullFace;
     BlendEquation blendEquation;
     bool colorWriteEnabled;
+
+    // 18-bit key that uniquely identifies the pipeline state.
+    constexpr static int UNIQUE_KEY_BIT_COUNT = 18;
+    uint32_t uniqueKey;
 };
 
 void get_pipeline_state(const DrawBatch&,

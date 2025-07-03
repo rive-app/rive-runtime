@@ -60,8 +60,11 @@ TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
 TEXTURE_R16F(PER_DRAW_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
 #endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
-#if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_ADVANCED_BLEND)
-TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, @dstColorTexture);
+// The Qualcomm compiler can't handle line breaks in #ifs.
+// clang-format off
+#if defined(@RENDER_MODE_MSAA) && defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
+// clang-format on
+DST_COLOR_TEXTURE(@dstColorTexture);
 #endif
 FRAG_TEXTURE_BLOCK_END
 

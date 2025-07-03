@@ -194,13 +194,14 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
             find_clip_rect_coverage_distances(clipRectInverseMatrix,
                                               clipRectInverseTranslate.xy,
                                               fragCoord);
-#else  // @RENDER_MODE_MSAA
+#else  // !@RENDER_MODE_MSAA => @RENDER_MODE_MSAA
         set_clip_rect_plane_distances(clipRectInverseMatrix,
                                       clipRectInverseTranslate.xy,
                                       fragCoord);
 #endif // @RENDER_MODE_MSAA
     }
 #endif // ENABLE_CLIP_RECT
+       // #endif // TARGET_VULKAN
 
     // Unpack the paint once we have a position.
     if (paintType == SOLID_COLOR_PAINT_TYPE)
@@ -648,7 +649,7 @@ PLS_MAIN(@drawFragmentMain)
     EMIT_PLS;
 }
 
-#else // @RENDER_MODE_MSAA
+#else // !@RENDER_MODE_MSAA => @RENDER_MODE_MSAA
 
 FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
@@ -670,7 +671,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 #endif
     half4 color = find_paint_color(v_paint, coverage FRAGMENT_CONTEXT_UNPACK);
 
-#ifdef @ENABLE_ADVANCED_BLEND
+#if defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
     if (@ENABLE_ADVANCED_BLEND)
     {
         // Do the color portion of the blend mode in the shader.
@@ -678,8 +679,7 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
         // NOTE: "color" is already unmultiplied because
         // GENERATE_PREMULTIPLIED_PAINT_COLORS is false when using advanced
         // blend.
-        half4 dstColorPremul =
-            TEXEL_FETCH(@dstColorTexture, int2(floor(_fragCoord.xy)));
+        half4 dstColorPremul = DST_COLOR_FETCH(@dstColorTexture);
         color.rgb = advanced_color_blend(color.rgb,
                                          dstColorPremul,
                                          cast_half_to_ushort(v_blendMode));
@@ -687,10 +687,10 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
         // finish the the the alpha portion of the blend mode.
         color.rgb *= color.a;
     }
-#endif // ENABLE_ADVANCED_BLEND
+#endif // @ENABLE_ADVANCED_BLEND && !@FIXED_FUNCTION_COLOR_OUTPUT
     EMIT_FRAG_DATA(color);
 }
 
-#endif // !RENDER_MODE_MSAA
+#endif // @RENDER_MODE_MSAA
 
 #endif // FRAGMENT
