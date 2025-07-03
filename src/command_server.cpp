@@ -519,6 +519,7 @@ bool CommandServer::processCommands()
                                        m_fileAssetLoader);
                 if (file != nullptr)
                 {
+                    m_fileDependencies[handle] = {};
                     m_files[handle] = std::move(file);
 
                     std::unique_lock<std::mutex> messageLock(
@@ -546,6 +547,17 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 lock.unlock();
                 m_files.erase(handle);
+                auto itr = m_fileDependencies.find(handle);
+                if (itr != m_fileDependencies.end())
+                {
+                    auto& artboardVector = itr->second;
+                    for (auto artboardHandle : artboardVector)
+                    {
+                        cleanupArtboard(artboardHandle, requestId);
+                    }
+
+                    m_fileDependencies.erase(itr);
+                }
                 std::unique_lock<std::mutex> messageLock(
                     m_commandQueue->m_messageMutex);
                 messageStream << CommandQueue::Message::fileDeleted;
@@ -705,6 +717,10 @@ bool CommandServer::processCommands()
                                             ? file->artboardDefault()
                                             : file->artboardNamed(name))
                     {
+                        assert(m_fileDependencies.find(fileHandle) !=
+                               m_fileDependencies.end());
+                        m_fileDependencies[fileHandle].push_back(handle);
+                        m_artboardDependencies[handle] = {};
                         m_artboards[handle] = std::move(artboard);
                     }
                     else
@@ -736,12 +752,9 @@ bool CommandServer::processCommands()
                 commandStream >> handle;
                 commandStream >> requestId;
                 lock.unlock();
-                m_artboards.erase(handle);
-                std::unique_lock<std::mutex> messageLock(
-                    m_commandQueue->m_messageMutex);
-                messageStream << CommandQueue::Message::artboardDeleted;
-                messageStream << handle;
-                messageStream << requestId;
+                cleanupArtboard(handle, requestId);
+                // We don't remove from the file dependencies here because
+                // calling erase on a non existent key is fine.
                 break;
             }
 
@@ -1317,6 +1330,10 @@ bool CommandServer::processCommands()
                                          : artboard->stateMachineNamed(name))
                     {
                         m_stateMachines[handle] = std::move(stateMachine);
+                        assert(m_artboardDependencies.find(artboardHandle) !=
+                               m_artboardDependencies.end());
+                        m_artboardDependencies[artboardHandle].push_back(
+                            handle);
                     }
                     else
                     {
@@ -1438,6 +1455,8 @@ bool CommandServer::processCommands()
                 messageStream << CommandQueue::Message::stateMachineDeleted;
                 messageStream << handle;
                 messageStream << requestId;
+                // We don't remove from the artboard dependencies here because
+                // calling erase on a non existent key is fine.
                 break;
             }
 

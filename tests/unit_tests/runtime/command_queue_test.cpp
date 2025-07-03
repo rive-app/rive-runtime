@@ -106,11 +106,11 @@ TEST_CASE("artboard management", "[CommandQueue]")
         CHECK(server->getArtboardInstance(artboardHandle3) == nullptr);
     });
 
-    // Deleting the file first still works.
+    // Deleting the file first should now delete the artboard as well.
     commandQueue->deleteFile(fileHandle);
     commandQueue->runOnce([fileHandle, artboardHandle1](CommandServer* server) {
         CHECK(server->getFile(fileHandle) == nullptr);
-        CHECK(server->getArtboardInstance(artboardHandle1) != nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle1) == nullptr);
     });
 
     commandQueue->deleteArtboard(artboardHandle1);
@@ -164,7 +164,9 @@ TEST_CASE("state machine management", "[CommandQueue]")
             CHECK(server->getFile(fileHandle) == nullptr);
             CHECK(server->getArtboardInstance(artboardHandle) == nullptr);
             CHECK(server->getStateMachineInstance(sm1) == nullptr);
-            CHECK(server->getStateMachineInstance(sm2) != nullptr);
+            // Because of the dependencies, this should delete the statemachine
+            // as well.
+            CHECK(server->getStateMachineInstance(sm2) == nullptr);
         });
 
     commandQueue->deleteStateMachine(sm2);
@@ -4078,8 +4080,8 @@ TEST_CASE("global Listener", "[CommandQueue]")
     commandQueue->advanceStateMachine(stateMachineHandle, 1, 16);
 
     commandQueue->deleteFont(font, 10);
-    commandQueue->deleteArtboard(artboardHandle, 12);
     commandQueue->deleteStateMachine(stateMachineHandle, 17);
+    commandQueue->deleteArtboard(artboardHandle, 12);
     commandQueue->deleteViewModelInstance(viewModel, 15);
     commandQueue->deleteImage(renderImage, 8);
     commandQueue->deleteFile(fileHandle, 7);
@@ -4110,6 +4112,102 @@ TEST_CASE("global Listener", "[CommandQueue]")
     CHECK_CALLBACK(globalFontListener, onFontDeleted);
     CHECK_CALLBACK(globalAudioSourceListener, onAudioSourceDeleted);
     CHECK_CALLBACK(globalRenderImageListener, onRenderImageDeleted);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+// StateMachines depend on Artboards and Artboards depend on Files.
+// So if an artboard gets deleted so should the statemachines assosiated with
+// it. If a file is deleted so should artboards and therefore statemachines.
+
+TEST_CASE("dependency lifetime management", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    std::ifstream stream("assets/data_bind_test_cmdq.riv", std::ios::binary);
+    FileHandle fileHandle = commandQueue->loadFile(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(stream), {}),
+        nullptr,
+        1);
+
+    auto artboardHandle = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto artboardHandle2 = commandQueue->instantiateDefaultArtboard(fileHandle);
+    auto artboardHandle3 = commandQueue->instantiateDefaultArtboard(fileHandle);
+
+    auto stateMachine =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle);
+    auto stateMachine_2 =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle);
+
+    auto stateMachine2 =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle2);
+    auto stateMachine2_2 =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle2);
+
+    auto stateMachine3 =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle2);
+    auto stateMachine3_2 =
+        commandQueue->instantiateDefaultStateMachine(artboardHandle2);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->getFile(fileHandle) != nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle) != nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle2) != nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle3) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine_2) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine2) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine2_2) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine3) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine3_2) != nullptr);
+    });
+
+    commandQueue->deleteArtboard(artboardHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->getFile(fileHandle) != nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle) == nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle2) != nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle3) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine_2) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine2) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine2_2) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine3) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine3_2) != nullptr);
+    });
+
+    commandQueue->deleteStateMachine(stateMachine2);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->getFile(fileHandle) != nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle) == nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle2) != nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle3) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine_2) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine2) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine2_2) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine3) != nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine3_2) != nullptr);
+    });
+
+    commandQueue->deleteFile(fileHandle);
+
+    commandQueue->runOnce([&](CommandServer* server) {
+        CHECK(server->getFile(fileHandle) == nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle) == nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle2) == nullptr);
+        CHECK(server->getArtboardInstance(artboardHandle3) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine_2) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine2) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine2_2) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine3) == nullptr);
+        CHECK(server->getStateMachineInstance(stateMachine3_2) == nullptr);
+    });
 
     commandQueue->disconnect();
     serverThread.join();

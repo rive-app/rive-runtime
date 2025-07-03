@@ -127,6 +127,39 @@ private:
     Vec2D cursorPosForPointerEvent(StateMachineInstance*,
                                    const CommandQueue::PointerEvent&);
 
+    void cleanupArtboard(ArtboardHandle handle, uint64_t requestId)
+    {
+        auto itr = m_artboards.find(handle);
+        if (itr != m_artboards.end())
+        {
+            auto dependencyItr = m_artboardDependencies.find(handle);
+            if (dependencyItr != m_artboardDependencies.end())
+            {
+                auto& stateMachineVector = dependencyItr->second;
+                for (auto stateMachine : stateMachineVector)
+                {
+                    if (m_stateMachines.erase(stateMachine) > 0)
+                    {
+                        std::unique_lock<std::mutex> lock(
+                            m_commandQueue->m_messageMutex);
+                        m_commandQueue->m_messageStream
+                            << CommandQueue::Message::stateMachineDeleted;
+                        m_commandQueue->m_messageStream << stateMachine;
+                        m_commandQueue->m_messageStream << requestId;
+                    }
+                }
+
+                m_artboardDependencies.erase(dependencyItr);
+            }
+            m_artboards.erase(itr);
+            std::unique_lock<std::mutex> lock(m_commandQueue->m_messageMutex);
+            m_commandQueue->m_messageStream
+                << CommandQueue::Message::artboardDeleted;
+            m_commandQueue->m_messageStream << handle;
+            m_commandQueue->m_messageStream << requestId;
+        }
+    }
+
     bool m_wasDisconnectReceived = false;
     const rcp<CommandQueue> m_commandQueue;
     Factory* const m_factory;
@@ -138,6 +171,18 @@ private:
     // because we iterate through the entire vector every frame anyway.
     std::vector<Subscription> m_propertySubscriptions;
 
+    // Dependencies
+    // When a file gets deleted artboards and statemachine become invalid. Here
+    // we hold a reference to the artboard only because that artboard has a
+    // dependency to the State Machine.
+    std::unordered_map<FileHandle, std::vector<ArtboardHandle>>
+        m_fileDependencies;
+    // When an artboard gets deleted the statemachine assosiated with it is also
+    // now invalid.
+    std::unordered_map<ArtboardHandle, std::vector<StateMachineHandle>>
+        m_artboardDependencies;
+
+    // Handle Maps
     std::unordered_map<FileHandle, std::unique_ptr<File>> m_files;
     std::unordered_map<FontHandle, rcp<Font>> m_fonts;
     std::unordered_map<RenderImageHandle, rcp<RenderImage>> m_images;
