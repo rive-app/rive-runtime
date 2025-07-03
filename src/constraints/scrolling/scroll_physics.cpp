@@ -8,18 +8,18 @@ using namespace rive;
 void ScrollPhysics::accumulate(Vec2D delta, float timeStamp)
 {
     float elapsedSeconds = 0;
-#if defined(WITH_RIVE_TOOLS) && !defined(TESTING)
-    auto now = timeStamp;
-    elapsedSeconds = now - m_lastTime;
-    m_lastTime = now;
-#else
+    // #if defined(WITH_RIVE_TOOLS) && !defined(TESTING)
+    //     auto now = timeStamp;
+    //     elapsedSeconds = now - m_lastTime;
+    //     m_lastTime = now;
+    // #else
     auto now = std::chrono::high_resolution_clock::now();
     auto ms = std::chrono::duration_cast<std::chrono::microseconds>(
                   now.time_since_epoch())
                   .count();
     elapsedSeconds = (float)(ms - m_lastTime) / 1000000.0f;
     m_lastTime = ms;
-#endif
+    // #endif
     if (elapsedSeconds > 0)
     {
         auto lastSpeed = m_speed;
