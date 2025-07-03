@@ -4,10 +4,12 @@
 #include "rive/animation/transition_value_string_comparator.hpp"
 #include "rive/animation/transition_value_color_comparator.hpp"
 #include "rive/animation/transition_value_boolean_comparator.hpp"
+#include "rive/animation/transition_value_asset_comparator.hpp"
 #include "rive/animation/transition_value_enum_comparator.hpp"
 #include "rive/animation/transition_value_trigger_comparator.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/importers/bindable_property_importer.hpp"
+#include "rive/data_bind/bindable_property_asset.hpp"
 #include "rive/data_bind/bindable_property_number.hpp"
 #include "rive/data_bind/bindable_property_string.hpp"
 #include "rive/data_bind/bindable_property_color.hpp"
@@ -276,6 +278,28 @@ bool TransitionPropertyViewModelComparator::compare(
                     default:
                         break;
                 }
+            }
+            break;
+        case BindablePropertyAsset::typeKey:
+            if (comparand->is<TransitionPropertyViewModelComparator>())
+            {
+                auto rightValue =
+                    comparand->as<TransitionPropertyViewModelComparator>()
+                        ->value<BindablePropertyAsset, uint32_t>(
+                            stateMachineInstance);
+                return compareIds(value<BindablePropertyAsset, uint32_t>(
+                                      stateMachineInstance),
+                                  rightValue,
+                                  operation);
+            }
+            else if (comparand->is<TransitionValueAssetComparator>())
+            {
+                auto rightValue =
+                    comparand->as<TransitionValueAssetComparator>()->value();
+                return compareIds(value<BindablePropertyAsset, uint32_t>(
+                                      stateMachineInstance),
+                                  rightValue,
+                                  operation);
             }
             break;
     }

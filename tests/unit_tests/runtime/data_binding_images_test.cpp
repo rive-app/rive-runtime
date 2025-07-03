@@ -131,3 +131,46 @@ TEST_CASE("Embedded images can be reset by passing null", "[silver]")
 
     CHECK(silver.matches("viewmodel_image_reset"));
 }
+
+TEST_CASE("Image based conditions work", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/viewmodel_based_condition.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(1.1f);
+    // Since these tests are relying on an event, we need to advance ne extra
+    // time for the event to be processed
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(1.1f);
+    // Since these tests are relying on an event, we need to advance ne extra
+    // time for the event to be processed
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("viewmodel_based_condition"));
+}

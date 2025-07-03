@@ -33,6 +33,28 @@ protected:
     bool compareTriggers(uint32_t left,
                          uint32_t right,
                          TransitionConditionOp op);
+    bool compareIds(uint32_t left, uint32_t right, TransitionConditionOp op);
+    template <typename T>
+    bool compareComparables(T left, T right, TransitionConditionOp op)
+    {
+        switch (op)
+        {
+            case TransitionConditionOp::equal:
+                return left == right;
+            case TransitionConditionOp::notEqual:
+                return left != right;
+            case TransitionConditionOp::lessThanOrEqual:
+                return left <= right;
+            case TransitionConditionOp::lessThan:
+                return left < right;
+            case TransitionConditionOp::greaterThanOrEqual:
+                return left >= right;
+            case TransitionConditionOp::greaterThan:
+                return left > right;
+            default:
+                return false;
+        }
+    }
 };
 } // namespace rive
 

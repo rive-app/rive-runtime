@@ -22,106 +22,49 @@ bool TransitionComparator::compareNumbers(float left,
                                           float right,
                                           TransitionConditionOp op)
 {
-    switch (op)
-    {
-        case TransitionConditionOp::equal:
-            return left == right;
-        case TransitionConditionOp::notEqual:
-            return left != right;
-        case TransitionConditionOp::lessThanOrEqual:
-            return left <= right;
-        case TransitionConditionOp::lessThan:
-            return left < right;
-        case TransitionConditionOp::greaterThanOrEqual:
-            return left >= right;
-        case TransitionConditionOp::greaterThan:
-            return left > right;
-        default:
-            return false;
-    }
+    return compareComparables<float>(left, right, op);
 }
 
 bool TransitionComparator::compareStrings(std::string left,
                                           std::string right,
                                           TransitionConditionOp op)
 {
-    switch (op)
-    {
-        case TransitionConditionOp::equal:
-            return left == right;
-        case TransitionConditionOp::notEqual:
-            return left != right;
-        default:
-            return false;
-    }
+    return compareComparables<std::string>(left, right, op);
 }
 
 bool TransitionComparator::compareBooleans(bool left,
                                            bool right,
                                            TransitionConditionOp op)
 {
-    switch (op)
-    {
-        case TransitionConditionOp::equal:
-            return left == right;
-        case TransitionConditionOp::notEqual:
-            return left != right;
-        default:
-            return false;
-    }
+    return compareComparables<bool>(left, right, op);
 }
 
 bool TransitionComparator::compareEnums(uint16_t left,
                                         uint16_t right,
                                         TransitionConditionOp op)
 {
-    switch (op)
-    {
-        case TransitionConditionOp::equal:
-            return left == right;
-        case TransitionConditionOp::notEqual:
-            return left != right;
-        default:
-            return false;
-    }
+    return compareComparables<uint16_t>(left, right, op);
 }
 
 bool TransitionComparator::compareTriggers(uint32_t left,
                                            uint32_t right,
                                            TransitionConditionOp op)
 {
-    switch (op)
-    {
-        case TransitionConditionOp::equal:
-            return left == right;
-        case TransitionConditionOp::notEqual:
-            return left != right;
-        case TransitionConditionOp::lessThanOrEqual:
-            return left <= right;
-        case TransitionConditionOp::lessThan:
-            return left < right;
-        case TransitionConditionOp::greaterThanOrEqual:
-            return left >= right;
-        case TransitionConditionOp::greaterThan:
-            return left > right;
-        default:
-            return false;
-    }
+    return compareComparables<uint32_t>(left, right, op);
+}
+
+bool TransitionComparator::compareIds(uint32_t left,
+                                      uint32_t right,
+                                      TransitionConditionOp op)
+{
+    return compareComparables<uint32_t>(left, right, op);
 }
 
 bool TransitionComparator::compareColors(int left,
                                          int right,
                                          TransitionConditionOp op)
 {
-    switch (op)
-    {
-        case TransitionConditionOp::equal:
-            return left == right;
-        case TransitionConditionOp::notEqual:
-            return left != right;
-        default:
-            return false;
-    }
+    return compareComparables<int>(left, right, op);
 }
 
 bool TransitionComparator::compare(

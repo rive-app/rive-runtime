@@ -72,11 +72,13 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/animation/transition_self_comparator.hpp"
 #include "rive/animation/transition_trigger_condition.hpp"
+#include "rive/animation/transition_value_asset_comparator.hpp"
 #include "rive/animation/transition_value_boolean_comparator.hpp"
 #include "rive/animation/transition_value_color_comparator.hpp"
 #include "rive/animation/transition_value_comparator.hpp"
 #include "rive/animation/transition_value_condition.hpp"
 #include "rive/animation/transition_value_enum_comparator.hpp"
+#include "rive/animation/transition_value_id_comparator.hpp"
 #include "rive/animation/transition_value_number_comparator.hpp"
 #include "rive/animation/transition_value_string_comparator.hpp"
 #include "rive/animation/transition_value_trigger_comparator.hpp"
@@ -477,6 +479,8 @@ public:
                 return new ListenerNumberChange();
             case CubicEaseInterpolatorBase::typeKey:
                 return new CubicEaseInterpolator();
+            case TransitionValueIdComparatorBase::typeKey:
+                return new TransitionValueIdComparator();
             case StateTransitionBase::typeKey:
                 return new StateTransition();
             case NestedBoolBase::typeKey:
@@ -521,6 +525,8 @@ public:
                 return new TransitionValueStringComparator();
             case NestedRemapAnimationBase::typeKey:
                 return new NestedRemapAnimation();
+            case TransitionValueAssetComparatorBase::typeKey:
+                return new TransitionValueAssetComparator();
             case TransitionBoolConditionBase::typeKey:
                 return new TransitionBoolCondition();
             case BlendState1DViewModelBase::typeKey:
@@ -1123,6 +1129,9 @@ public:
             case BlendState1DInputBase::inputIdPropertyKey:
                 object->as<BlendState1DInputBase>()->inputId(value);
                 break;
+            case TransitionValueIdComparatorBase::valuePropertyKey:
+                object->as<TransitionValueIdComparatorBase>()->value(value);
+                break;
             case StateTransitionBase::stateToIdPropertyKey:
                 object->as<StateTransitionBase>()->stateToId(value);
                 break;
@@ -1167,9 +1176,6 @@ public:
                 break;
             case ElasticInterpolatorBase::easingValuePropertyKey:
                 object->as<ElasticInterpolatorBase>()->easingValue(value);
-                break;
-            case TransitionValueEnumComparatorBase::valuePropertyKey:
-                object->as<TransitionValueEnumComparatorBase>()->value(value);
                 break;
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 object->as<BlendStateTransitionBase>()->exitBlendAnimationId(
@@ -2548,6 +2554,8 @@ public:
                     ->opValue();
             case BlendState1DInputBase::inputIdPropertyKey:
                 return object->as<BlendState1DInputBase>()->inputId();
+            case TransitionValueIdComparatorBase::valuePropertyKey:
+                return object->as<TransitionValueIdComparatorBase>()->value();
             case StateTransitionBase::stateToIdPropertyKey:
                 return object->as<StateTransitionBase>()->stateToId();
             case StateTransitionBase::flagsPropertyKey:
@@ -2578,8 +2586,6 @@ public:
                 return object->as<LinearAnimationBase>()->workEnd();
             case ElasticInterpolatorBase::easingValuePropertyKey:
                 return object->as<ElasticInterpolatorBase>()->easingValue();
-            case TransitionValueEnumComparatorBase::valuePropertyKey:
-                return object->as<TransitionValueEnumComparatorBase>()->value();
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 return object->as<BlendStateTransitionBase>()
                     ->exitBlendAnimationId();
@@ -3453,6 +3459,7 @@ public:
             case TransitionValueConditionBase::opValuePropertyKey:
             case TransitionViewModelConditionBase::opValuePropertyKey:
             case BlendState1DInputBase::inputIdPropertyKey:
+            case TransitionValueIdComparatorBase::valuePropertyKey:
             case StateTransitionBase::stateToIdPropertyKey:
             case StateTransitionBase::flagsPropertyKey:
             case StateTransitionBase::durationPropertyKey:
@@ -3468,7 +3475,6 @@ public:
             case LinearAnimationBase::workStartPropertyKey:
             case LinearAnimationBase::workEndPropertyKey:
             case ElasticInterpolatorBase::easingValuePropertyKey:
-            case TransitionValueEnumComparatorBase::valuePropertyKey:
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
             case ShapePaintBase::blendModeValuePropertyKey:
             case StrokeBase::capPropertyKey:
@@ -4067,6 +4073,8 @@ public:
                 return object->is<TransitionViewModelConditionBase>();
             case BlendState1DInputBase::inputIdPropertyKey:
                 return object->is<BlendState1DInputBase>();
+            case TransitionValueIdComparatorBase::valuePropertyKey:
+                return object->is<TransitionValueIdComparatorBase>();
             case StateTransitionBase::stateToIdPropertyKey:
                 return object->is<StateTransitionBase>();
             case StateTransitionBase::flagsPropertyKey:
@@ -4097,8 +4105,6 @@ public:
                 return object->is<LinearAnimationBase>();
             case ElasticInterpolatorBase::easingValuePropertyKey:
                 return object->is<ElasticInterpolatorBase>();
-            case TransitionValueEnumComparatorBase::valuePropertyKey:
-                return object->is<TransitionValueEnumComparatorBase>();
             case BlendStateTransitionBase::exitBlendAnimationIdPropertyKey:
                 return object->is<BlendStateTransitionBase>();
             case ShapePaintBase::blendModeValuePropertyKey:

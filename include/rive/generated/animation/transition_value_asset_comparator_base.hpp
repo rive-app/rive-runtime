@@ -1,15 +1,15 @@
-#ifndef _RIVE_TRANSITION_VALUE_ENUM_COMPARATOR_BASE_HPP_
-#define _RIVE_TRANSITION_VALUE_ENUM_COMPARATOR_BASE_HPP_
+#ifndef _RIVE_TRANSITION_VALUE_ASSET_COMPARATOR_BASE_HPP_
+#define _RIVE_TRANSITION_VALUE_ASSET_COMPARATOR_BASE_HPP_
 #include "rive/animation/transition_value_id_comparator.hpp"
 namespace rive
 {
-class TransitionValueEnumComparatorBase : public TransitionValueIdComparator
+class TransitionValueAssetComparatorBase : public TransitionValueIdComparator
 {
 protected:
     typedef TransitionValueIdComparator Super;
 
 public:
-    static const uint16_t typeKey = 485;
+    static const uint16_t typeKey = 602;
 
     /// Helper to quickly determine if a core object extends another without
     /// RTTI at runtime.
@@ -17,7 +17,7 @@ public:
     {
         switch (typeKey)
         {
-            case TransitionValueEnumComparatorBase::typeKey:
+            case TransitionValueAssetComparatorBase::typeKey:
             case TransitionValueIdComparatorBase::typeKey:
             case TransitionValueComparatorBase::typeKey:
             case TransitionComparatorBase::typeKey:
