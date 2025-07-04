@@ -35,6 +35,10 @@
 #define EMSCRIPTEN_KEEPALIVE
 #endif
 
+#ifdef RIVE_WAGYU
+#include "../src/webgpu/webgpu_wagyu.h"
+#endif
+
 using namespace rive;
 using namespace rive::gpu;
 using PixelLocalStorageType = RenderContextWebGPUImpl::PixelLocalStorageType;
@@ -82,11 +86,34 @@ void requestDeviceCallback(WGPURequestDeviceStatus status,
 
     RenderContextWebGPUImpl::ContextOptions contextOptions;
 #ifdef RIVE_WAGYU
-    contextOptions.plsType =
-        PixelLocalStorageType::EXT_shader_pixel_local_storage;
-    // TODO: Disable storage buffers if the hardware doesn't support 4 in the
-    // vertex shader.
-    // contextOptions.disableStorageBuffers = true;
+    WGPUBackendType backend = wgpuWagyuAdapterGetBackend(adapter);
+    if (backend == WGPUBackendType_Vulkan)
+    {
+        WGPUWagyuStringArray deviceExtensions = WGPU_WAGYU_STRING_ARRAY_INIT;
+        wgpuWagyuDeviceGetExtensions(device.Get(), &deviceExtensions);
+        for (size_t i = 0; i < deviceExtensions.stringCount; i++)
+        {
+            if (backend == WGPUBackendType_Vulkan &&
+                !strcmp(deviceExtensions.strings[i].data,
+                        "VK_EXT_rasterization_order_attachment_access"))
+            {
+                contextOptions.plsType = PixelLocalStorageType::subpassLoad;
+                break;
+            }
+        }
+    }
+    else if (backend == WGPUBackendType_OpenGLES)
+    {
+        // TODO: search for "GL_EXT_shader_pixel_local_storage".
+        // wgpuWagyuDeviceGetExtensions currently returns nothing in the GL
+        // backend.
+        contextOptions.plsType =
+            PixelLocalStorageType::EXT_shader_pixel_local_storage;
+        // TODO: Disable storage buffers if the hardware doesn't support 4 in
+        // the vertex shader:
+        // contextOptions.disableStorageBuffers =
+        //     GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS < 4;
+    }
 #endif
     renderContext =
         RenderContextWebGPUImpl::MakeContext(device, queue, contextOptions);

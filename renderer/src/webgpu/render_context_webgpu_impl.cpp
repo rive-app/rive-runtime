@@ -672,8 +672,7 @@ public:
                 glsl << "#extension GL_EXT_samplerless_texture_functions : "
                         "enable\n";
                 addDefine(plsType == PixelLocalStorageType::subpassLoad
-                              // TODO: finish input attachments.
-                              ? GLSL_PLS_IMPL_NONE // GLSL_PLS_IMPL_SUBPASS_LOAD
+                              ? GLSL_PLS_IMPL_SUBPASS_LOAD
                               : GLSL_PLS_IMPL_NONE);
             }
             if (contextOptions.disableStorageBuffers)
@@ -2096,12 +2095,11 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     {
         // WGPUWagyu needs us to tell it when color attachments are also used as
         // input attachments.
-        // TODO: finish input attachments.
-        // wagyuColorTargetState.usedAsInput = true;
+        wagyuColorTargetState.usedAsInput = WGPUOptionalBool_True;
         extraColorTargetState = &wagyuColorTargetState.chain;
     }
 #endif
-    WGPUColorTargetState colorTargets[] = {
+    WGPUColorTargetState colorAttachments[PLS_PLANE_COUNT] = {
         {
             .nextInChain = extraColorTargetState,
             .format = static_cast<WGPUTextureFormat>(framebufferFormat),
@@ -2130,6 +2128,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
     static_assert(CLIP_PLANE_IDX == 1);
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
+    static_assert(PLS_PLANE_COUNT == 4);
 
     WGPUFragmentState fragmentState = {
         .module = fragmentShader.Get(),
@@ -2141,14 +2140,23 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 ? 1
                 :
 #endif
-                4),
-        .targets = colorTargets,
+                std::size(colorAttachments)),
+        .targets = colorAttachments,
     };
 
 #ifdef RIVE_WAGYU
+    WGPUWagyuInputAttachmentState inputAttachments[PLS_PLANE_COUNT];
     WGPUWagyuFragmentState wagyuFragmentState = WGPU_WAGYU_FRAGMENT_STATE_INIT;
     if (m_contextOptions.plsType == PixelLocalStorageType::subpassLoad)
     {
+        for (size_t i = 0; i < PLS_PLANE_COUNT; ++i)
+        {
+            inputAttachments[i] = WGPU_WAGYU_INPUT_ATTACHMENT_STATE_INIT;
+            inputAttachments[i].format = colorAttachments[i].format;
+            inputAttachments[i].usedAsColor = WGPUOptionalBool_True;
+        }
+        wagyuFragmentState.inputsCount = std::size(inputAttachments);
+        wagyuFragmentState.inputs = inputAttachments;
         wagyuFragmentState.featureFlags =
             WGPUWagyuFragmentStateFeaturesFlags_RasterizationOrderAttachmentAccess;
         fragmentState.nextInChain = &wagyuFragmentState.chain;
