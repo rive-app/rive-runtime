@@ -70,6 +70,9 @@ public:
     // Initialize the animation (make instances as necessary) from the
     // source artboard.
     virtual void initializeAnimation(ArtboardInstance*) = 0;
+    
+    // Clear the nested animation dependencies
+    virtual void releaseDependencies() = 0;
 };
 } // namespace rive
 

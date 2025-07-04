@@ -79,11 +79,22 @@ Artboard* NestedArtboard::findArtboard(
     return nullptr;
 }
 
+void NestedArtboard::clearNestedAnimations()
+{
+    for (auto& animation : m_NestedAnimations)
+    {
+        // Release the nested animation dependencies. The file will take care of
+        // destroying the nested animation itself.
+        animation->releaseDependencies();
+    }
+    m_NestedAnimations.clear();
+}
+
 void NestedArtboard::updateArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard)
 {
     clearDataContext();
-    m_NestedAnimations.clear();
+    clearNestedAnimations();
     m_boundNestedStateMachine = nullptr;
     Artboard* artboard = findArtboard(viewModelInstanceArtboard);
     if (artboard != nullptr)

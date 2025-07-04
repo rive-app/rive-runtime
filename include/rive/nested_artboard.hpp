@@ -40,6 +40,7 @@ protected:
 private:
     Artboard* findArtboard(
         ViewModelInstanceArtboard* viewModelInstanceArtboard);
+    void clearNestedAnimations();
 
 public:
     NestedArtboard();
