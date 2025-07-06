@@ -1,4 +1,5 @@
 #include "utils/no_op_factory.hpp"
+#include "rive/refcnt.hpp"
 
 using namespace rive;
 
@@ -50,6 +51,8 @@ rcp<RenderBuffer> NoOpFactory::makeRenderBuffer(RenderBufferType,
     return nullptr;
 }
 
+class FakeRenderShader : public RenderShader
+{};
 rcp<RenderShader> NoOpFactory::makeLinearGradient(
     float sx,
     float sy,
@@ -59,7 +62,7 @@ rcp<RenderShader> NoOpFactory::makeLinearGradient(
     const float stops[],     // [count]
     size_t count)
 {
-    return nullptr;
+    return make_rcp<FakeRenderShader>();
 }
 
 rcp<RenderShader> NoOpFactory::makeRadialGradient(
@@ -70,7 +73,7 @@ rcp<RenderShader> NoOpFactory::makeRadialGradient(
     const float stops[],     // [count]
     size_t count)
 {
-    return nullptr;
+    return make_rcp<FakeRenderShader>();
 }
 
 rcp<RenderPath> NoOpFactory::makeRenderPath(RawPath&, FillRule)

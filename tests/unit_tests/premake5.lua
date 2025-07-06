@@ -62,6 +62,11 @@ do
         miniaudio,
         yoga,
         pls_generated_headers,
+        luau .. '/VM/include',
+        -- we need these for testing so we can compile
+        luau .. '/Compiler/include',
+        luau .. '/Ast/include',
+        luau .. '/Common/include',
     })
 
     links({
@@ -75,6 +80,8 @@ do
         'libjpeg',
         'libwebp',
         'miniaudio',
+        'luau_vm',
+        'luau_compiler',
     })
 
     files({

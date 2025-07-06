@@ -8,6 +8,10 @@ filter({ 'options:with_rive_text' })
 do
     defines({ 'WITH_RIVE_TEXT' })
 end
+filter({ 'options:with_rive_scripting' })
+do
+    defines({ 'WITH_RIVE_SCRIPTING' })
+end
 filter({ 'options:with_rive_audio=system' })
 do
     defines({ 'WITH_RIVE_AUDIO', 'MA_NO_RESOURCE_MANAGER' })
@@ -33,6 +37,11 @@ dofile(path.join(dependencies, 'premake5_harfbuzz_v2.lua'))
 dofile(path.join(dependencies, 'premake5_sheenbidi_v2.lua'))
 dofile(path.join(dependencies, 'premake5_miniaudio_v2.lua'))
 dofile(path.join(dependencies, 'premake5_yoga_v2.lua'))
+if _OPTIONS['with_rive_scripting'] then
+    luau = require(path.join(path.getabsolute('scripting/'), 'premake5')).luau
+else
+    luau = ''
+end
 
 project('rive')
 do
@@ -110,11 +119,22 @@ do
             buildoptions({ '-Wshorten-64-to-32', '-fprofile-instr-generate', '-fcoverage-mapping' })
         end
     end
+    filter({ 'options:with_rive_scripting' })
+    do
+        includedirs({
+            luau .. '/VM/include',
+        })
+    end
 end
 
 newoption({
     trigger = 'with_rive_tools',
     description = 'Enables tools usually not necessary for runtime.',
+})
+
+newoption({
+    trigger = 'with_rive_scripting',
+    description = 'Enables scripting for the runtime.',
 })
 
 newoption({

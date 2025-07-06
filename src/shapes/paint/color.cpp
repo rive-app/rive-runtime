@@ -45,7 +45,7 @@ void UnpackColorToRGBA32FPremul(ColorInt color, float out[4])
 
 float colorOpacity(ColorInt value) { return (float)colorAlpha(value) / 0xFF; }
 
-static uint8_t opacityToAlpha(float opacity)
+uint8_t opacityToAlpha(float opacity)
 {
     return (uint8_t)std::lround(255.f *
                                 std::max(0.0f, std::min(1.0f, opacity)));

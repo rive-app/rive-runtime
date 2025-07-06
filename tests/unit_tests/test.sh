@@ -101,7 +101,7 @@ RUNTIME=$PWD
 popd
 
 export PREMAKE_PATH="$RUNTIME/dependencies/export-compile-commands":"$RUNTIME/build":"$PREMAKE_PATH"
-PREMAKE_COMMANDS="--with_rive_text --with_rive_audio=external --with_rive_layout --config=$CONFIG --no_ffp_contract $EXTRA_CONFIG"
+PREMAKE_COMMANDS="--with_rive_text --with_rive_audio=external --with_rive_layout --with_rive_scripting --config=$CONFIG --no_ffp_contract $EXTRA_CONFIG"
 
 out_dir() {
   echo "out/$CONFIG"

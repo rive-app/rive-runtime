@@ -7,6 +7,8 @@ namespace rive
 {
 using ColorInt = uint32_t;
 
+uint8_t opacityToAlpha(float opacity);
+
 ColorInt colorARGB(int a, int r, int g, int b);
 
 unsigned int colorRed(ColorInt value);

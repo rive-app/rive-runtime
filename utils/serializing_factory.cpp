@@ -258,7 +258,9 @@ public:
         m_writer->writeVarUint((uint32_t)SerializeOp::shader);
         m_writer->writeVarUint(m_id);
         m_writer->writeVarUint(
-            static_cast<SerializingRenderShader*>(shader.get())->id());
+            shader == nullptr
+                ? 0
+                : static_cast<SerializingRenderShader*>(shader.get())->id());
     }
     void invalidateStroke() override {}
     void feather(float value) override
