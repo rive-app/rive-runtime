@@ -19,6 +19,7 @@
 #include "rive/audio/audio_engine.hpp"
 #include "rive/math/raw_path.hpp"
 #include "rive/typed_children.hpp"
+#include "rive/virtualizing_component.hpp"
 
 #include <queue>
 #include <unordered_set>
@@ -51,7 +52,7 @@ class SMITrigger;
 typedef void (*ArtboardCallback)(void*);
 #endif
 
-class Artboard : public ArtboardBase, public CoreContext
+class Artboard : public ArtboardBase, public CoreContext, public Virtualizable
 {
     friend class File;
     friend class ArtboardImporter;
@@ -115,6 +116,7 @@ public:
     {
         return worldTransform();
     }
+    Component* virtualizableComponent() override { return this; }
 
 private:
 #ifdef TESTING
@@ -278,6 +280,20 @@ public:
             }
         }
         return nullptr;
+    }
+
+    int objectIndex(Core* component) const
+    {
+        int count = 0;
+        for (auto object : m_Objects)
+        {
+            if (object == component)
+            {
+                return count;
+            }
+            count++;
+        }
+        return -1;
     }
 
     template <typename T = Component> std::vector<T*> find()

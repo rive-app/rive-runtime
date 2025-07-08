@@ -96,6 +96,8 @@ public:
     // Returns true when the StateMachineInstance has more data to process.
     bool needsAdvance() const;
 
+    void resetState();
+
     // Returns a pointer to the instance's stateMachine
     const StateMachine* stateMachine() const { return m_machine; }
 
@@ -209,6 +211,7 @@ private:
         m_bindableDataBindsToSource;
     uint8_t m_drawOrderChangeCounter = 0;
     void unbind();
+    void removeEventListeners();
 
 #ifdef WITH_RIVE_TOOLS
 public:

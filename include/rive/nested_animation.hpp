@@ -29,6 +29,13 @@ public:
     {
         m_nestedEventListeners.push_back(listener);
     }
+    void removeNestedEventListener(NestedEventListener* listener)
+    {
+        auto nested = std::remove(m_nestedEventListeners.begin(),
+                                  m_nestedEventListeners.end(),
+                                  listener);
+        m_nestedEventListeners.erase(nested, m_nestedEventListeners.end());
+    }
     std::vector<NestedEventListener*> nestedEventListeners()
     {
         return m_nestedEventListeners;
@@ -70,7 +77,7 @@ public:
     // Initialize the animation (make instances as necessary) from the
     // source artboard.
     virtual void initializeAnimation(ArtboardInstance*) = 0;
-    
+
     // Clear the nested animation dependencies
     virtual void releaseDependencies() = 0;
 };

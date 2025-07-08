@@ -30,6 +30,7 @@ public:
     float readFloat32();
     uint8_t readByte();
     uint32_t readUint32();
+    std::string readString();
     void complete(uint8_t* bytes, size_t length);
     void reset(uint8_t* bytes);
 };

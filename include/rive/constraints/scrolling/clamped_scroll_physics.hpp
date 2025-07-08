@@ -11,10 +11,11 @@ private:
 
 public:
     Vec2D advance(float elapsedSeconds) override;
-    void run(Vec2D range,
+    void run(Vec2D rangeMin,
+             Vec2D rangeMax,
              Vec2D value,
              std::vector<Vec2D> snappingPoints) override;
-    Vec2D clamp(Vec2D range, Vec2D value) override;
+    Vec2D clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value) override;
 };
 } // namespace rive
 

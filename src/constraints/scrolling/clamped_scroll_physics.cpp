@@ -9,16 +9,17 @@ Vec2D ClampedScrollPhysics::advance(float elapsedSeconds)
     return m_value;
 }
 
-void ClampedScrollPhysics::run(Vec2D range,
+void ClampedScrollPhysics::run(Vec2D rangeMin,
+                               Vec2D rangeMax,
                                Vec2D value,
                                std::vector<Vec2D> snappingPoints)
 {
-    ScrollPhysics::run(range, value, snappingPoints);
-    m_value = clamp(range, value);
+    ScrollPhysics::run(rangeMin, rangeMax, value, snappingPoints);
+    m_value = clamp(rangeMin, rangeMax, value);
 }
 
-Vec2D ClampedScrollPhysics::clamp(Vec2D range, Vec2D value)
+Vec2D ClampedScrollPhysics::clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value)
 {
-    return Vec2D(math::clamp(value.x, range.x, 0),
-                 math::clamp(value.y, range.y, 0));
+    return Vec2D(math::clamp(value.x, rangeMin.x, rangeMax.x),
+                 math::clamp(value.y, rangeMin.y, rangeMax.y));
 }

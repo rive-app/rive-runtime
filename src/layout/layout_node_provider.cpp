@@ -27,4 +27,5 @@ void LayoutNodeProvider::addLayoutConstraint(LayoutConstraint* constraint)
                      m_layoutConstraints.end(),
                      constraint) == m_layoutConstraints.end());
     m_layoutConstraints.push_back(constraint);
+    constraint->addLayoutChild(this);
 }

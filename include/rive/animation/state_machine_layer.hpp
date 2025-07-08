@@ -34,7 +34,6 @@ public:
     const EntryState* entryState() const { return m_Entry; }
     const ExitState* exitState() const { return m_Exit; }
 
-#ifdef TESTING
     size_t stateCount() const { return m_States.size(); }
     LayerState* state(size_t index) const
     {
@@ -44,7 +43,6 @@ public:
         }
         return nullptr;
     }
-#endif
 };
 } // namespace rive
 

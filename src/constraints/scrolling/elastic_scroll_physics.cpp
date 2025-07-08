@@ -24,20 +24,23 @@ Vec2D ElasticScrollPhysics::advance(float elapsedSeconds)
     return Vec2D(advanceX, advanceY);
 }
 
-Vec2D ElasticScrollPhysics::clamp(Vec2D range, Vec2D value)
+Vec2D ElasticScrollPhysics::clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value)
 {
-    float clampX =
-        m_physicsX != nullptr ? m_physicsX->clamp(range.x, value.x) : 0.0f;
-    float clampY =
-        m_physicsY != nullptr ? m_physicsY->clamp(range.y, value.y) : 0.0f;
+    float clampX = m_physicsX != nullptr
+                       ? m_physicsX->clamp(rangeMin.x, rangeMax.x, value.x)
+                       : 0.0f;
+    float clampY = m_physicsY != nullptr
+                       ? m_physicsY->clamp(rangeMin.y, rangeMax.y, value.y)
+                       : 0.0f;
     return Vec2D(clampX, clampY);
 }
 
-void ElasticScrollPhysics::run(Vec2D range,
+void ElasticScrollPhysics::run(Vec2D rangeMin,
+                               Vec2D rangeMax,
                                Vec2D value,
                                std::vector<Vec2D> snappingPoints)
 {
-    Super::run(range, value, snappingPoints);
+    Super::run(rangeMin, rangeMax, value, snappingPoints);
     std::vector<float> xPoints;
     std::vector<float> yPoints;
     for (auto pt : snappingPoints)
@@ -47,11 +50,19 @@ void ElasticScrollPhysics::run(Vec2D range,
     }
     if (m_physicsX != nullptr)
     {
-        m_physicsX->run(m_acceleration.x, range.x, value.x, xPoints);
+        m_physicsX->run(m_acceleration.x,
+                        rangeMin.x,
+                        rangeMax.x,
+                        value.x,
+                        xPoints);
     }
     if (m_physicsY != nullptr)
     {
-        m_physicsY->run(m_acceleration.y, range.y, value.y, yPoints);
+        m_physicsY->run(m_acceleration.y,
+                        rangeMin.y,
+                        rangeMax.y,
+                        value.y,
+                        yPoints);
     }
 }
 
@@ -88,11 +99,11 @@ float ElasticScrollPhysicsHelper::advance(float elapsedSeconds)
         m_current += m_speed * elapsedSeconds;
 
         auto friction = m_friction;
-        if (m_current < m_runRange)
+        if (m_current < m_runRangeMin)
         {
             friction *= 4;
         }
-        else if (m_current > 0)
+        else if (m_current > m_runRangeMax)
         {
             friction *= 4;
         }
@@ -102,13 +113,13 @@ float ElasticScrollPhysicsHelper::advance(float elapsedSeconds)
         if (abs(m_speed) < 5)
         {
             m_speed = 0;
-            if (m_current < m_runRange)
+            if (m_current < m_runRangeMin)
             {
-                m_target = m_runRange;
+                m_target = m_runRangeMin;
             }
-            else if (m_current > 0)
+            else if (m_current > m_runRangeMax)
             {
-                m_target = 0;
+                m_target = m_runRangeMax;
             }
             else
             {
@@ -130,26 +141,30 @@ float ElasticScrollPhysicsHelper::advance(float elapsedSeconds)
     return m_current;
 }
 
-float ElasticScrollPhysicsHelper::clamp(float range, float value)
+float ElasticScrollPhysicsHelper::clamp(float rangeMin,
+                                        float rangeMax,
+                                        float value)
 {
-    if (value < range)
+    if (value < rangeMin)
     {
-        return range - pow(-(value - range), m_elasticFactor);
+        return rangeMin - pow(-(value - rangeMin), m_elasticFactor);
     }
-    else if (value > 0)
+    else if (value > rangeMax)
     {
-        return pow(value, m_elasticFactor);
+        return rangeMax + pow(value + rangeMax, m_elasticFactor);
     }
     return value;
 }
 
 void ElasticScrollPhysicsHelper::run(float acceleration,
-                                     float range,
+                                     float rangeMin,
+                                     float rangeMax,
                                      float value,
                                      std::vector<float> snappingPoints)
 {
     m_isRunning = true;
-    m_runRange = range;
+    m_runRangeMin = rangeMin;
+    m_runRangeMax = rangeMax;
     if (abs(acceleration) > 100)
     {
         m_speed = acceleration * 0.16f * 0.16f * 0.1f * m_speedMultiplier;
@@ -158,13 +173,13 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
     {
         m_speed = 0;
     }
-    if (value < range)
+    if (value < rangeMin)
     {
-        m_target = range;
+        m_target = rangeMin;
     }
-    else if (value > 0)
+    else if (value > rangeMax)
     {
-        m_target = 0;
+        m_target = rangeMax;
     }
     else
     {

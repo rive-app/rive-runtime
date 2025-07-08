@@ -1535,6 +1535,12 @@ public:
             case ScrollConstraintBase::snapPropertyKey:
                 object->as<ScrollConstraintBase>()->snap(value);
                 break;
+            case ScrollConstraintBase::virtualizePropertyKey:
+                object->as<ScrollConstraintBase>()->virtualize(value);
+                break;
+            case ScrollConstraintBase::infinitePropertyKey:
+                object->as<ScrollConstraintBase>()->infinite(value);
+                break;
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 object->as<ScrollBarConstraintBase>()->autoSize(value);
                 break;
@@ -2845,6 +2851,10 @@ public:
                 return object->as<FollowPathConstraintBase>()->offset();
             case ScrollConstraintBase::snapPropertyKey:
                 return object->as<ScrollConstraintBase>()->snap();
+            case ScrollConstraintBase::virtualizePropertyKey:
+                return object->as<ScrollConstraintBase>()->virtualize();
+            case ScrollConstraintBase::infinitePropertyKey:
+                return object->as<ScrollConstraintBase>()->infinite();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->as<ScrollBarConstraintBase>()->autoSize();
             case AxisBase::normalizedPropertyKey:
@@ -3589,6 +3599,8 @@ public:
             case FollowPathConstraintBase::orientPropertyKey:
             case FollowPathConstraintBase::offsetPropertyKey:
             case ScrollConstraintBase::snapPropertyKey:
+            case ScrollConstraintBase::virtualizePropertyKey:
+            case ScrollConstraintBase::infinitePropertyKey:
             case ScrollBarConstraintBase::autoSizePropertyKey:
             case AxisBase::normalizedPropertyKey:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
@@ -4326,6 +4338,10 @@ public:
             case FollowPathConstraintBase::offsetPropertyKey:
                 return object->is<FollowPathConstraintBase>();
             case ScrollConstraintBase::snapPropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::virtualizePropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::infinitePropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->is<ScrollBarConstraintBase>();

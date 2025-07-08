@@ -4,21 +4,25 @@
 #include "rive/advancing_component.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
+#include "rive/property_recorder.hpp"
 #include "rive/artboard_host.hpp"
 #include "rive/data_bind/data_bind_list_item_consumer.hpp"
 #include "rive/layout/layout_node_provider.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
+#include "rive/virtualizing_component.hpp"
 #include <stdio.h>
 #include <unordered_map>
 namespace rive
 {
 class File;
+class ScrollConstraint;
 
 class ArtboardComponentList : public ArtboardComponentListBase,
                               public ArtboardHost,
                               public AdvancingComponent,
                               public LayoutNodeProvider,
-                              public DataBindListItemConsumer
+                              public DataBindListItemConsumer,
+                              public VirtualizingComponent
 {
 private:
     std::vector<rcp<ViewModelInstanceListItem>> m_listItems;
@@ -31,30 +35,9 @@ public:
     void* layoutNode(int index) override;
 #endif
     size_t artboardCount() override { return m_listItems.size(); }
-    rcp<ViewModelInstanceListItem> listItem(int index)
-    {
-        if (index < m_listItems.size())
-        {
-            return m_listItems[index];
-        }
-        return nullptr;
-    }
-    ArtboardInstance* artboardInstance(int index = 0) override
-    {
-        if (index < m_listItems.size())
-        {
-            return m_artboardInstancesMap[listItem(index)].get();
-        }
-        return nullptr;
-    }
-    StateMachineInstance* stateMachineInstance(int index = 0)
-    {
-        if (index < m_listItems.size())
-        {
-            return m_stateMachinesMap[listItem(index)].get();
-        }
-        return nullptr;
-    }
+    rcp<ViewModelInstanceListItem> listItem(int index);
+    ArtboardInstance* artboardInstance(int index = 0) override;
+    StateMachineInstance* stateMachineInstance(int index = 0);
     bool worldToLocal(Vec2D world, Vec2D* local, int index);
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
@@ -91,16 +74,42 @@ public:
     File* file() const override;
     Core* clone() const override;
 
+    // API used by the virtualizer
+    Artboard* findArtboard(
+        const rcp<ViewModelInstanceListItem>& listItem) const;
+    void addVirtualizable(int index) override;
+    void removeVirtualizable(int index) override;
+    void createArtboardAt(int index);
+    void addArtboardAt(std::unique_ptr<ArtboardInstance> artboard, int index);
+    void removeArtboardAt(int index);
+    void removeArtboard(rcp<ViewModelInstanceListItem> item);
+    bool virtualizationEnabled() override;
+    ScrollConstraint* scrollConstraint();
+    int itemCount() override { return (int)m_listItems.size(); }
+    Virtualizable* item(int index) override { return artboardInstance(index); }
+    void setItemSize(Vec2D size, int index) override;
+    Vec2D size() override;
+    Vec2D itemSize(int index) override;
+    float gap();
+    void syncLayoutChildren();
+
 private:
     void disposeListItem(const rcp<ViewModelInstanceListItem>& listItem);
     std::unique_ptr<ArtboardInstance> createArtboard(
         Component* target,
         rcp<ViewModelInstanceListItem> listItem) const;
-    Artboard* findArtboard(
-        const rcp<ViewModelInstanceListItem>& listItem) const;
+    void bindArtboard(ArtboardInstance* artboard,
+                      rcp<ViewModelInstanceListItem> listItem);
     std::unique_ptr<StateMachineInstance> createStateMachineInstance(
         Component* target,
         ArtboardInstance* artboard);
+    void linkStateMachineToArtboard(StateMachineInstance* stateMachineInstance,
+                                    ArtboardInstance* artboard);
+    void computeLayoutBounds();
+    void createArtboardRecorders(Artboard*);
+    void applyRecorders(Artboard* artboard, Artboard* sourceArtboard);
+    void applyRecorders(StateMachineInstance* stateMachineInstance,
+                        Artboard* sourceArtboard);
     mutable std::unordered_map<uint32_t, Artboard*> m_artboardsMap;
     std::unordered_map<rcp<ViewModelInstanceListItem>,
                        std::unique_ptr<ArtboardInstance>>
@@ -108,7 +117,18 @@ private:
     std::unordered_map<rcp<ViewModelInstanceListItem>,
                        std::unique_ptr<StateMachineInstance>>
         m_stateMachinesMap;
+    std::unordered_map<Artboard*,
+                       std::vector<std::unique_ptr<ArtboardInstance>>>
+        m_resourcePool;
+    std::unordered_map<Artboard*,
+                       std::vector<std::unique_ptr<StateMachineInstance>>>
+        m_stateMachinesPool;
+    std::unordered_map<Artboard*, std::unique_ptr<PropertyRecorder>>
+        m_propertyRecordersMap;
+
     File* m_file = nullptr;
+    std::vector<Vec2D> m_artboardSizes;
+    Vec2D m_layoutSize;
 };
 } // namespace rive
 

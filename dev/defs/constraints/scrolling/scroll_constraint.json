@@ -89,6 +89,26 @@
         "string": "physicsid"
       },
       "description": "Identifier used to track the Scroll physics."
+    },
+    "virtualize": {
+      "type": "bool",
+      "initialValue": "false",
+      "initialValueRuntime": "false",
+      "key": {
+        "int": 850,
+        "string": "virtualize"
+      },
+      "description": "Whether the scroll constraint should virtualize its items."
+    },
+    "infinite": {
+      "type": "bool",
+      "initialValue": "false",
+      "initialValueRuntime": "false",
+      "key": {
+        "int": 851,
+        "string": "infinite"
+      },
+      "description": "Whether the scroll should wrap when it reaches the extents."
     }
   }
 }

@@ -9,6 +9,8 @@ class LayoutConstraint
 {
 public:
     virtual void constrainChild(LayoutNodeProvider* child) {}
+    virtual void addLayoutChild(LayoutNodeProvider* child) {}
+    virtual Constraint* constraint() = 0;
 };
 } // namespace rive
 

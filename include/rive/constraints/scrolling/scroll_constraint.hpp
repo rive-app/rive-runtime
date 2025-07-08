@@ -12,6 +12,7 @@
 namespace rive
 {
 class LayoutNodeProvider;
+class ScrollVirtualizer;
 
 class ScrollConstraint : public ScrollConstraintBase,
                          public AdvancingComponent,
@@ -25,9 +26,14 @@ private:
     ScrollPhysics* m_physics;
     Mat2D m_scrollTransform;
     bool m_isDragging = false;
+    ScrollVirtualizer* m_virtualizer = nullptr;
+    std::vector<LayoutNodeProvider*> m_layoutChildren;
+    int m_childConstraintAppliedCount = 0;
 
     Vec2D positionAtIndex(float index);
     float indexAtPosition(Vec2D pos);
+    float maxOffsetXForPercent();
+    float maxOffsetYForPercent();
 
 public:
     ~ScrollConstraint();
@@ -40,6 +46,9 @@ public:
     void dragView(Vec2D delta, float timeStamp);
     void runPhysics();
     void constrainChild(LayoutNodeProvider* child) override;
+    void addLayoutChild(LayoutNodeProvider* child) override;
+    Constraint* constraint() override { return this; }
+    void constrainVirtualized(bool force = false);
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
@@ -59,102 +68,23 @@ public:
     {
         return parent()->parent()->as<LayoutComponent>();
     }
-    float contentWidth() { return content()->layoutWidth(); }
-    float contentHeight() { return content()->layoutHeight(); }
-    float viewportWidth()
-    {
-        return direction() == DraggableConstraintDirection::vertical
-                   ? viewport()->layoutWidth()
-                   : std::max(0.0f,
-                              viewport()->layoutWidth() - content()->layoutX());
-    }
-    float viewportHeight()
-    {
-        return direction() == DraggableConstraintDirection::horizontal
-                   ? viewport()->layoutHeight()
-                   : std::max(0.0f,
-                              viewport()->layoutHeight() -
-                                  content()->layoutY());
-    }
-    float visibleWidthRatio()
-    {
-        if (contentWidth() == 0)
-        {
-            return 1;
-        }
-        return std::min(1.0f, viewportWidth() / contentWidth());
-    }
-    float visibleHeightRatio()
-    {
-        if (contentHeight() == 0)
-        {
-            return 1;
-        }
-        return std::min(1.0f, viewportHeight() / contentHeight());
-    }
-    float maxOffsetX()
-    {
-        return std::min(0.0f,
-                        viewportWidth() - contentWidth() -
-                            viewport()->paddingRight());
-    }
-    float maxOffsetY()
-    {
-        return std::min(0.0f,
-                        viewportHeight() - contentHeight() -
-                            viewport()->paddingBottom());
-    }
-    float clampedOffsetX()
-    {
-        if (maxOffsetX() > 0)
-        {
-            return 0;
-        }
-        if (m_physics != nullptr && m_physics->enabled())
-        {
-            return m_physics
-                ->clamp(Vec2D(maxOffsetX(), maxOffsetY()),
-                        Vec2D(m_offsetX, m_offsetY))
-                .x;
-        }
-        return math::clamp(m_offsetX, maxOffsetX(), 0);
-    }
-    float clampedOffsetY()
-    {
-        if (maxOffsetY() > 0)
-        {
-            return 0;
-        }
-        if (m_physics != nullptr && m_physics->enabled())
-        {
-            return m_physics
-                ->clamp(Vec2D(maxOffsetX(), maxOffsetY()),
-                        Vec2D(m_offsetX, m_offsetY))
-                .y;
-        }
-        return math::clamp(m_offsetY, maxOffsetY(), 0);
-    }
+    float contentWidth();
+    float contentHeight();
+    float viewportWidth();
+    float viewportHeight();
+    float visibleWidthRatio();
+    float visibleHeightRatio();
+    float minOffsetX();
+    float minOffsetY();
+    float maxOffsetX();
+    float maxOffsetY();
+    float clampedOffsetX();
+    float clampedOffsetY();
 
     float offsetX() { return m_offsetX; }
     float offsetY() { return m_offsetY; }
-    void offsetX(float value)
-    {
-        if (m_offsetX == value)
-        {
-            return;
-        }
-        m_offsetX = value;
-        content()->markWorldTransformDirty();
-    }
-    void offsetY(float value)
-    {
-        if (m_offsetY == value)
-        {
-            return;
-        }
-        m_offsetY = value;
-        content()->markWorldTransformDirty();
-    }
+    void offsetX(float value);
+    void offsetY(float value);
 
     void scrollOffsetXChanged() override { offsetX(scrollOffsetX()); }
     void scrollOffsetYChanged() override { offsetY(scrollOffsetY()); }
@@ -165,8 +95,14 @@ public:
     void setScrollPercentX(float value) override;
     void setScrollPercentY(float value) override;
     void setScrollIndex(float value) override;
+
     size_t scrollItemCount();
+    std::vector<LayoutNodeProvider*>& scrollChildren()
+    {
+        return m_layoutChildren;
+    }
     Vec2D gap();
+    bool mainAxisIsColumn();
 };
 } // namespace rive
 

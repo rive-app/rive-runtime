@@ -1,6 +1,7 @@
 #include <rive/animation/state_machine_input_instance.hpp>
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard_component_list.hpp"
+#include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include "rive/math/transform_components.hpp"
 #include "rive/shapes/rectangle.hpp"
@@ -362,4 +363,171 @@ TEST_CASE("Number to List Artboards Labels", "[component_list]")
         REQUIRE(label->is<rive::Text>());
         REQUIRE(label->as<rive::Text>()->runs()[0]->text() == labels[i]);
     }
+}
+
+TEST_CASE("Component List Virtualized Artboards & State Machines",
+          "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    artboard->advance(0.0f);
+
+    REQUIRE(list->artboardCount() == 20);
+    // Only the first 5 items should be created
+    for (int i = 0; i < list->artboardCount(); i++)
+    {
+        auto artboard = list->artboardInstance(i);
+        if (i < 5)
+        {
+            REQUIRE(artboard != nullptr);
+            REQUIRE(artboard->name() == "ItemArtboard");
+            auto sm = list->stateMachineInstance(i);
+            REQUIRE(sm != nullptr);
+            REQUIRE(sm->artboard() == artboard);
+        }
+        else
+        {
+            REQUIRE(artboard == nullptr);
+            auto sm = list->stateMachineInstance(i);
+            REQUIRE(sm == nullptr);
+        }
+    }
+}
+
+TEST_CASE("Component List Virtualized Artboards Layout Bounds",
+          "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+
+    artboard->advance(0.0f);
+
+    float gap = 10;
+    float artboardWidth = 100;
+    for (int i = 0; i < list->artboardCount(); i++)
+    {
+        auto artboard = list->artboardInstance(i);
+        if (i < 5)
+        {
+            REQUIRE(artboard != nullptr);
+            auto bounds = list->layoutBoundsForNode(i);
+            REQUIRE(bounds.left() == i * (artboardWidth + gap));
+        }
+        else
+        {
+            REQUIRE(artboard == nullptr);
+        }
+    }
+}
+
+TEST_CASE("Component List Virtualized Scroll", "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+
+    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+
+    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+    REQUIRE(artboard->find<rive::ScrollConstraint>()[0] != nullptr);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
+
+    REQUIRE(scroll->offsetX() == 0);
+
+    artboard->advance(0.0f);
+
+    // scrollIndex
+    scroll->setScrollIndex(2);
+    REQUIRE(scroll->infinite() == true);
+    REQUIRE(scroll->scrollItemCount() == 20);
+    REQUIRE(scroll->offsetX() == -220.0f);
+    REQUIRE(scroll->clampedOffsetX() == -220.0f);
+    REQUIRE(scroll->minOffsetX() == std::numeric_limits<float>::infinity());
+    REQUIRE(scroll->maxOffsetX() == -std::numeric_limits<float>::infinity());
+    REQUIRE(scroll->offsetY() == 0.0f);
+    REQUIRE(scroll->minOffsetY() == 0.0f);
+    REQUIRE(scroll->maxOffsetY() == 0.0f);
+    REQUIRE(scroll->clampedOffsetY() == 0.0f);
+    REQUIRE(scroll->scrollIndex() == 2);
+    REQUIRE(scroll->contentWidth() == 2200.0f);
+    REQUIRE(scroll->viewportWidth() == 500.0f);
+}
+
+TEST_CASE("Component List Virtualized Scroll manual", "[component_list]")
+{
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+
+    auto artboard = file->artboard("Main");
+    auto artboardInstance = artboard->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboardInstance.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboardInstance->bindViewModelInstance(viewModelInstance);
+
+    REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
+
+    auto stateMachine = artboard->stateMachine("State Machine 1");
+
+    REQUIRE(artboardInstance != nullptr);
+    REQUIRE(artboardInstance->stateMachineCount() == 1);
+
+    REQUIRE(stateMachine != nullptr);
+
+    rive::StateMachineInstance* stateMachineInstance =
+        new rive::StateMachineInstance(stateMachine, artboardInstance.get());
+
+    REQUIRE(artboardInstance->find<rive::ScrollConstraint>().size() == 1);
+    REQUIRE(artboardInstance->find<rive::ScrollConstraint>()[0] != nullptr);
+    auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+
+    REQUIRE(scroll->scrollPercentY() == 0.0f);
+    REQUIRE(scroll->offsetY() == 0.0f);
+    REQUIRE(scroll->scrollIndex() == Approx(0.0f));
+    REQUIRE(scroll->physics()->isRunning() == false);
+
+    artboardInstance->advance(0.0f);
+
+    stateMachineInstance->pointerMove(rive::Vec2D(250.0f, 50.0f));
+    // Start drag
+    stateMachineInstance->pointerDown(rive::Vec2D(250.0f, 50.0f));
+    artboardInstance->advance(0.1f);
+    stateMachineInstance->advanceAndApply(0.1f);
+    // Move left 200px in 0.1 seconds
+    stateMachineInstance->pointerMove(rive::Vec2D(50.0f, 50.0f));
+    artboardInstance->advance(0.0f);
+    stateMachineInstance->advanceAndApply(0.0f);
+
+    REQUIRE(scroll->offsetX() == -200.0f);
+    REQUIRE(scroll->scrollIndex() == Approx(1.818182f));
+
+    // End drag
+    stateMachineInstance->pointerUp(rive::Vec2D(50.0f, 50.0f));
+
+    REQUIRE(scroll->physics()->isRunning() == true);
+
+    delete stateMachineInstance;
 }

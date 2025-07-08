@@ -95,6 +95,26 @@ uint32_t BinaryDataReader::readUint32()
     return value;
 }
 
+std::string BinaryDataReader::readString()
+{
+    uint64_t length = readVarUint();
+    if (didOverflow())
+    {
+        return std::string();
+    }
+
+    std::string rawValue;
+    rawValue.resize(length);
+    auto readBytes = decode_string(length, m_Position, m_End, &rawValue[0]);
+    if (readBytes != length)
+    {
+        overflow();
+        return std::string();
+    }
+    m_Position += readBytes;
+    return std::string(rawValue);
+}
+
 void BinaryDataReader::complete(uint8_t* bytes, size_t length)
 {
     m_Position = bytes;

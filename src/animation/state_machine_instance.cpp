@@ -78,6 +78,21 @@ public:
 #endif
     }
 
+    void resetState()
+    {
+        if (m_stateFrom != m_anyStateInstance && m_stateFrom != m_currentState)
+        {
+            delete m_stateFrom;
+        }
+        m_stateFrom = nullptr;
+        if (m_currentState != m_anyStateInstance)
+        {
+            delete m_currentState;
+        }
+        m_currentState = nullptr;
+        changeState(m_layer->entryState());
+    }
+
     void updateMix(float seconds)
     {
         if (m_transition != nullptr && m_stateFrom != nullptr &&
@@ -1614,6 +1629,43 @@ StateMachineInstance::~StateMachineInstance()
     m_bindablePropertyInstances.clear();
 }
 
+void StateMachineInstance::removeEventListeners()
+{
+    if (m_artboardInstance != nullptr)
+    {
+        for (auto nestedArtboard : m_artboardInstance->nestedArtboards())
+        {
+            if (nestedArtboard == nullptr)
+            {
+                continue;
+            }
+            for (auto animation : nestedArtboard->nestedAnimations())
+            {
+                if (animation == nullptr)
+                {
+                    continue;
+                }
+                if (animation->is<NestedStateMachine>())
+                {
+                    if (auto notifier = animation->as<NestedStateMachine>()
+                                            ->stateMachineInstance())
+                    {
+                        notifier->removeNestedEventListener(this);
+                    }
+                }
+                else if (animation->is<NestedLinearAnimation>())
+                {
+                    if (auto notifier = animation->as<NestedLinearAnimation>()
+                                            ->animationInstance())
+                    {
+                        notifier->removeNestedEventListener(this);
+                    }
+                }
+            }
+        }
+    }
+}
+
 #ifdef WITH_RIVE_TOOLS
 void StateMachineInstance::onDataBindChanged(DataBindChanged callback)
 {
@@ -1793,6 +1845,14 @@ bool StateMachineInstance::advanceAndApply(float seconds)
 
 void StateMachineInstance::markNeedsAdvance() { m_needsAdvance = true; }
 bool StateMachineInstance::needsAdvance() const { return m_needsAdvance; }
+
+void StateMachineInstance::resetState()
+{
+    for (size_t i = 0; i < m_layerCount; i++)
+    {
+        m_layers[i].resetState();
+    }
+}
 
 std::string StateMachineInstance::name() const { return m_machine->name(); }
 

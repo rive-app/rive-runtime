@@ -4,6 +4,7 @@
 #include "rive/core/binary_stream.hpp"
 #include "rive/core/binary_writer.hpp"
 #include <cstring>
+#include <vector>
 
 namespace rive
 {
