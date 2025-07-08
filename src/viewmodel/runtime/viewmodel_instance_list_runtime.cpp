@@ -54,16 +54,15 @@ bool ViewModelInstanceListRuntime::addInstanceAt(
     ViewModelInstanceRuntime* instanceRuntime,
     int index)
 {
-    auto listItem = new ViewModelInstanceListItem();
+    auto listItem = make_rcp<ViewModelInstanceListItem>();
     auto list = m_viewModelInstanceValue->as<ViewModelInstanceList>();
-    if (list->addItemAt(rcp<ViewModelInstanceListItem>(listItem), index))
+    if (list->addItemAt(listItem, index))
     {
         instanceRuntime->ref();
         listItem->viewModelInstance(instanceRuntime->instance());
-        m_itemsMap[listItem] = instanceRuntime;
+        m_itemsMap[listItem.get()] = instanceRuntime;
         return true;
     }
-    delete listItem;
     return false;
 }
 
