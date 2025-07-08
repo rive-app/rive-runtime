@@ -5,6 +5,7 @@
     "string": "artboard"
   },
   "extends": "layout_component.json",
+  "mixin": "publishable.json",
   "properties": {
     "originX": {
       "type": "double",
@@ -100,14 +101,14 @@
       "description": "A view model instance attached for editing purposes.",
       "runtime": false
     },
-    "isLibraryComponent": {
+    "isComponent": {
       "type": "bool",
       "initialValue": "false",
       "key": {
         "int": 792,
-        "string": "islibrarycomponent"
+        "string": "iscomponent"
       },
-      "description": "A file can publish updates to library components.",
+      "description": "Mark the artboard as a reusable component.",
       "runtime": false
     },
     "includeInExport": {
