@@ -13,6 +13,7 @@
 #include "rive/function_type.hpp"
 #include "rive/math/math_types.hpp"
 #include <cmath>
+#include <cstdlib>
 
 using namespace rive;
 
