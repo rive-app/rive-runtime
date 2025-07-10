@@ -120,9 +120,60 @@ static void* l_alloc(void* ud, void* ptr, size_t osize, size_t nsize)
     }
 }
 
+static const char* registeredCacheTableKey = "_MODULES";
+
+static int checkRegisteredModules(lua_State* L, const char* path)
+{
+    luaL_findtable(L, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
+    lua_getfield(L, -1, path);
+    if (lua_isnil(L, -1))
+    {
+        lua_pop(L, 2);
+        return 0;
+    }
+
+    lua_remove(L, -2);
+    return 1;
+}
+
+static int lua_requireinternal(lua_State* L, const char* requirerChunkname)
+{
+    // Discard extra arguments, we only use path
+    lua_settop(L, 1);
+    const char* path = luaL_checkstring(L, 1);
+
+    if (checkRegisteredModules(L, path) == 1)
+    {
+        return 1;
+    }
+
+    luaL_error(L, "require could not find a script named %s", path);
+    return 0;
+}
+
+static int lua_require(lua_State* L)
+{
+    lua_Debug ar;
+    int level = 1;
+
+    do
+    {
+        if (!lua_getinfo(L, level++, "s", &ar))
+        {
+            luaL_error(L, "require is not supported in this context");
+        }
+    } while (ar.what[0] == 'C');
+
+    return lua_requireinternal(L, ar.source);
+}
+
 void ScriptingVM::init(lua_State* state, ScriptingContext* context)
 {
     luaopen_rive(state);
+
+    lua_pushcclosurek(state, lua_require, "require", 0, nullptr);
+    lua_setglobal(state, "require");
+
     luaL_sandbox(state);
     luaL_sandboxthread(state);
     lua_setthreaddata(state, context);
@@ -136,5 +187,105 @@ ScriptingVM::ScriptingVM(Factory* factory)
 }
 
 ScriptingVM::~ScriptingVM() { lua_close(m_state); }
+
+static int register_module(lua_State* L)
+{
+    // This is only called internally where we ensure we're pushing the right
+    // elements on the stack so we can assert these at debug time only.
+    assert(lua_gettop(L) == 2 &&
+           "expected 2 arguments: require script name and desired result");
+    assert(luaL_checkstring(L, 1) &&
+           "first argument must be the name of the script");
+
+    luaL_findtable(L, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
+    // (1) path, (2) result, (3) cache table
+
+    lua_insert(L, 1);
+    // (1) cache table, (2) path, (3) result
+
+    lua_settable(L, 1);
+    // (1) cache table
+
+    lua_pop(L, 1);
+
+    return 0;
+}
+
+static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
+{
+    if (bytecode.empty())
+    {
+        return false;
+    }
+    // module needs to run in a new thread, isolated from the rest
+    // note: we create ML on main thread so that it doesn't inherit environment
+    // of L
+    lua_State* GL = lua_mainthread(L);
+    lua_State* ML = lua_newthread(GL);
+    lua_xmove(GL, L, 1);
+    // new thread needs to have the globals sandboxed
+    luaL_sandboxthread(ML);
+
+    int status =
+        luau_load(ML, name, (const char*)bytecode.data(), bytecode.size(), 0);
+
+    if (status == 0)
+    {
+        int status = lua_resume(ML, L, 0);
+        if (status == 0)
+        {
+            if (lua_gettop(ML) == 0)
+            {
+                lua_pushstring(ML, "module must return a value");
+            }
+            else if (!lua_istable(ML, -1) && !lua_isfunction(ML, -1))
+            {
+                lua_pushstring(ML, "module must return a table or function");
+            }
+        }
+        else if (status == LUA_YIELD)
+        {
+            lua_pushstring(ML, "module can not yield");
+        }
+        else if (!lua_isstring(ML, -1))
+        {
+            lua_pushstring(ML, "unknown error while running module");
+        }
+    }
+
+    // add ML result to L stack
+    lua_xmove(ML, L, 1);
+    if (lua_isstring(L, -1))
+    {
+        fprintf(stderr, "Failed to load module %s\n", name);
+        lua_pop(L, 1);
+        lua_remove(L, -2);
+        return false;
+    }
+    // remove ML thread from L stack
+    lua_remove(L, -2);
+    // added one value to L stack: module result
+    return true;
+}
+bool ScriptingVM::registerModule(lua_State* state,
+                                 const char* name,
+                                 Span<uint8_t> bytecode)
+{
+    lua_pushcfunction(state, register_module, nullptr);
+    lua_pushstring(state, name);
+    if (!push_module(state, name, bytecode))
+    {
+        return false;
+    }
+
+    lua_call(state, 2, 0);
+    return true;
+}
+
+bool ScriptingVM::registerModule(const char* name, Span<uint8_t> bytecode)
+{
+    return registerModule(m_state, name, bytecode);
+}
+
 } // namespace rive
 #endif

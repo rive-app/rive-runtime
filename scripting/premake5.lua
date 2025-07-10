@@ -17,7 +17,9 @@ do
         luau .. '/Common/include',
     })
 
-    files({ luau .. '/VM/src/**.cpp' })
+    files({
+        luau .. '/VM/src/**.cpp',
+    })
     defines({ 'LUA_USE_LONGJMP' })
     optimize('Size')
     if TESTING == true then

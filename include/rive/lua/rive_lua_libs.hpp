@@ -370,6 +370,11 @@ public:
     lua_State* state() { return m_state; }
 
     static void init(lua_State* state, ScriptingContext* context);
+    static bool registerModule(lua_State* state,
+                               const char* name,
+                               Span<uint8_t> bytecode);
+
+    bool registerModule(const char* name, Span<uint8_t> bytecode);
 
 private:
     lua_State* m_state;
