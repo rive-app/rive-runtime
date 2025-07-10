@@ -50,6 +50,7 @@ class SMITrigger;
 
 #ifdef WITH_RIVE_TOOLS
 typedef void (*ArtboardCallback)(void*);
+typedef uint8_t (*TestBoundsCallback)(void*, float, float, bool);
 #endif
 
 class Artboard : public ArtboardBase, public CoreContext, public Virtualizable
@@ -144,6 +145,8 @@ public:
     // EXPERIMENTAL -- for internal testing only for now.
     // DO NOT RELY ON THIS as it may change/disappear in the future.
     Core* hitTest(HitInfo*, const Mat2D&) override;
+
+    bool hitTestPoint(const Vec2D& position, bool skipOnUnclipped) override;
 
     void onComponentDirty(Component* component);
 
@@ -430,6 +433,7 @@ private:
 #ifdef WITH_RIVE_TOOLS
     ArtboardCallback m_layoutChangedCallback = nullptr;
     ArtboardCallback m_layoutDirtyCallback = nullptr;
+    TestBoundsCallback m_testBoundsCallback = nullptr;
 
 public:
     void* callbackUserData;
@@ -441,6 +445,10 @@ public:
     {
         m_layoutDirtyCallback = callback;
         addDirt(ComponentDirt::Components);
+    }
+    void onTestBounds(TestBoundsCallback callback)
+    {
+        m_testBoundsCallback = callback;
     }
 #endif
 };

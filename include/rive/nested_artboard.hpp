@@ -102,6 +102,9 @@ public:
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
     Artboard* parentArtboard() override { return artboard(); }
+    bool hitTestHost(const Vec2D& position,
+                     bool skipOnUnclipped,
+                     ArtboardInstance* artboard) override;
     void markHostTransformDirty() override { markTransformDirty(); }
     void file(File*) override;
     File* file() const override;

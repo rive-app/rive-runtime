@@ -25,6 +25,9 @@ public:
     virtual void markHostingLayoutDirty(ArtboardInstance* artboardInstance) {}
     // The artboard that contains this ArtboardHost
     virtual Artboard* parentArtboard() = 0;
+    virtual bool hitTestHost(const Vec2D& position,
+                             bool skipOnUnclipped,
+                             ArtboardInstance* artboard) = 0;
     virtual void markHostTransformDirty() = 0;
     virtual bool isLayoutProvider() { return false; }
     virtual void file(File* value) = 0;

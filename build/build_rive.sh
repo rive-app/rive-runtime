@@ -54,6 +54,10 @@
 #                                    # build with whatever args it got configured with initially
 #   build_rive.sh rebuild out/debug gms goldens  # args after OUT get forwarded to the buildsystem
 
+# Premake5 file caveats
+# As of 7/14/25 the default .lua file for premake5 is named as 'premake5_v2.lua'
+# Rename this to 'premake5.lua' for script to run correctly
+
 set -e
 set -o pipefail
 
@@ -202,10 +206,18 @@ else
         RIVE_BUILD_SYSTEM="${RIVE_BUILD_SYSTEM:-gmake2}"
     fi
 
-    RIVE_PREMAKE_ARGS="$RIVE_BUILD_SYSTEM --config=$RIVE_CONFIG --out=$RIVE_OUT $RIVE_PREMAKE_ARGS"
-    if [ ! -z "$RIVE_OS" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --os=$RIVE_OS"; fi
-    if [ ! -z "$RIVE_VARIANT" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --variant=$RIVE_VARIANT"; fi
-    if [ ! -z "$RIVE_ARCH" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --arch=$RIVE_ARCH"; fi
+    # Linux adaptation
+    if [[ "$HOST_MACHINE" == "linux" ]]; then
+        RIVE_PREMAKE_ARGS="$RIVE_BUILD_SYSTEM"
+        if [ ! -z "$RIVE_OS" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --os=$RIVE_OS"; fi
+        RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS $RIVE_PREMAKE_ARGS_EXTRA"
+    # MacOS implementation
+    else
+        RIVE_PREMAKE_ARGS="$RIVE_BUILD_SYSTEM --config=$RIVE_CONFIG --out=$RIVE_OUT $RIVE_PREMAKE_ARGS"
+        if [ ! -z "$RIVE_OS" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --os=$RIVE_OS"; fi
+        if [ ! -z "$RIVE_VARIANT" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --variant=$RIVE_VARIANT"; fi
+        if [ ! -z "$RIVE_ARCH" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --arch=$RIVE_ARCH"; fi
+    fi
 
     if [[ "$RIVE_CLEAN" = true ]]; then
         rm -fr "./$RIVE_OUT"

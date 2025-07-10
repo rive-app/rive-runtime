@@ -94,3 +94,15 @@ compile_commands.json
 # running tests results in this
 tests/unit_tests/dependencies
 tests/unit_tests/default.profraw
+
+# dependency sub directories
+dependencies/*/
+!dependencies/gen_harfbuzz_renames/
+!dependencies/gen_libjpeg_renames/
+!dependencies/gen_yoga_renames/
+!dependencies/linux/
+!dependencies/macosx/
+!dependencies/windows/
+
+# out directories
+out/debug/.rive_premake_args

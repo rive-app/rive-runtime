@@ -189,3 +189,13 @@ bool TextValueRun::hitTestHiFi(const Vec2D& position, float hitRadius)
 }
 
 void TextValueRun::isHitTarget(bool value) { m_isHitTarget = value; }
+
+bool TextValueRun::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+{
+    if (hitTestAABB(position) &&
+        Component::hitTestPoint(position, skipOnUnclipped))
+    {
+        return hitTestHiFi(position, 2);
+    }
+    return false;
+}

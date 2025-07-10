@@ -9,7 +9,9 @@
 #include <rive/animation/state_machine_input_instance.hpp>
 #include <rive/animation/nested_state_machine.hpp>
 #include <rive/animation/animation_state.hpp>
+#include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include "rive_file_reader.hpp"
+#include "utils/serializing_factory.hpp"
 
 #include <catch.hpp>
 #include <cstdio>
@@ -387,4 +389,386 @@ TEST_CASE("multiple shapes with mouse movement behavior", "[hittest]")
     }
 
     delete stateMachineInstance;
+}
+
+TEST_CASE("Shape clipped by parent layout", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hit_test_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("ab-1");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Move over the shape
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(50.0f, 150.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Move within the shape but the wrapping layout is clipped
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(260.0f, 150.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("hittest_ab1"));
+}
+
+TEST_CASE("Shape clipped by parent artboard", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hit_test_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("ab1-parent");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Move over the shape
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(370.0f, 110.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Move within the shape but the wrapping parent layout in the nested
+    // artboard is clipped
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(370.0f, 180.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("hittest_ab1_parent"));
+}
+
+TEST_CASE("Shape clipped by parent and grand-parent artboard", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hit_test_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("ab1-grand-parent");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Move over the shape but outside the grand parent clipping area
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(370.0f, 250.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Move within the shape in a non-clipped area
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(370.0f, 190.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Move over the shape but outside the parent clipping area
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(510.0f, 190.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("hittest_ab1_grand_parent"));
+}
+
+TEST_CASE("Artboard list component with scrolling behavior", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hit_test_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("ab-2-non-virtualized");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    auto scrollProp =
+        vmi->propertyValue("scroll-offset")->as<ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    scrollProp->propertyValue(-100);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    auto initCoord = 0.0f;
+
+    initCoord = 200.0f;
+    // First move in an area of the artboard where there are listed components
+    // but they are clipped.
+    while (initCoord > 100.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(50.0f, initCoord));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord -= 10;
+    }
+
+    // Next jump to a position of the state to start scrolling the elements
+    // Should be noticed that the previous hovered components did not turn green
+    initCoord = 75.0f;
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(50.0f, initCoord));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    while (initCoord > -500.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(50.0f, initCoord));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord -= 20;
+    }
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(50.0f, initCoord));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // After scroll has ended, move pointer over all visible elements that
+    // should turn green
+    initCoord = 110.0f;
+    while (initCoord > -5.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(50.0f, initCoord));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord -= 4;
+    }
+
+    CHECK(silver.matches("hittest_ab_2_non_virtualized"));
+}
+
+TEST_CASE(
+    "Artboard list component with scrolling behavior virtualized and carousel",
+    "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hit_test_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("ab-2-virtualized");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    auto scrollProp =
+        vmi->propertyValue("scroll-offset")->as<ViewModelInstanceNumber>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    scrollProp->propertyValue(-100);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    auto initCoord = 0.0f;
+
+    initCoord = 200.0f;
+    // First move in an area of the artboard where there are listed components
+    // but they are clipped In this test, since the scroll is virtualized, the
+    // pointer is not actually hovering over clipped components at all
+    while (initCoord > 100.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(50.0f, initCoord));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord -= 10;
+    }
+
+    // Next jump to a position of the state to start scrolling the elements
+    // Should be noticed that the previous hovered components did not turn green
+    initCoord = 75.0f;
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(50.0f, initCoord));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    while (initCoord > -500.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(50.0f, initCoord));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord -= 20;
+    }
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(50.0f, initCoord));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // After scroll has ended, move pointer over all visible elements that
+    // should turn green
+    initCoord = 110.0f;
+    while (initCoord > -5.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(50.0f, initCoord));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord -= 4;
+    }
+
+    CHECK(silver.matches("hittest_ab_2_virtualized"));
+}
+
+TEST_CASE("Hit testing text in multiple layouts rotated and scaled", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hit_test_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("ab-text-parent");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    auto initCoord = 400.0f;
+    // First move the cursor from left to right through the text
+    // within a clipped and non-clipped area
+    while (initCoord < 550.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(initCoord, 320.0f));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord += 10;
+    }
+
+    initCoord = 200.0f;
+    // First move the cursor from top to bottom through the text
+    // within a clipped and non-clipped area
+    while (initCoord < 450.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(500.0f, initCoord));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord += 10;
+    }
+
+    CHECK(silver.matches("hittest_ab_text_parent"));
+}
+
+TEST_CASE("Hit testing shapes in layouts", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hit_test_test.riv", &silver);
+
+    auto artboard = file->artboardNamed("ab-shape-parent");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    auto initCoord = 0.0f;
+    // First move the cursor from left to right through the text
+    // within a clipped and non-clipped area
+    while (initCoord < 550.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(310.0f, initCoord));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord += 20;
+    }
+
+    initCoord = 220.0f;
+    // First move the cursor from top to bottom through the text
+    // within a clipped and non-clipped area
+    while (initCoord < 530.0f)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(initCoord, 420.0f));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+        initCoord += 20;
+    }
+
+    CHECK(silver.matches("hittest_ab_shape_parent"));
 }

@@ -3,6 +3,7 @@
 #include "rive/component_dirt.hpp"
 #include "rive/generated/component_base.hpp"
 #include "rive/dependency_helper.hpp"
+#include "rive/math/vec2d.hpp"
 
 #include <vector>
 #include <functional>
@@ -64,6 +65,7 @@ public:
     {
         return (m_Dirt & ComponentDirt::Collapsed) == ComponentDirt::Collapsed;
     }
+    virtual bool hitTestPoint(const Vec2D& position, bool skipOnUnclipped);
 };
 } // namespace rive
 

@@ -47,6 +47,37 @@ void LayoutComponent::buildDependencies()
 
 Core* LayoutComponent::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
+bool LayoutComponent::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+{
+    Mat2D inverseWorld;
+    if (worldTransform().invert(&inverseWorld))
+    {
+        // If the layout is not clipped and skipOnUnclipped is true, we
+        // don't care about whether it contains the position
+        auto canSkip = skipOnUnclipped && !this->clip();
+        if (!canSkip)
+        {
+            auto localWorld = inverseWorld * position;
+            if (this->is<Artboard>())
+            {
+                auto artboard = this->as<Artboard>();
+                if (artboard->originX() != 0 || artboard->originY() != 0)
+                {
+                    localWorld +=
+                        Vec2D(artboard->originX() * artboard->layoutWidth(),
+                              artboard->originY() * artboard->layoutHeight());
+                }
+            }
+            if (!localBounds().contains(localWorld))
+            {
+                return false;
+            }
+        }
+        return Drawable::hitTestPoint(position, true);
+    }
+    return false;
+}
+
 void LayoutComponent::update(ComponentDirt value)
 {
     Super::update(value);
