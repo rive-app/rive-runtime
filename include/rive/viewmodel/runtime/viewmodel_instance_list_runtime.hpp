@@ -16,7 +16,6 @@ class ViewModelInstanceListRuntime : public ViewModelInstanceValueRuntime
 {
 
 public:
-    ~ViewModelInstanceListRuntime();
     ViewModelInstanceListRuntime(ViewModelInstanceList* viewModelInstance) :
         ViewModelInstanceValueRuntime(viewModelInstance)
     {}
@@ -29,7 +28,8 @@ public:
     size_t size() const;
 
 private:
-    std::unordered_map<ViewModelInstanceListItem*, ViewModelInstanceRuntime*>
+    std::unordered_map<rcp<ViewModelInstanceListItem>,
+                       rcp<ViewModelInstanceRuntime>>
         m_itemsMap;
 };
 } // namespace rive

@@ -6,15 +6,6 @@
 // Default namespace for Rive Cpp code
 using namespace rive;
 
-ViewModelInstanceListRuntime::~ViewModelInstanceListRuntime()
-{
-    for (auto& list : m_itemsMap)
-    {
-        list.first->unref();
-        list.second->unref();
-    }
-}
-
 ViewModelInstanceRuntime* ViewModelInstanceListRuntime::instanceAt(int index)
 {
     auto listItems =
@@ -28,26 +19,25 @@ ViewModelInstanceRuntime* ViewModelInstanceListRuntime::instanceAt(int index)
     {
         return nullptr;
     }
-    auto it = m_itemsMap.find(listItem.get());
+    auto it = m_itemsMap.find(listItem);
     if (it != m_itemsMap.end())
     {
-        return it->second;
+        return it->second.get();
     }
     auto instanceRuntime =
-        new ViewModelInstanceRuntime(listItem->viewModelInstance());
-    m_itemsMap[listItem.get()] = instanceRuntime;
-    return instanceRuntime;
+        make_rcp<ViewModelInstanceRuntime>(listItem->viewModelInstance());
+    m_itemsMap[listItem] = instanceRuntime;
+    return instanceRuntime.get();
 }
 
 void ViewModelInstanceListRuntime::addInstance(
     ViewModelInstanceRuntime* instanceRuntime)
 {
-    instanceRuntime->ref();
-    auto listItem = new ViewModelInstanceListItem();
+    auto listItem = make_rcp<ViewModelInstanceListItem>();
     listItem->viewModelInstance(instanceRuntime->instance());
     auto list = m_viewModelInstanceValue->as<ViewModelInstanceList>();
-    m_itemsMap[listItem] = instanceRuntime;
-    list->addItem(rcp<ViewModelInstanceListItem>(listItem));
+    m_itemsMap[listItem] = ref_rcp(instanceRuntime);
+    list->addItem(listItem);
 }
 
 bool ViewModelInstanceListRuntime::addInstanceAt(
@@ -58,9 +48,8 @@ bool ViewModelInstanceListRuntime::addInstanceAt(
     auto list = m_viewModelInstanceValue->as<ViewModelInstanceList>();
     if (list->addItemAt(listItem, index))
     {
-        instanceRuntime->ref();
         listItem->viewModelInstance(instanceRuntime->instance());
-        m_itemsMap[listItem.get()] = instanceRuntime;
+        m_itemsMap[listItem] = ref_rcp(instanceRuntime);
         return true;
     }
     return false;
@@ -83,11 +72,9 @@ void ViewModelInstanceListRuntime::removeInstance(
     }
     for (auto& item : itemsToRemove)
     {
-        auto it = m_itemsMap.find(item.get());
+        auto it = m_itemsMap.find(item);
         if (it != m_itemsMap.end())
         {
-            it->first->unref();
-            it->second->unref();
             m_itemsMap.erase(it);
         }
         instanceList->removeItem(item);
@@ -103,11 +90,9 @@ void ViewModelInstanceListRuntime::removeInstanceAt(int index)
         auto listItem = listItems[index];
         instanceList->removeItem(listItem);
 
-        auto it = m_itemsMap.find(listItem.get());
+        auto it = m_itemsMap.find(listItem);
         if (it != m_itemsMap.end())
         {
-            it->first->unref();
-            it->second->unref();
             m_itemsMap.erase(it);
         }
     }
