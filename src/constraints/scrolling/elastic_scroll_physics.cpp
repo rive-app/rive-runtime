@@ -38,9 +38,10 @@ Vec2D ElasticScrollPhysics::clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value)
 void ElasticScrollPhysics::run(Vec2D rangeMin,
                                Vec2D rangeMax,
                                Vec2D value,
-                               std::vector<Vec2D> snappingPoints)
+                               std::vector<Vec2D> snappingPoints,
+                               float contentSize)
 {
-    Super::run(rangeMin, rangeMax, value, snappingPoints);
+    Super::run(rangeMin, rangeMax, value, snappingPoints, contentSize);
     std::vector<float> xPoints;
     std::vector<float> yPoints;
     for (auto pt : snappingPoints)
@@ -54,7 +55,8 @@ void ElasticScrollPhysics::run(Vec2D rangeMin,
                         rangeMin.x,
                         rangeMax.x,
                         value.x,
-                        xPoints);
+                        xPoints,
+                        contentSize);
     }
     if (m_physicsY != nullptr)
     {
@@ -62,7 +64,8 @@ void ElasticScrollPhysics::run(Vec2D rangeMin,
                         rangeMin.y,
                         rangeMax.y,
                         value.y,
-                        yPoints);
+                        yPoints,
+                        contentSize);
     }
 }
 
@@ -160,7 +163,8 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
                                      float rangeMin,
                                      float rangeMax,
                                      float value,
-                                     std::vector<float> snappingPoints)
+                                     std::vector<float> snappingPoints,
+                                     float contentSize)
 {
     m_isRunning = true;
     m_runRangeMin = rangeMin;
@@ -190,15 +194,22 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
     if (!snappingPoints.empty())
     {
         float endTarget = -(m_current + m_speed / m_friction);
+        float sectionSize = contentSize != 0 ? contentSize : 1;
+        int multiple = rangeMax == std::numeric_limits<float>::infinity()
+                           ? std::floor(endTarget / sectionSize)
+                           : 0;
+        float modEndTarget = rangeMax == std::numeric_limits<float>::infinity()
+                                 ? std::fmod(endTarget, sectionSize)
+                                 : endTarget;
         float closest = std::numeric_limits<float>::max();
         float snapTarget = 0;
         for (auto snap : snappingPoints)
         {
-            float diff = std::abs(snap - endTarget);
+            float diff = std::abs(snap - modEndTarget);
             if (diff < closest)
             {
                 closest = diff;
-                snapTarget = snap;
+                snapTarget = snap + (multiple * sectionSize);
             }
         }
         m_speed = -(snapTarget + m_current) * m_friction;

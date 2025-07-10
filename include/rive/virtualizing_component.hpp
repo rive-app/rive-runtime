@@ -29,6 +29,8 @@ public:
     virtual void setItemSize(Vec2D size, int index) = 0;
     virtual void addVirtualizable(int index) = 0;
     virtual void removeVirtualizable(int index) = 0;
+    virtual void setVisibleIndices(int start, int end) = 0;
+    virtual void setVirtualizablePosition(int index, Vec2D position) = 0;
 };
 } // namespace rive
 

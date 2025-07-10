@@ -14,7 +14,8 @@ public:
     void run(Vec2D rangeMin,
              Vec2D rangeMax,
              Vec2D value,
-             std::vector<Vec2D> snappingPoints) override;
+             std::vector<Vec2D> snappingPoints,
+             float contentSize) override;
     Vec2D clamp(Vec2D rangeMin, Vec2D rangeMax, Vec2D value) override;
 };
 } // namespace rive

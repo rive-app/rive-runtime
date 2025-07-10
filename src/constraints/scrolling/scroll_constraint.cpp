@@ -275,7 +275,8 @@ void ScrollConstraint::runPhysics()
         m_physics->run(Vec2D(maxOffsetX(), maxOffsetY()),
                        Vec2D(minOffsetX(), minOffsetY()),
                        Vec2D(offsetX(), offsetY()),
-                       snap() ? snappingPoints : std::vector<Vec2D>());
+                       snap() ? snappingPoints : std::vector<Vec2D>(),
+                       mainAxisIsColumn() ? contentHeight() : contentWidth());
     }
 }
 

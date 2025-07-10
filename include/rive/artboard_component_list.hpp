@@ -79,6 +79,12 @@ public:
         const rcp<ViewModelInstanceListItem>& listItem) const;
     void addVirtualizable(int index) override;
     void removeVirtualizable(int index) override;
+    void setVisibleIndices(int start, int end) override
+    {
+        m_visibleStartIndex = start;
+        m_visibleEndIndex = end;
+    }
+    void setVirtualizablePosition(int index, Vec2D position) override;
     void createArtboardAt(int index);
     void addArtboardAt(std::unique_ptr<ArtboardInstance> artboard, int index);
     void removeArtboardAt(int index);
@@ -125,10 +131,13 @@ private:
         m_stateMachinesPool;
     std::unordered_map<Artboard*, std::unique_ptr<PropertyRecorder>>
         m_propertyRecordersMap;
+    std::unordered_map<ArtboardInstance*, Vec2D> m_artboardPositions;
 
     File* m_file = nullptr;
     std::vector<Vec2D> m_artboardSizes;
     Vec2D m_layoutSize;
+    int m_visibleStartIndex = -1;
+    int m_visibleEndIndex = -1;
 };
 } // namespace rive
 

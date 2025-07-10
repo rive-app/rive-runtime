@@ -83,6 +83,20 @@ void ScrollVirtualizer::virtualize(ScrollConstraint* scroll,
     for (int i = 0; i < children.size(); i++)
     {
         auto child = children[i];
+        auto component = child->transformComponent();
+        if (component != nullptr)
+        {
+            auto virt = VirtualizingComponent::from(component);
+            if (virt != nullptr)
+            {
+                virt->setVisibleIndices(-1, -1);
+            }
+        }
+    }
+
+    for (int i = 0; i < children.size(); i++)
+    {
+        auto child = children[i];
         for (int j = 0; j < child->numLayoutNodes(); j++)
         {
             auto size = getItemSize(child, j, isHorz);
@@ -225,6 +239,8 @@ recycle:
     }
     recycleItems(indicesToRecycle, children, totalItemCount);
 
+    std::vector<Vec2D> visibleIndices(children.size(), Vec2D(-1, -1));
+
     for (int i = m_visibleIndexStart; i <= m_visibleIndexEnd; ++i)
     {
         int actualIndex = m_infinite ? i % totalItemCount : i;
@@ -243,6 +259,12 @@ recycle:
                     if (actualIndex < end && actualIndex >= start)
                     {
                         int childIndex = actualIndex - start;
+                        auto& visibleInd = visibleIndices[i];
+                        if (visibleInd.x == -1)
+                        {
+                            visibleInd.x = childIndex;
+                        }
+                        visibleInd.y = childIndex;
                         auto item = virt->item(childIndex);
                         if (item == nullptr)
                         {
@@ -272,11 +294,8 @@ recycle:
                                                    artboardInstance->layoutY())
                                            : Vec2D(artboardInstance->layoutX(),
                                                    runningOffset);
-                                auto transform =
-                                    inverse * Mat2D::fromTranslation(location);
-                                artboardInstance->mutableWorldTransform() =
-                                    transform;
-                                artboardInstance->markWorldTransformDirty();
+                                virt->setVirtualizablePosition(childIndex,
+                                                               location);
                             }
                         }
 
@@ -286,6 +305,21 @@ recycle:
                 }
             }
             runningTotal = end;
+        }
+    }
+
+    for (int i = 0; i < children.size(); i++)
+    {
+        auto child = children[i];
+        auto visible = visibleIndices[i];
+        auto component = child->transformComponent();
+        if (component != nullptr)
+        {
+            auto virt = VirtualizingComponent::from(component);
+            if (virt != nullptr)
+            {
+                virt->setVisibleIndices(visible.x, visible.y);
+            }
         }
     }
 }

@@ -53,7 +53,8 @@ public:
     virtual void run(Vec2D rangeMin,
                      Vec2D rangeMax,
                      Vec2D value,
-                     std::vector<Vec2D> snappingPoints)
+                     std::vector<Vec2D> snappingPoints,
+                     float contentSize)
     {
         m_isRunning = true;
     }

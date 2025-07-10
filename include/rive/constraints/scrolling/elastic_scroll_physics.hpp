@@ -34,7 +34,8 @@ public:
              float rangeMin,
              float rangeMax,
              float value,
-             std::vector<float> snappingPoints);
+             std::vector<float> snappingPoints,
+             float contentSize);
     float advance(float elapsedSeconds);
 };
 
@@ -60,7 +61,8 @@ public:
     void run(Vec2D rangeMin,
              Vec2D rangeMax,
              Vec2D value,
-             std::vector<Vec2D> snappingPoints) override;
+             std::vector<Vec2D> snappingPoints,
+             float contentSize) override;
     void prepare(DraggableConstraintDirection dir) override;
     void reset() override;
 };

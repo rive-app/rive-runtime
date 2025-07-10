@@ -1,4 +1,4 @@
-#include <rive/animation/state_machine_input_instance.hpp>
+#include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
@@ -10,6 +10,7 @@
 #include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
 #include "utils/no_op_factory.hpp"
+#include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
 #include <catch.hpp>
@@ -417,6 +418,7 @@ TEST_CASE("Component List Virtualized Artboards Layout Bounds",
 
     REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
     auto list = artboard->find<rive::ArtboardComponentList>("List");
+    REQUIRE(list->virtualizationEnabled() == true);
 
     artboard->advance(0.0f);
 
@@ -478,9 +480,11 @@ TEST_CASE("Component List Virtualized Scroll", "[component_list]")
 
 TEST_CASE("Component List Virtualized Scroll manual", "[component_list]")
 {
+    rive::SerializingFactory silver;
     auto file = ReadRiveFile("assets/component_list_virtualized.riv");
 
     auto artboard = file->artboard("Main");
+    silver.frameSize(artboard->width(), artboard->height());
     auto artboardInstance = artboard->instance();
     REQUIRE(artboard != nullptr);
     auto viewModelInstance =
@@ -510,6 +514,8 @@ TEST_CASE("Component List Virtualized Scroll manual", "[component_list]")
     REQUIRE(scroll->physics()->isRunning() == false);
 
     artboardInstance->advance(0.0f);
+    auto renderer = silver.makeRenderer();
+    artboardInstance->draw(renderer.get());
 
     stateMachineInstance->pointerMove(rive::Vec2D(250.0f, 50.0f));
     // Start drag

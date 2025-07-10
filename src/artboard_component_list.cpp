@@ -394,6 +394,10 @@ void ArtboardComponentList::markHostingLayoutDirty(
 
 void ArtboardComponentList::draw(Renderer* renderer)
 {
+    if (m_listItems.size() == 0)
+    {
+        return;
+    }
     ClipResult clipResult = applyClip(renderer);
     if (clipResult == ClipResult::noClip)
     {
@@ -403,23 +407,52 @@ void ArtboardComponentList::draw(Renderer* renderer)
     }
     if (clipResult != ClipResult::emptyClip)
     {
-        renderer->transform(worldTransform());
-        for (int i = 0; i < artboardCount(); i++)
+        if (virtualizationEnabled())
         {
-            auto artboard = artboardInstance(i);
-            if (artboard != nullptr)
+            renderer->transform(
+                parent()->as<LayoutComponent>()->worldTransform());
+            if (m_visibleStartIndex != -1 && m_visibleEndIndex != -1)
             {
-                if (!virtualizationEnabled())
+                // We need to render in the correct order so we get the correct
+                // z-index for items in cases where there is overlap
+                auto startIndex = m_visibleStartIndex % (int)m_listItems.size();
+                auto endIndex = m_visibleEndIndex % (int)m_listItems.size();
+                int i = startIndex;
+                while (true)
+                {
+                    auto artboard = artboardInstance(i);
+                    if (artboard != nullptr)
+                    {
+                        renderer->save();
+                        auto position = m_artboardPositions[artboard];
+                        auto artboardTransform =
+                            Mat2D::fromTranslate(position.x, position.y);
+                        renderer->transform(artboardTransform);
+                        artboard->draw(renderer);
+                        renderer->restore();
+                    }
+                    if (i == endIndex)
+                    {
+                        break;
+                    }
+                    i = (i + 1) % m_listItems.size();
+                }
+            }
+        }
+        else
+        {
+            renderer->transform(worldTransform());
+            for (int i = 0; i < artboardCount(); i++)
+            {
+                auto artboard = artboardInstance(i);
+                if (artboard != nullptr)
                 {
                     renderer->save();
                     auto bounds = artboard->layoutBounds();
                     auto artboardTransform =
                         Mat2D::fromTranslate(bounds.left(), bounds.top());
                     renderer->transform(artboardTransform);
-                }
-                artboard->draw(renderer);
-                if (!virtualizationEnabled())
-                {
+                    artboard->draw(renderer);
                     renderer->restore();
                 }
             }
@@ -533,9 +566,15 @@ bool ArtboardComponentList::worldToLocal(Vec2D world, Vec2D* local, int index)
     {
         return false;
     }
-    auto bounds = artboard->layoutBounds();
+    auto offset = virtualizationEnabled()
+                      ? m_artboardPositions[artboard]
+                      : Vec2D(artboard->layoutBounds().left(),
+                              artboard->layoutBounds().top());
+    auto transform = virtualizationEnabled()
+                         ? parent()->as<LayoutComponent>()->worldTransform()
+                         : worldTransform();
     auto artboardTransform =
-        worldTransform() * Mat2D::fromTranslate(bounds.left(), bounds.top());
+        transform * Mat2D::fromTranslate(offset.x, offset.y);
     Mat2D toMountedArtboard;
     if (!artboardTransform.invert(&toMountedArtboard))
     {
@@ -704,7 +743,9 @@ void ArtboardComponentList::addVirtualizable(int index)
                 addArtboardAt(std::move(pool.back()), index);
                 pool.pop_back();
             }
-            this->artboard()->markLayoutDirty(artboardInstance(index));
+            // Add components dirt so we process layout updates in the same
+            // frame that a mounted artboard is added
+            addDirt(ComponentDirt::Components);
         }
     }
 }
@@ -729,6 +770,15 @@ void ArtboardComponentList::removeVirtualizable(int index)
         }
     }
     removeArtboardAt(index);
+}
+
+void ArtboardComponentList::setVirtualizablePosition(int index, Vec2D position)
+{
+    auto artboard = this->artboardInstance(index);
+    if (artboard != nullptr)
+    {
+        m_artboardPositions[artboard] = position;
+    }
 }
 
 bool ArtboardComponentList::virtualizationEnabled()
