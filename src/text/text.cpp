@@ -724,9 +724,9 @@ void Text::update(ComponentDirt value)
         bool precomputeModifierCoverage = modifierRangesNeedShape();
         bool parentIsLayoutNotArtboard =
             parent()->is<LayoutComponent>() && !parent()->is<Artboard>();
-        if (precomputeModifierCoverage)
+        if (precomputeModifierCoverage &&
+            makeStyled(m_modifierStyledText, false))
         {
-            makeStyled(m_modifierStyledText, false);
             auto runs = m_modifierStyledText.runs();
             m_modifierShape =
                 runs[0].font->shapeText(m_modifierStyledText.unichars(), runs);
