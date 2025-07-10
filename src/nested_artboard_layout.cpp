@@ -234,6 +234,8 @@ void NestedArtboardLayout::updateArtboard(
     }
 #endif
     NestedArtboard::updateArtboard(viewModelInstanceArtboard);
+    updateWidthOverride();
+    updateHeightOverride();
 #ifdef WITH_RIVE_LAYOUT
     if (parent()->is<LayoutComponent>())
     {

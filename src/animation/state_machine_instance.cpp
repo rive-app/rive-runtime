@@ -1562,13 +1562,13 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
 
     for (auto nestedArtboard : instance->nestedArtboards())
     {
-        if (nestedArtboard->hasNestedStateMachines())
-        {
-            auto hn = rivestd::make_unique<HitNestedArtboard>(
-                nestedArtboard->as<Component>(),
-                this);
-            m_hitComponents.push_back(std::move(hn));
-        }
+        // TODO: @hernan as an optimization only create a HitNestedArtboard if
+        // the nested artboard has state machines or if it is bound via data
+        // binding
+        auto hn = rivestd::make_unique<HitNestedArtboard>(
+            nestedArtboard->as<Component>(),
+            this);
+        m_hitComponents.push_back(std::move(hn));
         for (auto animation : nestedArtboard->nestedAnimations())
         {
             if (animation->is<NestedStateMachine>())
