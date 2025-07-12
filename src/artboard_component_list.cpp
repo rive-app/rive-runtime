@@ -623,6 +623,11 @@ void ArtboardComponentList::addArtboardAt(
         if (artboardInstance != nullptr)
         {
             artboardInstance->host(this);
+            if (parent()->is<LayoutComponent>())
+            {
+                artboardInstance->parentIsRow(
+                    parent()->as<LayoutComponent>()->mainAxisIsRow());
+            }
         }
         syncLayoutChildren();
         auto artboard = findArtboard(item);
