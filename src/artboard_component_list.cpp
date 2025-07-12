@@ -746,6 +746,10 @@ void ArtboardComponentList::addVirtualizable(int index)
             // Add components dirt so we process layout updates in the same
             // frame that a mounted artboard is added
             addDirt(ComponentDirt::Components);
+            if (parent()->is<LayoutComponent>())
+            {
+                parent()->as<LayoutComponent>()->markLayoutStyleDirty();
+            }
         }
     }
 }
