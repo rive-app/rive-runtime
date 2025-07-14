@@ -3,7 +3,6 @@
 
 #include "rive/hit_info.hpp"
 #include "rive/generated/shapes/shape_base.hpp"
-#include "rive/animation/hittable.hpp"
 #include "rive/shapes/path_composer.hpp"
 #include "rive/shapes/shape_paint_container.hpp"
 #include "rive/drawable_flag.hpp"
@@ -16,7 +15,7 @@ class PathComposer;
 class HitTester;
 class RenderPathDeformer;
 
-class Shape : public ShapeBase, public ShapePaintContainer, public Hittable
+class Shape : public ShapeBase, public ShapePaintContainer
 {
 private:
     PathComposer m_PathComposer;
@@ -86,8 +85,9 @@ public:
                         float height,
                         LayoutMeasureMode heightMode) override;
 
-    bool hitTestAABB(const Vec2D& position) override;
-    bool hitTestHiFi(const Vec2D& position, float hitRadius) override;
+    bool hitTestAABB(const Vec2D& position);
+    bool hitTestHiFi(const Vec2D& position, float hitRadius);
+    bool hitTestPoint(const Vec2D& position, bool skipOnUnclipped) override;
     // Implemented for ShapePaintContainer.
     const Mat2D& shapeWorldTransform() const override
     {

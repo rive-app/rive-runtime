@@ -31,11 +31,11 @@ ViewModelProperty* ViewModel::property(size_t index)
     return nullptr;
 }
 
-ViewModelProperty* ViewModel::property(const std::string& name)
+ViewModelProperty* ViewModel::property(const std::string& propName)
 {
     for (auto property : m_Properties)
     {
-        if (property->name() == name)
+        if (property->name() == propName)
         {
             return property;
         }

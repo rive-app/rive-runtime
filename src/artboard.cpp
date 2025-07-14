@@ -1045,6 +1045,36 @@ Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
     return nullptr;
 }
 
+bool Artboard::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+{
+    if (host() != nullptr && isInstance())
+    {
+        if (!host()->hitTestHost(position,
+                                 skipOnUnclipped,
+                                 this->as<ArtboardInstance>()))
+        {
+            return false;
+        }
+    }
+#ifdef WITH_RIVE_TOOLS
+    // Editor artboards don't have a host, so we expose a function that calls
+    // the host in dart.
+    if (m_testBoundsCallback != nullptr)
+    {
+        // Dart can't return booleans to cpp, so we use a uint_8 instead
+        auto didHit = m_testBoundsCallback(callbackUserData,
+                                           position.x,
+                                           position.y,
+                                           skipOnUnclipped);
+        if (didHit == 0)
+        {
+            return false;
+        }
+    }
+#endif
+    return Drawable::hitTestPoint(position, skipOnUnclipped);
+}
+
 void Artboard::draw(Renderer* renderer) { draw(renderer, DrawOption::kNormal); }
 
 void Artboard::draw(Renderer* renderer, DrawOption option)

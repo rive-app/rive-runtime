@@ -168,6 +168,13 @@ Core* NestedArtboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
     return nullptr;
 }
 
+bool NestedArtboard::hitTestHost(const Vec2D& position,
+                                 bool skipOnUnclipped,
+                                 ArtboardInstance* artboard)
+{
+    return parent()->hitTestPoint(worldTransform() * position, skipOnUnclipped);
+}
+
 StatusCode NestedArtboard::import(ImportStack& importStack)
 {
     auto backboardImporter =

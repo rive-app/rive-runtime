@@ -96,3 +96,12 @@ bool Component::collapse(bool value)
     m_DependencyHelper.onComponentDirty(this);
     return true;
 }
+
+bool Component::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+{
+    if (parent())
+    {
+        return parent()->hitTestPoint(position, skipOnUnclipped);
+    }
+    return true;
+}

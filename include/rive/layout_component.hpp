@@ -178,6 +178,7 @@ public:
     void drawProxy(Renderer* renderer) override;
     bool isProxyHidden() override { return isHidden(); }
     Core* hitTest(HitInfo*, const Mat2D&) override;
+    bool hitTestPoint(const Vec2D& position, bool skipOnUnclipped) override;
     DrawableProxy* proxy() { return &m_proxy; };
     virtual void updateRenderPath();
     void update(ComponentDirt value) override;

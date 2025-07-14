@@ -767,68 +767,7 @@ public:
     Drawable* m_drawable;
     std::vector<ListenerGroup*> listeners;
 
-    virtual bool hitTestHelper(Vec2D position) const { return false; }
-
-    bool hitTest(Vec2D position) const override
-    {
-        return hitTestHelper(position);
-    }
-
-    virtual bool testBounds(Component* component,
-                            Vec2D position,
-                            bool skipOnUnclipped) const
-    {
-        if (component == nullptr)
-        {
-            return true;
-        }
-
-        if (component->is<Drawable>())
-        {
-            component = component->as<Drawable>()->hittableComponent();
-            if (component == nullptr)
-            {
-                return true;
-            }
-        }
-
-        if (component->is<LayoutComponent>())
-        {
-            Mat2D inverseWorld;
-            auto layout = component->as<LayoutComponent>();
-
-            if (layout->worldTransform().invert(&inverseWorld))
-            {
-                // If the layout is not clipped and skipOnUnclipped is true, we
-                // don't care about whether it contains the position
-                auto canSkip = skipOnUnclipped && !layout->clip();
-                if (!canSkip)
-                {
-                    auto localWorld = inverseWorld * position;
-                    if (layout->is<Artboard>())
-                    {
-                        auto artboard = layout->as<Artboard>();
-                        if (artboard->originX() != 0 ||
-                            artboard->originY() != 0)
-                        {
-                            localWorld += Vec2D(
-                                artboard->originX() * artboard->layoutWidth(),
-                                artboard->originY() * artboard->layoutHeight());
-                        }
-                    }
-                    if (!layout->localBounds().contains(localWorld))
-                    {
-                        return false;
-                    }
-                }
-                return testBounds(layout->parent(), position, true);
-            }
-            return false;
-        }
-
-        // Keep going
-        return testBounds(component->parent(), position, skipOnUnclipped);
-    }
+    bool hitTest(Vec2D position) const override { return false; }
 
     void prepareEvent(Vec2D position, ListenerType hitType) override
     {
@@ -921,23 +860,6 @@ public:
 class HitExpandable : public HitDrawable
 {
 public:
-    bool testBounds(Component* component,
-                    Vec2D position,
-                    bool skipOnUnclipped) const override
-    {
-        Hittable* hittable = component ? Hittable::from(component) : nullptr;
-        if (hittable != nullptr)
-        {
-            if (hittable->hitTestAABB(position) &&
-                HitDrawable::testBounds(component->parent(), position, true))
-            {
-                return hittable->hitTestHiFi(position, hitRadius);
-            }
-            return false;
-        }
-        return HitDrawable::testBounds(component, position, true);
-    }
-
     HitExpandable(Drawable* drawable,
                   Component* component,
                   StateMachineInstance* stateMachineInstance,
@@ -945,9 +867,9 @@ public:
         HitDrawable(drawable, component, stateMachineInstance, isOpaque)
     {}
 
-    bool hitTestHelper(Vec2D position) const override
+    bool hitTest(Vec2D position) const override
     {
-        return testBounds(m_component, position, true);
+        return m_component->hitTestPoint(position, true);
     }
 };
 
@@ -976,9 +898,9 @@ public:
         HitDrawable(layout, layout, stateMachineInstance, isOpaque)
     {}
 
-    bool hitTestHelper(Vec2D position) const override
+    bool hitTest(Vec2D position) const override
     {
-        return testBounds(m_component, position, false);
+        return m_component->hitTestPoint(position, false);
     }
 };
 

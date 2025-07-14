@@ -62,6 +62,9 @@ public:
     void unbind() override;
     void updateDataBinds() override;
     Artboard* parentArtboard() override { return artboard(); }
+    bool hitTestHost(const Vec2D& position,
+                     bool skipOnUnclipped,
+                     ArtboardInstance* artboard) override;
     void markHostTransformDirty() override { markTransformDirty(); }
     bool syncStyleChanges() override;
     void updateLayoutBounds(bool animate = true) override;

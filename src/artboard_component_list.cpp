@@ -463,6 +463,25 @@ void ArtboardComponentList::draw(Renderer* renderer)
 
 Core* ArtboardComponentList::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
+bool ArtboardComponentList::hitTestHost(const Vec2D& position,
+                                        bool skipOnUnclipped,
+                                        ArtboardInstance* artboard)
+{
+    if (artboard == nullptr)
+    {
+        return false;
+    }
+    auto bounds = virtualizationEnabled()
+                      ? m_artboardPositions[artboard]
+                      : Vec2D(artboard->layoutBounds().left(),
+                              artboard->layoutBounds().top());
+    Vec2D offset(bounds.x + position.x, bounds.y + position.y);
+    auto transform = virtualizationEnabled()
+                         ? parent()->as<LayoutComponent>()->worldTransform()
+                         : worldTransform();
+    return parent()->hitTestPoint(transform * offset, skipOnUnclipped);
+}
+
 void ArtboardComponentList::update(ComponentDirt value)
 {
     Super::update(value);

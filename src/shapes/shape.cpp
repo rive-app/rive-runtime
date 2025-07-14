@@ -222,6 +222,16 @@ Core* Shape::hitTest(HitInfo* hinfo, const Mat2D& xform)
     return nullptr;
 }
 
+bool Shape::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+{
+    if (hitTestAABB(position) &&
+        Component::hitTestPoint(position, skipOnUnclipped))
+    {
+        return hitTestHiFi(position, 2);
+    }
+    return false;
+}
+
 void Shape::buildDependencies()
 {
     // Make sure to propagate the call to PathComposer as it's no longer part of
