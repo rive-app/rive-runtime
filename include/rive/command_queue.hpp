@@ -129,11 +129,18 @@ public:
             std::vector<std::string> instanceNames)
         {}
 
+        struct ViewModelPropertyData
+        {
+            DataType type = DataType::none;
+            std::string name = "";
+            std::string metaData = "";
+        };
+
         virtual void onViewModelPropertiesListed(
             const FileHandle,
             uint64_t requestId,
             std::string viewModelName,
-            std::vector<PropertyData> properties)
+            std::vector<ViewModelPropertyData> properties)
         {}
 
         virtual void onViewModelEnumsListed(const FileHandle,

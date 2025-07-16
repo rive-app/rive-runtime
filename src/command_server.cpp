@@ -1802,6 +1802,8 @@ bool CommandServer::processCommands()
                     auto model = file->viewModelByName(viewModelName);
                     if (model)
                     {
+                        // Used to get meta data about enums.
+                        auto modelInstance = model->createDefaultInstance();
                         auto properties = model->properties();
 
                         std::unique_lock<std::mutex> messageLock(
@@ -1816,6 +1818,13 @@ bool CommandServer::processCommands()
                         {
                             messageStream << property.type;
                             m_commandQueue->m_messageNames << property.name;
+                            if (property.type == DataType::enumType)
+                            {
+                                auto enumProperty =
+                                    modelInstance->propertyEnum(property.name);
+                                m_commandQueue->m_messageNames
+                                    << enumProperty->enumType();
+                            }
                         }
                     }
                     else

@@ -61,3 +61,13 @@ std::vector<std::string> ViewModelInstanceEnumRuntime::values() const
     }
     return stringValues;
 }
+
+std::string ViewModelInstanceEnumRuntime::enumType() const
+{
+    auto enumProperty = m_viewModelInstanceValue->viewModelProperty()
+                            ->as<ViewModelPropertyEnum>();
+    assert(enumProperty);
+    auto dataEnum = enumProperty->dataEnum();
+    assert(dataEnum);
+    return dataEnum->enumName();
+}

@@ -2,8 +2,6 @@
  * Copyright 2025 Rive
  */
 
-#include "catch.hpp"
-
 #include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/command_queue.hpp"
@@ -11,6 +9,75 @@
 #include "rive/file.hpp"
 #include "common/render_context_null.hpp"
 #include <fstream>
+
+namespace rive
+{
+bool operator==(const ViewModelEnum& left, const ViewModelEnum& right)
+{
+    if (left.name != right.name ||
+        left.enumerants.size() != right.enumerants.size())
+        return false;
+
+    for (int i = 0; i < left.enumerants.size(); ++i)
+    {
+        if (left.enumerants[i] != right.enumerants[i])
+            return false;
+    }
+
+    return true;
+}
+bool operator!=(const ViewModelEnum& left, const ViewModelEnum& right)
+{
+    return !(left == right);
+}
+bool operator==(const PropertyData& l, const PropertyData& r)
+{
+    return l.name == r.name && l.type == r.type;
+}
+bool operator==(const CommandQueue::FileListener::ViewModelPropertyData& l,
+                const CommandQueue::FileListener::ViewModelPropertyData& r)
+{
+    return l.name == r.name && l.type == r.type && l.metaData == r.metaData;
+}
+bool operator!=(const CommandQueue::FileListener::ViewModelPropertyData& l,
+                const CommandQueue::FileListener::ViewModelPropertyData& r)
+{
+    return !(l == r);
+}
+} // namespace rive
+
+template <typename t, size_t arraySize>
+bool operator==(const std::vector<t>& left,
+                const std::array<t, arraySize>& right)
+{
+    if (left.size() != arraySize)
+        return false;
+
+    for (int i = 0; i < left.size(); ++i)
+    {
+        if (left[i] != right[i])
+            return false;
+    }
+
+    return true;
+}
+
+template <typename t>
+bool operator==(const std::vector<t>& left, const std::vector<t>& right)
+{
+    if (left.size() != right.size())
+        return false;
+
+    for (int i = 0; i < left.size(); ++i)
+    {
+        if (left[i] != right[i])
+            return false;
+    }
+
+    return true;
+}
+
+#include "catch.hpp"
 
 using namespace rive;
 
@@ -933,13 +1000,6 @@ TEST_CASE("View Model Listed Listener", "[CommandQueue]")
     commandQueue->disconnect();
     serverThread.join();
 }
-namespace rive
-{
-bool operator==(const PropertyData& l, const PropertyData& r)
-{
-    return l.name == r.name && l.type == r.type;
-}
-} // namespace rive
 
 class TestViewModelFileListener : public CommandQueue::FileListener
 {
@@ -967,7 +1027,8 @@ public:
         const FileHandle handle,
         uint64_t requestId,
         std::string viewModelName,
-        std::vector<PropertyData> properties) override
+        std::vector<CommandQueue::FileListener::ViewModelPropertyData>
+            properties) override
     {
         CHECK(requestId == m_propertyRequestId);
         CHECK(m_handle == handle);
@@ -984,16 +1045,30 @@ public:
 
     std::array<std::string, 2> m_expectedInstanceNames = {"Test Default",
                                                           "Test Alternate"};
-    std::array<PropertyData, 9> m_expectedProperties = {
-        PropertyData{DataType::list, "Test List"},
-        PropertyData{DataType::assetImage, "Test Image"},
-        PropertyData{DataType::number, "Test Num"},
-        PropertyData{DataType::string, "Test String"},
-        PropertyData{DataType::enumType, "Test Enum"},
-        PropertyData{DataType::boolean, "Test Bool"},
-        PropertyData{DataType::color, "Test Color"},
-        PropertyData{DataType::trigger, "Test Trigger"},
-        PropertyData{DataType::viewModel, "Test Nested"}};
+    std::array<CommandQueue::FileListener::ViewModelPropertyData, 9>
+        m_expectedProperties = {
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::list,
+                                                              "Test List"},
+            CommandQueue::FileListener::ViewModelPropertyData{
+                DataType::assetImage,
+                "Test Image"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::number,
+                                                              "Test Num"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::string,
+                                                              "Test String"},
+            CommandQueue::FileListener::ViewModelPropertyData{
+                DataType::enumType,
+                "Test Enum",
+                "Test Enum Values"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::boolean,
+                                                              "Test Bool"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::color,
+                                                              "Test Color"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::trigger,
+                                                              "Test Trigger"},
+            CommandQueue::FileListener::ViewModelPropertyData{
+                DataType::viewModel,
+                "Test Nested"}};
 
     bool m_hasInstanceCallback = false;
     bool m_hasPropertyCallback = false;
@@ -3720,70 +3795,14 @@ TEST_CASE("pointer input translation", "[CommandQueue]")
     commandQueue->disconnect();
 }
 
-namespace rive
-{
-bool operator==(const ViewModelEnum& left, const ViewModelEnum& right)
-{
-    if (left.name != right.name ||
-        left.enumerants.size() != right.enumerants.size())
-        return false;
-
-    for (int i = 0; i < left.enumerants.size(); ++i)
-    {
-        if (left.enumerants[i] != right.enumerants[i])
-            return false;
-    }
-
-    return true;
-}
-bool operator!=(const ViewModelEnum& left, const ViewModelEnum& right)
-{
-    return !(left == right);
-}
-bool operator!=(const PropertyData& left, const PropertyData& right)
-{
-    return !(left == right);
-}
-} // namespace rive
-
-template <typename t>
-bool operator==(const std::vector<t>& left, const std::vector<t>& right)
-{
-    if (left.size() != right.size())
-        return false;
-
-    for (int i = 0; i < left.size(); ++i)
-    {
-        if (left[i] != right[i])
-            return false;
-    }
-
-    return true;
-}
-
-template <typename t, size_t arraySize>
-bool operator==(const std::vector<t>& left,
-                const std::array<t, arraySize>& right)
-{
-    if (left.size() != arraySize)
-        return false;
-
-    for (int i = 0; i < left.size(); ++i)
-    {
-        if (left[i] != right[i])
-            return false;
-    }
-
-    return true;
-}
 // clang format is removing the needed space between the func names and the (
 // clang-format off
 #define DEFINE_TEST_CALLBACK(fun, handleType, expectedRequestId)               \
     bool m_##fun##WasCalled = false;                                           \
     virtual void fun (const handleType handle, uint64_t requestId) override    \
     {                                                                          \
-        assert(handle == m_handle);                                            \
-        assert(requestId == expectedRequestId);                                \
+        CHECK(handle == m_handle);                                            \
+        CHECK(requestId == expectedRequestId);                                \
         m_##fun##WasCalled = true;                                             \
     }
 
@@ -3797,9 +3816,9 @@ bool operator==(const std::vector<t>& left,
                      uint64_t requestId,                                       \
                      paramType param) override                                 \
     {                                                                          \
-        assert(handle == m_handle);                                            \
-        assert(requestId == expectedRequestId);                                \
-        assert(param == m_##param);                                            \
+        CHECK(handle == m_handle);                                            \
+        CHECK(requestId == expectedRequestId);                                \
+        CHECK(param == m_##param);                                            \
         m_##fun##WasCalled = true;                                             \
     }
 
@@ -3816,14 +3835,14 @@ bool operator==(const std::vector<t>& left,
                      paramType param,                                          \
                      param2Type param2) override                               \
     {                                                                          \
-        assert(handle == m_handle);                                            \
-        assert(requestId == expectedRequestId);                                \
-        assert(param == m_##param);                                            \
-        assert(param2 == m_##param2);                                          \
+        CHECK(handle == m_handle);                                            \
+        CHECK(requestId == expectedRequestId);                                \
+        CHECK(param == m_##param);                                            \
+        CHECK(param2 == m_##param2);                                          \
         m_##fun##WasCalled = true;                                             \
     }
 // clang-format on
-#define CHECK_CALLBACK(obj, func) assert(obj.m_##func##WasCalled)
+#define CHECK_CALLBACK(obj, func) CHECK(obj.m_##func##WasCalled)
 
 class GlobalFileListener : public CommandQueue::FileListener
 {
@@ -3853,13 +3872,14 @@ public:
                                    viewModelNameI,
                                    std::vector<std::string>,
                                    instanceNames);
-    DEFINE_TEST_CALLBACK_TWO_PARAM(onViewModelPropertiesListed,
-                                   FileHandle,
-                                   5,
-                                   std::string,
-                                   viewModelNameP,
-                                   std::vector<PropertyData>,
-                                   properties);
+    DEFINE_TEST_CALLBACK_TWO_PARAM(
+        onViewModelPropertiesListed,
+        FileHandle,
+        5,
+        std::string,
+        viewModelNameP,
+        std::vector<CommandQueue::FileListener::ViewModelPropertyData>,
+        properties);
     DEFINE_TEST_CALLBACK_ONE_PARAM(onViewModelEnumsListed,
                                    FileHandle,
                                    6,
@@ -3878,16 +3898,30 @@ public:
                                                    "Test Slash"};
     std::array<std::string, 2> m_instanceNames = {"Test Default",
                                                   "Test Alternate"};
-    std::array<PropertyData, 9> m_properties = {
-        PropertyData{DataType::list, "Test List"},
-        PropertyData{DataType::assetImage, "Test Image"},
-        PropertyData{DataType::number, "Test Num"},
-        PropertyData{DataType::string, "Test String"},
-        PropertyData{DataType::enumType, "Test Enum"},
-        PropertyData{DataType::boolean, "Test Bool"},
-        PropertyData{DataType::color, "Test Color"},
-        PropertyData{DataType::trigger, "Test Trigger"},
-        PropertyData{DataType::viewModel, "Test Nested"}};
+    std::array<CommandQueue::FileListener::ViewModelPropertyData, 9>
+        m_properties = {
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::list,
+                                                              "Test List"},
+            CommandQueue::FileListener::ViewModelPropertyData{
+                DataType::assetImage,
+                "Test Image"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::number,
+                                                              "Test Num"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::string,
+                                                              "Test String"},
+            CommandQueue::FileListener::ViewModelPropertyData{
+                DataType::enumType,
+                "Test Enum",
+                "Test Enum Values"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::boolean,
+                                                              "Test Bool"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::color,
+                                                              "Test Color"},
+            CommandQueue::FileListener::ViewModelPropertyData{DataType::trigger,
+                                                              "Test Trigger"},
+            CommandQueue::FileListener::ViewModelPropertyData{
+                DataType::viewModel,
+                "Test Nested"}};
     std::array<ViewModelEnum, 1> m_enums = {
         ViewModelEnum{"Test Enum Values", {"Value 1", "Value 2"}}};
     std::string m_viewModelNameI = "Test All";

@@ -1152,13 +1152,17 @@ void CommandQueue::processMessages()
                 m_messageStream >> requestId;
                 m_messageStream >> numViewProperties;
                 m_messageNames >> viewModelName;
-                std::vector<PropertyData> viewModelProperties(
-                    numViewProperties);
+                std::vector<CommandQueue::FileListener::ViewModelPropertyData>
+                    viewModelProperties(numViewProperties);
 
                 for (auto& property : viewModelProperties)
                 {
                     m_messageStream >> property.type;
                     m_messageNames >> property.name;
+                    if (property.type == DataType::enumType)
+                    {
+                        m_messageNames >> property.metaData;
+                    }
                 }
                 lock.unlock();
 
