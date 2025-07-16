@@ -2251,12 +2251,38 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
     };
 
 #ifdef RIVE_WAGYU
+    WGPUColor targetClearColor = {clearColor.r,
+                                  clearColor.g,
+                                  clearColor.b,
+                                  clearColor.a};
+    static WGPUColor blackClearColor = {};
     WGPUWagyuRenderPassInputAttachment inputAttachments[] = {
-        {.view = renderTarget->m_targetTextureView.Get()},
-        {.view = renderTarget->m_clipTextureView.Get()},
-        {.view = renderTarget->m_scratchColorTextureView.Get()},
-        {.view = renderTarget->m_coverageTextureView.Get()},
-    };
+        {
+            .view = renderTarget->m_targetTextureView.Get(),
+            .clearValue = &targetClearColor,
+            .loadOp = static_cast<WGPULoadOp>(loadOp),
+            .storeOp = WGPUStoreOp_Store,
+        },
+        {
+            .view = renderTarget->m_clipTextureView.Get(),
+            .clearValue = &blackClearColor,
+            .loadOp = WGPULoadOp_Clear,
+            .storeOp = WGPUStoreOp_Discard,
+
+        },
+        {
+            .view = renderTarget->m_scratchColorTextureView.Get(),
+            .clearValue = &blackClearColor,
+            .loadOp = WGPULoadOp_Clear,
+            .storeOp = WGPUStoreOp_Discard,
+
+        },
+        {
+            .view = renderTarget->m_coverageTextureView.Get(),
+            .clearValue = &blackClearColor,
+            .loadOp = WGPULoadOp_Clear,
+            .storeOp = WGPUStoreOp_Discard,
+        }};
     static_assert(COLOR_PLANE_IDX == 0);
     static_assert(CLIP_PLANE_IDX == 1);
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
