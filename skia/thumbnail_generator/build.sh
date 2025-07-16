@@ -9,26 +9,28 @@ else
     export RIVE_RUNTIME_DIR="$PWD/../../../runtime"
 fi
 
-cd ../renderer
-./build.sh "$@"
+source "$RIVE_RUNTIME_DIR"/dependencies/config_directories.sh
 
-cd "$BASEDIR"
+export SKIA_REPO="https://github.com/rive-app/skia.git"
+export SKIA_BRANCH="bae2881014cb5c3216184cbb0b639045b8804931"
+export SKIA_COMMIT=$SKIA_BRANCH
+# could call this thumbnailer, but we can share.
+export CACHE_NAME="rive_recorder"
+export MAKE_SKIA_FILE="make_skia_recorder.sh"
+export SKIA_DIR_NAME="skia"
+export SKIA_DIR="skia"
 
+build_deps() {
+    pushd "$RIVE_RUNTIME_DIR"/skia/dependencies
+    ./make_skia_recorder.sh
+    popd
+    echo "$RIVE_RUNTIME_DIR"
+    pwd
+}
+
+build_deps
 cd build
 
-OPTION=$1
-
-export PREMAKE_PATH="$RIVE_RUNTIME_DIR/build":$PREMAKE_PATH
-
-if [ "$OPTION" = 'help' ]; then
-    echo build.sh - build debug library
-    echo build.sh clean - clean the build
-    echo build.sh release - build release library
-elif [ "$OPTION" = "clean" ]; then
-    echo Cleaning project ...
-    premake5 clean --scripts="$RIVE_RUNTIME_DIR/build"
-elif [ "$OPTION" = "release" ]; then
-    premake5 gmake --scripts="$RIVE_RUNTIME_DIR/build" --with_rive_text --with_rive_layout && make config=release -j7
-else
-    premake5 gmake --scripts="$RIVE_RUNTIME_DIR/build" --with_rive_text --with_rive_layout && make -j7
+if [[ $1 != "skip" ]]; then
+    build_rive.sh $@ 
 fi
