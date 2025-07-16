@@ -271,6 +271,7 @@ void PropertyRecorder::writeProperties(const Artboard* artboard)
                             CoreRegistry::getColor(object, propertyKey);
                         writePropertyValue(value, m_binaryWriter);
                     }
+                    break;
                     case CoreUintType::id:
                     {
                         writePropertyKey(propertyKey, m_binaryWriter);
