@@ -51,6 +51,7 @@ class SMITrigger;
 #ifdef WITH_RIVE_TOOLS
 typedef void (*ArtboardCallback)(void*);
 typedef uint8_t (*TestBoundsCallback)(void*, float, float, bool);
+typedef uint8_t (*IsAncestorCallback)(void*, uint16_t);
 #endif
 
 class Artboard : public ArtboardBase, public CoreContext, public Virtualizable
@@ -97,6 +98,10 @@ private:
     // state machine controllers to sort their hittable components when they are
     // out of sync
     uint8_t m_drawOrderChangeCounter = 0;
+#ifdef WITH_RIVE_TOOLS
+    uint16_t m_artboardId = 0;
+#endif
+    const Artboard* m_artboardSource = nullptr;
 
 #ifdef EXTERNAL_RIVE_AUDIO_ENGINE
     rcp<AudioEngine> m_audioEngine;
@@ -135,6 +140,17 @@ public:
     StatusCode initialize();
 
     Core* resolve(uint32_t id) const override;
+#ifdef WITH_RIVE_TOOLS
+    void artboardId(uint16_t id) { m_artboardId = id; }
+    uint16_t artboardId() const { return m_artboardId; }
+#endif
+
+    void artboardSource(const Artboard* artboard)
+    {
+        m_artboardSource = artboard;
+    }
+    const Artboard* artboardSource() const { return m_artboardSource; }
+    bool isAncestor(const Artboard* artboard);
 
     /// Find the id of a component in the artboard the object in the artboard.
     /// The artboard itself has id 0 so we use that as a flag for not found.
@@ -343,6 +359,11 @@ public:
         artboardClone->m_IsInstance = true;
         artboardClone->m_originalWidth = m_originalWidth;
         artboardClone->m_originalHeight = m_originalHeight;
+#ifdef WITH_RIVE_TOOLS
+        artboardClone->m_artboardId = m_artboardId;
+#endif
+        artboardClone->m_artboardSource =
+            isInstance() ? m_artboardSource : this;
         cloneObjectDataBinds(this, artboardClone.get(), artboardClone.get());
 
         std::vector<Core*>& cloneObjects = artboardClone->m_Objects;
@@ -434,6 +455,7 @@ private:
     ArtboardCallback m_layoutChangedCallback = nullptr;
     ArtboardCallback m_layoutDirtyCallback = nullptr;
     TestBoundsCallback m_testBoundsCallback = nullptr;
+    IsAncestorCallback m_isAncestorCallback = nullptr;
 
 public:
     void* callbackUserData;
@@ -449,6 +471,10 @@ public:
     void onTestBounds(TestBoundsCallback callback)
     {
         m_testBoundsCallback = callback;
+    }
+    void onIsAncestor(IsAncestorCallback callback)
+    {
+        m_isAncestorCallback = callback;
     }
 #endif
 };

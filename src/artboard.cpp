@@ -1523,6 +1523,33 @@ void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
     internalDataContext(dataContext);
 }
 
+bool Artboard::isAncestor(const Artboard* artboard)
+{
+    if (m_artboardSource == artboard)
+    {
+        return true;
+    }
+    if (parentArtboard() != nullptr)
+    {
+        return parentArtboard()->isAncestor(artboard);
+    }
+#ifdef WITH_RIVE_TOOLS
+    // Editor artboards don't have a host, so we expose a function that calls
+    // the host in dart.
+    if (m_isAncestorCallback != nullptr)
+    {
+        // Dart can't return booleans to cpp, so we use a uint_8 instead
+        auto isAncestor =
+            m_isAncestorCallback(callbackUserData, artboard->artboardId());
+        if (isAncestor == 1)
+        {
+            return true;
+        }
+    }
+#endif
+    return false;
+}
+
 ////////// ArtboardInstance
 
 #include "rive/animation/linear_animation_instance.hpp"

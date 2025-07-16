@@ -63,6 +63,9 @@ void BackboardImporter::addFileAssetReferencer(FileAssetReferencer* referencer)
 
 void BackboardImporter::addArtboard(Artboard* artboard)
 {
+#ifdef WITH_RIVE_TOOLS
+    artboard->artboardId((uint16_t)m_NextArtboardId);
+#endif
     m_ArtboardLookup[m_NextArtboardId++] = artboard;
 }
 
