@@ -1976,6 +1976,9 @@ void StateMachineInstance::notifyEventListeners(
                                               ? artboard()
                                               : source->artboardInstance();
 
+                    // NOTE: this issue can't happen anymore because a new fix
+                    // in the editor prevents selecting other artboard as
+                    // target. But the fix is kept here to fix older files.
                     // listener->eventId() can point to an id from an
                     // event in the context of this artboard or the
                     // context of a nested artboard. Because those ids
@@ -1989,9 +1992,10 @@ void StateMachineInstance::notifyEventListeners(
                     // sure that a listener must be targetting the
                     // current artboard to disambiguate between external
                     // and internal events.
+                    auto target = sourceArtboard->resolve(listener->targetId());
                     if (source == nullptr &&
-                        sourceArtboard->resolve(listener->targetId()) !=
-                            artboard())
+                        (target != nullptr && target->is<Artboard>() &&
+                         target != artboard()))
                     {
                         continue;
                     }

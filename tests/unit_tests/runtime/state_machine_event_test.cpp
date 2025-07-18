@@ -21,7 +21,10 @@
 #include "rive/node.hpp"
 #include "catch.hpp"
 #include "rive_file_reader.hpp"
+#include "utils/serializing_factory.hpp"
 #include <cstdio>
+
+using namespace rive;
 
 TEST_CASE("file with state machine listeners be read", "[file]")
 {
@@ -40,33 +43,33 @@ TEST_CASE("file with state machine listeners be read", "[file]")
     // Expect each of the three listeners to have one input change each.
     auto listener1 = stateMachine->listener(0);
     auto target1 = artboard->resolve(listener1->targetId());
-    REQUIRE(target1->is<rive::Node>());
-    REQUIRE(target1->as<rive::Node>()->name() == "HandWickHit");
+    REQUIRE(target1->is<Node>());
+    REQUIRE(target1->as<Node>()->name() == "HandWickHit");
     REQUIRE(listener1->actionCount() == 1);
     auto inputChange1 = listener1->action(0);
     REQUIRE(inputChange1 != nullptr);
-    REQUIRE(inputChange1->is<rive::ListenerInputChange>());
-    REQUIRE(inputChange1->as<rive::ListenerInputChange>()->inputId() == 0);
+    REQUIRE(inputChange1->is<ListenerInputChange>());
+    REQUIRE(inputChange1->as<ListenerInputChange>()->inputId() == 0);
 
     auto listener2 = stateMachine->listener(1);
     auto target2 = artboard->resolve(listener2->targetId());
-    REQUIRE(target2->is<rive::Node>());
-    REQUIRE(target2->as<rive::Node>()->name() == "HandCannonHit");
+    REQUIRE(target2->is<Node>());
+    REQUIRE(target2->as<Node>()->name() == "HandCannonHit");
     REQUIRE(listener2->actionCount() == 1);
     auto inputChange2 = listener2->action(0);
     REQUIRE(inputChange2 != nullptr);
-    REQUIRE(inputChange2->is<rive::ListenerInputChange>());
-    REQUIRE(inputChange2->as<rive::ListenerInputChange>()->inputId() == 1);
+    REQUIRE(inputChange2->is<ListenerInputChange>());
+    REQUIRE(inputChange2->as<ListenerInputChange>()->inputId() == 1);
 
     auto listener3 = stateMachine->listener(2);
     auto target3 = artboard->resolve(listener3->targetId());
-    REQUIRE(target3->is<rive::Node>());
-    REQUIRE(target3->as<rive::Node>()->name() == "HandHelmetHit");
+    REQUIRE(target3->is<Node>());
+    REQUIRE(target3->as<Node>()->name() == "HandHelmetHit");
     REQUIRE(listener3->actionCount() == 1);
     auto inputChange3 = listener3->action(0);
     REQUIRE(inputChange3 != nullptr);
-    REQUIRE(inputChange3->is<rive::ListenerInputChange>());
-    REQUIRE(inputChange3->as<rive::ListenerInputChange>()->inputId() == 2);
+    REQUIRE(inputChange3->is<ListenerInputChange>());
+    REQUIRE(inputChange3->as<ListenerInputChange>()->inputId() == 2);
 }
 
 TEST_CASE("hit testing via a state machine works", "[file]")
@@ -89,7 +92,7 @@ TEST_CASE("hit testing via a state machine works", "[file]")
 
     auto trigger = stateMachine->getTrigger("Light");
     REQUIRE(trigger != nullptr);
-    stateMachine->pointerDown(rive::Vec2D(71.0f, 263.0f));
+    stateMachine->pointerDown(Vec2D(71.0f, 263.0f));
 
     REQUIRE(trigger->didFire());
 }
@@ -112,13 +115,13 @@ TEST_CASE("hit a toggle boolean listener", "[file]")
     REQUIRE(switchButton != nullptr);
     REQUIRE(switchButton->value() == true);
 
-    stateMachine->pointerDown(rive::Vec2D(150.0f, 258.0f));
-    stateMachine->pointerUp(rive::Vec2D(150.0f, 258.0f));
+    stateMachine->pointerDown(Vec2D(150.0f, 258.0f));
+    stateMachine->pointerUp(Vec2D(150.0f, 258.0f));
     // Got toggled off after pressing
     REQUIRE(switchButton->value() == false);
 
-    stateMachine->pointerDown(rive::Vec2D(150.0f, 258.0f));
-    stateMachine->pointerUp(rive::Vec2D(150.0f, 258.0f));
+    stateMachine->pointerDown(Vec2D(150.0f, 258.0f));
+    stateMachine->pointerUp(Vec2D(150.0f, 258.0f));
     // Got toggled back on after pressing
     REQUIRE(switchButton->value() == true);
 }
@@ -128,7 +131,7 @@ TEST_CASE("can query for all rive events", "[events]")
     auto file = ReadRiveFile("assets/event_on_listener.riv");
     auto artboard = file->artboard();
 
-    auto eventCount = artboard->count<rive::Event>();
+    auto eventCount = artboard->count<Event>();
     REQUIRE(eventCount == 4);
 }
 
@@ -137,7 +140,7 @@ TEST_CASE("can query for a rive event at a given index", "[events]")
     auto file = ReadRiveFile("assets/event_on_listener.riv");
     auto artboard = file->artboard();
 
-    auto event = artboard->objectAt<rive::Event>(0);
+    auto event = artboard->objectAt<Event>(0);
     REQUIRE(event->name() == "Somewhere.com");
 }
 
@@ -155,26 +158,26 @@ TEST_CASE("events load correctly on a listener", "[events]")
     artboard->advance(0.0f);
     stateMachineInstance->advance(0.0f);
 
-    auto events = artboard->find<rive::Event>();
+    auto events = artboard->find<Event>();
     REQUIRE(events.size() == 4);
 
     REQUIRE(stateMachineInstance->stateMachine()->listenerCount() == 1);
     auto listener1 = stateMachineInstance->stateMachine()->listener(0);
     auto target1 = artboard->resolve(listener1->targetId());
-    REQUIRE(target1->is<rive::Shape>());
+    REQUIRE(target1->is<Shape>());
     REQUIRE(listener1->actionCount() == 2);
     auto fireEvent1 = listener1->action(0);
     REQUIRE(fireEvent1 != nullptr);
-    REQUIRE(fireEvent1->is<rive::ListenerFireEvent>());
-    REQUIRE(fireEvent1->as<rive::ListenerFireEvent>()->eventId() != 0);
+    REQUIRE(fireEvent1->is<ListenerFireEvent>());
+    REQUIRE(fireEvent1->as<ListenerFireEvent>()->eventId() != 0);
     auto event =
-        artboard->resolve(fireEvent1->as<rive::ListenerFireEvent>()->eventId());
-    REQUIRE(event->is<rive::Event>());
-    REQUIRE(event->as<rive::Event>()->name() == "Footstep");
+        artboard->resolve(fireEvent1->as<ListenerFireEvent>()->eventId());
+    REQUIRE(event->is<Event>());
+    REQUIRE(event->as<Event>()->name() == "Footstep");
 
     REQUIRE(stateMachineInstance->reportedEventCount() == 0);
-    stateMachineInstance->pointerDown(rive::Vec2D(343.0f, 116.0f));
-    stateMachineInstance->pointerUp(rive::Vec2D(343.0f, 116.0f));
+    stateMachineInstance->pointerDown(Vec2D(343.0f, 116.0f));
+    stateMachineInstance->pointerUp(Vec2D(343.0f, 116.0f));
 
     // There are two events on the listener.
     REQUIRE(stateMachineInstance->reportedEventCount() == 2);
@@ -210,9 +213,8 @@ TEST_CASE("events load correctly on a state and transition", "[events]")
 
     // No events on transition from entry.
     REQUIRE(transition->events().size() == 0);
-    REQUIRE(transition->stateTo()->is<rive::AnimationState>());
-    auto firstAnimationState =
-        transition->stateTo()->as<rive::AnimationState>();
+    REQUIRE(transition->stateTo()->is<AnimationState>());
+    auto firstAnimationState = transition->stateTo()->as<AnimationState>();
     REQUIRE(firstAnimationState->events().size() == 2);
     REQUIRE(firstAnimationState->transitionCount() == 1);
     transition = firstAnimationState->transition(0);
@@ -291,35 +293,35 @@ TEST_CASE("events from a nested artboard propagate to a listener on a parent",
     artboard->advance(0.0f);
     stateMachineInstance->advance(0.0f);
 
-    auto nested = artboard->find<rive::NestedArtboard>();
+    auto nested = artboard->find<NestedArtboard>();
     REQUIRE(nested.size() == 1);
     auto nestedArtboard = nested[0]->artboardInstance();
     auto nestedStateMachineInstance = nested[0]
                                           ->nestedAnimations()[0]
-                                          ->as<rive::NestedStateMachine>()
+                                          ->as<NestedStateMachine>()
                                           ->stateMachineInstance();
     REQUIRE(nestedStateMachineInstance != nullptr);
-    auto events = nestedArtboard->find<rive::Event>();
+    auto events = nestedArtboard->find<Event>();
     REQUIRE(events.size() == 1);
 
     // Validate listener on the nested artboard
     REQUIRE(nestedStateMachineInstance->stateMachine()->listenerCount() == 1);
     auto listener1 = nestedStateMachineInstance->stateMachine()->listener(0);
     auto target1 = nestedArtboard->resolve(listener1->targetId());
-    REQUIRE(target1->is<rive::Shape>());
+    REQUIRE(target1->is<Shape>());
     REQUIRE(listener1->actionCount() == 1);
     auto fireEvent1 = listener1->action(0);
     REQUIRE(fireEvent1 != nullptr);
-    REQUIRE(fireEvent1->is<rive::ListenerFireEvent>());
-    REQUIRE(fireEvent1->as<rive::ListenerFireEvent>()->eventId() != 0);
-    auto event = nestedArtboard->resolve(
-        fireEvent1->as<rive::ListenerFireEvent>()->eventId());
-    REQUIRE(event->is<rive::Event>());
-    REQUIRE(event->as<rive::Event>()->name() == "NestedEvent");
+    REQUIRE(fireEvent1->is<ListenerFireEvent>());
+    REQUIRE(fireEvent1->as<ListenerFireEvent>()->eventId() != 0);
+    auto event =
+        nestedArtboard->resolve(fireEvent1->as<ListenerFireEvent>()->eventId());
+    REQUIRE(event->is<Event>());
+    REQUIRE(event->as<Event>()->name() == "NestedEvent");
 
     // Validate the event is reported to the nested artboard
     REQUIRE(nestedStateMachineInstance->reportedEventCount() == 0);
-    stateMachineInstance->pointerDown(rive::Vec2D(250.0f, 100.0f));
+    stateMachineInstance->pointerDown(Vec2D(250.0f, 100.0f));
     REQUIRE(nestedStateMachineInstance->reportedEventCount() == 1);
     auto nestedReportedEvent1 = nestedStateMachineInstance->reportedEventAt(0);
     REQUIRE(nestedReportedEvent1.event()->name() == "NestedEvent");
@@ -333,4 +335,43 @@ TEST_CASE("events from a nested artboard propagate to a listener on a parent",
     // After advancing again the reportedEventCount should return to 0.
     stateMachineInstance->advance(0.0f);
     REQUIRE(stateMachineInstance->reportedEventCount() == 0);
+}
+
+TEST_CASE("event targetting an event object triggers correctly", "[events]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/target_event.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.5f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.5f);
+    artboard->draw(renderer.get());
+
+    // Extra frame advance for the event to be processed
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("target_event"));
 }
