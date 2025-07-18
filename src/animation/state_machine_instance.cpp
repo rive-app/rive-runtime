@@ -144,7 +144,12 @@ public:
 
             if (i == maxIterations)
             {
-                fprintf(stderr, "StateMachine exceeded max iterations.\n");
+                fprintf(stderr,
+                        "%s StateMachine exceeded max iterations in layer %s "
+                        "on artboard %s\n",
+                        m_stateMachineInstance->stateMachine()->name().c_str(),
+                        m_layer->name().c_str(),
+                        m_stateMachineInstance->artboard()->name().c_str());
                 return false;
             }
         }
