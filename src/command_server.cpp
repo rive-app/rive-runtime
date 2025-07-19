@@ -580,6 +580,11 @@ bool CommandServer::processCommands()
                 if (image)
                 {
                     m_images[handle] = std::move(image);
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::imageDecoded;
+                    messageStream << handle;
+                    messageStream << requestId;
                 }
                 else
                 {
@@ -589,6 +594,38 @@ bool CommandServer::processCommands()
                         requestId,
                         CommandQueue::Message::imageError)
                         << "Command Server failed to decode image";
+                }
+
+                break;
+            }
+
+            case CommandQueue::Command::externalImage:
+            {
+                RenderImageHandle handle;
+                uint64_t requestId;
+                rcp<RenderImage> image;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_externalImages >> image;
+                lock.unlock();
+
+                if (image)
+                {
+                    m_images[handle] = std::move(image);
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::imageDecoded;
+                    messageStream << handle;
+                    messageStream << requestId;
+                }
+                else
+                {
+                    ErrorReporter<RenderImageHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::imageError)
+                        << "External image was empty";
                 }
 
                 break;
@@ -625,6 +662,11 @@ bool CommandServer::processCommands()
                 if (audio)
                 {
                     m_audioSources[handle] = std::move(audio);
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::audioDecoded;
+                    messageStream << handle;
+                    messageStream << requestId;
                 }
                 else
                 {
@@ -633,7 +675,39 @@ bool CommandServer::processCommands()
                         handle,
                         requestId,
                         CommandQueue::Message::audioError)
-                        << "Command Server failed to decode image";
+                        << "Command Server failed to decode audio";
+                }
+
+                break;
+            }
+
+            case CommandQueue::Command::externalAudio:
+            {
+                AudioSourceHandle handle;
+                uint64_t requestId;
+                rcp<AudioSource> audio;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_externalAudioSources >> audio;
+                lock.unlock();
+
+                if (audio)
+                {
+                    m_audioSources[handle] = std::move(audio);
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::audioDecoded;
+                    messageStream << handle;
+                    messageStream << requestId;
+                }
+                else
+                {
+                    ErrorReporter<AudioSourceHandle>(
+                        this,
+                        handle,
+                        requestId,
+                        CommandQueue::Message::audioError)
+                        << "External audio source was invalid";
                 }
 
                 break;
@@ -670,6 +744,11 @@ bool CommandServer::processCommands()
                 if (font)
                 {
                     m_fonts[handle] = std::move(font);
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::fontDecoded;
+                    messageStream << handle;
+                    messageStream << requestId;
                 }
                 else
                 {
@@ -677,7 +756,38 @@ bool CommandServer::processCommands()
                                               handle,
                                               requestId,
                                               CommandQueue::Message::fontError)
-                        << "ERROR: Command Server failed to decode font";
+                        << "Command Server failed to decode font";
+                }
+
+                break;
+            }
+
+            case CommandQueue::Command::externalFont:
+            {
+                FontHandle handle;
+                uint64_t requestId;
+                rcp<Font> font;
+                commandStream >> handle;
+                commandStream >> requestId;
+                m_commandQueue->m_externalFonts >> font;
+                lock.unlock();
+
+                if (font)
+                {
+                    m_fonts[handle] = std::move(font);
+                    std::unique_lock<std::mutex> messageLock(
+                        m_commandQueue->m_messageMutex);
+                    messageStream << CommandQueue::Message::fontDecoded;
+                    messageStream << handle;
+                    messageStream << requestId;
+                }
+                else
+                {
+                    ErrorReporter<FontHandle>(this,
+                                              handle,
+                                              requestId,
+                                              CommandQueue::Message::fontError)
+                        << "Command Server failed to decode font";
                 }
 
                 break;
@@ -1855,6 +1965,7 @@ bool CommandServer::processCommands()
                 ViewModelInstanceHandle handle = RIVE_NULL_HANDLE;
                 ViewModelInstanceHandle nestedHandle = RIVE_NULL_HANDLE;
                 RenderImageHandle imageHandle = RIVE_NULL_HANDLE;
+                ArtboardHandle artboadHandle = RIVE_NULL_HANDLE;
                 uint64_t requestId;
                 CommandQueue::ViewModelInstanceData value;
 
@@ -1886,6 +1997,9 @@ bool CommandServer::processCommands()
                         break;
                     case DataType::assetImage:
                         commandStream >> imageHandle;
+                        break;
+                    case DataType::artboard:
+                        commandStream >> artboadHandle;
                         break;
                     default:
                         RIVE_UNREACHABLE();
@@ -2123,6 +2237,44 @@ bool CommandServer::processCommands()
                                     requestId,
                                     CommandQueue::Message::viewModelError)
                                     << "Could not find image " << imageHandle
+                                    << " to set for view model instance when "
+                                       "setting property with path "
+                                    << value.metaData.name;
+                            }
+                            break;
+                        }
+                        case DataType::artboard:
+                        {
+                            if (auto artboard =
+                                    getArtboardInstance(artboadHandle))
+                            {
+                                if (auto artboardProperty =
+                                        viewModelInstance->propertyArtboard(
+                                            value.metaData.name))
+                                {
+                                    artboardProperty->value(artboard);
+                                }
+                                else
+                                {
+                                    ErrorReporter<ViewModelInstanceHandle>(
+                                        this,
+                                        handle,
+                                        requestId,
+                                        CommandQueue::Message::viewModelError)
+                                        << "Could not find "
+                                           "artboard property at path "
+                                        << value.metaData.name;
+                                }
+                            }
+                            else
+                            {
+                                ErrorReporter<ViewModelInstanceHandle>(
+                                    this,
+                                    handle,
+                                    requestId,
+                                    CommandQueue::Message::viewModelError)
+                                    << "Could not find artboard "
+                                    << artboadHandle
                                     << " to set for view model instance when "
                                        "setting property with path "
                                     << value.metaData.name;

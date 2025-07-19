@@ -1045,8 +1045,11 @@ public:
 
     std::array<std::string, 2> m_expectedInstanceNames = {"Test Default",
                                                           "Test Alternate"};
-    std::array<CommandQueue::FileListener::ViewModelPropertyData, 9>
+    std::array<CommandQueue::FileListener::ViewModelPropertyData, 10>
         m_expectedProperties = {
+            CommandQueue::FileListener::ViewModelPropertyData{
+                DataType::artboard,
+                "Test Artboard"},
             CommandQueue::FileListener::ViewModelPropertyData{DataType::list,
                                                               "Test List"},
             CommandQueue::FileListener::ViewModelPropertyData{
@@ -1250,6 +1253,85 @@ TEST_CASE("View Model Instance Listener", "[CommandQueue]")
     CHECK(adListener.m_hasDeleteCallback);
     CHECK(anListener.m_hasDeleteCallback);
     CHECK(badAListener.m_hasDeleteCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
+TEST_CASE("External Resources", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+
+    rcp<RenderImage> externalImage = nullptr;
+    rcp<AudioSource> externalAudio = nullptr;
+    rcp<Font> externalFont = nullptr;
+
+    commandQueue->runOnce([&externalImage, &externalAudio, &externalFont](
+                              CommandServer* server) {
+        std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+        std::vector<uint8_t> imageStreamData(
+            std::istreambuf_iterator<char>(imageStream),
+            {});
+
+        std::ifstream audioStream("assets/audio/what.wav", std::ios::binary);
+        std::vector<uint8_t> audioStreamData(
+            std::istreambuf_iterator<char>(audioStream),
+            {});
+
+        std::ifstream fontStream("assets/fonts/OpenSans-Italic.ttf",
+                                 std::ios::binary);
+        std::vector<uint8_t> fontStreamData(
+            std::istreambuf_iterator<char>(fontStream),
+            {});
+
+        auto factory = server->factory();
+
+        externalImage = factory->decodeImage(imageStreamData);
+        externalAudio = factory->decodeAudio(audioStreamData);
+        externalFont = factory->decodeFont(fontStreamData);
+    });
+
+    wait_for_server(commandQueue.get());
+
+    CHECK(externalImage);
+    CHECK(externalAudio);
+    CHECK(externalFont);
+
+    RenderImageHandle externalImageHandle =
+        commandQueue->addExternalImage(externalImage);
+    AudioSourceHandle externalAudioHandle =
+        commandQueue->addExternalAudio(externalAudio);
+    FontHandle externalFontHandle = commandQueue->addExternalFont(externalFont);
+
+    commandQueue->runOnce([externalImageHandle,
+                           externalImage,
+                           externalAudioHandle,
+                           externalAudio,
+                           externalFontHandle,
+                           externalFont](CommandServer* server) {
+        auto image = server->getImage(externalImageHandle);
+        CHECK(image == externalImage.get());
+        auto audio = server->getAudioSource(externalAudioHandle);
+        CHECK(audio == externalAudio.get());
+        auto font = server->getFont(externalFontHandle);
+        CHECK(font == externalFont.get());
+    });
+
+    commandQueue->deleteImage(externalImageHandle);
+    commandQueue->deleteAudio(externalAudioHandle);
+    commandQueue->deleteFont(externalFontHandle);
+
+    commandQueue->runOnce([externalImageHandle,
+                           externalAudioHandle,
+                           externalFontHandle](CommandServer* server) {
+        auto image = server->getImage(externalImageHandle);
+        CHECK(image == nullptr);
+        auto audio = server->getAudioSource(externalAudioHandle);
+        CHECK(audio == nullptr);
+        auto font = server->getFont(externalFontHandle);
+        CHECK(font == nullptr);
+    });
 
     commandQueue->disconnect();
     serverThread.join();
@@ -1712,6 +1794,7 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
     commandQueue->setViewModelInstanceImage(tester.m_handle,
                                             "Test Image",
                                             imageHandle);
+
     commandQueue->runOnce(
         [imageHandle, handle = tester.m_handle](CommandServer* server) {
             auto image = server->getImage(imageHandle);
@@ -1723,11 +1806,34 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
             CHECK(imageProperty->testing_value() == image);
         });
 
+    // Same for artboards.
+    commandQueue->setViewModelInstanceArtboard(tester.m_handle,
+                                               "Test Artboard",
+                                               artboardHandle);
+
+    commandQueue->runOnce([artboardHandle,
+                           handle = tester.m_handle](CommandServer* server) {
+        auto artboard = server->getArtboardInstance(artboardHandle);
+        CHECK(artboard != nullptr);
+        auto viewModel = server->getViewModelInstance(handle);
+        CHECK(viewModel != nullptr);
+        auto artboardProperty = viewModel->propertyArtboard("Test Artboard");
+        CHECK(artboardProperty != nullptr);
+        CHECK(artboardProperty->testing_value() == artboard);
+    });
+
     auto badImageHandle =
         commandQueue->decodeImage(std::vector<uint8_t>(1024 * 1024, {}));
     commandQueue->setViewModelInstanceImage(tester.m_handle,
                                             "Test Image",
                                             badImageHandle);
+    ++tester.m_expectedErrors;
+
+    auto badArtboardHandle =
+        commandQueue->instantiateArtboardNamed(fileHandle, "Blah");
+    commandQueue->setViewModelInstanceArtboard(tester.m_handle,
+                                               "Test Artboard",
+                                               badArtboardHandle);
     ++tester.m_expectedErrors;
 
     commandQueue->runOnce([imageHandle,
@@ -1748,6 +1854,12 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
                                             "Blah",
                                             imageHandle);
     // Account for bad image request.
+    ++tester.m_expectedErrors;
+
+    commandQueue->setViewModelInstanceArtboard(tester.m_handle,
+                                               "Blah",
+                                               artboardHandle);
+    // Account for bad artboard request.
     ++tester.m_expectedErrors;
 
     commandQueue->runOnce(
@@ -3440,6 +3552,120 @@ TEST_CASE("fileLoadedCallback", "[CommandQueue]")
     serverThread.join();
 }
 
+class DecodedImageListener : public CommandQueue::RenderImageListener
+{
+public:
+    virtual void onRenderImageDecoded(const RenderImageHandle handle,
+                                      uint64_t requestId) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId = 0x10;
+    RenderImageHandle m_handle = RIVE_NULL_HANDLE;
+    bool m_hasCallback = false;
+};
+
+class DecodedAudioListener : public CommandQueue::AudioSourceListener
+{
+public:
+    virtual void onAudioSourceDecoded(const AudioSourceHandle handle,
+                                      uint64_t requestId) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId = 0x10;
+    AudioSourceHandle m_handle = RIVE_NULL_HANDLE;
+    bool m_hasCallback = false;
+};
+
+class DecodedFontListener : public CommandQueue::FontListener
+{
+public:
+    virtual void onFontDecoded(const FontHandle handle,
+                               uint64_t requestId) override
+    {
+        CHECK(requestId == m_requestId);
+        CHECK(handle == m_handle);
+        m_hasCallback = true;
+    }
+
+    uint64_t m_requestId = 0x10;
+    FontHandle m_handle = RIVE_NULL_HANDLE;
+    bool m_hasCallback = false;
+};
+
+TEST_CASE("decodedCallbacks", "[CommandQueue]")
+{
+    auto commandQueue = make_rcp<CommandQueue>();
+    std::thread serverThread(server_thread, commandQueue);
+    std::ifstream stream("assets/entry.riv", std::ios::binary);
+
+    DecodedImageListener imageListener;
+    DecodedAudioListener audioListener;
+    DecodedFontListener fontListener;
+
+    std::ifstream imageStream("assets/batdude.png", std::ios::binary);
+    imageListener.m_handle = commandQueue->decodeImage(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(imageStream), {}),
+        &imageListener,
+        imageListener.m_requestId);
+
+    std::ifstream audioStream("assets/audio/what.wav", std::ios::binary);
+    audioListener.m_handle = commandQueue->decodeAudio(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(audioStream), {}),
+        &audioListener,
+        audioListener.m_requestId);
+
+    std::ifstream fontStream("assets/fonts/OpenSans-Italic.ttf",
+                             std::ios::binary);
+    fontListener.m_handle = commandQueue->decodeFont(
+        std::vector<uint8_t>(std::istreambuf_iterator<char>(fontStream), {}),
+        &fontListener,
+        fontListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(imageListener.m_hasCallback);
+    CHECK(audioListener.m_hasCallback);
+    CHECK(fontListener.m_hasCallback);
+
+    DecodedImageListener badimageListener;
+    DecodedAudioListener badaudioListener;
+    DecodedFontListener badfontListener;
+
+    badimageListener.m_handle =
+        commandQueue->decodeImage(std::vector<uint8_t>(1024, {}),
+                                  &badimageListener,
+                                  badimageListener.m_requestId);
+
+    badaudioListener.m_handle =
+        commandQueue->decodeAudio(std::vector<uint8_t>(1024, {}),
+                                  &badaudioListener,
+                                  badaudioListener.m_requestId);
+
+    badfontListener.m_handle =
+        commandQueue->decodeFont(std::vector<uint8_t>(1024, {}),
+                                 &badfontListener,
+                                 badfontListener.m_requestId);
+
+    wait_for_server(commandQueue.get());
+    commandQueue->processMessages();
+
+    CHECK(!badimageListener.m_hasCallback);
+    CHECK(!badaudioListener.m_hasCallback);
+    CHECK(!badfontListener.m_hasCallback);
+
+    commandQueue->disconnect();
+    serverThread.join();
+}
+
 TEST_CASE("listenerLifeTimes", "[CommandQueue]")
 {
     auto commandQueue = make_rcp<CommandQueue>();
@@ -3898,8 +4124,11 @@ public:
                                                    "Test Slash"};
     std::array<std::string, 2> m_instanceNames = {"Test Default",
                                                   "Test Alternate"};
-    std::array<CommandQueue::FileListener::ViewModelPropertyData, 9>
+    std::array<CommandQueue::FileListener::ViewModelPropertyData, 10>
         m_properties = {
+            CommandQueue::FileListener::ViewModelPropertyData{
+                DataType::artboard,
+                "Test Artboard"},
             CommandQueue::FileListener::ViewModelPropertyData{DataType::list,
                                                               "Test List"},
             CommandQueue::FileListener::ViewModelPropertyData{

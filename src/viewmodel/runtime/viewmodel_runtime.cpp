@@ -13,6 +13,7 @@
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
 #include "rive/viewmodel/viewmodel_property_symbol_list_index.hpp"
 #include "rive/viewmodel/viewmodel_property_viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_property_artboard.hpp"
 #include "rive/file.hpp"
 #include "rive/refcnt.hpp"
 
@@ -78,6 +79,9 @@ std::vector<PropertyData> ViewModelRuntime::buildPropertiesData(
                 break;
             case ViewModelPropertyAssetImage::typeKey:
                 type = DataType::assetImage;
+                break;
+            case ViewModelPropertyArtboard::typeKey:
+                type = DataType::artboard;
                 break;
             default:
                 break;

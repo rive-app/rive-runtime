@@ -154,6 +154,10 @@ public:
                                             RenderImageHandle>
     {
     public:
+        virtual void onRenderImageDecoded(const RenderImageHandle,
+                                          uint64_t requestId)
+        {}
+
         virtual void onRenderImageError(const RenderImageHandle,
                                         uint64_t requestId,
                                         std::string error)
@@ -169,6 +173,10 @@ public:
                                             AudioSourceHandle>
     {
     public:
+        virtual void onAudioSourceDecoded(const AudioSourceHandle,
+                                          uint64_t requestId)
+        {}
+
         virtual void onAudioSourceError(const AudioSourceHandle,
                                         uint64_t requestId,
                                         std::string error)
@@ -183,6 +191,8 @@ public:
         : public CommandQueue::ListenerBase<FontListener, FontHandle>
     {
     public:
+        virtual void onFontDecoded(const FontHandle, uint64_t requestId) {}
+
         virtual void onFontError(const FontHandle,
                                  uint64_t requestId,
                                  std::string error)
@@ -412,6 +422,10 @@ public:
                                    std::string path,
                                    RenderImageHandle value,
                                    uint64_t requestId = 0);
+    void setViewModelInstanceArtboard(ViewModelInstanceHandle,
+                                      std::string path,
+                                      ArtboardHandle value,
+                                      uint64_t requestId = 0);
     void setViewModelInstanceNestedViewModel(ViewModelInstanceHandle,
                                              std::string path,
                                              ViewModelInstanceHandle value,
@@ -519,6 +533,11 @@ public:
     RenderImageHandle decodeImage(std::vector<uint8_t> imageEncodedBytes,
                                   RenderImageListener* listener = nullptr,
                                   uint64_t requestId = 0);
+    // This is needed for unreal rhi because all images come pre-decoded and
+    // uploaded to gpu.
+    RenderImageHandle addExternalImage(rcp<RenderImage> externalImage,
+                                       RenderImageListener* listener = nullptr,
+                                       uint64_t requestId = 0);
 
     void deleteImage(RenderImageHandle, uint64_t requestId = 0);
 
@@ -526,11 +545,19 @@ public:
                                   AudioSourceListener* listener = nullptr,
                                   uint64_t requestId = 0);
 
+    AudioSourceHandle addExternalAudio(rcp<AudioSource> externalAudio,
+                                       AudioSourceListener* listener = nullptr,
+                                       uint64_t requestId = 0);
+
     void deleteAudio(AudioSourceHandle, uint64_t requestId = 0);
 
     FontHandle decodeFont(std::vector<uint8_t> imageEncodedBytes,
                           FontListener* listener = nullptr,
                           uint64_t requestId = 0);
+
+    FontHandle addExternalFont(rcp<Font> externalFont,
+                               FontListener* listener = nullptr,
+                               uint64_t requestId = 0);
 
     void deleteFont(FontHandle, uint64_t requestId = 0);
 
@@ -735,8 +762,11 @@ private:
         loadFile,
         deleteFile,
         decodeImage,
+        externalImage,
         decodeAudio,
+        externalAudio,
         decodeFont,
+        externalFont,
         deleteImage,
         deleteAudio,
         deleteFont,
@@ -803,8 +833,11 @@ private:
         viewModelListSizeReceived,
         fileLoaded,
         fileDeleted,
+        imageDecoded,
         imageDeleted,
+        audioDecoded,
         audioDeleted,
+        fontDecoded,
         fontDeleted,
         artboardDeleted,
         viewModelDeleted,
@@ -834,6 +867,9 @@ private:
     std::mutex m_commandMutex;
     std::condition_variable m_commandConditionVariable;
     PODStream m_commandStream;
+    ObjectStream<rcp<RenderImage>> m_externalImages;
+    ObjectStream<rcp<AudioSource>> m_externalAudioSources;
+    ObjectStream<rcp<Font>> m_externalFonts;
     ObjectStream<std::vector<uint8_t>> m_byteVectors;
     ObjectStream<PointerEvent> m_pointerEvents;
     ObjectStream<std::string> m_names;

@@ -411,6 +411,20 @@ void CommandQueue::setViewModelInstanceImage(ViewModelInstanceHandle handle,
     m_names << path;
 }
 
+void CommandQueue::setViewModelInstanceArtboard(ViewModelInstanceHandle handle,
+                                                std::string path,
+                                                ArtboardHandle value,
+                                                uint64_t requestId)
+{
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::setViewModelInstanceValue;
+    m_commandStream << handle;
+    m_commandStream << DataType::artboard;
+    m_commandStream << requestId;
+    m_commandStream << value;
+    m_names << path;
+}
+
 void CommandQueue::setViewModelInstanceNestedViewModel(
     ViewModelInstanceHandle handle,
     std::string path,
@@ -636,6 +650,29 @@ RenderImageHandle CommandQueue::decodeImage(
     return handle;
 }
 
+RenderImageHandle CommandQueue::addExternalImage(rcp<RenderImage> externalImage,
+                                                 RenderImageListener* listener,
+                                                 uint64_t requestId)
+{
+    auto handle =
+        reinterpret_cast<RenderImageHandle>(++m_currentRenderImageHandleIdx);
+
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = handle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(handle, listener);
+    }
+
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::externalImage;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_externalImages << std::move(externalImage);
+    return handle;
+}
+
 void CommandQueue::deleteImage(RenderImageHandle handle, uint64_t requestId)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
@@ -668,6 +705,29 @@ AudioSourceHandle CommandQueue::decodeAudio(
     return handle;
 }
 
+AudioSourceHandle CommandQueue::addExternalAudio(rcp<AudioSource> externalAudio,
+                                                 AudioSourceListener* listener,
+                                                 uint64_t requestId)
+{
+    auto handle =
+        reinterpret_cast<AudioSourceHandle>(++m_currentAudioSourceHandleIdx);
+
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = handle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(handle, listener);
+    }
+
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::externalAudio;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_externalAudioSources << std::move(externalAudio);
+    return handle;
+}
+
 void CommandQueue::deleteAudio(AudioSourceHandle handle, uint64_t requestId)
 {
     AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
@@ -695,6 +755,28 @@ FontHandle CommandQueue::decodeFont(std::vector<uint8_t> imageEncodedBytes,
     m_commandStream << handle;
     m_commandStream << requestId;
     m_byteVectors << std::move(imageEncodedBytes);
+    return handle;
+}
+
+FontHandle CommandQueue::addExternalFont(rcp<Font> externalFont,
+                                         FontListener* listener,
+                                         uint64_t requestId)
+{
+    auto handle = reinterpret_cast<FontHandle>(++m_currentFontHandleIdx);
+
+    if (listener)
+    {
+        assert(listener->m_handle == RIVE_NULL_HANDLE);
+        listener->m_handle = handle;
+        listener->m_owningQueue = ref_rcp(this);
+        registerListener(handle, listener);
+    }
+
+    AutoLockAndNotify lock(m_commandMutex, m_commandConditionVariable);
+    m_commandStream << Command::externalFont;
+    m_commandStream << handle;
+    m_commandStream << requestId;
+    m_externalFonts << std::move(externalFont);
     return handle;
 }
 
@@ -1310,6 +1392,25 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+            case Message::imageDecoded:
+            {
+                RenderImageHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                if (m_globalImageListener)
+                {
+                    m_globalImageListener->onRenderImageDecoded(handle,
+                                                                requestId);
+                }
+                auto itr = m_imageListeners.find(handle);
+                if (itr != m_imageListeners.end())
+                {
+                    itr->second->onRenderImageDecoded(handle, requestId);
+                }
+                break;
+            }
             case Message::imageDeleted:
             {
                 RenderImageHandle handle;
@@ -1329,6 +1430,25 @@ void CommandQueue::processMessages()
                 }
                 break;
             }
+            case Message::audioDecoded:
+            {
+                AudioSourceHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                if (m_globalAudioListener)
+                {
+                    m_globalAudioListener->onAudioSourceDecoded(handle,
+                                                                requestId);
+                }
+                auto itr = m_audioListeners.find(handle);
+                if (itr != m_audioListeners.end())
+                {
+                    itr->second->onAudioSourceDecoded(handle, requestId);
+                }
+                break;
+            }
             case Message::audioDeleted:
             {
                 AudioSourceHandle handle;
@@ -1345,6 +1465,24 @@ void CommandQueue::processMessages()
                 if (itr != m_audioListeners.end())
                 {
                     itr->second->onAudioSourceDeleted(handle, requestId);
+                }
+                break;
+            }
+            case Message::fontDecoded:
+            {
+                FontHandle handle;
+                uint64_t requestId;
+                m_messageStream >> handle;
+                m_messageStream >> requestId;
+                lock.unlock();
+                if (m_globalFontListener)
+                {
+                    m_globalFontListener->onFontDecoded(handle, requestId);
+                }
+                auto itr = m_fontListeners.find(handle);
+                if (itr != m_fontListeners.end())
+                {
+                    itr->second->onFontDecoded(handle, requestId);
                 }
                 break;
             }
