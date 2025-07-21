@@ -6,14 +6,23 @@
 
 using namespace rive;
 
-static int color_construct(lua_State* L)
+static int color_rgb(lua_State* L)
 {
-    int args = lua_gettop(L) - 1;
+    uint32_t r = luaL_checkunsigned(L, 1);
+    uint32_t g = luaL_checkunsigned(L, 2);
+    uint32_t b = luaL_checkunsigned(L, 3);
+    uint32_t a = 255;
+    lua_pushunsigned(L, colorARGB(a, r, g, b));
 
-    uint32_t r = luaL_checkunsigned(L, 2);
-    uint32_t g = luaL_checknumber(L, 3);
-    uint32_t b = luaL_checknumber(L, 4);
-    uint32_t a = args == 4 ? luaL_checknumber(L, 5) : 255;
+    return 1;
+}
+
+static int color_rgba(lua_State* L)
+{
+    uint32_t r = luaL_checkunsigned(L, 1);
+    uint32_t g = luaL_checkunsigned(L, 2);
+    uint32_t b = luaL_checkunsigned(L, 3);
+    uint32_t a = luaL_checkunsigned(L, 4);
     lua_pushunsigned(L, colorARGB(a, r, g, b));
 
     return 1;
@@ -134,15 +143,13 @@ static const luaL_Reg colorStaticMethods[] = {{"red", color_red},
                                               {"alpha", color_alpha},
                                               {"opacity", color_opacity},
                                               {"lerp", color_lerp},
+                                              {"rgb", color_rgb},
+                                              {"rgba", color_rgba},
                                               {nullptr, nullptr}};
 
 int luaopen_rive_color(lua_State* L)
 {
     luaL_register(L, "Color", colorStaticMethods);
-    lua_createtable(L, 0, 1);
-    lua_pushcfunction(L, color_construct, nullptr);
-    lua_setfield(L, -2, "__call");
-    lua_setmetatable(L, -2);
 
     return 1;
 }

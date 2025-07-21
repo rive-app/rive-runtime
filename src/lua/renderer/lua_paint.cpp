@@ -250,18 +250,21 @@ static void setPropertiesFromDefinitionTable(lua_State* L,
     lua_pop(L, 1);
 }
 
-static int paint_construct(lua_State* L)
+static int paint_new(lua_State* L)
 {
-    int argCount = lua_gettop(L);
+    ScriptingContext* context =
+        static_cast<ScriptingContext*>(lua_getthreaddata(L));
+    lua_newrive<ScriptedPaint>(L, context->factory);
+
+    return 1;
+}
+
+static int paint_with(lua_State* L)
+{
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(L));
     auto scriptedPaint = lua_newrive<ScriptedPaint>(L, context->factory);
-
-    // 1 is the func
-    if (argCount == 2)
-    {
-        setPropertiesFromDefinitionTable(L, scriptedPaint, 2);
-    }
+    setPropertiesFromDefinitionTable(L, scriptedPaint, 1);
     return 1;
 }
 
@@ -489,7 +492,11 @@ static int paint_namecall(lua_State* L)
     return 0;
 }
 
-static const luaL_Reg paintStaticMethods[] = {{nullptr, nullptr}};
+static const luaL_Reg paintStaticMethods[] = {
+    {"new", paint_new},
+    {"with", paint_with},
+    {NULL, NULL},
+};
 
 int luaopen_rive_paint(lua_State* L)
 {
@@ -504,12 +511,6 @@ int luaopen_rive_paint(lua_State* L)
 
     lua_pushcfunction(L, paint_namecall, nullptr);
     lua_setfield(L, -2, "__namecall");
-
-    // Create metatable for the metatable (so we can call it).
-    lua_createtable(L, 0, 1);
-    lua_pushcfunction(L, paint_construct, nullptr);
-    lua_setfield(L, -2, "__call");
-    lua_setmetatable(L, -3);
 
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable

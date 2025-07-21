@@ -11,8 +11,8 @@ TEST_CASE("can call renderer", "[scripting]")
         "local storedRenderer:Renderer\n"
         "function render(renderer:Renderer):()\n"
         "  storedRenderer = renderer\n" // doing a naughty thing on purpose
-        "  local path:Path = Path()\n"
-        "  local paint:Paint = Paint()\n"
+        "  local path:Path = Path.new()\n"
+        "  local paint:Paint = Paint.new()\n"
         "  renderer:drawPath(path, paint)\n"
         "end\n"
         "function afterwards(): ()\n"
@@ -36,8 +36,8 @@ TEST_CASE("can call renderer", "[scripting]")
 TEST_CASE("renderer checks its balanced", "[scripting]")
 {
     ScriptingTest vm("function render(renderer:Renderer):()\n"
-                     "  local path:Path = Path()\n"
-                     "  local paint:Paint = Paint()\n"
+                     "  local path:Path = Path.new()\n"
+                     "  local paint:Paint = Paint.new()\n"
                      "  renderer:save()\n"
                      "  renderer:drawPath(path, paint)\n"
                      "  renderer:save()\n"
@@ -56,19 +56,19 @@ TEST_CASE("renderer can draw an oval", "[scripting]")
         R"(function addOval(path: Path, x: number, y: number, width: number, height: number)
 	local c: number = 0.5519150244935105707435627
 	local unit: { Vec2D } = {
-		Vec2D(1, 0),
-		Vec2D(1, c),
-		Vec2D(c, 1), -- quadrant 1 ( 4:30)
-		Vec2D(0, 1),
-		Vec2D(-c, 1),
-		Vec2D(-1, c), -- quadrant 2 ( 7:30)
-		Vec2D(-1, 0),
-		Vec2D(-1, -c),
-		Vec2D(-c, -1), -- quadrant 3 (10:30)
-		Vec2D(0, -1),
-		Vec2D(c, -1),
-		Vec2D(1, -c), -- quadrant 4 ( 1:30)
-		Vec2D(1, 0),
+		Vec2D.xy(1, 0),
+		Vec2D.xy(1, c),
+		Vec2D.xy(c, 1), -- quadrant 1 ( 4:30)
+		Vec2D.xy(0, 1),
+		Vec2D.xy(-c, 1),
+		Vec2D.xy(-1, c), -- quadrant 2 ( 7:30)
+		Vec2D.xy(-1, 0),
+		Vec2D.xy(-1, -c),
+		Vec2D.xy(-c, -1), -- quadrant 3 (10:30)
+		Vec2D.xy(0, -1),
+		Vec2D.xy(c, -1),
+		Vec2D.xy(1, -c), -- quadrant 4 ( 1:30)
+		Vec2D.xy(1, 0),
 	}
 
 	local dx: number = x - width / 2
@@ -77,7 +77,7 @@ TEST_CASE("renderer can draw an oval", "[scripting]")
 	local sy: number = height * 0.5
 
 	local map = function(p: Vec2D): Vec2D
-		return Vec2D(p.x * sx + dx, p.y * sy + dy)
+		return Vec2D.xy(p.x * sx + dx, p.y * sy + dy)
 	end
 	path:moveTo(map(unit[1]))
 	for i = 1, 12, 3 do
@@ -87,8 +87,8 @@ TEST_CASE("renderer can draw an oval", "[scripting]")
 end
 
 function render(renderer: Renderer): ()
-	local path: Path = Path()
-	local paint: Paint = Paint({color=0xFFFF0000, feather=20})
+	local path: Path = Path.new()
+	local paint: Paint = Paint.with({color=0xFFFF0000, feather=20})
 
 	addOval(path, 600, 500, 100, 180)
 	renderer:drawPath(path, paint)

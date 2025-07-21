@@ -6,32 +6,32 @@ using namespace rive;
 
 TEST_CASE("vec2d can be constructed", "[scripting]")
 {
-    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D(1,2)\n"
+    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D.xy(1,2)\n"
                                      "return _vec.x")
                            .state(),
                        -1) == 1.0f);
 
-    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D(1,2)\n"
+    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D.xy(1,2)\n"
                                      "return _vec.y")
                            .state(),
                        -1) == 2.0f);
 
-    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D(33)\n"
+    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D.xy(33,33)\n"
                                      "return _vec.x")
                            .state(),
                        -1) == 33.0f);
 
-    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D(33)\n"
+    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D.xy(33,33)\n"
                                      "return _vec.y")
                            .state(),
                        -1) == 33.0f);
 
-    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D()\n"
+    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D.origin()\n"
                                      "return _vec.x")
                            .state(),
                        -1) == 0.0f);
 
-    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D()\n"
+    CHECK(lua_tonumber(ScriptingTest("local _vec = Vec2D.origin()\n"
                                      "return _vec.y")
                            .state(),
                        -1) == 0.0f);
@@ -40,101 +40,110 @@ TEST_CASE("vec2d can be constructed", "[scripting]")
 TEST_CASE("vec2d static methods work", "[scripting]")
 {
     CHECK(
-        lua_tonumber(
-            ScriptingTest("return Vec2D.distance(Vec2D(),Vec2D(10,0))").state(),
-            -1) == 10.0f);
+        lua_tonumber(ScriptingTest(
+                         "return Vec2D.distance(Vec2D.origin(),Vec2D.xy(10,0))")
+                         .state(),
+                     -1) == 10.0f);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return Vec2D.distanceSquared(Vec2D(),Vec2D(10,0))")
+              ScriptingTest(
+                  "return Vec2D.distanceSquared(Vec2D.origin(),Vec2D.xy(10,0))")
                   .state(),
               -1) == 100.0f);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return Vec2D.dot(Vec2D(1,0),Vec2D(-1,0))").state(),
+              ScriptingTest("return Vec2D.dot(Vec2D.xy(1,0),Vec2D.xy(-1,0))")
+                  .state(),
               -1) == -1.0f);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return Vec2D.lerp(Vec2D(),Vec2D(1,2), 0.5).x")
+              ScriptingTest(
+                  "return Vec2D.lerp(Vec2D.origin(),Vec2D.xy(1,2), 0.5).x")
                   .state(),
               -1) == 0.5f);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return Vec2D.lerp(Vec2D(),Vec2D(1,2), 0.5).y")
+              ScriptingTest(
+                  "return Vec2D.lerp(Vec2D.origin(),Vec2D.xy(1,2), 0.5).y")
                   .state(),
               -1) == 1.0f);
 }
 
 TEST_CASE("vec2d indexing work", "[scripting]")
 {
-    CHECK(lua_tonumber(ScriptingTest("return Vec2D(19, 27)[1]").state(), -1) ==
-          19.0f);
+    CHECK(lua_tonumber(ScriptingTest("return Vec2D.xy(19, 27)[1]").state(),
+                       -1) == 19.0f);
 
-    CHECK(lua_tonumber(ScriptingTest("return Vec2D(19, 27)[2]").state(), -1) ==
-          27.0f);
+    CHECK(lua_tonumber(ScriptingTest("return Vec2D.xy(19, 27)[2]").state(),
+                       -1) == 27.0f);
 }
 
 TEST_CASE("vec2d methods work", "[scripting]")
 {
     CHECK(lua_tonumber(
-              ScriptingTest("return Vec2D():distance(Vec2D(10,0))").state(),
+              ScriptingTest("return Vec2D.origin():distance(Vec2D.xy(10,0))")
+                  .state(),
               -1) == 10.0f);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return Vec2D():distanceSquared(Vec2D(10,0))")
+              ScriptingTest(
+                  "return Vec2D.origin():distanceSquared(Vec2D.xy(10,0))")
                   .state(),
               -1) == 100.0f);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return Vec2D(1,0):dot(Vec2D(-1,0))").state(),
+              ScriptingTest("return Vec2D.xy(1,0):dot(Vec2D.xy(-1,0))").state(),
               -1) == -1.0f);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return Vec2D():lerp(Vec2D(1,2), 0.5).x").state(),
+              ScriptingTest("return Vec2D.origin():lerp(Vec2D.xy(1,2), 0.5).x")
+                  .state(),
               -1) == 0.5f);
 
     CHECK(lua_tonumber(
-              ScriptingTest("return Vec2D():lerp(Vec2D(1,2), 0.5).y").state(),
+              ScriptingTest("return Vec2D.origin():lerp(Vec2D.xy(1,2), 0.5).y")
+                  .state(),
               -1) == 1.0f);
 }
 
 TEST_CASE("vec2d meta methods work", "[scripting]")
 {
-    CHECK(lua_tonumber(ScriptingTest("return -Vec2D(12,13).x").state(), -1) ==
-          -12.0f);
-    CHECK(lua_tonumber(ScriptingTest("return -Vec2D(12,13).y").state(), -1) ==
-          -13.0f);
+    CHECK(lua_tonumber(ScriptingTest("return -Vec2D.xy(12,13).x").state(),
+                       -1) == -12.0f);
+    CHECK(lua_tonumber(ScriptingTest("return -Vec2D.xy(12,13).y").state(),
+                       -1) == -13.0f);
     CHECK(lua_tonumber(
-              ScriptingTest("return (Vec2D(12,13)+Vec2D(2,3)).y").state(),
+              ScriptingTest("return (Vec2D.xy(12,13)+Vec2D.xy(2,3)).y").state(),
               -1) == 16.0f);
     CHECK(lua_tonumber(
-              ScriptingTest("return (Vec2D(12,13)+Vec2D(2,3)).x").state(),
+              ScriptingTest("return (Vec2D.xy(12,13)+Vec2D.xy(2,3)).x").state(),
               -1) == 14.0f);
     CHECK(lua_tonumber(
-              ScriptingTest("return (Vec2D(12,13)-Vec2D(2,3)).y").state(),
+              ScriptingTest("return (Vec2D.xy(12,13)-Vec2D.xy(2,3)).y").state(),
               -1) == 10.0f);
     CHECK(lua_tonumber(
-              ScriptingTest("return (Vec2D(12,13)-Vec2D(2,3)).x").state(),
+              ScriptingTest("return (Vec2D.xy(12,13)-Vec2D.xy(2,3)).x").state(),
               -1) == 10.0f);
-    CHECK(lua_tonumber(ScriptingTest("return (Vec2D(12,13)*3).x").state(),
+    CHECK(lua_tonumber(ScriptingTest("return (Vec2D.xy(12,13)*3).x").state(),
                        -1) == 36.0f);
-    CHECK(lua_tonumber(ScriptingTest("return (Vec2D(12,13)*3).y").state(),
+    CHECK(lua_tonumber(ScriptingTest("return (Vec2D.xy(12,13)*3).y").state(),
                        -1) == 39.0f);
-    CHECK(lua_tonumber(ScriptingTest("return (Vec2D(12,13)/3).x").state(),
+    CHECK(lua_tonumber(ScriptingTest("return (Vec2D.xy(12,13)/3).x").state(),
                        -1) == 4.0f);
-    CHECK(lua_tonumber(ScriptingTest("return (Vec2D(12,13)/3).y").state(),
+    CHECK(lua_tonumber(ScriptingTest("return (Vec2D.xy(12,13)/3).y").state(),
                        -1) == Approx(4.3333333f));
-    CHECK(
-        lua_toboolean(ScriptingTest("return Vec2D(1,2) == Vec2D(2,1)").state(),
-                      -1) == 0);
-    CHECK(
-        lua_toboolean(ScriptingTest("return Vec2D(1,2) == Vec2D(1,2)").state(),
-                      -1) == 1);
-    CHECK(
-        lua_toboolean(ScriptingTest("return Vec2D(1,2) ~= Vec2D(2,1)").state(),
-                      -1) == 1);
-    CHECK(
-        lua_toboolean(ScriptingTest("return Vec2D(1,2) ~= Vec2D(1,2)").state(),
-                      -1) == 0);
+    CHECK(lua_toboolean(
+              ScriptingTest("return Vec2D.xy(1,2) == Vec2D.xy(2,1)").state(),
+              -1) == 0);
+    CHECK(lua_toboolean(
+              ScriptingTest("return Vec2D.xy(1,2) == Vec2D.xy(1,2)").state(),
+              -1) == 1);
+    CHECK(lua_toboolean(
+              ScriptingTest("return Vec2D.xy(1,2) ~= Vec2D.xy(2,1)").state(),
+              -1) == 1);
+    CHECK(lua_toboolean(
+              ScriptingTest("return Vec2D.xy(1,2) ~= Vec2D.xy(1,2)").state(),
+              -1) == 0);
 }
 
 static int lua_callback(lua_State* L)

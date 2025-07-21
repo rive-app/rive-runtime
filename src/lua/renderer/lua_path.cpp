@@ -36,7 +36,7 @@ static ScriptedPath* lua_pushpath(lua_State* L)
     return lua_newrive<ScriptedPath>(L);
 }
 
-static int path_construct(lua_State* L)
+static int path_new(lua_State* L)
 {
     lua_pushpath(L);
     return 1;
@@ -130,31 +130,21 @@ static int path_namecall(lua_State* L)
     return 0;
 }
 
-static const luaL_Reg pathlib[] = {
+static const luaL_Reg pathStaticMethods[] = {
+    {"new", path_new},
     {NULL, NULL},
 };
 
-static void create_path_metatable(lua_State* L)
+int luaopen_rive_path(lua_State* L)
 {
+    luaL_register(L, ScriptedPath::luaName, pathStaticMethods);
     lua_register_rive<ScriptedPath>(L);
 
     lua_pushcfunction(L, path_namecall, nullptr);
     lua_setfield(L, -2, "__namecall");
-    // Create metatable for the metatable (so we can call it).
-    lua_createtable(L, 0, 1);
-    lua_pushcfunction(L, path_construct, nullptr);
-    lua_setfield(L, -2, "__call");
-    // -3 as it's the library (Path) that we're setting this metatable on.
-    lua_setmetatable(L, -3);
 
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
-}
-
-int luaopen_rive_path(lua_State* L)
-{
-    luaL_register(L, ScriptedPath::luaName, pathlib);
-    create_path_metatable(L);
 
     return 1;
 }

@@ -5,17 +5,6 @@
 
 using namespace rive;
 
-static int vec2d_construct(lua_State* L)
-{
-    // 1 is the function
-    float x = lua_isnumber(L, 2) ? (float)lua_tonumber(L, 2) : 0.0f;
-    float y = lua_isnumber(L, 3) ? (float)lua_tonumber(L, 3) : x;
-
-    lua_pushvector2(L, x, y);
-
-    return 1;
-}
-
 static int vec2d_index(lua_State* L)
 {
     const float* vec = luaL_checkvector(L, 1);
@@ -99,6 +88,21 @@ static int vec2d_lerp(lua_State* L)
     return 1;
 }
 
+static int vec2d_xy(lua_State* L)
+{
+    float x = (float)lua_tonumber(L, 1);
+    float y = (float)lua_tonumber(L, 2);
+
+    lua_pushvector2(L, x, y);
+    return 1;
+}
+
+static int vec2d_origin(lua_State* L)
+{
+    lua_pushvector2(L, 0.0f, 0.0f);
+    return 1;
+}
+
 static int vec2d_namecall(lua_State* L)
 {
     int atom;
@@ -133,6 +137,8 @@ static const luaL_Reg vec2dStaticMethods[] = {
     {"distanceSquared", vec2d_distanceSquared},
     {"dot", vec2d_dot},
     {"lerp", vec2d_lerp},
+    {"xy", vec2d_xy},
+    {"origin", vec2d_origin},
     {nullptr, nullptr}};
 
 int luaopen_rive_vec2d(lua_State* L)
@@ -158,14 +164,6 @@ int luaopen_rive_vec2d(lua_State* L)
 
     lua_pushcfunction(L, vec2d_namecall, nullptr);
     lua_setfield(L, -2, "__namecall");
-
-    // Create metatable for the metatable (so we can call it).
-    lua_createtable(L, 0, 1);
-    lua_pushcfunction(L, vec2d_construct, nullptr);
-    lua_setfield(L, -2, "__call");
-
-    // -3 as it's the library (Vec2D) that we're setting this metatable on.
-    lua_setmetatable(L, -3);
 
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable

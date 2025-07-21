@@ -20,20 +20,21 @@ static ScriptedMat2D* lua_pushmat2d(lua_State* L, const Mat2D& mat)
     return lua_newrive<ScriptedMat2D>(L, mat);
 }
 
-static int mat2d_construct(lua_State* L)
+static int mat2d_values(lua_State* L)
 {
-    // 1 is the function
-    int args = lua_gettop(L);
     float m[6] = {1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f};
-    for (int i = 1; i < args; i++)
+    for (int i = 0; i < 6; i++)
     {
-        if (lua_isnumber(L, 1 + i))
-        {
-            m[i - 1] = float(lua_tonumber(L, 1 + i));
-        }
+        m[i] = float(luaL_checknumber(L, 1 + i));
     }
 
     lua_pushmat2d(L, m[0], m[1], m[2], m[3], m[4], m[5]);
+    return 1;
+}
+
+static int mat2d_identity(lua_State* L)
+{
+    lua_pushmat2d(L, 1.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f);
     return 1;
 }
 
@@ -257,6 +258,8 @@ static const luaL_Reg mat2dStaticMethods[] = {
     {"withRotation", mat2d_withRotation},
     {"withScale", mat2d_withScale},
     {"withScaleAndTranslation", mat2d_withScaleAndTranslation},
+    {"identity", mat2d_identity},
+    {"values", mat2d_values},
     {nullptr, nullptr}};
 
 int luaopen_rive_mat2d(lua_State* L)
@@ -275,13 +278,6 @@ int luaopen_rive_mat2d(lua_State* L)
 
     lua_pushcfunction(L, mat2d_namecall, nullptr);
     lua_setfield(L, -2, "__namecall");
-
-    // Create metatable for the metatable (so we can call it).
-    lua_createtable(L, 0, 1);
-    lua_pushcfunction(L, mat2d_construct, nullptr);
-    lua_setfield(L, -2, "__call");
-    // -3 as it's the library (Mat2D) that we're setting this metatable on.
-    lua_setmetatable(L, -3);
 
     lua_setreadonly(L, -1, true);
     lua_pop(L, 1); // pop the metatable
