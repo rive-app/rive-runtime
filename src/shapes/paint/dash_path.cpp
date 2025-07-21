@@ -71,6 +71,11 @@ ShapePaintPath* PathDasher::applyDash(const RawPath* source,
             {
                 const Dash* dash = dashes[dashIndex++ % dashes.size()];
                 float dashLength = dash->normalizedLength(contour->length());
+                if (dashLength <= 0.0f)
+                {
+                    dashIndex++;
+                    continue;
+                }
                 if (dashLength > contour->length())
                 {
                     dashLength = contour->length();
