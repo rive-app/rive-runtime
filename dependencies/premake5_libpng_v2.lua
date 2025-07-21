@@ -1,7 +1,7 @@
 dofile('rive_build_config.lua')
 
 local dependency = require('dependency')
-libpng = dependency.github('glennrp/libpng', 'libpng16')
+libpng = dependency.github('pnggroup/libpng', 'libpng16')
 zlib = dependency.github('madler/zlib', 'v1.3.1')
 
 includedirs({ './' })
