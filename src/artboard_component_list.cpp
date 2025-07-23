@@ -28,6 +28,7 @@ void ArtboardComponentList::reset()
     m_artboardsMap.clear();
     m_resourcePool.clear();
     m_stateMachinesPool.clear();
+    m_artboardOverridesMap.clear();
 }
 
 rcp<ViewModelInstanceListItem> ArtboardComponentList::listItem(int index)
@@ -624,6 +625,7 @@ void ArtboardComponentList::createArtboardAt(int index)
         auto artboardCopy = createArtboard(this, item);
         if (artboardCopy != nullptr)
         {
+            attachArtboardOverride(artboardCopy.get(), item);
             addArtboardAt(std::move(artboardCopy), index);
         }
     }
@@ -697,6 +699,11 @@ void ArtboardComponentList::removeArtboardAt(int index)
 
 void ArtboardComponentList::removeArtboard(rcp<ViewModelInstanceListItem> item)
 {
+    auto itr = m_artboardInstancesMap.find(item);
+    if (itr != m_artboardInstancesMap.end())
+    {
+        clearArtboardOverride(itr->second.get());
+    }
     m_artboardInstancesMap.erase(item);
     m_stateMachinesMap.erase(item);
 }
@@ -888,4 +895,75 @@ float ArtboardComponentList::gap()
                                              : layoutParent->gapVertical();
     }
     return 0.0f;
+}
+
+void ArtboardComponentList::attachArtboardOverride(
+    ArtboardInstance* instance,
+    rcp<ViewModelInstanceListItem> listItem)
+{
+
+    auto viewModelInstance = listItem->viewModelInstance();
+    if (viewModelInstance == nullptr)
+    {
+        return;
+    }
+    auto artboards = m_file->artboards();
+    int artboardIndex = -1;
+    for (auto& artboard : artboards)
+    {
+        artboardIndex++;
+
+        if (artboard->viewModelId() == viewModelInstance->viewModelId())
+        {
+            break;
+        }
+    }
+    if (artboardIndex < 0 && artboardIndex >= artboards.size())
+    {
+        return;
+    }
+    ArtboardComponentListOverride* artboardOverride = nullptr;
+    for (auto& child : children())
+    {
+        if (child->is<ArtboardComponentListOverride>())
+        {
+            if (child->as<ArtboardComponentListOverride>()->artboardId() == -1)
+            {
+                artboardOverride = child->as<ArtboardComponentListOverride>();
+            }
+            else if (child->as<ArtboardComponentListOverride>()->artboardId() ==
+                     artboardIndex)
+            {
+                artboardOverride = child->as<ArtboardComponentListOverride>();
+                break;
+            }
+        }
+    }
+    if (artboardOverride != nullptr)
+    {
+        artboardOverride->addArtboard(instance);
+    }
+}
+
+void ArtboardComponentList::clearArtboardOverride(
+    ArtboardInstance* artboardInstance)
+{
+    for (auto& child : children())
+    {
+        if (child->is<ArtboardComponentListOverride>())
+        {
+            // Passing the artboard to all overrides in case in the future we
+            // support stacking overrides on top of each other.
+            // Currently all except one will be a no-op.
+            child->as<ArtboardComponentListOverride>()->removeArtboard(
+                artboardInstance);
+        }
+    }
+}
+
+bool ArtboardComponentList::mainAxisIsRow()
+{
+    return parent()->is<LayoutComponent>()
+               ? parent()->as<LayoutComponent>()->mainAxisIsRow()
+               : true;
 }

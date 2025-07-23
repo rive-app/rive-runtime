@@ -3,6 +3,7 @@
 #include "rive/generated/nested_artboard_layout_base.hpp"
 #include "rive/constraints/layout_constraint.hpp"
 #include "rive/layout/layout_node_provider.hpp"
+#include "rive/layout/style_overrider.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 
 namespace rive
@@ -23,8 +24,6 @@ public:
     void updateConstraints() override;
     StatusCode onAddedClean(CoreContext* context) override;
 
-    float actualInstanceWidth();
-    float actualInstanceHeight();
     bool syncStyleChanges() override;
     void updateLayoutBounds(bool animate = true) override;
     AABB layoutBounds() override;
@@ -37,6 +36,7 @@ public:
     {
         return this->as<TransformComponent>();
     }
+    bool isRow();
 
 protected:
     void instanceWidthChanged() override;
@@ -49,6 +49,8 @@ protected:
 private:
     void updateWidthOverride();
     void updateHeightOverride();
+    StyleOverrider<NestedArtboardLayout> m_styleOverrider =
+        StyleOverrider<NestedArtboardLayout>(this);
 };
 } // namespace rive
 

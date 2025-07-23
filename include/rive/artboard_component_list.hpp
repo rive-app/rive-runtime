@@ -1,6 +1,7 @@
 #ifndef _RIVE_ARTBOARD_COMPONENT_LIST_HPP_
 #define _RIVE_ARTBOARD_COMPONENT_LIST_HPP_
 #include "rive/generated/artboard_component_list_base.hpp"
+#include "rive/layout/artboard_component_list_override.hpp"
 #include "rive/advancing_component.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
@@ -101,6 +102,7 @@ public:
     Vec2D itemSize(int index) override;
     float gap();
     void syncLayoutChildren();
+    bool mainAxisIsRow();
 
 private:
     void disposeListItem(const rcp<ViewModelInstanceListItem>& listItem);
@@ -141,6 +143,11 @@ private:
     Vec2D m_layoutSize;
     int m_visibleStartIndex = -1;
     int m_visibleEndIndex = -1;
+    std::unordered_map<ArtboardInstance*, ArtboardComponentListOverride*>
+        m_artboardOverridesMap;
+    void attachArtboardOverride(ArtboardInstance*,
+                                rcp<ViewModelInstanceListItem>);
+    void clearArtboardOverride(ArtboardInstance*);
 };
 } // namespace rive
 
