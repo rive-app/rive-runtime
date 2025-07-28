@@ -192,7 +192,7 @@ void ArtboardComponentList::linkStateMachineToArtboard(
     StateMachineInstance* stateMachineInstance,
     ArtboardInstance* artboard)
 {
-    if (artboard != nullptr)
+    if (artboard != nullptr && stateMachineInstance != nullptr)
     {
         auto dataContext = artboard->dataContext();
         stateMachineInstance->dataContext(dataContext);
