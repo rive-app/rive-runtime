@@ -198,6 +198,14 @@ bool NestedArtboard::hitTestHost(const Vec2D& position,
     return parent()->hitTestPoint(worldTransform() * position, skipOnUnclipped);
 }
 
+Vec2D NestedArtboard::hostTransformPoint(const Vec2D& vec,
+                                         ArtboardInstance* artboardInstance)
+{
+    auto localVec = Vec2D::transformMat2D(vec, worldTransform());
+    auto ab = artboard();
+    return ab ? ab->rootTransform(localVec) : localVec;
+}
+
 StatusCode NestedArtboard::import(ImportStack& importStack)
 {
     auto backboardImporter =

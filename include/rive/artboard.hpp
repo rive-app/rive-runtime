@@ -52,6 +52,7 @@ class SMITrigger;
 typedef void (*ArtboardCallback)(void*);
 typedef uint8_t (*TestBoundsCallback)(void*, float, float, bool);
 typedef uint8_t (*IsAncestorCallback)(void*, uint16_t);
+typedef float (*RootTransformCallback)(void*, float, float, bool);
 #endif
 
 class Artboard : public ArtboardBase, public CoreContext, public Virtualizable
@@ -163,6 +164,8 @@ public:
     Core* hitTest(HitInfo*, const Mat2D&) override;
 
     bool hitTestPoint(const Vec2D& position, bool skipOnUnclipped) override;
+
+    Vec2D rootTransform(const Vec2D&);
 
     void onComponentDirty(Component* component);
 
@@ -456,6 +459,7 @@ private:
     ArtboardCallback m_layoutDirtyCallback = nullptr;
     TestBoundsCallback m_testBoundsCallback = nullptr;
     IsAncestorCallback m_isAncestorCallback = nullptr;
+    RootTransformCallback m_rootTransformCallback = nullptr;
 
 public:
     void* callbackUserData;
@@ -475,6 +479,10 @@ public:
     void onIsAncestor(IsAncestorCallback callback)
     {
         m_isAncestorCallback = callback;
+    }
+    void onRootTransform(RootTransformCallback callback)
+    {
+        m_rootTransformCallback = callback;
     }
 #endif
 };

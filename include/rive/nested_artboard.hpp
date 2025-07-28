@@ -102,6 +102,7 @@ public:
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
     Artboard* parentArtboard() override { return artboard(); }
+    Vec2D hostTransformPoint(const Vec2D&, ArtboardInstance*) override;
     bool hitTestHost(const Vec2D& position,
                      bool skipOnUnclipped,
                      ArtboardInstance* artboard) override;

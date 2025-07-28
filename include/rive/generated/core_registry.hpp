@@ -1759,6 +1759,12 @@ public:
             case NodeBase::computedWorldYPropertyKey:
                 object->as<NodeBase>()->computedWorldY(value);
                 break;
+            case NodeBase::computedRootXPropertyKey:
+                object->as<NodeBase>()->computedRootX(value);
+                break;
+            case NodeBase::computedRootYPropertyKey:
+                object->as<NodeBase>()->computedRootY(value);
+                break;
             case NodeBase::computedWidthPropertyKey:
                 object->as<NodeBase>()->computedWidth(value);
                 break;
@@ -3048,6 +3054,10 @@ public:
                 return object->as<NodeBase>()->computedWorldX();
             case NodeBase::computedWorldYPropertyKey:
                 return object->as<NodeBase>()->computedWorldY();
+            case NodeBase::computedRootXPropertyKey:
+                return object->as<NodeBase>()->computedRootX();
+            case NodeBase::computedRootYPropertyKey:
+                return object->as<NodeBase>()->computedRootY();
             case NodeBase::computedWidthPropertyKey:
                 return object->as<NodeBase>()->computedWidth();
             case NodeBase::computedHeightPropertyKey:
@@ -3732,6 +3742,8 @@ public:
             case NodeBase::computedLocalYPropertyKey:
             case NodeBase::computedWorldXPropertyKey:
             case NodeBase::computedWorldYPropertyKey:
+            case NodeBase::computedRootXPropertyKey:
+            case NodeBase::computedRootYPropertyKey:
             case NodeBase::computedWidthPropertyKey:
             case NodeBase::computedHeightPropertyKey:
             case NestedArtboardLayoutBase::instanceWidthPropertyKey:
@@ -4547,6 +4559,10 @@ public:
             case NodeBase::computedWorldXPropertyKey:
                 return object->is<NodeBase>();
             case NodeBase::computedWorldYPropertyKey:
+                return object->is<NodeBase>();
+            case NodeBase::computedRootXPropertyKey:
+                return object->is<NodeBase>();
+            case NodeBase::computedRootYPropertyKey:
                 return object->is<NodeBase>();
             case NodeBase::computedWidthPropertyKey:
                 return object->is<NodeBase>();

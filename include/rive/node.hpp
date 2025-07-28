@@ -18,6 +18,8 @@ public:
     void setComputedLocalY(float value) override {}
     void setComputedWorldX(float value) override {}
     void setComputedWorldY(float value) override {}
+    void setComputedRootX(float value) override {}
+    void setComputedRootY(float value) override {}
     void setComputedWidth(float value) override {}
     void setComputedHeight(float value) override {}
 
@@ -25,6 +27,8 @@ public:
     float computedLocalY() override { return localTransform()[5]; };
     float computedWorldX() override { return worldTransform()[4]; };
     float computedWorldY() override { return worldTransform()[5]; };
+    float computedRootX() override;
+    float computedRootY() override;
     float computedWidth() override { return 0; };
     float computedHeight() override { return 0; };
 
@@ -43,6 +47,8 @@ protected:
     void computedLocalYChanged() override {}
     void computedWorldXChanged() override {}
     void computedWorldYChanged() override {}
+    void computedRootXChanged() override {}
+    void computedRootYChanged() override {}
     void computedWidthChanged() override {}
     void computedHeightChanged() override {}
 

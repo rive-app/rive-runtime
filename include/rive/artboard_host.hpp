@@ -28,6 +28,7 @@ public:
     virtual bool hitTestHost(const Vec2D& position,
                              bool skipOnUnclipped,
                              ArtboardInstance* artboard) = 0;
+    virtual Vec2D hostTransformPoint(const Vec2D&, ArtboardInstance*) = 0;
     virtual void markHostTransformDirty() = 0;
     virtual bool isLayoutProvider() { return false; }
     virtual void file(File* value) = 0;

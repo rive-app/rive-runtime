@@ -66,6 +66,7 @@ public:
     bool hitTestHost(const Vec2D& position,
                      bool skipOnUnclipped,
                      ArtboardInstance* artboard) override;
+    Vec2D hostTransformPoint(const Vec2D& vec, ArtboardInstance*) override;
     void markHostTransformDirty() override { markTransformDirty(); }
     bool syncStyleChanges() override;
     void updateLayoutBounds(bool animate = true) override;

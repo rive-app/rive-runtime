@@ -92,6 +92,26 @@
       "bindable": true,
       "passthrough": true
     },
+    "computedRootX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 864,
+        "string": "computedrootx"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedRootY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 865,
+        "string": "computedrooty"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
     "computedWidth": {
       "type": "double",
       "initialValue": "0",

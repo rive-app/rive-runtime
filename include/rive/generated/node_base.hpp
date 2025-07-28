@@ -39,6 +39,8 @@ public:
     static const uint16_t computedLocalYPropertyKey = 807;
     static const uint16_t computedWorldXPropertyKey = 808;
     static const uint16_t computedWorldYPropertyKey = 809;
+    static const uint16_t computedRootXPropertyKey = 864;
+    static const uint16_t computedRootYPropertyKey = 865;
     static const uint16_t computedWidthPropertyKey = 810;
     static const uint16_t computedHeightPropertyKey = 811;
 
@@ -117,6 +119,30 @@ public:
         computedWorldYChanged();
     }
 
+    virtual void setComputedRootX(float value) = 0;
+    virtual float computedRootX() = 0;
+    void computedRootX(float value)
+    {
+        if (computedRootX() == value)
+        {
+            return;
+        }
+        setComputedRootX(value);
+        computedRootXChanged();
+    }
+
+    virtual void setComputedRootY(float value) = 0;
+    virtual float computedRootY() = 0;
+    void computedRootY(float value)
+    {
+        if (computedRootY() == value)
+        {
+            return;
+        }
+        setComputedRootY(value);
+        computedRootYChanged();
+    }
+
     virtual void setComputedWidth(float value) = 0;
     virtual float computedWidth() = 0;
     void computedWidth(float value)
@@ -170,6 +196,8 @@ protected:
     virtual void computedLocalYChanged() {}
     virtual void computedWorldXChanged() {}
     virtual void computedWorldYChanged() {}
+    virtual void computedRootXChanged() {}
+    virtual void computedRootYChanged() {}
     virtual void computedWidthChanged() {}
     virtual void computedHeightChanged() {}
 };

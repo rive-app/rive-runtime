@@ -1045,6 +1045,27 @@ Core* Artboard::hitTest(HitInfo* hinfo, const Mat2D& xform)
     return nullptr;
 }
 
+Vec2D Artboard::rootTransform(const Vec2D& point)
+{
+    if (host())
+    {
+        return host()->hostTransformPoint(point, this->as<ArtboardInstance>());
+    }
+#ifdef WITH_RIVE_TOOLS
+    // Editor artboards don't have a host, so we expose a function that calls
+    // the host in dart.
+    if (m_rootTransformCallback != nullptr)
+    {
+        auto x =
+            m_rootTransformCallback(callbackUserData, point.x, point.y, true);
+        auto y =
+            m_rootTransformCallback(callbackUserData, point.x, point.y, false);
+        return Vec2D(x, y);
+    }
+#endif
+    return point;
+}
+
 bool Artboard::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
 {
     if (host() != nullptr && isInstance())

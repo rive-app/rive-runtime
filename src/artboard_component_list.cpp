@@ -483,6 +483,23 @@ bool ArtboardComponentList::hitTestHost(const Vec2D& position,
     return parent()->hitTestPoint(transform * offset, skipOnUnclipped);
 }
 
+Vec2D ArtboardComponentList::hostTransformPoint(
+    const Vec2D& vec,
+    ArtboardInstance* artboardInstance)
+{
+    auto bounds = virtualizationEnabled()
+                      ? m_artboardPositions[artboardInstance]
+                      : Vec2D(artboardInstance->layoutBounds().left(),
+                              artboardInstance->layoutBounds().top());
+    Vec2D offset(bounds.x + vec.x, bounds.y + vec.y);
+    auto transform = virtualizationEnabled()
+                         ? parent()->as<LayoutComponent>()->worldTransform()
+                         : worldTransform();
+    auto localVec = transform * offset;
+    auto ab = artboard();
+    return ab ? ab->rootTransform(localVec) : localVec;
+}
+
 void ArtboardComponentList::update(ComponentDirt value)
 {
     Super::update(value);
