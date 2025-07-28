@@ -120,6 +120,18 @@ TEST_CASE("Test data binding artboards from same and different sources",
     stateMachine->advanceAndApply(0.1f);
     artboard->draw(renderer.get());
 
+    // reset the artboard to null
+    vmiArtboard->asset(nullptr);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Change back to local artboard at index 1
+    vmiArtboard->asset(ch2Source);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
     CHECK(silver.matches("data_binding_artboards_test"));
 }
 

@@ -58,6 +58,10 @@ void NestedArtboard::nest(Artboard* artboard)
 Artboard* NestedArtboard::findArtboard(
     ViewModelInstanceArtboard* viewModelInstanceArtboard)
 {
+    if (viewModelInstanceArtboard == nullptr)
+    {
+        return nullptr;
+    }
     if (viewModelInstanceArtboard->asset() != nullptr)
     {
         if (!parentArtboard()->isAncestor(viewModelInstanceArtboard->asset()))
@@ -68,19 +72,14 @@ Artboard* NestedArtboard::findArtboard(
     }
     else if (m_file != nullptr)
     {
-        if (m_file != nullptr && viewModelInstanceArtboard != nullptr &&
-            viewModelInstanceArtboard->is<ViewModelInstanceArtboard>())
+        auto asset =
+            m_file->artboard(viewModelInstanceArtboard->propertyValue());
+        if (asset != nullptr)
         {
-            auto asset = m_file->artboard(
-                viewModelInstanceArtboard->as<ViewModelInstanceArtboard>()
-                    ->propertyValue());
-            if (asset != nullptr)
+            auto artboardAsset = asset->as<Artboard>();
+            if (!parentArtboard()->isAncestor(artboardAsset))
             {
-                auto artboardAsset = asset->as<Artboard>();
-                if (!parentArtboard()->isAncestor(artboardAsset))
-                {
-                    return artboardAsset;
-                }
+                return artboardAsset;
             }
         }
     }
@@ -104,6 +103,22 @@ void NestedArtboard::updateArtboard(
     clearDataContext();
     clearNestedAnimations();
     m_boundNestedStateMachine = nullptr;
+    // If asset == nullptr and propertyValue == -1, it means that the user
+    // explicitly set the asset to null, so only in that case we clear the
+    // artboard
+    if (viewModelInstanceArtboard != nullptr &&
+        viewModelInstanceArtboard->asset() == nullptr &&
+        viewModelInstanceArtboard->propertyValue() == -1)
+    {
+        if (m_Artboard)
+        {
+            m_Artboard->host(nullptr);
+            m_Artboard = nullptr;
+        }
+        m_Instance = nullptr;
+        return;
+    }
+
     Artboard* artboard = findArtboard(viewModelInstanceArtboard);
     if (artboard != nullptr)
     {
