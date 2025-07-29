@@ -14,7 +14,7 @@ if _OPTIONS['with_vulkan'] then
     vulkan_headers = dependency.github('KhronosGroup/Vulkan-Headers', 'vulkan-sdk-1.3.283')
     vulkan_memory_allocator = dependency.github(
         'GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator',
-        '7942b798289f752dc23b0a79516fd8545febd718'
+        'v3.3.0'
     )
     defines({
         'RIVE_VULKAN',
@@ -96,7 +96,7 @@ else
     handle:close()
 end
 nproc = nproc:gsub('%s+', '') -- remove whitespace
-local python_ply = dependency.github('dabeaz/ply', '5c4dc94d4c6d059ec127ee1493c735963a5d2645')
+local python_ply = dependency.github('dabeaz/ply', '3.11')
 local makecommand = 'make -C '
     .. path.getabsolute('src/shaders')
     .. ' -j'
@@ -104,7 +104,7 @@ local makecommand = 'make -C '
     .. ' OUT='
     .. pls_shaders_absolute_dir
 
-local minify_flags = '-p ' .. python_ply .. '/src'
+local minify_flags = '-p ' .. python_ply
 newoption({
     trigger = 'raw_shaders',
     description = 'don\'t rename shader variables, or remove whitespace or comments',
