@@ -481,61 +481,57 @@ TEST_CASE("Component List Virtualized Scroll", "[component_list]")
 TEST_CASE("Component List Virtualized Scroll manual", "[component_list]")
 {
     rive::SerializingFactory silver;
-    auto file = ReadRiveFile("assets/component_list_virtualized.riv");
+    auto file = ReadRiveFile("assets/component_list_virtualized.riv", &silver);
 
-    auto artboard = file->artboard("Main");
-    silver.frameSize(artboard->width(), artboard->height());
-    auto artboardInstance = artboard->instance();
+    auto artboard = file->artboardNamed("Main");
     REQUIRE(artboard != nullptr);
-    auto viewModelInstance =
-        file->createDefaultViewModelInstance(artboardInstance.get());
-    REQUIRE(viewModelInstance != nullptr);
-    artboardInstance->bindViewModelInstance(viewModelInstance);
+    silver.frameSize(artboard->width(), artboard->height());
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    REQUIRE(vmi != nullptr);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
 
     REQUIRE(artboard->find<rive::ArtboardComponentList>("List") != nullptr);
 
-    auto stateMachine = artboard->stateMachine("State Machine 1");
-
-    REQUIRE(artboardInstance != nullptr);
-    REQUIRE(artboardInstance->stateMachineCount() == 1);
-
-    REQUIRE(stateMachine != nullptr);
-
-    rive::StateMachineInstance* stateMachineInstance =
-        new rive::StateMachineInstance(stateMachine, artboardInstance.get());
-
-    REQUIRE(artboardInstance->find<rive::ScrollConstraint>().size() == 1);
-    REQUIRE(artboardInstance->find<rive::ScrollConstraint>()[0] != nullptr);
-    auto scroll = artboardInstance->find<rive::ScrollConstraint>()[0];
+    REQUIRE(artboard->find<rive::ScrollConstraint>().size() == 1);
+    REQUIRE(artboard->find<rive::ScrollConstraint>()[0] != nullptr);
+    auto scroll = artboard->find<rive::ScrollConstraint>()[0];
 
     REQUIRE(scroll->scrollPercentY() == 0.0f);
     REQUIRE(scroll->offsetY() == 0.0f);
     REQUIRE(scroll->scrollIndex() == Approx(0.0f));
     REQUIRE(scroll->physics()->isRunning() == false);
 
-    artboardInstance->advance(0.0f);
-    auto renderer = silver.makeRenderer();
-    artboardInstance->draw(renderer.get());
-
-    stateMachineInstance->pointerMove(rive::Vec2D(250.0f, 50.0f));
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(250.0f, 50.0f));
     // Start drag
-    stateMachineInstance->pointerDown(rive::Vec2D(250.0f, 50.0f));
-    artboardInstance->advance(0.1f);
-    stateMachineInstance->advanceAndApply(0.1f);
+    stateMachine->pointerDown(rive::Vec2D(250.0f, 50.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
     // Move left 200px in 0.1 seconds
-    stateMachineInstance->pointerMove(rive::Vec2D(50.0f, 50.0f));
-    artboardInstance->advance(0.0f);
-    stateMachineInstance->advanceAndApply(0.0f);
+    stateMachine->pointerMove(rive::Vec2D(50.0f, 50.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
 
     REQUIRE(scroll->offsetX() == -200.0f);
     REQUIRE(scroll->scrollIndex() == Approx(1.818182f));
 
     // End drag
-    stateMachineInstance->pointerUp(rive::Vec2D(50.0f, 50.0f));
+    stateMachine->pointerUp(rive::Vec2D(50.0f, 50.0f));
 
     REQUIRE(scroll->physics()->isRunning() == true);
 
-    delete stateMachineInstance;
+    CHECK(silver.matches("component_list_virtualized_scroll_manual"));
 }
 
 TEST_CASE("Artboard override with horizontal distribution", "[silver]")
