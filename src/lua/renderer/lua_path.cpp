@@ -47,6 +47,7 @@ static int path_moveTo(lua_State* L)
     auto scriptedPath = lua_torive<ScriptedPath>(L, 1);
     auto vec = lua_checkvec2d(L, 2);
     scriptedPath->rawPath.move(*vec);
+    scriptedPath->markDirty();
     return 0;
 }
 
@@ -55,6 +56,7 @@ static int path_lineTo(lua_State* L)
     auto scriptedPath = lua_torive<ScriptedPath>(L, 1);
     auto vec = lua_checkvec2d(L, 2);
     scriptedPath->rawPath.line(*vec);
+    scriptedPath->markDirty();
     return 0;
 }
 
@@ -64,6 +66,7 @@ static int path_quadTo(lua_State* L)
     auto p1 = lua_checkvec2d(L, 2);
     auto p2 = lua_checkvec2d(L, 3);
     scriptedPath->rawPath.quad(*p1, *p2);
+    scriptedPath->markDirty();
     return 0;
 }
 
@@ -74,6 +77,7 @@ static int path_cubicTo(lua_State* L)
     auto p2 = lua_checkvec2d(L, 3);
     auto p3 = lua_checkvec2d(L, 4);
     scriptedPath->rawPath.cubic(*p1, *p2, *p3);
+    scriptedPath->markDirty();
     return 0;
 }
 
@@ -81,6 +85,7 @@ static int path_close(lua_State* L)
 {
     auto scriptedPath = lua_torive<ScriptedPath>(L, 1);
     scriptedPath->rawPath.close();
+    scriptedPath->markDirty();
     return 0;
 }
 
@@ -88,6 +93,7 @@ static int path_reset(lua_State* L)
 {
     auto scriptedPath = lua_torive<ScriptedPath>(L, 1);
     scriptedPath->rawPath.reset();
+    scriptedPath->markDirty();
     return 0;
 }
 

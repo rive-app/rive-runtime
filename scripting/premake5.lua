@@ -1,5 +1,5 @@
 local dependency = require('dependency')
-local luau = dependency.github('luigi-rosso/luau', 'rive_0_8')
+local luau = dependency.github('luigi-rosso/luau', 'rive_0_9')
 
 dofile('rive_build_config.lua')
 
@@ -28,6 +28,11 @@ do
             buildoptions({ '/fp:precise' })
         end
     end
+
+    filter({ 'options:with-asan' })
+    do
+        defines({'LUAU_ENABLE_ASAN'})
+    end
 end
 
 project('luau_compiler')
@@ -43,6 +48,10 @@ do
 
     files({ luau .. '/Compiler/src/**.cpp', luau .. '/Ast/src/**.cpp' })
     optimize('Size')
+    filter({ 'options:with-asan' })
+    do
+        defines({'LUAU_ENABLE_ASAN'})
+    end
 end
 
 return { luau = luau }

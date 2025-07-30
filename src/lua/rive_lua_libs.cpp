@@ -71,6 +71,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"save", (int16_t)LuaAtoms::save},
     {"restore", (int16_t)LuaAtoms::restore},
     {"transform", (int16_t)LuaAtoms::transform},
+    {"value", (int16_t)LuaAtoms::value},
 };
 
 static const luaL_Reg lualibs[] = {
@@ -112,10 +113,15 @@ static void* l_alloc(void* ud, void* ptr, size_t osize, size_t nsize)
     if (nsize == 0)
     {
         free(ptr);
+        // delete[] (uint8_t*)ptr;
         return NULL;
     }
     else
     {
+        // auto nptr = new uint8_t[nsize];
+        // memcpy(nptr, ptr, std::min(nsize, osize));
+        // delete[] (uint8_t*)ptr;
+        // return nptr;
         return realloc(ptr, nsize);
     }
 }
@@ -167,16 +173,32 @@ static int lua_require(lua_State* L)
     return lua_requireinternal(L, ar.source);
 }
 
+static int luaR_error(lua_State* L)
+{
+    int level = luaL_optinteger(L, 2, 1);
+    lua_settop(L, 1);
+    if (lua_isstring(L, 1) && level > 0)
+    {
+        luaL_where(L, level);
+        lua_pushvalue(L, 1);
+        lua_concat(L, 2);
+    }
+    lua_error(L);
+}
+
 void ScriptingVM::init(lua_State* state, ScriptingContext* context)
 {
     luaopen_rive(state);
+    lua_setthreaddata(state, context);
 
     lua_pushcclosurek(state, lua_require, "require", 0, nullptr);
     lua_setglobal(state, "require");
 
+    lua_pushcclosurek(state, luaR_error, "error", 0, nullptr);
+    lua_setglobal(state, "error");
+
     luaL_sandbox(state);
     luaL_sandboxthread(state);
-    lua_setthreaddata(state, context);
 }
 
 ScriptingVM::ScriptingVM(Factory* factory)

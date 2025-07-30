@@ -93,7 +93,8 @@ function render(renderer: Renderer): ()
 	addOval(path, 600, 500, 100, 180)
 	renderer:drawPath(path, paint)
 end
-)");
+)",
+        0);
     lua_State* L = vm.state();
     lua_getglobal(L, "render");
     auto renderer = vm.factory()->makeRenderer();
@@ -102,4 +103,91 @@ end
     CHECK(scriptedRenderer->end());
 
     CHECK(vm.factory()->matches("scripted_oval"));
+}
+
+TEST_CASE("renderer can draw and animate oval", "[scripting]")
+{
+    ScriptingTest vm(
+        R"(function addOval(path: Path, x: number, y: number, width: number, height: number)
+	local c: number = 0.5519150244935105707435627
+	local unit: { Vec2D } = {
+		Vec2D.xy(1, 0),
+		Vec2D.xy(1, c),
+		Vec2D.xy(c, 1), -- quadrant 1 ( 4:30)
+		Vec2D.xy(0, 1),
+		Vec2D.xy(-c, 1),
+		Vec2D.xy(-1, c), -- quadrant 2 ( 7:30)
+		Vec2D.xy(-1, 0),
+		Vec2D.xy(-1, -c),
+		Vec2D.xy(-c, -1), -- quadrant 3 (10:30)
+		Vec2D.xy(0, -1),
+		Vec2D.xy(c, -1),
+		Vec2D.xy(1, -c), -- quadrant 4 ( 1:30)
+		Vec2D.xy(1, 0),
+	}
+
+	local dx: number = x - width / 2
+	local dy: number = y - height / 2
+	local sx: number = width * 0.5
+	local sy: number = height * 0.5
+
+	local map = function(p: Vec2D): Vec2D
+		return Vec2D.xy(p.x * sx + dx, p.y * sy + dy)
+	end
+	path:moveTo(map(unit[1]))
+	for i = 1, 12, 3 do
+		path:cubicTo(map(unit[i + 1]), map(unit[i + 2]), map(unit[i + 3]))
+	end
+	path:close()
+end
+
+local path: Path = Path.new()
+local rotation:number = 0
+local paint: Paint = Paint.with({color=0xFFFF0000, feather=20})
+
+function advance(seconds:number): boolean
+    path:reset()
+    addOval(path, 600, 500, 100, 180)
+    rotation += seconds
+    return true
+end
+
+function render(renderer: Renderer): ()
+	renderer:save()
+    renderer:transform(Mat2D.withRotation(rotation))
+	renderer:drawPath(path, paint)
+     renderer:restore()
+end
+)",
+        0);
+    lua_State* L = vm.state();
+
+    float elapsedSeconds = 1.0f / 60.0f;
+
+    for (int i = 0; i < 1000; i++)
+    {
+        auto top = lua_gettop(L);
+        if (i != 0)
+        {
+            vm.factory()->addFrame();
+        }
+        lua_getglobal(L, "advance");
+        lua_pushnumber(L, elapsedSeconds);
+        CHECK(lua_pcall(L, 1, 1, 0) == LUA_OK);
+        CHECK(lua_toboolean(L, -1));
+        lua_pop(L, 1);
+
+        lua_getglobal(L, "render");
+        auto renderer = vm.factory()->makeRenderer();
+        ScriptedRenderer* scriptedRenderer =
+            lua_newrive<ScriptedRenderer>(L, renderer.get());
+        CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+        CHECK(scriptedRenderer->end());
+
+        CHECK(top == lua_gettop(L));
+        lua_gc(L, LUA_GCCOLLECT, 0);
+    }
+
+    CHECK(vm.factory()->matches("scripted_animated_oval"));
 }

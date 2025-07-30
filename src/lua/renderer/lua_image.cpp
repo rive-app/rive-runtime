@@ -99,11 +99,8 @@ static int imagesampler_construct(lua_State* L)
     return 1;
 }
 
-static const luaL_Reg imageStaticMethods[] = {{nullptr, nullptr}};
-
 int luaopen_rive_image(lua_State* L)
 {
-    luaL_register(L, ScriptedImage::luaName, imageStaticMethods);
     lua_register_rive<ScriptedImage>(L);
 
     lua_pushcfunction(L, image_index, nullptr);

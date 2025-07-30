@@ -191,13 +191,8 @@ static int renderer_namecall(lua_State* L)
     return 0;
 }
 
-static const luaL_Reg rendererlib[] = {
-    {NULL, NULL},
-};
-
 int luaopen_rive_renderer(lua_State* L)
 {
-    luaL_register(L, ScriptedRenderer::luaName, rendererlib);
     lua_register_rive<ScriptedRenderer>(L);
 
     lua_pushcfunction(L, renderer_namecall, nullptr);

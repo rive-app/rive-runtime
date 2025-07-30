@@ -86,7 +86,10 @@ enum class LuaAtoms : int16_t
     clipPath,
     save,
     restore,
-    transform
+    transform,
+
+    // Scripted Properties
+    value
 };
 
 struct ScriptedMat2D
@@ -283,8 +286,16 @@ public:
 
 private:
     // Not owned by the ScriptedRenderer, only valid when passed in.
-    Renderer* m_renderer;
-    uint32_t m_saveCount;
+    Renderer* m_renderer = nullptr;
+    uint32_t m_saveCount = 0;
+};
+
+struct ScriptingPropertyFloat
+{
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 10;
+    static constexpr const char* luaName = "Property<number>";
+    static constexpr bool hasMetatable = true;
+    float value;
 };
 
 // Make renderer: return lua_newrive<ScriptedRenderer>(L, renderer);
@@ -322,7 +333,8 @@ template <typename T> static void lua_register_rive(lua_State* L)
     if (T::hasMetatable)
     {
         // create metatable for T
-        lua_createtable(L, 0, 1);
+        luaL_newmetatable(L, T::luaName);
+        // lua_createtable(L, 0, 1);
 
         // push it again as lua_setuserdatametatable pops it
         lua_pushvalue(L, -1);
