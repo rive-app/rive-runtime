@@ -309,8 +309,23 @@ void CoreTextHBFont::shapeFallbackRun(
             const float scale = textRun.size / (float)CTFontGetSize(runCtFont);
             if (!CFEqual(runCtFont, ctFont))
             {
+                // Get the original font's traits and create a fallback font
+                // with the same traits. In some cases, CoreText will use a
+                // different font for the fallback, but the fallback font will
+                // not have the same traits (e.g weight) as the original font.
+                CTFontSymbolicTraits originalTraits =
+                    CTFontGetSymbolicTraits(ctFont);
+                CTFontRef adjustedFallbackFont =
+                    CTFontCreateCopyWithSymbolicTraits(runCtFont,
+                                                       CTFontGetSize(runCtFont),
+                                                       nullptr,
+                                                       originalTraits,
+                                                       originalTraits);
+
+                // Use the adjusted font instead
                 gr.font = HBFont::FromSystem(
-                    (void*)runCtFont, true, m_weight, m_width);
+                    (void*)adjustedFallbackFont, true, m_weight, m_width);
+                CFRelease(adjustedFallbackFont);
             }
             else
             {
