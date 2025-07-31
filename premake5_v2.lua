@@ -69,7 +69,7 @@ do
     filter('options:not for_unreal')
     do
         cppdialect('C++11')
-        flags({ 'FatalCompileWarnings' })
+        fatalwarnings { "All" }
     end
 
     filter({ 'options:for_unreal' })

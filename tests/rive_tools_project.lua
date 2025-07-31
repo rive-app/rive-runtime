@@ -20,7 +20,7 @@ function rive_tools_project(name, project_kind)
     if project_kind == 'RiveTool' then
         kind(
             _OPTIONS['for_unreal'] and 'StaticLib'
-                or _OPTIONS['os'] == 'android' and 'SharedLib'
+                or _OPTIONS['for_android'] and 'SharedLib'
                 or _OPTIONS['os'] == 'ios' and 'StaticLib'
                 or 'ConsoleApp'
         )
@@ -53,7 +53,7 @@ function rive_tools_project(name, project_kind)
         kind(project_kind)
     end
 
-    flags({ 'FatalCompileWarnings' })
+    fatalwarnings { "All" }
 
     defines({
         'SK_GL',

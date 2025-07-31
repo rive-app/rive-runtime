@@ -256,7 +256,7 @@ do
 
     filter('toolset:not msc')
     do
-        flags({ 'FatalCompileWarnings' })
+        fatalwarnings { "All" }
         buildoptions({
             '-Werror=format',
             '-Wimplicit-int-conversion',

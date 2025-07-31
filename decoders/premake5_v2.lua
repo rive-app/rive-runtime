@@ -38,7 +38,7 @@ end
 project('rive_decoders')
 do
     kind('StaticLib')
-    flags({ 'FatalCompileWarnings' })
+    fatalwarnings { "All" }
 
     includedirs({
         'include',

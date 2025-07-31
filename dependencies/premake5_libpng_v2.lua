@@ -80,7 +80,7 @@ do
 
     filter('toolset:not msc')
     do
-        flags({ 'FatalCompileWarnings' })
+        fatalwarnings { "All" }
         buildoptions({
             '-Wno-unknown-warning-option',
             '-Wno-deprecated-non-prototype',

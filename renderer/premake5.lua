@@ -27,7 +27,7 @@ if not _OPTIONS['with-webgpu'] then
             yoga,
         })
 
-        flags({ 'FatalCompileWarnings' })
+        fatalwarnings { "All" }
 
         defines({ 'YOGA_EXPORT=' })
 
@@ -188,7 +188,7 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             'include',
             RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
         })
-        flags({ 'FatalCompileWarnings' })
+        fatalwarnings { "All" }
 
         defines({ 'YOGA_EXPORT=' })
 

@@ -32,7 +32,7 @@ do
 
     files({ '../src/**.cpp' })
 
-    flags({ 'FatalCompileWarnings' })
+    fatalwarnings { "All" }
 
     filter('system:windows')
     do

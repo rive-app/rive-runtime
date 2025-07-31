@@ -8,6 +8,7 @@
 #include <CoreFoundation/CoreFoundation.h>
 // #endif
 
+#include "rive/math/math_types.hpp"
 #include "rive/text_engine.hpp"
 #include "rive/text/font_hb.hpp"
 #include "rive/text/utf.hpp"
@@ -297,7 +298,7 @@ void CoreTextHBFont::shapeFallbackRun(
     {
         CTRunRef run = (CTRunRef)CFArrayGetValueAtIndex(run_array, runIndex);
 
-        if (auto count = CTRunGetGlyphCount(run))
+        if (CFIndex count = CTRunGetGlyphCount(run))
         {
             rive::GlyphRun gr(count);
 
@@ -349,15 +350,17 @@ void CoreTextHBFont::shapeFallbackRun(
             CTRunGetAdvances(run, {0, count}, advances.data());
             CTRunGetStringIndices(run, {0, count}, indices.data());
 
-            int reverseIndex = count - 1;
+            CFIndex reverseIndex = count - 1;
             for (CFIndex i = 0; i < count; ++i)
             {
-                int glyphIndex = isEvenLevel ? i : reverseIndex;
+                CFIndex glyphIndex = isEvenLevel ? i : reverseIndex;
                 float advance =
                     (float)(advances[i].width * scale) + textRun.letterSpacing;
                 gr.xpos[glyphIndex] = gr.advances[glyphIndex] = advance;
                 gr.textIndices[glyphIndex] =
-                    textStart + indices[i]; // utf16 offsets, will fix-up later
+                    rive::math::lossless_numeric_cast<uint32_t>(
+                        textStart +
+                        indices[i]); // utf16 offsets, will fix-up later
 
                 gr.offsets[glyphIndex] = rive::Vec2D(0.0f, 0.0f);
                 reverseIndex--;

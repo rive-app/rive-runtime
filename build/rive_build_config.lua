@@ -61,6 +61,12 @@ newoption({
     default = 'host',
 })
 
+-- Premake stopped supporting "--os=android". Add our own flag for android.
+newoption({
+    trigger = 'for_android',
+    description = 'compile for android (supersedes --os)',
+})
+
 newoption({
     trigger = 'android_api',
     description = 'Target Android API version number',
@@ -191,12 +197,17 @@ end
 
 filter({ 'options:config=release', 'options:not no-lto', 'system:not macosx', 'system:not ios' })
 do
-    flags({ 'LinkTimeOptimization' })
+    if linktimeoptimization then
+        linktimeoptimization('On')
+    else
+        -- Deprecated way of turning on LTO, for older versions of premake.
+        flags({ 'LinkTimeOptimization' })
+    end
 end
 
 filter({ 'options:config=release', 'options:not no-lto', 'system:macosx or ios' })
 do
-    -- The 'LinkTimeOptimization' flag attempts to use llvm-ar, which doesn't always exist on macos.
+    -- The 'linktimeoptimization' command attempts to use llvm-ar, which doesn't always exist on macos.
     buildoptions({ '-flto=full' })
     linkoptions({ '-flto=full' })
 end
@@ -388,7 +399,8 @@ filter({})
 
 -- Don't use filter() here because we don't want to generate the "android_ndk" toolset if not
 -- building for android.
-if _OPTIONS['os'] == 'android' then
+if _OPTIONS['for_android'] then
+    system('android')
     pic('on') -- Position-independent code is required for NDK libraries.
 
     -- Detect the NDK.

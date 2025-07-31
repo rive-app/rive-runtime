@@ -21,7 +21,7 @@ do
 
     files({ 'src/**.cpp' })
 
-    flags({ 'FatalCompileWarnings' })
+    fatalwarnings { "All" }
 
     filter({ 'system:macosx or linux or windows or ios' })
     do

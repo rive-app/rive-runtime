@@ -203,7 +203,13 @@ else
     fi
 
     RIVE_PREMAKE_ARGS="$RIVE_BUILD_SYSTEM --config=$RIVE_CONFIG --out=$RIVE_OUT $RIVE_PREMAKE_ARGS"
-    if [ ! -z "$RIVE_OS" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --os=$RIVE_OS"; fi
+    if [[ $RIVE_OS = "android" ]]; then
+        # Premake stopped supporting "--os=android".
+        # Use our own custom "--for_android" flag instead.
+        RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --for_android"
+    elif [ ! -z "$RIVE_OS" ]; then
+        RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --os=$RIVE_OS"
+    fi
     if [ ! -z "$RIVE_VARIANT" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --variant=$RIVE_VARIANT"; fi
     if [ ! -z "$RIVE_ARCH" ]; then RIVE_PREMAKE_ARGS="$RIVE_PREMAKE_ARGS --arch=$RIVE_ARCH"; fi
 
@@ -215,10 +221,15 @@ fi
 mkdir -p "$SCRIPT_DIR/dependencies"
 pushd "$SCRIPT_DIR/dependencies" > /dev/null
 
-# Setup premake5.
-if [ ! -d premake-core ]; then
+# Add premake5 to the $PATH.
+# Install premake5 to a specific directory based on our current tag, to make
+# sure we rebuild if this script runs for a different tag.
+RIVE_PREMAKE_TAG="${RIVE_PREMAKE_TAG:-v5.0.0-beta7}"
+PREMAKE_INSTALL_DIR="$SCRIPT_DIR/dependencies/premake-core/bin/${RIVE_PREMAKE_TAG}_release"
+if [ ! -f "$PREMAKE_INSTALL_DIR/premake5" ]; then
     echo Building Premake...
-    git clone -b v5.0.0-beta3 https://github.com/premake/premake-core.git
+    rm -fr premake-core # Wipe out a prior checkout if it exists without a premake5 binary.
+    git clone --depth 1 --branch $RIVE_PREMAKE_TAG https://github.com/premake/premake-core.git
     pushd premake-core > /dev/null
     case "$HOST_MACHINE" in
         mac_arm64) make -f Bootstrap.mak osx PLATFORM=ARM ;;
@@ -226,9 +237,12 @@ if [ ! -d premake-core ]; then
         windows) ./Bootstrap.bat ;;
         *) make -f Bootstrap.mak linux ;;
     esac
+    cp -r bin/release $PREMAKE_INSTALL_DIR
     popd > /dev/null
 fi
-export PATH="$SCRIPT_DIR/dependencies/premake-core/bin/release/:$PATH"
+export PATH="$PREMAKE_INSTALL_DIR:$PATH"
+
+# Add Rive's build scripts to the premake path.
 export PREMAKE_PATH="$SCRIPT_DIR"
 
 # Setup premake-ninja.
