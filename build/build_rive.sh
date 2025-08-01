@@ -125,6 +125,7 @@ else
 
     while [[ $# -gt 0 ]]; do
         case "$1" in
+            "debug") RIVE_CONFIG="${RIVE_CONFIG:-debug}" ;;
             "release") RIVE_CONFIG="${RIVE_CONFIG:-release}" ;;
             "xros") 
                 RIVE_OS="${RIVE_OS:-ios}"
