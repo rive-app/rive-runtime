@@ -21,7 +21,6 @@ struct PointerEvent
 
     // add more fields as needed
 };
-
 } // namespace rive
 
 #endif

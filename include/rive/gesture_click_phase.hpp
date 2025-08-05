@@ -7,6 +7,7 @@ enum class GestureClickPhase : int
     out = 0,
     down = 1,
     clicked = 2,
+    disabled = 3,
 };
 }
 #endif

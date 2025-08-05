@@ -84,6 +84,24 @@ HitResult NestedStateMachine::pointerExit(Vec2D position)
     return HitResult::none;
 }
 
+HitResult NestedStateMachine::dragStart(Vec2D position, float timeStamp)
+{
+    if (m_StateMachineInstance != nullptr)
+    {
+        return m_StateMachineInstance->dragStart(position, timeStamp);
+    }
+    return HitResult::none;
+}
+
+HitResult NestedStateMachine::dragEnd(Vec2D position, float timeStamp)
+{
+    if (m_StateMachineInstance != nullptr)
+    {
+        return m_StateMachineInstance->dragEnd(position, timeStamp);
+    }
+    return HitResult::none;
+}
+
 NestedInput* NestedStateMachine::input(size_t index)
 {
     if (index < m_nestedInputs.size())

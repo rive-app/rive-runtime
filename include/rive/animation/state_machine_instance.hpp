@@ -130,6 +130,10 @@ public:
     HitResult pointerDown(Vec2D position) override;
     HitResult pointerUp(Vec2D position) override;
     HitResult pointerExit(Vec2D position) override;
+    HitResult dragStart(Vec2D position,
+                        float timeStamp = 0,
+                        bool disablePointer = true);
+    HitResult dragEnd(Vec2D position, float timeStamp = 0);
     bool tryChangeState();
     bool hitTest(Vec2D position) const;
 
@@ -190,6 +194,8 @@ public:
     const LayerState* layerState(size_t index);
 #endif
     void updateDataBinds();
+    void enablePointerEvents();
+    void disablePointerEvents();
 
 private:
     std::vector<EventReport> m_reportedEvents;
@@ -239,6 +245,8 @@ public:
                                    float timeStamp = 0) = 0;
     virtual void prepareEvent(Vec2D position, ListenerType hitType) = 0;
     virtual bool hitTest(Vec2D position) const = 0;
+    virtual void enablePointerEvents() {}
+    virtual void disablePointerEvents() {}
 #ifdef TESTING
     int earlyOutCount = 0;
 #endif

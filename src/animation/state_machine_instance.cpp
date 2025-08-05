@@ -530,13 +530,22 @@ public:
     void unhover() { m_isHovered = false; }
     void reset()
     {
-        m_isConsumed = false;
-        m_prevIsHovered = m_isHovered;
-        m_isHovered = false;
+        if (m_clickPhase != GestureClickPhase::disabled)
+        {
+            m_isConsumed = false;
+            m_prevIsHovered = m_isHovered;
+            m_isHovered = false;
+        }
         if (m_clickPhase == GestureClickPhase::clicked)
         {
             m_clickPhase = GestureClickPhase::out;
         }
+    }
+    virtual void enable() { m_clickPhase = GestureClickPhase::out; }
+    virtual void disable()
+    {
+        m_clickPhase = GestureClickPhase::disabled;
+        consume();
     }
     bool isConsumed() { return m_isConsumed; }
     bool isHovered() { return m_isHovered; }
@@ -688,6 +697,9 @@ public:
         delete m_draggable;
     }
 
+    void enable() override {}
+    void disable() override {}
+
     DraggableConstraint* constraint() { return m_constraint; }
 
     bool canEarlyOut(Component* drawable) override { return false; }
@@ -718,8 +730,9 @@ public:
             m_draggable->endDrag(position, timeStamp);
             if (hasScrolled)
             {
-                return ProcessEventResult::scroll;
+                stateMachineInstance->dragEnd(position, timeStamp);
                 hasScrolled = false;
+                return ProcessEventResult::scroll;
             }
         }
         else if (prevPhase != GestureClickPhase::down &&
@@ -732,6 +745,10 @@ public:
                  clickPhase() == GestureClickPhase::down)
         {
             m_draggable->drag(position, timeStamp);
+            if (!hasScrolled)
+            {
+                stateMachineInstance->dragStart(position, timeStamp, false);
+            }
             hasScrolled = true;
             return ProcessEventResult::scroll;
         }
@@ -858,6 +875,22 @@ public:
             }
         }
         listeners.push_back(listenerGroup);
+    }
+
+    void enablePointerEvents() override
+    {
+        for (auto listenerGroup : listeners)
+        {
+            listenerGroup->enable();
+        }
+    }
+
+    void disablePointerEvents() override
+    {
+        for (auto listenerGroup : listeners)
+        {
+            listenerGroup->disable();
+        }
     }
 };
 
@@ -987,6 +1020,14 @@ public:
                                 nestedStateMachine->pointerMove(nestedPosition,
                                                                 timeStamp);
                             break;
+                        case ListenerType::dragStart:
+                            nestedStateMachine->dragStart(nestedPosition,
+                                                          timeStamp);
+                            break;
+                        case ListenerType::dragEnd:
+                            nestedStateMachine->dragEnd(nestedPosition,
+                                                        timeStamp);
+                            break;
                         case ListenerType::enter:
                         case ListenerType::exit:
                         case ListenerType::event:
@@ -1004,6 +1045,8 @@ public:
                         case ListenerType::move:
                             nestedStateMachine->pointerExit(nestedPosition);
                             break;
+                        case ListenerType::dragStart:
+                        case ListenerType::dragEnd:
                         case ListenerType::enter:
                         case ListenerType::exit:
                         case ListenerType::event:
@@ -1091,6 +1134,12 @@ public:
                             itemHitResult =
                                 stateMachine->pointerMove(listPosition);
                             break;
+                        case ListenerType::dragStart:
+                            stateMachine->dragStart(listPosition);
+                            break;
+                        case ListenerType::dragEnd:
+                            stateMachine->dragEnd(listPosition);
+                            break;
                         case ListenerType::enter:
                         case ListenerType::exit:
                         case ListenerType::event:
@@ -1108,6 +1157,8 @@ public:
                         case ListenerType::move:
                             stateMachine->pointerExit(listPosition);
                             break;
+                        case ListenerType::dragStart:
+                        case ListenerType::dragEnd:
                         case ListenerType::enter:
                         case ListenerType::exit:
                         case ListenerType::event:
@@ -1215,6 +1266,24 @@ HitResult StateMachineInstance::pointerUp(Vec2D position)
 HitResult StateMachineInstance::pointerExit(Vec2D position)
 {
     return updateListeners(position, ListenerType::exit);
+}
+HitResult StateMachineInstance::dragStart(Vec2D position,
+                                          float timeStamp,
+                                          bool disablePointer)
+{
+    if (disablePointer)
+    {
+        disablePointerEvents();
+    }
+    auto hit = updateListeners(position, ListenerType::dragStart);
+    return hit;
+}
+HitResult StateMachineInstance::dragEnd(Vec2D position, float timeStamp)
+{
+    enablePointerEvents();
+    auto hit = updateListeners(position, ListenerType::dragEnd);
+    pointerMove(position, timeStamp);
+    return hit;
 }
 
 #ifdef TESTING
@@ -2024,6 +2093,22 @@ void StateMachineInstance::notifyEventListeners(
                 event->as<AudioEvent>()->play();
             }
         }
+    }
+}
+
+void StateMachineInstance::enablePointerEvents()
+{
+    for (const auto& hitShape : m_hitComponents)
+    {
+        hitShape->enablePointerEvents();
+    }
+}
+
+void StateMachineInstance::disablePointerEvents()
+{
+    for (const auto& hitShape : m_hitComponents)
+    {
+        hitShape->disablePointerEvents();
     }
 }
 
