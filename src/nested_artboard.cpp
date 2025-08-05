@@ -517,6 +517,14 @@ bool NestedArtboard::advanceComponent(float elapsedSeconds, AdvanceFlags flags)
     return keepGoing;
 }
 
+void NestedArtboard::reset()
+{
+    if (m_Artboard)
+    {
+        m_Artboard->reset();
+    }
+}
+
 void NestedArtboard::file(File* value) { m_file = value; }
 
 File* NestedArtboard::file() const { return m_file; }

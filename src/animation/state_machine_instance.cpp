@@ -1797,6 +1797,12 @@ void StateMachineInstance::advancedDataContext()
     }
 }
 
+void StateMachineInstance::reset()
+{
+    advancedDataContext();
+    m_artboardInstance->reset();
+}
+
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
     bool keepGoing = this->advance(seconds, true);
@@ -1829,7 +1835,7 @@ bool StateMachineInstance::advanceAndApply(float seconds)
         {
             keepGoing = true;
         }
-        advancedDataContext();
+        reset();
 
         if (!m_artboardInstance->hasDirt(ComponentDirt::Components))
         {

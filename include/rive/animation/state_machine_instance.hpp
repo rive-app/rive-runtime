@@ -125,6 +125,7 @@ public:
 
     bool advanceAndApply(float secs) override;
     void advancedDataContext();
+    void reset();
     std::string name() const override;
     HitResult pointerMove(Vec2D position, float timeStamp = 0) override;
     HitResult pointerDown(Vec2D position) override;

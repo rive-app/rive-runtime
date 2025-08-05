@@ -2,6 +2,7 @@
 #define _RIVE_ARTBOARD_HPP_
 
 #include "rive/advance_flags.hpp"
+#include "rive/resetting_component.hpp"
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/core_context.hpp"
@@ -55,7 +56,10 @@ typedef uint8_t (*IsAncestorCallback)(void*, uint16_t);
 typedef float (*RootTransformCallback)(void*, float, float, bool);
 #endif
 
-class Artboard : public ArtboardBase, public CoreContext, public Virtualizable
+class Artboard : public ArtboardBase,
+                 public CoreContext,
+                 public Virtualizable,
+                 public ResettingComponent
 {
     friend class File;
     friend class ArtboardImporter;
@@ -198,6 +202,7 @@ public:
                          AdvanceFlags flags = AdvanceFlags::AdvanceNested |
                                               AdvanceFlags::Animate |
                                               AdvanceFlags::NewFrame);
+    void reset() override;
     uint8_t drawOrderChangeCounter() { return m_drawOrderChangeCounter; }
     Drawable* firstDrawable() { return m_FirstDrawable; };
 

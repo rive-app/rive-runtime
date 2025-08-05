@@ -993,6 +993,18 @@ bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
     return didUpdate;
 }
 
+void Artboard::reset()
+{
+    for (auto dep : m_DependencyOrder)
+    {
+        auto adv = ResettingComponent::from(dep);
+        if (adv != nullptr)
+        {
+            adv->reset();
+        }
+    }
+}
+
 bool Artboard::advance(float elapsedSeconds, AdvanceFlags flags)
 {
     AdvanceFlags advancingFlags = flags;

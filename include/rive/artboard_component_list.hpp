@@ -3,6 +3,7 @@
 #include "rive/generated/artboard_component_list_base.hpp"
 #include "rive/layout/artboard_component_list_override.hpp"
 #include "rive/advancing_component.hpp"
+#include "rive/resetting_component.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/artboard.hpp"
 #include "rive/property_recorder.hpp"
@@ -21,6 +22,7 @@ class ScrollConstraint;
 class ArtboardComponentList : public ArtboardComponentListBase,
                               public ArtboardHost,
                               public AdvancingComponent,
+                              public ResettingComponent,
                               public LayoutNodeProvider,
                               public DataBindListItemConsumer,
                               public VirtualizingComponent
@@ -43,6 +45,7 @@ public:
     bool advanceComponent(float elapsedSeconds,
                           AdvanceFlags flags = AdvanceFlags::Animate |
                                                AdvanceFlags::NewFrame) override;
+    void reset() override;
     AABB layoutBounds() override;
     AABB layoutBoundsForNode(int index) override;
     void markHostingLayoutDirty(ArtboardInstance* artboardInstance) override;
@@ -74,7 +77,7 @@ public:
         bool shouldForceUpdateLayoutBounds = false) override;
     bool isLayoutProvider() override { return true; }
     size_t numLayoutNodes() override { return m_listItems.size(); }
-    void reset();
+    void clear();
     void file(File*) override;
     File* file() const override;
     Core* clone() const override;
@@ -89,6 +92,7 @@ public:
         m_visibleStartIndex = start;
         m_visibleEndIndex = end;
     }
+    void shouldResetInstances(bool value) { m_shouldResetInstances = value; }
     void setVirtualizablePosition(int index, Vec2D position) override;
     void createArtboardAt(int index);
     void addArtboardAt(std::unique_ptr<ArtboardInstance> artboard, int index);
@@ -149,6 +153,7 @@ private:
     void attachArtboardOverride(ArtboardInstance*,
                                 rcp<ViewModelInstanceListItem>);
     void clearArtboardOverride(ArtboardInstance*);
+    bool m_shouldResetInstances = false;
 };
 } // namespace rive
 

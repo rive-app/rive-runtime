@@ -10,9 +10,9 @@
 using namespace rive;
 
 ArtboardComponentList::ArtboardComponentList() {}
-ArtboardComponentList::~ArtboardComponentList() { reset(); }
+ArtboardComponentList::~ArtboardComponentList() { clear(); }
 
-void ArtboardComponentList::reset()
+void ArtboardComponentList::clear()
 {
     for (auto& artboard : m_artboardInstancesMap)
     {
@@ -334,6 +334,26 @@ bool ArtboardComponentList::advanceComponent(float elapsedSeconds,
     return keepGoing;
 }
 
+void ArtboardComponentList::reset()
+{
+    for (auto& item : m_listItems)
+    {
+        if (m_shouldResetInstances)
+        {
+            auto viewModelInstance = item->viewModelInstance();
+            if (viewModelInstance != nullptr)
+            {
+                viewModelInstance->advanced();
+            }
+        }
+        auto itr = m_artboardInstancesMap.find(item);
+        if (itr != m_artboardInstancesMap.end())
+        {
+            m_artboardInstancesMap[item]->reset();
+        }
+    }
+}
+
 AABB ArtboardComponentList::layoutBounds()
 {
     return AABB(0, 0, m_layoutSize.x, m_layoutSize.y);
@@ -577,7 +597,7 @@ void ArtboardComponentList::bindViewModelInstance(
 }
 
 void ArtboardComponentList::clearDataContext() {}
-void ArtboardComponentList::unbind() { reset(); }
+void ArtboardComponentList::unbind() { clear(); }
 void ArtboardComponentList::updateDataBinds()
 {
     for (int i = 0; i < artboardCount(); i++)

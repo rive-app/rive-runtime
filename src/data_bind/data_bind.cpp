@@ -28,6 +28,7 @@
 #include "rive/data_bind/converters/formula/formula_token.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine.hpp"
+#include "rive/artboard_component_list.hpp"
 #include "rive/importers/artboard_importer.hpp"
 #include "rive/importers/state_machine_importer.hpp"
 #include "rive/importers/backboard_importer.hpp"
@@ -152,6 +153,16 @@ void DataBind::source(ViewModelInstanceValue* value)
         value->ref();
     }
     m_Source = value;
+
+    // We treat this as a special case. If an ArtboardComponentList's list
+    // property is bound to a number instance, we know that the component
+    // will be provided with dettached view model instances that need to be
+    // advanced explicitly
+    if (m_Source && target() && target()->is<ArtboardComponentList>())
+    {
+        target()->as<ArtboardComponentList>()->shouldResetInstances(
+            m_Source->coreType() == ViewModelInstanceNumberBase::typeKey);
+    }
 }
 
 void DataBind::clearSource()
