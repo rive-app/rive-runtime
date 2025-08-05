@@ -149,7 +149,7 @@ if not _OPTIONS['with-webgpu'] then
 
         filter('system:emscripten')
         do
-            targetname('path_fiddle.js')
+            targetextension('.js')
             linkoptions({
                 '-sUSE_GLFW=3',
                 '-sMIN_WEBGL_VERSION=2',
@@ -270,7 +270,7 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
 
         filter('system:emscripten')
         do
-            targetname('webgpu_player.js')
+            targetextension('.js')
             linkoptions({
                 '-sEXPORTED_FUNCTIONS=_animationFrame,_main,_start,_malloc,_free',
                 '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap',

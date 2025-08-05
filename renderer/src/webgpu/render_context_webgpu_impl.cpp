@@ -70,6 +70,12 @@ using TextureDataLayout = TexelCopyBufferLayout;
 // have a base instance.
 constexpr static char BASE_INSTANCE_UNIFORM_NAME[] = "nrdp_BaseInstance";
 
+EM_JS(int, gl_max_vertex_shader_storage_blocks, (), {
+    const version = globalThis.nrdp ?.version || navigator.getNrdpVersion();
+    return version.libraries.opengl.options.limits
+        .GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS;
+});
+
 wgpu::ShaderModule compile_shader_module_wagyu(wgpu::Device device,
                                                const char* source,
                                                WGPUWagyuShaderLanguage language)
@@ -347,7 +353,7 @@ public:
 
         wgpu::ShaderModule vertexShader;
 #ifdef RIVE_WAGYU
-        if (impl->m_contextOptions.disableStorageBuffers)
+        if (impl->m_capabilities.polyfillVertexStorageBuffers)
         {
             // The built-in SPIRV does not #define
             // DISABLE_SHADER_STORAGE_BUFFERS. Recompile the tessellation shader
@@ -491,7 +497,7 @@ public:
 
         wgpu::ShaderModule vertexShader;
 #ifdef RIVE_WAGYU
-        if (impl->m_contextOptions.disableStorageBuffers)
+        if (impl->m_capabilities.polyfillVertexStorageBuffers)
         {
             // The built-in SPIRV does not #define
             // DISABLE_SHADER_STORAGE_BUFFERS. Recompile the tessellation shader
@@ -619,15 +625,16 @@ class RenderContextWebGPUImpl::DrawPipeline
 public:
     DrawPipeline(RenderContextWebGPUImpl* context,
                  DrawType drawType,
-                 gpu::ShaderFeatures shaderFeatures,
-                 const ContextOptions& contextOptions)
+                 gpu::ShaderFeatures shaderFeatures)
     {
         wgpu::ShaderModule vertexShader, fragmentShader;
 #ifdef RIVE_WAGYU
-        PixelLocalStorageType plsType = context->m_contextOptions.plsType;
-        if (plsType == PixelLocalStorageType::subpassLoad ||
-            plsType == PixelLocalStorageType::EXT_shader_pixel_local_storage ||
-            contextOptions.disableStorageBuffers)
+        PixelLocalStorageType plsType = context->m_capabilities.plsType;
+        if (plsType == PixelLocalStorageType::
+                           VK_EXT_rasterization_order_attachment_access ||
+            plsType ==
+                PixelLocalStorageType::GL_EXT_shader_pixel_local_storage ||
+            context->m_capabilities.polyfillVertexStorageBuffers)
         {
             WGPUWagyuShaderLanguage language;
             const char* versionString;
@@ -636,7 +643,7 @@ public:
                 glsl << "#define " << name << " true\n";
             };
             if (plsType ==
-                PixelLocalStorageType::EXT_shader_pixel_local_storage)
+                PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
             {
                 language = WGPUWagyuShaderLanguage_GLSLRAW;
                 versionString = "#version 310 es";
@@ -654,7 +661,7 @@ public:
                 addDefine(GLSL_TARGET_VULKAN);
             }
             if (plsType ==
-                PixelLocalStorageType::EXT_shader_pixel_local_storage)
+                PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
             {
                 glsl << "#ifdef GL_EXT_shader_pixel_local_storage\n";
                 addDefine(GLSL_PLS_IMPL_EXT_NATIVE);
@@ -671,11 +678,13 @@ public:
             {
                 glsl << "#extension GL_EXT_samplerless_texture_functions : "
                         "enable\n";
-                addDefine(plsType == PixelLocalStorageType::subpassLoad
-                              ? GLSL_PLS_IMPL_SUBPASS_LOAD
-                              : GLSL_PLS_IMPL_NONE);
+                addDefine(
+                    plsType == PixelLocalStorageType::
+                                   VK_EXT_rasterization_order_attachment_access
+                        ? GLSL_PLS_IMPL_SUBPASS_LOAD
+                        : GLSL_PLS_IMPL_NONE);
             }
-            if (contextOptions.disableStorageBuffers)
+            if (context->m_capabilities.polyfillVertexStorageBuffers)
             {
                 addDefine(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
             }
@@ -887,6 +896,7 @@ private:
 };
 
 RenderContextWebGPUImpl::RenderContextWebGPUImpl(
+    wgpu::Adapter adapter,
     wgpu::Device device,
     wgpu::Queue queue,
     const ContextOptions& contextOptions) :
@@ -897,6 +907,45 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     m_platformFeatures.supportsRasterOrdering = true;
     m_platformFeatures.clipSpaceBottomUp = true;
     m_platformFeatures.framebufferBottomUp = false;
+
+#ifdef RIVE_WAGYU
+    WGPUBackendType backend = wgpuWagyuAdapterGetBackend(adapter.Get());
+    WGPUWagyuStringArray extensions = WGPU_WAGYU_STRING_ARRAY_INIT;
+    if (backend == WGPUBackendType_Vulkan)
+    {
+        wgpuWagyuDeviceGetExtensions(device.Get(), &extensions);
+    }
+    else if (backend == WGPUBackendType_OpenGLES)
+    {
+        wgpuWagyuAdapterGetExtensions(adapter.Get(), &extensions);
+    }
+    for (size_t i = 0; i < extensions.stringCount; ++i)
+    {
+        if (backend == WGPUBackendType_Vulkan &&
+            !strcmp(extensions.strings[i].data,
+                    "VK_EXT_rasterization_order_attachment_access"))
+        {
+            m_capabilities.plsType = PixelLocalStorageType::
+                VK_EXT_rasterization_order_attachment_access;
+            break;
+        }
+        if (backend == WGPUBackendType_OpenGLES &&
+            !strcmp(extensions.strings[i].data,
+                    "GL_EXT_shader_pixel_local_storage"))
+        {
+            m_capabilities.plsType =
+                PixelLocalStorageType::GL_EXT_shader_pixel_local_storage;
+            break;
+        }
+    }
+    if (backend == WGPUBackendType_OpenGLES &&
+        gl_max_vertex_shader_storage_blocks() < 4)
+    {
+        // Rive requires 4 storage buffers in the vertex shader. Polyfill them
+        // if the hardware doesn't support this.
+        m_capabilities.polyfillVertexStorageBuffers = true;
+    }
+#endif
 }
 
 static wgpu::AddressMode webgpu_address_mode(rive::ImageWrap wrap)
@@ -954,7 +1003,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
                 },
         },
 #ifdef RIVE_WAGYU
-        m_contextOptions.disableStorageBuffers ?
+        m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupLayoutEntry{
                 .binding = PATH_BUFFER_IDX,
                 .visibility = wgpu::ShaderStage::Vertex,
@@ -974,7 +1023,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
                     },
             },
 #ifdef RIVE_WAGYU
-        m_contextOptions.disableStorageBuffers ?
+        m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupLayoutEntry{
                 .binding = PAINT_BUFFER_IDX,
                 .visibility = wgpu::ShaderStage::Vertex,
@@ -994,7 +1043,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
                     },
             },
 #ifdef RIVE_WAGYU
-        m_contextOptions.disableStorageBuffers ?
+        m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupLayoutEntry{
                 .binding = PAINT_AUX_BUFFER_IDX,
                 .visibility = wgpu::ShaderStage::Vertex,
@@ -1014,7 +1063,7 @@ void RenderContextWebGPUImpl::initGPUObjects()
                     },
             },
 #ifdef RIVE_WAGYU
-        m_contextOptions.disableStorageBuffers ?
+        m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupLayoutEntry{
                 .binding = CONTOUR_BUFFER_IDX,
                 .visibility = wgpu::ShaderStage::Vertex,
@@ -1208,7 +1257,8 @@ void RenderContextWebGPUImpl::initGPUObjects()
 
 #ifdef RIVE_WAGYU
     bool needsInputAttachmentBindings =
-        m_contextOptions.plsType == PixelLocalStorageType::subpassLoad;
+        m_capabilities.plsType ==
+        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access;
     if (needsInputAttachmentBindings)
     {
         WGPUWagyuInputTextureBindingLayout inputAttachmentLayout =
@@ -1253,8 +1303,8 @@ void RenderContextWebGPUImpl::initGPUObjects()
     m_emptyBindingsLayout = m_device.CreateBindGroupLayout(&emptyBindingsDesc);
 
 #ifdef RIVE_WAGYU
-    if (m_contextOptions.plsType ==
-        PixelLocalStorageType::EXT_shader_pixel_local_storage)
+    if (m_capabilities.plsType ==
+        PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
     {
         // We have to manually implement load/store operations from a shader
         // when using EXT_shader_pixel_local_storage.
@@ -1364,7 +1414,7 @@ RenderContextWebGPUImpl::~RenderContextWebGPUImpl() {}
 
 RenderTargetWebGPU::RenderTargetWebGPU(
     wgpu::Device device,
-    const RenderContextWebGPUImpl::ContextOptions& contextOptions,
+    const RenderContextWebGPUImpl::Capabilities& capabilities,
     wgpu::TextureFormat framebufferFormat,
     uint32_t width,
     uint32_t height) :
@@ -1376,9 +1426,8 @@ RenderTargetWebGPU::RenderTargetWebGPU(
     // EXT_shader_pixel_local_storage doesn't need to allocate textures for
     // clip, scratch, and coverage. These are instead kept in explicit tiled PLS
     // memory.
-    if (contextOptions.plsType ==
-        RenderContextWebGPUImpl::PixelLocalStorageType::
-            EXT_shader_pixel_local_storage)
+    if (capabilities.plsType == RenderContextWebGPUImpl::PixelLocalStorageType::
+                                    GL_EXT_shader_pixel_local_storage)
     {
         return;
     }
@@ -1389,8 +1438,9 @@ RenderTargetWebGPU::RenderTargetWebGPU(
         .size = {static_cast<uint32_t>(width), static_cast<uint32_t>(height)},
     };
 #ifdef RIVE_WAGYU
-    if (contextOptions.plsType ==
-        RenderContextWebGPUImpl::PixelLocalStorageType::subpassLoad)
+    if (capabilities.plsType ==
+        RenderContextWebGPUImpl::PixelLocalStorageType::
+            VK_EXT_rasterization_order_attachment_access)
     {
         desc.usage |= static_cast<wgpu::TextureUsage>(
             WGPUTextureUsage_WagyuInputAttachment |
@@ -1421,7 +1471,7 @@ rcp<RenderTargetWebGPU> RenderContextWebGPUImpl::makeRenderTarget(
     uint32_t height)
 {
     return rcp(new RenderTargetWebGPU(m_device,
-                                      m_contextOptions,
+                                      m_capabilities,
                                       framebufferFormat,
                                       width,
                                       height));
@@ -1893,7 +1943,7 @@ std::unique_ptr<BufferRing> RenderContextWebGPUImpl::makeStorageBufferRing(
     gpu::StorageBufferStructure bufferStructure)
 {
 #ifdef RIVE_WAGYU
-    if (m_contextOptions.disableStorageBuffers)
+    if (m_capabilities.polyfillVertexStorageBuffers)
     {
         return std::make_unique<StorageTextureBufferWebGPU>(m_device,
                                                             m_queue,
@@ -2091,7 +2141,8 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
 #ifdef RIVE_WAGYU
     WGPUWagyuColorTargetState wagyuColorTargetState =
         WGPU_WAGYU_COLOR_TARGET_STATE_INIT;
-    if (m_contextOptions.plsType == PixelLocalStorageType::subpassLoad)
+    if (m_capabilities.plsType ==
+        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access)
     {
         // WGPUWagyu needs us to tell it when color attachments are also used as
         // input attachments.
@@ -2103,9 +2154,13 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         {
             .nextInChain = extraColorTargetState,
             .format = static_cast<WGPUTextureFormat>(framebufferFormat),
-            .blend = (m_contextOptions.plsType == PixelLocalStorageType::none)
-                         ? &srcOverBlend
-                         : nullptr,
+            .blend =
+#ifdef RIVE_WAGYU
+                m_capabilities.plsType != PixelLocalStorageType::none
+                    ? nullptr
+                    :
+#endif
+                    &srcOverBlend,
             .writeMask = WGPUColorWriteMask_All,
         },
         {
@@ -2135,8 +2190,8 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         .entryPoint = WGPU_STRING_VIEW("main"),
         .targetCount = static_cast<size_t>(
 #ifdef RIVE_WAGYU
-            m_contextOptions.plsType ==
-                    PixelLocalStorageType::EXT_shader_pixel_local_storage
+            m_capabilities.plsType ==
+                    PixelLocalStorageType::GL_EXT_shader_pixel_local_storage
                 ? 1
                 :
 #endif
@@ -2147,7 +2202,8 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
 #ifdef RIVE_WAGYU
     WGPUWagyuInputAttachmentState inputAttachments[PLS_PLANE_COUNT];
     WGPUWagyuFragmentState wagyuFragmentState = WGPU_WAGYU_FRAGMENT_STATE_INIT;
-    if (m_contextOptions.plsType == PixelLocalStorageType::subpassLoad)
+    if (m_capabilities.plsType ==
+        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access)
     {
         for (size_t i = 0; i < PLS_PLANE_COUNT; ++i)
         {
@@ -2241,8 +2297,8 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
     WGPURenderPassDescriptor passDesc = {
         .colorAttachmentCount = static_cast<size_t>(
 #ifdef RIVE_WAGYU
-            m_contextOptions.plsType ==
-                    PixelLocalStorageType::EXT_shader_pixel_local_storage
+            m_capabilities.plsType ==
+                    PixelLocalStorageType::GL_EXT_shader_pixel_local_storage
                 ? 1
                 :
 #endif
@@ -2290,7 +2346,8 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
 
     WGPUWagyuRenderPassDescriptor wagyuRenderPassDescriptor =
         WGPU_WAGYU_RENDER_PASS_DESCRIPTOR_INIT;
-    if (m_contextOptions.plsType == PixelLocalStorageType::subpassLoad)
+    if (m_capabilities.plsType ==
+        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access)
     {
         wagyuRenderPassDescriptor.inputAttachmentCount =
             std::size(inputAttachments);
@@ -2339,7 +2396,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
 #ifdef RIVE_WAGYU
     // If storage buffers are disabled, copy their contents to textures.
-    if (m_contextOptions.disableStorageBuffers)
+    if (m_capabilities.polyfillVertexStorageBuffers)
     {
         if (desc.pathCount > 0)
         {
@@ -2374,7 +2431,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             .offset = desc.flushUniformDataOffsetInBytes,
         },
 #ifdef RIVE_WAGYU
-        m_contextOptions.disableStorageBuffers
+        m_capabilities.polyfillVertexStorageBuffers
             ? wgpu::BindGroupEntry{.binding = PATH_BUFFER_IDX,
                                    .textureView = webgpu_storage_texture_view(
                                        pathBufferRing())}
@@ -2386,7 +2443,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 .offset = desc.firstPath * sizeof(gpu::PathData),
             },
 #ifdef RIVE_WAGYU
-        m_contextOptions.disableStorageBuffers ?
+        m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{
                 .binding = PAINT_BUFFER_IDX,
                 .textureView = webgpu_storage_texture_view(paintBufferRing()),
@@ -2398,7 +2455,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 .offset = desc.firstPaint * sizeof(gpu::PaintData),
             },
 #ifdef RIVE_WAGYU
-        m_contextOptions.disableStorageBuffers ?
+        m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{
                 .binding = PAINT_AUX_BUFFER_IDX,
                 .textureView = webgpu_storage_texture_view(paintAuxBufferRing()),
@@ -2410,7 +2467,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 .offset = desc.firstPaintAux * sizeof(gpu::PaintAuxData),
             },
 #ifdef RIVE_WAGYU
-        m_contextOptions.disableStorageBuffers ?
+        m_capabilities.polyfillVertexStorageBuffers ?
             wgpu::BindGroupEntry{
                 .binding = CONTOUR_BUFFER_IDX,
                 .textureView = webgpu_storage_texture_view(contourBufferRing()),
@@ -2638,7 +2695,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
 #ifdef RIVE_WAGYU
     bool needsInputAttachmentBindings =
-        m_contextOptions.plsType == PixelLocalStorageType::subpassLoad;
+        m_capabilities.plsType ==
+        PixelLocalStorageType::VK_EXT_rasterization_order_attachment_access;
     if (needsInputAttachmentBindings)
     {
         wgpu::BindGroupEntry plsTextureBindingEntries[] = {
@@ -2673,8 +2731,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 #endif
 
 #ifdef RIVE_WAGYU
-    if (m_contextOptions.plsType ==
-        PixelLocalStorageType::EXT_shader_pixel_local_storage)
+    if (m_capabilities.plsType ==
+        PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
     {
         wgpuWagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(
             drawPass.Get(),
@@ -2796,8 +2854,7 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                                          gpu::ShaderMiscFlags::none),
                     this,
                     drawType,
-                    batch.shaderFeatures,
-                    m_contextOptions)
+                    batch.shaderFeatures)
                 .first->second;
         drawPass.SetPipeline(
             drawPipeline.renderPipeline(renderTarget->framebufferFormat()));
@@ -2859,8 +2916,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     }
 
 #ifdef RIVE_WAGYU
-    if (m_contextOptions.plsType ==
-        PixelLocalStorageType::EXT_shader_pixel_local_storage)
+    if (m_capabilities.plsType ==
+        PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
     {
         // Draw the store action for EXT_shader_pixel_local_storage.
         LoadStoreActionsEXT actions = LoadStoreActionsEXT::storeColor;
@@ -2887,12 +2944,13 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 }
 
 std::unique_ptr<RenderContext> RenderContextWebGPUImpl::MakeContext(
+    wgpu::Adapter adapter,
     wgpu::Device device,
     wgpu::Queue queue,
     const ContextOptions& contextOptions)
 {
     auto impl = std::unique_ptr<RenderContextWebGPUImpl>(
-        new RenderContextWebGPUImpl(device, queue, contextOptions));
+        new RenderContextWebGPUImpl(adapter, device, queue, contextOptions));
     impl->initGPUObjects();
     return std::make_unique<RenderContext>(std::move(impl));
 }

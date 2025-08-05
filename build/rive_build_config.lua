@@ -729,6 +729,15 @@ if _OPTIONS['arch'] == 'wasm' or _OPTIONS['arch'] == 'js' then
         cxx = 'em++',
         ar = 'emar',
     }
+    if os.host() == 'windows' then
+        -- $PATH doesn't propogate to CreateProcess() on Windows. Resolve the
+        -- paths and execute them explicitly as shell scripts.
+        local emsdk_dir = os.getenv('EMSDK'):gsub("/", "\\")
+        local emsdk_tools_dir = emsdk_dir .. "\\upstream\\emscripten\\"
+        for key, value in pairs(emsdk_tools) do
+            emsdk_tools[key] = "sh " .. emsdk_tools_dir .. value
+        end
+    end
     function premake.tools.emsdk.gettoolname(cfg, tool)
         return emsdk_tools[tool]
     end

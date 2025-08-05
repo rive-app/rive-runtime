@@ -20,6 +20,16 @@ class RenderTargetWebGPU;
 class RenderContextWebGPUImpl : public RenderContextHelperImpl
 {
 public:
+    struct ContextOptions
+    {
+        // Invert Y when drawing to client-provided RenderTargets.
+        // TODO: We may need to eventually make this configurable
+        // per-RenderTarget.
+        bool invertRenderTargetY = false;
+        // Invert the front face when drawing to client-provied RenderTargets.
+        bool invertRenderTargetFrontFace = false;
+    };
+
     enum class PixelLocalStorageType
     {
         // Pixel local storage cannot be supported; make a best reasonable
@@ -29,30 +39,28 @@ public:
 #ifdef RIVE_WAGYU
         // Backend is OpenGL ES 3.1+ and has GL_EXT_shader_pixel_local_storage.
         // Use "raw-glsl" shaders that take advantage of the extension.
-        EXT_shader_pixel_local_storage,
+        GL_EXT_shader_pixel_local_storage,
 
         // Backend is Vulkan with VK_EXT_rasterization_order_attachment_access.
         // Use nonstandard WebGPU APIs to set up vulkan input attachments and
         // subpassLoad() in shaders.
-        subpassLoad,
+        VK_EXT_rasterization_order_attachment_access,
 #endif
     };
 
-    struct ContextOptions
+    struct Capabilities
     {
-        PixelLocalStorageType plsType = PixelLocalStorageType::none;
 #ifdef RIVE_WAGYU
-        bool disableStorageBuffers = false;
+        PixelLocalStorageType plsType = PixelLocalStorageType::none;
+
+        // Rive requires 4 storage buffers in the vertex shader. We polyfill
+        // them if the hardware doesn't support this.
+        bool polyfillVertexStorageBuffers = false;
 #endif
-        // Invert Y when drawing to client-provided RenderTargets.
-        // TODO: We may need to eventually make this configurable
-        // per-RenderTarget.
-        bool invertRenderTargetY = false;
-        // Invert the front face when drawing to client-provied RenderTargets.
-        bool invertRenderTargetFrontFace = false;
     };
 
-    static std::unique_ptr<RenderContext> MakeContext(wgpu::Device,
+    static std::unique_ptr<RenderContext> MakeContext(wgpu::Adapter,
+                                                      wgpu::Device,
                                                       wgpu::Queue,
                                                       const ContextOptions&);
 
@@ -71,9 +79,10 @@ public:
                                   uint32_t mipLevelCount,
                                   const uint8_t imageDataRGBAPremul[]) override;
 
-protected:
-    RenderContextWebGPUImpl(wgpu::Device device,
-                            wgpu::Queue queue,
+private:
+    RenderContextWebGPUImpl(wgpu::Adapter,
+                            wgpu::Device,
+                            wgpu::Queue,
                             const ContextOptions&);
 
     // Create a standard PLS "draw" pipeline for the current implementation.
@@ -101,7 +110,6 @@ protected:
         return m_drawPipelineLayout;
     }
 
-private:
     // Called outside the constructor so we can use virtual methods.
     void initGPUObjects();
 
@@ -128,6 +136,7 @@ private:
     const wgpu::Device m_device;
     const wgpu::Queue m_queue;
     const ContextOptions m_contextOptions;
+    Capabilities m_capabilities;
 
     constexpr static int COLOR_RAMP_BINDINGS_COUNT = 1;
     constexpr static int TESS_BINDINGS_COUNT = 6;
@@ -204,7 +213,7 @@ private:
     friend class RenderContextWebGPUVulkan;
 
     RenderTargetWebGPU(wgpu::Device device,
-                       const RenderContextWebGPUImpl::ContextOptions&,
+                       const RenderContextWebGPUImpl::Capabilities&,
                        wgpu::TextureFormat framebufferFormat,
                        uint32_t width,
                        uint32_t height);

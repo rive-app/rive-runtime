@@ -220,6 +220,7 @@ public:
             m_queue = m_device.GetQueue();
 
             m_renderContext = RenderContextWebGPUImpl::MakeContext(
+                m_adapter,
                 m_device,
                 m_queue,
                 RenderContextWebGPUImpl::ContextOptions());

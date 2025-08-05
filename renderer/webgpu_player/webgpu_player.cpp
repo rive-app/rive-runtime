@@ -2,54 +2,38 @@
  * Copyright 2023 Rive
  */
 
-#include "rive/math/simd.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
 #include "rive/layout.hpp"
-#include "rive/animation/linear_animation_instance.hpp"
-#include "rive/animation/state_machine_input_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
-#include "rive/renderer/render_context.hpp"
+
+#include <iterator>
+#include <vector>
+
+using namespace rive;
+
+#ifdef RIVE_WEBGPU
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
-#include <cmath>
-#include <iterator>
-#include <vector>
-#include <filesystem>
-
+#include "../src/webgpu/webgpu_compat.h"
 #include "marty.h"
 #include "egg_v2.h"
 #include "rope.h"
 
-#ifdef RIVE_WEBGPU
-#include "../src/webgpu/webgpu_compat.h"
 #include <webgpu/webgpu_cpp.h>
 #include <emscripten.h>
 #include <emscripten/html5_webgpu.h>
 #include <emscripten/html5.h>
-#else
-#include <dawn/webgpu_cpp.h>
-#include "dawn/native/DawnNative.h"
-#include "dawn/dawn_proc.h"
-#define EMSCRIPTEN_KEEPALIVE
-#endif
 
-#ifdef RIVE_WAGYU
-#include "../src/webgpu/webgpu_wagyu.h"
-#endif
-
-using namespace rive;
 using namespace rive::gpu;
-using PixelLocalStorageType = RenderContextWebGPUImpl::PixelLocalStorageType;
 
-#ifdef RIVE_WEBGPU
 static std::unique_ptr<RenderContext> renderContext;
 static rcp<RenderTargetWebGPU> renderTarget;
 static std::unique_ptr<Renderer> renderer;
 
 static WGPUInstance instance;
-static WGPUAdapter adapter;
+static wgpu::Adapter adapter;
 static wgpu::Device device;
 static WGPUSurface surface;
 static WGPUTextureFormat format = WGPUTextureFormat_Undefined;
@@ -85,38 +69,10 @@ void requestDeviceCallback(WGPURequestDeviceStatus status,
     assert(queue.Get());
 
     RenderContextWebGPUImpl::ContextOptions contextOptions;
-#ifdef RIVE_WAGYU
-    WGPUBackendType backend = wgpuWagyuAdapterGetBackend(adapter);
-    if (backend == WGPUBackendType_Vulkan)
-    {
-        WGPUWagyuStringArray deviceExtensions = WGPU_WAGYU_STRING_ARRAY_INIT;
-        wgpuWagyuDeviceGetExtensions(device.Get(), &deviceExtensions);
-        for (size_t i = 0; i < deviceExtensions.stringCount; i++)
-        {
-            if (backend == WGPUBackendType_Vulkan &&
-                !strcmp(deviceExtensions.strings[i].data,
-                        "VK_EXT_rasterization_order_attachment_access"))
-            {
-                contextOptions.plsType = PixelLocalStorageType::subpassLoad;
-                break;
-            }
-        }
-    }
-    else if (backend == WGPUBackendType_OpenGLES)
-    {
-        // TODO: search for "GL_EXT_shader_pixel_local_storage".
-        // wgpuWagyuDeviceGetExtensions currently returns nothing in the GL
-        // backend.
-        contextOptions.plsType =
-            PixelLocalStorageType::EXT_shader_pixel_local_storage;
-        // TODO: Disable storage buffers if the hardware doesn't support 4 in
-        // the vertex shader:
-        // contextOptions.disableStorageBuffers =
-        //     GL_MAX_VERTEX_SHADER_STORAGE_BLOCKS < 4;
-    }
-#endif
-    renderContext =
-        RenderContextWebGPUImpl::MakeContext(device, queue, contextOptions);
+    renderContext = RenderContextWebGPUImpl::MakeContext(adapter,
+                                                         device,
+                                                         queue,
+                                                         contextOptions);
     renderTarget =
         renderContext->static_impl_cast<RenderContextWebGPUImpl>()
             ->makeRenderTarget(wgpu::TextureFormat::RGBA8Unorm, 1920, 1080);
@@ -143,7 +99,7 @@ void requestDeviceCallback(WGPURequestDeviceStatus status,
     }
 
     {
-        format = wgpuSurfaceGetPreferredFormat(surface, adapter);
+        format = wgpuSurfaceGetPreferredFormat(surface, adapter.Get());
         assert(format);
     }
 
@@ -168,14 +124,8 @@ void requestAdapterCallback(WGPURequestAdapterStatus status,
     assert(adapterArg);
     assert(status == WGPURequestAdapterStatus_Success);
     assert(userdata == instance);
-    adapter = adapterArg;
-
-    WGPUDeviceDescriptor descriptor = WGPU_DEVICE_DESCRIPTOR_INIT;
-
-    wgpuAdapterRequestDevice(adapter,
-                             &descriptor,
-                             requestDeviceCallback,
-                             userdata);
+    adapter = wgpu::Adapter::Acquire(adapterArg);
+    adapter.RequestDevice({}, requestDeviceCallback, userdata);
 }
 
 static double lastTime = 0;
@@ -243,11 +193,13 @@ extern "C" void start(void) { main(); }
 #endif
 
 #ifdef RIVE_DAWN
+
 #include "../path_fiddle/fiddle_context.hpp"
+
+#include <dawn/webgpu_cpp.h>
 #include <GLFW/glfw3.h>
 #define GLFW_EXPOSE_NATIVE_WIN32
 #include <GLFW/glfw3native.h>
-
 #include <fstream>
 
 static GLFWwindow* window = nullptr;
@@ -295,7 +247,8 @@ int main(int argc, const char** argv)
     fiddleContextDawn->onSizeChanged(window, w, h, 1);
     std::unique_ptr<Renderer> renderer = fiddleContextDawn->makeRenderer(w, h);
 
-    const char* filename = argc > 1 ? argv[1] : "webgpu_player/rivs/tape.riv";
+    const char* filename =
+        argc > 1 ? argv[1] : "webgpu_player/rivs/poison_loader.riv";
     std::ifstream rivStream(filename, std::ios::binary);
     std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
                                   {});
