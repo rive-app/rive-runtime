@@ -15,11 +15,22 @@ void DataBindContextValueArtboard::apply(Core* target,
                                          bool isMainDirection)
 {
     auto source = m_dataBind->source();
-    if (target->is<NestedArtboard>() && source != nullptr &&
-        source->is<ViewModelInstanceArtboard>())
+    if (source != nullptr && source->is<ViewModelInstanceArtboard>())
     {
-        target->as<NestedArtboard>()->updateArtboard(
-            source->as<ViewModelInstanceArtboard>());
+        if (target->is<NestedArtboard>())
+        {
+
+            target->as<NestedArtboard>()->updateArtboard(
+                source->as<ViewModelInstanceArtboard>());
+        }
+        else
+        {
+            auto value =
+                calculateValue<DataValueArtboard, uint32_t>(m_dataValue,
+                                                            isMainDirection,
+                                                            m_dataBind);
+            CoreRegistry::setUint(target, propertyKey, value);
+        }
     }
 }
 
