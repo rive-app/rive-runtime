@@ -2154,12 +2154,15 @@ void StateMachineInstance::notifyEventListeners(
                     // sure that a listener must be targetting the
                     // current artboard to disambiguate between external
                     // and internal events.
-                    auto target = sourceArtboard->resolve(listener->targetId());
-                    if (source == nullptr &&
-                        (target != nullptr && target->is<Artboard>() &&
-                         target != artboard()))
+                    if (source == nullptr)
                     {
-                        continue;
+                        auto target =
+                            sourceArtboard->resolve(listener->targetId());
+                        if (target && target != artboard() &&
+                            !target->is<Event>())
+                        {
+                            continue;
+                        }
                     }
                     auto listenerEvent =
                         sourceArtboard->resolve(listener->eventId());

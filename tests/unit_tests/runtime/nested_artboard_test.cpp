@@ -7,6 +7,7 @@
 #include <rive/animation/nested_state_machine.hpp>
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
+#include "utils/serializing_factory.hpp"
 #include <catch.hpp>
 #include <cstdio>
 #include <iostream>
@@ -89,4 +90,61 @@ TEST_CASE(
     auto rect = nestedArtboardArtboard->find<rive::Shape>("rect");
     REQUIRE(rect != nullptr);
     REQUIRE(rect->x() == 250.0f);
+}
+
+TEST_CASE("Nested events don't conflict with parent events.", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/nested_events.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    // Pointer down on left top square, triggers child event 1
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(50.0f, 50.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+
+    // Pointer down on right top square, triggers child event 2
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(150.0f, 50.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+
+    // Pointer down on left bottom square, triggers parent event 1
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(50.0f, 150.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+
+    // Pointer down on right bottom square, triggers parent event 1
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(150.0f, 150.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("nested_events"));
 }
