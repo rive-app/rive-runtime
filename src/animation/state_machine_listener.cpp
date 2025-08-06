@@ -50,3 +50,20 @@ void StateMachineListener::performChanges(
         action->perform(stateMachineInstance, position, previousPosition);
     }
 }
+
+void StateMachineListener::decodeViewModelPathIds(Span<const uint8_t> value)
+{
+    BinaryReader reader(value);
+    while (!reader.reachedEnd())
+    {
+        auto val = reader.readVarUintAs<uint32_t>();
+        m_viewModelPathIdsBuffer.push_back(val);
+    }
+}
+
+void StateMachineListener::copyViewModelPathIds(
+    const StateMachineListenerBase& object)
+{
+    m_viewModelPathIdsBuffer =
+        object.as<StateMachineListener>()->m_viewModelPathIdsBuffer;
+}

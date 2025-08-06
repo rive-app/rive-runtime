@@ -3925,6 +3925,7 @@ public:
             case ExportAudioBase::volumePropertyKey:
                 return CoreDoubleType::id;
             case NestedArtboardBase::dataBindPathIdsPropertyKey:
+            case StateMachineListenerBase::viewModelPathIdsPropertyKey:
             case MeshBase::triangleIndexBytesPropertyKey:
             case DataConverterOperationViewModelBase::sourcePathIdsPropertyKey:
             case DataBindContextBase::sourcePathIdsPropertyKey:

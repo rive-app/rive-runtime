@@ -37,6 +37,7 @@ class EventReport;
 class DataBind;
 class BindableProperty;
 class HitDrawable;
+class ListenerViewModel;
 
 #ifdef WITH_RIVE_TOOLS
 class StateMachineInstance;
@@ -162,10 +163,13 @@ public:
     NestedArtboard* parentNestedArtboard() { return m_parentNestedArtboard; }
     void notify(const std::vector<EventReport>& events,
                 NestedArtboard* context) override;
+    void notifyListenerViewModels();
 
     /// Tracks an event that reported, will be cleared at the end of the next
     /// advance.
     void reportEvent(Event* event, float secondsDelay = 0.0f) override;
+
+    void reportListenerViewModel(ListenerViewModel*);
 
     /// Gets the number of events that reported since the last advance.
     std::size_t reportedEventCount() const;
@@ -210,6 +214,8 @@ private:
     StateMachineInstance* m_parentStateMachineInstance = nullptr;
     NestedArtboard* m_parentNestedArtboard = nullptr;
     std::vector<DataBind*> m_dataBinds;
+    std::vector<ListenerViewModel*> m_listenerViewModels;
+    std::vector<ListenerViewModel*> m_reportedListenerViewModels;
     std::unordered_map<BindableProperty*, BindableProperty*>
         m_bindablePropertyInstances;
     std::unordered_map<BindableProperty*, DataBind*>

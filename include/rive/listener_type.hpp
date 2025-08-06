@@ -12,8 +12,10 @@ enum class ListenerType : int
     event = 5,
     click = 6,
     draggableConstraint = 7,
-    dragStart = 8,
-    dragEnd = 9,
+    textInput = 8,
+    dragStart = 9,
+    dragEnd = 10,
+    viewModel = 11,
 };
 }
 #endif

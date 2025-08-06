@@ -39,6 +39,7 @@
 #include "rive/text/text.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/audio_event.hpp"
+#include "rive/dirtyable.hpp"
 #include <unordered_map>
 #include <chrono>
 
@@ -1033,6 +1034,8 @@ public:
                         case ListenerType::event:
                         case ListenerType::click:
                         case ListenerType::draggableConstraint:
+                        case ListenerType::textInput:
+                        case ListenerType::viewModel:
                             break;
                     }
                 }
@@ -1052,6 +1055,8 @@ public:
                         case ListenerType::event:
                         case ListenerType::click:
                         case ListenerType::draggableConstraint:
+                        case ListenerType::textInput:
+                        case ListenerType::viewModel:
                             break;
                     }
                 }
@@ -1145,6 +1150,8 @@ public:
                         case ListenerType::event:
                         case ListenerType::click:
                         case ListenerType::draggableConstraint:
+                        case ListenerType::textInput:
+                        case ListenerType::viewModel:
                             break;
                     }
                 }
@@ -1164,6 +1171,8 @@ public:
                         case ListenerType::event:
                         case ListenerType::click:
                         case ListenerType::draggableConstraint:
+                        case ListenerType::textInput:
+                        case ListenerType::viewModel:
                             break;
                     }
                 }
@@ -1184,6 +1193,45 @@ public:
         return hitResult;
     }
     void prepareEvent(Vec2D position, ListenerType hitType) override {}
+};
+
+class ListenerViewModel : public Dirtyable
+{
+public:
+    virtual ~ListenerViewModel() = default;
+    ListenerViewModel(StateMachineInstance* smInstance,
+                      const StateMachineListener* listener) :
+        m_stateMachineInstance(smInstance), m_listener(listener)
+    {}
+    void clearDataContext()
+    {
+        if (m_viewModelInstanceValue != nullptr)
+        {
+            m_viewModelInstanceValue->removeDependent(this);
+            m_viewModelInstanceValue = nullptr;
+        }
+    }
+    void bindFromContext(DataContext* dataContext)
+    {
+        clearDataContext();
+        auto path = m_listener->viewModelPathIdsBuffer();
+        auto vmProp = dataContext->getViewModelProperty(path);
+        if (vmProp != nullptr)
+        {
+            m_viewModelInstanceValue = vmProp;
+            vmProp->addDependent(this);
+        }
+    }
+    void addDirt(ComponentDirt value, bool recurse)
+    {
+        m_stateMachineInstance->reportListenerViewModel(this);
+    }
+    const StateMachineListener* listener() { return m_listener; }
+
+private:
+    StateMachineInstance* m_stateMachineInstance = nullptr;
+    const StateMachineListener* m_listener = nullptr;
+    ViewModelInstanceValue* m_viewModelInstanceValue = nullptr;
 };
 
 } // namespace rive
@@ -1498,6 +1546,12 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
         {
             continue;
         }
+        if (listener->listenerType() == ListenerType::viewModel)
+        {
+            auto vmListener = new ListenerViewModel(this, listener);
+            m_listenerViewModels.push_back(vmListener);
+            continue;
+        }
         auto listenerGroup = rivestd::make_unique<ListenerGroup>(listener);
         auto target = m_artboardInstance->resolve(listener->targetId());
         if (target != nullptr && target->is<Component>())
@@ -1617,6 +1671,10 @@ StateMachineInstance::~StateMachineInstance()
     {
         delete pair.second;
         pair.second = nullptr;
+    }
+    for (auto& listenerViewModel : m_listenerViewModels)
+    {
+        delete listenerViewModel;
     }
     if (m_ownsDataContext)
     {
@@ -1762,6 +1820,8 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     {
         this->notifyEventListeners(m_reportedEvents, nullptr);
         m_reportedEvents.clear();
+        notifyListenerViewModels();
+        m_reportedListenerViewModels.clear();
         m_needsAdvance = false;
     }
     updateDataBinds();
@@ -1921,6 +1981,10 @@ void StateMachineInstance::internalDataContext(DataContext* dataContext)
             dataBind->as<DataBindContext>()->bindFromContext(dataContext);
         }
     }
+    for (auto listenerViewModel : m_listenerViewModels)
+    {
+        listenerViewModel->bindFromContext(dataContext);
+    }
 }
 
 void StateMachineInstance::clearDataContext()
@@ -1929,6 +1993,10 @@ void StateMachineInstance::clearDataContext()
     {
         delete m_DataContext;
         m_DataContext = nullptr;
+    }
+    for (auto& listenerViewModel : m_listenerViewModels)
+    {
+        listenerViewModel->clearDataContext();
     }
 
     m_ownsDataContext = false;
@@ -2009,6 +2077,12 @@ void StateMachineInstance::reportEvent(Event* event, float delaySeconds)
     m_reportedEvents.push_back(EventReport(event, delaySeconds));
 }
 
+void StateMachineInstance::reportListenerViewModel(
+    ListenerViewModel* listenerViewModel)
+{
+    m_reportedListenerViewModels.push_back(listenerViewModel);
+}
+
 std::size_t StateMachineInstance::reportedEventCount() const
 {
     return m_reportedEvents.size();
@@ -2028,6 +2102,19 @@ void StateMachineInstance::notify(const std::vector<EventReport>& events,
 {
     notifyEventListeners(events, context);
     updateDataBinds();
+}
+
+void StateMachineInstance::notifyListenerViewModels()
+{
+    if (m_reportedListenerViewModels.size() > 0)
+    {
+        for (auto& listenerViewModel : m_reportedListenerViewModels)
+        {
+            listenerViewModel->listener()->performChanges(this,
+                                                          Vec2D(),
+                                                          Vec2D());
+        }
+    }
 }
 
 void StateMachineInstance::notifyEventListeners(
@@ -2051,10 +2138,10 @@ void StateMachineInstance::notifyEventListeners(
                                               ? artboard()
                                               : source->artboardInstance();
 
-                    // NOTE: this issue can't happen anymore because a new fix
-                    // in the editor prevents selecting other artboard as
-                    // target. But the fix is kept here to fix older files.
-                    // listener->eventId() can point to an id from an
+                    // NOTE: this issue can't happen anymore because a new
+                    // fix in the editor prevents selecting other artboard
+                    // as target. But the fix is kept here to fix older
+                    // files. listener->eventId() can point to an id from an
                     // event in the context of this artboard or the
                     // context of a nested artboard. Because those ids
                     // belong to different contexts, they can have the

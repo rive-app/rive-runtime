@@ -1,7 +1,9 @@
 #ifndef _RIVE_STATE_MACHINE_LISTENER_BASE_HPP_
 #define _RIVE_STATE_MACHINE_LISTENER_BASE_HPP_
 #include "rive/animation/state_machine_component.hpp"
+#include "rive/core/field_types/core_bytes_type.hpp"
 #include "rive/core/field_types/core_uint_type.hpp"
+#include "rive/span.hpp"
 namespace rive
 {
 class StateMachineListenerBase : public StateMachineComponent
@@ -31,6 +33,7 @@ public:
     static const uint16_t targetIdPropertyKey = 224;
     static const uint16_t listenerTypeValuePropertyKey = 225;
     static const uint16_t eventIdPropertyKey = 399;
+    static const uint16_t viewModelPathIdsPropertyKey = 868;
 
 protected:
     uint32_t m_TargetId = -1;
@@ -71,12 +74,17 @@ public:
         eventIdChanged();
     }
 
+    virtual void decodeViewModelPathIds(Span<const uint8_t> value) = 0;
+    virtual void copyViewModelPathIds(
+        const StateMachineListenerBase& object) = 0;
+
     Core* clone() const override;
     void copy(const StateMachineListenerBase& object)
     {
         m_TargetId = object.m_TargetId;
         m_ListenerTypeValue = object.m_ListenerTypeValue;
         m_EventId = object.m_EventId;
+        copyViewModelPathIds(object);
         StateMachineComponent::copy(object);
     }
 
@@ -93,6 +101,9 @@ public:
             case eventIdPropertyKey:
                 m_EventId = CoreUintType::deserialize(reader);
                 return true;
+            case viewModelPathIdsPropertyKey:
+                decodeViewModelPathIds(CoreBytesType::deserialize(reader));
+                return true;
         }
         return StateMachineComponent::deserialize(propertyKey, reader);
     }
@@ -101,6 +112,7 @@ protected:
     virtual void targetIdChanged() {}
     virtual void listenerTypeValueChanged() {}
     virtual void eventIdChanged() {}
+    virtual void viewModelPathIdsChanged() {}
 };
 } // namespace rive
 

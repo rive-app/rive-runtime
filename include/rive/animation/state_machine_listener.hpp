@@ -30,6 +30,15 @@ public:
     void performChanges(StateMachineInstance* stateMachineInstance,
                         Vec2D position,
                         Vec2D previousPosition) const;
+    void decodeViewModelPathIds(Span<const uint8_t> value) override;
+    void copyViewModelPathIds(const StateMachineListenerBase& object) override;
+    std::vector<uint32_t> viewModelPathIdsBuffer() const
+    {
+        return m_viewModelPathIdsBuffer;
+    }
+
+protected:
+    std::vector<uint32_t> m_viewModelPathIdsBuffer;
 
 private:
     void addAction(std::unique_ptr<ListenerAction>);
