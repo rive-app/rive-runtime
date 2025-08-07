@@ -449,7 +449,7 @@ public:
     rcp<D3D12Buffer> makeUploadBuffer(
         UINT size,
         D3D12_RESOURCE_FLAGS bindFlags = D3D12_RESOURCE_FLAG_NONE,
-        D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_COPY_SOURCE,
+        D3D12_RESOURCE_STATES initialState = D3D12_RESOURCE_STATE_GENERIC_READ,
         D3D12_HEAP_FLAGS heapFlags = D3D12_HEAP_FLAG_NONE);
 
     rcp<D3D12VolatileBuffer> makeVolatileBuffer(
@@ -465,7 +465,7 @@ public:
         rcp<D3D12Buffer> uploadBuffer =
             makeUploadBuffer(sizeInBytes,
                              D3D12_RESOURCE_FLAG_NONE,
-                             D3D12_RESOURCE_STATE_COPY_SOURCE);
+                             D3D12_RESOURCE_STATE_GENERIC_READ);
         rcp<D3D12Buffer> constBuffer = makeBuffer(sizeInBytes,
                                                   D3D12_RESOURCE_FLAG_NONE,
                                                   D3D12_RESOURCE_STATE_COMMON);
