@@ -1110,7 +1110,7 @@ bool Artboard::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
         }
     }
 #endif
-    return Drawable::hitTestPoint(position, skipOnUnclipped);
+    return LayoutComponent::hitTestPoint(position, skipOnUnclipped);
 }
 
 void Artboard::draw(Renderer* renderer) { draw(renderer, DrawOption::kNormal); }
