@@ -76,6 +76,7 @@ private:
     std::vector<ArtboardComponentList*> m_ComponentLists;
     std::vector<ArtboardHost*> m_ArtboardHosts;
     std::vector<Joystick*> m_Joysticks;
+    std::vector<ResettingComponent*> m_Resettables;
     std::vector<DataBind*> m_DataBinds;
     std::vector<DataBind*> m_AllDataBinds;
     DataContext* m_DataContext = nullptr;

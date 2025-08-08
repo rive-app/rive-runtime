@@ -2,6 +2,7 @@
 #include "rive/artboard_component_list.hpp"
 #include "rive/backboard.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
+#include "rive/custom_property_trigger.hpp"
 #include "rive/dependency_sorter.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_bind_context.hpp"
@@ -222,6 +223,14 @@ StatusCode Artboard::initialize()
         if (!canContinue(code = object->onAddedClean(this)))
         {
             return code;
+        }
+        if (object->is<Component>())
+        {
+            auto resettable = ResettingComponent::from(object->as<Component>());
+            if (resettable)
+            {
+                m_Resettables.push_back(resettable);
+            }
         }
         switch (object->coreType())
         {
@@ -995,13 +1004,9 @@ bool Artboard::advanceInternal(float elapsedSeconds, AdvanceFlags flags)
 
 void Artboard::reset()
 {
-    for (auto dep : m_DependencyOrder)
+    for (auto obj : m_Resettables)
     {
-        auto adv = ResettingComponent::from(dep);
-        if (adv != nullptr)
-        {
-            adv->reset();
-        }
+        obj->reset();
     }
 }
 

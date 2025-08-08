@@ -8,9 +8,10 @@
 #include <rive/shapes/paint/fill.hpp>
 #include <rive/shapes/paint/solid_color.hpp>
 #include <rive/text/text_value_run.hpp>
+#include <rive/custom_property_boolean.hpp>
 #include <rive/custom_property_number.hpp>
 #include <rive/custom_property_string.hpp>
-#include <rive/custom_property_boolean.hpp>
+#include <rive/custom_property_trigger.hpp>
 #include <rive/constraints/follow_path_constraint.hpp>
 #include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include <rive/viewmodel/viewmodel_instance_color.hpp>
@@ -1181,4 +1182,44 @@ TEST_CASE("Trigger based listeners", "[data binding]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("trigger_based_listeners"));
+}
+
+TEST_CASE("Custom Property Trigger Binding", "[data binding]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/custom_property_trigger.riv", &silver);
+
+    auto artboard = file->artboard("Main")->instance();
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    auto machine = artboard->defaultStateMachine();
+    machine->bindViewModelInstance(viewModelInstance);
+    REQUIRE(machine != nullptr);
+    // Advance state machine
+    machine->advanceAndApply(0.0f);
+
+    auto circle = artboard->find<rive::Shape>("MainCircle");
+    REQUIRE(circle != nullptr);
+    REQUIRE(circle->scaleX() == 1.0f);
+    REQUIRE(circle->scaleY() == 1.0f);
+
+    auto trig = artboard->find<rive::CustomPropertyTrigger>("Trig");
+    REQUIRE(trig != nullptr);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.16f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        machine->advanceAndApply(0.16f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("custom_property_trigger_bind"));
 }

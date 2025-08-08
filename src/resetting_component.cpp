@@ -2,6 +2,7 @@
 #include "rive/resetting_component.hpp"
 #include "rive/artboard.hpp"
 #include "rive/artboard_component_list.hpp"
+#include "rive/custom_property_trigger.hpp"
 #include "rive/nested_artboard.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/nested_artboard_leaf.hpp"
@@ -18,6 +19,8 @@ ResettingComponent* ResettingComponent::from(Component* component)
             return component->as<NestedArtboard>();
         case ArtboardComponentListBase::typeKey:
             return component->as<ArtboardComponentList>();
+        case CustomPropertyTriggerBase::typeKey:
+            return component->as<CustomPropertyTrigger>();
     }
     return nullptr;
 }

@@ -129,6 +129,7 @@
 #include "rive/custom_property_group.hpp"
 #include "rive/custom_property_number.hpp"
 #include "rive/custom_property_string.hpp"
+#include "rive/custom_property_trigger.hpp"
 #include "rive/data_bind/bindable_property.hpp"
 #include "rive/data_bind/bindable_property_artboard.hpp"
 #include "rive/data_bind/bindable_property_asset.hpp"
@@ -748,6 +749,8 @@ public:
                 return new FileAssetContents();
             case AudioEventBase::typeKey:
                 return new AudioEvent();
+            case CustomPropertyTriggerBase::typeKey:
+                return new CustomPropertyTrigger();
         }
         return nullptr;
     }
@@ -1424,6 +1427,9 @@ public:
                 break;
             case AudioEventBase::assetIdPropertyKey:
                 object->as<AudioEventBase>()->assetId(value);
+                break;
+            case CustomPropertyTriggerBase::propertyValuePropertyKey:
+                object->as<CustomPropertyTriggerBase>()->propertyValue(value);
                 break;
         }
     }
@@ -2318,6 +2324,9 @@ public:
             case EventBase::triggerPropertyKey:
                 object->as<EventBase>()->trigger(value);
                 break;
+            case CustomPropertyTriggerBase::firePropertyKey:
+                object->as<CustomPropertyTriggerBase>()->fire(value);
+                break;
         }
     }
     static uint32_t getUint(Core* object, int propertyKey)
@@ -2804,6 +2813,8 @@ public:
                 return object->as<FileAssetBase>()->assetId();
             case AudioEventBase::assetIdPropertyKey:
                 return object->as<AudioEventBase>()->assetId();
+            case CustomPropertyTriggerBase::propertyValuePropertyKey:
+                return object->as<CustomPropertyTriggerBase>()->propertyValue();
         }
         return 0;
     }
@@ -3636,6 +3647,7 @@ public:
             case TextValueRunBase::styleIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
             case AudioEventBase::assetIdPropertyKey:
+            case CustomPropertyTriggerBase::propertyValuePropertyKey:
                 return CoreUintType::id;
             case ViewModelComponentBase::namePropertyKey:
             case DataEnumCustomBase::namePropertyKey:
@@ -3942,6 +3954,7 @@ public:
         {
             case NestedTriggerBase::firePropertyKey:
             case EventBase::triggerPropertyKey:
+            case CustomPropertyTriggerBase::firePropertyKey:
                 return true;
             default:
                 return false;
@@ -4359,6 +4372,8 @@ public:
                 return object->is<FileAssetBase>();
             case AudioEventBase::assetIdPropertyKey:
                 return object->is<AudioEventBase>();
+            case CustomPropertyTriggerBase::propertyValuePropertyKey:
+                return object->is<CustomPropertyTriggerBase>();
             case ViewModelComponentBase::namePropertyKey:
                 return object->is<ViewModelComponentBase>();
             case DataEnumCustomBase::namePropertyKey:
@@ -4927,6 +4942,8 @@ public:
                 return object->is<NestedTriggerBase>();
             case EventBase::triggerPropertyKey:
                 return object->is<EventBase>();
+            case CustomPropertyTriggerBase::firePropertyKey:
+                return object->is<CustomPropertyTriggerBase>();
         }
         return false;
     }
