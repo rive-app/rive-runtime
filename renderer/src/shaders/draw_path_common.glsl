@@ -779,7 +779,11 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
         if (bool(contourIDWithFlags & MIRRORED_CONTOUR_CONTOUR_FLAG) !=
             bool(contourIDWithFlags & NEGATE_PATH_FILL_COVERAGE_FLAG))
         {
-            outCoverages.x = -outCoverages.x;
+            // Effectively: outCoverages.x = -outCoverages.x
+            //
+            // ... But don't write that because it hits a bug in the Mali T720
+            // compiler that also negates Y.
+            outCoverages *= float4(-1., +1., +1., +1.);
         }
 #endif // !RENDER_MODE_MSAA
 
