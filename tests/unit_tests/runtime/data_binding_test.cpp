@@ -1223,3 +1223,75 @@ TEST_CASE("Custom Property Trigger Binding", "[data binding]")
 
     CHECK(silver.matches("custom_property_trigger_bind"));
 }
+
+TEST_CASE("Data binding solos", "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/data_bind_solo.riv", &silver);
+
+    auto artboard = file->artboardNamed("values-to-solos");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("data_bind_solo-values-to-solos"));
+}
+
+TEST_CASE("Data binding solos - target to source", "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/data_bind_solo.riv", &silver);
+
+    auto artboard = file->artboardNamed("solos-to-values");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("data_bind_solo-solos-to-values"));
+}

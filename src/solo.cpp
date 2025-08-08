@@ -52,3 +52,55 @@ StatusCode Solo::onAddedClean(CoreContext* context)
     propagateCollapse(isCollapsed());
     return StatusCode::Ok;
 }
+
+void Solo::updateByIndex(size_t index)
+{
+    if (index >= 0 && index < children().size() && artboard())
+    {
+        auto child = children()[index];
+        int globalIndex = artboard()->idOf(child);
+        activeComponentId(globalIndex);
+    }
+}
+
+void Solo::updateByName(std::string& name)
+{
+    for (auto& child : children())
+    {
+        if (child->name() == name)
+        {
+
+            int globalIndex = artboard()->idOf(child);
+            activeComponentId(globalIndex);
+            break;
+        }
+    }
+}
+
+int Solo::getActiveChildIndex()
+{
+    Core* active = artboard()->resolve(activeComponentId());
+    if (active)
+    {
+        int index = 0;
+        for (auto& child : children())
+        {
+            if (child == active)
+            {
+                return index;
+            }
+            index++;
+        }
+    }
+    return -1;
+}
+
+std::string Solo::getActiveChildName()
+{
+    Core* active = artboard()->resolve(activeComponentId());
+    if (active && active->is<Component>())
+    {
+        return active->as<Component>()->name();
+    }
+    return "";
+}

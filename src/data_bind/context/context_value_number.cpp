@@ -22,8 +22,16 @@ void DataBindContextValueNumber::apply(Core* target,
             CoreRegistry::setDouble(target, propertyKey, value);
             break;
         case CoreUintType::id:
-            int rounded = value < 0 ? 0 : std::round(value);
-            CoreRegistry::setUint(target, propertyKey, rounded);
+
+            if (target && target->is<Solo>())
+            {
+                target->as<Solo>()->updateByIndex((size_t)std::round(value));
+            }
+            else
+            {
+                int rounded = value < 0 ? 0 : std::round(value);
+                CoreRegistry::setUint(target, propertyKey, rounded);
+            }
             break;
     }
 }
@@ -41,7 +49,14 @@ bool DataBindContextValueNumber::syncTargetValue(Core* target,
         break;
         case CoreUintType::id:
         {
-            value = (float)CoreRegistry::getUint(target, propertyKey);
+            if (target && target->is<Solo>())
+            {
+                value = (float)target->as<Solo>()->getActiveChildIndex();
+            }
+            else
+            {
+                value = (float)CoreRegistry::getUint(target, propertyKey);
+            }
             break;
         }
     }

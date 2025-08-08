@@ -9,6 +9,10 @@ public:
     void activeComponentIdChanged() override;
     StatusCode onAddedClean(CoreContext* context) override;
     bool collapse(bool value) override;
+    void updateByIndex(size_t index);
+    void updateByName(std::string& name);
+    int getActiveChildIndex();
+    std::string getActiveChildName();
 
 private:
     void propagateCollapse(bool collapse);
