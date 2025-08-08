@@ -187,7 +187,7 @@ public:
     }
 
     void fireEvents(StateMachineFireOccurance occurs,
-                    const std::vector<StateMachineFireEvent*>& fireEvents)
+                    const std::vector<StateMachineFireAction*>& fireEvents)
     {
         for (auto event : fireEvents)
         {

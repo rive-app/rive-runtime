@@ -53,7 +53,9 @@
 #include "rive/animation/state_machine.hpp"
 #include "rive/animation/state_machine_bool.hpp"
 #include "rive/animation/state_machine_component.hpp"
+#include "rive/animation/state_machine_fire_action.hpp"
 #include "rive/animation/state_machine_fire_event.hpp"
+#include "rive/animation/state_machine_fire_trigger.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/state_machine_layer_component.hpp"
@@ -423,6 +425,8 @@ public:
                 return new ListenerFireEvent();
             case TransitionSelfComparatorBase::typeKey:
                 return new TransitionSelfComparator();
+            case StateMachineFireTriggerBase::typeKey:
+                return new StateMachineFireTrigger();
             case TransitionValueTriggerComparatorBase::typeKey:
                 return new TransitionValueTriggerComparator();
             case KeyFrameUintBase::typeKey:
@@ -1079,6 +1083,9 @@ public:
             case LayerStateBase::flagsPropertyKey:
                 object->as<LayerStateBase>()->flags(value);
                 break;
+            case StateMachineFireActionBase::occursValuePropertyKey:
+                object->as<StateMachineFireActionBase>()->occursValue(value);
+                break;
             case TransitionValueTriggerComparatorBase::valuePropertyKey:
                 object->as<TransitionValueTriggerComparatorBase>()->value(
                     value);
@@ -1185,9 +1192,6 @@ public:
                 break;
             case StateMachineFireEventBase::eventIdPropertyKey:
                 object->as<StateMachineFireEventBase>()->eventId(value);
-                break;
-            case StateMachineFireEventBase::occursValuePropertyKey:
-                object->as<StateMachineFireEventBase>()->occursValue(value);
                 break;
             case LinearAnimationBase::fpsPropertyKey:
                 object->as<LinearAnimationBase>()->fps(value);
@@ -2572,6 +2576,8 @@ public:
                 return object->as<ListenerFireEventBase>()->eventId();
             case LayerStateBase::flagsPropertyKey:
                 return object->as<LayerStateBase>()->flags();
+            case StateMachineFireActionBase::occursValuePropertyKey:
+                return object->as<StateMachineFireActionBase>()->occursValue();
             case TransitionValueTriggerComparatorBase::valuePropertyKey:
                 return object->as<TransitionValueTriggerComparatorBase>()
                     ->value();
@@ -2647,8 +2653,6 @@ public:
                 return object->as<StateTransitionBase>()->randomWeight();
             case StateMachineFireEventBase::eventIdPropertyKey:
                 return object->as<StateMachineFireEventBase>()->eventId();
-            case StateMachineFireEventBase::occursValuePropertyKey:
-                return object->as<StateMachineFireEventBase>()->occursValue();
             case LinearAnimationBase::fpsPropertyKey:
                 return object->as<LinearAnimationBase>()->fps();
             case LinearAnimationBase::durationPropertyKey:
@@ -3533,6 +3537,7 @@ public:
                 instanceHeightScaleTypePropertyKey:
             case ListenerFireEventBase::eventIdPropertyKey:
             case LayerStateBase::flagsPropertyKey:
+            case StateMachineFireActionBase::occursValuePropertyKey:
             case TransitionValueTriggerComparatorBase::valuePropertyKey:
             case KeyFrameBase::framePropertyKey:
             case InterpolatingKeyFrameBase::interpolationTypePropertyKey:
@@ -3568,7 +3573,6 @@ public:
             case StateTransitionBase::interpolatorIdPropertyKey:
             case StateTransitionBase::randomWeightPropertyKey:
             case StateMachineFireEventBase::eventIdPropertyKey:
-            case StateMachineFireEventBase::occursValuePropertyKey:
             case LinearAnimationBase::fpsPropertyKey:
             case LinearAnimationBase::durationPropertyKey:
             case LinearAnimationBase::loopValuePropertyKey:
@@ -3937,6 +3941,7 @@ public:
             case ExportAudioBase::volumePropertyKey:
                 return CoreDoubleType::id;
             case NestedArtboardBase::dataBindPathIdsPropertyKey:
+            case StateMachineFireTriggerBase::viewModelPathIdsPropertyKey:
             case StateMachineListenerBase::viewModelPathIdsPropertyKey:
             case MeshBase::triangleIndexBytesPropertyKey:
             case DataConverterOperationViewModelBase::sourcePathIdsPropertyKey:
@@ -4145,6 +4150,8 @@ public:
                 return object->is<ListenerFireEventBase>();
             case LayerStateBase::flagsPropertyKey:
                 return object->is<LayerStateBase>();
+            case StateMachineFireActionBase::occursValuePropertyKey:
+                return object->is<StateMachineFireActionBase>();
             case TransitionValueTriggerComparatorBase::valuePropertyKey:
                 return object->is<TransitionValueTriggerComparatorBase>();
             case KeyFrameBase::framePropertyKey:
@@ -4213,8 +4220,6 @@ public:
             case StateTransitionBase::randomWeightPropertyKey:
                 return object->is<StateTransitionBase>();
             case StateMachineFireEventBase::eventIdPropertyKey:
-                return object->is<StateMachineFireEventBase>();
-            case StateMachineFireEventBase::occursValuePropertyKey:
                 return object->is<StateMachineFireEventBase>();
             case LinearAnimationBase::fpsPropertyKey:
                 return object->is<LinearAnimationBase>();

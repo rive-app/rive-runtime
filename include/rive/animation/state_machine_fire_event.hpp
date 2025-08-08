@@ -4,22 +4,11 @@
 
 namespace rive
 {
-class StateMachineInstance;
-enum class StateMachineFireOccurance : int
-{
-    atStart = 0,
-    atEnd = 1
-};
 
 class StateMachineFireEvent : public StateMachineFireEventBase
 {
 public:
-    StatusCode import(ImportStack& importStack) override;
-    StateMachineFireOccurance occurs() const
-    {
-        return (StateMachineFireOccurance)occursValue();
-    }
-    void perform(StateMachineInstance* stateMachineInstance) const;
+    void perform(StateMachineInstance* stateMachineInstance) const override;
 };
 
 } // namespace rive

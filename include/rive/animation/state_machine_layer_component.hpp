@@ -5,20 +5,20 @@
 
 namespace rive
 {
-class StateMachineFireEvent;
+class StateMachineFireAction;
 class StateMachineLayerComponent : public StateMachineLayerComponentBase
 {
     friend class StateMachineLayerComponentImporter;
 
 public:
-    const std::vector<StateMachineFireEvent*>& events() const
+    const std::vector<StateMachineFireAction*>& events() const
     {
         return m_events;
     }
     ~StateMachineLayerComponent() override;
 
 private:
-    std::vector<StateMachineFireEvent*> m_events;
+    std::vector<StateMachineFireAction*> m_events;
 };
 } // namespace rive
 

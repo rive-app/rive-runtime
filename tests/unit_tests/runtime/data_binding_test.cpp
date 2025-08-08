@@ -1295,3 +1295,46 @@ TEST_CASE("Data binding solos - target to source", "[data binding]")
 
     CHECK(silver.matches("data_bind_solo-solos-to-values"));
 }
+
+TEST_CASE("State machine fire triggers", "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file =
+        ReadRiveFile("assets/state_transition_fire_trigger.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("state_transition_fire_trigger"));
+}

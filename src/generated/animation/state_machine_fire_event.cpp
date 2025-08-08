@@ -7,18 +7,6 @@
 
 using namespace rive;
 
-StatusCode StateMachineFireEvent::import(ImportStack& importStack)
-{
-    auto stateImporter = importStack.latest<StateMachineLayerComponentImporter>(
-        StateMachineLayerComponent::typeKey);
-    if (stateImporter == nullptr)
-    {
-        return StatusCode::MissingObject;
-    }
-    stateImporter->addFireEvent(this);
-    return Super::import(importStack);
-}
-
 void StateMachineFireEvent::perform(
     StateMachineInstance* stateMachineInstance) const
 {
