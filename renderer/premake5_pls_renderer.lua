@@ -287,4 +287,11 @@ do
     do
         files({ 'src/gl/pls_impl_webgl.cpp' })
     end
+
+    filter({'system:emscripten', 'options:with_wagyu' })
+    do
+        buildoptions({
+            '--use-port=' .. RIVE_RUNTIME_DIR .. '/renderer/src/webgpu/wagyu-port/old/webgpu-port.py:wagyu=true',
+        })
+    end
 end

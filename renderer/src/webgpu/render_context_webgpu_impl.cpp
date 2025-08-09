@@ -50,7 +50,7 @@ using TextureDataLayout = TexelCopyBufferLayout;
 #endif
 
 #ifdef RIVE_WAGYU
-#include "webgpu_wagyu.h"
+#include <webgpu/webgpu_wagyu.h>
 
 #include <sstream>
 

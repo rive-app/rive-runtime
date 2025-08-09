@@ -274,10 +274,24 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             linkoptions({
                 '-sEXPORTED_FUNCTIONS=_animationFrame,_main,_start,_malloc,_free',
                 '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap',
-                '-sUSE_WEBGPU',
                 '-sENVIRONMENT=web,shell',
-                '-sWARN_ON_UNDEFINED_SYMBOLS=0',
-                '-sERROR_ON_UNDEFINED_SYMBOLS=0',
+            })
+        end
+
+        filter({'system:emscripten', 'options:not with_wagyu' })
+        do
+            linkoptions({
+                '-sUSE_WEBGPU',
+            })
+        end
+
+        filter({'system:emscripten', 'options:with_wagyu' })
+        do
+            buildoptions({
+                '--use-port=' .. RIVE_RUNTIME_DIR .. '/renderer/src/webgpu/wagyu-port/old/webgpu-port.py:wagyu=true',
+            })
+            linkoptions({
+                '--use-port=' .. RIVE_RUNTIME_DIR .. '/renderer/src/webgpu/wagyu-port/old/webgpu-port.py:wagyu=true',
             })
         end
 
