@@ -1,0 +1,34 @@
+{
+  "name": "CustomPropertyEnum",
+  "key": {
+    "int": 616,
+    "string": "custompropertyenum"
+  },
+  "extends": "custom_property.json",
+  "properties": {
+    "propertyValue": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "animates": true,
+      "key": {
+        "int": 872,
+        "string": "propertyvalue"
+      },
+      "description": "The id of the selected enum",
+      "bindable": true
+    },
+    "enumId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 873,
+        "string": "enumid"
+      },
+      "description": "The id of the data enum"
+    }
+  }
+}

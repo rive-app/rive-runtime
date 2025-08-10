@@ -128,6 +128,7 @@
 #include "rive/custom_property.hpp"
 #include "rive/custom_property_boolean.hpp"
 #include "rive/custom_property_color.hpp"
+#include "rive/custom_property_enum.hpp"
 #include "rive/custom_property_group.hpp"
 #include "rive/custom_property_number.hpp"
 #include "rive/custom_property_string.hpp"
@@ -739,6 +740,8 @@ public:
                 return new Text();
             case TextValueRunBase::typeKey:
                 return new TextValueRun();
+            case CustomPropertyEnumBase::typeKey:
+                return new CustomPropertyEnum();
             case CustomPropertyStringBase::typeKey:
                 return new CustomPropertyString();
             case FolderBase::typeKey:
@@ -1425,6 +1428,12 @@ public:
                 break;
             case TextValueRunBase::styleIdPropertyKey:
                 object->as<TextValueRunBase>()->styleId(value);
+                break;
+            case CustomPropertyEnumBase::propertyValuePropertyKey:
+                object->as<CustomPropertyEnumBase>()->propertyValue(value);
+                break;
+            case CustomPropertyEnumBase::enumIdPropertyKey:
+                object->as<CustomPropertyEnumBase>()->enumId(value);
                 break;
             case FileAssetBase::assetIdPropertyKey:
                 object->as<FileAssetBase>()->assetId(value);
@@ -2813,6 +2822,10 @@ public:
                 return object->as<TextBase>()->verticalAlignValue();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->as<TextValueRunBase>()->styleId();
+            case CustomPropertyEnumBase::propertyValuePropertyKey:
+                return object->as<CustomPropertyEnumBase>()->propertyValue();
+            case CustomPropertyEnumBase::enumIdPropertyKey:
+                return object->as<CustomPropertyEnumBase>()->enumId();
             case FileAssetBase::assetIdPropertyKey:
                 return object->as<FileAssetBase>()->assetId();
             case AudioEventBase::assetIdPropertyKey:
@@ -3649,6 +3662,8 @@ public:
             case TextBase::wrapValuePropertyKey:
             case TextBase::verticalAlignValuePropertyKey:
             case TextValueRunBase::styleIdPropertyKey:
+            case CustomPropertyEnumBase::propertyValuePropertyKey:
+            case CustomPropertyEnumBase::enumIdPropertyKey:
             case FileAssetBase::assetIdPropertyKey:
             case AudioEventBase::assetIdPropertyKey:
             case CustomPropertyTriggerBase::propertyValuePropertyKey:
@@ -4373,6 +4388,10 @@ public:
                 return object->is<TextBase>();
             case TextValueRunBase::styleIdPropertyKey:
                 return object->is<TextValueRunBase>();
+            case CustomPropertyEnumBase::propertyValuePropertyKey:
+                return object->is<CustomPropertyEnumBase>();
+            case CustomPropertyEnumBase::enumIdPropertyKey:
+                return object->is<CustomPropertyEnumBase>();
             case FileAssetBase::assetIdPropertyKey:
                 return object->is<FileAssetBase>();
             case AudioEventBase::assetIdPropertyKey:
