@@ -23,7 +23,8 @@
         "int": 182,
         "string": "copyfactor"
       },
-      "description": "Copy factor."
+      "description": "Copy factor.",
+      "bindable": true
     },
     "minValue": {
       "type": "double",
@@ -32,7 +33,8 @@
         "int": 183,
         "string": "minvalue"
       },
-      "description": "Minimum value."
+      "description": "Minimum value.",
+      "bindable": true
     },
     "maxValue": {
       "type": "double",
@@ -41,7 +43,8 @@
         "int": 184,
         "string": "maxvalue"
       },
-      "description": "Maximum value."
+      "description": "Maximum value.",
+      "bindable": true
     },
     "offset": {
       "type": "bool",

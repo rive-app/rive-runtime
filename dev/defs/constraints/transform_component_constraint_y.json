@@ -14,7 +14,8 @@
         "int": 185,
         "string": "copyfactory"
       },
-      "description": "Copy factor."
+      "description": "Copy factor.",
+      "bindable": true
     },
     "minValueY": {
       "type": "double",
@@ -23,7 +24,8 @@
         "int": 186,
         "string": "minvaluey"
       },
-      "description": "Minimum value."
+      "description": "Minimum value.",
+      "bindable": true
     },
     "maxValueY": {
       "type": "double",
@@ -32,7 +34,8 @@
         "int": 187,
         "string": "maxvaluey"
       },
-      "description": "Maximum value."
+      "description": "Maximum value.",
+      "bindable": true
     },
     "doesCopyY": {
       "type": "bool",
