@@ -6,8 +6,10 @@
 
 using namespace rive;
 
+int luaopen_rive_base(lua_State* L);
 int luaopen_rive_math(lua_State* L);
 int luaopen_rive_renderer_library(lua_State* L);
+int luaopen_rive_properties(lua_State* L);
 
 std::unordered_map<std::string, int16_t> atoms = {
     {"length", (int16_t)LuaAtoms::length},
@@ -72,6 +74,9 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"restore", (int16_t)LuaAtoms::restore},
     {"transform", (int16_t)LuaAtoms::transform},
     {"value", (int16_t)LuaAtoms::value},
+    {"getNumber", (int16_t)LuaAtoms::getNumber},
+    {"addListener", (int16_t)LuaAtoms::addListener},
+    {"removeListener", (int16_t)LuaAtoms::removeListener},
 };
 
 static const luaL_Reg lualibs[] = {
@@ -79,6 +84,7 @@ static const luaL_Reg lualibs[] = {
     {LUA_STRLIBNAME, luaopen_string},
     {"math", luaopen_rive_math},
     {"renderer", luaopen_rive_renderer_library},
+    {"properties", luaopen_rive_properties},
     {NULL, NULL},
 };
 
@@ -186,6 +192,12 @@ static int luaR_error(lua_State* L)
     lua_error(L);
 }
 
+static int lua_late(lua_State* L)
+{
+    lua_pushnil(L);
+    return 1;
+}
+
 void ScriptingVM::init(lua_State* state, ScriptingContext* context)
 {
     luaopen_rive(state);
@@ -196,6 +208,9 @@ void ScriptingVM::init(lua_State* state, ScriptingContext* context)
 
     lua_pushcclosurek(state, luaR_error, "error", 0, nullptr);
     lua_setglobal(state, "error");
+
+    lua_pushcclosurek(state, lua_late, "late", 0, nullptr);
+    lua_setglobal(state, "late");
 
     luaL_sandbox(state);
     luaL_sandboxthread(state);

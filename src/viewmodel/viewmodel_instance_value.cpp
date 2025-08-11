@@ -1,6 +1,7 @@
 #include <sstream>
 #include <iomanip>
 #include <array>
+#include <algorithm>
 
 #include "rive/viewmodel/viewmodel_instance.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
@@ -22,6 +23,11 @@ StatusCode ViewModelInstanceValue::import(ImportStack& importStack)
     viewModelInstanceImporter->addValue(this);
 
     return Super::import(importStack);
+}
+
+bool ViewModelInstanceValue::hasChanged()
+{
+    return m_changeFlags & ValueFlags::valueChanged;
 }
 
 void ViewModelInstanceValue::viewModelProperty(ViewModelProperty* value)
@@ -67,5 +73,58 @@ const std::string& ViewModelInstanceValue::name() const
 void ViewModelInstanceValue::advanced()
 {
     m_usedLayers.clear();
-    m_hasChanged = false;
-};
+    m_changeFlags &= ~ValueFlags::valueChanged;
+}
+
+void ViewModelInstanceValue::addDelegate(
+    ViewModelInstanceValueDelegate* delegate)
+{
+    m_delegates.push_back(delegate);
+    m_changeFlags |= ValueFlags::delegatesChanged;
+}
+
+void ViewModelInstanceValue::removeDelegate(
+    ViewModelInstanceValueDelegate* delegate)
+{
+    auto itr = std::find(m_delegates.begin(), m_delegates.end(), delegate);
+    if (itr == m_delegates.end())
+    {
+        return;
+    }
+    m_delegates.erase(itr);
+    m_changeFlags |= ValueFlags::delegatesChanged;
+}
+
+void ViewModelInstanceValue::onValueChanged()
+{
+    m_changeFlags |= ValueFlags::valueChanged;
+
+    if (m_changeFlags & ValueFlags::delegatesChanged)
+    {
+        m_delegatesCopy.clear();
+        std::copy(m_delegates.begin(),
+                  m_delegates.end(),
+                  std::back_inserter(m_delegatesCopy));
+        m_changeFlags &= ~ValueFlags::delegatesChanged;
+    }
+
+    if (m_changeFlags & ValueFlags::delegating)
+    {
+        // We're already calling delegates for this value change, changing the
+        // value in a delegate will not report the change.
+        return;
+    }
+
+    // Flag to guard against calling this recursively.
+    m_changeFlags |= ValueFlags::delegating;
+
+    // Iterate over a copy of the delegates in case delegates get changed in
+    // valueChanged callbacks.
+    for (auto delegate : m_delegatesCopy)
+    {
+        delegate->valueChanged();
+    }
+
+    // Clear guard flag.
+    m_changeFlags &= ~ValueFlags::delegating;
+}

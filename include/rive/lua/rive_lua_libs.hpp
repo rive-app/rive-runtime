@@ -7,6 +7,13 @@
 #include "rive/renderer.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
+#include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive/viewmodel/viewmodel.hpp"
+
+#include <unordered_map>
+
 namespace rive
 {
 class Factory;
@@ -89,7 +96,10 @@ enum class LuaAtoms : int16_t
     transform,
 
     // Scripted Properties
-    value
+    value,
+    getNumber,
+    addListener,
+    removeListener
 };
 
 struct ScriptedMat2D
@@ -290,13 +300,81 @@ private:
     uint32_t m_saveCount = 0;
 };
 
-struct ScriptingPropertyFloat
+struct ScriptedListener
 {
+    int function;
+    int userdata;
+};
+
+class ScriptedProperty : public ViewModelInstanceValueDelegate
+{
+public:
+    ScriptedProperty(lua_State* L, rcp<ViewModelInstanceValue> value);
+    virtual ~ScriptedProperty();
+    int addListener();
+    int removeListener();
+    void clearListeners();
+
+    void valueChanged() override;
+
+    const lua_State* state() const { return m_state; }
+
+private:
+    std::vector<ScriptedListener> m_listeners;
+
+protected:
+    lua_State* m_state;
+    rcp<ViewModelInstanceValue> m_instanceValue;
+};
+
+class ScriptedPropertyViewModel : public ScriptedProperty
+{
+public:
+    ScriptedPropertyViewModel(lua_State* L,
+                              rcp<ViewModel> viewModel,
+                              rcp<ViewModelInstanceViewModel> value);
+    ~ScriptedPropertyViewModel();
     static constexpr uint8_t luaTag = LUA_T_COUNT + 10;
+    static constexpr const char* luaName = "PropertyViewModel";
+    static constexpr bool hasMetatable = true;
+    int pushValue(const char* name, int coreType = 0);
+
+private:
+    rcp<ViewModel> m_viewModel;
+    std::unordered_map<std::string, int> m_propertyRefs;
+};
+
+class ScriptedPropertyNumber : public ScriptedProperty
+{
+public:
+    ScriptedPropertyNumber(lua_State* L, rcp<ViewModelInstanceNumber> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 11;
     static constexpr const char* luaName = "Property<number>";
     static constexpr bool hasMetatable = true;
-    float value;
+
+    int pushValue();
+    void setValue(float value);
 };
+
+// Make
+// ScriptedPropertyViewModel
+//      - Nullable ViewModelInstanceValue (ViewModelInstanceViewModel)
+//      - Requires ViewModel to know which properties to expect
+// ScriptedPropertyEnum
+//      - Nullable ViewModelInstanceValue (ViewModelInstanceEnum)
+//      - Requires DataEnum for expected types
+// ScriptedPropertyNumber
+//      - Nullable ViewModelInstanceValue (ViewModelInstanceNumber)
+// ScriptedPropertyString
+//      - Nullable ViewModelInstanceValue (ViewModelInstanceString)
+// ScriptedPropertyTrigger
+//      - Nullable ViewModelInstanceValue (ViewModelInstanceTrigger)
+// ScriptedPropertyArtboard
+//      - Nullable ViewModelInstanceValue (ViewModelInstanceArtboard)
+// ScriptedPropertyColor
+//      - Nullable ViewModelInstanceValue (ViewModelInstanceColor)
+// ScriptedPropertyList
+//      - Nullable ViewModelInstanceValue (ViewModelInstanceList)
 
 // Make renderer: return lua_newrive<ScriptedRenderer>(L, renderer);
 template <class T, class... Args>

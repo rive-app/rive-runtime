@@ -1,5 +1,5 @@
 local dependency = require('dependency')
-local luau = dependency.github('luigi-rosso/luau', 'rive_0_10')
+local luau = dependency.github('luigi-rosso/luau', 'rive_0_12')
 
 dofile('rive_build_config.lua')
 
@@ -20,7 +20,7 @@ do
     files({
         luau .. '/VM/src/**.cpp',
     })
-    defines({ 'LUA_USE_LONGJMP' })
+    defines({ 'LUA_USE_LONGJMP', 'RIVE_LUAU' })
     optimize('Size')
     if TESTING == true then
         filter({ 'system:windows' })
@@ -47,6 +47,7 @@ do
     })
 
     files({ luau .. '/Compiler/src/**.cpp', luau .. '/Ast/src/**.cpp' })
+    defines({ 'RIVE_LUAU' })
     optimize('Size')
     filter({ 'options:with-asan' })
     do

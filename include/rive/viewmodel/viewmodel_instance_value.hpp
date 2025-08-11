@@ -9,9 +9,24 @@
 #include "rive/component_dirt.hpp"
 #include "rive/refcnt.hpp"
 #include <stdio.h>
+#include <list>
+
 namespace rive
 {
 class ViewModelInstance;
+class ViewModelInstanceValueDelegate
+{
+public:
+    virtual void valueChanged() = 0;
+};
+
+enum class ValueFlags : uint8_t
+{
+    valueChanged = 1 << 1,
+    delegatesChanged = 1 << 2,
+    delegating = 1 << 3,
+};
+RIVE_MAKE_ENUM_BITSET(ValueFlags)
 class ViewModelInstanceValue : public ViewModelInstanceValueBase,
                                public RefCnt<ViewModelInstanceValue>,
                                public Triggerable
@@ -19,7 +34,13 @@ class ViewModelInstanceValue : public ViewModelInstanceValueBase,
 private:
     ViewModelProperty* m_ViewModelProperty;
     static std::string defaultName;
-    bool m_hasChanged = false;
+    ValueFlags m_changeFlags;
+    std::vector<ViewModelInstanceValueDelegate*> m_delegates;
+    std::vector<ViewModelInstanceValueDelegate*> m_delegatesCopy;
+
+public:
+    void addDelegate(ViewModelInstanceValueDelegate* delegate);
+    void removeDelegate(ViewModelInstanceValueDelegate* delegate);
 
 protected:
     DependencyHelper<rcp<ViewModelInstance>, Dirtyable> m_DependencyHelper;
@@ -33,8 +54,8 @@ public:
     void removeDependent(Dirtyable* value);
     virtual void setRoot(rcp<ViewModelInstance> value);
     virtual void advanced();
-    bool hasChanged() { return m_hasChanged; };
-    void onValueChanged() { m_hasChanged = true; }
+    bool hasChanged();
+    void onValueChanged();
     const std::string& name() const;
 };
 } // namespace rive
