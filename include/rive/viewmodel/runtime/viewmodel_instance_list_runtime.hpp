@@ -26,6 +26,7 @@ public:
     void removeInstanceAt(int);
     void swap(uint32_t, uint32_t);
     size_t size() const;
+    const DataType dataType() override { return DataType::list; }
 
 private:
     std::unordered_map<rcp<ViewModelInstanceListItem>,

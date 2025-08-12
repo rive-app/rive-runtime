@@ -24,6 +24,7 @@ public:
     void valueIndex(uint32_t);
     std::vector<std::string> values() const;
     std::string enumType() const;
+    const DataType dataType() override { return DataType::enumType; }
 
 private:
     std::vector<DataEnumValue*> dataValues() const;

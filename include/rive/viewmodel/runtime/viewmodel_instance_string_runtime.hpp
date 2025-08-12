@@ -18,6 +18,7 @@ public:
     {}
     const std::string& value() const;
     void value(std::string);
+    const DataType dataType() override { return DataType::string; }
 };
 } // namespace rive
 #endif

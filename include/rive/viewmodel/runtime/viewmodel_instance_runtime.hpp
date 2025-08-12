@@ -79,7 +79,12 @@ private:
         auto itr = m_properties.find(name);
         if (itr != m_properties.end())
         {
-            return static_cast<U*>(itr->second);
+            if (itr->second->viewModelInstanceValue() &&
+                itr->second->viewModelInstanceValue()->is<T>())
+            {
+                return static_cast<U*>(itr->second);
+            }
+            return nullptr;
         }
         auto viewModelInstanceValue = m_viewModelInstance->propertyValue(name);
         if (viewModelInstanceValue != nullptr &&

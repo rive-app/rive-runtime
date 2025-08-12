@@ -21,6 +21,7 @@ public:
     void rgb(int, int, int);
     void argb(int, int, int, int);
     void alpha(int);
+    const DataType dataType() override { return DataType::color; }
 };
 } // namespace rive
 #endif

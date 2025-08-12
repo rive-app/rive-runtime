@@ -18,6 +18,7 @@ public:
         ViewModelInstanceValueRuntime(viewModelInstance)
     {}
     void value(Artboard* artboard);
+    const DataType dataType() override { return DataType::artboard; }
 
 #ifdef TESTING
     Artboard* testing_value();

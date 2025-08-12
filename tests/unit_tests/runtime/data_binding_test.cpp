@@ -13,6 +13,10 @@
 #include <rive/custom_property_string.hpp>
 #include <rive/custom_property_trigger.hpp>
 #include <rive/constraints/follow_path_constraint.hpp>
+#include <rive/viewmodel/runtime/viewmodel_runtime.hpp>
+#include <rive/viewmodel/runtime/viewmodel_instance_runtime.hpp>
+#include <rive/viewmodel/runtime/viewmodel_instance_value_runtime.hpp>
+#include <rive/data_bind/data_values/data_type.hpp>
 #include <rive/viewmodel/viewmodel_instance_number.hpp>
 #include <rive/viewmodel/viewmodel_instance_color.hpp>
 #include <rive/viewmodel/viewmodel_instance_string.hpp>
@@ -1373,4 +1377,59 @@ TEST_CASE("Custom enum properties", "[data binding]")
     }
 
     CHECK(silver.matches("custom_property_enum"));
+}
+
+TEST_CASE("View model runtime properties", "[data binding]")
+{
+
+    auto file = ReadRiveFile("assets/viewmodel_runtime_file.riv");
+
+    auto vm = file->viewModelByName("vm");
+    REQUIRE(vm != nullptr);
+    auto instance = vm->createDefaultInstance();
+    REQUIRE(instance != nullptr);
+    // Number
+    auto num = instance->propertyNumber("num");
+    REQUIRE(num != nullptr);
+    REQUIRE(num->dataType() == rive::DataType::number);
+    // string
+    auto str = instance->propertyString("str");
+    REQUIRE(str != nullptr);
+    REQUIRE(str->dataType() == rive::DataType::string);
+    // Requesting a property with the same name from cache doesn't return the
+    // wrong object
+    auto strWrong = instance->propertyNumber("str");
+    REQUIRE(strWrong == nullptr);
+    // Boolean
+    auto boo = instance->propertyBoolean("boo");
+    REQUIRE(boo != nullptr);
+    REQUIRE(boo->dataType() == rive::DataType::boolean);
+    // Color
+    auto col = instance->propertyColor("col");
+    REQUIRE(col != nullptr);
+    REQUIRE(col->dataType() == rive::DataType::color);
+    // Trigger
+    auto tri = instance->propertyTrigger("tri");
+    REQUIRE(tri != nullptr);
+    REQUIRE(tri->dataType() == rive::DataType::trigger);
+    // Enum
+    auto enu = instance->propertyEnum("enu");
+    REQUIRE(enu != nullptr);
+    REQUIRE(enu->dataType() == rive::DataType::enumType);
+    // Image
+    auto ima = instance->propertyImage("ima");
+    REQUIRE(ima != nullptr);
+    REQUIRE(ima->dataType() == rive::DataType::assetImage);
+    // Artboard
+    auto art = instance->propertyArtboard("art");
+    REQUIRE(art != nullptr);
+    REQUIRE(art->dataType() == rive::DataType::artboard);
+    // List
+    auto lis = instance->propertyList("lis");
+    REQUIRE(lis != nullptr);
+    REQUIRE(lis->dataType() == rive::DataType::list);
+    // number in nested view model: chi > num
+    auto numChi = instance->propertyNumber("chi/chi-num");
+    REQUIRE(numChi != nullptr);
+    REQUIRE(numChi->dataType() == rive::DataType::number);
 }
