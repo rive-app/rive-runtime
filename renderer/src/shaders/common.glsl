@@ -310,6 +310,28 @@ INLINE void set_clip_rect_plane_distances(float2x2 clipRectInverseMatrix,
 #endif // @RENDER_MODE_MSAA
 #endif // VERTEX
 
+#ifdef @FRAGMENT
+#ifdef @NEEDS_GAMMA_CORRECTION
+half gamma_to_linear(half color)
+{
+    return (color <= 0.04045) ? color / 12.92
+                              : pow(abs((color + 0.055) / 1.055), 2.4);
+}
+
+half3 gamma_to_linear(half3 color)
+{
+    return make_half3(gamma_to_linear(color.r),
+                      gamma_to_linear(color.g),
+                      gamma_to_linear(color.b));
+}
+
+half4 gamma_to_linear(half4 color)
+{
+    return make_half4(gamma_to_linear(color.rgb), color.a);
+}
+#endif // NEEDS_GAMMA_CORRECTION
+#endif // FRAGMENT
+
 #ifdef @DRAW_IMAGE
 #ifndef $UNIFORM_DEFINITIONS_AUTO_GENERATED
 UNIFORM_BLOCK_BEGIN(IMAGE_DRAW_UNIFORM_BUFFER_IDX, @ImageDrawUniforms)
