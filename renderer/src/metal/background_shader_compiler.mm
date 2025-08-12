@@ -26,7 +26,11 @@ BackgroundShaderCompiler::~BackgroundShaderCompiler()
 {
     if (m_compilerThread.joinable())
     {
-        m_shouldQuit = true;
+        {
+            std::lock_guard lock(m_mutex);
+            m_shouldQuit = true;
+        }
+
         m_workAddedCondition.notify_all();
         m_compilerThread.join();
     }
