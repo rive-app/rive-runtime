@@ -420,3 +420,15 @@ TEST_CASE("LayoutComponent Alignment", "[layout]")
     REQUIRE(target2Components.y() == 200);
     REQUIRE(target3Components.y() == 400);
 }
+
+TEST_CASE("Prevent Margin Pct on Artboard", "[layout]")
+{
+    auto file = ReadRiveFile("assets/layout/artboard_percent_margin.riv");
+
+    auto artboard = file->artboard();
+
+    artboard->advance(0.0f);
+
+    REQUIRE(artboard->layoutWidth() == 501.0f);
+    REQUIRE(artboard->layoutHeight() == 512.0f);
+}

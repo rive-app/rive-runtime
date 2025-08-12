@@ -798,14 +798,21 @@ void LayoutComponent::syncStyle()
         YGValue{m_style->borderTop(), m_style->borderTopUnits()};
     ygStyle.border()[YGEdgeBottom] =
         YGValue{m_style->borderBottom(), m_style->borderBottomUnits()};
+
+    bool hasLayoutParent = layoutParent() != nullptr;
     ygStyle.margin()[startEdge] =
-        YGValue{m_style->marginLeft(), m_style->marginLeftUnits()};
+        YGValue{m_style->marginLeft(),
+                hasLayoutParent ? m_style->marginLeftUnits() : YGUnitPoint};
     ygStyle.margin()[endEdge] =
-        YGValue{m_style->marginRight(), m_style->marginRightUnits()};
+        YGValue{m_style->marginRight(),
+                hasLayoutParent ? m_style->marginRightUnits() : YGUnitPoint};
     ygStyle.margin()[YGEdgeTop] =
-        YGValue{m_style->marginTop(), m_style->marginTopUnits()};
+        YGValue{m_style->marginTop(),
+                hasLayoutParent ? m_style->marginTopUnits() : YGUnitPoint};
     ygStyle.margin()[YGEdgeBottom] =
-        YGValue{m_style->marginBottom(), m_style->marginBottomUnits()};
+        YGValue{m_style->marginBottom(),
+                hasLayoutParent ? m_style->marginBottomUnits() : YGUnitPoint};
+
     ygStyle.padding()[startEdge] =
         YGValue{m_style->paddingLeft(), m_style->paddingLeftUnits()};
     ygStyle.padding()[endEdge] =
