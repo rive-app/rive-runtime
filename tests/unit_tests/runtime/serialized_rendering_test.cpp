@@ -605,3 +605,21 @@ TEST_CASE("car widgets data binding", "[silver]")
 
     CHECK(silver.matches("car_widgets_v01"));
 }
+
+TEST_CASE("Vertical align on text with ellipsis", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/vertical_align_ellipsis.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("vertical_align_ellipsis"));
+}

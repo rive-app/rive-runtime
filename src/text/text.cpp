@@ -80,6 +80,7 @@ TextBoundsInfo Text::computeBoundsInfo()
     float y = 0.0f;
     float minY = 0.0f;
     float maxWidth = 0.0f;
+    float ellipsedHeight = 0;
     if (textOrigin() == TextOrigin::baseline && !m_lines.empty() &&
         !m_lines[0].empty())
     {
@@ -92,8 +93,7 @@ TextBoundsInfo Text::computeBoundsInfo()
     // Find the line to put the ellipsis on (line before the one that
     // overflows).
     bool wantEllipsis = overflow() == TextOverflow::ellipsis &&
-                        effectiveSizing() == TextSizing::fixed &&
-                        verticalAlign() == VerticalTextAlign::top;
+                        effectiveSizing() == TextSizing::fixed;
 
     int lastLineIndex = -1;
     for (const SimpleArray<GlyphLine>& paragraphLines : m_lines)
@@ -112,6 +112,7 @@ TextBoundsInfo Text::computeBoundsInfo()
             lastLineIndex++;
             if (wantEllipsis && y + line.bottom <= effectiveHeight())
             {
+                ellipsedHeight = y + line.bottom;
                 ellipsisLine++;
             }
         }
@@ -122,12 +123,12 @@ TextBoundsInfo Text::computeBoundsInfo()
         }
         y += paragraphSpace;
     }
-    auto totalHeight = y;
     if (wantEllipsis && ellipsisLine == -1)
     {
         // Nothing fits, just show the first line and ellipse it.
         ellipsisLine = 0;
     }
+    auto totalHeight = ellipsisLine > 0 ? ellipsedHeight : y;
     isEllipsisLineLast = lastLineIndex == ellipsisLine;
     return {
         minY,
@@ -853,8 +854,7 @@ Vec2D Text::measure(Vec2D maxSize)
         }
         int ellipsisLine = -1;
         bool wantEllipsis = overflow() == TextOverflow::ellipsis &&
-                            sizing() == TextSizing::fixed &&
-                            verticalAlign() == VerticalTextAlign::top;
+                            sizing() == TextSizing::fixed;
 
         for (const SimpleArray<GlyphLine>& paragraphLines : lines)
         {
