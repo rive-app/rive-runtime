@@ -73,23 +73,6 @@ void requestDeviceCallback(WGPURequestDeviceStatus status,
     queue = device.GetQueue();
     assert(queue.Get());
 
-    RenderContextWebGPUImpl::ContextOptions contextOptions;
-    renderContext = RenderContextWebGPUImpl::MakeContext(adapter,
-                                                         device,
-                                                         queue,
-                                                         contextOptions);
-    renderTarget =
-        renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-            ->makeRenderTarget(wgpu::TextureFormat::RGBA8Unorm, 1920, 1080);
-    renderer = std::make_unique<RiveRenderer>(renderContext.get());
-
-    rivFile = File::import({marty, marty_len}, renderContext.get());
-    // rivFile = File::import({egg_v2, egg_v2_len}, renderContext.get());
-    // rivFile = File::import({rope, rope_len}, renderContext.get());
-    artboard = rivFile->artboardDefault();
-    scene = artboard->defaultScene();
-    scene->advanceAndApply(0);
-
     {
 #if RIVE_WEBGPU > 1
         WGPUEmscriptenSurfaceSourceCanvasHTMLSelector htmlSelector = WGPU_EMSCRIPTEN_SURFACE_SOURCE_CANVAS_HTML_SELECTOR_INIT;
@@ -128,6 +111,23 @@ void requestDeviceCallback(WGPURequestDeviceStatus status,
 
         wgpuSurfaceConfigure(surface, &conf);
     }
+
+    RenderContextWebGPUImpl::ContextOptions contextOptions;
+    renderContext = RenderContextWebGPUImpl::MakeContext(adapter,
+                                                         device,
+                                                         queue,
+                                                         contextOptions);
+    renderTarget =
+        renderContext->static_impl_cast<RenderContextWebGPUImpl>()
+        ->makeRenderTarget(static_cast<wgpu::TextureFormat>(format), 1920, 1080);
+    renderer = std::make_unique<RiveRenderer>(renderContext.get());
+
+    rivFile = File::import({marty, marty_len}, renderContext.get());
+    // rivFile = File::import({egg_v2, egg_v2_len}, renderContext.get());
+    // rivFile = File::import({rope, rope_len}, renderContext.get());
+    artboard = rivFile->artboardDefault();
+    scene = artboard->defaultScene();
+    scene->advanceAndApply(0);
 
     emscripten_set_canvas_element_size("#canvas", 1920, 1080);
 
