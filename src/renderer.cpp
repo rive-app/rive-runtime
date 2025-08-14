@@ -137,7 +137,10 @@ RenderImage::~RenderImage() {}
 RenderPath::RenderPath() {}
 RenderPath::~RenderPath() {}
 
-bool rive::isWhiteSpace(Unichar c) { return c <= ' ' || c == 0x2028; }
+bool rive::isWhiteSpace(Unichar c)
+{
+    return c <= ' ' || c == 0x2028 || c == 0x2060;
+}
 
 SimpleArray<Paragraph> Font::shapeText(Span<const Unichar> text,
                                        Span<const TextRun> runs,
