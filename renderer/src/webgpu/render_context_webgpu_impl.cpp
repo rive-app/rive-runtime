@@ -28,13 +28,24 @@
 
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
+#endif
 
+#ifdef RIVE_WEBGPU
+#include <webgpu/webgpu_cpp.h>
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#if RIVE_WEBGPU == 1
+#include "webgpu_compat.h"
+#endif
+#endif
+
+#if (defined(RIVE_WEBGPU) && RIVE_WEBGPU > 1) || defined(RIVE_DAWN)
 // clang-format off
 // clang-format disagrees about this block on windows & mac.
-#define WGPU_STRING_VIEW(s)                                                    \
-    {                                                                          \
-        .data = s,                                                             \
-        .length = strlen(s),                                                   \
+#define WGPU_STRING_VIEW(s)                     \
+    {                                           \
+        .data = s,                              \
+        .length = strlen(s),                    \
     }
 // clang-format on
 
@@ -46,15 +57,8 @@ using TextureDataLayout = TexelCopyBufferLayout;
 }; // namespace wgpu
 #endif
 
-#ifdef RIVE_WEBGPU
-#include <webgpu/webgpu_cpp.h>
-#include <emscripten.h>
-#include <emscripten/html5_webgpu.h>
-#include "webgpu_compat.h"
-#endif
-
 #ifdef RIVE_WAGYU
-#include "webgpu_wagyu.h"
+#include <webgpu/webgpu_wagyu.h>
 
 #include <sstream>
 
@@ -307,11 +311,11 @@ public:
         };
 
         wgpu::VertexBufferLayout vertexBufferLayout = {
-            .arrayStride = sizeof(gpu::GradientSpan),
-            .stepMode = wgpu::VertexStepMode::Instance,
             .attributeCount = std::size(attrs),
             .attributes = attrs,
         };
+        vertexBufferLayout.arrayStride = sizeof(gpu::GradientSpan);
+        vertexBufferLayout.stepMode = wgpu::VertexStepMode::Instance;
 
         wgpu::ColorTargetState colorTargetState = {
             .format = wgpu::TextureFormat::RGBA8Unorm,
@@ -463,11 +467,11 @@ public:
         };
 
         wgpu::VertexBufferLayout vertexBufferLayout = {
-            .arrayStride = sizeof(gpu::TessVertexSpan),
-            .stepMode = wgpu::VertexStepMode::Instance,
             .attributeCount = std::size(attrs),
             .attributes = attrs,
         };
+        vertexBufferLayout.arrayStride = sizeof(gpu::TessVertexSpan);
+        vertexBufferLayout.stepMode = wgpu::VertexStepMode::Instance;
 
         wgpu::ColorTargetState colorTargetState = {
             .format = wgpu::TextureFormat::RGBA32Uint,
@@ -633,11 +637,11 @@ public:
         };
 
         wgpu::VertexBufferLayout vertexBufferLayout = {
-            .arrayStride = sizeof(gpu::PatchVertex),
-            .stepMode = wgpu::VertexStepMode::Vertex,
             .attributeCount = std::size(attrs),
             .attributes = attrs,
         };
+        vertexBufferLayout.arrayStride = sizeof(gpu::PatchVertex);
+        vertexBufferLayout.stepMode = wgpu::VertexStepMode::Vertex;
 
         wgpu::BlendState blendState = {
             .color = {
@@ -2125,14 +2129,13 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 },
             };
 
-            vertexBufferLayouts = {
-                WGPUVertexBufferLayout{
-                    .arrayStride = sizeof(gpu::PatchVertex),
-                    .stepMode = WGPUVertexStepMode_Vertex,
-                    .attributeCount = std::size(attrs),
-                    .attributes = attrs.data(),
-                },
+            WGPUVertexBufferLayout vertexBufferLayout = {
+                .attributeCount = std::size(attrs),
+                .attributes = attrs.data(),
             };
+            vertexBufferLayout.arrayStride = sizeof(gpu::PatchVertex);
+            vertexBufferLayout.stepMode = WGPUVertexStepMode_Vertex;
+            vertexBufferLayouts = { vertexBufferLayout };
             break;
         }
         case DrawType::interiorTriangulation:
@@ -2146,19 +2149,18 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 },
             };
 
-            vertexBufferLayouts = {
-                WGPUVertexBufferLayout{
-                    .arrayStride = sizeof(gpu::TriangleVertex),
-                    .stepMode = WGPUVertexStepMode_Vertex,
-                    .attributeCount = std::size(attrs),
-                    .attributes = attrs.data(),
-                },
-            };
+            WGPUVertexBufferLayout vertexBufferLayout = WGPU_VERTEX_BUFFER_LAYOUT_INIT;
+            vertexBufferLayout.attributeCount = std::size(attrs);
+            vertexBufferLayout.attributes = attrs.data();
+            vertexBufferLayout.arrayStride = sizeof(gpu::TriangleVertex);
+            vertexBufferLayout.stepMode = WGPUVertexStepMode_Vertex;
+            vertexBufferLayouts = { vertexBufferLayout };
             break;
         }
         case DrawType::imageRect:
             RIVE_UNREACHABLE();
         case DrawType::imageMesh:
+        {
             attrs = {
                 WGPUVertexAttribute{
                     .format = WGPUVertexFormat_Float32x2,
@@ -2172,21 +2174,21 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 },
             };
 
-            vertexBufferLayouts = {
-                WGPUVertexBufferLayout{
-                    .arrayStride = sizeof(float) * 2,
-                    .stepMode = WGPUVertexStepMode_Vertex,
-                    .attributeCount = 1,
-                    .attributes = &attrs[0],
-                },
-                WGPUVertexBufferLayout{
-                    .arrayStride = sizeof(float) * 2,
-                    .stepMode = WGPUVertexStepMode_Vertex,
-                    .attributeCount = 1,
-                    .attributes = &attrs[1],
-                },
-            };
+            WGPUVertexBufferLayout vertexBufferLayout1 = WGPU_VERTEX_BUFFER_LAYOUT_INIT;
+            vertexBufferLayout1.attributeCount = 1;
+            vertexBufferLayout1.attributes = &attrs[0];
+            vertexBufferLayout1.arrayStride = sizeof(float) * 2;
+            vertexBufferLayout1.stepMode = WGPUVertexStepMode_Vertex;
+
+            WGPUVertexBufferLayout vertexBufferLayout2 = WGPU_VERTEX_BUFFER_LAYOUT_INIT;
+            vertexBufferLayout2.attributeCount = 1;
+            vertexBufferLayout2.attributes = &attrs[1];
+            vertexBufferLayout2.arrayStride = sizeof(float) * 2;
+            vertexBufferLayout2.stepMode = WGPUVertexStepMode_Vertex;
+
+            vertexBufferLayouts = { vertexBufferLayout1, vertexBufferLayout2 };
             break;
+        }
         case DrawType::atomicInitialize:
         case DrawType::atomicResolve:
         case DrawType::msaaStrokes:
@@ -2289,7 +2291,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             inputAttachments[i].format = colorAttachments[i].format;
             inputAttachments[i].usedAsColor = WGPUOptionalBool_True;
         }
-        wagyuFragmentState.inputsCount = std::size(inputAttachments);
+        wagyuFragmentState.inputCount = std::size(inputAttachments);
         wagyuFragmentState.inputs = inputAttachments;
         wagyuFragmentState.featureFlags =
             WGPUWagyuFragmentStateFeaturesFlags_RasterizationOrderAttachmentAccess;
