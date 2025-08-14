@@ -50,6 +50,7 @@ public:
 
     struct Capabilities
     {
+        wgpu::BackendType backendType = wgpu::BackendType::Undefined;
 #ifdef RIVE_WAGYU
         PixelLocalStorageType plsType = PixelLocalStorageType::none;
 
@@ -154,9 +155,11 @@ private:
     std::unique_ptr<BufferRing> m_loadStoreEXTUniforms;
 #endif
 
+#ifndef RIVE_WAGYU
     // Blits texture-to-texture using a draw command.
     class BlitTextureAsDrawPipeline;
     std::unique_ptr<BlitTextureAsDrawPipeline> m_blitTextureAsDrawPipeline;
+#endif
 
     // Renders color ramps to the gradient texture.
     class ColorRampPipeline;

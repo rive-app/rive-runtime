@@ -265,6 +265,9 @@ VERTEX_MAIN(@tessellateVertexMain, Attrs, attrs, _vertexID, _instanceID)
     float4 pos = pixel_coord_to_clip_coord(coord,
                                            2. / TESS_TEXTURE_WIDTH,
                                            uniforms.tessInverseViewportY);
+#ifdef @POST_INVERT_Y
+    pos.y = -pos.y;
+#endif
 
     VARYING_PACK(v_p0p1);
     VARYING_PACK(v_p2p3);

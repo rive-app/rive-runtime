@@ -29,10 +29,14 @@
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
 
+// clang-format off
+// clang-format disagrees about this block on windows & mac.
 #define WGPU_STRING_VIEW(s)                                                    \
     {                                                                          \
-        .data = s, .length = strlen(s)                                         \
+        .data = s,                                                             \
+        .length = strlen(s),                                                   \
     }
+// clang-format on
 
 namespace wgpu
 {
@@ -57,6 +61,7 @@ using TextureDataLayout = TexelCopyBufferLayout;
 #include "generated/shaders/glsl.glsl.hpp"
 #include "generated/shaders/constants.glsl.hpp"
 #include "generated/shaders/common.glsl.hpp"
+#include "generated/shaders/color_ramp.glsl.hpp"
 #include "generated/shaders/bezier_utils.glsl.hpp"
 #include "generated/shaders/tessellate.glsl.hpp"
 #include "generated/shaders/render_atlas.glsl.hpp"
@@ -252,10 +257,51 @@ public:
         wgpu::PipelineLayout pipelineLayout =
             device.CreatePipelineLayout(&pipelineLayoutDesc);
 
-        wgpu::ShaderModule vertexShader =
-            compile_shader_module_spirv(device,
-                                        color_ramp_vert,
-                                        std::size(color_ramp_vert));
+        wgpu::ShaderModule vertexShader, fragmentShader;
+#ifdef RIVE_WAGYU
+        if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
+        {
+            // Rive shaders tend to be long and prone to vendor bugs in the
+            // compiler. Instead of SPIRV, send down the raw Rive GLSL sources,
+            // which have various workarounds for known issues and are tested
+            // regularly.
+            std::ostringstream glsl;
+            glsl << "#define " << GLSL_POST_INVERT_Y << " true\n";
+            glsl << glsl::glsl << "\n";
+            glsl << glsl::constants << "\n";
+            glsl << glsl::common << "\n";
+            glsl << glsl::color_ramp << "\n";
+
+            std::ostringstream vertexGLSL;
+            vertexGLSL << "#version 310 es\n";
+            vertexGLSL << "#define " GLSL_VERTEX " true\n";
+            vertexGLSL << glsl.str();
+            vertexShader =
+                compile_shader_module_wagyu(device,
+                                            vertexGLSL.str().c_str(),
+                                            WGPUWagyuShaderLanguage_GLSLRAW);
+
+            std::ostringstream fragmentGLSL;
+            fragmentGLSL << "#version 310 es\n";
+            fragmentGLSL << "#define " GLSL_FRAGMENT " true\n";
+            fragmentGLSL << glsl.str();
+            fragmentShader =
+                compile_shader_module_wagyu(device,
+                                            fragmentGLSL.str().c_str(),
+                                            WGPUWagyuShaderLanguage_GLSLRAW);
+        }
+        else
+#endif
+        {
+            vertexShader =
+                compile_shader_module_spirv(device,
+                                            color_ramp_vert,
+                                            std::size(color_ramp_vert));
+            fragmentShader =
+                compile_shader_module_spirv(device,
+                                            color_ramp_frag,
+                                            std::size(color_ramp_frag));
+        }
 
         wgpu::VertexAttribute attrs[] = {
             {
@@ -271,11 +317,6 @@ public:
             .attributeCount = std::size(attrs),
             .attributes = attrs,
         };
-
-        wgpu::ShaderModule fragmentShader =
-            compile_shader_module_spirv(device,
-                                        color_ramp_frag,
-                                        std::size(color_ramp_frag));
 
         wgpu::ColorTargetState colorTargetState = {
             .format = wgpu::TextureFormat::RGBA8Unorm,
@@ -351,31 +392,44 @@ public:
         wgpu::PipelineLayout pipelineLayout =
             device.CreatePipelineLayout(&pipelineLayoutDesc);
 
-        wgpu::ShaderModule vertexShader;
+        wgpu::ShaderModule vertexShader, fragmentShader;
 #ifdef RIVE_WAGYU
-        if (impl->m_capabilities.polyfillVertexStorageBuffers)
+        if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
-            // The built-in SPIRV does not #define
-            // DISABLE_SHADER_STORAGE_BUFFERS. Recompile the tessellation shader
-            // with storage buffers disabled.
+            // Rive shaders tend to be long and prone to vendor bugs in the
+            // compiler. Instead of SPIRV, send down the raw Rive GLSL sources,
+            // which have various workarounds for known issues and are tested
+            // regularly.
+            std::ostringstream glsl;
+            if (impl->m_capabilities.polyfillVertexStorageBuffers)
+            {
+                glsl << "#define " GLSL_DISABLE_SHADER_STORAGE_BUFFERS
+                        " true\n";
+            }
+            glsl << "#define " << GLSL_POST_INVERT_Y << " true\n";
+            glsl << glsl::glsl << "\n";
+            glsl << glsl::constants << "\n";
+            glsl << glsl::common << "\n";
+            glsl << glsl::bezier_utils << "\n";
+            glsl << glsl::tessellate << "\n";
+
             std::ostringstream vertexGLSL;
-            vertexGLSL << "#version 460\n";
-            vertexGLSL << "#pragma shader_stage(vertex)\n";
+            vertexGLSL << "#version 310 es\n";
             vertexGLSL << "#define " GLSL_VERTEX " true\n";
-            vertexGLSL << "#define " GLSL_DISABLE_SHADER_STORAGE_BUFFERS
-                          " true\n";
-            vertexGLSL << "#define " GLSL_TARGET_VULKAN " true\n";
-            vertexGLSL
-                << "#extension GL_EXT_samplerless_texture_functions : enable\n";
-            vertexGLSL << glsl::glsl << "\n";
-            vertexGLSL << glsl::constants << "\n";
-            vertexGLSL << glsl::common << "\n";
-            vertexGLSL << glsl::bezier_utils << "\n";
-            vertexGLSL << glsl::tessellate << "\n";
+            vertexGLSL << glsl.str();
             vertexShader =
                 compile_shader_module_wagyu(device,
                                             vertexGLSL.str().c_str(),
-                                            WGPUWagyuShaderLanguage_GLSL);
+                                            WGPUWagyuShaderLanguage_GLSLRAW);
+
+            std::ostringstream fragmentGLSL;
+            fragmentGLSL << "#version 310 es\n";
+            fragmentGLSL << "#define " GLSL_FRAGMENT " true\n";
+            fragmentGLSL << glsl.str();
+            fragmentShader =
+                compile_shader_module_wagyu(device,
+                                            fragmentGLSL.str().c_str(),
+                                            WGPUWagyuShaderLanguage_GLSLRAW);
         }
         else
 #endif
@@ -384,6 +438,10 @@ public:
                 compile_shader_module_spirv(device,
                                             tessellate_vert,
                                             std::size(tessellate_vert));
+            fragmentShader =
+                compile_shader_module_spirv(device,
+                                            tessellate_frag,
+                                            std::size(tessellate_frag));
         }
 
         wgpu::VertexAttribute attrs[] = {
@@ -415,11 +473,6 @@ public:
             .attributeCount = std::size(attrs),
             .attributes = attrs,
         };
-
-        wgpu::ShaderModule fragmentShader =
-            compile_shader_module_spirv(device,
-                                        tessellate_frag,
-                                        std::size(tessellate_frag));
 
         wgpu::ColorTargetState colorTargetState = {
             .format = wgpu::TextureFormat::RGBA32Uint,
@@ -496,32 +549,63 @@ public:
             device.CreatePipelineLayout(&pipelineLayoutDesc);
 
         wgpu::ShaderModule vertexShader;
+        wgpu::ShaderModule fillFragmentShader, strokeFragmentShader;
 #ifdef RIVE_WAGYU
-        if (impl->m_capabilities.polyfillVertexStorageBuffers)
+        if (impl->m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
-            // The built-in SPIRV does not #define
-            // DISABLE_SHADER_STORAGE_BUFFERS. Recompile the tessellation shader
-            // with storage buffers disabled.
+            // Rive shaders tend to be long and prone to vendor bugs in the
+            // compiler. Instead of SPIRV, send down the raw Rive GLSL sources,
+            // which have various workarounds for known issues and are tested
+            // regularly.
+            std::ostringstream glsl;
+            glsl << "#define " << GLSL_DRAW_PATH << " true\n";
+            glsl << "#define " << GLSL_ENABLE_FEATHER << " true\n";
+            glsl << "#define " << GLSL_ENABLE_INSTANCE_INDEX << " true\n";
+            glsl << "#define " << GLSL_BASE_INSTANCE_UNIFORM_NAME << ' '
+                 << BASE_INSTANCE_UNIFORM_NAME << '\n';
+            glsl << "#define " << GLSL_POST_INVERT_Y << " true\n";
+            if (impl->m_capabilities.polyfillVertexStorageBuffers)
+            {
+                glsl << "#define " GLSL_DISABLE_SHADER_STORAGE_BUFFERS
+                        " true\n";
+            }
+            glsl << glsl::glsl << '\n';
+            glsl << glsl::constants << '\n';
+            glsl << glsl::common << '\n';
+            glsl << glsl::draw_path_common << '\n';
+            glsl << glsl::render_atlas << '\n';
+
             std::ostringstream vertexGLSL;
-            vertexGLSL << "#version 460\n";
-            vertexGLSL
-                << "#extension GL_EXT_samplerless_texture_functions : enable\n";
+            vertexGLSL << "#version 310 es\n";
             vertexGLSL << "#pragma shader_stage(vertex)\n";
             vertexGLSL << "#define " GLSL_VERTEX " true\n";
-            vertexGLSL << "#define " GLSL_DISABLE_SHADER_STORAGE_BUFFERS
-                          " true\n";
-            vertexGLSL << "#define " GLSL_TARGET_VULKAN " true\n";
-            vertexGLSL << "#define " << GLSL_DRAW_PATH << '\n';
-            vertexGLSL << "#define " << GLSL_ENABLE_FEATHER << "true\n";
-            vertexGLSL << glsl::glsl << '\n';
-            vertexGLSL << glsl::constants << '\n';
-            vertexGLSL << glsl::common << '\n';
-            vertexGLSL << glsl::draw_path_common << '\n';
-            vertexGLSL << glsl::render_atlas << '\n';
+            vertexGLSL << glsl.str();
             vertexShader =
                 compile_shader_module_wagyu(device,
                                             vertexGLSL.str().c_str(),
-                                            WGPUWagyuShaderLanguage_GLSL);
+                                            WGPUWagyuShaderLanguage_GLSLRAW);
+
+            std::ostringstream fillGLSL;
+            fillGLSL << "#version 310 es\n";
+            fillGLSL << "#pragma shader_stage(fragment)\n";
+            fillGLSL << "#define " GLSL_FRAGMENT " true\n";
+            fillGLSL << "#define " GLSL_ATLAS_FEATHERED_FILL " true\n";
+            fillGLSL << glsl.str();
+            fillFragmentShader =
+                compile_shader_module_wagyu(device,
+                                            fillGLSL.str().c_str(),
+                                            WGPUWagyuShaderLanguage_GLSLRAW);
+
+            std::ostringstream strokeGLSL;
+            strokeGLSL << "#version 310 es\n";
+            strokeGLSL << "#pragma shader_stage(fragment)\n";
+            strokeGLSL << "#define " GLSL_FRAGMENT " true\n";
+            strokeGLSL << "#define " GLSL_ATLAS_FEATHERED_STROKE " true\n";
+            strokeGLSL << glsl.str();
+            strokeFragmentShader =
+                compile_shader_module_wagyu(device,
+                                            strokeGLSL.str().c_str(),
+                                            WGPUWagyuShaderLanguage_GLSLRAW);
         }
         else
 #endif
@@ -530,6 +614,14 @@ public:
                 compile_shader_module_spirv(device,
                                             render_atlas_vert,
                                             std::size(render_atlas_vert));
+            fillFragmentShader =
+                compile_shader_module_spirv(device,
+                                            render_atlas_fill_frag,
+                                            std::size(render_atlas_fill_frag));
+            strokeFragmentShader = compile_shader_module_spirv(
+                device,
+                render_atlas_stroke_frag,
+                std::size(render_atlas_stroke_frag));
         }
 
         wgpu::VertexAttribute attrs[] = {
@@ -551,16 +643,6 @@ public:
             .attributeCount = std::size(attrs),
             .attributes = attrs,
         };
-
-        wgpu::ShaderModule fillFragmentShader =
-            compile_shader_module_spirv(device,
-                                        render_atlas_fill_frag,
-                                        std::size(render_atlas_fill_frag));
-
-        wgpu::ShaderModule strokeFragmentShader =
-            compile_shader_module_spirv(device,
-                                        render_atlas_stroke_frag,
-                                        std::size(render_atlas_stroke_frag));
 
         wgpu::BlendState blendState = {
             .color = {
@@ -630,11 +712,10 @@ public:
         wgpu::ShaderModule vertexShader, fragmentShader;
 #ifdef RIVE_WAGYU
         PixelLocalStorageType plsType = context->m_capabilities.plsType;
-        if (plsType == PixelLocalStorageType::
-                           VK_EXT_rasterization_order_attachment_access ||
-            plsType ==
-                PixelLocalStorageType::GL_EXT_shader_pixel_local_storage ||
-            context->m_capabilities.polyfillVertexStorageBuffers)
+        if (context->m_capabilities.backendType ==
+                wgpu::BackendType::OpenGLES ||
+            plsType == PixelLocalStorageType::
+                           VK_EXT_rasterization_order_attachment_access)
         {
             WGPUWagyuShaderLanguage language;
             const char* versionString;
@@ -642,8 +723,8 @@ public:
             auto addDefine = [&glsl](const char* name) {
                 glsl << "#define " << name << " true\n";
             };
-            if (plsType ==
-                PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
+            if (context->m_capabilities.backendType ==
+                wgpu::BackendType::OpenGLES)
             {
                 language = WGPUWagyuShaderLanguage_GLSLRAW;
                 versionString = "#version 310 es";
@@ -666,11 +747,11 @@ public:
                 glsl << "#ifdef GL_EXT_shader_pixel_local_storage\n";
                 addDefine(GLSL_PLS_IMPL_EXT_NATIVE);
                 glsl << "#else\n";
-                glsl << "#extension GL_EXT_samplerless_texture_functions : "
-                        "enable\n";
                 // If we are being compiled by SPIRV transpiler for
                 // introspection, GL_EXT_shader_pixel_local_storage will not be
                 // defined.
+                glsl << "#extension GL_EXT_samplerless_texture_functions : "
+                        "enable\n";
                 addDefine(GLSL_PLS_IMPL_NONE);
                 glsl << "#endif\n";
             }
@@ -909,19 +990,20 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     m_platformFeatures.framebufferBottomUp = false;
 
 #ifdef RIVE_WAGYU
-    WGPUBackendType backend = wgpuWagyuAdapterGetBackend(adapter.Get());
+    m_capabilities.backendType = static_cast<wgpu::BackendType>(
+        wgpuWagyuAdapterGetBackend(adapter.Get()));
     WGPUWagyuStringArray extensions = WGPU_WAGYU_STRING_ARRAY_INIT;
-    if (backend == WGPUBackendType_Vulkan)
+    if (m_capabilities.backendType == wgpu::BackendType::Vulkan)
     {
         wgpuWagyuDeviceGetExtensions(device.Get(), &extensions);
     }
-    else if (backend == WGPUBackendType_OpenGLES)
+    else if (m_capabilities.backendType == wgpu::BackendType::OpenGLES)
     {
         wgpuWagyuAdapterGetExtensions(adapter.Get(), &extensions);
     }
     for (size_t i = 0; i < extensions.stringCount; ++i)
     {
-        if (backend == WGPUBackendType_Vulkan &&
+        if (m_capabilities.backendType == wgpu::BackendType::Vulkan &&
             !strcmp(extensions.strings[i].data,
                     "VK_EXT_rasterization_order_attachment_access"))
         {
@@ -929,7 +1011,7 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
                 VK_EXT_rasterization_order_attachment_access;
             break;
         }
-        if (backend == WGPUBackendType_OpenGLES &&
+        if (m_capabilities.backendType == wgpu::BackendType::OpenGLES &&
             !strcmp(extensions.strings[i].data,
                     "GL_EXT_shader_pixel_local_storage"))
         {
@@ -938,7 +1020,7 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
             break;
         }
     }
-    if (backend == WGPUBackendType_OpenGLES &&
+    if (m_capabilities.backendType == wgpu::BackendType::OpenGLES &&
         gl_max_vertex_shader_storage_blocks() < 4)
     {
         // Rive requires 4 storage buffers in the vertex shader. Polyfill them
@@ -1586,6 +1668,7 @@ private:
     wgpu::TextureView m_textureView;
 };
 
+#ifndef RIVE_WAGYU
 // Blits texture-to-texture using a draw command.
 class RenderContextWebGPUImpl::BlitTextureAsDrawPipeline
 {
@@ -1677,6 +1760,7 @@ private:
     wgpu::BindGroupLayout m_bindGroupLayout;
     wgpu::RenderPipeline m_renderPipeline;
 };
+#endif
 
 void RenderContextWebGPUImpl::generateMipmaps(wgpu::Texture texture)
 {

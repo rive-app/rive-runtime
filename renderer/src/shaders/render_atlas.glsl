@@ -40,6 +40,9 @@ VERTEX_MAIN(@atlasVertexMain, Attrs, attrs, _vertexID, _instanceID)
         pos = pixel_coord_to_clip_coord(vertexPosition,
                                         uniforms.atlasContentInverseViewport.x,
                                         uniforms.atlasContentInverseViewport.y);
+#ifdef @POST_INVERT_Y
+        pos.y = -pos.y;
+#endif
     }
     else
     {
