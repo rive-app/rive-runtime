@@ -24,6 +24,7 @@
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/animation/transition_viewmodel_condition.hpp"
 #include "rive/animation/state_machine_fire_event.hpp"
+#include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/draggable_constraint.hpp"
 #include "rive/data_bind_flags.hpp"
@@ -1224,7 +1225,15 @@ public:
     }
     void addDirt(ComponentDirt value, bool recurse)
     {
-        m_stateMachineInstance->reportListenerViewModel(this);
+        if (m_viewModelInstanceValue &&
+            m_viewModelInstanceValue->is<ViewModelInstanceTrigger>())
+        {
+            if (m_viewModelInstanceValue->as<ViewModelInstanceTrigger>()
+                    ->propertyValue() != 0)
+            {
+                m_stateMachineInstance->reportListenerViewModel(this);
+            }
+        }
     }
     const StateMachineListener* listener() { return m_listener; }
 
@@ -1845,8 +1854,8 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     {
         inst->advanced();
     }
-
-    return m_needsAdvance || !m_reportedEvents.empty();
+    return m_needsAdvance || !m_reportedEvents.empty() ||
+           !m_reportedListenerViewModels.empty();
 }
 
 void StateMachineInstance::advancedDataContext()
@@ -1902,7 +1911,8 @@ bool StateMachineInstance::advanceAndApply(float seconds)
             break;
         }
     }
-    return keepGoing || !m_reportedEvents.empty();
+    return keepGoing || !m_reportedEvents.empty() ||
+           !m_reportedListenerViewModels.empty();
 }
 
 void StateMachineInstance::markNeedsAdvance() { m_needsAdvance = true; }

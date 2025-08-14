@@ -1433,3 +1433,50 @@ TEST_CASE("View model runtime properties", "[data binding]")
     REQUIRE(numChi != nullptr);
     REQUIRE(numChi->dataType() == rive::DataType::number);
 }
+
+TEST_CASE("Trigger fires single change on listener", "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/trigger_fires_single_change.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->pointerDown(rive::Vec2D(225.0f, 275.0f));
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    stateMachine->pointerUp(rive::Vec2D(225.0f, 275.0f));
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    silver.addFrame();
+    artboard->draw(renderer.get());
+
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->pointerDown(rive::Vec2D(225.0f, 275.0f));
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    stateMachine->pointerUp(rive::Vec2D(225.0f, 275.0f));
+    stateMachine->advanceAndApply(0.1f);
+    stateMachine->advanceAndApply(1.0f);
+    silver.addFrame();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("trigger_fires_single_change"));
+}
