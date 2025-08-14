@@ -14,7 +14,8 @@
         "int": 669,
         "string": "decimals"
       },
-      "description": "Number of decimals to round to"
+      "description": "Number of decimals to round to",
+      "bindable": true
     }
   }
 }
