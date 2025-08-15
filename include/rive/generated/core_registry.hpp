@@ -163,6 +163,7 @@
 #include "rive/data_bind/converters/data_converter_string_trim.hpp"
 #include "rive/data_bind/converters/data_converter_system_degs_to_rads.hpp"
 #include "rive/data_bind/converters/data_converter_system_normalizer.hpp"
+#include "rive/data_bind/converters/data_converter_to_number.hpp"
 #include "rive/data_bind/converters/data_converter_to_string.hpp"
 #include "rive/data_bind/converters/data_converter_trigger.hpp"
 #include "rive/data_bind/converters/formula/formula_token.hpp"
@@ -632,6 +633,8 @@ public:
                 return new DataConverterNumberToList();
             case DataConverterFormulaBase::typeKey:
                 return new DataConverterFormula();
+            case DataConverterToNumberBase::typeKey:
+                return new DataConverterToNumber();
             case DataConverterOperationBase::typeKey:
                 return new DataConverterOperation();
             case DataConverterOperationValueBase::typeKey:

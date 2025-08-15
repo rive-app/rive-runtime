@@ -1480,3 +1480,39 @@ TEST_CASE("Trigger fires single change on listener", "[data binding]")
 
     CHECK(silver.matches("trigger_fires_single_change"));
 }
+// TEST_CASE("Convert to number", "[data binding]")
+TEST_CASE("XXXXX", "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/data_converter_to_number.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.2f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("data_converter_to_number"));
+}
