@@ -43,13 +43,13 @@ static int gradient_linear(lua_State* L)
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(L));
 
-    gradient->shader = context->factory->makeLinearGradient(from->x,
-                                                            from->y,
-                                                            to->x,
-                                                            to->y,
-                                                            colors.data(),
-                                                            stops.data(),
-                                                            stops.size());
+    gradient->shader = context->factory()->makeLinearGradient(from->x,
+                                                              from->y,
+                                                              to->x,
+                                                              to->y,
+                                                              colors.data(),
+                                                              stops.data(),
+                                                              stops.size());
     return 1;
 }
 
@@ -65,12 +65,12 @@ static int gradient_radial(lua_State* L)
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(L));
 
-    gradient->shader = context->factory->makeRadialGradient(from->x,
-                                                            from->y,
-                                                            radius,
-                                                            colors.data(),
-                                                            stops.data(),
-                                                            stops.size());
+    gradient->shader = context->factory()->makeRadialGradient(from->x,
+                                                              from->y,
+                                                              radius,
+                                                              colors.data(),
+                                                              stops.data(),
+                                                              stops.size());
     return 1;
 }
 

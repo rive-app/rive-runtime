@@ -18,7 +18,7 @@ RenderPath* ScriptedPath::renderPath(lua_State* L)
         {
             ScriptingContext* context =
                 static_cast<ScriptingContext*>(lua_getthreaddata(L));
-            m_renderPath = context->factory->makeEmptyRenderPath();
+            m_renderPath = context->factory()->makeEmptyRenderPath();
             m_renderPath->fillRule(FillRule::clockwise);
         }
         else

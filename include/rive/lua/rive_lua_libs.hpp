@@ -445,30 +445,44 @@ inline void lua_pushvec2d(lua_State* L, Vec2D vec)
 
 int luaopen_rive(lua_State* L);
 
-struct ScriptingContext
+class ScriptingContext
 {
-    Factory* factory;
+public:
+    ScriptingContext(Factory* factory) : m_factory(factory) {}
+    Factory* factory() const { return m_factory; }
+
+    virtual void printBeginLine(lua_State* state) = 0;
+    virtual void print(Span<const char> data) = 0;
+    virtual void printEndLine() = 0;
+
+private:
+    Factory* m_factory;
 };
 
 class ScriptingVM
 {
 public:
-    ScriptingVM(Factory* factory);
+    ScriptingVM(ScriptingContext* context);
     ~ScriptingVM();
 
-    ScriptingContext& context() { return m_context; }
+    // ScriptingContext& context() { return m_context; }
     lua_State* state() { return m_state; }
 
     static void init(lua_State* state, ScriptingContext* context);
     static bool registerModule(lua_State* state,
                                const char* name,
                                Span<uint8_t> bytecode);
-
     bool registerModule(const char* name, Span<uint8_t> bytecode);
+
+    static bool registerScript(lua_State* state,
+                               const char* name,
+                               Span<uint8_t> bytecode);
+
+    bool registerScript(const char* name, Span<uint8_t> bytecode);
 
 private:
     lua_State* m_state;
-    ScriptingContext m_context;
+    ScriptingContext* m_context;
 };
 
 } // namespace rive

@@ -81,6 +81,7 @@ std::unordered_map<std::string, int16_t> atoms = {
 
 static const luaL_Reg lualibs[] = {
     {"", luaopen_base},
+    {"rive", luaopen_rive_base},
     {LUA_STRLIBNAME, luaopen_string},
     {"math", luaopen_rive_math},
     {"renderer", luaopen_rive_renderer_library},
@@ -216,11 +217,10 @@ void ScriptingVM::init(lua_State* state, ScriptingContext* context)
     luaL_sandboxthread(state);
 }
 
-ScriptingVM::ScriptingVM(Factory* factory)
+ScriptingVM::ScriptingVM(ScriptingContext* context) : m_context(context)
 {
     m_state = lua_newstate(l_alloc, nullptr);
-    m_context.factory = factory;
-    init(m_state, &m_context);
+    init(m_state, m_context);
 }
 
 ScriptingVM::~ScriptingVM() { lua_close(m_state); }
@@ -262,6 +262,7 @@ static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
     lua_xmove(GL, L, 1);
     // new thread needs to have the globals sandboxed
     luaL_sandboxthread(ML);
+    lua_setthreaddata(ML, lua_getthreaddata(L));
 
     int status =
         luau_load(ML, name, (const char*)bytecode.data(), bytecode.size(), 0);
@@ -304,6 +305,19 @@ static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
     // added one value to L stack: module result
     return true;
 }
+
+bool ScriptingVM::registerScript(lua_State* state,
+                                 const char* name,
+                                 Span<uint8_t> bytecode)
+{
+    if (!push_module(state, name, bytecode))
+    {
+        return false;
+    }
+
+    return true;
+}
+
 bool ScriptingVM::registerModule(lua_State* state,
                                  const char* name,
                                  Span<uint8_t> bytecode)
@@ -322,6 +336,11 @@ bool ScriptingVM::registerModule(lua_State* state,
 bool ScriptingVM::registerModule(const char* name, Span<uint8_t> bytecode)
 {
     return registerModule(m_state, name, bytecode);
+}
+
+bool ScriptingVM::registerScript(const char* name, Span<uint8_t> bytecode)
+{
+    return registerScript(m_state, name, bytecode);
 }
 
 } // namespace rive

@@ -94,13 +94,16 @@ function provide(vm:Vm1)
     data = vm
     data.rotation:addListener(changed)
     data.rotation:addListener(vm, changedWithContext)
+    print("data provided")
 end
 
 function changedWithContext(context:Vm1)
+    print("changed with context")
     calledChangeWithContext = true
 end
 
 function changed() 
+    print("changed")
     calledChange = true
 end
 
@@ -158,4 +161,10 @@ end
     lua_pcall(L, 0, 1, 0);
     CHECK(lua_toboolean(L, -1) == 1);
     lua_pop(L, 1);
+
+    // Check print statements.
+    CHECK(vm.console.size() == 3);
+    CHECK(vm.console[0] == "data provided");
+    CHECK(vm.console[1] == "changed");
+    CHECK(vm.console[2] == "changed with context");
 }

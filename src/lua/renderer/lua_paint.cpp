@@ -254,7 +254,7 @@ static int paint_new(lua_State* L)
 {
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(L));
-    lua_newrive<ScriptedPaint>(L, context->factory);
+    lua_newrive<ScriptedPaint>(L, context->factory());
 
     return 1;
 }
@@ -263,7 +263,7 @@ static int paint_with(lua_State* L)
 {
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(L));
-    auto scriptedPaint = lua_newrive<ScriptedPaint>(L, context->factory);
+    auto scriptedPaint = lua_newrive<ScriptedPaint>(L, context->factory());
     setPropertiesFromDefinitionTable(L, scriptedPaint, 1);
     return 1;
 }
@@ -463,7 +463,7 @@ static int paint_copy(lua_State* L)
     ScriptingContext* context =
         static_cast<ScriptingContext*>(lua_getthreaddata(L));
     auto scriptedPaintCopy =
-        lua_newrive<ScriptedPaint>(L, context->factory, *scriptedPaint);
+        lua_newrive<ScriptedPaint>(L, context->factory(), *scriptedPaint);
 
     if (argCount == 2)
     {

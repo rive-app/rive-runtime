@@ -21,7 +21,7 @@ TEST_CASE("can call renderer", "[scripting]")
         "end");
     lua_State* L = vm.state();
     lua_getglobal(L, "render");
-    auto renderer = vm.factory()->makeRenderer();
+    auto renderer = vm.serializer()->makeRenderer();
     auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
     CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
     CHECK(scriptedRenderer->end());
@@ -44,7 +44,7 @@ TEST_CASE("renderer checks its balanced", "[scripting]")
                      "end\n");
     lua_State* L = vm.state();
     lua_getglobal(L, "render");
-    auto renderer = vm.factory()->makeRenderer();
+    auto renderer = vm.serializer()->makeRenderer();
     auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
     CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
     CHECK(!scriptedRenderer->end());
@@ -97,12 +97,12 @@ end
         0);
     lua_State* L = vm.state();
     lua_getglobal(L, "render");
-    auto renderer = vm.factory()->makeRenderer();
+    auto renderer = vm.serializer()->makeRenderer();
     auto scriptedRenderer = lua_newrive<ScriptedRenderer>(L, renderer.get());
     CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
     CHECK(scriptedRenderer->end());
 
-    CHECK(vm.factory()->matches("scripted_oval"));
+    CHECK(vm.serializer()->matches("scripted_oval"));
 }
 
 TEST_CASE("renderer can draw and animate oval", "[scripting]")
@@ -169,7 +169,7 @@ end
         auto top = lua_gettop(L);
         if (i != 0)
         {
-            vm.factory()->addFrame();
+            vm.serializer()->addFrame();
         }
         lua_getglobal(L, "advance");
         lua_pushnumber(L, elapsedSeconds);
@@ -178,7 +178,7 @@ end
         lua_pop(L, 1);
 
         lua_getglobal(L, "render");
-        auto renderer = vm.factory()->makeRenderer();
+        auto renderer = vm.serializer()->makeRenderer();
         ScriptedRenderer* scriptedRenderer =
             lua_newrive<ScriptedRenderer>(L, renderer.get());
         CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
@@ -189,5 +189,5 @@ end
         lua_gc(L, LUA_GCCOLLECT, 0);
     }
 
-    CHECK(vm.factory()->matches("scripted_animated_oval"));
+    CHECK(vm.serializer()->matches("scripted_animated_oval"));
 }

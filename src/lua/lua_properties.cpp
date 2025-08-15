@@ -88,8 +88,10 @@ void ScriptedProperty::valueChanged()
     // invalidate listeners if a callback registers a new or removes a
     // listener). Instead, we build up the call stack and then call for each
     // callback on the stack.
-    for (const ScriptedListener& listener : m_listeners)
+
+    for (auto itr = m_listeners.rbegin(); itr != m_listeners.rend(); itr++)
     {
+        const ScriptedListener& listener = *itr;
         lua_rawgeti(m_state, LUA_REGISTRYINDEX, listener.function);
         if (listener.userdata)
         {

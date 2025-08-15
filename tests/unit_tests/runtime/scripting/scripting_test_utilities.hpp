@@ -10,15 +10,16 @@
 
 namespace rive
 {
-class ScriptingTest
+class ScriptingTest : public ScriptingContext
 {
 public:
     ScriptingTest(const char* source,
                   int numResults = 1,
                   bool errorOk = false,
-                  std::unordered_map<std::string, std::string> modules = {})
+                  std::unordered_map<std::string, std::string> modules = {}) :
+        ScriptingContext(&m_factory)
     {
-        m_vm = rivestd::make_unique<ScriptingVM>(&m_factory);
+        m_vm = rivestd::make_unique<ScriptingVM>(this);
 
         for (const auto& pair : modules)
         {
@@ -62,7 +63,23 @@ public:
     lua_State* state() { return m_vm->state(); }
 
 public:
-    SerializingFactory* factory() { return &m_factory; }
+    SerializingFactory* serializer() { return &m_factory; }
+    std::vector<std::string> console;
+
+    std::string currentLine = "";
+
+    void printBeginLine(lua_State* state) override {}
+
+    void print(Span<const char> data) override
+    {
+        currentLine += std::string(data.data(), data.size());
+    }
+
+    void printEndLine() override
+    {
+        console.push_back(currentLine);
+        currentLine = "";
+    }
 
 private:
     SerializingFactory m_factory;
