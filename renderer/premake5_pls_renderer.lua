@@ -60,12 +60,18 @@ do
 end
 
 newoption({
+    trigger = 'webgpu-version',
+    description = 'which version of webgpu to compile for',
+    allowed = { { '1' }, { '2' }, { nil } },
+    default = '1',
+})
+newoption({
     trigger = 'with-webgpu',
     description = 'compile in native support for webgpu',
 })
 filter({ 'options:with-webgpu' })
 do
-    defines({ 'RIVE_WEBGPU' })
+   defines({ string.format('RIVE_WEBGPU=%d', tonumber(_OPTIONS['webgpu-version'])) })
 end
 
 filter('system:emscripten')
@@ -259,7 +265,7 @@ do
     filter({ 'options:with-webgpu or with-dawn' })
     do
         files({
-            'src/webgpu/**.cpp',
+            'src/webgpu/render_context_webgpu_impl.cpp',
             'src/gl/load_store_actions_ext.cpp',
         })
     end
@@ -286,5 +292,17 @@ do
     filter('system:emscripten')
     do
         files({ 'src/gl/pls_impl_webgl.cpp' })
+    end
+
+    filter({'system:emscripten', 'options:with_wagyu' })
+    do
+        local port;
+        if _OPTIONS['webgpu-version'] == "1" then
+           port = RIVE_RUNTIME_DIR .. '/renderer/src/webgpu/wagyu-port/old/webgpu-port.py:wagyu=true'
+        else
+           port = RIVE_RUNTIME_DIR .. '/renderer/src/webgpu/wagyu-port/new/webgpu-port.py:wagyu=true'
+        end
+        buildoptions({ '--use-port=' .. port })
+        linkoptions({ '--use-port=' .. port })
     end
 end
