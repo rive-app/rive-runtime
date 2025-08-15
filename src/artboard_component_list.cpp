@@ -5,6 +5,7 @@
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
+#include "rive/world_transform_component.hpp"
 #include "rive/layout/layout_data.hpp"
 
 using namespace rive;
@@ -81,11 +82,7 @@ void* ArtboardComponentList::layoutNode(int index)
 void ArtboardComponentList::markLayoutNodeDirty(
     bool shouldForceUpdateLayoutBounds)
 {
-    bool parentIsRow = true;
-    if (parent()->is<LayoutComponent>())
-    {
-        parentIsRow = parent()->as<LayoutComponent>()->mainAxisIsRow();
-    }
+    bool parentIsRow = mainAxisIsRow();
     for (int i = 0; i < artboardCount(); i++)
     {
         auto artboard = artboardInstance(i);
@@ -213,10 +210,11 @@ void ArtboardComponentList::updateList(
     m_listItems.assign(list->begin(), list->end());
     m_artboardSizes.clear();
 
-    if (parent()->is<LayoutComponent>())
+    auto p = layoutParent();
+    if (p != nullptr)
     {
 #ifdef WITH_RIVE_LAYOUT
-        parent()->as<LayoutComponent>()->clearLayoutChildren();
+        p->clearLayoutChildren();
 #endif
     }
     // We need to dispose old items after the layout children of the parent have
@@ -265,10 +263,11 @@ void ArtboardComponentList::updateList(
 
 void ArtboardComponentList::syncLayoutChildren()
 {
-    if (parent()->is<LayoutComponent>())
+    auto p = layoutParent();
+    if (p != nullptr)
     {
 #ifdef WITH_RIVE_LAYOUT
-        parent()->as<LayoutComponent>()->syncLayoutChildren();
+        p->syncLayoutChildren();
 #endif
     }
 }
@@ -366,11 +365,7 @@ AABB ArtboardComponentList::layoutBoundsForNode(int index)
         auto realIndex = std::fmod(index, m_listItems.size());
         auto gap = this->gap();
         float runningSize = 0;
-        bool isHorizontal = true;
-        if (parent()->is<LayoutComponent>())
-        {
-            isHorizontal = parent()->as<LayoutComponent>()->mainAxisIsRow();
-        }
+        bool isHorizontal = mainAxisIsRow();
         for (int i = 0; i < realIndex; i++)
         {
             auto size = m_artboardSizes[i];
@@ -431,7 +426,7 @@ void ArtboardComponentList::draw(Renderer* renderer)
         if (virtualizationEnabled())
         {
             renderer->transform(
-                parent()->as<LayoutComponent>()->worldTransform());
+                parent()->as<WorldTransformComponent>()->worldTransform());
             if (m_visibleStartIndex != -1 && m_visibleEndIndex != -1)
             {
                 // We need to render in the correct order so we get the correct
@@ -463,13 +458,15 @@ void ArtboardComponentList::draw(Renderer* renderer)
         else
         {
             renderer->transform(worldTransform());
+            auto useLayout = layoutParent() != nullptr;
             for (int i = 0; i < artboardCount(); i++)
             {
                 auto artboard = artboardInstance(i);
                 if (artboard != nullptr)
                 {
                     renderer->save();
-                    auto bounds = artboard->layoutBounds();
+                    auto bounds = useLayout ? artboard->layoutBounds()
+                                            : artboard->worldBounds();
                     auto artboardTransform =
                         Mat2D::fromTranslate(bounds.left(), bounds.top());
                     renderer->transform(artboardTransform);
@@ -623,10 +620,12 @@ bool ArtboardComponentList::worldToLocal(Vec2D world, Vec2D* local, int index)
     {
         return false;
     }
-    auto offset = virtualizationEnabled()
-                      ? m_artboardPositions[artboard]
-                      : Vec2D(artboard->layoutBounds().left(),
-                              artboard->layoutBounds().top());
+    auto p = layoutParent();
+    auto offset = virtualizationEnabled() ? m_artboardPositions[artboard]
+                  : p != nullptr ? Vec2D(artboard->layoutBounds().left(),
+                                         artboard->layoutBounds().top())
+                                 : Vec2D(artboard->worldBounds().left(),
+                                         artboard->worldBounds().top());
     auto transform = virtualizationEnabled()
                          ? parent()->as<LayoutComponent>()->worldTransform()
                          : worldTransform();
@@ -681,11 +680,8 @@ void ArtboardComponentList::addArtboardAt(
         if (artboardInstance != nullptr)
         {
             artboardInstance->host(this);
-            if (parent()->is<LayoutComponent>())
-            {
-                artboardInstance->parentIsRow(
-                    parent()->as<LayoutComponent>()->mainAxisIsRow());
-            }
+            artboardInstance->frameOrigin(false);
+            artboardInstance->parentIsRow(mainAxisIsRow());
         }
         syncLayoutChildren();
         auto artboard = findArtboard(item);
@@ -814,9 +810,10 @@ void ArtboardComponentList::addVirtualizable(int index)
             // Add components dirt so we process layout updates in the same
             // frame that a mounted artboard is added
             addDirt(ComponentDirt::Components);
-            if (parent()->is<LayoutComponent>())
+            auto p = layoutParent();
+            if (p != nullptr)
             {
-                parent()->as<LayoutComponent>()->markLayoutStyleDirty();
+                p->markLayoutStyleDirty();
             }
         }
     }
@@ -878,11 +875,7 @@ void ArtboardComponentList::computeLayoutBounds()
         auto gap = this->gap();
         auto runningWidth = 0.0f;
         auto runningHeight = 0.0f;
-        bool isHorz = true;
-        if (parent()->is<LayoutComponent>())
-        {
-            isHorz = parent()->as<LayoutComponent>()->mainAxisIsRow();
-        }
+        bool isHorz = mainAxisIsRow();
         for (int i = 0; i < m_artboardSizes.size(); i++)
         {
             auto size = m_artboardSizes[i];
@@ -925,11 +918,10 @@ void ArtboardComponentList::setItemSize(Vec2D size, int index)
 
 float ArtboardComponentList::gap()
 {
-    if (parent()->is<LayoutComponent>())
+    auto p = layoutParent();
+    if (p != nullptr)
     {
-        auto layoutParent = parent()->as<LayoutComponent>();
-        return layoutParent->mainAxisIsRow() ? layoutParent->gapHorizontal()
-                                             : layoutParent->gapVertical();
+        return mainAxisIsRow() ? p->gapHorizontal() : p->gapVertical();
     }
     return 0.0f;
 }
@@ -1000,7 +992,15 @@ void ArtboardComponentList::clearArtboardOverride(
 
 bool ArtboardComponentList::mainAxisIsRow()
 {
-    return parent()->is<LayoutComponent>()
-               ? parent()->as<LayoutComponent>()->mainAxisIsRow()
-               : true;
+    auto p = layoutParent();
+    return p != nullptr ? p->mainAxisIsRow() : true;
+}
+
+LayoutComponent* ArtboardComponentList::layoutParent()
+{
+    if (parent() != nullptr && parent()->is<LayoutComponent>())
+    {
+        return parent()->as<LayoutComponent>();
+    }
+    return nullptr;
 }

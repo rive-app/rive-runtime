@@ -668,6 +668,18 @@ void Artboard::host(ArtboardHost* artboardHost)
 
 ArtboardHost* Artboard::host() const { return m_host; }
 
+StatusCode Artboard::onAddedClean(CoreContext* context)
+{
+    auto code = Super::onAddedClean(context);
+    if (code != StatusCode::Ok)
+    {
+        return code;
+    }
+    NodeBase::x(0);
+    NodeBase::y(0);
+    return StatusCode::Ok;
+}
+
 Artboard* Artboard::parentArtboard() const
 {
     if (m_host == nullptr)
@@ -915,7 +927,10 @@ bool Artboard::syncStyleChanges()
                     else
                     {
                         // This is a nested artboard, sync its changes too.
-                        artboard->syncStyleChanges();
+                        if (!artboard->updatesOwnLayout())
+                        {
+                            artboard->syncStyleChanges();
+                        }
                     }
                     break;
                 }
@@ -1202,6 +1217,14 @@ AABB Artboard::bounds() const
                                           -layoutHeight() * originY(),
                                           layoutWidth(),
                                           layoutHeight());
+}
+
+AABB Artboard::worldBounds() const
+{
+    return AABB::fromLTWH(NodeBase::x(),
+                          NodeBase::y(),
+                          m_layout.width(),
+                          m_layout.height());
 }
 
 bool Artboard::isTranslucent() const

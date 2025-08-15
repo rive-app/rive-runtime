@@ -195,7 +195,7 @@ public:
     {
         return AABB::fromLTWH(0.0f, 0.0f, m_layout.width(), m_layout.height());
     }
-    AABB worldBounds() const
+    virtual AABB worldBounds() const
     {
         auto transform = worldTransform();
         return AABB::fromLTWH(transform[4],

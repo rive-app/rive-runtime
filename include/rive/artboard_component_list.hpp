@@ -17,6 +17,7 @@
 namespace rive
 {
 class File;
+class LayoutComponent;
 class ScrollConstraint;
 
 class ArtboardComponentList : public ArtboardComponentListBase,
@@ -108,6 +109,7 @@ public:
     float gap();
     void syncLayoutChildren();
     bool mainAxisIsRow();
+    LayoutComponent* layoutParent();
 
 private:
     void disposeListItem(const rcp<ViewModelInstanceListItem>& listItem);

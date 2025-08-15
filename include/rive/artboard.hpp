@@ -129,6 +129,8 @@ public:
         return worldTransform();
     }
     Component* virtualizableComponent() override { return this; }
+    bool updatesOwnLayout() { return m_updatesOwnLayout; }
+    StatusCode onAddedClean(CoreContext* context) override;
 
 private:
 #ifdef TESTING
@@ -250,6 +252,7 @@ public:
     float layoutX() const;
     float layoutY() const;
     AABB bounds() const;
+    AABB worldBounds() const override;
     Vec2D origin() const;
 
     // Can we hide these from the public? (they use playable)

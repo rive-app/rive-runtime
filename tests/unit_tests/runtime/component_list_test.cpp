@@ -635,3 +635,134 @@ TEST_CASE("Number to Lists reset triggers correctly", "[silver]")
 
     CHECK(silver.matches("reset_phase_multi_main"));
 }
+
+TEST_CASE("Non Layout List Artboard Position", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/component_list_grouped.riv", &silver);
+
+    auto artboard = file->artboardNamed("MainArtboard");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto list = artboard->find<rive::ArtboardComponentList>("List");
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.16f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.16f);
+        artboard->draw(renderer.get());
+    }
+
+    auto item1 = list->listItem(0);
+    auto vmInstance1 = item1->viewModelInstance();
+    auto xProp1 =
+        vmInstance1->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(xProp1 != nullptr);
+    auto xVal1 = xProp1->propertyValue();
+    REQUIRE(xVal1 == 0);
+    auto yProp1 =
+        vmInstance1->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(yProp1 != nullptr);
+    auto yVal1 = yProp1->propertyValue();
+    REQUIRE(yVal1 == 0);
+
+    auto item2 = list->listItem(1);
+    auto vmInstance2 = item2->viewModelInstance();
+    auto xProp2 =
+        vmInstance2->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(xProp2 != nullptr);
+    auto xVal2 = xProp2->propertyValue();
+    REQUIRE(xVal2 == 50);
+    auto yProp2 =
+        vmInstance2->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(yProp2 != nullptr);
+    auto yVal2 = yProp2->propertyValue();
+    REQUIRE(yVal2 == 0);
+
+    auto item3 = list->listItem(2);
+    auto vmInstance3 = item3->viewModelInstance();
+    auto xProp3 =
+        vmInstance3->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(xProp3 != nullptr);
+    auto xVal3 = xProp3->propertyValue();
+    REQUIRE(xVal3 == 100);
+    auto yProp3 =
+        vmInstance3->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(yProp3 != nullptr);
+    auto yVal3 = yProp3->propertyValue();
+    REQUIRE(yVal3 == 0);
+
+    xProp1->propertyValue(-90);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    xProp2->propertyValue(25);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    xProp3->propertyValue(150);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    yProp1->propertyValue(-50);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    yProp2->propertyValue(100);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    yProp3->propertyValue(-200);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+
+    // Hover list item 1
+    for (int i = 0; i < frames; i++)
+    {
+        stateMachine->pointerMove(rive::Vec2D(210.0f, 250.0f));
+        stateMachine->advanceAndApply(0.16f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+
+    // Hover list item 2
+    for (int i = 0; i < frames; i++)
+    {
+        stateMachine->pointerMove(rive::Vec2D(325.0f, 400.0f));
+        stateMachine->advanceAndApply(0.16f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+
+    // Hover list item 3
+    for (int i = 0; i < frames; i++)
+    {
+        stateMachine->pointerMove(rive::Vec2D(450.0f, 100.0f));
+        stateMachine->advanceAndApply(0.16f);
+        artboard->draw(renderer.get());
+        silver.addFrame();
+    }
+
+    CHECK(silver.matches("component_list_grouped"));
+}
