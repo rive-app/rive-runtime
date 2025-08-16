@@ -333,6 +333,20 @@ bool ScriptingVM::registerModule(lua_State* state,
     return true;
 }
 
+void ScriptingVM::unregisterModule(lua_State* state, const char* name)
+{
+    luaL_findtable(state, LUA_REGISTRYINDEX, registeredCacheTableKey, 1);
+    lua_pushstring(state, name);
+    lua_pushnil(state);
+    lua_settable(state, -3);
+    lua_pop(state, 1);
+}
+
+void ScriptingVM::unregisterModule(const char* name)
+{
+    return unregisterModule(m_state, name);
+}
+
 bool ScriptingVM::registerModule(const char* name, Span<uint8_t> bytecode)
 {
     return registerModule(m_state, name, bytecode);

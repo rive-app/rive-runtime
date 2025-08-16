@@ -472,7 +472,9 @@ public:
     static bool registerModule(lua_State* state,
                                const char* name,
                                Span<uint8_t> bytecode);
+    static void unregisterModule(lua_State* state, const char* name);
     bool registerModule(const char* name, Span<uint8_t> bytecode);
+    void unregisterModule(const char* name);
 
     static bool registerScript(lua_State* state,
                                const char* name,

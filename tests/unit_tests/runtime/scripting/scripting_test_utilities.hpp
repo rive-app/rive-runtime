@@ -12,13 +12,20 @@ namespace rive
 {
 class ScriptingTest : public ScriptingContext
 {
+private:
+    int m_numResults;
+    bool m_errorOk;
+
 public:
     ScriptingTest(const char* source,
                   int numResults = 1,
                   bool errorOk = false,
-                  std::unordered_map<std::string, std::string> modules = {}) :
+                  std::unordered_map<std::string, std::string> modules = {},
+                  bool executeImmediately = true) :
         ScriptingContext(&m_factory)
     {
+        m_numResults = numResults;
+        m_errorOk = errorOk;
         m_vm = rivestd::make_unique<ScriptingVM>(this);
 
         for (const auto& pair : modules)
@@ -44,21 +51,31 @@ public:
               LUA_OK);
         free(bytecode);
 
-        auto result = lua_pcall(state, 0, numResults, 0);
-        if (!errorOk)
+        if (executeImmediately)
+        {
+            execute();
+        }
+    }
+
+    void execute()
+    {
+        auto result = lua_pcall(m_vm->state(), 0, m_numResults, 0);
+        if (!m_errorOk)
         {
             CHECK(result == LUA_OK);
         }
-        else if (errorOk && result != LUA_OK)
+        else if (m_errorOk && result != LUA_OK)
         {
             return;
         }
         if (result != LUA_OK)
         {
-            auto error = lua_tostring(state, -1);
+            auto error = lua_tostring(m_vm->state(), -1);
             fprintf(stderr, "  %s\n", error);
         }
     }
+
+    void unregisterModule(const char* name) { m_vm->unregisterModule(name); }
 
     lua_State* state() { return m_vm->state(); }
 

@@ -48,3 +48,20 @@ TEST_CASE("scripting require with bad unused module is ok", "[scripting]")
     auto result = lua_tostring(vm.state(), -1);
     CHECK(result == std::string("hello"));
 }
+
+TEST_CASE("scripting require removed module works", "[scripting]")
+{
+    ScriptingTest vm("local util = require('utilities')\n"
+                     "return util.name",
+                     1,
+                     true,
+                     {
+                         {"utilities", "return { name = 'hello' }"},
+                     },
+                     false);
+    vm.unregisterModule("utilities");
+    vm.execute();
+    auto result = lua_tostring(vm.state(), -1);
+    CHECK(result == std::string("[string \"test_source\"]:1: require could not "
+                                "find a script named utilities"));
+}
