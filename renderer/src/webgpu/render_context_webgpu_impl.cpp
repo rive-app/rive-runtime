@@ -167,13 +167,8 @@ public:
         wgpu::ShaderModule fragmentShader;
         std::ostringstream glsl;
         glsl << "#version 310 es\n";
-        glsl << "#pragma shader_stage(fragment)\n";
         glsl << "#define " GLSL_FRAGMENT " true\n";
         glsl << "#define " GLSL_ENABLE_CLIPPING " true\n";
-        if (context->m_contextOptions.invertRenderTargetY)
-        {
-            glsl << "#define " GLSL_POST_INVERT_Y " true\n";
-        }
         BuildLoadStoreEXTGLSL(glsl, actions);
         fragmentShader =
             compile_shader_module_wagyu(context->m_device,
@@ -204,7 +199,7 @@ public:
                 {
                     .topology = wgpu::PrimitiveTopology::TriangleStrip,
                     .frontFace = context->frontFaceForRenderTargetDraws(),
-                    .cullMode = wgpu::CullMode::Back,
+                    .cullMode = wgpu::CullMode::None,
                 },
             .fragment = &fragmentState,
         };
@@ -342,7 +337,7 @@ public:
                 {
                     .topology = wgpu::PrimitiveTopology::TriangleStrip,
                     .frontFace = kFrontFaceForOffscreenDraws,
-                    .cullMode = wgpu::CullMode::Back,
+                    .cullMode = wgpu::CullMode::None,
                 },
             .fragment = &fragmentState,
         };
@@ -498,7 +493,7 @@ public:
                 {
                     .topology = wgpu::PrimitiveTopology::TriangleList,
                     .frontFace = kFrontFaceForOffscreenDraws,
-                    .cullMode = wgpu::CullMode::Back,
+                    .cullMode = wgpu::CullMode::None,
                 },
             .fragment = &fragmentState,
         };
@@ -1392,7 +1387,6 @@ void RenderContextWebGPUImpl::initGPUObjects()
         // when using EXT_shader_pixel_local_storage.
         std::ostringstream glsl;
         glsl << "#version 310 es\n";
-        glsl << "#pragma shader_stage(vertex)\n";
         glsl << "#define " GLSL_VERTEX " true\n";
         // If we are being compiled by SPIRV transpiler for introspection, use
         // gl_VertexIndex instead of gl_VertexID.

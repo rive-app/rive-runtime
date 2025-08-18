@@ -15,6 +15,9 @@ void main()
                            equal(gl_VertexID & ivec2(1, 2), ivec2(0))),
                        0,
                        1);
+#ifdef @POST_INVERT_Y
+    gl_Position.y = -gl_Position.y;
+#endif
 }
 #endif
 
