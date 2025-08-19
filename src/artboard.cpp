@@ -948,6 +948,20 @@ bool Artboard::syncStyleChanges()
     return updated;
 }
 
+void Artboard::calculateLayout()
+{
+    // If we're a child of another artboard (ie nested or artboard list item)
+    // pass NAN so we compute our hugged size if applicable
+    if (parentArtboard() != nullptr && m_updatesOwnLayout)
+    {
+        calculateLayoutInternal(NAN, NAN);
+    }
+    else
+    {
+        calculateLayoutInternal(width(), height());
+    }
+}
+
 bool Artboard::updatePass(bool isRoot)
 {
     updateDataBinds();

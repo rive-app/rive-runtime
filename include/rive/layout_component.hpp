@@ -143,6 +143,7 @@ protected:
     float computedLocalY() override { return m_layout.top(); };
     float computedWidth() override { return m_layout.width(); };
     float computedHeight() override { return m_layout.height(); };
+    void calculateLayoutInternal(float availableWidth, float availableHeight);
 
 private:
     float m_widthOverride = NAN;
@@ -160,7 +161,6 @@ private:
 protected:
     void propagateSizeToChildren(ContainerComponent* component);
     bool applyInterpolation(float elapsedSeconds, bool animate = true);
-    void calculateLayout();
     bool styleDisplayHidden();
 #endif
 

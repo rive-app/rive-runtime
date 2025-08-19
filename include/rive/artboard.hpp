@@ -195,6 +195,7 @@ public:
 
     LayoutData* takeLayoutData();
     bool syncStyleChanges() override;
+    void calculateLayout();
     bool canHaveOverrides() override { return true; }
 
     bool advance(float elapsedSeconds,

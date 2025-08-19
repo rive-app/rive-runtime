@@ -932,11 +932,20 @@ void LayoutComponent::propagateSizeToChildren(ContainerComponent* component)
     }
 }
 
-void LayoutComponent::calculateLayout()
+void LayoutComponent::calculateLayoutInternal(float availableWidth,
+                                              float availableHeight)
 {
+    auto actualAvailWidth =
+        std::isnan(availableWidth) && m_style && m_style->intrinsicallySized()
+            ? availableWidth
+            : width();
+    auto actualAvailHeight =
+        std::isnan(availableHeight) && m_style && m_style->intrinsicallySized()
+            ? availableHeight
+            : height();
     YGNodeCalculateLayout(&m_layoutData->node,
-                          width(),
-                          height(),
+                          actualAvailWidth,
+                          actualAvailHeight,
                           YGDirection::YGDirectionInherit);
 }
 
@@ -1462,6 +1471,9 @@ void LayoutComponent::onDirty(ComponentDirt value) {}
 bool LayoutComponent::mainAxisIsRow() { return true; }
 
 bool LayoutComponent::mainAxisIsColumn() { return false; }
+void LayoutComponent::calculateLayoutInternal(float availableWidth,
+                                              float availableHeight)
+{}
 #endif
 
 LayoutComponent::~LayoutComponent()
