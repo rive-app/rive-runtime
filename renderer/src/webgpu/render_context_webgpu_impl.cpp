@@ -2433,6 +2433,11 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
             std::size(inputAttachments);
         wagyuRenderPassDescriptor.inputAttachments = inputAttachments;
         passDesc.nextInChain = &wagyuRenderPassDescriptor.chain;
+    } else if (m_capabilities.plsType ==
+               PixelLocalStorageType::GL_EXT_shader_pixel_local_storage) {
+        wagyuRenderPassDescriptor.pixelLocalStorageEnabled = WGPUOptionalBool_True;
+        //wagyuRenderPassDescriptor.pixelLocalStorageSize = 16;
+        passDesc.nextInChain = &wagyuRenderPassDescriptor.chain;
     }
 #endif
 
@@ -2814,10 +2819,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     if (m_capabilities.plsType ==
         PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
     {
-        wgpuWagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(
-            drawPass.Get(),
-            true);
-
         // Draw the load action for EXT_shader_pixel_local_storage.
         std::array<float, 4> clearColor;
         LoadStoreActionsEXT loadActions =
@@ -3010,10 +3011,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         drawPass.SetPipeline(
             storePipeline->renderPipeline(renderTarget->framebufferFormat()));
         drawPass.Draw(4);
-
-        wgpuWagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(
-            drawPass.Get(),
-            false);
     }
 #endif
 
