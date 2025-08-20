@@ -65,7 +65,7 @@ parser.add_argument("-m", "--match",
                     help="`match` patter for gms")
 parser.add_argument("-t", "--target",
                     default="host",
-                    choices=["host", "android", "ios", "iossim", "unreal"],
+                    choices=["host", "android", "ios", "iossim", "unreal", "unreal_android"],
                     help="which platform to run on")
 parser.add_argument("-a", "--android-arch",
                     default="arm64",
@@ -353,6 +353,12 @@ def update_cmd_to_deploy_on_target(cmd):
         unreal_exe_path = os.path.join(dirname, "Windows", "rive_unreal.exe")
         return [unreal_exe_path, "/Game/maps/" + toolname, "-ResX=1280", "-ResY=720", "-WINDOWED"] + cmd[1:]
 
+    if args.target == "unreal_android":
+        tool_args = ' '.join(["/Game/maps/" + toolname] + cmd[1:])
+        return ["adb", "shell",
+                    "am force-stop app.rive.rive_unreal && "
+                    f"am start -n app.rive.rive_unreal/com.epicgames.unreal.GameActivity -e args '{tool_args}'"]
+
     if args.target == "android":
         sharedlib = os.path.join(dirname, "lib%s.so" % toolname)
         print("\nDeploying %s on android..." % sharedlib)
@@ -514,7 +520,7 @@ def main():
         args.remote = True # Since we can't do port forwarding in iOS, it always has to be remote.
         if not args.ios_udid:
             args.ios_udid = "booted"
-    elif args.target == 'unreal':
+    elif args.target == 'unreal' or args.target == 'unreal_android':
          # currently, unreal needs to run only one job at a time for goldens and gms to work
         args.jobs_per_tool = 1
         if args.builddir == None:
@@ -560,6 +566,13 @@ def main():
 
     # Build the wrapper app, if applicable
     if not args.no_install:
+        if args.target == "unreal_android":
+            unreal_android_path = os.path.join(args.builddir, "Android_ASTC")
+            current = os.getcwd()
+            os.chdir(unreal_android_path);
+            subprocess.check_call(["Install_rive_unreal-arm64.bat"])
+            print()
+            os.chdir(current);
         if args.target == "android":
             # Copy the native libraries into the android_tests project.
             jnidir = os.path.join("android_tests", "app", "src", "main", "jniLibs")

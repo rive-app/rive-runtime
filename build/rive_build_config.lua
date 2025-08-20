@@ -411,9 +411,15 @@ if _OPTIONS['for_android'] then
     pic('on') -- Position-independent code is required for NDK libraries.
 
     -- Detect the NDK.
-    EXPECTED_NDK_VERSION = 'r27c'
+    local EXPECTED_NDK_VERSION = 'r27c'
+    local NDK_LONG_VERSION_STRING = "27.2.12479018"
+    if _OPTIONS['for_unreal'] then
+        EXPECTED_NDK_VERSION = '25.1.8937393'
+        NDK_LONG_VERSION_STRING = '25.1.8937393'
+    end
     ndk = os.getenv('NDK_PATH') or os.getenv('ANDROID_NDK') or '<undefined>'
     local ndk_version = '<undetected>'
+    local ndk_long_version = '<undetected>'
     local f = io.open(ndk .. '/source.properties', 'r')
     if f then
         for line in f:lines() do
@@ -422,21 +428,26 @@ if _OPTIONS['for_android'] then
                 ndk_version = match
                 break
             end
+            match = line:match('^Pkg.Revision = (.+)$')
+            if match then
+                ndk_long_version = match
+                break
+            end
         end
         f:close()
     end
-    if ndk_version ~= EXPECTED_NDK_VERSION then
+    if ndk_version ~= EXPECTED_NDK_VERSION and ndk_long_version ~= NDK_LONG_VERSION_STRING then
         print()
         print('** Rive requires Android NDK version ' .. EXPECTED_NDK_VERSION .. ' **')
         print()
         print('To install via Android Studio:')
         print('  - Settings > SDK Manager > SDK Tools')
         print('  - Check "Show Package Details" at the bottom')
-        print('  - Select 27.2.12479018 under "NDK (Side by side)"')
+        print('  - Select '..NDK_LONG_VERSION_STRING..' under "NDK (Side by side)"')
         print('  - Note the value of "Android SDK Location"')
         print()
         print('Then set the ANDROID_NDK environment variable:')
-        print('  - export ANDROID_NDK="<Android SDK Location>/ndk/27.2.12479018"')
+        print('  - export ANDROID_NDK="<Android SDK Location>/ndk/'..NDK_LONG_VERSION_STRING..'"')
         print()
         error(
             'Unsupported Android NDK\n  ndk: '

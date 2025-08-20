@@ -215,7 +215,7 @@ static void dumpGMs(const std::string& match, bool interactive)
                 inputEventData = TestingWindow::Get()->waitForInputEvent();
             }
         }
-#ifdef RIVE_ANDROID
+#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
         if (!rive_android_app_poll_once())
         {
             return;
@@ -378,7 +378,7 @@ int main(int argc, const char* argv[])
     }
 
     void* platformWindow = nullptr;
-#ifdef RIVE_ANDROID
+#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
     // Make sure the testing harness always gets initialized on Android so we
     // pipe stdout & stderr to the android log always get pngs.
     if (!TestHarness::Instance().initialized())

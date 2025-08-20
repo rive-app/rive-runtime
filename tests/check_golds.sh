@@ -26,6 +26,12 @@ while :; do
             ARGS="$ARGS --no-rebuild --no-install"
             shift
         ;;
+        -ua)
+            TARGET="unreal_android"
+            DEFAULT_BACKEND=rhi
+            ARGS="$ARGS --no-rebuild"
+            shift
+        ;;
         -i)
             TARGET="ios"
             DEFAULT_BACKEND=metal

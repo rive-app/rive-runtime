@@ -119,7 +119,7 @@ static bool render_and_dump_png(int cellSize,
                 inputEventData = TestingWindow::Get()->waitForInputEvent();
             }
         }
-#ifdef RIVE_ANDROID
+#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
         if (!rive_android_app_poll_once())
         {
             return false;
@@ -247,7 +247,7 @@ int main(int argc, const char* argv[])
                               ? TestingWindow::Visibility::headless
                               : TestingWindow::Visibility::window;
         void* platformWindow = nullptr;
-#ifdef RIVE_ANDROID
+#if defined(RIVE_ANDROID) && !defined(RIVE_UNREAL)
         // Only render directly to the main window on GL. Vulkan is experiencing
         // device losses on Pixel 6 when we render to the main window.
         if (backend == TestingWindow::Backend::gl)
