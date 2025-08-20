@@ -18,6 +18,9 @@ glFramebufferTexture2DMultisampleEXT = nullptr;
 PFNGLRENDERBUFFERSTORAGEMULTISAMPLEEXTPROC glRenderbufferStorageMultisampleEXT =
     nullptr;
 PFNGLBLENDBARRIERKHRPROC glBlendBarrierKHR = nullptr;
+PFNGLFRAMEBUFFERPIXELLOCALSTORAGESIZEEXTPROC
+glFramebufferPixelLocalStorageSizeEXT = nullptr;
+PFNGLCLEARPIXELLOCALSTORAGEUIEXTPROC glClearPixelLocalStorageuiEXT = nullptr;
 
 void LoadGLESExtensions(const GLCapabilities& extensions)
 {
@@ -61,5 +64,16 @@ void LoadGLESExtensions(const GLCapabilities& extensions)
         glBlendBarrierKHR =
             (PFNGLBLENDBARRIERKHRPROC)eglGetProcAddress("glBlendBarrierKHR");
         loadedExtensions.KHR_blend_equation_advanced = true;
+    }
+    if (extensions.EXT_shader_pixel_local_storage2 &&
+        !loadedExtensions.EXT_shader_pixel_local_storage2)
+    {
+        glFramebufferPixelLocalStorageSizeEXT =
+            (PFNGLFRAMEBUFFERPIXELLOCALSTORAGESIZEEXTPROC)eglGetProcAddress(
+                "glFramebufferPixelLocalStorageSizeEXT");
+        glClearPixelLocalStorageuiEXT =
+            (PFNGLCLEARPIXELLOCALSTORAGEUIEXTPROC)eglGetProcAddress(
+                "glClearPixelLocalStorageuiEXT");
+        loadedExtensions.EXT_shader_pixel_local_storage2 = true;
     }
 }

@@ -6,8 +6,8 @@
 
 #include "rive/renderer/gl/load_store_actions_ext.hpp"
 #include "rive/renderer/gl/gl_utils.hpp"
-#include "rive/math/simd.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
+#include "shaders/constants.glsl"
 #include <sstream>
 
 #include "generated/shaders/pls_load_store_ext.exports.h"
@@ -97,22 +97,54 @@ public:
 
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
+        if (impl->m_capabilities.EXT_shader_pixel_local_storage2)
+        {
+            // Always set the pixel local storage size if the v2 extension is
+            // available. This isn't technically necessary if we aren't using
+            // other parts of the v2 API, but PowerVR Rogue GE8300 experiences
+            // corruption if we don't, and this is an apparent workaround.
+            glFramebufferPixelLocalStorageSizeEXT(GL_FRAMEBUFFER,
+                                                  PLS_PLANE_COUNT *
+                                                      sizeof(uint32_t));
+        }
         glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 
-        std::array<float, 4> clearColor4f;
-        LoadStoreActionsEXT actions = BuildLoadActionsEXT(desc, &clearColor4f);
-        const PLSLoadStoreProgram& plsProgram =
-            findLoadStoreProgram(actions, desc.combinedShaderFeatures);
-        m_state->bindProgram(plsProgram.id());
-        if (plsProgram.clearColorUniLocation() >= 0)
+        if (impl->m_capabilities.EXT_shader_pixel_local_storage2 &&
+            desc.colorLoadAction != gpu::LoadAction::preserveRenderTarget)
         {
-            glUniform4fv(plsProgram.clearColorUniLocation(),
-                         1,
-                         clearColor4f.data());
+            // Initialize PLS using the v2 clear API.
+            uint32_t plsClearValues[] = {
+                gpu::SwizzleRiveColorToRGBAPremul(desc.colorClearValue),
+                0,
+                0,
+                desc.coverageClearValue,
+            };
+            static_assert(COLOR_PLANE_IDX == 0);
+            static_assert(CLIP_PLANE_IDX == 1);
+            static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
+            static_assert(COVERAGE_PLANE_IDX == 3);
+            static_assert(PLS_PLANE_COUNT == std::size(plsClearValues));
+            glClearPixelLocalStorageuiEXT(0, PLS_PLANE_COUNT, plsClearValues);
         }
-        m_state->bindVAO(m_plsLoadStoreVAO);
-        m_state->setCullFace(GL_BACK);
-        glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        else
+        {
+            // Initialize PLS by drawing a fullscreen quad.
+            std::array<float, 4> clearColor4f;
+            LoadStoreActionsEXT actions =
+                BuildLoadActionsEXT(desc, &clearColor4f);
+            const PLSLoadStoreProgram& plsProgram =
+                findLoadStoreProgram(actions, desc.combinedShaderFeatures);
+            m_state->bindProgram(plsProgram.id());
+            if (plsProgram.clearColorUniLocation() >= 0)
+            {
+                glUniform4fv(plsProgram.clearColorUniLocation(),
+                             1,
+                             clearColor4f.data());
+            }
+            m_state->bindVAO(m_plsLoadStoreVAO);
+            m_state->setCullFace(GL_BACK);
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+        }
     }
 
     void deactivatePixelLocalStorage(RenderContextGLImpl* impl,

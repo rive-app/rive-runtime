@@ -2043,6 +2043,10 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.EXT_shader_pixel_local_storage = true;
         }
+        else if (strcmp(ext, "GL_EXT_shader_pixel_local_storage2") == 0)
+        {
+            capabilities.EXT_shader_pixel_local_storage2 = true;
+        }
         else if (strcmp(ext, "GL_QCOM_shader_framebuffer_fetch_noncoherent") ==
                  0)
         {
