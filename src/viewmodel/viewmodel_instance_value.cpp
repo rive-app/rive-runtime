@@ -95,6 +95,21 @@ void ViewModelInstanceValue::removeDelegate(
     m_changeFlags |= ValueFlags::delegatesChanged;
 }
 
+bool ViewModelInstanceValue::suppressDelegation()
+{
+    if (m_changeFlags & ValueFlags::delegating)
+    {
+        return false;
+    }
+    m_changeFlags |= ValueFlags::delegating;
+    return true;
+}
+
+void ViewModelInstanceValue::restoreDelegation()
+{
+    m_changeFlags &= ~ValueFlags::delegating;
+}
+
 void ViewModelInstanceValue::onValueChanged()
 {
     m_changeFlags |= ValueFlags::valueChanged;

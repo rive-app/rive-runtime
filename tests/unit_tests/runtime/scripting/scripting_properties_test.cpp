@@ -75,8 +75,22 @@ TEST_CASE("scripted properties can be passed to luau", "[scripting_properties]")
         "New text");
     orientProperty->as<rive::ViewModelInstanceBoolean>()->propertyValue(true);
 
+    auto artboardWithTrigger = file->artboard("artboard-2")->instance();
+    REQUIRE(artboardWithTrigger != nullptr);
+    auto viewModelInstanceWithTrigger =
+        file->createDefaultViewModelInstance(artboardWithTrigger.get());
+    REQUIRE(viewModelInstanceWithTrigger != nullptr);
+    auto triggerProperty =
+        viewModelInstanceWithTrigger->propertyValue("trigger-prop");
+    REQUIRE(triggerProperty != nullptr);
+    REQUIRE(triggerProperty->is<rive::ViewModelInstanceTrigger>());
+
     ScriptingTest vm(
         R"TEST_SRC(
+type ViewModel = {
+    getNumber: (self, name:string)->Property<number>?,
+    getTrigger: (self, name:string)->PropertyTrigger?
+}
 type Vm1 = {
     width: Property<number>,
     rotation: Property<rotation>,
@@ -87,14 +101,27 @@ type Vm1 = {
     -- todo: addListener
 }
 local data:Vm1?
+local triggerProp:PropertyTrigger?
 local calledChange:boolean = false
 local calledChangeWithContext:boolean = false
 
-function provide(vm:Vm1)
+function provide(vm:Vm1, vm2:ViewModel)
+    triggerProp = vm2:getTrigger('trigger-prop')
+    if triggerProp then
+        print("trigger is good")
+        triggerProp:addListener(vm2, triggerTriggered)
+    else
+        print("bad trigger")
+    end
     data = vm
+    data2 = vm2
     data.rotation:addListener(changed)
     data.rotation:addListener(vm, changedWithContext)
     print("data provided")
+end
+
+function triggerTriggered(context:ViewModel)
+    print("trigger was triggered!")
 end
 
 function changedWithContext(context:Vm1)
@@ -126,17 +153,30 @@ end
 function calledBoth():boolean
     return calledChange and calledChangeWithContext
 end
+
+function callTriggerIndirectly()
+    if triggerProp then
+        triggerProp:fire()
+    end
+end
 )TEST_SRC");
     auto L = vm.state();
     lua_getglobal(L, "provide");
     auto data = make_rcp<ViewModelInstanceViewModel>();
     data->referenceViewModelInstance(viewModelInstance);
+    auto data2 = make_rcp<ViewModelInstanceViewModel>();
+    data2->referenceViewModelInstance(viewModelInstanceWithTrigger);
     lua_newrive<ScriptedPropertyViewModel>(
         L,
         L,
         ref_rcp(viewModelInstance->viewModel()),
         data);
-    lua_pcall(L, 1, 0, 0);
+    lua_newrive<ScriptedPropertyViewModel>(
+        L,
+        L,
+        ref_rcp(viewModelInstance->viewModel()),
+        data2);
+    lua_pcall(L, 2, 0, 0);
     lua_getglobal(L, "getRotation");
     lua_pcall(L, 0, 1, 0);
     REQUIRE(luaL_checknumber(L, -1) == Approx(180.0f));
@@ -162,9 +202,19 @@ end
     CHECK(lua_toboolean(L, -1) == 1);
     lua_pop(L, 1);
 
+    triggerProperty->as<rive::ViewModelInstanceTrigger>()->trigger();
+
     // Check print statements.
-    CHECK(vm.console.size() == 3);
-    CHECK(vm.console[0] == "data provided");
-    CHECK(vm.console[1] == "changed");
-    CHECK(vm.console[2] == "changed with context");
+    CHECK(vm.console.size() == 5);
+    CHECK(vm.console[0] == "trigger is good");
+    CHECK(vm.console[1] == "data provided");
+    CHECK(vm.console[2] == "changed");
+    CHECK(vm.console[3] == "changed with context");
+    CHECK(vm.console[4] == "trigger was triggered!");
+
+    lua_getglobal(L, "callTriggerIndirectly");
+    lua_pcall(L, 0, 0, 0);
+    // another print
+    CHECK(vm.console.size() == 6);
+    CHECK(vm.console[5] == "trigger was triggered!");
 }

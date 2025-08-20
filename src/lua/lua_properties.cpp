@@ -1,6 +1,7 @@
 #ifdef WITH_RIVE_SCRIPTING
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
+#include "rive/viewmodel/viewmodel_property_trigger.hpp"
 
 #include <math.h>
 #include <stdio.h>
@@ -17,6 +18,12 @@ static void pushViewModelInstanceValue(lua_State* L,
                 L,
                 L,
                 ref_rcp(propValue->as<ViewModelInstanceNumber>()));
+            break;
+        case ViewModelInstanceTriggerBase::typeKey:
+            lua_newrive<ScriptedPropertyTrigger>(
+                L,
+                L,
+                ref_rcp(propValue->as<ViewModelInstanceTrigger>()));
             break;
         default:
             lua_pushnil(L);
@@ -210,6 +217,11 @@ int ScriptedPropertyViewModel::pushValue(const char* name, int coreType)
                                                         m_state,
                                                         nullptr);
                     break;
+                case ViewModelPropertyTriggerBase::typeKey:
+                    lua_newrive<ScriptedPropertyTrigger>(m_state,
+                                                         m_state,
+                                                         nullptr);
+                    break;
             }
         }
     }
@@ -239,10 +251,10 @@ static int property_vm_index(lua_State* L)
     return vm->pushValue(name);
 }
 
-static int property_namecall(lua_State* L,
-                             ScriptedProperty* property,
-                             int atom,
-                             bool& error)
+static int property_namecall_atom(lua_State* L,
+                                  ScriptedProperty* property,
+                                  int atom,
+                                  bool& error)
 {
     switch (atom)
     {
@@ -255,6 +267,15 @@ static int property_namecall(lua_State* L,
         {
             assert(property->state() == L);
             return property->removeListener();
+        }
+        case (int)LuaAtoms::fire:
+        {
+            auto value = property->instanceValue();
+            if (value != nullptr && value->is<ViewModelInstanceTrigger>())
+            {
+                value->as<ViewModelInstanceTrigger>()->trigger();
+                return 0;
+            }
         }
     }
     error = true;
@@ -278,10 +299,18 @@ static int property_vm_namecall(lua_State* L)
                 return vm->pushValue(name,
                                      ViewModelInstanceNumberBase::typeKey);
             }
+            case (int)LuaAtoms::getTrigger:
+            {
+                size_t namelen = 0;
+                const char* name = luaL_checklstring(L, 2, &namelen);
+                assert(vm->state() == L);
+                return vm->pushValue(name,
+                                     ViewModelInstanceTriggerBase::typeKey);
+            }
             default:
             {
                 bool error = false;
-                int stackChange = property_namecall(L, vm, atom, error);
+                int stackChange = property_namecall_atom(L, vm, atom, error);
                 if (!error)
                 {
                     return stackChange;
@@ -298,30 +327,47 @@ static int property_vm_namecall(lua_State* L)
     return 0;
 }
 
-static int property_number_namecall(lua_State* L)
+static int property_namecall(lua_State* L)
 {
     int atom;
     const char* str = lua_namecallatom(L, &atom);
+    const char* name = "Property";
     if (str != nullptr)
     {
-        auto vm = lua_torive<ScriptedPropertyNumber>(L, 1);
+        auto tag = lua_userdatatag(L, 1);
+        switch (tag)
+        {
+            case ScriptedPropertyNumber::luaTag:
+                name = ScriptedPropertyNumber::luaName;
+                break;
+            case ScriptedPropertyTrigger::luaTag:
+                name = ScriptedPropertyTrigger::luaName;
+                break;
+            default:
+                luaL_typeerror(L, 1, name);
+                break;
+        }
+        auto vm = (ScriptedProperty*)lua_touserdata(L, 1);
         bool error = false;
-        int stackChange = property_namecall(L, vm, atom, error);
+        int stackChange = property_namecall_atom(L, vm, atom, error);
         if (!error)
         {
             return stackChange;
         }
     }
-    luaL_error(L,
-               "%s is not a valid method of %s",
-               str,
-               ScriptedPropertyNumber::luaName);
+    luaL_error(L, "%s is not a valid method of %s", str, name);
     return 0;
 }
 
 ScriptedPropertyNumber::ScriptedPropertyNumber(
     lua_State* L,
     rcp<ViewModelInstanceNumber> value) :
+    ScriptedProperty(L, std::move(value))
+{}
+
+ScriptedPropertyTrigger::ScriptedPropertyTrigger(
+    lua_State* L,
+    rcp<ViewModelInstanceTrigger> value) :
     ScriptedProperty(L, std::move(value))
 {}
 
@@ -371,7 +417,6 @@ static int property_number_index(lua_State* L)
 
 static int property_number_newindex(lua_State* L)
 {
-
     int atom;
     const char* key = lua_tostringatom(L, 2, &atom);
     if (!key)
@@ -416,13 +461,22 @@ int luaopen_rive_properties(lua_State* L)
         lua_pushcfunction(L, property_number_newindex, nullptr);
         lua_setfield(L, -2, "__newindex");
 
-        lua_pushcfunction(L, property_number_namecall, nullptr);
+        lua_pushcfunction(L, property_namecall, nullptr);
         lua_setfield(L, -2, "__namecall");
 
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable}
-
-        return 2;
     }
+
+    {
+        lua_register_rive<ScriptedPropertyTrigger>(L);
+
+        lua_pushcfunction(L, property_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable}
+    }
+    return 3;
 }
 #endif

@@ -27,10 +27,15 @@ enum class ValueFlags : uint8_t
     delegating = 1 << 3,
 };
 RIVE_MAKE_ENUM_BITSET(ValueFlags)
+
+class SuppressDelegation;
+
 class ViewModelInstanceValue : public ViewModelInstanceValueBase,
                                public RefCnt<ViewModelInstanceValue>,
                                public Triggerable
 {
+    friend class SuppressDelegation;
+
 private:
     ViewModelProperty* m_ViewModelProperty;
     static std::string defaultName;
@@ -46,6 +51,10 @@ protected:
     DependencyHelper<rcp<ViewModelInstance>, Dirtyable> m_DependencyHelper;
     void addDirt(ComponentDirt value);
 
+    // Suppress/restore calling delegates.
+    bool suppressDelegation();
+    void restoreDelegation();
+
 public:
     StatusCode import(ImportStack& importStack) override;
     void viewModelProperty(ViewModelProperty* value);
@@ -58,6 +67,27 @@ public:
     void onValueChanged();
     const std::string& name() const;
 };
+
+class SuppressDelegation
+{
+public:
+    SuppressDelegation(ViewModelInstanceValue* value) :
+        m_value(value), m_suppressed(value->suppressDelegation())
+    {}
+
+    ~SuppressDelegation()
+    {
+        if (m_suppressed)
+        {
+            m_value->restoreDelegation();
+        }
+    }
+
+private:
+    ViewModelInstanceValue* m_value;
+    bool m_suppressed;
+};
+
 } // namespace rive
 
 #endif

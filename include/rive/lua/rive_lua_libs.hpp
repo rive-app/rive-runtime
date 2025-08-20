@@ -10,6 +10,7 @@
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 
 #include <unordered_map>
@@ -98,8 +99,10 @@ enum class LuaAtoms : int16_t
     // Scripted Properties
     value,
     getNumber,
+    getTrigger,
     addListener,
-    removeListener
+    removeListener,
+    fire
 };
 
 struct ScriptedMat2D
@@ -319,6 +322,8 @@ public:
 
     const lua_State* state() const { return m_state; }
 
+    ViewModelInstanceValue* instanceValue() { return m_instanceValue.get(); }
+
 private:
     std::vector<ScriptedListener> m_listeners;
 
@@ -354,6 +359,15 @@ public:
 
     int pushValue();
     void setValue(float value);
+};
+
+class ScriptedPropertyTrigger : public ScriptedProperty
+{
+public:
+    ScriptedPropertyTrigger(lua_State* L, rcp<ViewModelInstanceTrigger> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 12;
+    static constexpr const char* luaName = "PropertyTrigger";
+    static constexpr bool hasMetatable = true;
 };
 
 // Make

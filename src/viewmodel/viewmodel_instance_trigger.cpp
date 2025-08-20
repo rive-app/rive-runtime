@@ -21,6 +21,8 @@ void ViewModelInstanceTrigger::propertyValueChanged()
 
 void ViewModelInstanceTrigger::advanced()
 {
+    SuppressDelegation suppress(this);
     propertyValue(0);
+
     ViewModelInstanceValue::advanced();
 }
