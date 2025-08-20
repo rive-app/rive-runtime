@@ -7,6 +7,7 @@
 #include "rive/math/bezier_utils.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/renderer/gpu.hpp"
+#include "rive/profiler/profiler_macros.h"
 #include "shaders/constants.glsl"
 
 namespace rive
@@ -161,6 +162,7 @@ static void chop_cubic_at_uniform_rotation(RawPath* path,
                                            int numChops,
                                            const Mat2D& rotationMatrix)
 {
+    RIVE_PROF_SCOPE()
     math::CubicCoeffs coeffs(p);
     float2 tangent = simd::load2f(&tangents[0]);
     float4 rotation = simd::load4f(rotationMatrix.values());
@@ -249,6 +251,7 @@ rcp<RiveRenderPath> RiveRenderPath::makeSoftenedCopyForFeathering(
     float feather,
     float matrixMaxScale)
 {
+    RIVE_PROF_SCOPE()
     // Since curvature is what breaks 1-dimensional feathering along the normal
     // vector, chop into segments that rotate no more than a certain threshold.
     constexpr static int POLAR_JOIN_PRECISION = 2;

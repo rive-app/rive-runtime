@@ -34,6 +34,7 @@
 #include "rive/event.hpp"
 #include "rive/assets/audio_asset.hpp"
 #include "rive/layout/layout_data.hpp"
+#include "rive/profiler/profiler_macros.h"
 
 #include <unordered_map>
 
@@ -1146,6 +1147,8 @@ void Artboard::draw(Renderer* renderer) { draw(renderer, DrawOption::kNormal); }
 
 void Artboard::draw(Renderer* renderer, DrawOption option)
 {
+    RIVE_PROF_SCOPE()
+
     if (renderOpacity() == 0)
     {
         return;

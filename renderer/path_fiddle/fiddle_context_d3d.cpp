@@ -11,6 +11,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(FiddleContextOptions)
 
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/d3d11/render_context_d3d_impl.hpp"
+#include "rive/profiler/profiler_macros.h"
 #include <array>
 #include <dxgi1_2.h>
 
@@ -117,6 +118,8 @@ public:
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
+        RIVE_PROF_SCOPE()
+
         if (m_renderTarget->targetTexture() == nullptr)
         {
             if (m_isHeadless)
@@ -143,6 +146,7 @@ public:
 
     void end(GLFWwindow*, std::vector<uint8_t>* pixelData = nullptr) override
     {
+        RIVE_PROF_SCOPE()
         flushPLSContext(nullptr);
         if (pixelData != nullptr)
         {

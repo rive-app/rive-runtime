@@ -37,6 +37,11 @@ dofile(path.join(dependencies, 'premake5_harfbuzz_v2.lua'))
 dofile(path.join(dependencies, 'premake5_sheenbidi_v2.lua'))
 dofile(path.join(dependencies, 'premake5_miniaudio_v2.lua'))
 dofile(path.join(dependencies, 'premake5_yoga_v2.lua'))
+
+if _OPTIONS['with_optick'] then
+    dofile(path.join(dependencies, 'premake5_optick.lua'))
+end
+
 if _OPTIONS['with_rive_scripting'] then
     luau = require(path.join(path.getabsolute('scripting/'), 'premake5')).luau
 else
@@ -106,6 +111,10 @@ do
     do
         architecture('x64')
         defines({ '_USE_MATH_DEFINES' })
+    end
+    
+    if _OPTIONS['with_optick'] then
+      includedirs({optick .. '/src' })
     end
 
     filter('system:macosx or system:ios')

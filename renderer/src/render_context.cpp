@@ -11,6 +11,8 @@
 #include "rive/renderer/draw.hpp"
 #include "rive/renderer/rive_render_image.hpp"
 #include "rive/renderer/render_context_impl.hpp"
+#include "rive/profiler/profiler_macros.h"
+
 #include "shaders/constants.glsl"
 
 #include <string_view>
@@ -136,6 +138,7 @@ rcp<RenderBuffer> RenderContext::makeRenderBuffer(RenderBufferType type,
 
 rcp<RenderImage> RenderContext::decodeImage(Span<const uint8_t> encodedBytes)
 {
+    RIVE_PROF_SCOPE()
     rcp<Texture> texture = m_impl->platformDecodeImageTexture(encodedBytes);
 #ifdef RIVE_DECODERS
     if (texture == nullptr)
@@ -275,6 +278,7 @@ void RenderContext::LogicalFlush::resetContainers()
 
 void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
 {
+    RIVE_PROF_SCOPE()
     assert(!m_didBeginFrame);
     assert(frameDescriptor.renderTargetWidth > 0);
     assert(frameDescriptor.renderTargetHeight > 0);
@@ -389,6 +393,7 @@ bool RenderContext::pushDraws(DrawUniquePtr draws[], size_t drawCount)
 bool RenderContext::LogicalFlush::pushDraws(DrawUniquePtr draws[],
                                             size_t drawCount)
 {
+    RIVE_PROF_SCOPE()
     assert(!m_hasDoneLayout);
 
     auto countsVector = m_resourceCounts.toVec();
@@ -464,6 +469,7 @@ bool RenderContext::LogicalFlush::allocateGradient(
     const Gradient* gradient,
     gpu::ColorRampLocation* colorRampLocation)
 {
+    RIVE_PROF_SCOPE()
     assert(!m_hasDoneLayout);
 
     const float* stops = gradient->stops();
@@ -556,6 +562,8 @@ bool RenderContext::LogicalFlush::allocateAtlasDraw(
     uint16_t* y,
     TAABB<uint16_t>* paddedRegion)
 {
+    RIVE_PROF_SCOPE()
+
     if (m_atlasRectanizer == nullptr)
     {
         uint16_t atlasMaxSize = m_ctx->atlasMaxSize();
@@ -607,6 +615,7 @@ bool RenderContext::LogicalFlush::allocateAtlasDraw(
 
 size_t RenderContext::LogicalFlush::allocateCoverageBufferRange(size_t length)
 {
+    RIVE_PROF_SCOPE()
     assert(m_ctx->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic);
     assert(length % (32 * 32) == 0u); // Allocations must support 32x32 tiles.
     uint32_t offset = m_coverageBufferLength;
@@ -633,6 +642,7 @@ void RenderContext::logicalFlush()
 
 void RenderContext::flush(const FlushResources& flushResources)
 {
+    RIVE_PROF_SCOPE()
     assert(m_didBeginFrame);
     assert(flushResources.renderTarget->width() ==
            m_frameDescriptor.renderTargetWidth);
@@ -827,6 +837,7 @@ void RenderContext::LogicalFlush::layoutResources(
     ResourceCounters* runningFrameResourceCounts,
     LayoutCounters* runningFrameLayoutCounts)
 {
+    RIVE_PROF_SCOPE()
     assert(!m_hasDoneLayout);
 
     const FrameDescriptor& frameDescriptor = m_ctx->frameDescriptor();
@@ -1063,6 +1074,7 @@ void RenderContext::LogicalFlush::layoutResources(
 
 void RenderContext::LogicalFlush::writeResources()
 {
+    RIVE_PROF_SCOPE()
     const gpu::PlatformFeatures& platformFeatures = m_ctx->platformFeatures();
     assert(m_hasDoneLayout);
     assert(m_flushDesc.firstPath == m_ctx->m_pathData.elementsWritten());
@@ -1633,6 +1645,7 @@ void RenderContext::LogicalFlush::writeResources()
 void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
                                      bool forceRealloc)
 {
+    RIVE_PROF_SCOPE()
 #if 0
     class Logger
     {
@@ -1877,6 +1890,7 @@ void RenderContext::setResourceSizes(ResourceAllocationCounts allocs,
 void RenderContext::mapResourceBuffers(
     const ResourceAllocationCounts& mapCounts)
 {
+    RIVE_PROF_SCOPE()
     if (mapCounts.flushUniformBufferCount > 0)
     {
         m_flushUniformData.mapElements(
@@ -1958,6 +1972,7 @@ void RenderContext::mapResourceBuffers(
 void RenderContext::unmapResourceBuffers(
     const ResourceAllocationCounts& mapCounts)
 {
+    RIVE_PROF_SCOPE()
     if (m_flushUniformData)
     {
         m_flushUniformData.unmapElements(
@@ -2021,6 +2036,7 @@ void RenderContext::unmapResourceBuffers(
 uint32_t RenderContext::incrementCoverageBufferPrefix(
     bool* needsCoverageBufferClear)
 {
+    RIVE_PROF_SCOPE()
     assert(m_didBeginFrame);
     assert(frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic);
     do
@@ -2058,6 +2074,7 @@ uint32_t RenderContext::LogicalFlush::allocateOuterCubicTessVertices(
 
 uint32_t RenderContext::LogicalFlush::pushPath(const PathDraw* draw)
 {
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
 
     ++m_currentPathID;
@@ -2110,6 +2127,7 @@ RenderContext::TessellationWriter::TessellationWriter(
     m_pathTessLocation(forwardTessLocation),
     m_pathMirroredTessLocation(mirroredTessLocation)
 {
+    RIVE_PROF_SCOPE()
     RIVE_DEBUG_CODE(m_expectedPathTessEndLocation =
                         m_pathTessLocation + forwardTessVertexCount;)
     RIVE_DEBUG_CODE(m_expectedPathMirroredTessEndLocation =
@@ -2138,6 +2156,7 @@ uint32_t RenderContext::LogicalFlush::pushContour(uint32_t pathID,
                                                   bool closed,
                                                   uint32_t vertexIndex0)
 {
+    RIVE_PROF_SCOPE()
     assert(pathID != 0);
     assert(isStroke || closed);
 
@@ -2160,6 +2179,7 @@ uint32_t RenderContext::TessellationWriter::pushContour(
     bool closed,
     uint32_t paddingVertexCount)
 {
+    RIVE_PROF_SCOPE()
     // The first curve of the contour will be pre-padded with
     // 'paddingVertexCount' tessellation vertices, colocated at T=0. The caller
     // must use this argument align the end of the contour on a boundary of the
@@ -2182,6 +2202,7 @@ void RenderContext::TessellationWriter::pushCubic(
     uint32_t joinSegmentCount,
     uint32_t contourIDWithFlags)
 {
+    RIVE_PROF_SCOPE()
     assert(0 <= parametricSegmentCount &&
            parametricSegmentCount <= kMaxParametricSegments);
     assert(0 <= polarSegmentCount && polarSegmentCount <= kMaxPolarSegments);
@@ -2247,6 +2268,7 @@ RIVE_ALWAYS_INLINE void RenderContext::TessellationWriter::
                           uint32_t joinSegmentCount,
                           uint32_t contourIDWithFlags)
 {
+    RIVE_PROF_SCOPE()
     assert(totalVertexCount > 0);
 
     uint32_t y = m_pathTessLocation / kTessTextureWidth;
@@ -2385,6 +2407,7 @@ RIVE_ALWAYS_INLINE void RenderContext::TessellationWriter::
 void RenderContext::LogicalFlush::pushPaddingVertices(uint32_t count,
                                                       uint32_t tessLocation)
 {
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
     assert(count > 0);
 
@@ -2410,6 +2433,7 @@ void RenderContext::LogicalFlush::pushMidpointFanDraw(
     uint32_t tessLocation,
     gpu::ShaderMiscFlags shaderMiscFlags)
 {
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
 
     uint32_t baseInstance = math::lossless_numeric_cast<uint32_t>(
@@ -2431,6 +2455,7 @@ void RenderContext::LogicalFlush::pushOuterCubicsDraw(
     uint32_t tessLocation,
     gpu::ShaderMiscFlags shaderMiscFlags)
 {
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
 
     uint32_t baseInstance = math::lossless_numeric_cast<uint32_t>(
@@ -2451,6 +2476,7 @@ size_t RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
     gpu::WindingFaces windingFaces,
     gpu::ShaderMiscFlags shaderMiscFlags)
 {
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
     assert(pathID != 0);
 
@@ -2475,6 +2501,7 @@ size_t RenderContext::LogicalFlush::pushInteriorTriangulationDraw(
 
 void RenderContext::LogicalFlush::pushAtlasBlit(PathDraw* draw, uint32_t pathID)
 {
+    RIVE_PROF_SCOPE()
     auto baseVertex = math::lossless_numeric_cast<uint32_t>(
         m_ctx->m_triangleVertexData.elementsWritten());
     auto [l, t, r, b] = AABB(draw->pixelBounds());
@@ -2493,6 +2520,7 @@ void RenderContext::LogicalFlush::pushAtlasBlit(PathDraw* draw, uint32_t pathID)
 
 void RenderContext::LogicalFlush::pushImageRectDraw(ImageRectDraw* draw)
 {
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
 
     // If we support image paints for paths, the client should use pushPath()
@@ -2519,7 +2547,7 @@ void RenderContext::LogicalFlush::pushImageRectDraw(ImageRectDraw* draw)
 
 void RenderContext::LogicalFlush::pushImageMeshDraw(ImageMeshDraw* draw)
 {
-
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
 
     size_t imageDrawDataOffset = m_ctx->m_imageDrawUniformData.bytesWritten();
@@ -2546,6 +2574,7 @@ void RenderContext::LogicalFlush::pushImageMeshDraw(ImageMeshDraw* draw)
 void RenderContext::LogicalFlush::pushStencilClipResetDraw(
     StencilClipReset* draw)
 {
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
 
     uint32_t baseVertex = math::lossless_numeric_cast<uint32_t>(
@@ -2576,6 +2605,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushPathDraw(
     uint32_t vertexCount,
     uint32_t baseVertex)
 {
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
 
     DrawBatch& batch = pushDraw(draw,
@@ -2666,6 +2696,7 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
     uint32_t elementCount,
     uint32_t baseElement)
 {
+    RIVE_PROF_SCOPE()
     assert(m_hasDoneLayout);
     assert(elementCount > 0);
 

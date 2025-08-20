@@ -13,6 +13,7 @@ if not _OPTIONS['with-webgpu'] then
     project('path_fiddle')
     do
         dependson('rive')
+
         kind('ConsoleApp')
         includedirs({
             'include',
@@ -31,7 +32,7 @@ if not _OPTIONS['with-webgpu'] then
 
         defines({ 'YOGA_EXPORT=' })
 
-        files({ 'path_fiddle/**.cpp', 'shader_hotload/**.cpp' })
+        files({ 'path_fiddle/**.cpp', 'shader_hotload/**.cpp', 'path_fiddle/**.h**', 'shader_hotload/**.h**' })
 
         links({
             'rive',
@@ -55,7 +56,7 @@ if not _OPTIONS['with-webgpu'] then
         if _OPTIONS['with_vulkan'] then
             dofile('rive_vk_bootstrap/bootstrap_project.lua')
         end
-
+        
         filter('action:xcode4')
         do
             -- xcode doesnt like angle brackets except for -isystem
@@ -87,7 +88,11 @@ if not _OPTIONS['with-webgpu'] then
             libdirs({
                 RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
             })
-            links({ 'glfw3', 'opengl32', 'd3d11', 'd3d12', 'dxguid', 'dxgi', 'd3dcompiler' })
+            links({ 'glfw3', 'opengl32', 'd3d11', 'd3d12', 'dxguid', 'dxgi', 'd3dcompiler'})
+        end
+        if _OPTIONS['with_optick'] then
+            links({'optick'})
+            externalincludedirs({ optick .. '/src'})
         end
 
         if _TARGET_OS  == 'windows'then

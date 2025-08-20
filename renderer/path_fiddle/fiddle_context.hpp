@@ -1,7 +1,6 @@
 #pragma once
 
 #include <vector>
-
 #include "rive/renderer/render_context.hpp"
 
 struct GLFWwindow;

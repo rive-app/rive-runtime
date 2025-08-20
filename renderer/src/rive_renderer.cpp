@@ -9,11 +9,13 @@
 #include "rive/math/math_types.hpp"
 #include "rive/math/simd.hpp"
 #include "rive/renderer/rive_render_image.hpp"
+#include "rive/profiler/profiler_macros.h"
 
 namespace rive
 {
 bool RiveRenderer::IsAABB(const RawPath& path, AABB* result)
 {
+    RIVE_PROF_SCOPE()
     // Any quadrilateral begins with a move plus 3 lines.
     constexpr static size_t kAABBVerbCount = 4;
     constexpr static PathVerb aabbVerbs[kAABBVerbCount] = {PathVerb::move,
@@ -108,6 +110,7 @@ void RiveRenderer::transform(const Mat2D& matrix)
 
 void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 {
+    RIVE_PROF_SCOPE()
     LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
     LITE_RTTI_CAST_OR_RETURN(paint, RiveRenderPaint*, renderPaint);
 
@@ -173,6 +176,7 @@ void RiveRenderer::drawPath(RenderPath* renderPath, RenderPaint* renderPaint)
 
 void RiveRenderer::clipPath(RenderPath* renderPath)
 {
+    RIVE_PROF_SCOPE()
     LITE_RTTI_CAST_OR_RETURN(path, RiveRenderPath*, renderPath);
 
     if (m_context->frameInterlockMode() == gpu::InterlockMode::clockwiseAtomic)
@@ -247,6 +251,7 @@ static bool transform_rect_to_new_space(AABB* rect,
 
 void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
 {
+    RIVE_PROF_SCOPE()
     bool hasClipRect = m_stack.back().clipRectInverseMatrix != nullptr;
     if (rect.isEmptyOrNaN())
     {
@@ -293,6 +298,7 @@ void RiveRenderer::clipRectImpl(AABB rect, const RiveRenderPath* originalPath)
 
 void RiveRenderer::clipPathImpl(const RiveRenderPath* path)
 {
+    RIVE_PROF_SCOPE()
     if (path->getBounds().isEmptyOrNaN())
     {
         m_stack.back().clipIsEmpty = true;
@@ -325,6 +331,7 @@ void RiveRenderer::drawImage(const RenderImage* renderImage,
                              BlendMode blendMode,
                              float opacity)
 {
+    RIVE_PROF_SCOPE()
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
 
     rcp<gpu::Texture> imageTexture = image->refTexture();
@@ -390,6 +397,7 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
                                  BlendMode blendMode,
                                  float opacity)
 {
+    RIVE_PROF_SCOPE()
     LITE_RTTI_CAST_OR_RETURN(image, const RiveRenderImage*, renderImage);
 
     rcp<gpu::Texture> imageTexture = image->refTexture();
@@ -425,6 +433,7 @@ void RiveRenderer::drawImageMesh(const RenderImage* renderImage,
 
 void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 {
+    RIVE_PROF_SCOPE()
     assert(!m_stack.back().clipIsEmpty);
     if (draw.get() == nullptr)
     {
@@ -500,6 +509,7 @@ void RiveRenderer::clipAndPushDraw(gpu::DrawUniquePtr draw)
 
 RiveRenderer::ApplyClipResult RiveRenderer::applyClip(gpu::Draw* draw)
 {
+    RIVE_PROF_SCOPE()
     if (m_stack.back().clipIsEmpty)
     {
         return ApplyClipResult::clipEmpty;

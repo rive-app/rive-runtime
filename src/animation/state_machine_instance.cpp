@@ -41,6 +41,7 @@
 #include "rive/math/math_types.hpp"
 #include "rive/audio_event.hpp"
 #include "rive/dirtyable.hpp"
+#include "rive/profiler/profiler_macros.h"
 #include <unordered_map>
 #include <chrono>
 
@@ -1874,6 +1875,7 @@ void StateMachineInstance::reset()
 
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
+    RIVE_PROF_SCOPE()
     bool keepGoing = this->advance(seconds, true);
     if (m_artboardInstance->advanceInternal(
             seconds,

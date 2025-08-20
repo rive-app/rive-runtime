@@ -138,6 +138,13 @@ newoption({
     description = 'enable UndefinedBehaviorSanitizer',
 })
 
+newoption({ trigger = 'with_optick', description = 'use optick profiler' })
+if _OPTIONS['with_optick'] then
+    defines({ 'RIVE_OPTICK' })
+    RIVE_OPTICK_URL = 'bombomby/optick'
+    RIVE_OPTICK_VERSION = '1.4.0.0'
+end 
+
 location(RIVE_BUILD_OUT)
 targetdir(RIVE_BUILD_OUT)
 objdir(RIVE_BUILD_OUT .. '/obj')

@@ -168,6 +168,10 @@ newoption({
     description = 'exclue -ffp-contract=on and -fassociative-math from builoptions',
 })
 
+if _OPTIONS['with_optick'] then
+    optick = dependency.github(RIVE_OPTICK_URL, RIVE_OPTICK_VERSION)
+end
+
 project('rive_pls_renderer')
 do
     kind('StaticLib')
@@ -181,6 +185,10 @@ do
     fatalwarnings { "All" }
 
     files({ 'src/*.cpp', 'renderer/decoding/*.cpp' })
+
+    if _OPTIONS['with_optick'] then
+        includedirs({optick .. '/src'})
+    end
 
     if _OPTIONS['with_vulkan'] then
         externalincludedirs({

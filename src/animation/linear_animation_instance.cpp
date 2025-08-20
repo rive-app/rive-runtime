@@ -2,6 +2,8 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/loop.hpp"
 #include "rive/animation/keyed_callback_reporter.hpp"
+#include "rive/profiler/profiler_macros.h"
+
 #include <cmath>
 #include <cassert>
 
@@ -40,6 +42,7 @@ LinearAnimationInstance::~LinearAnimationInstance() {}
 
 bool LinearAnimationInstance::advanceAndApply(float seconds)
 {
+    RIVE_PROF_SCOPE()
     bool more = this->advance(seconds, this);
     this->apply();
     if (m_artboardInstance->advance(seconds))

@@ -4,6 +4,7 @@
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/shapes/paint/fill.hpp"
+#include "rive/profiler/profiler_macros.h"
 
 using namespace rive;
 
@@ -59,6 +60,8 @@ void ShapePaint::draw(Renderer* renderer,
                       bool usePathFillRule,
                       RenderPaint* overridePaint)
 {
+    RIVE_PROF_SCOPE()
+
     ShapePaintPath* pathToDraw = shapePaintPath;
     bool saved = false;
     if (m_feather != nullptr)

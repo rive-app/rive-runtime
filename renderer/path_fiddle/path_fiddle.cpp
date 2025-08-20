@@ -6,6 +6,7 @@
 #include "rive/layout.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/static_scene.hpp"
+#include "rive/profiler/profiler_macros.h"
 
 #include <fstream>
 #include <iterator>
@@ -770,6 +771,9 @@ static void update_window_title(double fps,
 
 void riveMainLoop()
 {
+    RIVE_PROF_FRAME()
+    RIVE_PROF_SCOPE()
+
 #ifdef __EMSCRIPTEN__
     {
         // Fit the canvas to the browser window size.
@@ -871,6 +875,7 @@ void riveMainLoop()
                                                      (j - upRepeat) * spacing));
             for (int i = 0; i < horzRepeat * 2 + 1; ++i)
             {
+
                 (*scene++)->draw(renderer.get());
                 renderer->transform(Mat2D::fromTranslate(spacing, 0));
             }
