@@ -69,7 +69,7 @@ do
 
     defines({ 'YOGA_EXPORT=', '_RIVE_INTERNAL_' })
 
-    files({ 'src/**.cpp' })
+    files({ 'src/**.cpp', 'include/**.h', 'include/**.hpp' })
 
     filter('options:not for_unreal')
     do

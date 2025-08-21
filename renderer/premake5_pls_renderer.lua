@@ -192,7 +192,8 @@ do
     })
     fatalwarnings({ 'All' })
 
-    files({ 'src/*.cpp', 'renderer/decoding/*.cpp' })
+    files({ 'src/*.cpp', 'include/**.hpp', 'include/**.h' })
+
 
     if _OPTIONS['with_optick'] then
         includedirs({optick .. '/src'})
