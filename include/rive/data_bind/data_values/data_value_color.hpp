@@ -11,8 +11,8 @@ private:
     int m_value = 0;
 
 public:
-    DataValueColor(int value) : m_value(value){};
-    DataValueColor(){};
+    DataValueColor(int value) : m_value(value) {};
+    DataValueColor() {};
     static const DataType typeKey = DataType::color;
     bool isTypeOf(DataType typeKey) const override
     {

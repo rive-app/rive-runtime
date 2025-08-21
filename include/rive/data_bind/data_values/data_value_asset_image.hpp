@@ -11,8 +11,8 @@ private:
     uint32_t m_value = -1;
 
 public:
-    DataValueAssetImage(uint32_t value) : m_value(value){};
-    DataValueAssetImage(){};
+    DataValueAssetImage(uint32_t value) : m_value(value) {};
+    DataValueAssetImage() {};
     static const DataType typeKey = DataType::assetImage;
     bool isTypeOf(DataType typeKey) const override
     {

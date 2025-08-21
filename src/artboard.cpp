@@ -767,13 +767,7 @@ void Artboard::update(ComponentDirt value)
         // calling this twice. Although it is safe, because syncStyleChanges
         // checks for the list of dirty layouts that would be empty at this
         // point, it seems redundant.
-        if (syncStyleChanges() && (m_updatesOwnLayout || cascadeChanged))
-        {
-            calculateLayout();
-            updateLayoutBounds(
-                /*animation*/ true); // maybe use a static to allow
-                                     // the editor to set this.
-        }
+        syncStyleChangesWithUpdate(cascadeChanged);
     }
 #endif
 }
@@ -903,6 +897,18 @@ void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
     addDirt(ComponentDirt::Components);
 }
 
+void Artboard::syncStyleChangesWithUpdate(bool forceUpdate)
+{
+#ifdef WITH_RIVE_LAYOUT
+    if (syncStyleChanges() && (m_updatesOwnLayout || forceUpdate))
+    {
+        calculateLayout();
+        updateLayoutBounds(/*animation*/ true); // maybe use a static to allow
+                                                // the editor to set this.
+    }
+#endif
+}
+
 bool Artboard::syncStyleChanges()
 {
     bool updated = false;
@@ -951,6 +957,9 @@ bool Artboard::syncStyleChanges()
 
 void Artboard::calculateLayout()
 {
+#if defined(WITH_RIVE_TOOLS) && !defined(TESTING)
+    calculateLayoutInternal(NAN, NAN);
+#else
     // If we're a child of another artboard (ie nested or artboard list item)
     // pass NAN so we compute our hugged size if applicable
     if (parentArtboard() != nullptr && m_updatesOwnLayout)
@@ -961,20 +970,15 @@ void Artboard::calculateLayout()
     {
         calculateLayoutInternal(width(), height());
     }
+#endif
 }
 
 bool Artboard::updatePass(bool isRoot)
 {
     updateDataBinds();
     bool didUpdate = false;
-#ifdef WITH_RIVE_LAYOUT
-    if (syncStyleChanges() && m_updatesOwnLayout)
-    {
-        calculateLayout();
-        updateLayoutBounds(/*animation*/ true); // maybe use a static to allow
-                                                // the editor to set this.
-    }
-#endif
+    syncStyleChangesWithUpdate();
+
     if (m_JoysticksApplyBeforeUpdate)
     {
         for (auto joystick : m_Joysticks)
@@ -1225,6 +1229,18 @@ Vec2D Artboard::origin() const
     return m_FrameOrigin
                ? Vec2D(0.0f, 0.0f)
                : Vec2D(-layoutWidth() * originX(), -layoutHeight() * originY());
+}
+
+void Artboard::xChanged()
+{
+    Super::xChanged();
+    markLayoutDirty(this);
+}
+
+void Artboard::yChanged()
+{
+    Super::yChanged();
+    markLayoutDirty(this);
 }
 
 AABB Artboard::bounds() const

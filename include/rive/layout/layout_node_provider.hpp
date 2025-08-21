@@ -26,7 +26,7 @@ public:
     virtual AABB layoutBounds() = 0;
     virtual AABB layoutBoundsForNode(int index) { return layoutBounds(); }
     virtual bool syncStyleChanges() { return false; };
-    virtual void updateLayoutBounds(bool animate = true){};
+    virtual void updateLayoutBounds(bool animate = true) {};
     virtual void markLayoutNodeDirty(bool shouldForceUpdateLayoutBounds = false)
     {}
     virtual size_t numLayoutNodes() = 0;

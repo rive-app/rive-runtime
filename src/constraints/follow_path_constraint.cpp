@@ -1,5 +1,6 @@
 #include "rive/artboard.hpp"
 #include "rive/command_path.hpp"
+#include "rive/constraints/constrainable_list.hpp"
 #include "rive/constraints/follow_path_constraint.hpp"
 #include "rive/factory.hpp"
 #include "rive/math/contour_measure.hpp"
@@ -17,11 +18,11 @@ using namespace rive;
 void FollowPathConstraint::distanceChanged() { markConstraintDirty(); }
 void FollowPathConstraint::orientChanged() { markConstraintDirty(); }
 
-const Mat2D FollowPathConstraint::targetTransform() const
+const Mat2D FollowPathConstraint::targetTransform(float distanceOffset) const
 {
     if (m_Target->is<Shape>() || m_Target->is<Path>())
     {
-        auto result = m_pathMeasure.atPercentage(distance());
+        auto result = m_pathMeasure.atPercentage(distance() * distanceOffset);
         Vec2D position = result.pos;
         Mat2D transformB = Mat2D(m_Target->worldTransform());
 
@@ -51,14 +52,63 @@ const Mat2D FollowPathConstraint::targetTransform() const
     }
 }
 
+void FollowPathConstraint::constrainList(ConstrainableList* list)
+{
+    auto listTransform = list->listTransform();
+    std::vector<Mat2D*> transforms;
+    list->listItemTransforms(transforms);
+    auto count = transforms.size();
+    float offsetDistance = count <= 1 ? 0 : 1 / ((float)count - 1);
+    for (int i = 0; i < count; i++)
+    {
+        auto transform = transforms[i];
+        auto transformComponents =
+            constrainAtOffset(*transform, listTransform, i * offsetDistance);
+        auto transformB = Mat2D::compose(transformComponents);
+        transform->xx(transformB.xx());
+        transform->xy(transformB.xy());
+        transform->yx(transformB.yx());
+        transform->yy(transformB.yy());
+        transform->tx(transformB.tx());
+        transform->ty(transformB.ty());
+    }
+}
+
+TransformComponents FollowPathConstraint::constrainAtOffset(
+    const Mat2D& componentTransform,
+    const Mat2D& parentTransform,
+    float componentOffset)
+{
+    if (m_Target == nullptr || m_Target->isCollapsed())
+    {
+        return TransformComponents();
+    }
+    Mat2D transformB(targetTransform(componentOffset));
+    auto transformComponents =
+        constrainHelper(componentTransform, transformB, parentTransform);
+    return transformComponents;
+}
+
 void FollowPathConstraint::constrain(TransformComponent* component)
 {
     if (m_Target == nullptr || m_Target->isCollapsed())
     {
         return;
     }
-    const Mat2D& transformA = component->worldTransform();
     Mat2D transformB(targetTransform());
+    const Mat2D& targetParentWorld = getParentWorld(*component);
+    auto transformComponents = constrainHelper(component->worldTransform(),
+                                               transformB,
+                                               targetParentWorld);
+    component->mutableWorldTransform() = Mat2D::compose(transformComponents);
+}
+
+TransformComponents FollowPathConstraint::constrainHelper(
+    const Mat2D& componentTransform,
+    Mat2D& transformB,
+    const Mat2D& componentParentWorld)
+{
+    const Mat2D& transformA = componentTransform;
     if (sourceSpace() == TransformSpace::local)
     {
         const Mat2D& targetParentWorld = getParentWorld(*m_Target);
@@ -66,34 +116,33 @@ void FollowPathConstraint::constrain(TransformComponent* component)
         Mat2D inverse;
         if (!targetParentWorld.invert(&inverse))
         {
-            return;
+            TransformComponents result;
+            return result;
         }
         transformB = inverse * transformB;
     }
     if (destSpace() == TransformSpace::local)
     {
-        const Mat2D& targetParentWorld = getParentWorld(*component);
-        transformB = targetParentWorld * transformB;
+        transformB = componentParentWorld * transformB;
     }
 
-    m_ComponentsA = transformA.decompose();
-    m_ComponentsB = transformB.decompose();
+    auto componentsA = transformA.decompose();
+    auto componentsB = transformB.decompose();
 
     float t = strength();
     float ti = 1.0f - t;
 
     if (!orient())
     {
-        float angleA = std::fmod(m_ComponentsA.rotation(), math::PI * 2);
-        m_ComponentsB.rotation(angleA);
+        float angleA = std::fmod(componentsA.rotation(), math::PI * 2);
+        componentsB.rotation(angleA);
     }
-    m_ComponentsB.x(m_ComponentsA.x() * ti + m_ComponentsB.x() * t);
-    m_ComponentsB.y(m_ComponentsA.y() * ti + m_ComponentsB.y() * t);
-    m_ComponentsB.scaleX(m_ComponentsA.scaleX());
-    m_ComponentsB.scaleY(m_ComponentsA.scaleY());
-    m_ComponentsB.skew(m_ComponentsA.skew());
-
-    component->mutableWorldTransform() = Mat2D::compose(m_ComponentsB);
+    componentsB.x(componentsA.x() * ti + componentsB.x() * t);
+    componentsB.y(componentsA.y() * ti + componentsB.y() * t);
+    componentsB.scaleX(componentsA.scaleX());
+    componentsB.scaleY(componentsA.scaleY());
+    componentsB.skew(componentsA.skew());
+    return componentsB;
 }
 
 void FollowPathConstraint::update(ComponentDirt value)
@@ -162,4 +211,9 @@ void FollowPathConstraint::buildDependencies()
     }
     // The constrained component should update after follow path
     addDependent(parent());
+    auto constrainableList = ConstrainableList::from(parent());
+    if (constrainableList != nullptr)
+    {
+        constrainableList->addListConstraint(this);
+    }
 }

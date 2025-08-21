@@ -29,7 +29,7 @@ public:
                                bool isMainDirection);
     virtual void apply(Core* component,
                        uint32_t propertyKey,
-                       bool isMainDirection){};
+                       bool isMainDirection) {};
     void invalidate() { m_isValid = false; };
     virtual bool syncTargetValue(Core* target, uint32_t propertyKey)
     {

@@ -11,8 +11,8 @@ private:
     float m_value = 0;
 
 public:
-    DataValueNumber(float value) : m_value(value){};
-    DataValueNumber(){};
+    DataValueNumber(float value) : m_value(value) {};
+    DataValueNumber() {};
     static const DataType typeKey = DataType::number;
     bool isTypeOf(DataType typeKey) const override
     {

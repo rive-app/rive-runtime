@@ -11,8 +11,8 @@ private:
     bool m_value = false;
 
 public:
-    DataValueBoolean(bool value) : m_value(value){};
-    DataValueBoolean(){};
+    DataValueBoolean(bool value) : m_value(value) {};
+    DataValueBoolean() {};
     static const DataType typeKey = DataType::boolean;
     bool isTypeOf(DataType typeKey) const override
     {

@@ -14,8 +14,8 @@ private:
 
 public:
     DataValueEnum(uint32_t value, DataEnum* dataEnum) :
-        m_value(value), m_dataEnum(dataEnum){};
-    DataValueEnum(){};
+        m_value(value), m_dataEnum(dataEnum) {};
+    DataValueEnum() {};
     static const DataType typeKey = DataType::enumType;
     bool isTypeOf(DataType typeKey) const override
     {

@@ -29,14 +29,11 @@
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
 
-// clang-format off
-// clang-format disagrees about this block on windows & mac.
 #define WGPU_STRING_VIEW(s)                                                    \
     {                                                                          \
         .data = s,                                                             \
         .length = strlen(s),                                                   \
     }
-// clang-format on
 
 namespace wgpu
 {

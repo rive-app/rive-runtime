@@ -229,9 +229,9 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
         uint NAME##_pad1;                                                      \
         uint NAME##_pad2;                                                      \
     }                                                                          \
-    Varyings main(Attrs attrs, uint _vertexID                                  \
-                  : $SV_VertexID, uint _instanceIDWithoutBase                  \
-                  : $SV_InstanceID)                                            \
+    Varyings main(Attrs attrs,                                                 \
+                  uint _vertexID : $SV_VertexID,                               \
+                  uint _instanceIDWithoutBase : $SV_InstanceID)                \
     {                                                                          \
         uint _instanceID = _instanceIDWithoutBase + baseInstance;              \
         Varyings _varyings;
@@ -248,8 +248,9 @@ INLINE uint pls_atomic_add(PLS_TEX2D<uint> plane, int2 _plsCoord, uint x)
                                UVAttr,                                         \
                                uv,                                             \
                                _vertexID)                                      \
-    Varyings main(PositionAttr position, UVAttr uv, uint _vertexID             \
-                  : $SV_VertexID)                                              \
+    Varyings main(PositionAttr position,                                       \
+                  UVAttr uv,                                                   \
+                  uint _vertexID : $SV_VertexID)                               \
     {                                                                          \
         Varyings _varyings;                                                    \
         float4 _pos;

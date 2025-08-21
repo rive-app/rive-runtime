@@ -195,6 +195,7 @@ public:
 
     LayoutData* takeLayoutData();
     bool syncStyleChanges() override;
+    void syncStyleChangesWithUpdate(bool forceUpdate = false);
     void calculateLayout();
     bool canHaveOverrides() override { return true; }
 
@@ -255,6 +256,8 @@ public:
     AABB bounds() const;
     AABB worldBounds() const override;
     Vec2D origin() const;
+    void xChanged() override;
+    void yChanged() override;
 
     // Can we hide these from the public? (they use playable)
     bool isTranslucent() const;

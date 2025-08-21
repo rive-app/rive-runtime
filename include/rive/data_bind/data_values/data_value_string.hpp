@@ -11,8 +11,8 @@ private:
     std::string m_value = "";
 
 public:
-    DataValueString(std::string value) : m_value(value){};
-    DataValueString(){};
+    DataValueString(std::string value) : m_value(value) {};
+    DataValueString() {};
     static const DataType typeKey = DataType::string;
     bool isTypeOf(DataType typeKey) const override
     {

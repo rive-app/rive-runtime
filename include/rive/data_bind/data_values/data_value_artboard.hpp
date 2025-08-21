@@ -11,8 +11,8 @@ private:
     uint32_t m_value = -1;
 
 public:
-    DataValueArtboard(uint32_t value) : m_value(value){};
-    DataValueArtboard(){};
+    DataValueArtboard(uint32_t value) : m_value(value) {};
+    DataValueArtboard() {};
     static const DataType typeKey = DataType::artboard;
     bool isTypeOf(DataType typeKey) const override
     {

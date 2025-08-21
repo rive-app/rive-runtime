@@ -50,7 +50,7 @@ static bool is_finite(Vec2D pt)
     return !std::isnan(accum);
 }
 
-template <class T, T* T::*Prev, T* T::*Next>
+template <class T, T* T::* Prev, T* T::* Next>
 static void list_insert(T* t, T* prev, T* next, T** head, T** tail)
 {
     t->*Prev = prev;
@@ -73,7 +73,7 @@ static void list_insert(T* t, T* prev, T* next, T** head, T** tail)
     }
 }
 
-template <class T, T* T::*Prev, T* T::*Next>
+template <class T, T* T::* Prev, T* T::* Next>
 static void list_remove(T* t, T** head, T** tail)
 {
     if (t->*Prev)

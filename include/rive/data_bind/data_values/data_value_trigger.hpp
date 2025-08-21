@@ -9,8 +9,8 @@ class DataValueTrigger : public DataValueInteger
 {
 
 public:
-    DataValueTrigger(uint32_t value) : DataValueInteger(value){};
-    DataValueTrigger(){};
+    DataValueTrigger(uint32_t value) : DataValueInteger(value) {};
+    DataValueTrigger() {};
     static const DataType typeKey = DataType::trigger;
     bool isTypeOf(DataType typeKey) const override
     {

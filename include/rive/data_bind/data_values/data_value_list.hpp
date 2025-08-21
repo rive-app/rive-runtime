@@ -13,7 +13,7 @@ private:
     std::vector<rcp<ViewModelInstanceListItem>> m_value;
 
 public:
-    DataValueList(){};
+    DataValueList() {};
     static const DataType typeKey = DataType::list;
     bool isTypeOf(DataType typeKey) const override
     {

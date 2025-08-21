@@ -766,3 +766,52 @@ TEST_CASE("Non Layout List Artboard Position", "[silver]")
 
     CHECK(silver.matches("component_list_grouped"));
 }
+
+TEST_CASE("Artboard list with follow path constraint", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/component_list_follow_path.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = 30;
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    auto itemCountProp =
+        vmi->propertyValue("ItemCount")->as<rive::ViewModelInstanceNumber>();
+    REQUIRE(itemCountProp != nullptr);
+    auto itemCountValue = itemCountProp->propertyValue();
+    REQUIRE(itemCountValue == 10);
+    // Change the list from 10 to 5 items
+    itemCountProp->propertyValue(5);
+
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("component_list_follow_path"));
+}

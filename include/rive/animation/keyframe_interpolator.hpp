@@ -26,7 +26,7 @@ public:
 
     StatusCode import(ImportStack& importStack) override;
 
-    virtual void initialize(){};
+    virtual void initialize() {};
 };
 } // namespace rive
 

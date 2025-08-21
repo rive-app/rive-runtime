@@ -631,10 +631,10 @@
 
 #if defined(__cplusplus)
 #define WGPU_WAGYU_STRING_VIEW(s)                                              \
-    WGPUWagyuStringView { s, (s != NULL) ? strlen(s) : 0 }
+    WGPUWagyuStringView{s, (s != NULL) ? strlen(s) : 0}
 #else
 #define WGPU_WAGYU_STRING_VIEW(s)                                              \
-    (WGPUWagyuStringView) { s, (s != NULL) ? strlen(s) : 0 }
+    (WGPUWagyuStringView){s, (s != NULL) ? strlen(s) : 0}
 #endif
 
 #endif // WEBGPU_COMPAT_H

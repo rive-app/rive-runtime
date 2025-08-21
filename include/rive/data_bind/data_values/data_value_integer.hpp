@@ -11,8 +11,8 @@ private:
     uint32_t m_value = 0;
 
 public:
-    DataValueInteger(uint32_t value) : m_value(value){};
-    DataValueInteger(){};
+    DataValueInteger(uint32_t value) : m_value(value) {};
+    DataValueInteger() {};
     static const DataType typeKey = DataType::trigger;
     bool isTypeOf(DataType typeKey) const override
     {

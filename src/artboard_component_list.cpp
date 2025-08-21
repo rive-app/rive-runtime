@@ -2,6 +2,7 @@
 #include "rive/file.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/layout_constraint.hpp"
+#include "rive/constraints/list_constraint.hpp"
 #include "rive/constraints/scrolling/scroll_constraint.hpp"
 #include "rive/layout_component.hpp"
 #include "rive/viewmodel/viewmodel_instance_symbol_list_index.hpp"
@@ -257,6 +258,7 @@ void ArtboardComponentList::updateList(
     computeLayoutBounds();
     syncLayoutChildren();
     markLayoutNodeDirty();
+    markWorldTransformDirty();
     addDirt(ComponentDirt::Components);
 }
 
@@ -405,6 +407,7 @@ void ArtboardComponentList::markHostingLayoutDirty(
             break;
         }
     }
+    markWorldTransformDirty();
 }
 
 void ArtboardComponentList::draw(Renderer* renderer)
@@ -439,10 +442,8 @@ void ArtboardComponentList::draw(Renderer* renderer)
                     if (artboard != nullptr)
                     {
                         renderer->save();
-                        auto position = m_artboardPositions[artboard];
-                        auto artboardTransform =
-                            Mat2D::fromTranslate(position.x, position.y);
-                        renderer->transform(artboardTransform);
+                        auto transform = m_artboardTransforms[artboard];
+                        renderer->transform(transform);
                         artboard->draw(renderer);
                         renderer->restore();
                     }
@@ -457,18 +458,14 @@ void ArtboardComponentList::draw(Renderer* renderer)
         else
         {
             renderer->transform(worldTransform());
-            auto useLayout = layoutParent() != nullptr;
             for (int i = 0; i < artboardCount(); i++)
             {
                 auto artboard = artboardInstance(i);
                 if (artboard != nullptr)
                 {
                     renderer->save();
-                    auto bounds = useLayout ? artboard->layoutBounds()
-                                            : artboard->worldBounds();
-                    auto artboardTransform =
-                        Mat2D::fromTranslate(bounds.left(), bounds.top());
-                    renderer->transform(artboardTransform);
+                    auto transform = m_artboardTransforms[artboard];
+                    renderer->transform(transform);
                     artboard->draw(renderer);
                     renderer->restore();
                 }
@@ -488,10 +485,7 @@ bool ArtboardComponentList::hitTestHost(const Vec2D& position,
     {
         return false;
     }
-    auto bounds = virtualizationEnabled()
-                      ? m_artboardPositions[artboard]
-                      : Vec2D(artboard->layoutBounds().left(),
-                              artboard->layoutBounds().top());
+    auto bounds = artboardPosition(artboard);
     Vec2D offset(bounds.x + position.x, bounds.y + position.y);
     auto transform = virtualizationEnabled()
                          ? parent()->as<LayoutComponent>()->worldTransform()
@@ -503,10 +497,7 @@ Vec2D ArtboardComponentList::hostTransformPoint(
     const Vec2D& vec,
     ArtboardInstance* artboardInstance)
 {
-    auto bounds = virtualizationEnabled()
-                      ? m_artboardPositions[artboardInstance]
-                      : Vec2D(artboardInstance->layoutBounds().left(),
-                              artboardInstance->layoutBounds().top());
+    auto bounds = artboardPosition(artboardInstance);
     Vec2D offset(bounds.x + vec.x, bounds.y + vec.y);
     auto transform = virtualizationEnabled()
                          ? parent()->as<LayoutComponent>()->worldTransform()
@@ -548,6 +539,37 @@ void ArtboardComponentList::update(ComponentDirt value)
     }
 }
 
+void ArtboardComponentList::updateWorldTransform()
+{
+    updateArtboardsWorldTransform();
+    Super::updateWorldTransform();
+}
+
+void ArtboardComponentList::updateArtboardsWorldTransform()
+{
+    auto count = m_listItems.size();
+    if (count == 0)
+    {
+        return;
+    }
+    // We only update non layout transforms here
+    if (!virtualizationEnabled())
+    {
+        auto useLayout = layoutParent() != nullptr;
+        for (int i = 0; i < count; i++)
+        {
+            auto artboard = artboardInstance(i);
+            if (artboard != nullptr)
+            {
+                auto bounds = useLayout ? artboard->layoutBounds()
+                                        : artboard->worldBounds();
+                m_artboardTransforms[artboard] =
+                    Mat2D::fromTranslate(bounds.left(), bounds.top());
+            }
+        }
+    }
+}
+
 void ArtboardComponentList::updateConstraints()
 {
     if (m_layoutConstraints.size() > 0)
@@ -557,7 +579,22 @@ void ArtboardComponentList::updateConstraints()
             parentConstraint->constrainChild(this);
         }
     }
-    Super::updateConstraints();
+    if (m_listConstraints.size() > 0 && !virtualizationEnabled())
+    {
+        for (auto listConstraint : m_listConstraints)
+        {
+            listConstraint->constrainList(this);
+        }
+    }
+    for (auto constraint : constraints())
+    {
+        auto listConstraint = ListConstraint::from(constraint);
+        if (listConstraint != nullptr)
+        {
+            continue;
+        }
+        constraint->constrain(this);
+    }
 }
 
 void ArtboardComponentList::internalDataContext(DataContext* value)
@@ -611,6 +648,12 @@ void ArtboardComponentList::updateDataBinds()
     }
 }
 
+Vec2D ArtboardComponentList::artboardPosition(ArtboardInstance* artboard)
+{
+    auto mat = m_artboardTransforms[artboard];
+    return Vec2D(mat[4], mat[5]);
+}
+
 bool ArtboardComponentList::worldToLocal(Vec2D world, Vec2D* local, int index)
 {
     assert(local != nullptr);
@@ -619,12 +662,7 @@ bool ArtboardComponentList::worldToLocal(Vec2D world, Vec2D* local, int index)
     {
         return false;
     }
-    auto p = layoutParent();
-    auto offset = virtualizationEnabled() ? m_artboardPositions[artboard]
-                  : p != nullptr ? Vec2D(artboard->layoutBounds().left(),
-                                         artboard->layoutBounds().top())
-                                 : Vec2D(artboard->worldBounds().left(),
-                                         artboard->worldBounds().top());
+    Vec2D offset = artboardPosition(artboard);
     auto transform = virtualizationEnabled()
                          ? parent()->as<LayoutComponent>()->worldTransform()
                          : worldTransform();
@@ -845,7 +883,8 @@ void ArtboardComponentList::setVirtualizablePosition(int index, Vec2D position)
     auto artboard = this->artboardInstance(index);
     if (artboard != nullptr)
     {
-        m_artboardPositions[artboard] = position;
+        m_artboardTransforms[artboard] =
+            Mat2D::fromTranslate(position.x, position.y);
     }
 }
 
@@ -1002,4 +1041,19 @@ LayoutComponent* ArtboardComponentList::layoutParent()
         return parent()->as<LayoutComponent>();
     }
     return nullptr;
+}
+
+const Mat2D& ArtboardComponentList::listTransform() { return worldTransform(); }
+
+void ArtboardComponentList::listItemTransforms(std::vector<Mat2D*>& transforms)
+{
+    auto count = m_listItems.size();
+    for (int i = 0; i < count; i++)
+    {
+        auto artboard = artboardInstance(i);
+        if (artboard != nullptr)
+        {
+            transforms.push_back(&m_artboardTransforms[artboard]);
+        }
+    }
 }

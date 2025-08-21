@@ -9,8 +9,8 @@ class DataValueSymbolListIndex : public DataValueInteger
 {
 
 public:
-    DataValueSymbolListIndex(uint32_t value) : DataValueInteger(value){};
-    DataValueSymbolListIndex(){};
+    DataValueSymbolListIndex(uint32_t value) : DataValueInteger(value) {};
+    DataValueSymbolListIndex() {};
     static const DataType typeKey = DataType::symbolListIndex;
     bool isTypeOf(DataType typeKey) const override
     {
