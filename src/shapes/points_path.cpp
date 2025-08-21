@@ -50,8 +50,3 @@ void PointsPath::markPathDirty(bool sendToLayout)
 }
 
 void PointsPath::markSkinDirty() { markPathDirty(); }
-
-bool PointsPath::isClockwise() const
-{
-    return (pathFlags() & (int)ShapePathFlags::isCounterClockwise) == 0;
-}

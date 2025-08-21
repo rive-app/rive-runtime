@@ -1480,8 +1480,7 @@ TEST_CASE("Trigger fires single change on listener", "[data binding]")
 
     CHECK(silver.matches("trigger_fires_single_change"));
 }
-// TEST_CASE("Convert to number", "[data binding]")
-TEST_CASE("XXXXX", "[data binding]")
+TEST_CASE("Convert to number", "[data binding]")
 {
 
     rive::SerializingFactory silver;
@@ -1515,4 +1514,227 @@ TEST_CASE("XXXXX", "[data binding]")
     }
 
     CHECK(silver.matches("data_converter_to_number"));
+}
+
+TEST_CASE("List to path", "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/list_to_path.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+    auto listProp =
+        vmi->propertyValue("lis")->as<rive::ViewModelInstanceList>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Create a square with 4 XY vertices
+
+    auto vertex1 = file->createViewModelInstance("vertex-x-y");
+    auto vertexInstanceListItem1 =
+        rive::make_rcp<rive::ViewModelInstanceListItem>();
+    vertexInstanceListItem1->viewModelInstance(vertex1);
+    listProp->addItem(vertexInstanceListItem1);
+
+    auto vertex2 = file->createViewModelInstance("vertex-x-y");
+    vertex2->propertyValue("x")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(100);
+    auto vertexInstanceListItem2 =
+        rive::make_rcp<rive::ViewModelInstanceListItem>();
+    vertexInstanceListItem2->viewModelInstance(vertex2);
+    listProp->addItem(vertexInstanceListItem2);
+
+    auto vertex3 = file->createViewModelInstance("vertex-x-y");
+    vertex3->propertyValue("x")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(100);
+    vertex3->propertyValue("y")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(100);
+    auto vertexInstanceListItem3 =
+        rive::make_rcp<rive::ViewModelInstanceListItem>();
+    vertexInstanceListItem3->viewModelInstance(vertex3);
+    listProp->addItem(vertexInstanceListItem3);
+
+    auto vertex4 = file->createViewModelInstance("vertex-x-y");
+    vertex4->propertyValue("y")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(100);
+    auto vertexInstanceListItem4 =
+        rive::make_rcp<rive::ViewModelInstanceListItem>();
+    vertexInstanceListItem4->viewModelInstance(vertex4);
+    listProp->addItem(vertexInstanceListItem4);
+
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Insert a mirrored vertex at index 2
+    auto vertexRD1 = file->createViewModelInstance("vertex-rotation-distance");
+    vertexRD1->propertyValue("x")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(200);
+    vertexRD1->propertyValue("rotation")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(1.5f);
+    vertexRD1->propertyValue("distance")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(20);
+    auto vertexInstanceListItemRD1 =
+        rive::make_rcp<rive::ViewModelInstanceListItem>();
+    vertexInstanceListItemRD1->viewModelInstance(vertexRD1);
+    listProp->addItemAt(vertexInstanceListItemRD1, 2);
+
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Insert a detached vertex at index 3
+    auto vertexD1 = file->createViewModelInstance("vertex-detached");
+    vertexD1->propertyValue("x")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(200);
+    vertexD1->propertyValue("y")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(100);
+    vertexD1->propertyValue("inRotation")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(1);
+    vertexD1->propertyValue("outRotation")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(2);
+    vertexD1->propertyValue("inDistance")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(10);
+    vertexD1->propertyValue("outDistance")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(30);
+    auto vertexInstanceListItemD1 =
+        rive::make_rcp<rive::ViewModelInstanceListItem>();
+    vertexInstanceListItemD1->viewModelInstance(vertexD1);
+    listProp->addItemAt(vertexInstanceListItemD1, 3);
+
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Insert a cubic in out vertex at index 4
+    auto vertexIO1 = file->createViewModelInstance("vertex-in-out");
+    vertexIO1->propertyValue("x")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(100);
+    vertexIO1->propertyValue("y")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(200);
+    vertexIO1->propertyValue("inX")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(40);
+    vertexIO1->propertyValue("inY")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(20);
+    vertexIO1->propertyValue("outX")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(10);
+    vertexIO1->propertyValue("outY")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(30);
+    auto vertexInstanceListItemIO1 =
+        rive::make_rcp<rive::ViewModelInstanceListItem>();
+    vertexInstanceListItemIO1->viewModelInstance(vertexIO1);
+    listProp->addItemAt(vertexInstanceListItemIO1, 4);
+
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Insert a non valid vertex at index 4
+    auto vertexN1 = file->createViewModelInstance("non-vertex");
+    auto vertexInstanceListItemN1 =
+        rive::make_rcp<rive::ViewModelInstanceListItem>();
+    vertexInstanceListItemN1->viewModelInstance(vertexN1);
+    listProp->addItemAt(vertexInstanceListItemN1, 5);
+
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Insert a vertex with some paired values undefined
+    auto vertexI1 = file->createViewModelInstance("vertex-incomplete");
+
+    vertexI1->propertyValue("x")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(100);
+    vertexI1->propertyValue("y")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(300);
+    vertexI1->propertyValue("inDistance")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(60);
+    vertexI1->propertyValue("inRotation")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(-1);
+    vertexI1->propertyValue("outX")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(30);
+    vertexI1->propertyValue("inX")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(-30);
+    auto vertexInstanceListItemI1 =
+        rive::make_rcp<rive::ViewModelInstanceListItem>();
+    vertexInstanceListItemI1->viewModelInstance(vertexI1);
+    listProp->addItemAt(vertexInstanceListItemI1, 4);
+
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Update some values to trigger dirt updates
+    vertexI1->propertyValue("inX")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(-30);
+
+    vertex1->propertyValue("x")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(50);
+
+    vertexRD1->propertyValue("rotation")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(1.0f);
+
+    vertexD1->propertyValue("inDistance")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(30);
+
+    vertexIO1->propertyValue("outY")
+        ->as<rive::ViewModelInstanceNumber>()
+        ->propertyValue(40);
+
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("list_to_path"));
 }

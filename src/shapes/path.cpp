@@ -100,6 +100,8 @@ void Path::buildDependencies() { Super::buildDependencies(); }
 
 void Path::addVertex(PathVertex* vertex) { m_Vertices.push_back(vertex); }
 
+void Path::popVertex() { m_Vertices.pop_back(); }
+
 void Path::addFlags(PathFlags flags) { m_pathFlags |= flags; }
 bool Path::isFlagged(PathFlags flags) const
 {

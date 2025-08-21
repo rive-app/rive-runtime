@@ -24,7 +24,7 @@ void DataBindContextValueList::apply(Core* target,
         auto consumer = DataBindListItemConsumer::from(target);
         if (consumer != nullptr)
         {
-            consumer->updateList(m_dataBind->propertyKey(), value);
+            consumer->updateList(value);
         }
     }
 }

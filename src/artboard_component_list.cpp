@@ -201,7 +201,6 @@ void ArtboardComponentList::linkStateMachineToArtboard(
 }
 
 void ArtboardComponentList::updateList(
-    int propertyKey,
     std::vector<rcp<ViewModelInstanceListItem>>* list)
 {
     m_oldItems.clear();

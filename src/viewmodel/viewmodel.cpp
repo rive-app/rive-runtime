@@ -43,6 +43,18 @@ ViewModelProperty* ViewModel::property(const std::string& propName)
     return nullptr;
 }
 
+ViewModelProperty* ViewModel::property(const SymbolType symbolType)
+{
+    for (auto property : m_Properties)
+    {
+        if (property->symbolTypeValue() == static_cast<int>(symbolType))
+        {
+            return property;
+        }
+    }
+    return nullptr;
+}
+
 void ViewModel::addInstance(ViewModelInstance* value)
 {
     m_Instances.push_back(value);

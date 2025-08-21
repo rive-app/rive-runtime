@@ -206,6 +206,7 @@
 #include "rive/shapes/cubic_vertex.hpp"
 #include "rive/shapes/ellipse.hpp"
 #include "rive/shapes/image.hpp"
+#include "rive/shapes/list_path.hpp"
 #include "rive/shapes/mesh.hpp"
 #include "rive/shapes/mesh_vertex.hpp"
 #include "rive/shapes/paint/dash.hpp"
@@ -222,6 +223,7 @@
 #include "rive/shapes/parametric_path.hpp"
 #include "rive/shapes/path.hpp"
 #include "rive/shapes/path_vertex.hpp"
+#include "rive/shapes/points_common_path.hpp"
 #include "rive/shapes/points_path.hpp"
 #include "rive/shapes/polygon.hpp"
 #include "rive/shapes/rectangle.hpp"
@@ -589,6 +591,8 @@ public:
                 return new Triangle();
             case EllipseBase::typeKey:
                 return new Ellipse();
+            case ListPathBase::typeKey:
+                return new ListPath();
             case ClippingShapeBase::typeKey:
                 return new ClippingShape();
             case PolygonBase::typeKey:
@@ -774,6 +778,9 @@ public:
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
                 object->as<ViewModelInstanceListItemBase>()
                     ->viewModelInstanceId(value);
+                break;
+            case ViewModelPropertyBase::symbolTypeValuePropertyKey:
+                object->as<ViewModelPropertyBase>()->symbolTypeValue(value);
                 break;
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
                 object->as<ViewModelInstanceValueBase>()->viewModelPropertyId(
@@ -1242,6 +1249,9 @@ public:
             case PathBase::pathFlagsPropertyKey:
                 object->as<PathBase>()->pathFlags(value);
                 break;
+            case ListPathBase::listSourcePropertyKey:
+                object->as<ListPathBase>()->listSource(value);
+                break;
             case ClippingShapeBase::sourceIdPropertyKey:
                 object->as<ClippingShapeBase>()->sourceId(value);
                 break;
@@ -1646,8 +1656,8 @@ public:
             case PathBase::isHolePropertyKey:
                 object->as<PathBase>()->isHole(value);
                 break;
-            case PointsPathBase::isClosedPropertyKey:
-                object->as<PointsPathBase>()->isClosed(value);
+            case PointsCommonPathBase::isClosedPropertyKey:
+                object->as<PointsCommonPathBase>()->isClosed(value);
                 break;
             case RectangleBase::linkCornerRadiusPropertyKey:
                 object->as<RectangleBase>()->linkCornerRadius(value);
@@ -2355,6 +2365,8 @@ public:
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
                 return object->as<ViewModelInstanceListItemBase>()
                     ->viewModelInstanceId();
+            case ViewModelPropertyBase::symbolTypeValuePropertyKey:
+                return object->as<ViewModelPropertyBase>()->symbolTypeValue();
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
                 return object->as<ViewModelInstanceValueBase>()
                     ->viewModelPropertyId();
@@ -2694,6 +2706,8 @@ public:
                 return object->as<FillBase>()->fillRule();
             case PathBase::pathFlagsPropertyKey:
                 return object->as<PathBase>()->pathFlags();
+            case ListPathBase::listSourcePropertyKey:
+                return object->as<ListPathBase>()->listSource();
             case ClippingShapeBase::sourceIdPropertyKey:
                 return object->as<ClippingShapeBase>()->sourceId();
             case ClippingShapeBase::fillRulePropertyKey:
@@ -2985,8 +2999,8 @@ public:
                 return object->as<FeatherBase>()->inner();
             case PathBase::isHolePropertyKey:
                 return object->as<PathBase>()->isHole();
-            case PointsPathBase::isClosedPropertyKey:
-                return object->as<PointsPathBase>()->isClosed();
+            case PointsCommonPathBase::isClosedPropertyKey:
+                return object->as<PointsCommonPathBase>()->isClosed();
             case RectangleBase::linkCornerRadiusPropertyKey:
                 return object->as<RectangleBase>()->linkCornerRadius();
             case ClippingShapeBase::isVisiblePropertyKey:
@@ -3462,6 +3476,7 @@ public:
         {
             case ViewModelInstanceListItemBase::viewModelIdPropertyKey:
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
+            case ViewModelPropertyBase::symbolTypeValuePropertyKey:
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
             case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
             case ViewModelInstanceEnumBase::propertyValuePropertyKey:
@@ -3603,6 +3618,7 @@ public:
             case TrimPathBase::modeValuePropertyKey:
             case FillBase::fillRulePropertyKey:
             case PathBase::pathFlagsPropertyKey:
+            case ListPathBase::listSourcePropertyKey:
             case ClippingShapeBase::sourceIdPropertyKey:
             case ClippingShapeBase::fillRulePropertyKey:
             case PolygonBase::pointsPropertyKey:
@@ -3732,7 +3748,7 @@ public:
             case StrokeBase::transformAffectsStrokePropertyKey:
             case FeatherBase::innerPropertyKey:
             case PathBase::isHolePropertyKey:
-            case PointsPathBase::isClosedPropertyKey:
+            case PointsCommonPathBase::isClosedPropertyKey:
             case RectangleBase::linkCornerRadiusPropertyKey:
             case ClippingShapeBase::isVisiblePropertyKey:
             case CustomPropertyBooleanBase::propertyValuePropertyKey:
@@ -3991,6 +4007,8 @@ public:
                 return object->is<ViewModelInstanceListItemBase>();
             case ViewModelInstanceListItemBase::viewModelInstanceIdPropertyKey:
                 return object->is<ViewModelInstanceListItemBase>();
+            case ViewModelPropertyBase::symbolTypeValuePropertyKey:
+                return object->is<ViewModelPropertyBase>();
             case ViewModelInstanceValueBase::viewModelPropertyIdPropertyKey:
                 return object->is<ViewModelInstanceValueBase>();
             case ViewModelPropertyEnumCustomBase::enumIdPropertyKey:
@@ -4267,6 +4285,8 @@ public:
                 return object->is<FillBase>();
             case PathBase::pathFlagsPropertyKey:
                 return object->is<PathBase>();
+            case ListPathBase::listSourcePropertyKey:
+                return object->is<ListPathBase>();
             case ClippingShapeBase::sourceIdPropertyKey:
                 return object->is<ClippingShapeBase>();
             case ClippingShapeBase::fillRulePropertyKey:
@@ -4519,8 +4539,8 @@ public:
                 return object->is<FeatherBase>();
             case PathBase::isHolePropertyKey:
                 return object->is<PathBase>();
-            case PointsPathBase::isClosedPropertyKey:
-                return object->is<PointsPathBase>();
+            case PointsCommonPathBase::isClosedPropertyKey:
+                return object->is<PointsCommonPathBase>();
             case RectangleBase::linkCornerRadiusPropertyKey:
                 return object->is<RectangleBase>();
             case ClippingShapeBase::isVisiblePropertyKey:

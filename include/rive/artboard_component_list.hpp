@@ -54,8 +54,7 @@ public:
     {
         return this->as<TransformComponent>();
     }
-    void updateList(int propertyKey,
-                    std::vector<rcp<ViewModelInstanceListItem>>* list) override;
+    void updateList(std::vector<rcp<ViewModelInstanceListItem>>* list) override;
     void draw(Renderer* renderer) override;
     Core* hitTest(HitInfo*, const Mat2D&) override;
     void update(ComponentDirt value) override;

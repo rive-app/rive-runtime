@@ -3,6 +3,7 @@
 #include "rive/generated/viewmodel/viewmodel_base.hpp"
 #include "rive/viewmodel/viewmodel_property.hpp"
 #include "rive/viewmodel/viewmodel_instance.hpp"
+#include "rive/viewmodel/symbol_type.hpp"
 #include "rive/refcnt.hpp"
 #include <stdio.h>
 namespace rive
@@ -17,6 +18,7 @@ public:
     ~ViewModel();
     void addProperty(ViewModelProperty* property);
     ViewModelProperty* property(const std::string& name);
+    ViewModelProperty* property(SymbolType symbolType);
     ViewModelProperty* property(size_t index);
     void addInstance(ViewModelInstance* value);
     ViewModelInstance* instance(size_t index);

@@ -28,6 +28,15 @@
       },
       "description": "Order value for sorting child elements in View Model.",
       "runtime": false
+    },
+    "symbolTypeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 875,
+        "string": "symboltypevalue"
+      },
+      "description": "Special types of properties. 0 is not a special value type"
     }
   }
 }

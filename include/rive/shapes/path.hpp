@@ -64,6 +64,7 @@ public:
 
     bool canDeferPathUpdate();
     void addVertex(PathVertex* vertex);
+    void popVertex();
 
     virtual void markPathDirty(bool sendToLayout = true);
     virtual bool isPathClosed() const { return true; }

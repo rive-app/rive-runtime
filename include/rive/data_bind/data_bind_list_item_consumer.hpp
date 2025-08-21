@@ -10,7 +10,6 @@ public:
     static DataBindListItemConsumer* from(Core* component);
 
     virtual void updateList(
-        int propertyKey,
         std::vector<rcp<ViewModelInstanceListItem>>* list) = 0;
 };
 } // namespace rive

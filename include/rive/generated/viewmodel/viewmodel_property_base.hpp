@@ -1,5 +1,6 @@
 #ifndef _RIVE_VIEW_MODEL_PROPERTY_BASE_HPP_
 #define _RIVE_VIEW_MODEL_PROPERTY_BASE_HPP_
+#include "rive/core/field_types/core_uint_type.hpp"
 #include "rive/viewmodel/viewmodel_component.hpp"
 namespace rive
 {
@@ -27,9 +28,43 @@ public:
 
     uint16_t coreType() const override { return typeKey; }
 
-    Core* clone() const override;
+    static const uint16_t symbolTypeValuePropertyKey = 875;
 
 protected:
+    uint32_t m_SymbolTypeValue = 0;
+
+public:
+    inline uint32_t symbolTypeValue() const { return m_SymbolTypeValue; }
+    void symbolTypeValue(uint32_t value)
+    {
+        if (m_SymbolTypeValue == value)
+        {
+            return;
+        }
+        m_SymbolTypeValue = value;
+        symbolTypeValueChanged();
+    }
+
+    Core* clone() const override;
+    void copy(const ViewModelPropertyBase& object)
+    {
+        m_SymbolTypeValue = object.m_SymbolTypeValue;
+        ViewModelComponent::copy(object);
+    }
+
+    bool deserialize(uint16_t propertyKey, BinaryReader& reader) override
+    {
+        switch (propertyKey)
+        {
+            case symbolTypeValuePropertyKey:
+                m_SymbolTypeValue = CoreUintType::deserialize(reader);
+                return true;
+        }
+        return ViewModelComponent::deserialize(propertyKey, reader);
+    }
+
+protected:
+    virtual void symbolTypeValueChanged() {}
 };
 } // namespace rive
 

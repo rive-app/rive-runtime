@@ -2,6 +2,7 @@
 #define _RIVE_VIEW_MODEL_INSTANCE_HPP_
 #include "rive/generated/viewmodel/viewmodel_instance_base.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
+#include "rive/viewmodel/symbol_type.hpp"
 #include "rive/component.hpp"
 #include "rive/refcnt.hpp"
 #include <stdio.h>
@@ -20,6 +21,7 @@ public:
     void addValue(ViewModelInstanceValue* value);
     ViewModelInstanceValue* propertyValue(const uint32_t id);
     ViewModelInstanceValue* propertyValue(const std::string& name);
+    ViewModelInstanceValue* propertyValue(const SymbolType symbolType);
     bool replaceViewModelByName(const std::string& name,
                                 rcp<ViewModelInstance> value);
     std::vector<ViewModelInstanceValue*> propertyValues();

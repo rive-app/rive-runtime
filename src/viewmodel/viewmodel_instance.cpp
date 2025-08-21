@@ -69,6 +69,23 @@ bool ViewModelInstance::replaceViewModelByName(const std::string& name,
 }
 
 ViewModelInstanceValue* ViewModelInstance::propertyValue(
+    const SymbolType symbolType)
+{
+    auto viewModelProperty = viewModel()->property(symbolType);
+    if (viewModelProperty != nullptr)
+    {
+        for (auto value : m_PropertyValues)
+        {
+            if (value->viewModelProperty() == viewModelProperty)
+            {
+                return value;
+            }
+        }
+    }
+    return nullptr;
+}
+
+ViewModelInstanceValue* ViewModelInstance::propertyValue(
     const std::string& name)
 {
     auto viewModelProperty = viewModel()->property(name);
