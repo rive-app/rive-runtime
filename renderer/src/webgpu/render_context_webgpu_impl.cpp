@@ -28,7 +28,18 @@
 
 #ifdef RIVE_DAWN
 #include <dawn/webgpu_cpp.h>
+#endif
 
+#ifdef RIVE_WEBGPU
+#include <webgpu/webgpu_cpp.h>
+#include <emscripten.h>
+#include <emscripten/html5.h>
+#if RIVE_WEBGPU == 1
+#include "webgpu_compat.h"
+#endif
+#endif
+
+#if (defined(RIVE_WEBGPU) && RIVE_WEBGPU > 1) || defined(RIVE_DAWN)
 #define WGPU_STRING_VIEW(s)                                                    \
     {                                                                          \
         .data = s,                                                             \
@@ -43,15 +54,8 @@ using TextureDataLayout = TexelCopyBufferLayout;
 }; // namespace wgpu
 #endif
 
-#ifdef RIVE_WEBGPU
-#include <webgpu/webgpu_cpp.h>
-#include <emscripten.h>
-#include <emscripten/html5_webgpu.h>
-#include "webgpu_compat.h"
-#endif
-
 #ifdef RIVE_WAGYU
-#include "webgpu_wagyu.h"
+#include <webgpu/webgpu_wagyu.h>
 
 #include <sstream>
 
@@ -304,11 +308,13 @@ public:
         };
 
         wgpu::VertexBufferLayout vertexBufferLayout = {
-            .arrayStride = sizeof(gpu::GradientSpan),
-            .stepMode = wgpu::VertexStepMode::Instance,
             .attributeCount = std::size(attrs),
             .attributes = attrs,
         };
+        // arrayStride and stepMode are defined in different orders in webgpu1
+        // vs webgpu2, so can't be in the designated initializer.
+        vertexBufferLayout.arrayStride = sizeof(gpu::GradientSpan);
+        vertexBufferLayout.stepMode = wgpu::VertexStepMode::Instance;
 
         wgpu::ColorTargetState colorTargetState = {
             .format = wgpu::TextureFormat::RGBA8Unorm,
@@ -460,11 +466,13 @@ public:
         };
 
         wgpu::VertexBufferLayout vertexBufferLayout = {
-            .arrayStride = sizeof(gpu::TessVertexSpan),
-            .stepMode = wgpu::VertexStepMode::Instance,
             .attributeCount = std::size(attrs),
             .attributes = attrs,
         };
+        // arrayStride and stepMode are defined in different orders in webgpu1
+        // vs webgpu2, so can't be in the designated initializer.
+        vertexBufferLayout.arrayStride = sizeof(gpu::TessVertexSpan);
+        vertexBufferLayout.stepMode = wgpu::VertexStepMode::Instance;
 
         wgpu::ColorTargetState colorTargetState = {
             .format = wgpu::TextureFormat::RGBA32Uint,
@@ -630,11 +638,13 @@ public:
         };
 
         wgpu::VertexBufferLayout vertexBufferLayout = {
-            .arrayStride = sizeof(gpu::PatchVertex),
-            .stepMode = wgpu::VertexStepMode::Vertex,
             .attributeCount = std::size(attrs),
             .attributes = attrs,
         };
+        // arrayStride and stepMode are defined in different orders in webgpu1
+        // vs webgpu2, so can't be in the designated initializer.
+        vertexBufferLayout.arrayStride = sizeof(gpu::PatchVertex);
+        vertexBufferLayout.stepMode = wgpu::VertexStepMode::Vertex;
 
         wgpu::BlendState blendState = {
             .color = {
@@ -995,21 +1005,28 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
     }
     for (size_t i = 0; i < extensions.stringCount; ++i)
     {
-        if (m_capabilities.backendType == wgpu::BackendType::Vulkan &&
-            !strcmp(extensions.strings[i].data,
-                    "VK_EXT_rasterization_order_attachment_access"))
+        if (m_capabilities.backendType == wgpu::BackendType::Vulkan)
         {
-            m_capabilities.plsType = PixelLocalStorageType::
-                VK_EXT_rasterization_order_attachment_access;
-            break;
+            if (!strcmp(extensions.strings[i].data,
+                        "VK_EXT_rasterization_order_attachment_access"))
+            {
+                m_capabilities.plsType = PixelLocalStorageType::
+                    VK_EXT_rasterization_order_attachment_access;
+            }
         }
-        if (m_capabilities.backendType == wgpu::BackendType::OpenGLES &&
-            !strcmp(extensions.strings[i].data,
-                    "GL_EXT_shader_pixel_local_storage"))
+        else if (m_capabilities.backendType == wgpu::BackendType::OpenGLES)
         {
-            m_capabilities.plsType =
-                PixelLocalStorageType::GL_EXT_shader_pixel_local_storage;
-            break;
+            if (!strcmp(extensions.strings[i].data,
+                        "GL_EXT_shader_pixel_local_storage"))
+            {
+                m_capabilities.plsType =
+                    PixelLocalStorageType::GL_EXT_shader_pixel_local_storage;
+            }
+            else if (!strcmp(extensions.strings[i].data,
+                             "GL_EXT_shader_pixel_local_storage2"))
+            {
+                m_capabilities.supportsPixelLocalStorage2 = true;
+            }
         }
     }
     if (m_capabilities.backendType == wgpu::BackendType::OpenGLES &&
@@ -2122,14 +2139,11 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 },
             };
 
-            vertexBufferLayouts = {
-                WGPUVertexBufferLayout{
-                    .arrayStride = sizeof(gpu::PatchVertex),
-                    .stepMode = WGPUVertexStepMode_Vertex,
-                    .attributeCount = std::size(attrs),
-                    .attributes = attrs.data(),
-                },
-            };
+            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT};
+            vertexBufferLayouts[0].attributeCount = std::size(attrs);
+            vertexBufferLayouts[0].attributes = attrs.data();
+            vertexBufferLayouts[0].arrayStride = sizeof(gpu::PatchVertex);
+            vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
             break;
         }
         case DrawType::interiorTriangulation:
@@ -2143,14 +2157,11 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 },
             };
 
-            vertexBufferLayouts = {
-                WGPUVertexBufferLayout{
-                    .arrayStride = sizeof(gpu::TriangleVertex),
-                    .stepMode = WGPUVertexStepMode_Vertex,
-                    .attributeCount = std::size(attrs),
-                    .attributes = attrs.data(),
-                },
-            };
+            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT};
+            vertexBufferLayouts[0].attributeCount = std::size(attrs);
+            vertexBufferLayouts[0].attributes = attrs.data();
+            vertexBufferLayouts[0].arrayStride = sizeof(gpu::TriangleVertex);
+            vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
             break;
         }
         case DrawType::imageRect:
@@ -2169,20 +2180,18 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
                 },
             };
 
-            vertexBufferLayouts = {
-                WGPUVertexBufferLayout{
-                    .arrayStride = sizeof(float) * 2,
-                    .stepMode = WGPUVertexStepMode_Vertex,
-                    .attributeCount = 1,
-                    .attributes = &attrs[0],
-                },
-                WGPUVertexBufferLayout{
-                    .arrayStride = sizeof(float) * 2,
-                    .stepMode = WGPUVertexStepMode_Vertex,
-                    .attributeCount = 1,
-                    .attributes = &attrs[1],
-                },
-            };
+            vertexBufferLayouts = {WGPU_VERTEX_BUFFER_LAYOUT_INIT,
+                                   WGPU_VERTEX_BUFFER_LAYOUT_INIT};
+
+            vertexBufferLayouts[0].attributeCount = 1;
+            vertexBufferLayouts[0].attributes = &attrs[0];
+            vertexBufferLayouts[0].arrayStride = sizeof(float) * 2;
+            vertexBufferLayouts[0].stepMode = WGPUVertexStepMode_Vertex;
+
+            vertexBufferLayouts[1].attributeCount = 1;
+            vertexBufferLayouts[1].attributes = &attrs[1];
+            vertexBufferLayouts[1].arrayStride = sizeof(float) * 2;
+            vertexBufferLayouts[1].stepMode = WGPUVertexStepMode_Vertex;
             break;
         case DrawType::atomicInitialize:
         case DrawType::atomicResolve:
@@ -2286,7 +2295,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             inputAttachments[i].format = colorAttachments[i].format;
             inputAttachments[i].usedAsColor = WGPUOptionalBool_True;
         }
-        wagyuFragmentState.inputsCount = std::size(inputAttachments);
+        wagyuFragmentState.inputCount = std::size(inputAttachments);
         wagyuFragmentState.inputs = inputAttachments;
         wagyuFragmentState.featureFlags =
             WGPUWagyuFragmentStateFeaturesFlags_RasterizationOrderAttachmentAccess;
@@ -2418,6 +2427,7 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
     static_assert(CLIP_PLANE_IDX == 1);
     static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
     static_assert(COVERAGE_PLANE_IDX == 3);
+    static_assert(PLS_PLANE_COUNT == std::size(inputAttachments));
 
     WGPUWagyuRenderPassDescriptor wagyuRenderPassDescriptor =
         WGPU_WAGYU_RENDER_PASS_DESCRIPTOR_INIT;
@@ -2427,6 +2437,22 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
         wagyuRenderPassDescriptor.inputAttachmentCount =
             std::size(inputAttachments);
         wagyuRenderPassDescriptor.inputAttachments = inputAttachments;
+        passDesc.nextInChain = &wagyuRenderPassDescriptor.chain;
+    }
+    else if (m_capabilities.plsType ==
+             PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
+    {
+        wagyuRenderPassDescriptor.pixelLocalStorageEnabled =
+            WGPUOptionalBool_True;
+        if (m_capabilities.supportsPixelLocalStorage2)
+        {
+            // Always set the pixel local storage size if the v2 extension is
+            // available. This isn't technically necessary if we aren't using
+            // other parts of the v2 API, but PowerVR Rogue GE8300 experiences
+            // corruption if we don't, and this is an apparent workaround.
+            wagyuRenderPassDescriptor.pixelLocalStorageSize =
+                PLS_PLANE_COUNT * sizeof(uint32_t);
+        }
         passDesc.nextInChain = &wagyuRenderPassDescriptor.chain;
     }
 #endif
@@ -2809,10 +2835,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
     if (m_capabilities.plsType ==
         PixelLocalStorageType::GL_EXT_shader_pixel_local_storage)
     {
-        wgpuWagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(
-            drawPass.Get(),
-            true);
-
         // Draw the load action for EXT_shader_pixel_local_storage.
         std::array<float, 4> clearColor;
         LoadStoreActionsEXT loadActions =
@@ -3005,10 +3027,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         drawPass.SetPipeline(
             storePipeline->renderPipeline(renderTarget->framebufferFormat()));
         drawPass.Draw(4);
-
-        wgpuWagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(
-            drawPass.Get(),
-            false);
     }
 #endif
 

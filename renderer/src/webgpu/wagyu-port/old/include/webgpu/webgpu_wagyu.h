@@ -43,6 +43,7 @@
 #endif
 
 #define WGPU_WAGYU_STRLEN SIZE_MAX
+#define WGPU_WAGYU_PIXEL_LOCAL_STORAGE_SIZE_UNDEFINED UINT32_MAX
 
 #if defined(USE_WGPU_WAGYU_NAMESPACE) || defined(__cppcheck)
 namespace wagyu1
@@ -351,7 +352,7 @@ typedef struct WGPUWagyuInputAttachmentState
 typedef struct WGPUWagyuFragmentState
 {
     WGPUChainedStruct chain;
-    size_t inputsCount;
+    size_t inputCount;
     WGPU_NULLABLE WGPUWagyuInputAttachmentState* inputs;
     WGPUWagyuFragmentStateFeaturesFlags featureFlags;
 } WGPUWagyuFragmentState WGPU_STRUCTURE_ATTRIBUTE;
@@ -360,7 +361,7 @@ typedef struct WGPUWagyuFragmentState
     WGPU_WAGYU_MAKE_INIT_STRUCT(                                               \
         WGPUWagyuFragmentState,                                                \
         {/*.chain*/ WGPU_WAGYU_CHAIN_INIT(WGPUSType_WagyuFragmentState)        \
-             _wgpu_COMMA /*.inputsCount*/ 0 _wgpu_COMMA /*.inputs*/ NULL       \
+             _wgpu_COMMA /*.inputCount*/ 0 _wgpu_COMMA /*.inputs*/ NULL        \
                  _wgpu_COMMA /*.featureFlags*/                                 \
                      WGPUWagyuFragmentStateFeaturesFlags_None _wgpu_COMMA})
 
@@ -404,14 +405,17 @@ typedef struct WGPUWagyuRenderPassInputAttachment
     WGPU_WAGYU_MAKE_INIT_STRUCT(                                               \
         WGPUWagyuRenderPassInputAttachment,                                    \
         {/* .view */ NULL _wgpu_COMMA /* .clearValue */ NULL                   \
-             _wgpu_COMMA /* .loadOp */ WGPULoadOp_Clear                        \
-                 _wgpu_COMMA /* .storeOp */ WGPUStoreOp_Store _wgpu_COMMA})
+             _wgpu_COMMA /* .loadOp */ WGPULoadOp_Undefined                    \
+                 _wgpu_COMMA /* .storeOp */ WGPUStoreOp_Undefined              \
+                     _wgpu_COMMA})
 
 typedef struct WGPUWagyuRenderPassDescriptor
 {
     WGPUChainedStruct chain;
     size_t inputAttachmentCount;
     WGPU_NULLABLE WGPUWagyuRenderPassInputAttachment* inputAttachments;
+    WGPUOptionalBool pixelLocalStorageEnabled;
+    uint32_t pixelLocalStorageSize;
 } WGPUWagyuRenderPassDescriptor WGPU_STRUCTURE_ATTRIBUTE;
 
 #define WGPU_WAGYU_RENDER_PASS_DESCRIPTOR_INIT                                 \
@@ -420,7 +424,12 @@ typedef struct WGPUWagyuRenderPassDescriptor
         {/* .chain */ WGPU_WAGYU_CHAIN_INIT(                                   \
             WGPUSType_WagyuRenderPassDescriptor)                               \
              _wgpu_COMMA /* .inputAttachmentCount */                           \
-         0 _wgpu_COMMA /* .inputAttachments */ NULL _wgpu_COMMA})
+         0 _wgpu_COMMA /* .inputAttachments */ NULL                            \
+             _wgpu_COMMA /* .pixelLocalStorageEnabled */                       \
+                 WGPUOptionalBool_Undefined                                    \
+                     _wgpu_COMMA /* .pixelLocalStorageSize */                  \
+                         WGPU_WAGYU_PIXEL_LOCAL_STORAGE_SIZE_UNDEFINED         \
+                             _wgpu_COMMA})
 
 typedef struct WGPUWagyuRenderPipelineDescriptor
 {
@@ -512,13 +521,13 @@ typedef struct WGPUWagyuShaderReflectionSpecializationConstant
 
 typedef struct WGPUWagyuShaderReflectionData
 {
-    size_t resourcesCount;
+    size_t resourceCount;
     WGPUWagyuShaderReflectionResource* resources;
-    size_t constantsCount;
+    size_t constantCount;
     WGPUWagyuShaderReflectionSpecializationConstant* constants;
-    size_t uniformsCount;
+    size_t uniformCount;
     WGPUWagyuShaderReflectionStructMember* uniforms;
-    size_t attributesCount;
+    size_t attributeCount;
     WGPUWagyuShaderReflectionLocation* attributes;
     WGPUWagyuStringView wgsl;
 } WGPUWagyuShaderReflectionData WGPU_STRUCTURE_ATTRIBUTE;
@@ -526,12 +535,13 @@ typedef struct WGPUWagyuShaderReflectionData
 #define WGPU_WAGYU_SHADER_REFLECTION_DATA_INIT                                 \
     WGPU_WAGYU_MAKE_INIT_STRUCT(                                               \
         WGPUWagyuShaderReflectionData,                                         \
-        {/* .resourcesCount */ 0 _wgpu_COMMA /* .resources */ NULL             \
-             _wgpu_COMMA /* .constantsCount */ 0 _wgpu_COMMA /* .constants */  \
-                 NULL _wgpu_COMMA                       /* .uniformsCount */   \
-         0 _wgpu_COMMA /* .uniforms */ NULL _wgpu_COMMA /* .attributesCount */ \
-         0 _wgpu_COMMA /* .attributes */ NULL                                  \
-             _wgpu_COMMA /* .wgsl */ WGPU_WAGYU_STRING_VIEW_INIT _wgpu_COMMA})
+        {/* .resourceCount */ 0 _wgpu_COMMA /* .resources */ NULL              \
+             _wgpu_COMMA /* .constantCount */ 0 _wgpu_COMMA /* .constants */   \
+                 NULL _wgpu_COMMA /* .uniformCount */                          \
+         0 _wgpu_COMMA /* .uniforms */ NULL                                    \
+             _wgpu_COMMA /* .attributeCount */ 0 _wgpu_COMMA /* .attributes */ \
+                 NULL _wgpu_COMMA /* .wgsl */ WGPU_WAGYU_STRING_VIEW_INIT      \
+                     _wgpu_COMMA})
 
 typedef struct WGPUWagyuShaderEntryPoint
 {
@@ -550,17 +560,32 @@ typedef struct WGPUWagyuShaderEntryPoint
 
 typedef struct WGPUWagyuShaderEntryPointArray
 {
-    size_t entryPointsCount;
+    size_t entryPointCount;
     WGPUWagyuShaderEntryPoint* entryPoints;
 } WGPUWagyuShaderEntryPointArray WGPU_STRUCTURE_ATTRIBUTE;
 
 #define WGPU_WAGYU_SHADER_ENTRY_POINT_ARRAY_INIT                               \
     WGPU_WAGYU_MAKE_INIT_STRUCT(                                               \
         WGPUWagyuShaderEntryPointArray,                                        \
-        {/* .entryPointsCount */ 0 _wgpu_COMMA /* .entryPoints */ NULL         \
+        {/* .entryPointCount */ 0 _wgpu_COMMA /* .entryPoints */ NULL          \
              _wgpu_COMMA})
 
-struct WGPUWagyuShaderModuleCompilationHint
+typedef struct WGPUWagyuRenderPassEncoderClearPixelLocalStorage
+{
+    uint32_t offset;
+    size_t valueCount;
+    WGPU_NULLABLE uint32_t* values;
+    uint32_t size;
+} WGPUWagyuRenderPassEncoderClearPixelLocalStorage WGPU_STRUCTURE_ATTRIBUTE;
+
+#define WGPU_WAGYU_RENDER_PASS_ENCODER_CLEAR_PIXEL_LOCAL_STORAGE_INIT          \
+    WGPU_WAGYU_MAKE_INIT_STRUCT(                                               \
+        WGPUWagyuRenderPassEncoderClearPixelLocalStorage,                      \
+        {/* .offset */ 0 _wgpu_COMMA                  /* .valueCount */        \
+         0 _wgpu_COMMA /* .values */ NULL _wgpu_COMMA /* .size */              \
+             WGPU_WAGYU_PIXEL_LOCAL_STORAGE_SIZE_UNDEFINED _wgpu_COMMA})
+
+typedef struct WGPUWagyuShaderModuleCompilationHint
 {
     WGPUChainedStruct* nextInChain;
     WGPUWagyuStringView entryPoint;
@@ -568,7 +593,7 @@ struct WGPUWagyuShaderModuleCompilationHint
      * If set to NULL, it will be treated as "auto"
      */
     WGPUPipelineLayout layout;
-};
+} WGPUWagyuShaderModuleCompilationHint;
 
 #define WGPU_WAGYU_SHADER_MODULE_COMPILATION_HINT_INIT                         \
     WGPU_WAGYU_MAKE_INIT_STRUCT(                                               \
@@ -634,14 +659,14 @@ typedef struct WGPUWagyuTextureDescriptor
 
 typedef struct WGPUWagyuWGSLFeatureTypeArray
 {
-    size_t featuresCount;
+    size_t featureCount;
     WGPU_NULLABLE WGPUWagyuWGSLFeatureType* features;
 } WGPUWagyuWGSLFeatureTypeArray WGPU_STRUCTURE_ATTRIBUTE;
 
 #define WGPU_WAGYU_WGSL_FEATURE_TYPE_ARRAY_INIT                                \
     WGPU_WAGYU_MAKE_INIT_STRUCT(                                               \
         WGPUWagyuWGSLFeatureTypeArray,                                         \
-        {/* .featuresCount */ 0 _wgpu_COMMA /* .features */ NULL _wgpu_COMMA})
+        {/* .featureCount */ 0 _wgpu_COMMA /* .features */ NULL _wgpu_COMMA})
 
 #if defined(__cplusplus) && !defined(USE_WGPU_WAGYU_NAMESPACE) &&              \
     !defined(__cppcheck)
@@ -840,9 +865,10 @@ extern "C"
         uint32_t stencil,
         uint32_t baseArrayLayer,
         uint32_t layerCount) WGPU_FUNCTION_ATTRIBUTE;
-    WGPU_EXPORT void wgpuWagyuRenderPassEncoderSetShaderPixelLocalStorageEnabled(
+    WGPU_EXPORT void wgpuWagyuRenderPassEncoderClearPixelLocalStorage(
         WGPURenderPassEncoder renderPassEncoder,
-        WGPUBool enabled) WGPU_FUNCTION_ATTRIBUTE;
+        const WGPUWagyuRenderPassEncoderClearPixelLocalStorage* options)
+        WGPU_FUNCTION_ATTRIBUTE;
     WGPU_EXPORT void wgpuWagyuRenderPassEncoderExecuteBundle(
         WGPURenderPassEncoder renderPassEncoder,
         WGPURenderBundle bundle) WGPU_FUNCTION_ATTRIBUTE;
@@ -856,12 +882,6 @@ extern "C"
         WGPUShaderModule shaderModule,
         WGPUShaderStage stages,
         WGPUWagyuShaderEntryPointArray* shaderEntryPointArray)
-        WGPU_FUNCTION_ATTRIBUTE;
-
-    WGPU_EXPORT void wgpuWagyuStringArrayFreeMembers(WGPUWagyuStringArray value)
-        WGPU_FUNCTION_ATTRIBUTE;
-
-    WGPU_EXPORT void wgpuWagyuStringViewFreeMembers(WGPUWagyuStringView value)
         WGPU_FUNCTION_ATTRIBUTE;
 
     WGPU_EXPORT void wgpuWagyuSurfaceDestroy(WGPUSurface surface)

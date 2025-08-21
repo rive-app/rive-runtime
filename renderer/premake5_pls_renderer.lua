@@ -12,10 +12,8 @@ newoption({
 if _OPTIONS['with_vulkan'] then
     -- Standardize on the same set of Vulkan headers on all platforms.
     vulkan_headers = dependency.github('KhronosGroup/Vulkan-Headers', 'vulkan-sdk-1.3.283')
-    vulkan_memory_allocator = dependency.github(
-        'GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator',
-        'v3.3.0'
-    )
+    vulkan_memory_allocator =
+        dependency.github('GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator', 'v3.3.0')
     defines({
         'RIVE_VULKAN',
         'VK_NO_PROTOTYPES',
@@ -50,30 +48,40 @@ do
     defines({ 'RIVE_DAWN' })
 end
 
-newoption({
-    trigger = 'with_wagyu',
-    description = 'compile in support for wagyu webgpu extensions',
-})
-filter({ 'options:with_wagyu' })
+filter('system:emscripten')
 do
-    defines({ 'RIVE_WAGYU' })
+    defines({ 'RIVE_WEBGL' })
 end
 
 newoption({
     trigger = 'with-webgpu',
     description = 'compile in native support for webgpu',
 })
+newoption({
+    trigger = 'webgpu-version',
+    description = 'which version of webgpu to compile for',
+    allowed = { { '1' }, { '2' } },
+    default = '1',
+})
 filter({ 'options:with-webgpu' })
 do
-    defines({ 'RIVE_WEBGPU' })
-end
-
-filter('system:emscripten')
-do
-    defines({ 'RIVE_WEBGL' })
+    defines({ 'RIVE_WEBGPU=' .. _OPTIONS['webgpu-version'] })
 end
 
 filter({})
+
+newoption({
+    trigger = 'with_wagyu',
+    description = 'compile in support for wagyu webgpu extensions',
+})
+if _OPTIONS['with_wagyu'] then
+    defines({ 'RIVE_WAGYU' })
+    RIVE_WAGYU_PORT = '--use-port='
+        .. RIVE_RUNTIME_DIR
+        .. '/renderer/src/webgpu/wagyu-port/'
+        .. (_OPTIONS['webgpu-version'] == '2' and 'new' or 'old')
+        .. '/webgpu-port.py:wagyu=true'
+end
 
 newoption({
     trigger = 'no_gl',
@@ -182,7 +190,7 @@ do
         '../include',
         pls_generated_headers,
     })
-    fatalwarnings { "All" }
+    fatalwarnings({ 'All' })
 
     files({ 'src/*.cpp', 'renderer/decoding/*.cpp' })
 
@@ -198,9 +206,9 @@ do
         files({ 'src/vulkan/*.cpp' })
     end
 
-    if _TARGET_OS  == 'windows'then
+    if _TARGET_OS == 'windows' then
         externalincludedirs({
-            dx12_headers .. '/include/directx'
+            dx12_headers .. '/include/directx',
         })
     end
 
@@ -210,7 +218,7 @@ do
     end
 
     -- The Visual Studio clang toolset doesn't recognize -ffp-contract.
-    filter({'system:not windows', 'options:not no_ffp_contract'})
+    filter({ 'system:not windows', 'options:not no_ffp_contract' })
     do
         buildoptions({
             '-ffp-contract=on',
@@ -267,7 +275,9 @@ do
     filter({ 'options:with-webgpu or with-dawn' })
     do
         files({
-            'src/webgpu/**.cpp',
+            -- Don't use "**.cpp" because we don't want to compile files in
+            -- wagyu-port/**
+            'src/webgpu/*.cpp',
             'src/gl/load_store_actions_ext.cpp',
         })
     end
@@ -294,5 +304,12 @@ do
     filter('system:emscripten')
     do
         files({ 'src/gl/pls_impl_webgl.cpp' })
+    end
+
+    filter({})
+
+    if RIVE_WAGYU_PORT then
+        buildoptions({ RIVE_WAGYU_PORT })
+        linkoptions({ RIVE_WAGYU_PORT })
     end
 end

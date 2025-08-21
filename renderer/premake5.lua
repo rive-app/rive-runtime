@@ -28,7 +28,7 @@ if not _OPTIONS['with-webgpu'] then
             yoga,
         })
 
-        fatalwarnings { "All" }
+        fatalwarnings({ 'All' })
 
         defines({ 'YOGA_EXPORT=' })
 
@@ -95,9 +95,9 @@ if not _OPTIONS['with-webgpu'] then
             externalincludedirs({ optick .. '/src'})
         end
 
-        if _TARGET_OS  == 'windows'then
+        if _TARGET_OS == 'windows' then
             externalincludedirs({
-                dx12_headers .. '/include/directx'
+                dx12_headers .. '/include/directx',
             })
         end
 
@@ -193,7 +193,7 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             'include',
             RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
         })
-        fatalwarnings { "All" }
+        fatalwarnings({ 'All' })
 
         defines({ 'YOGA_EXPORT=' })
 
@@ -277,12 +277,16 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
         do
             targetextension('.js')
             linkoptions({
-                '-sEXPORTED_FUNCTIONS=_animationFrame,_main,_start,_malloc,_free',
+                '-sEXPORTED_FUNCTIONS=_main,_malloc,_free',
                 '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap',
-                '-sUSE_WEBGPU',
                 '-sENVIRONMENT=web,shell',
-                '-sWARN_ON_UNDEFINED_SYMBOLS=0',
-                '-sERROR_ON_UNDEFINED_SYMBOLS=0',
+            })
+        end
+
+        filter({ 'system:emscripten', 'options:not with_wagyu' })
+        do
+            linkoptions({
+                '-sUSE_WEBGPU',
             })
         end
 
@@ -300,6 +304,13 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
             buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
             buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
+        end
+
+        filter({})
+
+        if RIVE_WAGYU_PORT then
+            buildoptions({ RIVE_WAGYU_PORT })
+            linkoptions({ RIVE_WAGYU_PORT })
         end
     end
 end

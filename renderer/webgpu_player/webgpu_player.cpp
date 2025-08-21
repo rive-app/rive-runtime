@@ -13,17 +13,19 @@
 using namespace rive;
 
 #ifdef RIVE_WEBGPU
+
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/webgpu/render_context_webgpu_impl.hpp"
 
+#if RIVE_WEBGPU == 1
 #include "../src/webgpu/webgpu_compat.h"
+#endif
 #include "marty.h"
 #include "egg_v2.h"
 #include "rope.h"
 
 #include <webgpu/webgpu_cpp.h>
 #include <emscripten.h>
-#include <emscripten/html5_webgpu.h>
 #include <emscripten/html5.h>
 
 using namespace rive::gpu;
@@ -44,52 +46,57 @@ static std::unique_ptr<ArtboardInstance> artboard;
 static std::unique_ptr<Scene> scene;
 
 extern "C" EM_BOOL animationFrame(double time, void* userData);
-extern "C" void start(void);
+EM_JS(uint8_t, get_riv_buffer, (uint8_t** buffer, uint32_t* len), {
+    if (!get_wagyu_buffer)
+        return 0;
+    const arrBuf = get_wagyu_buffer();
+    if (!arrBuf)
+        return 0;
 
-static void requestDeviceCallback(WGPURequestDeviceStatus status,
-                                  WGPUDevice deviceArg,
-                                  const char* message,
-                                  void* userdata);
-static void requestAdapterCallback(WGPURequestAdapterStatus status,
-                                   WGPUAdapter adapterArg,
-                                   const char* message,
-                                   void* userdata);
+    const arr = new Uint8Array(arrBuf), ptr = _malloc(arr.length);
+    HEAPU8.set(arr, ptr);
+    setValue(buffer, ptr, '*');
+    setValue(len, arr.length, 'i32');
+    return 1;
+});
 
+#if RIVE_WEBGPU > 1
+void requestDeviceCallback(wgpu::RequestDeviceStatus status,
+                           wgpu::Device deviceArg,
+                           const char* message,
+                           void* userdata)
+
+#else
 void requestDeviceCallback(WGPURequestDeviceStatus status,
                            WGPUDevice deviceArg,
                            const char* message,
                            void* userdata)
+#endif
 {
     assert(userdata == instance);
 
+#if RIVE_WEBGPU > 1
+    device = deviceArg;
+#else
     device = wgpu::Device::Acquire(deviceArg);
+#endif
     assert(device.Get());
 
     queue = device.GetQueue();
     assert(queue.Get());
 
-    RenderContextWebGPUImpl::ContextOptions contextOptions;
-    renderContext = RenderContextWebGPUImpl::MakeContext(adapter,
-                                                         device,
-                                                         queue,
-                                                         contextOptions);
-    renderTarget =
-        renderContext->static_impl_cast<RenderContextWebGPUImpl>()
-            ->makeRenderTarget(wgpu::TextureFormat::RGBA8Unorm, 1920, 1080);
-    renderer = std::make_unique<RiveRenderer>(renderContext.get());
-
-    rivFile = File::import({marty, marty_len}, renderContext.get());
-    // rivFile = File::import({egg_v2, egg_v2_len}, renderContext.get());
-    // rivFile = File::import({rope, rope_len}, renderContext.get());
-    artboard = rivFile->artboardDefault();
-    scene = artboard->defaultScene();
-    scene->advanceAndApply(0);
-
     {
+#if RIVE_WEBGPU > 1
+        WGPUEmscriptenSurfaceSourceCanvasHTMLSelector htmlSelector =
+            WGPU_EMSCRIPTEN_SURFACE_SOURCE_CANVAS_HTML_SELECTOR_INIT;
+        htmlSelector.selector.data = "#canvas";
+        htmlSelector.selector.length = 7;
+#else
         WGPUSurfaceDescriptorFromCanvasHTMLSelector htmlSelector = {};
         htmlSelector.chain.sType =
             WGPUSType_SurfaceDescriptorFromCanvasHTMLSelector;
         htmlSelector.selector = "#canvas";
+#endif
 
         WGPUSurfaceDescriptor surfaceDesc = WGPU_SURFACE_DESCRIPTOR_INIT;
         surfaceDesc.nextInChain = (WGPUChainedStruct*)&htmlSelector;
@@ -99,7 +106,15 @@ void requestDeviceCallback(WGPURequestDeviceStatus status,
     }
 
     {
+#if RIVE_WEBGPU > 1
+        WGPUSurfaceCapabilities capabilities = WGPU_SURFACE_CAPABILITIES_INIT;
+        wgpuSurfaceGetCapabilities(surface, adapter.Get(), &capabilities);
+        assert(capabilities.formatCount > 0);
+        format = capabilities.formats[0];
+        wgpuSurfaceCapabilitiesFreeMembers(capabilities);
+#else
         format = wgpuSurfaceGetPreferredFormat(surface, adapter.Get());
+#endif
         assert(format);
     }
 
@@ -111,21 +126,65 @@ void requestDeviceCallback(WGPURequestDeviceStatus status,
         wgpuSurfaceConfigure(surface, &conf);
     }
 
+    RenderContextWebGPUImpl::ContextOptions contextOptions;
+    renderContext = RenderContextWebGPUImpl::MakeContext(adapter,
+                                                         device,
+                                                         queue,
+                                                         contextOptions);
+    renderTarget =
+        renderContext->static_impl_cast<RenderContextWebGPUImpl>()
+            ->makeRenderTarget(static_cast<wgpu::TextureFormat>(format),
+                               1920,
+                               1080);
+    renderer = std::make_unique<RiveRenderer>(renderContext.get());
+
+    uint8_t* buffer;
+    uint32_t buffer_len;
+    if (get_riv_buffer(&buffer, &buffer_len))
+    {
+        rivFile = File::import({buffer, buffer_len}, renderContext.get());
+        free(buffer);
+    }
+    if (!rivFile)
+    {
+        rivFile = File::import({marty, marty_len}, renderContext.get());
+        // rivFile = File::import({egg_v2, egg_v2_len}, renderContext.get());
+        // rivFile = File::import({rope, rope_len}, renderContext.get());
+    }
+    artboard = rivFile->artboardDefault();
+    scene = artboard->defaultScene();
+    scene->advanceAndApply(0);
+
     emscripten_set_canvas_element_size("#canvas", 1920, 1080);
 
     emscripten_request_animation_frame_loop(animationFrame, (void*)100);
 }
 
+#if RIVE_WEBGPU > 1
+void requestAdapterCallback(WGPURequestAdapterStatus status,
+                            WGPUAdapter adapterArg,
+                            WGPUStringView message,
+                            void* userdata,
+                            void* /*userdata2*/)
+#else
 void requestAdapterCallback(WGPURequestAdapterStatus status,
                             WGPUAdapter adapterArg,
                             const char* message,
                             void* userdata)
+#endif
 {
     assert(adapterArg);
     assert(status == WGPURequestAdapterStatus_Success);
     assert(userdata == instance);
     adapter = wgpu::Adapter::Acquire(adapterArg);
+#if RIVE_WEBGPU > 1
+    adapter.RequestDevice({},
+                          wgpu::CallbackMode::AllowSpontaneous,
+                          requestDeviceCallback,
+                          userdata);
+#else
     adapter.RequestDevice({}, requestDeviceCallback, userdata);
+#endif
 }
 
 static double lastTime = 0;
@@ -180,15 +239,22 @@ int main(void)
     instance = wgpuCreateInstance(NULL);
     assert(instance);
 
+#if RIVE_WEBGPU > 1
+    WGPURequestAdapterCallbackInfo requestAdapterCallbackInfo =
+        WGPU_REQUEST_ADAPTER_CALLBACK_INFO_INIT;
+    requestAdapterCallbackInfo.mode = WGPUCallbackMode_AllowSpontaneous;
+    requestAdapterCallbackInfo.callback = requestAdapterCallback;
+    requestAdapterCallbackInfo.userdata1 = instance;
+    wgpuInstanceRequestAdapter(instance, NULL, requestAdapterCallbackInfo);
+#else
     wgpuInstanceRequestAdapter(instance,
                                NULL,
                                requestAdapterCallback,
                                instance);
+#endif
 
     return 0;
 }
-
-extern "C" void start(void) { main(); }
 
 #endif
 
