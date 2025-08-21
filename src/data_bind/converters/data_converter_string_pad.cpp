@@ -10,7 +10,7 @@ DataValue* DataConverterStringPad::convert(DataValue* input, DataBind* dataBind)
     {
         auto inputValue = input->as<DataValueString>()->value();
         auto inputLength = inputValue.size();
-        if (inputLength < length())
+        if (inputLength < length() && text() != "")
         {
             auto padPattern = text();
             auto padLength = padPattern.size();
