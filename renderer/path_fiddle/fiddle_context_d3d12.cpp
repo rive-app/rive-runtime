@@ -567,6 +567,8 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
 
     D3DContextOptions contextOptions;
 
+    contextOptions.shaderCompilationMode = fiddleOptions.shaderCompilationMode;
+
     if (fiddleOptions.d3d12UseWarpDevice)
     {
         ComPtr<IDXGIAdapter> warpAdapter;
@@ -579,7 +581,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
         VERIFY_OK(D3D12CreateDevice(warpAdapter.Get(),
                                     D3D_FEATURE_LEVEL_11_0,
                                     IID_PPV_ARGS(&device)));
-        printf("D3D device: %S\n", adapterDesc.Description);
+        printf("D3D12 device: %S\n", adapterDesc.Description);
     }
     else
     {
@@ -593,7 +595,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3D12PLS(
         VERIFY_OK(D3D12CreateDevice(hardwareAdapter.Get(),
                                     D3D_FEATURE_LEVEL_11_0,
                                     IID_PPV_ARGS(&device)));
-        printf("D3D device: %S\n", adapterDesc.Description);
+        printf("D3D12 device: %S\n", adapterDesc.Description);
     }
 
     if (!device)

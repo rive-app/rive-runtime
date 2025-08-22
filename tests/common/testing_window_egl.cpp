@@ -418,7 +418,8 @@ public:
 
 #ifdef RIVE_DESKTOP_GL
         // Load the OpenGL API using glad.
-        if (!gladLoadCustomLoader((GLADloadproc)eglGetProcAddress))
+        if (!gladLoadCustomLoader(
+                reinterpret_cast<GLADloadfunc>(eglGetProcAddress)))
         {
             fprintf(stderr, "Failed to initialize glad.\n");
             abort();

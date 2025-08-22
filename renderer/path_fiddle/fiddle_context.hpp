@@ -14,7 +14,8 @@ class RenderContextVulkanImpl;
 struct FiddleContextOptions
 {
     bool retinaDisplay = true;
-    bool synchronousShaderCompilations = false;
+    rive::gpu::ShaderCompilationMode shaderCompilationMode =
+        rive::gpu::ShaderCompilationMode::standard;
     bool enableReadPixels = false;
     bool disableRasterOrdering = false;
     bool coreFeaturesOnly = false;

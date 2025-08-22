@@ -24,6 +24,7 @@ if not _OPTIONS['with-webgpu'] then
         })
         externalincludedirs({
             'glad',
+            'glad/include',
             RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
             yoga,
         })
@@ -193,6 +194,8 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             'include',
             RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
         })
+        externalincludedirs({'glad/include'})
+
         fatalwarnings({ 'All' })
 
         defines({ 'YOGA_EXPORT=' })

@@ -22,12 +22,9 @@ public:
         m_fiddleOptions(fiddleOptions)
     {
         RenderContextMetalImpl::ContextOptions metalOptions;
-        if (m_fiddleOptions.synchronousShaderCompilations)
-        {
-            // Turn on synchronous shader compilations to ensure deterministic
-            // rendering and to make sure we test every unique shader.
-            metalOptions.synchronousShaderCompilations = true;
-        }
+        metalOptions.shaderCompilationMode =
+            m_fiddleOptions.shaderCompilationMode;
+
         if (m_fiddleOptions.disableRasterOrdering)
         {
             // Turn on synchronous shader compilations to ensure deterministic

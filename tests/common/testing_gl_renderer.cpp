@@ -22,6 +22,8 @@ std::unique_ptr<TestingGLRenderer> TestingGLRenderer::Make(
         RiveRenderer(const TestingWindow::BackendParams& backendParams) :
             m_backendParams(backendParams)
         {
+            m_contextOptions.shaderCompilationMode =
+                rive::gpu::ShaderCompilationMode::alwaysSynchronous;
             if (m_backendParams.msaa)
             {
                 m_contextOptions.disablePixelLocalStorage = true;

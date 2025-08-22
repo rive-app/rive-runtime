@@ -22,33 +22,56 @@ namespace glutils
 // renames from minify.py.)
 constexpr static char BASE_INSTANCE_UNIFORM_NAME[] = "_baseInstance";
 
-void CompileAndAttachShader(GLuint program,
-                            GLenum type,
-                            const char* source,
-                            const GLCapabilities&);
+#ifdef DEBUG
+void PrintShaderCompilationErrors(GLuint shader);
+void PrintLinkProgramErrors(GLuint program);
+#endif
 
-void CompileAndAttachShader(GLuint program,
-                            GLenum type,
-                            const char* defines[],
-                            size_t numDefines,
-                            const char* sources[],
-                            size_t numSources,
-                            const GLCapabilities&);
+enum class DebugPrintErrorAndAbort
+{
+    no,
+    yes,
+};
 
-[[nodiscard]] GLuint CompileShader(GLuint type,
-                                   const char* source,
-                                   const GLCapabilities&);
+void CompileAndAttachShader(
+    GLuint program,
+    GLenum type,
+    const char* source,
+    const GLCapabilities&,
+    DebugPrintErrorAndAbort = DebugPrintErrorAndAbort::yes);
 
-[[nodiscard]] GLuint CompileShader(GLuint type,
-                                   const char* defines[],
-                                   size_t numDefines,
-                                   const char* sources[],
-                                   size_t numSources,
-                                   const GLCapabilities&);
+void CompileAndAttachShader(
+    GLuint program,
+    GLenum type,
+    const char* defines[],
+    size_t numDefines,
+    const char* sources[],
+    size_t numSources,
+    const GLCapabilities&,
+    DebugPrintErrorAndAbort = DebugPrintErrorAndAbort::yes);
 
-[[nodiscard]] GLuint CompileRawGLSL(GLenum shaderType, const char* rawGLSL);
+[[nodiscard]] GLuint CompileShader(
+    GLuint type,
+    const char* source,
+    const GLCapabilities&,
+    DebugPrintErrorAndAbort = DebugPrintErrorAndAbort::yes);
 
-void LinkProgram(GLuint program);
+[[nodiscard]] GLuint CompileShader(
+    GLuint type,
+    const char* defines[],
+    size_t numDefines,
+    const char* sources[],
+    size_t numSources,
+    const GLCapabilities&,
+    DebugPrintErrorAndAbort = DebugPrintErrorAndAbort::yes);
+
+[[nodiscard]] GLuint CompileRawGLSL(
+    GLenum shaderType,
+    const char* rawGLSL,
+    DebugPrintErrorAndAbort = DebugPrintErrorAndAbort::yes);
+
+void LinkProgram(GLuint program,
+                 DebugPrintErrorAndAbort = DebugPrintErrorAndAbort::yes);
 
 class GLObject
 {

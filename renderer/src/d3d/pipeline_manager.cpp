@@ -23,13 +23,16 @@
 
 namespace rive::gpu::d3d_utils
 {
-std::string build_shader(DrawType drawType,
-                         ShaderFeatures shaderFeatures,
-                         InterlockMode interlockMode,
-                         ShaderMiscFlags shaderMiscFlags,
-                         const D3DCapabilities& d3dCapabilities)
+static std::string build_shader(DrawType drawType,
+                                ShaderFeatures shaderFeatures,
+                                InterlockMode interlockMode,
+                                ShaderMiscFlags shaderMiscFlags,
+                                const D3DCapabilities& d3dCapabilities,
+                                const char* shaderTypeDefine)
 {
+
     std::ostringstream s;
+    s << "#define " << shaderTypeDefine << '\n';
     for (size_t i = 0; i < kShaderFeatureCount; ++i)
     {
         ShaderFeatures feature = static_cast<ShaderFeatures>(1 << i);
@@ -171,58 +174,36 @@ std::string build_shader(DrawType drawType,
     return s.str();
 }
 
-ComPtr<ID3DBlob> compile_pixel_source_to_blob(const std::string& sharedSource,
-                                              const char* target)
+static const char* shader_type_define_from_target(const char* target)
 {
-    std::ostringstream source;
-    source << "#define " << GLSL_FRAGMENT << '\n';
-    source << sharedSource;
+    if (target[0] == 'v')
+    {
+        return GLSL_VERTEX;
+    }
+    else if (target[0] == 'p')
+    {
+        return GLSL_FRAGMENT;
+    }
 
-    const std::string& sourceStr = source.str();
-    ComPtr<ID3DBlob> blob;
-    ComPtr<ID3DBlob> errors;
-    HRESULT hr = D3DCompile(sourceStr.c_str(),
-                            sourceStr.length(),
-                            nullptr,
-                            nullptr,
-                            nullptr,
-                            "main",
-                            target,
-                            D3DCOMPILE_ENABLE_STRICTNESS,
-                            0,
-                            &blob,
-                            &errors);
-    if (errors && errors->GetBufferPointer())
-    {
-        fprintf(stderr, "Errors or warnings compiling shader.\n");
-        int l = 1;
-        std::stringstream stream(sourceStr);
-        std::string lineStr;
-        while (std::getline(stream, lineStr, '\n'))
-        {
-            fprintf(stderr, "%4i| %s\n", l++, lineStr.c_str());
-        }
-        fprintf(stderr,
-                "%s\n",
-                reinterpret_cast<char*>(errors->GetBufferPointer()));
-        abort();
-    }
-    if (FAILED(hr))
-    {
-        fprintf(stderr, "Failed to compile shader.\n");
-        abort();
-    }
-    return blob;
+    assert(false);
+    return "<unknown>";
 }
 
-ComPtr<ID3DBlob> compile_vertex_source_to_blob(const std::string& sharedSource,
-                                               const char* target)
+ComPtr<ID3DBlob> compile_shader_to_blob(DrawType drawType,
+                                        ShaderFeatures shaderFeatures,
+                                        InterlockMode interlockMode,
+                                        ShaderMiscFlags shaderMiscFlags,
+                                        const D3DCapabilities& d3dCapabilities,
+                                        const char* target)
 {
-    std::ostringstream source;
-    source << "#define " << GLSL_VERTEX << '\n';
-    source << sharedSource;
+    const std::string& sourceStr =
+        build_shader(drawType,
+                     shaderFeatures,
+                     interlockMode,
+                     shaderMiscFlags,
+                     d3dCapabilities,
+                     shader_type_define_from_target(target));
 
-    const std::string& sourceStr = source.str();
     ComPtr<ID3DBlob> blob;
     ComPtr<ID3DBlob> errors;
     HRESULT hr = D3DCompile(sourceStr.c_str(),

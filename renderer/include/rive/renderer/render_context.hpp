@@ -36,6 +36,16 @@ class Gradient;
 class RenderContextImpl;
 class PathDraw;
 
+enum class ShaderCompilationMode
+{
+    allowAsynchronous,
+    alwaysSynchronous,
+    onlyUbershaders,
+
+    // The default mode is to allow asynchronous compilation where available.
+    standard = allowAsynchronous,
+};
+
 // Used as a key for complex gradients.
 class GradientContentKey
 {

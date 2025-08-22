@@ -945,22 +945,16 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     // Find a fully-featured superset of features whose pipeline we can fall
     // back on while waiting for it to compile.
     ShaderFeatures fullyFeaturedPipelineFeatures =
-        gpu::ShaderFeaturesMaskFor(drawType, desc.interlockMode);
-    if (desc.interlockMode == gpu::InterlockMode::atomics)
+        gpu::UbershaderFeaturesMaskFor(
+            shaderFeatures, drawType, desc.interlockMode);
+
+    if (m_contextOptions.shaderCompilationMode ==
+        ShaderCompilationMode::onlyUbershaders)
     {
-        // Never add ENABLE_ADVANCED_BLEND to an atomic pipeline that doesn't
-        // use advanced blend, since in atomic mode, the shaders behave
-        // differently depending on whether advanced blend is enabled.
-        fullyFeaturedPipelineFeatures &=
-            shaderFeatures | ~ShaderFeatures::ENABLE_ADVANCED_BLEND;
-        // Never add ENABLE_CLIPPING to an atomic pipeline that doesn't use
-        // clipping; it will cause a "missing buffer binding" validation error
-        // because the shader will define an (unused) clipBuffer, but we won't
-        // bind anything to it.
-        fullyFeaturedPipelineFeatures &=
-            shaderFeatures | ~ShaderFeatures::ENABLE_CLIPPING;
+        // Force the shader features to be the full set if that's what was
+        // requested.
+        shaderFeatures = fullyFeaturedPipelineFeatures;
     }
-    shaderFeatures &= fullyFeaturedPipelineFeatures;
 
     uint32_t pipelineKey = gpu::ShaderUniqueKey(
         drawType, shaderFeatures, desc.interlockMode, shaderMiscFlags);
@@ -995,7 +989,8 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
         BackgroundCompileJob job;
         bool shouldWaitForBackgroundCompilation =
             shaderFeatures == fullyFeaturedPipelineFeatures ||
-            m_contextOptions.synchronousShaderCompilations;
+            m_contextOptions.shaderCompilationMode !=
+                ShaderCompilationMode::allowAsynchronous;
         while (m_backgroundShaderCompiler->popFinishedJob(
             &job, shouldWaitForBackgroundCompilation))
         {
@@ -1491,10 +1486,20 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
     for (const DrawBatch& batch : *desc.drawList)
     {
         // Setup the pipeline for this specific drawType and shaderFeatures.
-        gpu::ShaderFeatures shaderFeatures =
-            desc.interlockMode == gpu::InterlockMode::atomics
-                ? desc.combinedShaderFeatures
-                : batch.shaderFeatures;
+        gpu::ShaderFeatures shaderFeatures;
+        if (desc.interlockMode == gpu::InterlockMode::atomics)
+        {
+            // The combined shader features might have more flags set than are
+            // actually relevant for this draw type, so filter them out.
+            shaderFeatures =
+                desc.combinedShaderFeatures &
+                gpu::ShaderFeaturesMaskFor(batch.drawType, desc.interlockMode);
+        }
+        else
+        {
+            shaderFeatures = batch.shaderFeatures;
+        }
+
         gpu::ShaderMiscFlags batchMiscFlags =
             baselineShaderMiscFlags | batch.shaderMiscFlags;
         if (desc.interlockMode == gpu::InterlockMode::rasterOrdering &&

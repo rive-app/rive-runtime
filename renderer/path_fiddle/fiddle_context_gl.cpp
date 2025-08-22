@@ -35,7 +35,7 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
                                         const GLchar* message,
                                         const void* userParam)
 {
-    if (type == GL_DEBUG_TYPE_ERROR)
+    if (type == GL_DEBUG_TYPE_ERROR_KHR)
     {
         printf("GL ERROR: %s\n", message);
         fflush(stdout);
@@ -46,7 +46,7 @@ static void GLAPIENTRY err_msg_callback(GLenum source,
             assert(0);
         }
     }
-    else if (type == GL_DEBUG_TYPE_PERFORMANCE)
+    else if (type == GL_DEBUG_TYPE_PERFORMANCE_KHR)
     {
         if (strstr(
                 message,
@@ -184,7 +184,8 @@ public:
     {
 #ifdef RIVE_DESKTOP_GL
         // Load the OpenGL API using glad.
-        if (!gladLoadCustomLoader((GLADloadproc)glfwGetProcAddress))
+        if (!gladLoadCustomLoader(
+                reinterpret_cast<GLADloadfunc>(glfwGetProcAddress)))
         {
             fprintf(stderr, "Failed to initialize glad.\n");
             abort();
@@ -205,7 +206,7 @@ public:
 #ifdef DEBUG
         if (GLAD_GL_KHR_debug)
         {
-            glEnable(GL_DEBUG_OUTPUT);
+            glEnable(GL_DEBUG_OUTPUT_KHR);
             glDebugMessageControlKHR(GL_DONT_CARE,
                                      GL_DONT_CARE,
                                      GL_DONT_CARE,
@@ -218,6 +219,7 @@ public:
 #endif
 
         m_renderContext = RenderContextGLImpl::MakeContext({
+            .shaderCompilationMode = options.shaderCompilationMode,
             .disableFragmentShaderInterlock = options.disableRasterOrdering,
         });
         if (!m_renderContext)

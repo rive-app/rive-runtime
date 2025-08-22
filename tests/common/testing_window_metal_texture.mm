@@ -21,7 +21,8 @@ public:
         RenderContextMetalImpl::ContextOptions metalOptions;
         // Turn on synchronous shader compilations to ensure deterministic
         // rendering and to make sure we test every unique shader.
-        metalOptions.synchronousShaderCompilations = true;
+        metalOptions.shaderCompilationMode =
+            ShaderCompilationMode::alwaysSynchronous;
         m_renderContext =
             RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
         printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);

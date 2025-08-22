@@ -94,7 +94,8 @@ public:
         // Wait for shaders to compile inline with rendering (causing jank),
         // instead of compiling asynchronously in a background thread.
         // (Primarily for testing.)
-        bool synchronousShaderCompilations = false;
+        ShaderCompilationMode shaderCompilationMode =
+            ShaderCompilationMode::standard;
 
         // (macOS only -- ignored on iOS). Override
         // m_platformFeatures.supportsRasterOrdering to false, forcing us to

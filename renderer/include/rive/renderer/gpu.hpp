@@ -795,6 +795,11 @@ constexpr static ShaderFeatures kVertexShaderFeaturesMask =
     ShaderFeatures::ENABLE_CLIPPING | ShaderFeatures::ENABLE_CLIP_RECT |
     ShaderFeatures::ENABLE_ADVANCED_BLEND | ShaderFeatures::ENABLE_FEATHER;
 
+// These shader features change the way atomic pipelines are set up (or cause
+//  validation failures when enabled but not used)
+constexpr static ShaderFeatures kExclusiveAtomicUbershaderFeaturesMask =
+    ShaderFeatures::ENABLE_ADVANCED_BLEND;
+
 constexpr static ShaderFeatures ShaderFeaturesMaskFor(
     InterlockMode interlockMode)
 {
@@ -902,6 +907,30 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
             break;
     }
     return mask & ShaderFeaturesMaskFor(interlockMode);
+}
+
+// Returns the flags that are valid for an ubershader version of the currently-
+//  requested shader feature set. There are some shader features that change
+//  how the render passes are set up in atomic mode that need to be accounted
+//  for beyond just using ShaderFeaturesMaskFor.
+constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
+    ShaderFeatures requestedFeatures,
+    DrawType drawType,
+    InterlockMode interlockMode)
+{
+    ShaderFeatures outFeatures = ShaderFeaturesMaskFor(drawType, interlockMode);
+    if (interlockMode == InterlockMode::atomics)
+    {
+        // Turn off the exclusive atomic features unless they're set in our
+        //  requested feature flags.
+        outFeatures &=
+            (requestedFeatures | ~kExclusiveAtomicUbershaderFeaturesMask);
+    }
+
+    // Ensure that we haven't dropped features we care about somehow
+    assert((requestedFeatures & outFeatures) == requestedFeatures);
+
+    return outFeatures;
 }
 
 // Returns a unique value that can be used to key a shader.

@@ -21,6 +21,7 @@ PFNGLBLENDBARRIERKHRPROC glBlendBarrierKHR = nullptr;
 PFNGLFRAMEBUFFERPIXELLOCALSTORAGESIZEEXTPROC
 glFramebufferPixelLocalStorageSizeEXT = nullptr;
 PFNGLCLEARPIXELLOCALSTORAGEUIEXTPROC glClearPixelLocalStorageuiEXT = nullptr;
+PFNGLMAXSHADERCOMPILERTHREADSKHRPROC glMaxShaderCompilerThreadsKHR = nullptr;
 
 void LoadGLESExtensions(const GLCapabilities& extensions)
 {
@@ -75,5 +76,13 @@ void LoadGLESExtensions(const GLCapabilities& extensions)
             (PFNGLCLEARPIXELLOCALSTORAGEUIEXTPROC)eglGetProcAddress(
                 "glClearPixelLocalStorageuiEXT");
         loadedExtensions.EXT_shader_pixel_local_storage2 = true;
+    }
+    if (extensions.KHR_parallel_shader_compile &&
+        !loadedExtensions.KHR_parallel_shader_compile)
+    {
+        glMaxShaderCompilerThreadsKHR =
+            (PFNGLMAXSHADERCOMPILERTHREADSKHRPROC)eglGetProcAddress(
+                "glMaxShaderCompilerThreadsKHR");
+        loadedExtensions.KHR_parallel_shader_compile = true;
     }
 }

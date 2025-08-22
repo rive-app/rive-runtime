@@ -7,7 +7,7 @@ int GLAD_GL_version_es = 1;
 int GLAD_GL_version_major = 1;
 int GLAD_GL_version_minor = 0;
 
-static void load_Desktop_GL(GLADloadproc load) {
+static void load_Desktop_GL(GLADloadfunc load) {
     if (GLAD_GL_version_es) return;
 
     GLAD_GL_ANGLE_polygon_mode = 1;
@@ -45,7 +45,7 @@ int GLAD_GL_ANGLE_shader_pixel_local_storage = 0;
 int GLAD_GL_ANGLE_shader_pixel_local_storage_coherent = 0;
 int GLAD_GL_ANGLE_polygon_mode = 0;
 int GLAD_GL_ANGLE_provoking_vertex = 0;
-static void load_GL_ANGLE_shader_pixel_local_storage(GLADloadproc load) {
+static void load_GL_ANGLE_shader_pixel_local_storage(GLADloadfunc load) {
     if(!GLAD_GL_ANGLE_shader_pixel_local_storage) return;
     glad_glFramebufferMemorylessPixelLocalStorageANGLE = (PFNGLFRAMEBUFFERMEMORYLESSPIXELLOCALSTORAGEANGLEPROC)load("glFramebufferMemorylessPixelLocalStorageANGLE");
     glad_glFramebufferTexturePixelLocalStorageANGLE = (PFNGLFRAMEBUFFERTEXTUREPIXELLOCALSTORAGEANGLEPROC)load("glFramebufferTexturePixelLocalStorageANGLE");
@@ -58,16 +58,16 @@ static void load_GL_ANGLE_shader_pixel_local_storage(GLADloadproc load) {
     glad_glGetFramebufferPixelLocalStorageParameterfvANGLE = (PFNGLGETFRAMEBUFFERPIXELLOCALSTORAGEPARAMETERFVANGLEPROC)load("glGetFramebufferPixelLocalStorageParameterfvANGLE");
     glad_glGetFramebufferPixelLocalStorageParameterivANGLE = (PFNGLGETFRAMEBUFFERPIXELLOCALSTORAGEPARAMETERIVANGLEPROC)load("glGetFramebufferPixelLocalStorageParameterivANGLE");
 }
-static void load_GL_ANGLE_polygon_mode(GLADloadproc load) {
+static void load_GL_ANGLE_polygon_mode(GLADloadfunc load) {
     if(!GLAD_GL_ANGLE_polygon_mode) return;
     glad_glPolygonModeANGLE = (PFNGLPOLYGONMODEANGLEPROC)load("glPolygonModeANGLE");
 }
-static void load_GL_ANGLE_provoking_vertex(GLADloadproc load) {
+static void load_GL_ANGLE_provoking_vertex(GLADloadfunc load) {
     if(!GLAD_GL_ANGLE_provoking_vertex) return;
     glad_glProvokingVertexANGLE = (PFNGLPROVOKINGVERTEXANGLEPROC)load("glProvokingVertexANGLE");
 }
-int gladLoadCustomLoader(GLADloadproc load) {
-    int ret = gladLoadGLES2Loader(load);
+int gladLoadCustomLoader(GLADloadfunc load) {
+    int ret = gladLoadGLES2(load);
 
     const char* version = (const char*)glGetString(GL_VERSION);
     GLAD_GL_version_es = strstr(version, "OpenGL ES") != NULL;

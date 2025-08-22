@@ -4,10 +4,11 @@
 
 #pragma once
 
+#include "rive/renderer/async_pipeline_manager.hpp"
 #include "rive/renderer/gl/gl_state.hpp"
 #include "rive/renderer/gl/gl_utils.hpp"
 #include "rive/renderer/render_context_helper_impl.hpp"
-#include <map>
+#include "rive/renderer/vertex_shader_manager.hpp"
 
 namespace rive
 {
@@ -25,6 +26,8 @@ class RenderContextGLImpl : public RenderContextHelperImpl
 public:
     struct ContextOptions
     {
+        ShaderCompilationMode shaderCompilationMode =
+            ShaderCompilationMode::standard;
         bool disablePixelLocalStorage = false;
         bool disableFragmentShaderInterlock = false;
     };
@@ -141,11 +144,13 @@ private:
     static std::unique_ptr<RenderContext> MakeContext(
         const char* rendererString,
         GLCapabilities,
-        std::unique_ptr<PixelLocalStorageImpl>);
+        std::unique_ptr<PixelLocalStorageImpl>,
+        ShaderCompilationMode);
 
     RenderContextGLImpl(const char* rendererString,
                         GLCapabilities,
-                        std::unique_ptr<PixelLocalStorageImpl>);
+                        std::unique_ptr<PixelLocalStorageImpl>,
+                        ShaderCompilationMode);
 
     std::unique_ptr<BufferRing> makeUniformBufferRing(
         size_t capacityInBytes) override;
@@ -232,8 +237,11 @@ private:
     class DrawShader
     {
     public:
+        DrawShader() = default;
         DrawShader(const DrawShader&) = delete;
         DrawShader& operator=(const DrawShader&) = delete;
+        DrawShader(DrawShader&&);
+        DrawShader& operator=(DrawShader&&);
 
         DrawShader(RenderContextGLImpl* renderContextImpl,
                    GLenum shaderType,
@@ -242,12 +250,12 @@ private:
                    gpu::InterlockMode interlockMode,
                    gpu::ShaderMiscFlags shaderMiscFlags);
 
-        ~DrawShader() { glDeleteShader(m_id); }
+        ~DrawShader();
 
         GLuint id() const { return m_id; }
 
     private:
-        GLuint m_id;
+        GLuint m_id = 0;
     };
 
     // Wraps a compiled and linked GL program of draw_path.glsl or
@@ -259,10 +267,16 @@ private:
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
         DrawProgram(RenderContextGLImpl*,
+                    PipelineCreateType,
                     gpu::DrawType,
                     gpu::ShaderFeatures,
                     gpu::InterlockMode,
-                    gpu::ShaderMiscFlags);
+                    gpu::ShaderMiscFlags
+#ifdef WITH_RIVE_TOOLS
+                    ,
+                    bool synthesizeCompilationFailures
+#endif
+        );
         ~DrawProgram();
 
         GLuint id() const { return m_id; }
@@ -271,17 +285,89 @@ private:
             return m_baseInstanceUniformLocation;
         }
 
+        PipelineStatus status() const
+        {
+            switch (m_creationState)
+            {
+                case CreationState::waitingOnProgram:
+                case CreationState::waitingOnShaders:
+                    return PipelineStatus::notReady;
+
+                case CreationState::complete:
+                    return PipelineStatus::ready;
+
+                case CreationState::error:
+                    return PipelineStatus::errored;
+            }
+
+            RIVE_UNREACHABLE();
+        }
+
+        bool advanceCreation(RenderContextGLImpl*,
+                             PipelineCreateType,
+                             gpu::DrawType,
+                             gpu::ShaderFeatures,
+                             gpu::InterlockMode,
+                             gpu::ShaderMiscFlags);
+
     private:
+        enum class CreationState
+        {
+            waitingOnShaders,
+            waitingOnProgram,
+            complete,
+            error,
+        };
+
         DrawShader m_fragmentShader;
-        GLuint m_id;
+        const DrawShader* m_vertexShader = nullptr;
+        CreationState m_creationState = CreationState::waitingOnShaders;
+        GLuint m_id = 0;
         GLint m_baseInstanceUniformLocation = -1;
         const rcp<GLState> m_state;
     };
 
+    class GLPipelineManager : public AsyncPipelineManager<DrawProgram>
+    {
+        using Super = AsyncPipelineManager<DrawProgram>;
+
+    public:
+        GLPipelineManager(ShaderCompilationMode, RenderContextGLImpl*);
+
+    protected:
+        virtual std::unique_ptr<DrawProgram> createPipeline(
+            PipelineCreateType createType,
+            uint32_t key,
+            const PipelineProps&) override;
+
+        virtual PipelineStatus getPipelineStatus(
+            const DrawProgram& state) const override;
+
+        virtual bool advanceCreation(DrawProgram&,
+                                     const PipelineProps&) override;
+
+    private:
+        RenderContextGLImpl* m_context;
+    };
+
+    class GLVertexShaderManager : public VertexShaderManager<DrawShader>
+    {
+    public:
+        GLVertexShaderManager(RenderContextGLImpl* context);
+
+    protected:
+        virtual DrawShader createVertexShader(gpu::DrawType,
+                                              gpu::ShaderFeatures,
+                                              gpu::InterlockMode) override;
+
+    private:
+        RenderContextGLImpl* m_context;
+    };
+
     // Not all programs have a unique vertex shader, so we cache and reuse them
     // where possible.
-    std::map<uint32_t, DrawShader> m_vertexShaders;
-    std::map<uint32_t, DrawProgram> m_drawPrograms;
+    GLVertexShaderManager m_vsManager;
+    GLPipelineManager m_pipelineManager;
 
     // Vertex/index buffers for drawing paths.
     glutils::VAO m_drawVAO;

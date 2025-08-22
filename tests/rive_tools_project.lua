@@ -76,6 +76,7 @@ function rive_tools_project(name, project_kind)
     externalincludedirs({
         'include',
         RIVE_PLS_DIR .. '/glad',
+        RIVE_PLS_DIR .. '/glad/include',
         RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
         yoga,
         libpng,

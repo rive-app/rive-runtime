@@ -506,17 +506,21 @@ std::unique_ptr<RenderContext> RenderContextD3D12Impl::MakeContext(
     d3dCapabilities.isIntel = contextOptions.isIntel;
 
     auto renderContextImpl = std::unique_ptr<RenderContextD3D12Impl>(
-        new RenderContextD3D12Impl(device, copyCommandList, d3dCapabilities));
+        new RenderContextD3D12Impl(device,
+                                   copyCommandList,
+                                   d3dCapabilities,
+                                   contextOptions.shaderCompilationMode));
     return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 
 RenderContextD3D12Impl::RenderContextD3D12Impl(
     ComPtr<ID3D12Device> device,
     ID3D12GraphicsCommandList* copyCommandList,
-    const D3DCapabilities& capabilities) :
+    const D3DCapabilities& capabilities,
+    ShaderCompilationMode shaderCompilationMode) :
     m_device(device),
     m_capabilities(capabilities),
-    m_pipelineManager(device, capabilities),
+    m_pipelineManager(device, capabilities, shaderCompilationMode),
     m_resourceManager(make_rcp<D3D12ResourceManager>(device)),
     m_flushUniformBufferPool(m_resourceManager, sizeof(FlushUniforms)),
     m_imageDrawUniformBufferPool(m_resourceManager, sizeof(ImageDrawUniforms)),
@@ -1411,12 +1415,16 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
 
-        auto pipeline =
-            m_pipelineManager.getDrawPipelineState(drawType,
-                                                   shaderFeatures,
-                                                   desc.interlockMode,
-                                                   shaderMiscFlags);
-        cmdList->SetPipelineState(pipeline);
+        auto pipeline = m_pipelineManager.getPipeline({
+            .drawType = drawType,
+            .shaderFeatures = shaderFeatures,
+            .interlockMode = desc.interlockMode,
+            .shaderMiscFlags = shaderMiscFlags,
+#ifdef WITH_RIVE_TOOLS
+            .synthesizeCompilationFailures = desc.synthesizeCompilationFailures,
+#endif
+        });
+        cmdList->SetPipelineState(pipeline.m_d3dPipelineState.Get());
 
         // all atomic barriers are the same for dx12
         if (batch.barriers &

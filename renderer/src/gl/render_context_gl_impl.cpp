@@ -71,9 +71,12 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
 RenderContextGLImpl::RenderContextGLImpl(
     const char* rendererString,
     GLCapabilities capabilities,
-    std::unique_ptr<PixelLocalStorageImpl> plsImpl) :
+    std::unique_ptr<PixelLocalStorageImpl> plsImpl,
+    ShaderCompilationMode shaderCompilationMode) :
     m_capabilities(capabilities),
     m_plsImpl(std::move(plsImpl)),
+    m_vsManager(this),
+    m_pipelineManager(shaderCompilationMode, this),
     m_state(make_rcp<GLState>(m_capabilities))
 
 {
@@ -978,15 +981,50 @@ RenderContextGLImpl::DrawShader::DrawShader(
                                   defines.size(),
                                   sources.data(),
                                   sources.size(),
-                                  renderContextImpl->m_capabilities);
+                                  renderContextImpl->m_capabilities,
+                                  glutils::DebugPrintErrorAndAbort::no);
+}
+
+RenderContextGLImpl::DrawShader::DrawShader(DrawShader&& moveFrom) :
+    m_id(std::exchange(moveFrom.m_id, 0))
+{}
+
+RenderContextGLImpl::DrawShader& RenderContextGLImpl::DrawShader ::operator=(
+    DrawShader&& moveFrom)
+{
+    if (&moveFrom != this)
+    {
+        if (m_id != 0)
+        {
+            glDeleteShader(m_id);
+        }
+
+        m_id = std::exchange(moveFrom.m_id, 0);
+    }
+
+    return *this;
+}
+
+RenderContextGLImpl::DrawShader::~DrawShader()
+{
+    if (m_id != 0)
+    {
+        glDeleteShader(m_id);
+    }
 }
 
 RenderContextGLImpl::DrawProgram::DrawProgram(
     RenderContextGLImpl* renderContextImpl,
+    PipelineCreateType createType,
     gpu::DrawType drawType,
     gpu::ShaderFeatures shaderFeatures,
     gpu::InterlockMode interlockMode,
-    gpu::ShaderMiscFlags shaderMiscFlags) :
+    gpu::ShaderMiscFlags shaderMiscFlags
+#ifdef WITH_RIVE_TOOLS
+    ,
+    bool synthesizeCompilationFailures
+#endif
+    ) :
     m_fragmentShader(renderContextImpl,
                      GL_FRAGMENT_SHADER,
                      drawType,
@@ -995,29 +1033,133 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
                      shaderMiscFlags),
     m_state(renderContextImpl->m_state)
 {
-    // Not every vertex shader is unique. Cache them by just the vertex features
-    // and reuse when possible.
-    ShaderFeatures vertexShaderFeatures =
-        shaderFeatures & kVertexShaderFeaturesMask;
-    uint32_t vertexShaderKey = gpu::ShaderUniqueKey(drawType,
-                                                    vertexShaderFeatures,
-                                                    interlockMode,
-                                                    gpu::ShaderMiscFlags::none);
-    const DrawShader& vertexShader =
-        renderContextImpl->m_vertexShaders
-            .try_emplace(vertexShaderKey,
-                         renderContextImpl,
-                         GL_VERTEX_SHADER,
-                         drawType,
-                         vertexShaderFeatures,
-                         interlockMode,
-                         gpu::ShaderMiscFlags::none)
-            .first->second;
+#ifdef WITH_RIVE_TOOLS
+    if (synthesizeCompilationFailures)
+    {
+        // An empty result is what counts as "failed"
+        m_creationState = CreationState::error;
+        return;
+    }
+#endif
 
+    const DrawShader& vertexShader =
+        renderContextImpl->m_vsManager.getShader(drawType,
+                                                 shaderFeatures,
+                                                 interlockMode);
+
+    m_vertexShader = &vertexShader;
     m_id = glCreateProgram();
-    glAttachShader(m_id, vertexShader.id());
-    glAttachShader(m_id, m_fragmentShader.id());
-    glutils::LinkProgram(m_id);
+
+    std::ignore = advanceCreation(renderContextImpl,
+                                  createType,
+                                  drawType,
+                                  shaderFeatures,
+                                  interlockMode,
+                                  shaderMiscFlags);
+}
+
+bool RenderContextGLImpl::DrawProgram::advanceCreation(
+    RenderContextGLImpl* renderContextImpl,
+    PipelineCreateType createType,
+    gpu::DrawType drawType,
+    ShaderFeatures shaderFeatures,
+    gpu::InterlockMode interlockMode,
+    gpu::ShaderMiscFlags shaderMiscFlags)
+{
+    // This function should only be called if we're in the middle of creation.
+    assert(m_creationState != CreationState::complete);
+    assert(m_creationState != CreationState::error);
+
+    if (m_creationState == CreationState::waitingOnShaders)
+    {
+        if (createType == PipelineCreateType::async &&
+            renderContextImpl->capabilities().KHR_parallel_shader_compile)
+        {
+            // This is async creation and we have parallel shader compilation,
+            //  so check to see that both of the shaders are completed before
+            //  we can move on.
+            GLint completed = 0;
+            glGetShaderiv(m_vertexShader->id(),
+                          GL_COMPLETION_STATUS_KHR,
+                          &completed);
+            if (completed == GL_FALSE)
+            {
+                return false;
+            }
+
+            completed = 0;
+            glGetShaderiv(m_fragmentShader.id(),
+                          GL_COMPLETION_STATUS_KHR,
+                          &completed);
+            if (completed == GL_FALSE)
+            {
+                return false;
+            }
+        }
+
+        {
+            // Both shaders are completed now, time to check if they compiled
+            //  successfully or not.
+            GLint compiledSuccessfully = 0;
+            glGetShaderiv(m_vertexShader->id(),
+                          GL_COMPILE_STATUS,
+                          &compiledSuccessfully);
+            if (compiledSuccessfully == GL_FALSE)
+            {
+#ifdef DEBUG
+                glutils::PrintShaderCompilationErrors(m_vertexShader->id());
+#endif
+                m_creationState = CreationState::error;
+                return false;
+            }
+
+            glGetShaderiv(m_fragmentShader.id(),
+                          GL_COMPILE_STATUS,
+                          &compiledSuccessfully);
+            if (compiledSuccessfully == GL_FALSE)
+            {
+#ifdef DEBUG
+                glutils::PrintShaderCompilationErrors(m_fragmentShader.id());
+#endif
+                m_creationState = CreationState::error;
+                return false;
+            }
+        }
+
+        glAttachShader(m_id, m_vertexShader->id());
+        glAttachShader(m_id, m_fragmentShader.id());
+        glutils::LinkProgram(m_id, glutils::DebugPrintErrorAndAbort::no);
+        m_creationState = CreationState::waitingOnProgram;
+    }
+
+    assert(m_creationState == CreationState::waitingOnProgram);
+
+    if (createType == PipelineCreateType::async &&
+        renderContextImpl->capabilities().KHR_parallel_shader_compile)
+    {
+        // Like above, this is async creation so verify the program is linked
+        //  before continuing.
+
+        GLint completed = 0;
+        glGetProgramiv(m_id, GL_COMPLETION_STATUS_KHR, &completed);
+        if (completed == 0)
+        {
+            return false;
+        }
+    }
+
+    {
+        GLint successfullyLinked = 0;
+        glGetProgramiv(m_id, GL_LINK_STATUS, &successfullyLinked);
+        if (successfullyLinked == GL_FALSE)
+        {
+#ifdef DEBUG
+            glutils::PrintLinkProgramErrors(m_id);
+#endif
+            m_creationState = CreationState::error;
+            return false;
+        }
+    }
 
     m_state->bindProgram(m_id);
     glUniformBlockBinding(m_id,
@@ -1103,11 +1245,18 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
         m_baseInstanceUniformLocation =
             glGetUniformLocation(m_id, glutils::BASE_INSTANCE_UNIFORM_NAME);
     }
+
+    // All done! This program is now usable by the renderer.
+    m_creationState = CreationState::complete;
+    return true;
 }
 
 RenderContextGLImpl::DrawProgram::~DrawProgram()
 {
-    m_state->deleteProgram(m_id);
+    if (m_id != 0)
+    {
+        m_state->deleteProgram(m_id);
+    }
 }
 
 static GLuint gl_buffer_id(const BufferRing* bufferRing)
@@ -1450,18 +1599,15 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         {
             shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
-        uint32_t fragmentShaderKey = gpu::ShaderUniqueKey(drawType,
-                                                          shaderFeatures,
-                                                          desc.interlockMode,
-                                                          shaderMiscFlags);
-        const DrawProgram& drawProgram = m_drawPrograms
-                                             .try_emplace(fragmentShaderKey,
-                                                          this,
-                                                          drawType,
-                                                          shaderFeatures,
-                                                          desc.interlockMode,
-                                                          shaderMiscFlags)
-                                             .first->second;
+        const DrawProgram& drawProgram = m_pipelineManager.getPipeline({
+            .drawType = drawType,
+            .shaderFeatures = shaderFeatures,
+            .interlockMode = desc.interlockMode,
+            .shaderMiscFlags = shaderMiscFlags,
+#ifdef WITH_RIVE_TOOLS
+            .synthesizeCompilationFailures = desc.synthesizeCompilationFailures,
+#endif
+        });
         m_state->bindProgram(drawProgram.id());
 
         if (auto imageTextureGL =
@@ -1998,6 +2144,18 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.KHR_blend_equation_advanced_coherent = true;
         }
+        else if (strcmp(ext, "GL_KHR_parallel_shader_compile") == 0)
+        {
+            capabilities.KHR_parallel_shader_compile = true;
+
+            // Allow GL's shader compilation to use an implementation-defined
+            // number of background threads. This is documented as the default
+            // behavior, but on some drivers the parallel compilation does not
+            // actually activate without explicitly setting this.
+            // Note that there is no explicit constant for "use the maximum
+            // number of threads", but the documentation says to use this value.
+            glMaxShaderCompilerThreadsKHR(0xffffffff);
+        }
         else if (strcmp(ext, "GL_EXT_base_instance") == 0)
         {
             capabilities.EXT_base_instance = true;
@@ -2083,6 +2241,12 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             "EXT_float_blend"))
     {
         capabilities.EXT_float_blend = true;
+    }
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "KHR_parallel_shader_compile"))
+    {
+        capabilities.KHR_parallel_shader_compile = true;
     }
 #endif // RIVE_WEBGL
 
@@ -2178,7 +2342,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             return MakeContext(rendererString,
                                capabilities,
-                               MakePLSImplEXTNative(capabilities));
+                               MakePLSImplEXTNative(capabilities),
+                               contextOptions.shaderCompilationMode);
         }
 #else
         if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
@@ -2189,7 +2354,8 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             {
                 return MakeContext(rendererString,
                                    capabilities,
-                                   MakePLSImplWebGL());
+                                   MakePLSImplWebGL(),
+                                   contextOptions.shaderCompilationMode);
             }
         }
 #endif
@@ -2199,23 +2365,89 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             return MakeContext(rendererString,
                                capabilities,
-                               MakePLSImplRWTexture());
+                               MakePLSImplRWTexture(),
+                               contextOptions.shaderCompilationMode);
         }
 #endif
     }
 
-    return MakeContext(rendererString, capabilities, nullptr);
+    return MakeContext(rendererString,
+                       capabilities,
+                       nullptr,
+                       contextOptions.shaderCompilationMode);
+}
+
+RenderContextGLImpl::GLPipelineManager::GLPipelineManager(
+    ShaderCompilationMode mode,
+    RenderContextGLImpl* context) :
+    Super(mode), m_context(context)
+{}
+
+std::unique_ptr<RenderContextGLImpl::DrawProgram> RenderContextGLImpl::
+    GLPipelineManager::createPipeline(PipelineCreateType createType,
+                                      uint32_t, // unused key
+                                      const PipelineProps& props)
+{
+    return std::make_unique<DrawProgram>(m_context,
+                                         createType,
+                                         props.drawType,
+                                         props.shaderFeatures,
+                                         props.interlockMode,
+                                         props.shaderMiscFlags
+#ifdef WITH_RIVE_TOOLS
+                                         ,
+                                         props.synthesizeCompilationFailures
+#endif
+    );
+}
+
+PipelineStatus RenderContextGLImpl::GLPipelineManager::getPipelineStatus(
+    const DrawProgram& state) const
+{
+    return state.status();
+}
+
+bool RenderContextGLImpl::GLPipelineManager::advanceCreation(
+    DrawProgram& pipelineState,
+    const PipelineProps& props)
+{
+    return pipelineState.advanceCreation(m_context,
+                                         PipelineCreateType::async,
+                                         props.drawType,
+                                         props.shaderFeatures,
+                                         props.interlockMode,
+                                         props.shaderMiscFlags);
+}
+
+RenderContextGLImpl::GLVertexShaderManager::GLVertexShaderManager(
+    RenderContextGLImpl* context) :
+    m_context(context)
+{}
+
+RenderContextGLImpl::DrawShader RenderContextGLImpl::GLVertexShaderManager ::
+    createVertexShader(gpu::DrawType drawType,
+                       gpu::ShaderFeatures shaderFeatures,
+                       gpu::InterlockMode interlockMode)
+{
+    return DrawShader(m_context,
+                      GL_VERTEX_SHADER,
+                      drawType,
+                      shaderFeatures,
+                      interlockMode,
+                      gpu::ShaderMiscFlags::none);
 }
 
 std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     const char* rendererString,
     GLCapabilities capabilities,
-    std::unique_ptr<PixelLocalStorageImpl> plsImpl)
+    std::unique_ptr<PixelLocalStorageImpl> plsImpl,
+    ShaderCompilationMode shaderCompilationMode)
 {
     auto renderContextImpl = std::unique_ptr<RenderContextGLImpl>(
         new RenderContextGLImpl(rendererString,
                                 capabilities,
-                                std::move(plsImpl)));
+                                std::move(plsImpl),
+                                shaderCompilationMode));
     return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 } // namespace rive::gpu

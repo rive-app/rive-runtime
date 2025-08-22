@@ -186,7 +186,8 @@ public:
 private:
     RenderContextD3D12Impl(ComPtr<ID3D12Device>,
                            ID3D12GraphicsCommandList*,
-                           const D3DCapabilities&);
+                           const D3DCapabilities&,
+                           ShaderCompilationMode);
 
     void blitSubRect(ID3D12GraphicsCommandList* cmdList,
                      D3D12Texture* dst,

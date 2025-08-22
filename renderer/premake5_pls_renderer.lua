@@ -190,6 +190,7 @@ do
         '../include',
         pls_generated_headers,
     })
+    externalincludedirs({'glad/include'})
     fatalwarnings({ 'All' })
 
     files({ 'src/*.cpp', 'src/shaders/*.glsl', 'include/**.hpp', 'include/**.h' })
@@ -246,7 +247,8 @@ do
         files({
             'src/gl/pls_impl_webgl.cpp', -- Emulate WebGL with ANGLE.
             'src/gl/pls_impl_rw_texture.cpp',
-            'glad/glad.c',
+            'glad/src/egl.c',
+            'glad/src/gles2.c',
             'glad/glad_custom.c',
         }) -- GL loader library for ANGLE.
     end

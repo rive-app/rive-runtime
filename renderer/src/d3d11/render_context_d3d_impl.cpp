@@ -103,10 +103,9 @@ static ComPtr<ID3D11UnorderedAccessView> make_simple_2d_uav(
 D3D11PipelineManager::D3D11PipelineManager(
     ComPtr<ID3D11DeviceContext> context,
     ComPtr<ID3D11Device> device,
-    const D3DCapabilities& capabilities) :
-    D3DPipelineManager<D3D11DrawVertexShader,
-                       ComPtr<ID3D11PixelShader>,
-                       ID3D11Device>(device, capabilities, "vs_5_0", "ps_5_0"),
+    const D3DCapabilities& capabilities,
+    ShaderCompilationMode shaderCompilationMode) :
+    Super(device, capabilities, shaderCompilationMode, "vs_5_0", "ps_5_0"),
     m_context(context)
 {
     D3D11_INPUT_ELEMENT_DESC spanDesc = {GLSL_a_span,
@@ -223,139 +222,156 @@ void D3D11PipelineManager::setPipelineState(
     rive::gpu::DrawType drawType,
     rive::gpu::ShaderFeatures features,
     rive::gpu::InterlockMode interlockMode,
-    rive::gpu::ShaderMiscFlags miscFlags)
+    rive::gpu::ShaderMiscFlags miscFlags
+#ifdef WITH_RIVE_TOOLS
+    ,
+    bool synthesizeCompilationFailures
+#endif
+)
 {
-    ShaderCompileResult result{};
-    if (!getShader(
-            {drawType, features, interlockMode, miscFlags, d3dCapabilities()},
-            &result))
-    {
-        // this should never happen
-        RIVE_UNREACHABLE();
-    }
+    auto& result = getPipeline({
+        .drawType = drawType,
+        .shaderFeatures = features,
+        .interlockMode = interlockMode,
+        .shaderMiscFlags = miscFlags,
+#ifdef WITH_RIVE_TOOLS
+        .synthesizeCompilationFailures = synthesizeCompilationFailures,
+#endif
 
-    assert(result.vertexResult.hasResult);
-    assert(result.pixelResult.hasResult);
+    });
 
-    m_context->IASetInputLayout(
-        result.vertexResult.vertexShaderResult.layout.Get());
-    m_context->VSSetShader(result.vertexResult.vertexShaderResult.shader.Get(),
-                           NULL,
-                           0);
-    m_context->PSSetShader(result.pixelResult.pixelShaderResult.Get(), NULL, 0);
+    m_context->IASetInputLayout(result.m_vertexShader.layout.Get());
+    m_context->VSSetShader(result.m_vertexShader.shader.Get(), nullptr, 0);
+    m_context->PSSetShader(result.m_pixelShader.Get(), nullptr, 0);
 }
 
-void D3D11PipelineManager::compileBlobToFinalType(
-    const ShaderCompileRequest& request,
-    ComPtr<ID3DBlob> vertexShader,
-    ComPtr<ID3DBlob> pixelShader,
-    ShaderCompileResult* result)
+D3D11DrawVertexShader D3D11PipelineManager ::compileVertexShaderBlobToFinalType(
+    DrawType drawType,
+    ComPtr<ID3DBlob> blob)
 {
-    if (result->vertexResult.hasResult == false)
+    D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
+    uint32_t vertexAttribCount;
+    switch (drawType)
     {
-        D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
-        uint32_t vertexAttribCount;
-        switch (request.drawType)
-        {
-            case DrawType::midpointFanPatches:
-            case DrawType::midpointFanCenterAAPatches:
-            case DrawType::outerCurvePatches:
-                layoutDesc[0] = {GLSL_a_patchVertexData,
-                                 0,
-                                 DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                 PATCH_VERTEX_DATA_SLOT,
-                                 D3D11_APPEND_ALIGNED_ELEMENT,
-                                 D3D11_INPUT_PER_VERTEX_DATA,
-                                 0};
-                layoutDesc[1] = {GLSL_a_mirroredVertexData,
-                                 0,
-                                 DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                 PATCH_VERTEX_DATA_SLOT,
-                                 D3D11_APPEND_ALIGNED_ELEMENT,
-                                 D3D11_INPUT_PER_VERTEX_DATA,
-                                 0};
-                vertexAttribCount = 2;
-                break;
-            case DrawType::interiorTriangulation:
-            case DrawType::atlasBlit:
-                layoutDesc[0] = {GLSL_a_triangleVertex,
-                                 0,
-                                 DXGI_FORMAT_R32G32B32_FLOAT,
-                                 TRIANGLE_VERTEX_DATA_SLOT,
-                                 0,
-                                 D3D11_INPUT_PER_VERTEX_DATA,
-                                 0};
-                vertexAttribCount = 1;
-                break;
-            case DrawType::imageRect:
-                layoutDesc[0] = {GLSL_a_imageRectVertex,
-                                 0,
-                                 DXGI_FORMAT_R32G32B32A32_FLOAT,
-                                 IMAGE_RECT_VERTEX_DATA_SLOT,
-                                 0,
-                                 D3D11_INPUT_PER_VERTEX_DATA,
-                                 0};
-                vertexAttribCount = 1;
-                break;
-            case DrawType::imageMesh:
-                layoutDesc[0] = {GLSL_a_position,
-                                 0,
-                                 DXGI_FORMAT_R32G32_FLOAT,
-                                 IMAGE_MESH_VERTEX_DATA_SLOT,
-                                 D3D11_APPEND_ALIGNED_ELEMENT,
-                                 D3D11_INPUT_PER_VERTEX_DATA,
-                                 0};
-                layoutDesc[1] = {GLSL_a_texCoord,
-                                 0,
-                                 DXGI_FORMAT_R32G32_FLOAT,
-                                 IMAGE_MESH_UV_DATA_SLOT,
-                                 D3D11_APPEND_ALIGNED_ELEMENT,
-                                 D3D11_INPUT_PER_VERTEX_DATA,
-                                 0};
-                vertexAttribCount = 2;
-                break;
-            case DrawType::atomicResolve:
-                vertexAttribCount = 0;
-                break;
-            case DrawType::atomicInitialize:
-            case DrawType::msaaStrokes:
-            case DrawType::msaaMidpointFanBorrowedCoverage:
-            case DrawType::msaaMidpointFans:
-            case DrawType::msaaMidpointFanStencilReset:
-            case DrawType::msaaMidpointFanPathsStencil:
-            case DrawType::msaaMidpointFanPathsCover:
-            case DrawType::msaaOuterCubics:
-            case DrawType::msaaStencilClipReset:
-                RIVE_UNREACHABLE();
-        }
-
-        VERIFY_OK(device()->CreateInputLayout(
-            layoutDesc,
-            vertexAttribCount,
-            vertexShader->GetBufferPointer(),
-            vertexShader->GetBufferSize(),
-            &result->vertexResult.vertexShaderResult.layout));
-        VERIFY_OK(device()->CreateVertexShader(
-            vertexShader->GetBufferPointer(),
-            vertexShader->GetBufferSize(),
-            nullptr,
-            &result->vertexResult.vertexShaderResult.shader));
-
-        result->vertexResult.hasResult = true;
+        case DrawType::midpointFanPatches:
+        case DrawType::midpointFanCenterAAPatches:
+        case DrawType::outerCurvePatches:
+            layoutDesc[0] = {GLSL_a_patchVertexData,
+                             0,
+                             DXGI_FORMAT_R32G32B32A32_FLOAT,
+                             PATCH_VERTEX_DATA_SLOT,
+                             D3D11_APPEND_ALIGNED_ELEMENT,
+                             D3D11_INPUT_PER_VERTEX_DATA,
+                             0};
+            layoutDesc[1] = {GLSL_a_mirroredVertexData,
+                             0,
+                             DXGI_FORMAT_R32G32B32A32_FLOAT,
+                             PATCH_VERTEX_DATA_SLOT,
+                             D3D11_APPEND_ALIGNED_ELEMENT,
+                             D3D11_INPUT_PER_VERTEX_DATA,
+                             0};
+            vertexAttribCount = 2;
+            break;
+        case DrawType::interiorTriangulation:
+        case DrawType::atlasBlit:
+            layoutDesc[0] = {GLSL_a_triangleVertex,
+                             0,
+                             DXGI_FORMAT_R32G32B32_FLOAT,
+                             TRIANGLE_VERTEX_DATA_SLOT,
+                             0,
+                             D3D11_INPUT_PER_VERTEX_DATA,
+                             0};
+            vertexAttribCount = 1;
+            break;
+        case DrawType::imageRect:
+            layoutDesc[0] = {GLSL_a_imageRectVertex,
+                             0,
+                             DXGI_FORMAT_R32G32B32A32_FLOAT,
+                             IMAGE_RECT_VERTEX_DATA_SLOT,
+                             0,
+                             D3D11_INPUT_PER_VERTEX_DATA,
+                             0};
+            vertexAttribCount = 1;
+            break;
+        case DrawType::imageMesh:
+            layoutDesc[0] = {GLSL_a_position,
+                             0,
+                             DXGI_FORMAT_R32G32_FLOAT,
+                             IMAGE_MESH_VERTEX_DATA_SLOT,
+                             D3D11_APPEND_ALIGNED_ELEMENT,
+                             D3D11_INPUT_PER_VERTEX_DATA,
+                             0};
+            layoutDesc[1] = {GLSL_a_texCoord,
+                             0,
+                             DXGI_FORMAT_R32G32_FLOAT,
+                             IMAGE_MESH_UV_DATA_SLOT,
+                             D3D11_APPEND_ALIGNED_ELEMENT,
+                             D3D11_INPUT_PER_VERTEX_DATA,
+                             0};
+            vertexAttribCount = 2;
+            break;
+        case DrawType::atomicResolve:
+            vertexAttribCount = 0;
+            break;
+        case DrawType::atomicInitialize:
+        case DrawType::msaaStrokes:
+        case DrawType::msaaMidpointFanBorrowedCoverage:
+        case DrawType::msaaMidpointFans:
+        case DrawType::msaaMidpointFanStencilReset:
+        case DrawType::msaaMidpointFanPathsStencil:
+        case DrawType::msaaMidpointFanPathsCover:
+        case DrawType::msaaOuterCubics:
+        case DrawType::msaaStencilClipReset:
+            RIVE_UNREACHABLE();
     }
 
-    if (result->pixelResult.hasResult == false)
+    D3D11DrawVertexShader result;
+
+    VERIFY_OK(device()->CreateInputLayout(layoutDesc,
+                                          vertexAttribCount,
+                                          blob->GetBufferPointer(),
+                                          blob->GetBufferSize(),
+                                          &result.layout));
+    VERIFY_OK(device()->CreateVertexShader(blob->GetBufferPointer(),
+                                           blob->GetBufferSize(),
+                                           nullptr,
+                                           &result.shader));
+    return result;
+}
+
+ComPtr<ID3D11PixelShader> D3D11PipelineManager ::
+    compilePixelShaderBlobToFinalType(ComPtr<ID3DBlob> blob)
+{
+    ComPtr<ID3D11PixelShader> pixelShaderResult;
+
+    VERIFY_OK(device()->CreatePixelShader(blob->GetBufferPointer(),
+                                          blob->GetBufferSize(),
+                                          nullptr,
+                                          &pixelShaderResult));
+
+    return pixelShaderResult;
+}
+
+D3D11DrawPipeline D3D11PipelineManager::linkPipeline(
+    const PipelineProps& props,
+    D3D11DrawVertexShader&& vs,
+    ComPtr<ID3D11PixelShader>&& ps)
+{
+    // For D3D11 this just puts the vs and ps into a single structure together.
+    D3D11DrawPipeline pipeline;
+#ifdef WITH_RIVE_TOOLS
+    if (props.synthesizeCompilationFailures)
     {
-        ComPtr<ID3D11PixelShader> pixelShaderResult;
-
-        VERIFY_OK(device()->CreatePixelShader(pixelShader->GetBufferPointer(),
-                                              pixelShader->GetBufferSize(),
-                                              nullptr,
-                                              &pixelShaderResult));
-
-        result->pixelResult.pixelShaderResult = std::move(pixelShaderResult);
-        result->pixelResult.hasResult = true;
+        // An empty result is what counts as "failed"
+        return pipeline;
     }
+#else
+    std::ignore = props;
+#endif
+
+    pipeline.m_vertexShader = std::move(vs);
+    pipeline.m_pixelShader = std::move(ps);
+    return pipeline;
 }
 
 static D3D11_FILTER filter_for_sampler_filter_options(ImageFilter option)
@@ -466,15 +482,17 @@ std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
     auto renderContextImpl = std::unique_ptr<RenderContextD3DImpl>(
         new RenderContextD3DImpl(std::move(gpu),
                                  std::move(gpuContext),
-                                 d3dCapabilities));
+                                 d3dCapabilities,
+                                 contextOptions.shaderCompilationMode));
     return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 
 RenderContextD3DImpl::RenderContextD3DImpl(
     ComPtr<ID3D11Device> gpu,
     ComPtr<ID3D11DeviceContext> gpuContext,
-    const D3DCapabilities& d3dCapabilities) :
-    m_pipelineManager(gpuContext, gpu, d3dCapabilities),
+    const D3DCapabilities& d3dCapabilities,
+    ShaderCompilationMode shaderCompilationMode) :
+    m_pipelineManager(gpuContext, gpu, d3dCapabilities, shaderCompilationMode),
     m_d3dCapabilities(d3dCapabilities),
     m_gpu(std::move(gpu)),
     m_gpuContext(std::move(gpuContext))
@@ -1829,7 +1847,12 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         m_pipelineManager.setPipelineState(drawType,
                                            shaderFeatures,
                                            desc.interlockMode,
-                                           shaderMiscFlags);
+                                           shaderMiscFlags
+#ifdef WITH_RIVE_TOOLS
+                                           ,
+                                           desc.synthesizeCompilationFailures
+#endif
+        );
 
         if (auto imageTextureD3D =
                 static_cast<const TextureD3DImpl*>(batch.imageTexture))

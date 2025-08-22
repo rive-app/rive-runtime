@@ -65,20 +65,42 @@ struct D3D11DrawVertexShader
     ComPtr<ID3D11VertexShader> shader;
 };
 
-class D3D11PipelineManager
-    : public D3DPipelineManager<D3D11DrawVertexShader,
-                                ComPtr<ID3D11PixelShader>,
-                                ID3D11Device>
+struct D3D11DrawPipeline
 {
+    using VertexShaderType = D3D11DrawVertexShader;
+    using PixelShaderType = ComPtr<ID3D11PixelShader>;
+
+    VertexShaderType m_vertexShader;
+    PixelShaderType m_pixelShader;
+
+    bool succeeded() const
+    {
+        return m_vertexShader.shader != nullptr && m_pixelShader != nullptr;
+    }
+};
+
+class D3D11PipelineManager
+    : public D3DPipelineManager<D3D11DrawPipeline, ID3D11Device>
+{
+    using Super = D3DPipelineManager<D3D11DrawPipeline, ID3D11Device>;
+
 public:
-    D3D11PipelineManager(ComPtr<ID3D11DeviceContext> context,
-                         ComPtr<ID3D11Device> device,
-                         const D3DCapabilities& capabilities);
+    D3D11PipelineManager(ComPtr<ID3D11DeviceContext>,
+                         ComPtr<ID3D11Device>,
+                         const D3DCapabilities&,
+                         ShaderCompilationMode);
+
+    ~D3D11PipelineManager() { shutdownBackgroundThread(); }
 
     void setPipelineState(rive::gpu::DrawType,
                           rive::gpu::ShaderFeatures,
                           rive::gpu::InterlockMode,
-                          rive::gpu::ShaderMiscFlags);
+                          rive::gpu::ShaderMiscFlags
+#ifdef WITH_RIVE_TOOLS
+                          ,
+                          bool synthesizeCompilationFailures
+#endif
+    );
 
     void setColorRampState() const
     {
@@ -111,10 +133,17 @@ public:
     }
 
 protected:
-    virtual void compileBlobToFinalType(const ShaderCompileRequest&,
-                                        ComPtr<ID3DBlob> vertexShader,
-                                        ComPtr<ID3DBlob> pixelShader,
-                                        ShaderCompileResult*) override;
+    virtual ComPtr<ID3D11PixelShader> compilePixelShaderBlobToFinalType(
+        ComPtr<ID3DBlob>) override;
+
+    virtual D3D11DrawVertexShader compileVertexShaderBlobToFinalType(
+        DrawType,
+        ComPtr<ID3DBlob>) override;
+
+    virtual D3D11DrawPipeline linkPipeline(
+        const PipelineProps&,
+        D3D11DrawVertexShader&&,
+        ComPtr<ID3D11PixelShader>&&) override;
 
 private:
     ComPtr<ID3D11DeviceContext> m_context;
@@ -167,7 +196,8 @@ public:
 private:
     RenderContextD3DImpl(ComPtr<ID3D11Device>,
                          ComPtr<ID3D11DeviceContext>,
-                         const D3DCapabilities&);
+                         const D3DCapabilities&,
+                         ShaderCompilationMode);
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType,
                                        RenderBufferFlags,

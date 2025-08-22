@@ -219,6 +219,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(
     ComPtr<IDXGIAdapter> adapter;
     DXGI_ADAPTER_DESC adapterDesc{};
     D3DContextOptions contextOptions;
+    contextOptions.shaderCompilationMode = fiddleOptions.shaderCompilationMode;
     if (fiddleOptions.disableRasterOrdering)
     {
         contextOptions.disableRasterizerOrderedViews = true;
@@ -258,7 +259,7 @@ std::unique_ptr<FiddleContext> FiddleContext::MakeD3DPLS(
         return nullptr;
     }
 
-    printf("D3D device: %S\n", adapterDesc.Description);
+    printf("D3D11 device: %S\n", adapterDesc.Description);
 
     return std::make_unique<FiddleContextD3DPLS>(
         std::move(factory),

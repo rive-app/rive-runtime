@@ -16,18 +16,27 @@ struct D3D12DrawVertexShader
 
 namespace rive::gpu
 {
-class D3D12PipelineManager
-    : D3DPipelineManager<D3D12DrawVertexShader, ComPtr<ID3DBlob>, ID3D12Device>
+struct D3D12Pipeline
 {
-public:
-    D3D12PipelineManager(ComPtr<ID3D12Device> device,
-                         const D3DCapabilities& capabilities);
+    using VertexShaderType = D3D12DrawVertexShader;
+    using PixelShaderType = ComPtr<ID3DBlob>;
 
-    ID3D12PipelineState* getDrawPipelineState(
-        DrawType drawType,
-        gpu::ShaderFeatures shaderFeatures,
-        gpu::InterlockMode interlockMode,
-        gpu::ShaderMiscFlags shaderMiscFlags);
+    ComPtr<ID3D12PipelineState> m_d3dPipelineState;
+
+    bool succeeded() const { return m_d3dPipelineState != nullptr; }
+};
+
+class D3D12PipelineManager
+    : public D3DPipelineManager<D3D12Pipeline, ID3D12Device>
+{
+    using Super = D3DPipelineManager<D3D12Pipeline, ID3D12Device>;
+
+public:
+    D3D12PipelineManager(ComPtr<ID3D12Device>,
+                         const D3DCapabilities&,
+                         ShaderCompilationMode);
+
+    ~D3D12PipelineManager() { shutdownBackgroundThread(); }
 
     void compileTesselationPipeline();
     void compileGradientPipeline();
@@ -64,14 +73,21 @@ public:
     }
 
 protected:
-    virtual void compileBlobToFinalType(const ShaderCompileRequest&,
-                                        ComPtr<ID3DBlob> vertexShader,
-                                        ComPtr<ID3DBlob> pixelShader,
-                                        ShaderCompileResult*) override;
+    virtual D3D12DrawVertexShader compileVertexShaderBlobToFinalType(
+        DrawType,
+        ComPtr<ID3DBlob>) override;
+
+    virtual ComPtr<ID3DBlob> compilePixelShaderBlobToFinalType(
+        ComPtr<ID3DBlob> blob) override
+    {
+        return blob;
+    }
+
+    virtual D3D12Pipeline linkPipeline(const PipelineProps&,
+                                       D3D12DrawVertexShader&&,
+                                       ComPtr<ID3DBlob>&&) override;
 
 private:
-    std::unordered_map<UINT, ComPtr<ID3D12PipelineState>> m_drawPipelines;
-
     // maybe these could be moved to D3DPipelineState but to do so
     // required a lot of extra complexity that didnt seem worth it
     ComPtr<ID3D12PipelineState> m_tesselationPipeline;
