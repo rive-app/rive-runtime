@@ -192,7 +192,7 @@ do
     })
     fatalwarnings({ 'All' })
 
-    files({ 'src/*.cpp', 'include/**.hpp', 'include/**.h' })
+    files({ 'src/*.cpp', 'src/shaders/*.glsl', 'include/**.hpp', 'include/**.h' })
 
 
     if _OPTIONS['with_optick'] then
