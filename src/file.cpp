@@ -75,6 +75,10 @@
 // Default namespace for Rive Cpp code
 using namespace rive;
 
+#if defined(DEBUG) && defined(WITH_RIVE_TOOLS)
+size_t File::debugTotalFileCount = 0;
+#endif
+
 #if !defined(RIVE_FMT_U64)
 #if defined(__ANDROID__)
 #if INTPTR_MAX == INT64_MAX
@@ -167,11 +171,17 @@ static Core* readRuntimeObject(BinaryReader& reader,
 File::File(Factory* factory, rcp<FileAssetLoader> assetLoader) :
     m_factory(factory), m_assetLoader(std::move(assetLoader))
 {
+#if defined(DEBUG) && defined(WITH_RIVE_TOOLS)
+    debugTotalFileCount++;
+#endif
     assert(factory);
 }
 
 File::~File()
 {
+#if defined(DEBUG) && defined(WITH_RIVE_TOOLS)
+    debugTotalFileCount--;
+#endif
     for (auto artboard : m_artboards)
     {
         delete artboard;

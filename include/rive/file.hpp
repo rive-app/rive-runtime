@@ -56,7 +56,9 @@ public:
 
 public:
     ~File();
-
+#if defined(DEBUG) && defined(WITH_RIVE_TOOLS)
+    static size_t debugTotalFileCount;
+#endif
     ///
     /// Imports a Rive file from a binary buffer.
     /// @param data the raw date of the file.
