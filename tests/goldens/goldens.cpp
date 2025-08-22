@@ -192,7 +192,7 @@ public:
     rive::Scene* stateMachine() const { return m_scene.get(); }
 
 private:
-    std::unique_ptr<rive::File> m_file;
+    rive::rcp<rive::File> m_file;
     std::unique_ptr<rive::ArtboardInstance> m_artboard;
     std::unique_ptr<rive::Scene> m_scene;
     rive::rcp<rive::ViewModelInstance> m_viewModelInstance;

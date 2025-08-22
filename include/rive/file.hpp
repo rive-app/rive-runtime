@@ -12,6 +12,7 @@
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
+#include "rive/refcnt.hpp"
 #include <vector>
 #include <set>
 #include <unordered_map>
@@ -43,7 +44,7 @@ enum class ImportResult
 ///
 /// A Rive file.
 ///
-class File
+class File : public RefCnt<File>
 {
 public:
     /// Major version number supported by the runtime.
@@ -63,18 +64,18 @@ public:
     /// @param assetLoader is an optional helper to load assets which
     /// cannot be found in-band.
     /// @returns a pointer to the file, or null on failure.
-    static std::unique_ptr<File> import(Span<const uint8_t> data,
-                                        Factory* factory,
-                                        ImportResult* result = nullptr,
-                                        FileAssetLoader* assetLoader = nullptr)
+    static rcp<File> import(Span<const uint8_t> data,
+                            Factory* factory,
+                            ImportResult* result = nullptr,
+                            FileAssetLoader* assetLoader = nullptr)
     {
         return import(data, factory, result, ref_rcp(assetLoader));
     }
 
-    static std::unique_ptr<File> import(Span<const uint8_t> data,
-                                        Factory*,
-                                        ImportResult* result,
-                                        rcp<FileAssetLoader> assetLoader);
+    static rcp<File> import(Span<const uint8_t> data,
+                            Factory*,
+                            ImportResult* result,
+                            rcp<FileAssetLoader> assetLoader);
 
     /// @returns the file's backboard. All files have exactly one backboard.
     Backboard* backboard() const { return m_backboard; }

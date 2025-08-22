@@ -4,13 +4,13 @@
 #include "rive/importers/import_stack.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
 #include "rive/refcnt.hpp"
+#include "rive/file.hpp"
 #include <unordered_map>
 #include <vector>
 
 namespace rive
 {
 class Artboard;
-class File;
 class NestedArtboard;
 class Backboard;
 class FileAsset;

@@ -116,7 +116,7 @@ public:
     {
         // Sniff paths out of a .riv file.
         SniffPathsRenderer sniffer(&m_pathPaints, allStrokes, allRoundJoin);
-        std::unique_ptr<File> rivFile =
+        rcp<File> rivFile =
             File::import(assets::paper_riv(), m_nullContext.get());
         std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
         std::unique_ptr<Scene> scene = artboard->defaultScene();
@@ -262,7 +262,7 @@ public:
                                    /*allStrokes=*/false,
                                    /*allRoundJoin=*/false,
                                    /*forcedFeather=*/100);
-        std::unique_ptr<File> rivFile = File::import(riv, m_nullContext.get());
+        rcp<File> rivFile = File::import(riv, m_nullContext.get());
         std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
         std::unique_ptr<Scene> scene = artboard->defaultScene();
         scene->advanceAndApply(0);

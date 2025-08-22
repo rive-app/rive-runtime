@@ -10,7 +10,8 @@
 #include "rive/advancing_component.hpp"
 #include "rive/resetting_component.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
-#include <stdio.h>
+#include "rive/refcnt.hpp"
+#include "rive/file.hpp"
 
 namespace rive
 {
@@ -20,7 +21,6 @@ class NestedAnimation;
 class NestedInput;
 class NestedStateMachine;
 class StateMachineInstance;
-class File;
 class NestedArtboard : public NestedArtboardBase,
                        public AdvancingComponent,
                        public ResettingComponent,

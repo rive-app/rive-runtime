@@ -230,7 +230,7 @@ int main(int argc, const char* argv[])
         fprintf(stderr, "no .riv file specified");
         abort();
     }
-    std::unique_ptr<rive::File> file =
+    rive::rcp<rive::File> file =
         rive::File::import(rivBytes, TestingWindow::Get()->factory());
     assert(file);
     std::unique_ptr<rive::ArtboardInstance> artboard = file->artboardDefault();

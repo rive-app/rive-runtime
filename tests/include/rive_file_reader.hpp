@@ -23,7 +23,7 @@ static inline std::vector<uint8_t> ReadFile(const char path[])
     return bytes;
 }
 
-static inline std::unique_ptr<rive::File> ReadRiveFile(
+static inline rive::rcp<rive::File> ReadRiveFile(
     const char path[],
     rive::Factory* factory = nullptr,
     rive::FileAssetLoader* loader = nullptr,

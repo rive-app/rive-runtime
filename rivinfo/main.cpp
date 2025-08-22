@@ -138,7 +138,7 @@ static void dump(JSoner& js, rive::File* file)
     js.pop();
 }
 
-static std::unique_ptr<rive::File> open_file(const char name[])
+static rcp<rive::File> open_file(const char name[])
 {
     FILE* f = fopen(name, "rb");
     if (!f)

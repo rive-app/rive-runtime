@@ -4,6 +4,7 @@
 
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
+#include "rive/refcnt.hpp"
 #include "rive/layout.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 
@@ -41,7 +42,7 @@ static WGPUSurface surface;
 static WGPUTextureFormat format = WGPUTextureFormat_Undefined;
 static wgpu::Queue queue;
 
-static std::unique_ptr<File> rivFile;
+static rcp<File> rivFile;
 static std::unique_ptr<ArtboardInstance> artboard;
 static std::unique_ptr<Scene> scene;
 
@@ -318,8 +319,7 @@ int main(int argc, const char** argv)
     std::ifstream rivStream(filename, std::ios::binary);
     std::vector<uint8_t> rivBytes(std::istreambuf_iterator<char>(rivStream),
                                   {});
-    std::unique_ptr<File> rivFile =
-        File::import(rivBytes, fiddleContextDawn->factory());
+    rcp<File> rivFile = File::import(rivBytes, fiddleContextDawn->factory());
     std::unique_ptr<ArtboardInstance> artboard = rivFile->artboardDefault();
     std::unique_ptr<Scene> scene = artboard->defaultScene();
     scene->advanceAndApply(0);

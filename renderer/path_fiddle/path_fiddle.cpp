@@ -85,7 +85,7 @@ static int horzRepeat = 0;
 static int upRepeat = 0;
 static int downRepeat = 0;
 
-std::unique_ptr<File> rivFile;
+rcp<File> rivFile;
 std::vector<std::unique_ptr<Artboard>> artboards;
 std::vector<std::unique_ptr<Scene>> scenes;
 std::vector<rive::rcp<rive::ViewModelInstance>> viewModelInstances;

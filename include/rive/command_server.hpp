@@ -183,7 +183,7 @@ private:
         m_artboardDependencies;
 
     // Handle Maps
-    std::unordered_map<FileHandle, std::unique_ptr<File>> m_files;
+    std::unordered_map<FileHandle, rcp<File>> m_files;
     std::unordered_map<FontHandle, rcp<Font>> m_fonts;
     std::unordered_map<RenderImageHandle, rcp<RenderImage>> m_images;
     std::unordered_map<AudioSourceHandle, rcp<AudioSource>> m_audioSources;

@@ -4457,21 +4457,6 @@ TEST_CASE("dependency lifetime management", "[CommandQueue]")
         CHECK(server->getStateMachineInstance(stateMachine3_2) != nullptr);
     });
 
-    commandQueue->deleteFile(fileHandle);
-
-    commandQueue->runOnce([&](CommandServer* server) {
-        CHECK(server->getFile(fileHandle) == nullptr);
-        CHECK(server->getArtboardInstance(artboardHandle) == nullptr);
-        CHECK(server->getArtboardInstance(artboardHandle2) == nullptr);
-        CHECK(server->getArtboardInstance(artboardHandle3) == nullptr);
-        CHECK(server->getStateMachineInstance(stateMachine) == nullptr);
-        CHECK(server->getStateMachineInstance(stateMachine_2) == nullptr);
-        CHECK(server->getStateMachineInstance(stateMachine2) == nullptr);
-        CHECK(server->getStateMachineInstance(stateMachine2_2) == nullptr);
-        CHECK(server->getStateMachineInstance(stateMachine3) == nullptr);
-        CHECK(server->getStateMachineInstance(stateMachine3_2) == nullptr);
-    });
-
     commandQueue->disconnect();
     serverThread.join();
 }

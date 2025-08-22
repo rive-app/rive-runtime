@@ -2,19 +2,19 @@
 #define _RIVE_MGR_HPP_
 
 #include "rive/scene.hpp"
+#include "rive/file.hpp"
 #include <memory>
 
 namespace rive
 {
 class Factory;
-class File;
 class ArtboardInstance;
 } // namespace rive
 
 class RiveMgr
 {
     rive::Factory* m_Factory;
-    std::unique_ptr<rive::File> m_File;
+    rive::rcp<rive::File> m_File;
     std::unique_ptr<rive::ArtboardInstance> m_Artboard;
     std::unique_ptr<rive::Scene> m_Scene;
 
@@ -33,8 +33,8 @@ public:
 
     rive::Scene* scene() const { return m_Scene.get(); }
 
-    static std::unique_ptr<rive::File> loadFile(const char filename[],
-                                                rive::Factory*);
+    static rive::rcp<rive::File> loadFile(const char filename[],
+                                          rive::Factory*);
 };
 
 #endif

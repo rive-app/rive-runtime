@@ -512,11 +512,10 @@ bool CommandServer::processCommands()
                 commandStream >> requestId;
                 m_commandQueue->m_byteVectors >> rivBytes;
                 lock.unlock();
-                std::unique_ptr<rive::File> file =
-                    rive::File::import(rivBytes,
-                                       m_factory,
-                                       nullptr,
-                                       m_fileAssetLoader);
+                rcp<rive::File> file = rive::File::import(rivBytes,
+                                                          m_factory,
+                                                          nullptr,
+                                                          m_fileAssetLoader);
                 if (file != nullptr)
                 {
                     m_fileDependencies[handle] = {};

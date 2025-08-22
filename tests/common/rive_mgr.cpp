@@ -76,8 +76,8 @@ static void log(const char msg[], const char arg[] = nullptr)
     fprintf(stderr, "%s\n", err.c_str());
 }
 
-std::unique_ptr<rive::File> RiveMgr::loadFile(const char filename[],
-                                              rive::Factory* factory)
+rive::rcp<rive::File> RiveMgr::loadFile(const char filename[],
+                                        rive::Factory* factory)
 {
     AutoClose afc(fopen(filename, "rb"));
     FILE* fp = afc.m_File;

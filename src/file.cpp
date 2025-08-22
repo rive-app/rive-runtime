@@ -203,10 +203,10 @@ File::~File()
     delete m_backboard;
 }
 
-std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
-                                   Factory* factory,
-                                   ImportResult* result,
-                                   rcp<FileAssetLoader> assetLoader)
+rcp<File> File::import(Span<const uint8_t> bytes,
+                       Factory* factory,
+                       ImportResult* result,
+                       rcp<FileAssetLoader> assetLoader)
 {
     BinaryReader reader(bytes);
     RuntimeHeader header;
@@ -233,7 +233,7 @@ std::unique_ptr<File> File::import(Span<const uint8_t> bytes,
         }
         return nullptr;
     }
-    auto file = rivestd::make_unique<File>(factory, std::move(assetLoader));
+    auto file = make_rcp<File>(factory, std::move(assetLoader));
 
     auto readResult = file->read(reader, header);
     if (result)
