@@ -14,7 +14,8 @@
       },
       "description": "The id of the asset these bytes belong to.",
       "runtime": false,
-      "coop": false
+      "coop": false,
+      "records": false
     },
     "bytes": {
       "type": "Bytes",
@@ -24,7 +25,8 @@
         "string": "bytes"
       },
       "description": "Byte data of the file.",
-      "coop": false
+      "coop": false,
+      "records": false
     }
   }
 }

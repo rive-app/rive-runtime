@@ -24,7 +24,8 @@
         "string": "isclockwise"
       },
       "description": "We use this to track whether user designed paths are clockwise.",
-      "runtime": false
+      "runtime": false,
+      "journal": false
     }
   }
 }
