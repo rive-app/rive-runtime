@@ -47,7 +47,9 @@ void LayoutComponent::buildDependencies()
 
 Core* LayoutComponent::hitTest(HitInfo*, const Mat2D&) { return nullptr; }
 
-bool LayoutComponent::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+bool LayoutComponent::hitTestPoint(const Vec2D& position,
+                                   bool skipOnUnclipped,
+                                   bool isPrimaryHit)
 {
     Mat2D inverseWorld;
     if (worldTransform().invert(&inverseWorld))
@@ -73,7 +75,7 @@ bool LayoutComponent::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
                 return false;
             }
         }
-        return Drawable::hitTestPoint(position, true);
+        return Drawable::hitTestPoint(position, true, isPrimaryHit);
     }
     return false;
 }

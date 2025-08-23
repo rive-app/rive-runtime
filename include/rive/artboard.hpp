@@ -170,7 +170,9 @@ public:
     // DO NOT RELY ON THIS as it may change/disappear in the future.
     Core* hitTest(HitInfo*, const Mat2D&) override;
 
-    bool hitTestPoint(const Vec2D& position, bool skipOnUnclipped) override;
+    bool hitTestPoint(const Vec2D& position,
+                      bool skipOnUnclipped,
+                      bool isPrimaryHit) override;
 
     Vec2D rootTransform(const Vec2D&);
 

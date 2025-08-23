@@ -910,7 +910,7 @@ public:
 
     bool hitTest(Vec2D position) const override
     {
-        return m_component->hitTestPoint(position, true);
+        return m_component->hitTestPoint(position, true, true);
     }
 };
 
@@ -941,7 +941,7 @@ public:
 
     bool hitTest(Vec2D position) const override
     {
-        return m_component->hitTestPoint(position, false);
+        return m_component->hitTestPoint(position, false, true);
     }
 };
 

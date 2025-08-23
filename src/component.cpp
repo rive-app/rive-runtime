@@ -97,11 +97,13 @@ bool Component::collapse(bool value)
     return true;
 }
 
-bool Component::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+bool Component::hitTestPoint(const Vec2D& position,
+                             bool skipOnUnclipped,
+                             bool isPrimaryHit)
 {
     if (parent())
     {
-        return parent()->hitTestPoint(position, skipOnUnclipped);
+        return parent()->hitTestPoint(position, skipOnUnclipped, false);
     }
     return true;
 }

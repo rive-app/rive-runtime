@@ -772,3 +772,46 @@ TEST_CASE("Hit testing shapes in layouts", "[silver]")
 
     CHECK(silver.matches("hittest_ab_shape_parent"));
 }
+
+TEST_CASE("Hit testing objects inside shapes", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/hit_test_nested.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Hover shape in another shape with no path
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(150.0f, 150.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Hover nested artboard in another shape with no path
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(300.0f, 200.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Hover text in another shape with path
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(100.0f, 250.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Hover nested artboard in another shape with path
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(400.0f, 350.0f));
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("hittest_nested"));
+}

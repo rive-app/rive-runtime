@@ -222,10 +222,21 @@ Core* Shape::hitTest(HitInfo* hinfo, const Mat2D& xform)
     return nullptr;
 }
 
-bool Shape::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+bool Shape::hitTestPoint(const Vec2D& position,
+                         bool skipOnUnclipped,
+                         bool isPrimaryHit)
 {
+    // If we're NOT the primary hit test, don't perform the AABB hit test
+    // just keep walking up the tree
+    if (!isPrimaryHit)
+    {
+        return Component::hitTestPoint(position, skipOnUnclipped, isPrimaryHit);
+    }
+    // Only perform the AABB hit test if we're the primary hit test
+    // This prevents walking up the tree and having another shape return a
+    // false hit test because we're not hitting their AABB
     if (hitTestAABB(position) &&
-        Component::hitTestPoint(position, skipOnUnclipped))
+        Component::hitTestPoint(position, skipOnUnclipped, isPrimaryHit))
     {
         return hitTestHiFi(position, 2);
     }

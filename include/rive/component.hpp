@@ -65,7 +65,9 @@ public:
     {
         return (m_Dirt & ComponentDirt::Collapsed) == ComponentDirt::Collapsed;
     }
-    virtual bool hitTestPoint(const Vec2D& position, bool skipOnUnclipped);
+    virtual bool hitTestPoint(const Vec2D& position,
+                              bool skipOnUnclipped,
+                              bool isPrimaryHit);
 };
 } // namespace rive
 

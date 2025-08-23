@@ -195,7 +195,9 @@ bool NestedArtboard::hitTestHost(const Vec2D& position,
                                  bool skipOnUnclipped,
                                  ArtboardInstance* artboard)
 {
-    return parent()->hitTestPoint(worldTransform() * position, skipOnUnclipped);
+    return parent()->hitTestPoint(worldTransform() * position,
+                                  skipOnUnclipped,
+                                  false);
 }
 
 Vec2D NestedArtboard::hostTransformPoint(const Vec2D& vec,

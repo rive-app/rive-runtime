@@ -87,7 +87,9 @@ public:
 
     bool hitTestAABB(const Vec2D& position);
     bool hitTestHiFi(const Vec2D& position, float hitRadius);
-    bool hitTestPoint(const Vec2D& position, bool skipOnUnclipped) override;
+    bool hitTestPoint(const Vec2D& position,
+                      bool skipOnUnclipped,
+                      bool isPrimaryHit) override;
     // Implemented for ShapePaintContainer.
     const Mat2D& shapeWorldTransform() const override
     {

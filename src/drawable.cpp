@@ -89,14 +89,18 @@ bool Drawable::isChildOfLayout(LayoutComponent* layout)
     return false;
 }
 
-bool Drawable::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+bool Drawable::hitTestPoint(const Vec2D& position,
+                            bool skipOnUnclipped,
+                            bool isPrimaryHit)
 {
     auto hComponent = hittableComponent();
     if (hComponent != this && hComponent != nullptr)
     {
-        return hComponent->hitTestPoint(position, skipOnUnclipped);
+        return hComponent->hitTestPoint(position,
+                                        skipOnUnclipped,
+                                        isPrimaryHit);
     }
-    return Component::hitTestPoint(position, skipOnUnclipped);
+    return Component::hitTestPoint(position, skipOnUnclipped, isPrimaryHit);
 }
 
 Drawable* DrawableProxy::hittableComponent()

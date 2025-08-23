@@ -1117,7 +1117,9 @@ Vec2D Artboard::rootTransform(const Vec2D& point)
     return point;
 }
 
-bool Artboard::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
+bool Artboard::hitTestPoint(const Vec2D& position,
+                            bool skipOnUnclipped,
+                            bool isPrimaryHit)
 {
     if (host() != nullptr && isInstance())
     {
@@ -1144,7 +1146,9 @@ bool Artboard::hitTestPoint(const Vec2D& position, bool skipOnUnclipped)
         }
     }
 #endif
-    return LayoutComponent::hitTestPoint(position, skipOnUnclipped);
+    return LayoutComponent::hitTestPoint(position,
+                                         skipOnUnclipped,
+                                         isPrimaryHit);
 }
 
 void Artboard::draw(Renderer* renderer) { draw(renderer, DrawOption::kNormal); }

@@ -490,7 +490,7 @@ bool ArtboardComponentList::hitTestHost(const Vec2D& position,
     auto transform = virtualizationEnabled()
                          ? parent()->as<LayoutComponent>()->worldTransform()
                          : worldTransform();
-    return parent()->hitTestPoint(transform * offset, skipOnUnclipped);
+    return parent()->hitTestPoint(transform * offset, skipOnUnclipped, false);
 }
 
 Vec2D ArtboardComponentList::hostTransformPoint(

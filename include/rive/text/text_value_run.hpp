@@ -51,7 +51,9 @@ public:
 
     bool isHitTarget() const { return m_isHitTarget; }
     void isHitTarget(bool value);
-    bool hitTestPoint(const Vec2D& position, bool skipOnUnclipped) override;
+    bool hitTestPoint(const Vec2D& position,
+                      bool skipOnUnclipped,
+                      bool isPrimaryHit) override;
 
 protected:
     void textChanged() override;
