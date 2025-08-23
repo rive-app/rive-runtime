@@ -1,7 +1,7 @@
 dofile('rive_build_config.lua')
 
 local dependency = require('dependency')
-yoga = dependency.github('rive-app/yoga', 'rive_changes_v2_0_1_1')
+yoga = dependency.github('rive-app/yoga', 'rive_changes_v2_0_1_2')
 
 newoption({
     trigger = 'no-yoga-renames',
