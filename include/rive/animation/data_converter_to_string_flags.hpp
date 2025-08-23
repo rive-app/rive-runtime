@@ -14,6 +14,9 @@ enum class DataConverterToStringFlags : unsigned short
     /// Whether to remove trailing zeros
     TrailingZeros = 1 << 1,
 
+    /// Whether to format the number with commans
+    FormatWithCommas = 1 << 2,
+
 };
 
 RIVE_MAKE_ENUM_BITSET(DataConverterToStringFlags)

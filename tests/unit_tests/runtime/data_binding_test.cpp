@@ -1480,6 +1480,7 @@ TEST_CASE("Trigger fires single change on listener", "[data binding]")
 
     CHECK(silver.matches("trigger_fires_single_change"));
 }
+
 TEST_CASE("Convert to number", "[data binding]")
 {
 
@@ -1737,4 +1738,32 @@ TEST_CASE("List to path", "[data binding]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("list_to_path"));
+}
+
+TEST_CASE("Format text with commas", "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/format_number_with_commas.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("format_number_with_commas"));
 }

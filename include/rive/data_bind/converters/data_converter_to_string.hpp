@@ -139,6 +139,7 @@ public:
 private:
     DataValue* convertNumber(DataValueNumber* value);
     DataValue* convertColor(DataValueColor* value);
+    std::string formatWithCommas(std::string& num);
     DataValueString m_output;
     _ColorConverter m_converter;
 };
