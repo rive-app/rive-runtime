@@ -30,11 +30,13 @@ class VertexPropertyListener : public VertexPropertyListenerBase
 public:
     VertexPropertyListener(Vertex* vertex,
                            VertexListener* vertexListener,
-                           ViewModelInstanceValue* instanceValue);
+                           ViewModelInstanceValue* instanceValue,
+                           float multiplier);
     virtual ~VertexPropertyListener();
 
 protected:
     ViewModelInstanceValue* m_instanceValue = nullptr;
+    float m_multiplier = 1;
 };
 
 class VertexPropertyListenerSingle : public VertexPropertyListener
@@ -43,6 +45,7 @@ public:
     VertexPropertyListenerSingle(Vertex* vertex,
                                  VertexListener* vertexListener,
                                  ViewModelInstanceValue* instanceValue,
+                                 float multiplier,
                                  uint16_t propertyKey);
     ~VertexPropertyListenerSingle();
     void writeValue() override;
@@ -57,6 +60,7 @@ public:
     VertexPropertyListenerMulti(Vertex* vertex,
                                 VertexListener* vertexListener,
                                 ViewModelInstanceValue* instanceValue,
+                                float multiplier,
                                 std::vector<uint16_t> propertyKeys);
 
     void writeValue() override;

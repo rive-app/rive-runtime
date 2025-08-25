@@ -1737,6 +1737,20 @@ TEST_CASE("List to path", "[data binding]")
     stateMachine->advanceAndApply(0.016f);
     artboard->draw(renderer.get());
 
+    for (int i = 0; i < 60; i++)
+    {
+        silver.addFrame();
+        vertexI1->propertyValue("inRotation")
+            ->as<rive::ViewModelInstanceNumber>()
+            ->propertyValue((float)i * 6);
+        vertexRD1->propertyValue("rotation")
+            ->as<rive::ViewModelInstanceNumber>()
+            ->propertyValue((float)i * 6);
+        stateMachine->advanceAndApply(0.01f);
+        stateMachine->advanceAndApply(0.0f);
+        artboard->draw(renderer.get());
+    }
+
     CHECK(silver.matches("list_to_path"));
 }
 
