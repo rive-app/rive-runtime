@@ -11,7 +11,7 @@ newoption({
 -- for Vulkan.
 if _OPTIONS['with_vulkan'] then
     -- Standardize on the same set of Vulkan headers on all platforms.
-    vulkan_headers = dependency.github('KhronosGroup/Vulkan-Headers', 'vulkan-sdk-1.3.283')
+    vulkan_headers = dependency.github('KhronosGroup/Vulkan-Headers', 'vulkan-sdk-1.4.321')
     vulkan_memory_allocator =
         dependency.github('GPUOpen-LibrariesAndSDKs/VulkanMemoryAllocator', 'v3.3.0')
     defines({

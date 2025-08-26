@@ -318,6 +318,7 @@ static VkBlendOp vk_blend_op(gpu::BlendEquation equation)
         case gpu::BlendEquation::luminosity:
             return VK_BLEND_OP_HSL_LUMINOSITY_EXT;
     }
+    RIVE_UNREACHABLE();
 }
 
 static VkBufferUsageFlagBits render_buffer_usage_flags(
@@ -1013,6 +1014,7 @@ public:
                 assert(subpassIndex == 0);
                 return 1;
         }
+        RIVE_UNREACHABLE();
     }
 
     VkDescriptorSetLayout plsLayout() const
