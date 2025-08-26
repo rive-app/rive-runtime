@@ -62,10 +62,7 @@ ScriptedProperty::~ScriptedProperty()
 
 ScriptedPropertyViewModel::~ScriptedPropertyViewModel()
 {
-    for (auto itr : m_propertyRefs)
-    {
-        lua_unref(m_state, itr.second);
-    }
+    lua_unref(m_state, m_valueRef);
 }
 
 void ScriptedProperty::clearListeners()
@@ -182,7 +179,21 @@ ScriptedPropertyViewModel::ScriptedPropertyViewModel(
     ScriptedProperty(L, std::move(value)), m_viewModel(std::move(viewModel))
 {}
 
-int ScriptedPropertyViewModel::pushValue(const char* name, int coreType)
+ScriptedViewModel::ScriptedViewModel(lua_State* L,
+                                     rcp<ViewModel> viewModel,
+                                     rcp<ViewModelInstance> viewModelInstance) :
+    m_state(L), m_viewModel(viewModel), m_viewModelInstance(viewModelInstance)
+{}
+
+ScriptedViewModel::~ScriptedViewModel()
+{
+    for (auto itr : m_propertyRefs)
+    {
+        lua_unref(m_state, itr.second);
+    }
+}
+
+int ScriptedViewModel::pushValue(const char* name, int coreType)
 {
     auto itr = m_propertyRefs.find(name);
     if (itr != m_propertyRefs.end())
@@ -197,8 +208,8 @@ int ScriptedPropertyViewModel::pushValue(const char* name, int coreType)
     // intentional, for now we runtime error if the type is un-expected and we
     // optimize for the best case.
 
-    auto vmi = m_instanceValue->as<ViewModelInstanceViewModel>()
-                   ->referenceViewModelInstance();
+    auto vmi = m_viewModelInstance;
+    // m_instanceValue->as<ViewModelInstanceViewModel>()->referenceViewModelInstance()
     if (!vmi)
     {
         // Get type from viewmodel if we have one and user didn't request a type
@@ -242,9 +253,57 @@ int ScriptedPropertyViewModel::pushValue(const char* name, int coreType)
     return 1;
 }
 
+int ScriptedPropertyViewModel::pushValue()
+{
+    // N.B. we'll need to invalidate m_valueRef if the viewmodel's value on the
+    // property changes.
+    if (m_valueRef != 0)
+    {
+        lua_rawgeti(m_state, LUA_REGISTRYINDEX, m_valueRef);
+        return 1;
+    }
+    if (m_instanceValue)
+    {
+        lua_newrive<ScriptedViewModel>(
+            m_state,
+            m_state,
+            m_viewModel,
+            m_instanceValue->as<ViewModelInstanceViewModel>()
+                ->referenceViewModelInstance());
+    }
+    else
+    {
+        // Push nil or push an empty model ref? For now empty/with def values.
+        lua_newrive<ScriptedViewModel>(m_state, m_state, m_viewModel, nullptr);
+    }
+    m_valueRef = lua_ref(m_state, -1);
+    return 1;
+}
+
 static int property_vm_index(lua_State* L)
 {
-    auto vm = lua_torive<ScriptedPropertyViewModel>(L, 1);
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    if (!key)
+    {
+        luaL_typeerrorL(L, 2, lua_typename(L, LUA_TSTRING));
+        return 0;
+    }
+
+    auto vmProp = lua_torive<ScriptedPropertyViewModel>(L, 1);
+    assert(vmProp->state() == L);
+    switch (atom)
+    {
+        case (int)LuaAtoms::value:
+            return vmProp->pushValue();
+        default:
+            return 0;
+    }
+}
+
+static int vm_index(lua_State* L)
+{
+    auto vm = lua_torive<ScriptedViewModel>(L, 1);
     size_t namelen = 0;
     const char* name = luaL_checklstring(L, 2, &namelen);
     assert(vm->state() == L);
@@ -282,13 +341,13 @@ static int property_namecall_atom(lua_State* L,
     return 0;
 }
 
-static int property_vm_namecall(lua_State* L)
+static int vm_namecall(lua_State* L)
 {
     int atom;
     const char* str = lua_namecallatom(L, &atom);
     if (str != nullptr)
     {
-        auto vm = lua_torive<ScriptedPropertyViewModel>(L, 1);
+        auto vm = lua_torive<ScriptedViewModel>(L, 1);
         switch (atom)
         {
             case (int)LuaAtoms::getNumber:
@@ -308,15 +367,30 @@ static int property_vm_namecall(lua_State* L)
                                      ViewModelInstanceTriggerBase::typeKey);
             }
             default:
-            {
-                bool error = false;
-                int stackChange = property_namecall_atom(L, vm, atom, error);
-                if (!error)
-                {
-                    return stackChange;
-                }
                 break;
-            }
+        }
+    }
+
+    luaL_error(L,
+               "%s is not a valid method of %s",
+               str,
+               ScriptedPropertyViewModel::luaName);
+    return 0;
+}
+
+static int property_vm_namecall(lua_State* L)
+{
+    int atom;
+    const char* str = lua_namecallatom(L, &atom);
+    if (str != nullptr)
+    {
+        auto vm = lua_torive<ScriptedPropertyViewModel>(L, 1);
+
+        bool error = false;
+        int stackChange = property_namecall_atom(L, vm, atom, error);
+        if (!error)
+        {
+            return stackChange;
         }
     }
 
@@ -440,6 +514,19 @@ static int property_number_newindex(lua_State* L)
 int luaopen_rive_properties(lua_State* L)
 {
     {
+        lua_register_rive<ScriptedViewModel>(L);
+
+        lua_pushcfunction(L, vm_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_pushcfunction(L, vm_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable
+    }
+
+    {
         lua_register_rive<ScriptedPropertyViewModel>(L);
 
         lua_pushcfunction(L, property_vm_index, nullptr);
@@ -477,6 +564,6 @@ int luaopen_rive_properties(lua_State* L)
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable}
     }
-    return 3;
+    return 4;
 }
 #endif

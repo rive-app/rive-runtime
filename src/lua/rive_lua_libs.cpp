@@ -10,6 +10,7 @@ int luaopen_rive_base(lua_State* L);
 int luaopen_rive_math(lua_State* L);
 int luaopen_rive_renderer_library(lua_State* L);
 int luaopen_rive_properties(lua_State* L);
+int luaopen_rive_artboards(lua_State* L);
 
 std::unordered_map<std::string, int16_t> atoms = {
     {"length", (int16_t)LuaAtoms::length},
@@ -79,15 +80,23 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"addListener", (int16_t)LuaAtoms::addListener},
     {"removeListener", (int16_t)LuaAtoms::removeListener},
     {"fire", (int16_t)LuaAtoms::fire},
+    {"draw", (int16_t)LuaAtoms::draw},
+    {"advance", (int16_t)LuaAtoms::advance},
+    {"frameOrigin", (int16_t)LuaAtoms::frameOrigin},
+    {"data", (int16_t)LuaAtoms::data},
+    {"instance", (int16_t)LuaAtoms::instance},
 };
 
 static const luaL_Reg lualibs[] = {
     {"", luaopen_base},
+    {LUA_TABLIBNAME, luaopen_table},
+    {LUA_MATHLIBNAME, luaopen_math},
     {"rive", luaopen_rive_base},
     {LUA_STRLIBNAME, luaopen_string},
     {"math", luaopen_rive_math},
     {"renderer", luaopen_rive_renderer_library},
     {"properties", luaopen_rive_properties},
+    {"artboard", luaopen_rive_artboards},
     {NULL, NULL},
 };
 

@@ -162,21 +162,20 @@ end
 )TEST_SRC");
     auto L = vm.state();
     lua_getglobal(L, "provide");
-    auto data = make_rcp<ViewModelInstanceViewModel>();
-    data->referenceViewModelInstance(viewModelInstance);
-    auto data2 = make_rcp<ViewModelInstanceViewModel>();
-    data2->referenceViewModelInstance(viewModelInstanceWithTrigger);
-    lua_newrive<ScriptedPropertyViewModel>(
+    lua_newrive<ScriptedViewModel>(L,
+                                   L,
+                                   ref_rcp(viewModelInstance->viewModel()),
+                                   viewModelInstance);
+    lua_newrive<ScriptedViewModel>(
         L,
         L,
-        ref_rcp(viewModelInstance->viewModel()),
-        data);
-    lua_newrive<ScriptedPropertyViewModel>(
-        L,
-        L,
-        ref_rcp(viewModelInstance->viewModel()),
-        data2);
-    lua_pcall(L, 2, 0, 0);
+        ref_rcp(viewModelInstanceWithTrigger->viewModel()),
+        viewModelInstanceWithTrigger);
+    CHECK(lua_pcall(L, 2, 0, 0) == LUA_OK);
+    CHECK(vm.console.size() == 2);
+    CHECK(vm.console[0] == "trigger is good");
+    CHECK(vm.console[1] == "data provided");
+
     lua_getglobal(L, "getRotation");
     lua_pcall(L, 0, 1, 0);
     REQUIRE(luaL_checknumber(L, -1) == Approx(180.0f));
