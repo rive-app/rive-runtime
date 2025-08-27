@@ -53,6 +53,16 @@ while :; do
             fi
             shift
         ;;
+        -w)
+            TARGET="webbrowser"
+            DEFAULT_BACKEND=gl
+            shift
+        ;;
+        -ws)
+            TARGET="webserver"
+            DEFAULT_BACKEND=gl
+            shift
+        ;;
         -R)
             REBASELINE=true
             shift
@@ -109,6 +119,8 @@ do
         ID="iossim_$UDID/$BACKEND"
     elif [[ "$TARGET" == "android" ]]; then
         ID="android_$SERIAL/$BACKEND"
+    elif [[ "$TARGET" != "host" ]]; then
+        ID="$TARGET/$BACKEND"
     fi
     
     if [ "$REBASELINE" == true ]; then

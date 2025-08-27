@@ -25,9 +25,7 @@ constexpr static uint32_t REQUEST_TYPE_CLAIM_GM_TEST = 1;
 constexpr static uint32_t REQUEST_TYPE_FETCH_RIV_FILE = 2;
 constexpr static uint32_t REQUEST_TYPE_GET_INPUT = 3;
 constexpr static uint32_t REQUEST_TYPE_CANCEL_INPUT = 4;
-#ifndef NO_REDIRECT_OUTPUT
 constexpr static uint32_t REQUEST_TYPE_PRINT_MESSAGE = 5;
-#endif
 constexpr static uint32_t REQUEST_TYPE_DISCONNECT = 6;
 constexpr static uint32_t REQUEST_TYPE_APPLICATION_CRASH = 7;
 
@@ -66,10 +64,13 @@ void TestHarness::init(std::unique_ptr<TCPClient> tcpClient,
 
     initStdioThread();
 
+    // We don't compile with emscripten pthreads.
+#ifndef __EMSCRIPTEN__
     for (size_t i = 0; i < pngThreadCount; ++i)
     {
         m_encodeThreads.emplace_back(EncodePNGThread, this);
     }
+#endif
 }
 
 void TestHarness::init(std::filesystem::path outputDir, size_t pngThreadCount)
@@ -92,8 +93,7 @@ void TestHarness::init(std::filesystem::path outputDir, size_t pngThreadCount)
 
 void TestHarness::initStdioThread()
 {
-#ifndef NO_REDIRECT_OUTPUT
-
+#if !defined(NO_REDIRECT_OUTPUT) && !defined(__EMSCRIPTEN__)
 #ifndef _WIN32
     // Make stdout & stderr line buffered. (This is not supported on Windows.)
     setvbuf(stdout, NULL, _IOLBF, 0);
@@ -111,7 +111,7 @@ void TestHarness::initStdioThread()
 
 void TestHarness::monitorStdIOThread()
 {
-#ifndef NO_REDIRECT_OUTPUT
+#if !defined(NO_REDIRECT_OUTPUT) && !defined(__EMSCRIPTEN__)
     assert(m_initialized);
 
     std::unique_ptr<TCPClient> threadTCPClient;
@@ -163,6 +163,124 @@ void send_png_data_chunk(png_structp png, png_bytep data, png_size_t length)
 
 void flush_png_data(png_structp png) {}
 
+static void save_png_impl(ImageSaveArgs args,
+                          const std::filesystem::path& outputDir,
+                          PNGCompression pngCompression,
+                          TCPClient* tcpClient)
+{
+    assert(args.width > 0);
+    assert(args.height > 0);
+    std::string pngName = args.name + ".png";
+
+    if (tcpClient == nullptr)
+    {
+        // We aren't connect to a test harness. Just save a file.
+        auto destination = outputDir;
+        destination /= pngName;
+        destination.make_preferred();
+        WritePNGFile(args.pixels.data(),
+                     args.width,
+                     args.height,
+                     true,
+                     destination.generic_string().c_str(),
+                     pngCompression);
+        return;
+    }
+
+    tcpClient->send4(REQUEST_TYPE_IMAGE_UPLOAD);
+    tcpClient->sendString(pngName);
+
+    auto png = png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
+    if (!png)
+    {
+        fprintf(stderr, "TestHarness: png_create_write_struct failed\n");
+        abort();
+    }
+
+    // RLE with SUB gets best performance with our content.
+    png_set_compression_level(png, 6);
+    png_set_compression_strategy(png, Z_RLE);
+    png_set_compression_strategy(png, Z_RLE);
+    png_set_filter(png, 0, PNG_FILTER_SUB);
+
+    auto info = png_create_info_struct(png);
+    if (!info)
+    {
+        fprintf(stderr, "TestHarness: png_create_info_struct failed\n");
+        abort();
+    }
+
+    if (setjmp(png_jmpbuf(png)))
+    {
+        fprintf(stderr, "TestHarness: Error during init_io\n");
+        abort();
+    }
+
+    png_set_write_fn(png, tcpClient, &send_png_data_chunk, &flush_png_data);
+
+    // Write header.
+    if (setjmp(png_jmpbuf(png)))
+    {
+        fprintf(stderr, "TestHarness: Error during writing header\n");
+        abort();
+    }
+
+    png_set_IHDR(png,
+                 info,
+                 args.width,
+                 args.height,
+                 8,
+                 PNG_COLOR_TYPE_RGB_ALPHA,
+                 PNG_INTERLACE_NONE,
+                 PNG_COMPRESSION_TYPE_BASE,
+                 PNG_FILTER_TYPE_BASE);
+
+    png_write_info(png, info);
+
+    // Write bytes.
+    if (setjmp(png_jmpbuf(png)))
+    {
+        fprintf(stderr, "TestHarness: Error during writing bytes\n");
+        abort();
+    }
+
+    std::vector<uint8_t*> rows(args.height);
+    for (uint32_t y = 0; y < args.height; ++y)
+    {
+        rows[y] = args.pixels.data() + (args.height - 1 - y) * args.width * 4;
+    }
+    png_write_image(png, rows.data());
+
+    // End write.
+    if (setjmp(png_jmpbuf(png)))
+    {
+        fprintf(stderr, "TestHarness: Error during end of write");
+        abort();
+    }
+
+    png_write_end(png, NULL);
+    png_destroy_write_struct(&png, &info);
+
+    tcpClient->sendHandshake();
+    tcpClient->recvHandshake();
+}
+
+void TestHarness::savePNG(ImageSaveArgs args)
+{
+    assert(m_initialized);
+    if (!m_encodeThreads.empty())
+    {
+        m_encodeQueue.push(std::move(args));
+    }
+    else
+    {
+        save_png_impl(std::move(args),
+                      m_outputDir,
+                      m_pngCompression,
+                      m_primaryTCPClient.get());
+    }
+}
+
 void TestHarness::encodePNGThread()
 {
     assert(m_initialized);
@@ -181,106 +299,10 @@ void TestHarness::encodePNGThread()
         {
             break;
         }
-        assert(args.width > 0);
-        assert(args.height > 0);
-        std::string pngName = args.name + ".png";
-
-        if (threadTCPClient == nullptr)
-        {
-            // We aren't connect to a test harness. Just save a file.
-            auto destination = m_outputDir;
-            destination /= pngName;
-            destination.make_preferred();
-            WritePNGFile(args.pixels.data(),
-                         args.width,
-                         args.height,
-                         true,
-                         destination.generic_string().c_str(),
-                         m_pngCompression);
-            continue;
-        }
-
-        threadTCPClient->send4(REQUEST_TYPE_IMAGE_UPLOAD);
-        threadTCPClient->sendString(pngName);
-
-        auto png =
-            png_create_write_struct(PNG_LIBPNG_VER_STRING, NULL, NULL, NULL);
-        if (!png)
-        {
-            fprintf(stderr, "TestHarness: png_create_write_struct failed\n");
-            abort();
-        }
-
-        // RLE with SUB gets best performance with our content.
-        png_set_compression_level(png, 6);
-        png_set_compression_strategy(png, Z_RLE);
-        png_set_compression_strategy(png, Z_RLE);
-        png_set_filter(png, 0, PNG_FILTER_SUB);
-
-        auto info = png_create_info_struct(png);
-        if (!info)
-        {
-            fprintf(stderr, "TestHarness: png_create_info_struct failed\n");
-            abort();
-        }
-
-        if (setjmp(png_jmpbuf(png)))
-        {
-            fprintf(stderr, "TestHarness: Error during init_io\n");
-            abort();
-        }
-
-        png_set_write_fn(png,
-                         threadTCPClient.get(),
-                         &send_png_data_chunk,
-                         &flush_png_data);
-
-        // Write header.
-        if (setjmp(png_jmpbuf(png)))
-        {
-            fprintf(stderr, "TestHarness: Error during writing header\n");
-            abort();
-        }
-
-        png_set_IHDR(png,
-                     info,
-                     args.width,
-                     args.height,
-                     8,
-                     PNG_COLOR_TYPE_RGB_ALPHA,
-                     PNG_INTERLACE_NONE,
-                     PNG_COMPRESSION_TYPE_BASE,
-                     PNG_FILTER_TYPE_BASE);
-
-        png_write_info(png, info);
-
-        // Write bytes.
-        if (setjmp(png_jmpbuf(png)))
-        {
-            fprintf(stderr, "TestHarness: Error during writing bytes\n");
-            abort();
-        }
-
-        std::vector<uint8_t*> rows(args.height);
-        for (uint32_t y = 0; y < args.height; ++y)
-        {
-            rows[y] =
-                args.pixels.data() + (args.height - 1 - y) * args.width * 4;
-        }
-        png_write_image(png, rows.data());
-
-        // End write.
-        if (setjmp(png_jmpbuf(png)))
-        {
-            fprintf(stderr, "TestHarness: Error during end of write");
-            abort();
-        }
-
-        png_write_end(png, NULL);
-        png_destroy_write_struct(&png, &info);
-
-        threadTCPClient->sendHandshake();
-        threadTCPClient->recvHandshake();
+        save_png_impl(std::move(args),
+                      m_outputDir,
+                      m_pngCompression,
+                      threadTCPClient.get());
     }
 
     if (threadTCPClient != nullptr)
@@ -321,6 +343,15 @@ bool TestHarness::fetchRivFile(std::string& name, std::vector<uint8_t>& bytes)
     return true;
 }
 
+void TestHarness::printMessageOnServer(const char* msg)
+{
+    if (m_primaryTCPClient != nullptr)
+    {
+        m_primaryTCPClient->send4(REQUEST_TYPE_PRINT_MESSAGE);
+        m_primaryTCPClient->sendString(msg);
+    }
+}
+
 void TestHarness::inputPumpThread()
 {
     assert(m_initialized);
@@ -354,6 +385,10 @@ void TestHarness::inputPumpThread()
 
 bool TestHarness::peekChar(char& key)
 {
+#ifdef __EMSCRIPTEN__
+    // We don't compile with emscripten pthreads.
+    return false;
+#endif
     if (m_primaryTCPClient == nullptr)
     {
         return false;
@@ -397,7 +432,7 @@ void TestHarness::shutdown()
 
 void TestHarness::shutdownStdioThread()
 {
-#ifndef NO_REDIRECT_OUTPUT
+#if !defined(NO_REDIRECT_OUTPUT) && !defined(__EMSCRIPTEN__)
     if (m_savedStdout != 0 || m_savedStderr != 0)
     {
         // Restore stdout and stderr.

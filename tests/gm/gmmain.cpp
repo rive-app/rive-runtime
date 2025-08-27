@@ -14,6 +14,11 @@
 #include <sys/system_properties.h>
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include "common/rive_wasm_app.hpp"
+#include <emscripten/emscripten.h>
+#endif
+
 #include <functional>
 
 using namespace rivegm;
@@ -221,6 +226,10 @@ static void dumpGMs(const std::string& match, bool interactive)
             return;
         }
 #endif
+#ifdef __EMSCRIPTEN__
+        // Yield control back to the browser so it can process its event loop.
+        emscripten_sleep(1);
+#endif
     }
 }
 
@@ -307,6 +316,8 @@ extern "C" int gms_main(int argc, const char* argv[])
 int gms_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
 int rive_android_main(int argc, const char* const* argv)
+#elif defined(__EMSCRIPTEN__)
+int rive_wasm_main(int argc, const char* const* argv)
 #else
 int main(int argc, const char* argv[])
 #endif
@@ -415,6 +426,9 @@ int main(int argc, const char* argv[])
     TestingWindow::Destroy(); // Exercise our PLS teardown process now that
                               // we're done.
     TestHarness::Instance().shutdown();
+#ifdef __EMSCRIPTEN__
+    EM_ASM(window.close(););
+#endif
     return 0;
 }
 

@@ -21,9 +21,7 @@ TestingWindow* TestingWindow::MakeFiddleContext(Backend,
 #include <queue>
 
 #define GLFW_INCLUDE_NONE
-#define GLFW_NATIVE_INCLUDE_NONE
-#include "GLFW/glfw3.h"
-#include <GLFW/glfw3native.h>
+#include <GLFW/glfw3.h>
 
 using namespace rive;
 using namespace rive::gpu;
@@ -142,7 +140,7 @@ public:
 #elif defined(_WIN32)
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
                          GLFW_ANGLE_PLATFORM_TYPE_D3D11);
-#else
+#elif !defined(__EMSCRIPTEN__)
             glfwInitHint(GLFW_ANGLE_PLATFORM_TYPE,
                          GLFW_ANGLE_PLATFORM_TYPE_VULKAN);
 #endif
@@ -227,7 +225,9 @@ public:
             abort();
         }
         glfwMakeContextCurrent(m_glfwWindow);
+#ifndef __EMSCRIPTEN__
         glfwSwapInterval(0);
+#endif
 
         glfwSetKeyCallback(m_glfwWindow, key_callback);
         glfwSetCursorPosCallback(m_glfwWindow, mouse_position_callback);

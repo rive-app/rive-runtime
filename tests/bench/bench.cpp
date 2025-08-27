@@ -9,7 +9,11 @@
 
 // Run a microbenchmark repeatedly for a few seconds and print the quickest
 // time.
+#ifdef __EMSCRIPTEN__
+int rive_wasm_main(int argc, const char* const* argv)
+#else
 int main(int argc, const char** argv)
+#endif
 {
     using namespace std::chrono_literals;
     using clock = std::chrono::high_resolution_clock;
@@ -18,8 +22,8 @@ int main(int argc, const char** argv)
     clock::duration benchDuration = 5s;
 
     // Parse flags.
-    const char** arg = argv + 1;
-    const char** endarg = argv + argc;
+    const char* const* arg = argv + 1;
+    const char* const* endarg = argv + argc;
     while (arg + 1 < endarg && *arg[0] == '-')
     {
         if (!strcmp(*arg, "--duration") || !strcmp(*arg, "-d"))

@@ -1,0 +1,23 @@
+<canvas id="canvas"></canvas>
+<script>
+  window.onhashchange = function() { location.reload(); }
+  function printMessageOnServer(text) {
+        const lengthBytes = lengthBytesUTF8(text) + 1;
+        const stringOnWasmHeap = Module['_malloc'](lengthBytes);
+        stringToUTF8(text, stringOnWasmHeap, lengthBytes);
+        Module['_rive_print_message_on_server'](stringOnWasmHeap);
+        Module['_free'](stringOnWasmHeap);
+  }
+  var Module = {
+    'canvas': document.getElementById("canvas"),
+    'print': function(text) {
+        printMessageOnServer(text + '\n');
+        console.log(text);
+    },
+    'printErr': function(text) {
+        printMessageOnServer(text + '\n');
+        console.error(text);
+    },
+  };
+</script>
+<script src="goldens.js"></script>

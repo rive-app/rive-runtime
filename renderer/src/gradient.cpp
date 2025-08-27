@@ -4,8 +4,6 @@
 
 #include "gradient.hpp"
 
-#include "rive/renderer/rive_render_image.hpp"
-
 namespace rive::gpu
 {
 // Ensure the given gradient stops are in a format expected by PLS.

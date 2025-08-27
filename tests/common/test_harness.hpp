@@ -43,14 +43,7 @@ public:
         m_pngCompression = compression;
     }
 
-    void savePNG(ImageSaveArgs args)
-    {
-        assert(m_initialized);
-        if (!m_encodeThreads.empty())
-        {
-            m_encodeQueue.push(std::move(args));
-        }
-    }
+    void savePNG(ImageSaveArgs args);
 
     // Only returns true the on the first server request for a given name.
     // Prevents gms from running more than once in a multi-process execution.
@@ -59,6 +52,10 @@ public:
     // Downloads the next .riv file to test. (Must only be run on the main
     // thread.)
     bool fetchRivFile(std::string& name, std::vector<uint8_t>& bytes);
+
+    // Sends a message to be printed on the server's stdout, e.g., for
+    // forwarding the client's stdout.
+    void printMessageOnServer(const char* msg);
 
     // Returns true if there is an input character to process from the server.
     bool peekChar(char& key);

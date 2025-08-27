@@ -24,19 +24,24 @@ public:
     void onDraw(rive::Renderer* renderer) override
     {
         Rand rand;
-        ColorInt colors[N];
-        float stops[N];
+        std::vector<ColorInt> colors(N);
+        std::vector<float> stops(N);
         for (size_t i = 0; i < N; ++i)
         {
             colors[i] = rand.u32() | 0xff808080;
             stops[i] = std::round(rand.f32() * W) / W;
         }
-        std::sort(stops, stops + N);
+        std::sort(stops.begin(), stops.end());
 
         Paint paint;
-        paint->shader(TestingWindow::Get()
-                          ->factory()
-                          ->makeLinearGradient(0, 0, W, 0, colors, stops, N));
+        paint->shader(
+            TestingWindow::Get()->factory()->makeLinearGradient(0,
+                                                                0,
+                                                                W,
+                                                                0,
+                                                                colors.data(),
+                                                                stops.data(),
+                                                                N));
 
         Path fullscreen = PathBuilder().addRect({0, 0, W, H}).detach();
 

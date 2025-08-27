@@ -5,6 +5,17 @@
 #include "common/stacktrace.hpp"
 #include <assert.h>
 
+#if defined(NO_REDIRECT_OUTPUT) || defined(__EMSCRIPTEN__)
+
+namespace stacktrace
+{
+void replace_signal_handlers(SignalFunc signalFunc,
+                             ExitFunc atExitFunc) noexcept
+{}
+}; // namespace stacktrace
+
+#else
+
 #ifdef _WIN32
 #include <Windows.h>
 #include <dbghelp.h>
@@ -54,8 +65,6 @@ const char* strsignal(int signo)
     return "Unknown Signal";
 }
 #endif
-
-#ifndef NO_REDIRECT_OUTPUT
 
 namespace stacktrace
 {
@@ -285,9 +294,5 @@ void replace_signal_handlers(SignalFunc inSignalFunc,
 
 #endif // defined _WIN32
 
-#else  // NO_REDIRECT_OUTPUT is defined
-void replace_signal_handlers(SignalFunc signalFunc,
-                             ExitFunc atExitFunc) noexcept
-{}
-#endif // ifdef NO_REDIRECT_OUTPUT
-};
+}; // namespace stacktrace
+#endif // defined(NO_REDIRECT_OUTPUT) || defined(__EMSCRIPTEN__)

@@ -14,6 +14,10 @@ do
     do
         defines({ 'RIVE_UNREAL' })
     end
+    filter('system:emscripten')
+    do
+        files({ 'gm/gms.html' })
+    end
 end
 
 rive_tools_project('goldens', 'RiveTool')
@@ -24,11 +28,19 @@ do
     do
         defines({ 'RIVE_UNREAL' })
     end
+    filter('system:emscripten')
+    do
+        files({ 'goldens/goldens.html' })
+    end
 end
 
 rive_tools_project('player', 'RiveTool')
 do
     files({ 'player/player.cpp' })
+    filter('system:emscripten')
+    do
+        files({ 'player/player.html' })
+    end
 end
 
 rive_tools_project('command_buffer_example', 'RiveTool')

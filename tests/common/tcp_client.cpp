@@ -43,7 +43,10 @@ static bool is_socket_valid(SOCKET sockfd)
 
 static void close_socket(SOCKET sockfd)
 {
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+    constexpr static int WEBSOCKET_NORMAL_CLOSURE = 1000;
+    emscripten_websocket_close(sockfd, WEBSOCKET_NORMAL_CLOSURE, "finished");
+#elif defined(_WIN32)
     closesocket(sockfd);
 #else
     close(sockfd);
@@ -51,11 +54,9 @@ static void close_socket(SOCKET sockfd)
 }
 
 TCPClient::TCPClient(const char* serverAddress /*server:port*/, bool* success) :
-    m_serverAddress(serverAddress)
+    m_serverAddress(serverAddress), m_sockfd(invalid_socket())
 {
     *success = false;
-
-    m_sockfd = invalid_socket();
 
     char hostname[256];
     uint16_t port;
@@ -64,13 +65,30 @@ TCPClient::TCPClient(const char* serverAddress /*server:port*/, bool* success) :
         return;
     }
 
+#ifdef __EMSCRIPTEN__
+    // WASM has to use websockets instead of TCP.
+    if (!emscripten_websocket_is_supported())
+    {
+        fprintf(stderr,
+                "ERROR: WebSockets are not supported in this browser.\n");
+        abort();
+    }
+
+    auto url = std::string("ws://") + serverAddress;
+    EmscriptenWebSocketCreateAttributes attr = {
+        .url = url.c_str(),
+        .protocols = NULL,
+        .createOnMainThread = EM_TRUE,
+    };
+
+    m_sockfd = emscripten_websocket_new(&attr);
+#else
 #ifdef _WIN32
     WSADATA wsaData;
     if (WSAStartup(MAKEWORD(2, 2), &wsaData) != 0)
     {
         fprintf(stderr, "WSAStartup() failed.\n");
         abort();
-        return;
     }
 #endif
 
@@ -79,6 +97,7 @@ TCPClient::TCPClient(const char* serverAddress /*server:port*/, bool* success) :
     addr.sin_port = htons(port);
     addr.sin_addr.s_addr = inet_addr(hostname);
     m_sockfd = socket(AF_INET, SOCK_STREAM, IPPROTO_TCP);
+#endif
 
     if (!is_socket_valid(m_sockfd))
     {
@@ -90,6 +109,29 @@ TCPClient::TCPClient(const char* serverAddress /*server:port*/, bool* success) :
         abort();
     }
 
+#ifdef __EMSCRIPTEN__
+    emscripten_websocket_set_onopen_callback(m_sockfd, this, OnWebSocketOpen);
+    emscripten_websocket_set_onmessage_callback(m_sockfd,
+                                                this,
+                                                OnWebSocketMessage);
+    emscripten_websocket_set_onerror_callback(m_sockfd, this, OnWebSocketError);
+
+    while (m_webSocketStatus != WebSocketStatus::open)
+    {
+        if (m_webSocketStatus == WebSocketStatus::error)
+        {
+            fprintf(stderr,
+                    "Unable to connect to WebSocket at %s\n",
+                    url.c_str());
+            abort();
+        }
+        // Busy wait until our connection is established.
+        //
+        // NOTE: emscripten_sleep() is an async operation that yields control
+        // back to the browser to process.
+        emscripten_sleep(10);
+    }
+#else
     if (connect(m_sockfd, (struct sockaddr*)&addr, sizeof(addr)) < 0)
     {
         fprintf(stderr,
@@ -99,6 +141,7 @@ TCPClient::TCPClient(const char* serverAddress /*server:port*/, bool* success) :
                 strerror(GetLastError()));
         abort();
     }
+#endif
 
     *success = true;
 }
@@ -127,6 +170,16 @@ std::unique_ptr<TCPClient> TCPClient::clone() const
 
 uint32_t TCPClient::send(const char* data, uint32_t size)
 {
+#ifdef __EMSCRIPTEN__
+    if (emscripten_websocket_send_binary(m_sockfd,
+                                         const_cast<char*>(data),
+                                         size) < 0)
+    {
+        fprintf(stderr, "Failed to send %u bytes to websocket.\n", size);
+        abort();
+    }
+    return size;
+#else
     size_t sent = ::send(m_sockfd, data, size, 0);
     if (sent == -1)
     {
@@ -134,12 +187,29 @@ uint32_t TCPClient::send(const char* data, uint32_t size)
         abort();
     }
     return rive::math::lossless_numeric_cast<uint32_t>(sent);
+#endif
 }
 
 uint32_t TCPClient::recv(char* buff, uint32_t size)
 {
+#ifdef __EMSCRIPTEN__
+    while (m_serverMessages.size() < size)
+    {
+        // Busy wait until the server sends us our data. This isn't ideal, but
+        // we always expect immediate responses with our testing protocol.
+        //
+        // NOTE: emscripten_sleep() is an async operation that yields control
+        // back to the browser to process.
+        emscripten_sleep(10);
+    }
+    std::copy(m_serverMessages.begin(), m_serverMessages.begin() + size, buff);
+    m_serverMessages.erase(m_serverMessages.begin(),
+                           m_serverMessages.begin() + size);
+    return size;
+#else
     return rive::math::lossless_numeric_cast<uint32_t>(
         ::recv(m_sockfd, buff, size, 0));
+#endif
 }
 
 void TCPClient::sendall(const void* data, size_t size)
@@ -208,4 +278,39 @@ std::string TCPClient::recvString()
     recvall(str.data(), length);
     return str;
 }
+
+#ifdef __EMSCRIPTEN__
+EM_BOOL TCPClient::OnWebSocketOpen(int eventType,
+                                   const EmscriptenWebSocketOpenEvent* e,
+                                   void* userData)
+{
+    auto this_ = reinterpret_cast<TCPClient*>(userData);
+    assert(e->socket == this_->m_sockfd);
+    this_->m_webSocketStatus = WebSocketStatus::open;
+    return EM_TRUE;
+}
+
+EM_BOOL TCPClient::OnWebSocketMessage(int eventType,
+                                      const EmscriptenWebSocketMessageEvent* e,
+                                      void* userData)
+{
+    auto this_ = reinterpret_cast<TCPClient*>(userData);
+    assert(e->socket == this_->m_sockfd);
+    this_->m_serverMessages.insert(this_->m_serverMessages.end(),
+                                   e->data,
+                                   e->data + e->numBytes);
+    return EM_TRUE;
+}
+
+EM_BOOL TCPClient::OnWebSocketError(int eventType,
+                                    const EmscriptenWebSocketErrorEvent* e,
+                                    void* userData)
+{
+    auto this_ = reinterpret_cast<TCPClient*>(userData);
+    assert(e->socket == this_->m_sockfd);
+    this_->m_webSocketStatus = WebSocketStatus::error;
+    return EM_TRUE;
+}
+#endif
+
 #endif

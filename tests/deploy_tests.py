@@ -3,6 +3,7 @@
 import argparse
 import atexit
 import glob
+import http.server
 import os
 import platform
 import queue
@@ -65,7 +66,8 @@ parser.add_argument("-m", "--match",
                     help="`match` patter for gms")
 parser.add_argument("-t", "--target",
                     default="host",
-                    choices=["host", "android", "ios", "iossim", "unreal", "unreal_android"],
+                    choices=["host", "android", "ios", "iossim", "unreal",
+                             "unreal_android", "webbrowser", "webserver"],
                     help="which platform to run on")
 parser.add_argument("-a", "--android-arch",
                     default="arm64",
@@ -74,6 +76,9 @@ parser.add_argument("-u", "--ios_udid",
                     type=str,
                     default=None,
                     help="unique id of iOS device to run on (--target=ios or iossim)")
+parser.add_argument("-c", "--webclient",
+                    default=None,
+                    help="executable to launch when --target=webserver")
 parser.add_argument("-k", "--options",
                     type=str,
                     default=None,
@@ -171,6 +176,99 @@ def get_local_ip():
         s.close()
     return ip
 
+# Simple http server for web-based targets.
+def start_http_server(directory, server_ip):
+    import functools
+    import http.server
+
+    http_port_holder = []
+    http_port_ready_event = threading.Event()
+
+    class COOPHandler(http.server.SimpleHTTPRequestHandler):
+        def end_headers(self):
+            # Serve cross-origin isolated pages so SharedArrayBuffer is defined
+            # for emscripten POSIX emulation.
+            self.send_header("Cross-Origin-Opener-Policy", "same-origin")
+            self.send_header("Cross-Origin-Embedder-Policy", "require-corp")
+            super().end_headers()
+
+        def log_message(self, format, *args):
+            # Suppress default HTTP logs like:
+            # 127.0.0.1 - - [22/Aug/2025 13:37:00] "GET /index.html HTTP/1.1" 200 -
+            pass
+
+    handler = functools.partial(COOPHandler, directory=directory)
+
+    def run_http_server():
+        with socketserver.TCPServer((server_ip, 0), handler) as httpd:
+            http_port_holder.append(httpd.server_address[1])
+            http_port_ready_event.set()
+            httpd.serve_forever()
+
+    thread = threading.Thread(target=run_http_server, daemon=True)
+    thread.start()
+
+    http_port_ready_event.wait()  # wait until server is ready
+    return (server_ip, http_port_holder[0])
+
+# Simple websocket <-> TCP bridge for web-based targets.
+def start_websocket_bridge(tcp_server_address):
+    import asyncio
+    import threading
+    import socket
+    import websockets
+
+    websocket_port_holder = []
+    port_ready_event = threading.Event()
+
+    async def handle_websocket(websocket):
+        reader, writer = await asyncio.open_connection(*tcp_server_address)
+
+        async def tcp_to_ws():
+            try:
+                while True:
+                    data = await reader.read(1024)
+                    if not data:
+                        break
+                    await websocket.send(data)
+            except:
+                raise
+
+        async def ws_to_tcp():
+            try:
+                async for message in websocket:
+                    if isinstance(message, str):
+                        message = message.encode()
+                    writer.write(message)
+                    await writer.drain()
+            except:
+                raise
+
+        await asyncio.gather(tcp_to_ws(), ws_to_tcp())
+        writer.close()
+        await writer.wait_closed()
+
+    async def run_server(sock):
+        async with websockets.serve(handle_websocket, sock=sock):
+            await asyncio.Future()  # run forever
+
+    def server_thread():
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        sock.bind(('0.0.0.0', 0))  # OS assigns port
+        sock.listen(5)
+        sock.setblocking(False)
+
+        websocket_port_holder.append(sock.getsockname()[1])
+        port_ready_event.set()
+
+        asyncio.run(run_server(sock))
+
+    thread = threading.Thread(target=server_thread, daemon=True)
+    thread.start()
+
+    port_ready_event.wait()
+    return (tcp_server_address[0], websocket_port_holder[0])
+
 # Simple TCP server for Rive tools.
 class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
@@ -207,6 +305,19 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
             hostname, port = self.server_address # find out what port we were given
             subprocess.Popen(["adb", "reverse", "tcp:%s" % port, "tcp:%s" % port],
                              stdout=subprocess.DEVNULL)
+        print("TestHarness server running on %s:%u" % self.server_address, flush=True)
+
+        if args.target.startswith("web"):
+            self.server_address = start_websocket_bridge(self.server_address)
+            print("TestHarness server bridged to WebSocket on %s:%u" % self.server_address,
+                  flush=True)
+
+            self.http_address = start_http_server(args.builddir,
+                                                  self.server_address[0])
+            print("HTTP server running from %s on %s:%u" % (args.builddir,
+                                                            *self.http_address),
+                  flush=True)
+
 
     # Simple utility to wait until a TCP client tells the server it has finished.
     def wait_for_shutdown_event(self, timeout=threading.TIMEOUT_MAX):
@@ -345,7 +456,7 @@ class TestHarnessRequestHandler(socketserver.BaseRequestHandler):
 
 
 # If we aren't deploying to the host, update the given command to deploy on its intended target.
-def update_cmd_to_deploy_on_target(cmd):
+def update_cmd_to_deploy_on_target(cmd, test_harness_server):
     dirname = os.path.dirname(cmd[0])
     toolname = os.path.basename(cmd[0])
 
@@ -389,6 +500,16 @@ def update_cmd_to_deploy_on_target(cmd):
         cmd = [toolname] + cmd[1:]
         return ["xcrun", "simctl", "launch", args.ios_udid, "rive.app.golden-test-app"] + cmd
 
+    elif args.target.startswith("web"):
+        if args.target == "webbrowser":
+            client = ["python3", "-m", "webbrowser", "-t"]
+        elif args.webclient:
+            client = [args.webclient]
+        else:
+            client = ["echo", "\nPlease navigate your web client to:\n\n"]
+        return client + ["http://%s:%u/%s.html#%s" % (*test_harness_server.http_address,
+                                                      toolname,
+                                                      '%20'.join(cmd[1:]))]
     else:
         assert(args.target == "host")
         return cmd
@@ -399,14 +520,15 @@ def launch_gms(test_harness_server):
         tool = tool + ".exe"
     cmd = [tool,
            "--backend", args.backend,
-           "--test_harness", "%s:%u" % test_harness_server.server_address,
-           "--headless",
-           "-p%i" % args.png_threads]
+           "--test_harness", "%s:%u" % test_harness_server.server_address]
+    if not args.target.startswith("web"):
+        cmd = cmd + ["--headless",
+                     "-p%i" % args.png_threads];
     if args.match:
         cmd = cmd + ["--match", args.match];
     if args.verbose:
         cmd = cmd + ["--verbose"];
-    cmd = update_cmd_to_deploy_on_target(cmd)
+    cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server)
 
     procs = [CheckProcess(cmd) for i in range(0, args.jobs_per_tool)]
     for proc in procs:
@@ -436,12 +558,13 @@ def launch_goldens(test_harness_server):
            "--test_harness", "%s:%u" % test_harness_server.server_address,
            "--backend", args.backend,
            "--rows", str(args.rows),
-           "--cols", str(args.cols),
-           "--headless",
-           "-p%i" % args.png_threads]
+           "--cols", str(args.cols)]
+    if not args.target.startswith("web"):
+        cmd = cmd + ["--headless",
+                     "-p%i" % args.png_threads];
     if args.verbose:
         cmd = cmd + ["--verbose"];
-    cmd = update_cmd_to_deploy_on_target(cmd)
+    cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server)
 
     procs = [CheckProcess(cmd) for i in range(0, args.jobs_per_tool)]
     for proc in procs:
@@ -462,7 +585,7 @@ def launch_player(test_harness_server):
            "--backend", args.backend]
     if args.options:
         cmd += ["--options", args.options]
-    cmd = update_cmd_to_deploy_on_target(cmd)
+    cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server)
 
     rivsqueue.put(args.src)
     player = CheckProcess(cmd)
@@ -527,6 +650,12 @@ def main():
             args.builddir = os.path.join("out", "debug")
         # unreal is currently always rhi, we may have seperate rhi types in the future like rhi_metal etc..
         args.backend = 'rhi'
+    elif args.target.startswith("web"):
+        args.jobs_per_tool = 1
+        if args.builddir == None:
+            args.builddir = f"out/wasm_debug"
+        if args.backend == None:
+            args.backend = "gl"
     else:
         assert(args.target == "host")
         if args.builddir == None:
@@ -670,11 +799,12 @@ def main():
 
     with (ToolServer(TestHarnessRequestHandler) as test_harness_server):
         test_harness_server.serve_forever_async()
-        print("TestHarness server running on %s:%u" % test_harness_server.server_address,
-              flush=True)
 
-        # On mobile we can't launch >1 instance of the app at a time.
-        serial_deploy = not args.server_only and ("ios" in args.target or args.target == "android" or args.target == "unreal")
+        # On many targets we can't launch >1 instance of the app at a time.
+        serial_deploy = not args.server_only and ("ios" in args.target or
+                                                  args.target == "android" or
+                                                  "unreal" in args.target or
+                                                  args.target.startswith("web"))
         procs = []
 
         def keyboard_interrupt_handler(signal, frame):

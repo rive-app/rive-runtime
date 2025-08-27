@@ -4,7 +4,7 @@
 
 #include "testing_window.hpp"
 
-#ifdef RIVE_TOOLS_NO_GL
+#if defined(RIVE_TOOLS_NO_GL) || defined(__EMSCRIPTEN__)
 
 TestingWindow* TestingWindow::MakeEGL(Backend backend,
                                       const BackendParams& backendParams,

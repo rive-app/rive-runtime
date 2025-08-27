@@ -20,6 +20,12 @@
 #include "common/rive_android_app.hpp"
 #endif
 
+#ifdef __EMSCRIPTEN__
+#include "common/rive_wasm_app.hpp"
+#include <emscripten/emscripten.h>
+#include <emscripten/html5.h>
+#endif
+
 static void update_parameter(int& val, int multiplier, char key, bool seenBang)
 {
     if (seenBang)
@@ -134,10 +140,278 @@ static void key_pressed(char key)
     seenBang = false;
 }
 
+class Player
+{
+public:
+    void init(std::string rivName, std::vector<uint8_t> rivBytes)
+    {
+        m_rivName = std::move(rivName);
+        m_file = rive::File::import(rivBytes, TestingWindow::Get()->factory());
+        assert(m_file);
+        m_artboard = m_file->artboardDefault();
+        assert(m_artboard);
+        m_scene = m_artboard->defaultStateMachine();
+        if (!m_scene)
+        {
+            m_scene = m_artboard->animationAt(0);
+        }
+        assert(m_scene);
+
+        // Setup FPS.
+        m_roboto = HBFont::Decode(assets::roboto_flex_ttf());
+        m_blackStroke = TestingWindow::Get()->factory()->makeRenderPaint();
+        m_blackStroke->color(0xff000000);
+        m_blackStroke->style(rive::RenderPaintStyle::stroke);
+        m_blackStroke->thickness(4);
+        m_whiteFill = TestingWindow::Get()->factory()->makeRenderPaint();
+        m_whiteFill->color(0xffffffff);
+        m_timeLastFPSUpdate = std::chrono::high_resolution_clock::now();
+        m_timestampPrevFrame = std::chrono::high_resolution_clock::now();
+    }
+
+    void doFrame()
+    {
+        if (quit || TestingWindow::Get()->shouldQuit()
+#ifdef RIVE_ANDROID
+            || !rive_android_app_poll_once()
+#endif
+        )
+        {
+            printf("\nShutting down\n");
+            TestingWindow::Destroy(); // Exercise our PLS teardown process now
+                                      // that we're done.
+            TestHarness::Instance().shutdown();
+#ifdef __EMSCRIPTEN__
+            emscripten_cancel_main_loop();
+            EM_ASM(window.close(););
+#else
+            exit(0);
+#endif
+            return;
+        }
+
+#ifdef __EMSCRIPTEN__
+        {
+            // Fit the canvas to the browser window size.
+            int windowWidth = EM_ASM_INT(return window["innerWidth"]);
+            int windowHeight = EM_ASM_INT(return window["innerHeight"]);
+            double devicePixelRatio = emscripten_get_device_pixel_ratio();
+            int canvasExpectedWidth = windowWidth * devicePixelRatio;
+            int canvasExpectedHeight = windowHeight * devicePixelRatio;
+            if (TestingWindow::Get()->width() != canvasExpectedWidth ||
+                TestingWindow::Get()->height() != canvasExpectedHeight)
+            {
+                printf("Resizing HTML canvas to %i x %i.\n",
+                       canvasExpectedWidth,
+                       canvasExpectedHeight);
+                TestingWindow::Get()->resize(canvasExpectedWidth,
+                                             canvasExpectedHeight);
+                emscripten_set_element_css_size("#canvas",
+                                                windowWidth,
+                                                windowHeight);
+            }
+        }
+#endif
+
+        std::chrono::time_point timeNow =
+            std::chrono::high_resolution_clock::now();
+        const double elapsedS =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                timeNow - m_timestampPrevFrame)
+                .count() /
+            1e9; // convert to s
+        m_timestampPrevFrame = timeNow;
+
+        float advanceDeltaTime = static_cast<float>(elapsedS);
+        if (forceFixedDeltaTime)
+        {
+            advanceDeltaTime = 1.0f / 120;
+        }
+
+        m_scene->advanceAndApply(paused ? 0 : advanceDeltaTime);
+
+        copiesLeft = std::max(copiesLeft, 0);
+        copiesAbove = std::max(copiesAbove, 0);
+        copiesRight = std::max(copiesRight, 0);
+        copiesBelow = std::max(copiesBelow, 0);
+        int copyCount =
+            (copiesLeft + 1 + copiesRight) * (copiesAbove + 1 + copiesBelow);
+        if (copyCount != lastReportedCopyCount ||
+            paused != lastReportedPauseState)
+        {
+            printf("Drawing %i copies of %s%s at %u x %u\n",
+                   copyCount,
+                   m_rivName.c_str(),
+                   paused ? " (paused)" : "",
+                   TestingWindow::Get()->width(),
+                   TestingWindow::Get()->height());
+            lastReportedCopyCount = copyCount;
+            lastReportedPauseState = paused;
+        }
+
+        auto renderer = TestingWindow::Get()->beginFrame({
+            .clearColor = 0xff303030,
+            .doClear = true,
+            .wireframe = wireframe,
+        });
+
+        if (hotloadShaders)
+        {
+            hotloadShaders = false;
+#ifndef RIVE_NO_STD_SYSTEM
+            std::system("sh rebuild_shaders.sh /tmp/rive");
+            TestingWindow::Get()->hotloadShaders();
+#endif
+        }
+
+        renderer->save();
+
+        uint32_t width = TestingWindow::Get()->width();
+        uint32_t height = TestingWindow::Get()->height();
+        for (int i = rotations90; (i & 3) != 0; --i)
+        {
+            renderer->transform(rive::Mat2D(0, 1, -1, 0, width, 0));
+            std::swap(height, width);
+        }
+        if (zoomLevel != 0)
+        {
+            float scale = powf(1.25f, zoomLevel);
+            renderer->translate(width / 2.f, height / 2.f);
+            renderer->scale(scale, scale);
+            renderer->translate(width / -2.f, height / -2.f);
+        }
+
+        // Draw the .riv.
+        renderer->save();
+        renderer->align(rive::Fit::contain,
+                        rive::Alignment::center,
+                        rive::AABB(0, 0, width, height),
+                        m_artboard->bounds());
+        float spacingPx = spacing * 5 + 150;
+        renderer->translate(-spacingPx * copiesLeft, -spacingPx * copiesAbove);
+        for (int y = -copiesAbove; y <= copiesBelow; ++y)
+        {
+            renderer->save();
+            for (int x = -copiesLeft; x <= copiesRight; ++x)
+            {
+                m_artboard->draw(renderer.get());
+                renderer->translate(spacingPx, 0);
+            }
+            renderer->restore();
+            renderer->translate(0, spacingPx);
+        }
+        renderer->restore();
+
+        if (m_fpsText != nullptr)
+        {
+            // Draw FPS.
+            renderer->save();
+            renderer->translate(0, 20);
+            m_fpsText->render(renderer.get(), m_blackStroke);
+            m_fpsText->render(renderer.get(), m_whiteFill);
+            renderer->restore();
+        }
+
+        renderer->restore();
+        TestingWindow::Get()->endFrame();
+
+        // Count FPS.
+        ++m_fpsFrames;
+        const double elapsedFPSUpdate =
+            std::chrono::duration_cast<std::chrono::nanoseconds>(
+                timeNow - m_timeLastFPSUpdate)
+                .count() /
+            1e9; // convert to s
+        if (elapsedFPSUpdate >= 2.0)
+        {
+            double fps = m_fpsFrames / elapsedFPSUpdate;
+            printf("[%.3f FPS]\n", fps);
+
+            char fpsRawText[32];
+            snprintf(fpsRawText, sizeof(fpsRawText), "   %.1f FPS   ", fps);
+            m_fpsText = std::make_unique<rive::RawText>(
+                TestingWindow::Get()->factory());
+            m_fpsText->maxWidth(width);
+#ifdef RIVE_ANDROID
+            m_fpsText->align(rive::TextAlign::center);
+#else
+            m_fpsText->align(rive::TextAlign::right);
+#endif
+            m_fpsText->sizing(rive::TextSizing::fixed);
+            m_fpsText->append(fpsRawText, nullptr, m_roboto, 50.f);
+
+            m_fpsFrames = 0;
+            m_timeLastFPSUpdate = timeNow;
+        }
+
+        const rive::Mat2D alignmentMat =
+            computeAlignment(rive::Fit::contain,
+                             rive::Alignment::center,
+                             rive::AABB(0, 0, width, height),
+                             m_artboard->bounds());
+
+        // Consume all input events until none are left in the queue
+        TestingWindow::InputEventData inputEventData;
+        while (TestingWindow::Get()->consumeInputEvent(inputEventData))
+        {
+            const rive::Vec2D mousePosAligned =
+                alignmentMat.invertOrIdentity() *
+                rive::Vec2D(inputEventData.metadata.posX,
+                            inputEventData.metadata.posY);
+
+            switch (inputEventData.eventType)
+            {
+                case TestingWindow::InputEvent::KeyPress:
+                    key_pressed(inputEventData.metadata.key);
+                    break;
+
+                case TestingWindow::InputEvent::MouseMove:
+                    m_scene->pointerMove(mousePosAligned);
+                    break;
+
+                case TestingWindow::InputEvent::MouseDown:
+                    m_scene->pointerDown(mousePosAligned);
+                    break;
+
+                case TestingWindow::InputEvent::MouseUp:
+                    m_scene->pointerUp(mousePosAligned);
+                    break;
+            }
+        }
+
+        char key;
+        while (TestHarness::Instance().peekChar(key))
+        {
+            key_pressed(key);
+        }
+    }
+
+private:
+    std::string m_rivName;
+    rive::rcp<rive::File> m_file;
+    std::unique_ptr<rive::ArtboardInstance> m_artboard;
+    std::unique_ptr<rive::Scene> m_scene;
+
+    int lastReportedCopyCount = 0;
+    bool lastReportedPauseState = paused;
+
+    rive::rcp<rive::Font> m_roboto;
+    rive::rcp<rive::RenderPaint> m_blackStroke;
+    rive::rcp<rive::RenderPaint> m_whiteFill;
+    std::unique_ptr<rive::RawText> m_fpsText;
+    int m_fpsFrames = 0;
+    std::chrono::high_resolution_clock::time_point m_timeLastFPSUpdate;
+    std::chrono::high_resolution_clock::time_point m_timestampPrevFrame;
+};
+
+static Player player;
+
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
 int player_ios_main(int argc, const char* argv[])
 #elif defined(RIVE_ANDROID)
 int rive_android_main(int argc, const char* const* argv)
+#elif defined(__EMSCRIPTEN__)
+int rive_wasm_main(int argc, const char* const* argv)
 #else
 int main(int argc, const char* argv[])
 #endif
@@ -147,6 +421,7 @@ int main(int argc, const char* argv[])
     setvbuf(stdout, NULL, _IONBF, 0);
     setvbuf(stderr, NULL, _IONBF, 0);
 #endif
+
     std::string rivName;
     std::vector<uint8_t> rivBytes;
     auto backend =
@@ -157,6 +432,7 @@ int main(int argc, const char* argv[])
 #endif
     auto visibility = TestingWindow::Visibility::fullscreen;
     TestingWindow::BackendParams backendParams;
+
     for (int i = 0; i < argc; ++i)
     {
         if (strcmp(argv[i], "--test_harness") == 0)
@@ -224,230 +500,23 @@ int main(int argc, const char* argv[])
 #endif
     );
 
-    // Load the riv file.
     if (rivBytes.empty())
     {
         fprintf(stderr, "no .riv file specified");
         abort();
     }
-    rive::rcp<rive::File> file =
-        rive::File::import(rivBytes, TestingWindow::Get()->factory());
-    assert(file);
-    std::unique_ptr<rive::ArtboardInstance> artboard = file->artboardDefault();
-    assert(artboard);
-    std::unique_ptr<rive::Scene> scene = artboard->defaultStateMachine();
-    if (!scene)
-    {
-        scene = artboard->animationAt(0);
-    }
-    assert(scene);
 
-    int lastReportedCopyCount = 0;
-    bool lastReportedPauseState = paused;
+    player.init(std::move(rivName), std::move(rivBytes));
 
-    // Setup FPS.
-    rive::rcp<rive::Font> roboto = HBFont::Decode(assets::roboto_flex_ttf());
-    rive::rcp<rive::RenderPaint> blackStroke =
-        TestingWindow::Get()->factory()->makeRenderPaint();
-    blackStroke->color(0xff000000);
-    blackStroke->style(rive::RenderPaintStyle::stroke);
-    blackStroke->thickness(4);
-    rive::rcp<rive::RenderPaint> whiteFill =
-        TestingWindow::Get()->factory()->makeRenderPaint();
-    whiteFill->color(0xffffffff);
-    std::unique_ptr<rive::RawText> fpsText;
-    int fpsFrames = 0;
-    std::chrono::time_point timeLastFPSUpdate =
-        std::chrono::high_resolution_clock::now();
-    std::chrono::time_point timestampPrevFrame =
-        std::chrono::high_resolution_clock::now();
-
-    while (!quit && !TestingWindow::Get()->shouldQuit())
-    {
-        std::chrono::time_point timeNow =
-            std::chrono::high_resolution_clock::now();
-        const double elapsedS =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                timeNow - timestampPrevFrame)
-                .count() /
-            1e9; // convert to s
-        timestampPrevFrame = timeNow;
-
-        float advanceDeltaTime = static_cast<float>(elapsedS);
-        if (forceFixedDeltaTime)
-        {
-            advanceDeltaTime = 1.0f / 120;
-        }
-
-        scene->advanceAndApply(paused ? 0 : advanceDeltaTime);
-
-        copiesLeft = std::max(copiesLeft, 0);
-        copiesAbove = std::max(copiesAbove, 0);
-        copiesRight = std::max(copiesRight, 0);
-        copiesBelow = std::max(copiesBelow, 0);
-        int copyCount =
-            (copiesLeft + 1 + copiesRight) * (copiesAbove + 1 + copiesBelow);
-        if (copyCount != lastReportedCopyCount ||
-            paused != lastReportedPauseState)
-        {
-            printf("Drawing %i copies of %s%s at %u x %u\n",
-                   copyCount,
-                   rivName.c_str(),
-                   paused ? " (paused)" : "",
-                   TestingWindow::Get()->width(),
-                   TestingWindow::Get()->height());
-            lastReportedCopyCount = copyCount;
-            lastReportedPauseState = paused;
-        }
-
-        auto renderer = TestingWindow::Get()->beginFrame({
-            .clearColor = 0xff303030,
-            .doClear = true,
-            .wireframe = wireframe,
-        });
-
-        if (hotloadShaders)
-        {
-            hotloadShaders = false;
-#ifndef RIVE_NO_STD_SYSTEM
-            std::system("sh rebuild_shaders.sh /tmp/rive");
-            TestingWindow::Get()->hotloadShaders();
-#endif
-        }
-
-        renderer->save();
-
-        uint32_t width = TestingWindow::Get()->width();
-        uint32_t height = TestingWindow::Get()->height();
-        for (int i = rotations90; (i & 3) != 0; --i)
-        {
-            renderer->transform(rive::Mat2D(0, 1, -1, 0, width, 0));
-            std::swap(height, width);
-        }
-        if (zoomLevel != 0)
-        {
-            float scale = powf(1.25f, zoomLevel);
-            renderer->translate(width / 2.f, height / 2.f);
-            renderer->scale(scale, scale);
-            renderer->translate(width / -2.f, height / -2.f);
-        }
-
-        // Draw the .riv.
-        renderer->save();
-        renderer->align(rive::Fit::contain,
-                        rive::Alignment::center,
-                        rive::AABB(0, 0, width, height),
-                        artboard->bounds());
-        float spacingPx = spacing * 5 + 150;
-        renderer->translate(-spacingPx * copiesLeft, -spacingPx * copiesAbove);
-        for (int y = -copiesAbove; y <= copiesBelow; ++y)
-        {
-            renderer->save();
-            for (int x = -copiesLeft; x <= copiesRight; ++x)
-            {
-                artboard->draw(renderer.get());
-                renderer->translate(spacingPx, 0);
-            }
-            renderer->restore();
-            renderer->translate(0, spacingPx);
-        }
-        renderer->restore();
-
-        if (fpsText != nullptr)
-        {
-            // Draw FPS.
-            renderer->save();
-            renderer->translate(0, 20);
-            fpsText->render(renderer.get(), blackStroke);
-            fpsText->render(renderer.get(), whiteFill);
-            renderer->restore();
-        }
-
-        renderer->restore();
-        TestingWindow::Get()->endFrame();
-
-        // Count FPS.
-        ++fpsFrames;
-        const double elapsedFPSUpdate =
-            std::chrono::duration_cast<std::chrono::nanoseconds>(
-                timeNow - timeLastFPSUpdate)
-                .count() /
-            1e9; // convert to s
-        if (elapsedFPSUpdate >= 2.0)
-        {
-            double fps = fpsFrames / elapsedFPSUpdate;
-            printf("[%.3f FPS]\n", fps);
-
-            char fpsRawText[32];
-            snprintf(fpsRawText, sizeof(fpsRawText), "   %.1f FPS   ", fps);
-            fpsText = std::make_unique<rive::RawText>(
-                TestingWindow::Get()->factory());
-            fpsText->maxWidth(width);
-#ifdef RIVE_ANDROID
-            fpsText->align(rive::TextAlign::center);
+#ifdef __EMSCRIPTEN__
+    emscripten_set_main_loop([]() { player.doFrame(); }, 0, true);
 #else
-            fpsText->align(rive::TextAlign::right);
-#endif
-            fpsText->sizing(rive::TextSizing::fixed);
-            fpsText->append(fpsRawText, nullptr, roboto, 50.f);
-
-            fpsFrames = 0;
-            timeLastFPSUpdate = timeNow;
-        }
-
-        const rive::Mat2D alignmentMat =
-            computeAlignment(rive::Fit::contain,
-                             rive::Alignment::center,
-                             rive::AABB(0, 0, width, height),
-                             artboard->bounds());
-
-        // Consume all input events until none are left in the queue
-        TestingWindow::InputEventData inputEventData;
-        while (TestingWindow::Get()->consumeInputEvent(inputEventData))
-        {
-            const rive::Vec2D mousePosAligned =
-                alignmentMat.invertOrIdentity() *
-                rive::Vec2D(inputEventData.metadata.posX,
-                            inputEventData.metadata.posY);
-
-            switch (inputEventData.eventType)
-            {
-                case TestingWindow::InputEvent::KeyPress:
-                    key_pressed(inputEventData.metadata.key);
-                    break;
-
-                case TestingWindow::InputEvent::MouseMove:
-                    scene->pointerMove(mousePosAligned);
-                    break;
-
-                case TestingWindow::InputEvent::MouseDown:
-                    scene->pointerDown(mousePosAligned);
-                    break;
-
-                case TestingWindow::InputEvent::MouseUp:
-                    scene->pointerUp(mousePosAligned);
-                    break;
-            }
-        }
-
-        char key;
-        while (TestHarness::Instance().peekChar(key))
-        {
-            key_pressed(key);
-        }
-
-#ifdef RIVE_ANDROID
-        if (!rive_android_app_poll_once())
-        {
-            break;
-        }
-#endif
+    for (;;)
+    {
+        player.doFrame();
     }
+#endif
 
-    printf("\nShutting down\n");
-    TestingWindow::Destroy(); // Exercise our PLS teardown process now that
-                              // we're done.
-    TestHarness::Instance().shutdown();
     return 0;
 }
 

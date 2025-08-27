@@ -8,7 +8,12 @@
 #include <string>
 #include <stdint.h>
 
-#ifdef _WIN32
+#ifdef __EMSCRIPTEN__
+#include <emscripten/websocket.h>
+#include <arpa/inet.h>
+#include <deque>
+#define SOCKET EMSCRIPTEN_WEBSOCKET_T
+#elif defined(_WIN32)
 #include "WinSock2.h"
 #else
 #include <unistd.h>
@@ -64,4 +69,26 @@ private:
 
     const std::string m_serverAddress;
     SOCKET m_sockfd;
+
+#ifdef __EMSCRIPTEN__
+    static EM_BOOL OnWebSocketOpen(int eventType,
+                                   const EmscriptenWebSocketOpenEvent* e,
+                                   void* userData);
+    static EM_BOOL OnWebSocketMessage(int eventType,
+                                      const EmscriptenWebSocketMessageEvent*,
+                                      void* userData);
+    static EM_BOOL OnWebSocketError(int eventType,
+                                    const EmscriptenWebSocketErrorEvent*,
+                                    void* userData);
+
+    enum class WebSocketStatus
+    {
+        pendingConnection,
+        open,
+        error,
+    };
+
+    WebSocketStatus m_webSocketStatus = WebSocketStatus::pendingConnection;
+    std::deque<uint8_t> m_serverMessages;
+#endif
 };

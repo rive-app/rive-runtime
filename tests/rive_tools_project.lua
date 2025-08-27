@@ -77,7 +77,6 @@ function rive_tools_project(name, project_kind)
         'include',
         RIVE_PLS_DIR .. '/glad',
         RIVE_PLS_DIR .. '/glad/include',
-        RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
         yoga,
         libpng,
         zlib,
@@ -90,6 +89,13 @@ function rive_tools_project(name, project_kind)
 
     if _OPTIONS['with_vulkan'] then
         dofile(RIVE_PLS_DIR .. '/rive_vk_bootstrap/bootstrap_project.lua')
+    end
+
+    filter({ 'system:windows or macosx or linux', 'options:not for_unreal'  })
+    do
+        externalincludedirs({
+            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
+        })
     end
 
     filter('options:with-skia')
@@ -181,113 +187,115 @@ function rive_tools_project(name, project_kind)
             'rive_sheenbidi',
             'miniaudio',
         })
+    end
 
-        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:not no_rive_jpeg' })
-        do
-            links({
-                'libjpeg',
-            })
-        end
+    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:not no_rive_jpeg' })
+    do
+        links({
+            'libjpeg',
+        })
+    end
 
-        if ndk then
-            relative_ndk = ndk
-            if string.sub(ndk, 1, 1) == '/' then
-                -- An absolute file path wasn't working with premake.
-                local current_path = string.gmatch(path.getabsolute('.'), '([^\\/]+)')
-                for dir in current_path do
-                    relative_ndk = '../' .. relative_ndk
-                end
+    filter({})
+
+    if ndk then
+        relative_ndk = ndk
+        if string.sub(ndk, 1, 1) == '/' then
+            -- An absolute file path wasn't working with premake.
+            local current_path = string.gmatch(path.getabsolute('.'), '([^\\/]+)')
+            for dir in current_path do
+                relative_ndk = '../' .. relative_ndk
             end
-            files({
-                relative_ndk .. '/sources/android/native_app_glue/android_native_app_glue.c',
-            })
         end
-
-        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:windows' })
-        do
-            libdirs({
-                RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
-            })
-            links({
-                'glfw3',
-                'opengl32',
-                'd3d11',
-                'd3d12',
-                'dxguid',
-                'dxgi',
-                'Dbghelp',
-                'd3dcompiler',
-                'ws2_32',
-            })
-        end
-
-        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:macosx' })
-        do
-            libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
-            links({
-                'glfw3',
-                'Metal.framework',
-                'QuartzCore.framework',
-                'Cocoa.framework',
-                'CoreGraphics.framework',
-                'CoreFoundation.framework',
-                'CoreMedia.framework',
-                'CoreServices.framework',
-                'IOKit.framework',
-                'Security.framework',
-                'OpenGL.framework',
-                'bz2',
-                'iconv',
-                'lzma',
-                'z', -- lib av format
-            })
-        end
-
-        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:linux' })
-        do
-            libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
-            links({ 'glfw3', 'm', 'z', 'dl', 'pthread', 'GL' })
-        end
-
-        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:android' })
-        do
-            links({ 'EGL', 'GLESv3', 'log' })
-        end
-
-        filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with-dawn' })
-        do
-            libdirs({
-                RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn',
-                RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn/native',
-                RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn/platform',
-                RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn/platform',
-            })
-            links({
-                'winmm',
-                'webgpu_dawn',
-                'dawn_native_static',
-                'dawn_proc_static',
-                'dawn_platform_static',
-            })
-        end
-
-        filter({
-            'kind:ConsoleApp or SharedLib or WindowedApp',
-            'options:with-dawn',
-            'system:windows',
+        files({
+            relative_ndk .. '/sources/android/native_app_glue/android_native_app_glue.c',
         })
-        do
-            links({ 'dxguid' })
-        end
+    end
 
-        filter({
-            'kind:ConsoleApp or SharedLib or WindowedApp',
-            'options:with-dawn',
-            'system:macosx',
+    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:windows' })
+    do
+        libdirs({
+            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
         })
-        do
-            links({ 'IOSurface.framework' })
-        end
+        links({
+            'glfw3',
+            'opengl32',
+            'd3d11',
+            'd3d12',
+            'dxguid',
+            'dxgi',
+            'Dbghelp',
+            'd3dcompiler',
+            'ws2_32',
+        })
+    end
+
+    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:macosx' })
+    do
+        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
+        links({
+            'glfw3',
+            'Metal.framework',
+            'QuartzCore.framework',
+            'Cocoa.framework',
+            'CoreGraphics.framework',
+            'CoreFoundation.framework',
+            'CoreMedia.framework',
+            'CoreServices.framework',
+            'IOKit.framework',
+            'Security.framework',
+            'OpenGL.framework',
+            'bz2',
+            'iconv',
+            'lzma',
+            'z', -- lib av format
+        })
+    end
+
+    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:linux' })
+    do
+        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
+        links({ 'glfw3', 'm', 'z', 'dl', 'pthread', 'GL' })
+    end
+
+    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:android' })
+    do
+        links({ 'EGL', 'GLESv3', 'log' })
+    end
+
+    filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with-dawn' })
+    do
+        libdirs({
+            RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn',
+            RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn/native',
+            RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn/platform',
+            RIVE_PLS_DIR .. '/dependencies/dawn/out/release/obj/src/dawn/platform',
+        })
+        links({
+            'winmm',
+            'webgpu_dawn',
+            'dawn_native_static',
+            'dawn_proc_static',
+            'dawn_platform_static',
+        })
+    end
+
+    filter({
+        'kind:ConsoleApp or SharedLib or WindowedApp',
+        'options:with-dawn',
+        'system:windows',
+    })
+    do
+        links({ 'dxguid' })
+    end
+
+    filter({
+        'kind:ConsoleApp or SharedLib or WindowedApp',
+        'options:with-dawn',
+        'system:macosx',
+    })
+    do
+        links({ 'IOSurface.framework' })
     end
 
     filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'options:with-skia' })
@@ -295,7 +303,44 @@ function rive_tools_project(name, project_kind)
         links({ 'skia', 'rive_skia_renderer' })
     end
 
+    filter('system:emscripten')
+    do
+        targetextension('.js')
+        linkoptions({
+            '-sEXPORTED_FUNCTIONS=_main,_rive_print_message_on_server,_malloc,_free',
+            '-sEXPORTED_RUNTIME_METHODS=ccall,cwrap',
+            '-sENVIRONMENT=web',
+            '-sUSE_GLFW=3',
+            '-sMIN_WEBGL_VERSION=2',
+            '-sMAX_WEBGL_VERSION=2',
+            '-sASYNCIFY',
+            '-sASYNCIFY_IMPORTS="[async_sleep, wasi_snapshot_preview1.fd_write]"',
+            '-sASYNCIFY_STACK_SIZE=16384',
+            '-sGL_TESTING',
+            '-lwebsocket.js',
+        })
+    end
+
+    filter({ 'system:emscripten', 'options:with-webgpu', 'options:not with_wagyu' })
+    do
+        linkoptions({
+            '-sUSE_WEBGPU',
+        })
+    end
+
+    filter('files:**.html')
+    do
+        buildmessage('Copying %{file.relpath} to %{cfg.targetdir}')
+        buildcommands({ 'cp %{file.relpath} %{cfg.targetdir}/%{file.name}' })
+        buildoutputs({ '%{cfg.targetdir}/%{file.name}' })
+    end
+
     filter({})
+
+    if RIVE_WAGYU_PORT then
+        buildoptions({ RIVE_WAGYU_PORT })
+        linkoptions({ RIVE_WAGYU_PORT })
+    end
 end
 
 rive_tools_project('tools_common', 'StaticLib')
@@ -338,6 +383,11 @@ do
             RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_metal.mm',
             RIVE_PLS_DIR .. '/path_fiddle/fiddle_context_dawn_helper.mm',
         })
+    end
+
+    filter('system:emscripten')
+    do
+        files({ 'common/rive_wasm_app.cpp' })
     end
 
     filter({})

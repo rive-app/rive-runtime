@@ -1,0 +1,15 @@
+<!--
+  Experiment to run the tests in multiple popup windows.
+  No perf improvement has been observed.
+-->
+<script>
+  for (let i = 0; i < 4; ++i) {
+    const x = (i % 2) * 450;
+    const y = Math.floor(i / 2) * 550;
+    window.open(
+      `gms.html${window.location.hash}`,
+      `gms_${i + 1}`,
+      `width=${400},height=${400},top=${y},left=${x},toolbar=no,menubar=no,scrollbars=no,resizable=no,location=no,status=no`
+    );
+  }
+</script>
