@@ -1,0 +1,8 @@
+{
+  "name": "ViewModelPropertyString",
+  "key": {
+    "int": 443,
+    "string": "viewmodelpropertystring"
+  },
+  "extends": "viewmodel/viewmodel_property.json"
+}

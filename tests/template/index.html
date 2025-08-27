@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Device Diff check</title>
+    <link rel="icon" href="favicon.ico">
+    <link href="https://unpkg.com/bonsai.css@latest/dist/bonsai.min.css" rel="stylesheet">
+    <style>
+        header {{
+            text-align: left;
+        }}
+        body {{
+            background-color: #18191a;
+        }}
+
+        details {{
+            background-color: #43484b;
+        }}
+
+        td {{
+            text-align: left;
+        }}
+
+        th {{
+            text-align: left;
+        }}
+
+        img {{
+            float: left;
+        }}
+
+        .success {{
+            background-color: rgb(8, 128, 8);
+            overflow:auto;
+        }}
+
+        .success_summary {{
+            background-color: #292b2c;
+            color: rgb(8, 128, 8);
+            overflow:auto;
+        }}
+
+        .failed {{
+            background-color: rgb(175, 13, 13);
+            overflow:auto;
+        }}
+
+        .failed_summary {{
+            background-color: #292b2c;
+            color: rgb(175, 13, 13);
+            overflow:auto;
+        }}
+
+        .identical_summary {{
+            background-color: #292b2c;
+            color: rgb(194, 186, 186);
+            overflow:auto;
+        }}
+
+        .legend_summary {{
+            background-color: #292b2c;
+            color: rgb(194, 186, 186);
+            overflow:auto;
+        }}
+
+        .entry {{
+            float: left;
+            font-size: 20px;
+            vertical-align:top;
+        }}
+
+        .entry_table_values {{
+            border-spacing: 10px 0; 
+            text-align: right;
+            color: rgb(177, 184, 177);
+        }}
+
+        .entry_table_images {{
+            border-spacing: 10px 0; 
+            text-align: right;
+            color: rgb(177, 184, 177);
+        }}
+
+        .header_table {{
+            width:100%;
+            text-align:left;
+            color: rgb(194, 186, 186);
+        }}
+
+        .white_text {{
+            color: rgb(194, 186, 186);
+        }}
+
+        .off_white {{
+            background-color: whitesmoke;
+        }}
+    </style>
+</head>
+<body>
+    <details open>
+        <summary class="failed_summary">{failed_number} Failed Tests</summary>
+        <p>
+            {failed}
+        </p>
+    </details>
+    <details open>
+        <summary class="failed_summary">{missing_candidate_number} Missing Candidate</summary>
+        <p>
+            {missing_candidate}
+        </p>
+    </details>
+    <details open>
+        <summary class="failed_summary">{missing_golden_number} Missing Golden</summary>
+        <p>
+            {missing_golden}
+        </p>
+    </details>
+    <details>
+        <summary class="success_summary">{passing_number} Passing Tests</summary>
+        <p>
+            {passing}
+        </p>
+    </details>
+    <details>
+        <summary class="identical_summary">{identical_number} Identical Images</summary>
+        <p>
+            {identical}
+        </p>
+    </details>
+    <details>
+        <summary class="legend_summary"><b>legend</b></summary>
+        <table class="header_table">
+            <thead>
+                <tr> 
+                    <th> header </th>
+                    <th> meaning </th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr> 
+                    <td> canvas/skia/rive mesh/text/vector </td>
+                    <td> The data is the result of a test using one of our renderers, either canvas, skia or rive. We have 3 different tests, one to highlight mesh issues, one text and one vector.</td>
+                </tr>
+                <tr>  
+                    <td> maxRGB mismatch </td>
+                    <td> the largest individual RGB mismatch, this is on a single color channel presumably (@chris, can you confirm this, also do we do ARGB?) </td>
+                </tr>
+                <tr>  
+                    <td> avgRGB mismatch </td>
+                    <td> the average RGB mismatch of all pixels across all channels (@chris, does it make sense to do an avgRGB mismatch for mismatching pixels as well as for all pixels?) </td>
+                </tr>
+                <tr>  
+                    <td> # of different pixels  </td>
+                    <td> The total number of pixels that have any difference </td>
+                </tr>
+                <tr>  
+                    <td> % of different pixels </td>
+                    <td> The percentage of pixels that have any difference out of the total number of pixels </td>
+                </tr>
+                <tr>  
+                    <td> candidate </td>
+                    <td> The image produced on this test run for the given test (e.g using skia rendering the mesh test image) </td>
+                </tr>
+                <tr>  
+                    <td> golden </td>
+                    <td> The image we consider the "gold standard" for this test. This is the previously accepted target image that we want to compare our candidate against. </td>
+                </tr>
+                <tr>  
+                    <td> color diff </td>
+                    <td> A representation of the difference between the candidate and the golden image. Here we show the color difference for each individual pixel. pixels with the same color will be black (0 color difference in each channel) in this representation. this highlights how significant a difference is, white would be very significant. </td>
+                </tr>
+                <tr>  
+                    <td> pixel diff </td>
+                    <td> A representation of the difference between the candidate and the golden image. Here we show the color difference as white for any pixel that has any difference. this highlights where we have differences. </td>
+                </tr>
+            </tbody>
+        </table>
+    </details>
+</body>
+</html>

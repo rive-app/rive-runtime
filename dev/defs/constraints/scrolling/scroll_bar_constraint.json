@@ -1,0 +1,30 @@
+{
+  "name": "ScrollBarConstraint",
+  "key": {
+    "int": 522,
+    "string": "scrollbarconstraint"
+  },
+  "extends": "constraints/draggable_constraint.json",
+  "properties": {
+    "scrollConstraintId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 725,
+        "string": "scrollconstraintid"
+      },
+      "description": "Identifier used to track the Scroll Constraint this scroll bar drives."
+    },
+    "autoSize": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 734,
+        "string": "autosize"
+      },
+      "description": "Whether the scroll bar should automatically adjust its size to reflect content size"
+    }
+  }
+}

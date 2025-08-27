@@ -1,0 +1,4 @@
+#define DRAW_IMAGE
+#define DRAW_IMAGE_RECT
+#include "/Engine/Public/Platform.ush"
+#include "atomic_base.ush"

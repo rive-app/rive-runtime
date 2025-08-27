@@ -1,0 +1,29 @@
+{
+  "name": "ViewModelInstanceTrigger",
+  "key": {
+    "int": 501,
+    "string": "viewmodelinstancetrigger"
+  },
+  "extends": "viewmodel/viewmodel_instance_value.json",
+  "properties": {
+    "propertyValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 687,
+        "string": "propertyvalue"
+      },
+      "description": "The boolean value."
+    },
+    "playbackValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 688,
+        "string": "playbackvalue"
+      },
+      "runtime": false,
+      "coop": false
+    }
+  }
+}

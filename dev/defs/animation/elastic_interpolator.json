@@ -1,0 +1,37 @@
+{
+  "name": "ElasticInterpolator",
+  "key": {
+    "int": 174,
+    "string": "elastic_interpolator"
+  },
+  "exportsWithContext": true,
+  "extends": "animation/keyframe_interpolator.json",
+  "properties": {
+    "easingValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 405,
+        "string": "easing"
+      }
+    },
+    "amplitude": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 406,
+        "string": "amplitude"
+      },
+      "description": "The amplitude for the easing expressed as a percentage of the change."
+    },
+    "period": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 407,
+        "string": "period"
+      },
+      "description": "The period of the elastic expressed as a percentage of the time difference."
+    }
+  }
+}

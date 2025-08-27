@@ -1,0 +1,4 @@
+#define DRAW_INTERIOR_TRIANGLES
+#define ATLAS_BLIT
+#include "/Engine/Public/Platform.ush"
+#include "atomic_base.ush"

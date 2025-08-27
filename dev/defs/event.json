@@ -1,0 +1,18 @@
+{
+  "name": "Event",
+  "key": {
+    "int": 128,
+    "string": "event"
+  },
+  "extends": "custom_property_group.json",
+  "properties": {
+    "trigger": {
+      "type": "callback",
+      "animates": true,
+      "key": {
+        "int": 395,
+        "string": "trigger"
+      }
+    }
+  }
+}

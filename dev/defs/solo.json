@@ -1,0 +1,22 @@
+{
+  "name": "Solo",
+  "key": {
+    "int": 147,
+    "string": "solo"
+  },
+  "extends": "node.json",
+  "properties": {
+    "activeComponentId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "animates": true,
+      "key": {
+        "int": 296,
+        "string": "activeComponentId"
+      },
+      "description": "Identifier of the active child in the solo set."
+    }
+  }
+}

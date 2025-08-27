@@ -1,0 +1,29 @@
+{
+  "name": "DrawableAsset",
+  "key": {
+    "int": 104,
+    "string": "drawableasset"
+  },
+  "abstract": true,
+  "extends": "assets/file_asset.json",
+  "properties": {
+    "height": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 207,
+        "string": "height"
+      },
+      "description": "Height of the original asset uploaded"
+    },
+    "width": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 208,
+        "string": "width"
+      },
+      "description": "Width of the original asset uploaded"
+    }
+  }
+}

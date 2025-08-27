@@ -1,0 +1,136 @@
+{
+  "name": "Node",
+  "key": {
+    "int": 2,
+    "string": "node"
+  },
+  "extends": "transform_component.json",
+  "properties": {
+    "x": {
+      "type": "double",
+      "initialValue": "0",
+      "overrideGet": true,
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 13,
+        "string": "x",
+        "alternates": [
+          {
+            "int": 9,
+            "string": "xArtboard"
+          }
+        ]
+      },
+      "bindable": true
+    },
+    "y": {
+      "type": "double",
+      "initialValue": "0",
+      "overrideGet": true,
+      "animates": true,
+      "group": "position",
+      "key": {
+        "int": 14,
+        "string": "y",
+        "alternates": [
+          {
+            "int": 10,
+            "string": "yArtboard"
+          }
+        ]
+      },
+      "bindable": true
+    },
+    "styleValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 176,
+        "string": "style"
+      },
+      "description": "Display style of the node in the editor. 0 for group and 1 for target.",
+      "runtime": false
+    },
+    "computedLocalX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 806,
+        "string": "computedlocalx"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedLocalY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 807,
+        "string": "computedlocaly"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedWorldX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 808,
+        "string": "computedworldx"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedWorldY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 809,
+        "string": "computedworldy"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedRootX": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 864,
+        "string": "computedrootx"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedRootY": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 865,
+        "string": "computedrooty"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedWidth": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 810,
+        "string": "computedwidth"
+      },
+      "bindable": true,
+      "passthrough": true
+    },
+    "computedHeight": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 811,
+        "string": "computedheight"
+      },
+      "bindable": true,
+      "passthrough": true
+    }
+  }
+}

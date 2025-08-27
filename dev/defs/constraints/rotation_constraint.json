@@ -1,0 +1,8 @@
+{
+  "name": "RotationConstraint",
+  "key": {
+    "int": 89,
+    "string": "rotationconstraint"
+  },
+  "extends": "constraints/transform_component_constraint.json"
+}

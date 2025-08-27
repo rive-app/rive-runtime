@@ -1,0 +1,6 @@
+set "SCRIPT_DIR=%~dp0"
+
+set "DEPENDENCIES_SCRIPTS=%SCRIPT_DIR%"
+set "DEPENDENCIES=%SCRIPT_DIR%cache"
+
+if not exist %DEPENDENCIES% mkdir %DEPENDENCIES%    

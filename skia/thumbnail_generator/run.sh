@@ -1,0 +1,1 @@
+./build/out/release/rive_thumbnail_generator

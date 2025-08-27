@@ -1,0 +1,21 @@
+{
+  "name": "ListenerFireEvent",
+  "key": {
+    "int": 168,
+    "string": "listenerfireevent"
+  },
+  "extends": "animation/listener_action.json",
+  "properties": {
+    "eventId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 389,
+        "string": "eventid"
+      },
+      "description": "Id of the Event referenced."
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "ListenerTriggerChange",
+  "key": {
+    "int": 115,
+    "string": "listener_trigger_change"
+  },
+  "extends": "animation/listener_input_change.json"
+}

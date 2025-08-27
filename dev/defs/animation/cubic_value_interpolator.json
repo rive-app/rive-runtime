@@ -1,0 +1,9 @@
+{
+  "name": "CubicValueInterpolator",
+  "key": {
+    "int": 138,
+    "string": "cubicvalueinterpolator"
+  },
+  "exportsWithContext": true,
+  "extends": "animation/cubic_interpolator.json"
+}

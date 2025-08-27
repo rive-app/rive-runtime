@@ -1,0 +1,30 @@
+{
+  "name": "ImageAsset",
+  "key": {
+    "int": 105,
+    "string": "imageasset"
+  },
+  "extends": "assets/drawable_asset.json",
+  "properties": {
+    "format": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 241,
+        "string": "format"
+      },
+      "description": "Image format we want to use for this assets's mutations",
+      "runtime": false
+    },
+    "quality": {
+      "type": "double",
+      "initialValue": "0.75",
+      "key": {
+        "int": 242,
+        "string": "quality"
+      },
+      "description": "Quality percentage for this image mutation",
+      "runtime": false
+    }
+  }
+}

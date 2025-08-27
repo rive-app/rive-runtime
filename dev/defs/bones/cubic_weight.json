@@ -1,0 +1,42 @@
+{
+  "name": "CubicWeight",
+  "key": {
+    "int": 46,
+    "string": "cubicweight"
+  },
+  "extends": "bones/weight.json",
+  "properties": {
+    "inValues": {
+      "type": "uint",
+      "initialValue": "255",
+      "key": {
+        "int": 110,
+        "string": "invalues"
+      }
+    },
+    "inIndices": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 111,
+        "string": "inindices"
+      }
+    },
+    "outValues": {
+      "type": "uint",
+      "initialValue": "255",
+      "key": {
+        "int": 112,
+        "string": "outvalues"
+      }
+    },
+    "outIndices": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 113,
+        "string": "outindices"
+      }
+    }
+  }
+}

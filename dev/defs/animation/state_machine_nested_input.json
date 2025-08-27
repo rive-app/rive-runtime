@@ -1,0 +1,23 @@
+{
+  "name": "StateMachineNestedInput",
+  "key": {
+    "int": 173,
+    "string": "statemachinenestedinput"
+  },
+  "extends": "animation/state_machine_component.json",
+  "runtime": false,
+  "properties": {
+    "nestedInputId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 403,
+        "string": "nestedinputid"
+      },
+      "description": "Id of the NestedInput.",
+      "runtime": false
+    }
+  }
+}

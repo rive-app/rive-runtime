@@ -1,0 +1,58 @@
+{
+  "name": "CubicDetachedVertex",
+  "key": {
+    "int": 6,
+    "string": "cubicvertex"
+  },
+  "extends": "shapes/cubic_vertex.json",
+  "properties": {
+    "inRotation": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "bezier_in",
+      "key": {
+        "int": 84,
+        "string": "inrotation"
+      },
+      "description": "The in point's angle.",
+      "bindable": true
+    },
+    "inDistance": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "bezier_in",
+      "key": {
+        "int": 85,
+        "string": "indistance"
+      },
+      "description": "The in point's distance from the translation of the point.",
+      "bindable": true
+    },
+    "outRotation": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "bezier_out",
+      "key": {
+        "int": 86,
+        "string": "outrotation"
+      },
+      "description": "The out point's angle.",
+      "bindable": true
+    },
+    "outDistance": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "group": "bezier_out",
+      "key": {
+        "int": 87,
+        "string": "outdistance"
+      },
+      "description": "The out point's distance from the translation of the point.",
+      "bindable": true
+    }
+  }
+}

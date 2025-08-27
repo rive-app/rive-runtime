@@ -1,0 +1,39 @@
+{
+  "name": "DataConverterGroupItem",
+  "key": {
+    "int": 498,
+    "string": "dataconvertergroupitem"
+  },
+  "properties": {
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "key": {
+        "int": 678,
+        "string": "order"
+      },
+      "runtime": false
+    },
+    "converterId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 679,
+        "string": "converterid"
+      },
+      "description": "Id of the converter"
+    },
+    "groupId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 680,
+        "string": "groupid"
+      },
+      "description": "Id of the group this item belongs to",
+      "runtime": false
+    }
+  }
+}

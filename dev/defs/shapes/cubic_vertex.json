@@ -1,0 +1,10 @@
+{
+  "name": "CubicVertex",
+  "key": {
+    "int": 36,
+    "string": "cubicvertex"
+  },
+  "abstract": true,
+  "extends": "shapes/path_vertex.json",
+  "generic": "bones/cubic_weight.json"
+}

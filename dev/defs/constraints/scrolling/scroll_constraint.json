@@ -1,0 +1,114 @@
+{
+  "name": "ScrollConstraint",
+  "key": {
+    "int": 521,
+    "string": "scrollconstraint"
+  },
+  "extends": "constraints/draggable_constraint.json",
+  "properties": {
+    "scrollOffsetX": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 759,
+        "string": "scrolloffsetx"
+      },
+      "description": "Pixel offset of the scroll content within it's parent viewport",
+      "bindable": true
+    },
+    "scrollOffsetY": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 760,
+        "string": "scrolloffsety"
+      },
+      "description": "Pixel offset of the scroll content within it's parent viewport",
+      "bindable": true
+    },
+    "scrollPercentX": {
+      "type": "double",
+      "animates": true,
+      "key": {
+        "int": 761,
+        "string": "scrollpercentx"
+      },
+      "description": "Percent offset of the scroll content within it's parent viewport (0 to 100)",
+      "bindable": true,
+      "passthrough": true
+    },
+    "scrollPercentY": {
+      "type": "double",
+      "animates": true,
+      "key": {
+        "int": 762,
+        "string": "scrollpercenty"
+      },
+      "description": "Percent offset of the scroll content within it's parent viewport (0 to 100)",
+      "bindable": true,
+      "passthrough": true
+    },
+    "scrollIndex": {
+      "type": "double",
+      "animates": true,
+      "key": {
+        "int": 763,
+        "string": "scrollindex"
+      },
+      "description": "Index of the child layout to scroll to within it's parent viewport",
+      "bindable": true,
+      "passthrough": true
+    },
+    "snap": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 724,
+        "string": "snap"
+      },
+      "description": "Whether the scrolling content should snap to the nearest child"
+    },
+    "physicsTypeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 727,
+        "string": "physicstypevalue"
+      },
+      "description": "The type of physics to apply to the scroll constraint."
+    },
+    "physicsId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 726,
+        "string": "physicsid"
+      },
+      "description": "Identifier used to track the Scroll physics."
+    },
+    "virtualize": {
+      "type": "bool",
+      "initialValue": "false",
+      "initialValueRuntime": "false",
+      "key": {
+        "int": 850,
+        "string": "virtualize"
+      },
+      "description": "Whether the scroll constraint should virtualize its items."
+    },
+    "infinite": {
+      "type": "bool",
+      "initialValue": "false",
+      "initialValueRuntime": "false",
+      "key": {
+        "int": 851,
+        "string": "infinite"
+      },
+      "description": "Whether the scroll should wrap when it reaches the extents."
+    }
+  }
+}

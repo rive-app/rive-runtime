@@ -1,0 +1,21 @@
+{
+  "name": "BlendStateTransition",
+  "key": {
+    "int": 78,
+    "string": "blendstatetransition"
+  },
+  "extends": "animation/state_transition.json",
+  "properties": {
+    "exitBlendAnimationId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 171,
+        "string": "exitblendanimationid"
+      },
+      "description": "Id of the state the blend state animation used for exit time calculation."
+    }
+  }
+}

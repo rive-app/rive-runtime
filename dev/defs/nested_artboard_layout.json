@@ -1,0 +1,66 @@
+{
+  "name": "NestedArtboardLayout",
+  "key": {
+    "int": 452,
+    "string": "nestedartboardlayout"
+  },
+  "extends": "nested_artboard.json",
+  "properties": {
+    "instanceWidth": {
+      "type": "double",
+      "initialValue": "-1",
+      "animates": true,
+      "key": {
+        "int": 663,
+        "string": "instancewidth"
+      },
+      "description": "Width value in points or percent of this nested artboard instance."
+    },
+    "instanceHeight": {
+      "type": "double",
+      "initialValue": "-1",
+      "animates": true,
+      "key": {
+        "int": 664,
+        "string": "instanceheight"
+      },
+      "description": "Height value in points or percent of this nested artboard instance"
+    },
+    "instanceWidthUnitsValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 665,
+        "string": "instancewidthunitsvalue"
+      },
+      "description": "Whether to display width in points or percent"
+    },
+    "instanceHeightUnitsValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 666,
+        "string": "instanceheightunitsvalue"
+      },
+      "description": "Whether to display height in points or percent"
+    },
+    "instanceWidthScaleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 667,
+        "string": "instancewidthscaletype"
+      },
+      "description": "Width scale type fixed | fill"
+    },
+    "instanceHeightScaleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 668,
+        "string": "instanceheightscaletype"
+      },
+      "description": "Height scale type fixed | fill"
+    }
+  }
+}

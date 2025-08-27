@@ -1,0 +1,22 @@
+{
+  "name": "NestedAnimation",
+  "key": {
+    "int": 93,
+    "string": "nestedanimation"
+  },
+  "abstract": true,
+  "extends": "container_component.json",
+  "properties": {
+    "animationId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 198,
+        "string": "animationid"
+      },
+      "description": "Identifier used to track the animation in the nested artboard."
+    }
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "DataConverterNumberToList",
+  "key": {
+    "int": 568,
+    "string": "dataconverternumbertolist"
+  },
+  "extends": "data_bind/converters/data_converter.json",
+  "properties": {
+    "viewModelId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 816,
+        "string": "viewmodelid"
+      },
+      "description": "Id of the viewmodel to use for list items"
+    }
+  }
+}

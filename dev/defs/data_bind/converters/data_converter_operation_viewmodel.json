@@ -1,0 +1,21 @@
+{
+  "name": "DataConverterOperationViewModel",
+  "key": {
+    "int": 517,
+    "string": "dataconverteroperationviewmodel"
+  },
+  "extends": "data_bind/converters/data_converter_operation.json",
+  "properties": {
+    "sourcePathIds": {
+      "type": "List<Id>",
+      "typeRuntime": "Bytes",
+      "encoded": true,
+      "initialValue": "[]",
+      "key": {
+        "int": 711,
+        "string": "sourcepathids"
+      },
+      "description": "Path to the selected number property."
+    }
+  }
+}

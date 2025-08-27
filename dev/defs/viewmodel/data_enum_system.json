@@ -1,0 +1,19 @@
+{
+  "name": "DataEnumSystem",
+  "key": {
+    "int": 512,
+    "string": "dataenumsystem"
+  },
+  "extends": "viewmodel/data_enum.json",
+  "properties": {
+    "enumType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 709,
+        "string": "enumtype"
+      },
+      "description": "The type of system enum"
+    }
+  }
+}

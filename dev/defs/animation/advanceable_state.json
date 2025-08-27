@@ -1,0 +1,19 @@
+{
+  "name": "AdvanceableState",
+  "key": {
+    "int": 145,
+    "string": "advanceablestate"
+  },
+  "abstract": true,
+  "extends": "animation/layer_state.json",
+  "properties": {
+    "speed": {
+      "type": "double",
+      "initialValue": "1",
+      "key": {
+        "int": 292,
+        "string": "speed"
+      }
+    }
+  }
+}

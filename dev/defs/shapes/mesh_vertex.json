@@ -1,0 +1,30 @@
+{
+  "name": "MeshVertex",
+  "key": {
+    "int": 108,
+    "string": "meshvertex"
+  },
+  "extends": "shapes/vertex.json",
+  "properties": {
+    "u": {
+      "type": "double",
+      "initialValue": "0",
+      "group": "texture",
+      "key": {
+        "int": 215,
+        "string": "u"
+      },
+      "description": "U value for the texture coordinate of the vertex."
+    },
+    "v": {
+      "type": "double",
+      "initialValue": "0",
+      "group": "texture",
+      "key": {
+        "int": 216,
+        "string": "v"
+      },
+      "description": "V value for the texture coordinate of the vertex."
+    }
+  }
+}

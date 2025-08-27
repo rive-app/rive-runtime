@@ -1,0 +1,8 @@
+{
+  "name": "TransitionArtboardCondition",
+  "key": {
+    "int": 497,
+    "string": "transitionartboardcondition"
+  },
+  "extends": "animation/transition_viewmodel_condition.json"
+}

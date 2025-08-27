@@ -1,0 +1,29 @@
+{
+  "name": "FormulaToken",
+  "key": {
+    "int": 537,
+    "string": "formulatoken"
+  },
+  "properties": {
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "key": {
+        "int": 772,
+        "string": "order"
+      },
+      "description": "Order of the token in the overall formula.",
+      "runtime": false
+    },
+    "formulaId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 773,
+        "string": "formulaid"
+      },
+      "description": "Id of the formula this token belongs to.",
+      "runtime": false
+    }
+  }
+}

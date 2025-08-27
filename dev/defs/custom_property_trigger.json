@@ -1,0 +1,30 @@
+{
+  "name": "CustomPropertyTrigger",
+  "key": {
+    "int": 613,
+    "string": "custompropertytrigger"
+  },
+  "extends": "custom_property.json",
+  "properties": {
+    "fire": {
+      "type": "callback",
+      "animates": true,
+      "key": {
+        "int": 869,
+        "string": "fire"
+      },
+      "description": "Callback type used for keying the trigger"
+    },
+    "propertyValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 870,
+        "string": "propertyvalue"
+      },
+      "description": "Property value used to bind the trigger",
+      "bindable": true
+    }
+  }
+}

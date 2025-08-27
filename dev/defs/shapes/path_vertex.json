@@ -1,0 +1,10 @@
+{
+  "name": "PathVertex",
+  "key": {
+    "int": 14,
+    "string": "pathvertex"
+  },
+  "abstract": true,
+  "extends": "shapes/vertex.json",
+  "genericPassThrough": "bones/weight.json"
+}

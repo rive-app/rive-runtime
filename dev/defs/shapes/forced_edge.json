@@ -1,0 +1,33 @@
+{
+  "name": "ForcedEdge",
+  "key": {
+    "int": 112,
+    "string": "forcededge"
+  },
+  "extends": "component.json",
+  "runtime": false,
+  "properties": {
+    "fromId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 219,
+        "string": "fromid"
+      },
+      "description": "Identifier used to track MeshVertex the force edge extends from."
+    },
+    "toId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 220,
+        "string": "toid"
+      },
+      "description": "Identifier used to track MeshVertex the force edge extends to."
+    }
+  }
+}

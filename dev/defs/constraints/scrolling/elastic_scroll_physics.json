@@ -1,0 +1,40 @@
+{
+  "name": "ElasticScrollPhysics",
+  "key": {
+    "int": 525,
+    "string": "elasticscrollphysics"
+  },
+  "extends": "constraints/scrolling/scroll_physics.json",
+  "properties": {
+    "friction": {
+      "type": "double",
+      "initialValue": "8.0",
+      "key": {
+        "int": 728,
+        "string": "friction"
+      },
+      "description": "Friction value determining how quickly the scroll decelerates",
+      "bindable": true
+    },
+    "speedMultiplier": {
+      "type": "double",
+      "initialValue": "1.0",
+      "key": {
+        "int": 729,
+        "string": "speedmultiplier"
+      },
+      "description": "Multiplier for how fast the scroll initiates",
+      "bindable": true
+    },
+    "elasticFactor": {
+      "type": "double",
+      "initialValue": "0.66",
+      "key": {
+        "int": 730,
+        "string": "elasticfactor"
+      },
+      "description": "Multiplier for the amount/strength of the rubber banding",
+      "bindable": true
+    }
+  }
+}

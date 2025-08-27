@@ -1,0 +1,8 @@
+{
+  "name": "KeyFrameInterpolator",
+  "key": {
+    "int": 175,
+    "string": "keyframeinterpolator"
+  },
+  "abstract": true
+}

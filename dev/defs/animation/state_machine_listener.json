@@ -1,0 +1,52 @@
+{
+  "name": "StateMachineListener",
+  "key": {
+    "int": 114,
+    "string": "stateMachineListener"
+  },
+  "extends": "animation/state_machine_component.json",
+  "properties": {
+    "targetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 224,
+        "string": "targetid"
+      },
+      "description": "Identifier used to track the object use as a target for this listener."
+    },
+    "listenerTypeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 225,
+        "string": "listenertypevalue"
+      },
+      "description": "Listener type (hover, click, etc)."
+    },
+    "eventId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 399,
+        "string": "eventid"
+      },
+      "description": "Event id for the associated event, if listenerType is event"
+    },
+    "viewModelPathIds": {
+      "type": "List<Id>",
+      "typeRuntime": "Bytes",
+      "encoded": true,
+      "initialValue": "[]",
+      "key": {
+        "int": 868,
+        "string": "viewmodelpathids"
+      },
+      "description": "Path to the selected view model trigger property if listenerType is a viewModel trigger."
+    }
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "name": "PointsCommonPath",
+  "key": {
+    "int": 620,
+    "string": "pointscommonpath"
+  },
+  "abstract": true,
+  "extends": "shapes/path.json",
+  "properties": {
+    "isClosed": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 32,
+        "string": "isclosed"
+      },
+      "description": "If the path should close back on its first vertex."
+    },
+    "isClockwise": {
+      "type": "bool",
+      "initialValue": "true",
+      "key": {
+        "int": 753,
+        "string": "isclockwise"
+      },
+      "description": "We use this to track whether user designed paths are clockwise.",
+      "runtime": false,
+      "journal": false
+    }
+  }
+}

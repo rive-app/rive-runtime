@@ -1,0 +1,22 @@
+{
+  "name": "TargetedConstraint",
+  "key": {
+    "int": 80,
+    "string": "targetedconstraint"
+  },
+  "abstract": true,
+  "extends": "constraints/constraint.json",
+  "properties": {
+    "targetId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 173,
+        "string": "targetid"
+      },
+      "description": "Identifier used to track the TransformComponent used as the target for the constraint."
+    }
+  }
+}

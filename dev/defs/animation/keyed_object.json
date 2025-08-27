@@ -1,0 +1,31 @@
+{
+  "name": "KeyedObject",
+  "key": {
+    "int": 25,
+    "string": "keyedobject"
+  },
+  "properties": {
+    "objectId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 51,
+        "string": "objectid"
+      },
+      "description": "Identifier used to track the object that is keyed."
+    },
+    "animationId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 52,
+        "string": "animationid"
+      },
+      "description": "The id of the animation this keyed object is in.",
+      "runtime": false
+    }
+  }
+}

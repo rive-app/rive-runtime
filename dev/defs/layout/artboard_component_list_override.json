@@ -1,0 +1,83 @@
+{
+  "name": "ArtboardComponentListOverride",
+  "key": {
+    "int": 606,
+    "string": "artboardcomponentlistoverride"
+  },
+  "extends": "component.json",
+  "properties": {
+    "artboardId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 858,
+        "string": "artboardid"
+      },
+      "description": "Id of the artboard to apply the changes to. default id means all artboards"
+    },
+    "instanceWidth": {
+      "type": "double",
+      "initialValue": "-1",
+      "animates": true,
+      "key": {
+        "int": 859,
+        "string": "instancewidth"
+      },
+      "description": "Width value in points or percent of this nested artboard instance.",
+      "bindable": true
+    },
+    "instanceHeight": {
+      "type": "double",
+      "initialValue": "-1",
+      "animates": true,
+      "key": {
+        "int": 860,
+        "string": "instanceheight"
+      },
+      "description": "Height value in points or percent of this nested artboard instance",
+      "bindable": true
+    },
+    "instanceWidthUnitsValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 856,
+        "string": "instancewidthunitsvalue"
+      },
+      "description": "Whether to display width in points or percent",
+      "bindable": true
+    },
+    "instanceHeightUnitsValue": {
+      "type": "uint",
+      "initialValue": "1",
+      "key": {
+        "int": 861,
+        "string": "instanceheightunitsvalue"
+      },
+      "description": "Whether to display height in points or percent",
+      "bindable": true
+    },
+    "instanceWidthScaleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 862,
+        "string": "instancewidthscaletype"
+      },
+      "description": "Width scale type fixed | fill",
+      "bindable": true
+    },
+    "instanceHeightScaleType": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 863,
+        "string": "instanceheightscaletype"
+      },
+      "description": "Height scale type fixed | fill",
+      "bindable": true
+    }
+  }
+}

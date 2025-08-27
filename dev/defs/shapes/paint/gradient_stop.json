@@ -1,0 +1,28 @@
+{
+  "name": "GradientStop",
+  "key": {
+    "int": 19,
+    "string": "gradientstop"
+  },
+  "extends": "component.json",
+  "properties": {
+    "colorValue": {
+      "type": "Color",
+      "initialValue": "0xFFFFFFFF",
+      "animates": true,
+      "key": {
+        "int": 38,
+        "string": "color"
+      }
+    },
+    "position": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 39,
+        "string": "position"
+      }
+    }
+  }
+}

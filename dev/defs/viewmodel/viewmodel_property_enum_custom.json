@@ -1,0 +1,21 @@
+{
+  "name": "ViewModelPropertyEnumCustom",
+  "key": {
+    "int": 439,
+    "string": "viewmodelpropertyenumcustom"
+  },
+  "extends": "viewmodel/viewmodel_property_enum.json",
+  "properties": {
+    "enumId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 574,
+        "string": "enumid"
+      },
+      "description": "The id of the enum."
+    }
+  }
+}

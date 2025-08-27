@@ -1,0 +1,9 @@
+{
+  "name": "TransitionValueComparator",
+  "key": {
+    "int": 480,
+    "string": "transitionvaluecomparator"
+  },
+  "abstract": true,
+  "extends": "animation/transition_comparator.json"
+}

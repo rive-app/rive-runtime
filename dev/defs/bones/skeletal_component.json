@@ -1,0 +1,9 @@
+{
+  "name": "SkeletalComponent",
+  "key": {
+    "int": 39,
+    "string": "skeletalcomponent"
+  },
+  "abstract": true,
+  "extends": "transform_component.json"
+}

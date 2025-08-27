@@ -1,0 +1,28 @@
+{
+  "name": "KeyedProperty",
+  "key": {
+    "int": 26,
+    "string": "keyedproperty"
+  },
+  "properties": {
+    "keyedObjectId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 71,
+        "string": "keyedobjectid"
+      },
+      "description": "The id of the KeyedObject this KeyedProperty belongs to.",
+      "runtime": false
+    },
+    "propertyKey": {
+      "type": "uint",
+      "initialValue": "CoreContext.invalidPropertyKey",
+      "key": {
+        "int": 53,
+        "string": "propertykey"
+      },
+      "description": "The property type that is keyed."
+    }
+  }
+}

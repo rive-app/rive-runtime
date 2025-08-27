@@ -1,0 +1,21 @@
+{
+  "name": "ViewModelPropertyViewModel",
+  "key": {
+    "int": 436,
+    "string": "viewmodelpropertyviewmodel"
+  },
+  "extends": "viewmodel/viewmodel_property.json",
+  "properties": {
+    "viewModelReferenceId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 565,
+        "string": "viewmodelreferenceid"
+      },
+      "description": "Identifier used to track the viewmodel this property points to."
+    }
+  }
+}

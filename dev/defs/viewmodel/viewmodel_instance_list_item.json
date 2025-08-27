@@ -1,0 +1,61 @@
+{
+  "name": "ViewModelInstanceListItem",
+  "key": {
+    "int": 427,
+    "string": "viewmodelinstancelistitem"
+  },
+  "properties": {
+    "name": {
+      "type": "String",
+      "initialValue": "''",
+      "key": {
+        "int": 742,
+        "string": "name"
+      },
+      "description": "Non-unique identifier, used to give friendly names to any view model list items.",
+      "runtime": false
+    },
+    "instanceListId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 548,
+        "string": "instancelistid"
+      },
+      "description": "The id of the list it belongs to.",
+      "runtime": false
+    },
+    "viewModelId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 549,
+        "string": "viewmodelid"
+      },
+      "description": "The view model id."
+    },
+    "viewModelInstanceId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "-1",
+      "key": {
+        "int": 550,
+        "string": "viewmodelinstanceid"
+      },
+      "description": "The view model instance id."
+    },
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "key": {
+        "int": 552,
+        "string": "order"
+      },
+      "description": "The order position in the list.",
+      "runtime": false
+    }
+  }
+}

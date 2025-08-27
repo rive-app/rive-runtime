@@ -1,0 +1,21 @@
+{
+  "name": "StateMachineInput",
+  "key": {
+    "int": 55,
+    "string": "statemachineinput"
+  },
+  "abstract": true,
+  "extends": "animation/state_machine_component.json",
+  "properties": {
+    "public": {
+      "type": "bool",
+      "initialValue": "false",
+      "key": {
+        "int": 402,
+        "string": "public"
+      },
+      "description": "Determines whether this StateMachineInput will be exposed to parent artboards.",
+      "runtime": false
+    }
+  }
+}

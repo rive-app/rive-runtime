@@ -1,0 +1,40 @@
+{
+  "name": "TransformComponent",
+  "key": {
+    "int": 38,
+    "string": "transformcomponent"
+  },
+  "abstract": true,
+  "extends": "world_transform_component.json",
+  "properties": {
+    "rotation": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 15,
+        "string": "r"
+      }
+    },
+    "scaleX": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "group": "scale",
+      "key": {
+        "int": 16,
+        "string": "sx"
+      }
+    },
+    "scaleY": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "group": "scale",
+      "key": {
+        "int": 17,
+        "string": "sy"
+      }
+    }
+  }
+}

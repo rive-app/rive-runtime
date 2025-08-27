@@ -1,0 +1,8 @@
+{
+  "name": "TextInputText",
+  "key": {
+    "int": 572,
+    "string": "textinputtext"
+  },
+  "extends": "text/text_input_drawable.json"
+}

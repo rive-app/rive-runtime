@@ -1,0 +1,50 @@
+{
+  "name": "NSlicedNode",
+  "key": {
+    "int": 508,
+    "string": "nslicednode"
+  },
+  "extends": "node.json",
+  "properties": {
+    "initialWidth": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 697,
+        "string": "initialwidth"
+      },
+      "description": "Initial width of the NSlicedNode."
+    },
+    "initialHeight": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 698,
+        "string": "initialheight"
+      },
+      "description": "Initial height of the NSlicedNode."
+    },
+    "width": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 699,
+        "string": "width"
+      },
+      "description": "Width of the text object.",
+      "bindable": true
+    },
+    "height": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 700,
+        "string": "height"
+      },
+      "description": "Height of the text object.",
+      "bindable": true
+    }
+  }
+}

@@ -1,0 +1,14 @@
+#pragma once
+#define USING_PLS_STORAGE_TEXTURES 1
+#define OPTIONALLY_FLAT flat
+
+#ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
+#include "/Engine/Generated/GeneratedUniformBuffers.ush"
+#endif
+#include "parse_environment.ush"
+#include "Generated/rhi.minified.ush"
+#include "Generated/constants.minified.ush"
+#include "Generated/common.minified.ush"
+#include "Generated/advanced_blend.minified.ush"
+#include "Generated/draw_path_common.minified.ush"
+#include "Generated/atomic_draw.minified.ush"

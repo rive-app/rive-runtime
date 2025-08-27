@@ -1,0 +1,8 @@
+{
+  "name": "ViewModelPropertyTrigger",
+  "key": {
+    "int": 502,
+    "string": "viewmodelpropertytrigger"
+  },
+  "extends": "viewmodel/viewmodel_property.json"
+}

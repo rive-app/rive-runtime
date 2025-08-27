@@ -1,0 +1,9 @@
+{
+  "name": "ViewModelPropertySymbol",
+  "key": {
+    "int": 563,
+    "string": "viewmodelpropertysymbol"
+  },
+  "abstract": true,
+  "extends": "viewmodel/viewmodel_property.json"
+}

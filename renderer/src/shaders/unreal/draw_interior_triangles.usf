@@ -1,0 +1,16 @@
+#define PLS_IMPL_SUBPASS_LOAD
+#define OPTIONALLY_FLAT flat
+#define DRAW_INTERIOR_TRIANGLES
+
+#include "/Engine/Public/Platform.ush"
+#ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
+#include "/Engine/Generated/GeneratedUniformBuffers.ush"
+#endif
+
+#include "parse_environment.ush"
+#include "Generated/rhi.minified.ush"
+#include "Generated/constants.minified.ush"
+#include "Generated/common.minified.ush"
+#include "Generated/draw_path_common.minified.ush"
+#include "Generated/advanced_blend.minified.ush"
+#include "Generated/draw_path.minified.ush"

@@ -1,0 +1,8 @@
+{
+  "name": "DataConverterGroup",
+  "key": {
+    "int": 499,
+    "string": "dataconvertergroup"
+  },
+  "extends": "data_bind/converters/data_converter.json"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "StateMachineLayerComponent",
+  "key": {
+    "int": 66,
+    "string": "statemachinelayercomponent"
+  },
+  "abstract": true
+}

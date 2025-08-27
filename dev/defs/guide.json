@@ -1,0 +1,32 @@
+{
+  "name": "Guide",
+  "key": {
+    "int": 140,
+    "string": "guide"
+  },
+  "extends": "component.json",
+  "runtime": false,
+  "properties": {
+    "axisPosition": {
+      "type": "double",
+      "initialValue": "0",
+      "overrideGet": true,
+      "group": "axisposition",
+      "key": {
+        "int": 276,
+        "string": "axisposition"
+      },
+      "runtime": false
+    },
+    "axisValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 277,
+        "string": "axisvalue"
+      },
+      "description": "Axis the guide position relates to. 0 for x, 1 for y.",
+      "runtime": false
+    }
+  }
+}

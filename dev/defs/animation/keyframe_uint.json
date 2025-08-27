@@ -1,0 +1,19 @@
+{
+  "name": "KeyFrameUint",
+  "key": {
+    "int": 450,
+    "string": "keyframeuint"
+  },
+  "extends": "animation/interpolating_keyframe.json",
+  "properties": {
+    "value": {
+      "type": "uint",
+      "typeRuntime": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 631,
+        "string": "value"
+      }
+    }
+  }
+}

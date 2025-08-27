@@ -1,0 +1,9 @@
+{
+  "name": "TextModifier",
+  "key": {
+    "int": 160,
+    "string": "textmodifier"
+  },
+  "abstract": true,
+  "extends": "component.json"
+}

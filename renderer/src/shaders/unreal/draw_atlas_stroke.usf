@@ -1,0 +1,14 @@
+#include "/Engine/Public/Platform.ush"
+#define DRAW_PATH
+#define ENABLE_FEATHER
+#define ATLAS_FEATHERED_STROKE
+
+#ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
+#include "/Engine/Generated/GeneratedUniformBuffers.ush"
+#endif
+
+#include "Generated/rhi.minified.ush"
+#include "Generated/constants.minified.ush"
+#include "Generated/common.minified.ush"
+#include "Generated/draw_path_common.minified.ush"
+#include "Generated/render_atlas.minified.ush"

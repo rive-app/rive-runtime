@@ -1,0 +1,33 @@
+{
+  "name": "ListenerAction",
+  "key": {
+    "int": 125,
+    "string": "listener_action"
+  },
+  "abstract": true,
+  "properties": {
+    "listenerId": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 226,
+        "string": "listenerId"
+      },
+      "description": "Identifier used to track the StateMachineListener this result belongs to.",
+      "runtime": false
+    },
+    "order": {
+      "type": "FractionalIndex",
+      "initialValue": "FractionalIndex.invalid",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 230,
+        "string": "order"
+      },
+      "description": "Order value for condition in a transition.",
+      "runtime": false
+    }
+  }
+}

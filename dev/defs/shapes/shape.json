@@ -1,0 +1,20 @@
+{
+  "name": "Shape",
+  "key": {
+    "int": 3,
+    "string": "shape"
+  },
+  "extends": "drawable.json",
+  "properties": {
+    "length": {
+      "type": "double",
+      "initialValue": "0",
+      "key": {
+        "int": 781,
+        "string": "length"
+      },
+      "bindable": true,
+      "passthrough": true
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "ForegroundLayoutDrawable",
+  "key": {
+    "int": 513,
+    "string": "foregroundlayoutdrawable"
+  },
+  "extends": "drawable.json"
+}

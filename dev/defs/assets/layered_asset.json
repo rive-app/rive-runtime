@@ -1,0 +1,9 @@
+{
+  "name": "LayeredAsset",
+  "key": {
+    "int": 119,
+    "string": "layeredasset"
+  },
+  "extends": "assets/drawable_asset.json",
+  "runtime": false
+}

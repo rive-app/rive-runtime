@@ -1,0 +1,30 @@
+{
+  "name": "Path",
+  "key": {
+    "int": 12,
+    "string": "path"
+  },
+  "abstract": true,
+  "extends": "node.json",
+  "properties": {
+    "pathFlags": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 128,
+        "string": "pathflags"
+      },
+      "coop": false
+    },
+    "isHole": {
+      "type": "bool",
+      "animates": true,
+      "key": {
+        "int": 770,
+        "string": "ishole"
+      },
+      "description": "With clockwise fill rule, this marks the path as a hole.",
+      "bindable": true
+    }
+  }
+}

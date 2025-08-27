@@ -1,0 +1,10 @@
+{
+  "name": "BlendState1D",
+  "key": {
+    "int": 527,
+    "string": "blendstate1d"
+  },
+  "abstract": true,
+  "extends": "animation/blend_state.json",
+  "generic": "animation/blend_animation_1d.json"
+}

@@ -1,0 +1,8 @@
+{
+  "name": "ClampedScrollPhysics",
+  "key": {
+    "int": 524,
+    "string": "clampedscrollphysics"
+  },
+  "extends": "constraints/scrolling/scroll_physics.json"
+}

@@ -1,0 +1,20 @@
+{
+  "name": "FormulaTokenArgumentSeparator",
+  "key": {
+    "int": 538,
+    "string": "formulatokenargumentseparator"
+  },
+  "extends": "data_bind/converters/formula/formula_token.json",
+  "properties": {
+    "functionId": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 774,
+        "string": "functionid"
+      },
+      "description": "Id of the function this separator belongs to",
+      "runtime": false
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{
+  "name": "ScaleConstraint",
+  "key": {
+    "int": 88,
+    "string": "scaleconstraint"
+  },
+  "extends": "constraints/transform_component_constraint_y.json"
+}

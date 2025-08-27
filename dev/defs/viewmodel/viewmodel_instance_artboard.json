@@ -1,0 +1,31 @@
+{
+  "name": "ViewModelInstanceArtboard",
+  "key": {
+    "int": 599,
+    "string": "viewmodelinstanceartboard"
+  },
+  "extends": "viewmodel/viewmodel_instance_value.json",
+  "properties": {
+    "propertyValue": {
+      "type": "Id",
+      "typeRuntime": "uint",
+      "initialValue": "Core.missingId",
+      "initialValueRuntime": "0",
+      "key": {
+        "int": 846,
+        "string": "propertyvalue"
+      },
+      "description": "The id of the artboard."
+    },
+    "playbackValue": {
+      "type": "Id",
+      "initialValue": "Core.missingId",
+      "key": {
+        "int": 847,
+        "string": "playbackvalue"
+      },
+      "description": "The id of the artboard.",
+      "runtime": false
+    }
+  }
+}

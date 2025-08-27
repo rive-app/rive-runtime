@@ -1,0 +1,8 @@
+{
+  "name": "KeyFrameCallback",
+  "key": {
+    "int": 171,
+    "string": "keyframe_callback"
+  },
+  "extends": "animation/keyframe.json"
+}
