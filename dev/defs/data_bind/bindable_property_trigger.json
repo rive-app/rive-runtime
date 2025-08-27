@@ -1,8 +1,0 @@
-{
-  "name": "BindablePropertyTrigger",
-  "key": {
-    "int": 503,
-    "string": "bindablepropertytrigger"
-  },
-  "extends": "data_bind/bindable_property_integer.json"
-}

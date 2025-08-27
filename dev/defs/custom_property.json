@@ -1,9 +1,0 @@
-{
-  "name": "CustomProperty",
-  "key": {
-    "int": 167,
-    "string": "customproperty"
-  },
-  "abstract": true,
-  "extends": "component.json"
-}

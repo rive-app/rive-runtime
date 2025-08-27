@@ -1,8 +1,0 @@
-{
-  "name": "BindablePropertyAsset",
-  "key": {
-    "int": 588,
-    "string": "bindablepropertyasset"
-  },
-  "extends": "data_bind/bindable_property_id.json"
-}

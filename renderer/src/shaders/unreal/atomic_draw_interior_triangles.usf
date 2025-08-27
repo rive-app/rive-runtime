@@ -1,3 +1,0 @@
-#define DRAW_INTERIOR_TRIANGLES
-#include "/Engine/Public/Platform.ush"
-#include "atomic_base.ush"

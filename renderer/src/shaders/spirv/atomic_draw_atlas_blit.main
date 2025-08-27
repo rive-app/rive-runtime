@@ -1,5 +1,0 @@
-#version 460
-#extension GL_GOOGLE_include_directive : require
-#define DRAW_INTERIOR_TRIANGLES
-#define ATLAS_BLIT
-#include "atomic_base.glsl"

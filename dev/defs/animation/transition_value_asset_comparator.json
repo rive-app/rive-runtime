@@ -1,8 +1,0 @@
-{
-  "name": "TransitionValueAssetComparator",
-  "key": {
-    "int": 602,
-    "string": "transitionvalueassetcomparator"
-  },
-  "extends": "animation/transition_value_id_comparator.json"
-}

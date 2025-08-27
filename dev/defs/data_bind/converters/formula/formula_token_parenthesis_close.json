@@ -1,8 +1,0 @@
-{
-  "name": "FormulaTokenParenthesisClose",
-  "key": {
-    "int": 540,
-    "string": "formulatokenparenthesisclose"
-  },
-  "extends": "data_bind/converters/formula/formula_token_parenthesis.json"
-}

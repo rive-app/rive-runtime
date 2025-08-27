@@ -1,4 +1,0 @@
-#define DRAW_IMAGE
-#define DRAW_IMAGE_MESH
-#include "/Engine/Public/Platform.ush"
-#include "atomic_base.ush"

@@ -1,1 +1,0 @@
-../macosx/config_directories.sh

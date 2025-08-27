@@ -1,9 +1,0 @@
-#include "/Engine/Public/Platform.ush"
-Texture2D<uint4> SourceTexture;
-
-void FragmentMain( in float4 Position : SV_Position,
-    out float4 OutColor : SV_Target0)
-{
-    uint4 Result = SourceTexture[Position.xy];
-    OutColor = float4( float(Result.r), float(Result.g), float(Result.b), 1.0 );
-}

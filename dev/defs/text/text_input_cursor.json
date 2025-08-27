@@ -1,8 +1,0 @@
-{
-  "name": "TextInputCursor",
-  "key": {
-    "int": 571,
-    "string": "textinputcursor"
-  },
-  "extends": "text/text_input_drawable.json"
-}

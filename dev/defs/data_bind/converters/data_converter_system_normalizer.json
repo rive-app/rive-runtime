@@ -1,8 +1,0 @@
-{
-  "name": "DataConverterSystemNormalizer",
-  "key": {
-    "int": 515,
-    "string": "dataconvertersystemnormalizer"
-  },
-  "extends": "data_bind/converters/data_converter_operation_value.json"
-}

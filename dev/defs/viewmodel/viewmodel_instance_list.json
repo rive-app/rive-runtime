@@ -1,8 +1,0 @@
-{
-  "name": "ViewModelInstanceList",
-  "key": {
-    "int": 441,
-    "string": "viewmodelinstancelist"
-  },
-  "extends": "viewmodel/viewmodel_instance_value.json"
-}

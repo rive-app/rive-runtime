@@ -1,8 +1,0 @@
-{
-  "name": "DataConverterFormula",
-  "key": {
-    "int": 536,
-    "string": "dataconverterformula"
-  },
-  "extends": "data_bind/converters/data_converter.json"
-}

@@ -1,4 +1,0 @@
-#define DRAW_RENDER_TARGET_UPDATE_BOUNDS 1
-#define RESOLVE_PLS 1
-#include "/Engine/Public/Platform.ush"
-#include "atomic_base.ush"
