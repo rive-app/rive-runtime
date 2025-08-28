@@ -36,6 +36,14 @@
 #undef ENABLE_FEATHER
 #endif
 
+#if !CLOCKWISE_FILL
+#undef CLOCKWISE_FILL
+#endif
+
 #if !ATLAS_COVERAGE
 #undef ATLAS_COVERAGE
+#endif
+
+#if !NEEDS_GAMMA_CORRECTION
+#undef NEEDS_GAMMA_CORRECTION
 #endif

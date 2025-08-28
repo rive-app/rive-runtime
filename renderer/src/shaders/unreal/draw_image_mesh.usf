@@ -1,7 +1,8 @@
-#define PLS_IMPL_SUBPASS_LOAD
+#define USING_PLS_STORAGE_TEXTURES 1
 #define OPTIONALLY_FLAT flat
 #define DRAW_IMAGE
 #define DRAW_IMAGE_MESH
+#define ENABLE_RASTERIZER_ORDERED_VIEWS
 
 #include "/Engine/Public/Platform.ush"
 #ifdef UNIFORM_DEFINITIONS_AUTO_GENERATED
@@ -11,7 +12,6 @@
 #include "parse_environment.ush"
 #include "Generated/rhi.minified.ush"
 #include "Generated/constants.minified.ush"
-#include "Generated/specialization.minified.ush"
 #include "Generated/common.minified.ush"
 #include "Generated/advanced_blend.minified.ush"
 #include "Generated/draw_image_mesh.minified.ush"
