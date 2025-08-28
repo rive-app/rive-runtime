@@ -204,6 +204,12 @@ StatusCode Artboard::initialize()
                 return code;
             }
         }
+        if (m_Animations.size() == 0 && m_StateMachines.size() == 0)
+        {
+            auto sm = new StateMachine();
+            sm->name("Auto Generated State Machine");
+            m_StateMachines.push_back(sm);
+        }
     }
 
     // Store a map of the drawRules to make it easier to lookup the matching
