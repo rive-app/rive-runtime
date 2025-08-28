@@ -217,3 +217,88 @@ end
     CHECK(vm.console.size() == 6);
     CHECK(vm.console[5] == "trigger was triggered!");
 }
+
+TEST_CASE("scripted list can be passed to luau", "[scripting_properties]")
+{
+    auto file = ReadRiveFile("assets/scripted_graph.riv");
+
+    auto artboard = file->artboard("Artboard")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    artboard->advance(0.0f);
+
+    CHECK(viewModelInstance->viewModel()->name() == "Graph");
+    // View model properties
+    // Number
+    auto pointsProperty = viewModelInstance->propertyValue("points");
+    REQUIRE(pointsProperty != nullptr);
+    REQUIRE(pointsProperty->is<rive::ViewModelInstanceList>());
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+function provide(vm) 
+        local points = vm.points
+        print(`length is {points.length}`)
+        for i = 1, points.length, 1 do
+            print(`point is {points[i].x.value} {points[i].y.value}`)
+        end
+        -- add a listener to the point at x == 2
+        local p = points[3]
+        p.y:addListener(p, yChanged);
+end
+
+function iterateAgain(vm) 
+        local points = vm.points
+        print(`length is {points.length}`)
+        for i = 1, points.length, 1 do
+            print(`point is {points[i].x.value} {points[i].y.value}`)
+        end
+end
+
+function yChanged(point)
+    if point then
+        print(`y changed to: {point.y.value}`)
+    end
+end
+)TEST_SRC");
+    auto L = vm.state();
+
+    lua_newrive<ScriptedViewModel>(L,
+                                   L,
+                                   ref_rcp(viewModelInstance->viewModel()),
+                                   viewModelInstance);
+    lua_getglobal(L, "provide");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    auto list = pointsProperty->as<ViewModelInstanceList>();
+    list->removeItem(1);
+
+    auto item = list->listItems()[1]; // 2 is now at 1
+    auto vmi = item->viewModelInstance();
+    auto yProperty = vmi->propertyValue("y");
+    CHECK(yProperty->is<rive::ViewModelInstanceNumber>());
+    yProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(22);
+
+    lua_getglobal(L, "iterateAgain");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    yProperty->as<rive::ViewModelInstanceNumber>()->propertyValue(23);
+
+    CHECK(vm.console.size() == 13);
+    CHECK(vm.console[0] == "length is 5");
+    CHECK(vm.console[1] == "point is 0 10");
+    CHECK(vm.console[2] == "point is 1 15");
+    CHECK(vm.console[3] == "point is 2 16");
+    CHECK(vm.console[4] == "point is 3 18");
+    CHECK(vm.console[5] == "point is 4 9");
+    CHECK(vm.console[6] == "y changed to: 22");
+    CHECK(vm.console[7] == "length is 4");
+    CHECK(vm.console[8] == "point is 0 10");
+    CHECK(vm.console[9] == "point is 2 22");
+    CHECK(vm.console[10] == "point is 3 18");
+    CHECK(vm.console[11] == "point is 4 9");
+    CHECK(vm.console[12] == "y changed to: 23");
+}

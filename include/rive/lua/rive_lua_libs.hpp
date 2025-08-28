@@ -11,6 +11,7 @@
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
+#include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
@@ -436,6 +437,24 @@ public:
     static constexpr uint8_t luaTag = LUA_T_COUNT + 14;
     static constexpr const char* luaName = "PropertyTrigger";
     static constexpr bool hasMetatable = true;
+};
+
+class ScriptedPropertyList : public ScriptedProperty
+{
+public:
+    ScriptedPropertyList(lua_State* L, rcp<ViewModelInstanceList> value);
+    ~ScriptedPropertyList();
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 15;
+    static constexpr const char* luaName = "PropertyList";
+    static constexpr bool hasMetatable = true;
+
+    int pushLength();
+    int pushValue(int index);
+    void valueChanged() override;
+
+private:
+    bool m_changed = false;
+    std::unordered_map<ViewModelInstance*, int> m_propertyRefs;
 };
 
 // Make

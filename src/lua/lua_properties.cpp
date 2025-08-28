@@ -2,6 +2,7 @@
 #include "rive/lua/rive_lua_libs.hpp"
 #include "rive/viewmodel/viewmodel_property_number.hpp"
 #include "rive/viewmodel/viewmodel_property_trigger.hpp"
+#include "rive/viewmodel/viewmodel_property_list.hpp"
 
 #include <math.h>
 #include <stdio.h>
@@ -24,6 +25,12 @@ static void pushViewModelInstanceValue(lua_State* L,
                 L,
                 L,
                 ref_rcp(propValue->as<ViewModelInstanceTrigger>()));
+            break;
+        case ViewModelInstanceListBase::typeKey:
+            lua_newrive<ScriptedPropertyList>(
+                L,
+                L,
+                ref_rcp(propValue->as<ViewModelInstanceList>()));
             break;
         default:
             lua_pushnil(L);
@@ -92,7 +99,6 @@ void ScriptedProperty::valueChanged()
     // invalidate listeners if a callback registers a new or removes a
     // listener). Instead, we build up the call stack and then call for each
     // callback on the stack.
-
     for (auto itr = m_listeners.rbegin(); itr != m_listeners.rend(); itr++)
     {
         const ScriptedListener& listener = *itr;
@@ -209,7 +215,6 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
     // optimize for the best case.
 
     auto vmi = m_viewModelInstance;
-    // m_instanceValue->as<ViewModelInstanceViewModel>()->referenceViewModelInstance()
     if (!vmi)
     {
         // Get type from viewmodel if we have one and user didn't request a type
@@ -232,6 +237,11 @@ int ScriptedViewModel::pushValue(const char* name, int coreType)
                     lua_newrive<ScriptedPropertyTrigger>(m_state,
                                                          m_state,
                                                          nullptr);
+                    break;
+                case ViewModelPropertyListBase::typeKey:
+                    lua_newrive<ScriptedPropertyList>(m_state,
+                                                      m_state,
+                                                      nullptr);
                     break;
             }
         }
@@ -468,6 +478,125 @@ int ScriptedPropertyNumber::pushValue()
     return 1;
 }
 
+ScriptedPropertyList::ScriptedPropertyList(lua_State* L,
+                                           rcp<ViewModelInstanceList> value) :
+    ScriptedProperty(L, std::move(value))
+{}
+
+ScriptedPropertyList::~ScriptedPropertyList()
+{
+    for (const auto& pair : m_propertyRefs)
+    {
+        lua_unref(m_state, pair.second);
+    }
+}
+
+void ScriptedPropertyList::valueChanged()
+{
+    m_changed = true;
+    ScriptedProperty::valueChanged();
+}
+
+int ScriptedPropertyList::pushLength()
+{
+    if (m_instanceValue)
+    {
+        lua_pushinteger(m_state,
+                        (int)m_instanceValue->as<ViewModelInstanceList>()
+                            ->listItems()
+                            .size());
+    }
+    else
+    {
+        lua_pushinteger(m_state, 0);
+    }
+    return 1;
+}
+
+int ScriptedPropertyList::pushValue(int index)
+{
+    if (m_instanceValue)
+    {
+        auto items = m_instanceValue->as<ViewModelInstanceList>()->listItems();
+
+        if (m_changed)
+        {
+            std::unordered_map<ViewModelInstance*, int> refs;
+
+            // re-validate references.
+            for (auto& item : items)
+            {
+                auto vmi = item->viewModelInstance().get();
+                auto itr = m_propertyRefs.find(vmi);
+                if (itr != m_propertyRefs.end())
+                {
+                    refs[vmi] = itr->second;
+                    m_propertyRefs.erase(itr);
+                }
+            }
+
+            for (const auto& pair : m_propertyRefs)
+            {
+                lua_unref(m_state, pair.second);
+            }
+            m_propertyRefs = refs;
+
+            m_changed = false;
+        }
+
+        if (index >= items.size())
+        {
+            lua_pushnil(m_state);
+        }
+        else
+        {
+
+            auto listItem = items[index];
+            auto vmi = listItem->viewModelInstance();
+            auto itr = m_propertyRefs.find(vmi.get());
+            if (itr != m_propertyRefs.end())
+            {
+                lua_rawgeti(m_state, LUA_REGISTRYINDEX, itr->second);
+            }
+            else
+            {
+                lua_newrive<ScriptedViewModel>(m_state,
+                                               m_state,
+                                               ref_rcp(vmi->viewModel()),
+                                               vmi);
+                m_propertyRefs[vmi.get()] = lua_ref(m_state, -1);
+            }
+        }
+    }
+    else
+    {
+        lua_pushnil(m_state);
+    }
+    return 1;
+}
+
+static int property_list_index(lua_State* L)
+{
+    int atom;
+    const char* key = lua_tostringatom(L, 2, &atom);
+    auto propertyList = lua_torive<ScriptedPropertyList>(L, 1);
+    // if it's not an atom it should be an index into the array
+    if (!key)
+    {
+        int index = luaL_checkinteger(L, 2);
+        return propertyList->pushValue(index - 1);
+    }
+
+    switch (atom)
+    {
+        case (int)LuaAtoms::length:
+            assert(propertyList->state() == L);
+            return propertyList->pushLength();
+        default:
+            return 0;
+    }
+}
+
 static int property_number_index(lua_State* L)
 {
     int atom;
@@ -564,6 +693,19 @@ int luaopen_rive_properties(lua_State* L)
         lua_setreadonly(L, -1, true);
         lua_pop(L, 1); // pop the metatable}
     }
-    return 4;
+
+    {
+        lua_register_rive<ScriptedPropertyList>(L);
+
+        lua_pushcfunction(L, property_namecall, nullptr);
+        lua_setfield(L, -2, "__namecall");
+
+        lua_pushcfunction(L, property_list_index, nullptr);
+        lua_setfield(L, -2, "__index");
+
+        lua_setreadonly(L, -1, true);
+        lua_pop(L, 1); // pop the metatable}
+    }
+    return 5;
 }
 #endif

@@ -144,7 +144,10 @@ ScriptedArtboard::ScriptedArtboard(
     m_stateMachine(m_artboard->defaultStateMachine())
 {
     m_viewModelInstance = m_file->createViewModelInstance(m_artboard.get());
-    m_stateMachine->bindViewModelInstance(m_viewModelInstance);
+    if (m_stateMachine && m_viewModelInstance)
+    {
+        m_stateMachine->bindViewModelInstance(m_viewModelInstance);
+    }
 }
 
 int luaopen_rive_artboards(lua_State* L)
