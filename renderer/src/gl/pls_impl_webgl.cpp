@@ -123,12 +123,6 @@ bool webgl_enable_WEBGL_shader_pixel_local_storage_coherent()
         emscripten_webgl_get_current_context());
 }
 
-bool webgl_enable_WEBGL_provoking_vertex()
-{
-    return enable_WEBGL_provoking_vertex(
-        emscripten_webgl_get_current_context());
-}
-
 void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,
                                                 GLuint backingtexture,
                                                 GLint level,
@@ -178,6 +172,12 @@ void glGetFramebufferPixelLocalStorageParameterivANGLE(GLint plane,
         emscripten_webgl_get_current_context(),
         plane,
         pname);
+}
+
+bool webgl_enable_WEBGL_provoking_vertex()
+{
+    return enable_WEBGL_provoking_vertex(
+        emscripten_webgl_get_current_context());
 }
 
 void glProvokingVertexANGLE(GLenum provokeMode)

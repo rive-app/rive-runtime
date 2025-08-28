@@ -23,19 +23,6 @@ void GLState::invalidate()
     // ANGLE_shader_pixel_local_storage doesn't allow dither.
     glDisable(GL_DITHER);
 
-#ifndef RIVE_ANDROID
-    // D3D and Metal both have a provoking vertex convention of "first" for flat
-    // varyings, and it's very costly for ANGLE to implement the OpenGL
-    // convention of "last" on these backends. To workaround this, ANGLE
-    // provides the ANGLE_provoking_vertex extension. When this extension is
-    // present, we can just set the provoking vertex to "first" and trust that
-    // it will be fast.
-    if (m_capabilities.ANGLE_provoking_vertex)
-    {
-        glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
-    }
-#endif
-
     // Low-effort attempt to reset core state we don't use to default values.
     glDisable(GL_DEPTH_TEST);
     glDisable(GL_POLYGON_OFFSET_FILL);
@@ -62,6 +49,39 @@ void GLState::invalidate()
     glPixelStorei(GL_PACK_SKIP_PIXELS, 0);
     glPixelStorei(GL_PACK_ALIGNMENT, 4);
     glBindBuffer(GL_PIXEL_UNPACK_BUFFER, 0);
+
+#ifndef RIVE_ANDROID
+    // D3D and Metal both have a provoking vertex convention of "first" for flat
+    // varyings, and it's very costly for ANGLE to implement the OpenGL
+    // convention of "last" on these backends. To workaround this, ANGLE
+    // provides the ANGLE_provoking_vertex extension. When this extension is
+    // present, we can just set the provoking vertex to "first" and trust that
+    // it will be fast.
+    if (m_capabilities.ANGLE_provoking_vertex)
+    {
+        glProvokingVertexANGLE(GL_FIRST_VERTEX_CONVENTION_ANGLE);
+    }
+#endif
+
+#ifndef RIVE_WEBGL
+    // WebGL doesn't support glMaxShaderCompilerThreadsKHR().
+    if (m_capabilities.KHR_parallel_shader_compile)
+    {
+        // Allow GL's shader compilation to use 2 background threads.
+        //
+        // Parallel compilation is documented to be enabled by default, but on
+        // some drivers the parallel compilation does not actually activate
+        // without explicitly setting this.
+        //
+        // NOTE: the spec states that apps may use "0xffffffff" to mean "use the
+        // maximum number of threads", but that seems like an easy invitation
+        // for a driver bug, so we are explicit about the number of threads.
+        //
+        // FIXME: When AsyncPipelineManager starts using >1 thread, we should
+        // incorporate its same logic here.
+        glMaxShaderCompilerThreadsKHR(2);
+    }
+#endif
 }
 
 static void gl_enable_disable(GLenum state, bool enabled)

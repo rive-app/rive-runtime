@@ -51,7 +51,6 @@
 #define GL_PIXEL_LOCAL_CLEAR_VALUE_INT_ANGLE 0x96EC
 #define GL_PIXEL_LOCAL_CLEAR_VALUE_UNSIGNED_INT_ANGLE 0x96ED
 extern bool webgl_enable_WEBGL_shader_pixel_local_storage_coherent();
-extern bool webgl_enable_WEBGL_provoking_vertex();
 extern bool webgl_shader_pixel_local_storage_is_coherent();
 extern void glFramebufferTexturePixelLocalStorageANGLE(GLint plane,
                                                        GLuint backingtexture,
@@ -71,6 +70,7 @@ extern void glGetFramebufferPixelLocalStorageParameterivANGLE(GLint plane,
 #define GL_FIRST_VERTEX_CONVENTION_ANGLE 0x8E4D
 #define GL_LAST_VERTEX_CONVENTION_ANGLE 0x8E4E
 #define GL_PROVOKING_VERTEX_ANGLE 0x8E4F
+extern bool webgl_enable_WEBGL_provoking_vertex();
 extern void glProvokingVertexANGLE(GLenum provokeMode);
 #endif
 

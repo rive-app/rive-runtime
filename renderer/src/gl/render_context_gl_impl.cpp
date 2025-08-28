@@ -2146,15 +2146,15 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         }
         else if (strcmp(ext, "GL_KHR_parallel_shader_compile") == 0)
         {
+#ifdef RIVE_ANDROID
+            // Don't use KHR_parallel_shader_compile if we're on ANGLE. Various
+            // Galaxy devices using ANGLE will crash immediately if we turn it
+            // on.
+            capabilities.KHR_parallel_shader_compile =
+                !capabilities.isANGLEOrWebGL;
+#else
             capabilities.KHR_parallel_shader_compile = true;
-
-            // Allow GL's shader compilation to use an implementation-defined
-            // number of background threads. This is documented as the default
-            // behavior, but on some drivers the parallel compilation does not
-            // actually activate without explicitly setting this.
-            // Note that there is no explicit constant for "use the maximum
-            // number of threads", but the documentation says to use this value.
-            glMaxShaderCompilerThreadsKHR(0xffffffff);
+#endif
         }
         else if (strcmp(ext, "GL_EXT_base_instance") == 0)
         {
