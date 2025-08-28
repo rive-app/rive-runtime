@@ -163,11 +163,14 @@ public:
     NestedArtboard* parentNestedArtboard() { return m_parentNestedArtboard; }
     void notify(const std::vector<EventReport>& events,
                 NestedArtboard* context) override;
-    void notifyListenerViewModels();
+    void notifyListenerViewModels(
+        const std::vector<ListenerViewModel*>& events);
 
     /// Tracks an event that reported, will be cleared at the end of the next
     /// advance.
     void reportEvent(Event* event, float secondsDelay = 0.0f) override;
+
+    void applyEvents();
 
     void reportListenerViewModel(ListenerViewModel*);
 
@@ -204,6 +207,7 @@ public:
 
 private:
     std::vector<EventReport> m_reportedEvents;
+    std::vector<EventReport> m_reportingEvents;
     const StateMachine* m_machine;
     bool m_needsAdvance = false;
     std::vector<SMIInput*> m_inputInstances; // we own each pointer
@@ -216,6 +220,7 @@ private:
     std::vector<DataBind*> m_dataBinds;
     std::vector<ListenerViewModel*> m_listenerViewModels;
     std::vector<ListenerViewModel*> m_reportedListenerViewModels;
+    std::vector<ListenerViewModel*> m_reportingListenerViewModels;
     std::unordered_map<BindableProperty*, BindableProperty*>
         m_bindablePropertyInstances;
     std::unordered_map<BindableProperty*, DataBind*>

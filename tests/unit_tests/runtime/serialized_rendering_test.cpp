@@ -623,3 +623,45 @@ TEST_CASE("Vertical align on text with ellipsis", "[silver]")
 
     CHECK(silver.matches("vertical_align_ellipsis"));
 }
+
+TEST_CASE("Event triggers another event", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/event_trigger_event.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    // Click in a square that fires a trigger. This trigger will cause a
+    // transition that fires an event. There is a listener on that event that
+    // fires a second event.
+    stateMachine->pointerDown(rive::Vec2D(475, 25));
+    stateMachine->pointerUp(rive::Vec2D(475, 25));
+    stateMachine->advanceAndApply(0.1f);
+
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+
+    stateMachine->advanceAndApply(0.1f);
+
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("event_trigger_event"));
+}

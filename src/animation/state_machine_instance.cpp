@@ -1818,6 +1818,31 @@ bool StateMachineInstance::tryChangeState()
     return hasChangedState;
 }
 
+void StateMachineInstance::applyEvents()
+{
+    int maxIterations = 100;
+    int currentIteration = 0;
+    while ((m_reportedEvents.size() > 0 ||
+            m_reportedListenerViewModels.size() > 0) &&
+           currentIteration++ < maxIterations)
+    {
+        m_reportingEvents = m_reportedEvents;
+        m_reportingListenerViewModels = m_reportedListenerViewModels;
+        m_reportedEvents.clear();
+        m_reportedListenerViewModels.clear();
+        this->notifyEventListeners(m_reportingEvents, nullptr);
+        this->notifyListenerViewModels(m_reportingListenerViewModels);
+    }
+    if (currentIteration >= maxIterations)
+    {
+        fprintf(stderr,
+                "%s StateMachine exceeded max event iterations"
+                "on artboard %s\n",
+                stateMachine()->name().c_str(),
+                artboard()->name().c_str());
+    }
+}
+
 bool StateMachineInstance::advance(float seconds, bool newFrame)
 {
     if (m_drawOrderChangeCounter !=
@@ -1828,10 +1853,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
     }
     if (newFrame)
     {
-        this->notifyEventListeners(m_reportedEvents, nullptr);
-        m_reportedEvents.clear();
-        notifyListenerViewModels();
-        m_reportedListenerViewModels.clear();
+        applyEvents();
         m_needsAdvance = false;
     }
     updateDataBinds();
@@ -2116,11 +2138,12 @@ void StateMachineInstance::notify(const std::vector<EventReport>& events,
     updateDataBinds();
 }
 
-void StateMachineInstance::notifyListenerViewModels()
+void StateMachineInstance::notifyListenerViewModels(
+    const std::vector<ListenerViewModel*>& events)
 {
-    if (m_reportedListenerViewModels.size() > 0)
+    if (events.size() > 0)
     {
-        for (auto& listenerViewModel : m_reportedListenerViewModels)
+        for (auto& listenerViewModel : events)
         {
             listenerViewModel->listener()->performChanges(this,
                                                           Vec2D(),
