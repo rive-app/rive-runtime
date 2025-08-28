@@ -2146,15 +2146,17 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         }
         else if (strcmp(ext, "GL_KHR_parallel_shader_compile") == 0)
         {
-#ifdef RIVE_ANDROID
-            // Don't use KHR_parallel_shader_compile if we're on ANGLE. Various
-            // Galaxy devices using ANGLE will crash immediately if we turn it
-            // on.
-            capabilities.KHR_parallel_shader_compile =
-                !capabilities.isANGLEOrWebGL;
-#else
             capabilities.KHR_parallel_shader_compile = true;
-#endif
+            // Don't call glMaxShaderCompilerThreadsKHR on ANGLE. Various Galaxy
+            // devices using ANGLE crash immediately when we call it. (This
+            // should be fine because the initial value of
+            // GL_MAX_SHADER_COMPILER_THREADS_KHR is specified to be an
+            // implementation-dependent maximum number of threads. We choose to
+            // only ignore this call selectively because on some drivers, the
+            // parallel compilation does not actually activate without
+            // explicitly setting it.)
+            capabilities.avoidMaxShaderCompilerThreadsKHR =
+                capabilities.isANGLEOrWebGL;
         }
         else if (strcmp(ext, "GL_EXT_base_instance") == 0)
         {

@@ -140,7 +140,8 @@ struct GLCapabilities
     bool isPowerVR : 1;
 
     // Workarounds.
-    // Some devices crash when issuing draw commands with a large instancecount.
+    // Some Mali and PowerVR devices crash when issuing draw commands with a
+    // large instancecount.
     uint32_t maxSupportedInstancesPerDrawCommand = ~0u;
     // Chrome 136 crashes when trying to run Rive because it attempts to enable
     // blending on the tessellation texture, which is invalid for an integer
@@ -148,6 +149,14 @@ struct GLCapabilities
     // texture.
     // https://issues.chromium.org/issues/416294709
     bool needsFloatingPointTessellationTexture = false;
+    // Various Galaxy devices using ANGLE crash immediately when calling
+    // glMaxShaderCompilerThreadsKHR. On these devices we simply can't call this
+    // function. (This should be fine because the initial value of
+    // GL_MAX_SHADER_COMPILER_THREADS_KHR is specified to be an
+    // implementation-dependent maximum number of threads. We choose to only
+    // ignore this call selectively because on some drivers, the parallel
+    // compilation does not actually activate without explicitly setting it.)
+    bool avoidMaxShaderCompilerThreadsKHR = false;
 
     // Extensions
     bool ANGLE_base_vertex_base_instance_shader_builtin : 1;
