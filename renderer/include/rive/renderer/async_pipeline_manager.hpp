@@ -201,6 +201,15 @@ public:
     }
 
 protected:
+    void clearCacheDoNotCallWithThreadedShaderLoading()
+    {
+        // If we want to handle this with threaded shaders there's more work
+        //  involved, but this was only needed for GL at the moment.
+        assert(!m_jobThread.joinable());
+
+        m_pipelines.clear();
+    }
+
     // This function is called to create a pipeline when we don't have one
     //  with its key already. It can be called in either "sync" or "async" mode.
     //  - In async mode, the function should either:

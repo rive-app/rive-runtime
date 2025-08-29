@@ -7,7 +7,9 @@
 #include "rive/renderer/gl/render_buffer_gl_impl.hpp"
 #include "rive/renderer/gl/render_target_gl.hpp"
 #include "rive/renderer/draw.hpp"
+#include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/texture.hpp"
+#include "rive/profiler/profiler_macros.h"
 #include "shaders/constants.glsl"
 
 #include "generated/shaders/advanced_blend.glsl.hpp"
@@ -80,6 +82,16 @@ RenderContextGLImpl::RenderContextGLImpl(
     m_state(make_rcp<GLState>(m_capabilities))
 
 {
+    if (m_capabilities.isANGLEOrWebGL &&
+        capabilities.KHR_blend_equation_advanced)
+    {
+        // Some ANGLE devices report support for this extension but render
+        //  incorrectly with it, so we'll need to run a quick test to validate
+        //  that we get the proper color out of doing advance blending before
+        //  rendering with it.
+        m_testForAdvancedBlendError = true;
+    }
+
     if (m_plsImpl != nullptr)
     {
         m_platformFeatures.supportsRasterOrdering =
@@ -1307,6 +1319,91 @@ void RenderContextGLImpl::PixelLocalStorageImpl::ensureRasterOrderingEnabled(
         {
             onBarrier(desc);
         }
+    }
+}
+
+void RenderContextGLImpl::preBeginFrame(RenderContext* ctx)
+{
+    if (!m_testForAdvancedBlendError)
+    {
+        return;
+    }
+
+    // We need to do a test to check whether or not KHR_blend_equation_advanced
+    //  actually works as advertised. This is basically done by rendering a
+    //  quad with a fancy blend mode to a tiny render target, reading it back,
+    //  then checking how close to the true color we are.
+
+    m_testForAdvancedBlendError = false;
+
+    constexpr uint32_t RT_WIDTH = 4;
+    constexpr uint32_t RT_HEIGHT = 4;
+    constexpr ColorInt RT_CLEAR_COLOR = 0x8000ffff;
+
+    RenderContext::FrameDescriptor fd = {
+        .renderTargetWidth = RT_WIDTH,
+        .renderTargetHeight = RT_HEIGHT,
+        .clearColor = RT_CLEAR_COLOR,
+    };
+
+    glutils::Texture texture;
+    glActiveTexture(GL_TEXTURE0);
+    glBindTexture(GL_TEXTURE_2D, texture);
+    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, RT_WIDTH, RT_HEIGHT);
+
+    TextureRenderTargetGL rt{RT_WIDTH, RT_HEIGHT};
+    rt.setTargetTexture(texture);
+
+    ctx->beginFrame(fd);
+
+    RiveRenderer renderer{ctx};
+
+    constexpr ColorInt RT_QUAD_FILL_COLOR = 0x80404000;
+
+    auto paint = ctx->makeRenderPaint();
+    paint->style(RenderPaintStyle::fill);
+    paint->color(RT_QUAD_FILL_COLOR);
+    paint->blendMode(BlendMode::colorBurn);
+
+    auto path = ctx->makeEmptyRenderPath();
+    path->fillRule(FillRule::clockwise);
+    path->moveTo(-1.0f, -1.0f);
+    path->lineTo(float(RT_WIDTH + 1), -1.0f);
+    path->lineTo(float(RT_WIDTH + 1), float(RT_HEIGHT + 1));
+    path->lineTo(-1.0f, float(RT_HEIGHT + 1));
+
+    renderer.drawPath(path.get(), paint.get());
+
+    ctx->flush({.renderTarget = &rt});
+
+    rt.bindDestinationFramebuffer(GL_READ_FRAMEBUFFER);
+
+    uint8_t pixel[4];
+    glReadPixels(1, 1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, &pixel);
+
+    // Note that this color is *not* in the same channel order as the above
+    //  colors.
+    uint8_t EXPECTED_COLOR[] = {0x10, 0x90, 0x80, 0xc0};
+
+    int maxRGBDiff = std::max({std::abs(int(pixel[0] - EXPECTED_COLOR[0])),
+                               std::abs(int(pixel[1] - EXPECTED_COLOR[1])),
+                               std::abs(int(pixel[2] - EXPECTED_COLOR[2]))});
+
+    // Note that the RGB mismatch we are seeing that this is fixing is 96.
+    constexpr int DIFF_TOLERANCE = 40;
+    if (maxRGBDiff > DIFF_TOLERANCE)
+    {
+        // If the blending was out of tolerance then we need to disable this
+        // feature.
+        m_capabilities.KHR_blend_equation_advanced = false;
+        m_platformFeatures.supportsBlendAdvancedKHR = false;
+
+        // We also need to clear the shader caches because shaders get built
+        //  differently based on whether KHR_blend_equation_advanced is set.
+        //  Thankfully we should only have a couple that we just created for
+        //  the test.
+        m_vsManager.clearCache();
+        m_pipelineManager.clearCache();
     }
 }
 

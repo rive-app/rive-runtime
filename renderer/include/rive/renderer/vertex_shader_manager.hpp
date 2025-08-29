@@ -73,6 +73,12 @@ public:
         }
     }
 
+    void clearCache()
+    {
+        std::unique_lock lock{m_mutex};
+        m_shaders.clear();
+    }
+
 protected:
     virtual VSStorageType createVertexShader(
         gpu::DrawType drawType,

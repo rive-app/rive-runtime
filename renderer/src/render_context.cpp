@@ -279,6 +279,8 @@ void RenderContext::LogicalFlush::resetContainers()
 void RenderContext::beginFrame(const FrameDescriptor& frameDescriptor)
 {
     RIVE_PROF_SCOPE()
+
+    m_impl->preBeginFrame(this);
     assert(!m_didBeginFrame);
     assert(frameDescriptor.renderTargetWidth > 0);
     assert(frameDescriptor.renderTargetHeight > 0);

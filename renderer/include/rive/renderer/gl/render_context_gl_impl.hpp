@@ -164,6 +164,8 @@ private:
     void resizeTessellationTexture(uint32_t width, uint32_t height) override;
     void resizeAtlasTexture(uint32_t width, uint32_t height) override;
 
+    void preBeginFrame(RenderContext*) override;
+
     void flush(const FlushDescriptor&) override;
 
     // Issues the equivalent of glDrawElementsInstancedBaseInstanceEXT(),
@@ -334,6 +336,8 @@ private:
     public:
         GLPipelineManager(ShaderCompilationMode, RenderContextGLImpl*);
 
+        void clearCache() { clearCacheDoNotCallWithThreadedShaderLoading(); }
+
     protected:
         virtual std::unique_ptr<DrawProgram> createPipeline(
             PipelineCreateType createType,
@@ -388,5 +392,7 @@ private:
     glutils::Program m_blitAsDrawProgram = glutils::Program::Zero();
 
     const rcp<GLState> m_state;
+
+    bool m_testForAdvancedBlendError = false;
 };
 } // namespace rive::gpu

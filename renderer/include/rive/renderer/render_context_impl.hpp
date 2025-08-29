@@ -67,6 +67,8 @@ public:
     virtual void resizeTessVertexSpanBuffer(size_t sizeInBytes) = 0;
     virtual void resizeTriangleVertexBuffer(size_t sizeInBytes) = 0;
 
+    virtual void preBeginFrame(RenderContext*) {}
+
     // Perform any bookkeeping or other tasks that need to run before
     // RenderContext begins accessing GPU resources for the flush. (Update
     // counters, advance buffer pools, etc.)
