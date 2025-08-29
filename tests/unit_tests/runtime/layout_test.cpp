@@ -1,3 +1,4 @@
+#include "rive/animation/state_machine_instance.hpp"
 #include "rive/layout/layout_component_style.hpp"
 #include "rive/layout/layout_enums.hpp"
 #include "rive/math/transform_components.hpp"
@@ -6,6 +7,7 @@
 #include "utils/no_op_factory.hpp"
 #include "rive_file_reader.hpp"
 #include "rive_testing.hpp"
+#include "utils/serializing_factory.hpp"
 #include <catch.hpp>
 #include <cstdio>
 
@@ -431,4 +433,32 @@ TEST_CASE("Prevent Margin Pct on Artboard", "[layout]")
 
     REQUIRE(artboard->layoutWidth() == 501.0f);
     REQUIRE(artboard->layoutHeight() == 512.0f);
+}
+
+TEST_CASE("Multiple layout collapsing and soloing in hierarchy.", "[silver]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/collapsing_elements.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(4.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("collapsing_elements"));
 }
