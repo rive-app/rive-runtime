@@ -80,7 +80,8 @@ StatusCode Component::import(ImportStack& importStack)
 
 bool Component::collapse(bool value)
 {
-    if (isCollapsed() == value)
+    if (((m_Dirt & ComponentDirt::Collapsed) == ComponentDirt::Collapsed) ==
+        value)
     {
         return false;
     }

@@ -213,42 +213,27 @@ bool LayoutComponent::overridesKeyedInterpolation(int propertyKey)
 
 bool LayoutComponent::isHidden() const
 {
-    return Super::isHidden() || isDisplayHidden();
+    return Super::isHidden() || isCollapsed();
 }
 
-bool LayoutComponent::isDisplayHidden() const
+bool LayoutComponent::isCollapsed() const
 {
-#ifdef WITH_RIVE_LAYOUT
-    if (m_displayHidden || parent() == nullptr ||
-        !parent()->is<LayoutComponent>())
+    if (Super::isCollapsed())
     {
-        return m_displayHidden;
+        return true;
     }
-    return parent()->as<LayoutComponent>()->isDisplayHidden();
+#ifdef WITH_RIVE_LAYOUT
+    return styleDisplayHidden();
 #endif
     return false;
 }
 
 void LayoutComponent::propagateCollapse(bool collapse)
 {
-    bool displayHidden = isDisplayHidden();
     for (Component* child : children())
     {
-        child->collapse(collapse || displayHidden);
+        child->collapse(collapse);
     }
-}
-
-bool LayoutComponent::collapse(bool value)
-{
-    if (!Component::collapse(value))
-    {
-        return false;
-    }
-    for (Component* child : children())
-    {
-        child->collapse(value || m_displayHidden);
-    }
-    return true;
 }
 
 #ifdef WITH_RIVE_LAYOUT
@@ -348,7 +333,7 @@ void LayoutComponent::draw(Renderer* renderer)
 
 void LayoutComponent::updateRenderPath()
 {
-    if (isDisplayHidden())
+    if (isHidden())
     {
         return;
     }
@@ -951,7 +936,7 @@ void LayoutComponent::calculateLayoutInternal(float availableWidth,
                           YGDirection::YGDirectionInherit);
 }
 
-bool LayoutComponent::styleDisplayHidden()
+bool LayoutComponent::styleDisplayHidden() const
 {
     if (m_style == nullptr)
     {
@@ -1013,12 +998,6 @@ void LayoutComponent::updateLayoutBounds(bool animate)
         return;
     }
     node.setHasNewLayout(false);
-
-    if (m_style != nullptr && styleDisplayHidden() != m_displayHidden)
-    {
-        m_displayHidden = styleDisplayHidden();
-        propagateCollapse(isCollapsed());
-    }
 
     for (auto child : children())
     {
@@ -1419,6 +1398,7 @@ void LayoutComponent::displayChanged()
     {
         return;
     }
+    propagateCollapse(isCollapsed());
     markLayoutNodeDirty();
 }
 

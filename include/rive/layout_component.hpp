@@ -118,7 +118,6 @@ protected:
     ShapePaintPath m_localPath;
     ShapePaintPath m_worldPath;
     DrawableProxy m_proxy;
-    bool m_displayHidden = false;
 
     Artboard* getArtboard() override { return artboard(); }
     LayoutAnimationData* currentAnimationData();
@@ -136,9 +135,8 @@ protected:
         }
         return nullptr;
     }
-    bool isDisplayHidden() const;
+    bool isCollapsed() const override;
     void propagateCollapse(bool collapse);
-    bool collapse(bool value) override;
     float computedLocalX() override { return m_layout.left(); };
     float computedLocalY() override { return m_layout.top(); };
     float computedWidth() override { return m_layout.width(); };
@@ -161,7 +159,7 @@ private:
 protected:
     void propagateSizeToChildren(ContainerComponent* component);
     bool applyInterpolation(float elapsedSeconds, bool animate = true);
-    bool styleDisplayHidden();
+    bool styleDisplayHidden() const;
 #endif
 
 public:
