@@ -2493,7 +2493,16 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 {
     auto* renderTarget =
         static_cast<const RenderTargetWebGPU*>(desc.renderTarget);
-    wgpu::CommandEncoder encoder = m_device.CreateCommandEncoder();
+
+    wgpu::CommandEncoder encoder;
+    if (desc.externalCommandBuffer == nullptr)
+    {
+        encoder = m_device.CreateCommandEncoder();
+    }
+    else
+    {
+        encoder = *(wgpu::CommandEncoder*)desc.externalCommandBuffer;
+    }
 
 #ifdef RIVE_WAGYU
     // If storage buffers are disabled, copy their contents to textures.
@@ -3032,8 +3041,11 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
 
     drawPass.End();
 
-    wgpu::CommandBuffer commands = encoder.Finish();
-    m_queue.Submit(1, &commands);
+    if (desc.externalCommandBuffer == nullptr)
+    {
+        wgpu::CommandBuffer commands = encoder.Finish();
+        m_queue.Submit(1, &commands);
+    }
 }
 
 std::unique_ptr<RenderContext> RenderContextWebGPUImpl::MakeContext(
