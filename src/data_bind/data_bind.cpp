@@ -244,6 +244,12 @@ void DataBind::unbind()
     }
 }
 
+bool DataBind::isCollapsed()
+{
+    return m_target && m_target->is<Component>() &&
+           m_target->as<Component>()->isCollapsed();
+}
+
 void DataBind::update(ComponentDirt value)
 {
     if ((value & ComponentDirt::Dependents) == ComponentDirt::Dependents &&

@@ -786,6 +786,10 @@ void Artboard::updateDataBinds()
     }
     for (auto dataBind : m_DataBinds)
     {
+        if (dataBind->isCollapsed())
+        {
+            continue;
+        }
         dataBind->updateSourceBinding();
         auto d = dataBind->dirt();
         if (d == ComponentDirt::None)
