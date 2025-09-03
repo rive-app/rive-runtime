@@ -30,7 +30,7 @@ TEST_CASE("scripting require with bad code", "[scripting]")
                          {"utilities", "return { 'name' = 'hello' }"},
                      });
     auto error = lua_tostring(vm.state(), -1);
-    CHECK(error == std::string("[string \"test_source\"]:1: require could "
+    CHECK(error == std::string("test_source:1: require could "
                                "not find a script named utilities"));
 }
 
@@ -62,6 +62,6 @@ TEST_CASE("scripting require removed module works", "[scripting]")
     vm.unregisterModule("utilities");
     vm.execute();
     auto result = lua_tostring(vm.state(), -1);
-    CHECK(result == std::string("[string \"test_source\"]:1: require could not "
+    CHECK(result == std::string("test_source:1: require could not "
                                 "find a script named utilities"));
 }

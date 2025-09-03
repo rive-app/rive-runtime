@@ -29,8 +29,7 @@ TEST_CASE("can call renderer", "[scripting]")
     lua_getglobal(L, "afterwards");
     CHECK(lua_pcall(L, 0, 0, 0) == LUA_ERRRUN);
     CHECK(lua_tostring(L, -1) ==
-          std::string(
-              "[string \"test_source\"]:9: Renderer is no longer valid."));
+          std::string("test_source:9: Renderer is no longer valid."));
 }
 
 TEST_CASE("renderer checks its balanced", "[scripting]")
