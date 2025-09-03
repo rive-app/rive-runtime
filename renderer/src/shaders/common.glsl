@@ -37,6 +37,15 @@
 #define TESSDATA_AS_UINT(X) X
 #endif
 
+// Gathers a 4xN matrix of texels, in the same order as the textureGather() API.
+// clang-format off
+#define TEXTURE_GATHER_MATRIX(NAME, COORD, COMPONENTS)                         \
+    TEXEL_FETCH(NAME, int2(COORD) + int2(-1, 0))COMPONENTS,                    \
+        TEXEL_FETCH(NAME, int2(COORD) + int2(0, 0))COMPONENTS,                 \
+        TEXEL_FETCH(NAME, int2(COORD) + int2(0, -1))COMPONENTS,                \
+        TEXEL_FETCH(NAME, int2(COORD) + int2(-1, -1))COMPONENTS
+// clang-format on
+
 // This is a macro because we can't (at least for now) forward texture refs to a
 // function in a way that works in all the languages we support.
 // This is a macro because we can't (at least for now) forward texture refs to a
@@ -138,6 +147,8 @@ INLINE half4 make_half4(half x)
     return ret;
 }
 
+INLINE half4 make_half4(half4 x) { return x; }
+
 INLINE bool2 make_bool2(bool b) { return bool2(b, b); }
 
 INLINE half3x3 make_half3x3(half3 a, half3 b, half3 c)
@@ -154,6 +165,16 @@ INLINE half2x3 make_half2x3(half3 a, half3 b)
     half2x3 ret;
     ret[0] = a;
     ret[1] = b;
+    return ret;
+}
+
+INLINE half4x4 make_half4x4(half4 a, half4 b, half4 c, half4 d)
+{
+    half4x4 ret;
+    ret[0] = a;
+    ret[1] = b;
+    ret[2] = c;
+    ret[3] = d;
     return ret;
 }
 

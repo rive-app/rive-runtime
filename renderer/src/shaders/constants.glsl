@@ -32,6 +32,11 @@
 // need at least one segment, thus a minimum of 2 (plus helper vertices).
 #define FEATHER_JOIN_MIN_SEGMENT_COUNT (2u + FEATHER_JOIN_HELPER_SEGMENT_COUNT)
 
+// The feather texture doesn't begin and end on 0 and 1. These are the actual
+// values that get returned by FEATHER(0) and FEATHER(1) respectively.
+#define MIN_FEATHER float(0.00137615203857421875)
+#define MAX_FEATHER float(0.99853515625)
+
 // Width to use for a texture that emulates a storage buffer.
 //
 // Minimize width since the texture needs to be updated in entire rows from the
@@ -239,3 +244,12 @@
 #define BORROWED_COVERAGE_PREPASS_SPECIALIZATION_IDX 8
 #define VULKAN_VENDOR_ID_SPECIALIZATION_IDX 9
 #define SPECIALIZATION_COUNT 10
+
+// When rendering to an r32i feather atlas, use 16:16 fixed point.
+#define ATLAS_R32I_FIXED_POINT_FACTOR 65536.
+
+// When we have to fall back on an 8-bit color buffer to render the feather
+// atlas, sacrifice precision to lessen overflows.
+// Throwing away the bottom 3 bits seems to be the best tradeoff, based on our
+// golden image suite.
+#define ATLAS_UNORM8_COVERAGE_SCALE_FACTOR 8.

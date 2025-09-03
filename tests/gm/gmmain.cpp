@@ -45,6 +45,7 @@ extern "C" void gms_build_registry()
     MAKE_GM(feathertext_montserrat)
 
     // Add the normal (not slow) gms last.
+    MAKE_GM(atlastypes)
     MAKE_GM(batchedconvexpaths)
     MAKE_GM(batchedtriangulations)
     MAKE_GM(bevel180strokes)

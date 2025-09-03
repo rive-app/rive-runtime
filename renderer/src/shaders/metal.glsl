@@ -40,6 +40,7 @@
 #define float2x2 $float2x2
 #define half3x3 $half3x3
 #define half2x3 $half2x3
+#define half4x4 $half4x4
 #endif
 
 #define INLINE $inline

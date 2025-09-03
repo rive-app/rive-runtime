@@ -57,7 +57,15 @@ TEXTURE_R16F_1D_ARRAY(PER_FLUSH_BINDINGS_SET,
                       @featherTexture);
 #endif
 #ifdef @ATLAS_BLIT
+#ifdef @ATLAS_TEXTURE_R32UI_FLOAT_BITS
+TEXTURE_R32UI(PER_DRAW_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
+#elif defined(@ATLAS_TEXTURE_R32I_FIXED_POINT)
+TEXTURE_R32I(PER_DRAW_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
+#elif defined(@ATLAS_TEXTURE_RGBA8_UNORM)
+TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
+#else
 TEXTURE_R16F(PER_DRAW_BINDINGS_SET, ATLAS_TEXTURE_IDX, @atlasTexture);
+#endif
 #endif
 TEXTURE_RGBA8(PER_DRAW_BINDINGS_SET, IMAGE_TEXTURE_IDX, @imageTexture);
 // The Qualcomm compiler can't handle line breaks in #ifs.
@@ -267,10 +275,38 @@ filter_feather_atlas(float2 atlasCoord,
     // Gather from the exact center of the quad to make sure there are no
     // rounding differences between us and the texture unit.
     float2 atlasQuadCenter = round(atlasCoord);
-    half4 coverages = TEXTURE_GATHER(@atlasTexture,
-                                     atlasSampler,
-                                     atlasQuadCenter,
-                                     atlasTextureInverseSize);
+    half4 coverages;
+#ifdef @ATLAS_TEXTURE_R32UI_FLOAT_BITS
+    coverages = uintBitsToFloat(uint4(TEXTURE_GATHER(@atlasTexture,
+                                                     atlasSampler,
+                                                     atlasQuadCenter,
+                                                     atlasTextureInverseSize)));
+#elif defined(@ATLAS_TEXTURE_R32I_FIXED_POINT)
+    int4 coverages_i32 = int4(TEXTURE_GATHER(@atlasTexture,
+                                             atlasSampler,
+                                             atlasQuadCenter,
+                                             atlasTextureInverseSize));
+    coverages = float4(coverages_i32) * (1. / ATLAS_R32I_FIXED_POINT_FACTOR);
+#elif defined(@ATLAS_TEXTURE_RGBA8_UNORM)
+    int2 coord = int2(atlasQuadCenter);
+    half4x4 coverages_u8x4 =
+        make_half4x4(TEXTURE_GATHER_MATRIX(@atlasTexture, coord, .rgba));
+    // Apply the following weights to the RGBA of each u8x4 coverage value:
+    //   - R counts fractional, positive coverage.
+    //   - G counts fractional, negative coverage.
+    //   - B counts integer, positive coverage.
+    //   - A counts integer, negative coverage.
+    coverages = make_half4(ATLAS_UNORM8_COVERAGE_SCALE_FACTOR,
+                           -ATLAS_UNORM8_COVERAGE_SCALE_FACTOR,
+                           255.,
+                           -255.) *
+                coverages_u8x4;
+#else
+    coverages = make_half4(TEXTURE_GATHER(@atlasTexture,
+                                          atlasSampler,
+                                          atlasQuadCenter,
+                                          atlasTextureInverseSize));
+#endif
     // Convert each pixel from gaussian space back to linear.
     coverages = make_half4(INVERSE_FEATHER(coverages.x),
                            INVERSE_FEATHER(coverages.y),

@@ -224,7 +224,7 @@ glsl_reserved = {
     "outerProduct", "outerProduct", "outerProduct", "outerProduct", "outerProduct", "outerProduct",
     "outerProduct", "outerProduct", "packDouble2x32", "packHalf2x16", "packSnorm2x16",
     "packSnorm4x8", "packUnorm2x16", "packUnorm4x8", "pixelLocalLoadANGLE", "pixelLocalStoreANGLE",
-    "pow", "precision", "r16f", "r32f", "r32ui", "radians", "reflect", "reflect", "refract",
+    "pow", "precision", "r16f", "r32f", "r32i", "r32ui", "radians", "reflect", "reflect", "refract",
     "refract", "return", "rg16f", "rgb_2_yuv", "rgba8", "rgba8i", "rgba8ui", "round", "round",
     "roundEven", "roundEven", "sampler2D", "sampler2DArray", "sampler2DArrayShadow",
     "sampler2DShadow", "sampler3D", "samplerCube", "samplerCubeShadow", "shadow1D", "shadow1DLod",

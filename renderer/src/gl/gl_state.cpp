@@ -258,7 +258,7 @@ void GLState::setBlendEquation(gpu::BlendEquation blendEquation)
             break;
         case gpu::BlendEquation::max:
             glBlendEquation(GL_MAX);
-            glBlendFunc(GL_ONE, GL_ONE_MINUS_SRC_ALPHA);
+            glBlendFunc(GL_ONE, GL_ONE);
             break;
     }
     m_blendEquation = blendEquation;

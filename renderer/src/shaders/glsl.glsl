@@ -24,6 +24,7 @@
 #define half4 mediump vec4
 #define half3x3 mediump mat3x3
 #define half2x3 mediump mat2x3
+#define half4x4 mediump mat4x4
 
 #define int2 ivec2
 #define int3 ivec3
@@ -59,6 +60,24 @@
 
 #ifdef @ENABLE_KHR_BLEND
 #extension GL_KHR_blend_equation_advanced : require
+#endif
+
+// Enable the necessary extensions for rendering the feather atlas.
+// NOTE: We do this here instead of render_atlas.glsl because extensions have to
+// be declared before any code.
+#ifdef @ATLAS_RENDER_TARGET_R32UI_FRAMEBUFFER_FETCH
+#extension GL_EXT_shader_framebuffer_fetch : require
+#elif defined(@ATLAS_RENDER_TARGET_R32UI_PLS_EXT)
+#extension GL_EXT_shader_pixel_local_storage : require
+#elif defined(@ATLAS_RENDER_TARGET_R32UI_PLS_ANGLE)
+#extension GL_ANGLE_shader_pixel_local_storage : require
+#elif defined(@ATLAS_RENDER_TARGET_R32I_ATOMIC_TEXTURE)
+#ifdef GL_ARB_shader_image_load_store
+#extension GL_ARB_shader_image_load_store : require
+#endif
+#ifdef GL_OES_shader_image_atomic
+#extension GL_OES_shader_image_atomic : require
+#endif
 #endif
 
 // clang-format off
@@ -145,6 +164,10 @@
     layout(set = SET, binding = IDX) uniform mediump texture2D NAME
 #define TEXTURE_R16F(SET, IDX, NAME)                                           \
     layout(binding = IDX) uniform mediump texture2D NAME
+#define TEXTURE_R32I(SET, IDX, NAME)                                           \
+    layout(binding = IDX) uniform highp itexture2D NAME
+#define TEXTURE_R32UI(SET, IDX, NAME)                                          \
+    layout(binding = IDX) uniform highp utexture2D NAME
 #if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA)
 #define DST_COLOR_TEXTURE(NAME)                                                \
     layout(input_attachment_index = 0,                                         \
@@ -160,6 +183,10 @@
     layout(binding = IDX) uniform mediump sampler2D NAME
 #define TEXTURE_R16F(SET, IDX, NAME)                                           \
     layout(binding = IDX) uniform mediump sampler2D NAME
+#define TEXTURE_R32I(SET, IDX, NAME)                                           \
+    layout(binding = IDX) uniform highp isampler2D NAME
+#define TEXTURE_R32UI(SET, IDX, NAME)                                          \
+    layout(binding = IDX) uniform highp usampler2D NAME
 #define DST_COLOR_TEXTURE(NAME)                                                \
     TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, NAME)
 #else
@@ -167,6 +194,8 @@
 #define TEXTURE_RGBA32F(SET, IDX, NAME) uniform highp sampler2D NAME
 #define TEXTURE_RGBA8(SET, IDX, NAME) uniform mediump sampler2D NAME
 #define TEXTURE_R16F(SET, IDX, NAME) uniform mediump sampler2D NAME
+#define TEXTURE_R32I(SET, IDX, NAME) uniform highp isampler2D NAME
+#define TEXTURE_R32UI(SET, IDX, NAME) uniform highp usampler2D NAME
 #define DST_COLOR_TEXTURE(NAME)                                                \
     TEXTURE_RGBA8(PER_FLUSH_BINDINGS_SET, DST_COLOR_TEXTURE_IDX, NAME)
 #endif
@@ -240,10 +269,7 @@
     textureGather(NAME, (COORD) * (TEXTURE_INVERSE_SIZE))
 #else
 #define TEXTURE_GATHER(NAME, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)        \
-    make_half4(TEXEL_FETCH(NAME, int2(COORD) + int2(-1, 0)).r,                 \
-               TEXEL_FETCH(NAME, int2(COORD) + int2(0, 0)).r,                  \
-               TEXEL_FETCH(NAME, int2(COORD) + int2(0, -1)).r,                 \
-               TEXEL_FETCH(NAME, int2(COORD) + int2(-1, -1)).r)
+    TEXTURE_GATHER_MATRIX(NAME, COORD, .r)
 #endif
 
 #define VERTEX_STORAGE_BUFFER_BLOCK_BEGIN
@@ -332,7 +358,7 @@
 
 #ifdef @PLS_IMPL_EXT_NATIVE
 
-#extension GL_EXT_shader_pixel_local_storage : enable
+#extension GL_EXT_shader_pixel_local_storage : require
 
 #define PLS_BLOCK_BEGIN                                                        \
     __pixel_localEXT PLS                                                       \
@@ -355,31 +381,6 @@
 #define PLS_INTERLOCK_END
 
 #endif
-
-#ifdef @PLS_IMPL_FRAMEBUFFER_FETCH
-
-#extension GL_EXT_shader_framebuffer_fetch : require
-
-#define PLS_BLOCK_BEGIN
-#define PLS_DECL4F(IDX, NAME) layout(location = IDX) inout lowp vec4 NAME
-#define PLS_DECLUI(IDX, NAME) layout(location = IDX) inout highp uvec4 NAME
-#define PLS_BLOCK_END
-
-#define PLS_LOAD4F(PLANE) PLANE
-#define PLS_LOADUI(PLANE) PLANE.r
-#define PLS_STORE4F(PLANE, VALUE) PLANE = (VALUE)
-#define PLS_STOREUI(PLANE, VALUE) PLANE.r = (VALUE)
-
-// When using multiple color attachments, we have to write a value to every
-// color attachment, every shader invocation, or else the contents become
-// undefined.
-#define PLS_PRESERVE_4F(PLANE) PLS_STORE4F(PLANE, PLS_LOAD4F(PLANE))
-#define PLS_PRESERVE_UI(PLANE) PLS_STOREUI(PLANE, PLS_LOADUI(PLANE))
-
-#define PLS_INTERLOCK_BEGIN
-#define PLS_INTERLOCK_END
-
-#endif // PLS_IMPL_FRAMEBUFFER_FETCH
 
 #ifdef @PLS_IMPL_STORAGE_TEXTURE
 

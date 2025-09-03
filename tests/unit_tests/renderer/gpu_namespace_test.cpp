@@ -42,9 +42,11 @@ TEST_CASE("gaussian_integral_table", "[gpu]")
 
     CHECK(gaussianTable[0] >= 0);
     CHECK(gaussianTable[0] <= expf(-.5f * FEATHER_TEXTURE_STDDEVS));
+    CHECK(gaussianTable[0] == MIN_FEATHER);
     CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] <= 1);
     CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] >=
           1 - expf(-.5f * FEATHER_TEXTURE_STDDEVS));
+    CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE - 1] == MAX_FEATHER);
     if (gpu::GAUSSIAN_TABLE_SIZE & 1)
     {
         CHECK(gaussianTable[gpu::GAUSSIAN_TABLE_SIZE / 2] == .5f);

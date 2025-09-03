@@ -25,6 +25,10 @@
 #include "generated/shaders/blit_texture_as_draw.glsl.hpp"
 #include "generated/shaders/stencil_draw.glsl.hpp"
 
+#ifdef RIVE_ANDROID
+#include "generated/shaders/resolve_atlas.glsl.hpp"
+#endif
+
 #ifdef RIVE_WEBGL
 #include <emscripten/emscripten.h>
 #include <emscripten/html5.h>
@@ -70,6 +74,65 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
     RIVE_UNREACHABLE();
 }
 
+// Returns atlasDesiredType, or the next supported AtlasType down the list if it
+// is not supported.
+static RenderContextGLImpl::AtlasType select_atlas_type(
+    const GLCapabilities& capabilities,
+    RenderContextGLImpl::AtlasType atlasDesiredType =
+        RenderContextGLImpl::AtlasType::r32f)
+{
+    switch (atlasDesiredType)
+    {
+        using AtlasType = RenderContextGLImpl::AtlasType;
+        case AtlasType::r32f:
+            if (capabilities.EXT_color_buffer_float &&
+                capabilities.EXT_float_blend)
+            {
+                // fp32 is ideal for the atlas. When there's a lot of overlap,
+                // fp16 can run out of precision.
+                return AtlasType::r32f;
+            }
+            [[fallthrough]];
+        case AtlasType::r16f:
+            if (capabilities.EXT_color_buffer_half_float)
+            {
+                return AtlasType::r16f;
+            }
+            [[fallthrough]];
+        case AtlasType::r32uiFramebufferFetch:
+            if (capabilities.EXT_shader_framebuffer_fetch)
+            {
+                return AtlasType::r32uiFramebufferFetch;
+            }
+            [[fallthrough]];
+        case AtlasType::r32uiPixelLocalStorage:
+#ifdef RIVE_ANDROID
+            if (capabilities.EXT_shader_pixel_local_storage)
+            {
+                return AtlasType::r32uiPixelLocalStorage;
+            }
+#else
+            if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
+            {
+                return AtlasType::r32uiPixelLocalStorage;
+            }
+#endif
+            [[fallthrough]];
+        case AtlasType::r32iAtomicTexture:
+#ifndef RIVE_WEBGL
+            if (capabilities.ARB_shader_image_load_store ||
+                capabilities.OES_shader_image_atomic)
+            {
+                return AtlasType::r32iAtomicTexture;
+            }
+#endif
+            [[fallthrough]];
+        case AtlasType::rgba8:
+            return AtlasType::rgba8;
+    }
+    RIVE_UNREACHABLE();
+}
+
 RenderContextGLImpl::RenderContextGLImpl(
     const char* rendererString,
     GLCapabilities capabilities,
@@ -77,6 +140,7 @@ RenderContextGLImpl::RenderContextGLImpl(
     ShaderCompilationMode shaderCompilationMode) :
     m_capabilities(capabilities),
     m_plsImpl(std::move(plsImpl)),
+    m_atlasType(select_atlas_type(m_capabilities)),
     m_vsManager(this),
     m_pipelineManager(shaderCompilationMode, this),
     m_state(make_rcp<GLState>(m_capabilities))
@@ -324,6 +388,123 @@ RenderContextGLImpl::~RenderContextGLImpl()
 
     // Because glutils wrappers delete GL objects that might affect bindings.
     m_state->invalidate();
+}
+
+void RenderContextGLImpl::buildAtlasRenderPipelines()
+{
+    std::vector<const char*> defines;
+    defines.push_back(GLSL_DRAW_PATH);
+    defines.push_back(GLSL_ENABLE_FEATHER);
+    defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
+    if (!m_capabilities.ARB_shader_storage_buffer_object)
+    {
+        defines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
+    }
+    m_atlasFillPipelineState = gpu::ATLAS_FILL_PIPELINE_STATE;
+    m_atlasStrokePipelineState = gpu::ATLAS_STROKE_PIPELINE_STATE;
+    switch (m_atlasType)
+    {
+        case AtlasType::r32f:
+        case AtlasType::r16f:
+            break;
+        case AtlasType::r32uiFramebufferFetch:
+            defines.push_back(GLSL_ATLAS_RENDER_TARGET_R32UI_FRAMEBUFFER_FETCH);
+            m_atlasFillPipelineState.blendEquation = gpu::BlendEquation::none;
+            m_atlasStrokePipelineState.blendEquation = gpu::BlendEquation::none;
+            break;
+        case AtlasType::r32uiPixelLocalStorage:
+#ifdef RIVE_ANDROID
+            defines.push_back(GLSL_ATLAS_RENDER_TARGET_R32UI_PLS_EXT);
+#else
+            defines.push_back(GLSL_ATLAS_RENDER_TARGET_R32UI_PLS_ANGLE);
+#endif
+            m_atlasFillPipelineState.blendEquation = gpu::BlendEquation::none;
+            m_atlasStrokePipelineState.blendEquation = gpu::BlendEquation::none;
+            break;
+        case AtlasType::r32iAtomicTexture:
+#ifndef RIVE_WEBGL
+            defines.push_back(GLSL_ATLAS_RENDER_TARGET_R32I_ATOMIC_TEXTURE);
+            m_atlasFillPipelineState.colorWriteEnabled = false;
+            m_atlasFillPipelineState.blendEquation = gpu::BlendEquation::none;
+            m_atlasStrokePipelineState.colorWriteEnabled = false;
+            m_atlasStrokePipelineState.blendEquation = gpu::BlendEquation::none;
+#endif
+            break;
+        case AtlasType::rgba8:
+            defines.push_back(GLSL_ATLAS_RENDER_TARGET_RGBA8_UNORM);
+            break;
+    }
+
+    const char* atlasSources[] = {glsl::constants,
+                                  glsl::common,
+                                  glsl::draw_path_common,
+                                  glsl::render_atlas};
+    m_atlasVertexShader.compile(GL_VERTEX_SHADER,
+                                defines.data(),
+                                defines.size(),
+                                atlasSources,
+                                std::size(atlasSources),
+                                m_capabilities);
+
+    defines.push_back(GLSL_ATLAS_FEATHERED_FILL);
+    m_atlasFillProgram.compile(m_atlasVertexShader,
+                               defines.data(),
+                               defines.size(),
+                               atlasSources,
+                               std::size(atlasSources),
+                               m_capabilities,
+                               m_state.get());
+    defines.pop_back();
+
+    defines.push_back(GLSL_ATLAS_FEATHERED_STROKE);
+    m_atlasStrokeProgram.compile(m_atlasVertexShader,
+                                 defines.data(),
+                                 defines.size(),
+                                 atlasSources,
+                                 std::size(atlasSources),
+                                 m_capabilities,
+                                 m_state.get());
+    defines.pop_back();
+
+#ifdef RIVE_ANDROID
+    if (m_atlasType == AtlasType::r32uiPixelLocalStorage)
+    {
+        // Build the pipelines for clearing and resolving
+        // EXT_shader_pixel_local_storage.
+        m_atlasResolveVertexShader.compile(GL_VERTEX_SHADER,
+                                           glsl::resolve_atlas,
+                                           m_capabilities);
+
+        const char* atlasClearDefines[] = {
+            GLSL_ATLAS_RENDER_TARGET_R32UI_PLS_EXT,
+            GLSL_CLEAR_COVERAGE};
+        const char* atlasClearSources[] = {glsl::resolve_atlas};
+        m_atlasClearProgram = glutils::Program();
+        glAttachShader(m_atlasClearProgram, m_atlasResolveVertexShader);
+        m_atlasClearProgram.compileAndAttachShader(GL_FRAGMENT_SHADER,
+                                                   atlasClearDefines,
+                                                   std::size(atlasClearDefines),
+                                                   atlasClearSources,
+                                                   std::size(atlasClearSources),
+                                                   m_capabilities);
+        m_atlasClearProgram.link();
+
+        const char* atlasResolveDefines[] = {
+            GLSL_ATLAS_RENDER_TARGET_R32UI_PLS_EXT,
+        };
+        const char* atlasResolveSources[] = {glsl::resolve_atlas};
+        m_atlasResolveProgram = glutils::Program();
+        glAttachShader(m_atlasResolveProgram, m_atlasResolveVertexShader);
+        m_atlasResolveProgram.compileAndAttachShader(
+            GL_FRAGMENT_SHADER,
+            atlasResolveDefines,
+            std::size(atlasResolveDefines),
+            atlasResolveSources,
+            std::size(atlasResolveSources),
+            m_capabilities);
+        m_atlasResolveProgram.link();
+    }
+#endif
 }
 
 void RenderContextGLImpl::invalidateGLState()
@@ -667,14 +848,15 @@ void RenderContextGLImpl::resizeGradientTexture(uint32_t width, uint32_t height)
     if (width == 0 || height == 0)
     {
         m_gradientTexture = 0;
-        return;
     }
-
-    glGenTextures(1, &m_gradientTexture);
-    glActiveTexture(GL_TEXTURE0 + GRAD_TEXTURE_IDX);
-    glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
-    glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
-    glutils::SetTexture2DSamplingParams(GL_LINEAR, GL_LINEAR);
+    else
+    {
+        glGenTextures(1, &m_gradientTexture);
+        glActiveTexture(GL_TEXTURE0 + GRAD_TEXTURE_IDX);
+        glBindTexture(GL_TEXTURE_2D, m_gradientTexture);
+        glTexStorage2D(GL_TEXTURE_2D, 1, GL_RGBA8, width, height);
+        glutils::SetTexture2DSamplingParams(GL_LINEAR, GL_LINEAR);
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
     glFramebufferTexture2D(GL_FRAMEBUFFER,
@@ -691,20 +873,21 @@ void RenderContextGLImpl::resizeTessellationTexture(uint32_t width,
     if (width == 0 || height == 0)
     {
         m_tessVertexTexture = 0;
-        return;
     }
-
-    glGenTextures(1, &m_tessVertexTexture);
-    glActiveTexture(GL_TEXTURE0 + TESS_VERTEX_TEXTURE_IDX);
-    glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
-    glTexStorage2D(GL_TEXTURE_2D,
-                   1,
-                   m_capabilities.needsFloatingPointTessellationTexture
-                       ? GL_RGBA32F
-                       : GL_RGBA32UI,
-                   width,
-                   height);
-    glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
+    else
+    {
+        glGenTextures(1, &m_tessVertexTexture);
+        glActiveTexture(GL_TEXTURE0 + TESS_VERTEX_TEXTURE_IDX);
+        glBindTexture(GL_TEXTURE_2D, m_tessVertexTexture);
+        glTexStorage2D(GL_TEXTURE_2D,
+                       1,
+                       m_capabilities.needsFloatingPointTessellationTexture
+                           ? GL_RGBA32F
+                           : GL_RGBA32UI,
+                       width,
+                       height);
+        glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
+    }
 
     glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
     glFramebufferTexture2D(GL_FRAMEBUFFER,
@@ -757,78 +940,68 @@ void RenderContextGLImpl::AtlasProgram::compile(
     }
 }
 
+static GLenum atlas_gl_format(RenderContextGLImpl::AtlasType atlasType,
+                              const GLCapabilities& capabilities)
+{
+    switch (atlasType)
+    {
+        using AtlasType = RenderContextGLImpl::AtlasType;
+        case AtlasType::r32f:
+            return GL_R32F;
+        case AtlasType::r16f:
+            return GL_R16F;
+        case AtlasType::r32uiFramebufferFetch:
+        case AtlasType::r32uiPixelLocalStorage:
+            return GL_R32UI;
+        case AtlasType::r32iAtomicTexture:
+            return GL_R32I;
+        case AtlasType::rgba8:
+            return GL_RGBA8;
+    }
+    RIVE_UNREACHABLE();
+}
+
 void RenderContextGLImpl::resizeAtlasTexture(uint32_t width, uint32_t height)
 {
     if (width == 0 || height == 0)
     {
         m_atlasTexture = glutils::Texture::Zero();
-        return;
+    }
+    else
+    {
+        m_atlasTexture = glutils::Texture();
+        glActiveTexture(GL_TEXTURE0 + ATLAS_TEXTURE_IDX);
+        glBindTexture(GL_TEXTURE_2D, m_atlasTexture);
+        glTexStorage2D(GL_TEXTURE_2D,
+                       1,
+                       atlas_gl_format(m_atlasType, m_capabilities),
+                       width,
+                       height);
+        glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
+
+        if (m_atlasVertexShader == 0)
+        {
+            // Don't compile the atlas programs until we get an indication that
+            // they will be used.
+            // FIXME: Do this in parallel at startup!!
+            buildAtlasRenderPipelines();
+        }
     }
 
-    m_atlasTexture = glutils::Texture();
-    glActiveTexture(GL_TEXTURE0 + ATLAS_TEXTURE_IDX);
-    glBindTexture(GL_TEXTURE_2D, m_atlasTexture);
-    glTexStorage2D(
-        GL_TEXTURE_2D,
-        1,
-        m_capabilities.EXT_float_blend
-            ? GL_R32F  // fp32 is ideal for the atlas. When there's a lot of
-                       // overlap, fp16 can run out of precision.
-            : GL_R16F, // FIXME: Fallback for when EXT_color_buffer_half_float
-                       // isn't supported.
-        width,
-        height);
-    glutils::SetTexture2DSamplingParams(GL_NEAREST, GL_NEAREST);
-
     glBindFramebuffer(GL_FRAMEBUFFER, m_atlasFBO);
-    glFramebufferTexture2D(GL_FRAMEBUFFER,
-                           GL_COLOR_ATTACHMENT0,
-                           GL_TEXTURE_2D,
-                           m_atlasTexture,
-                           0);
-
-    // Don't compile the atlas programs until we get an indication that they
-    // will be used.
-    if (m_atlasVertexShader == 0)
+#ifndef RIVE_ANDROID
+    if (m_atlasType == AtlasType::r32uiPixelLocalStorage)
     {
-        std::vector<const char*> defines;
-        defines.push_back(GLSL_DRAW_PATH);
-        defines.push_back(GLSL_ENABLE_FEATHER);
-        defines.push_back(GLSL_ENABLE_INSTANCE_INDEX);
-        if (!m_capabilities.ARB_shader_storage_buffer_object)
-        {
-            defines.push_back(GLSL_DISABLE_SHADER_STORAGE_BUFFERS);
-        }
-        const char* atlasSources[] = {glsl::constants,
-                                      glsl::common,
-                                      glsl::draw_path_common,
-                                      glsl::render_atlas};
-        m_atlasVertexShader.compile(GL_VERTEX_SHADER,
-                                    defines.data(),
-                                    defines.size(),
-                                    atlasSources,
-                                    std::size(atlasSources),
-                                    m_capabilities);
-
-        defines.push_back(GLSL_ATLAS_FEATHERED_FILL);
-        m_atlasFillProgram.compile(m_atlasVertexShader,
-                                   defines.data(),
-                                   defines.size(),
-                                   atlasSources,
-                                   std::size(atlasSources),
-                                   m_capabilities,
-                                   m_state.get());
-        defines.pop_back();
-
-        defines.push_back(GLSL_ATLAS_FEATHERED_STROKE);
-        m_atlasStrokeProgram.compile(m_atlasVertexShader,
-                                     defines.data(),
-                                     defines.size(),
-                                     atlasSources,
-                                     std::size(atlasSources),
-                                     m_capabilities,
-                                     m_state.get());
-        defines.pop_back();
+        glFramebufferTexturePixelLocalStorageANGLE(0, m_atlasTexture, 0, 0);
+    }
+    else
+#endif
+    {
+        glFramebufferTexture2D(GL_FRAMEBUFFER,
+                               GL_COLOR_ATTACHMENT0,
+                               GL_TEXTURE_2D,
+                               m_atlasTexture,
+                               0);
     }
 }
 
@@ -938,6 +1111,22 @@ RenderContextGLImpl::DrawShader::DrawShader(
             break;
         case gpu::DrawType::atlasBlit:
             defines.push_back(GLSL_ATLAS_BLIT);
+            switch (renderContextImpl->m_atlasType)
+            {
+                case AtlasType::r32f:
+                case AtlasType::r16f:
+                    break;
+                case AtlasType::r32uiFramebufferFetch:
+                case AtlasType::r32uiPixelLocalStorage:
+                    defines.push_back(GLSL_ATLAS_TEXTURE_R32UI_FLOAT_BITS);
+                    break;
+                case AtlasType::r32iAtomicTexture:
+                    defines.push_back(GLSL_ATLAS_TEXTURE_R32I_FIXED_POINT);
+                    break;
+                case AtlasType::rgba8:
+                    defines.push_back(GLSL_ATLAS_TEXTURE_RGBA8_UNORM);
+                    break;
+            }
             [[fallthrough]];
         case gpu::DrawType::interiorTriangulation:
             defines.push_back(GLSL_DRAW_INTERIOR_TRIANGLES);
@@ -1535,17 +1724,70 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     {
         glBindFramebuffer(GL_FRAMEBUFFER, m_atlasFBO);
         glViewport(0, 0, desc.atlasContentWidth, desc.atlasContentHeight);
+
         glEnable(GL_SCISSOR_TEST);
         glScissor(0, 0, desc.atlasContentWidth, desc.atlasContentHeight);
-        glClearColor(0, 0, 0, 0);
-        glClear(GL_COLOR_BUFFER_BIT);
-        m_state->bindVAO(m_drawVAO);
+
         // Invert the front face for atlas draws because GL is bottom up.
         glFrontFace(GL_CCW);
 
+        // Finish setting up the atlas render pass and clear the atlas.
+        m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
+        switch (m_atlasType)
+        {
+            case AtlasType::r32f:
+            case AtlasType::r16f:
+            case AtlasType::rgba8:
+            {
+                constexpr GLfloat clearZero4f[4]{};
+                glClearBufferfv(GL_COLOR, 0, clearZero4f);
+                break;
+            }
+            case AtlasType::r32uiFramebufferFetch:
+            {
+                constexpr GLuint clearZero4ui[4]{};
+                glClearBufferuiv(GL_COLOR, 0, clearZero4ui);
+                break;
+            }
+            case AtlasType::r32uiPixelLocalStorage:
+            {
+#ifdef RIVE_ANDROID
+                glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
+                // EXT_shader_pixel_local_storage doesn't support clearing.
+                // Render the clear color.
+                m_state->bindProgram(m_atlasClearProgram);
+                m_state->bindVAO(m_atlasResolveVAO);
+                m_state->setCullFace(GL_FRONT);
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+#else
+                glBeginPixelLocalStorageANGLE(
+                    1,
+                    std::array<GLenum, 1>{GL_LOAD_OP_ZERO_ANGLE}.data());
+#endif
+                break;
+            }
+            case AtlasType::r32iAtomicTexture:
+            {
+#ifndef RIVE_WEBGL
+                constexpr GLint clearZero4i[4]{};
+                glClearBufferiv(GL_COLOR, 0, clearZero4i);
+                glBindImageTexture(0,
+                                   m_atlasTexture,
+                                   0,
+                                   GL_FALSE,
+                                   0,
+                                   GL_READ_WRITE,
+                                   GL_R32I);
+#endif
+                break;
+            }
+        }
+        m_state->bindVAO(m_drawVAO);
+
+        // Draw the atlas fills.
         if (desc.atlasFillBatchCount != 0)
         {
-            m_state->setPipelineState(gpu::ATLAS_FILL_PIPELINE_STATE);
+            m_state->setPipelineState(m_atlasFillPipelineState);
             m_state->bindProgram(m_atlasFillProgram);
             for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
             {
@@ -1564,9 +1806,10 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
         }
 
+        // Draw the atlas strokes.
         if (desc.atlasStrokeBatchCount != 0)
         {
-            m_state->setPipelineState(gpu::ATLAS_STROKE_PIPELINE_STATE);
+            m_state->setPipelineState(m_atlasStrokePipelineState);
             m_state->bindProgram(m_atlasStrokeProgram);
             for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
             {
@@ -1584,6 +1827,26 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     strokeBatch.basePatch,
                     m_atlasFillProgram.baseInstanceUniformLocation());
             }
+        }
+
+        // Close the atlas render pass if needed. (i.e., pixel local storage
+        // needs to be disabled.)
+        if (m_atlasType == AtlasType::r32uiPixelLocalStorage)
+        {
+#ifdef RIVE_ANDROID
+            // EXT_shader_pixel_local_storage needs to be explicity resolved
+            // with a draw.
+            m_state->bindProgram(m_atlasResolveProgram);
+            m_state->bindVAO(m_atlasResolveVAO);
+            m_state->setCullFace(GL_FRONT);
+            glScissor(0, 0, desc.atlasContentWidth, desc.atlasContentHeight);
+            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+            glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
+#else
+            glEndPixelLocalStorageANGLE(
+                1,
+                std::array<GLenum, 1>{GL_STORE_OP_STORE_ANGLE}.data());
+#endif
         }
 
         glFrontFace(GL_CW);
@@ -2063,6 +2326,34 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
     glDisable(GL_SCISSOR_TEST);
 }
 
+#ifdef WITH_RIVE_TOOLS
+void RenderContextGLImpl::testingOnly_resetAtlasDesiredType(
+    RenderContext* owningRenderContext,
+    AtlasType atlasDesiredType)
+{
+    owningRenderContext->releaseResources();
+    assert(m_atlasTexture == 0); // Should be cleared by releaseResources().
+    m_atlasFBO = {};
+
+    // Now release the atlas pipelines so they can be recompiled for the new
+    // AtlasType.
+    m_atlasVertexShader = {};
+    m_atlasFillProgram = {};
+    m_atlasStrokeProgram = {};
+#ifdef RIVE_ANDROID
+    m_atlasResolveVertexShader = {};
+    m_atlasClearProgram = glutils::Program::Zero();
+    m_atlasResolveProgram = glutils::Program::Zero();
+#endif
+
+    // ...And release all the DrawShaders in case any need to be recompiled for
+    // sampling a different AtlasType.
+    m_pipelineManager.clearCache();
+
+    m_atlasType = select_atlas_type(m_capabilities, atlasDesiredType);
+}
+#endif
+
 std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     const ContextOptions& contextOptions)
 {
@@ -2174,6 +2465,10 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.ARB_shader_storage_buffer_object = true;
         }
+        if (capabilities.isContextVersionAtLeast(3, 2))
+        {
+            capabilities.OES_shader_image_atomic = true;
+        }
     }
     else
     {
@@ -2233,6 +2528,10 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.ARB_shader_storage_buffer_object = true;
         }
+        else if (strcmp(ext, "GL_OES_shader_image_atomic") == 0)
+        {
+            capabilities.OES_shader_image_atomic = true;
+        }
         else if (strcmp(ext, "GL_KHR_blend_equation_advanced") == 0)
         {
             capabilities.KHR_blend_equation_advanced = true;
@@ -2283,6 +2582,10 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         {
             capabilities.EXT_color_buffer_half_float = true;
         }
+        else if (strcmp(ext, "GL_EXT_color_buffer_float") == 0)
+        {
+            capabilities.EXT_color_buffer_float = true;
+        }
         else if (strcmp(ext, "GL_EXT_float_blend") == 0)
         {
             capabilities.EXT_float_blend = true;
@@ -2290,6 +2593,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         else if (strcmp(ext, "GL_ARB_color_buffer_float") == 0)
         {
             capabilities.EXT_color_buffer_half_float = true;
+            capabilities.EXT_color_buffer_float = true;
             capabilities.EXT_float_blend = true;
         }
         else if (strcmp(ext, "GL_EXT_shader_framebuffer_fetch") == 0)
@@ -2334,8 +2638,11 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     }
     if (emscripten_webgl_enable_extension(
             emscripten_webgl_get_current_context(),
-            "EXT_color_buffer_float") &&
-        emscripten_webgl_enable_extension(
+            "EXT_color_buffer_float"))
+    {
+        capabilities.EXT_color_buffer_float = true;
+    }
+    if (emscripten_webgl_enable_extension(
             emscripten_webgl_get_current_context(),
             "EXT_float_blend"))
     {
@@ -2374,6 +2681,22 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         if (maxVertexShaderStorageBlocks < gpu::kMaxStorageBuffers)
         {
             capabilities.ARB_shader_storage_buffer_object = false;
+        }
+    }
+
+    if (capabilities.OES_shader_image_atomic)
+    {
+        if (capabilities.isMali || capabilities.isPowerVR)
+        {
+            // Don't use shader images for feathering on Mali or PowerVR.
+            // On PowerVR they just don't render, and on Mali they lead to a
+            // failures that says:
+            //
+            //   Error:glDrawElementsInstanced::failed to allocate CPU memory
+            //
+            // This is not at all surprising since neither of these vendors
+            // support "fragmentStoresAndAtomics" on Vulkan.
+            capabilities.OES_shader_image_atomic = false;
         }
     }
 
@@ -2419,7 +2742,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     }
 
     if (strstr(rendererString, "ANGLE Metal Renderer") != nullptr &&
-        capabilities.EXT_float_blend)
+        capabilities.EXT_color_buffer_float)
     {
         capabilities.needsFloatingPointTessellationTexture = true;
     }

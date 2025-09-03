@@ -168,13 +168,15 @@ struct GLCapabilities
     bool ARB_fragment_shader_interlock : 1;
     bool ARB_shader_image_load_store : 1;
     bool ARB_shader_storage_buffer_object : 1;
+    bool OES_shader_image_atomic : 1;
     bool KHR_blend_equation_advanced : 1;
     bool KHR_blend_equation_advanced_coherent : 1;
     bool KHR_parallel_shader_compile : 1;
     bool EXT_base_instance : 1;
     bool EXT_clip_cull_distance : 1;
     bool EXT_color_buffer_half_float : 1;
-    bool EXT_float_blend : 1; // Implies EXT_color_buffer_float.
+    bool EXT_color_buffer_float : 1;
+    bool EXT_float_blend : 1;
     bool EXT_multisampled_render_to_texture : 1;
     bool EXT_shader_framebuffer_fetch : 1;
     bool EXT_shader_pixel_local_storage : 1;
