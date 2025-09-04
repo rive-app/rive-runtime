@@ -42,9 +42,10 @@ static id<MTLRenderPipelineState> make_pipeline_state(
     NSError* err = nil;
     id<MTLRenderPipelineState> state =
         [gpu newRenderPipelineStateWithDescriptor:desc error:&err];
-    if (err)
+    if (err != nil || state == nil)
     {
-        NSLog(@"make_pipeline_state error %@", err.localizedDescription);
+        NSLog(@"RIVE: make_pipeline_state error %@",
+              err != nil ? err.localizedDescription : @"<nil>");
     }
     return state;
 }
@@ -275,7 +276,7 @@ public:
 #ifdef WITH_RIVE_TOOLS
         if (synthesizedFailureType == SynthesizedFailureType::pipelineCreation)
         {
-            NSLog(@"Synthesizing pipeline creation failure...");
+            NSLog(@"RIVE: Synthesizing pipeline creation failure...");
             return;
         }
 #endif
@@ -581,10 +582,10 @@ RenderContextMetalImpl::RenderContextMetalImpl(
     NSError* err = nil;
     m_plsPrecompiledLibrary = [m_gpu newLibraryWithData:metallibData
                                                   error:&err];
-    if (err)
+    if (err != nil || m_plsPrecompiledLibrary == nil)
     {
-        NSLog(@"Failed to load pls metallib error: %@",
-              err.localizedDescription);
+        NSLog(@"RIVE: Failed to load pls metallib error: %@",
+              err != nil ? err.localizedDescription : @"<nil>");
         return;
     }
 

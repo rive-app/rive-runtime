@@ -245,9 +245,7 @@ void BackgroundShaderCompiler::threadMain()
                 RIVE_UNREACHABLE();
         }
 
-        NSError* err = [NSError errorWithDomain:@"compile"
-                                           code:200
-                                       userInfo:nil];
+        NSError* err = nil;
         MTLCompileOptions* compileOptions = [MTLCompileOptions new];
 #if defined(RIVE_IOS) || defined(RIVE_IOS_SIMULATOR)
         compileOptions.languageVersion =
@@ -278,13 +276,13 @@ void BackgroundShaderCompiler::threadMain()
 
         lock.lock();
 
-        if (job.compiledLibrary == nil)
+        if (err != nil || job.compiledLibrary == nil)
         {
 #ifdef WITH_RIVE_TOOLS
             if (job.synthesizedFailureType ==
                 SynthesizedFailureType::shaderCompilation)
             {
-                NSLog(@"Synthesizing shader compilation failure...");
+                NSLog(@"RIVE: Synthesizing shader compilation failure...");
             }
             else
 #endif
@@ -297,12 +295,13 @@ void BackgroundShaderCompiler::threadMain()
                 std::string lineStr;
                 while (std::getline(stream, lineStr, '\n'))
                 {
-                    NSLog(@"%4i| %s", lineNumber++, lineStr.c_str());
+                    NSLog(@"RIVE: %4i| %s", lineNumber++, lineStr.c_str());
                 }
-                NSLog(@"%@", err.localizedDescription);
+                NSLog(@"RIVE: Shader compilation error: %@",
+                      err != nil ? err.localizedDescription : @"<nil>");
             }
 
-            NSLog(@"Failed to compile shader.");
+            NSLog(@"RIVE: Failed to compile shader.");
             assert(false
 #ifdef WITH_RIVE_TOOLS
                    || job.synthesizedFailureType ==
