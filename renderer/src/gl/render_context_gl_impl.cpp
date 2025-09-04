@@ -1223,7 +1223,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     gpu::ShaderMiscFlags shaderMiscFlags
 #ifdef WITH_RIVE_TOOLS
     ,
-    bool synthesizeCompilationFailures
+    SynthesizedFailureType synthesizedFailureType
 #endif
     ) :
     m_fragmentShader(renderContextImpl,
@@ -1235,9 +1235,9 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     m_state(renderContextImpl->m_state)
 {
 #ifdef WITH_RIVE_TOOLS
-    if (synthesizeCompilationFailures)
+    m_synthesizedFailureType = synthesizedFailureType;
+    if (m_synthesizedFailureType == SynthesizedFailureType::shaderCompilation)
     {
-        // An empty result is what counts as "failed"
         m_creationState = CreationState::error;
         return;
     }
@@ -1348,6 +1348,14 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
             return false;
         }
     }
+
+#ifdef WITH_RIVE_TOOLS
+    if (m_synthesizedFailureType == SynthesizedFailureType::pipelineCreation)
+    {
+        m_creationState = CreationState::error;
+        return false;
+    }
+#endif
 
     {
         GLint successfullyLinked = 0;
@@ -1959,16 +1967,23 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         {
             shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
-        const DrawProgram& drawProgram = m_pipelineManager.getPipeline({
+        const DrawProgram* drawProgram = m_pipelineManager.tryGetPipeline({
             .drawType = drawType,
             .shaderFeatures = shaderFeatures,
             .interlockMode = desc.interlockMode,
             .shaderMiscFlags = shaderMiscFlags,
 #ifdef WITH_RIVE_TOOLS
-            .synthesizeCompilationFailures = desc.synthesizeCompilationFailures,
+            .synthesizedFailureType = desc.synthesizedFailureType,
 #endif
         });
-        m_state->bindProgram(drawProgram.id());
+        if (drawProgram == nullptr)
+        {
+            // There was an issue getting either the requested draw program or
+            // its ubershader counterpart so we cannot draw anything.
+            continue;
+        }
+
+        m_state->bindProgram(drawProgram->id());
 
         if (auto imageTextureGL =
                 static_cast<const TextureGLImpl*>(batch.imageTexture))
@@ -2069,7 +2084,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                     gpu::PatchBaseIndex(drawType),
                     batch.elementCount,
                     batch.baseElement,
-                    drawProgram.baseInstanceUniformLocation());
+                    drawProgram->baseInstanceUniformLocation());
                 break;
             }
 
@@ -2818,7 +2833,7 @@ std::unique_ptr<RenderContextGLImpl::DrawProgram> RenderContextGLImpl::
                                          props.shaderMiscFlags
 #ifdef WITH_RIVE_TOOLS
                                          ,
-                                         props.synthesizeCompilationFailures
+                                         props.synthesizedFailureType
 #endif
     );
 }

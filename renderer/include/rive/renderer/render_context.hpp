@@ -117,7 +117,8 @@ public:
         // gracefully. (e.g., by falling back on an uber shader or at least not
         // crashing.) Valid compilations may fail in the real world if the
         // device is pressed for resources or in a bad state.
-        bool synthesizeCompilationFailures = false;
+        gpu::SynthesizedFailureType synthesizedFailureType =
+            gpu::SynthesizedFailureType::none;
 #endif
     };
 

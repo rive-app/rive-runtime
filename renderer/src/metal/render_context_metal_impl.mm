@@ -39,15 +39,12 @@ namespace rive::gpu
 static id<MTLRenderPipelineState> make_pipeline_state(
     id<MTLDevice> gpu, MTLRenderPipelineDescriptor* desc)
 {
-    NSError* err = [NSError errorWithDomain:@"pipeline_create"
-                                       code:201
-                                   userInfo:nil];
+    NSError* err = nil;
     id<MTLRenderPipelineState> state =
         [gpu newRenderPipelineStateWithDescriptor:desc error:&err];
-    if (!state)
+    if (err)
     {
-        fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
-        abort();
+        NSLog(@"make_pipeline_state error %@", err.localizedDescription);
     }
     return state;
 }
@@ -261,7 +258,12 @@ public:
                  gpu::DrawType drawType,
                  gpu::InterlockMode interlockMode,
                  gpu::ShaderFeatures shaderFeatures,
-                 gpu::ShaderMiscFlags shaderMiscFlags)
+                 gpu::ShaderMiscFlags shaderMiscFlags
+#ifdef WITH_RIVE_TOOLS
+                 ,
+                 gpu::SynthesizedFailureType synthesizedFailureType
+#endif
+    )
     {
         if (library == nil)
         {
@@ -269,6 +271,14 @@ public:
             // compile. Leave everything nil and let draws fail.
             return;
         }
+
+#ifdef WITH_RIVE_TOOLS
+        if (synthesizedFailureType == SynthesizedFailureType::pipelineCreation)
+        {
+            NSLog(@"Synthesizing pipeline creation failure...");
+            return;
+        }
+#endif
 
         auto makePipelineState = [=](id<MTLFunction> vertexMain,
                                      id<MTLFunction> fragmentMain,
@@ -568,16 +578,14 @@ RenderContextMetalImpl::RenderContextMetalImpl(
 #endif
         nil,
         nil);
-    NSError* err = [NSError errorWithDomain:@"metallib_load"
-                                       code:200
-                                   userInfo:nil];
+    NSError* err = nil;
     m_plsPrecompiledLibrary = [m_gpu newLibraryWithData:metallibData
                                                   error:&err];
-    if (m_plsPrecompiledLibrary == nil)
+    if (err)
     {
-        fprintf(stderr, "Failed to load pls metallib.\n");
-        fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
-        abort();
+        NSLog(@"Failed to load pls metallib error: %@",
+              err.localizedDescription);
+        return;
     }
 
     m_colorRampPipeline =
@@ -658,7 +666,12 @@ RenderContextMetalImpl::RenderContextMetalImpl(
                     drawType,
                     gpu::InterlockMode::rasterOrdering,
                     allShaderFeatures,
-                    shaderMiscFlags);
+                    shaderMiscFlags
+#ifdef WITH_RIVE_TOOLS
+                    ,
+                    SynthesizedFailureType::none
+#endif
+                );
             }
         }
     }
@@ -956,6 +969,15 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
         shaderFeatures = fullyFeaturedPipelineFeatures;
     }
 
+#ifdef WITH_RIVE_TOOLS
+    if (desc.synthesizedFailureType == SynthesizedFailureType::ubershaderLoad)
+    {
+        // Pretend that the requested shader is not ready yet and the ubershader
+        // compilation failed
+        return nil;
+    }
+#endif
+
     uint32_t pipelineKey = gpu::ShaderUniqueKey(
         drawType, shaderFeatures, desc.interlockMode, shaderMiscFlags);
     auto pipelineIter = m_drawPipelines.find(pipelineKey);
@@ -969,7 +991,7 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
             .interlockMode = desc.interlockMode,
             .shaderMiscFlags = shaderMiscFlags,
 #ifdef WITH_RIVE_TOOLS
-            .synthesizeCompilationFailure = desc.synthesizeCompilationFailures,
+            .synthesizedFailureType = desc.synthesizedFailureType,
 #endif
         });
         pipelineIter = m_drawPipelines.insert({pipelineKey, nullptr}).first;
@@ -1006,7 +1028,12 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
                                                job.drawType,
                                                job.interlockMode,
                                                job.shaderFeatures,
-                                               job.shaderMiscFlags);
+                                               job.shaderMiscFlags
+#ifdef WITH_RIVE_TOOLS
+                                               ,
+                                               desc.synthesizedFailureType
+#endif
+                );
             if (jobKey == pipelineKey)
             {
                 // The shader we wanted was actually done compiling and pending
@@ -1181,6 +1208,19 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
     // Render the color ramps to the gradient texture.
     if (desc.gradSpanCount > 0)
     {
+        // We failed to load the precompiled library and therefore do not have
+        // the abililty to draw anything.
+        if (!m_colorRampPipeline)
+        {
+            return;
+        }
+        // We are removing the abort in the case this doesn't build. So give up
+        // drawing if we still don't have a pipeline here.
+        auto pipelineState = m_colorRampPipeline->pipelineState();
+        if (!pipelineState)
+        {
+            return;
+        }
         MTLRenderPassDescriptor* gradPass =
             [MTLRenderPassDescriptor renderPassDescriptor];
         gradPass.renderTargetWidth = kGradTextureWidth;
@@ -1196,8 +1236,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                                       0,
                                       kGradTextureWidth,
                                       static_cast<float>(desc.gradDataHeight))];
-        [gradEncoder
-            setRenderPipelineState:m_colorRampPipeline->pipelineState()];
+        [gradEncoder setRenderPipelineState:pipelineState];
         [gradEncoder
             setVertexBuffer:mtl_buffer(flushUniformBufferRing())
                      offset:desc.flushUniformDataOffsetInBytes
@@ -1217,6 +1256,20 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
+        // We failed to load the precompiled library and therefore do not have
+        // the abililty to draw anything.
+        if (!m_tessPipeline)
+        {
+            return;
+        }
+        // We are removing the abort in the case this doesn't build. So give up
+        // drawing if we still don't have a pipeline here.
+        auto pipelineState = m_tessPipeline->pipelineState();
+        if (!pipelineState)
+        {
+            return;
+        }
+
         MTLRenderPassDescriptor* tessPass =
             [MTLRenderPassDescriptor renderPassDescriptor];
         tessPass.renderTargetWidth = kTessTextureWidth;
@@ -1230,7 +1283,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         [tessEncoder
             setViewport:make_viewport(
                             0, 0, kTessTextureWidth, desc.tessDataHeight)];
-        [tessEncoder setRenderPipelineState:m_tessPipeline->pipelineState()];
+        [tessEncoder setRenderPipelineState:pipelineState];
         [tessEncoder setVertexTexture:m_featherTexture
                               atIndex:FEATHER_TEXTURE_IDX];
         [tessEncoder
@@ -1263,6 +1316,26 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
     // Render the atlas if we have any offscreen feathers.
     if ((desc.atlasFillBatchCount | desc.atlasStrokeBatchCount) != 0)
     {
+        // We failed to load the precompiled library and therefore do not have
+        // the abililty to draw anything.
+        if (!m_atlasStrokePipeline || !m_atlasFillPipeline)
+        {
+            return;
+        }
+        // We are removing the abort in the case this doesn't build. So give up
+        // drawing if we still don't have a pipeline here.
+        auto atlasFillpipelineState = m_atlasFillPipeline->pipelineState();
+        if (!atlasFillpipelineState)
+        {
+            return;
+        }
+
+        auto atlasStrokepipelineState = m_atlasStrokePipeline->pipelineState();
+        if (!atlasStrokepipelineState)
+        {
+            return;
+        }
+
         MTLRenderPassDescriptor* atlasPass =
             [MTLRenderPassDescriptor renderPassDescriptor];
         atlasPass.renderTargetWidth = desc.atlasContentWidth;
@@ -1323,8 +1396,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
         if (desc.atlasFillBatchCount != 0)
         {
-            [atlasEncoder
-                setRenderPipelineState:m_atlasFillPipeline->pipelineState()];
+            [atlasEncoder setRenderPipelineState:atlasFillpipelineState];
             for (size_t i = 0; i < desc.atlasFillBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& fillBatch = desc.atlasFillBatches[i];
@@ -1349,8 +1421,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
         if (desc.atlasStrokeBatchCount != 0)
         {
-            [atlasEncoder
-                setRenderPipelineState:m_atlasStrokePipeline->pipelineState()];
+            [atlasEncoder setRenderPipelineState:atlasStrokepipelineState];
             for (size_t i = 0; i < desc.atlasStrokeBatchCount; ++i)
             {
                 const gpu::AtlasDrawBatch& strokeBatch =

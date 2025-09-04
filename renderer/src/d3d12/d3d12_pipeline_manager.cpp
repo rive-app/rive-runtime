@@ -235,7 +235,10 @@ D3D12Pipeline D3D12PipelineManager::linkPipeline(const PipelineProps& props,
 
     D3D12Pipeline result;
 #ifdef WITH_RIVE_TOOLS
-    if (props.synthesizeCompilationFailures)
+    if (props.synthesizedFailureType ==
+            SynthesizedFailureType::pipelineCreation ||
+        props.synthesizedFailureType ==
+            SynthesizedFailureType::shaderCompilation)
     {
         // An empty result is what counts as "failed"
         return result;

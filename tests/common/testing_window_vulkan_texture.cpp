@@ -134,8 +134,7 @@ public:
             .wireframe = options.wireframe,
             .clockwiseFillOverride =
                 m_backendParams.clockwise || options.clockwiseFillOverride,
-            .synthesizeCompilationFailures =
-                options.synthesizeCompilationFailures,
+            .synthesizedFailureType = options.synthesizedFailureType,
         };
         m_renderContext->beginFrame(frameDescriptor);
         return std::make_unique<RiveRenderer>(m_renderContext.get());

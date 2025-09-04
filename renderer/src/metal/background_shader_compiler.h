@@ -24,7 +24,8 @@ struct BackgroundCompileJob
     gpu::ShaderMiscFlags shaderMiscFlags;
     id<MTLLibrary> compiledLibrary = nil;
 #ifdef WITH_RIVE_TOOLS
-    bool synthesizeCompilationFailure = false;
+    gpu::SynthesizedFailureType synthesizedFailureType =
+        gpu::SynthesizedFailureType::none;
 #endif
 };
 

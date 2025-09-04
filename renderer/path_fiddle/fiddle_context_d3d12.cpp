@@ -156,25 +156,44 @@ public:
         ID3D12CommandList* ppCommandLists[] = {m_copyCommandList.Get()};
         m_copyCommandQueue->ExecuteCommandLists(1, ppCommandLists);
 
-        // set the initial state to 0 and inc frame to 1
-        VERIFY_OK(m_device->CreateFence(m_currentFrame++,
+        VERIFY_OK(m_device->CreateFence(m_currentFrame,
                                         D3D12_FENCE_FLAG_NONE,
                                         IID_PPV_ARGS(&m_fence)));
 
-        // set the initial state to -1 so that we can wait for 0
-        VERIFY_OK(m_device->CreateFence(-1,
+        // NOTE: Originally the code was setting this to -1 and then waiting on
+        // a signal of 0, but this does not work in practice because some D3D12
+        // implementations only allow the signaled value to increase - so
+        // starting the fence at unsigned -1 meant that it can never be changed
+        // again.
+        VERIFY_OK(m_device->CreateFence(m_currentFrame,
                                         D3D12_FENCE_FLAG_NONE,
                                         IID_PPV_ARGS(&m_copyFence)));
+
+        // Increment m_currentFrame since the value we initialized the fences to
+        // cannot be waited on (it'll return immediately).
+        m_currentFrame++;
 
         m_fenceEvent = CreateEvent(nullptr, FALSE, FALSE, nullptr);
         VERIFY_OK(HRESULT_FROM_WIN32(GetLastError()));
 
         assert(m_fenceEvent);
-        VERIFY_OK(m_copyCommandQueue->Signal(m_copyFence.Get(), 0));
-        VERIFY_OK(m_copyFence->SetEventOnCompletion(0, m_fenceEvent));
-        WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 
-        assert(m_copyFence->GetCompletedValue() == 0);
+        // Signal the fence to ensure that we wait for creation to be complete.
+        // Start at m_currentFrame which should currently be set to 1.
+        VERIFY_OK(
+            m_copyCommandQueue->Signal(m_copyFence.Get(), m_currentFrame));
+
+        if (m_copyFence->GetCompletedValue() != m_currentFrame)
+        {
+            VERIFY_OK(m_copyFence->SetEventOnCompletion(m_currentFrame,
+                                                        m_fenceEvent));
+            WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
+
+            assert(m_copyFence->GetCompletedValue() == m_currentFrame);
+        }
+
+        // Increment the current frame one more to get past this wait.
+        m_currentFrame++;
     }
 
     float dpiScale(GLFWwindow*) const override { return 1; }
@@ -319,9 +338,9 @@ public:
         auto copySafeFrame = m_copyFence->GetCompletedValue();
         if (copySafeFrame < m_previousFrames[m_frameIndex])
         {
-            VERIFY_OK(
-                m_fence->SetEventOnCompletion(m_previousFrames[m_frameIndex],
-                                              m_fenceEvent));
+            VERIFY_OK(m_copyFence->SetEventOnCompletion(
+                m_previousFrames[m_frameIndex],
+                m_fenceEvent));
             WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
             copySafeFrame = m_previousFrames[m_frameIndex];
         }
@@ -339,7 +358,7 @@ public:
         VERIFY_OK(m_fence->SetEventOnCompletion(frame, m_fenceEvent));
         WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
 
-        VERIFY_OK(m_fence->SetEventOnCompletion(frame, m_fenceEvent));
+        VERIFY_OK(m_copyFence->SetEventOnCompletion(frame, m_fenceEvent));
         WaitForSingleObjectEx(m_fenceEvent, INFINITE, FALSE);
     }
 

@@ -321,7 +321,7 @@ private:
                     gpu::ShaderMiscFlags
 #ifdef WITH_RIVE_TOOLS
                     ,
-                    bool synthesizeCompilationFailures
+                    SynthesizedFailureType
 #endif
         );
         ~DrawProgram();
@@ -372,6 +372,10 @@ private:
         GLuint m_id = 0;
         GLint m_baseInstanceUniformLocation = -1;
         const rcp<GLState> m_state;
+#ifdef WITH_RIVE_TOOLS
+        SynthesizedFailureType m_synthesizedFailureType =
+            SynthesizedFailureType::none;
+#endif
     };
 
     class GLPipelineManager : public AsyncPipelineManager<DrawProgram>

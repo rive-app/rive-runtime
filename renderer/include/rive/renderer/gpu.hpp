@@ -1051,6 +1051,18 @@ struct TwoTexelRamp
 };
 static_assert(sizeof(TwoTexelRamp) == 8 * sizeof(uint8_t));
 
+#ifdef WITH_RIVE_TOOLS
+
+enum class SynthesizedFailureType
+{
+    none,
+    ubershaderLoad,
+    shaderCompilation,
+    pipelineCreation,
+};
+
+#endif
+
 // Detailed description of exactly how a RenderContextImpl should bind its
 // buffers and draw a flush. A typical flush is done in 4 steps:
 //
@@ -1132,7 +1144,8 @@ struct FlushDescriptor
     // gracefully. (e.g., by falling back on an uber shader or at least not
     // crashing.) Valid compilations may fail in the real world if the device is
     // pressed for resources or in a bad state.
-    bool synthesizeCompilationFailures = false;
+    SynthesizedFailureType synthesizedFailureType =
+        SynthesizedFailureType::none;
 #endif
 
     // Command buffer that rendering commands will be added to.

@@ -6,6 +6,7 @@
 #define TESTING_WINDOW_HPP
 
 #include "common/offscreen_render_target.hpp"
+#include "rive/renderer/gpu.hpp"
 #include "rive/refcnt.hpp"
 #include <memory>
 #include <vector>
@@ -157,7 +158,8 @@ public:
         bool disableRasterOrdering = false;
         bool wireframe = false;
         bool clockwiseFillOverride = false;
-        bool synthesizeCompilationFailures = false;
+        rive::gpu::SynthesizedFailureType synthesizedFailureType =
+            rive::gpu::SynthesizedFailureType::none;
     };
     virtual std::unique_ptr<rive::Renderer> beginFrame(const FrameOptions&) = 0;
     virtual void endFrame(std::vector<uint8_t>* pixelData = nullptr) = 0;

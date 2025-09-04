@@ -218,31 +218,36 @@ D3D11PipelineManager::D3D11PipelineManager(
         &m_atlasStrokePixelShader));
 }
 
-void D3D11PipelineManager::setPipelineState(
+bool D3D11PipelineManager::setPipelineState(
     rive::gpu::DrawType drawType,
     rive::gpu::ShaderFeatures features,
     rive::gpu::InterlockMode interlockMode,
     rive::gpu::ShaderMiscFlags miscFlags
 #ifdef WITH_RIVE_TOOLS
     ,
-    bool synthesizeCompilationFailures
+    SynthesizedFailureType synthesizedFailureType
 #endif
 )
 {
-    auto& result = getPipeline({
+    auto* pipeline = tryGetPipeline({
         .drawType = drawType,
         .shaderFeatures = features,
         .interlockMode = interlockMode,
         .shaderMiscFlags = miscFlags,
 #ifdef WITH_RIVE_TOOLS
-        .synthesizeCompilationFailures = synthesizeCompilationFailures,
+        .synthesizedFailureType = synthesizedFailureType,
 #endif
-
     });
 
-    m_context->IASetInputLayout(result.m_vertexShader.layout.Get());
-    m_context->VSSetShader(result.m_vertexShader.shader.Get(), nullptr, 0);
-    m_context->PSSetShader(result.m_pixelShader.Get(), nullptr, 0);
+    if (pipeline == nullptr)
+    {
+        return false;
+    }
+
+    m_context->IASetInputLayout(pipeline->m_vertexShader.layout.Get());
+    m_context->VSSetShader(pipeline->m_vertexShader.shader.Get(), nullptr, 0);
+    m_context->PSSetShader(pipeline->m_pixelShader.Get(), nullptr, 0);
+    return true;
 }
 
 D3D11DrawVertexShader D3D11PipelineManager ::compileVertexShaderBlobToFinalType(
@@ -360,7 +365,10 @@ D3D11DrawPipeline D3D11PipelineManager::linkPipeline(
     // For D3D11 this just puts the vs and ps into a single structure together.
     D3D11DrawPipeline pipeline;
 #ifdef WITH_RIVE_TOOLS
-    if (props.synthesizeCompilationFailures)
+    if (props.synthesizedFailureType ==
+            SynthesizedFailureType::pipelineCreation ||
+        props.synthesizedFailureType ==
+            SynthesizedFailureType::shaderCompilation)
     {
         // An empty result is what counts as "failed"
         return pipeline;
@@ -1824,6 +1832,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
     for (const DrawBatch& batch : *desc.drawList)
     {
         DrawType drawType = batch.drawType;
+
         auto shaderFeatures = desc.interlockMode == gpu::InterlockMode::atomics
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
@@ -1844,15 +1853,20 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
 
-        m_pipelineManager.setPipelineState(drawType,
-                                           shaderFeatures,
-                                           desc.interlockMode,
-                                           shaderMiscFlags
+        if (!m_pipelineManager.setPipelineState(drawType,
+                                                shaderFeatures,
+                                                desc.interlockMode,
+                                                shaderMiscFlags
 #ifdef WITH_RIVE_TOOLS
-                                           ,
-                                           desc.synthesizeCompilationFailures
+                                                ,
+                                                desc.synthesizedFailureType
 #endif
-        );
+                                                ))
+        {
+            // There was an issue getting either the requested pipeline state or
+            // its ubershader counterpart so we cannot draw anything.
+            continue;
+        }
 
         if (auto imageTextureD3D =
                 static_cast<const TextureD3DImpl*>(batch.imageTexture))

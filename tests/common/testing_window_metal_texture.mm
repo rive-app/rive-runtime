@@ -48,8 +48,7 @@ public:
             .disableRasterOrdering = options.disableRasterOrdering,
             .wireframe = options.wireframe,
             .clockwiseFillOverride = options.clockwiseFillOverride,
-            .synthesizeCompilationFailures =
-                options.synthesizeCompilationFailures,
+            .synthesizedFailureType = options.synthesizedFailureType,
         };
         m_renderContext->beginFrame(frameDescriptor);
         m_flushCommandBuffer = [m_queue commandBuffer];

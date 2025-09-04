@@ -263,7 +263,8 @@ void BackgroundShaderCompiler::threadMain()
         }
         compileOptions.preprocessorMacros = defines;
 #ifdef WITH_RIVE_TOOLS
-        if (job.synthesizeCompilationFailure)
+        if (job.synthesizedFailureType ==
+            SynthesizedFailureType::shaderCompilation)
         {
             assert(job.compiledLibrary == nil);
         }
@@ -280,9 +281,10 @@ void BackgroundShaderCompiler::threadMain()
         if (job.compiledLibrary == nil)
         {
 #ifdef WITH_RIVE_TOOLS
-            if (job.synthesizeCompilationFailure)
+            if (job.synthesizedFailureType ==
+                SynthesizedFailureType::shaderCompilation)
             {
-                fprintf(stderr, "Synthesizing shader compilation failure...\n");
+                NSLog(@"Synthesizing shader compilation failure...");
             }
             else
 #endif
@@ -295,15 +297,16 @@ void BackgroundShaderCompiler::threadMain()
                 std::string lineStr;
                 while (std::getline(stream, lineStr, '\n'))
                 {
-                    fprintf(stderr, "%4i| %s\n", lineNumber++, lineStr.c_str());
+                    NSLog(@"%4i| %s", lineNumber++, lineStr.c_str());
                 }
-                fprintf(stderr, "%s\n", err.localizedDescription.UTF8String);
+                NSLog(@"%@", err.localizedDescription);
             }
 
-            fprintf(stderr, "Failed to compile shader.\n");
+            NSLog(@"Failed to compile shader.");
             assert(false
 #ifdef WITH_RIVE_TOOLS
-                   || job.synthesizeCompilationFailure
+                   || job.synthesizedFailureType ==
+                          SynthesizedFailureType::shaderCompilation
 #endif
             );
         }

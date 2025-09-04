@@ -1415,16 +1415,24 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
 
-        auto pipeline = m_pipelineManager.getPipeline({
+        auto* pipeline = m_pipelineManager.tryGetPipeline({
             .drawType = drawType,
             .shaderFeatures = shaderFeatures,
             .interlockMode = desc.interlockMode,
             .shaderMiscFlags = shaderMiscFlags,
 #ifdef WITH_RIVE_TOOLS
-            .synthesizeCompilationFailures = desc.synthesizeCompilationFailures,
+            .synthesizedFailureType = desc.synthesizedFailureType,
 #endif
         });
-        cmdList->SetPipelineState(pipeline.m_d3dPipelineState.Get());
+
+        if (pipeline == nullptr)
+        {
+            // There was an issue getting either the requested pipeline state or
+            // its ubershader counterpart so we cannot draw anything.
+            continue;
+        }
+
+        cmdList->SetPipelineState(pipeline->m_d3dPipelineState.Get());
 
         // all atomic barriers are the same for dx12
         if (batch.barriers &

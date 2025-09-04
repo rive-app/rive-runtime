@@ -1033,8 +1033,7 @@ void RenderContext::LogicalFlush::layoutResources(
     m_flushDesc.clockwiseFillOverride = frameDescriptor.clockwiseFillOverride;
     m_flushDesc.wireframe = frameDescriptor.wireframe;
 #ifdef WITH_RIVE_TOOLS
-    m_flushDesc.synthesizeCompilationFailures =
-        frameDescriptor.synthesizeCompilationFailures;
+    m_flushDesc.synthesizedFailureType = frameDescriptor.synthesizedFailureType;
 #endif
 
     m_flushDesc.externalCommandBuffer = flushResources.externalCommandBuffer;

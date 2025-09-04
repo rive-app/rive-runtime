@@ -101,6 +101,11 @@ public:
         // m_platformFeatures.supportsRasterOrdering to false, forcing us to
         // always render in atomic mode.
         bool disableFramebufferReads = false;
+
+#ifdef WITH_RIVE_TOOLS
+        SynthesizedFailureType synthesizedFailureType =
+            SynthesizedFailureType::none;
+#endif
     };
 
     static std::unique_ptr<RenderContext> MakeContext(id<MTLDevice>,

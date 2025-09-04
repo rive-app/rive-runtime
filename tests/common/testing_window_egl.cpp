@@ -476,10 +476,11 @@ public:
 
     ~TestingWindowEGL()
     {
-        eglMakeCurrent(EGL_NO_DISPLAY,
+        eglMakeCurrent(m_Display,
                        EGL_NO_SURFACE,
                        EGL_NO_SURFACE,
                        EGL_NO_CONTEXT);
+
         if (m_Context)
         {
             eglDestroyContext(m_Display, m_Context);

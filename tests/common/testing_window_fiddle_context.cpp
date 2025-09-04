@@ -220,8 +220,25 @@ public:
                                         nullptr);
         if (!m_glfwWindow)
         {
-            glfwTerminate();
+#ifndef __EMSCRIPTEN__
+            const char* errorDescription;
+            int errorCode = glfwGetError(&errorDescription);
+            fprintf(stderr,
+                    "Failed to create GLFW window: %s\n",
+                    errorDescription);
+            if (errorCode == GLFW_API_UNAVAILABLE)
+            {
+                // This means that the driver does not support the given API and
+                // we cannot create a window. MakeFiddleContext will detect this
+                // object as non-valid and clean it up and return nullptr.
+                return;
+            }
+#else
+            // Emscripten doesn't support glfwGetError so print a generic
+            // message.
             fprintf(stderr, "Failed to create GLFW window.\n");
+#endif
+            glfwTerminate();
             abort();
         }
         glfwMakeContextCurrent(m_glfwWindow);
@@ -363,8 +380,7 @@ public:
             .clockwiseFillOverride =
                 m_backendParams.clockwise || options.clockwiseFillOverride,
 #ifdef WITH_RIVE_TOOLS
-            .synthesizeCompilationFailures =
-                options.synthesizeCompilationFailures,
+            .synthesizedFailureType = options.synthesizedFailureType,
 #endif
         };
         m_fiddleContext->begin(std::move(frameDescriptor));

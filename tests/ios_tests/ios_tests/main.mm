@@ -34,9 +34,9 @@ static void execute_tool()
         {
             std::this_thread::sleep_for(std::chrono::milliseconds(1000));
             tcpCheck = TCPClient::Connect(pngServer);
-            printf("Ensure the device is connected to WiFi, is on the same "
+            NSLog(@"Ensure the device is connected to WiFi, is on the same "
                    "local network as the "
-                   "host, and app has local network permissions.\n");
+                   "host, and app has local network permissions.");
         }
     }
 
@@ -57,7 +57,7 @@ int main(int argc, char* argv[])
 {
     if (argc <= 1)
     {
-        printf("No arguments supplied.");
+        NSLog(@"No arguments supplied.");
         return 0;
     }
 
