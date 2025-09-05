@@ -182,11 +182,6 @@ INLINE float2x2 make_float2x2(float4 x) { return float2x2(x.xy, x.zw); }
 
 INLINE uint make_uint(ushort x) { return x; }
 
-INLINE uint contour_data_idx(uint contourIDWithFlags)
-{
-    return (contourIDWithFlags & CONTOUR_ID_MASK) - 1u;
-}
-
 INLINE float2 unchecked_mix(float2 a, float2 b, float t)
 {
     return (b - a) * t + a;

@@ -367,9 +367,11 @@ INLINE bool unpack_tessellated_path_vertex(float4 patchVertexData,
     uint contourIDWithFlags = TESSDATA_AS_UINT(tessVertexData.w);
 
     // Fetch and unpack the contour referenced by the tessellation vertex.
-    uint4 contourData =
-        STORAGE_BUFFER_LOAD4(@contourBuffer,
-                             contour_data_idx(contourIDWithFlags));
+    // NOTE: The contourID is guaranteed to be >= 1 at this point, but clamp it
+    // anyway because in the event of a bug, a buffer load at index "0u - 1" can
+    // be very serious and hard to catch.
+    uint contourID = max(contourIDWithFlags & CONTOUR_ID_MASK, 1u);
+    uint4 contourData = STORAGE_BUFFER_LOAD4(@contourBuffer, contourID - 1u);
     float2 midpoint = uintBitsToFloat(contourData.xy);
     outPathID = contourData.z & 0xffffu;
     uint vertexIndex0 = contourData.w;

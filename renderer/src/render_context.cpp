@@ -2208,9 +2208,14 @@ void RenderContext::TessellationWriter::pushCubic(
            parametricSegmentCount <= kMaxParametricSegments);
     assert(0 <= polarSegmentCount && polarSegmentCount <= kMaxPolarSegments);
     assert(joinSegmentCount > 0);
-    assert((contourIDWithFlags & 0xffff) ==
-           (m_flush->m_currentContourID & 0xffff));
-    assert((contourIDWithFlags & 0xffff) != 0); // contourID can't be zero.
+    assert((contourIDWithFlags & CONTOUR_ID_MASK) ==
+           (m_flush->m_currentContourID & CONTOUR_ID_MASK));
+    // contourID can't be zero.
+    assert((contourIDWithFlags & CONTOUR_ID_MASK) != 0);
+    // contourID can't be out of range in the contour buffer. (Contour buffer
+    // indices are 1-based.)
+    assert((contourIDWithFlags & CONTOUR_ID_MASK) <=
+           m_flush->desc().contourCount);
 
     // Polar and parametric segments share the same beginning and ending
     // vertices, so the merged *vertex* count is equal to the sum of polar and
