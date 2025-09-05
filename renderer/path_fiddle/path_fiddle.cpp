@@ -412,8 +412,8 @@ int main(int argc, const char** argv)
     // Override argc/argv with the window location hash string.
     char* hash = get_location_hash_str();
     std::stringstream ss(hash);
-    std::vector<std::string> hashStrs;
-    std::vector<const char*> hashArgs;
+    static std::vector<std::string> hashStrs;
+    static std::vector<const char*> hashArgs;
     std::string arg;
 
     hashStrs.push_back("index.html");
