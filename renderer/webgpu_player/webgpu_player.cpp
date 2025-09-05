@@ -55,6 +55,8 @@ EM_JS(uint8_t, get_riv_buffer, (uint8_t** buffer, uint32_t* len), {
         return 0;
 
     const arr = new Uint8Array(arrBuf), ptr = _malloc(arr.length);
+    if (!ptr)
+        return 0;
     HEAPU8.set(arr, ptr);
     setValue(buffer, ptr, '*');
     setValue(len, arr.length, 'i32');
