@@ -786,12 +786,10 @@ void Artboard::updateDataBinds()
     }
     for (auto dataBind : m_DataBinds)
     {
-        // TODO: review this for scenarios where the data bound property is the
-        // collapse prooperty itself
-        // if (dataBind->isCollapsed())
-        // {
-        //     continue;
-        // }
+        if (dataBind->canSkip())
+        {
+            continue;
+        }
         dataBind->updateSourceBinding();
         auto d = dataBind->dirt();
         if (d == ComponentDirt::None)

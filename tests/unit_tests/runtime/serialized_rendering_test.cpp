@@ -3,6 +3,7 @@
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "utils/serializing_factory.hpp"
@@ -666,71 +667,122 @@ TEST_CASE("Event triggers another event", "[silver]")
     CHECK(silver.matches("event_trigger_event"));
 }
 
-// TEST_CASE("Collapsed data binds from layouts with display hidden",
-// "[silver]")
-// {
-//     SerializingFactory silver;
-//     auto file = ReadRiveFile("assets/collapse_data_binds.riv", &silver);
+TEST_CASE("Collapsed data binds from layouts with display hidden", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/collapse_data_binds.riv", &silver);
 
-//     auto artboard = file->artboardNamed("test-1");
-//     REQUIRE(artboard != nullptr);
+    auto artboard = file->artboardNamed("test-1");
+    REQUIRE(artboard != nullptr);
 
-//     silver.frameSize(artboard->width(), artboard->height());
+    silver.frameSize(artboard->width(), artboard->height());
 
-//     auto stateMachine = artboard->stateMachineAt(0);
-//     int viewModelId = artboard.get()->viewModelId();
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
 
-//     auto vmi = viewModelId == -1
-//                    ? file->createViewModelInstance(artboard.get())
-//                    : file->createViewModelInstance(viewModelId, 0);
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
 
-//     stateMachine->advanceAndApply(0.0f);
-//     stateMachine->bindViewModelInstance(vmi);
-//     stateMachine->advanceAndApply(0.016f);
-//     auto renderer = silver.makeRenderer();
-//     artboard->draw(renderer.get());
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
 
-//     int frames = (int)(1.0f / 0.016f);
-//     for (int i = 0; i < frames; i++)
-//     {
-//         silver.addFrame();
-//         stateMachine->advanceAndApply(0.016f);
-//         artboard->draw(renderer.get());
-//     }
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
 
-//     CHECK(silver.matches("collapse_data_binds-test_1"));
-// }
+    CHECK(silver.matches("collapse_data_binds-test_1"));
+}
 
-// TEST_CASE("Collapsed data binds from property groups in solos", "[silver]")
-// {
-//     SerializingFactory silver;
-//     auto file = ReadRiveFile("assets/collapse_data_binds.riv", &silver);
+TEST_CASE("Collapsed data binds from property groups in solos", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/collapse_data_binds.riv", &silver);
 
-//     auto artboard = file->artboardNamed("test-2");
-//     REQUIRE(artboard != nullptr);
+    auto artboard = file->artboardNamed("test-2");
+    REQUIRE(artboard != nullptr);
 
-//     silver.frameSize(artboard->width(), artboard->height());
+    silver.frameSize(artboard->width(), artboard->height());
 
-//     auto stateMachine = artboard->stateMachineAt(0);
-//     int viewModelId = artboard.get()->viewModelId();
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
 
-//     auto vmi = viewModelId == -1
-//                    ? file->createViewModelInstance(artboard.get())
-//                    : file->createViewModelInstance(viewModelId, 0);
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
 
-//     stateMachine->advanceAndApply(0.0f);
-//     stateMachine->bindViewModelInstance(vmi);
-//     stateMachine->advanceAndApply(0.016f);
-//     auto renderer = silver.makeRenderer();
-//     artboard->draw(renderer.get());
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
 
-//     int frames = (int)(1.0f / 0.016f);
-//     for (int i = 0; i < frames; i++)
-//     {
-//         silver.addFrame();
-//         stateMachine->advanceAndApply(0.016f);
-//         artboard->draw(renderer.get());
-//     }
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
 
-//     CHECK(silver.matches("collapse_data_binds-test_2"));
-// }
+    CHECK(silver.matches("collapse_data_binds-test_2"));
+}
+
+TEST_CASE("Collapsed data bound layout styles still update", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/collapse_data_binds.riv", &silver);
+
+    auto artboard = file->artboardNamed("test-3");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto display1 =
+        vmi->propertyValue("display_1")->as<ViewModelInstanceEnum>();
+
+    auto display2 =
+        vmi->propertyValue("display_2")->as<ViewModelInstanceEnum>();
+
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.016f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    display2->value(1); // Hide inner layout
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    display1->value(1); // Hide outer layout
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    display2->value(0); // Show inner layout (nothing changes)
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    display1->value(0); // Show outer layout (nothing changes)
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("collapse_data_binds-test_3"));
+}

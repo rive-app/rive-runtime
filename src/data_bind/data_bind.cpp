@@ -244,10 +244,11 @@ void DataBind::unbind()
     }
 }
 
-bool DataBind::isCollapsed()
+bool DataBind::canSkip()
 {
     return m_target && m_target->is<Component>() &&
-           m_target->as<Component>()->isCollapsed();
+           m_target->as<Component>()->isCollapsed() &&
+           propertyKey() != LayoutComponentStyleBase::displayValuePropertyKey;
 }
 
 void DataBind::update(ComponentDirt value)
