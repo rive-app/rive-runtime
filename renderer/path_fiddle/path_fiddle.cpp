@@ -91,8 +91,8 @@ std::vector<rive::rcp<rive::ViewModelInstance>> viewModelInstances;
 
 static void clear_scenes()
 {
-    artboards.clear();
     scenes.clear();
+    artboards.clear();
     viewModelInstances.clear();
 }
 
