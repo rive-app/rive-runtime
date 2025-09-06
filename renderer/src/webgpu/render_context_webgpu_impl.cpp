@@ -1858,7 +1858,7 @@ rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
     };
     if (mipLevelCount > 1)
     {
-        textureDesc.usage |= wgpu::TextureUsage::RenderAttachment;
+        textureDesc.usage |= wgpu::TextureUsage::RenderAttachment | wgpu::TextureUsage::CopySrc;
     }
 
     wgpu::Texture texture = m_device.CreateTexture(&textureDesc);
