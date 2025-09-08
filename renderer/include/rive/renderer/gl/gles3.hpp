@@ -214,6 +214,9 @@ extern PFNGLCLEARPIXELLOCALSTORAGEUIEXTPROC glClearPixelLocalStorageuiEXT;
 // KHR_parallel_shader_compilation
 extern PFNGLMAXSHADERCOMPILERTHREADSKHRPROC glMaxShaderCompilerThreadsKHR;
 
-// Android doesn't load extension functions for us.
-void LoadGLESExtensions(const GLCapabilities&);
+// Android doesn't load extension functions for us (also, possibly some
+// extensions are reported as present but the functions don't actually exist,
+// this call will clear the capabilities flags for extensions that don't load,
+// accordingly).
+void LoadAndValidateGLESExtensions(GLCapabilities*);
 #endif

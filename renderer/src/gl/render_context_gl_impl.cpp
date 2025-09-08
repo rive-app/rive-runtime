@@ -2778,8 +2778,10 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         capabilities.needsFloatingPointTessellationTexture = false;
     }
 #ifdef RIVE_ANDROID
-    // Android doesn't load extension functions for us.
-    LoadGLESExtensions(capabilities);
+    // On Android we need to explicitly load the extension functions. This will
+    // additionally clear the capabilities flags for any extension that could
+    // not load.
+    LoadAndValidateGLESExtensions(&capabilities);
 #endif
 
     if (!contextOptions.disablePixelLocalStorage)

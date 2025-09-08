@@ -609,18 +609,6 @@ INLINE half4 unpackUnorm4x8(uint u)
 
 // The Qualcomm compiler can't handle line breaks in #ifs.
 // clang-format off
-#if @GLSL_VERSION >= 310 && defined(@VERTEX) && defined(@RENDER_MODE_MSAA) && defined(@ENABLE_CLIP_RECT)
-// clang-format on
-out gl_PerVertex
-{
-    // Redeclare gl_ClipDistance with exactly 4 clip planes.
-    float gl_ClipDistance[4];
-    float4 gl_Position;
-};
-#endif
-
-// The Qualcomm compiler can't handle line breaks in #ifs.
-// clang-format off
 #if defined(@TARGET_VULKAN) && defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
 // clang-format on
 half4 dst_color_fetch(mediump mat4 dstSamples)
