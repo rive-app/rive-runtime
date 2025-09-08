@@ -289,11 +289,15 @@ public:
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
+        wgpu::CommandEncoder encoder = m_device.CreateCommandEncoder();
         m_renderContext->flush({
             .renderTarget = offscreenRenderTarget != nullptr
                                 ? offscreenRenderTarget
                                 : m_renderTarget.get(),
+            .externalCommandBuffer = encoder.Get(),
         });
+        wgpu::CommandBuffer commands = encoder.Finish();
+        m_queue.Submit(1, &commands);
     }
 
     void end(GLFWwindow* window, std::vector<uint8_t>* pixelData) final

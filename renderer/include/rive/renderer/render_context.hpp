@@ -221,6 +221,7 @@ public:
         // Command buffer that rendering commands will be added to.
         //  - VkCommandBuffer on Vulkan.
         //  - id<MTLCommandBuffer> on Metal.
+        //  - WGPUCommandEncoder on WebGPU.
         //  - Unused otherwise.
         void* externalCommandBuffer = nullptr;
 

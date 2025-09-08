@@ -227,7 +227,13 @@ extern "C" EM_BOOL animationFrame(double time, void* userData)
     renderer->restore();
 
     renderTarget->setTargetTextureView(textureView);
-    renderContext->flush({.renderTarget = renderTarget.get()});
+    wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
+    renderContext->flush({
+        .renderTarget = renderTarget.get(),
+        .externalCommandBuffer = encoder.Get(),
+    });
+    wgpu::CommandBuffer commands = encoder.Finish();
+    queue.Submit(1, &commands);
 
     wgpuTextureViewRelease(textureView);
     wgpuTextureRelease(texture);
