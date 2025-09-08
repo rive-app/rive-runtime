@@ -455,6 +455,7 @@ enum class SType : uint32_t {
     SurfaceSourceXCBWindow = WGPUSType_SurfaceSourceXCBWindow,
     SurfaceColorManagement = WGPUSType_SurfaceColorManagement,
     RequestAdapterWebXROptions = WGPUSType_RequestAdapterWebXROptions,
+    CompatibilityModeLimits = WGPUSType_CompatibilityModeLimits,
     TextureBindingViewDimensionDescriptor = WGPUSType_TextureBindingViewDimensionDescriptor,
     EmscriptenSurfaceSourceCanvasHTMLSelector = WGPUSType_EmscriptenSurfaceSourceCanvasHTMLSelector,
     DawnCompilationMessageUtf16 = WGPUSType_DawnCompilationMessageUtf16,
@@ -700,6 +701,7 @@ enum class WGSLLanguageFeatureName : uint32_t {
     UnrestrictedPointerParameters = WGPUWGSLLanguageFeatureName_UnrestrictedPointerParameters,
     PointerCompositeAccess = WGPUWGSLLanguageFeatureName_PointerCompositeAccess,
     SizedBindingArray = WGPUWGSLLanguageFeatureName_SizedBindingArray,
+    TexelBuffers = WGPUWGSLLanguageFeatureName_TexelBuffers,
 };
 static_assert(sizeof(WGSLLanguageFeatureName) == sizeof(WGPUWGSLLanguageFeatureName), "sizeof mismatch for WGSLLanguageFeatureName");
 static_assert(alignof(WGSLLanguageFeatureName) == alignof(WGPUWGSLLanguageFeatureName), "alignof mismatch for WGSLLanguageFeatureName");
@@ -970,6 +972,7 @@ struct BufferDescriptor;
 struct Color;
 struct CommandBufferDescriptor;
 struct CommandEncoderDescriptor;
+struct CompatibilityModeLimits;
 struct ConstantEntry;
 struct DawnCompilationMessageUtf16;
 struct EmscriptenSurfaceSourceCanvasHTMLSelector;
@@ -977,7 +980,6 @@ struct Extent3D;
 struct Future;
 struct InstanceCapabilities;
 struct INTERNAL_HAVE_EMDAWNWEBGPU_HEADER;
-struct Limits;
 struct MultisampleState;
 struct Origin3D;
 struct PassTimestampWrites;
@@ -1014,9 +1016,9 @@ struct CompilationMessage;
 struct ComputePassDescriptor;
 struct ComputeState;
 struct DepthStencilState;
-struct DeviceDescriptor;
 struct FutureWaitInfo;
 struct InstanceDescriptor;
+struct Limits;
 struct RenderPassColorAttachment;
 struct RequestAdapterOptions;
 struct ShaderModuleDescriptor;
@@ -1029,6 +1031,7 @@ struct BindGroupLayoutDescriptor;
 struct ColorTargetState;
 struct CompilationInfo;
 struct ComputePipelineDescriptor;
+struct DeviceDescriptor;
 struct RenderPassDescriptor;
 struct VertexState;
 struct FragmentState;
@@ -1181,7 +1184,7 @@ using CreateRenderPipelineAsyncCallback = typename detail::CallbackTypeBase<std:
 template <typename... T>
 using PopErrorScopeCallback = typename detail::CallbackTypeBase<std::tuple<PopErrorScopeStatus , ErrorType , StringView >, T...>::Callback;
 template <typename... T>
-using QueueWorkDoneCallback = typename detail::CallbackTypeBase<std::tuple<QueueWorkDoneStatus >, T...>::Callback;
+using QueueWorkDoneCallback = typename detail::CallbackTypeBase<std::tuple<QueueWorkDoneStatus , StringView >, T...>::Callback;
 template <typename... T>
 using RequestAdapterCallback = typename detail::CallbackTypeBase<std::tuple<RequestAdapterStatus , Adapter , StringView >, T...>::Callback;
 template <typename... T>
@@ -1207,12 +1210,12 @@ class Adapter : public ObjectBase<Adapter, WGPUAdapter> {
               typename Cb = RequestDeviceCallback<T>,
               typename CbChar = void (RequestDeviceStatus status, Device device, const char* message, T userdata),
               typename = std::enable_if_t<std::is_convertible_v<F, Cb*> || std::is_convertible_v<F, CbChar*>>>
-    Future RequestDevice(DeviceDescriptor const * options, CallbackMode callbackMode,F callback, T userdata) const;
+    Future RequestDevice(DeviceDescriptor const * descriptor, CallbackMode callbackMode,F callback, T userdata) const;
     template <typename L,
               typename Cb = RequestDeviceCallback<>,
               typename CbChar = std::function<void(RequestDeviceStatus status, Device device, const char* message)>,
               typename = std::enable_if_t<std::is_convertible_v<L, Cb> || std::is_convertible_v<L, CbChar>>>
-    Future RequestDevice(DeviceDescriptor const * options, CallbackMode callbackMode,L callback) const;
+    Future RequestDevice(DeviceDescriptor const * descriptor, CallbackMode callbackMode,L callback) const;
 
 
   private:
@@ -1492,12 +1495,12 @@ class Queue : public ObjectBase<Queue, WGPUQueue> {
 
     template <typename F, typename T,
               typename Cb = QueueWorkDoneCallback<T>,
-              typename CbChar = void (QueueWorkDoneStatus status, T userdata),
+              typename CbChar = void (QueueWorkDoneStatus status, const char* message, T userdata),
               typename = std::enable_if_t<std::is_convertible_v<F, Cb*> || std::is_convertible_v<F, CbChar*>>>
     Future OnSubmittedWorkDone(CallbackMode callbackMode,F callback, T userdata) const;
     template <typename L,
               typename Cb = QueueWorkDoneCallback<>,
-              typename CbChar = std::function<void(QueueWorkDoneStatus status)>,
+              typename CbChar = std::function<void(QueueWorkDoneStatus status, const char* message)>,
               typename = std::enable_if_t<std::is_convertible_v<L, Cb> || std::is_convertible_v<L, CbChar>>>
     Future OnSubmittedWorkDone(CallbackMode callbackMode,L callback) const;
     inline void SetLabel(StringView label) const;
@@ -1798,6 +1801,21 @@ struct CommandEncoderDescriptor {
     StringView label = {};
 };
 
+// Can be chained in Limits
+struct CompatibilityModeLimits : ChainedStructOut {
+    inline CompatibilityModeLimits();
+
+    struct Init;
+    inline CompatibilityModeLimits(Init&& init);
+    inline operator const WGPUCompatibilityModeLimits&() const noexcept;
+
+    static constexpr size_t kFirstMemberAlignment = detail::ConstexprMax(alignof(ChainedStruct), alignof(uint32_t ));
+    alignas(kFirstMemberAlignment) uint32_t maxStorageBuffersInVertexStage = kLimitU32Undefined;
+    uint32_t maxStorageTexturesInVertexStage = kLimitU32Undefined;
+    uint32_t maxStorageBuffersInFragmentStage = kLimitU32Undefined;
+    uint32_t maxStorageTexturesInFragmentStage = kLimitU32Undefined;
+};
+
 struct ConstantEntry {
     inline operator const WGPUConstantEntry&() const noexcept;
 
@@ -1858,48 +1876,6 @@ struct INTERNAL_HAVE_EMDAWNWEBGPU_HEADER {
     inline operator const WGPUINTERNAL_HAVE_EMDAWNWEBGPU_HEADER&() const noexcept;
 
     Bool unused = false;
-};
-
-struct Limits {
-    inline operator const WGPULimits&() const noexcept;
-
-    ChainedStructOut  * nextInChain = nullptr;
-    uint32_t maxTextureDimension1D = kLimitU32Undefined;
-    uint32_t maxTextureDimension2D = kLimitU32Undefined;
-    uint32_t maxTextureDimension3D = kLimitU32Undefined;
-    uint32_t maxTextureArrayLayers = kLimitU32Undefined;
-    uint32_t maxBindGroups = kLimitU32Undefined;
-    uint32_t maxBindGroupsPlusVertexBuffers = kLimitU32Undefined;
-    uint32_t maxBindingsPerBindGroup = kLimitU32Undefined;
-    uint32_t maxDynamicUniformBuffersPerPipelineLayout = kLimitU32Undefined;
-    uint32_t maxDynamicStorageBuffersPerPipelineLayout = kLimitU32Undefined;
-    uint32_t maxSampledTexturesPerShaderStage = kLimitU32Undefined;
-    uint32_t maxSamplersPerShaderStage = kLimitU32Undefined;
-    uint32_t maxStorageBuffersPerShaderStage = kLimitU32Undefined;
-    uint32_t maxStorageTexturesPerShaderStage = kLimitU32Undefined;
-    uint32_t maxUniformBuffersPerShaderStage = kLimitU32Undefined;
-    uint64_t maxUniformBufferBindingSize = kLimitU64Undefined;
-    uint64_t maxStorageBufferBindingSize = kLimitU64Undefined;
-    uint32_t minUniformBufferOffsetAlignment = kLimitU32Undefined;
-    uint32_t minStorageBufferOffsetAlignment = kLimitU32Undefined;
-    uint32_t maxVertexBuffers = kLimitU32Undefined;
-    uint64_t maxBufferSize = kLimitU64Undefined;
-    uint32_t maxVertexAttributes = kLimitU32Undefined;
-    uint32_t maxVertexBufferArrayStride = kLimitU32Undefined;
-    uint32_t maxInterStageShaderVariables = kLimitU32Undefined;
-    uint32_t maxColorAttachments = kLimitU32Undefined;
-    uint32_t maxColorAttachmentBytesPerSample = kLimitU32Undefined;
-    uint32_t maxComputeWorkgroupStorageSize = kLimitU32Undefined;
-    uint32_t maxComputeInvocationsPerWorkgroup = kLimitU32Undefined;
-    uint32_t maxComputeWorkgroupSizeX = kLimitU32Undefined;
-    uint32_t maxComputeWorkgroupSizeY = kLimitU32Undefined;
-    uint32_t maxComputeWorkgroupSizeZ = kLimitU32Undefined;
-    uint32_t maxComputeWorkgroupsPerDimension = kLimitU32Undefined;
-    uint32_t maxImmediateSize = kLimitU32Undefined;
-    // uint32_t maxStorageBuffersInVertexStage = kLimitU32Undefined;
-    // uint32_t maxStorageTexturesInVertexStage = kLimitU32Undefined;
-    // uint32_t maxStorageBuffersInFragmentStage = kLimitU32Undefined;
-    // uint32_t maxStorageTexturesInFragmentStage = kLimitU32Undefined;
 };
 
 struct MultisampleState {
@@ -2042,8 +2018,8 @@ struct SamplerDescriptor {
     FilterMode magFilter = FilterMode::Undefined;
     FilterMode minFilter = FilterMode::Undefined;
     MipmapFilterMode mipmapFilter = MipmapFilterMode::Undefined;
-    float lodMinClamp = 0.0f;
-    float lodMaxClamp = 32.0f;
+    float lodMinClamp = 0.f;
+    float lodMaxClamp = 32.f;
     CompareFunction compare = CompareFunction::Undefined;
     uint16_t maxAnisotropy = 1;
 };
@@ -2309,8 +2285,8 @@ struct DepthStencilState {
     uint32_t stencilReadMask = 0xFFFFFFFF;
     uint32_t stencilWriteMask = 0xFFFFFFFF;
     int32_t depthBias = 0;
-    float depthBiasSlopeScale = 0.0f;
-    float depthBiasClamp = 0.0f;
+    float depthBiasSlopeScale = 0.f;
+    float depthBiasClamp = 0.f;
 };
 
 struct FutureWaitInfo {
@@ -2325,6 +2301,44 @@ struct InstanceDescriptor {
 
     ChainedStruct const * nextInChain = nullptr;
     InstanceCapabilities capabilities = {};
+};
+
+struct Limits {
+    inline operator const WGPULimits&() const noexcept;
+
+    ChainedStructOut  * nextInChain = nullptr;
+    uint32_t maxTextureDimension1D = kLimitU32Undefined;
+    uint32_t maxTextureDimension2D = kLimitU32Undefined;
+    uint32_t maxTextureDimension3D = kLimitU32Undefined;
+    uint32_t maxTextureArrayLayers = kLimitU32Undefined;
+    uint32_t maxBindGroups = kLimitU32Undefined;
+    uint32_t maxBindGroupsPlusVertexBuffers = kLimitU32Undefined;
+    uint32_t maxBindingsPerBindGroup = kLimitU32Undefined;
+    uint32_t maxDynamicUniformBuffersPerPipelineLayout = kLimitU32Undefined;
+    uint32_t maxDynamicStorageBuffersPerPipelineLayout = kLimitU32Undefined;
+    uint32_t maxSampledTexturesPerShaderStage = kLimitU32Undefined;
+    uint32_t maxSamplersPerShaderStage = kLimitU32Undefined;
+    uint32_t maxStorageBuffersPerShaderStage = kLimitU32Undefined;
+    uint32_t maxStorageTexturesPerShaderStage = kLimitU32Undefined;
+    uint32_t maxUniformBuffersPerShaderStage = kLimitU32Undefined;
+    uint64_t maxUniformBufferBindingSize = kLimitU64Undefined;
+    uint64_t maxStorageBufferBindingSize = kLimitU64Undefined;
+    uint32_t minUniformBufferOffsetAlignment = kLimitU32Undefined;
+    uint32_t minStorageBufferOffsetAlignment = kLimitU32Undefined;
+    uint32_t maxVertexBuffers = kLimitU32Undefined;
+    uint64_t maxBufferSize = kLimitU64Undefined;
+    uint32_t maxVertexAttributes = kLimitU32Undefined;
+    uint32_t maxVertexBufferArrayStride = kLimitU32Undefined;
+    uint32_t maxInterStageShaderVariables = kLimitU32Undefined;
+    uint32_t maxColorAttachments = kLimitU32Undefined;
+    uint32_t maxColorAttachmentBytesPerSample = kLimitU32Undefined;
+    uint32_t maxComputeWorkgroupStorageSize = kLimitU32Undefined;
+    uint32_t maxComputeInvocationsPerWorkgroup = kLimitU32Undefined;
+    uint32_t maxComputeWorkgroupSizeX = kLimitU32Undefined;
+    uint32_t maxComputeWorkgroupSizeY = kLimitU32Undefined;
+    uint32_t maxComputeWorkgroupSizeZ = kLimitU32Undefined;
+    uint32_t maxComputeWorkgroupsPerDimension = kLimitU32Undefined;
+    uint32_t maxImmediateSize = kLimitU32Undefined;
 };
 
 struct RenderPassColorAttachment {
@@ -2748,6 +2762,38 @@ static_assert(offsetof(CommandEncoderDescriptor, nextInChain) == offsetof(WGPUCo
 static_assert(offsetof(CommandEncoderDescriptor, label) == offsetof(WGPUCommandEncoderDescriptor, label),
         "offsetof mismatch for CommandEncoderDescriptor::label");
 
+// CompatibilityModeLimits implementation
+CompatibilityModeLimits::CompatibilityModeLimits()
+  : ChainedStructOut { nullptr, SType::CompatibilityModeLimits } {}
+struct CompatibilityModeLimits::Init {
+    ChainedStructOut *  nextInChain;
+    uint32_t maxStorageBuffersInVertexStage = kLimitU32Undefined;
+    uint32_t maxStorageTexturesInVertexStage = kLimitU32Undefined;
+    uint32_t maxStorageBuffersInFragmentStage = kLimitU32Undefined;
+    uint32_t maxStorageTexturesInFragmentStage = kLimitU32Undefined;
+};
+CompatibilityModeLimits::CompatibilityModeLimits(CompatibilityModeLimits::Init&& init)
+  : ChainedStructOut { init.nextInChain, SType::CompatibilityModeLimits }, 
+    maxStorageBuffersInVertexStage(std::move(init.maxStorageBuffersInVertexStage)), 
+    maxStorageTexturesInVertexStage(std::move(init.maxStorageTexturesInVertexStage)), 
+    maxStorageBuffersInFragmentStage(std::move(init.maxStorageBuffersInFragmentStage)), 
+    maxStorageTexturesInFragmentStage(std::move(init.maxStorageTexturesInFragmentStage)){}
+
+CompatibilityModeLimits::operator const WGPUCompatibilityModeLimits&() const noexcept {
+    return *reinterpret_cast<const WGPUCompatibilityModeLimits*>(this);
+}
+
+static_assert(sizeof(CompatibilityModeLimits) == sizeof(WGPUCompatibilityModeLimits), "sizeof mismatch for CompatibilityModeLimits");
+static_assert(alignof(CompatibilityModeLimits) == alignof(WGPUCompatibilityModeLimits), "alignof mismatch for CompatibilityModeLimits");
+static_assert(offsetof(CompatibilityModeLimits, maxStorageBuffersInVertexStage) == offsetof(WGPUCompatibilityModeLimits, maxStorageBuffersInVertexStage),
+        "offsetof mismatch for CompatibilityModeLimits::maxStorageBuffersInVertexStage");
+static_assert(offsetof(CompatibilityModeLimits, maxStorageTexturesInVertexStage) == offsetof(WGPUCompatibilityModeLimits, maxStorageTexturesInVertexStage),
+        "offsetof mismatch for CompatibilityModeLimits::maxStorageTexturesInVertexStage");
+static_assert(offsetof(CompatibilityModeLimits, maxStorageBuffersInFragmentStage) == offsetof(WGPUCompatibilityModeLimits, maxStorageBuffersInFragmentStage),
+        "offsetof mismatch for CompatibilityModeLimits::maxStorageBuffersInFragmentStage");
+static_assert(offsetof(CompatibilityModeLimits, maxStorageTexturesInFragmentStage) == offsetof(WGPUCompatibilityModeLimits, maxStorageTexturesInFragmentStage),
+        "offsetof mismatch for CompatibilityModeLimits::maxStorageTexturesInFragmentStage");
+
 // ConstantEntry implementation
 
 ConstantEntry::operator const WGPUConstantEntry&() const noexcept {
@@ -2862,89 +2908,6 @@ static_assert(sizeof(INTERNAL_HAVE_EMDAWNWEBGPU_HEADER) == sizeof(WGPUINTERNAL_H
 static_assert(alignof(INTERNAL_HAVE_EMDAWNWEBGPU_HEADER) == alignof(WGPUINTERNAL_HAVE_EMDAWNWEBGPU_HEADER), "alignof mismatch for INTERNAL_HAVE_EMDAWNWEBGPU_HEADER");
 static_assert(offsetof(INTERNAL_HAVE_EMDAWNWEBGPU_HEADER, unused) == offsetof(WGPUINTERNAL_HAVE_EMDAWNWEBGPU_HEADER, unused),
         "offsetof mismatch for INTERNAL_HAVE_EMDAWNWEBGPU_HEADER::unused");
-
-// Limits implementation
-
-Limits::operator const WGPULimits&() const noexcept {
-    return *reinterpret_cast<const WGPULimits*>(this);
-}
-
-static_assert(sizeof(Limits) == sizeof(WGPULimits), "sizeof mismatch for Limits");
-static_assert(alignof(Limits) == alignof(WGPULimits), "alignof mismatch for Limits");
-static_assert(offsetof(Limits, nextInChain) == offsetof(WGPULimits, nextInChain),
-        "offsetof mismatch for Limits::nextInChain");
-static_assert(offsetof(Limits, maxTextureDimension1D) == offsetof(WGPULimits, maxTextureDimension1D),
-        "offsetof mismatch for Limits::maxTextureDimension1D");
-static_assert(offsetof(Limits, maxTextureDimension2D) == offsetof(WGPULimits, maxTextureDimension2D),
-        "offsetof mismatch for Limits::maxTextureDimension2D");
-static_assert(offsetof(Limits, maxTextureDimension3D) == offsetof(WGPULimits, maxTextureDimension3D),
-        "offsetof mismatch for Limits::maxTextureDimension3D");
-static_assert(offsetof(Limits, maxTextureArrayLayers) == offsetof(WGPULimits, maxTextureArrayLayers),
-        "offsetof mismatch for Limits::maxTextureArrayLayers");
-static_assert(offsetof(Limits, maxBindGroups) == offsetof(WGPULimits, maxBindGroups),
-        "offsetof mismatch for Limits::maxBindGroups");
-static_assert(offsetof(Limits, maxBindGroupsPlusVertexBuffers) == offsetof(WGPULimits, maxBindGroupsPlusVertexBuffers),
-        "offsetof mismatch for Limits::maxBindGroupsPlusVertexBuffers");
-static_assert(offsetof(Limits, maxBindingsPerBindGroup) == offsetof(WGPULimits, maxBindingsPerBindGroup),
-        "offsetof mismatch for Limits::maxBindingsPerBindGroup");
-static_assert(offsetof(Limits, maxDynamicUniformBuffersPerPipelineLayout) == offsetof(WGPULimits, maxDynamicUniformBuffersPerPipelineLayout),
-        "offsetof mismatch for Limits::maxDynamicUniformBuffersPerPipelineLayout");
-static_assert(offsetof(Limits, maxDynamicStorageBuffersPerPipelineLayout) == offsetof(WGPULimits, maxDynamicStorageBuffersPerPipelineLayout),
-        "offsetof mismatch for Limits::maxDynamicStorageBuffersPerPipelineLayout");
-static_assert(offsetof(Limits, maxSampledTexturesPerShaderStage) == offsetof(WGPULimits, maxSampledTexturesPerShaderStage),
-        "offsetof mismatch for Limits::maxSampledTexturesPerShaderStage");
-static_assert(offsetof(Limits, maxSamplersPerShaderStage) == offsetof(WGPULimits, maxSamplersPerShaderStage),
-        "offsetof mismatch for Limits::maxSamplersPerShaderStage");
-static_assert(offsetof(Limits, maxStorageBuffersPerShaderStage) == offsetof(WGPULimits, maxStorageBuffersPerShaderStage),
-        "offsetof mismatch for Limits::maxStorageBuffersPerShaderStage");
-static_assert(offsetof(Limits, maxStorageTexturesPerShaderStage) == offsetof(WGPULimits, maxStorageTexturesPerShaderStage),
-        "offsetof mismatch for Limits::maxStorageTexturesPerShaderStage");
-static_assert(offsetof(Limits, maxUniformBuffersPerShaderStage) == offsetof(WGPULimits, maxUniformBuffersPerShaderStage),
-        "offsetof mismatch for Limits::maxUniformBuffersPerShaderStage");
-static_assert(offsetof(Limits, maxUniformBufferBindingSize) == offsetof(WGPULimits, maxUniformBufferBindingSize),
-        "offsetof mismatch for Limits::maxUniformBufferBindingSize");
-static_assert(offsetof(Limits, maxStorageBufferBindingSize) == offsetof(WGPULimits, maxStorageBufferBindingSize),
-        "offsetof mismatch for Limits::maxStorageBufferBindingSize");
-static_assert(offsetof(Limits, minUniformBufferOffsetAlignment) == offsetof(WGPULimits, minUniformBufferOffsetAlignment),
-        "offsetof mismatch for Limits::minUniformBufferOffsetAlignment");
-static_assert(offsetof(Limits, minStorageBufferOffsetAlignment) == offsetof(WGPULimits, minStorageBufferOffsetAlignment),
-        "offsetof mismatch for Limits::minStorageBufferOffsetAlignment");
-static_assert(offsetof(Limits, maxVertexBuffers) == offsetof(WGPULimits, maxVertexBuffers),
-        "offsetof mismatch for Limits::maxVertexBuffers");
-static_assert(offsetof(Limits, maxBufferSize) == offsetof(WGPULimits, maxBufferSize),
-        "offsetof mismatch for Limits::maxBufferSize");
-static_assert(offsetof(Limits, maxVertexAttributes) == offsetof(WGPULimits, maxVertexAttributes),
-        "offsetof mismatch for Limits::maxVertexAttributes");
-static_assert(offsetof(Limits, maxVertexBufferArrayStride) == offsetof(WGPULimits, maxVertexBufferArrayStride),
-        "offsetof mismatch for Limits::maxVertexBufferArrayStride");
-static_assert(offsetof(Limits, maxInterStageShaderVariables) == offsetof(WGPULimits, maxInterStageShaderVariables),
-        "offsetof mismatch for Limits::maxInterStageShaderVariables");
-static_assert(offsetof(Limits, maxColorAttachments) == offsetof(WGPULimits, maxColorAttachments),
-        "offsetof mismatch for Limits::maxColorAttachments");
-static_assert(offsetof(Limits, maxColorAttachmentBytesPerSample) == offsetof(WGPULimits, maxColorAttachmentBytesPerSample),
-        "offsetof mismatch for Limits::maxColorAttachmentBytesPerSample");
-static_assert(offsetof(Limits, maxComputeWorkgroupStorageSize) == offsetof(WGPULimits, maxComputeWorkgroupStorageSize),
-        "offsetof mismatch for Limits::maxComputeWorkgroupStorageSize");
-static_assert(offsetof(Limits, maxComputeInvocationsPerWorkgroup) == offsetof(WGPULimits, maxComputeInvocationsPerWorkgroup),
-        "offsetof mismatch for Limits::maxComputeInvocationsPerWorkgroup");
-static_assert(offsetof(Limits, maxComputeWorkgroupSizeX) == offsetof(WGPULimits, maxComputeWorkgroupSizeX),
-        "offsetof mismatch for Limits::maxComputeWorkgroupSizeX");
-static_assert(offsetof(Limits, maxComputeWorkgroupSizeY) == offsetof(WGPULimits, maxComputeWorkgroupSizeY),
-        "offsetof mismatch for Limits::maxComputeWorkgroupSizeY");
-static_assert(offsetof(Limits, maxComputeWorkgroupSizeZ) == offsetof(WGPULimits, maxComputeWorkgroupSizeZ),
-        "offsetof mismatch for Limits::maxComputeWorkgroupSizeZ");
-static_assert(offsetof(Limits, maxComputeWorkgroupsPerDimension) == offsetof(WGPULimits, maxComputeWorkgroupsPerDimension),
-        "offsetof mismatch for Limits::maxComputeWorkgroupsPerDimension");
-static_assert(offsetof(Limits, maxImmediateSize) == offsetof(WGPULimits, maxImmediateSize),
-        "offsetof mismatch for Limits::maxImmediateSize");
-// static_assert(offsetof(Limits, maxStorageBuffersInVertexStage) == offsetof(WGPULimits, maxStorageBuffersInVertexStage),
-//         "offsetof mismatch for Limits::maxStorageBuffersInVertexStage");
-// static_assert(offsetof(Limits, maxStorageTexturesInVertexStage) == offsetof(WGPULimits, maxStorageTexturesInVertexStage),
-//         "offsetof mismatch for Limits::maxStorageTexturesInVertexStage");
-// static_assert(offsetof(Limits, maxStorageBuffersInFragmentStage) == offsetof(WGPULimits, maxStorageBuffersInFragmentStage),
-//         "offsetof mismatch for Limits::maxStorageBuffersInFragmentStage");
-// static_assert(offsetof(Limits, maxStorageTexturesInFragmentStage) == offsetof(WGPULimits, maxStorageTexturesInFragmentStage),
-//         "offsetof mismatch for Limits::maxStorageTexturesInFragmentStage");
 
 // MultisampleState implementation
 
@@ -3804,6 +3767,81 @@ static_assert(offsetof(InstanceDescriptor, nextInChain) == offsetof(WGPUInstance
 static_assert(offsetof(InstanceDescriptor, capabilities) == offsetof(WGPUInstanceDescriptor, capabilities),
         "offsetof mismatch for InstanceDescriptor::capabilities");
 
+// Limits implementation
+
+Limits::operator const WGPULimits&() const noexcept {
+    return *reinterpret_cast<const WGPULimits*>(this);
+}
+
+static_assert(sizeof(Limits) == sizeof(WGPULimits), "sizeof mismatch for Limits");
+static_assert(alignof(Limits) == alignof(WGPULimits), "alignof mismatch for Limits");
+static_assert(offsetof(Limits, nextInChain) == offsetof(WGPULimits, nextInChain),
+        "offsetof mismatch for Limits::nextInChain");
+static_assert(offsetof(Limits, maxTextureDimension1D) == offsetof(WGPULimits, maxTextureDimension1D),
+        "offsetof mismatch for Limits::maxTextureDimension1D");
+static_assert(offsetof(Limits, maxTextureDimension2D) == offsetof(WGPULimits, maxTextureDimension2D),
+        "offsetof mismatch for Limits::maxTextureDimension2D");
+static_assert(offsetof(Limits, maxTextureDimension3D) == offsetof(WGPULimits, maxTextureDimension3D),
+        "offsetof mismatch for Limits::maxTextureDimension3D");
+static_assert(offsetof(Limits, maxTextureArrayLayers) == offsetof(WGPULimits, maxTextureArrayLayers),
+        "offsetof mismatch for Limits::maxTextureArrayLayers");
+static_assert(offsetof(Limits, maxBindGroups) == offsetof(WGPULimits, maxBindGroups),
+        "offsetof mismatch for Limits::maxBindGroups");
+static_assert(offsetof(Limits, maxBindGroupsPlusVertexBuffers) == offsetof(WGPULimits, maxBindGroupsPlusVertexBuffers),
+        "offsetof mismatch for Limits::maxBindGroupsPlusVertexBuffers");
+static_assert(offsetof(Limits, maxBindingsPerBindGroup) == offsetof(WGPULimits, maxBindingsPerBindGroup),
+        "offsetof mismatch for Limits::maxBindingsPerBindGroup");
+static_assert(offsetof(Limits, maxDynamicUniformBuffersPerPipelineLayout) == offsetof(WGPULimits, maxDynamicUniformBuffersPerPipelineLayout),
+        "offsetof mismatch for Limits::maxDynamicUniformBuffersPerPipelineLayout");
+static_assert(offsetof(Limits, maxDynamicStorageBuffersPerPipelineLayout) == offsetof(WGPULimits, maxDynamicStorageBuffersPerPipelineLayout),
+        "offsetof mismatch for Limits::maxDynamicStorageBuffersPerPipelineLayout");
+static_assert(offsetof(Limits, maxSampledTexturesPerShaderStage) == offsetof(WGPULimits, maxSampledTexturesPerShaderStage),
+        "offsetof mismatch for Limits::maxSampledTexturesPerShaderStage");
+static_assert(offsetof(Limits, maxSamplersPerShaderStage) == offsetof(WGPULimits, maxSamplersPerShaderStage),
+        "offsetof mismatch for Limits::maxSamplersPerShaderStage");
+static_assert(offsetof(Limits, maxStorageBuffersPerShaderStage) == offsetof(WGPULimits, maxStorageBuffersPerShaderStage),
+        "offsetof mismatch for Limits::maxStorageBuffersPerShaderStage");
+static_assert(offsetof(Limits, maxStorageTexturesPerShaderStage) == offsetof(WGPULimits, maxStorageTexturesPerShaderStage),
+        "offsetof mismatch for Limits::maxStorageTexturesPerShaderStage");
+static_assert(offsetof(Limits, maxUniformBuffersPerShaderStage) == offsetof(WGPULimits, maxUniformBuffersPerShaderStage),
+        "offsetof mismatch for Limits::maxUniformBuffersPerShaderStage");
+static_assert(offsetof(Limits, maxUniformBufferBindingSize) == offsetof(WGPULimits, maxUniformBufferBindingSize),
+        "offsetof mismatch for Limits::maxUniformBufferBindingSize");
+static_assert(offsetof(Limits, maxStorageBufferBindingSize) == offsetof(WGPULimits, maxStorageBufferBindingSize),
+        "offsetof mismatch for Limits::maxStorageBufferBindingSize");
+static_assert(offsetof(Limits, minUniformBufferOffsetAlignment) == offsetof(WGPULimits, minUniformBufferOffsetAlignment),
+        "offsetof mismatch for Limits::minUniformBufferOffsetAlignment");
+static_assert(offsetof(Limits, minStorageBufferOffsetAlignment) == offsetof(WGPULimits, minStorageBufferOffsetAlignment),
+        "offsetof mismatch for Limits::minStorageBufferOffsetAlignment");
+static_assert(offsetof(Limits, maxVertexBuffers) == offsetof(WGPULimits, maxVertexBuffers),
+        "offsetof mismatch for Limits::maxVertexBuffers");
+static_assert(offsetof(Limits, maxBufferSize) == offsetof(WGPULimits, maxBufferSize),
+        "offsetof mismatch for Limits::maxBufferSize");
+static_assert(offsetof(Limits, maxVertexAttributes) == offsetof(WGPULimits, maxVertexAttributes),
+        "offsetof mismatch for Limits::maxVertexAttributes");
+static_assert(offsetof(Limits, maxVertexBufferArrayStride) == offsetof(WGPULimits, maxVertexBufferArrayStride),
+        "offsetof mismatch for Limits::maxVertexBufferArrayStride");
+static_assert(offsetof(Limits, maxInterStageShaderVariables) == offsetof(WGPULimits, maxInterStageShaderVariables),
+        "offsetof mismatch for Limits::maxInterStageShaderVariables");
+static_assert(offsetof(Limits, maxColorAttachments) == offsetof(WGPULimits, maxColorAttachments),
+        "offsetof mismatch for Limits::maxColorAttachments");
+static_assert(offsetof(Limits, maxColorAttachmentBytesPerSample) == offsetof(WGPULimits, maxColorAttachmentBytesPerSample),
+        "offsetof mismatch for Limits::maxColorAttachmentBytesPerSample");
+static_assert(offsetof(Limits, maxComputeWorkgroupStorageSize) == offsetof(WGPULimits, maxComputeWorkgroupStorageSize),
+        "offsetof mismatch for Limits::maxComputeWorkgroupStorageSize");
+static_assert(offsetof(Limits, maxComputeInvocationsPerWorkgroup) == offsetof(WGPULimits, maxComputeInvocationsPerWorkgroup),
+        "offsetof mismatch for Limits::maxComputeInvocationsPerWorkgroup");
+static_assert(offsetof(Limits, maxComputeWorkgroupSizeX) == offsetof(WGPULimits, maxComputeWorkgroupSizeX),
+        "offsetof mismatch for Limits::maxComputeWorkgroupSizeX");
+static_assert(offsetof(Limits, maxComputeWorkgroupSizeY) == offsetof(WGPULimits, maxComputeWorkgroupSizeY),
+        "offsetof mismatch for Limits::maxComputeWorkgroupSizeY");
+static_assert(offsetof(Limits, maxComputeWorkgroupSizeZ) == offsetof(WGPULimits, maxComputeWorkgroupSizeZ),
+        "offsetof mismatch for Limits::maxComputeWorkgroupSizeZ");
+static_assert(offsetof(Limits, maxComputeWorkgroupsPerDimension) == offsetof(WGPULimits, maxComputeWorkgroupsPerDimension),
+        "offsetof mismatch for Limits::maxComputeWorkgroupsPerDimension");
+static_assert(offsetof(Limits, maxImmediateSize) == offsetof(WGPULimits, maxImmediateSize),
+        "offsetof mismatch for Limits::maxImmediateSize");
+
 // RenderPassColorAttachment implementation
 
 RenderPassColorAttachment::operator const WGPURenderPassColorAttachment&() const noexcept {
@@ -4262,7 +4300,7 @@ template <typename F, typename T,
           typename Cb,
           typename CbChar,
           typename>
-Future Adapter::RequestDevice(DeviceDescriptor const * options, CallbackMode callbackMode,F callback, T userdata) const {
+Future Adapter::RequestDevice(DeviceDescriptor const * descriptor, CallbackMode callbackMode,F callback, T userdata) const {
     WGPURequestDeviceCallbackInfo callbackInfo = {};
     callbackInfo.mode = static_cast<WGPUCallbackMode>(callbackMode);
     if constexpr (std::is_convertible_v<F, Cb*>) {
@@ -4281,7 +4319,7 @@ Future Adapter::RequestDevice(DeviceDescriptor const * options, CallbackMode cal
     }
     callbackInfo.userdata1 = reinterpret_cast<void*>(+callback);
     callbackInfo.userdata2 = reinterpret_cast<void*>(userdata);
-    auto result = wgpuAdapterRequestDevice(Get(), reinterpret_cast<WGPUDeviceDescriptor const * >(options), callbackInfo);
+    auto result = wgpuAdapterRequestDevice(Get(), reinterpret_cast<WGPUDeviceDescriptor const * >(descriptor), callbackInfo);
     return Future {
         result.id
     };
@@ -4290,7 +4328,7 @@ template <typename L,
           typename Cb,
           typename CbChar,
           typename>
-Future Adapter::RequestDevice(DeviceDescriptor const * options, CallbackMode callbackMode,L callback) const {
+Future Adapter::RequestDevice(DeviceDescriptor const * descriptor, CallbackMode callbackMode,L callback) const {
     using F = RequestDeviceCallback<void>;
 
     WGPURequestDeviceCallbackInfo callbackInfo = {};
@@ -4314,7 +4352,7 @@ Future Adapter::RequestDevice(DeviceDescriptor const * options, CallbackMode cal
         callbackInfo.userdata1 = reinterpret_cast<void*>(lambda);
         callbackInfo.userdata2 = nullptr;
     }
-    auto result = wgpuAdapterRequestDevice(Get(), reinterpret_cast<WGPUDeviceDescriptor const * >(options), callbackInfo);
+    auto result = wgpuAdapterRequestDevice(Get(), reinterpret_cast<WGPUDeviceDescriptor const * >(descriptor), callbackInfo);
     return Future {
             result.id
         };
@@ -5089,14 +5127,17 @@ Future Queue::OnSubmittedWorkDone(CallbackMode callbackMode,F callback, T userda
     WGPUQueueWorkDoneCallbackInfo callbackInfo = {};
     callbackInfo.mode = static_cast<WGPUCallbackMode>(callbackMode);
     if constexpr (std::is_convertible_v<F, Cb*>) {
-        callbackInfo.callback = [](WGPUQueueWorkDoneStatus status, void* callback_param, void* userdata_param) {
+        callbackInfo.callback = [](WGPUQueueWorkDoneStatus status, WGPUStringView message, void* callback_param, void* userdata_param) {
             auto cb = reinterpret_cast<Cb*>(callback_param);
-            (*cb)(static_cast<QueueWorkDoneStatus>(status), static_cast<T>(userdata_param));
+            (*cb)(static_cast<QueueWorkDoneStatus>(status), StringView {
+    message.data,
+    message.length
+}, static_cast<T>(userdata_param));
         };
     } else {
-        callbackInfo.callback = [](WGPUQueueWorkDoneStatus status, void* callback_param, void* userdata_param) {
+        callbackInfo.callback = [](WGPUQueueWorkDoneStatus status, WGPUStringView message, void* callback_param, void* userdata_param) {
             auto cb = reinterpret_cast<CbChar*>(callback_param);
-            (*cb)(static_cast<QueueWorkDoneStatus>(status), static_cast<T>(userdata_param));
+            (*cb)(static_cast<QueueWorkDoneStatus>(status), {detail::StringViewAdapter(message)}, static_cast<T>(userdata_param));
         };
     }
     callbackInfo.userdata1 = reinterpret_cast<void*>(+callback);
@@ -5116,17 +5157,20 @@ Future Queue::OnSubmittedWorkDone(CallbackMode callbackMode,L callback) const {
     WGPUQueueWorkDoneCallbackInfo callbackInfo = {};
     callbackInfo.mode = static_cast<WGPUCallbackMode>(callbackMode);
     if constexpr (std::is_convertible_v<L, F*>) {
-        callbackInfo.callback = [](WGPUQueueWorkDoneStatus status, void* callback_param, void*) {
+        callbackInfo.callback = [](WGPUQueueWorkDoneStatus status, WGPUStringView message, void* callback_param, void*) {
             auto cb = reinterpret_cast<F*>(callback_param);
-            (*cb)(static_cast<QueueWorkDoneStatus>(status));
+            (*cb)(static_cast<QueueWorkDoneStatus>(status), StringView {
+    message.data,
+    message.length
+});
         };
         callbackInfo.userdata1 = reinterpret_cast<void*>(+callback);
         callbackInfo.userdata2 = nullptr;
     } else {
         auto* lambda = new L(std::move(callback));
-        callbackInfo.callback = [](WGPUQueueWorkDoneStatus status, void* callback_param, void*) {
+        callbackInfo.callback = [](WGPUQueueWorkDoneStatus status, WGPUStringView message, void* callback_param, void*) {
             std::unique_ptr<L> the_lambda(reinterpret_cast<L*>(callback_param));
-            (*the_lambda)(static_cast<QueueWorkDoneStatus>(status));
+            (*the_lambda)(static_cast<QueueWorkDoneStatus>(status), {detail::StringViewAdapter(message)});
         };
         callbackInfo.userdata1 = reinterpret_cast<void*>(lambda);
         callbackInfo.userdata2 = nullptr;
