@@ -11,6 +11,7 @@
 #include "rive/renderer/texture.hpp"
 #include "rive/profiler/profiler_macros.h"
 #include "shaders/constants.glsl"
+#include "instance_chunker.hpp"
 
 #include "generated/shaders/advanced_blend.glsl.hpp"
 #include "generated/shaders/color_ramp.glsl.hpp"
@@ -46,7 +47,6 @@ const char atomic_draw[] = "";
 
 namespace rive::gpu
 {
-
 static bool is_tessellation_draw(gpu::DrawType drawType)
 {
     switch (drawType)
@@ -1667,64 +1667,79 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                             &nullData);
         }
 
+        m_state->bindProgram(m_colorRampProgram);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
+        glViewport(0, 0, kGradTextureWidth, desc.gradDataHeight);
         m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
         m_state->bindBuffer(GL_ARRAY_BUFFER,
                             gl_buffer_id(gradSpanBufferRing()));
         m_state->bindVAO(m_colorRampVAO);
-        glVertexAttribIPointer(
-            0,
-            4,
-            GL_UNSIGNED_INT,
-            0,
-            reinterpret_cast<const void*>(desc.firstGradSpan *
-                                          sizeof(gpu::GradientSpan)));
-        glViewport(0, 0, kGradTextureWidth, desc.gradDataHeight);
-        glBindFramebuffer(GL_FRAMEBUFFER, m_colorRampFBO);
-        m_state->bindProgram(m_colorRampProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
-        glDrawArraysInstanced(GL_TRIANGLE_STRIP,
-                              0,
-                              gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
-                              desc.gradSpanCount);
+        for (auto [instanceCount, baseInstance] : InstanceChunker(
+                 desc.gradSpanCount,
+                 math::lossless_numeric_cast<uint32_t>(desc.firstGradSpan),
+                 m_capabilities.maxSupportedInstancesPerDrawCommand))
+
+        {
+            glVertexAttribIPointer(
+                0,
+                4,
+                GL_UNSIGNED_INT,
+                0,
+                reinterpret_cast<const void*>(baseInstance *
+                                              sizeof(gpu::GradientSpan)));
+            glDrawArraysInstanced(GL_TRIANGLE_STRIP,
+                                  0,
+                                  gpu::GRAD_SPAN_TRI_STRIP_VERTEX_COUNT,
+                                  instanceCount);
+        }
     }
 
     // Tessellate all curves into vertices in the tessellation texture.
     if (desc.tessVertexSpanCount > 0)
     {
+        m_state->bindProgram(m_tessellateProgram);
+        glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
+        glViewport(0, 0, gpu::kTessTextureWidth, desc.tessDataHeight);
         m_state->setPipelineState(gpu::COLOR_ONLY_PIPELINE_STATE);
         m_state->bindBuffer(GL_ARRAY_BUFFER,
                             gl_buffer_id(tessSpanBufferRing()));
         m_state->bindVAO(m_tessellateVAO);
-        size_t tessSpanOffsetInBytes =
-            desc.firstTessVertexSpan * sizeof(gpu::TessVertexSpan);
-        for (GLuint i = 0; i < 3; ++i)
-        {
-            glVertexAttribPointer(i,
-                                  4,
-                                  GL_FLOAT,
-                                  GL_FALSE,
-                                  sizeof(TessVertexSpan),
-                                  reinterpret_cast<const void*>(
-                                      tessSpanOffsetInBytes + i * 4 * 4));
-        }
-        glVertexAttribIPointer(
-            3,
-            4,
-            GL_UNSIGNED_INT,
-            sizeof(TessVertexSpan),
-            reinterpret_cast<const void*>(tessSpanOffsetInBytes +
-                                          offsetof(TessVertexSpan, x0x1)));
-        glViewport(0, 0, gpu::kTessTextureWidth, desc.tessDataHeight);
-        glBindFramebuffer(GL_FRAMEBUFFER, m_tessellateFBO);
-        m_state->bindProgram(m_tessellateProgram);
         GLenum colorAttachment0 = GL_COLOR_ATTACHMENT0;
         glInvalidateFramebuffer(GL_FRAMEBUFFER, 1, &colorAttachment0);
-        glDrawElementsInstanced(GL_TRIANGLES,
-                                std::size(gpu::kTessSpanIndices),
-                                GL_UNSIGNED_SHORT,
-                                0,
-                                desc.tessVertexSpanCount);
+        for (auto [instanceCount, baseInstance] : InstanceChunker(
+                 desc.tessVertexSpanCount,
+                 math::lossless_numeric_cast<uint32_t>(
+                     desc.firstTessVertexSpan),
+                 m_capabilities.maxSupportedInstancesPerDrawCommand))
+
+        {
+            size_t tessSpanOffsetInBytes =
+                baseInstance * sizeof(gpu::TessVertexSpan);
+            for (GLuint i = 0; i < 3; ++i)
+            {
+                glVertexAttribPointer(i,
+                                      4,
+                                      GL_FLOAT,
+                                      GL_FALSE,
+                                      sizeof(TessVertexSpan),
+                                      reinterpret_cast<const void*>(
+                                          tessSpanOffsetInBytes + i * 4 * 4));
+            }
+            glVertexAttribIPointer(
+                3,
+                4,
+                GL_UNSIGNED_INT,
+                sizeof(TessVertexSpan),
+                reinterpret_cast<const void*>(tessSpanOffsetInBytes +
+                                              offsetof(TessVertexSpan, x0x1)));
+            glDrawElementsInstanced(GL_TRIANGLES,
+                                    std::size(gpu::kTessSpanIndices),
+                                    GL_UNSIGNED_SHORT,
+                                    0,
+                                    instanceCount);
+        }
     }
 
     // Render the atlas if we have any offscreen feathers.
@@ -2263,13 +2278,11 @@ void RenderContextGLImpl::drawIndexedInstancedNoInstancedAttribs(
            (baseInstanceUniformLocation < 0));
     const void* indexOffset =
         reinterpret_cast<const void*>(baseIndex * sizeof(uint16_t));
-    for (uint32_t endInstance = baseInstance + instanceCount;
-         baseInstance < endInstance;)
-
+    for (auto [chunkInstanceCount, chunkBaseInstance] :
+         InstanceChunker(instanceCount,
+                         baseInstance,
+                         m_capabilities.maxSupportedInstancesPerDrawCommand))
     {
-        uint32_t subInstanceCount =
-            std::min(endInstance - baseInstance,
-                     m_capabilities.maxSupportedInstancesPerDrawCommand);
 #ifndef RIVE_WEBGL
         if (m_capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
         {
@@ -2277,20 +2290,19 @@ void RenderContextGLImpl::drawIndexedInstancedNoInstancedAttribs(
                                                    indexCount,
                                                    GL_UNSIGNED_SHORT,
                                                    indexOffset,
-                                                   subInstanceCount,
-                                                   baseInstance);
+                                                   chunkInstanceCount,
+                                                   chunkBaseInstance);
         }
         else
 #endif
         {
-            glUniform1i(baseInstanceUniformLocation, baseInstance);
+            glUniform1i(baseInstanceUniformLocation, chunkBaseInstance);
             glDrawElementsInstanced(primitiveTopology,
                                     indexCount,
                                     GL_UNSIGNED_SHORT,
                                     indexOffset,
-                                    subInstanceCount);
+                                    chunkInstanceCount);
         }
-        baseInstance += subInstanceCount;
     }
 }
 
