@@ -1858,7 +1858,13 @@ rcp<Texture> RenderContextWebGPUImpl::makeImageTexture(
     };
     if (mipLevelCount > 1)
     {
+#ifdef RIVE_WAGYU
+        // Wagyu generates mipmaps with copies.
+        textureDesc.usage |= wgpu::TextureUsage::CopySrc;
+#else
+        // Unextended WebGPU implements mipmaps with draws.
         textureDesc.usage |= wgpu::TextureUsage::RenderAttachment;
+#endif
     }
 
     wgpu::Texture texture = m_device.CreateTexture(&textureDesc);
