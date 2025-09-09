@@ -1898,7 +1898,9 @@ void StateMachineInstance::reset()
 bool StateMachineInstance::advanceAndApply(float seconds)
 {
     RIVE_PROF_SCOPE()
-    bool keepGoing = this->advance(seconds, true);
+    // Advancing by 0 could return false, when it shouldn't. Force keepGoing
+    // to true.
+    bool keepGoing = this->advance(seconds, true) || seconds == 0.0f;
     if (m_artboardInstance->advanceInternal(
             seconds,
             AdvanceFlags::IsRoot | AdvanceFlags::Animate |
