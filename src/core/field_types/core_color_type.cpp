@@ -7,3 +7,10 @@ int CoreColorType::deserialize(BinaryReader& reader)
 {
     return reader.readUint32();
 }
+
+#ifdef WITH_RIVE_TOOLS
+int CoreColorType::deserializeRev(BinaryReader& reader)
+{
+    return (int)reader.readVarUint64();
+}
+#endif

@@ -9,6 +9,9 @@ class CoreColorType
 public:
     static const int id = 3;
     static int deserialize(BinaryReader& reader);
+#ifdef WITH_RIVE_TOOLS
+    static int deserializeRev(BinaryReader& reader);
+#endif
 };
 } // namespace rive
 #endif

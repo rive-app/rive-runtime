@@ -35,7 +35,6 @@
     },
     "order": {
       "type": "FractionalIndex",
-      "initialValue": "FractionalIndex.invalid",
       "key": {
         "int": 388,
         "string": "order"
@@ -51,7 +50,8 @@
         "string": "dependentids"
       },
       "description": "Object ids assigned to this tag.",
-      "runtime": false
+      "runtime": false,
+      "computed": true
     }
   }
 }

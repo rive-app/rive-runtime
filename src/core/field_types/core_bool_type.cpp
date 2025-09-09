@@ -7,3 +7,10 @@ bool CoreBoolType::deserialize(BinaryReader& reader)
 {
     return reader.readByte() == 1;
 }
+
+#ifdef WITH_RIVE_TOOLS
+bool CoreBoolType::deserializeRev(BinaryReader& reader)
+{
+    return deserialize(reader);
+}
+#endif

@@ -49,14 +49,8 @@ uint64_t BinaryReader::readVarUint64()
     return value;
 }
 
-std::string BinaryReader::readString()
+std::string BinaryReader::readString(size_t length)
 {
-    uint64_t length = readVarUint64();
-    if (didOverflow())
-    {
-        return std::string();
-    }
-
     std::vector<char> rawValue((size_t)length + 1);
     auto readBytes =
         decode_string(length, m_Position, m_Bytes.end(), &rawValue[0]);
@@ -69,6 +63,16 @@ std::string BinaryReader::readString()
     return std::string(rawValue.data(), (size_t)length);
 }
 
+std::string BinaryReader::readString()
+{
+    uint64_t length = readVarUint64();
+    if (didOverflow())
+    {
+        return std::string();
+    }
+    return readString(length);
+}
+
 Span<const uint8_t> BinaryReader::readBytes()
 {
     uint64_t length = readVarUint64();
@@ -77,6 +81,11 @@ Span<const uint8_t> BinaryReader::readBytes()
         return Span<const uint8_t>(m_Position, 0);
     }
 
+    return readBytes((size_t)length);
+}
+
+Span<const uint8_t> BinaryReader::readBytes(size_t length)
+{
     const uint8_t* start = m_Position;
     m_Position += length;
     return {start, (size_t)length};
@@ -94,6 +103,21 @@ float BinaryReader::readFloat32()
     m_Position += readBytes;
     return value;
 }
+
+#ifdef WITH_RIVE_TOOLS
+double BinaryReader::readFloat64()
+{
+    double value;
+    auto readBytes = decode_double(m_Position, m_Bytes.end(), &value);
+    if (readBytes == 0)
+    {
+        overflow();
+        return 0.0f;
+    }
+    m_Position += readBytes;
+    return value;
+}
+#endif
 
 uint8_t BinaryReader::readByte()
 {

@@ -7,7 +7,6 @@
   "properties": {
     "order": {
       "type": "FractionalIndex",
-      "initialValue": "FractionalIndex.invalid",
       "key": {
         "int": 772,
         "string": "order"

@@ -8,7 +8,6 @@
   "properties": {
     "order": {
       "type": "FractionalIndex",
-      "initialValue": "FractionalIndex.invalid",
       "initialValueRuntime": "0",
       "key": {
         "int": 661,

@@ -31,8 +31,13 @@ public:
     const uint8_t* position() const;
 
     std::string readString();
+    std::string readString(size_t length);
     Span<const uint8_t> readBytes();
+    Span<const uint8_t> readBytes(size_t length);
     float readFloat32();
+#ifdef WITH_RIVE_TOOLS
+    double readFloat64();
+#endif
     uint8_t readByte();
     uint16_t readUint16();
     uint32_t readUint32();

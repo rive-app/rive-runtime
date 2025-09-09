@@ -16,6 +16,24 @@
         "string": "eventid"
       },
       "description": "Id of the Event referenced."
+    },
+    "occursValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 393,
+        "string": "occursvalue"
+      },
+      "description": "When the event fires."
+    },
+    "fireOrder": {
+      "type": "FractionalIndex",
+      "key": {
+        "int": 394,
+        "string": "fireorder"
+      },
+      "description": "Order value for sorting transitions in states.",
+      "runtime": false
     }
   }
 }

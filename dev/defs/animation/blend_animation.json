@@ -31,7 +31,6 @@
     },
     "animationOrder": {
       "type": "FractionalIndex",
-      "initialValue": "FractionalIndex.invalid",
       "key": {
         "int": 169,
         "string": "animationorder"

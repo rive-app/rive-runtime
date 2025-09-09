@@ -14,7 +14,8 @@
         "string": "dependentIds"
       },
       "description": "List of integer ids for objects registered in the same context that depend on this object.",
-      "runtime": false
+      "runtime": false,
+      "computed": true
     },
     "name": {
       "type": "String",
@@ -48,7 +49,6 @@
     },
     "childOrder": {
       "type": "FractionalIndex",
-      "initialValue": "FractionalIndex.invalid",
       "initialValueRuntime": "0",
       "key": {
         "int": 6,

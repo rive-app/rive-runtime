@@ -49,7 +49,6 @@
     },
     "order": {
       "type": "FractionalIndex",
-      "initialValue": "FractionalIndex.invalid",
       "key": {
         "int": 552,
         "string": "order"

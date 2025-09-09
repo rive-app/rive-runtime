@@ -27,7 +27,6 @@
     },
     "machineOrder": {
       "type": "FractionalIndex",
-      "initialValue": "FractionalIndex.invalid",
       "key": {
         "int": 139,
         "string": "machineorder"

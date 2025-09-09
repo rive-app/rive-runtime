@@ -47,7 +47,6 @@
     },
     "transitionOrder": {
       "type": "FractionalIndex",
-      "initialValue": "FractionalIndex.invalid",
       "key": {
         "int": 159,
         "string": "transitionorder"
