@@ -6,6 +6,7 @@
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
+#include "rive/math/random.hpp"
 #include "utils/serializing_factory.hpp"
 #include "rive_file_reader.hpp"
 #include <catch.hpp>
@@ -785,4 +786,154 @@ TEST_CASE("Collapsed data bound layout styles still update", "[silver]")
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("collapse_data_binds-test_3"));
+}
+
+TEST_CASE("Reset randomization on value change", "[silver]")
+{
+    RandomProvider::clearRandoms();
+    REQUIRE(RandomProvider::totalCalls() == 0);
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/formula_random.riv", &silver);
+
+    auto artboard = file->artboardNamed("source_change");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto numProp = vmi->propertyValue("n1")->as<ViewModelInstanceNumber>();
+
+    RandomProvider::addRandomValue(0.0f);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    REQUIRE(RandomProvider::totalCalls() == 1);
+
+    silver.addFrame();
+
+    RandomProvider::addRandomValue(1.0f);
+    numProp->propertyValue(500);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    // Random generation hasn't been called again
+    REQUIRE(RandomProvider::totalCalls() == 2);
+    RandomProvider::clearRandoms();
+    CHECK(silver.matches("formula_random-source_change"));
+}
+
+TEST_CASE("Reset randomization only once", "[silver]")
+{
+    RandomProvider::clearRandoms();
+    REQUIRE(RandomProvider::totalCalls() == 0);
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/formula_random.riv", &silver);
+
+    auto artboard = file->artboardNamed("once");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto numProp = vmi->propertyValue("n1")->as<ViewModelInstanceNumber>();
+
+    RandomProvider::addRandomValue(0.0f);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    REQUIRE(RandomProvider::totalCalls() == 1);
+
+    silver.addFrame();
+
+    RandomProvider::addRandomValue(1.0f);
+    numProp->propertyValue(500);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    // Random generation hasn't been called again
+    REQUIRE(RandomProvider::totalCalls() == 1);
+    RandomProvider::clearRandoms();
+    CHECK(silver.matches("formula_random-once"));
+}
+
+TEST_CASE("Reset randomization on every change", "[silver]")
+{
+    RandomProvider::clearRandoms();
+    REQUIRE(RandomProvider::totalCalls() == 0);
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/formula_random.riv", &silver);
+
+    auto artboard = file->artboardNamed("always");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto numProp = vmi->propertyValue("n1")->as<ViewModelInstanceNumber>();
+
+    RandomProvider::addRandomValue(0.0f);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+    REQUIRE(RandomProvider::totalCalls() == 1);
+
+    silver.addFrame();
+
+    RandomProvider::addRandomValue(1.0f);
+    numProp->propertyValue(500);
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.016f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    // Random generation hasn't been called on every advance
+    REQUIRE(RandomProvider::totalCalls() == 64);
+    RandomProvider::clearRandoms();
+    CHECK(silver.matches("formula_random-always"));
 }

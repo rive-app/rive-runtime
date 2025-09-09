@@ -63,6 +63,7 @@ Core* DataConverterGroup::clone() const
 void DataConverterGroup::bindFromContext(DataContext* dataContext,
                                          DataBind* dataBind)
 {
+    DataConverter::bindFromContext(dataContext, dataBind);
     for (auto& item : m_items)
     {
         auto converter = item->converter();

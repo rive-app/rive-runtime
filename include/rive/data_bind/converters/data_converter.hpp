@@ -32,6 +32,8 @@ public:
 
 private:
     std::vector<DataBind*> m_dataBinds;
+
+protected:
     DataBind* m_parentDataBind;
 };
 } // namespace rive

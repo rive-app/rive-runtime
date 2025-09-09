@@ -48,6 +48,7 @@ void DataConverterOperationViewModel::copySourcePathIds(
 void DataConverterOperationViewModel::bindFromContext(DataContext* dataContext,
                                                       DataBind* dataBind)
 {
+    DataConverter::bindFromContext(dataContext, dataBind);
     auto propertyValue =
         dataContext->getViewModelProperty(m_SourcePathIdsBuffer);
     if (propertyValue != nullptr &&

@@ -4,5 +4,15 @@
     "int": 536,
     "string": "dataconverterformula"
   },
-  "extends": "data_bind/converters/data_converter.json"
+  "extends": "data_bind/converters/data_converter.json",
+  "properties": {
+    "randomModeValue": {
+      "type": "uint",
+      "initialValue": "0",
+      "key": {
+        "int": 887,
+        "string": "randommodevalue"
+      }
+    }
+  }
 }

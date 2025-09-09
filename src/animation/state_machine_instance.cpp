@@ -33,6 +33,7 @@
 #include "rive/hit_result.hpp"
 #include "rive/process_event_result.hpp"
 #include "rive/math/aabb.hpp"
+#include "rive/math/random.hpp"
 #include "rive/math/hit_test.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/nested_artboard.hpp"
@@ -207,14 +208,7 @@ public:
             stateTo);
     }
 
-    double randomValue()
-    {
-#ifdef TESTING
-        return 0;
-#else
-        return ((double)rand() / (RAND_MAX));
-#endif
-    }
+    double randomValue() { return RandomProvider::generateRandomFloat(); }
 
     bool changeState(const LayerState* stateTo)
     {

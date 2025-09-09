@@ -4,12 +4,13 @@
 #include "rive/data_bind/converters/formula/formula_token.hpp"
 #include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_values/data_value_number.hpp"
+#include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include <stdio.h>
 #include <unordered_map>
 namespace rive
 {
 
-class DataConverterFormula : public DataConverterFormulaBase
+class DataConverterFormula : public DataConverterFormulaBase, public Dirtyable
 {
 public:
     ~DataConverterFormula();
@@ -18,6 +19,7 @@ public:
     void addOutputToken(FormulaToken*, int);
     void initialize();
     void isInstance(bool value) { m_isInstance = value; }
+    void addDirt(ComponentDirt value, bool recurse) override;
 
 protected:
     DataValue* convert(DataValue* value, DataBind* dataBind) override;
@@ -40,6 +42,7 @@ private:
     std::vector<float> m_randoms;
     std::unordered_map<FormulaToken*, int> m_argumentsCount;
     bool m_isInstance = false;
+    rcp<ViewModelInstanceValue> m_source = nullptr;
 };
 } // namespace rive
 

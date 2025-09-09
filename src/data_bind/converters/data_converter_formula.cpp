@@ -10,15 +10,17 @@
 #include "rive/data_bind/converters/formula/formula_token_parenthesis_open.hpp"
 #include "rive/data_bind/converters/formula/formula_token_parenthesis_close.hpp"
 #include "rive/animation/arithmetic_operation.hpp"
+#include "rive/random_mode.hpp"
 #include "rive/function_type.hpp"
 #include "rive/math/math_types.hpp"
+#include "rive/math/random.hpp"
 #include <cmath>
-#include <cstdlib>
 
 using namespace rive;
 
 DataConverterFormula::~DataConverterFormula()
 {
+    unbind();
     if (m_isInstance)
     {
 
@@ -35,6 +37,8 @@ DataConverterFormula::~DataConverterFormula()
             delete token;
         }
     }
+    m_outputQueue.clear();
+    m_tokens.clear();
 }
 
 int DataConverterFormula::getPrecedence(FormulaToken* token)
@@ -219,16 +223,14 @@ float DataConverterFormula::applyOperation(float left,
 
 float DataConverterFormula::getRandom(int randomIndex)
 {
-#ifdef TESTING
-    int testInt = 0;
-#endif
+    if (randomModeValue() == static_cast<uint32_t>(RandomMode::always))
+    {
+        return RandomProvider::generateRandomFloat();
+    }
+
     while (m_randoms.size() <= randomIndex)
     {
-#ifdef TESTING
-        m_randoms.push_back(testInt++);
-#else
-        m_randoms.push_back((float)rand() / float(RAND_MAX));
-#endif
+        m_randoms.push_back(RandomProvider::generateRandomFloat());
     }
     return m_randoms[randomIndex];
 }
@@ -515,9 +517,23 @@ Core* DataConverterFormula::clone() const
 void DataConverterFormula::bindFromContext(DataContext* dataContext,
                                            DataBind* dataBind)
 {
+    DataConverter::bindFromContext(dataContext, dataBind);
     for (auto& token : m_outputQueue)
     {
         token->bindFromContext(dataContext, dataBind);
+    }
+    if (dataBind && dataBind->source())
+    {
+        m_source = ref_rcp<ViewModelInstanceValue>(dataBind->source());
+        m_source->addDependent(this);
+    }
+}
+
+void DataConverterFormula::addDirt(ComponentDirt value, bool recurse)
+{
+    if (randomModeValue() == static_cast<uint32_t>(RandomMode::sourceChange))
+    {
+        m_randoms.clear();
     }
 }
 
@@ -526,6 +542,11 @@ void DataConverterFormula::unbind()
     for (auto& token : m_outputQueue)
     {
         token->unbind();
+    }
+    if (m_source)
+    {
+        m_source->removeDependent(this);
+        m_source = nullptr;
     }
 }
 

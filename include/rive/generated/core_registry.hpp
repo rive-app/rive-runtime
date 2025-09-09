@@ -1309,6 +1309,9 @@ public:
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
                 object->as<DataConverterNumberToListBase>()->viewModelId(value);
                 break;
+            case DataConverterFormulaBase::randomModeValuePropertyKey:
+                object->as<DataConverterFormulaBase>()->randomModeValue(value);
+                break;
             case DataConverterOperationBase::operationTypePropertyKey:
                 object->as<DataConverterOperationBase>()->operationType(value);
                 break;
@@ -2748,6 +2751,9 @@ public:
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
                 return object->as<DataConverterNumberToListBase>()
                     ->viewModelId();
+            case DataConverterFormulaBase::randomModeValuePropertyKey:
+                return object->as<DataConverterFormulaBase>()
+                    ->randomModeValue();
             case DataConverterOperationBase::operationTypePropertyKey:
                 return object->as<DataConverterOperationBase>()
                     ->operationType();
@@ -3638,6 +3644,7 @@ public:
             case DataBindBase::flagsPropertyKey:
             case DataBindBase::converterIdPropertyKey:
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
+            case DataConverterFormulaBase::randomModeValuePropertyKey:
             case DataConverterOperationBase::operationTypePropertyKey:
             case DataConverterRangeMapperBase::interpolationTypePropertyKey:
             case DataConverterRangeMapperBase::interpolatorIdPropertyKey:
@@ -4325,6 +4332,8 @@ public:
                 return object->is<DataBindBase>();
             case DataConverterNumberToListBase::viewModelIdPropertyKey:
                 return object->is<DataConverterNumberToListBase>();
+            case DataConverterFormulaBase::randomModeValuePropertyKey:
+                return object->is<DataConverterFormulaBase>();
             case DataConverterOperationBase::operationTypePropertyKey:
                 return object->is<DataConverterOperationBase>();
             case DataConverterRangeMapperBase::interpolationTypePropertyKey:
