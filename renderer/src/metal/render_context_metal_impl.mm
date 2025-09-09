@@ -1176,15 +1176,10 @@ id<MTLRenderCommandEncoder> RenderContextMetalImpl::makeRenderPassForDraws(
                           atIndex:METAL_BUFFER_IDX(COLOR_PLANE_IDX +
                                                    DEFAULT_BINDINGS_SET_SIZE)];
         }
-        if (flushDesc.combinedShaderFeatures &
-            gpu::ShaderFeatures::ENABLE_CLIPPING)
-        {
-            [encoder
-                setFragmentBuffer:renderTarget->clipAtomicBuffer()
-                           offset:0
-                          atIndex:METAL_BUFFER_IDX(CLIP_PLANE_IDX +
-                                                   DEFAULT_BINDINGS_SET_SIZE)];
-        }
+        [encoder setFragmentBuffer:renderTarget->clipAtomicBuffer()
+                            offset:0
+                           atIndex:METAL_BUFFER_IDX(CLIP_PLANE_IDX +
+                                                    DEFAULT_BINDINGS_SET_SIZE)];
         [encoder setFragmentBuffer:renderTarget->coverageAtomicBuffer()
                             offset:0
                            atIndex:METAL_BUFFER_IDX(COVERAGE_PLANE_IDX +
