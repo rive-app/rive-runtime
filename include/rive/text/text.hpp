@@ -92,6 +92,7 @@ public:
     const TextStylePaint* styleFromShaperId(uint16_t id) const;
     bool modifierRangesNeedShape() const;
     AABB localBounds() const override;
+    AABB constraintBounds() const override { return localBounds(); }
     void originXChanged() override;
     void originYChanged() override;
 

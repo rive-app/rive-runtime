@@ -8,7 +8,7 @@ using namespace rive;
 
 const Mat2D TransformConstraint::targetTransform() const
 {
-    AABB bounds = m_Target->localBounds();
+    AABB bounds = m_Target->constraintBounds();
     Mat2D local =
         Mat2D::fromTranslate(bounds.left() + bounds.width() * originX(),
                              bounds.top() + bounds.height() * originY());

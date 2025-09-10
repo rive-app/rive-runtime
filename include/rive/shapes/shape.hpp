@@ -59,6 +59,7 @@ public:
     float length() override;
     void setLength(float value) override {}
 
+    AABB localBounds() const override { return computeLocalBounds(); }
     AABB worldBounds()
     {
         if ((static_cast<DrawableFlag>(drawableFlags()) &

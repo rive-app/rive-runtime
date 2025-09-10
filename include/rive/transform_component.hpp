@@ -55,6 +55,7 @@ public:
     void scaleYChanged() override;
 
     void addConstraint(Constraint* constraint);
+    virtual AABB constraintBounds() const { return AABB(); }
     virtual AABB localBounds() const;
     void markDirtyIfConstrained();
 };

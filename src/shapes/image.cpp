@@ -150,7 +150,7 @@ float Image::width() const
     rive::RenderImage* renderImage = asset->renderImage();
     if (renderImage == nullptr)
     {
-        return 0.0f;
+        return asset->width();
     }
     return (float)renderImage->width();
 }
@@ -166,7 +166,7 @@ float Image::height() const
     rive::RenderImage* renderImage = asset->renderImage();
     if (renderImage == nullptr)
     {
-        return 0.0f;
+        return asset->height();
     }
     return (float)renderImage->height();
 }
@@ -241,6 +241,18 @@ void Image::updateImageScale()
             addDirt(ComponentDirt::WorldTransform, false);
         }
     }
+}
+
+AABB Image::localBounds() const
+{
+    if (imageAsset() == nullptr)
+    {
+        return AABB();
+    }
+    return AABB::fromLTWH(-width() * originX(),
+                          -height() * originY(),
+                          width(),
+                          height());
 }
 
 ImageAsset* Image::imageAsset() const { return (ImageAsset*)m_fileAsset.get(); }

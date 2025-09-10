@@ -30,6 +30,11 @@ void NSlicedNode::axisChanged() { markPathDirtyRecursive(); }
 void NSlicedNode::widthChanged() { markPathDirtyRecursive(); }
 void NSlicedNode::heightChanged() { markPathDirtyRecursive(); }
 
+AABB NSlicedNode::localBounds() const
+{
+    return AABB(0, 0, initialWidth(), initialHeight());
+}
+
 void NSlicedNode::update(ComponentDirt value)
 {
     Super::update(value);

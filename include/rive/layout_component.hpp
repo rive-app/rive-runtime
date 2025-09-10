@@ -191,6 +191,7 @@ public:
                               m_layout.height());
     }
     size_t numLayoutNodes() override { return 1; }
+    AABB constraintBounds() const override { return localBounds(); }
     AABB localBounds() const override
     {
         return AABB::fromLTWH(0.0f, 0.0f, m_layout.width(), m_layout.height());

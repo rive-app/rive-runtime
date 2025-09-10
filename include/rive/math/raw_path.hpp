@@ -33,9 +33,7 @@ public:
 #ifdef DEBUG
     void printCode() const;
 #endif
-#ifdef WITH_RIVE_TOOLS
     AABB preciseBounds() const;
-#endif
     size_t countMoveTos() const;
 
     void move(Vec2D);

@@ -42,6 +42,7 @@ public:
     float width() const;
     float height() const;
     void assetUpdated() override;
+    AABB localBounds() const override;
 
 #ifdef TESTING
     Mesh* mesh() const;

@@ -79,6 +79,7 @@ public:
 #endif
 
     void buildPath(RawPath&) const;
+    AABB localBounds() const override;
 };
 } // namespace rive
 

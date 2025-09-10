@@ -32,6 +32,7 @@ public:
                            const Mat2D& inverseWorld) const override;
     Vec2D deformWorldPoint(Vec2D point) const override;
     Vec2D scaleForNSlicer() const;
+    AABB localBounds() const override;
 
     Vec2D measureLayout(float width,
                         LayoutMeasureMode widthMode,

@@ -127,6 +127,8 @@ bool Path::canDeferPathUpdate()
 
 const Mat2D& Path::pathTransform() const { return worldTransform(); }
 
+AABB Path::localBounds() const { return m_rawPath.preciseBounds(); }
+
 void Path::buildPath(RawPath& rawPath) const
 {
     const bool isClosed = isPathClosed();

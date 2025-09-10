@@ -539,7 +539,7 @@ void RawPath::printCode() const
     fprintf(stderr, "\n");
 }
 #endif
-#ifdef WITH_RIVE_TOOLS
+
 static void expandAxisBounds(AABB& bounds, int axis, float value)
 {
     switch (axis)
@@ -713,7 +713,6 @@ AABB RawPath::preciseBounds() const
     }
     return bounds;
 }
-#endif
 
 float RawPath::computeCoarseArea() const
 {
