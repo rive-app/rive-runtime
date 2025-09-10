@@ -1238,7 +1238,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     m_synthesizedFailureType = synthesizedFailureType;
     if (m_synthesizedFailureType == SynthesizedFailureType::shaderCompilation)
     {
-        m_creationState = CreationState::error;
+        m_pipelineStatus = PipelineStatus::errored;
         return;
     }
 #endif
@@ -1250,6 +1250,14 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
 
     m_vertexShader = &vertexShader;
     m_id = glCreateProgram();
+
+    // In async mode, we do not need to wait for the shaders to finish compiling
+    // before doing the link - the link is what we actually can poll to ensure
+    // everything finishes. If the linking fails, that is where we can check the
+    // compilation statuses and display compilation errors as needed.
+    glAttachShader(m_id, m_vertexShader->id());
+    glAttachShader(m_id, m_fragmentShader.id());
+    glutils::LinkProgram(m_id, glutils::DebugPrintErrorAndAbort::no);
 
     std::ignore = advanceCreation(renderContextImpl,
                                   createType,
@@ -1268,72 +1276,7 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
     gpu::ShaderMiscFlags shaderMiscFlags)
 {
     // This function should only be called if we're in the middle of creation.
-    assert(m_creationState != CreationState::complete);
-    assert(m_creationState != CreationState::error);
-
-    if (m_creationState == CreationState::waitingOnShaders)
-    {
-        if (createType == PipelineCreateType::async &&
-            renderContextImpl->capabilities().KHR_parallel_shader_compile)
-        {
-            // This is async creation and we have parallel shader compilation,
-            //  so check to see that both of the shaders are completed before
-            //  we can move on.
-            GLint completed = 0;
-            glGetShaderiv(m_vertexShader->id(),
-                          GL_COMPLETION_STATUS_KHR,
-                          &completed);
-            if (completed == GL_FALSE)
-            {
-                return false;
-            }
-
-            completed = 0;
-            glGetShaderiv(m_fragmentShader.id(),
-                          GL_COMPLETION_STATUS_KHR,
-                          &completed);
-            if (completed == GL_FALSE)
-            {
-                return false;
-            }
-        }
-
-        {
-            // Both shaders are completed now, time to check if they compiled
-            //  successfully or not.
-            GLint compiledSuccessfully = 0;
-            glGetShaderiv(m_vertexShader->id(),
-                          GL_COMPILE_STATUS,
-                          &compiledSuccessfully);
-            if (compiledSuccessfully == GL_FALSE)
-            {
-#ifdef DEBUG
-                glutils::PrintShaderCompilationErrors(m_vertexShader->id());
-#endif
-                m_creationState = CreationState::error;
-                return false;
-            }
-
-            glGetShaderiv(m_fragmentShader.id(),
-                          GL_COMPILE_STATUS,
-                          &compiledSuccessfully);
-            if (compiledSuccessfully == GL_FALSE)
-            {
-#ifdef DEBUG
-                glutils::PrintShaderCompilationErrors(m_fragmentShader.id());
-#endif
-                m_creationState = CreationState::error;
-                return false;
-            }
-        }
-
-        glAttachShader(m_id, m_vertexShader->id());
-        glAttachShader(m_id, m_fragmentShader.id());
-        glutils::LinkProgram(m_id, glutils::DebugPrintErrorAndAbort::no);
-        m_creationState = CreationState::waitingOnProgram;
-    }
-
-    assert(m_creationState == CreationState::waitingOnProgram);
+    assert(m_pipelineStatus == PipelineStatus::notReady);
 
     if (createType == PipelineCreateType::async &&
         renderContextImpl->capabilities().KHR_parallel_shader_compile)
@@ -1352,7 +1295,7 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
 #ifdef WITH_RIVE_TOOLS
     if (m_synthesizedFailureType == SynthesizedFailureType::pipelineCreation)
     {
-        m_creationState = CreationState::error;
+        m_pipelineStatus = PipelineStatus::errored;
         return false;
     }
 #endif
@@ -1363,9 +1306,28 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
         if (successfullyLinked == GL_FALSE)
         {
 #ifdef DEBUG
+            // The link failed, which might have been caused by compilation
+            // failures, so output any compilation failure messages first.
+            GLint compiledSuccessfully = 0;
+            glGetShaderiv(m_vertexShader->id(),
+                          GL_COMPILE_STATUS,
+                          &compiledSuccessfully);
+            if (compiledSuccessfully == GL_FALSE)
+            {
+                glutils::PrintShaderCompilationErrors(m_vertexShader->id());
+            }
+
+            glGetShaderiv(m_fragmentShader.id(),
+                          GL_COMPILE_STATUS,
+                          &compiledSuccessfully);
+            if (compiledSuccessfully == GL_FALSE)
+            {
+                glutils::PrintShaderCompilationErrors(m_fragmentShader.id());
+            }
+
             glutils::PrintLinkProgramErrors(m_id);
 #endif
-            m_creationState = CreationState::error;
+            m_pipelineStatus = PipelineStatus::errored;
             return false;
         }
     }
@@ -1456,7 +1418,7 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
     }
 
     // All done! This program is now usable by the renderer.
-    m_creationState = CreationState::complete;
+    m_pipelineStatus = PipelineStatus::ready;
     return true;
 }
 
@@ -1982,15 +1944,17 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         {
             shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
-        const DrawProgram* drawProgram = m_pipelineManager.tryGetPipeline({
-            .drawType = drawType,
-            .shaderFeatures = shaderFeatures,
-            .interlockMode = desc.interlockMode,
-            .shaderMiscFlags = shaderMiscFlags,
+        const DrawProgram* drawProgram = m_pipelineManager.tryGetPipeline(
+            {
+                .drawType = drawType,
+                .shaderFeatures = shaderFeatures,
+                .interlockMode = desc.interlockMode,
+                .shaderMiscFlags = shaderMiscFlags,
 #ifdef WITH_RIVE_TOOLS
-            .synthesizedFailureType = desc.synthesizedFailureType,
+                .synthesizedFailureType = desc.synthesizedFailureType,
 #endif
-        });
+            },
+            m_platformFeatures);
         if (drawProgram == nullptr)
         {
             // There was an issue getting either the requested draw program or
@@ -2574,16 +2538,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         else if (strcmp(ext, "GL_KHR_parallel_shader_compile") == 0)
         {
             capabilities.KHR_parallel_shader_compile = true;
-            // Don't call glMaxShaderCompilerThreadsKHR on ANGLE. Various Galaxy
-            // devices using ANGLE crash immediately when we call it. (This
-            // should be fine because the initial value of
-            // GL_MAX_SHADER_COMPILER_THREADS_KHR is specified to be an
-            // implementation-dependent maximum number of threads. We choose to
-            // only ignore this call selectively because on some drivers, the
-            // parallel compilation does not actually activate without
-            // explicitly setting it.)
-            capabilities.avoidMaxShaderCompilerThreadsKHR =
-                capabilities.isANGLEOrWebGL;
         }
         else if (strcmp(ext, "GL_EXT_base_instance") == 0)
         {

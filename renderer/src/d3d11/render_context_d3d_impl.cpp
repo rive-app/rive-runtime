@@ -219,25 +219,28 @@ D3D11PipelineManager::D3D11PipelineManager(
 }
 
 bool D3D11PipelineManager::setPipelineState(
-    rive::gpu::DrawType drawType,
-    rive::gpu::ShaderFeatures features,
-    rive::gpu::InterlockMode interlockMode,
-    rive::gpu::ShaderMiscFlags miscFlags
+    DrawType drawType,
+    ShaderFeatures features,
+    InterlockMode interlockMode,
+    ShaderMiscFlags miscFlags,
+    const PlatformFeatures& platformFeatures
 #ifdef WITH_RIVE_TOOLS
     ,
     SynthesizedFailureType synthesizedFailureType
 #endif
 )
 {
-    auto* pipeline = tryGetPipeline({
-        .drawType = drawType,
-        .shaderFeatures = features,
-        .interlockMode = interlockMode,
-        .shaderMiscFlags = miscFlags,
+    auto* pipeline = tryGetPipeline(
+        {
+            .drawType = drawType,
+            .shaderFeatures = features,
+            .interlockMode = interlockMode,
+            .shaderMiscFlags = miscFlags,
 #ifdef WITH_RIVE_TOOLS
-        .synthesizedFailureType = synthesizedFailureType,
+            .synthesizedFailureType = synthesizedFailureType,
 #endif
-    });
+        },
+        platformFeatures);
 
     if (pipeline == nullptr)
     {
@@ -1856,7 +1859,8 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
         if (!m_pipelineManager.setPipelineState(drawType,
                                                 shaderFeatures,
                                                 desc.interlockMode,
-                                                shaderMiscFlags
+                                                shaderMiscFlags,
+                                                m_platformFeatures
 #ifdef WITH_RIVE_TOOLS
                                                 ,
                                                 desc.synthesizedFailureType

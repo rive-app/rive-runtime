@@ -1415,15 +1415,17 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             shaderMiscFlags |= gpu::ShaderMiscFlags::clockwiseFill;
         }
 
-        auto* pipeline = m_pipelineManager.tryGetPipeline({
-            .drawType = drawType,
-            .shaderFeatures = shaderFeatures,
-            .interlockMode = desc.interlockMode,
-            .shaderMiscFlags = shaderMiscFlags,
+        auto* pipeline = m_pipelineManager.tryGetPipeline(
+            {
+                .drawType = drawType,
+                .shaderFeatures = shaderFeatures,
+                .interlockMode = desc.interlockMode,
+                .shaderMiscFlags = shaderMiscFlags,
 #ifdef WITH_RIVE_TOOLS
-            .synthesizedFailureType = desc.synthesizedFailureType,
+                .synthesizedFailureType = desc.synthesizedFailureType,
 #endif
-        });
+            },
+            m_platformFeatures);
 
         if (pipeline == nullptr)
         {

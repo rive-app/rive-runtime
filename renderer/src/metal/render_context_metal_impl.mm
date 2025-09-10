@@ -960,7 +960,7 @@ const RenderContextMetalImpl::DrawPipeline* RenderContextMetalImpl::
     // back on while waiting for it to compile.
     ShaderFeatures fullyFeaturedPipelineFeatures =
         gpu::UbershaderFeaturesMaskFor(
-            shaderFeatures, drawType, desc.interlockMode);
+            shaderFeatures, drawType, desc.interlockMode, m_platformFeatures);
 
     if (m_contextOptions.shaderCompilationMode ==
         ShaderCompilationMode::onlyUbershaders)

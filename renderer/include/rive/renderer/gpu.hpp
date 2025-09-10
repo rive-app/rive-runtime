@@ -916,7 +916,8 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
 constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
     ShaderFeatures requestedFeatures,
     DrawType drawType,
-    InterlockMode interlockMode)
+    InterlockMode interlockMode,
+    const PlatformFeatures& platformFeatures)
 {
     ShaderFeatures outFeatures = ShaderFeaturesMaskFor(drawType, interlockMode);
     if (interlockMode == InterlockMode::atomics)
@@ -930,6 +931,13 @@ constexpr static ShaderFeatures UbershaderFeaturesMaskFor(
     // Ensure that we haven't dropped features we care about somehow
     assert((requestedFeatures & outFeatures) == requestedFeatures);
 
+    // ENABLE_CLIP_RECT shouldn't be set if we're in MSAA mode without clip
+    // plane support.
+    if (interlockMode == InterlockMode::msaa &&
+        !platformFeatures.supportsClipPlanes)
+    {
+        outFeatures &= ~ShaderFeatures::ENABLE_CLIP_RECT;
+    }
     return outFeatures;
 }
 

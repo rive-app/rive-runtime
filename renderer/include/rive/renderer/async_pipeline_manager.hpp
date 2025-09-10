@@ -69,14 +69,16 @@ public:
         assert(!m_jobThread.joinable());
     }
 
-    const PipelineType* tryGetPipeline(const PipelineProps& propsIn)
+    const PipelineType* tryGetPipeline(const PipelineProps& propsIn,
+                                       const PlatformFeatures& platformFeatures)
     {
         PipelineProps props = propsIn;
 
         ShaderFeatures ubershaderFeatures =
             gpu::UbershaderFeaturesMaskFor(props.shaderFeatures,
                                            props.drawType,
-                                           props.interlockMode);
+                                           props.interlockMode,
+                                           platformFeatures);
 
         PipelineCreateType createType;
 
@@ -207,17 +209,26 @@ public:
             }
         }
 
+        if (props.shaderFeatures == ubershaderFeatures)
+        {
+            // The only way to get here for an ubershader should be for it to
+            // have failed to compile.
+            assert(iter->second &&
+                   getPipelineStatus(*iter->second) == PipelineStatus::errored);
+            return nullptr;
+        }
+
         // The pipeline is still not ready, so instead return an ubershader
         // version (with all functionality enabled). This will create
         // synchronously so we're guaranteed to have a valid return from this
         // call.
         // NOTE: intentionally not passing along synthesizedFailureType
         //  here because we don't pay attention to it for ubershaders anyway
-        assert(props.shaderFeatures != ubershaderFeatures);
         return tryGetPipeline({props.drawType,
                                ubershaderFeatures,
                                props.interlockMode,
-                               props.shaderMiscFlags});
+                               props.shaderMiscFlags},
+                              platformFeatures);
     }
 
 protected:

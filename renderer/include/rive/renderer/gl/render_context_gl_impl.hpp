@@ -332,23 +332,7 @@ private:
             return m_baseInstanceUniformLocation;
         }
 
-        PipelineStatus status() const
-        {
-            switch (m_creationState)
-            {
-                case CreationState::waitingOnProgram:
-                case CreationState::waitingOnShaders:
-                    return PipelineStatus::notReady;
-
-                case CreationState::complete:
-                    return PipelineStatus::ready;
-
-                case CreationState::error:
-                    return PipelineStatus::errored;
-            }
-
-            RIVE_UNREACHABLE();
-        }
+        PipelineStatus status() const { return m_pipelineStatus; }
 
         bool advanceCreation(RenderContextGLImpl*,
                              PipelineCreateType,
@@ -358,17 +342,9 @@ private:
                              gpu::ShaderMiscFlags);
 
     private:
-        enum class CreationState
-        {
-            waitingOnShaders,
-            waitingOnProgram,
-            complete,
-            error,
-        };
-
         DrawShader m_fragmentShader;
         const DrawShader* m_vertexShader = nullptr;
-        CreationState m_creationState = CreationState::waitingOnShaders;
+        PipelineStatus m_pipelineStatus = PipelineStatus::notReady;
         GLuint m_id = 0;
         GLint m_baseInstanceUniformLocation = -1;
         const rcp<GLState> m_state;

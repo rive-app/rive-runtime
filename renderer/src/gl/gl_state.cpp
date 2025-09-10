@@ -65,11 +65,7 @@ void GLState::invalidate()
 
     // WebGL doesn't support glMaxShaderCompilerThreadsKHR.
 #ifndef RIVE_WEBGL
-    // Explicitly null-check glMaxShaderCompilerThreadsKHR, even if the
-    // extension is reported, because it has been a source of crashes.
-    if (m_capabilities.KHR_parallel_shader_compile &&
-        !m_capabilities.avoidMaxShaderCompilerThreadsKHR &&
-        glMaxShaderCompilerThreadsKHR != nullptr)
+    if (m_capabilities.KHR_parallel_shader_compile)
     {
         // Allow GL's shader compilation to use 2 background threads.
         //

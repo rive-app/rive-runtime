@@ -92,10 +92,11 @@ public:
 
     ~D3D11PipelineManager() { shutdownBackgroundThread(); }
 
-    [[nodiscard]] bool setPipelineState(rive::gpu::DrawType,
-                                        rive::gpu::ShaderFeatures,
-                                        rive::gpu::InterlockMode,
-                                        rive::gpu::ShaderMiscFlags
+    [[nodiscard]] bool setPipelineState(DrawType,
+                                        ShaderFeatures,
+                                        InterlockMode,
+                                        ShaderMiscFlags,
+                                        const PlatformFeatures&
 #ifdef WITH_RIVE_TOOLS
                                         ,
                                         SynthesizedFailureType

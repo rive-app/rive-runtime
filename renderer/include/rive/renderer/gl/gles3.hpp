@@ -169,14 +169,6 @@ struct GLCapabilities
     // texture.
     // https://issues.chromium.org/issues/416294709
     bool needsFloatingPointTessellationTexture;
-    // Various Galaxy devices using ANGLE crash immediately when calling
-    // glMaxShaderCompilerThreadsKHR. On these devices we simply can't call this
-    // function. (This should be fine because the initial value of
-    // GL_MAX_SHADER_COMPILER_THREADS_KHR is specified to be an
-    // implementation-dependent maximum number of threads. We choose to only
-    // ignore this call selectively because on some drivers, the parallel
-    // compilation does not actually activate without explicitly setting it.)
-    bool avoidMaxShaderCompilerThreadsKHR;
     // PowerVR Rogue GE8300, OpenGL ES 3.2 build 1.10@5187610 has severe pixel
     // local storage corruption issues with our renderer. Using some of the
     // EXT_shader_pixel_local_storage2 API is an apparent workaround that comes
