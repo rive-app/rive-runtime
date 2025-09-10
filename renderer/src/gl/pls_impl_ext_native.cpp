@@ -97,6 +97,18 @@ public:
 
         auto renderTarget = static_cast<RenderTargetGL*>(desc.renderTarget);
         renderTarget->bindDestinationFramebuffer(GL_FRAMEBUFFER);
+        if (impl->m_capabilities.needsPixelLocalStorage2)
+        {
+            // PowerVR Rogue GE8300, OpenGL ES 3.2 build 1.10@5187610 has severe
+            // pixel local storage corruption issues with our renderer. Using
+            // the EXT_shader_pixel_local_storage2 API to set the size is an
+            // apparent workaround that comes with worse performance and other,
+            // less severe visual artifacts.
+            assert(impl->m_capabilities.EXT_shader_pixel_local_storage2);
+            glFramebufferPixelLocalStorageSizeEXT(GL_FRAMEBUFFER,
+                                                  PLS_PLANE_COUNT *
+                                                      sizeof(uint32_t));
+        }
         glEnable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 
         // Initialize PLS by drawing a fullscreen quad.

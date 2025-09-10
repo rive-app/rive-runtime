@@ -2381,40 +2381,64 @@ void RenderContextGLImpl::testingOnly_resetAtlasDesiredType(
 }
 #endif
 
+#ifdef _MSC_VER
+#define SSCANF sscanf_s
+#else
+#define SSCANF sscanf
+#endif
+
 std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     const ContextOptions& contextOptions)
 {
-    GLCapabilities capabilities{};
-
     const char* glVersionStr = (const char*)glGetString(GL_VERSION);
+
+    GLenum rendererToken = GL_RENDERER;
+#ifdef RIVE_WEBGL
+    if (emscripten_webgl_enable_extension(
+            emscripten_webgl_get_current_context(),
+            "WEBGL_debug_renderer_info"))
+    {
+        rendererToken = GL_UNMASKED_RENDERER_WEBGL;
+    }
+#endif
+    const char* rendererString =
+        reinterpret_cast<const char*>(glGetString(rendererToken));
+
+    GLCapabilities capabilities{};
 #ifdef RIVE_WEBGL
     capabilities.isGLES = true;
+    capabilities.isANGLEOrWebGL = true;
 #else
     capabilities.isGLES = strstr(glVersionStr, "OpenGL ES") != nullptr;
+    capabilities.isANGLEOrWebGL = strstr(glVersionStr, "ANGLE") != nullptr ||
+                                  strstr(rendererString, "ANGLE") != nullptr;
 #endif
-    if (capabilities.isGLES)
+    capabilities.isAdreno = strstr(rendererString, "Adreno");
+    capabilities.isMali = strstr(rendererString, "Mali");
+    capabilities.isPowerVR = strstr(rendererString, "PowerVR");
+
+    if (!capabilities.isGLES)
     {
-#ifdef _MSC_VER
-        sscanf_s(
-#else
-        sscanf(
-#endif
-            glVersionStr,
-            "OpenGL ES %d.%d",
-            &capabilities.contextVersionMajor,
-            &capabilities.contextVersionMinor);
+        SSCANF(glVersionStr,
+               "%u.%u",
+               &capabilities.contextVersionMajor,
+               &capabilities.contextVersionMinor);
+    }
+    else if (capabilities.isPowerVR)
+    {
+        SSCANF(glVersionStr,
+               "OpenGL ES %u.%u build %u.%u@",
+               &capabilities.contextVersionMajor,
+               &capabilities.contextVersionMinor,
+               &capabilities.vendorDriverVersionMajor,
+               &capabilities.vendorDriverVersionMinor);
     }
     else
     {
-#ifdef _MSC_VER
-        sscanf_s(
-#else
-        sscanf(
-#endif
-            glVersionStr,
-            "%d.%d",
-            &capabilities.contextVersionMajor,
-            &capabilities.contextVersionMinor);
+        SSCANF(glVersionStr,
+               "OpenGL ES %u.%u",
+               &capabilities.contextVersionMajor,
+               &capabilities.contextVersionMinor);
     }
 #ifdef RIVE_DESKTOP_GL
     assert(capabilities.contextVersionMajor == GLAD_GL_version_major);
@@ -2447,26 +2471,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         }
     }
 
-    GLenum rendererToken = GL_RENDERER;
-#ifdef RIVE_WEBGL
-    if (emscripten_webgl_enable_extension(
-            emscripten_webgl_get_current_context(),
-            "WEBGL_debug_renderer_info"))
-    {
-        rendererToken = GL_UNMASKED_RENDERER_WEBGL;
-    }
-#endif
-    const char* rendererString =
-        reinterpret_cast<const char*>(glGetString(rendererToken));
-#ifdef RIVE_WEBGL
-    capabilities.isANGLEOrWebGL = true;
-#else
-    capabilities.isANGLEOrWebGL = strstr(glVersionStr, "ANGLE") != nullptr ||
-                                  strstr(rendererString, "ANGLE") != nullptr;
-#endif
-    capabilities.isAdreno = strstr(rendererString, "Adreno");
-    capabilities.isMali = strstr(rendererString, "Mali");
-    capabilities.isPowerVR = strstr(rendererString, "PowerVR");
     if (capabilities.isMali || capabilities.isPowerVR)
     {
         // We have observed crashes on Mali-G71 when issuing instanced draws
@@ -2724,6 +2728,22 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             // This is not at all surprising since neither of these vendors
             // support "fragmentStoresAndAtomics" on Vulkan.
             capabilities.OES_shader_image_atomic = false;
+        }
+    }
+
+    if (capabilities.EXT_shader_pixel_local_storage2)
+    {
+        if (capabilities.isPowerVR &&
+            !capabilities.isVendorDriverVersionAtLeast(1, 13))
+        {
+            // PowerVR Rogue GE8300, OpenGL ES 3.2 build 1.10@5187610 has severe
+            // pixel local storage corruption issues with our renderer. Using
+            // some of the EXT_shader_pixel_local_storage2 API is an apparent
+            // workaround that comes with worse performance and other, less
+            // severe visual artifacts.
+            // Require this workaround before the earliest known good driver,
+            // which is 1.13.
+            capabilities.needsPixelLocalStorage2 = true;
         }
     }
 
