@@ -1,5 +1,6 @@
 #include "rive/shapes/paint/trim_path.hpp"
 #include "rive/shapes/paint/stroke.hpp"
+#include "rive/profiler/profiler_macros.h"
 using namespace rive;
 
 StatusCode TrimPath::onAddedClean(CoreContext* context)
@@ -16,6 +17,7 @@ StatusCode TrimPath::onAddedClean(CoreContext* context)
 
 void TrimPath::trimPath(const RawPath* source)
 {
+    RIVE_PROF_SCOPE()
     auto rawPath = m_path.mutableRawPath();
     auto renderOffset = std::fmod(std::fmod(offset(), 1.0f) + 1.0f, 1.0f);
 

@@ -11,6 +11,7 @@
 #include "rive/clip_result.hpp"
 #include "rive/math/contour_measure.hpp"
 #include "rive/math/raw_path.hpp"
+#include "rive/profiler/profiler_macros.h"
 #include <algorithm>
 
 using namespace rive;
@@ -113,6 +114,7 @@ void Shape::addToRenderPath(RenderPath* path, const Mat2D& transform)
 
 void Shape::draw(Renderer* renderer)
 {
+    RIVE_PROF_SCOPE()
     if (renderOpacity() == 0.0f)
     {
         return;

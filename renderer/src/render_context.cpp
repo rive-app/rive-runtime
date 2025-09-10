@@ -199,6 +199,7 @@ RenderContext::LogicalFlush::LogicalFlush(RenderContext* parent) : m_ctx(parent)
 
 void RenderContext::LogicalFlush::rewind()
 {
+    RIVE_PROF_SCOPE()
     m_resourceCounts = Draw::ResourceCounters();
     m_drawPassCount = 0;
     m_simpleGradients.clear();
