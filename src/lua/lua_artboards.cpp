@@ -19,12 +19,24 @@ static int artboard_draw(lua_State* L)
     return 0;
 }
 
+void ScriptedArtboard::advance(float seconds)
+{
+    if (m_stateMachine)
+    {
+        m_stateMachine->advanceAndApply(seconds);
+    }
+    else
+    {
+        m_artboard->advance(seconds);
+    }
+}
+
 static int artboard_advance(lua_State* L)
 {
     auto scriptedArtboard = lua_torive<ScriptedArtboard>(L, 1);
     auto seconds = float(luaL_checknumber(L, 2));
 
-    scriptedArtboard->artboard()->advance(seconds);
+    scriptedArtboard->advance(seconds);
 
     return 0;
 }
