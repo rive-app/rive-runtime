@@ -75,6 +75,7 @@ static StrokeCap cap = StrokeCap::round;
 
 static bool doClose = false;
 static bool paused = false;
+static bool unlockedLogic = true;
 
 static int dragIdx = -1;
 static float2 dragLastPos;
@@ -205,6 +206,7 @@ static void mousemove_callback(GLFWwindow* window, double x, double y)
 
 int lastWidth = 0, lastHeight = 0;
 double fpsLastTime = 0;
+double fpsLastTimeLogic = 0;
 int fpsFrames = 0;
 static bool needsTitleUpdate = false;
 
@@ -366,6 +368,8 @@ static void key_callback(GLFWwindow* window,
                     cursorPos + (translate - cursorPos) * scale / oldScale;
                 break;
             }
+            case GLFW_KEY_U:
+                unlockedLogic = !unlockedLogic;
         }
     }
 }
@@ -854,9 +858,18 @@ void riveMainLoop()
         }
         else if (!paused)
         {
+            float dT = 1 / 120.f;
+
+            if (!unlockedLogic)
+            {
+                double time = glfwGetTime();
+                dT = time - fpsLastTimeLogic;
+                fpsLastTimeLogic = time;
+            }
+
             for (const auto& scene : scenes)
             {
-                scene->advanceAndApply(1 / 120.f);
+                scene->advanceAndApply(dT);
             }
         }
         Mat2D m = computeAlignment(rive::Fit::contain,
