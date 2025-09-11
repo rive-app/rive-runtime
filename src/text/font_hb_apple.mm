@@ -48,14 +48,20 @@ rive::rcp<rive::Font> HBFont::FromSystem(void* systemFont,
                                          uint8_t width)
 {
     auto ctFont = (CTFontRef)systemFont;
+    bool isCopy = false;
     if (CTFontGetSize(ctFont) != kStdScale)
     {
         // Need the font sized at our magic scale so we can extract normalized
         // path data.
         ctFont =
             CTFontCreateCopyWithAttributes(ctFont, kStdScale, nullptr, nullptr);
+        isCopy = true;
     }
     auto font = hb_coretext_font_create(ctFont);
+    if (isCopy)
+    {
+        CFRelease(ctFont);
+    }
     if (font)
     {
         return rive::rcp<rive::Font>(
@@ -316,17 +322,26 @@ void CoreTextHBFont::shapeFallbackRun(
                 // not have the same traits (e.g weight) as the original font.
                 CTFontSymbolicTraits originalTraits =
                     CTFontGetSymbolicTraits(ctFont);
-                CTFontRef adjustedFallbackFont =
+                CTFontRef fallbackFont =
                     CTFontCreateCopyWithSymbolicTraits(runCtFont,
                                                        CTFontGetSize(runCtFont),
                                                        nullptr,
                                                        originalTraits,
                                                        originalTraits);
+                if (!fallbackFont)
+                {
+                    fallbackFont = runCtFont;
+                }
 
-                // Use the adjusted font instead
                 gr.font = HBFont::FromSystem(
-                    (void*)adjustedFallbackFont, true, m_weight, m_width);
-                CFRelease(adjustedFallbackFont);
+                    (void*)fallbackFont, true, m_weight, m_width);
+
+                // If the fallback font is not the same as the original run
+                // font, we need to release it since we made a copy of it
+                if ((void*)fallbackFont != (void*)runCtFont)
+                {
+                    CFRelease(fallbackFont);
+                }
             }
             else
             {
