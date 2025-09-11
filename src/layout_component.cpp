@@ -232,8 +232,21 @@ void LayoutComponent::propagateCollapse(bool collapse)
 {
     for (Component* child : children())
     {
-        child->collapse(collapse);
+        child->collapse(collapse || isCollapsed());
     }
+}
+
+bool LayoutComponent::collapse(bool value)
+{
+    if (!Component::collapse(value))
+    {
+        return false;
+    }
+    for (Component* child : children())
+    {
+        child->collapse(value || isCollapsed());
+    }
+    return true;
 }
 
 #ifdef WITH_RIVE_LAYOUT

@@ -137,6 +137,7 @@ protected:
     }
     bool isCollapsed() const override;
     void propagateCollapse(bool collapse);
+    bool collapse(bool value) override;
     float computedLocalX() override { return m_layout.left(); };
     float computedLocalY() override { return m_layout.top(); };
     float computedWidth() override { return m_layout.width(); };
