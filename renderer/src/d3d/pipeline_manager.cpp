@@ -206,6 +206,14 @@ ComPtr<ID3DBlob> compile_shader_to_blob(DrawType drawType,
 
     ComPtr<ID3DBlob> blob;
     ComPtr<ID3DBlob> errors;
+
+#ifdef RIVE_RAW_SHADERS
+    UINT flags = D3DCOMPILE_ENABLE_STRICTNESS | D3DCOMPILE_DEBUG |
+                 D3DCOMPILE_SKIP_OPTIMIZATION;
+#else
+    UINT flags = D3DCOMPILE_ENABLE_STRICTNESS;
+#endif
+
     HRESULT hr = D3DCompile(sourceStr.c_str(),
                             sourceStr.length(),
                             nullptr,
@@ -213,7 +221,7 @@ ComPtr<ID3DBlob> compile_shader_to_blob(DrawType drawType,
                             nullptr,
                             "main",
                             target,
-                            D3DCOMPILE_ENABLE_STRICTNESS,
+                            flags,
                             0,
                             &blob,
                             &errors);

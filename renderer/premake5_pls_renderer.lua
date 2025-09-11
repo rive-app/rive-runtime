@@ -117,8 +117,10 @@ newoption({
     trigger = 'raw_shaders',
     description = 'don\'t rename shader variables, or remove whitespace or comments',
 })
+
 if _OPTIONS['raw_shaders'] then
     minify_flags = minify_flags .. ' --human-readable'
+    defines({ 'RIVE_RAW_SHADERS' })
 end
 
 makecommand = makecommand .. ' FLAGS="' .. minify_flags .. '"'
