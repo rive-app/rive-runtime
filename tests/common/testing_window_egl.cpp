@@ -295,7 +295,9 @@ public:
     {
         init_egl();
 
-        int samples = backendParams.msaa ? 4 : 0;
+        // Use 1 sample and rely on EXT_multisampled_render_to_texture, which is
+        // how android currently works.
+        int samples = backendParams.msaa ? 1 : 0;
 
 #ifdef RIVE_DESKTOP_GL
         if (angleBackend != EGL_NONE)

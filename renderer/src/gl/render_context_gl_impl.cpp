@@ -2685,22 +2685,6 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         }
     }
 
-    if (capabilities.EXT_shader_pixel_local_storage2)
-    {
-        if (capabilities.isPowerVR &&
-            !capabilities.isVendorDriverVersionAtLeast(1, 13))
-        {
-            // PowerVR Rogue GE8300, OpenGL ES 3.2 build 1.10@5187610 has severe
-            // pixel local storage corruption issues with our renderer. Using
-            // some of the EXT_shader_pixel_local_storage2 API is an apparent
-            // workaround that comes with worse performance and other, less
-            // severe visual artifacts.
-            // Require this workaround before the earliest known good driver,
-            // which is 1.13.
-            capabilities.needsPixelLocalStorage2 = true;
-        }
-    }
-
     if (capabilities.ANGLE_shader_pixel_local_storage ||
         capabilities.ANGLE_shader_pixel_local_storage_coherent)
     {
@@ -2718,6 +2702,39 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         }
     }
 
+    if (capabilities.ANGLE_base_vertex_base_instance_shader_builtin)
+    {
+        if (strstr(rendererString, "Metal") != nullptr ||
+            strstr(rendererString, "Direct3D") != nullptr)
+        {
+            // Disable ANGLE_base_vertex_base_instance_shader_builtin on
+            // ANGLE/D3D and ANGLE/Metal. The extension is polyfilled on D3D
+            // anyway, and on Metal it crashes.
+            capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
+        }
+    }
+
+    if (capabilities.EXT_multisampled_render_to_texture)
+    {
+        if (strstr(rendererString, "Direct3D") != nullptr)
+        {
+            // Our use of EXT_multisampled_render_to_texture causes a segfault
+            // in the Microsoft WARP (software) renderer. Just don't use this
+            // extension on D3D since it's polyfilled anyway.
+            capabilities.EXT_multisampled_render_to_texture = false;
+        }
+        if (capabilities.isPowerVR &&
+            !capabilities.isVendorDriverVersionAtLeast(1, 13))
+        {
+            // PowerVR Rogue GE8300, OpenGL ES 3.2 build 1.10@5187610 and
+            // PowerVR Rogue GM9446; OpenGL ES 3.2 build 1.11@5425693 both have
+            // similar artifacts when using EXT_multisampled_render_to_texture.
+            // Block the extension before the earliest known good driver, which
+            // is 1.13.
+            capabilities.EXT_multisampled_render_to_texture = false;
+        }
+    }
+
     if (contextOptions.disableFragmentShaderInterlock)
     {
         // Disable the extensions we don't want to use internally.
@@ -2725,22 +2742,12 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         capabilities.INTEL_fragment_shader_ordering = false;
     }
 
-    if (strstr(rendererString, "Metal") != nullptr ||
-        strstr(rendererString, "Direct3D") != nullptr)
-    {
-        // Disable ANGLE_base_vertex_base_instance_shader_builtin on ANGLE/D3D
-        // and ANGLE/Metal.
-        // The extension is polyfilled on D3D anyway, and on Metal it crashes.
-        capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
-    }
-
-    if (strstr(rendererString, "Direct3D") != nullptr)
-    {
-        // Our use of EXT_multisampled_render_to_texture causes a segfault in
-        // the Microsoft WARP (software) renderer. Just don't use this extension
-        // on D3D since it's polyfilled anyway.
-        capabilities.EXT_multisampled_render_to_texture = false;
-    }
+#ifdef RIVE_ANDROID
+    // On Android we need to explicitly load the extension functions. This will
+    // additionally clear the capabilities flags for any extension that could
+    // not load.
+    LoadAndValidateGLESExtensions(&capabilities);
+#endif
 
     if (strstr(rendererString, "ANGLE Metal Renderer") != nullptr &&
         capabilities.EXT_color_buffer_float)
@@ -2751,17 +2758,32 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     {
         capabilities.needsFloatingPointTessellationTexture = false;
     }
-#ifdef RIVE_ANDROID
-    // On Android we need to explicitly load the extension functions. This will
-    // additionally clear the capabilities flags for any extension that could
-    // not load.
-    LoadAndValidateGLESExtensions(&capabilities);
-#endif
+
+    if (capabilities.EXT_shader_pixel_local_storage2)
+    {
+        if (capabilities.isPowerVR &&
+            !capabilities.isVendorDriverVersionAtLeast(1, 11))
+        {
+            // PowerVR Rogue GE8300, OpenGL ES 3.2 build 1.10@5187610 has severe
+            // pixel local storage corruption issues with our renderer. Using
+            // some of the EXT_shader_pixel_local_storage2 API is an apparent
+            // workaround that comes with worse performance and other, less
+            // severe visual artifacts.
+            // Require this workaround before the earliest known good driver,
+            // which is 1.11.
+            capabilities.needsPixelLocalStorage2 = true;
+        }
+    }
 
     if (!contextOptions.disablePixelLocalStorage)
     {
 #ifdef RIVE_ANDROID
-        if (capabilities.EXT_shader_pixel_local_storage &&
+        // Favor MSAA over pixel local storage on Android for the sake of
+        // consistency and stability, except on PowerVR pre-1.15, where MSAA
+        // doesn't work. On these devices, pixel local storage is a fallback.
+        if (capabilities.isPowerVR &&
+            !capabilities.isVendorDriverVersionAtLeast(1, 15) &&
+            capabilities.EXT_shader_pixel_local_storage &&
             (capabilities.ARM_shader_framebuffer_fetch ||
              capabilities.EXT_shader_framebuffer_fetch))
         {
