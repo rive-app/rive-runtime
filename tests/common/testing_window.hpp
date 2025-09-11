@@ -158,8 +158,10 @@ public:
         bool disableRasterOrdering = false;
         bool wireframe = false;
         bool clockwiseFillOverride = false;
+#ifdef WITH_RIVE_TOOLS
         rive::gpu::SynthesizedFailureType synthesizedFailureType =
             rive::gpu::SynthesizedFailureType::none;
+#endif
     };
     virtual std::unique_ptr<rive::Renderer> beginFrame(const FrameOptions&) = 0;
     virtual void endFrame(std::vector<uint8_t>* pixelData = nullptr) = 0;

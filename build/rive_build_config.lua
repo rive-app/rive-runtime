@@ -299,14 +299,13 @@ filter({ 'system:windows', 'options:for_unreal' })
 do
     staticruntime('off')
     runtime('Release')
+    -- Unreal no longer supports c++17
+    cppdialect('C++20')
 end
 
--- for latest builds we leave toolsversion unset so that it automatically chooses the latest version
-filter({ 'options:toolsversion != latest' })
-do
-    -- this is because unreal "prefers" certain msvc versions so we try to match it from the python build script
-    toolsversion(_OPTIONS['toolsversion'])
-end
+-- Unreal "prefers" certain msvc versions so we try to match it from the python build script by using "toolsversion" option
+-- this defaults to "latest" which will just do the default behavior anyway. So no need for a check
+toolsversion(_OPTIONS['toolsversion'])
 
 filter({ 'system:windows', 'options:toolset=clang' })
 do
