@@ -76,7 +76,7 @@ int DataConverterFormula::getPrecedence(FormulaToken* token)
     return 0;
 }
 
-void DataConverterFormula::initialize()
+void DataConverterFormula::calculateFormula()
 {
     // convert the formula to Reverse Polish Notation using a version of
     // the Shunting yard algorithm

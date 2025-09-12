@@ -51,6 +51,7 @@ protected:
     DataBindContextValue* m_ContextValue = nullptr;
     DataConverter* m_dataConverter = nullptr;
     DataType outputType();
+    DataType sourceOutputType();
     bool bindsOnce();
     bool m_suppressDirt = false;
     File* m_file;

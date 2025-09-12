@@ -21,6 +21,33 @@ public:
     float value() { return m_value; };
     void value(float value) { m_value = value; };
     constexpr static const float defaultValue = 0;
+    bool compare(DataValue* comparand) override
+    {
+        if (comparand != nullptr && comparand->is<DataValueNumber>())
+        {
+            return comparand->as<DataValueNumber>()->value() == m_value;
+        }
+        return false;
+    }
+    void interpolate(DataValue* to, DataValue* destination, float f) override
+    {
+        if (to != nullptr && to->is<DataValueNumber>() &&
+            destination != nullptr && destination->is<DataValueNumber>())
+        {
+            auto fromValue = value();
+            auto toValue = to->as<DataValueNumber>()->value();
+            float fi = 1.0f - f;
+            auto result = toValue * f + fromValue * fi;
+            destination->as<DataValueNumber>()->value(result);
+        }
+    }
+    void copyValue(DataValue* destination) override
+    {
+        if (destination != nullptr && destination->is<DataValueNumber>())
+        {
+            destination->as<DataValueNumber>()->value(value());
+        }
+    }
 };
 } // namespace rive
 

@@ -115,32 +115,41 @@ StatusCode DataBind::import(ImportStack& importStack)
 
 DataType DataBind::outputType()
 {
-    if (converter())
+    if (converter() && converter()->outputType() != DataType::input &&
+        converter() && converter()->outputType() != DataType::none)
     {
         return converter()->outputType();
     }
-    switch (m_Source->coreType())
+    return sourceOutputType();
+}
+
+DataType DataBind::sourceOutputType()
+{
+    if (m_Source != nullptr)
     {
-        case ViewModelInstanceNumberBase::typeKey:
-            return DataType::number;
-        case ViewModelInstanceStringBase::typeKey:
-            return DataType::string;
-        case ViewModelInstanceEnumBase::typeKey:
-            return DataType::enumType;
-        case ViewModelInstanceColorBase::typeKey:
-            return DataType::color;
-        case ViewModelInstanceBooleanBase::typeKey:
-            return DataType::boolean;
-        case ViewModelInstanceListBase::typeKey:
-            return DataType::list;
-        case ViewModelInstanceTriggerBase::typeKey:
-            return DataType::trigger;
-        case ViewModelInstanceSymbolListIndexBase::typeKey:
-            return DataType::symbolListIndex;
-        case ViewModelInstanceAssetImageBase::typeKey:
-            return DataType::assetImage;
-        case ViewModelInstanceArtboardBase::typeKey:
-            return DataType::artboard;
+        switch (m_Source->coreType())
+        {
+            case ViewModelInstanceNumberBase::typeKey:
+                return DataType::number;
+            case ViewModelInstanceStringBase::typeKey:
+                return DataType::string;
+            case ViewModelInstanceEnumBase::typeKey:
+                return DataType::enumType;
+            case ViewModelInstanceColorBase::typeKey:
+                return DataType::color;
+            case ViewModelInstanceBooleanBase::typeKey:
+                return DataType::boolean;
+            case ViewModelInstanceListBase::typeKey:
+                return DataType::list;
+            case ViewModelInstanceTriggerBase::typeKey:
+                return DataType::trigger;
+            case ViewModelInstanceSymbolListIndexBase::typeKey:
+                return DataType::symbolListIndex;
+            case ViewModelInstanceAssetImageBase::typeKey:
+                return DataType::assetImage;
+            case ViewModelInstanceArtboardBase::typeKey:
+                return DataType::artboard;
+        }
     }
     return DataType::none;
 }

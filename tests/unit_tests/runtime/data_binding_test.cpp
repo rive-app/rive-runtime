@@ -1781,3 +1781,87 @@ TEST_CASE("Format text with commas", "[data binding]")
 
     CHECK(silver.matches("format_number_with_commas"));
 }
+
+TEST_CASE("Interpolate color and number", "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/time_based_interpolation.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+
+    silver.addFrame();
+    artboard->draw(renderer.get());
+
+    int frames = (int)(1.0f / 0.032f);
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.032f);
+        artboard->draw(renderer.get());
+    }
+
+    stateMachine->pointerDown(rive::Vec2D(425.0f, 25.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->pointerUp(rive::Vec2D(425.0f, 25.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+
+    silver.addFrame();
+    artboard->draw(renderer.get());
+
+    for (int i = 0; i < 10; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.032f);
+        artboard->draw(renderer.get());
+    }
+
+    // Interrupt interpolation mid way
+    stateMachine->pointerDown(rive::Vec2D(25.0f, 25.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->pointerUp(rive::Vec2D(25.0f, 25.0f));
+    // Advance and apply twice to take the transition and apply the next state.
+    stateMachine->advanceAndApply(0.016f);
+    stateMachine->advanceAndApply(0.016f);
+
+    for (int i = 0; i < frames; i++)
+    {
+        silver.addFrame();
+        stateMachine->advanceAndApply(0.032f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("time_based_interpolation"));
+}

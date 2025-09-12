@@ -74,6 +74,23 @@ void DataConverterGroup::bindFromContext(DataContext* dataContext,
     }
 }
 
+void DataConverterGroup::initialize(DataType inputType)
+{
+    auto currentInputType = inputType;
+    for (auto& item : m_items)
+    {
+        if (item->converter() != nullptr)
+        {
+            item->converter()->initialize(currentInputType);
+            if (item->converter()->outputType() != DataType::input &&
+                item->converter()->outputType() != DataType::none)
+            {
+                currentInputType = item->converter()->outputType();
+            }
+        }
+    }
+}
+
 void DataConverterGroup::unbind()
 {
     for (auto& item : m_items)

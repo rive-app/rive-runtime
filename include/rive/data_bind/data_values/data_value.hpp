@@ -19,6 +19,9 @@ public:
         assert(is<T>());
         return static_cast<T*>(this);
     }
+    virtual bool compare(DataValue* comparand) { return false; }
+    virtual void interpolate(DataValue* to, DataValue* data, float mix) {}
+    virtual void copyValue(DataValue* destination) {}
 };
 } // namespace rive
 

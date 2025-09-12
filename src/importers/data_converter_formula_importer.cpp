@@ -11,6 +11,6 @@ DataConverterFormulaImporter::DataConverterFormulaImporter(
 
 StatusCode DataConverterFormulaImporter::resolve()
 {
-    m_dataConverterFormula->initialize();
+    m_dataConverterFormula->calculateFormula();
     return StatusCode::Ok;
 }

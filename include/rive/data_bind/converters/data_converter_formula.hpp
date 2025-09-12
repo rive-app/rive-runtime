@@ -17,7 +17,7 @@ public:
     DataType outputType() override { return DataType::number; };
     void addToken(FormulaToken*);
     void addOutputToken(FormulaToken*, int);
-    void initialize();
+    void calculateFormula();
     void isInstance(bool value) { m_isInstance = value; }
     void addDirt(ComponentDirt value, bool recurse) override;
 

@@ -21,6 +21,7 @@ public:
     };
     virtual DataType outputType() { return DataType::none; };
     virtual void bindFromContext(DataContext* dataContext, DataBind* dataBind);
+    virtual void initialize(DataType inputType) {}
     virtual void unbind();
     StatusCode import(ImportStack& importStack) override;
     void addDataBind(DataBind* dataBind);
