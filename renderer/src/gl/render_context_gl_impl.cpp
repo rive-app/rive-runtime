@@ -2248,11 +2248,15 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     glFlush();
 
 #ifndef RIVE_WEBGL
-    if (m_capabilities.isGLES && m_capabilities.isContextVersionAtLeast(3, 1))
+    // ARM Mali-G78 also needs a memory barrier sometimes to ensure a resolve of
+    // EXT_multisampled_render_to_texture. (Note that the spec says these
+    // resolves should all be implicit and automatic.)
+    //
+    // ALSO NOTE: We only do this barrier on Mali because the barrier actually
+    // introduces corruption on Xiaomi Redmi Note 8 (Qualcomm Adreno 610).
+    if (m_capabilities.isMali && m_capabilities.isGLES &&
+        m_capabilities.isContextVersionAtLeast(3, 1))
     {
-        // In particular, ARM Mali-G78 needs this barrier sometimes to ensure a
-        // resolve of EXT_multisampled_render_to_texture. (Note that the spec
-        // says these resolves should all be implicit and automatic.)
         glMemoryBarrier(GL_ALL_BARRIER_BITS);
     }
 #endif
