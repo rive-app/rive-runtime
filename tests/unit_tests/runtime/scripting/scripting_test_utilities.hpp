@@ -82,6 +82,7 @@ public:
 public:
     SerializingFactory* serializer() { return &m_factory; }
     std::vector<std::string> console;
+    std::vector<std::string> errors;
 
     std::string currentLine = "";
 
@@ -96,6 +97,12 @@ public:
     {
         console.push_back(currentLine);
         currentLine = "";
+    }
+
+    void printError(lua_State* state) override
+    {
+        const char* error = lua_tostring(state, -1);
+        errors.push_back(error);
     }
 
 private:

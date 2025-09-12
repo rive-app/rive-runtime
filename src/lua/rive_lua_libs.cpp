@@ -285,20 +285,24 @@ static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
         {
             if (lua_gettop(ML) == 0)
             {
-                lua_pushstring(ML, "module must return a value");
+                lua_pushfstring(ML, "%s:1: module must return a value", name);
             }
             else if (!lua_istable(ML, -1) && !lua_isfunction(ML, -1))
             {
-                lua_pushstring(ML, "module must return a table or function");
+                lua_pushfstring(ML,
+                                "%s:1: module must return a table or function",
+                                name);
             }
         }
         else if (status == LUA_YIELD)
         {
-            lua_pushstring(ML, "module can not yield");
+            lua_pushfstring(ML, "%s:1: module can not yield", name);
         }
         else if (!lua_isstring(ML, -1))
         {
-            lua_pushstring(ML, "unknown error while running module");
+            lua_pushfstring(ML,
+                            "%s:1: unknown error while running module",
+                            name);
         }
     }
 
@@ -306,7 +310,13 @@ static bool push_module(lua_State* L, const char* name, Span<uint8_t> bytecode)
     lua_xmove(ML, L, 1);
     if (lua_isstring(L, -1))
     {
-        fprintf(stderr, "Failed to load module %s\n", name);
+        ScriptingContext* context =
+            static_cast<ScriptingContext*>(lua_getthreaddata(L));
+        context->printError(L);
+        fprintf(stderr,
+                "Failed to load module %s '%s'\n",
+                name,
+                lua_tostring(L, -1));
         lua_pop(L, 1);
         lua_remove(L, -2);
         return false;
@@ -337,6 +347,7 @@ bool ScriptingVM::registerModule(lua_State* state,
     lua_pushstring(state, name);
     if (!push_module(state, name, bytecode))
     {
+        lua_pop(state, 2);
         return false;
     }
 

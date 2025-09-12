@@ -554,6 +554,7 @@ public:
     ScriptingContext(Factory* factory) : m_factory(factory) {}
     Factory* factory() const { return m_factory; }
 
+    virtual void printError(lua_State* state) = 0;
     virtual void printBeginLine(lua_State* state) = 0;
     virtual void print(Span<const char> data) = 0;
     virtual void printEndLine() = 0;
