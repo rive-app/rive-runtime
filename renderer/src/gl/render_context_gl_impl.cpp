@@ -2818,19 +2818,21 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     if (!contextOptions.disablePixelLocalStorage)
     {
 #ifdef RIVE_ANDROID
-        // Favor MSAA over pixel local storage on Android for the sake of
-        // consistency and stability, except on PowerVR pre-1.15, where MSAA
-        // doesn't work. On these devices, pixel local storage is a fallback.
-        if (capabilities.isPowerVR &&
-            !capabilities.isVendorDriverVersionAtLeast(1, 15) &&
-            capabilities.EXT_shader_pixel_local_storage &&
+        if (capabilities.EXT_shader_pixel_local_storage &&
             (capabilities.ARM_shader_framebuffer_fetch ||
              capabilities.EXT_shader_framebuffer_fetch))
         {
-            return MakeContext(rendererString,
-                               capabilities,
-                               MakePLSImplEXTNative(capabilities),
-                               contextOptions.shaderCompilationMode);
+            // Favor MSAA over pixel local storage on PowerVR due to various
+            // bugs in its driver, except on PowerVR pre-1.15, where MSAA
+            // doesn't work.
+            if (!capabilities.isPowerVR ||
+                !capabilities.isVendorDriverVersionAtLeast(1, 15))
+            {
+                return MakeContext(rendererString,
+                                   capabilities,
+                                   MakePLSImplEXTNative(capabilities),
+                                   contextOptions.shaderCompilationMode);
+            }
         }
 #else
         if (capabilities.ANGLE_shader_pixel_local_storage_coherent)
