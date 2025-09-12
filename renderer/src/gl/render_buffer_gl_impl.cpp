@@ -56,17 +56,9 @@ GLuint RenderBufferGLImpl::detachBuffer()
 
 void* RenderBufferGLImpl::onMap()
 {
-    if (!canMapBuffer())
-    {
-        if (!m_fallbackMappedMemory)
-        {
-            m_fallbackMappedMemory.reset(new uint8_t[sizeInBytes()]);
-        }
-        return m_fallbackMappedMemory.get();
-    }
-    else
-    {
 #ifndef RIVE_WEBGL
+    if (canMapBuffer())
+    {
         m_state->bindVAO(0);
         m_state->bindBuffer(m_target, m_bufferID);
         return glMapBufferRange(m_target,
@@ -74,10 +66,15 @@ void* RenderBufferGLImpl::onMap()
                                 sizeInBytes(),
                                 GL_MAP_WRITE_BIT |
                                     GL_MAP_INVALIDATE_BUFFER_BIT);
-#else
-        // WebGL doesn't declare glMapBufferRange().
-        RIVE_UNREACHABLE();
+    }
+    else
 #endif
+    {
+        if (!m_fallbackMappedMemory)
+        {
+            m_fallbackMappedMemory.reset(new uint8_t[sizeInBytes()]);
+        }
+        return m_fallbackMappedMemory.get();
     }
 }
 
@@ -85,7 +82,13 @@ void RenderBufferGLImpl::onUnmap()
 {
     m_state->bindVAO(0);
     m_state->bindBuffer(m_target, m_bufferID);
-    if (!canMapBuffer())
+#ifndef RIVE_WEBGL
+    if (canMapBuffer())
+    {
+        glUnmapBuffer(m_target);
+    }
+    else
+#endif
     {
         glBufferSubData(m_target,
                         0,
@@ -97,23 +100,17 @@ void RenderBufferGLImpl::onUnmap()
                 .reset(); // This buffer will only be mapped once.
         }
     }
-    else
-    {
-#ifndef RIVE_WEBGL
-        glUnmapBuffer(m_target);
-#else
-        // WebGL doesn't declare glUnmapBuffer().
-        RIVE_UNREACHABLE();
-#endif
-    }
 }
 
+#ifndef RIVE_WEBGL
 bool RenderBufferGLImpl::canMapBuffer() const
 {
-    // WebGL doesn't support buffer mapping.
-    return !m_state->capabilities().isANGLEOrWebGL &&
+    // WebGL doesn't support buffer mapping. Don't use it on ANGLE either since
+    // we don't trust ANGLE with features that haven't been validated by WebGL.
+    return !m_state->capabilities().isANGLESystemDriver &&
            // NVIDIA gives performance warnings when mapping GL_STATIC_DRAW
            // buffers.
            !(flags() & RenderBufferFlags::mappedOnceAtInitialization);
 }
+#endif
 } // namespace rive::gpu

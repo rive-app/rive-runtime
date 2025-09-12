@@ -67,7 +67,8 @@ parser.add_argument("-m", "--match",
 parser.add_argument("-t", "--target",
                     default="host",
                     choices=["host", "android", "ios", "iossim", "unreal",
-                             "unreal_android", "webbrowser", "webserver"],
+                             "unreal_android", "webbrowser", "webserver",
+                             "webandroid"],
                     help="which platform to run on")
 parser.add_argument("-a", "--android-arch",
                     default="arm64",
@@ -318,6 +319,20 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
                                                             *self.http_address),
                   flush=True)
 
+            if self.host == "localhost" and args.target == "webandroid":
+                # Use adb port reverse-forwarding to expose our HTTP and
+                # WebSocket servers to the device.
+                http_port, websocket_port = (self.http_address[1],
+                                             self.server_address[1])
+                subprocess.Popen(["adb", "reverse",
+                                  "tcp:%s" % http_port,
+                                  "tcp:%s" % http_port],
+                                 stdout=subprocess.DEVNULL)
+                subprocess.Popen(["adb", "reverse",
+                                  "tcp:%s" % websocket_port,
+                                  "tcp:%s" % websocket_port],
+                                 stdout=subprocess.DEVNULL)
+
 
     # Simple utility to wait until a TCP client tells the server it has finished.
     def wait_for_shutdown_event(self, timeout=threading.TIMEOUT_MAX):
@@ -503,6 +518,9 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server):
     elif args.target.startswith("web"):
         if args.target == "webbrowser":
             client = ["python3", "-m", "webbrowser", "-t"]
+        elif args.target == "webandroid":
+            client = ["adb", "shell", "am", "start", "-a",
+                      "android.intent.action.VIEW", "-d"]
         elif args.webclient:
             client = [args.webclient]
         else:

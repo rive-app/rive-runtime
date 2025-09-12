@@ -148,7 +148,10 @@ struct GLCapabilities
 
     // Driver info.
     bool isGLES : 1;
-    bool isANGLEOrWebGL : 1;
+    // Is the system OpenGL driver ANGLE? (Not WebGL via ANGLE, but the actual
+    // system driver (which can also be true in a situation like
+    // WebGL (probably ANGLE) -> System OpenGL ES (also ANGLE) -> Vulkan)).
+    bool isANGLESystemDriver : 1;
     bool isAdreno : 1;
     bool isMali : 1;
     bool isPowerVR : 1;

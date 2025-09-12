@@ -146,7 +146,7 @@ RenderContextGLImpl::RenderContextGLImpl(
     m_state(make_rcp<GLState>(m_capabilities))
 
 {
-    if (m_capabilities.isANGLEOrWebGL &&
+    if (m_capabilities.isANGLESystemDriver &&
         capabilities.KHR_blend_equation_advanced)
     {
         // Some ANGLE devices report support for this extension but render
@@ -629,43 +629,41 @@ protected:
 
     void* onMapBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
-        if (m_state->capabilities().isANGLEOrWebGL)
-        {
-            // WebGL doesn't support buffer mapping.
-            return shadowBuffer();
-        }
-        else
-        {
 #ifndef RIVE_WEBGL
+        // WebGL doesn't support buffer mapping. Don't use it on ANGLE either
+        // since we don't trust ANGLE with features that haven't been validated
+        // by WebGL.
+        if (!m_state->capabilities().isANGLESystemDriver)
+        {
             m_state->bindBuffer(m_target, m_bufferID);
             return glMapBufferRange(m_target,
                                     0,
                                     mapSizeInBytes,
                                     GL_MAP_WRITE_BIT |
                                         GL_MAP_INVALIDATE_BUFFER_BIT);
-#else
-            // WebGL doesn't declare glMapBufferRange().
-            RIVE_UNREACHABLE();
+        }
+        else
 #endif
+        {
+            return shadowBuffer();
         }
     }
 
     void onUnmapAndSubmitBuffer(int bufferIdx, size_t mapSizeInBytes) override
     {
         m_state->bindBuffer(m_target, m_bufferID);
-        if (m_state->capabilities().isANGLEOrWebGL)
+#ifndef RIVE_WEBGL
+        // WebGL doesn't support buffer mapping. Don't use it on ANGLE either
+        // since we don't trust ANGLE with features that haven't been validated
+        // by WebGL.
+        if (!m_state->capabilities().isANGLESystemDriver)
         {
-            // WebGL doesn't support buffer mapping.
-            glBufferSubData(m_target, 0, mapSizeInBytes, shadowBuffer());
+            glUnmapBuffer(m_target);
         }
         else
-        {
-#ifndef RIVE_WEBGL
-            glUnmapBuffer(m_target);
-#else
-            // WebGL doesn't declare glUnmapBuffer().
-            RIVE_UNREACHABLE();
 #endif
+        {
+            glBufferSubData(m_target, 0, mapSizeInBytes, shadowBuffer());
         }
     }
 
@@ -2403,11 +2401,18 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
     GLCapabilities capabilities{};
 #ifdef RIVE_WEBGL
     capabilities.isGLES = true;
-    capabilities.isANGLEOrWebGL = true;
+    // If GL_UNMASKED_RENDERER_WEBGL says "ANGLE", that means we are running on
+    // an ANGLE system driver. e.g.:
+    //
+    //   WebGL (probably ANGLE) -> System OpenGL ES (also ANGLE) -> Vulkan
+    //
+    capabilities.isANGLESystemDriver =
+        strstr(rendererString, "ANGLE") != nullptr;
 #else
     capabilities.isGLES = strstr(glVersionStr, "OpenGL ES") != nullptr;
-    capabilities.isANGLEOrWebGL = strstr(glVersionStr, "ANGLE") != nullptr ||
-                                  strstr(rendererString, "ANGLE") != nullptr;
+    capabilities.isANGLESystemDriver =
+        strstr(glVersionStr, "ANGLE") != nullptr ||
+        strstr(rendererString, "ANGLE") != nullptr;
 #endif
     capabilities.isAdreno = strstr(rendererString, "Adreno");
     capabilities.isMali = strstr(rendererString, "Mali");
@@ -2578,14 +2583,7 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
         else if (strcmp(ext, "GL_EXT_clip_cull_distance") == 0 ||
                  strcmp(ext, "GL_ANGLE_clip_cull_distance") == 0)
         {
-#ifdef RIVE_ANDROID
-            // Don't use EXT_clip_cull_distance or ANGLE_clip_cull_distance if
-            // we're on ANGLE. Various Galaxy devices using ANGLE have bugs with
-            // these extensions.
-            capabilities.EXT_clip_cull_distance = !capabilities.isANGLEOrWebGL;
-#else
             capabilities.EXT_clip_cull_distance = true;
-#endif
         }
         else if (strcmp(ext, "GL_EXT_multisampled_render_to_texture") == 0)
         {
@@ -2755,6 +2753,17 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
             // ANGLE/D3D and ANGLE/Metal. The extension is polyfilled on D3D
             // anyway, and on Metal it crashes.
             capabilities.ANGLE_base_vertex_base_instance_shader_builtin = false;
+        }
+    }
+
+    if (capabilities.EXT_clip_cull_distance)
+    {
+        if (capabilities.isANGLESystemDriver)
+        {
+            // Don't use EXT_clip_cull_distance or ANGLE_clip_cull_distance if
+            // our system GL driver is ANGLE. Various Galaxy devices using ANGLE
+            // have bugs with these extensions.
+            capabilities.EXT_clip_cull_distance = false;
         }
     }
 
