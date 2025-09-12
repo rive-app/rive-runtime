@@ -2222,12 +2222,19 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
     }
 #endif
 
-    if (m_capabilities.isAdreno)
+    // Various Android vendors experience synchronization issues with multiple
+    // flushes per frame if we don't call glFlush in between.
+    glFlush();
+
+#ifndef RIVE_WEBGL
+    if (m_capabilities.isGLES && m_capabilities.isContextVersionAtLeast(3, 1))
     {
-        // Qualcomm experiences synchronization issues with multiple flushes per
-        // frame if we don't call glFlush in between.
-        glFlush();
+        // In particular, ARM Mali-G78 needs this barrier sometimes to ensure a
+        // resolve of EXT_multisampled_render_to_texture. (Note that the spec
+        // says these resolves should all be implicit and automatic.)
+        glMemoryBarrier(GL_ALL_BARRIER_BITS);
     }
+#endif
 }
 
 void RenderContextGLImpl::drawIndexedInstancedNoInstancedAttribs(
