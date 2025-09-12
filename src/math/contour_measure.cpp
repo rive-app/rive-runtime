@@ -7,6 +7,7 @@
 #include "rive/math/contour_measure.hpp"
 #include "rive/math/math_types.hpp"
 #include "rive/math/wangs_formula.hpp"
+#include "rive/profiler/profiler_macros.h"
 #include <cmath>
 #include <limits>
 
@@ -243,10 +244,17 @@ static const ContourMeasure::Segment* next_segment_beginning(
 // Compute the (interpolated) t for a distance within the index'th segment
 static float compute_t(Span<const ContourMeasure::Segment> segs,
                        size_t index,
-                       float distance)
+                       float distance,
+                       bool isStart)
 {
     const auto seg = segs[index];
     assert(distance <= seg.m_distance);
+
+    // If this is a starting distance and it is at the start of a segment
+    // exactly then default it to 0.0f. The code below ends up treating it
+    // as 1.0
+    if (isStart && (seg.m_distance == distance))
+        return 0.0f;
 
     float prevDist = 0, prevT = 0;
     if (index > 0)
@@ -272,6 +280,8 @@ void ContourMeasure::getSegment(float startDist,
                                 RawPath* dst,
                                 bool startWithMove) const
 {
+    RIVE_PROF_SCOPE()
+
     // sanitize the inputs
     startDist = std::max(0.f, startDist);
     endDist = std::min(m_length, endDist);
@@ -286,8 +296,8 @@ void ContourMeasure::getSegment(float startDist,
     const auto start = m_segments[startIndex];
     const auto end = m_segments[endIndex];
 
-    const auto startT = compute_t(m_segments, startIndex, startDist);
-    const auto endT = compute_t(m_segments, endIndex, endDist);
+    const auto startT = compute_t(m_segments, startIndex, startDist, true);
+    const auto endT = compute_t(m_segments, endIndex, endDist, false);
 
     if (start.m_ptIndex == end.m_ptIndex)
     {
