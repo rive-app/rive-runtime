@@ -1878,6 +1878,9 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             m_gpuContext->PSSetShaderResources(IMAGE_TEXTURE_IDX,
                                                1,
                                                imageTextureD3D->srvAddressOf());
+        }
+
+        {
             // we should never get a sampler option that is greater then our
             // array size
             assert(batch.imageSampler.asKey() <
