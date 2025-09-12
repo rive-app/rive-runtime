@@ -1763,6 +1763,9 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                                    0,
                                    GL_READ_WRITE,
                                    GL_R32I);
+                glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT |
+                                GL_TEXTURE_FETCH_BARRIER_BIT |
+                                GL_FRAMEBUFFER_BARRIER_BIT);
 #endif
                 break;
             }
@@ -1814,24 +1817,42 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
             }
         }
 
-        // Close the atlas render pass if needed. (i.e., pixel local storage
-        // needs to be disabled.)
-        if (m_atlasType == AtlasType::r32uiPixelLocalStorage)
+        // Finalize the atlas render pass if needed.
+        switch (m_atlasType)
         {
+            case AtlasType::r32f:
+            case AtlasType::r16f:
+            case AtlasType::rgba8:
+            case AtlasType::r32uiFramebufferFetch:
+                break;
+            case AtlasType::r32uiPixelLocalStorage:
+            {
 #ifdef RIVE_ANDROID
-            // EXT_shader_pixel_local_storage needs to be explicity resolved
-            // with a draw.
-            m_state->bindProgram(m_atlasResolveProgram);
-            m_state->bindVAO(m_atlasResolveVAO);
-            m_state->setCullFace(GL_FRONT);
-            glScissor(0, 0, desc.atlasContentWidth, desc.atlasContentHeight);
-            glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
-            glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
+                // EXT_shader_pixel_local_storage needs to be explicity resolved
+                // with a draw.
+                m_state->bindProgram(m_atlasResolveProgram);
+                m_state->bindVAO(m_atlasResolveVAO);
+                m_state->setCullFace(GL_FRONT);
+                glScissor(0,
+                          0,
+                          desc.atlasContentWidth,
+                          desc.atlasContentHeight);
+                glDrawArrays(GL_TRIANGLE_STRIP, 0, 4);
+                glDisable(GL_SHADER_PIXEL_LOCAL_STORAGE_EXT);
 #else
-            glEndPixelLocalStorageANGLE(
-                1,
-                std::array<GLenum, 1>{GL_STORE_OP_STORE_ANGLE}.data());
+                glEndPixelLocalStorageANGLE(
+                    1,
+                    std::array<GLenum, 1>{GL_STORE_OP_STORE_ANGLE}.data());
 #endif
+                break;
+            }
+            case AtlasType::r32iAtomicTexture:
+#ifndef RIVE_WEBGL
+                glMemoryBarrier(GL_SHADER_IMAGE_ACCESS_BARRIER_BIT |
+                                GL_TEXTURE_FETCH_BARRIER_BIT |
+                                GL_FRAMEBUFFER_BARRIER_BIT);
+#endif
+                break;
         }
 
         glFrontFace(GL_CW);
@@ -2678,16 +2699,28 @@ std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(
 
     if (capabilities.OES_shader_image_atomic)
     {
-        if (capabilities.isMali || capabilities.isPowerVR)
+        if (capabilities.isMali || capabilities.isPowerVR ||
+            (capabilities.isAdreno &&
+             strstr(rendererString, "Adreno (TM) 640") == nullptr))
         {
-            // Don't use shader images for feathering on Mali or PowerVR.
-            // On PowerVR they just don't render, and on Mali they lead to a
-            // failures that says:
+            // Don't use image atomics for feathering on Adreno, Mali, or
+            // PowerVR. On Adreno (specifically 660 & 642L) and PowerVR they
+            // sometimes just don't render, and on Mali they lead to a failure
+            // that says:
             //
             //   Error:glDrawElementsInstanced::failed to allocate CPU memory
             //
-            // This is not at all surprising since neither of these vendors
-            // support "fragmentStoresAndAtomics" on Vulkan.
+            // NOTE: We allow Adreno 640 to use atomics because it works
+            // reliably on our CI and gives us coverage of this codepath for ES.
+            //
+            // Realistically these vendors have better ways to render the
+            // feather atlas that they will use in real lifeanyway, namely,
+            // EXT_float_blend, EXT_color_buffer_half_float,
+            // EXT_shader_framebuffer_fetch, and/or
+            // EXT_shader_pixel_local_storage.
+            //
+            // It's possible we have some barriers wrong, but a fallback this
+            // deep isn't a priority right now on GL.
             capabilities.OES_shader_image_atomic = false;
         }
     }
