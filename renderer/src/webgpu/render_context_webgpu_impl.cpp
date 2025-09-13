@@ -1022,11 +1022,6 @@ RenderContextWebGPUImpl::RenderContextWebGPUImpl(
                 m_capabilities.plsType =
                     PixelLocalStorageType::GL_EXT_shader_pixel_local_storage;
             }
-            else if (!strcmp(extensions.strings[i].data,
-                             "GL_EXT_shader_pixel_local_storage2"))
-            {
-                m_capabilities.supportsPixelLocalStorage2 = true;
-            }
         }
     }
     if (m_capabilities.backendType == wgpu::BackendType::OpenGLES &&
@@ -2450,15 +2445,6 @@ wgpu::RenderPassEncoder RenderContextWebGPUImpl::makePLSRenderPass(
     {
         wagyuRenderPassDescriptor.pixelLocalStorageEnabled =
             WGPUOptionalBool_True;
-        if (m_capabilities.supportsPixelLocalStorage2)
-        {
-            // Always set the pixel local storage size if the v2 extension is
-            // available. This isn't technically necessary if we aren't using
-            // other parts of the v2 API, but PowerVR Rogue GE8300 experiences
-            // corruption if we don't, and this is an apparent workaround.
-            wagyuRenderPassDescriptor.pixelLocalStorageSize =
-                PLS_PLANE_COUNT * sizeof(uint32_t);
-        }
         passDesc.nextInChain = &wagyuRenderPassDescriptor.chain;
     }
 #endif

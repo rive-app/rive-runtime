@@ -54,10 +54,6 @@ public:
 #ifdef RIVE_WAGYU
         PixelLocalStorageType plsType = PixelLocalStorageType::none;
 
-        // The driver supports additional features provided in the
-        // GL_EXT_shader_pixel_local_storage2 extension.
-        bool supportsPixelLocalStorage2 = false;
-
         // Rive requires 4 storage buffers in the vertex shader. We polyfill
         // them if the hardware doesn't support this.
         bool polyfillVertexStorageBuffers = false;
