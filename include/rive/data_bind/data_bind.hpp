@@ -43,6 +43,8 @@ public:
     void suppressDirt(bool value) { m_suppressDirt = value; };
     void file(File* value) { m_file = value; };
     File* file() const { return m_file; };
+    DataType outputType();
+    DataType sourceOutputType();
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;
@@ -50,8 +52,6 @@ protected:
     ViewModelInstanceValue* m_Source = nullptr;
     DataBindContextValue* m_ContextValue = nullptr;
     DataConverter* m_dataConverter = nullptr;
-    DataType outputType();
-    DataType sourceOutputType();
     bool bindsOnce();
     bool m_suppressDirt = false;
     File* m_file;

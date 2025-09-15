@@ -55,17 +55,3 @@ void DataBindContextValueAssetImage::apply(Core* target,
             source->as<ViewModelInstanceAssetImage>()->propertyValue());
     }
 }
-
-bool DataBindContextValueAssetImage::syncTargetValue(Core* target,
-                                                     uint32_t propertyKey)
-{
-    auto value = CoreRegistry::getUint(target, propertyKey);
-
-    if (m_previousValue != value)
-    {
-        m_previousValue = value;
-        m_targetDataValue.value(value);
-        return true;
-    }
-    return false;
-}

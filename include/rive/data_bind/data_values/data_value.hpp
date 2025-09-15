@@ -1,6 +1,7 @@
 #ifndef _RIVE_DATA_VALUE_HPP_
 #define _RIVE_DATA_VALUE_HPP_
 #include "rive/data_bind/data_values/data_type.hpp"
+#include <assert.h>
 
 #include <stdio.h>
 namespace rive

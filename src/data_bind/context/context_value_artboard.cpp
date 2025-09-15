@@ -33,17 +33,3 @@ void DataBindContextValueArtboard::apply(Core* target,
         }
     }
 }
-
-bool DataBindContextValueArtboard::syncTargetValue(Core* target,
-                                                   uint32_t propertyKey)
-{
-    auto value = CoreRegistry::getUint(target, propertyKey);
-
-    if (m_previousValue != value)
-    {
-        m_previousValue = value;
-        m_targetDataValue.value(value);
-        return true;
-    }
-    return false;
-}

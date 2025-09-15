@@ -31,31 +31,3 @@ void DataBindContextValueString::apply(Core* target,
             break;
     }
 }
-
-bool DataBindContextValueString::syncTargetValue(Core* target,
-                                                 uint32_t propertyKey)
-{
-    std::string value = "";
-    switch (CoreRegistry::propertyFieldId(propertyKey))
-    {
-        case CoreUintType::id:
-        {
-            if (target && target->is<Solo>())
-            {
-                value = target->as<Solo>()->getActiveChildName();
-            }
-            break;
-        }
-        default:
-            value = CoreRegistry::getString(target, propertyKey);
-            break;
-    }
-
-    if (m_previousValue != value)
-    {
-        m_previousValue = value;
-        m_targetDataValue.value(value);
-        return true;
-    }
-    return false;
-}

@@ -35,37 +35,3 @@ void DataBindContextValueNumber::apply(Core* target,
             break;
     }
 }
-
-bool DataBindContextValueNumber::syncTargetValue(Core* target,
-                                                 uint32_t propertyKey)
-{
-    float value = 0;
-    switch (CoreRegistry::propertyFieldId(propertyKey))
-    {
-        case CoreDoubleType::id:
-        {
-            value = CoreRegistry::getDouble(target, propertyKey);
-        }
-        break;
-        case CoreUintType::id:
-        {
-            if (target && target->is<Solo>())
-            {
-                value = (float)target->as<Solo>()->getActiveChildIndex();
-            }
-            else
-            {
-                value = (float)CoreRegistry::getUint(target, propertyKey);
-            }
-            break;
-        }
-    }
-    if (m_previousValue != value)
-    {
-        m_previousValue = value;
-
-        m_targetDataValue.value(value);
-        return true;
-    }
-    return false;
-}

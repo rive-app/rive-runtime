@@ -18,17 +18,3 @@ void DataBindContextValueBoolean::apply(Core* target,
                                                         m_dataBind);
     CoreRegistry::setBool(target, propertyKey, value);
 }
-
-bool DataBindContextValueBoolean::syncTargetValue(Core* target,
-                                                  uint32_t propertyKey)
-{
-    auto value = CoreRegistry::getBool(target, propertyKey);
-
-    if (m_previousValue != value)
-    {
-        m_previousValue = value;
-        m_targetDataValue.value(value);
-        return true;
-    }
-    return false;
-}

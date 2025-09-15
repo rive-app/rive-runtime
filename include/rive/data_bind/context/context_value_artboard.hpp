@@ -13,14 +13,6 @@ public:
     void apply(Core* component,
                uint32_t propertyKey,
                bool isMainDirection) override;
-    bool syncTargetValue(Core* target, uint32_t propertyKey) override;
-
-protected:
-    DataValue* targetValue() override { return &m_targetDataValue; }
-
-private:
-    uint32_t m_previousValue = -1;
-    DataValueArtboard m_targetDataValue;
 };
 } // namespace rive
 

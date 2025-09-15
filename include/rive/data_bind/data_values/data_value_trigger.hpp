@@ -14,7 +14,7 @@ public:
     static const DataType typeKey = DataType::trigger;
     bool isTypeOf(DataType typeKey) const override
     {
-        return typeKey == DataType::trigger;
+        return typeKey == DataType::trigger || typeKey == DataType::integer;
     }
 };
 } // namespace rive

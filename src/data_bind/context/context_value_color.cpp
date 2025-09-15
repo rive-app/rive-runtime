@@ -18,17 +18,3 @@ void DataBindContextValueColor::apply(Core* target,
                                                      m_dataBind);
     CoreRegistry::setColor(target, propertyKey, value);
 }
-
-bool DataBindContextValueColor::syncTargetValue(Core* target,
-                                                uint32_t propertyKey)
-{
-    auto value = CoreRegistry::getColor(target, propertyKey);
-
-    if (m_previousValue != value)
-    {
-        m_previousValue = value;
-        m_targetDataValue.value(value);
-        return true;
-    }
-    return false;
-}

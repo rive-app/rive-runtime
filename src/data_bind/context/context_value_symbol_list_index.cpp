@@ -28,17 +28,3 @@ void DataBindContextValueSymbolListIndex::apply(Core* target,
             break;
     }
 }
-
-bool DataBindContextValueSymbolListIndex::syncTargetValue(Core* target,
-                                                          uint32_t propertyKey)
-{
-    auto value = CoreRegistry::getUint(target, propertyKey);
-
-    if (m_previousValue != value)
-    {
-        m_previousValue = value;
-        m_targetDataValue.value(value);
-        return true;
-    }
-    return false;
-}

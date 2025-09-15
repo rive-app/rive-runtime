@@ -18,17 +18,3 @@ void DataBindContextValueTrigger::apply(Core* target,
                                                             m_dataBind);
     CoreRegistry::setUint(target, propertyKey, value);
 }
-
-bool DataBindContextValueTrigger::syncTargetValue(Core* target,
-                                                  uint32_t propertyKey)
-{
-    auto value = CoreRegistry::getUint(target, propertyKey);
-
-    if (m_previousValue != value)
-    {
-        m_previousValue = value;
-        m_targetDataValue.value(value);
-        return true;
-    }
-    return false;
-}
