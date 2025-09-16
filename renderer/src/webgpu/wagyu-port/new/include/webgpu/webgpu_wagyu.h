@@ -524,6 +524,8 @@ WGPU_EXPORT void wgpuWagyuShaderEntryPointArrayFreeMembers(WGPUWagyuShaderEntryP
 WGPU_EXPORT void wgpuWagyuShaderModuleDestroy(WGPUShaderModule shaderModule) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT void wgpuWagyuShaderModuleIntrospect(WGPUShaderModule shaderModule, WGPUShaderStage stages, WGPUWagyuShaderEntryPointArray *shaderEntryPointArray) WGPU_FUNCTION_ATTRIBUTE;
 
+WGPU_EXPORT WGPUBool wgpuWagyuTextureIsSwapchain(WGPUTexture texture) WGPU_FUNCTION_ATTRIBUTE;
+
 WGPU_EXPORT void wgpuWagyuSurfaceDestroy(WGPUSurface surface) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT WGPUTexture wgpuWagyuSurfaceGetCurrentDepthStencilTexture(WGPUSurface surface) WGPU_FUNCTION_ATTRIBUTE;
 WGPU_EXPORT float wgpuWagyuSurfaceGetHeight(WGPUSurface surface) WGPU_FUNCTION_ATTRIBUTE;

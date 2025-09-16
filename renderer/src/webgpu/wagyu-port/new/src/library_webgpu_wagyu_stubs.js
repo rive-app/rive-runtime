@@ -69,6 +69,7 @@ const LibraryWebGPUExtensions = {
     wgpuWagyuSurfaceSetWidth: undefined,
     wgpuWagyuSurfaceSetX: undefined,
     wgpuWagyuSurfaceSetY: undefined,
+    wgpuWagyuTextureIsSwapchain: undefined,
     wgpuWagyuWGSLFeatureTypeArrayFreeMembers: undefined
 };
 
