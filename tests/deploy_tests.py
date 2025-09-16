@@ -703,7 +703,7 @@ def main():
     if not args.no_rebuild and not args.no_install:
         build_rive = [os.path.join(rive_tools_dir, "../build/build_rive.sh")]
         if os.name == "nt":
-            if subprocess.run(["which", "msbuild.exe"]).returncode == 0:
+            if subprocess.run(["where", "msbuild.exe"]).returncode == 0:
                 # msbuild.exe is already on the $PATH; launch build_rive.sh directly.
                 build_rive = ["sh"] + build_rive
             else:

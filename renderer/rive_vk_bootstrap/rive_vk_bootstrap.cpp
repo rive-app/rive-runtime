@@ -242,6 +242,8 @@ std::tuple<vkb::Device, rive::gpu::VulkanFeatures> select_device(
         printf("%sfillModeNonSolid", *commaSeparator);
     if (riveVulkanFeatures.fragmentStoresAndAtomics)
         printf("%sfragmentStoresAndAtomics", *commaSeparator);
+    if (riveVulkanFeatures.shaderClipDistance)
+        printf("%sshaderClipDistance", *commaSeparator);
     if (riveVulkanFeatures.rasterizationOrderColorAttachmentAccess)
         printf("%srasterizationOrderColorAttachmentAccess", *commaSeparator);
 #if 0

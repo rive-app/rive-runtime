@@ -134,11 +134,18 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     }
     if (nameStr == "vulkancore" || nameStr == "vkcore")
     {
+        params->core = true;
+        return Backend::vk;
+    }
+    if (nameStr == "vulkanmsaacore" || nameStr == "vkmsaacore")
+    {
+        params->core = true;
+        params->msaa = true;
         return Backend::vk;
     }
     if (nameStr == "vulkansrgb" || nameStr == "vksrgb")
     {
-        params->core = true;
+        params->srgb = true;
         return Backend::vk;
     }
     if (nameStr == "vulkancw" || nameStr == "vkcw")
