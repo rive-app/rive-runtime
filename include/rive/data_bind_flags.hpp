@@ -16,6 +16,9 @@ enum class DataBindFlags : unsigned short
     /// Whether the binding happens only once
     Once = 1 << 2,
 
+    /// Whether source to target runs before target to source
+    SourceToTargetRunsFirst = 1 << 3,
+
     /// Flag if set to target
     ToTarget = 0,
 

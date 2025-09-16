@@ -294,7 +294,6 @@ void DataBind::updateSourceBinding(bool invalidate)
         m_Dirt &= ~ComponentDirt::Dependents;
         m_dataConverter->update();
     }
-    auto flagsValue = static_cast<DataBindFlags>(flags());
     if (toSource())
     {
         if (m_ContextValue != nullptr)
@@ -303,13 +302,24 @@ void DataBind::updateSourceBinding(bool invalidate)
             {
                 m_ContextValue->invalidate();
             }
-            m_ContextValue->applyToSource(
-                m_target,
-                propertyKey(),
-                (flagsValue & DataBindFlags::Direction) ==
-                    DataBindFlags::ToSource);
+            m_ContextValue->applyToSource(m_target,
+                                          propertyKey(),
+                                          isMainToSource());
         }
     }
+}
+
+bool DataBind::isMainToSource()
+{
+    auto flagsValue = static_cast<DataBindFlags>(flags());
+    return (flagsValue & DataBindFlags::Direction) == DataBindFlags::ToSource;
+}
+
+bool DataBind::sourceToTargetRunsFirst()
+{
+    auto flagsValue = static_cast<DataBindFlags>(flags());
+    return (flagsValue & DataBindFlags::SourceToTargetRunsFirst) ==
+           DataBindFlags::SourceToTargetRunsFirst;
 }
 
 void DataBind::addDirt(ComponentDirt value, bool recurse)

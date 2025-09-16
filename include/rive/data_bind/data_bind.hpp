@@ -39,6 +39,8 @@ public:
     bool toSource();
     bool toTarget();
     bool canSkip();
+    bool isMainToSource();
+    bool sourceToTargetRunsFirst();
     bool advance(float elapsedTime);
     void suppressDirt(bool value) { m_suppressDirt = value; };
     void file(File* value) { m_file = value; };

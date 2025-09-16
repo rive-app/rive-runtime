@@ -790,14 +790,23 @@ void Artboard::updateDataBinds()
         {
             continue;
         }
-        dataBind->updateSourceBinding();
-        auto d = dataBind->dirt();
-        if (d == ComponentDirt::None)
+
+        if (!dataBind->sourceToTargetRunsFirst())
         {
-            continue;
+
+            dataBind->updateSourceBinding();
         }
-        dataBind->dirt(ComponentDirt::None);
-        dataBind->update(d);
+        auto d = dataBind->dirt();
+        if (d != ComponentDirt::None)
+        {
+            dataBind->dirt(ComponentDirt::None);
+            dataBind->update(d);
+        }
+        if (dataBind->sourceToTargetRunsFirst())
+        {
+
+            dataBind->updateSourceBinding();
+        }
     }
 }
 

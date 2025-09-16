@@ -1865,3 +1865,77 @@ TEST_CASE("Interpolate color and number", "[data binding]")
 
     CHECK(silver.matches("time_based_interpolation"));
 }
+
+TEST_CASE("Bidirectional data binding with source to target precedence",
+          "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/bidirectional_precedence.riv", &silver);
+
+    auto artboard = file->artboardNamed("source_first");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+    auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+
+    // On source first these values will overwrite the target values
+    // that are [250,250]
+    xProp->propertyValue(100);
+    yProp->propertyValue(100);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("bidirectional_precedence-source_first"));
+}
+
+TEST_CASE("Bidirectional data binding with target to source precedence",
+          "[data binding]")
+{
+
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/bidirectional_precedence.riv", &silver);
+
+    auto artboard = file->artboardNamed("target_first");
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto xProp = vmi->propertyValue("x")->as<rive::ViewModelInstanceNumber>();
+    auto yProp = vmi->propertyValue("y")->as<rive::ViewModelInstanceNumber>();
+
+    // On target first these values will be overwritten by the target values
+    // that are [250,250]
+    xProp->propertyValue(100);
+    yProp->propertyValue(100);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.0f);
+    stateMachine->advanceAndApply(0.016f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("bidirectional_precedence-target_first"));
+}
