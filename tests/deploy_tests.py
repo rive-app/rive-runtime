@@ -2,12 +2,15 @@
 
 import argparse
 import atexit
+import base64
 import glob
 import http.server
 import os
+import pathlib
 import platform
 import queue
 import re
+import shlex
 import shutil
 import signal
 import socket
@@ -30,7 +33,7 @@ parser.add_argument("tools",
                     help="which tool(s) to run")
 parser.add_argument("-B", "--builddir",
                     type=str,
-                    default=None,
+                    default=os.getenv("RIVE_BUILDDIR"),
                     help="output directory from build")
 parser.add_argument("-b", "--backend",
                     type=str,
@@ -78,7 +81,7 @@ parser.add_argument("-u", "--ios_udid",
                     default=None,
                     help="unique id of iOS device to run on (--target=ios or iossim)")
 parser.add_argument("-c", "--webclient",
-                    default=None,
+                    default=os.getenv("RIVE_WEBCLIENT"),
                     help="executable to launch when --target=webserver")
 parser.add_argument("-k", "--options",
                     type=str,
@@ -144,7 +147,7 @@ class text_colors:
 
 # Launch a process in a separate thread and crash if it fails.
 class CheckProcess(threading.Thread):
-    def __init__(self, cmd):
+    def __init__(self, cmd, env=None):
         threading.Thread.__init__(self)
         self.cmd = cmd
         if args.server_only:
@@ -154,14 +157,16 @@ class CheckProcess(threading.Thread):
         if shutil.which(self.cmd[0]) is None:
             print(f'{text_colors.ERROR}' + self.cmd[0] + ' does not exist!' + f'{text_colors.ENDCOL}')
         else:
-            self.proc = subprocess.Popen(self.cmd)
+            self.proc = subprocess.Popen(self.cmd, env=env)
+        self._did_terminate = False
 
     def run(self):
         self.proc.wait()
-        if self.proc.returncode != 0:
+        if not self._did_terminate and self.proc.returncode != 0:
             os._exit(self.proc.returncode)
 
     def terminate(self):
+        self._did_terminate = True
         self.proc.terminate()
 
 def get_local_ip():
@@ -239,7 +244,8 @@ def start_websocket_bridge(tcp_server_address):
             try:
                 async for message in websocket:
                     if isinstance(message, str):
-                        message = message.encode()
+                        # Text sent to our websocket is always base64.
+                        message = base64.b64decode(message)
                     writer.write(message)
                     await writer.drain()
             except:
@@ -275,7 +281,7 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     daemon_threads = True
 
     def __init__(self, handler):
-        if args.remote:
+        if args.remote or args.target == "webserver":
             # The device needs to connect over the network instead of localhost.
             self.host = get_local_ip()
         else:
@@ -471,7 +477,7 @@ class TestHarnessRequestHandler(socketserver.BaseRequestHandler):
 
 
 # If we aren't deploying to the host, update the given command to deploy on its intended target.
-def update_cmd_to_deploy_on_target(cmd, test_harness_server):
+def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
     dirname = os.path.dirname(cmd[0])
     toolname = os.path.basename(cmd[0])
 
@@ -516,13 +522,14 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server):
         return ["xcrun", "simctl", "launch", args.ios_udid, "rive.app.golden-test-app"] + cmd
 
     elif args.target.startswith("web"):
+        env["RIVE_HTTP_SERVER_DIR"] = str(pathlib.Path(args.builddir).resolve())
         if args.target == "webbrowser":
             client = ["python3", "-m", "webbrowser", "-t"]
         elif args.target == "webandroid":
             client = ["adb", "shell", "am", "start", "-a",
                       "android.intent.action.VIEW", "-d"]
         elif args.webclient:
-            client = [args.webclient]
+            client = shlex.split(args.webclient)
         else:
             client = ["echo", "\nPlease navigate your web client to:\n\n"]
         return client + ["http://%s:%u/%s.html#%s" % (*test_harness_server.http_address,
@@ -536,6 +543,7 @@ def launch_gms(test_harness_server):
     tool = os.path.join(args.builddir, "gms")
     if platform.system() == "Windows" and args.target  == 'host':
         tool = tool + ".exe"
+    env = os.environ.copy()
     cmd = [tool,
            "--backend", args.backend,
            "--test_harness", "%s:%u" % test_harness_server.server_address]
@@ -546,9 +554,9 @@ def launch_gms(test_harness_server):
         cmd = cmd + ["--match", args.match];
     if args.verbose:
         cmd = cmd + ["--verbose"];
-    cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server)
+    cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
-    procs = [CheckProcess(cmd) for i in range(0, args.jobs_per_tool)]
+    procs = [CheckProcess(cmd, env) for i in range(0, args.jobs_per_tool)]
     for proc in procs:
         proc.start()
 
@@ -559,6 +567,7 @@ def launch_goldens(test_harness_server):
     tool = os.path.join(args.builddir, "goldens")
     if platform.system() == "Windows" and args.target  == 'host':
         tool = tool + ".exe"
+    env = os.environ.copy()
     if args.verbose:
         print("[server] Using '" + tool + "'", flush=True)
 
@@ -582,9 +591,9 @@ def launch_goldens(test_harness_server):
                      "-p%i" % args.png_threads];
     if args.verbose:
         cmd = cmd + ["--verbose"];
-    cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server)
+    cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
-    procs = [CheckProcess(cmd) for i in range(0, args.jobs_per_tool)]
+    procs = [CheckProcess(cmd, env) for i in range(0, args.jobs_per_tool)]
     for proc in procs:
         proc.start()
 
@@ -598,15 +607,16 @@ def launch_player(test_harness_server):
     tool = os.path.join(args.builddir, "player")
     if platform.system() == "Windows" and args.target  == 'host':
         tool = tool + ".exe"
+    env = os.environ.copy()
     cmd = [tool,
            "--test_harness", "%s:%u" % test_harness_server.server_address,
            "--backend", args.backend]
     if args.options:
         cmd += ["--options", args.options]
-    cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server)
+    cmd = update_cmd_to_deploy_on_target(cmd, test_harness_server, env)
 
     rivsqueue.put(args.src)
-    player = CheckProcess(cmd)
+    player = CheckProcess(cmd, env)
     player.start()
     return player
 
@@ -671,7 +681,7 @@ def main():
     elif args.target.startswith("web"):
         args.jobs_per_tool = 1
         if args.builddir == None:
-            args.builddir = f"out/wasm_debug"
+            args.builddir = "out/wasm_debug"
         if args.backend == None:
             args.backend = "gl"
     else:
@@ -825,6 +835,11 @@ def main():
                                                   args.target.startswith("web"))
         procs = []
 
+        # Serially deployed targets are finished once they've sent their
+        # shutdown event. If, 1.5 seconds after sending the shutdown event, they
+        # still haven't exited, terminate them.
+        SERIAL_TARGET_TERMINATE_SECONDS = 1.5
+
         def keyboard_interrupt_handler(signal, frame):
             if os.name == "nt":
                 print("^C", end="", flush=True)
@@ -842,7 +857,10 @@ def main():
                 procs = launch_gms(test_harness_server)
                 assert(len(procs) == 1)
                 test_harness_server.wait_for_shutdown_event()
-                procs[0].join()
+                procs[0].join(SERIAL_TARGET_TERMINATE_SECONDS)
+                if procs[0].is_alive():
+                    procs[0].terminate()
+                    procs[0].join()
                 procs = []
                 if args.target == "android":
                     force_stop_android_tests_apk()
@@ -857,7 +875,10 @@ def main():
                 procs = launch_goldens(test_harness_server)
                 assert(len(procs) == 1)
                 test_harness_server.wait_for_shutdown_event()
-                procs[0].join()
+                procs[0].join(SERIAL_TARGET_TERMINATE_SECONDS)
+                if procs[0].is_alive():
+                    procs[0].terminate()
+                    procs[0].join()
                 procs = []
                 if args.target == "android":
                     force_stop_android_tests_apk()
@@ -869,7 +890,10 @@ def main():
             test_harness_server.reset_shutdown_event()
             procs = [launch_player(test_harness_server)]
             test_harness_server.wait_for_shutdown_event()
-            procs[0].join()
+            procs[0].join(SERIAL_TARGET_TERMINATE_SECONDS)
+            if procs[0].is_alive():
+                procs[0].terminate()
+                procs[0].join()
             procs = []
 
         # Wait for the processes to finish (if not in serial_deploy mode).

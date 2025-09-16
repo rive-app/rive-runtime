@@ -168,18 +168,78 @@ std::unique_ptr<TCPClient> TCPClient::clone() const
     return clone;
 }
 
+#ifdef __EMSCRIPTEN__
+// Derived from:
+// https://stackoverflow.com/questions/180947/base64-decode-snippet-in-c
+static std::string base64_encode(const char* buf, unsigned int bufLen)
+{
+    static const std::string base64_chars =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
+
+    std::string ret;
+    ret.reserve(((4u * bufLen / 3u) + 3u) & ~3u);
+    int i = 0;
+    int j = 0;
+    char char_array_3[3];
+    char char_array_4[4];
+
+    while (bufLen--)
+    {
+        char_array_3[i++] = *(buf++);
+        if (i == 3)
+        {
+            char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+            char_array_4[1] = ((char_array_3[0] & 0x03) << 4) +
+                              ((char_array_3[1] & 0xf0) >> 4);
+            char_array_4[2] = ((char_array_3[1] & 0x0f) << 2) +
+                              ((char_array_3[2] & 0xc0) >> 6);
+            char_array_4[3] = char_array_3[2] & 0x3f;
+
+            for (i = 0; (i < 4); i++)
+                ret += base64_chars[char_array_4[i]];
+            i = 0;
+        }
+    }
+
+    if (i)
+    {
+        for (j = i; j < 3; j++)
+            char_array_3[j] = '\0';
+
+        char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
+        char_array_4[1] =
+            ((char_array_3[0] & 0x03) << 4) + ((char_array_3[1] & 0xf0) >> 4);
+        char_array_4[2] =
+            ((char_array_3[1] & 0x0f) << 2) + ((char_array_3[2] & 0xc0) >> 6);
+        char_array_4[3] = char_array_3[2] & 0x3f;
+
+        for (j = 0; (j < i + 1); j++)
+            ret += base64_chars[char_array_4[j]];
+
+        while ((i++ < 3))
+            ret += '=';
+    }
+
+    return ret;
+}
+
 uint32_t TCPClient::send(const char* data, uint32_t size)
 {
-#ifdef __EMSCRIPTEN__
-    if (emscripten_websocket_send_binary(m_sockfd,
-                                         const_cast<char*>(data),
-                                         size) < 0)
+    // Base64-encode our data and send it as text, in order to avoid landmines
+    // in binary data transmission.
+    std::string base64 = base64_encode(data, size);
+    if (emscripten_websocket_send_utf8_text(m_sockfd, base64.c_str()) < 0)
     {
-        fprintf(stderr, "Failed to send %u bytes to websocket.\n", size);
+        fprintf(stderr,
+                "Failed to send %zu base64 chars to websocket.\n",
+                base64.size());
         abort();
     }
     return size;
+}
 #else
+uint32_t TCPClient::send(const char* data, uint32_t size)
+{
     size_t sent = ::send(m_sockfd, data, size, 0);
     if (sent == -1)
     {
@@ -187,8 +247,8 @@ uint32_t TCPClient::send(const char* data, uint32_t size)
         abort();
     }
     return rive::math::lossless_numeric_cast<uint32_t>(sent);
-#endif
 }
+#endif
 
 uint32_t TCPClient::recv(char* buff, uint32_t size)
 {

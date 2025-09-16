@@ -428,7 +428,7 @@ int main(int argc, const char* argv[])
                               // we're done.
     TestHarness::Instance().shutdown();
 #ifdef __EMSCRIPTEN__
-    EM_ASM(window.close(););
+    EM_ASM(if (window && window.close) window.close(););
 #endif
     return 0;
 }

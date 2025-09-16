@@ -317,6 +317,8 @@ function rive_tools_project(name, project_kind)
             '-sASYNCIFY_IMPORTS="[async_sleep, wasi_snapshot_preview1.fd_write]"',
             '-sASYNCIFY_STACK_SIZE=16384',
             '-sGL_TESTING',
+            '-sALLOW_MEMORY_GROWTH',
+            '-sINITIAL_HEAP=134217728',
             '-lwebsocket.js',
         })
     end

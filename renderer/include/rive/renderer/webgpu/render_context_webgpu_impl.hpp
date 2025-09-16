@@ -14,7 +14,6 @@
 
 namespace rive::gpu
 {
-class RenderContextWebGPUVulkan;
 class RenderTargetWebGPU;
 
 class RenderContextWebGPUImpl : public RenderContextHelperImpl
@@ -67,6 +66,11 @@ public:
 
     virtual ~RenderContextWebGPUImpl();
 
+    wgpu::Device device() const { return m_device; }
+    wgpu::Queue queue() const { return m_queue; }
+    const ContextOptions& contextOptions() const { return m_contextOptions; }
+    const Capabilities& capabilities() const { return m_capabilities; }
+
     virtual rcp<RenderTargetWebGPU> makeRenderTarget(wgpu::TextureFormat,
                                                      uint32_t width,
                                                      uint32_t height);
@@ -98,8 +102,6 @@ private:
                                               wgpu::LoadOp,
                                               const wgpu::Color& clearColor);
 
-    wgpu::Device device() const { return m_device; }
-    const ContextOptions& contextOptions() const { return m_contextOptions; }
     wgpu::FrontFace frontFaceForRenderTargetDraws() const
     {
         return m_contextOptions.invertRenderTargetFrontFace
@@ -211,15 +213,15 @@ public:
 
     void setTargetTextureView(wgpu::TextureView);
 
-private:
-    friend class RenderContextWebGPUImpl;
-    friend class RenderContextWebGPUVulkan;
-
+protected:
     RenderTargetWebGPU(wgpu::Device device,
                        const RenderContextWebGPUImpl::Capabilities&,
                        wgpu::TextureFormat framebufferFormat,
                        uint32_t width,
                        uint32_t height);
+
+private:
+    friend class RenderContextWebGPUImpl;
 
     const wgpu::TextureFormat m_framebufferFormat;
 
@@ -231,5 +233,21 @@ private:
     wgpu::TextureView m_coverageTextureView;
     wgpu::TextureView m_clipTextureView;
     wgpu::TextureView m_scratchColorTextureView;
+};
+
+class TextureWebGPUImpl : public Texture
+{
+public:
+    TextureWebGPUImpl(uint32_t width, uint32_t height, wgpu::Texture texture) :
+        Texture(width, height),
+        m_texture(std::move(texture)),
+        m_textureView(m_texture.CreateView())
+    {}
+
+    wgpu::TextureView textureView() const { return m_textureView; }
+
+private:
+    wgpu::Texture m_texture;
+    wgpu::TextureView m_textureView;
 };
 } // namespace rive::gpu

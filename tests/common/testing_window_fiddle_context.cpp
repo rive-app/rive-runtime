@@ -266,6 +266,7 @@ public:
 
         switch (backend)
         {
+            case Backend::wgpu:
             case Backend::rhi:
             case Backend::coregraphics:
             case Backend::skia:

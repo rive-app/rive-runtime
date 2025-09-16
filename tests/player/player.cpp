@@ -183,7 +183,7 @@ public:
             TestHarness::Instance().shutdown();
 #ifdef __EMSCRIPTEN__
             emscripten_cancel_main_loop();
-            EM_ASM(window.close(););
+            EM_ASM(if (window && window.close) window.close(););
 #else
             exit(0);
 #endif

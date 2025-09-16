@@ -57,6 +57,7 @@ public:
 
         angle,
         dawn,
+        wgpu,
         rhi,
         coregraphics,
         skia,
@@ -219,6 +220,7 @@ public:
     static TestingWindow* MakeVulkanTexture(const BackendParams&);
     static TestingWindow* MakeAndroidVulkan(const BackendParams&,
                                             void* platformWindow);
+    static TestingWindow* MakeWGPU(const BackendParams&);
     static TestingWindow* MakeSkia();
     static TestingWindow* MakeNULL();
 

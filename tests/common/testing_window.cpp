@@ -37,6 +37,8 @@ const char* TestingWindow::BackendName(Backend backend)
             return "angle";
         case TestingWindow::Backend::dawn:
             return "dawn";
+        case TestingWindow::Backend::wgpu:
+            return "wgpu";
         case Backend::rhi:
             return "rhi";
         case TestingWindow::Backend::coregraphics:
@@ -184,6 +186,10 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     {
         return Backend::dawn;
     }
+    if (nameStr == "wgpu")
+    {
+        return Backend::wgpu;
+    }
     if (nameStr == "rhi")
     {
         return Backend::rhi;
@@ -324,6 +330,9 @@ TestingWindow* TestingWindow::Init(Backend backend,
                                                                backendParams,
                                                                visibility,
                                                                platformWindow);
+            break;
+        case Backend::wgpu:
+            s_TestingWindow = TestingWindow::MakeWGPU(backendParams);
             break;
         case Backend::rhi:
             break;

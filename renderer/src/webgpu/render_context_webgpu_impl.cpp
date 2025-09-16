@@ -1655,22 +1655,6 @@ rcp<RenderBuffer> RenderContextWebGPUImpl::makeRenderBuffer(
                                             sizeInBytes);
 }
 
-class TextureWebGPUImpl : public Texture
-{
-public:
-    TextureWebGPUImpl(uint32_t width, uint32_t height, wgpu::Texture texture) :
-        Texture(width, height),
-        m_texture(std::move(texture)),
-        m_textureView(m_texture.CreateView())
-    {}
-
-    wgpu::TextureView textureView() const { return m_textureView; }
-
-private:
-    wgpu::Texture m_texture;
-    wgpu::TextureView m_textureView;
-};
-
 #ifndef RIVE_WAGYU
 // Blits texture-to-texture using a draw command.
 class RenderContextWebGPUImpl::BlitTextureAsDrawPipeline
