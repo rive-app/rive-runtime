@@ -45,7 +45,6 @@ public:
             .enable_extensions(glfwExtensionCount, glfwExtensions)
             .require_api_version(1, options.coreFeaturesOnly ? 0 : 3, 0)
             .set_minimum_instance_version(1, 0, 0);
-        m_instance = VKB_CHECK(instanceBuilder.build());
 #ifdef DEBUG
         instanceBuilder.enable_validation_layers(
             m_options.enableVulkanValidationLayers);
@@ -55,6 +54,7 @@ public:
                 rive_vkb::default_debug_callback);
         }
 #endif
+        m_instance = VKB_CHECK(instanceBuilder.build());
         m_instanceDispatchTable = m_instance.make_table();
 
         VulkanFeatures vulkanFeatures;
