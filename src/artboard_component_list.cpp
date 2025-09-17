@@ -201,9 +201,37 @@ void ArtboardComponentList::linkStateMachineToArtboard(
     }
 }
 
+bool ArtboardComponentList ::listsAreEqual(
+    std::vector<rcp<ViewModelInstanceListItem>>* list,
+    std::vector<rcp<ViewModelInstanceListItem>>* compared)
+{
+    if (!list || !compared)
+    {
+        return false;
+    }
+    if (list->size() != compared->size())
+    {
+        return false;
+    }
+    size_t index = 0;
+    for (auto& item : *list)
+    {
+        if (item != (*compared)[index])
+        {
+            return false;
+        }
+        ++index;
+    }
+    return true;
+}
+
 void ArtboardComponentList::updateList(
     std::vector<rcp<ViewModelInstanceListItem>>* list)
 {
+    if (listsAreEqual(&m_oldItems, list))
+    {
+        return;
+    }
     m_oldItems.clear();
     m_oldItems.assign(m_listItems.begin(), m_listItems.end());
     m_listItems.clear();

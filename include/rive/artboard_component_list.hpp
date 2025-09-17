@@ -162,6 +162,8 @@ private:
                                 rcp<ViewModelInstanceListItem>);
     void clearArtboardOverride(ArtboardInstance*);
     bool m_shouldResetInstances = false;
+    bool listsAreEqual(std::vector<rcp<ViewModelInstanceListItem>>* list,
+                       std::vector<rcp<ViewModelInstanceListItem>>* compared);
 };
 } // namespace rive
 
