@@ -264,6 +264,10 @@ void ScrollConstraint::runPhysics()
                 for (int j = 0; j < count; j++)
                 {
                     auto bounds = c->layoutBoundsForNode(j);
+                    if (isBoundsCollapsed(bounds))
+                    {
+                        continue;
+                    }
                     snappingPoints.push_back(
                         Vec2D(bounds.left(), bounds.top()));
                 }
@@ -547,6 +551,12 @@ float ScrollConstraint::indexAtPosition(Vec2D pos)
         return i;
     }
     return 0;
+}
+
+bool ScrollConstraint::isBoundsCollapsed(AABB bounds)
+{
+    return (constrainsHorizontal() && bounds.width() <= 0) ||
+           (constrainsVertical() && bounds.height() <= 0);
 }
 
 size_t ScrollConstraint::scrollItemCount()

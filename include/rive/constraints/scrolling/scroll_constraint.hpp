@@ -34,6 +34,7 @@ private:
     float indexAtPosition(Vec2D pos);
     float maxOffsetXForPercent();
     float maxOffsetYForPercent();
+    bool isBoundsCollapsed(AABB bounds);
 
 public:
     ~ScrollConstraint();

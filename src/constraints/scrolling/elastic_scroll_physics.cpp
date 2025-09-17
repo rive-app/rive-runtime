@@ -134,7 +134,7 @@ float ElasticScrollPhysicsHelper::advance(float elapsedSeconds)
     auto diff = m_target - m_current;
     if (abs(diff) < 0.1)
     {
-        m_current = m_target;
+        m_current = std::isnan(m_snapTarget) ? m_target : m_snapTarget;
         m_isRunning = false;
     }
     else
@@ -213,5 +213,10 @@ void ElasticScrollPhysicsHelper::run(float acceleration,
             }
         }
         m_speed = -(snapTarget + m_current) * m_friction;
+        m_snapTarget = -snapTarget;
+    }
+    else
+    {
+        m_snapTarget = NAN;
     }
 }

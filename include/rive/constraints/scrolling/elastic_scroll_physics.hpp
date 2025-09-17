@@ -14,6 +14,7 @@ private:
     float m_target = 0;
     float m_current = 0;
     float m_speed = 0;
+    float m_snapTarget = NAN;
     float m_runRangeMin = 0;
     float m_runRangeMax = 0;
     bool m_isRunning = false;
