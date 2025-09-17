@@ -331,14 +331,11 @@ public:
     static constexpr const char* luaName = "Artboard";
     static constexpr bool hasMetatable = true;
 
-    // void draw(lua_State* L);
-    // void advance(lua_State* L);
-
     Artboard* artboard() { return m_artboard.get(); }
     int pushData(lua_State* L);
     int instance(lua_State* L);
 
-    void advance(float seconds);
+    bool advance(float seconds);
 
 private:
     rcp<File> m_file;
