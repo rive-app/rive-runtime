@@ -566,23 +566,23 @@ int main(int argc, const char** argv)
         {
             skia = true;
         }
-        else if (sscanf(argv[i], "-a%i", &animation))
+        else if (sscanf(argv[i], "-a%i", &animation) == 1)
         {
             // Already updated animation.
         }
-        else if (sscanf(argv[i], "-s%i", &stateMachine))
+        else if (sscanf(argv[i], "-s%i", &stateMachine) == 1)
         {
             // Already updated stateMachine.
         }
-        else if (sscanf(argv[i], "-h%i", &horzRepeat))
+        else if (sscanf(argv[i], "-h%i", &horzRepeat) == 1)
         {
             // Already updated horzRepeat.
         }
-        else if (sscanf(argv[i], "-j%i", &downRepeat))
+        else if (sscanf(argv[i], "-j%i", &downRepeat) == 1)
         {
             // Already updated downRepeat.
         }
-        else if (sscanf(argv[i], "-k%i", &upRepeat))
+        else if (sscanf(argv[i], "-k%i", &upRepeat) == 1)
         {
             // Already updated upRepeat.
         }
@@ -598,9 +598,13 @@ int main(int argc, const char** argv)
         {
             forceAtomicMode = true;
         }
-        else if (!strncmp(argv[i], "--msaa", 6))
+        else if (sscanf(argv[i], "--msaa%i", &msaa) == 1)
         {
-            msaa = argv[i][6] - '0';
+            // Already updated msaa
+        }
+        else if (!strcmp(argv[i], "--core"))
+        {
+            options.coreFeaturesOnly = true;
         }
         else if (!strcmp(argv[i], "--validation"))
         {
@@ -609,6 +613,11 @@ int main(int argc, const char** argv)
         else if (!strcmp(argv[i], "--gpu") || !strcmp(argv[i], "-G"))
         {
             options.gpuNameFilter = argv[++i];
+        }
+        else if (!strncmp(argv[i], "--", 2))
+        {
+            fprintf(stderr, "Unknown command-line option %s\n", argv[i]);
+            return 1;
         }
         else
         {
