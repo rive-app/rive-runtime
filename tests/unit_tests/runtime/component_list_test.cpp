@@ -850,3 +850,54 @@ TEST_CASE("Artboard list with follow path constraint distance", "[silver]")
 
     CHECK(silver.matches("component_list_follow_path_distance"));
 }
+
+TEST_CASE("Component List Hit order", "[component_list]")
+{
+    rive::SerializingFactory silver;
+    auto file = ReadRiveFile("assets/component_list_hit_order.riv", &silver);
+
+    auto artboard = file->artboardNamed("MainArtboard");
+    REQUIRE(artboard != nullptr);
+    silver.frameSize(artboard->width(), artboard->height());
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    REQUIRE(vmi != nullptr);
+    REQUIRE(stateMachine != nullptr);
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    REQUIRE(artboard->find<rive::ArtboardComponentList>("MainList") != nullptr);
+
+    silver.addFrame();
+    // Click second item where it overlaps with first item
+    stateMachine->pointerMove(rive::Vec2D(175.0f, 50.0f));
+    stateMachine->pointerDown(rive::Vec2D(175.0f, 50.0f));
+    stateMachine->pointerUp(rive::Vec2D(175.0f, 50.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Click third item where it overlaps with second item
+    stateMachine->pointerMove(rive::Vec2D(325.0f, 50.0f));
+    stateMachine->pointerDown(rive::Vec2D(325.0f, 50.0f));
+    stateMachine->pointerUp(rive::Vec2D(325.0f, 50.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    // Click first item
+    stateMachine->pointerMove(rive::Vec2D(100.0f, 50.0f));
+    stateMachine->pointerDown(rive::Vec2D(100.0f, 50.0f));
+    stateMachine->pointerUp(rive::Vec2D(100.0f, 50.0f));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("component_list_hit_order"));
+}

@@ -1079,7 +1079,7 @@ public:
         {
             return false;
         }
-        for (int i = 0; i < componentList->artboardCount(); i++)
+        for (int i = (int)componentList->artboardCount(); i >= 0; i--)
         {
             Vec2D listPosition;
             if (!componentList->worldToLocal(position, &listPosition, i))
@@ -1107,7 +1107,7 @@ public:
         {
             return hitResult;
         }
-        for (int i = 0; i < componentList->artboardCount(); i++)
+        for (int i = (int)componentList->artboardCount(); i >= 0; i--)
         {
             Vec2D listPosition;
             bool hit = componentList->worldToLocal(position, &listPosition, i);
