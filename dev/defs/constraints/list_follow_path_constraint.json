@@ -1,0 +1,30 @@
+{
+  "name": "ListFollowPathConstraint",
+  "key": {
+    "int": 625,
+    "string": "listfollowpathconstraint"
+  },
+  "extends": "constraints/follow_path_constraint.json",
+  "properties": {
+    "distanceEnd": {
+      "type": "double",
+      "initialValue": "1",
+      "animates": true,
+      "key": {
+        "int": 888,
+        "string": "distanceend"
+      },
+      "bindable": true
+    },
+    "distanceOffset": {
+      "type": "double",
+      "initialValue": "0",
+      "animates": true,
+      "key": {
+        "int": 889,
+        "string": "distanceoffset"
+      },
+      "bindable": true
+    }
+  }
+}

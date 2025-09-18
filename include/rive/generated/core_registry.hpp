@@ -111,6 +111,7 @@
 #include "rive/constraints/draggable_constraint.hpp"
 #include "rive/constraints/follow_path_constraint.hpp"
 #include "rive/constraints/ik_constraint.hpp"
+#include "rive/constraints/list_follow_path_constraint.hpp"
 #include "rive/constraints/rotation_constraint.hpp"
 #include "rive/constraints/scale_constraint.hpp"
 #include "rive/constraints/scrolling/clamped_scroll_physics.hpp"
@@ -377,10 +378,12 @@ public:
                 return new CustomPropertyNumber();
             case DistanceConstraintBase::typeKey:
                 return new DistanceConstraint();
-            case IKConstraintBase::typeKey:
-                return new IKConstraint();
             case FollowPathConstraintBase::typeKey:
                 return new FollowPathConstraint();
+            case ListFollowPathConstraintBase::typeKey:
+                return new ListFollowPathConstraint();
+            case IKConstraintBase::typeKey:
+                return new IKConstraint();
             case TranslationConstraintBase::typeKey:
                 return new TranslationConstraint();
             case ClampedScrollPhysicsBase::typeKey:
@@ -1563,6 +1566,12 @@ public:
                 object->as<ViewModelInstanceBooleanBase>()->propertyValue(
                     value);
                 break;
+            case FollowPathConstraintBase::orientPropertyKey:
+                object->as<FollowPathConstraintBase>()->orient(value);
+                break;
+            case FollowPathConstraintBase::offsetPropertyKey:
+                object->as<FollowPathConstraintBase>()->offset(value);
+                break;
             case TransformComponentConstraintBase::offsetPropertyKey:
                 object->as<TransformComponentConstraintBase>()->offset(value);
                 break;
@@ -1587,12 +1596,6 @@ public:
                 break;
             case IKConstraintBase::invertDirectionPropertyKey:
                 object->as<IKConstraintBase>()->invertDirection(value);
-                break;
-            case FollowPathConstraintBase::orientPropertyKey:
-                object->as<FollowPathConstraintBase>()->orient(value);
-                break;
-            case FollowPathConstraintBase::offsetPropertyKey:
-                object->as<FollowPathConstraintBase>()->offset(value);
                 break;
             case ScrollConstraintBase::snapPropertyKey:
                 object->as<ScrollConstraintBase>()->snap(value);
@@ -1707,6 +1710,16 @@ public:
             case DistanceConstraintBase::distancePropertyKey:
                 object->as<DistanceConstraintBase>()->distance(value);
                 break;
+            case FollowPathConstraintBase::distancePropertyKey:
+                object->as<FollowPathConstraintBase>()->distance(value);
+                break;
+            case ListFollowPathConstraintBase::distanceEndPropertyKey:
+                object->as<ListFollowPathConstraintBase>()->distanceEnd(value);
+                break;
+            case ListFollowPathConstraintBase::distanceOffsetPropertyKey:
+                object->as<ListFollowPathConstraintBase>()->distanceOffset(
+                    value);
+                break;
             case TransformComponentConstraintBase::copyFactorPropertyKey:
                 object->as<TransformComponentConstraintBase>()->copyFactor(
                     value);
@@ -1728,9 +1741,6 @@ public:
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
                 object->as<TransformComponentConstraintYBase>()->maxValueY(
                     value);
-                break;
-            case FollowPathConstraintBase::distancePropertyKey:
-                object->as<FollowPathConstraintBase>()->distance(value);
                 break;
             case ScrollConstraintBase::scrollOffsetXPropertyKey:
                 object->as<ScrollConstraintBase>()->scrollOffsetX(value);
@@ -2938,6 +2948,10 @@ public:
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
                 return object->as<ViewModelInstanceBooleanBase>()
                     ->propertyValue();
+            case FollowPathConstraintBase::orientPropertyKey:
+                return object->as<FollowPathConstraintBase>()->orient();
+            case FollowPathConstraintBase::offsetPropertyKey:
+                return object->as<FollowPathConstraintBase>()->offset();
             case TransformComponentConstraintBase::offsetPropertyKey:
                 return object->as<TransformComponentConstraintBase>()->offset();
             case TransformComponentConstraintBase::doesCopyPropertyKey:
@@ -2956,10 +2970,6 @@ public:
                 return object->as<TransformComponentConstraintYBase>()->maxY();
             case IKConstraintBase::invertDirectionPropertyKey:
                 return object->as<IKConstraintBase>()->invertDirection();
-            case FollowPathConstraintBase::orientPropertyKey:
-                return object->as<FollowPathConstraintBase>()->orient();
-            case FollowPathConstraintBase::offsetPropertyKey:
-                return object->as<FollowPathConstraintBase>()->offset();
             case ScrollConstraintBase::snapPropertyKey:
                 return object->as<ScrollConstraintBase>()->snap();
             case ScrollConstraintBase::virtualizePropertyKey:
@@ -3042,6 +3052,14 @@ public:
                 return object->as<ConstraintBase>()->strength();
             case DistanceConstraintBase::distancePropertyKey:
                 return object->as<DistanceConstraintBase>()->distance();
+            case FollowPathConstraintBase::distancePropertyKey:
+                return object->as<FollowPathConstraintBase>()->distance();
+            case ListFollowPathConstraintBase::distanceEndPropertyKey:
+                return object->as<ListFollowPathConstraintBase>()
+                    ->distanceEnd();
+            case ListFollowPathConstraintBase::distanceOffsetPropertyKey:
+                return object->as<ListFollowPathConstraintBase>()
+                    ->distanceOffset();
             case TransformComponentConstraintBase::copyFactorPropertyKey:
                 return object->as<TransformComponentConstraintBase>()
                     ->copyFactor();
@@ -3060,8 +3078,6 @@ public:
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
                 return object->as<TransformComponentConstraintYBase>()
                     ->maxValueY();
-            case FollowPathConstraintBase::distancePropertyKey:
-                return object->as<FollowPathConstraintBase>()->distance();
             case ScrollConstraintBase::scrollOffsetXPropertyKey:
                 return object->as<ScrollConstraintBase>()->scrollOffsetX();
             case ScrollConstraintBase::scrollOffsetYPropertyKey:
@@ -3724,6 +3740,8 @@ public:
             case BindablePropertyColorBase::propertyValuePropertyKey:
                 return CoreColorType::id;
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
+            case FollowPathConstraintBase::orientPropertyKey:
+            case FollowPathConstraintBase::offsetPropertyKey:
             case TransformComponentConstraintBase::offsetPropertyKey:
             case TransformComponentConstraintBase::doesCopyPropertyKey:
             case TransformComponentConstraintBase::minPropertyKey:
@@ -3732,8 +3750,6 @@ public:
             case TransformComponentConstraintYBase::minYPropertyKey:
             case TransformComponentConstraintYBase::maxYPropertyKey:
             case IKConstraintBase::invertDirectionPropertyKey:
-            case FollowPathConstraintBase::orientPropertyKey:
-            case FollowPathConstraintBase::offsetPropertyKey:
             case ScrollConstraintBase::snapPropertyKey:
             case ScrollConstraintBase::virtualizePropertyKey:
             case ScrollConstraintBase::infinitePropertyKey:
@@ -3770,13 +3786,15 @@ public:
             case CustomPropertyNumberBase::propertyValuePropertyKey:
             case ConstraintBase::strengthPropertyKey:
             case DistanceConstraintBase::distancePropertyKey:
+            case FollowPathConstraintBase::distancePropertyKey:
+            case ListFollowPathConstraintBase::distanceEndPropertyKey:
+            case ListFollowPathConstraintBase::distanceOffsetPropertyKey:
             case TransformComponentConstraintBase::copyFactorPropertyKey:
             case TransformComponentConstraintBase::minValuePropertyKey:
             case TransformComponentConstraintBase::maxValuePropertyKey:
             case TransformComponentConstraintYBase::copyFactorYPropertyKey:
             case TransformComponentConstraintYBase::minValueYPropertyKey:
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
-            case FollowPathConstraintBase::distancePropertyKey:
             case ScrollConstraintBase::scrollOffsetXPropertyKey:
             case ScrollConstraintBase::scrollOffsetYPropertyKey:
             case ScrollConstraintBase::scrollPercentXPropertyKey:
@@ -4486,6 +4504,10 @@ public:
                 return object->is<BindablePropertyColorBase>();
             case ViewModelInstanceBooleanBase::propertyValuePropertyKey:
                 return object->is<ViewModelInstanceBooleanBase>();
+            case FollowPathConstraintBase::orientPropertyKey:
+                return object->is<FollowPathConstraintBase>();
+            case FollowPathConstraintBase::offsetPropertyKey:
+                return object->is<FollowPathConstraintBase>();
             case TransformComponentConstraintBase::offsetPropertyKey:
                 return object->is<TransformComponentConstraintBase>();
             case TransformComponentConstraintBase::doesCopyPropertyKey:
@@ -4502,10 +4524,6 @@ public:
                 return object->is<TransformComponentConstraintYBase>();
             case IKConstraintBase::invertDirectionPropertyKey:
                 return object->is<IKConstraintBase>();
-            case FollowPathConstraintBase::orientPropertyKey:
-                return object->is<FollowPathConstraintBase>();
-            case FollowPathConstraintBase::offsetPropertyKey:
-                return object->is<FollowPathConstraintBase>();
             case ScrollConstraintBase::snapPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::virtualizePropertyKey:
@@ -4576,6 +4594,12 @@ public:
                 return object->is<ConstraintBase>();
             case DistanceConstraintBase::distancePropertyKey:
                 return object->is<DistanceConstraintBase>();
+            case FollowPathConstraintBase::distancePropertyKey:
+                return object->is<FollowPathConstraintBase>();
+            case ListFollowPathConstraintBase::distanceEndPropertyKey:
+                return object->is<ListFollowPathConstraintBase>();
+            case ListFollowPathConstraintBase::distanceOffsetPropertyKey:
+                return object->is<ListFollowPathConstraintBase>();
             case TransformComponentConstraintBase::copyFactorPropertyKey:
                 return object->is<TransformComponentConstraintBase>();
             case TransformComponentConstraintBase::minValuePropertyKey:
@@ -4588,8 +4612,6 @@ public:
                 return object->is<TransformComponentConstraintYBase>();
             case TransformComponentConstraintYBase::maxValueYPropertyKey:
                 return object->is<TransformComponentConstraintYBase>();
-            case FollowPathConstraintBase::distancePropertyKey:
-                return object->is<FollowPathConstraintBase>();
             case ScrollConstraintBase::scrollOffsetXPropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::scrollOffsetYPropertyKey:

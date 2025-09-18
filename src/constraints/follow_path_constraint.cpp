@@ -22,14 +22,25 @@ const Mat2D FollowPathConstraint::targetTransform(float distanceOffset) const
 {
     if (m_Target->is<Shape>() || m_Target->is<Path>())
     {
-        auto result = m_pathMeasure.atPercentage(distance() * distanceOffset);
+        auto result = m_pathMeasure.atPercentage(distanceOffset);
         Vec2D position = result.pos;
         Mat2D transformB = Mat2D(m_Target->worldTransform());
 
         if (orient())
         {
-            transformB =
-                Mat2D::fromRotation(std::atan2(result.tan.y, result.tan.x));
+            auto componentsB = transformB.decompose();
+            auto tangentRotation = std::atan2(result.tan.y, result.tan.x);
+            float angleB = std::fmod(componentsB.rotation(), math::PI * 2);
+            float diff = tangentRotation - angleB;
+            if (diff > math::PI)
+            {
+                diff -= math::PI * 2;
+            }
+            else if (diff < -math::PI)
+            {
+                diff += math::PI * 2;
+            }
+            transformB = Mat2D::fromRotation(angleB + diff * strength());
         }
         Vec2D offsetPosition = Vec2D();
         if (offset())
@@ -52,50 +63,13 @@ const Mat2D FollowPathConstraint::targetTransform(float distanceOffset) const
     }
 }
 
-void FollowPathConstraint::constrainList(ConstrainableList* list)
-{
-    auto listTransform = list->listTransform();
-    std::vector<Mat2D*> transforms;
-    list->listItemTransforms(transforms);
-    auto count = transforms.size();
-    float offsetDistance = count <= 1 ? 0 : 1 / ((float)count - 1);
-    for (int i = 0; i < count; i++)
-    {
-        auto transform = transforms[i];
-        auto transformComponents =
-            constrainAtOffset(*transform, listTransform, i * offsetDistance);
-        auto transformB = Mat2D::compose(transformComponents);
-        transform->xx(transformB.xx());
-        transform->xy(transformB.xy());
-        transform->yx(transformB.yx());
-        transform->yy(transformB.yy());
-        transform->tx(transformB.tx());
-        transform->ty(transformB.ty());
-    }
-}
-
-TransformComponents FollowPathConstraint::constrainAtOffset(
-    const Mat2D& componentTransform,
-    const Mat2D& parentTransform,
-    float componentOffset)
-{
-    if (m_Target == nullptr || m_Target->isCollapsed())
-    {
-        return TransformComponents();
-    }
-    Mat2D transformB(targetTransform(componentOffset));
-    auto transformComponents =
-        constrainHelper(componentTransform, transformB, parentTransform);
-    return transformComponents;
-}
-
 void FollowPathConstraint::constrain(TransformComponent* component)
 {
     if (m_Target == nullptr || m_Target->isCollapsed())
     {
         return;
     }
-    Mat2D transformB(targetTransform());
+    Mat2D transformB(targetTransform(distance()));
     const Mat2D& targetParentWorld = getParentWorld(*component);
     auto transformComponents = constrainHelper(component->worldTransform(),
                                                transformB,
@@ -211,9 +185,4 @@ void FollowPathConstraint::buildDependencies()
     }
     // The constrained component should update after follow path
     addDependent(parent());
-    auto constrainableList = ConstrainableList::from(parent());
-    if (constrainableList != nullptr)
-    {
-        constrainableList->addListConstraint(this);
-    }
 }
