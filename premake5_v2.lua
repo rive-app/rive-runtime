@@ -74,7 +74,7 @@ do
     filter('options:not for_unreal')
     do
         cppdialect('C++11')
-        fatalwarnings { "All" }
+        fatalwarnings({ 'All' })
     end
 
     filter({ 'options:for_unreal' })
@@ -112,9 +112,9 @@ do
         architecture('x64')
         defines({ '_USE_MATH_DEFINES' })
     end
-    
+
     if _OPTIONS['with_optick'] then
-      includedirs({optick .. '/src' })
+        includedirs({ optick .. '/src' })
     end
 
     filter('system:macosx or system:ios')
