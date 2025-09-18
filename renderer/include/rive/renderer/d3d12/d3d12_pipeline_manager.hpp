@@ -5,6 +5,9 @@
 #include "rive/renderer/d3d12/d3d12.hpp"
 #include "rive/renderer/d3d/pipeline_manager.hpp"
 #include "rive/renderer/gpu.hpp"
+
+namespace rive::gpu
+{
 // holds all shader stuff including inputlayouts, source blobs and pipeline
 // states
 struct D3D12DrawVertexShader
@@ -14,12 +17,16 @@ struct D3D12DrawVertexShader
     ComPtr<ID3DBlob> m_shader;
 };
 
-namespace rive::gpu
+struct D3D12DrawPixelShader
 {
+    ComPtr<ID3DBlob> m_shader;
+};
+
 struct D3D12Pipeline
 {
     using VertexShaderType = D3D12DrawVertexShader;
-    using PixelShaderType = ComPtr<ID3DBlob>;
+    using FragmentShaderType = D3D12DrawPixelShader;
+    using PipelineProps = gpu::StandardPipelineProps;
 
     ComPtr<ID3D12PipelineState> m_d3dPipelineState;
 
@@ -73,19 +80,16 @@ public:
     }
 
 protected:
-    virtual D3D12DrawVertexShader compileVertexShaderBlobToFinalType(
-        DrawType,
-        ComPtr<ID3DBlob>) override;
+    virtual std::unique_ptr<D3D12DrawVertexShader>
+        compileVertexShaderBlobToFinalType(DrawType, ComPtr<ID3DBlob>) override;
 
-    virtual ComPtr<ID3DBlob> compilePixelShaderBlobToFinalType(
-        ComPtr<ID3DBlob> blob) override
-    {
-        return blob;
-    }
+    virtual std::unique_ptr<D3D12DrawPixelShader>
+    compilePixelShaderBlobToFinalType(ComPtr<ID3DBlob> blob) override;
 
-    virtual D3D12Pipeline linkPipeline(const PipelineProps&,
-                                       D3D12DrawVertexShader&&,
-                                       ComPtr<ID3DBlob>&&) override;
+    virtual std::unique_ptr<D3D12Pipeline> linkPipeline(
+        const PipelineProps&,
+        const D3D12DrawVertexShader&,
+        const D3D12DrawPixelShader&) override;
 
 private:
     // maybe these could be moved to D3DPipelineState but to do so

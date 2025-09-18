@@ -19,6 +19,11 @@ class GPUResource : public RefCnt<GPUResource>
 public:
     virtual ~GPUResource();
 
+    // GPUResource classes should default to non-copyable (they're typically
+    // going to contain handles that would get double-freed if copied)
+    GPUResource(const GPUResource&) = delete;
+    GPUResource& operator=(const GPUResource&) = delete;
+
     GPUResourceManager* manager() const { return m_manager.get(); }
 
 protected:

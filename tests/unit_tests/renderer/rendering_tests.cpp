@@ -11,76 +11,85 @@ namespace rive::gpu
 {
 // Factories to manually instantiate real rendering contexts, for unit testing
 // the full pipeline.
-static std::function<std::unique_ptr<TestingWindow>()>
-    testingWindowFactories[] = {
-        []() {
-            return rivestd::adopt_unique(TestingWindow::MakeVulkanTexture({
+struct FactoryWrapper
+{
+    const char* displayName;
+    std::function<std::unique_ptr<TestingWindow>()> function;
+};
+static FactoryWrapper testingWindowFactories[] = {
+    {"Vulkan",
+     []() {
+         return rivestd::adopt_unique(TestingWindow::MakeVulkanTexture({
 #ifdef RIVE_ANDROID
-                // Android doesn't support validation layers for command line
-                // apps like the unit_tests.
-                .disableValidationLayers = true,
-                // The OnePlus7 doesn't support debug callbacks either for
-                // command line apps.
-                .disableDebugCallbacks = true,
+             // Android doesn't support validation layers for command line
+             // apps like the unit_tests.
+             .disableValidationLayers = true,
+             // The OnePlus7 doesn't support debug callbacks either for
+             // command line apps.
+             .disableDebugCallbacks = true,
 #endif
-            }));
-        },
+         }));
+     }},
 #if defined(__APPLE__)
-        []() {
-            return rivestd::adopt_unique(TestingWindow::MakeMetalTexture());
-        },
+    {"Metal",
+     []() { return rivestd::adopt_unique(TestingWindow::MakeMetalTexture()); }},
 #endif
 #ifdef _WIN32
-        []() {
-            return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
-                TestingWindow::Backend::d3d12,
-                {},
-                TestingWindow::Visibility::headless,
-                nullptr));
-        },
-        []() {
-            return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
-                TestingWindow::Backend::d3d12,
-                {.atomic = true},
-                TestingWindow::Visibility::headless,
-                nullptr));
-        },
-        []() {
-            return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
-                TestingWindow::Backend::d3d,
-                {},
-                TestingWindow::Visibility::headless,
-                nullptr));
-        },
-        []() {
-            return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
-                TestingWindow::Backend::d3d,
-                {.atomic = true},
-                TestingWindow::Visibility::headless,
-                nullptr));
-        },
-        []() {
-            return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
-                TestingWindow::Backend::gl,
-                {},
-                TestingWindow::Visibility::headless,
-                nullptr));
-        },
-        []() {
-            return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
-                TestingWindow::Backend::gl,
-                {.atomic = true},
-                TestingWindow::Visibility::headless,
-                nullptr));
-        },
+    {"D3D12",
+     []() {
+         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+             TestingWindow::Backend::d3d12,
+             {},
+             TestingWindow::Visibility::headless,
+             nullptr));
+     }},
+    {"D3D12 atomic",
+     []() {
+         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+             TestingWindow::Backend::d3d12,
+             {.atomic = true},
+             TestingWindow::Visibility::headless,
+             nullptr));
+     }},
+    {"D3D11",
+     []() {
+         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+             TestingWindow::Backend::d3d,
+             {},
+             TestingWindow::Visibility::headless,
+             nullptr));
+     }},
+    {"D3D11 atomic",
+     []() {
+         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+             TestingWindow::Backend::d3d,
+             {.atomic = true},
+             TestingWindow::Visibility::headless,
+             nullptr));
+     }},
+    {"OpenGL",
+     []() {
+         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+             TestingWindow::Backend::gl,
+             {},
+             TestingWindow::Visibility::headless,
+             nullptr));
+     }},
+    {"OpenGL atomic",
+     []() {
+         return rivestd::adopt_unique(TestingWindow::MakeFiddleContext(
+             TestingWindow::Backend::gl,
+             {.atomic = true},
+             TestingWindow::Visibility::headless,
+             nullptr));
+     }},
 #endif
 #ifdef RIVE_ANDROID
-        []() {
-            return rivestd::adopt_unique(
-                TestingWindow::MakeEGL(TestingWindow::Backend::gl,
-                                       {},
-                                       nullptr));
-        },
+    {"EGL (GL backend)",
+     []() {
+         return rivestd::adopt_unique(
+             TestingWindow::MakeEGL(TestingWindow::Backend::gl, {}, nullptr));
+     }},
 #endif
 };
 
@@ -96,9 +105,27 @@ TEST_CASE("synthesizedFailureType", "[rendering]")
                              SynthesizedFailureType::ubershaderLoad,
                              SynthesizedFailureType::pipelineCreation})
     {
-        for (auto testingWindowFactory : testingWindowFactories)
+        switch (failureType)
         {
-            std::unique_ptr<TestingWindow> window = testingWindowFactory();
+            case SynthesizedFailureType::shaderCompilation:
+                printf("testing synthesied shader compilation failure\n");
+                break;
+            case SynthesizedFailureType::ubershaderLoad:
+                printf("testing synthesized ubershader load failure\n");
+                break;
+            case SynthesizedFailureType::pipelineCreation:
+                printf("testing synthesized pipeline creation failure\n");
+                break;
+            case SynthesizedFailureType::none:
+                // android compiler complains (rightly) if this case isn't here.
+                RIVE_UNREACHABLE();
+        }
+        for (auto& testingWindowFactory : testingWindowFactories)
+        {
+            printf("  testing with '%s' factory\n",
+                   testingWindowFactory.displayName);
+            std::unique_ptr<TestingWindow> window =
+                testingWindowFactory.function();
             if (window == nullptr)
             {
                 continue;
@@ -145,6 +172,23 @@ TEST_CASE("synthesizedFailureType", "[rendering]")
                 //
                 // 2) The uber shader also synthesizes a compilation faiulre, so
                 //    only the clear color makes it through.
+                if (pixels != drawColors && pixels != clearColors)
+                {
+                    printf("Expected {%02x, %02x, %02x, %02x} or {%02x, %02x, "
+                           "%02x, %02x}, got {%02x, %02x, %02x, %02x}",
+                           drawColors[0],
+                           drawColors[1],
+                           drawColors[2],
+                           drawColors[3],
+                           clearColors[0],
+                           clearColors[1],
+                           clearColors[2],
+                           clearColors[3],
+                           pixels[0],
+                           pixels[1],
+                           pixels[2],
+                           pixels[3]);
+                }
                 CHECK((pixels == drawColors || pixels == clearColors));
             }
         }

@@ -112,6 +112,9 @@ class BufferPool : public GPUResourcePool
 public:
     BufferPool(rcp<VulkanContext>, VkBufferUsageFlags, VkDeviceSize size = 0);
 
+    BufferPool(const BufferPool&) = delete;
+    BufferPool& operator=(const BufferPool&) = delete;
+
     VkDeviceSize size() const { return m_targetSize; }
     void setTargetSize(VkDeviceSize size);
 

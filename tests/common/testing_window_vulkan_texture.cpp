@@ -57,7 +57,8 @@ public:
             m_device.physical_device,
             m_device,
             vulkanFeatures,
-            m_instance.fp_vkGetInstanceProcAddr);
+            m_instance.fp_vkGetInstanceProcAddr,
+            ShaderCompilationMode::alwaysSynchronous);
     }
 
     ~TestingWindowVulkanTexture()

@@ -10,7 +10,6 @@
 #include <condition_variable>
 #include <map>
 #include <mutex>
-#include <optional>
 #include <queue>
 #include <thread>
 #include <type_traits>
@@ -31,30 +30,38 @@ enum class PipelineStatus
     errored,
 };
 
+struct StandardPipelineProps
+{
+    DrawType drawType;
+    ShaderFeatures shaderFeatures;
+    InterlockMode interlockMode;
+    ShaderMiscFlags shaderMiscFlags;
+#ifdef WITH_RIVE_TOOLS
+    SynthesizedFailureType synthesizedFailureType =
+        SynthesizedFailureType::none;
+#endif
+
+    uint32_t createKey() const
+    {
+        return gpu::ShaderUniqueKey(drawType,
+                                    shaderFeatures,
+                                    interlockMode,
+                                    shaderMiscFlags);
+    }
+};
+
 // Helper class to manage asynchronous creation of a pipeline (i.e. a
 //  combination of a vertex/pixel shader)
 template <typename PipelineType> class AsyncPipelineManager
 {
 public:
-    struct PipelineProps
-    {
-        rive::gpu::DrawType drawType;
-        rive::gpu::ShaderFeatures shaderFeatures;
-        rive::gpu::InterlockMode interlockMode;
-        rive::gpu::ShaderMiscFlags shaderMiscFlags;
-#ifdef WITH_RIVE_TOOLS
-        rive::gpu::SynthesizedFailureType synthesizedFailureType =
-            rive::gpu::SynthesizedFailureType::none;
-#endif
-    };
+    using PipelineProps = typename PipelineType::PipelineProps;
+    using VertexShaderType = typename PipelineType::VertexShaderType;
+    using FragmentShaderType = typename PipelineType::FragmentShaderType;
 
-    // If PipelineType is movable we'll prefer storing it in an
-    //  std::optional instead of a unique_ptr to avoid a heap allocation.
-    using PipelineContainerType =
-        std::conditional_t<std::is_move_constructible_v<PipelineType> &&
-                               std::is_move_assignable_v<PipelineType>,
-                           std::optional<PipelineType>,
-                           std::unique_ptr<PipelineType>>;
+    // The pipeline key might be 32- or 64-bit depending on renderer, so detect
+    // which it is.
+    using PipelineKey = decltype(std::declval<PipelineProps>().createKey());
 
     AsyncPipelineManager(ShaderCompilationMode mode) : m_mode(mode) {}
 
@@ -106,10 +113,7 @@ public:
                 break;
         }
 
-        uint32_t key = gpu::ShaderUniqueKey(props.drawType,
-                                            props.shaderFeatures,
-                                            props.interlockMode,
-                                            props.shaderMiscFlags);
+        PipelineKey key = props.createKey();
 
         auto iter = m_pipelines.find(key);
 
@@ -162,6 +166,12 @@ public:
                 if (props.shaderFeatures == ubershaderFeatures)
                 {
                     // Ubershader creation failed
+#ifdef WITH_RIVE_TOOLS
+                    assert(props.synthesizedFailureType !=
+                           SynthesizedFailureType::none);
+#else
+                    assert(false && "Ubershader creation failed");
+#endif
                     return nullptr;
                 }
 
@@ -222,24 +232,92 @@ public:
         // version (with all functionality enabled). This will create
         // synchronously so we're guaranteed to have a valid return from this
         // call.
-        // NOTE: intentionally not passing along synthesizedFailureType
-        //  here because we don't pay attention to it for ubershaders anyway
-        return tryGetPipeline({props.drawType,
-                               ubershaderFeatures,
-                               props.interlockMode,
-                               props.shaderMiscFlags},
-                              platformFeatures);
+        assert(props.shaderFeatures != ubershaderFeatures);
+        auto ubershaderProps = props;
+        ubershaderProps.shaderFeatures = ubershaderFeatures;
+        return tryGetPipeline(ubershaderProps, platformFeatures);
+    }
+
+    const VertexShaderType& getVertexShaderSynchronous(
+        DrawType drawType,
+        ShaderFeatures shaderFeatures,
+        InterlockMode interlockMode)
+    {
+        // Remove any non-vertex-shader features before doing the key
+        shaderFeatures &= kVertexShaderFeaturesMask;
+
+        return getSharedObjectSynchronous(
+            gpu::ShaderUniqueKey(drawType,
+                                 shaderFeatures,
+                                 interlockMode,
+                                 ShaderMiscFlags::none),
+            m_vertexShaderMap,
+            [&]() {
+                return createVertexShader(drawType,
+                                          shaderFeatures,
+                                          interlockMode);
+            });
+    }
+
+    const FragmentShaderType& getFragmentShaderSynchronous(
+        DrawType drawType,
+        ShaderFeatures shaderFeatures,
+        InterlockMode interlockMode,
+        ShaderMiscFlags miscFlags)
+    {
+        return getSharedObjectSynchronous(gpu::ShaderUniqueKey(drawType,
+                                                               shaderFeatures,
+                                                               interlockMode,
+                                                               miscFlags),
+                                          m_fragmentShaderMap,
+                                          [&]() {
+                                              return createFragmentShader(
+                                                  drawType,
+                                                  shaderFeatures,
+                                                  interlockMode,
+                                                  miscFlags);
+                                          });
+    }
+
+    void clearCache()
+    {
+        std::unique_lock lock{m_mutex};
+
+        // Start by clearing the job queue (There's no reset or clear on
+        // std::queue so we have to pop manually). Doing it this way instead of
+        // doing "m_jobQueue = {}" to keep the internal buffer intact and avoid
+        // some heap allocations the next time we start queueing jobs again
+        while (!m_jobQueue.empty())
+        {
+            m_jobQueue.pop();
+        }
+
+        // Now wait for the background thread(s) to finish any work they are
+        // actively doing.
+        while (m_activePipelineCreationCount > 0)
+        {
+            m_jobCompleteCV.wait(lock);
+        }
+
+        // Clear all of the rest of our cached everything - we'll start over.
+        m_completedJobs.clear();
+        m_vertexShaderMap.clear();
+        m_fragmentShaderMap.clear();
+        m_pipelines.clear();
+        clearCacheInternal();
     }
 
 protected:
-    void clearCacheDoNotCallWithThreadedShaderLoading()
-    {
-        // If we want to handle this with threaded shaders there's more work
-        //  involved, but this was only needed for GL at the moment.
-        assert(!m_jobThread.joinable());
+    virtual std::unique_ptr<VertexShaderType> createVertexShader(
+        DrawType,
+        ShaderFeatures,
+        InterlockMode) = 0;
 
-        m_pipelines.clear();
-    }
+    virtual std::unique_ptr<FragmentShaderType> createFragmentShader(
+        DrawType,
+        ShaderFeatures,
+        InterlockMode,
+        ShaderMiscFlags) = 0;
 
     // This function is called to create a pipeline when we don't have one
     //  with its key already. It can be called in either "sync" or "async" mode.
@@ -253,9 +331,10 @@ protected:
     //    drawType (as it is required immediately), or when the background job
     //    thread wants to create a shader (so the implementation of sync mode
     //    needs to be thread-safe when using the target API in that case)
-    virtual PipelineContainerType createPipeline(PipelineCreateType,
-                                                 uint32_t key,
-                                                 const PipelineProps&) = 0;
+    virtual std::unique_ptr<PipelineType> createPipeline(
+        PipelineCreateType,
+        PipelineKey key,
+        const PipelineProps&) = 0;
 
     // For renderers like GL that have a polling/step-based async setup,
     //  override this function to return whether or not the pipeline is
@@ -269,9 +348,13 @@ protected:
         return false; // do nothing by default
     }
 
+    // If renderers have extra state, this is where they can clear it while
+    // within the safety of the mutex lock
+    virtual void clearCacheInternal() {}
+
     // Called by the render context to use the background threading model to
     //  create pipeline
-    void queueBackgroundJob(uint32_t key, const PipelineProps& props)
+    void queueBackgroundJob(PipelineKey key, const PipelineProps& props)
     {
         // start the job thread if we haven't already
         if (!m_jobThread.joinable())
@@ -300,17 +383,64 @@ protected:
         }
     }
 
+    template <typename KeyType, typename SharedObject, typename CreateFunc>
+    SharedObject& getSharedObjectSynchronous(
+        KeyType key,
+        std::unordered_map<uint32_t, std::unique_ptr<SharedObject>>& map,
+        CreateFunc&& createFunc)
+    {
+        // See if the object exists already first
+        {
+            std::unique_lock lock{m_mutex};
+
+            auto iter = map.find(key);
+            if (iter != map.end())
+            {
+                while (iter->second == nullptr)
+                {
+                    // This is either a synchronous object request and an
+                    // asynchronous build is running it *or* it's on an async
+                    // thread and another thread is running it - either way we
+                    // need to wait for the thread making this object to finish
+                    // (so we only build it once)
+                    m_sharedObjectReadyCV.wait(lock);
+                }
+
+                return *iter->second;
+            }
+
+            // Insert an empty entry into the object map so the other threads
+            // don't try to double-up on creation of this object
+            map.try_emplace(key);
+        }
+
+        // Now that we're outside of the lock, ask the renderer context to
+        // create the object
+        auto object = createFunc();
+
+        {
+            std::unique_lock lock{m_mutex};
+
+            auto iter = map.find(key);
+            assert(iter != map.end());
+            assert(iter->second == nullptr);
+            iter->second = std::move(object);
+            m_sharedObjectReadyCV.notify_all();
+            return *iter->second;
+        }
+    }
+
 private:
     struct JobParams
     {
         PipelineProps props;
-        uint32_t key;
+        PipelineKey key;
     };
 
     struct CompletedJob
     {
-        uint32_t key;
-        PipelineContainerType program;
+        PipelineKey key;
+        std::unique_ptr<PipelineType> program;
     };
 
     bool popCompletedJob(CompletedJob* jobOut)
@@ -346,6 +476,7 @@ private:
 
                 nextJob = std::move(m_jobQueue.front());
                 m_jobQueue.pop();
+                m_activePipelineCreationCount++;
             }
 
             auto newPipeline = createPipeline(PipelineCreateType::sync,
@@ -358,20 +489,29 @@ private:
                     nextJob.key,
                     std::move(newPipeline),
                 });
+                m_activePipelineCreationCount--;
+                m_jobCompleteCV.notify_all();
             }
         }
     }
 
-    std::map<uint32_t, PipelineContainerType> m_pipelines;
+    std::unordered_map<uint32_t, std::unique_ptr<VertexShaderType>>
+        m_vertexShaderMap;
+    std::unordered_map<uint32_t, std::unique_ptr<FragmentShaderType>>
+        m_fragmentShaderMap;
+    std::unordered_map<PipelineKey, std::unique_ptr<PipelineType>> m_pipelines;
 
     std::queue<JobParams> m_jobQueue;
     std::vector<CompletedJob> m_completedJobs;
 
     bool m_isDone = false;
+    uint32_t m_activePipelineCreationCount = 0;
     const ShaderCompilationMode m_mode = ShaderCompilationMode::standard;
     std::thread m_jobThread;
     std::mutex m_mutex;
     std::condition_variable m_newJobCV;
+    std::condition_variable m_jobCompleteCV;
+    std::condition_variable m_sharedObjectReadyCV;
 };
 
 } // namespace rive::gpu

@@ -249,13 +249,12 @@ bool D3D11PipelineManager::setPipelineState(
 
     m_context->IASetInputLayout(pipeline->m_vertexShader.layout.Get());
     m_context->VSSetShader(pipeline->m_vertexShader.shader.Get(), nullptr, 0);
-    m_context->PSSetShader(pipeline->m_pixelShader.Get(), nullptr, 0);
+    m_context->PSSetShader(pipeline->m_pixelShader.shader.Get(), nullptr, 0);
     return true;
 }
 
-D3D11DrawVertexShader D3D11PipelineManager ::compileVertexShaderBlobToFinalType(
-    DrawType drawType,
-    ComPtr<ID3DBlob> blob)
+std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
+    compileVertexShaderBlobToFinalType(DrawType drawType, ComPtr<ID3DBlob> blob)
 {
     D3D11_INPUT_ELEMENT_DESC layoutDesc[2];
     uint32_t vertexAttribCount;
@@ -333,40 +332,40 @@ D3D11DrawVertexShader D3D11PipelineManager ::compileVertexShaderBlobToFinalType(
             RIVE_UNREACHABLE();
     }
 
-    D3D11DrawVertexShader result;
+    auto result = std::make_unique<D3D11DrawVertexShader>();
 
     VERIFY_OK(device()->CreateInputLayout(layoutDesc,
                                           vertexAttribCount,
                                           blob->GetBufferPointer(),
                                           blob->GetBufferSize(),
-                                          &result.layout));
+                                          &result->layout));
     VERIFY_OK(device()->CreateVertexShader(blob->GetBufferPointer(),
                                            blob->GetBufferSize(),
                                            nullptr,
-                                           &result.shader));
+                                           &result->shader));
     return result;
 }
 
-ComPtr<ID3D11PixelShader> D3D11PipelineManager ::
+std::unique_ptr<D3D11DrawPixelShader> D3D11PipelineManager ::
     compilePixelShaderBlobToFinalType(ComPtr<ID3DBlob> blob)
 {
-    ComPtr<ID3D11PixelShader> pixelShaderResult;
+    auto result = std::make_unique<D3D11DrawPixelShader>();
 
     VERIFY_OK(device()->CreatePixelShader(blob->GetBufferPointer(),
                                           blob->GetBufferSize(),
                                           nullptr,
-                                          &pixelShaderResult));
+                                          &result->shader));
 
-    return pixelShaderResult;
+    return result;
 }
 
-D3D11DrawPipeline D3D11PipelineManager::linkPipeline(
+std::unique_ptr<D3D11DrawPipeline> D3D11PipelineManager::linkPipeline(
     const PipelineProps& props,
-    D3D11DrawVertexShader&& vs,
-    ComPtr<ID3D11PixelShader>&& ps)
+    const D3D11DrawVertexShader& vs,
+    const D3D11DrawPixelShader& ps)
 {
     // For D3D11 this just puts the vs and ps into a single structure together.
-    D3D11DrawPipeline pipeline;
+    auto pipeline = std::make_unique<D3D11DrawPipeline>();
 #ifdef WITH_RIVE_TOOLS
     if (props.synthesizedFailureType ==
             SynthesizedFailureType::pipelineCreation ||
@@ -380,8 +379,8 @@ D3D11DrawPipeline D3D11PipelineManager::linkPipeline(
     std::ignore = props;
 #endif
 
-    pipeline.m_vertexShader = std::move(vs);
-    pipeline.m_pixelShader = std::move(ps);
+    pipeline->m_vertexShader = vs;
+    pipeline->m_pixelShader = ps;
     return pipeline;
 }
 

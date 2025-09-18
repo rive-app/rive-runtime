@@ -4,7 +4,6 @@
 #include "rive/renderer/async_pipeline_manager.hpp"
 #include "rive/renderer/d3d/d3d.hpp"
 #include "rive/renderer/gpu.hpp"
-#include "rive/renderer/vertex_shader_manager.hpp"
 
 #include <string>
 #include <unordered_map>
@@ -30,7 +29,7 @@ class D3DPipelineManager : public AsyncPipelineManager<PipelineType>
 
 public:
     using VertexShaderType = typename PipelineType::VertexShaderType;
-    using PixelShaderType = typename PipelineType::PixelShaderType;
+    using FragmentShaderType = typename PipelineType::FragmentShaderType;
 
     const D3DCapabilities d3dCapabilities() const { return m_d3dCapabilities; }
     DeviceType* device() const { return m_device.Get(); }
@@ -41,7 +40,6 @@ public:
                        const char* vertexTarget,
                        const char* pixelTarget) :
         Super(shaderCompilationMode),
-        m_vsManager(this),
         m_device(device),
         m_d3dCapabilities(capabilities),
         m_vertexTarget(vertexTarget),
@@ -52,16 +50,17 @@ public:
 protected:
     using PipelineProps = typename Super::PipelineProps;
 
-    virtual PixelShaderType compilePixelShaderBlobToFinalType(
-        ComPtr<ID3DBlob> blob) = 0;
+    virtual std::unique_ptr<FragmentShaderType>
+    compilePixelShaderBlobToFinalType(ComPtr<ID3DBlob> blob) = 0;
 
-    virtual VertexShaderType compileVertexShaderBlobToFinalType(
-        DrawType drawType,
-        ComPtr<ID3DBlob> blob) = 0;
+    virtual std::unique_ptr<VertexShaderType>
+    compileVertexShaderBlobToFinalType(DrawType drawType,
+                                       ComPtr<ID3DBlob> blob) = 0;
 
-    virtual PipelineType linkPipeline(const PipelineProps& props,
-                                      VertexShaderType&& vs,
-                                      PixelShaderType&& ps) = 0;
+    virtual std::unique_ptr<PipelineType> linkPipeline(
+        const PipelineProps& props,
+        const VertexShaderType& vs,
+        const FragmentShaderType& ps) = 0;
 
     virtual PipelineStatus getPipelineStatus(
         const PipelineType& pipeline) const override final
@@ -73,7 +72,38 @@ protected:
     }
 
 private:
-    virtual std::optional<PipelineType> createPipeline(
+    virtual std::unique_ptr<VertexShaderType> createVertexShader(
+        DrawType drawType,
+        ShaderFeatures shaderFeatures,
+        InterlockMode interlockMode) override
+    {
+        auto blob = d3d_utils::compile_shader_to_blob(drawType,
+                                                      shaderFeatures,
+                                                      interlockMode,
+                                                      ShaderMiscFlags::none,
+                                                      m_d3dCapabilities,
+                                                      m_vertexTarget);
+
+        return compileVertexShaderBlobToFinalType(drawType, blob.Get());
+    }
+
+    virtual std::unique_ptr<FragmentShaderType> createFragmentShader(
+        DrawType drawType,
+        ShaderFeatures shaderFeatures,
+        InterlockMode interlockMode,
+        ShaderMiscFlags miscFlags) override
+    {
+        auto blob = d3d_utils::compile_shader_to_blob(drawType,
+                                                      shaderFeatures,
+                                                      interlockMode,
+                                                      miscFlags,
+                                                      m_d3dCapabilities,
+                                                      m_pixelTarget);
+
+        return compilePixelShaderBlobToFinalType(blob.Get());
+    }
+
+    virtual std::unique_ptr<PipelineType> createPipeline(
         PipelineCreateType createType,
         uint32_t key,
         const PipelineProps& props) override final
@@ -81,55 +111,20 @@ private:
         if (createType == PipelineCreateType::async)
         {
             this->queueBackgroundJob(key, props);
-            return std::nullopt;
+            return nullptr;
         }
 
-        auto vs = m_vsManager.getShader(props.drawType,
-                                        props.shaderFeatures,
-                                        props.interlockMode);
+        auto& vs = this->getVertexShaderSynchronous(props.drawType,
+                                                    props.shaderFeatures,
+                                                    props.interlockMode);
 
-        auto pixelShaderBlob =
-            d3d_utils::compile_shader_to_blob(props.drawType,
-                                              props.shaderFeatures,
-                                              props.interlockMode,
-                                              props.shaderMiscFlags,
-                                              m_d3dCapabilities,
-                                              m_pixelTarget);
+        auto& ps = this->getFragmentShaderSynchronous(props.drawType,
+                                                      props.shaderFeatures,
+                                                      props.interlockMode,
+                                                      props.shaderMiscFlags);
 
-        auto ps = compilePixelShaderBlobToFinalType(pixelShaderBlob);
-
-        return linkPipeline(props, std::move(vs), std::move(ps));
+        return linkPipeline(props, vs, ps);
     }
-
-    class D3DVertexShaderManager : public VertexShaderManager<VertexShaderType>
-    {
-    public:
-        D3DVertexShaderManager(D3DPipelineManager* manager) : m_manager(manager)
-        {}
-
-    protected:
-        virtual VertexShaderType createVertexShader(
-            gpu::DrawType drawType,
-            gpu::ShaderFeatures shaderFeatures,
-            gpu::InterlockMode interlockMode) override
-        {
-            auto blob =
-                d3d_utils::compile_shader_to_blob(drawType,
-                                                  shaderFeatures,
-                                                  interlockMode,
-                                                  gpu::ShaderMiscFlags::none,
-                                                  m_manager->m_d3dCapabilities,
-                                                  m_manager->m_vertexTarget);
-
-            return m_manager->compileVertexShaderBlobToFinalType(drawType,
-                                                                 blob.Get());
-        }
-
-    private:
-        D3DPipelineManager* m_manager;
-    };
-
-    D3DVertexShaderManager m_vsManager;
 
     ComPtr<DeviceType> m_device;
     const D3DCapabilities m_d3dCapabilities;

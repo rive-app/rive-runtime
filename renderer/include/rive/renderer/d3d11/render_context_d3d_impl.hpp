@@ -65,17 +65,24 @@ struct D3D11DrawVertexShader
     ComPtr<ID3D11VertexShader> shader;
 };
 
+struct D3D11DrawPixelShader
+{
+    ComPtr<ID3D11PixelShader> shader;
+};
+
 struct D3D11DrawPipeline
 {
     using VertexShaderType = D3D11DrawVertexShader;
-    using PixelShaderType = ComPtr<ID3D11PixelShader>;
+    using FragmentShaderType = D3D11DrawPixelShader;
+    using PipelineProps = gpu::StandardPipelineProps;
 
     VertexShaderType m_vertexShader;
-    PixelShaderType m_pixelShader;
+    FragmentShaderType m_pixelShader;
 
     bool succeeded() const
     {
-        return m_vertexShader.shader != nullptr && m_pixelShader != nullptr;
+        return m_vertexShader.shader != nullptr &&
+               m_pixelShader.shader != nullptr;
     }
 };
 
@@ -134,17 +141,16 @@ public:
     }
 
 protected:
-    virtual ComPtr<ID3D11PixelShader> compilePixelShaderBlobToFinalType(
-        ComPtr<ID3DBlob>) override;
+    virtual std::unique_ptr<D3D11DrawPixelShader>
+        compilePixelShaderBlobToFinalType(ComPtr<ID3DBlob>) override;
 
-    virtual D3D11DrawVertexShader compileVertexShaderBlobToFinalType(
-        DrawType,
-        ComPtr<ID3DBlob>) override;
+    virtual std::unique_ptr<D3D11DrawVertexShader>
+        compileVertexShaderBlobToFinalType(DrawType, ComPtr<ID3DBlob>) override;
 
-    virtual D3D11DrawPipeline linkPipeline(
+    virtual std::unique_ptr<D3D11DrawPipeline> linkPipeline(
         const PipelineProps&,
-        D3D11DrawVertexShader&&,
-        ComPtr<ID3D11PixelShader>&&) override;
+        const D3D11DrawVertexShader&,
+        const D3D11DrawPixelShader&) override;
 
 private:
     ComPtr<ID3D11DeviceContext> m_context;

@@ -141,7 +141,6 @@ RenderContextGLImpl::RenderContextGLImpl(
     m_capabilities(capabilities),
     m_plsImpl(std::move(plsImpl)),
     m_atlasType(select_atlas_type(m_capabilities)),
-    m_vsManager(this),
     m_pipelineManager(shaderCompilationMode, this),
     m_state(make_rcp<GLState>(m_capabilities))
 
@@ -1224,12 +1223,6 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     SynthesizedFailureType synthesizedFailureType
 #endif
     ) :
-    m_fragmentShader(renderContextImpl,
-                     GL_FRAGMENT_SHADER,
-                     drawType,
-                     shaderFeatures,
-                     interlockMode,
-                     shaderMiscFlags),
     m_state(renderContextImpl->m_state)
 {
 #ifdef WITH_RIVE_TOOLS
@@ -1241,12 +1234,19 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     }
 #endif
 
-    const DrawShader& vertexShader =
-        renderContextImpl->m_vsManager.getShader(drawType,
-                                                 shaderFeatures,
-                                                 interlockMode);
+    m_vertexShader =
+        &renderContextImpl->m_pipelineManager.getVertexShaderSynchronous(
+            drawType,
+            shaderFeatures,
+            interlockMode);
 
-    m_vertexShader = &vertexShader;
+    m_fragmentShader =
+        &renderContextImpl->m_pipelineManager.getFragmentShaderSynchronous(
+            drawType,
+            shaderFeatures,
+            interlockMode,
+            shaderMiscFlags);
+
     m_id = glCreateProgram();
 
     // In async mode, we do not need to wait for the shaders to finish compiling
@@ -1254,7 +1254,7 @@ RenderContextGLImpl::DrawProgram::DrawProgram(
     // everything finishes. If the linking fails, that is where we can check the
     // compilation statuses and display compilation errors as needed.
     glAttachShader(m_id, m_vertexShader->id());
-    glAttachShader(m_id, m_fragmentShader.id());
+    glAttachShader(m_id, m_fragmentShader->id());
     glutils::LinkProgram(m_id, glutils::DebugPrintErrorAndAbort::no);
 
     std::ignore = advanceCreation(renderContextImpl,
@@ -1315,12 +1315,12 @@ bool RenderContextGLImpl::DrawProgram::advanceCreation(
                 glutils::PrintShaderCompilationErrors(m_vertexShader->id());
             }
 
-            glGetShaderiv(m_fragmentShader.id(),
+            glGetShaderiv(m_fragmentShader->id(),
                           GL_COMPILE_STATUS,
                           &compiledSuccessfully);
             if (compiledSuccessfully == GL_FALSE)
             {
-                glutils::PrintShaderCompilationErrors(m_fragmentShader.id());
+                glutils::PrintShaderCompilationErrors(m_fragmentShader->id());
             }
 
             glutils::PrintLinkProgramErrors(m_id);
@@ -1559,7 +1559,6 @@ void RenderContextGLImpl::preBeginFrame(RenderContext* ctx)
         //  differently based on whether KHR_blend_equation_advanced is set.
         //  Thankfully we should only have a couple that we just created for
         //  the test.
-        m_vsManager.clearCache();
         m_pipelineManager.clearCache();
     }
 }
@@ -2921,22 +2920,31 @@ bool RenderContextGLImpl::GLPipelineManager::advanceCreation(
                                          props.shaderMiscFlags);
 }
 
-RenderContextGLImpl::GLVertexShaderManager::GLVertexShaderManager(
-    RenderContextGLImpl* context) :
-    m_context(context)
-{}
-
-RenderContextGLImpl::DrawShader RenderContextGLImpl::GLVertexShaderManager ::
-    createVertexShader(gpu::DrawType drawType,
-                       gpu::ShaderFeatures shaderFeatures,
-                       gpu::InterlockMode interlockMode)
+std::unique_ptr<RenderContextGLImpl::DrawShader> RenderContextGLImpl::
+    GLPipelineManager::createVertexShader(DrawType drawType,
+                                          ShaderFeatures shaderFeatures,
+                                          InterlockMode interlockMode)
 {
-    return DrawShader(m_context,
-                      GL_VERTEX_SHADER,
-                      drawType,
-                      shaderFeatures,
-                      interlockMode,
-                      gpu::ShaderMiscFlags::none);
+    return std::make_unique<DrawShader>(m_context,
+                                        GL_VERTEX_SHADER,
+                                        drawType,
+                                        shaderFeatures,
+                                        interlockMode,
+                                        ShaderMiscFlags::none);
+}
+
+std::unique_ptr<RenderContextGLImpl::DrawShader> RenderContextGLImpl::
+    GLPipelineManager::createFragmentShader(DrawType drawType,
+                                            ShaderFeatures shaderFeatures,
+                                            InterlockMode interlockMode,
+                                            ShaderMiscFlags miscFlags)
+{
+    return std::make_unique<DrawShader>(m_context,
+                                        GL_FRAGMENT_SHADER,
+                                        drawType,
+                                        shaderFeatures,
+                                        interlockMode,
+                                        miscFlags);
 }
 
 std::unique_ptr<RenderContext> RenderContextGLImpl::MakeContext(

@@ -8,7 +8,6 @@
 #include "rive/renderer/gl/gl_state.hpp"
 #include "rive/renderer/gl/gl_utils.hpp"
 #include "rive/renderer/render_context_helper_impl.hpp"
-#include "rive/renderer/vertex_shader_manager.hpp"
 
 namespace rive
 {
@@ -293,7 +292,7 @@ private:
         DrawShader(RenderContextGLImpl* renderContextImpl,
                    GLenum shaderType,
                    gpu::DrawType drawType,
-                   ShaderFeatures shaderFeatures,
+                   gpu::ShaderFeatures shaderFeatures,
                    gpu::InterlockMode interlockMode,
                    gpu::ShaderMiscFlags shaderMiscFlags);
 
@@ -311,6 +310,10 @@ private:
     class DrawProgram
     {
     public:
+        using PipelineProps = StandardPipelineProps;
+        using VertexShaderType = DrawShader;
+        using FragmentShaderType = DrawShader;
+
         DrawProgram(const DrawProgram&) = delete;
         DrawProgram& operator=(const DrawProgram&) = delete;
         DrawProgram(RenderContextGLImpl*,
@@ -342,7 +345,7 @@ private:
                              gpu::ShaderMiscFlags);
 
     private:
-        DrawShader m_fragmentShader;
+        const DrawShader* m_fragmentShader = nullptr;
         const DrawShader* m_vertexShader = nullptr;
         PipelineStatus m_pipelineStatus = PipelineStatus::notReady;
         GLuint m_id = 0;
@@ -361,9 +364,18 @@ private:
     public:
         GLPipelineManager(ShaderCompilationMode, RenderContextGLImpl*);
 
-        void clearCache() { clearCacheDoNotCallWithThreadedShaderLoading(); }
-
     protected:
+        virtual std::unique_ptr<DrawShader> createVertexShader(
+            DrawType,
+            ShaderFeatures,
+            InterlockMode) override;
+
+        virtual std::unique_ptr<DrawShader> createFragmentShader(
+            DrawType,
+            ShaderFeatures,
+            InterlockMode,
+            ShaderMiscFlags) override;
+
         virtual std::unique_ptr<DrawProgram> createPipeline(
             PipelineCreateType createType,
             uint32_t key,
@@ -379,23 +391,6 @@ private:
         RenderContextGLImpl* m_context;
     };
 
-    class GLVertexShaderManager : public VertexShaderManager<DrawShader>
-    {
-    public:
-        GLVertexShaderManager(RenderContextGLImpl* context);
-
-    protected:
-        virtual DrawShader createVertexShader(gpu::DrawType,
-                                              gpu::ShaderFeatures,
-                                              gpu::InterlockMode) override;
-
-    private:
-        RenderContextGLImpl* m_context;
-    };
-
-    // Not all programs have a unique vertex shader, so we cache and reuse them
-    // where possible.
-    GLVertexShaderManager m_vsManager;
     GLPipelineManager m_pipelineManager;
 
     // Vertex/index buffers for drawing paths.

@@ -15,6 +15,9 @@ public:
     Texture(uint32_t width, uint32_t height);
     virtual ~Texture() {}
 
+    Texture(const Texture&) = delete;
+    Texture& operator=(const Texture&) = delete;
+
     uint32_t width() const { return m_width; }
     uint32_t height() const { return m_height; }
 
