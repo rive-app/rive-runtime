@@ -20,14 +20,7 @@ class RenderContextWebGPUImpl : public RenderContextHelperImpl
 {
 public:
     struct ContextOptions
-    {
-        // Invert Y when drawing to client-provided RenderTargets.
-        // TODO: We may need to eventually make this configurable
-        // per-RenderTarget.
-        bool invertRenderTargetY = false;
-        // Invert the front face when drawing to client-provied RenderTargets.
-        bool invertRenderTargetFrontFace = false;
-    };
+    {};
 
     enum class PixelLocalStorageType
     {
@@ -102,12 +95,6 @@ private:
                                               wgpu::LoadOp,
                                               const wgpu::Color& clearColor);
 
-    wgpu::FrontFace frontFaceForRenderTargetDraws() const
-    {
-        return m_contextOptions.invertRenderTargetFrontFace
-                   ? wgpu::FrontFace::CCW
-                   : wgpu::FrontFace::CW;
-    }
     wgpu::PipelineLayout drawPipelineLayout() const
     {
         return m_drawPipelineLayout;
@@ -117,10 +104,6 @@ private:
     void initGPUObjects();
 
     void generateMipmaps(wgpu::Texture);
-
-    // PLS always expects a clockwise front face.
-    constexpr static wgpu::FrontFace kFrontFaceForOffscreenDraws =
-        wgpu::FrontFace::CW;
 
     std::unique_ptr<BufferRing> makeUniformBufferRing(
         size_t capacityInBytes) override;
@@ -211,7 +194,7 @@ public:
         return m_framebufferFormat;
     }
 
-    void setTargetTextureView(wgpu::TextureView);
+    void setTargetTextureView(wgpu::TextureView, wgpu::Texture);
 
 protected:
     RenderTargetWebGPU(wgpu::Device device,
@@ -225,6 +208,7 @@ private:
 
     const wgpu::TextureFormat m_framebufferFormat;
 
+    wgpu::Texture m_targetTexture;
     wgpu::Texture m_coverageTexture;
     wgpu::Texture m_clipTexture;
     wgpu::Texture m_scratchColorTexture;
@@ -244,6 +228,7 @@ public:
         m_textureView(m_texture.CreateView())
     {}
 
+    wgpu::Texture texture() const { return m_texture; }
     wgpu::TextureView textureView() const { return m_textureView; }
 
 private:

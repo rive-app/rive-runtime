@@ -283,7 +283,8 @@ public:
         m_currentSurfaceTextureView =
             wgpuTextureCreateView(m_currentSurfaceTexture.texture,
                                   &textureViewDesc);
-        m_renderTarget->setTargetTextureView(m_currentSurfaceTextureView);
+        m_renderTarget->setTargetTextureView(m_currentSurfaceTextureView,
+                                             m_currentSurfaceTexture.texture);
         m_renderContext->beginFrame(std::move(frameDescriptor));
     }
 

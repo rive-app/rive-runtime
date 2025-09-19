@@ -72,6 +72,9 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
     }
 #endif // ENABLE_CLIP_RECT
     float4 pos = RENDER_TARGET_COORD_TO_CLIP_COORD(vertexPosition);
+#ifdef @POST_INVERT_Y
+    pos.y = -pos.y;
+#endif
 #ifdef @RENDER_MODE_MSAA
     pos.z = normalize_z_index(imageDrawUniforms.zIndex);
 #endif

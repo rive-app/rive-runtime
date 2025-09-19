@@ -130,7 +130,7 @@ private:
                 width,
                 height,
                 renderContextImpl->device().CreateTexture(&textureDesc));
-            setTargetTextureView(texture->textureView());
+            setTargetTextureView(texture->textureView(), texture->texture());
             m_renderImage =
                 rive::make_rcp<rive::RiveRenderImage>(std::move(texture));
         }
@@ -326,14 +326,16 @@ public:
             m_renderTarget =
                 m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
                     ->makeRenderTarget(m_format, m_width, m_height);
-            m_renderTarget->setTargetTextureView(m_overflowTextureView);
+            m_renderTarget->setTargetTextureView(m_overflowTextureView,
+                                                 m_overflowTexture);
         }
         else
         {
             m_renderTarget =
                 m_renderContext->static_impl_cast<RenderContextWebGPUImpl>()
                     ->makeRenderTarget(m_format, surfaceWidth, surfaceHeight);
-            m_renderTarget->setTargetTextureView(m_currentCanvasTextureView);
+            m_renderTarget->setTargetTextureView(m_currentCanvasTextureView,
+                                                 m_currentCanvasTexture);
         }
 
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
@@ -400,16 +402,16 @@ public:
         {
             assert(m_format == wgpu::TextureFormat::RGBA8Unorm ||
                    m_format == wgpu::TextureFormat::BGRA8Unorm);
-            const uint32_t rowBytesInReadBuff =
-                math::round_up_to_multiple_of<256>(m_width * 4);
             bool invertY = false;
 #ifdef RIVE_WAGYU
-            if (impl()->capabilities().backendType ==
-                wgpu::BackendType::OpenGLES)
-            {
-                invertY = true;
-            }
+            invertY =
+                impl()->capabilities().backendType ==
+                    wgpu::BackendType::OpenGLES &&
+                wgpuWagyuTextureIsSwapchain(m_currentCanvasTexture.Get()) &&
+                m_overflowTexture == nullptr;
 #endif
+            const uint32_t rowBytesInReadBuff =
+                math::round_up_to_multiple_of<256>(m_width * 4);
 
             // Create a buffer to receive the pixels.
             if (!m_pixelReadBuff)
@@ -426,8 +428,9 @@ public:
             // Blit the framebuffer into m_pixelReadBuff.
             wgpu::CommandEncoder readEncoder = m_device.CreateCommandEncoder();
             wgpu::TexelCopyTextureInfo srcTexture = {
-                .texture = m_overflowTexture ? m_overflowTexture
-                                             : m_currentCanvasTexture,
+                .texture = m_overflowTexture != nullptr
+                               ? m_overflowTexture
+                               : m_currentCanvasTexture,
                 .origin = {0,
                            invertY ? m_renderTarget->height() - m_height : 0,
                            0},

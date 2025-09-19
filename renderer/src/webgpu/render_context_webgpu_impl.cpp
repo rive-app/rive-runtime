@@ -54,6 +54,8 @@ using TextureDataLayout = TexelCopyBufferLayout;
 }; // namespace wgpu
 #endif
 
+constexpr static auto RIVE_FRONT_FACE = wgpu::FrontFace::CW;
+
 #ifdef RIVE_WAGYU
 #include <webgpu/webgpu_wagyu.h>
 
@@ -199,7 +201,7 @@ public:
             .primitive =
                 {
                     .topology = wgpu::PrimitiveTopology::TriangleStrip,
-                    .frontFace = context->frontFaceForRenderTargetDraws(),
+                    .frontFace = RIVE_FRONT_FACE,
                     .cullMode = wgpu::CullMode::None,
                 },
             .fragment = &fragmentState,
@@ -339,7 +341,7 @@ public:
             .primitive =
                 {
                     .topology = wgpu::PrimitiveTopology::TriangleStrip,
-                    .frontFace = kFrontFaceForOffscreenDraws,
+                    .frontFace = RIVE_FRONT_FACE,
                     .cullMode = wgpu::CullMode::None,
                 },
             .fragment = &fragmentState,
@@ -497,7 +499,7 @@ public:
             .primitive =
                 {
                     .topology = wgpu::PrimitiveTopology::TriangleList,
-                    .frontFace = kFrontFaceForOffscreenDraws,
+                    .frontFace = RIVE_FRONT_FACE,
                     .cullMode = wgpu::CullMode::None,
                 },
             .fragment = &fragmentState,
@@ -677,7 +679,7 @@ public:
             .primitive =
                 {
                     .topology = wgpu::PrimitiveTopology::TriangleList,
-                    .frontFace = kFrontFaceForOffscreenDraws,
+                    .frontFace = RIVE_FRONT_FACE,
                     .cullMode = wgpu::CullMode::Back,
                 },
             .fragment = &fragmentState,
@@ -709,7 +711,8 @@ class RenderContextWebGPUImpl::DrawPipeline
 public:
     DrawPipeline(RenderContextWebGPUImpl* context,
                  DrawType drawType,
-                 gpu::ShaderFeatures shaderFeatures)
+                 gpu::ShaderFeatures shaderFeatures,
+                 bool targetIsGLFBO0)
     {
         wgpu::ShaderModule vertexShader, fragmentShader;
 #ifdef RIVE_WAGYU
@@ -730,7 +733,7 @@ public:
             {
                 language = WGPUWagyuShaderLanguage_GLSLRAW;
                 versionString = "#version 310 es";
-                if (context->m_contextOptions.invertRenderTargetY)
+                if (!targetIsGLFBO0)
                 {
                     addDefine(GLSL_POST_INVERT_Y);
                 }
@@ -1403,10 +1406,6 @@ void RenderContextWebGPUImpl::initGPUObjects()
         glsl << "#define gl_VertexID gl_VertexIndex\n";
         glsl << "#endif\n";
         glsl << "#define " GLSL_ENABLE_CLIPPING " true\n";
-        if (m_contextOptions.invertRenderTargetY)
-        {
-            glsl << "#define " GLSL_POST_INVERT_Y " true\n";
-        }
         BuildLoadStoreEXTGLSL(glsl, LoadStoreActionsEXT::none);
         m_loadStoreEXTVertexShader =
             compile_shader_module_wagyu(m_device,
@@ -1545,8 +1544,10 @@ RenderTargetWebGPU::RenderTargetWebGPU(
     m_scratchColorTextureView = m_scratchColorTexture.CreateView();
 }
 
-void RenderTargetWebGPU::setTargetTextureView(wgpu::TextureView textureView)
+void RenderTargetWebGPU::setTargetTextureView(wgpu::TextureView textureView,
+                                              wgpu::Texture texture)
 {
+    m_targetTexture = texture;
     m_targetTextureView = textureView;
 }
 
@@ -2300,8 +2301,7 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         .primitive =
             {
                 .topology = WGPUPrimitiveTopology_TriangleList,
-                .frontFace =
-                    static_cast<WGPUFrontFace>(frontFaceForRenderTargetDraws()),
+                .frontFace = static_cast<WGPUFrontFace>(RIVE_FRONT_FACE),
                 .cullMode = DrawTypeIsImageDraw(drawType) ? WGPUCullMode_None
                                                           : WGPUCullMode_Back,
             },
@@ -2930,16 +2930,28 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
         }
 
         // Setup the pipeline for this specific drawType and shaderFeatures.
+        bool targetIsGLFBO0 = false;
+#ifdef RIVE_WAGYU
+        if (m_capabilities.backendType == wgpu::BackendType::OpenGLES)
+        {
+            targetIsGLFBO0 = wgpuWagyuTextureIsSwapchain(
+                renderTarget->m_targetTexture.Get());
+        }
+#endif
+        uint32_t webgpuShaderKey =
+            (gpu::ShaderUniqueKey(drawType,
+                                  batch.shaderFeatures,
+                                  gpu::InterlockMode::rasterOrdering,
+                                  gpu::ShaderMiscFlags::none)
+             << 1) |
+            static_cast<uint32_t>(targetIsGLFBO0);
         const DrawPipeline& drawPipeline =
             m_drawPipelines
-                .try_emplace(
-                    gpu::ShaderUniqueKey(drawType,
-                                         batch.shaderFeatures,
-                                         gpu::InterlockMode::rasterOrdering,
-                                         gpu::ShaderMiscFlags::none),
-                    this,
-                    drawType,
-                    batch.shaderFeatures)
+                .try_emplace(webgpuShaderKey,
+                             this,
+                             drawType,
+                             batch.shaderFeatures,
+                             targetIsGLFBO0)
                 .first->second;
         drawPass.SetPipeline(
             drawPipeline.renderPipeline(renderTarget->framebufferFormat()));

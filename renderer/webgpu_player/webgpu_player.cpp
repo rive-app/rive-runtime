@@ -226,7 +226,7 @@ extern "C" EM_BOOL animationFrame(double time, void* userData)
     scene->draw(renderer.get());
     renderer->restore();
 
-    renderTarget->setTargetTextureView(textureView);
+    renderTarget->setTargetTextureView(textureView, texture);
     wgpu::CommandEncoder encoder = device.CreateCommandEncoder();
     renderContext->flush({
         .renderTarget = renderTarget.get(),
