@@ -14,7 +14,8 @@
         "int": 663,
         "string": "instancewidth"
       },
-      "description": "Width value in points or percent of this nested artboard instance."
+      "description": "Width value in points or percent of this nested artboard instance.",
+      "bindable": true
     },
     "instanceHeight": {
       "type": "double",
@@ -24,7 +25,8 @@
         "int": 664,
         "string": "instanceheight"
       },
-      "description": "Height value in points or percent of this nested artboard instance"
+      "description": "Height value in points or percent of this nested artboard instance",
+      "bindable": true
     },
     "instanceWidthUnitsValue": {
       "type": "uint",
@@ -51,7 +53,8 @@
         "int": 667,
         "string": "instancewidthscaletype"
       },
-      "description": "Width scale type fixed | fill"
+      "description": "Width scale type fixed | fill",
+      "bindable": true
     },
     "instanceHeightScaleType": {
       "type": "uint",
@@ -60,7 +63,8 @@
         "int": 668,
         "string": "instanceheightscaletype"
       },
-      "description": "Height scale type fixed | fill"
+      "description": "Height scale type fixed | fill",
+      "bindable": true
     }
   }
 }
