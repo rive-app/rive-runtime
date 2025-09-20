@@ -776,6 +776,7 @@ void Artboard::update(ComponentDirt value)
         syncStyleChangesWithUpdate(cascadeChanged);
     }
 #endif
+    m_hostTransformMarkedDirty = false;
 }
 
 void Artboard::updateDataBinds()
@@ -909,11 +910,33 @@ void Artboard::markLayoutDirty(LayoutComponent* layoutComponent)
     }
 #endif
     m_dirtyLayout.insert(layoutComponent);
-    if (sharesLayoutWithHost() && isInstance())
+    if (isInstance())
     {
-        m_host->markHostingLayoutDirty(this->as<ArtboardInstance>());
+        if (sharesLayoutWithHost())
+        {
+            m_host->markHostingLayoutDirty(this->as<ArtboardInstance>());
+        }
+        else
+        {
+            markHostTransformDirty();
+        }
     }
     addDirt(ComponentDirt::Components);
+}
+
+void Artboard::markHostTransformDirty()
+{
+#ifdef WITH_RIVE_TOOLS
+    if (!m_hostTransformMarkedDirty && m_transformDirtyCallback != nullptr)
+    {
+        m_transformDirtyCallback(callbackUserData);
+    }
+#endif
+    m_hostTransformMarkedDirty = true;
+    if (host())
+    {
+        host()->markHostTransformDirty();
+    }
 }
 
 void Artboard::syncStyleChangesWithUpdate(bool forceUpdate)
@@ -997,6 +1020,7 @@ bool Artboard::updatePass(bool isRoot)
     updateDataBinds();
     bool didUpdate = false;
     syncStyleChangesWithUpdate();
+    m_hostTransformMarkedDirty = false;
 
     if (m_JoysticksApplyBeforeUpdate)
     {
@@ -1257,13 +1281,13 @@ Vec2D Artboard::origin() const
 void Artboard::xChanged()
 {
     Super::xChanged();
-    markLayoutDirty(this);
+    markHostTransformDirty();
 }
 
 void Artboard::yChanged()
 {
     Super::yChanged();
-    markLayoutDirty(this);
+    markHostTransformDirty();
 }
 
 AABB Artboard::bounds() const

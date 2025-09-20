@@ -93,6 +93,7 @@ private:
     float m_originalWidth = 0;
     float m_originalHeight = 0;
     bool m_updatesOwnLayout = true;
+    bool m_hostTransformMarkedDirty = false;
     Artboard* parentArtboard() const;
     ArtboardHost* m_host = nullptr;
     bool sharesLayoutWithHost() const;
@@ -193,6 +194,7 @@ public:
     void updateWorldTransform() override {}
 
     void markLayoutDirty(LayoutComponent* layoutComponent);
+    void markHostTransformDirty();
     void cleanLayout(LayoutComponent* layoutComponent);
 
     LayoutData* takeLayoutData();
@@ -472,6 +474,7 @@ private:
 #ifdef WITH_RIVE_TOOLS
     ArtboardCallback m_layoutChangedCallback = nullptr;
     ArtboardCallback m_layoutDirtyCallback = nullptr;
+    ArtboardCallback m_transformDirtyCallback = nullptr;
     TestBoundsCallback m_testBoundsCallback = nullptr;
     IsAncestorCallback m_isAncestorCallback = nullptr;
     RootTransformCallback m_rootTransformCallback = nullptr;
@@ -485,6 +488,11 @@ public:
     void onLayoutDirty(ArtboardCallback callback)
     {
         m_layoutDirtyCallback = callback;
+        addDirt(ComponentDirt::Components);
+    }
+    void onTransformDirty(ArtboardCallback callback)
+    {
+        m_transformDirtyCallback = callback;
         addDirt(ComponentDirt::Components);
     }
     void onTestBounds(TestBoundsCallback callback)
