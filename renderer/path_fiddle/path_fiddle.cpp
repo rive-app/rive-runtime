@@ -741,6 +741,12 @@ int main(int argc, const char** argv)
             glfwWaitEvents();
         }
     }
+
+    // We need to clear the riv scene (which can be holding on to render
+    // resources) before releasing the fiddle context
+    clear_scenes();
+    rivFile = nullptr;
+
     fiddleContext = nullptr;
     glfwTerminate();
 #endif
