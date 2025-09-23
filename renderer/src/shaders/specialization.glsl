@@ -22,7 +22,17 @@ layout(constant_id = VULKAN_VENDOR_ID_SPECIALIZATION_IDX) const uint
     kVulkanVendorID = 0;
 
 #define @ENABLE_CLIPPING kEnableClipping
+
+// MSAA uses gl_ClipDistance when ENABLE_CLIP_RECT is set, but since Vulkan is
+// using specialization constants (as opposed to compile-time flags), it means
+// that the usage of them is in the compiled shader even if that codepath is
+// not going to be taken, which ends up as a validation failure on systems that
+// do not support that extension. In those cases, we can just not define
+// ENABLE_CLIP_RECT to avoid all of the gl_ClipDistance usages.
+#ifndef @DISABLE_CLIP_RECT_FOR_VULKAN_MSAA
 #define @ENABLE_CLIP_RECT kEnableClipRect
+#endif
+
 #define @ENABLE_ADVANCED_BLEND kEnableAdvancedBlend
 #define @ENABLE_FEATHER kEnableFeather
 #define @ENABLE_EVEN_ODD kEnableEvenOdd

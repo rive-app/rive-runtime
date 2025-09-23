@@ -63,15 +63,18 @@ namespace embedded
 #include "generated/shaders/spirv/draw_msaa_path.vert.h"
 #include "generated/shaders/spirv/draw_msaa_path.frag.h"
 #include "generated/shaders/spirv/draw_msaa_path.fixedcolor_frag.h"
+#include "generated/shaders/spirv/draw_msaa_path.noclipdistance_vert.h"
 #include "generated/shaders/spirv/draw_msaa_stencil.vert.h"
 #include "generated/shaders/spirv/draw_msaa_stencil.frag.h"
 #include "generated/shaders/spirv/draw_msaa_stencil.fixedcolor_frag.h"
 #include "generated/shaders/spirv/draw_msaa_atlas_blit.vert.h"
 #include "generated/shaders/spirv/draw_msaa_atlas_blit.frag.h"
 #include "generated/shaders/spirv/draw_msaa_atlas_blit.fixedcolor_frag.h"
+#include "generated/shaders/spirv/draw_msaa_atlas_blit.noclipdistance_vert.h"
 #include "generated/shaders/spirv/draw_msaa_image_mesh.vert.h"
 #include "generated/shaders/spirv/draw_msaa_image_mesh.frag.h"
 #include "generated/shaders/spirv/draw_msaa_image_mesh.fixedcolor_frag.h"
+#include "generated/shaders/spirv/draw_msaa_image_mesh.noclipdistance_vert.h"
 } // namespace embedded
 
 // Draw setup shaders.
@@ -171,6 +174,8 @@ rive::Span<const uint32_t> draw_clockwise_image_mesh_frag =
 // InterlockMode::msaa shaders.
 rive::Span<const uint32_t> draw_msaa_path_vert =
     rive::make_span(embedded::draw_msaa_path_vert);
+rive::Span<const uint32_t> draw_msaa_path_noclipdistance_vert =
+    rive::make_span(embedded::draw_msaa_path_noclipdistance_vert);
 rive::Span<const uint32_t> draw_msaa_path_frag =
     rive::make_span(embedded::draw_msaa_path_frag);
 rive::Span<const uint32_t> draw_msaa_path_fixedcolor_frag =
@@ -183,12 +188,16 @@ rive::Span<const uint32_t> draw_msaa_stencil_fixedcolor_frag =
     rive::make_span(embedded::draw_msaa_stencil_fixedcolor_frag);
 rive::Span<const uint32_t> draw_msaa_atlas_blit_vert =
     rive::make_span(embedded::draw_msaa_atlas_blit_vert);
+rive::Span<const uint32_t> draw_msaa_atlas_blit_noclipdistance_vert =
+    rive::make_span(embedded::draw_msaa_atlas_blit_noclipdistance_vert);
 rive::Span<const uint32_t> draw_msaa_atlas_blit_frag =
     rive::make_span(embedded::draw_msaa_atlas_blit_frag);
 rive::Span<const uint32_t> draw_msaa_atlas_blit_fixedcolor_frag =
     rive::make_span(embedded::draw_msaa_atlas_blit_fixedcolor_frag);
 rive::Span<const uint32_t> draw_msaa_image_mesh_vert =
     rive::make_span(embedded::draw_msaa_image_mesh_vert);
+rive::Span<const uint32_t> draw_msaa_image_mesh_noclipdistance_vert =
+    rive::make_span(embedded::draw_msaa_image_mesh_noclipdistance_vert);
 rive::Span<const uint32_t> draw_msaa_image_mesh_frag =
     rive::make_span(embedded::draw_msaa_image_mesh_frag);
 rive::Span<const uint32_t> draw_msaa_image_mesh_fixedcolor_frag =
@@ -253,15 +262,18 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::draw_clockwise_image_mesh_frag = readNextBytecodeSpan();
 
     spirv::draw_msaa_path_vert = readNextBytecodeSpan();
+    spirv::draw_msaa_path_noclipdistance_vert = readNextBytecodeSpan();
     spirv::draw_msaa_path_frag = readNextBytecodeSpan();
     spirv::draw_msaa_path_fixedcolor_frag = readNextBytecodeSpan();
     spirv::draw_msaa_stencil_vert = readNextBytecodeSpan();
     spirv::draw_msaa_stencil_frag = readNextBytecodeSpan();
     spirv::draw_msaa_stencil_fixedcolor_frag = readNextBytecodeSpan();
     spirv::draw_msaa_atlas_blit_vert = readNextBytecodeSpan();
+    spirv::draw_msaa_atlas_blit_noclipdistance_vert = readNextBytecodeSpan();
     spirv::draw_msaa_atlas_blit_frag = readNextBytecodeSpan();
     spirv::draw_msaa_atlas_blit_fixedcolor_frag = readNextBytecodeSpan();
     spirv::draw_msaa_image_mesh_vert = readNextBytecodeSpan();
+    spirv::draw_msaa_image_mesh_noclipdistance_vert = readNextBytecodeSpan();
     spirv::draw_msaa_image_mesh_frag = readNextBytecodeSpan();
     spirv::draw_msaa_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
 }

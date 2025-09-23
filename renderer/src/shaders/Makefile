@@ -168,7 +168,10 @@ SPIRV_OUTPUTS_HEADERS := \
     $(OUT)/spirv/draw_interior_triangles.webgpu_frag.h \
     $(OUT)/spirv/draw_atlas_blit.webgpu_vert.h \
     $(OUT)/spirv/draw_atlas_blit.webgpu_frag.h \
-    $(OUT)/spirv/draw_image_mesh.webgpu_frag.h
+    $(OUT)/spirv/draw_image_mesh.webgpu_frag.h \
+	$(OUT)/spirv/draw_msaa_path.noclipdistance_vert.h \
+	$(OUT)/spirv/draw_msaa_image_mesh.noclipdistance_vert.h \
+	$(OUT)/spirv/draw_msaa_atlas_blit.noclipdistance_vert.h \
 
 SPIRV_OUTPUTS_BINARY := \
     $(addprefix $(OUT)/, $(patsubst %.main, %.vert.spirv, $(wildcard spirv/*.main))) \
@@ -184,8 +187,11 @@ SPIRV_OUTPUTS_BINARY := \
     $(OUT)/spirv/draw_msaa_atlas_blit.fixedcolor_frag.spirv \
     $(OUT)/spirv/draw_msaa_image_mesh.fixedcolor_frag.spirv \
     $(OUT)/spirv/draw_msaa_path.fixedcolor_frag.spirv \
-    $(OUT)/spirv/draw_msaa_stencil.fixedcolor_frag.spirv
-
+    $(OUT)/spirv/draw_msaa_stencil.fixedcolor_frag.spirv \
+	$(OUT)/spirv/draw_msaa_path.noclipdistance_vert.spirv \
+	$(OUT)/spirv/draw_msaa_atlas_blit.noclipdistance_vert.spirv \
+    $(OUT)/spirv/draw_msaa_image_mesh.noclipdistance_vert.spirv \
+    
 ## Compile *.main into vertex shaders. First rule generates the binary spirv, then the .h file after.
 $(OUT)/spirv/%.vert.spirv: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
@@ -212,6 +218,15 @@ $(OUT)/spirv/%.fixedcolor_frag.spirv: spirv/%.main $(MINIFY_STAMP)
 $(OUT)/spirv/%.fixedcolor_frag.h: spirv/%.main $(MINIFY_STAMP)
 	@mkdir -p $(OUT)/spirv
 	@glslangValidator -S frag -DTARGET_VULKAN -DFRAGMENT -DPLS_IMPL_SUBPASS_LOAD -DFIXED_FUNCTION_COLOR_OUTPUT -I$(OUT) -V --vn $(subst .main,_fixedcolor_frag,$(notdir $<)) -o $@ $<
+
+## Compile msaa vertex shaders again with DISABLE_CLIP_RECT_FOR_VULKAN_MSAA defined.
+$(OUT)/spirv/%.noclipdistance_vert.spirv: spirv/%.main $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -DDISABLE_CLIP_RECT_FOR_VULKAN_MSAA -I$(OUT) -V -o $@ $<
+
+$(OUT)/spirv/%.noclipdistance_vert.h: spirv/%.main $(MINIFY_STAMP)
+	@mkdir -p $(OUT)/spirv
+	@glslangValidator -S vert -DTARGET_VULKAN -DVERTEX -DDISABLE_CLIP_RECT_FOR_VULKAN_MSAA -I$(OUT) -V --vn $(subst .main,_noclipdistance_vert,$(notdir $<)) -o $@ $<
 
 ## Compile *.vert into vertex shaders.
 $(OUT)/spirv/%.vert.spirv: spirv/%.vert $(MINIFY_STAMP)

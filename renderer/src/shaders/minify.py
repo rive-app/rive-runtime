@@ -35,17 +35,21 @@ parser.add_argument("-o", "--outdir", required=True,
                     help="OUTPUT directory to store the header files")
 parser.add_argument("-H", "--human-readable", action='store_true',
                     help="don't rename or strip out comments or whitespace")
-parser.add_argument("-p", "--ply-path", required=True, type=str, help="path to ply module")
+parser.add_argument("-p", "--ply-path", type=str, help="path to ply module")
 
 args = parser.parse_args()
 
-# Convert posix path to windows 
-convertedPath = args.ply_path
-if sys.platform.startswith('win32') and args.ply_path[:2] == '/c':
-    convertedPath = 'C:\\' + args.ply_path[2:]
-    print('Using ply path:' + convertedPath)
+if args.ply_path:
+    # --ply-path was specified, so add it to the sys path so we can locate the module.
+    # (if it was not specified we'll assume that it's already reachable via the path)
 
-sys.path.append(convertedPath)
+    # Convert posix path to windows 
+    convertedPath = args.ply_path
+    if sys.platform.startswith('win32') and args.ply_path[:2] == '/c':
+        convertedPath = 'C:\\' + args.ply_path[2:]
+        print('Using ply path:' + convertedPath)
+
+    sys.path.append(convertedPath)
 
 import ply.lex as lex
 

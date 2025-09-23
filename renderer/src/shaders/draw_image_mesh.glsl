@@ -17,7 +17,7 @@ NO_PERSPECTIVE VARYING(0, float2, v_texCoord);
 #ifdef @ENABLE_CLIPPING
 @OPTIONALLY_FLAT VARYING(1, half, v_clipID);
 #endif
-#ifdef @ENABLE_CLIP_RECT
+#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
 NO_PERSPECTIVE VARYING(2, float4, v_clipRect);
 #endif
 VARYING_BLOCK_END
@@ -40,7 +40,7 @@ IMAGE_MESH_VERTEX_MAIN(@drawVertexMain,
 #ifdef @ENABLE_CLIPPING
     VARYING_INIT(v_clipID, half);
 #endif
-#ifdef @ENABLE_CLIP_RECT
+#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
     VARYING_INIT(v_clipRect, float4);
 #endif
 

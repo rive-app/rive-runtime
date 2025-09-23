@@ -203,7 +203,10 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::msaaMidpointFanStencilReset:
                 case DrawType::msaaMidpointFanPathsStencil:
                 case DrawType::msaaMidpointFanPathsCover:
-                    vertCode = spirv::draw_msaa_path_vert;
+                    vertCode =
+                        (shaderFeatures & ShaderFeatures::ENABLE_CLIP_RECT)
+                            ? spirv::draw_msaa_path_vert
+                            : spirv::draw_msaa_path_noclipdistance_vert;
                     fragCode = fixedFunctionColorOutput
                                    ? spirv::draw_msaa_path_fixedcolor_frag
                                    : spirv::draw_msaa_path_frag;
@@ -220,14 +223,20 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     break;
 
                 case DrawType::atlasBlit:
-                    vertCode = spirv::draw_msaa_atlas_blit_vert;
+                    vertCode =
+                        (shaderFeatures & ShaderFeatures::ENABLE_CLIP_RECT)
+                            ? spirv::draw_msaa_atlas_blit_vert
+                            : spirv::draw_msaa_atlas_blit_noclipdistance_vert;
                     fragCode = fixedFunctionColorOutput
                                    ? spirv::draw_msaa_atlas_blit_fixedcolor_frag
                                    : spirv::draw_msaa_atlas_blit_frag;
                     break;
 
                 case DrawType::imageMesh:
-                    vertCode = spirv::draw_msaa_image_mesh_vert;
+                    vertCode =
+                        (shaderFeatures & ShaderFeatures::ENABLE_CLIP_RECT)
+                            ? spirv::draw_msaa_image_mesh_vert
+                            : spirv::draw_msaa_image_mesh_noclipdistance_vert;
                     fragCode = fixedFunctionColorOutput
                                    ? spirv::draw_msaa_image_mesh_fixedcolor_frag
                                    : spirv::draw_msaa_image_mesh_frag;

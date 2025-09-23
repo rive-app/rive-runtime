@@ -45,7 +45,7 @@ NO_PERSPECTIVE VARYING(2, half2, v_coverages);
 #ifdef @ENABLE_CLIPPING
 @OPTIONALLY_FLAT VARYING(4, half2, v_clipIDs); // [clipID, outerClipID]
 #endif
-#ifdef @ENABLE_CLIP_RECT
+#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
 NO_PERSPECTIVE VARYING(5, float4, v_clipRect);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
@@ -81,7 +81,7 @@ VERTEX_MAIN(@drawVertexMain, Attrs, attrs, _vertexID, _instanceID)
 #ifdef @ENABLE_CLIPPING
     VARYING_INIT(v_clipIDs, half2);
 #endif
-#ifdef @ENABLE_CLIP_RECT
+#if defined(@ENABLE_CLIP_RECT) && !defined(@RENDER_MODE_MSAA)
     VARYING_INIT(v_clipRect, float4);
 #endif
 #ifdef @ENABLE_ADVANCED_BLEND
