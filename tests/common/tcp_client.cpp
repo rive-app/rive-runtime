@@ -177,7 +177,8 @@ static std::string base64_encode(const char* buf, unsigned int bufLen)
         "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 
     std::string ret;
-    ret.reserve(((4u * bufLen / 3u) + 3u) & ~3u);
+    ret.reserve(((bufLen + 2) / 3) * 4); // 8/6 of the byte length,
+                                         // rounded to a multiple of 4.
     int i = 0;
     int j = 0;
     char char_array_3[3];

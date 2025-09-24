@@ -63,6 +63,16 @@ while :; do
             DEFAULT_BACKEND=gl
             shift
         ;;
+        -wa)
+            TARGET="webbrowserandroid"
+            DEFAULT_BACKEND=gl
+            shift
+        ;;
+        -wsa)
+            TARGET="webserverandroid"
+            DEFAULT_BACKEND=gl
+            shift
+        ;;
         -R)
             REBASELINE=true
             shift

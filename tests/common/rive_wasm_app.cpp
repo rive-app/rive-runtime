@@ -79,7 +79,17 @@ extern "C" void rive_print_message_on_server(const char* msg)
 {
     // stdout and stderr get redirected here and forwarded to the server for
     // logging.
+    static bool nested = false;
+    if (nested)
+    {
+        // Avoid accidental infinite recursion in case anything gets printed
+        // inside printMessageOnServer().
+        // These messages will still make it to the browser's console.
+        return;
+    }
+    nested = true;
     TestHarness::Instance().printMessageOnServer(msg);
+    nested = false;
 }
 
 #endif

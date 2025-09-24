@@ -71,7 +71,7 @@ parser.add_argument("-t", "--target",
                     default="host",
                     choices=["host", "android", "ios", "iossim", "unreal",
                              "unreal_android", "webbrowser", "webserver",
-                             "webandroid"],
+                             "webbrowserandroid", "webserverandroid"],
                     help="which platform to run on")
 parser.add_argument("-a", "--android-arch",
                     default="arm64",
@@ -307,11 +307,6 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     def serve_forever_async(self):
         self.serve_thread = threading.Thread(target=self.serve_forever, daemon=True)
         self.serve_thread.start()
-        if self.host == "localhost" and args.target == "android":
-            # Use adb port reverse-forwarding to expose our RIV server to the device.
-            hostname, port = self.server_address # find out what port we were given
-            subprocess.Popen(["adb", "reverse", "tcp:%s" % port, "tcp:%s" % port],
-                             stdout=subprocess.DEVNULL)
         print("TestHarness server running on %s:%u" % self.server_address, flush=True)
 
         if args.target.startswith("web"):
@@ -325,19 +320,27 @@ class ToolServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
                                                             *self.http_address),
                   flush=True)
 
-            if self.host == "localhost" and args.target == "webandroid":
-                # Use adb port reverse-forwarding to expose our HTTP and
-                # WebSocket servers to the device.
-                http_port, websocket_port = (self.http_address[1],
-                                             self.server_address[1])
+        if self.host == "localhost" and "android" in args.target:
+            # Use ADB reverse port forwarding to make the TestHarness server
+            # accessible from the device.
+            server_port = self.server_address[1]
+            subprocess.Popen(["adb", "reverse",
+                              "tcp:%s" % server_port,
+                              "tcp:%s" % server_port],
+                             stdout=subprocess.DEVNULL)
+            print("ADB reverse port forwarding established on port %u for TestHarness server" % server_port,
+                  flush=True)
+
+            if args.target.startswith("web"):
+                # Use ADB reverse port forwarding to make the HTTP server
+                # accessible from the device.
+                http_port = self.http_address[1]
                 subprocess.Popen(["adb", "reverse",
                                   "tcp:%s" % http_port,
                                   "tcp:%s" % http_port],
                                  stdout=subprocess.DEVNULL)
-                subprocess.Popen(["adb", "reverse",
-                                  "tcp:%s" % websocket_port,
-                                  "tcp:%s" % websocket_port],
-                                 stdout=subprocess.DEVNULL)
+                print("ADB reverse port forwarding established on port %u for HTTP server" % http_port,
+                      flush=True)
 
 
     # Simple utility to wait until a TCP client tells the server it has finished.
@@ -525,7 +528,7 @@ def update_cmd_to_deploy_on_target(cmd, test_harness_server, env):
         env["RIVE_HTTP_SERVER_DIR"] = str(pathlib.Path(args.builddir).resolve())
         if args.target == "webbrowser":
             client = ["python3", "-m", "webbrowser", "-t"]
-        elif args.target == "webandroid":
+        elif args.target == "webbrowserandroid":
             client = ["adb", "shell", "am", "start", "-a",
                       "android.intent.action.VIEW", "-d"]
         elif args.webclient:

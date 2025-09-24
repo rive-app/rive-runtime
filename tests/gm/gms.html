@@ -11,12 +11,14 @@
   var Module = {
     'canvas': document.getElementById("canvas"),
     'print': function(text) {
-        printMessageOnServer(text + '\n');
+        // Log 1st in case we're in a state where printMessageOnServer crashes.
         console.log(text);
+        printMessageOnServer(text + '\n');
     },
     'printErr': function(text) {
-        printMessageOnServer(text + '\n');
+        // Log 1st in case we're in a state where printMessageOnServer crashes.
         console.error(text);
+        printMessageOnServer(text + '\n');
     },
   };
 </script>
