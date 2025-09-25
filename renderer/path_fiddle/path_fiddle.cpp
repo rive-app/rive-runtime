@@ -856,8 +856,12 @@ void riveMainLoop()
         // windows where the native path character type is wchar_t, then
         // reinterpret_cast the char8_t pointer to char so we can append it to
         // our string.
-        // Store the u8string result to extend its lifetime
-        std::string tempRiveDirStr = tempRiveDir.u8string();
+        // Store the u8string result to extend its lifetime (need to
+        // reinterpret_cast through a const char * pointer because u8string
+        // returns a std::u8string in C++20 and newer, but we need it as a
+        // "char" string)
+        std::string tempRiveDirStr =
+            reinterpret_cast<const char*>(tempRiveDir.u8string().c_str());
 
         std::string rebuildCommand = "sh rebuild_shaders.sh " + tempRiveDirStr;
         std::system(rebuildCommand.c_str());
