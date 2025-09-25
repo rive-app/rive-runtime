@@ -24,6 +24,7 @@
 using namespace rivegm;
 
 static bool verbose = false;
+static int loopCount = 1;
 std::vector<std::tuple<std::function<GM*(void)>, std::string>> gmRegistry;
 extern "C" void gms_build_registry()
 {
@@ -164,7 +165,10 @@ static void dump_gm(GM* gm, const std::string& name)
     {
         printf("[gms] Running %s...\n", name.c_str());
     }
-    gm->run(&pixels);
+    for (int l = 0; l < loopCount; l++)
+    {
+        gm->run(&pixels);
+    }
     assert(pixels.size() == height * width * 4);
     if (TestHarness::Instance().initialized())
     {
@@ -348,6 +352,11 @@ int main(int argc, const char* argv[])
         {
             TestHarness::Instance().init(std::filesystem::path(argv[++i]),
                                          pngThreads);
+            continue;
+        }
+        if (is_arg(argv[i], "--loop", "-l"))
+        {
+            loopCount = atoi(argv[++i]);
             continue;
         }
         if (is_arg(argv[i], "--match", "-m"))
