@@ -7,6 +7,7 @@ RIVE_PLS_DIR = path.getabsolute('../renderer')
 dofile(RIVE_RUNTIME_DIR .. '/premake5_v2.lua')
 dofile(RIVE_RUNTIME_DIR .. '/cg_renderer/premake5.lua')
 dofile(RIVE_RUNTIME_DIR .. '/dependencies/premake5_libpng_v2.lua')
+dofile(RIVE_RUNTIME_DIR .. '/dependencies/premake5_glfw_v2.lua')
 dofile(RIVE_RUNTIME_DIR .. '/decoders/premake5_v2.lua')
 dofile(RIVE_PLS_DIR .. '/premake5_pls_renderer.lua')
 
@@ -94,7 +95,7 @@ function rive_tools_project(name, project_kind)
     filter({ 'system:windows or macosx or linux', 'options:not for_unreal'  })
     do
         externalincludedirs({
-            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
+            glfw .. '/include',
         })
     end
 
@@ -214,9 +215,6 @@ function rive_tools_project(name, project_kind)
 
     filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:windows' })
     do
-        libdirs({
-            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
-        })
         links({
             'glfw3',
             'opengl32',
@@ -232,7 +230,6 @@ function rive_tools_project(name, project_kind)
 
     filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:macosx' })
     do
-        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
         links({
             'glfw3',
             'Metal.framework',
@@ -254,7 +251,6 @@ function rive_tools_project(name, project_kind)
 
     filter({ 'kind:ConsoleApp or SharedLib or WindowedApp', 'system:linux' })
     do
-        libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
         links({ 'glfw3', 'm', 'z', 'dl', 'pthread', 'GL' })
     end
 

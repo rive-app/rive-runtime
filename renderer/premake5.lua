@@ -3,6 +3,7 @@ dofile('rive_build_config.lua')
 dofile('premake5_pls_renderer.lua')
 dofile(RIVE_RUNTIME_DIR .. '/premake5_v2.lua')
 dofile(RIVE_RUNTIME_DIR .. '/decoders/premake5_v2.lua')
+dofile(RIVE_RUNTIME_DIR .. '/dependencies/premake5_glfw_v2.lua')
 
 newoption({ trigger = 'with-skia', description = 'use skia' })
 if _OPTIONS['with-skia'] then
@@ -25,7 +26,7 @@ if not _OPTIONS['with-webgpu'] then
         externalincludedirs({
             'glad',
             'glad/include',
-            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
+            glfw .. '/include',
             yoga,
         })
 
@@ -86,9 +87,6 @@ if not _OPTIONS['with-webgpu'] then
         do
             architecture('x64')
             defines({ 'RIVE_WINDOWS', '_CRT_SECURE_NO_WARNINGS' })
-            libdirs({
-                RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
-            })
             links({ 'glfw3', 'opengl32', 'd3d11', 'd3d12', 'dxguid', 'dxgi', 'd3dcompiler'})
         end
         if _OPTIONS['with_optick'] then
@@ -113,13 +111,11 @@ if not _OPTIONS['with-webgpu'] then
                 'QuartzCore.framework',
                 'IOKit.framework',
             })
-            libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
         end
 
         filter('system:linux')
         do
             links({ 'glfw3' })
-            libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
         end
 
         filter('options:with-dawn')
@@ -192,7 +188,7 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
             RIVE_RUNTIME_DIR .. '/include',
             'glad',
             'include',
-            RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw/include',
+            glfw .. '/include',
         })
         externalincludedirs({'glad/include'})
 
@@ -222,9 +218,6 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
         do
             architecture('x64')
             defines({ 'RIVE_WINDOWS', '_CRT_SECURE_NO_WARNINGS' })
-            libdirs({
-                RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src/Release',
-            })
             links({ 'glfw3', 'opengl32', 'd3d11', 'dxgi', 'd3dcompiler' })
         end
 
@@ -239,7 +232,6 @@ if _OPTIONS['with-webgpu'] or _OPTIONS['with-dawn'] then
                 'QuartzCore.framework',
                 'IOKit.framework',
             })
-            libdirs({ RIVE_RUNTIME_DIR .. '/skia/dependencies/glfw_build/src' })
         end
 
         filter('options:with-dawn')

@@ -11,14 +11,6 @@ git clone https://github.com/rive-app/rive-runtime.git
 cd rive-runtime/renderer
 ```
 
-## Build GLFW
-
-```
-pushd ../skia/dependencies
-./make_glfw.sh
-popd
-```
-
 ## Add build_rive.sh to $PATH
 
 ```
