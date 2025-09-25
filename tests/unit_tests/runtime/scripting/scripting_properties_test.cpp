@@ -129,7 +129,7 @@ function changedWithContext(context:Vm1)
     calledChangeWithContext = true
 end
 
-function changed() 
+function changed()
     print("changed")
     calledChange = true
 end
@@ -239,7 +239,7 @@ TEST_CASE("scripted list can be passed to luau", "[scripting_properties]")
 
     ScriptingTest vm(
         R"TEST_SRC(
-function provide(vm) 
+function provide(vm)
         local points = vm.points
         print(`length is {points.length}`)
         for i = 1, points.length, 1 do
@@ -250,7 +250,7 @@ function provide(vm)
         p.y:addListener(p, yChanged);
 end
 
-function iterateAgain(vm) 
+function iterateAgain(vm)
         local points = vm.points
         print(`length is {points.length}`)
         for i = 1, points.length, 1 do
@@ -301,4 +301,122 @@ end
     CHECK(vm.console[10] == "point is 3 18");
     CHECK(vm.console[11] == "point is 4 9");
     CHECK(vm.console[12] == "y changed to: 23");
+}
+
+TEST_CASE("scripted color can be passed to luau", "[scripting_properties]")
+{
+    auto file = ReadRiveFile("assets/scripted_color.riv");
+
+    auto artboard = file->artboard("ColorArtboard")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    artboard->advance(0.0f);
+
+    CHECK(viewModelInstance->viewModel()->name() == "colorsVm");
+    auto property = viewModelInstance->propertyValue("colorProp");
+    REQUIRE(property != nullptr);
+    REQUIRE(property->is<rive::ViewModelInstanceColor>());
+    auto colorProperty = property->as<rive::ViewModelInstanceColor>();
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+function init(vm)
+    print(`color init to {vm.colorProp.value}`)
+    vm.colorProp:addListener(vm.colorProp, colorChanged)
+end
+
+function setRed(vm)
+    vm.colorProp.value = Color.rgb(255, 0, 0)
+    print(`color is {vm.colorProp.value}`)
+end
+
+function colorChanged(color)
+    print(`color changed to {color.value}`)
+end
+
+)TEST_SRC");
+    auto L = vm.state();
+
+    lua_newrive<ScriptedViewModel>(L,
+                                   L,
+                                   ref_rcp(viewModelInstance->viewModel()),
+                                   viewModelInstance);
+    lua_getglobal(L, "init");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(colorProperty->propertyValue() == 0xFF101566);
+
+    colorProperty->propertyValue(0xFF101567);
+
+    lua_getglobal(L, "setRed");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+    CHECK(vm.console.size() == 4);
+    CHECK(vm.console[0] == ("color init to " + std::to_string(0xff101566)));
+    CHECK(vm.console[1] == ("color changed to " + std::to_string(0xff101567)));
+    CHECK(vm.console[2] == ("color changed to " + std::to_string(0xffff0000)));
+    CHECK(vm.console[3] == ("color is " + std::to_string(0xffff0000)));
+}
+
+TEST_CASE("scripted string can be passed to luau", "[scripting_properties]")
+{
+    auto file = ReadRiveFile("assets/scripted_string.riv");
+
+    auto artboard = file->artboard("StringArtboard")->instance();
+    REQUIRE(artboard != nullptr);
+    auto viewModelInstance =
+        file->createDefaultViewModelInstance(artboard.get());
+    REQUIRE(viewModelInstance != nullptr);
+    artboard->bindViewModelInstance(viewModelInstance);
+    artboard->advance(0.0f);
+
+    CHECK(viewModelInstance->viewModel()->name() == "stringVm");
+    auto property = viewModelInstance->propertyValue("stringProp");
+    REQUIRE(property != nullptr);
+    REQUIRE(property->is<rive::ViewModelInstanceString>());
+    auto stringProperty = property->as<rive::ViewModelInstanceString>();
+
+    ScriptingTest vm(
+        R"TEST_SRC(
+function init(vm)
+    print(`string init to {vm.stringProp.value}`)
+    vm.stringProp:addListener(vm.stringProp, stringChanged)
+end
+
+function setHello(vm)
+    vm.stringProp.value = "Hello World"
+    print(`string is {vm.stringProp.value}`)
+end
+
+function stringChanged(str)
+    print(`string changed to {str.value}`)
+end
+
+)TEST_SRC");
+    auto L = vm.state();
+
+    lua_newrive<ScriptedViewModel>(L,
+                                   L,
+                                   ref_rcp(viewModelInstance->viewModel()),
+                                   viewModelInstance);
+    lua_getglobal(L, "init");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+    CHECK(stringProperty->propertyValue() == "yo");
+
+    stringProperty->propertyValue("yoo");
+
+    lua_getglobal(L, "setHello");
+    lua_pushvalue(L, -2);
+    CHECK(lua_pcall(L, 1, 0, 0) == LUA_OK);
+
+    CHECK(vm.console.size() == 4);
+    CHECK(vm.console[0] == "string init to yo");
+    CHECK(vm.console[1] == "string changed to yoo");
+    CHECK(vm.console[2] == "string changed to Hello World");
+    CHECK(vm.console[3] == "string is Hello World");
 }

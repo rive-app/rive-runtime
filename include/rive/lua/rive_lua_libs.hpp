@@ -7,9 +7,11 @@
 #include "rive/renderer.hpp"
 #include "rive/math/vec2d.hpp"
 #include "rive/shapes/paint/image_sampler.hpp"
+#include "rive/viewmodel/viewmodel_instance_color.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
+#include "rive/viewmodel/viewmodel_instance_string.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/viewmodel/viewmodel_instance_list.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
@@ -456,6 +458,30 @@ private:
     std::unordered_map<ViewModelInstance*, int> m_propertyRefs;
 };
 
+class ScriptedPropertyColor : public ScriptedProperty
+{
+public:
+    ScriptedPropertyColor(lua_State* L, rcp<ViewModelInstanceColor> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 16;
+    static constexpr const char* luaName = "PropertyColor";
+    static constexpr bool hasMetatable = true;
+
+    int pushValue();
+    void setValue(unsigned value);
+};
+
+class ScriptedPropertyString : public ScriptedProperty
+{
+public:
+    ScriptedPropertyString(lua_State* L, rcp<ViewModelInstanceString> value);
+    static constexpr uint8_t luaTag = LUA_T_COUNT + 17;
+    static constexpr const char* luaName = "PropertyString";
+    static constexpr bool hasMetatable = true;
+
+    int pushValue();
+    void setValue(const std::string& value);
+};
+
 // Make
 // ScriptedPropertyViewModel
 //      - Nullable ViewModelInstanceValue (ViewModelInstanceViewModel)
@@ -463,18 +489,8 @@ private:
 // ScriptedPropertyEnum
 //      - Nullable ViewModelInstanceValue (ViewModelInstanceEnum)
 //      - Requires DataEnum for expected types
-// ScriptedPropertyNumber
-//      - Nullable ViewModelInstanceValue (ViewModelInstanceNumber)
-// ScriptedPropertyString
-//      - Nullable ViewModelInstanceValue (ViewModelInstanceString)
-// ScriptedPropertyTrigger
-//      - Nullable ViewModelInstanceValue (ViewModelInstanceTrigger)
 // ScriptedPropertyArtboard
 //      - Nullable ViewModelInstanceValue (ViewModelInstanceArtboard)
-// ScriptedPropertyColor
-//      - Nullable ViewModelInstanceValue (ViewModelInstanceColor)
-// ScriptedPropertyList
-//      - Nullable ViewModelInstanceValue (ViewModelInstanceList)
 
 // Make renderer: return lua_newrive<ScriptedRenderer>(L, renderer);
 template <class T, class... Args>
