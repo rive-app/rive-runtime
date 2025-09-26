@@ -799,7 +799,7 @@ public:
 #endif
             return;
         }
-        isHovered = hitTest(position);
+        isHovered = hitType != ListenerType::exit && hitTest(position);
 
         // // iterate all listeners associated with this hit shape
         if (isHovered)
@@ -1025,8 +1025,11 @@ public:
                             nestedStateMachine->dragEnd(nestedPosition,
                                                         timeStamp);
                             break;
-                        case ListenerType::enter:
                         case ListenerType::exit:
+                            hitResult =
+                                nestedStateMachine->pointerExit(nestedPosition);
+                            break;
+                        case ListenerType::enter:
                         case ListenerType::event:
                         case ListenerType::click:
                         case ListenerType::draggableConstraint:
@@ -1042,12 +1045,12 @@ public:
                         case ListenerType::down:
                         case ListenerType::up:
                         case ListenerType::move:
+                        case ListenerType::exit:
                             nestedStateMachine->pointerExit(nestedPosition);
                             break;
                         case ListenerType::dragStart:
                         case ListenerType::dragEnd:
                         case ListenerType::enter:
-                        case ListenerType::exit:
                         case ListenerType::event:
                         case ListenerType::click:
                         case ListenerType::draggableConstraint:
@@ -1135,6 +1138,10 @@ public:
                             itemHitResult =
                                 stateMachine->pointerMove(listPosition);
                             break;
+                        case ListenerType::exit:
+                            itemHitResult =
+                                stateMachine->pointerExit(listPosition);
+                            break;
                         case ListenerType::dragStart:
                             stateMachine->dragStart(listPosition);
                             break;
@@ -1142,7 +1149,6 @@ public:
                             stateMachine->dragEnd(listPosition);
                             break;
                         case ListenerType::enter:
-                        case ListenerType::exit:
                         case ListenerType::event:
                         case ListenerType::click:
                         case ListenerType::draggableConstraint:
@@ -1158,12 +1164,12 @@ public:
                         case ListenerType::down:
                         case ListenerType::up:
                         case ListenerType::move:
+                        case ListenerType::exit:
                             stateMachine->pointerExit(listPosition);
                             break;
                         case ListenerType::dragStart:
                         case ListenerType::dragEnd:
                         case ListenerType::enter:
-                        case ListenerType::exit:
                         case ListenerType::event:
                         case ListenerType::click:
                         case ListenerType::draggableConstraint:

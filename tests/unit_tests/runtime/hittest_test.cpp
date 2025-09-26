@@ -815,3 +815,65 @@ TEST_CASE("Hit testing objects inside shapes", "[silver]")
 
     CHECK(silver.matches("hittest_nested"));
 }
+
+TEST_CASE("Pointer exit works correctly", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/pointer_exit.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Move from [100.0, 250.0] to [400.0, 250.0]
+    // This will hover over two nested artboards and should unhover once an
+    // opaque target is hit
+    float mousePos = 100.0f;
+    for (mousePos = 100.0f; mousePos <= 400; mousePos += 30)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(mousePos, 250.0f));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    // Move from [500.0, 250.0] to [100.0, 250.0]
+    // This movement will start at the opaque target and should only trigger the
+    // hover effect once it reaches the emousePosed sections of the nseted
+    // artboards
+    for (mousePos = 500.0f; mousePos > 100; mousePos -= 30)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(mousePos, 250.0f));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    // Move from [240.0, 390.0] to [240.0, 90.0]
+    // This movement will start at the opaque target and should only trigger the
+    // hover effect once it reaches the emousePosed sections of the nseted
+    // artboards
+    for (mousePos = 500.0f; mousePos > 100; mousePos -= 30)
+    {
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(240.0f, mousePos));
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("pointer_exit"));
+}
