@@ -2024,15 +2024,6 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                 },
                 m_platformFeatures);
 
-        if (drawPipeline == nullptr)
-        {
-            continue;
-        }
-
-        m_vk->CmdBindPipeline(commandBuffer,
-                              VK_PIPELINE_BIND_POINT_GRAPHICS,
-                              *drawPipeline);
-
         if (batch.barriers & BarrierFlags::plsAtomicPreResolve)
         {
             // The atomic resolve gets its barrier via vkCmdNextSubpass().
@@ -2079,6 +2070,15 @@ void RenderContextVulkanImpl::flush(const FlushDescriptor& desc)
                                     .dstAccessMask = VK_ACCESS_SHADER_READ_BIT,
                                 });
         }
+
+        if (drawPipeline == nullptr)
+        {
+            continue;
+        }
+
+        m_vk->CmdBindPipeline(commandBuffer,
+                              VK_PIPELINE_BIND_POINT_GRAPHICS,
+                              *drawPipeline);
 
         switch (drawType)
         {

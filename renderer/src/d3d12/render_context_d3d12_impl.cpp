@@ -1427,15 +1427,6 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             },
             m_platformFeatures);
 
-        if (pipeline == nullptr)
-        {
-            // There was an issue getting either the requested pipeline state or
-            // its ubershader counterpart so we cannot draw anything.
-            continue;
-        }
-
-        cmdList->SetPipelineState(pipeline->m_d3dPipelineState.Get());
-
         // all atomic barriers are the same for dx12
         if (batch.barriers &
             (BarrierFlags::plsAtomicPreResolve | BarrierFlags::plsAtomic))
@@ -1459,6 +1450,15 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                     : 2,
                 barriers);
         }
+
+        if (pipeline == nullptr)
+        {
+            // There was an issue getting either the requested pipeline state or
+            // its ubershader counterpart so we cannot draw anything.
+            continue;
+        }
+
+        cmdList->SetPipelineState(pipeline->m_d3dPipelineState.Get());
 
         if (auto imageTextureD3D12 =
                 static_cast<const TextureD3D12Impl*>(batch.imageTexture))
