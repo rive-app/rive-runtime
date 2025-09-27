@@ -8,16 +8,21 @@
 #include "shaders/constants.glsl"
 #include "pipeline_manager_vulkan.hpp"
 #include "render_pass_vulkan.hpp"
-#include "vulkan_constants.hpp"
 
 namespace rive::gpu
 {
-constexpr static VkAttachmentLoadOp vk_load_op(gpu::LoadAction loadAction)
+constexpr static VkAttachmentLoadOp vk_load_op(gpu::LoadAction loadAction,
+                                               gpu::InterlockMode interlockMode)
 {
     switch (loadAction)
     {
         case gpu::LoadAction::preserveRenderTarget:
-            return VK_ATTACHMENT_LOAD_OP_LOAD;
+            return (interlockMode == gpu::InterlockMode::msaa)
+                       // In MSAA we need to implement the loadOp with a manual
+                       // draw instead, since the MSAA attachment is transient
+                       // and its color is seeded from the actual render target.
+                       ? VK_ATTACHMENT_LOAD_OP_DONT_CARE
+                       : VK_ATTACHMENT_LOAD_OP_LOAD;
         case gpu::LoadAction::clear:
             return VK_ATTACHMENT_LOAD_OP_CLEAR;
         case gpu::LoadAction::dontCare:
@@ -71,34 +76,41 @@ RenderPassVulkan::RenderPassVulkan(
             ? VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL
             : VK_IMAGE_LAYOUT_GENERAL;
     const VkSampleCountFlagBits msaaSampleCount =
-        interlockMode == gpu::InterlockMode::msaa ? VK_SAMPLE_COUNT_4_BIT
-                                                  : VK_SAMPLE_COUNT_1_BIT;
-    StackVector<VkAttachmentDescription, MAX_FRAMEBUFFER_ATTACHMENTS>
-        attachments;
-    StackVector<VkAttachmentReference, MAX_FRAMEBUFFER_ATTACHMENTS>
-        colorAttachments;
-    StackVector<VkAttachmentReference, MAX_FRAMEBUFFER_ATTACHMENTS>
-        plsResolveAttachments;
-    StackVector<VkAttachmentReference, 1> depthStencilAttachment;
-    StackVector<VkAttachmentReference, MAX_FRAMEBUFFER_ATTACHMENTS>
-        msaaResolveAttachments;
+        (interlockMode == gpu::InterlockMode::msaa) ? VK_SAMPLE_COUNT_4_BIT
+                                                    : VK_SAMPLE_COUNT_1_BIT;
+    StackVector<VkAttachmentDescription, PLS_PLANE_COUNT> attachments;
+    StackVector<VkAttachmentReference, PLS_PLANE_COUNT> colorAttachmentRefs;
+    StackVector<VkAttachmentReference, 1> plsResolveAttachmentRef;
+    StackVector<VkAttachmentReference, 1> depthStencilAttachmentRef;
+    StackVector<VkAttachmentReference, 1> msaaResolveAttachmentRef;
     assert(attachments.size() == COLOR_PLANE_IDX);
-    assert(colorAttachments.size() == COLOR_PLANE_IDX);
+    assert(colorAttachmentRefs.size() == COLOR_PLANE_IDX);
     attachments.push_back({
         .format = renderTargetFormat,
         .samples = msaaSampleCount,
-        .loadOp = vk_load_op(loadAction),
+        .loadOp = vk_load_op(loadAction, interlockMode),
         .storeOp =
-            (layoutOptions &
-             DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer)
+            ((layoutOptions &
+              DrawPipelineLayoutVulkan::Options::coalescedResolveAndTransfer) ||
+             interlockMode == gpu::InterlockMode::msaa)
                 ? VK_ATTACHMENT_STORE_OP_DONT_CARE
                 : VK_ATTACHMENT_STORE_OP_STORE,
-        .initialLayout = loadAction == gpu::LoadAction::preserveRenderTarget
-                             ? colorAttachmentLayout
-                             : VK_IMAGE_LAYOUT_UNDEFINED,
+        // This could be VK_IMAGE_LAYOUT_UNDEFINED more often, but it would
+        // invalidate the portion outside the renderArea when it isn't the full
+        // renderTarget, and currently we don't have separate render passes for
+        // "full renderTarget bounds" and "partial renderTarget bounds".
+        // Instead, we rely on vkutil::ImageAccessAction::invalidateContents
+        // to invalidate the color attachment when we can.
+        .initialLayout =
+            (((layoutOptions & DrawPipelineLayoutVulkan::Options::
+                                   coalescedResolveAndTransfer) &&
+              loadAction != gpu::LoadAction::preserveRenderTarget) ||
+             interlockMode == gpu::InterlockMode::msaa)
+                ? VK_IMAGE_LAYOUT_UNDEFINED
+                : colorAttachmentLayout,
         .finalLayout = colorAttachmentLayout,
     });
-    colorAttachments.push_back({
+    colorAttachmentRefs.push_back({
         .attachment = COLOR_PLANE_IDX,
         .layout = colorAttachmentLayout,
     });
@@ -108,11 +120,11 @@ RenderPassVulkan::RenderPassVulkan(
     {
         // CLIP attachment.
         assert(attachments.size() == CLIP_PLANE_IDX);
-        assert(colorAttachments.size() == CLIP_PLANE_IDX);
+        assert(colorAttachmentRefs.size() == CLIP_PLANE_IDX);
         attachments.push_back({
             // The clip buffer is encoded as RGBA8 in atomic mode so we can
             // block writes by emitting alpha=0.
-            .format = interlockMode == gpu::InterlockMode::atomics
+            .format = (interlockMode == gpu::InterlockMode::atomics)
                           ? VK_FORMAT_R8G8B8A8_UNORM
                           : VK_FORMAT_R32_UINT,
             .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -121,7 +133,7 @@ RenderPassVulkan::RenderPassVulkan(
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
-        colorAttachments.push_back({
+        colorAttachmentRefs.push_back({
             .attachment = CLIP_PLANE_IDX,
             .layout = VK_IMAGE_LAYOUT_GENERAL,
         });
@@ -131,7 +143,7 @@ RenderPassVulkan::RenderPassVulkan(
     {
         // SCRATCH_COLOR attachment.
         assert(attachments.size() == SCRATCH_COLOR_PLANE_IDX);
-        assert(colorAttachments.size() == SCRATCH_COLOR_PLANE_IDX);
+        assert(colorAttachmentRefs.size() == SCRATCH_COLOR_PLANE_IDX);
         attachments.push_back({
             .format = renderTargetFormat,
             .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -140,14 +152,14 @@ RenderPassVulkan::RenderPassVulkan(
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
-        colorAttachments.push_back({
+        colorAttachmentRefs.push_back({
             .attachment = SCRATCH_COLOR_PLANE_IDX,
             .layout = VK_IMAGE_LAYOUT_GENERAL,
         });
 
         // COVERAGE attachment.
         assert(attachments.size() == COVERAGE_PLANE_IDX);
-        assert(colorAttachments.size() == COVERAGE_PLANE_IDX);
+        assert(colorAttachmentRefs.size() == COVERAGE_PLANE_IDX);
         attachments.push_back({
             .format = VK_FORMAT_R32_UINT,
             .samples = VK_SAMPLE_COUNT_1_BIT,
@@ -156,7 +168,7 @@ RenderPassVulkan::RenderPassVulkan(
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
         });
-        colorAttachments.push_back({
+        colorAttachmentRefs.push_back({
             .attachment = COVERAGE_PLANE_IDX,
             .layout = VK_IMAGE_LAYOUT_GENERAL,
         });
@@ -174,10 +186,12 @@ RenderPassVulkan::RenderPassVulkan(
                 .loadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE,
                 .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
                 // This could sometimes be VK_IMAGE_LAYOUT_UNDEFINED, but it
-                // might not preserve the portion outside the renderArea
-                // when it isn't the full render target. Instead we rely on
-                // accessTargetImageView() to invalidate the target texture
-                // when we can.
+                // would invalidate the portion outside the renderArea when it
+                // isn't the full renderTarget, and currently we don't have
+                // separate render passes for "full renderTarget bounds" and
+                // "partial renderTarget bounds". Instead, we rely on
+                // vkutil::ImageAccessAction::invalidateContents to invalidate
+                // the atomic resolve attachment when we can.
                 .initialLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
                 .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             });
@@ -186,8 +200,8 @@ RenderPassVulkan::RenderPassVulkan(
             // And the "coalesced" resolve shader outputs to color
             // attachment 0, so alias the COALESCED_ATOMIC_RESOLVE
             // attachment on output 0 for this subpass.
-            assert(plsResolveAttachments.size() == 0);
-            plsResolveAttachments.push_back({
+            assert(plsResolveAttachmentRef.size() == 0);
+            plsResolveAttachmentRef.push_back({
                 .attachment = COALESCED_ATOMIC_RESOLVE_IDX,
                 .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
             });
@@ -197,8 +211,8 @@ RenderPassVulkan::RenderPassVulkan(
             // When not in "coalesced" mode, the resolve texture is the
             // same as the COLOR texture.
             static_assert(COLOR_PLANE_IDX == 0);
-            assert(plsResolveAttachments.size() == 0);
-            plsResolveAttachments.push_back(colorAttachments[0]);
+            assert(plsResolveAttachmentRef.size() == 0);
+            plsResolveAttachmentRef.push_back(colorAttachmentRefs[0]);
         }
     }
     else if (interlockMode == gpu::InterlockMode::msaa)
@@ -216,79 +230,156 @@ RenderPassVulkan::RenderPassVulkan(
             .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
             .finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         });
-        depthStencilAttachment.push_back({
+        depthStencilAttachmentRef.push_back({
             .attachment = MSAA_DEPTH_STENCIL_IDX,
             .layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL,
         });
 
         // MSAA_RESOLVE attachment.
+        const bool readsMSAAResolveAttachment =
+            loadAction == gpu::LoadAction::preserveRenderTarget &&
+            !(layoutOptions &
+              DrawPipelineLayoutVulkan::Options::msaaSeedFromOffscreenTexture);
+        const VkImageLayout msaaResolveLayout =
+            readsMSAAResolveAttachment
+                ? VK_IMAGE_LAYOUT_GENERAL
+                : VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
         assert(attachments.size() == MSAA_RESOLVE_IDX);
         attachments.push_back({
             .format = renderTargetFormat,
             .samples = VK_SAMPLE_COUNT_1_BIT,
-            .loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR,
-            .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
-            .initialLayout = VK_IMAGE_LAYOUT_UNDEFINED,
-            .finalLayout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .loadOp = readsMSAAResolveAttachment
+                          ? VK_ATTACHMENT_LOAD_OP_LOAD
+                          : VK_ATTACHMENT_LOAD_OP_DONT_CARE,
+            .storeOp = VK_ATTACHMENT_STORE_OP_STORE,
+            .initialLayout =
+                readsMSAAResolveAttachment
+                    ? msaaResolveLayout
+                    // NOTE: This can only be VK_IMAGE_LAYOUT_UNDEFINED because
+                    // Vulkan does not support partial MSAA resolves, so every
+                    // MSAA render pass covers the entire render area.
+                    // TODO: If we add a new subpass that reads the MSAA buffer
+                    // and resolves it manually for partial updates, this will
+                    // need to change to "msaaResolveLayout".
+                    : VK_IMAGE_LAYOUT_UNDEFINED,
+            .finalLayout = msaaResolveLayout,
         });
-        msaaResolveAttachments.push_back({
+        msaaResolveAttachmentRef.push_back({
             .attachment = MSAA_RESOLVE_IDX,
-            .layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL,
+            .layout = msaaResolveLayout,
         });
-        assert(msaaResolveAttachments.size() == colorAttachments.size());
-    }
+        assert(msaaResolveAttachmentRef.size() == colorAttachmentRefs.size());
 
-    // Input attachments.
-    StackVector<VkAttachmentReference, MAX_FRAMEBUFFER_ATTACHMENTS>
-        inputAttachments;
-    if (interlockMode != gpu::InterlockMode::clockwiseAtomic)
-    {
-        inputAttachments.push_back_n(colorAttachments.size(),
-                                     colorAttachments.data());
         if (layoutOptions &
-            DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput)
+            DrawPipelineLayoutVulkan::Options::msaaSeedFromOffscreenTexture)
         {
-            // COLOR is not an input attachment if we're using fixed
-            // function blending.
-            if (inputAttachments.size() > 1)
-            {
-                inputAttachments[0] = {.attachment = VK_ATTACHMENT_UNUSED};
-            }
-            else
-            {
-                inputAttachments.clear();
-            }
+            // MSAA_SEED attachment.
+            assert(loadAction == gpu::LoadAction::preserveRenderTarget);
+            assert(attachments.size() == MSAA_COLOR_SEED_IDX);
+            attachments.push_back({
+                .format = renderTargetFormat,
+                .samples = VK_SAMPLE_COUNT_1_BIT,
+                .loadOp = VK_ATTACHMENT_LOAD_OP_LOAD,
+                .storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE,
+                .initialLayout = VK_IMAGE_LAYOUT_GENERAL,
+                .finalLayout = VK_IMAGE_LAYOUT_GENERAL,
+            });
         }
     }
 
-    // Draw subpass.
-    constexpr uint32_t MAX_SUBPASSES = 2;
+    // Input attachments.
+    StackVector<VkAttachmentReference, PLS_PLANE_COUNT> inputAttachmentRefs;
+    StackVector<VkAttachmentReference, 1> msaaColorSeedInputAttachmentRef;
+    if (interlockMode != gpu::InterlockMode::clockwiseAtomic)
+    {
+        inputAttachmentRefs.push_back_n(colorAttachmentRefs.size(),
+                                        colorAttachmentRefs.data());
+        if (layoutOptions &
+            DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput)
+        {
+            // COLOR is not an input attachment if we're using fixed function
+            // blending.
+            if (inputAttachmentRefs.size() > 1)
+            {
+                inputAttachmentRefs[0] = {.attachment = VK_ATTACHMENT_UNUSED};
+            }
+            else
+            {
+                inputAttachmentRefs.clear();
+            }
+        }
+        if (interlockMode == gpu::InterlockMode::msaa &&
+            loadAction == gpu::LoadAction::preserveRenderTarget)
+        {
+            msaaColorSeedInputAttachmentRef.push_back({
+                .attachment =
+                    (layoutOptions & DrawPipelineLayoutVulkan::Options::
+                                         msaaSeedFromOffscreenTexture)
+                        ? MSAA_COLOR_SEED_IDX
+                        : MSAA_RESOLVE_IDX,
+                .layout = VK_IMAGE_LAYOUT_GENERAL,
+            });
+        }
+    }
+
     const bool rasterOrderedAttachmentAccess =
         interlockMode == gpu::InterlockMode::rasterOrdering &&
         m_vk->features.rasterizationOrderColorAttachmentAccess;
+
+    constexpr uint32_t MAX_SUBPASSES = 2;
     StackVector<VkSubpassDescription, MAX_SUBPASSES> subpassDescs;
-    StackVector<VkSubpassDependency, MAX_SUBPASSES> subpassDeps;
-    assert(subpassDescs.size() == 0);
-    assert(subpassDeps.size() == 0);
-    assert(colorAttachments.size() ==
+
+    constexpr uint32_t MAX_SUBPASS_DEPS = MAX_SUBPASSES + 1;
+    StackVector<VkSubpassDependency, MAX_SUBPASS_DEPS> subpassDeps;
+
+    // MSAA color-load subpass.
+    if (interlockMode == gpu::InterlockMode::msaa &&
+        loadAction == gpu::LoadAction::preserveRenderTarget)
+    {
+        assert(msaaColorSeedInputAttachmentRef.size() ==
+               colorAttachmentRefs.size());
+        assert(subpassDescs.size() == 0);
+        subpassDescs.push_back({
+            .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
+            .inputAttachmentCount = msaaColorSeedInputAttachmentRef.size(),
+            .pInputAttachments = msaaColorSeedInputAttachmentRef.data(),
+            .colorAttachmentCount = colorAttachmentRefs.size(),
+            .pColorAttachments = colorAttachmentRefs.data(),
+        });
+        // The color-load subpass has a self dependency because it reads the
+        // result of seed attachment's loadOp when it draws it into the MSAA
+        // attachment. (loadOps always occur in
+        // VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT.)
+        subpassDeps.push_back({
+            .srcSubpass = 0,
+            .dstSubpass = 0,
+            .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
+            .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+            .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
+            .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
+            .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
+        });
+    }
+
+    // Main subpass.
+    const uint32_t mainSubpassIdx = subpassDescs.size();
+    assert(colorAttachmentRefs.size() ==
            m_drawPipelineLayout->colorAttachmentCount(0));
-    assert(msaaResolveAttachments.size() == 0 ||
-           msaaResolveAttachments.size() == colorAttachments.size());
+    assert(msaaResolveAttachmentRef.size() == 0 ||
+           msaaResolveAttachmentRef.size() == colorAttachmentRefs.size());
     subpassDescs.push_back({
         .flags =
             rasterOrderedAttachmentAccess
                 ? VK_SUBPASS_DESCRIPTION_RASTERIZATION_ORDER_ATTACHMENT_COLOR_ACCESS_BIT_EXT
                 : 0u,
         .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-        .inputAttachmentCount = inputAttachments.size(),
-        .pInputAttachments = inputAttachments.data(),
-        .colorAttachmentCount = colorAttachments.size(),
-        .pColorAttachments = colorAttachments.data(),
-        .pResolveAttachments = msaaResolveAttachments.dataOrNull(),
-        .pDepthStencilAttachment = depthStencilAttachment.dataOrNull(),
+        .inputAttachmentCount = inputAttachmentRefs.size(),
+        .pInputAttachments = inputAttachmentRefs.data(),
+        .colorAttachmentCount = colorAttachmentRefs.size(),
+        .pColorAttachments = colorAttachmentRefs.data(),
+        .pResolveAttachments = msaaResolveAttachmentRef.dataOrNull(),
+        .pDepthStencilAttachment = depthStencilAttachmentRef.dataOrNull(),
     });
-
-    // Draw subpass self-dependencies.
     if ((interlockMode == gpu::InterlockMode::rasterOrdering &&
          !rasterOrderedAttachmentAccess) ||
         interlockMode == gpu::InterlockMode::atomics ||
@@ -296,7 +387,8 @@ RenderPassVulkan::RenderPassVulkan(
          !(layoutOptions &
            DrawPipelineLayoutVulkan::Options::fixedFunctionColorOutput)))
     {
-        // Normally our dependencies are input attachments.
+        // Any subpass that reads the framebuffer or PLS planes has a self
+        // dependency.
         //
         // In implicit rasterOrdering mode (meaning
         // EXT_rasterization_order_attachment_access is not present, but
@@ -304,14 +396,14 @@ RenderPassVulkan::RenderPassVulkan(
         // anyway), we also need to declare this dependency even though
         // we won't be issuing any barriers.
         subpassDeps.push_back({
-            .srcSubpass = 0,
-            .dstSubpass = 0,
+            .srcSubpass = mainSubpassIdx,
+            .dstSubpass = mainSubpassIdx,
             .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
             // TODO: We should add SHADER_READ/SHADER_WRITE flags for the
-            // coverage buffer as well, but ironically, adding those causes
-            // artifacts on Qualcomm. Leave them out for now unless we find
-            // a case where we don't work without them.
+            // coverage buffer as well, but ironically, adding those seems to
+            // cause artifacts on Qualcomm. Leave them out for now until we can
+            // investigate further.
             .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
             .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,
@@ -337,26 +429,32 @@ RenderPassVulkan::RenderPassVulkan(
     {
         // The resolve happens in a separate subpass.
         assert(subpassDescs.size() == 1);
-        assert(plsResolveAttachments.size() ==
+        assert(plsResolveAttachmentRef.size() ==
                m_drawPipelineLayout->colorAttachmentCount(1));
         subpassDescs.push_back({
             .pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS,
-            .inputAttachmentCount = inputAttachments.size(),
-            .pInputAttachments = inputAttachments.data(),
-            .colorAttachmentCount = plsResolveAttachments.size(),
-            .pColorAttachments = plsResolveAttachments.data(),
+            .inputAttachmentCount = inputAttachmentRefs.size(),
+            .pInputAttachments = inputAttachmentRefs.data(),
+            .colorAttachmentCount = plsResolveAttachmentRef.size(),
+            .pColorAttachments = plsResolveAttachmentRef.data(),
         });
+    }
 
-        // The resolve subpass depends on the previous one, but not itself.
+    for (uint32_t i = 1; i < subpassDescs.size(); ++i)
+    {
+        // In the case of multiple subpasses, supbass N always consumes the
+        // color outputs from supbass N-1.
         subpassDeps.push_back({
-            .srcSubpass = 0,
-            .dstSubpass = 1,
+            .srcSubpass = i - 1,
+            .dstSubpass = i,
             .srcStageMask = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
             .dstStageMask = VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
-            // TODO: We should add SHADER_READ/SHADER_WRITE flags for the
-            // coverage buffer as well, but ironically, adding those causes
-            // artifacts on Qualcomm. Leave them out for now unless we find
-            // a case where we don't work without them.
+            // TODO: Atomic mode should add SHADER_READ/SHADER_WRITE flags for
+            // the coverage buffer as well, and add
+            // VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT to the srcStageMask, but
+            // ironically, adding those causes artifacts on Qualcomm. Leave them
+            // out for now unless we find a case where we don't work without
+            // them.
             .srcAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT,
             .dstAccessMask = VK_ACCESS_INPUT_ATTACHMENT_READ_BIT,
             .dependencyFlags = VK_DEPENDENCY_BY_REGION_BIT,

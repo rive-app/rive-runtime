@@ -1399,9 +1399,10 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
         auto shaderMiscFlags = batch.shaderMiscFlags;
-        if (drawType == gpu::DrawType::atomicResolve &&
+        if (drawType == gpu::DrawType::renderPassResolve &&
             renderPassHasCoalescedResolveAndTransfer)
         {
+            assert(desc.interlockMode == gpu::InterlockMode::atomics);
             shaderMiscFlags |=
                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
         }
@@ -1618,13 +1619,12 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
                                               0);
                 break;
             }
-            case DrawType::atomicResolve:
+            case DrawType::renderPassResolve:
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 cmdList->IASetPrimitiveTopology(
                     D3D_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
                 cmdList->DrawInstanced(4, 1, 0, 0);
                 break;
-            case DrawType::atomicInitialize:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
             case DrawType::msaaMidpointFans:
@@ -1633,6 +1633,7 @@ void RenderContextD3D12Impl::flush(const FlushDescriptor& desc)
             case DrawType::msaaMidpointFanPathsCover:
             case DrawType::msaaOuterCubics:
             case DrawType::msaaStencilClipReset:
+            case DrawType::renderPassInitialize:
                 RIVE_UNREACHABLE();
         }
     }

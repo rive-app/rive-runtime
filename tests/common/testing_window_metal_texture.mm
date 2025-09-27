@@ -16,13 +16,14 @@ namespace rive::gpu
 class TestingWindowMetalTexture : public TestingWindow
 {
 public:
-    TestingWindowMetalTexture()
+    TestingWindowMetalTexture(const BackendParams& backendParams)
     {
         RenderContextMetalImpl::ContextOptions metalOptions;
         // Turn on synchronous shader compilations to ensure deterministic
         // rendering and to make sure we test every unique shader.
         metalOptions.shaderCompilationMode =
             ShaderCompilationMode::alwaysSynchronous;
+        metalOptions.disableFramebufferReads = backendParams.atomic;
         m_renderContext =
             RenderContextMetalImpl::MakeContext(m_gpu, metalOptions);
         printf("==== MTLDevice: %s ====\n", m_gpu.name.UTF8String);
@@ -151,9 +152,10 @@ private:
 };
 }; // namespace rive::gpu
 
-TestingWindow* TestingWindow::MakeMetalTexture()
+TestingWindow* TestingWindow::MakeMetalTexture(
+    const BackendParams& backendParams)
 {
-    return new rive::gpu::TestingWindowMetalTexture();
+    return new rive::gpu::TestingWindowMetalTexture(backendParams);
 }
 
 #endif

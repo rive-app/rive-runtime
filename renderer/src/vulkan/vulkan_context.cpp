@@ -306,8 +306,10 @@ void VulkanContext::bufferMemoryBarrier(
 }
 
 void VulkanContext::blitSubRect(VkCommandBuffer commandBuffer,
-                                VkImage src,
-                                VkImage dst,
+                                VkImage srcImage,
+                                VkImageLayout srcImageLayout,
+                                VkImage dstImage,
+                                VkImageLayout dstImageLayout,
                                 const IAABB& blitBounds)
 {
     if (blitBounds.empty())
@@ -335,10 +337,10 @@ void VulkanContext::blitSubRect(VkCommandBuffer commandBuffer,
     imageBlit.dstOffsets[1] = {blitBounds.right, blitBounds.bottom, 1};
 
     CmdBlitImage(commandBuffer,
-                 src,
-                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                 dst,
-                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                 srcImage,
+                 srcImageLayout,
+                 dstImage,
+                 dstImageLayout,
                  1,
                  &imageBlit,
                  VK_FILTER_NEAREST);

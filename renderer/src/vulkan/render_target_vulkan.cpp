@@ -74,6 +74,34 @@ vkutil::Texture2D* RenderTargetVulkan::accessOffscreenColorTexture(
     return m_offscreenColorTexture.get();
 }
 
+vkutil::Texture2D* RenderTargetVulkan::copyTargetImageToOffscreenColorTexture(
+    VkCommandBuffer commandBuffer,
+    const vkutil::ImageAccess& dstAccess,
+    const IAABB& copyBounds)
+{
+    m_vk->blitSubRect(
+        commandBuffer,
+        accessTargetImage(commandBuffer,
+                          {
+                              .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                              .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
+                              .layout = VK_IMAGE_LAYOUT_GENERAL,
+                          }),
+        VK_IMAGE_LAYOUT_GENERAL,
+        accessOffscreenColorTexture(
+            commandBuffer,
+            {
+                .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
+                .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
+                .layout = VK_IMAGE_LAYOUT_GENERAL,
+            },
+            vkutil::ImageAccessAction::invalidateContents)
+            ->vkImage(),
+        VK_IMAGE_LAYOUT_GENERAL,
+        copyBounds);
+    return accessOffscreenColorTexture(commandBuffer, dstAccess);
+}
+
 vkutil::Texture2D* RenderTargetVulkan::clipTextureR32UI()
 {
     if (m_clipTextureR32UI == nullptr)

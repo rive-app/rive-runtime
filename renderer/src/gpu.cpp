@@ -25,14 +25,15 @@ uint32_t ShaderUniqueKey(DrawType drawType,
 {
     if (miscFlags & ShaderMiscFlags::coalescedResolveAndTransfer)
     {
-        assert(drawType == DrawType::atomicResolve);
+        assert(drawType == DrawType::renderPassResolve);
         assert(shaderFeatures & ShaderFeatures::ENABLE_ADVANCED_BLEND);
         assert(interlockMode == InterlockMode::atomics);
     }
     if (miscFlags & (ShaderMiscFlags::storeColorClear |
                      ShaderMiscFlags::swizzleColorBGRAToRGBA))
     {
-        assert(drawType == DrawType::atomicInitialize);
+        assert(drawType == DrawType::renderPassInitialize);
+        assert(interlockMode == InterlockMode::atomics);
     }
     uint32_t drawTypeKey;
     switch (drawType)
@@ -61,17 +62,18 @@ uint32_t ShaderUniqueKey(DrawType drawType,
         case DrawType::imageMesh:
             drawTypeKey = 4;
             break;
-        case DrawType::atomicInitialize:
-            assert(interlockMode == gpu::InterlockMode::atomics);
-            drawTypeKey = 5;
-            break;
-        case DrawType::atomicResolve:
-            assert(interlockMode == gpu::InterlockMode::atomics);
-            drawTypeKey = 6;
-            break;
         case DrawType::msaaStencilClipReset:
             assert(interlockMode == gpu::InterlockMode::msaa);
             drawTypeKey = 7;
+            break;
+        case DrawType::renderPassInitialize:
+            assert(interlockMode == gpu::InterlockMode::atomics ||
+                   interlockMode == gpu::InterlockMode::msaa);
+            drawTypeKey = 5;
+            break;
+        case DrawType::renderPassResolve:
+            assert(interlockMode == gpu::InterlockMode::atomics);
+            drawTypeKey = 6;
             break;
     }
     uint32_t key = static_cast<uint32_t>(miscFlags);
@@ -812,11 +814,15 @@ static void get_depth_state(InterlockMode interlockMode,
                   (DrawContents::clockwiseFill | DrawContents::clipUpdate));
             break;
 
+        case DrawType::renderPassInitialize:
+            pipelineState->depthTestEnabled = false;
+            pipelineState->depthWriteEnabled = false;
+            break;
+
         case DrawType::interiorTriangulation:
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
+        case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
     }
 }
@@ -1082,16 +1088,22 @@ static uint8_t get_stencil_settings(InterlockMode interlockMode,
             break;
         }
 
+        case DrawType::renderPassInitialize:
+        {
+            pipelineState->stencilTestEnabled = false;
+            pipelineState->stencilWriteMask = 0;
+            break;
+        }
+
         case DrawType::interiorTriangulation:
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
         case DrawType::outerCurvePatches:
+        case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
     }
 
-    assert(stencilKey != 0);
+    assert(stencilKey != 0 || drawType == DrawType::renderPassInitialize);
     assert(stencilKey < 1 << 4);
     if (effectiveDrawContents.hasActiveClip)
         stencilKey |= (1 << 4);
@@ -1129,11 +1141,11 @@ static CullFace get_cull_face(DrawType drawType)
             return CullFace::clockwise;
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atomicResolve:
-        case DrawType::atomicInitialize:
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
+        case DrawType::renderPassResolve:
+        case DrawType::renderPassInitialize:
             return CullFace::none;
     }
     RIVE_UNREACHABLE();
@@ -1169,6 +1181,7 @@ static BlendEquation get_blend_equation(
                 // When drawing an advanced blend mode, the shader only does the
                 // "color" portion of the blend equation, and relies on the
                 // hardware blend unit to finish the "alpha" portion.
+                assert(batch.drawType != gpu::DrawType::renderPassInitialize);
                 return BlendEquation::srcOver;
             }
             else
@@ -1176,6 +1189,7 @@ static BlendEquation get_blend_equation(
                 // When m_platformFeatures.supportsBlendAdvancedKHR is true in
                 // MSAA mode, the renderContext does not combine draws that have
                 // different blend modes.
+                assert(batch.drawType != gpu::DrawType::renderPassInitialize);
                 return static_cast<BlendEquation>(batch.firstBlendMode);
             }
     }
@@ -1194,8 +1208,8 @@ static bool get_color_writemask(const DrawBatch& batch)
         case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
             return true;
         case DrawType::msaaStrokes:
         case DrawType::msaaOuterCubics:
@@ -1237,9 +1251,13 @@ void get_pipeline_state(const DrawBatch& batch,
             break;
 
         case DrawType::imageRect:
-        case DrawType::atomicResolve:
-        case DrawType::atomicInitialize:
+        case DrawType::renderPassResolve:
             assert(flushDesc.interlockMode == InterlockMode::atomics);
+            break;
+
+        case DrawType::renderPassInitialize:
+            assert(flushDesc.interlockMode == InterlockMode::atomics ||
+                   flushDesc.interlockMode == InterlockMode::msaa);
             break;
 
         case DrawType::msaaStrokes:

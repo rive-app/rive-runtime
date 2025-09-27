@@ -146,7 +146,7 @@ class RenderContextGLImpl::PLSImplRWTexture
             {
                 flags |= gpu::ShaderMiscFlags::fixedFunctionColorOutput;
             }
-            if (drawType == gpu::DrawType::atomicResolve &&
+            if (drawType == gpu::DrawType::renderPassResolve &&
                 needs_coalesced_atomic_resolve_and_transfer(desc))
             {
                 flags |= gpu::ShaderMiscFlags::coalescedResolveAndTransfer;

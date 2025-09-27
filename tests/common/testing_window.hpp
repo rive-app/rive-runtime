@@ -210,7 +210,7 @@ public:
                                   const BackendParams&,
                                   void* platformWindow);
 #if defined(__APPLE__) && !defined(RIVE_UNREAL)
-    static TestingWindow* MakeMetalTexture();
+    static TestingWindow* MakeMetalTexture(const BackendParams&);
 #endif
     static TestingWindow* MakeCoreGraphics();
     static TestingWindow* MakeFiddleContext(Backend,

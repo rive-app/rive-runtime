@@ -57,16 +57,19 @@ private:
                       uint32_t width,
                       uint32_t height,
                       bool riveRenderable) :
-            RenderTargetVulkan(std::move(vk),
-                               width,
-                               height,
-                               VK_FORMAT_B8G8R8A8_UNORM,
-                               VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
-                                   VK_IMAGE_USAGE_SAMPLED_BIT |
-                                   (riveRenderable
-                                        ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
-                                        : VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
-                                              VK_IMAGE_USAGE_TRANSFER_DST_BIT)),
+            RenderTargetVulkan(
+                std::move(vk),
+                width,
+                height,
+                VK_FORMAT_B8G8R8A8_UNORM,
+                VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                    VK_IMAGE_USAGE_SAMPLED_BIT |
+                    // Some rendering scenarios (specifically
+                    // LoadAction::preserveRenderTarget with MSAA) always
+                    // require VK_IMAGE_USAGE_TRANSFER_SRC_BIT.
+                    VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                    (riveRenderable ? VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT
+                                    : VK_IMAGE_USAGE_TRANSFER_DST_BIT)),
             m_renderImage(
                 rive::make_rcp<rive::RiveRenderImage>(m_vk->makeTexture2D({
                     .format = framebufferFormat(),

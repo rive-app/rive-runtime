@@ -37,6 +37,7 @@ public:
         DrawPipelineLayoutVulkan::Options pipelineLayoutOptions;
         VkFormat renderTargetFormat;
         LoadAction colorLoadAction;
+        uint32_t subpassIndex;
 
 #ifdef WITH_RIVE_TOOLS
         SynthesizedFailureType synthesizedFailureType =
@@ -50,12 +51,8 @@ public:
     using FragmentShaderType = DrawShaderVulkan;
 
     DrawPipelineVulkan(PipelineManagerVulkan*,
-                       gpu::DrawType,
                        const DrawPipelineLayoutVulkan&,
-                       gpu::ShaderFeatures,
-                       gpu::ShaderMiscFlags,
-                       Options,
-                       const gpu::PipelineState&,
+                       const PipelineProps&,
                        VkRenderPass
 #ifdef WITH_RIVE_TOOLS
                        ,

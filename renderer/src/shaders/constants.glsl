@@ -172,6 +172,19 @@
 #define COVERAGE_PLANE_IDX 3
 #define PLS_PLANE_COUNT 4
 
+// This is the framebuffer attachment index of the final color output during the
+// "coalesced" atomic resolve. (Currently only used by Vulkan.)
+// NOTE: This attachment is still referenced as color attachment 0 by the
+// resolve subpass, so the shader doesn't need to know about it.
+// NOTE: Atomic mode does not use SCRATCH_COLOR_PLANE_IDX, which is why we chose
+// to alias this one.
+#define COALESCED_ATOMIC_RESOLVE_IDX SCRATCH_COLOR_PLANE_IDX
+
+// MSAA attaches different resources to the framebuffer instead of PLS planes.
+#define MSAA_DEPTH_STENCIL_IDX 1u
+#define MSAA_RESOLVE_IDX 2u
+#define MSAA_COLOR_SEED_IDX 3u
+
 // Rive has a hard-coded miter limit of 4 in the editor and all runtimes.
 #define RIVE_MITER_LIMIT float(4)
 // acos(1/4), because the miter limit is 4.

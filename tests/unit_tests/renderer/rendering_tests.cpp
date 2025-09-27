@@ -32,7 +32,9 @@ static FactoryWrapper testingWindowFactories[] = {
      }},
 #if defined(__APPLE__)
     {"Metal",
-     []() { return rivestd::adopt_unique(TestingWindow::MakeMetalTexture()); }},
+     []() {
+         return rivestd::adopt_unique(TestingWindow::MakeMetalTexture({}));
+     }},
 #endif
 #ifdef _WIN32
     {"D3D12",

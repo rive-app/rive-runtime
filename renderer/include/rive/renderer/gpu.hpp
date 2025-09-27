@@ -184,8 +184,14 @@ struct PlatformFeatures
     bool clipSpaceBottomUp = false;
     bool framebufferBottomUp = false;
     // Backend cannot initialize PLS with typical clear/load APIs in atomic
-    // mode. Issue a "DrawType::atomicInitialize" draw instead.
-    bool atomicPLSMustBeInitializedAsDraw = false;
+    // mode. Issue a "DrawType::renderPassInitialize" draw instead.
+    bool atomicPLSInitNeedsDraw = false;
+    // Backend API does not support initializing our (transient) MSAA color
+    // buffer with the existing (non-MSAA) target texture at the beginning of a
+    // render pass. Draw the previous renderTarget contents into it manually via
+    // DrawType::renderPassInitialize when LoadAction::preserveRenderTarget is
+    // specified.
+    bool msaaColorPreserveNeedsDraw = false;
     // Workaround for precision issues. Determines how far apart we space unique
     // path IDs when they will be bit-casted to fp16.
     uint8_t pathIDGranularity = 1;
@@ -617,12 +623,6 @@ enum class DrawType : uint8_t
     imageRect,
     imageMesh,
 
-    // Clear/init PLS data when we can't do it with existing clear/load APIs.
-    atomicInitialize,
-
-    // Resolve PLS data to the final renderTarget color in atomic mode.
-    atomicResolve,
-
     // MSAA strokes can't be merged with fills because they require their own
     // dedicated stencil settings.
     msaaStrokes,
@@ -642,6 +642,18 @@ enum class DrawType : uint8_t
 
     // Clear or intersect (based on DrawContents) the stencil clip bit.
     msaaStencilClipReset,
+
+    // Clear/init render pass data with a fullscreen draw when we can't do it
+    // with existing clear/load APIs. (e.g., for pixel local storage in buffers
+    // that don't have copy/clear commands, or preserving existing color data in
+    // a transient MSAA arrachment).
+    renderPassInitialize,
+
+    // Resolve render pass data (e.g., by applying the final deferred color in
+    // atomic mode, or copying an offscreen attachment to the final
+    // renderTarget).
+    renderPassResolve,
+
 };
 
 constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
@@ -656,8 +668,6 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::outerCurvePatches:
         case DrawType::interiorTriangulation:
         case DrawType::atlasBlit:
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFans:
@@ -666,6 +676,8 @@ constexpr static bool DrawTypeIsImageDraw(DrawType drawType)
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
             return false;
     }
     RIVE_UNREACHABLE();
@@ -697,9 +709,9 @@ constexpr static uint32_t PatchIndexCount(DrawType drawType)
         case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
         case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
     }
     RIVE_UNREACHABLE();
@@ -729,9 +741,9 @@ constexpr static uint32_t PatchBaseIndex(DrawType drawType)
         case DrawType::atlasBlit:
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
         case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
     }
     RIVE_UNREACHABLE();
@@ -843,16 +855,16 @@ enum class ShaderMiscFlags : uint32_t
     // output color or clip.
     borrowedCoveragePrepass = 1 << 2,
 
-    // DrawType::atomicInitialize only. Also store the color clear value to PLS
-    // when drawing a clear, in addition to clearing the other PLS planes.
+    // DrawType::renderPassInitialize only. Also store the color clear value to
+    // PLS when drawing a clear, in addition to clearing the other PLS planes.
     storeColorClear = 1 << 3,
 
-    // DrawType::atomicInitialize only. Swizzle the existing framebuffer
+    // DrawType::renderPassInitialize only. Swizzle the existing framebuffer
     // contents from BGRA to RGBA. (For when this data had to get copied from a
     // BGRA target.)
     swizzleColorBGRAToRGBA = 1 << 4,
 
-    // DrawType::atomicResolve only. Optimization for when rendering to an
+    // DrawType::renderPassResolve only. Optimization for when rendering to an
     // offscreen texture.
     //
     // It renders the final "resolve" operation directly to the renderTarget in
@@ -894,16 +906,31 @@ constexpr static ShaderFeatures ShaderFeaturesMaskFor(
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
-        case DrawType::atomicResolve:
             mask = kAllShaderFeatures;
-            break;
-        case DrawType::atomicInitialize:
-            assert(interlockMode == gpu::InterlockMode::atomics);
-            mask = ShaderFeatures::ENABLE_CLIPPING |
-                   ShaderFeatures::ENABLE_ADVANCED_BLEND;
             break;
         case DrawType::msaaStencilClipReset:
             mask = ShaderFeatures::NONE;
+            break;
+        case DrawType::renderPassInitialize:
+            if (interlockMode == gpu::InterlockMode::atomics)
+            {
+                // Atomic mode initializes clipping and color (when advanced
+                // blend is active).
+                mask = ShaderFeatures::ENABLE_CLIPPING |
+                       ShaderFeatures::ENABLE_ADVANCED_BLEND;
+            }
+            else
+            {
+                assert(interlockMode == gpu::InterlockMode::msaa);
+                // MSAA mode only needs to initialize color, and only when
+                // preserving the render target but using a transient MSAA
+                // attachment.
+                mask = ShaderFeatures::NONE;
+            }
+            break;
+        case DrawType::renderPassResolve:
+            assert(interlockMode == gpu::InterlockMode::atomics);
+            mask = kAllShaderFeatures;
             break;
     }
     return mask & ShaderFeaturesMaskFor(interlockMode);
@@ -985,8 +1012,11 @@ enum class BarrierFlags : uint8_t
     // Pixel-local dependency in the PLS planes. (Atomic mode only.) Ensure
     // prior draws complete at each pixel before beginning new ones.
     plsAtomic = 1 << 0,
-    plsAtomicPostInit = 1 << 1,   // Once after the initial clear/load.
-    plsAtomicPreResolve = 1 << 2, // Once before the final resolve.
+    plsAtomicPreResolve = 1 << 1, // Once before the final resolve.
+
+    // MSAA needs a special barrier (e.g., subpass transition) after manually
+    // loading the render target into the transient MSAA attachment.
+    msaaPostInit = 1 << 2,
 
     // Pixel-local dependency in the coverage buffer. (clockwiseAtomic mode
     // only.) All "borrowed coverage" draws have now been issued. Ensure they

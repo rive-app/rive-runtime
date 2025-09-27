@@ -52,6 +52,15 @@ protected:
         vkutil::ImageAccessAction =
             vkutil::ImageAccessAction::preserveContents);
 
+    // Copies the target image into the offscreen color texture (for the
+    // intended purpose of supporting gpu::LoadAction::preserveRenderTarget).
+    // Returns the offscreen texture in the requested layout, performing a
+    // pipeline barrier if necessary.
+    vkutil::Texture2D* copyTargetImageToOffscreenColorTexture(
+        VkCommandBuffer,
+        const vkutil::ImageAccess& dstAccess,
+        const IAABB& copyBounds);
+
     // InterlockMode::rasterOrdering.
     vkutil::Texture2D* clipTextureR32UI();
     vkutil::Texture2D* scratchColorTexture();

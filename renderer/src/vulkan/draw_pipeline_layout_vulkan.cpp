@@ -2,10 +2,12 @@
  * Copyright 2025 Rive
  */
 
+#include "draw_pipeline_layout_vulkan.hpp"
+
+#include "rive/renderer/stack_vector.hpp"
 #include "rive/renderer/vulkan/vulkan_context.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include "shaders/constants.glsl"
-#include "draw_pipeline_layout_vulkan.hpp"
 #include "pipeline_manager_vulkan.hpp"
 
 namespace rive::gpu
@@ -20,66 +22,65 @@ DrawPipelineLayoutVulkan::DrawPipelineLayoutVulkan(
 {
     // PLS planes get bound per flush as input attachments or storage
     // textures.
-    VkDescriptorSetLayoutBinding plsLayoutBindings[] = {
-        {
+    StackVector<VkDescriptorSetLayoutBinding, PLS_PLANE_COUNT>
+        plsLayoutBindings;
+    if (!(m_options & Options::fixedFunctionColorOutput))
+    {
+        plsLayoutBindings.push_back({
             .binding = COLOR_PLANE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
+        });
+    }
+    if (interlockMode == gpu::InterlockMode::rasterOrdering ||
+        interlockMode == gpu::InterlockMode::atomics)
+    {
+        plsLayoutBindings.push_back({
             .binding = CLIP_PLANE_IDX,
             .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
+        });
+        if (interlockMode == gpu::InterlockMode::rasterOrdering)
         {
-            .binding = SCRATCH_COLOR_PLANE_IDX,
-            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
-            .descriptorCount = 1,
-            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-        {
+            plsLayoutBindings.push_back({
+                .binding = SCRATCH_COLOR_PLANE_IDX,
+                .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+                .descriptorCount = 1,
+                .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+            });
+        }
+        plsLayoutBindings.push_back({
             .binding = COVERAGE_PLANE_IDX,
             .descriptorType = m_interlockMode == gpu::InterlockMode::atomics
                                   ? VK_DESCRIPTOR_TYPE_STORAGE_IMAGE
                                   : VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
             .descriptorCount = 1,
             .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
-        },
-    };
-    static_assert(COLOR_PLANE_IDX == 0);
-    static_assert(CLIP_PLANE_IDX == 1);
-    static_assert(SCRATCH_COLOR_PLANE_IDX == 2);
-    static_assert(COVERAGE_PLANE_IDX == 3);
-
-    VkDescriptorSetLayoutCreateInfo plsLayoutInfo = {
-        .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
-    };
-
-    if (interlockMode == gpu::InterlockMode::rasterOrdering ||
-        interlockMode == gpu::InterlockMode::atomics)
-    {
-        plsLayoutInfo.bindingCount = std::size(plsLayoutBindings);
-        plsLayoutInfo.pBindings = plsLayoutBindings;
+        });
     }
     else if (interlockMode == gpu::InterlockMode::msaa)
     {
-        plsLayoutInfo.bindingCount = 1;
-        plsLayoutInfo.pBindings = plsLayoutBindings;
+        // TODO: pipeline layouts aren't currently keyed by loadAction, but if
+        // they were, we could only include this binding with
+        // preserveRenderTarget.
+        plsLayoutBindings.push_back({
+            .binding = MSAA_COLOR_SEED_IDX,
+            .descriptorType = VK_DESCRIPTOR_TYPE_INPUT_ATTACHMENT,
+            .descriptorCount = 1,
+            .stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT,
+        });
     }
 
-    if (m_options & Options::fixedFunctionColorOutput)
+    if (plsLayoutBindings.size() > 0)
     {
-        // Drop the COLOR input attachment when using
-        // fixedFunctionColorOutput.
-        assert(plsLayoutInfo.pBindings[0].binding == COLOR_PLANE_IDX);
-        ++plsLayoutInfo.pBindings;
-        --plsLayoutInfo.bindingCount;
-    }
+        VkDescriptorSetLayoutCreateInfo plsLayoutInfo = {
+            .sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO,
+            .bindingCount = plsLayoutBindings.size(),
+            .pBindings = plsLayoutBindings.data(),
+        };
 
-    if (plsLayoutInfo.bindingCount > 0)
-    {
         VK_CHECK(
             m_vk->CreateDescriptorSetLayout(m_vk->device,
                                             &plsLayoutInfo,
@@ -136,7 +137,7 @@ uint32_t DrawPipelineLayoutVulkan::colorAttachmentCount(
             assert(subpassIndex == 0);
             return 1;
         case gpu::InterlockMode::msaa:
-            assert(subpassIndex == 0);
+            assert(subpassIndex == 0 || subpassIndex == 1);
             return 1;
     }
     RIVE_UNREACHABLE();

@@ -317,10 +317,9 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
                              0};
             vertexAttribCount = 2;
             break;
-        case DrawType::atomicResolve:
+        case DrawType::renderPassResolve:
             vertexAttribCount = 0;
             break;
-        case DrawType::atomicInitialize:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFans:
@@ -329,6 +328,7 @@ std::unique_ptr<D3D11DrawVertexShader> D3D11PipelineManager::
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
     }
 
@@ -1839,9 +1839,10 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                   ? desc.combinedShaderFeatures
                                   : batch.shaderFeatures;
         auto shaderMiscFlags = batch.shaderMiscFlags;
-        if (drawType == gpu::DrawType::atomicResolve &&
+        if (drawType == gpu::DrawType::renderPassResolve &&
             renderPassHasCoalescedResolveAndTransfer)
         {
+            assert(desc.interlockMode == gpu::InterlockMode::atomics);
             shaderMiscFlags |=
                 gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
         }
@@ -1988,7 +1989,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                                           0);
                 break;
             }
-            case DrawType::atomicResolve:
+            case DrawType::renderPassResolve:
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 m_gpuContext->IASetPrimitiveTopology(
                     D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP);
@@ -2028,7 +2029,6 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
                 }
                 m_gpuContext->Draw(4, 0);
                 break;
-            case DrawType::atomicInitialize:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
             case DrawType::msaaMidpointFans:
@@ -2037,6 +2037,7 @@ void RenderContextD3DImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaMidpointFanPathsCover:
             case DrawType::msaaOuterCubics:
             case DrawType::msaaStencilClipReset:
+            case DrawType::renderPassInitialize:
                 RIVE_UNREACHABLE();
         }
     }

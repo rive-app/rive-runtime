@@ -435,12 +435,8 @@ std::unique_ptr<DrawPipelineVulkan> PipelineManagerVulkan::createPipeline(
 
     return std::make_unique<DrawPipelineVulkan>(
         this,
-        props.drawType,
         *renderPass.drawPipelineLayout(),
-        props.shaderFeatures,
-        props.shaderMiscFlags,
-        props.drawPipelineOptions,
-        props.pipelineState,
+        props,
         renderPass
 #ifdef WITH_RIVE_TOOLS
         ,

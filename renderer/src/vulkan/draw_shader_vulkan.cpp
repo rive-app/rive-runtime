@@ -54,8 +54,6 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     break;
 
                 case DrawType::imageRect:
-                case DrawType::atomicResolve:
-                case DrawType::atomicInitialize:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
                 case DrawType::msaaMidpointFans:
@@ -64,6 +62,8 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
                 case DrawType::msaaStencilClipReset:
+                case DrawType::renderPassResolve:
+                case DrawType::renderPassInitialize:
                     RIVE_UNREACHABLE();
             }
             break;
@@ -115,7 +115,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                             : spirv::atomic_draw_image_mesh_frag;
                     break;
 
-                case DrawType::atomicResolve:
+                case DrawType::renderPassResolve:
                     if (shaderMiscFlags &
                         gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
                     {
@@ -131,7 +131,6 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     }
                     break;
 
-                case DrawType::atomicInitialize:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
                 case DrawType::msaaMidpointFans:
@@ -140,6 +139,7 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
                 case DrawType::msaaStencilClipReset:
+                case DrawType::renderPassInitialize:
                     RIVE_UNREACHABLE();
             }
             break;
@@ -172,8 +172,6 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                     break;
 
                 case DrawType::imageRect:
-                case DrawType::atomicResolve:
-                case DrawType::atomicInitialize:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
                 case DrawType::msaaMidpointFans:
@@ -182,6 +180,8 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
                 case DrawType::msaaStencilClipReset:
+                case DrawType::renderPassResolve:
+                case DrawType::renderPassInitialize:
                     RIVE_UNREACHABLE();
             }
             break;
@@ -242,9 +242,16 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                                    : spirv::draw_msaa_image_mesh_frag;
                     break;
 
+                case DrawType::renderPassInitialize:
+                    // MSAA render passes get initialized by drawing the
+                    // previous contents into the framebuffer.
+                    // (LoadAction::preserveRenderTarget only.)
+                    vertCode = spirv::copy_attachment_to_attachment_vert;
+                    fragCode = spirv::copy_attachment_to_attachment_frag;
+                    break;
+
                 case DrawType::imageRect:
-                case DrawType::atomicResolve:
-                case DrawType::atomicInitialize:
+                case DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();
             }
             break;

@@ -198,7 +198,7 @@ void BackgroundShaderCompiler::threadMain()
                 }
 #endif
                 break;
-            case DrawType::atomicInitialize:
+            case DrawType::renderPassInitialize:
 #ifdef RIVE_IOS
                 RIVE_UNREACHABLE();
 #else
@@ -218,7 +218,7 @@ void BackgroundShaderCompiler::threadMain()
                 [source appendFormat:@"%s\n", gpu::glsl::atomic_draw];
 #endif
                 break;
-            case DrawType::atomicResolve:
+            case DrawType::renderPassResolve:
 #ifdef RIVE_IOS
                 RIVE_UNREACHABLE();
 #else

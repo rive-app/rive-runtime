@@ -140,10 +140,9 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
                 0};
             result->m_vertexAttribCount = 2;
             break;
-        case DrawType::atomicResolve:
+        case DrawType::renderPassResolve:
             result->m_vertexAttribCount = 0;
             break;
-        case DrawType::atomicInitialize:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFans:
@@ -152,6 +151,7 @@ std::unique_ptr<D3D12DrawVertexShader> D3D12PipelineManager::
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
     }
 
@@ -195,10 +195,9 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
             break;
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atomicResolve:
+        case DrawType::renderPassResolve:
             rasterDesc.CullMode = D3D12_CULL_MODE_NONE;
             break;
-        case DrawType::atomicInitialize:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFans:
@@ -207,6 +206,7 @@ std::unique_ptr<D3D12Pipeline> D3D12PipelineManager::linkPipeline(
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassInitialize:
             break;
     }
 

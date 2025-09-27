@@ -96,12 +96,11 @@ static std::string build_shader(DrawType drawType,
             s << "#define " << GLSL_DRAW_IMAGE << '\n';
             s << "#define " << GLSL_DRAW_IMAGE_MESH << '\n';
             break;
-        case DrawType::atomicResolve:
+        case DrawType::renderPassResolve:
             assert(interlockMode == InterlockMode::atomics);
             s << "#define " << GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS << '\n';
             s << "#define " << GLSL_RESOLVE_PLS << '\n';
             break;
-        case DrawType::atomicInitialize:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFans:
@@ -110,6 +109,7 @@ static std::string build_shader(DrawType drawType,
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
     }
     s << glsl::constants << '\n';
@@ -154,13 +154,11 @@ static std::string build_shader(DrawType drawType,
                 s << glsl::atomic_draw << '\n';
             }
             break;
-        case DrawType::atomicResolve:
-        case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassResolve:
             assert(interlockMode == InterlockMode::atomics);
             s << glsl::draw_path_common << '\n';
             s << glsl::atomic_draw << '\n';
             break;
-        case DrawType::atomicInitialize:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFans:
@@ -168,6 +166,8 @@ static std::string build_shader(DrawType drawType,
         case DrawType::msaaMidpointFanPathsStencil:
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
+        case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassInitialize:
             RIVE_UNREACHABLE();
     }
 

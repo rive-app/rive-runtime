@@ -10,7 +10,6 @@
 #include "draw_pipeline_vulkan.hpp"
 #include "pipeline_manager_vulkan.hpp"
 #include "render_pass_vulkan.hpp"
-#include "vulkan_constants.hpp"
 
 namespace rive::gpu
 {
@@ -142,14 +141,45 @@ uint64_t DrawPipelineVulkan::PipelineProps::createKey() const
     return key;
 }
 
+uint32_t subpass_index(gpu::DrawType drawType,
+                       gpu::LoadAction colorLoadAction,
+                       gpu::InterlockMode interlockMode)
+{
+    const uint32_t mainSubpassIdx =
+        (interlockMode == gpu::InterlockMode::msaa &&
+         colorLoadAction == gpu::LoadAction::preserveRenderTarget)
+            ? 1
+            : 0;
+    switch (drawType)
+    {
+        case gpu::DrawType::renderPassInitialize:
+            assert(mainSubpassIdx == 1);
+            return 0;
+        case gpu::DrawType::midpointFanPatches:
+        case gpu::DrawType::midpointFanCenterAAPatches:
+        case gpu::DrawType::outerCurvePatches:
+        case gpu::DrawType::interiorTriangulation:
+        case gpu::DrawType::atlasBlit:
+        case gpu::DrawType::imageRect:
+        case gpu::DrawType::imageMesh:
+        case gpu::DrawType::msaaStrokes:
+        case gpu::DrawType::msaaMidpointFanBorrowedCoverage:
+        case gpu::DrawType::msaaMidpointFans:
+        case gpu::DrawType::msaaMidpointFanStencilReset:
+        case gpu::DrawType::msaaMidpointFanPathsStencil:
+        case gpu::DrawType::msaaMidpointFanPathsCover:
+        case gpu::DrawType::msaaOuterCubics:
+        case gpu::DrawType::msaaStencilClipReset:
+            return mainSubpassIdx;
+        case gpu::DrawType::renderPassResolve:
+            return mainSubpassIdx + 1;
+    }
+}
+
 DrawPipelineVulkan::DrawPipelineVulkan(
     PipelineManagerVulkan* pipelineManager,
-    gpu::DrawType drawType,
     const DrawPipelineLayoutVulkan& pipelineLayout,
-    gpu::ShaderFeatures shaderFeatures,
-    gpu::ShaderMiscFlags shaderMiscFlags,
-    Options drawPipelineOptions,
-    const gpu::PipelineState& pipelineState,
+    const PipelineProps& props,
     VkRenderPass vkRenderPass
 #ifdef WITH_RIVE_TOOLS
     ,
@@ -166,14 +196,14 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     }
 #endif
 
-    gpu::InterlockMode interlockMode = pipelineLayout.interlockMode();
-
-    const uint32_t subpassIndex =
-        drawType == gpu::DrawType::atomicResolve ? 1u : 0u;
+    const gpu::PipelineState& pipelineState = props.pipelineState;
+    const gpu::InterlockMode interlockMode = pipelineLayout.interlockMode();
+    uint32_t subpassIndex =
+        subpass_index(props.drawType, props.colorLoadAction, interlockMode);
 
     auto& vertShader =
-        pipelineManager->getVertexShaderSynchronous(drawType,
-                                                    shaderFeatures,
+        pipelineManager->getVertexShaderSynchronous(props.drawType,
+                                                    props.shaderFeatures,
                                                     interlockMode);
 
     if (vertShader.module() == VK_NULL_HANDLE)
@@ -181,25 +211,25 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         return;
     }
     auto& fragShader =
-        pipelineManager->getFragmentShaderSynchronous(drawType,
-                                                      shaderFeatures,
+        pipelineManager->getFragmentShaderSynchronous(props.drawType,
+                                                      props.shaderFeatures,
                                                       interlockMode,
-                                                      shaderMiscFlags);
+                                                      props.shaderMiscFlags);
     if (fragShader.module() == VK_NULL_HANDLE)
     {
         return;
     }
 
     uint32_t shaderPermutationFlags[SPECIALIZATION_COUNT] = {
-        shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING,
-        shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT,
-        shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND,
-        shaderFeatures & gpu::ShaderFeatures::ENABLE_FEATHER,
-        shaderFeatures & gpu::ShaderFeatures::ENABLE_EVEN_ODD,
-        shaderFeatures & gpu::ShaderFeatures::ENABLE_NESTED_CLIPPING,
-        shaderFeatures & gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES,
-        shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill,
-        shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass,
+        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIPPING,
+        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_CLIP_RECT,
+        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_ADVANCED_BLEND,
+        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_FEATHER,
+        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_EVEN_ODD,
+        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_NESTED_CLIPPING,
+        props.shaderFeatures & gpu::ShaderFeatures::ENABLE_HSL_BLEND_MODES,
+        props.shaderMiscFlags & gpu::ShaderMiscFlags::clockwiseFill,
+        props.shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass,
         pipelineManager->vendorID(),
     };
     static_assert(CLIPPING_SPECIALIZATION_IDX == 0);
@@ -251,7 +281,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
     VkPipelineRasterizationStateCreateInfo
         pipelineRasterizationStateCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO,
-            .polygonMode = (drawPipelineOptions & Options::wireframe)
+            .polygonMode = (props.drawPipelineOptions & Options::wireframe)
                                ? VK_POLYGON_MODE_LINE
                                : VK_POLYGON_MODE_FILL,
             .cullMode = vk_cull_mode(pipelineState.cullFace),
@@ -259,67 +289,80 @@ DrawPipelineVulkan::DrawPipelineVulkan(
             .lineWidth = 1.0,
         };
 
-    VkPipelineColorBlendAttachmentState blendState;
-    if (interlockMode == gpu::InterlockMode::rasterOrdering ||
-        (shaderMiscFlags & gpu::ShaderMiscFlags::coalescedResolveAndTransfer))
+    gpu::BlendEquation blendEquation = pipelineState.blendEquation;
+    bool blendEquationPremultiplied = true;
+    bool colorWriteEnabled = pipelineState.colorWriteEnabled;
+    if (interlockMode == gpu::InterlockMode::atomics &&
+        !(props.shaderMiscFlags &
+          gpu::ShaderMiscFlags::coalescedResolveAndTransfer))
     {
-        blendState = {
-            .blendEnable = VK_FALSE,
-            .colorWriteMask = vkutil::kColorWriteMaskRGBA,
-        };
-    }
-    else if (shaderMiscFlags & gpu::ShaderMiscFlags::borrowedCoveragePrepass)
-    {
-        // Borrowed coverage draws only update the coverage buffer.
-        blendState = {
-            .blendEnable = VK_FALSE,
-            .colorWriteMask = vkutil::kColorWriteMaskNone,
-        };
-    }
-    else
-    {
-        // Atomic mode blends the color and clip both as independent RGBA8
-        // values.
+        // Vulkan deviates from the other renderers by enabling src-over
+        // blending for PLS planes in atomic mode.
         //
-        // Advanced blend modes are handled by rearranging the math
-        // such that the correct color isn't reached until *AFTER* this
-        // blend state is applied.
+        // Advanced blend modes are handled by rearranging the math such that
+        // the correct color isn't reached until *AFTER* this blend state is
+        // applied. This primarily benefits us by hinting to the hardware that
+        // it doesn't need to read or write anything when a == 0, but it also
+        // saves flops by offloading the blend work onto the ROP blending unit.
         //
-        // This allows us to preserve clip and color contents by just
-        // emitting a=0 instead of loading the current value. It also saves
-        // flops by offloading the blending work onto the ROP blending
-        // unit, and serves as a hint to the hardware that it doesn't need
-        // to read or write anything when a == 0.
-        blendState = {
-            .blendEnable = VK_TRUE,
-            // Image draws use premultiplied src-over so they can blend
-            // the image with the previous paint together, out of order.
-            // (Premultiplied src-over is associative.)
-            //
-            // Otherwise we save 3 flops and let the ROP multiply alpha
-            // into the color when it does the blending.
-            .srcColorBlendFactor =
-                (interlockMode == gpu::InterlockMode::atomics &&
-                 gpu::DrawTypeIsImageDraw(drawType)) ||
-                        interlockMode == gpu::InterlockMode::msaa
-                    ? VK_BLEND_FACTOR_ONE
-                    : VK_BLEND_FACTOR_SRC_ALPHA,
+        // Clip also has blend enabled, which allows us to preserve both clip
+        // and color contents by just emitting a=0 (instead of loading and
+        // re-emitting the current value) when a PLS plane needs to remain
+        // unchanged during a fragment invocation.
+        blendEquation = gpu::BlendEquation::srcOver;
+        // Image draws use premultiplied src-over so they can blend the image
+        // with the previous paint together, out of order. (Premultiplied
+        // src-over is associative.)
+        //
+        // Otherwise we save 3 flops and let the ROP multiply alpha into the
+        // color when it does the blending.
+        blendEquationPremultiplied = gpu::DrawTypeIsImageDraw(props.drawType);
+    }
+#ifndef NDEBUG
+    else if (props.shaderMiscFlags &
+             gpu::ShaderMiscFlags::coalescedResolveAndTransfer)
+    {
+        assert(interlockMode == gpu::InterlockMode::atomics);
+        assert(blendEquation == gpu::BlendEquation::none);
+    }
+#endif
+    else if (interlockMode == gpu::InterlockMode::clockwiseAtomic)
+    {
+        // Clockwise mode is still an experimental Vulkan-only feature.
+        // Override the pipeline blend state.
+        if (props.shaderMiscFlags &
+            gpu::ShaderMiscFlags::borrowedCoveragePrepass)
+        {
+            // Borrowed coverage clockwise draws only update the coverage buffer
+            // (which is not a render target attachment).
+            blendEquation = gpu::BlendEquation::none;
+            colorWriteEnabled = false;
+        }
+        else
+        {
+            // Forward coverage clockwise draws are all unmultiplied src-over.
+            blendEquation = gpu::BlendEquation::srcOver;
+            blendEquationPremultiplied = false;
+        }
+    }
+
+    StackVector<VkPipelineColorBlendAttachmentState, PLS_PLANE_COUNT>
+        blendStates;
+    blendStates.push_back_n(
+        pipelineLayout.colorAttachmentCount(subpassIndex),
+        {
+            .blendEnable = blendEquation != gpu::BlendEquation::none,
+            .srcColorBlendFactor = blendEquationPremultiplied
+                                       ? VK_BLEND_FACTOR_ONE
+                                       : VK_BLEND_FACTOR_SRC_ALPHA,
             .dstColorBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
             .colorBlendOp = vk_blend_op(pipelineState.blendEquation),
             .srcAlphaBlendFactor = VK_BLEND_FACTOR_ONE,
             .dstAlphaBlendFactor = VK_BLEND_FACTOR_ONE_MINUS_SRC_ALPHA,
             .alphaBlendOp = vk_blend_op(pipelineState.blendEquation),
-            .colorWriteMask = pipelineState.colorWriteEnabled
-                                  ? vkutil::kColorWriteMaskRGBA
-                                  : vkutil::kColorWriteMaskNone,
-        };
-    }
-
-    StackVector<VkPipelineColorBlendAttachmentState,
-                MAX_FRAMEBUFFER_ATTACHMENTS>
-        blendStates;
-    blendStates.push_back_n(pipelineLayout.colorAttachmentCount(subpassIndex),
-                            blendState);
+            .colorWriteMask = colorWriteEnabled ? vkutil::kColorWriteMaskRGBA
+                                                : vkutil::kColorWriteMaskNone,
+        });
     VkPipelineColorBlendStateCreateInfo pipelineColorBlendStateCreateInfo = {
         .sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO,
         .attachmentCount = blendStates.size(),
@@ -397,7 +440,7 @@ DrawPipelineVulkan::DrawPipelineVulkan(
         .subpass = subpassIndex,
     };
 
-    switch (drawType)
+    switch (props.drawType)
     {
         case DrawType::midpointFanPatches:
         case DrawType::midpointFanCenterAAPatches:
@@ -438,15 +481,13 @@ DrawPipelineVulkan::DrawPipelineVulkan(
                 &layout::INPUT_ASSEMBLY_TRIANGLE_LIST;
             break;
 
-        case DrawType::atomicResolve:
+        case DrawType::renderPassResolve:
+        case DrawType::renderPassInitialize:
             pipelineCreateInfo.pVertexInputState =
                 &layout::EMPTY_VERTEX_INPUT_STATE;
             pipelineCreateInfo.pInputAssemblyState =
                 &layout::INPUT_ASSEMBLY_TRIANGLE_STRIP;
             break;
-
-        case DrawType::atomicInitialize:
-            RIVE_UNREACHABLE();
     }
 
     if (m_vk->CreateGraphicsPipelines(m_vk->device,

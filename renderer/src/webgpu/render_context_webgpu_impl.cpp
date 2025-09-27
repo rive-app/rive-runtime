@@ -8,8 +8,8 @@
 
 #include <string>
 
-#include "generated/shaders/spirv/blit_texture_as_draw.vert.h"
-#include "generated/shaders/spirv/blit_texture_as_draw.frag.h"
+#include "generated/shaders/spirv/blit_texture_as_draw_filtered.vert.h"
+#include "generated/shaders/spirv/blit_texture_as_draw_filtered.frag.h"
 #include "generated/shaders/spirv/color_ramp.vert.h"
 #include "generated/shaders/spirv/color_ramp.frag.h"
 #include "generated/shaders/spirv/tessellate.vert.h"
@@ -796,12 +796,12 @@ public:
                     addDefine(GLSL_DRAW_IMAGE);
                     addDefine(GLSL_DRAW_IMAGE_MESH);
                     break;
-                case DrawType::atomicInitialize:
+                case DrawType::renderPassInitialize:
                     addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
                     addDefine(GLSL_INITIALIZE_PLS);
                     RIVE_UNREACHABLE();
                     break;
-                case DrawType::atomicResolve:
+                case DrawType::renderPassResolve:
                     addDefine(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
                     addDefine(GLSL_RESOLVE_PLS);
                     RIVE_UNREACHABLE();
@@ -856,8 +856,6 @@ public:
                     glsl << gpu::glsl::draw_image_mesh << '\n';
                     break;
                 case DrawType::imageRect:
-                case DrawType::atomicInitialize:
-                case DrawType::atomicResolve:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
                 case DrawType::msaaMidpointFans:
@@ -866,6 +864,8 @@ public:
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
                 case DrawType::msaaStencilClipReset:
+                case DrawType::renderPassInitialize:
+                case DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();
                     break;
             }
@@ -938,8 +938,6 @@ public:
                         draw_image_mesh_webgpu_frag,
                         std::size(draw_image_mesh_webgpu_frag));
                     break;
-                case DrawType::atomicInitialize:
-                case DrawType::atomicResolve:
                 case DrawType::msaaStrokes:
                 case DrawType::msaaMidpointFanBorrowedCoverage:
                 case DrawType::msaaMidpointFans:
@@ -948,6 +946,8 @@ public:
                 case DrawType::msaaMidpointFanPathsCover:
                 case DrawType::msaaOuterCubics:
                 case DrawType::msaaStencilClipReset:
+                case DrawType::renderPassInitialize:
+                case DrawType::renderPassResolve:
                     RIVE_UNREACHABLE();
             }
         }
@@ -1667,7 +1667,7 @@ public:
 
         wgpu::BindGroupLayoutEntry bindingEntries[] = {
             {
-                .binding = 0,
+                .binding = IMAGE_TEXTURE_IDX,
                 .visibility = wgpu::ShaderStage::Fragment,
                 .texture =
                     {
@@ -1676,7 +1676,7 @@ public:
                     },
             },
             {
-                .binding = 1,
+                .binding = IMAGE_SAMPLER_IDX,
                 .visibility = wgpu::ShaderStage::Fragment,
                 .sampler =
                     {
@@ -1690,25 +1690,31 @@ public:
             .entries = bindingEntries,
         };
 
-        m_bindGroupLayout = device.CreateBindGroupLayout(&bindingsDesc);
+        m_perDrawBindGroupLayout = device.CreateBindGroupLayout(&bindingsDesc);
+
+        wgpu::BindGroupLayout layouts[] = {
+            impl->m_emptyBindingsLayout,
+            m_perDrawBindGroupLayout,
+        };
+        static_assert(PER_DRAW_BINDINGS_SET == 1);
 
         wgpu::PipelineLayoutDescriptor pipelineLayoutDesc = {
-            .bindGroupLayoutCount = 1,
-            .bindGroupLayouts = &m_bindGroupLayout,
+            .bindGroupLayoutCount = std::size(layouts),
+            .bindGroupLayouts = layouts,
         };
 
         wgpu::PipelineLayout pipelineLayout =
             device.CreatePipelineLayout(&pipelineLayoutDesc);
 
-        wgpu::ShaderModule vertexShader =
-            compile_shader_module_spirv(device,
-                                        blit_texture_as_draw_vert,
-                                        std::size(blit_texture_as_draw_vert));
+        wgpu::ShaderModule vertexShader = compile_shader_module_spirv(
+            device,
+            blit_texture_as_draw_filtered_vert,
+            std::size(blit_texture_as_draw_filtered_vert));
 
-        wgpu::ShaderModule fragmentShader =
-            compile_shader_module_spirv(device,
-                                        blit_texture_as_draw_frag,
-                                        std::size(blit_texture_as_draw_frag));
+        wgpu::ShaderModule fragmentShader = compile_shader_module_spirv(
+            device,
+            blit_texture_as_draw_filtered_frag,
+            std::size(blit_texture_as_draw_filtered_frag));
 
         wgpu::ColorTargetState colorTargetState = {
             .format = wgpu::TextureFormat::RGBA8Unorm,
@@ -1738,14 +1744,14 @@ public:
         m_renderPipeline = device.CreateRenderPipeline(&desc);
     }
 
-    const wgpu::BindGroupLayout& bindGroupLayout() const
+    const wgpu::BindGroupLayout& perDrawBindGroupLayout() const
     {
-        return m_bindGroupLayout;
+        return m_perDrawBindGroupLayout;
     }
     wgpu::RenderPipeline renderPipeline() const { return m_renderPipeline; }
 
 private:
-    wgpu::BindGroupLayout m_bindGroupLayout;
+    wgpu::BindGroupLayout m_perDrawBindGroupLayout;
     wgpu::RenderPipeline m_renderPipeline;
 };
 #endif
@@ -1794,23 +1800,23 @@ void RenderContextWebGPUImpl::generateMipmaps(wgpu::Texture texture)
 
         wgpu::BindGroupEntry bindingEntries[] = {
             {
-                .binding = 0,
+                .binding = IMAGE_TEXTURE_IDX,
                 .textureView = srcView,
             },
             {
-                .binding = 1,
+                .binding = IMAGE_SAMPLER_IDX,
                 .sampler = m_linearSampler,
             },
         };
 
         wgpu::BindGroupDescriptor bindGroupDesc = {
-            .layout = m_blitTextureAsDrawPipeline->bindGroupLayout(),
+            .layout = m_blitTextureAsDrawPipeline->perDrawBindGroupLayout(),
             .entryCount = std::size(bindingEntries),
             .entries = bindingEntries,
         };
 
         wgpu::BindGroup bindings = m_device.CreateBindGroup(&bindGroupDesc);
-        mipPass.SetBindGroup(0, bindings);
+        mipPass.SetBindGroup(PER_DRAW_BINDINGS_SET, bindings);
 
         mipPass.SetPipeline(m_blitTextureAsDrawPipeline->renderPipeline());
         mipPass.Draw(4);
@@ -2179,8 +2185,6 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
             vertexBufferLayouts[1].arrayStride = sizeof(float) * 2;
             vertexBufferLayouts[1].stepMode = WGPUVertexStepMode_Vertex;
             break;
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
         case DrawType::msaaStrokes:
         case DrawType::msaaMidpointFanBorrowedCoverage:
         case DrawType::msaaMidpointFans:
@@ -2189,6 +2193,8 @@ wgpu::RenderPipeline RenderContextWebGPUImpl::makeDrawPipeline(
         case DrawType::msaaMidpointFanPathsCover:
         case DrawType::msaaOuterCubics:
         case DrawType::msaaStencilClipReset:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
             RIVE_UNREACHABLE();
     }
 
@@ -2998,8 +3004,6 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
                 drawPass.DrawIndexed(batch.elementCount, 1, batch.baseElement);
                 break;
             }
-            case DrawType::atomicInitialize:
-            case DrawType::atomicResolve:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
             case DrawType::msaaMidpointFans:
@@ -3008,6 +3012,8 @@ void RenderContextWebGPUImpl::flush(const FlushDescriptor& desc)
             case DrawType::msaaMidpointFanPathsCover:
             case DrawType::msaaOuterCubics:
             case DrawType::msaaStencilClipReset:
+            case DrawType::renderPassInitialize:
+            case DrawType::renderPassResolve:
                 RIVE_UNREACHABLE();
         }
     }

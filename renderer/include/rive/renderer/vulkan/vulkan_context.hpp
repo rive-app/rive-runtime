@@ -169,8 +169,10 @@ public:
                              VkBufferMemoryBarrier);
 
     void blitSubRect(VkCommandBuffer commandBuffer,
-                     VkImage src,
-                     VkImage dst,
+                     VkImage srcImage,
+                     VkImageLayout srcImageLayout,
+                     VkImage dstImage,
+                     VkImageLayout dstImageLayout,
                      const IAABB&);
 
 private:

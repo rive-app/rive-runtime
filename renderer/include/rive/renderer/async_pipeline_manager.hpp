@@ -121,11 +121,12 @@ public:
         // If requested, synthesize a complete failure to get an ubershader
         // (i.e. pretend we attempted to load the current shader asynchronously
         // and tried to fall back on an uber, which failed) (Don't fail on
-        // "atomicResolve" because if we fail that one the unit test won't see
-        // the clear color)
+        // "renderPassResolve" in atomic mode because if we fail that one the
+        // unit test won't see the clear color.)
         if (props.synthesizedFailureType ==
                 gpu::SynthesizedFailureType::ubershaderLoad &&
-            props.drawType != DrawType::atomicResolve)
+            (props.interlockMode != gpu::InterlockMode::atomics ||
+             props.drawType != DrawType::renderPassResolve))
         {
             return nullptr;
         }

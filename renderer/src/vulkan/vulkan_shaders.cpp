@@ -2,7 +2,9 @@
  * Copyright 2023 Rive
  */
 
-#include "rive/renderer/vulkan/vkutil.hpp"
+#include "vulkan_shaders.hpp"
+
+#include "rive/span.hpp"
 
 namespace rive::gpu::spirv
 {
@@ -75,6 +77,8 @@ namespace embedded
 #include "generated/shaders/spirv/draw_msaa_image_mesh.frag.h"
 #include "generated/shaders/spirv/draw_msaa_image_mesh.fixedcolor_frag.h"
 #include "generated/shaders/spirv/draw_msaa_image_mesh.noclipdistance_vert.h"
+#include "generated/shaders/spirv/copy_attachment_to_attachment.vert.h"
+#include "generated/shaders/spirv/copy_attachment_to_attachment.frag.h"
 } // namespace embedded
 
 // Draw setup shaders.
@@ -202,6 +206,10 @@ rive::Span<const uint32_t> draw_msaa_image_mesh_frag =
     rive::make_span(embedded::draw_msaa_image_mesh_frag);
 rive::Span<const uint32_t> draw_msaa_image_mesh_fixedcolor_frag =
     rive::make_span(embedded::draw_msaa_image_mesh_fixedcolor_frag);
+rive::Span<const uint32_t> copy_attachment_to_attachment_vert =
+    rive::make_span(embedded::copy_attachment_to_attachment_vert);
+rive::Span<const uint32_t> copy_attachment_to_attachment_frag =
+    rive::make_span(embedded::copy_attachment_to_attachment_frag);
 
 void hotload_shaders(rive::Span<const uint32_t> spirvData)
 {
@@ -276,5 +284,7 @@ void hotload_shaders(rive::Span<const uint32_t> spirvData)
     spirv::draw_msaa_image_mesh_noclipdistance_vert = readNextBytecodeSpan();
     spirv::draw_msaa_image_mesh_frag = readNextBytecodeSpan();
     spirv::draw_msaa_image_mesh_fixedcolor_frag = readNextBytecodeSpan();
+    spirv::copy_attachment_to_attachment_vert = readNextBytecodeSpan();
+    spirv::copy_attachment_to_attachment_frag = readNextBytecodeSpan();
 }
 } // namespace rive::gpu::spirv

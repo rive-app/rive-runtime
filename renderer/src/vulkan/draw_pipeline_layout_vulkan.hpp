@@ -27,13 +27,19 @@ public:
         // no advanced blend modes so we can use built-in hardware blending.
         fixedFunctionColorOutput = 1 << 0,
 
-        // Use an offscreen texture to render color, but also attach the real
-        // target texture at the COALESCED_ATOMIC_RESOLVE index, and render to
-        // it directly in the atomic resolve step.
+        // Atomic mode only: Use an offscreen texture to render color, but also
+        // attach the real target texture at the COALESCED_ATOMIC_RESOLVE index,
+        // and render to it directly in the atomic resolve step.
         coalescedResolveAndTransfer = 1 << 1,
+
+        // MSAA only, while using LoadAction::preserveRenderTarget: We have to
+        // initialize the (transient) MSAA color attachment from an offscreen
+        // texture bound as an input attachment, because the final render target
+        // itself can't be bound as an input attachment.
+        msaaSeedFromOffscreenTexture = 1 << 2,
     };
 
-    constexpr static int OPTION_COUNT = 2;
+    constexpr static int OPTION_COUNT = 3;
     constexpr static int BIT_COUNT = OPTION_COUNT + 2;
 
     constexpr static int TOTAL_LAYOUT_COUNT =

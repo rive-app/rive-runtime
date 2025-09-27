@@ -1380,23 +1380,47 @@ void RenderContext::LogicalFlush::writeResources()
         // Re-order the draws!!
         std::sort(indirectDrawList.begin(), indirectDrawList.end());
 
-        // Atomic mode sometimes needs to initialize PLS with a draw when the
-        // backend can't do it with typical clear/load APIs.
-        if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
+        assert(m_pendingBarriers == BarrierFlags::none);
+        if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics &&
+            platformFeatures.atomicPLSInitNeedsDraw)
         {
-            assert(m_pendingBarriers == BarrierFlags::none);
-            if (platformFeatures.atomicPLSMustBeInitializedAsDraw)
-            {
-                m_drawList.emplace_back(m_ctx->perFrameAllocator(),
-                                        DrawType::atomicInitialize,
-                                        gpu::ShaderMiscFlags::none,
-                                        1,
-                                        0,
-                                        BlendMode::srcOver,
-                                        ImageSampler::LinearClamp(),
-                                        BarrierFlags::none);
-            }
-            m_pendingBarriers |= BarrierFlags::plsAtomicPostInit;
+            // Atomic mode sometimes needs to initialize PLS with a draw when
+            // the backend can't do it with typical clear/load APIs.
+            // So far only Metal needs this, and its implementation doesn't
+            // require a barrier before or after.
+            m_drawList.emplace_back(m_ctx->perFrameAllocator(),
+                                    DrawType::renderPassInitialize,
+                                    gpu::ShaderMiscFlags::none,
+                                    1,
+                                    0,
+                                    BlendMode::srcOver,
+                                    ImageSampler::LinearClamp(),
+                                    BarrierFlags::none);
+        }
+        else if (m_ctx->frameInterlockMode() == gpu::InterlockMode::msaa &&
+                 m_flushDesc.colorLoadAction ==
+                     gpu::LoadAction::preserveRenderTarget &&
+                 platformFeatures.msaaColorPreserveNeedsDraw)
+        {
+            // When implemented with a transient attachment, MSAA needs us to
+            // draw the old renderTarget contents into the framebuffer at the
+            // beginning of the render pass when
+            // LoadAction::preserveRenderTarget is specified.
+            m_drawList.emplace_back(m_ctx->perFrameAllocator(),
+                                    DrawType::renderPassInitialize,
+                                    gpu::ShaderMiscFlags::none,
+                                    1,
+                                    0,
+                                    BlendMode::srcOver,
+                                    ImageSampler::LinearClamp(),
+                                    // The MSAA init reads the framebuffer, so
+                                    // it needs the equivalent of a "dstBlend"
+                                    // barrier.
+                                    BarrierFlags::dstBlend);
+            m_drawList.tail().drawContents = gpu::DrawContents::opaquePaint;
+            // The draw that follows the this init will need a special
+            // "msaaPostInit" barrier.
+            m_pendingBarriers |= BarrierFlags::msaaPostInit;
         }
 
         // Find a mask that tells us when to insert barriers, and which barriers
@@ -1450,13 +1474,16 @@ void RenderContext::LogicalFlush::writeResources()
 
         // Write out the draw data from the sorted draw list, and build up a
         // condensed/batched list of low-level draws.
-        int64_t priorSignedKey =
-            !indirectDrawList.empty() ? indirectDrawList[0] : 0;
+        constexpr int64_t BEGIN_KEY = std::numeric_limits<int64_t>::min();
+        int64_t priorSignedKey = BEGIN_KEY;
         for (const int64_t signedKey : indirectDrawList)
         {
             assert(signedKey >= priorSignedKey);
-            if ((priorSignedKey & needsBarrierMask) !=
-                (signedKey & needsBarrierMask))
+            // The first draw always gets barriers because we need the barriers
+            // after the initial clears, loads, etc.
+            if (priorSignedKey == BEGIN_KEY ||
+                (priorSignedKey & needsBarrierMask) !=
+                    (signedKey & needsBarrierMask))
             {
                 m_pendingBarriers |= neededBarriers;
             }
@@ -1480,14 +1507,9 @@ void RenderContext::LogicalFlush::writeResources()
         // Atomic mode needs one more draw to resolve all the pixels.
         if (m_ctx->frameInterlockMode() == gpu::InterlockMode::atomics)
         {
-            // We can ignore any pending "plsAtomic" barriers; the
-            // plsAtomicPreResolve can replace them.
-            assert((m_pendingBarriers & ~(BarrierFlags::plsAtomic |
-                                          BarrierFlags::plsAtomicPostInit)) ==
-                   BarrierFlags::none);
             m_drawList
                 .emplace_back(m_ctx->perFrameAllocator(),
-                              DrawType::atomicResolve,
+                              DrawType::renderPassResolve,
                               gpu::ShaderMiscFlags::none,
                               1,
                               0,
@@ -2756,8 +2778,8 @@ gpu::DrawBatch& RenderContext::LogicalFlush::pushDraw(
         // own unique uniforms.
         case DrawType::imageRect:
         case DrawType::imageMesh:
-        case DrawType::atomicInitialize:
-        case DrawType::atomicResolve:
+        case DrawType::renderPassInitialize:
+        case DrawType::renderPassResolve:
             canMergeWithPreviousBatch = false;
             break;
     }

@@ -233,8 +233,6 @@ public:
             case DrawType::imageMesh:
                 namespacePrefix = 'm';
                 break;
-            case DrawType::atomicInitialize:
-            case DrawType::atomicResolve:
             case DrawType::msaaStrokes:
             case DrawType::msaaMidpointFanBorrowedCoverage:
             case DrawType::msaaMidpointFans:
@@ -243,6 +241,8 @@ public:
             case DrawType::msaaMidpointFanPathsCover:
             case DrawType::msaaOuterCubics:
             case DrawType::msaaStencilClipReset:
+            case DrawType::renderPassInitialize:
+            case DrawType::renderPassResolve:
                 RIVE_UNREACHABLE();
         }
 
@@ -325,7 +325,7 @@ public:
                         framebuffer.alphaBlendOperation = MTLBlendOperationAdd;
                         framebuffer.writeMask = MTLColorWriteMaskAll;
                     }
-                    else if (drawType == gpu::DrawType::atomicResolve)
+                    else if (drawType == gpu::DrawType::renderPassResolve)
                     {
                         // We're resolving from the offscreen color buffer to
                         // the framebuffer attachment. Write out the final color
@@ -489,7 +489,7 @@ RenderContextMetalImpl::RenderContextMetalImpl(
         !contextOptions.disableFramebufferReads;
     m_platformFeatures.supportsFragmentShaderAtomics = true;
 #endif
-    m_platformFeatures.atomicPLSMustBeInitializedAsDraw = true;
+    m_platformFeatures.atomicPLSInitNeedsDraw = true;
 
 #if defined(RIVE_IOS) || defined(RIVE_XROS) || defined(RIVE_XROS_SIMULATOR) || \
     defined(RIVE_APPLETVOS) || defined(RIVE_APPLETVOS_SIMULATOR)
@@ -1576,15 +1576,17 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
         }
         if (!(batchMiscFlags & gpu::ShaderMiscFlags::fixedFunctionColorOutput))
         {
-            if (batch.drawType == gpu::DrawType::atomicResolve)
+            if (batch.drawType == gpu::DrawType::renderPassResolve)
             {
                 // Atomic mode can always do a coalesced resolve when rendering
                 // to an offscreen color buffer.
+                assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 batchMiscFlags |=
                     gpu::ShaderMiscFlags::coalescedResolveAndTransfer;
             }
-            else if (batch.drawType == gpu::DrawType::atomicInitialize)
+            else if (batch.drawType == gpu::DrawType::renderPassInitialize)
             {
+                assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 if (desc.colorLoadAction == gpu::LoadAction::clear)
                 {
                     batchMiscFlags |= gpu::ShaderMiscFlags::storeColorClear;
@@ -1635,8 +1637,7 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
 
         // Issue any barriers if needed.
         if (batch.barriers &
-            (BarrierFlags::plsAtomic | BarrierFlags::plsAtomicPostInit |
-             BarrierFlags::plsAtomicPreResolve))
+            (BarrierFlags::plsAtomic | BarrierFlags::plsAtomicPreResolve))
         {
             assert(desc.interlockMode == gpu::InterlockMode::atomics);
             switch (m_metalFeatures.atomicBarrierType)
@@ -1769,8 +1770,8 @@ void RenderContextMetalImpl::flush(const FlushDescriptor& desc)
                 }
                 break;
             }
-            case DrawType::atomicInitialize:
-            case DrawType::atomicResolve:
+            case DrawType::renderPassInitialize:
+            case DrawType::renderPassResolve:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 [encoder setRenderPipelineState:drawPipelineState];

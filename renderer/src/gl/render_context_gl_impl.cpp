@@ -66,9 +66,9 @@ static bool is_tessellation_draw(gpu::DrawType drawType)
         case gpu::DrawType::imageMesh:
         case gpu::DrawType::interiorTriangulation:
         case gpu::DrawType::atlasBlit:
-        case gpu::DrawType::atomicInitialize:
-        case gpu::DrawType::atomicResolve:
         case gpu::DrawType::msaaStencilClipReset:
+        case gpu::DrawType::renderPassInitialize:
+        case gpu::DrawType::renderPassResolve:
             return false;
     }
     RIVE_UNREACHABLE();
@@ -1152,7 +1152,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
                 sources.push_back(gpu::glsl::draw_image_mesh);
             }
             break;
-        case gpu::DrawType::atomicResolve:
+        case gpu::DrawType::renderPassResolve:
             assert(interlockMode == gpu::InterlockMode::atomics);
             defines.push_back(GLSL_DRAW_RENDER_TARGET_UPDATE_BOUNDS);
             defines.push_back(GLSL_RESOLVE_PLS);
@@ -1165,7 +1165,7 @@ RenderContextGLImpl::DrawShader::DrawShader(
             sources.push_back(gpu::glsl::draw_path_common);
             sources.push_back(gpu::glsl::atomic_draw);
             break;
-        case gpu::DrawType::atomicInitialize:
+        case gpu::DrawType::renderPassInitialize:
             assert(interlockMode == gpu::InterlockMode::atomics);
             RIVE_UNREACHABLE();
     }
@@ -2014,7 +2014,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
         else if (desc.interlockMode == gpu::InterlockMode::atomics)
         {
             if (!desc.atomicFixedFunctionColorOutput &&
-                drawType != gpu::DrawType::atomicResolve)
+                drawType != gpu::DrawType::renderPassResolve)
             {
                 // When rendering to an offscreen texture in atomic mode, GL
                 // leaves the target framebuffer bound the whole time, but
@@ -2178,7 +2178,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 break;
             }
 
-            case gpu::DrawType::atomicResolve:
+            case gpu::DrawType::renderPassResolve:
             {
                 assert(desc.interlockMode == gpu::InterlockMode::atomics);
                 assert(m_plsImpl->rasterOrderingKnownDisabled());
@@ -2187,7 +2187,7 @@ void RenderContextGLImpl::flush(const FlushDescriptor& desc)
                 break;
             }
 
-            case gpu::DrawType::atomicInitialize:
+            case gpu::DrawType::renderPassInitialize:
             {
                 RIVE_UNREACHABLE();
             }
@@ -2306,24 +2306,19 @@ void RenderContextGLImpl::blitTextureToFramebufferAsDraw(
 {
     if (m_blitAsDrawProgram == 0)
     {
-        // Define "USE_TEXEL_FETCH_WITH_FRAG_COORD" so the shader uses
-        // texelFetch() on the source texture instead of sampling it. This way
-        // we don't have to configure the texture's sampling parameters, and
-        // since textureID potentially refers to an external texture, it would
-        // be very messy to try and change its sampling params.
-        const char* blitDefines[] = {GLSL_USE_TEXEL_FETCH_WITH_FRAG_COORD};
         const char* blitSources[] = {glsl::constants,
+                                     glsl::common,
                                      glsl::blit_texture_as_draw};
         m_blitAsDrawProgram = glutils::Program();
         m_blitAsDrawProgram.compileAndAttachShader(GL_VERTEX_SHADER,
-                                                   blitDefines,
-                                                   std::size(blitDefines),
+                                                   nullptr,
+                                                   0,
                                                    blitSources,
                                                    std::size(blitSources),
                                                    m_capabilities);
         m_blitAsDrawProgram.compileAndAttachShader(GL_FRAGMENT_SHADER,
-                                                   blitDefines,
-                                                   std::size(blitDefines),
+                                                   nullptr,
+                                                   0,
                                                    blitSources,
                                                    std::size(blitSources),
                                                    m_capabilities);
