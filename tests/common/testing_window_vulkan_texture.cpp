@@ -58,7 +58,11 @@ public:
             m_device,
             vulkanFeatures,
             m_instance.fp_vkGetInstanceProcAddr,
-            ShaderCompilationMode::alwaysSynchronous);
+            {
+                .forceAtomicMode = backendParams.atomic,
+                .shaderCompilationMode =
+                    ShaderCompilationMode::alwaysSynchronous,
+            });
     }
 
     ~TestingWindowVulkanTexture()

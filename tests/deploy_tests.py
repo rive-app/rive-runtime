@@ -95,6 +95,8 @@ parser.add_argument("-r", "--remote",
                     help="target is remote; serve from host IP instead of localhost")
 parser.add_argument("--build-only", action='store_true',
                     help="only build, don't deploy")
+parser.add_argument("-i", "--install-only", action='store_true',
+                    help="only build & install, don't deploy")
 parser.add_argument("--no-rebuild", action='store_true',
                     help="don't rebuild the native tools in builddir")
 parser.add_argument("-n", "--no-install", action='store_true',
@@ -824,6 +826,9 @@ def main():
             subprocess.check_call(["xcrun", "simctl", "install", args.ios_udid,
                                    "ios_tests/build/Debug-iphonesimulator/rive_ios_tests.app"])
             print()
+
+    if args.install_only:
+        return 0
 
     if args.target == "android":
         atexit.register(force_stop_android_tests_apk)

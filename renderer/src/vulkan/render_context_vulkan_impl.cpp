@@ -579,7 +579,8 @@ private:
 
 RenderContextVulkanImpl::RenderContextVulkanImpl(
     rcp<VulkanContext> vk,
-    const VkPhysicalDeviceProperties& physicalDeviceProps) :
+    const VkPhysicalDeviceProperties& physicalDeviceProps,
+    const ContextOptions& contextOptions) :
     m_vk(std::move(vk)),
     m_flushUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
     m_imageDrawUniformBufferPool(m_vk, VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT),
@@ -594,8 +595,17 @@ RenderContextVulkanImpl::RenderContextVulkanImpl(
 {
     m_platformFeatures.supportsRasterOrdering =
         m_vk->features.rasterizationOrderColorAttachmentAccess;
+#ifdef RIVE_ANDROID
+    m_platformFeatures.supportsFragmentShaderAtomics =
+        m_vk->features.fragmentStoresAndAtomics &&
+        // For now, disable gpu::InterlockMode::atomics on Android unless
+        // explicitly requested. We will focus on stabilizing MSAA first, and
+        // then roll this mode back in.
+        contextOptions.forceAtomicMode;
+#else
     m_platformFeatures.supportsFragmentShaderAtomics =
         m_vk->features.fragmentStoresAndAtomics;
+#endif
     m_platformFeatures.supportsClockwiseAtomicRendering =
         m_vk->features.fragmentStoresAndAtomics;
     m_platformFeatures.supportsClipPlanes =
@@ -2362,7 +2372,7 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     VkDevice device,
     const VulkanFeatures& features,
     PFN_vkGetInstanceProcAddr pfnvkGetInstanceProcAddr,
-    ShaderCompilationMode shaderCompilationMode)
+    const ContextOptions& contextOptions)
 {
     rcp<VulkanContext> vk = make_rcp<VulkanContext>(instance,
                                                     physicalDevice,
@@ -2372,13 +2382,19 @@ std::unique_ptr<RenderContext> RenderContextVulkanImpl::MakeContext(
     VkPhysicalDeviceProperties physicalDeviceProps;
     vk->GetPhysicalDeviceProperties(vk->physicalDevice, &physicalDeviceProps);
     std::unique_ptr<RenderContextVulkanImpl> impl(
-        new RenderContextVulkanImpl(std::move(vk), physicalDeviceProps));
-    if (!impl->platformFeatures().supportsRasterOrdering &&
+        new RenderContextVulkanImpl(std::move(vk),
+                                    physicalDeviceProps,
+                                    contextOptions));
+    if (contextOptions.forceAtomicMode &&
         !impl->platformFeatures().supportsFragmentShaderAtomics)
     {
-        return nullptr; // TODO: implement MSAA.
+        fprintf(stderr,
+                "ERROR: Requested \"atomic\" mode but Vulkan does not support "
+                "fragmentStoresAndAtomics on this platform.\n");
+        return nullptr;
     }
-    impl->initGPUObjects(shaderCompilationMode, physicalDeviceProps.vendorID);
+    impl->initGPUObjects(contextOptions.shaderCompilationMode,
+                         physicalDeviceProps.vendorID);
     return std::make_unique<RenderContext>(std::move(impl));
 }
 } // namespace rive::gpu

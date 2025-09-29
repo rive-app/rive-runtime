@@ -129,6 +129,11 @@ TestingWindow::Backend TestingWindow::ParseBackend(const char* name,
     {
         return Backend::vk;
     }
+    if (nameStr == "vulkanatomic" || nameStr == "vkatomic")
+    {
+        params->atomic = true;
+        return Backend::vk;
+    }
     if (nameStr == "vulkanmsaa" || nameStr == "vkmsaa")
     {
         params->msaa = true;

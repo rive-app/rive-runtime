@@ -22,9 +22,21 @@ TestingWindow* TestingWindow::MakeAndroidVulkan(const BackendParams&,
 #include <vulkan/vulkan_android.h>
 #include <vk_mem_alloc.h>
 #include <android/native_app_glue/android_native_app_glue.h>
+#include <android/log.h>
 
 using namespace rive;
 using namespace rive::gpu;
+
+// Send errors to stderr and the Android log, just for redundancy in case one or
+// the other gets dropped.
+#define LOG_ERROR(FORMAT, ...)                                                 \
+    [](auto&&... args) {                                                       \
+        fprintf(stderr, FORMAT, std::forward<decltype(args)>(args)...);        \
+        __android_log_print(ANDROID_LOG_ERROR,                                 \
+                            "rive_android_tests",                              \
+                            FORMAT,                                            \
+                            std::forward<decltype(args)>(args)...);            \
+    }(__VA_ARGS__)
 
 class TestingWindowAndroidVulkan : public TestingWindow
 {
@@ -37,22 +49,61 @@ public:
         m_androidWindowHeight = m_height = ANativeWindow_getHeight(window);
         rive_vkb::load_vulkan();
 
-        vkb::InstanceBuilder instanceBuilder;
-        instanceBuilder.set_app_name("path_fiddle")
-            .set_engine_name("Rive Renderer")
-            .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
-            .require_api_version(1, m_backendParams.core ? 0 : 3, 0)
-            .set_minimum_instance_version(1, 0, 0);
-#ifdef DEBUG
-        instanceBuilder.enable_validation_layers(
-            !backendParams.disableValidationLayers);
-        if (!backendParams.disableDebugCallbacks)
+        for (;;)
         {
-            instanceBuilder.set_debug_callback(
-                rive_vkb::default_debug_callback);
-        }
+            vkb::InstanceBuilder instanceBuilder;
+            instanceBuilder.set_app_name("path_fiddle")
+                .set_engine_name("Rive Renderer")
+                .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
+                .require_api_version(1, m_backendParams.core ? 0 : 3, 0)
+                .set_minimum_instance_version(1, 0, 0);
+#ifdef DEBUG
+            if (!m_backendParams.disableValidationLayers)
+            {
+                instanceBuilder.enable_validation_layers();
+            }
+            if (!m_backendParams.disableDebugCallbacks)
+            {
+                instanceBuilder.set_debug_callback(
+                    rive_vkb::default_debug_callback);
+            }
 #endif
-        m_instance = VKB_CHECK(instanceBuilder.build());
+            auto instanceResult = instanceBuilder.build();
+            if (!instanceResult)
+            {
+#ifdef DEBUG
+                if (!m_backendParams.disableValidationLayers &&
+                    static_cast<vkb::InstanceError>(
+                        instanceResult.error().value()) ==
+                        vkb::InstanceError::requested_layers_not_present)
+                {
+                    LOG_ERROR(
+                        "WARNING: Validation layers not found. Attempting to "
+                        "create a Vulkan context again without validation "
+                        "layers.");
+                    m_backendParams.disableValidationLayers = true;
+                    continue;
+                }
+                if (!m_backendParams.disableDebugCallbacks &&
+                    static_cast<vkb::InstanceError>(
+                        instanceResult.error().value()) ==
+                        vkb::InstanceError::failed_create_debug_messenger)
+                {
+                    LOG_ERROR(
+                        "WARNING: Debug callbacks not supported. Attempting to "
+                        "create a Vulkan context again without debug "
+                        "callbacks.");
+                    m_backendParams.disableDebugCallbacks = true;
+                    continue;
+                }
+#endif
+                LOG_ERROR("ERROR: %s: Failed to build Vulkan instance.",
+                          instanceResult.error().message().c_str());
+                abort();
+            }
+            m_instance = *instanceResult;
+            break;
+        }
         m_instanceDispatchTable = m_instance.make_table();
 
         VkAndroidSurfaceCreateInfoKHR androidSurfaceCreateInfo = {
@@ -81,7 +132,8 @@ public:
             m_device.physical_device,
             m_device,
             vulkanFeatures,
-            m_instance.fp_vkGetInstanceProcAddr);
+            m_instance.fp_vkGetInstanceProcAddr,
+            {.forceAtomicMode = backendParams.atomic});
 
         VkSurfaceCapabilitiesKHR windowCapabilities;
         VK_CHECK(m_instanceDispatchTable
@@ -308,7 +360,7 @@ private:
 
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
-    const BackendParams m_backendParams;
+    BackendParams m_backendParams;
     uint32_t m_androidWindowWidth;
     uint32_t m_androidWindowHeight;
     vkb::Instance m_instance;

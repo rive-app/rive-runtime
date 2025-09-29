@@ -70,7 +70,10 @@ public:
             m_device,
             vulkanFeatures,
             m_instance.fp_vkGetInstanceProcAddr,
-            m_options.shaderCompilationMode);
+            {
+                .forceAtomicMode = options.disableRasterOrdering,
+                .shaderCompilationMode = m_options.shaderCompilationMode,
+            });
     }
 
     ~FiddleContextVulkanPLS()
