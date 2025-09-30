@@ -14,6 +14,7 @@
 #include "rive/artboard.hpp"
 #include "rive/renderer.hpp"
 #include "rive/file.hpp"
+#include "rive/refcnt.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/static_scene.hpp"
 #include <filesystem>

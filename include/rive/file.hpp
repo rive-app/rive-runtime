@@ -12,6 +12,7 @@
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
 #include "rive/animation/keyframe_interpolator.hpp"
+#include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/refcnt.hpp"
 #include <vector>
 #include <set>
@@ -23,10 +24,12 @@
 namespace rive
 {
 class BinaryReader;
+class DataBind;
 class RuntimeHeader;
 class Factory;
 class ScrollPhysics;
 class ViewModelRuntime;
+class BindableArtboard;
 
 ///
 /// Tracks the success/failure result when importing a Rive file.
@@ -92,6 +95,9 @@ public:
     std::unique_ptr<ArtboardInstance> artboardDefault() const;
     std::unique_ptr<ArtboardInstance> artboardAt(size_t index) const;
     std::unique_ptr<ArtboardInstance> artboardNamed(std::string name) const;
+    rcp<BindableArtboard> bindableArtboardNamed(std::string name) const;
+    rcp<BindableArtboard> bindableArtboardDefault() const;
+    rcp<BindableArtboard> internalBindableArtboardFromArtboard(Artboard*) const;
 
     Artboard* artboard() const;
 

@@ -68,7 +68,7 @@ TEST_CASE("Test data binding artboards from same and different sources",
 
     // Change source to local artboard at index 1
 
-    auto ch1Source = file->artboard("ch1");
+    auto ch1Source = file->bindableArtboardNamed("ch1");
     vmiArtboard->asset(ch1Source);
     silver.addFrame();
     stateMachine->advanceAndApply(0.1f);
@@ -76,14 +76,14 @@ TEST_CASE("Test data binding artboards from same and different sources",
 
     // Change source to local artboard at index 2
 
-    auto ch2Source = file->artboard("ch2");
+    auto ch2Source = file->bindableArtboardNamed("ch2");
     vmiArtboard->asset(ch2Source);
     silver.addFrame();
     stateMachine->advanceAndApply(0.1f);
     artboard->draw(renderer.get());
 
     // Change source to external artboard "source_1"
-    auto source1 = sourceFile->artboard("source_1");
+    auto source1 = sourceFile->bindableArtboardNamed("source_1");
     vmiArtboard->asset(source1);
     silver.addFrame();
     stateMachine->advanceAndApply(0.1f);
@@ -102,7 +102,7 @@ TEST_CASE("Test data binding artboards from same and different sources",
     artboard->draw(renderer.get());
 
     // Change source to external artboard "source_2"
-    auto source2 = sourceFile->artboard("source_2");
+    auto source2 = sourceFile->bindableArtboardNamed("source_2");
     vmiArtboard->asset(source2);
     silver.addFrame();
     stateMachine->advanceAndApply(0.1f);
@@ -166,7 +166,7 @@ TEST_CASE("Test recursive data binding artboards is skipped", "[data binding]")
     artboard->draw(renderer.get());
 
     // Change source to artboard "recursive-grand-child-1"
-    auto child1Source = file->artboard("recursive-grand-child-1");
+    auto child1Source = file->bindableArtboardNamed("recursive-grand-child-1");
     vmiArtboard->asset(child1Source);
     silver.addFrame();
     stateMachine->advanceAndApply(0.1f);
@@ -174,7 +174,7 @@ TEST_CASE("Test recursive data binding artboards is skipped", "[data binding]")
 
     // Changing source to artboard "recursive-parent" does not change the
     // content because it's an ancestor of itself
-    auto parentSource = file->artboard("recursive-parent");
+    auto parentSource = file->bindableArtboardNamed("recursive-parent");
     vmiArtboard->asset(parentSource);
     silver.addFrame();
     stateMachine->advanceAndApply(0.1f);
@@ -182,18 +182,74 @@ TEST_CASE("Test recursive data binding artboards is skipped", "[data binding]")
 
     // Changing source to artboard "recursive-grand-parent" does not change the
     // content because it's an ancestor of itself
-    auto grandParentSource = file->artboard("recursive-grand-parent");
+    auto grandParentSource =
+        file->bindableArtboardNamed("recursive-grand-parent");
     vmiArtboard->asset(grandParentSource);
     silver.addFrame();
     stateMachine->advanceAndApply(0.1f);
     artboard->draw(renderer.get());
 
     // Change source to artboard "recursive-grand-child-2"
-    auto child2Source = file->artboard("recursive-grand-child-2");
+    auto child2Source = file->bindableArtboardNamed("recursive-grand-child-2");
     vmiArtboard->asset(child2Source);
     silver.addFrame();
     stateMachine->advanceAndApply(0.1f);
     artboard->draw(renderer.get());
 
     CHECK(silver.matches("data_binding_artboards_test_recursive"));
+}
+
+TEST_CASE("Test default data binding artboard from different source",
+          "[data binding]")
+{
+    // Note: the data_binding_artboards_source_test has a view model created
+    // that matches the view model the original artboards have. This is a
+    // temporary "hack" to validate that the artboard gets correctly bound
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/data_binding_artboards_test.riv", &silver);
+    auto sourceFile =
+        ReadRiveFile("assets/data_binding_artboards_source_test.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    auto vmiArtboard =
+        vmi->propertyValue("ab")->as<ViewModelInstanceArtboard>();
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    // Change source to local artboard at index 1
+
+    auto ch1Source = file->bindableArtboardNamed("ch1");
+    vmiArtboard->asset(ch1Source);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    // Change source to local artboard at index 2
+
+    auto ch2Source = file->bindableArtboardNamed("ch2");
+    vmiArtboard->asset(ch2Source);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    // Change source to default bindable artboard
+    auto source1 = sourceFile->bindableArtboardDefault();
+    vmiArtboard->asset(source1);
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+    CHECK(silver.matches("data_binding_artboards_default_test"));
 }

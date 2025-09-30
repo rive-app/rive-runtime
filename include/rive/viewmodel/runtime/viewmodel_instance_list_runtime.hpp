@@ -19,7 +19,7 @@ public:
     ViewModelInstanceListRuntime(ViewModelInstanceList* viewModelInstance) :
         ViewModelInstanceValueRuntime(viewModelInstance)
     {}
-    ViewModelInstanceRuntime* instanceAt(int index);
+    rcp<ViewModelInstanceRuntime> instanceAt(int index);
     void addInstance(ViewModelInstanceRuntime*);
     bool addInstanceAt(ViewModelInstanceRuntime*, int);
     void removeInstance(ViewModelInstanceRuntime*);

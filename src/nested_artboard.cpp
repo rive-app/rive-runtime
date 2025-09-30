@@ -64,9 +64,10 @@ Artboard* NestedArtboard::findArtboard(
     }
     if (viewModelInstanceArtboard->asset() != nullptr)
     {
-        if (!parentArtboard()->isAncestor(viewModelInstanceArtboard->asset()))
+        if (!parentArtboard()->isAncestor(
+                viewModelInstanceArtboard->asset()->artboard()))
         {
-            return viewModelInstanceArtboard->asset();
+            return viewModelInstanceArtboard->asset()->artboard();
         }
         return nullptr;
     }

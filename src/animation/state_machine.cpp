@@ -4,6 +4,7 @@
 #include "rive/animation/state_machine_layer.hpp"
 #include "rive/animation/state_machine_input.hpp"
 #include "rive/animation/state_machine_listener.hpp"
+#include "rive/data_bind/data_bind.hpp"
 
 using namespace rive;
 

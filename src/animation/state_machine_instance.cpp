@@ -27,6 +27,8 @@
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
 #include "rive/artboard_component_list.hpp"
 #include "rive/constraints/draggable_constraint.hpp"
+#include "rive/data_bind/data_bind_context.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/event_report.hpp"
 #include "rive/gesture_click_phase.hpp"

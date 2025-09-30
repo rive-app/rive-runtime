@@ -43,7 +43,8 @@ public:
     ViewModelInstanceTriggerRuntime* propertyTrigger(
         const std::string& path) const;
     ViewModelInstanceListRuntime* propertyList(const std::string& path) const;
-    ViewModelInstanceRuntime* propertyViewModel(const std::string& path) const;
+    rcp<ViewModelInstanceRuntime> propertyViewModel(
+        const std::string& path) const;
     ViewModelInstanceAssetImageRuntime* propertyImage(
         const std::string& path) const;
     ViewModelInstanceArtboardRuntime* propertyArtboard(

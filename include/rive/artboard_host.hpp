@@ -1,6 +1,7 @@
 #ifndef _RIVE_ARTBOARD_HOST_HPP_
 #define _RIVE_ARTBOARD_HOST_HPP_
 #include "rive/refcnt.hpp"
+#include "rive/file.hpp"
 #include <stdio.h>
 namespace rive
 {
@@ -8,7 +9,6 @@ class ArtboardInstance;
 class DataBind;
 class DataContext;
 class ViewModelInstance;
-class File;
 
 class ArtboardHost
 {

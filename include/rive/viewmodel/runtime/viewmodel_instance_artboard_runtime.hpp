@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include "rive/viewmodel/runtime/viewmodel_instance_value_runtime.hpp"
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
+#include "rive/bindable_artboard.hpp"
 
 namespace rive
 {
@@ -17,11 +18,11 @@ public:
         ViewModelInstanceArtboard* viewModelInstance) :
         ViewModelInstanceValueRuntime(viewModelInstance)
     {}
-    void value(Artboard* artboard);
+    void value(rcp<BindableArtboard> bindableArtboard);
     const DataType dataType() override { return DataType::artboard; }
 
 #ifdef TESTING
-    Artboard* testing_value();
+    rcp<BindableArtboard> testing_value();
 #endif
 };
 } // namespace rive

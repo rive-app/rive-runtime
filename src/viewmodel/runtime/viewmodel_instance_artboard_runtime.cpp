@@ -4,13 +4,15 @@
 // Default namespace for Rive Cpp code
 using namespace rive;
 
-void ViewModelInstanceArtboardRuntime::value(Artboard* artboard)
+void ViewModelInstanceArtboardRuntime::value(
+    rcp<BindableArtboard> bindableArtboard)
 {
-    m_viewModelInstanceValue->as<ViewModelInstanceArtboard>()->asset(artboard);
+    m_viewModelInstanceValue->as<ViewModelInstanceArtboard>()->asset(
+        bindableArtboard);
 }
 
 #ifdef TESTING
-Artboard* ViewModelInstanceArtboardRuntime::testing_value()
+rcp<BindableArtboard> ViewModelInstanceArtboardRuntime::testing_value()
 {
     return m_viewModelInstanceValue->as<ViewModelInstanceArtboard>()->asset();
 }

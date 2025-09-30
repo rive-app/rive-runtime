@@ -3,6 +3,7 @@
 #include "rive/math/simd.hpp"
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
+#include "rive/refcnt.hpp"
 #include "rive/layout.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/static_scene.hpp"

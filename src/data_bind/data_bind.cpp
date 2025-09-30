@@ -392,3 +392,7 @@ bool DataBind::advance(float elapsedTime)
     }
     return false;
 }
+
+void DataBind::file(File* value) { m_file = value; };
+
+File* DataBind::file() const { return m_file; };

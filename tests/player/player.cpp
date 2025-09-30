@@ -8,6 +8,7 @@
 #include "common/test_harness.hpp"
 #include "common/testing_window.hpp"
 #include "rive/artboard.hpp"
+#include "rive/refcnt.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/file.hpp"
 #include "rive/text/font_hb.hpp"

@@ -6,7 +6,8 @@
 // Default namespace for Rive Cpp code
 using namespace rive;
 
-ViewModelInstanceRuntime* ViewModelInstanceListRuntime::instanceAt(int index)
+rcp<ViewModelInstanceRuntime> ViewModelInstanceListRuntime::instanceAt(
+    int index)
 {
     auto listItems =
         m_viewModelInstanceValue->as<ViewModelInstanceList>()->listItems();
@@ -22,12 +23,12 @@ ViewModelInstanceRuntime* ViewModelInstanceListRuntime::instanceAt(int index)
     auto it = m_itemsMap.find(listItem);
     if (it != m_itemsMap.end())
     {
-        return it->second.get();
+        return rcp<ViewModelInstanceRuntime>(it->second);
     }
     auto instanceRuntime =
         make_rcp<ViewModelInstanceRuntime>(listItem->viewModelInstance());
     m_itemsMap[listItem] = instanceRuntime;
-    return instanceRuntime.get();
+    return rcp<ViewModelInstanceRuntime>(instanceRuntime);
 }
 
 void ViewModelInstanceListRuntime::addInstance(

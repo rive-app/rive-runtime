@@ -23,6 +23,7 @@
 #include "rive/nested_artboard_leaf.hpp"
 #include "rive/nested_artboard_layout.hpp"
 #include "rive/joystick.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind_flags.hpp"
 #include "rive/animation/nested_bool.hpp"
 #include "rive/animation/nested_number.hpp"
@@ -1666,7 +1667,7 @@ void Artboard::bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
 
 bool Artboard::isAncestor(const Artboard* artboard)
 {
-    if (m_artboardSource == artboard)
+    if (artboard != nullptr && m_artboardSource == artboard->artboardSource())
     {
         return true;
     }

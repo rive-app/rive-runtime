@@ -4,6 +4,7 @@
 #include "rive/artboard.hpp"
 #include "rive/factory.hpp"
 #include "rive/file.hpp"
+#include "rive/refcnt.hpp"
 
 struct AutoClose
 {

@@ -8,6 +8,7 @@
 #include "rive/artboard.hpp"
 #include "rive/constraints/constrainable_list.hpp"
 #include "rive/property_recorder.hpp"
+#include "rive/file.hpp"
 #include "rive/artboard_host.hpp"
 #include "rive/data_bind/data_bind_list_item_consumer.hpp"
 #include "rive/layout/layout_node_provider.hpp"
@@ -17,7 +18,6 @@
 #include <unordered_map>
 namespace rive
 {
-class File;
 class LayoutComponent;
 class ScrollConstraint;
 

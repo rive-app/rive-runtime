@@ -12,6 +12,7 @@
 #include "rive/viewmodel/viewmodel_instance_artboard.hpp"
 #include "rive/refcnt.hpp"
 #include "rive/file.hpp"
+#include <stdio.h>
 
 namespace rive
 {

@@ -38,6 +38,7 @@ class DataBind;
 class BindableProperty;
 class HitDrawable;
 class ListenerViewModel;
+typedef void (*DataBindChanged)();
 
 #ifdef WITH_RIVE_TOOLS
 class StateMachineInstance;

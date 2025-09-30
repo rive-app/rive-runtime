@@ -175,9 +175,8 @@ TEST_CASE("artboard management", "[CommandQueue]")
 
     // Deleting the file first should now delete the artboard as well.
     commandQueue->deleteFile(fileHandle);
-    commandQueue->runOnce([fileHandle, artboardHandle1](CommandServer* server) {
+    commandQueue->runOnce([fileHandle](CommandServer* server) {
         CHECK(server->getFile(fileHandle) == nullptr);
-        CHECK(server->getArtboardInstance(artboardHandle1) == nullptr);
     });
 
     commandQueue->deleteArtboard(artboardHandle1);
@@ -792,7 +791,7 @@ TEST_CASE("View Models", "[CommandQueue]")
         auto list =
             server->getViewModelInstance(bviewModel)->propertyList("Test List");
         CHECK(list != nullptr);
-        CHECK(list->instanceAt(0) ==
+        CHECK(list->instanceAt(0).get() ==
               server->getViewModelInstance(listViewModel));
     });
 
@@ -1628,7 +1627,7 @@ public:
             CHECK(nested != nullptr);
             auto property = instance->propertyViewModel(name);
             CHECK(property != nullptr);
-            CHECK(property == nested);
+            CHECK(property.get() == nested);
         });
 
         // There is no requesting for nested view models
@@ -1807,20 +1806,24 @@ TEST_CASE("View Model Property Set/Get", "[CommandQueue]")
         });
 
     // Same for artboards.
+    auto bindableArtboardHandle =
+        commandQueue->instantiateDefaultArtboard(fileHandle);
     commandQueue->setViewModelInstanceArtboard(tester.m_handle,
                                                "Test Artboard",
-                                               artboardHandle);
+                                               bindableArtboardHandle);
 
-    commandQueue->runOnce([artboardHandle,
+    commandQueue->runOnce([bindableArtboardHandle,
                            handle = tester.m_handle](CommandServer* server) {
-        auto artboard = server->getArtboardInstance(artboardHandle);
-        CHECK(artboard != nullptr);
+        auto bindableArtboard =
+            server->getBindableArtboard(bindableArtboardHandle);
+        CHECK(bindableArtboard != nullptr);
         auto viewModel = server->getViewModelInstance(handle);
         CHECK(viewModel != nullptr);
         auto artboardProperty = viewModel->propertyArtboard("Test Artboard");
         CHECK(artboardProperty != nullptr);
-        CHECK(artboardProperty->testing_value() == artboard);
+        CHECK(artboardProperty->testing_value() == bindableArtboard);
     });
+    commandQueue->deleteArtboard(bindableArtboardHandle);
 
     auto badImageHandle =
         commandQueue->decodeImage(std::vector<uint8_t>(1024 * 1024, {}));
@@ -2512,8 +2515,8 @@ public:
             CHECK(value2Instance != nullptr);
             auto property = instance->propertyList(name);
             CHECK(property != nullptr);
-            CHECK(property->instanceAt(index) == value1Instance);
-            CHECK(property->instanceAt(index2) == value2Instance);
+            CHECK(property->instanceAt(index).get() == value1Instance);
+            CHECK(property->instanceAt(index2).get() == value2Instance);
         });
     }
 
@@ -2532,23 +2535,23 @@ public:
                 auto property = instance->propertyList(name);
                 CHECK(property != nullptr);
                 auto valueModel = server->getViewModelInstance(value);
-                CHECK(property->instanceAt(index) == valueModel);
+                CHECK(property->instanceAt(index).get() == valueModel);
             });
     }
 
     void pushExpectation(std::string name, ViewModelInstanceHandle value)
     {
         m_queue->appendViewModelInstanceListViewModel(m_handle, name, value);
-        m_queue->runOnce(
-            [handle = m_handle, name, value](CommandServer* server) {
-                auto instance = server->getViewModelInstance(handle);
-                CHECK(instance != nullptr);
-                auto property = instance->propertyList(name);
-                CHECK(property != nullptr);
-                auto valueModel = server->getViewModelInstance(value);
-                CHECK(property->instanceAt(static_cast<int>(property->size()) -
-                                           1) == valueModel);
-            });
+        m_queue->runOnce([handle = m_handle, name, value](
+                             CommandServer* server) {
+            auto instance = server->getViewModelInstance(handle);
+            CHECK(instance != nullptr);
+            auto property = instance->propertyList(name);
+            CHECK(property != nullptr);
+            auto valueModel = server->getViewModelInstance(value);
+            CHECK(property->instanceAt(static_cast<int>(property->size()) - 1)
+                      .get() == valueModel);
+        });
     }
 
     void pushBadExpectation(std::string name,

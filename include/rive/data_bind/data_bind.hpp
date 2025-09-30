@@ -7,10 +7,10 @@
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/dirtyable.hpp"
+#include "rive/file.hpp"
 #include <stdio.h>
 namespace rive
 {
-class File;
 class DataBindContextValue;
 #ifdef WITH_RIVE_TOOLS
 class DataBind;
@@ -43,8 +43,8 @@ public:
     bool sourceToTargetRunsFirst();
     bool advance(float elapsedTime);
     void suppressDirt(bool value) { m_suppressDirt = value; };
-    void file(File* value) { m_file = value; };
-    File* file() const { return m_file; };
+    void file(File* value);
+    File* file() const;
     DataType outputType();
     DataType sourceOutputType();
 

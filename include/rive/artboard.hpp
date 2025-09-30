@@ -6,9 +6,7 @@
 #include "rive/animation/linear_animation.hpp"
 #include "rive/animation/state_machine.hpp"
 #include "rive/core_context.hpp"
-#include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/data_context.hpp"
-#include "rive/data_bind/data_bind_context.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/generated/artboard_base.hpp"
@@ -48,6 +46,7 @@ class SMIBool;
 class SMIInput;
 class SMINumber;
 class SMITrigger;
+class DataBind;
 
 #ifdef WITH_RIVE_TOOLS
 typedef void (*ArtboardCallback)(void*);

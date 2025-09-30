@@ -296,14 +296,14 @@ rcp<ViewModelInstanceRuntime> ViewModelInstanceRuntime::instanceRuntime(
     return nullptr;
 }
 
-ViewModelInstanceRuntime* ViewModelInstanceRuntime::propertyViewModel(
+rcp<ViewModelInstanceRuntime> ViewModelInstanceRuntime::propertyViewModel(
     const std::string& path) const
 {
     const auto propertyName = getPropertyNameFromPath(path);
     auto viewModelInstance = viewModelInstanceFromFullPath(path);
     if (viewModelInstance != nullptr)
     {
-        return viewModelInstance->instanceRuntime(propertyName).get();
+        return viewModelInstance->instanceRuntime(propertyName);
     }
     return nullptr;
 }

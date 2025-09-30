@@ -4,6 +4,7 @@
 
 #include "rive/artboard.hpp"
 #include "rive/file.hpp"
+#include "rive/refcnt.hpp"
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/animation/state_machine_input_instance.hpp"

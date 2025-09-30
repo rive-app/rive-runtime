@@ -1,4 +1,5 @@
 #include "rive/file.hpp"
+#include "rive/bindable_artboard.hpp"
 #include "rive/runtime_header.hpp"
 #include "rive/animation/animation.hpp"
 #include "rive/artboard_component_list.hpp"
@@ -38,6 +39,7 @@
 #include "rive/animation/blend_state_direct.hpp"
 #include "rive/animation/transition_property_viewmodel_comparator.hpp"
 #include "rive/constraints/scrolling/scroll_physics.hpp"
+#include "rive/data_bind/data_bind.hpp"
 #include "rive/data_bind/bindable_property.hpp"
 #include "rive/data_bind/bindable_property_artboard.hpp"
 #include "rive/data_bind/bindable_property_asset.hpp"
@@ -587,6 +589,27 @@ std::unique_ptr<ArtboardInstance> File::artboardNamed(std::string name) const
 {
     auto ab = this->artboard(name);
     return ab ? ab->instance() : nullptr;
+}
+
+rcp<BindableArtboard> File::bindableArtboardNamed(std::string name) const
+{
+    auto ab = this->artboardNamed(name);
+    return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
+              : nullptr;
+}
+
+rcp<BindableArtboard> File::bindableArtboardDefault() const
+{
+    auto ab = this->artboardDefault();
+    return ab ? make_rcp<BindableArtboard>(ref_rcp(this), std::move(ab))
+              : nullptr;
+}
+
+rcp<BindableArtboard> File::internalBindableArtboardFromArtboard(
+    Artboard* artboard) const
+{
+    auto ab = artboard ? artboard->instance() : nullptr;
+    return ab ? make_rcp<BindableArtboard>(nullptr, std::move(ab)) : nullptr;
 }
 
 void File::completeViewModelInstance(

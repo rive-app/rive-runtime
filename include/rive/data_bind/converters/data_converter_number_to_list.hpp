@@ -6,10 +6,10 @@
 #include "rive/refcnt.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
 #include "rive/viewmodel/viewmodel_instance_list_item.hpp"
+#include "rive/file.hpp"
 #include <stdio.h>
 namespace rive
 {
-class File;
 
 class DataConverterNumberToList : public DataConverterNumberToListBase
 {

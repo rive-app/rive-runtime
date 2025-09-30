@@ -108,7 +108,7 @@ std::vector<std::string> ViewModelRuntime::instanceNames() const
     return names;
 }
 
-ViewModelInstanceRuntime* ViewModelRuntime::createInstanceFromIndex(
+rcp<ViewModelInstanceRuntime> ViewModelRuntime::createInstanceFromIndex(
     const size_t index) const
 {
     auto viewModelInstance = m_viewModel->instance(index);
@@ -129,7 +129,7 @@ ViewModelInstanceRuntime* ViewModelRuntime::createInstanceFromIndex(
     return nullptr;
 }
 
-ViewModelInstanceRuntime* ViewModelRuntime::createInstanceFromName(
+rcp<ViewModelInstanceRuntime> ViewModelRuntime::createInstanceFromName(
     const std::string& name) const
 {
     auto viewModelInstance = m_viewModel->instance(name);
@@ -151,7 +151,7 @@ ViewModelInstanceRuntime* ViewModelRuntime::createInstanceFromName(
     return nullptr;
 }
 
-ViewModelInstanceRuntime* ViewModelRuntime::createDefaultInstance() const
+rcp<ViewModelInstanceRuntime> ViewModelRuntime::createDefaultInstance() const
 {
     auto viewModelInstance =
         m_file->createDefaultViewModelInstance(m_viewModel);
@@ -164,21 +164,20 @@ ViewModelInstanceRuntime* ViewModelRuntime::createDefaultInstance() const
     return createInstance();
 }
 
-ViewModelInstanceRuntime* ViewModelRuntime::createInstance() const
+rcp<ViewModelInstanceRuntime> ViewModelRuntime::createInstance() const
 {
     auto instance = m_file->createViewModelInstance(m_viewModel);
     return createRuntimeInstance(instance);
 }
 
-ViewModelInstanceRuntime* ViewModelRuntime::createRuntimeInstance(
+rcp<ViewModelInstanceRuntime> ViewModelRuntime::createRuntimeInstance(
     rcp<ViewModelInstance> instance) const
 {
     if (instance != nullptr)
     {
         auto viewModelInstanceRuntime = rcp<ViewModelInstanceRuntime>(
             new ViewModelInstanceRuntime(instance));
-        m_viewModelInstanceRuntimes.push_back(viewModelInstanceRuntime);
-        return viewModelInstanceRuntime.get();
+        return viewModelInstanceRuntime;
     }
     return nullptr;
 }
