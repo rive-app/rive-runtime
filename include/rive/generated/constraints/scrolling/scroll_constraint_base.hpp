@@ -42,6 +42,7 @@ public:
     static const uint16_t physicsIdPropertyKey = 726;
     static const uint16_t virtualizePropertyKey = 850;
     static const uint16_t infinitePropertyKey = 851;
+    static const uint16_t interactivePropertyKey = 891;
 
 protected:
     float m_ScrollOffsetX = 0.0f;
@@ -51,6 +52,7 @@ protected:
     uint32_t m_PhysicsId = -1;
     bool m_Virtualize = false;
     bool m_Infinite = false;
+    bool m_Interactive = true;
 
 public:
     inline float scrollOffsetX() const { return m_ScrollOffsetX; }
@@ -166,6 +168,17 @@ public:
         infiniteChanged();
     }
 
+    inline bool interactive() const { return m_Interactive; }
+    void interactive(bool value)
+    {
+        if (m_Interactive == value)
+        {
+            return;
+        }
+        m_Interactive = value;
+        interactiveChanged();
+    }
+
     Core* clone() const override;
     void copy(const ScrollConstraintBase& object)
     {
@@ -176,6 +189,7 @@ public:
         m_PhysicsId = object.m_PhysicsId;
         m_Virtualize = object.m_Virtualize;
         m_Infinite = object.m_Infinite;
+        m_Interactive = object.m_Interactive;
         DraggableConstraint::copy(object);
     }
 
@@ -204,6 +218,9 @@ public:
             case infinitePropertyKey:
                 m_Infinite = CoreBoolType::deserialize(reader);
                 return true;
+            case interactivePropertyKey:
+                m_Interactive = CoreBoolType::deserialize(reader);
+                return true;
         }
         return DraggableConstraint::deserialize(propertyKey, reader);
     }
@@ -219,6 +236,7 @@ protected:
     virtual void physicsIdChanged() {}
     virtual void virtualizeChanged() {}
     virtual void infiniteChanged() {}
+    virtual void interactiveChanged() {}
 };
 } // namespace rive
 

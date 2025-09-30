@@ -3,6 +3,7 @@
 #include "rive/animation/linear_animation_instance.hpp"
 #include "rive/animation/state_machine_instance.hpp"
 #include "rive/viewmodel/viewmodel.hpp"
+#include "rive/viewmodel/viewmodel_instance_boolean.hpp"
 #include "rive/viewmodel/viewmodel_instance_enum.hpp"
 #include "rive/viewmodel/viewmodel_instance_number.hpp"
 #include "rive/viewmodel/viewmodel_instance_trigger.hpp"
@@ -971,4 +972,80 @@ TEST_CASE("Target to source with different data types on source and target",
     }
 
     CHECK(silver.matches("saturation"));
+}
+
+TEST_CASE("interactive and non interactive scrolling", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/interactive_scrolling.riv", &silver);
+
+    auto artboard = file->artboardDefault();
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    REQUIRE(artboard != nullptr);
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    auto boolProp =
+        vmi->propertyValue("isInteractive")->as<ViewModelInstanceBoolean>();
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    double yPos = artboard->height() - 20;
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(artboard->width() / 2.0f, yPos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    while (yPos > 120)
+    {
+
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(artboard->width() / 2.0f, yPos));
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        yPos -= 20;
+    }
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(artboard->width() / 2.0f, yPos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    // Change to interactive
+
+    boolProp->propertyValue(true);
+    stateMachine->advanceAndApply(0.1f);
+
+    yPos = artboard->height() - 20;
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(artboard->width() / 2.0f, yPos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    while (yPos > 120)
+    {
+
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(artboard->width() / 2.0f, yPos));
+        stateMachine->advanceAndApply(0.1f);
+        artboard->draw(renderer.get());
+        yPos -= 20;
+    }
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(artboard->width() / 2.0f, yPos));
+    stateMachine->advanceAndApply(0.1f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("interactive_scrolling"));
 }

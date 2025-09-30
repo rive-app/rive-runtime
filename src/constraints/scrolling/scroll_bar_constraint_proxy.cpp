@@ -4,18 +4,21 @@
 
 using namespace rive;
 
-void ThumbDraggableProxy::drag(Vec2D mousePosition, float timeStamp)
+bool ThumbDraggableProxy::drag(Vec2D mousePosition, float timeStamp)
 {
     m_constraint->dragThumb(mousePosition - m_lastPosition);
     m_lastPosition = mousePosition;
+    return true;
 }
 
-void ThumbDraggableProxy::startDrag(Vec2D mousePosition, float timeStamp)
+bool ThumbDraggableProxy::startDrag(Vec2D mousePosition, float timeStamp)
 {
     m_lastPosition = mousePosition;
+    return true;
 }
 
-void TrackDraggableProxy::startDrag(Vec2D mousePosition, float timeStamp)
+bool TrackDraggableProxy::startDrag(Vec2D mousePosition, float timeStamp)
 {
     m_constraint->hitTrack(mousePosition);
+    return true;
 }

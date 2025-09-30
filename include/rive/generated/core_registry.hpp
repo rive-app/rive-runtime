@@ -1606,6 +1606,9 @@ public:
             case ScrollConstraintBase::infinitePropertyKey:
                 object->as<ScrollConstraintBase>()->infinite(value);
                 break;
+            case ScrollConstraintBase::interactivePropertyKey:
+                object->as<ScrollConstraintBase>()->interactive(value);
+                break;
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 object->as<ScrollBarConstraintBase>()->autoSize(value);
                 break;
@@ -2976,6 +2979,8 @@ public:
                 return object->as<ScrollConstraintBase>()->virtualize();
             case ScrollConstraintBase::infinitePropertyKey:
                 return object->as<ScrollConstraintBase>()->infinite();
+            case ScrollConstraintBase::interactivePropertyKey:
+                return object->as<ScrollConstraintBase>()->interactive();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->as<ScrollBarConstraintBase>()->autoSize();
             case AxisBase::normalizedPropertyKey:
@@ -3753,6 +3758,7 @@ public:
             case ScrollConstraintBase::snapPropertyKey:
             case ScrollConstraintBase::virtualizePropertyKey:
             case ScrollConstraintBase::infinitePropertyKey:
+            case ScrollConstraintBase::interactivePropertyKey:
             case ScrollBarConstraintBase::autoSizePropertyKey:
             case AxisBase::normalizedPropertyKey:
             case LayoutComponentStyleBase::intrinsicallySizedValuePropertyKey:
@@ -4529,6 +4535,8 @@ public:
             case ScrollConstraintBase::virtualizePropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollConstraintBase::infinitePropertyKey:
+                return object->is<ScrollConstraintBase>();
+            case ScrollConstraintBase::interactivePropertyKey:
                 return object->is<ScrollConstraintBase>();
             case ScrollBarConstraintBase::autoSizePropertyKey:
                 return object->is<ScrollBarConstraintBase>();

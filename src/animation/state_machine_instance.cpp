@@ -727,10 +727,10 @@ public:
              clickPhase() == GestureClickPhase::out))
         {
             m_draggable->endDrag(position, timeStamp);
-            if (hasScrolled)
+            if (m_hasScrolled)
             {
                 stateMachineInstance->dragEnd(position, timeStamp);
-                hasScrolled = false;
+                m_hasScrolled = false;
                 return ProcessEventResult::scroll;
             }
         }
@@ -738,18 +738,21 @@ public:
                  clickPhase() == GestureClickPhase::down)
         {
             m_draggable->startDrag(position, timeStamp);
-            hasScrolled = false;
+            m_hasScrolled = false;
         }
         else if (hitEvent == ListenerType::move &&
                  clickPhase() == GestureClickPhase::down)
         {
-            m_draggable->drag(position, timeStamp);
-            if (!hasScrolled)
+            auto hasDragged = m_draggable->drag(position, timeStamp);
+            if (hasDragged)
             {
-                stateMachineInstance->dragStart(position, timeStamp, false);
+                if (!m_hasScrolled)
+                {
+                    stateMachineInstance->dragStart(position, timeStamp, false);
+                }
+                m_hasScrolled = true;
+                return ProcessEventResult::scroll;
             }
-            hasScrolled = true;
-            return ProcessEventResult::scroll;
         }
         return ProcessEventResult::none;
     }
@@ -757,7 +760,7 @@ public:
 private:
     DraggableConstraint* m_constraint;
     DraggableProxy* m_draggable;
-    bool hasScrolled = false;
+    bool m_hasScrolled = false;
 };
 
 /// Representation of a Component from the Artboard Instance and all the

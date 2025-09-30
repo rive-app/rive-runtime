@@ -109,6 +109,18 @@
         "string": "infinite"
       },
       "description": "Whether the scroll should wrap when it reaches the extents."
+    },
+    "interactive": {
+      "type": "bool",
+      "initialValue": "true",
+      "initialValueRuntime": "true",
+      "animates": true,
+      "key": {
+        "int": 891,
+        "string": "interactive"
+      },
+      "description": "Whether pointer events trigger the scrolling",
+      "bindable": true
     }
   }
 }
