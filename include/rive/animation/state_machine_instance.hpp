@@ -13,6 +13,7 @@
 #include "rive/listener_type.hpp"
 #include "rive/nested_animation.hpp"
 #include "rive/scene.hpp"
+#include "rive/data_bind/data_bind_container.hpp"
 
 namespace rive
 {
@@ -47,7 +48,8 @@ typedef void (*InputChanged)(StateMachineInstance*, uint64_t);
 
 class StateMachineInstance : public Scene,
                              public NestedEventNotifier,
-                             public NestedEventListener
+                             public NestedEventListener,
+                             public DataBindContainer
 {
     friend class SMIInput;
     friend class KeyedProperty;
@@ -202,7 +204,6 @@ public:
     }
     const LayerState* layerState(size_t index);
 #endif
-    void updateDataBinds();
     void enablePointerEvents();
     void disablePointerEvents();
 

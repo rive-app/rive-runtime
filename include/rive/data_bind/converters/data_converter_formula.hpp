@@ -28,7 +28,6 @@ protected:
     Core* clone() const override;
     void bindFromContext(DataContext* dataContext, DataBind* dataBind) override;
     void unbind() override;
-    void update() override;
 
 private:
     int getPrecedence(FormulaToken*);

@@ -3,11 +3,12 @@
 #include "rive/generated/data_bind/converters/data_converter_base.hpp"
 #include "rive/data_bind/data_values/data_value.hpp"
 #include "rive/data_bind/data_context.hpp"
+#include "rive/data_bind/data_bind_container.hpp"
 #include <stdio.h>
 namespace rive
 {
 class DataBind;
-class DataConverter : public DataConverterBase
+class DataConverter : public DataConverterBase, public DataBindContainer
 {
 public:
     ~DataConverter();
@@ -24,15 +25,11 @@ public:
     virtual void initialize(DataType inputType) {}
     virtual void unbind();
     StatusCode import(ImportStack& importStack) override;
-    void addDataBind(DataBind* dataBind);
-    std::vector<DataBind*> dataBinds() const { return m_dataBinds; }
     void markConverterDirty();
     virtual void update();
     void copy(const DataConverter& object);
     virtual bool advance(float elapsedTime);
-
-private:
-    std::vector<DataBind*> m_dataBinds;
+    void addDirtyDataBind(DataBind*) override;
 
 protected:
     DataBind* m_parentDataBind;

@@ -197,7 +197,7 @@ void ArtboardComponentList::linkStateMachineToArtboard(
         // TODO: @hernan added this to make sure data binds are procesed in the
         // current frame instead of waiting for the next run. But might not be
         // necessary. Needs more testing.
-        stateMachineInstance->updateDataBinds();
+        stateMachineInstance->updateDataBinds(false);
     }
 }
 
@@ -666,7 +666,7 @@ void ArtboardComponentList::updateDataBinds()
         auto stateMachine = stateMachineInstance(i);
         if (stateMachine != nullptr)
         {
-            stateMachine->updateDataBinds();
+            stateMachine->updateDataBinds(false);
         }
         auto artboard = artboardInstance(i);
         if (artboard != nullptr)

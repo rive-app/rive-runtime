@@ -7,11 +7,12 @@
 #include "rive/data_bind/converters/data_converter.hpp"
 #include "rive/data_bind/data_values/data_type.hpp"
 #include "rive/dirtyable.hpp"
-#include "rive/file.hpp"
 #include <stdio.h>
 namespace rive
 {
 class DataBindContextValue;
+class DataBindContainer;
+class File;
 #ifdef WITH_RIVE_TOOLS
 class DataBind;
 typedef void (*DataBindChanged)();
@@ -24,6 +25,7 @@ public:
     StatusCode import(ImportStack& importStack) override;
     virtual void updateSourceBinding(bool invalidate = false);
     virtual void update(ComponentDirt value);
+    void updateDependents();
     Core* target() const { return m_target; };
     void target(Core* value) { m_target = value; };
     virtual void bind();
@@ -47,6 +49,8 @@ public:
     File* file() const;
     DataType outputType();
     DataType sourceOutputType();
+    void container(DataBindContainer*);
+    DataBindContainer* m_container = nullptr;
 
 protected:
     ComponentDirt m_Dirt = ComponentDirt::Filthy;

@@ -12,6 +12,7 @@
 #include "rive/data_bind/bindable_property_boolean.hpp"
 #include "rive/data_bind/bindable_property_trigger.hpp"
 #include "rive/data_bind/bindable_property_integer.hpp"
+#include "rive/data_bind/data_bind_container.hpp"
 #include "rive/data_bind/context/context_value.hpp"
 #include "rive/data_bind/context/context_value_asset_image.hpp"
 #include "rive/data_bind/context/context_value_artboard.hpp"
@@ -262,11 +263,6 @@ bool DataBind::canSkip()
 
 void DataBind::update(ComponentDirt value)
 {
-    if ((value & ComponentDirt::Dependents) == ComponentDirt::Dependents &&
-        m_dataConverter != nullptr)
-    {
-        m_dataConverter->update();
-    }
     if (m_Source != nullptr && m_ContextValue != nullptr)
     {
         if ((value & ComponentDirt::Bindings) == ComponentDirt::Bindings)
@@ -286,14 +282,16 @@ void DataBind::update(ComponentDirt value)
     }
 }
 
-void DataBind::updateSourceBinding(bool invalidate)
+void DataBind::updateDependents()
 {
-    if ((m_Dirt & ComponentDirt::Dependents) == ComponentDirt::Dependents &&
-        m_dataConverter != nullptr)
+    if (m_dataConverter)
     {
-        m_Dirt &= ~ComponentDirt::Dependents;
         m_dataConverter->update();
     }
+}
+
+void DataBind::updateSourceBinding(bool invalidate)
+{
     if (toSource())
     {
         if (m_ContextValue != nullptr)
@@ -337,31 +335,19 @@ void DataBind::addDirt(ComponentDirt value, bool recurse)
         m_changedCallback();
     }
 #endif
-    if (target() != nullptr)
-    {
-        if (target()->is<DataConverter>())
-        {
-
-            target()->as<DataConverter>()->markConverterDirty();
-        }
-        else if (target()->is<FormulaToken>())
-        {
-
-            target()->as<FormulaToken>()->markDirty();
-        }
-        else if (target()->is<Component>())
-        {
-            auto artboard = target()->as<Component>()->artboard();
-            if (artboard != nullptr)
-            {
-                artboard->onComponentDirty(target()->as<Component>());
-            }
-        }
-    }
     if ((m_Dirt & ComponentDirt::Dependents) != 0 && m_ContextValue != nullptr)
     {
         m_ContextValue->invalidate();
     }
+    if (m_container)
+    {
+        m_container->addDirtyDataBind(this);
+    }
+}
+
+void DataBind::container(DataBindContainer* container)
+{
+    m_container = container;
 }
 
 bool DataBind::bindsOnce()

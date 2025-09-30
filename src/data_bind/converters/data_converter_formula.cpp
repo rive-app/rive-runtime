@@ -509,6 +509,16 @@ Core* DataConverterFormula::clone() const
                 : tokenArgumentsCountSearch->second;
         auto clonedToken = token->clone()->as<FormulaToken>();
         cloned->addOutputToken(clonedToken, argumentsCount);
+        int index = 0;
+        for (auto& dataBind : dataBinds())
+        {
+            if (dataBind->target() == token)
+            {
+                cloned->dataBinds()[index]->target(clonedToken);
+                break;
+            }
+            index++;
+        }
     }
     cloned->isInstance(true);
     return cloned;
@@ -518,10 +528,6 @@ void DataConverterFormula::bindFromContext(DataContext* dataContext,
                                            DataBind* dataBind)
 {
     DataConverter::bindFromContext(dataContext, dataBind);
-    for (auto& token : m_outputQueue)
-    {
-        token->bindFromContext(dataContext, dataBind);
-    }
     if (dataBind && dataBind->source())
     {
         m_source = ref_rcp<ViewModelInstanceValue>(dataBind->source());
@@ -539,21 +545,9 @@ void DataConverterFormula::addDirt(ComponentDirt value, bool recurse)
 
 void DataConverterFormula::unbind()
 {
-    for (auto& token : m_outputQueue)
-    {
-        token->unbind();
-    }
     if (m_source)
     {
         m_source->removeDependent(this);
         m_source = nullptr;
-    }
-}
-
-void DataConverterFormula::update()
-{
-    for (auto& token : m_outputQueue)
-    {
-        token->update();
     }
 }

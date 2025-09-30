@@ -7,6 +7,7 @@
 #include "rive/animation/state_machine.hpp"
 #include "rive/core_context.hpp"
 #include "rive/data_bind/data_context.hpp"
+#include "rive/data_bind/data_bind_container.hpp"
 #include "rive/viewmodel/viewmodel_instance_value.hpp"
 #include "rive/viewmodel/viewmodel_instance_viewmodel.hpp"
 #include "rive/generated/artboard_base.hpp"
@@ -47,6 +48,7 @@ class SMIInput;
 class SMINumber;
 class SMITrigger;
 class DataBind;
+class DataBindContainer;
 
 #ifdef WITH_RIVE_TOOLS
 typedef void (*ArtboardCallback)(void*);
@@ -58,7 +60,8 @@ typedef float (*RootTransformCallback)(void*, float, float, bool);
 class Artboard : public ArtboardBase,
                  public CoreContext,
                  public Virtualizable,
-                 public ResettingComponent
+                 public ResettingComponent,
+                 public DataBindContainer
 {
     friend class File;
     friend class ArtboardImporter;
@@ -76,8 +79,6 @@ private:
     std::vector<ArtboardHost*> m_ArtboardHosts;
     std::vector<Joystick*> m_Joysticks;
     std::vector<ResettingComponent*> m_Resettables;
-    std::vector<DataBind*> m_DataBinds;
-    std::vector<DataBind*> m_AllDataBinds;
     DataContext* m_DataContext = nullptr;
     bool m_ownsDataContext = false;
     bool m_JoysticksApplyBeforeUpdate = true;
@@ -119,7 +120,7 @@ private:
     void update(ComponentDirt value) override;
 
 public:
-    void updateDataBinds();
+    void updateDataBinds(bool applyTargetToSource = true) override;
     void host(ArtboardHost* artboardHost);
     ArtboardHost* host() const;
 
@@ -131,6 +132,7 @@ public:
     Component* virtualizableComponent() override { return this; }
     bool updatesOwnLayout() { return m_updatesOwnLayout; }
     StatusCode onAddedClean(CoreContext* context) override;
+    void addDirtyDataBind(DataBind*) override;
 
 private:
 #ifdef TESTING
@@ -244,8 +246,6 @@ public:
     {
         return m_ComponentLists;
     }
-    const std::vector<DataBind*> dataBinds() const { return m_DataBinds; }
-    const std::vector<DataBind*> allDataBinds() const { return m_AllDataBinds; }
     DataContext* dataContext() { return m_DataContext; }
     NestedArtboard* nestedArtboard(const std::string& name) const;
     NestedArtboard* nestedArtboardAtPath(const std::string& path) const;
@@ -273,8 +273,6 @@ public:
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance,
                                DataContext* parent);
     void bindViewModelInstance(rcp<ViewModelInstance> viewModelInstance);
-    void addDataBind(DataBind* dataBind);
-    void sortDataBinds();
 
     bool hasAudio() const;
 

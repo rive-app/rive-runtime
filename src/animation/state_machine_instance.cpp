@@ -1507,7 +1507,7 @@ StateMachineInstance::StateMachineInstance(const StateMachine* machine,
             dataBindClone->converter(
                 dataBind->converter()->clone()->as<DataConverter>());
         }
-        m_dataBinds.push_back(dataBindClone);
+        addDataBind(dataBindClone);
         if (dataBind->target()->is<BindableProperty>())
         {
             auto bindableProperty = dataBind->target()->as<BindableProperty>();
@@ -1674,10 +1674,7 @@ StateMachineInstance::~StateMachineInstance()
     {
         listenerGroup.reset();
     }
-    for (auto databind : m_dataBinds)
-    {
-        delete databind;
-    }
+    deleteDataBinds();
     delete[] m_layers;
     for (auto pair : m_bindablePropertyInstances)
     {
@@ -1793,22 +1790,9 @@ void StateMachineInstance::sortHitComponents()
     }
 }
 
-void StateMachineInstance::updateDataBinds()
-{
-    for (auto dataBind : m_dataBinds)
-    {
-        auto d = dataBind->dirt();
-        if (d != ComponentDirt::None)
-        {
-            dataBind->dirt(ComponentDirt::None);
-            dataBind->update(d);
-        }
-    }
-}
-
 bool StateMachineInstance::tryChangeState()
 {
-    updateDataBinds();
+    updateDataBinds(false);
     bool hasChangedState = false;
     for (size_t i = 0; i < m_layerCount; i++)
     {
@@ -1858,7 +1842,7 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
         applyEvents();
         m_needsAdvance = false;
     }
-    updateDataBinds();
+    updateDataBinds(false);
     for (size_t i = 0; i < m_layerCount; i++)
     {
         if (m_layers[i].advance(seconds, newFrame))
@@ -1867,12 +1851,9 @@ bool StateMachineInstance::advance(float seconds, bool newFrame)
         }
     }
 
-    for (auto& dataBind : m_dataBinds)
+    if (advanceDataBinds(seconds))
     {
-        if (dataBind->advance(seconds))
-        {
-            m_needsAdvance = true;
-        }
+        m_needsAdvance = true;
     }
 
     for (auto inst : m_inputInstances)
@@ -2012,13 +1993,7 @@ void StateMachineInstance::dataContext(DataContext* dataContext)
 void StateMachineInstance::internalDataContext(DataContext* dataContext)
 {
     m_DataContext = dataContext;
-    for (auto dataBind : m_dataBinds)
-    {
-        if (dataBind->is<DataBindContext>())
-        {
-            dataBind->as<DataBindContext>()->bindFromContext(dataContext);
-        }
-    }
+    bindDataBindsFromContext(dataContext);
     for (auto listenerViewModel : m_listenerViewModels)
     {
         listenerViewModel->bindFromContext(dataContext);
@@ -2043,10 +2018,7 @@ void StateMachineInstance::clearDataContext()
 void StateMachineInstance::unbind()
 {
     clearDataContext();
-    for (auto dataBind : m_dataBinds)
-    {
-        dataBind->unbind();
-    }
+    unbindDataBinds();
 }
 
 size_t StateMachineInstance::stateChangedCount() const
@@ -2139,7 +2111,7 @@ void StateMachineInstance::notify(const std::vector<EventReport>& events,
                                   NestedArtboard* context)
 {
     notifyEventListeners(events, context);
-    updateDataBinds();
+    updateDataBinds(false);
 }
 
 void StateMachineInstance::notifyListenerViewModels(

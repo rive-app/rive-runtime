@@ -7,23 +7,15 @@
 #include <stdio.h>
 namespace rive
 {
+class DataConverterFormula;
 class FormulaToken : public FormulaTokenBase
 {
 public:
-    ~FormulaToken();
     StatusCode import(ImportStack& importStack) override;
-
-    virtual void bindFromContext(DataContext* dataContext, DataBind* dataBind);
-    virtual void unbind();
-    virtual void update();
-    void markDirty();
     void addDataBind(DataBind* dataBind);
-    void copy(const FormulaTokenBase& object);
-    std::vector<DataBind*> dataBinds() const { return m_dataBinds; }
 
 private:
-    std::vector<DataBind*> m_dataBinds;
-    DataBind* m_parentDataBind;
+    DataConverterFormula* m_formula = nullptr;
 };
 } // namespace rive
 
