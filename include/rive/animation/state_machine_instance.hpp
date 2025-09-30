@@ -61,6 +61,7 @@ private:
     /// pointer position too.
     HitResult updateListeners(Vec2D position,
                               ListenerType hitListener,
+                              int pointerId = 0,
                               float timeStamp = 0);
 
     template <typename SMType, typename InstType>
@@ -131,10 +132,12 @@ public:
     void advancedDataContext();
     void reset();
     std::string name() const override;
-    HitResult pointerMove(Vec2D position, float timeStamp = 0) override;
-    HitResult pointerDown(Vec2D position) override;
-    HitResult pointerUp(Vec2D position) override;
-    HitResult pointerExit(Vec2D position) override;
+    HitResult pointerMove(Vec2D position,
+                          float timeStamp = 0,
+                          int pointerId = 0) override;
+    HitResult pointerDown(Vec2D position, int pointerId = 0) override;
+    HitResult pointerUp(Vec2D position, int pointerId = 0) override;
+    HitResult pointerExit(Vec2D position, int pointerId = 0) override;
     HitResult dragStart(Vec2D position,
                         float timeStamp = 0,
                         bool disablePointer = true);
@@ -256,8 +259,11 @@ public:
     virtual HitResult processEvent(Vec2D position,
                                    ListenerType hitType,
                                    bool canHit,
-                                   float timeStamp = 0) = 0;
-    virtual void prepareEvent(Vec2D position, ListenerType hitType) = 0;
+                                   float timeStamp = 0,
+                                   int pointerId = 0) = 0;
+    virtual void prepareEvent(Vec2D position,
+                              ListenerType hitType,
+                              int pointerId) = 0;
     virtual bool hitTest(Vec2D position) const = 0;
     virtual void enablePointerEvents() {}
     virtual void disablePointerEvents() {}

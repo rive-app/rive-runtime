@@ -48,38 +48,42 @@ bool NestedStateMachine::hitTest(Vec2D position) const
     return false;
 }
 
-HitResult NestedStateMachine::pointerMove(Vec2D position, float timeStamp)
+HitResult NestedStateMachine::pointerMove(Vec2D position,
+                                          float timeStamp,
+                                          int pointerId)
 {
     if (m_StateMachineInstance != nullptr)
     {
-        return m_StateMachineInstance->pointerMove(position, timeStamp);
+        return m_StateMachineInstance->pointerMove(position,
+                                                   timeStamp,
+                                                   pointerId);
     }
     return HitResult::none;
 }
 
-HitResult NestedStateMachine::pointerDown(Vec2D position)
+HitResult NestedStateMachine::pointerDown(Vec2D position, int pointerId)
 {
     if (m_StateMachineInstance != nullptr)
     {
-        return m_StateMachineInstance->pointerDown(position);
+        return m_StateMachineInstance->pointerDown(position, pointerId);
     }
     return HitResult::none;
 }
 
-HitResult NestedStateMachine::pointerUp(Vec2D position)
+HitResult NestedStateMachine::pointerUp(Vec2D position, int pointerId)
 {
     if (m_StateMachineInstance != nullptr)
     {
-        return m_StateMachineInstance->pointerUp(position);
+        return m_StateMachineInstance->pointerUp(position, pointerId);
     }
     return HitResult::none;
 }
 
-HitResult NestedStateMachine::pointerExit(Vec2D position)
+HitResult NestedStateMachine::pointerExit(Vec2D position, int pointerId)
 {
     if (m_StateMachineInstance != nullptr)
     {
-        return m_StateMachineInstance->pointerExit(position);
+        return m_StateMachineInstance->pointerExit(position, pointerId);
     }
     return HitResult::none;
 }

@@ -815,7 +815,6 @@ TEST_CASE("Hit testing objects inside shapes", "[silver]")
 
     CHECK(silver.matches("hittest_nested"));
 }
-
 TEST_CASE("Pointer exit works correctly", "[silver]")
 {
     SerializingFactory silver;
@@ -838,7 +837,6 @@ TEST_CASE("Pointer exit works correctly", "[silver]")
 
     auto renderer = silver.makeRenderer();
     artboard->draw(renderer.get());
-
     // Move from [100.0, 250.0] to [400.0, 250.0]
     // This will hover over two nested artboards and should unhover once an
     // opaque target is hit
@@ -876,4 +874,81 @@ TEST_CASE("Pointer exit works correctly", "[silver]")
     }
 
     CHECK(silver.matches("pointer_exit"));
+}
+
+TEST_CASE("Hit testing multi touch events", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/multitouch.riv", &silver);
+
+    auto artboard = file->artboardNamed("main");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Simple click with single pointer
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(200.0f, 350.0f), 1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(200.0f, 350.0f), 1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // New click gesture started with pointer id 1
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(200.0f, 350.0f), 1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Pointer up with pointer id 0 should not complete the click gesture
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(200.0f, 350.0f), 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Pointer up with pointer id 1 should complete the click gesture
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(200.0f, 350.0f), 1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    // Two click gestures interleaved: 1 down - 0 down - 0 up - 1 up
+    // should toggle color twice
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(200.0f, 350.0f), 1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(200.0f, 350.0f), 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(200.0f, 350.0f), 0);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(200.0f, 350.0f), 1);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("multitouch"));
 }

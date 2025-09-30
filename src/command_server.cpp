@@ -2565,7 +2565,7 @@ bool CommandServer::processCommands()
                 {
                     Vec2D position =
                         cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerDown(position);
+                    stateMachine->pointerDown(position, 0);
                 }
                 else
                 {
@@ -2593,7 +2593,7 @@ bool CommandServer::processCommands()
                 {
                     Vec2D position =
                         cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerUp(position);
+                    stateMachine->pointerUp(position, 0);
                 }
                 else
                 {
@@ -2621,7 +2621,7 @@ bool CommandServer::processCommands()
                 {
                     Vec2D position =
                         cursorPosForPointerEvent(stateMachine, pointerEvent);
-                    stateMachine->pointerExit(position);
+                    stateMachine->pointerExit(position, 0);
                 }
                 else
                 {

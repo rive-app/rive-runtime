@@ -517,38 +517,76 @@ private:
     float m_holdTime = 0.0f;
 };
 
+class _PointerData
+{
+public:
+    bool isHovered = false;
+    bool isPrevHovered = false;
+    GestureClickPhase phase = GestureClickPhase::out;
+    Vec2D* previousPosition() { return &m_previousPosition; }
+
+private:
+    Vec2D m_previousPosition = Vec2D(0, 0);
+};
+
 class ListenerGroup
 {
 public:
     ListenerGroup(const StateMachineListener* listener) : m_listener(listener)
     {}
-    virtual ~ListenerGroup() {}
-    void consume() { m_isConsumed = true; }
-    //
-    void hover() { m_isHovered = true; }
-    void unhover() { m_isHovered = false; }
-    void reset()
+    virtual ~ListenerGroup()
     {
-        if (m_clickPhase != GestureClickPhase::disabled)
+        for (auto& pointerData : m_pointers)
         {
-            m_isConsumed = false;
-            m_prevIsHovered = m_isHovered;
-            m_isHovered = false;
-        }
-        if (m_clickPhase == GestureClickPhase::clicked)
-        {
-            m_clickPhase = GestureClickPhase::out;
+            delete pointerData.second;
         }
     }
-    virtual void enable() { m_clickPhase = GestureClickPhase::out; }
+    _PointerData* pointerData(int id)
+    {
+        if (m_pointers.find(id) == m_pointers.end())
+        {
+            m_pointers[id] = new _PointerData();
+        }
+        return m_pointers[id];
+    }
+    void consume() { m_isConsumed = true; }
+    //
+    void hover(int id)
+    {
+        auto pointer = pointerData(id);
+        pointer->isHovered = true;
+    }
+    void reset(int pointerId)
+    {
+
+        auto pointer = pointerData(pointerId);
+        if (pointer->phase != GestureClickPhase::disabled)
+        {
+            m_isConsumed = false;
+            pointer->isPrevHovered = pointer->isHovered;
+            pointer->isHovered = false;
+        }
+        if (pointer->phase == GestureClickPhase::clicked)
+        {
+            pointer->phase = GestureClickPhase::out;
+        }
+    }
+    virtual void enable()
+    {
+        for (auto& pointer : m_pointers)
+        {
+            pointer.second->phase = GestureClickPhase::out;
+        }
+    }
     virtual void disable()
     {
-        m_clickPhase = GestureClickPhase::disabled;
+        for (auto& pointer : m_pointers)
+        {
+            pointer.second->phase = GestureClickPhase::disabled;
+        }
         consume();
     }
     bool isConsumed() { return m_isConsumed; }
-    bool isHovered() { return m_isHovered; }
-    bool prevHovered() { return m_prevIsHovered; }
 
     virtual bool canEarlyOut(Component* drawable)
     {
@@ -571,10 +609,11 @@ public:
         return listenerType == ListenerType::up ||
                listenerType == ListenerType::click;
     }
-    // Vec2D position, ListenerType hitType, bool canHit
+
     virtual ProcessEventResult processEvent(
         Component* component,
         Vec2D position,
+        int pointerId,
         ListenerType hitEvent,
         bool canHit,
         float timeStamp,
@@ -587,19 +626,21 @@ public:
         // in isolation, it shouldn't be considered as hovered in the full
         // context. In this case, we unhover the group so it is not marked as
         // previously hovered.
-        if (!canHit && isHovered())
+        auto pointer = pointerData(pointerId);
+        if (!canHit && pointer->isHovered)
         {
-            unhover();
+            pointer->isHovered = false;
         }
 
-        bool isGroupHovered = canHit ? isHovered() : false;
-        bool hoverChange = prevHovered() != isGroupHovered;
+        bool isGroupHovered = canHit ? pointer->isHovered : false;
+        bool hoverChange = pointer->isPrevHovered != isGroupHovered;
         // If hover has changes, it means that the element is hovered for the
         // first time. Previous positions need to be reset to avoid jumps.
+        auto previousPosition = pointer->previousPosition();
         if (hoverChange && isGroupHovered)
         {
-            previousPosition.x = position.x;
-            previousPosition.y = position.y;
+            previousPosition->x = position.x;
+            previousPosition->y = position.y;
         }
 
         // Handle click gesture phases. A click gesture has two phases.
@@ -610,19 +651,19 @@ public:
         {
             if (hitEvent == ListenerType::down)
             {
-                clickPhase(GestureClickPhase::down);
+                pointer->phase = GestureClickPhase::down;
             }
             else if (hitEvent == ListenerType::up &&
-                     clickPhase() == GestureClickPhase::down)
+                     pointer->phase == GestureClickPhase::down)
             {
-                clickPhase(GestureClickPhase::clicked);
+                pointer->phase = GestureClickPhase::clicked;
             }
         }
         else
         {
             if (hitEvent == ListenerType::down || hitEvent == ListenerType::up)
             {
-                clickPhase(GestureClickPhase::out);
+                pointer->phase = GestureClickPhase::out;
             }
         }
         auto _listener = listener();
@@ -636,9 +677,10 @@ public:
                             (!isGroupHovered &&
                              _listener->listenerType() == ListenerType::exit)))
         {
-            _listener->performChanges(stateMachineInstance,
-                                      position,
-                                      previousPosition);
+            _listener->performChanges(
+                stateMachineInstance,
+                position,
+                Vec2D(previousPosition->x, previousPosition->y));
             stateMachineInstance->markNeedsAdvance();
             consume();
         }
@@ -646,38 +688,29 @@ public:
         // - the click gesture is complete and the listener is of type click
         // - the event type matches the listener type and it is hovering the
         // group
-        if ((clickPhase() == GestureClickPhase::clicked &&
+        if ((pointer->phase == GestureClickPhase::clicked &&
              _listener->listenerType() == ListenerType::click) ||
             (isGroupHovered && hitEvent == _listener->listenerType()))
         {
-            _listener->performChanges(stateMachineInstance,
-                                      position,
-                                      previousPosition);
+            _listener->performChanges(
+                stateMachineInstance,
+                position,
+                Vec2D(previousPosition->x, previousPosition->y));
             stateMachineInstance->markNeedsAdvance();
             consume();
         }
-        previousPosition.x = position.x;
-        previousPosition.y = position.y;
+        previousPosition->x = position.x;
+        previousPosition->y = position.y;
         return ProcessEventResult::pointer;
     }
-    void clickPhase(GestureClickPhase value) { m_clickPhase = value; }
-    GestureClickPhase clickPhase() { return m_clickPhase; }
     const StateMachineListener* listener() const { return m_listener; };
     // A vector storing the previous position for this specific listener gorup
-    Vec2D previousPosition;
 
 private:
     // Consumed listeners aren't processed again in the current frame
     bool m_isConsumed = false;
-    // This variable holds the hover status of the the listener itself so it can
-    // be shared between all shapes that target it
-    bool m_isHovered = false;
-    // Variable storing the previous hovered state to check for hover changes
-    bool m_prevIsHovered = false;
-    // A click gesture is composed of three phases and is shared between all
-    // shapes
-    GestureClickPhase m_clickPhase = GestureClickPhase::out;
     const StateMachineListener* m_listener;
+    std::unordered_map<int, _PointerData*> m_pointers;
 };
 
 class DraggableConstraintListenerGroup : public ListenerGroup
@@ -706,25 +739,27 @@ public:
     bool needsDownListener(Component* drawable) override { return true; }
 
     bool needsUpListener(Component* drawable) override { return true; }
-    // Vec2D position, ListenerType hitType, bool canHit
     ProcessEventResult processEvent(
         Component* component,
         Vec2D position,
+        int pointerId,
         ListenerType hitEvent,
         bool canHit,
         float timeStamp,
         StateMachineInstance* stateMachineInstance) override
     {
-        auto prevPhase = clickPhase();
+        auto pointer = pointerData(pointerId);
+        auto prevPhase = pointer->phase;
         ListenerGroup::processEvent(component,
                                     position,
+                                    pointerId,
                                     hitEvent,
                                     canHit,
                                     timeStamp,
                                     stateMachineInstance);
         if (prevPhase == GestureClickPhase::down &&
-            (clickPhase() == GestureClickPhase::clicked ||
-             clickPhase() == GestureClickPhase::out))
+            (pointer->phase == GestureClickPhase::clicked ||
+             pointer->phase == GestureClickPhase::out))
         {
             m_draggable->endDrag(position, timeStamp);
             if (m_hasScrolled)
@@ -735,13 +770,13 @@ public:
             }
         }
         else if (prevPhase != GestureClickPhase::down &&
-                 clickPhase() == GestureClickPhase::down)
+                 pointer->phase == GestureClickPhase::down)
         {
             m_draggable->startDrag(position, timeStamp);
             m_hasScrolled = false;
         }
         else if (hitEvent == ListenerType::move &&
-                 clickPhase() == GestureClickPhase::down)
+                 pointer->phase == GestureClickPhase::down)
         {
             auto hasDragged = m_draggable->drag(position, timeStamp);
             if (hasDragged)
@@ -793,7 +828,9 @@ public:
 
     bool hitTest(Vec2D position) const override { return false; }
 
-    void prepareEvent(Vec2D position, ListenerType hitType) override
+    void prepareEvent(Vec2D position,
+                      ListenerType hitType,
+                      int pointerId) override
     {
         if (canEarlyOut &&
             (hitType != ListenerType::down || !hasDownListener) &&
@@ -812,7 +849,7 @@ public:
             for (auto listenerGroup : listeners)
             {
 
-                listenerGroup->hover();
+                listenerGroup->hover(pointerId);
             }
         }
     }
@@ -820,7 +857,8 @@ public:
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
                            bool canHit,
-                           float timeStamp) override
+                           float timeStamp,
+                           int pointerId) override
     {
         // If the shape doesn't have any ListenerType::move / enter / exit and
         // the event being processed is not of the type it needs to handle.
@@ -842,6 +880,7 @@ public:
             }
             if (listenerGroup->processEvent(m_component,
                                             position,
+                                            pointerId,
                                             hitType,
                                             canHit,
                                             timeStamp,
@@ -984,7 +1023,8 @@ public:
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
                            bool canHit,
-                           float timeStamp) override
+                           float timeStamp,
+                           int pointerId) override
     {
         auto nestedArtboard = m_component->as<NestedArtboard>();
         HitResult hitResult = HitResult::none;
@@ -1011,16 +1051,19 @@ public:
                     {
                         case ListenerType::down:
                             hitResult =
-                                nestedStateMachine->pointerDown(nestedPosition);
+                                nestedStateMachine->pointerDown(nestedPosition,
+                                                                pointerId);
                             break;
                         case ListenerType::up:
                             hitResult =
-                                nestedStateMachine->pointerUp(nestedPosition);
+                                nestedStateMachine->pointerUp(nestedPosition,
+                                                              pointerId);
                             break;
                         case ListenerType::move:
                             hitResult =
                                 nestedStateMachine->pointerMove(nestedPosition,
-                                                                timeStamp);
+                                                                timeStamp,
+                                                                pointerId);
                             break;
                         case ListenerType::dragStart:
                             nestedStateMachine->dragStart(nestedPosition,
@@ -1068,7 +1111,10 @@ public:
         }
         return hitResult;
     }
-    void prepareEvent(Vec2D position, ListenerType hitType) override {}
+    void prepareEvent(Vec2D position,
+                      ListenerType hitType,
+                      int pointerId) override
+    {}
 };
 
 class HitComponentList : public HitComponent
@@ -1106,7 +1152,8 @@ public:
     HitResult processEvent(Vec2D position,
                            ListenerType hitType,
                            bool canHit,
-                           float timeStamp) override
+                           float timeStamp,
+                           int pointerId) override
     {
         auto componentList = m_component->as<ArtboardComponentList>();
         HitResult hitResult = HitResult::none;
@@ -1133,15 +1180,18 @@ public:
                     {
                         case ListenerType::down:
                             itemHitResult =
-                                stateMachine->pointerDown(listPosition);
+                                stateMachine->pointerDown(listPosition,
+                                                          pointerId);
                             break;
                         case ListenerType::up:
                             itemHitResult =
-                                stateMachine->pointerUp(listPosition);
+                                stateMachine->pointerUp(listPosition,
+                                                        pointerId);
                             break;
                         case ListenerType::move:
                             itemHitResult =
-                                stateMachine->pointerMove(listPosition);
+                                stateMachine->pointerMove(listPosition,
+                                                          pointerId);
                             break;
                         case ListenerType::exit:
                             itemHitResult =
@@ -1170,7 +1220,7 @@ public:
                         case ListenerType::up:
                         case ListenerType::move:
                         case ListenerType::exit:
-                            stateMachine->pointerExit(listPosition);
+                            stateMachine->pointerExit(listPosition, pointerId);
                             break;
                         case ListenerType::dragStart:
                         case ListenerType::dragEnd:
@@ -1199,7 +1249,10 @@ public:
         }
         return hitResult;
     }
-    void prepareEvent(Vec2D position, ListenerType hitType) override {}
+    void prepareEvent(Vec2D position,
+                      ListenerType hitType,
+                      int pointerId) override
+    {}
 };
 
 class ListenerViewModel : public Dirtyable
@@ -1253,6 +1306,7 @@ private:
 
 HitResult StateMachineInstance::updateListeners(Vec2D position,
                                                 ListenerType hitType,
+                                                int pointerId,
                                                 float timeStamp)
 {
     if (m_artboardInstance->frameOrigin())
@@ -1264,12 +1318,12 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
     // First reset all listener groups before processing the events
     for (const auto& listenerGroup : m_listenerGroups)
     {
-        listenerGroup.get()->reset();
+        listenerGroup.get()->reset(pointerId);
     }
     // Next prepare the event to set the common hover status for each group
     for (const auto& hitShape : m_hitComponents)
     {
-        hitShape->prepareEvent(position, hitType);
+        hitShape->prepareEvent(position, hitType, pointerId);
     }
     bool hitSomething = false;
     bool hitOpaque = false;
@@ -1278,8 +1332,11 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
     {
         // TODO: quick reject.
 
-        HitResult hitResult =
-            hitShape->processEvent(position, hitType, !hitOpaque, timeStamp);
+        HitResult hitResult = hitShape->processEvent(position,
+                                                     hitType,
+                                                     !hitOpaque,
+                                                     timeStamp,
+                                                     pointerId);
         if (hitResult != HitResult::none)
         {
             hitSomething = true;
@@ -1314,21 +1371,23 @@ bool StateMachineInstance::hitTest(Vec2D position) const
     return false;
 }
 
-HitResult StateMachineInstance::pointerMove(Vec2D position, float timeStamp)
+HitResult StateMachineInstance::pointerMove(Vec2D position,
+                                            float timeStamp,
+                                            int id)
 {
-    return updateListeners(position, ListenerType::move, timeStamp);
+    return updateListeners(position, ListenerType::move, id, timeStamp);
 }
-HitResult StateMachineInstance::pointerDown(Vec2D position)
+HitResult StateMachineInstance::pointerDown(Vec2D position, int id)
 {
-    return updateListeners(position, ListenerType::down);
+    return updateListeners(position, ListenerType::down, id);
 }
-HitResult StateMachineInstance::pointerUp(Vec2D position)
+HitResult StateMachineInstance::pointerUp(Vec2D position, int id)
 {
-    return updateListeners(position, ListenerType::up);
+    return updateListeners(position, ListenerType::up, id);
 }
-HitResult StateMachineInstance::pointerExit(Vec2D position)
+HitResult StateMachineInstance::pointerExit(Vec2D position, int id)
 {
-    return updateListeners(position, ListenerType::exit);
+    return updateListeners(position, ListenerType::exit, id);
 }
 HitResult StateMachineInstance::dragStart(Vec2D position,
                                           float timeStamp,
