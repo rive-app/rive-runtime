@@ -13,4 +13,4 @@
 #include "specialization.minified.glsl"
 #include "common.minified.glsl"
 #include "advanced_blend.minified.glsl"
-#include "draw_clockwise_image_mesh.minified.glsl"
+#include "draw_clockwise_atomic_image_mesh.minified.glsl"

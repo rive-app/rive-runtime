@@ -152,23 +152,25 @@ DrawShaderVulkan::DrawShaderVulkan(Type type,
                 case DrawType::midpointFanPatches:
                 case DrawType::midpointFanCenterAAPatches:
                 case DrawType::outerCurvePatches:
-                    vertCode = spirv::draw_clockwise_path_vert;
-                    fragCode = spirv::draw_clockwise_path_frag;
+                    vertCode = spirv::draw_clockwise_atomic_path_vert;
+                    fragCode = spirv::draw_clockwise_atomic_path_frag;
                     break;
 
                 case DrawType::interiorTriangulation:
-                    vertCode = spirv::draw_clockwise_interior_triangles_vert;
-                    fragCode = spirv::draw_clockwise_interior_triangles_frag;
+                    vertCode =
+                        spirv::draw_clockwise_atomic_interior_triangles_vert;
+                    fragCode =
+                        spirv::draw_clockwise_atomic_interior_triangles_frag;
                     break;
 
                 case DrawType::atlasBlit:
-                    vertCode = spirv::draw_clockwise_atlas_blit_vert;
-                    fragCode = spirv::draw_clockwise_atlas_blit_frag;
+                    vertCode = spirv::draw_clockwise_atomic_atlas_blit_vert;
+                    fragCode = spirv::draw_clockwise_atomic_atlas_blit_frag;
                     break;
 
                 case DrawType::imageMesh:
-                    vertCode = spirv::draw_clockwise_image_mesh_vert;
-                    fragCode = spirv::draw_clockwise_image_mesh_frag;
+                    vertCode = spirv::draw_clockwise_atomic_image_mesh_vert;
+                    fragCode = spirv::draw_clockwise_atomic_image_mesh_frag;
                     break;
 
                 case DrawType::imageRect:
