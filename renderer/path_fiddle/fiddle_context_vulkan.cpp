@@ -39,22 +39,82 @@ public:
         const char** glfwExtensions;
         glfwExtensions = glfwGetRequiredInstanceExtensions(&glfwExtensionCount);
 
-        vkb::InstanceBuilder instanceBuilder;
-        instanceBuilder.set_app_name("path_fiddle")
-            .set_engine_name("Rive Renderer")
-            .enable_extensions(glfwExtensionCount, glfwExtensions)
-            .require_api_version(1, options.coreFeaturesOnly ? 0 : 3, 0)
-            .set_minimum_instance_version(1, 0, 0);
-#ifdef DEBUG
-        instanceBuilder.enable_validation_layers(
-            m_options.enableVulkanValidationLayers);
-        if (!m_options.disableDebugCallbacks)
+        int minorVersionRequested = options.coreFeaturesOnly ? 0 : 3;
+        bool enableVulkanValidationLayers =
+            m_options.enableVulkanValidationLayers;
+        bool disableDebugCallbacks = m_options.disableDebugCallbacks;
+
+        while (true)
         {
-            instanceBuilder.set_debug_callback(
-                rive_vkb::default_debug_callback);
-        }
+            vkb::InstanceBuilder instanceBuilder;
+            instanceBuilder.set_app_name("path_fiddle")
+                .set_engine_name("Rive Renderer")
+                .enable_extensions(glfwExtensionCount, glfwExtensions)
+                .require_api_version(1, minorVersionRequested, 0)
+                .set_minimum_instance_version(1, 0, 0);
+#ifdef DEBUG
+            instanceBuilder.enable_validation_layers(
+                enableVulkanValidationLayers);
+            if (!disableDebugCallbacks)
+            {
+                instanceBuilder.set_debug_callback(
+                    rive_vkb::default_debug_callback);
+            }
 #endif
-        m_instance = VKB_CHECK(instanceBuilder.build());
+
+            auto instanceResult = instanceBuilder.build();
+            if (!instanceResult)
+            {
+                auto error = static_cast<vkb::InstanceError>(
+                    instanceResult.error().value());
+
+                if (error ==
+                        vkb::InstanceError::vulkan_version_1_1_unavailable &&
+                    minorVersionRequested != 0)
+                {
+                    // There's a bug in VkBootstrap (due to not properly
+                    // handling Vulkan 1.0 not having the
+                    // vkEnumerateInstanceVersion function) where it can give a
+                    // vulkan_version_1_1_unavailable error even though we've
+                    // specified a minimum of 1.0. If we get that error,
+                    // request 1.0 directly and try again.
+                    fprintf(stderr, "Falling back on Vulkan 1.0.\n");
+                    minorVersionRequested = 0;
+                    continue;
+                }
+
+#ifdef DEBUG
+                if (enableVulkanValidationLayers &&
+                    error == vkb::InstanceError::requested_layers_not_present)
+                {
+                    fprintf(stderr,
+                            "WARNING: Validation layers not found. Attempting "
+                            "to create a Vulkan context again without "
+                            "validation layers.\n");
+                    enableVulkanValidationLayers = false;
+                    continue;
+                }
+
+                if (!disableDebugCallbacks &&
+                    error == vkb::InstanceError::failed_create_debug_messenger)
+                {
+                    fprintf(stderr,
+                            "WARNING: Debug callbacks not supported. "
+                            "Attempting to create a Vulkan context again "
+                            "without debug callbacks.");
+                    disableDebugCallbacks = true;
+                    continue;
+                }
+#endif
+                fprintf(stderr,
+                        "ERROR: %s: Failed to build Vulkan instance.",
+                        instanceResult.error().message().c_str());
+                abort();
+            }
+
+            m_instance = *instanceResult;
+            break;
+        }
         m_instanceDispatchTable = m_instance.make_table();
 
         VulkanFeatures vulkanFeatures;

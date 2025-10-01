@@ -174,6 +174,8 @@ uint32_t subpass_index(gpu::DrawType drawType,
         case gpu::DrawType::renderPassResolve:
             return mainSubpassIdx + 1;
     }
+
+    RIVE_UNREACHABLE();
 }
 
 DrawPipelineVulkan::DrawPipelineVulkan(
