@@ -941,12 +941,12 @@ public:
         m_hasCallback = true;
     }
 
-    std::array<std::string, 6> m_expectedViewModelNames = {"Empty VM",
+    std::array<std::string, 6> m_expectedViewModelNames = {"ListViewModel",
+                                                           "Empty VM",
                                                            "Test All",
                                                            "Nested VM",
                                                            "State Transition",
-                                                           "Alternate VM",
-                                                           "Test Slash"};
+                                                           "Alternate VM"};
     bool m_hasCallback = false;
     FileHandle m_fileHandle = RIVE_NULL_HANDLE;
     uint64_t m_requestId;
@@ -1070,7 +1070,8 @@ public:
                                                               "Test Trigger"},
             CommandQueue::FileListener::ViewModelPropertyData{
                 DataType::viewModel,
-                "Test Nested"}};
+                "Test Nested",
+                "Nested VM"}};
 
     bool m_hasInstanceCallback = false;
     bool m_hasPropertyCallback = false;
@@ -2619,12 +2620,12 @@ TEST_CASE("List View Model Property Set/Get", "[CommandQueue]")
                                                         "Alternate Nested");
     tester.pushExpectation("Test List", blankHandle);
     tester.pushExpectation("Test List", alternateHandle);
-    tester.pushExpectation("Test List", alternateHandle, blankHandle, 0, 1);
-    tester.pushRequestExpectation("Test List", 2);
+    tester.pushExpectation("Test List", alternateHandle, blankHandle, 2, 3);
+    tester.pushRequestExpectation("Test List", 4);
     tester.pushExpectation("Test List", blankHandle, 0);
     tester.pushExpectation("Test List", alternateHandle, 0);
     tester.pushExpectation("Test List", blankHandle, alternateHandle, 0, 1);
-    tester.pushRequestExpectation("Test List", 4);
+    tester.pushRequestExpectation("Test List", 6);
 
     auto badBlankHandle =
         commandQueue->instantiateBlankViewModelInstance(fileHandle, "blah");
@@ -2648,7 +2649,7 @@ TEST_CASE("List View Model Property Set/Get", "[CommandQueue]")
     tester.pushBadExpectation("Blah", 10, 1);
     tester.pushBadExpectation("Blah", 0, 10);
 
-    tester.pushRequestExpectation("Test List", 4);
+    tester.pushRequestExpectation("Test List", 6);
 
     tester.pushBadRequestExpectation("Blah");
 
@@ -4116,15 +4117,16 @@ public:
                                    enums);
 
     FileHandle m_handle;
-    std::array<std::string, 3> m_artboardNames = {"Test Artboard",
+    std::array<std::string, 4> m_artboardNames = {"Test Artboard",
                                                   "Test Transitions",
-                                                  "Test Observation"};
-    std::array<std::string, 6> m_viewModelNames = {"Empty VM",
+                                                  "Test Observation",
+                                                  "Artboard"};
+    std::array<std::string, 6> m_viewModelNames = {"ListViewModel",
+                                                   "Empty VM",
                                                    "Test All",
                                                    "Nested VM",
                                                    "State Transition",
-                                                   "Alternate VM",
-                                                   "Test Slash"};
+                                                   "Alternate VM"};
     std::array<std::string, 2> m_instanceNames = {"Test Default",
                                                   "Test Alternate"};
     std::array<CommandQueue::FileListener::ViewModelPropertyData, 10>
@@ -4153,7 +4155,8 @@ public:
                                                               "Test Trigger"},
             CommandQueue::FileListener::ViewModelPropertyData{
                 DataType::viewModel,
-                "Test Nested"}};
+                "Test Nested",
+                "Nested VM"}};
     std::array<ViewModelEnum, 1> m_enums = {
         ViewModelEnum{"Test Enum Values", {"Value 1", "Value 2"}}};
     std::string m_viewModelNameI = "Test All";
@@ -4252,7 +4255,7 @@ public:
                                    size_t,
                                    size);
 
-    size_t m_size = 0;
+    size_t m_size = 2;
     std::string m_path = "Test List";
     ViewModelInstanceHandle m_handle;
     CommandQueue::ViewModelInstanceData m_instanceData = {

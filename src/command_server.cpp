@@ -1935,6 +1935,27 @@ bool CommandServer::processCommands()
                                 m_commandQueue->m_messageNames
                                     << enumProperty->enumType();
                             }
+                            if (property.type == DataType::viewModel)
+                            {
+                                // Get the type of the view model property
+                                auto viewModelTmp =
+                                    modelInstance->propertyViewModel(
+                                        property.name);
+                                if (viewModelTmp)
+                                {
+                                    m_commandQueue->m_messageNames
+                                        << viewModelTmp->instance()
+                                               ->viewModel()
+                                               ->name();
+                                }
+                                else
+                                {
+                                    // If we can't determine the name we still
+                                    // need to send something because the
+                                    // command queue is expecting a name.
+                                    m_commandQueue->m_messageNames << "Unkown";
+                                }
+                            }
                         }
                     }
                     else

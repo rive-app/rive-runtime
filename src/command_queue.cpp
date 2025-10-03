@@ -1241,7 +1241,8 @@ void CommandQueue::processMessages()
                 {
                     m_messageStream >> property.type;
                     m_messageNames >> property.name;
-                    if (property.type == DataType::enumType)
+                    if (property.type == DataType::enumType ||
+                        property.type == DataType::viewModel)
                     {
                         m_messageNames >> property.metaData;
                     }
