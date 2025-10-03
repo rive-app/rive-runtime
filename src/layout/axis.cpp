@@ -20,4 +20,11 @@ StatusCode Axis::onAddedDirty(CoreContext* context)
     return StatusCode::Ok;
 }
 
-void Axis::offsetChanged() { NSlicerDetails::from(parent())->axisChanged(); }
+void Axis::offsetChanged()
+{
+    auto details = NSlicerDetails::from(parent());
+    if (details != nullptr)
+    {
+        details->axisChanged();
+    }
+}
