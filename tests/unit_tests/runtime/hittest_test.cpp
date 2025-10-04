@@ -952,3 +952,202 @@ TEST_CASE("Hit testing multi touch events", "[silver]")
 
     CHECK(silver.matches("multitouch"));
 }
+
+TEST_CASE("Multitouch with nested artboard and pointer exit event", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/multitouch_enter.riv", &silver);
+
+    auto artboard = file->artboardNamed("Main");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    // Script
+    // Advancing by 0.0000s
+    // Advancing by 0.0167s
+    // Touch (id: 9) began at {122.5845,443.8406}
+    // Advancing by 0.0167s
+    // Touch (id: 8) began at {459.5410,188.4058}
+    // Touch (id: 7) began at {333.3333,248.1884}
+    // Advancing by 0.0167s
+    // Touch (id: 8) ended at {459.5410,188.4058}
+    // Touch (id: 8) exited at {459.5410,188.4058}
+    // Touch (id: 9) ended at {123.7923,444.4445}
+    // Touch (id: 9) exited at {123.7923,444.4445}
+    // Touch (id: 7) ended at {333.3333,248.1884}
+    // Touch (id: 7) exited at {333.3333,248.1884}
+    // Advancing by 0.0167s
+    // Touch (id: 7) began at {118.9613,439.6135}
+    // Touch (id: 9) began at {346.6183,269.9276}
+    // Touch (id: 8) began at {459.5410,194.4444}
+    // Advancing by 0.0167s
+    // Touch (id: 9) ended at {346.6183,269.9276}
+    // Touch (id: 9) exited at {346.6183,269.9276}
+    // Touch (id: 7) ended at {122.5845,440.8212}
+    // Touch (id: 7) exited at {122.5845,440.8212}
+    // Touch (id: 8) ended at {459.5410,194.4444}
+    // Touch (id: 8) exited at {459.5410,194.4444}
+    // Advancing by 0.0167s
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(122.5845f, 443.8406f), 9);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(459.5410f, 188.4058f), 8);
+    stateMachine->pointerDown(rive::Vec2D(333.3333f, 248.1884f), 7);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(459.5410f, 188.4058f), 8);
+    stateMachine->pointerExit(rive::Vec2D(459.5410f, 188.4058f), 8);
+    stateMachine->pointerUp(rive::Vec2D(123.7923f, 444.4445f), 9);
+    stateMachine->pointerExit(rive::Vec2D(123.7923f, 444.4445f), 9);
+    stateMachine->pointerUp(rive::Vec2D(333.3333f, 248.1884f), 7);
+    stateMachine->pointerExit(rive::Vec2D(333.3333f, 248.1884f), 7);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(118.9613f, 439.6135f), 7);
+    stateMachine->pointerDown(rive::Vec2D(346.6183f, 269.9276f), 9);
+    stateMachine->pointerDown(rive::Vec2D(459.5410f, 194.4444f), 8);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(346.6183f, 269.9276f), 9);
+    stateMachine->pointerExit(rive::Vec2D(346.6183f, 269.9276f), 9);
+    stateMachine->pointerUp(rive::Vec2D(122.5845f, 440.8212f), 7);
+    stateMachine->pointerExit(rive::Vec2D(122.5845f, 440.8212f), 7);
+    stateMachine->pointerUp(rive::Vec2D(459.5410f, 194.4444f), 8);
+    stateMachine->pointerExit(rive::Vec2D(459.5410f, 194.4444f), 8);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+
+    CHECK(silver.matches("multitouch_enter"));
+}
+
+TEST_CASE("Multitouch with list and pointer exit event", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/multitouch_enter.riv", &silver);
+
+    auto artboard = file->artboardNamed("MainList");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    int viewModelId = artboard.get()->viewModelId();
+
+    auto vmi = viewModelId == -1
+                   ? file->createViewModelInstance(artboard.get())
+                   : file->createViewModelInstance(viewModelId, 0);
+
+    stateMachine->bindViewModelInstance(vmi);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(122.5845f, 443.8406f), 9);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(459.5410f, 188.4058f), 8);
+    stateMachine->pointerDown(rive::Vec2D(333.3333f, 248.1884f), 7);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(459.5410f, 188.4058f), 8);
+    stateMachine->pointerExit(rive::Vec2D(459.5410f, 188.4058f), 8);
+    stateMachine->pointerUp(rive::Vec2D(123.7923f, 444.4445f), 9);
+    stateMachine->pointerExit(rive::Vec2D(123.7923f, 444.4445f), 9);
+    stateMachine->pointerUp(rive::Vec2D(333.3333f, 248.1884f), 7);
+    stateMachine->pointerExit(rive::Vec2D(333.3333f, 248.1884f), 7);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerDown(rive::Vec2D(118.9613f, 439.6135f), 7);
+    stateMachine->pointerDown(rive::Vec2D(346.6183f, 269.9276f), 9);
+    stateMachine->pointerDown(rive::Vec2D(459.5410f, 194.4444f), 8);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerUp(rive::Vec2D(346.6183f, 269.9276f), 9);
+    stateMachine->pointerExit(rive::Vec2D(346.6183f, 269.9276f), 9);
+    stateMachine->pointerUp(rive::Vec2D(122.5845f, 440.8212f), 7);
+    stateMachine->pointerExit(rive::Vec2D(122.5845f, 440.8212f), 7);
+    stateMachine->pointerUp(rive::Vec2D(459.5410f, 194.4444f), 8);
+    stateMachine->pointerExit(rive::Vec2D(459.5410f, 194.4444f), 8);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    silver.addFrame();
+    stateMachine->pointerMove(rive::Vec2D(50.0f, 300.0f), 0, 7);
+    stateMachine->pointerMove(rive::Vec2D(250.0f, 200.0f), 0, 8);
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    float xOffset = 0;
+    while (xOffset < 300)
+    {
+        xOffset += 20;
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(50.0f + xOffset, 300.0f), 0, 7);
+        stateMachine->pointerMove(rive::Vec2D(250.0f + xOffset, 200.0f), 0, 8);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+
+    CHECK(silver.matches("multitouch_enter-MainList"));
+}
+
+TEST_CASE("Multitouch with multi scroll", "[silver]")
+{
+    SerializingFactory silver;
+    auto file = ReadRiveFile("assets/multitouch_enter.riv", &silver);
+
+    auto artboard = file->artboardNamed("MultiScroll");
+    REQUIRE(artboard != nullptr);
+
+    silver.frameSize(artboard->width(), artboard->height());
+
+    auto stateMachine = artboard->stateMachineAt(0);
+    stateMachine->advanceAndApply(0.1f);
+
+    auto renderer = silver.makeRenderer();
+    artboard->draw(renderer.get());
+
+    silver.addFrame();
+    stateMachine->advanceAndApply(0.016f);
+    artboard->draw(renderer.get());
+    float yOffset = 400;
+    stateMachine->pointerDown(rive::Vec2D(50.0f, yOffset), 7);
+    stateMachine->pointerDown(rive::Vec2D(350.0f, yOffset), 8);
+    while (yOffset > 0)
+    {
+        yOffset -= 20;
+        silver.addFrame();
+        stateMachine->pointerMove(rive::Vec2D(50.0f, yOffset), 0, 7);
+        stateMachine->pointerMove(rive::Vec2D(350.0f, yOffset), 0, 8);
+        stateMachine->advanceAndApply(0.016f);
+        artboard->draw(renderer.get());
+    }
+    stateMachine->pointerUp(rive::Vec2D(50.0f, yOffset), 7);
+    stateMachine->pointerUp(rive::Vec2D(350.0f, yOffset), 8);
+
+    CHECK(silver.matches("multitouch_enter-MultiScroll"));
+}

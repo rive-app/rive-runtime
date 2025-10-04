@@ -540,17 +540,29 @@ public:
         {
             delete pointerData.second;
         }
+        for (auto& pointerData : m_pointersPool)
+        {
+            delete pointerData;
+        }
     }
     _PointerData* pointerData(int id)
     {
         if (m_pointers.find(id) == m_pointers.end())
         {
-            m_pointers[id] = new _PointerData();
+            if (m_pointersPool.size() > 0)
+            {
+                m_pointers[id] = m_pointersPool.back();
+                m_pointersPool.pop_back();
+            }
+            else
+            {
+                m_pointers[id] = new _PointerData();
+            }
         }
         return m_pointers[id];
     }
     void consume() { m_isConsumed = true; }
-    //
+
     void hover(int id)
     {
         auto pointer = pointerData(id);
@@ -558,7 +570,6 @@ public:
     }
     void reset(int pointerId)
     {
-
         auto pointer = pointerData(pointerId);
         if (pointer->phase != GestureClickPhase::disabled)
         {
@@ -571,19 +582,32 @@ public:
             pointer->phase = GestureClickPhase::out;
         }
     }
-    virtual void enable()
+    void releaseEvent(int pointerId)
     {
-        for (auto& pointer : m_pointers)
+        if (m_pointers.find(pointerId) != m_pointers.end())
         {
-            pointer.second->phase = GestureClickPhase::out;
+            // Reset pointer data before caching it
+            auto pointerData = m_pointers[pointerId];
+            pointerData->isHovered = false;
+            pointerData->isPrevHovered = false;
+            pointerData->phase = GestureClickPhase::out;
+            auto previousPosition = pointerData->previousPosition();
+            previousPosition->x = 0;
+            previousPosition->y = 0;
+
+            m_pointersPool.push_back(m_pointers[pointerId]);
+            m_pointers.erase(pointerId);
         }
     }
-    virtual void disable()
+    virtual void enable(int pointerId = 0)
     {
-        for (auto& pointer : m_pointers)
-        {
-            pointer.second->phase = GestureClickPhase::disabled;
-        }
+        auto pointer = pointerData(pointerId);
+        pointer->phase = GestureClickPhase::out;
+    }
+    virtual void disable(int pointerId = 0)
+    {
+        auto pointer = pointerData(pointerId);
+        pointer->phase = GestureClickPhase::disabled;
         consume();
     }
     bool isConsumed() { return m_isConsumed; }
@@ -711,6 +735,7 @@ private:
     bool m_isConsumed = false;
     const StateMachineListener* m_listener;
     std::unordered_map<int, _PointerData*> m_pointers;
+    std::vector<_PointerData*> m_pointersPool;
 };
 
 class DraggableConstraintListenerGroup : public ListenerGroup
@@ -729,8 +754,8 @@ public:
         delete m_draggable;
     }
 
-    void enable() override {}
-    void disable() override {}
+    void enable(int pointerId = 0) override {}
+    void disable(int pointerId = 0) override {}
 
     DraggableConstraint* constraint() { return m_constraint; }
 
@@ -764,7 +789,7 @@ public:
             m_draggable->endDrag(position, timeStamp);
             if (m_hasScrolled)
             {
-                stateMachineInstance->dragEnd(position, timeStamp);
+                stateMachineInstance->dragEnd(position, timeStamp, pointerId);
                 m_hasScrolled = false;
                 return ProcessEventResult::scroll;
             }
@@ -783,7 +808,10 @@ public:
             {
                 if (!m_hasScrolled)
                 {
-                    stateMachineInstance->dragStart(position, timeStamp, false);
+                    stateMachineInstance->dragStart(position,
+                                                    timeStamp,
+                                                    false,
+                                                    pointerId);
                 }
                 m_hasScrolled = true;
                 return ProcessEventResult::scroll;
@@ -918,19 +946,19 @@ public:
         listeners.push_back(listenerGroup);
     }
 
-    void enablePointerEvents() override
+    void enablePointerEvents(int pointerId) override
     {
         for (auto listenerGroup : listeners)
         {
-            listenerGroup->enable();
+            listenerGroup->enable(pointerId);
         }
     }
 
-    void disablePointerEvents() override
+    void disablePointerEvents(int pointerId) override
     {
         for (auto listenerGroup : listeners)
         {
-            listenerGroup->disable();
+            listenerGroup->disable(pointerId);
         }
     }
 };
@@ -1067,15 +1095,18 @@ public:
                             break;
                         case ListenerType::dragStart:
                             nestedStateMachine->dragStart(nestedPosition,
-                                                          timeStamp);
+                                                          timeStamp,
+                                                          pointerId);
                             break;
                         case ListenerType::dragEnd:
                             nestedStateMachine->dragEnd(nestedPosition,
-                                                        timeStamp);
+                                                        timeStamp,
+                                                        pointerId);
                             break;
                         case ListenerType::exit:
                             hitResult =
-                                nestedStateMachine->pointerExit(nestedPosition);
+                                nestedStateMachine->pointerExit(nestedPosition,
+                                                                pointerId);
                             break;
                         case ListenerType::enter:
                         case ListenerType::event:
@@ -1094,7 +1125,8 @@ public:
                         case ListenerType::up:
                         case ListenerType::move:
                         case ListenerType::exit:
-                            nestedStateMachine->pointerExit(nestedPosition);
+                            nestedStateMachine->pointerExit(nestedPosition,
+                                                            pointerId);
                             break;
                         case ListenerType::dragStart:
                         case ListenerType::dragEnd:
@@ -1191,17 +1223,22 @@ public:
                         case ListenerType::move:
                             itemHitResult =
                                 stateMachine->pointerMove(listPosition,
+                                                          timeStamp,
                                                           pointerId);
                             break;
                         case ListenerType::exit:
                             itemHitResult =
-                                stateMachine->pointerExit(listPosition);
+                                stateMachine->pointerExit(listPosition,
+                                                          pointerId);
                             break;
                         case ListenerType::dragStart:
-                            stateMachine->dragStart(listPosition);
+                            stateMachine->dragStart(listPosition,
+                                                    0,
+                                                    true,
+                                                    pointerId);
                             break;
                         case ListenerType::dragEnd:
-                            stateMachine->dragEnd(listPosition);
+                            stateMachine->dragEnd(listPosition, 0, pointerId);
                             break;
                         case ListenerType::enter:
                         case ListenerType::event:
@@ -1327,11 +1364,9 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
     }
     bool hitSomething = false;
     bool hitOpaque = false;
-    // Finally process the events
+    // Process the events
     for (const auto& hitShape : m_hitComponents)
     {
-        // TODO: quick reject.
-
         HitResult hitResult = hitShape->processEvent(position,
                                                      hitType,
                                                      !hitOpaque,
@@ -1346,6 +1381,15 @@ HitResult StateMachineInstance::updateListeners(Vec2D position,
             }
         }
     }
+    // Finally release events that are complete
+    if (hitType == ListenerType::exit)
+    {
+        for (const auto& listenerGroup : m_listenerGroups)
+        {
+            listenerGroup.get()->releaseEvent(pointerId);
+        }
+    }
+
     return hitSomething ? hitOpaque ? HitResult::hitOpaque : HitResult::hit
                         : HitResult::none;
 }
@@ -1391,20 +1435,23 @@ HitResult StateMachineInstance::pointerExit(Vec2D position, int id)
 }
 HitResult StateMachineInstance::dragStart(Vec2D position,
                                           float timeStamp,
-                                          bool disablePointer)
+                                          bool disablePointer,
+                                          int pointerId)
 {
     if (disablePointer)
     {
-        disablePointerEvents();
+        disablePointerEvents(pointerId);
     }
     auto hit = updateListeners(position, ListenerType::dragStart);
     return hit;
 }
-HitResult StateMachineInstance::dragEnd(Vec2D position, float timeStamp)
+HitResult StateMachineInstance::dragEnd(Vec2D position,
+                                        float timeStamp,
+                                        int pointerId)
 {
-    enablePointerEvents();
+    enablePointerEvents(pointerId);
     auto hit = updateListeners(position, ListenerType::dragEnd);
-    pointerMove(position, timeStamp);
+    pointerMove(position, timeStamp, pointerId);
     return hit;
 }
 
@@ -2265,19 +2312,19 @@ void StateMachineInstance::notifyEventListeners(
     }
 }
 
-void StateMachineInstance::enablePointerEvents()
+void StateMachineInstance::enablePointerEvents(int pointerId)
 {
     for (const auto& hitShape : m_hitComponents)
     {
-        hitShape->enablePointerEvents();
+        hitShape->enablePointerEvents(pointerId);
     }
 }
 
-void StateMachineInstance::disablePointerEvents()
+void StateMachineInstance::disablePointerEvents(int pointerId)
 {
     for (const auto& hitShape : m_hitComponents)
     {
-        hitShape->disablePointerEvents();
+        hitShape->disablePointerEvents(pointerId);
     }
 }
 

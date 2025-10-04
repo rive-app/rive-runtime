@@ -140,8 +140,9 @@ public:
     HitResult pointerExit(Vec2D position, int pointerId = 0) override;
     HitResult dragStart(Vec2D position,
                         float timeStamp = 0,
-                        bool disablePointer = true);
-    HitResult dragEnd(Vec2D position, float timeStamp = 0);
+                        bool disablePointer = true,
+                        int pointerId = 0);
+    HitResult dragEnd(Vec2D position, float timeStamp = 0, int pointerId = 0);
     bool tryChangeState();
     bool hitTest(Vec2D position) const;
 
@@ -207,8 +208,8 @@ public:
     }
     const LayerState* layerState(size_t index);
 #endif
-    void enablePointerEvents();
-    void disablePointerEvents();
+    void enablePointerEvents(int pointerId = 0);
+    void disablePointerEvents(int pointerId = 0);
 
 private:
     std::vector<EventReport> m_reportedEvents;
@@ -265,8 +266,8 @@ public:
                               ListenerType hitType,
                               int pointerId) = 0;
     virtual bool hitTest(Vec2D position) const = 0;
-    virtual void enablePointerEvents() {}
-    virtual void disablePointerEvents() {}
+    virtual void enablePointerEvents(int pointerId = 0) {}
+    virtual void disablePointerEvents(int pointerId = 0) {}
 #ifdef TESTING
     int earlyOutCount = 0;
 #endif

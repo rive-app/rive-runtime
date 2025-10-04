@@ -30,8 +30,8 @@ public:
     HitResult pointerDown(Vec2D position, int pointerId = 0);
     HitResult pointerUp(Vec2D position, int pointerId = 0);
     HitResult pointerExit(Vec2D position, int pointerId = 0);
-    HitResult dragStart(Vec2D position, float timeStamp = 0);
-    HitResult dragEnd(Vec2D position, float timeStamp = 0);
+    HitResult dragStart(Vec2D position, float timeStamp = 0, int pointerId = 0);
+    HitResult dragEnd(Vec2D position, float timeStamp = 0, int pointerId = 0);
     bool tryChangeState();
     bool hitTest(Vec2D position) const;
 
