@@ -101,17 +101,16 @@ float ElasticScrollPhysicsHelper::advance(float elapsedSeconds)
     {
         m_current += m_speed * elapsedSeconds;
 
-        auto friction = m_friction;
         if (m_current < m_runRangeMin)
         {
-            friction *= 4;
+            m_friction *= 4;
         }
         else if (m_current > m_runRangeMax)
         {
-            friction *= 4;
+            m_friction *= 4;
         }
 
-        m_speed += -m_speed * std::min(1.0f, elapsedSeconds * friction);
+        m_speed += -m_speed * std::min(1.0f, elapsedSeconds * m_friction);
 
         if (abs(m_speed) < 5)
         {
