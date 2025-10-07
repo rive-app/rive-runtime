@@ -53,7 +53,7 @@ jobs:
       - name: Tests
         run: |
           cd tests/unit_tests
-          ./test.bat --args="--factory=null"
+          ./test.bat --factory=null
 
   build-macos:
     runs-on: macOS-latest
@@ -88,7 +88,7 @@ jobs:
         # Need to clean here because we already did a unit_tests build above without asan
         run: |
           cd tests/unit_tests
-          ./test.sh asan memory clean
+          ./test.sh
       
       - name: Tess Tests
         if: matrix.platform == 'macOS'
