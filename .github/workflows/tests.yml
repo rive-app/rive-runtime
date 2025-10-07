@@ -31,6 +31,9 @@ jobs:
           build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout debug
           build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout release
 
+      - name: Add build scripts to PATH
+        run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
+  
       - name: Tests
         run: |
           cd tests/unit_tests
@@ -50,7 +53,7 @@ jobs:
       - name: Tests
         run: |
           cd tests/unit_tests
-          ./test.bat
+          ./test.bat --args="--factory=null"
 
   build-macos:
     runs-on: macOS-latest
@@ -81,13 +84,12 @@ jobs:
       - name: Add build scripts to PATH
         run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
   
-      - name: Tests
-        if: matrix.platform == 'macOS'
+      - name: Memory Leaks & Address Sanitization
+        # Need to clean here because we already did a unit_tests build above without asan
         run: |
-          echo Testing for ${{matrix.platform}}
           cd tests/unit_tests
-          ./test.sh coverage
-
+          ./test.sh asan memory clean
+      
       - name: Tess Tests
         if: matrix.platform == 'macOS'
         run: |
