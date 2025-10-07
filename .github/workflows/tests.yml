@@ -93,6 +93,5 @@ jobs:
         run: |
           echo Testing for ${{matrix.platform}}
              cd tess
-            ../build/build_rive.sh --file=premake5_tess.lua debug
-            ../build/build_rive.sh --file=premake5_tess.lua release
-            ../out/debug/rive_tess_tests
+            ../build/build_rive.sh --file=premake5_tess.lua
+            ../out/default/rive_tess_tests
