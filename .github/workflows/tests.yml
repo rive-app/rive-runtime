@@ -26,7 +26,6 @@ jobs:
       - name: Build
         shell: bash
         run: |
-          cd packages/runtime
           build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting debug
           build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting release
 
