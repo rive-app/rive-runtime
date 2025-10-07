@@ -1056,7 +1056,7 @@ static wgpu::FilterMode webgpu_filter_mode(rive::ImageFilter filter)
 {
     switch (filter)
     {
-        case rive::ImageFilter::trilinear:
+        case rive::ImageFilter::bilinear:
             return wgpu::FilterMode::Linear;
         case rive::ImageFilter::nearest:
             return wgpu::FilterMode::Nearest;
@@ -1070,9 +1070,8 @@ static wgpu::MipmapFilterMode webgpu_mipmap_filter_mode(
 {
     switch (filter)
     {
-        case rive::ImageFilter::trilinear:
-            return wgpu::MipmapFilterMode::Linear;
         case rive::ImageFilter::nearest:
+        case rive::ImageFilter::bilinear:
             return wgpu::MipmapFilterMode::Nearest;
     }
 

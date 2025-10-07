@@ -53,7 +53,7 @@ static int imagesampler_construct(lua_State* L)
     }
     ImageWrap wrapX = ImageWrap::clamp;
     ImageWrap wrapY = ImageWrap::clamp;
-    ImageFilter filter = ImageFilter::trilinear;
+    ImageFilter filter = ImageFilter::bilinear;
     switch (wrapXAtom)
     {
         case (int)LuaAtoms::clamp:
@@ -85,7 +85,7 @@ static int imagesampler_construct(lua_State* L)
 
     switch (imageFilterAtom)
     {
-        case (int)LuaAtoms::trilinear:
+        case (int)LuaAtoms::bilinear:
             break;
         case (int)LuaAtoms::nearest:
             filter = ImageFilter::nearest;

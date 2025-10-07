@@ -12,9 +12,8 @@ static VkSamplerMipmapMode vk_sampler_mipmap_mode(rive::ImageFilter option)
 {
     switch (option)
     {
-        case rive::ImageFilter::trilinear:
-            return VK_SAMPLER_MIPMAP_MODE_LINEAR;
         case rive::ImageFilter::nearest:
+        case rive::ImageFilter::bilinear:
             return VK_SAMPLER_MIPMAP_MODE_NEAREST;
     }
 
@@ -40,7 +39,7 @@ static VkFilter vk_filter(rive::ImageFilter option)
 {
     switch (option)
     {
-        case rive::ImageFilter::trilinear:
+        case rive::ImageFilter::bilinear:
             return VK_FILTER_LINEAR;
         case rive::ImageFilter::nearest:
             return VK_FILTER_NEAREST;

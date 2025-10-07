@@ -25,10 +25,10 @@ static constexpr D3D12_FILTER filter_for_sampler_options(ImageFilter option)
 {
     switch (option)
     {
-        case ImageFilter::trilinear:
-            return D3D12_FILTER_COMPARISON_MIN_MAG_MIP_LINEAR;
         case ImageFilter::nearest:
             return D3D12_FILTER_COMPARISON_MIN_MAG_MIP_POINT;
+        case ImageFilter::bilinear:
+            return D3D12_FILTER_COMPARISON_MIN_MAG_LINEAR_MIP_POINT;
     }
 
     RIVE_UNREACHABLE();

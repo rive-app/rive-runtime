@@ -489,6 +489,7 @@ FlushUniforms::FlushUniforms(const FlushDescriptor& flushDesc,
     m_coverageBufferPrefix(flushDesc.coverageBufferPrefix),
     m_pathIDGranularity(platformFeatures.pathIDGranularity),
     m_vertexDiscardValue(std::numeric_limits<float>::quiet_NaN()),
+    m_mipMapLODBias(MIP_MAP_LOD_BIAS),
     m_wireframeEnabled(flushDesc.wireframe)
 {}
 
@@ -625,7 +626,8 @@ void PaintAuxData::set(const Mat2D& viewMatrix,
                 // Instead of finding sqrt(maxScaleFactorPow2), just multiply
                 // the log by .5.
                 m_imageTextureLOD =
-                    log2f(std::max(maxScaleFactorPow2, 1.f)) * .5f;
+                    (log2f(std::max(maxScaleFactorPow2, 1.f)) * .5f) +
+                    MIP_MAP_LOD_BIAS;
             }
             else
             {

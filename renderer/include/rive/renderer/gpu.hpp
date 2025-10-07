@@ -39,6 +39,10 @@ class RenderContextImpl;
 class RenderTarget;
 class Texture;
 
+// Global MipMap LOD Bias to apply to samplers. Going lower leads to sharper
+// filtering at the expense of potential shimmering.
+constexpr static float MIP_MAP_LOD_BIAS = -.5f;
+
 // Tessellate in parametric space until each segment is within 1/4 pixel of the
 // true curve.
 constexpr static int kParametricPrecision = 4;
@@ -1284,9 +1288,10 @@ private:
     // Spacing between adjacent path IDs (1 if IEEE compliant).
     WRITEONLY uint32_t m_pathIDGranularity;
     WRITEONLY float m_vertexDiscardValue;
+    WRITEONLY float m_mipMapLODBias;
     WRITEONLY uint32_t m_wireframeEnabled; // Forces coverage to solid.
     // Uniform blocks must be multiples of 256 bytes in size.
-    WRITEONLY uint8_t m_padTo256Bytes[256 - 80];
+    WRITEONLY uint8_t m_padTo256Bytes[256 - 84];
 };
 static_assert(sizeof(FlushUniforms) == 256);
 

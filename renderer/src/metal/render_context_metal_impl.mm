@@ -70,7 +70,7 @@ static MTLSamplerMinMagFilter min_mag_filter_for_image_filter(
 {
     switch (option)
     {
-        case ImageFilter::trilinear:
+        case ImageFilter::bilinear:
             return MTLSamplerMinMagFilterLinear;
         case ImageFilter::nearest:
             return MTLSamplerMinMagFilterNearest;
@@ -83,9 +83,8 @@ static MTLSamplerMipFilter mip_filter_for_image_filter(ImageFilter option)
 {
     switch (option)
     {
-        case ImageFilter::trilinear:
-            return MTLSamplerMipFilterLinear;
         case ImageFilter::nearest:
+        case ImageFilter::bilinear:
             return MTLSamplerMipFilterNearest;
     }
 

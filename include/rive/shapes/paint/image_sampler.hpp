@@ -7,11 +7,10 @@ namespace rive
 {
 enum class ImageFilter : uint8_t
 {
-    // High fidelity linear filter in all 3 directions: x, y, and between mip
-    // levels
-    trilinear = 0,
+    // High fidelity linear filter in all 2 directions: x, y
+    bilinear = 0,
     // Sample with low fidelity, good for things like pixel art.
-    nearest = 1
+    nearest = 1,
 };
 
 constexpr size_t NUM_IMAGE_FILTERS = 2;
@@ -27,7 +26,7 @@ enum class ImageWrap : uint8_t
     mirror = 2,
 };
 
-constexpr size_t NUM_IMAGE_WRAP = 4;
+constexpr size_t NUM_IMAGE_WRAP = 3;
 
 struct ImageSampler
 {
@@ -38,7 +37,7 @@ struct ImageSampler
     ImageWrap wrapX = ImageWrap::clamp;
     ImageWrap wrapY = ImageWrap::clamp;
     // How to sample the texture, this will be for both MIN and MAG filtering.
-    ImageFilter filter = ImageFilter::trilinear;
+    ImageFilter filter = ImageFilter::bilinear;
 
     bool operator==(const ImageSampler other) const
     {
@@ -54,14 +53,15 @@ struct ImageSampler
     // The maximum number of possible combinations of sampler options. Used for
     // array length in implementations.
     static constexpr size_t MAX_SAMPLER_PERMUTATIONS =
-        NUM_IMAGE_FILTERS * NUM_IMAGE_FILTERS * NUM_IMAGE_WRAP;
+        NUM_IMAGE_FILTERS * NUM_IMAGE_WRAP * NUM_IMAGE_WRAP;
 
     // Convert struct to a key that can be used to index an array to get a
     // unique sampler that represents these options.
     const uint8_t asKey() const
     {
-        return static_cast<int>(wrapX) + (static_cast<int>(wrapY) * 3) +
-               (static_cast<int>(filter) * 9);
+        return static_cast<int>(wrapX) +
+               (static_cast<int>(wrapY) * NUM_IMAGE_WRAP) +
+               (static_cast<int>(filter) * NUM_IMAGE_WRAP * NUM_IMAGE_WRAP);
     }
 
     static ImageSampler SamplerFromKey(uint8_t key)
@@ -79,17 +79,18 @@ struct ImageSampler
 
     static ImageWrap GetWrapXOptionFromKey(uint8_t key)
     {
-        return static_cast<ImageWrap>(key % 3);
+        return static_cast<ImageWrap>(key % NUM_IMAGE_WRAP);
     }
 
     static ImageWrap GetWrapYOptionFromKey(uint8_t key)
     {
-        return static_cast<ImageWrap>((key % 9) / 3);
+        return static_cast<ImageWrap>((key / NUM_IMAGE_WRAP) % NUM_IMAGE_WRAP);
     }
 
     static ImageFilter GetFilterOptionFromKey(uint8_t key)
     {
-        return static_cast<ImageFilter>((key - (key % 9)) % 2);
+        return static_cast<ImageFilter>(key /
+                                        (NUM_IMAGE_WRAP * NUM_IMAGE_WRAP));
     }
 };
 } // namespace rive

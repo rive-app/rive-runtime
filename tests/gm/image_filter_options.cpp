@@ -35,7 +35,7 @@ public:
                    img.get(),
                    {rive::ImageWrap::clamp,
                     rive::ImageWrap::clamp,
-                    rive::ImageFilter::trilinear},
+                    rive::ImageFilter::bilinear},
                    r);
         ren->restore();
         ren->save();
@@ -53,7 +53,7 @@ public:
                    img.get(),
                    {rive::ImageWrap::clamp,
                     rive::ImageWrap::clamp,
-                    rive::ImageFilter::trilinear},
+                    rive::ImageFilter::bilinear},
                    r);
         ren->restore();
         ren->save();

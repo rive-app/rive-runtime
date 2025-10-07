@@ -1222,38 +1222,37 @@ TEST_CASE("image-sample-option-conversions", "RiveRenderer")
     CHECK(wrapy(repeatNearestOptionsKey) == rive::ImageWrap::repeat);
     CHECK(filter(repeatNearestOptionsKey) == rive::ImageFilter::nearest);
 
-    rive::ImageSampler clampMirrorLinearOptions = {
-        rive::ImageWrap::clamp,
-        rive::ImageWrap::mirror,
-        rive::ImageFilter::trilinear};
+    rive::ImageSampler clampMirrorLinearOptions = {rive::ImageWrap::clamp,
+                                                   rive::ImageWrap::mirror,
+                                                   rive::ImageFilter::bilinear};
 
     auto clampMirrorLinearOptionsKey = clampMirrorLinearOptions.asKey();
     CHECK(wrapx(clampMirrorLinearOptionsKey) == rive::ImageWrap::clamp);
     CHECK(wrapy(clampMirrorLinearOptionsKey) == rive::ImageWrap::mirror);
-    CHECK(filter(clampMirrorLinearOptionsKey) == rive::ImageFilter::trilinear);
+    CHECK(filter(clampMirrorLinearOptionsKey) == rive::ImageFilter::bilinear);
     CHECK(clampMirrorLinearOptions != repeatNearestOptions);
 
     rive::ImageSampler repeatClampMipLinearOptions = {
         rive::ImageWrap::repeat,
         rive::ImageWrap::clamp,
-        rive::ImageFilter::trilinear};
+        rive::ImageFilter::bilinear};
 
     auto repearClampMipLinearOptionsKey = repeatClampMipLinearOptions.asKey();
     CHECK(wrapx(repearClampMipLinearOptionsKey) == rive::ImageWrap::repeat);
     CHECK(wrapy(repearClampMipLinearOptionsKey) == rive::ImageWrap::clamp);
     CHECK(filter(repearClampMipLinearOptionsKey) ==
-          rive::ImageFilter::trilinear);
+          rive::ImageFilter::bilinear);
 
     rive::ImageSampler clampRepeatMipNearestOptions = {
         rive::ImageWrap::clamp,
         rive::ImageWrap::repeat,
-        rive::ImageFilter::trilinear};
+        rive::ImageFilter::bilinear};
 
     auto clampRepeatMipNearestOptionsKey = clampRepeatMipNearestOptions.asKey();
     CHECK(wrapx(clampRepeatMipNearestOptionsKey) == rive::ImageWrap::clamp);
     CHECK(wrapy(clampRepeatMipNearestOptionsKey) == rive::ImageWrap::repeat);
     CHECK(filter(clampRepeatMipNearestOptionsKey) ==
-          rive::ImageFilter::trilinear);
+          rive::ImageFilter::bilinear);
 
     rive::ImageSampler mirrorClampMipNearestOptions = {
         rive::ImageWrap::mirror,

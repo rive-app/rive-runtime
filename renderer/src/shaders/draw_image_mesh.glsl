@@ -124,8 +124,11 @@ PLS_MAIN_WITH_IMAGE_UNIFORMS(@drawFragmentMain)
     VARYING_UNPACK(v_clipRect, float4);
 #endif
 
-    half4 color =
-        TEXTURE_SAMPLE_DYNAMIC(@imageTexture, imageSampler, v_texCoord);
+    half4 color = TEXTURE_SAMPLE_DYNAMIC_LODBIAS(@imageTexture,
+                                                 imageSampler,
+                                                 v_texCoord,
+                                                 uniforms.mipMapLODBias);
+
     half coverage = 1.;
 
 #ifdef @ENABLE_CLIP_RECT
@@ -179,9 +182,11 @@ FRAG_DATA_MAIN(half4, @drawFragmentMain)
 {
     VARYING_UNPACK(v_texCoord, float2);
 
-    half4 color =
-        TEXTURE_SAMPLE_DYNAMIC(@imageTexture, imageSampler, v_texCoord) *
-        imageDrawUniforms.opacity;
+    half4 color = TEXTURE_SAMPLE_DYNAMIC_LODBIAS(@imageTexture,
+                                                 imageSampler,
+                                                 v_texCoord,
+                                                 uniforms.mipMapLODBias) *
+                  imageDrawUniforms.opacity;
 
 #if defined(@ENABLE_ADVANCED_BLEND) && !defined(@FIXED_FUNCTION_COLOR_OUTPUT)
     if (@ENABLE_ADVANCED_BLEND)

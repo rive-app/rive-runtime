@@ -156,6 +156,8 @@
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD)
 #define TEXTURE_SAMPLE_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)                  \
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $level(LOD))
+#define TEXTURE_SAMPLE_LODBIAS(TEXTURE, SAMPLER_NAME, COORD, LODBIAS)          \
+    _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $bias(LODBIAS))
 #define TEXTURE_SAMPLE_GRAD(TEXTURE, SAMPLER_NAME, COORD, DDX, DDY)            \
     _textures.TEXTURE.$sample(SAMPLER_NAME, COORD, $gradient2d(DDX, DDY))
 #define TEXTURE_GATHER(TEXTURE, SAMPLER_NAME, COORD, TEXTURE_INVERSE_SIZE)     \
@@ -164,6 +166,10 @@
     _textures.TEXTURE.$sample(_dynamicSampler.SAMPLER_NAME, COORD)
 #define TEXTURE_SAMPLE_DYNAMIC_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)          \
     _textures.TEXTURE.$sample(_dynamicSampler.SAMPLER_NAME, COORD, $level(LOD))
+#define TEXTURE_SAMPLE_DYNAMIC_LODBIAS(TEXTURE, SAMPLER_NAME, COORD, LODBIAS)  \
+    _textures.TEXTURE.$sample(_dynamicSampler.SAMPLER_NAME,                    \
+                              COORD,                                           \
+                              $bias(LODBIAS))
 #define TEXTURE_SAMPLE_LOD_1D_ARRAY(TEXTURE,                                   \
                                     SAMPLER_NAME,                              \
                                     X,                                         \
@@ -442,6 +448,8 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
     PLS_METAL_MAIN(                                                            \
         NAME,                                                                  \
         PLS _inpls,                                                            \
+        $constant @FlushUniforms& uniforms                                     \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         Varyings _varyings [[$stage_in]],                                      \
         FragmentTextures _textures,                                            \
         FragmentStorageBuffers _buffers,                                       \
@@ -467,16 +475,21 @@ INLINE uint pls_atomic_add($thread uint& dst, uint x)
         PLS _pls;
 
 #define PLS_FRAG_COLOR_MAIN(NAME)                                              \
-    PLS_FRAG_COLOR_METAL_MAIN(NAME,                                            \
-                              PLS _inpls,                                      \
-                              Varyings _varyings [[$stage_in]],                \
-                              FragmentTextures _textures,                      \
-                              FragmentStorageBuffers _buffers)
+    PLS_FRAG_COLOR_METAL_MAIN(                                                 \
+        NAME,                                                                  \
+        PLS _inpls,                                                            \
+        $constant @FlushUniforms& uniforms                                     \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
+        Varyings _varyings [[$stage_in]],                                      \
+        FragmentTextures _textures,                                            \
+        FragmentStorageBuffers _buffers)
 
 #define PLS_FRAG_COLOR_MAIN_WITH_IMAGE_UNIFORMS(NAME)                          \
     PLS_FRAG_COLOR_METAL_MAIN(                                                 \
         NAME,                                                                  \
         PLS _inpls,                                                            \
+        $constant @FlushUniforms& uniforms                                     \
+        [[$buffer(METAL_BUFFER_IDX(FLUSH_UNIFORM_BUFFER_IDX))]],               \
         Varyings _varyings [[$stage_in]],                                      \
         FragmentTextures _textures,                                            \
         FragmentStorageBuffers _buffers,                                       \

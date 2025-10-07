@@ -56,7 +56,7 @@ enum class LuaAtoms : int16_t
     clamp,
     repeat,
     mirror,
-    trilinear,
+    bilinear,
     nearest,
 
     // Paint

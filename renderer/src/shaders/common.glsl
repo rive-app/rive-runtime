@@ -242,6 +242,7 @@ uint coverageBufferPrefix;
 uint pathIDGranularity; // Spacing between adjacent path IDs (1 if IEEE
                         // compliant).
 float vertexDiscardValue;
+float mipMapLODBias;
 // Debugging.
 uint wireframeEnabled;
 UNIFORM_BLOCK_END(uniforms)

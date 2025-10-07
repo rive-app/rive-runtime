@@ -306,8 +306,8 @@ GLint gl_min_filter_for_image_filter(rive::ImageFilter filter)
 {
     switch (filter)
     {
-        case rive::ImageFilter::trilinear:
-            return GL_LINEAR_MIPMAP_LINEAR;
+        case rive::ImageFilter::bilinear:
+            return GL_LINEAR_MIPMAP_NEAREST;
         case rive::ImageFilter::nearest:
             return GL_NEAREST;
     }
@@ -319,10 +319,10 @@ GLint gl_mag_filter_for_image_filter(rive::ImageFilter filter)
 {
     switch (filter)
     {
-        case rive::ImageFilter::trilinear:
-            return GL_LINEAR;
         case rive::ImageFilter::nearest:
             return GL_NEAREST;
+        case rive::ImageFilter::bilinear:
+            return GL_LINEAR;
     }
 
     RIVE_UNREACHABLE();

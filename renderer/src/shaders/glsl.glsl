@@ -213,6 +213,8 @@
     texture(sampler2D(NAME, SAMPLER_NAME), COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     textureLod(sampler2D(NAME, SAMPLER_NAME), COORD, LOD)
+#define TEXTURE_SAMPLE_LODBIAS(NAME, SAMPLER_NAME, COORD, LODBIAS)             \
+    texture(sampler2D(NAME, SAMPLER_NAME), COORD, LODBIAS)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(sampler2D(NAME, SAMPLER_NAME), COORD, DDX, DDY)
 #if defined(@FRAGMENT) && defined(@RENDER_MODE_MSAA)
@@ -232,6 +234,8 @@
 #define TEXTURE_SAMPLE(NAME, SAMPLER_NAME, COORD) texture(NAME, COORD)
 #define TEXTURE_SAMPLE_LOD(NAME, SAMPLER_NAME, COORD, LOD)                     \
     textureLod(NAME, COORD, LOD)
+#define TEXTURE_SAMPLE_LODBIAS(NAME, SAMPLER_NAME, COORD, LODBIAS)             \
+    texture(NAME, COORD, LODBIAS)
 #define TEXTURE_SAMPLE_GRAD(NAME, SAMPLER_NAME, COORD, DDX, DDY)               \
     textureGrad(NAME, COORD, DDX, DDY)
 #define DST_COLOR_FETCH(NAME) texelFetch(NAME, ivec2(floor(_fragCoord.xy)), 0)
@@ -241,6 +245,8 @@
     TEXTURE_SAMPLE(TEXTURE, SAMPLER_NAME, COORD)
 #define TEXTURE_SAMPLE_DYNAMIC_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)          \
     TEXTURE_SAMPLE_LOD(TEXTURE, SAMPLER_NAME, COORD, LOD)
+#define TEXTURE_SAMPLE_DYNAMIC_LODBIAS(TEXTURE, SAMPLER_NAME, COORD, LODBIAS)  \
+    TEXTURE_SAMPLE_LODBIAS(TEXTURE, SAMPLER_NAME, COORD, LODBIAS)
 
 // Polyfill the feather texture as a sampler2D since ES doesn't support
 // sampler1DArray. This is why the macro needs "ARRAY_INDEX_NORMALIZED": when

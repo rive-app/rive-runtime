@@ -388,10 +388,10 @@ static D3D11_FILTER filter_for_sampler_filter_options(ImageFilter option)
 {
     switch (option)
     {
-        case ImageFilter::trilinear:
-            return D3D11_FILTER::D3D11_FILTER_MIN_MAG_MIP_LINEAR;
         case ImageFilter::nearest:
             return D3D11_FILTER::D3D11_FILTER_MIN_MAG_MIP_POINT;
+        case ImageFilter::bilinear:
+            return D3D11_FILTER::D3D11_FILTER_MIN_MAG_LINEAR_MIP_POINT;
     }
 
     RIVE_UNREACHABLE();
@@ -493,7 +493,7 @@ std::unique_ptr<RenderContext> RenderContextD3DImpl::MakeContext(
         new RenderContextD3DImpl(std::move(gpu),
                                  std::move(gpuContext),
                                  d3dCapabilities,
-                                 contextOptions.shaderCompilationMode));
+                                 contextOptions));
     return std::make_unique<RenderContext>(std::move(renderContextImpl));
 }
 
@@ -501,8 +501,11 @@ RenderContextD3DImpl::RenderContextD3DImpl(
     ComPtr<ID3D11Device> gpu,
     ComPtr<ID3D11DeviceContext> gpuContext,
     const D3DCapabilities& d3dCapabilities,
-    ShaderCompilationMode shaderCompilationMode) :
-    m_pipelineManager(gpuContext, gpu, d3dCapabilities, shaderCompilationMode),
+    const D3DContextOptions& d3dContextOptions) :
+    m_pipelineManager(gpuContext,
+                      gpu,
+                      d3dCapabilities,
+                      d3dContextOptions.shaderCompilationMode),
     m_d3dCapabilities(d3dCapabilities),
     m_gpu(std::move(gpu)),
     m_gpuContext(std::move(gpuContext))
@@ -689,9 +692,9 @@ RenderContextD3DImpl::RenderContextD3DImpl(
         mipmapSamplerDesc.AddressV =
             address_mode_for_sampler_filter_options(yWrap);
         mipmapSamplerDesc.AddressW = D3D11_TEXTURE_ADDRESS_CLAMP;
-        mipmapSamplerDesc.MipLODBias = 0.0f;
         mipmapSamplerDesc.MaxAnisotropy = 1;
         mipmapSamplerDesc.ComparisonFunc = D3D11_COMPARISON_NEVER;
+        mipmapSamplerDesc.MipLODBias = 0.0f;
         mipmapSamplerDesc.MinLOD = 0;
         mipmapSamplerDesc.MaxLOD = D3D11_FLOAT32_MAX;
         VERIFY_OK(m_gpu->CreateSamplerState(

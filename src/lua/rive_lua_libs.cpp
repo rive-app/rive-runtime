@@ -34,7 +34,7 @@ std::unordered_map<std::string, int16_t> atoms = {
     {"clamp", (int16_t)LuaAtoms::clamp},
     {"repeat", (int16_t)LuaAtoms::repeat},
     {"mirror", (int16_t)LuaAtoms::mirror},
-    {"trilinear", (int16_t)LuaAtoms::trilinear},
+    {"bilinear", (int16_t)LuaAtoms::bilinear},
     {"nearest", (int16_t)LuaAtoms::nearest},
     {"style", (int16_t)LuaAtoms::style},
     {"join", (int16_t)LuaAtoms::join},

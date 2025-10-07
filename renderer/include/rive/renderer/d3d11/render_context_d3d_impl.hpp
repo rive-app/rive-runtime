@@ -204,7 +204,7 @@ private:
     RenderContextD3DImpl(ComPtr<ID3D11Device>,
                          ComPtr<ID3D11DeviceContext>,
                          const D3DCapabilities&,
-                         ShaderCompilationMode);
+                         const D3DContextOptions&);
 
     rcp<RenderBuffer> makeRenderBuffer(RenderBufferType,
                                        RenderBufferFlags,
