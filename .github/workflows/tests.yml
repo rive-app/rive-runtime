@@ -15,13 +15,20 @@ jobs:
           tar -xf premake-5.0.0-beta2-linux.tar.gz
           sudo install -m 0755 premake5 /usr/local/bin/premake5
 
-      - name: Deps
+      - name: Dependencies
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential uuid-dev clang llvm lld
 
       - name: Add build scripts to PATH
         run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
+
+      - name: Build
+        shell: bash
+        run: |
+          cd packages/runtime
+          build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting debug
+          build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_scripting release
 
       - name: Unit tests (no ASan)
         run: |
