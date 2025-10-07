@@ -20,10 +20,11 @@ jobs:
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
 
-      - name: Install dependencies (Linux)
+      - name: Install dependencies
+        if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y build-essential uuid-dev
+          sudo apt-get install -y build-essential uuid-dev clang llvm lld
     
       - name: Build
         run: |
@@ -39,6 +40,13 @@ jobs:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v2
+      - uses: microsoft/setup-msbuild@v1.1
+      - name: Build Rive
+        shell: pwsh
+        run: |
+          ./build/build_rive.ps1 --file=premake5_v2.lua debug
+          ./build/build_rive.ps1 --file=premake5_v2.lua release
+  
       - name: Tests
         run: |
           cd tests/unit_tests
@@ -70,6 +78,9 @@ jobs:
         working-directory: skia/dependencies/
         run: ./make_glfw.sh
 
+      - name: Add build scripts to PATH
+        run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
+  
       - name: Tests
         if: matrix.platform == 'macOS'
         run: |
