@@ -96,7 +96,7 @@ jobs:
 
           # ---- Debug/default ----
           ../build/build_rive.sh --file=premake5_tess.lua
-          MK=../out/default/rive_tess_tests.make
+          MK=./out/default/rive_tess_tests.make
           TARGETDIR=$(sed -n 's/^TARGETDIR := *//p' "$MK")
           TARGET=$(sed -n 's/^TARGET := *//p' "$MK")
           DBG_BIN="$TARGETDIR/$TARGET"
@@ -106,7 +106,7 @@ jobs:
       
           # ---- Release ----
           ../build/build_rive.sh --file=premake5_tess.lua release
-          MK=../out/release/rive_tess_tests.make
+          MK=./out/release/rive_tess_tests.make
           TARGETDIR=$(sed -n 's/^TARGETDIR := *//p' "$MK")
           TARGET=$(sed -n 's/^TARGET := *//p' "$MK")
           REL_BIN="$TARGETDIR/$TARGET"
