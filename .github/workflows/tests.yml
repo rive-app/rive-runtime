@@ -34,7 +34,7 @@ jobs:
       - name: Tests
         run: |
           cd tests/unit_tests
-          ./test.sh
+          ./test.sh asan
 
   build-windows:
     runs-on: windows-2022
@@ -50,7 +50,7 @@ jobs:
       - name: Tests
         run: |
           cd tests/unit_tests
-          ./test.sh
+          ./test.bat
 
   build-macos:
     runs-on: macOS-latest
@@ -86,7 +86,7 @@ jobs:
         run: |
           echo Testing for ${{matrix.platform}}
           cd tests/unit_tests
-          ./test.sh
+          ./test.sh coverage
 
       - name: Tess Tests
         if: matrix.platform == 'macOS'
