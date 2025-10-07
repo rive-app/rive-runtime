@@ -94,22 +94,22 @@ jobs:
           set -euo pipefail
           cd tess
 
-          # ---- Debug/default ----
+          # Build Debug (lands under ./out/debug/… with original script)
           ../build/build_rive.sh --file=premake5_tess.lua
-          MK=./out/debug/rive_tess_tests.make
-          TARGETDIR=$(sed -n 's/^TARGETDIR := *//p' "$MK")
-          TARGET=$(sed -n 's/^TARGET := *//p' "$MK")
-          DBG_BIN="$TARGETDIR/$TARGET"
-          echo "Debug tess binary: $DBG_BIN"
-          test -x "$DBG_BIN" || chmod +x "$DBG_BIN"
+
+          DBG_BIN=$(find ./out -type f -name 'rive_tess_tests*' -perm -111 -print -quit)
+          echo "Debug tess binary: ${DBG_BIN:-<not found>}"
+          if [ -z "${DBG_BIN:-}" ]; then
+            echo "Could not locate Debug tess binary. Listing ./out for clues:"; find ./out -maxdepth 3 -print; exit 1
+          fi
           "$DBG_BIN"
-      
-          # ---- Release ----
+     
+          # Build Release (lands under ./out/release/…)
           ../build/build_rive.sh --file=premake5_tess.lua release
-          MK=./out/debug/rive_tess_tests.make
-          TARGETDIR=$(sed -n 's/^TARGETDIR := *//p' "$MK")
-          TARGET=$(sed -n 's/^TARGET := *//p' "$MK")
-          REL_BIN="$TARGETDIR/$TARGET"
-          echo "Release tess binary: $REL_BIN"
-          test -x "$REL_BIN" || chmod +x "$REL_BIN"
+     
+          REL_BIN=$(find ./out -type f -name 'rive_tess_tests*' -perm -111 -print -quit)
+          echo "Release tess binary: ${REL_BIN:-<not found>}"
+          if [ -z "${REL_BIN:-}" ]; then
+            echo "Could not locate Release tess binary. Listing ./out for clues:"; find ./out -maxdepth 3 -print; exit 1
+          fi
           "$REL_BIN"
