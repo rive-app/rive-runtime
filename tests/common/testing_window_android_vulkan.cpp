@@ -15,7 +15,9 @@ TestingWindow* TestingWindow::MakeAndroidVulkan(const BackendParams&,
 #else
 
 #include "common/offscreen_render_target.hpp"
-#include "rive_vk_bootstrap/rive_vk_bootstrap.hpp"
+#include "rive_vk_bootstrap/vulkan_device.hpp"
+#include "rive_vk_bootstrap/vulkan_instance.hpp"
+#include "rive_vk_bootstrap/vulkan_swapchain.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
@@ -45,145 +47,106 @@ public:
                                ANativeWindow* window) :
         m_backendParams(backendParams)
     {
-        m_androidWindowWidth = m_width = ANativeWindow_getWidth(window);
-        m_androidWindowHeight = m_height = ANativeWindow_getHeight(window);
-        rive_vkb::load_vulkan();
+        using namespace rive_vkb;
 
         // Request Vulkan 1.3, except if we're in core mode where we want 1.0.
         int minorVersionRequested = m_backendParams.core ? 0 : 3;
 
-        for (;;)
-        {
-            vkb::InstanceBuilder instanceBuilder;
-            instanceBuilder.set_app_name("path_fiddle")
-                .set_engine_name("Rive Renderer")
-                .enable_extension(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME)
-                .require_api_version(1, minorVersionRequested, 0)
-                .set_minimum_instance_version(1, 0, 0);
-#ifdef DEBUG
-            if (!m_backendParams.disableValidationLayers)
-            {
-                instanceBuilder.enable_validation_layers();
-            }
-            if (!m_backendParams.disableDebugCallbacks)
-            {
-                instanceBuilder.set_debug_callback(
-                    rive_vkb::default_debug_callback);
-            }
-#endif
-            auto instanceResult = instanceBuilder.build();
-            if (!instanceResult)
-            {
-                auto error = static_cast<vkb::InstanceError>(
-                    instanceResult.error().value());
-                if (error ==
-                        vkb::InstanceError::vulkan_version_1_1_unavailable &&
-                    minorVersionRequested != 0)
-                {
-                    // There's a bug in VkBootstrap (due to not properly
-                    // handling Vulkan 1.0 not having the
-                    // vkEnumerateInstanceVersion function) where it can give a
-                    // vulkan_version_1_1_unavailable error even though we've
-                    // specified a minimum of 1.0. If we get that error,
-                    // request 1.0 directly and try again.
-                    LOG_ERROR_LINE("Falling back on Vulkan 1.0.");
-                    minorVersionRequested = 0;
-                    continue;
-                }
+        std::vector<const char*> extensionNames;
+        extensionNames.push_back(VK_KHR_SURFACE_EXTENSION_NAME);
+        extensionNames.push_back(VK_KHR_ANDROID_SURFACE_EXTENSION_NAME);
 
-#ifdef DEBUG
-                if (!m_backendParams.disableValidationLayers &&
-                    error == vkb::InstanceError::requested_layers_not_present)
-                {
-                    LOG_ERROR_LINE(
-                        "WARNING: Validation layers not found. Attempting to "
-                        "create a Vulkan context again without validation "
-                        "layers.");
-                    m_backendParams.disableValidationLayers = true;
-                    continue;
-                }
-                if (!m_backendParams.disableDebugCallbacks &&
-                    error == vkb::InstanceError::failed_create_debug_messenger)
-                {
-                    LOG_ERROR_LINE(
-                        "WARNING: Debug callbacks not supported. Attempting to "
-                        "create a Vulkan context again without debug "
-                        "callbacks.");
-                    m_backendParams.disableDebugCallbacks = true;
-                    continue;
-                }
+        m_instance = std::make_unique<VulkanInstance>(VulkanInstance::Options{
+            .appName = "Rive Android Test",
+            .idealAPIVersion =
+                m_backendParams.core ? VK_API_VERSION_1_0 : VK_API_VERSION_1_3,
+            .requiredExtensions =
+                make_span(extensionNames.data(), extensionNames.size()),
+#ifndef NDEBUG
+            .wantValidationLayers = !m_backendParams.disableDebugCallbacks,
+            .wantDebugCallbacks = !m_backendParams.disableValidationLayers,
 #endif
-                LOG_ERROR_LINE("ERROR: %s: Failed to build Vulkan instance.",
-                               instanceResult.error().message().c_str());
-                abort();
-            }
-            m_instance = *instanceResult;
-            break;
-        }
-        m_instanceDispatchTable = m_instance.make_table();
+        });
+
+        m_vkDestroySurfaceKHR =
+            m_instance->loadInstanceFunc<PFN_vkDestroySurfaceKHR>(
+                "vkDestroySurfaceKHR");
+        assert(m_vkDestroySurfaceKHR != nullptr);
 
         VkAndroidSurfaceCreateInfoKHR androidSurfaceCreateInfo = {
             .sType = VK_STRUCTURE_TYPE_ANDROID_SURFACE_CREATE_INFO_KHR,
             .window = window,
         };
         auto pfnvkCreateAndroidSurfaceKHR =
-            reinterpret_cast<PFN_vkCreateAndroidSurfaceKHR>(
-                m_instance.fp_vkGetInstanceProcAddr(
-                    m_instance,
-                    "vkCreateAndroidSurfaceKHR"));
-        assert(pfnvkCreateAndroidSurfaceKHR);
-        VK_CHECK(pfnvkCreateAndroidSurfaceKHR(m_instance,
+            m_instance->loadInstanceFunc<PFN_vkCreateAndroidSurfaceKHR>(
+                "vkCreateAndroidSurfaceKHR");
+        assert(pfnvkCreateAndroidSurfaceKHR != nullptr);
+        VK_CHECK(pfnvkCreateAndroidSurfaceKHR(m_instance->vkInstance(),
                                               &androidSurfaceCreateInfo,
                                               nullptr,
                                               &m_windowSurface));
 
-        VulkanFeatures vulkanFeatures;
-        std::tie(m_device, vulkanFeatures) = rive_vkb::select_device(
-            vkb::PhysicalDeviceSelector(m_instance)
-                .set_surface(m_windowSurface),
-            m_backendParams.core ? rive_vkb::FeatureSet::coreOnly
-                                 : rive_vkb::FeatureSet::allAvailable);
+        m_device = std::make_unique<VulkanDevice>(
+            *m_instance,
+            VulkanDevice::Options{
+                .coreFeaturesOnly = m_backendParams.core,
+            });
+
         m_renderContext = RenderContextVulkanImpl::MakeContext(
-            m_instance,
-            m_device.physical_device,
-            m_device,
-            vulkanFeatures,
-            m_instance.fp_vkGetInstanceProcAddr,
+            m_instance->vkInstance(),
+            m_device->vkPhysicalDevice(),
+            m_device->vkDevice(),
+            m_device->vulkanFeatures(),
+            m_instance->getVkGetInstanceProcAddrPtr(),
             {.forceAtomicMode = backendParams.atomic});
 
-        VkSurfaceCapabilitiesKHR windowCapabilities;
-        VK_CHECK(m_instanceDispatchTable
-                     .fp_vkGetPhysicalDeviceSurfaceCapabilitiesKHR(
-                         m_device.physical_device,
-                         m_windowSurface,
-                         &windowCapabilities));
-        auto swapchainBuilder =
-            vkb::SwapchainBuilder(m_device, m_windowSurface)
-                .set_desired_format({
-                    .format = m_backendParams.srgb ? VK_FORMAT_R8G8B8A8_SRGB
-                                                   : VK_FORMAT_R8G8B8A8_UNORM,
-                    .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-                })
-                .add_fallback_format({
-                    .format = VK_FORMAT_R8G8B8A8_UNORM,
-                    .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
-                })
-                .set_desired_present_mode(VK_PRESENT_MODE_IMMEDIATE_KHR)
-                .add_fallback_present_mode(VK_PRESENT_MODE_FIFO_KHR)
-                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_SRC_BIT)
-                .add_image_usage_flags(VK_IMAGE_USAGE_TRANSFER_DST_BIT);
-        if (windowCapabilities.supportedUsageFlags &
-            VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT)
+        auto windowCapabilities =
+            m_device->getSurfaceCapabilities(m_windowSurface);
+
+        auto swapOpts = VulkanSwapchain::Options{
+            .formatPreferences =
+                {
+                    {
+                        .format = m_backendParams.srgb
+                                      ? VK_FORMAT_R8G8B8A8_SRGB
+                                      : VK_FORMAT_R8G8B8A8_UNORM,
+                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                    },
+                    // Fall back to either ordering of ARGB
+                    {
+                        .format = VK_FORMAT_R8G8B8A8_UNORM,
+                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                    },
+                    {
+                        .format = VK_FORMAT_B8G8R8A8_UNORM,
+                        .colorSpace = VK_COLOR_SPACE_SRGB_NONLINEAR_KHR,
+                    },
+                },
+            .presentModePreferences =
+                {
+                    VK_PRESENT_MODE_IMMEDIATE_KHR,
+                    VK_PRESENT_MODE_FIFO_KHR,
+                },
+            .imageUsageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                               VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                               VK_IMAGE_USAGE_TRANSFER_DST_BIT,
+        };
+
+        if ((windowCapabilities.supportedUsageFlags &
+             VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT) != 0)
         {
-            swapchainBuilder.add_image_usage_flags(
-                VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT);
+            swapOpts.imageUsageFlags |= VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT;
         }
-        m_swapchain = std::make_unique<rive_vkb::Swapchain>(
-            m_device,
-            ref_rcp(vk()),
-            m_androidWindowWidth,
-            m_androidWindowHeight,
-            VKB_CHECK(swapchainBuilder.build()));
+
+        m_swapchain =
+            std::make_unique<rive_vkb::VulkanSwapchain>(*m_instance,
+                                                        *m_device,
+                                                        ref_rcp(vk()),
+                                                        m_windowSurface,
+                                                        swapOpts);
+
+        m_androidWindowWidth = m_swapchain->width();
+        m_androidWindowHeight = m_swapchain->height();
 
         m_renderTarget =
             impl()->makeRenderTarget(m_width,
@@ -204,11 +167,10 @@ public:
 
         if (m_windowSurface != VK_NULL_HANDLE)
         {
-            m_instanceDispatchTable.destroySurfaceKHR(m_windowSurface, nullptr);
+            m_vkDestroySurfaceKHR(m_instance->vkInstance(),
+                                  m_windowSurface,
+                                  nullptr);
         }
-
-        vkb::destroy_device(m_device);
-        vkb::destroy_instance(m_instance);
     }
 
     Factory* factory() override { return m_renderContext.get(); }
@@ -288,9 +250,10 @@ public:
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) override
     {
-        if (m_swapchainImage == nullptr)
+        if (!m_swapchain->isFrameStarted())
         {
-            m_swapchainImage = m_swapchain->acquireNextImage();
+            m_swapchain->beginFrame();
+
             if (m_overflowTexture != nullptr)
             {
                 m_renderTarget->setTargetImageView(
@@ -301,31 +264,35 @@ public:
             else
             {
                 m_renderTarget->setTargetImageView(
-                    m_swapchainImage->imageView,
-                    m_swapchainImage->image,
-                    m_swapchainImage->imageLastAccess);
+                    m_swapchain->currentVkImageView(),
+                    m_swapchain->currentVkImage(),
+                    m_swapchain->currentLastAccess());
             }
         }
         m_renderContext->flush({
             .renderTarget = offscreenRenderTarget != nullptr
                                 ? offscreenRenderTarget
                                 : m_renderTarget.get(),
-            .externalCommandBuffer = m_swapchainImage->commandBuffer,
-            .currentFrameNumber = m_swapchainImage->currentFrameNumber,
-            .safeFrameNumber = m_swapchainImage->safeFrameNumber,
+            .externalCommandBuffer = m_swapchain->currentCommandBuffer(),
+            .currentFrameNumber = m_swapchain->currentFrameNumber(),
+            .safeFrameNumber = m_swapchain->safeFrameNumber(),
         });
     }
 
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
         flushPLSContext(nullptr);
+        vkutil::ImageAccess swapchainLastAccess;
         if (m_overflowTexture == nullptr)
         {
             // We rendered directly to the window. Submit and read back
             // normally.
-            m_swapchain->submit(m_renderTarget->targetLastAccess(),
-                                pixelData,
-                                IAABB::MakeWH(m_width, m_height));
+            swapchainLastAccess = m_renderTarget->targetLastAccess();
+            if (pixelData != nullptr)
+            {
+                m_swapchain->queueImageCopy(&swapchainLastAccess,
+                                            IAABB::MakeWH(m_width, m_height));
+            }
         }
         else
         {
@@ -333,39 +300,48 @@ public:
             // visual feedback.
             vkutil::ImageAccess swapchainLastAccess =
                 vk()->simpleImageMemoryBarrier(
-                    m_swapchainImage->commandBuffer,
-                    m_swapchainImage->imageLastAccess,
+                    m_swapchain->currentCommandBuffer(),
+                    m_swapchain->currentLastAccess(),
                     {
                         .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
                         .accessMask = VK_ACCESS_TRANSFER_WRITE_BIT,
                         .layout = VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                     },
-                    m_swapchainImage->image);
+                    m_swapchain->currentVkImage());
             vk()->blitSubRect(
-                m_swapchainImage->commandBuffer,
+                m_swapchain->currentCommandBuffer(),
                 m_renderTarget->accessTargetImage(
-                    m_swapchainImage->commandBuffer,
+                    m_swapchain->currentCommandBuffer(),
                     {
                         .pipelineStages = VK_PIPELINE_STAGE_TRANSFER_BIT,
                         .accessMask = VK_ACCESS_TRANSFER_READ_BIT,
                         .layout = VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                     }),
                 VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                m_swapchainImage->image,
+                m_swapchain->currentVkImage(),
                 VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                 IAABB{0,
                       0,
                       std::min<int>(m_width, m_androidWindowWidth),
                       std::min<int>(m_height, m_androidWindowHeight)});
+
             m_overflowTexture->lastAccess() =
                 m_renderTarget->targetLastAccess();
-            // Readback from the overflow texture when we submit.
-            m_swapchain->submit(swapchainLastAccess,
-                                pixelData,
-                                IAABB::MakeWH(m_width, m_height),
-                                m_overflowTexture.get());
+
+            if (pixelData != nullptr)
+            {
+                m_swapchain->queueImageCopy(m_overflowTexture->vkImage(),
+                                            m_swapchain->imageFormat(),
+                                            &m_overflowTexture->lastAccess(),
+                                            IAABB::MakeWH(m_width, m_height));
+            }
         }
-        m_swapchainImage = nullptr;
+
+        m_swapchain->endFrame(swapchainLastAccess);
+        if (pixelData != nullptr)
+        {
+            m_swapchain->getPixelsFromLastImageCopy(pixelData);
+        }
     }
 
 private:
@@ -379,16 +355,15 @@ private:
     BackendParams m_backendParams;
     uint32_t m_androidWindowWidth;
     uint32_t m_androidWindowHeight;
-    vkb::Instance m_instance;
-    vkb::InstanceDispatchTable m_instanceDispatchTable;
-    vkb::Device m_device;
+    std::unique_ptr<rive_vkb::VulkanInstance> m_instance;
+    std::unique_ptr<rive_vkb::VulkanDevice> m_device;
     VkSurfaceKHR m_windowSurface = VK_NULL_HANDLE;
-    std::unique_ptr<rive_vkb::Swapchain> m_swapchain;
+    std::unique_ptr<rive_vkb::VulkanSwapchain> m_swapchain;
     std::unique_ptr<RenderContext> m_renderContext;
     rcp<RenderTargetVulkanImpl> m_renderTarget;
     rcp<vkutil::Texture2D> m_overflowTexture; // Used when the desired render
                                               // size doesn't fit in the window.
-    const rive_vkb::SwapchainImage* m_swapchainImage = nullptr;
+    PFN_vkDestroySurfaceKHR m_vkDestroySurfaceKHR = nullptr;
 };
 
 TestingWindow* TestingWindow::MakeAndroidVulkan(

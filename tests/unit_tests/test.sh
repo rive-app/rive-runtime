@@ -77,6 +77,11 @@ while [[ $# -gt 0 ]]; do
     TOOLSET_ARG=$1
     shift
     ;;
+  --with_vulkan)
+    echo "Vulkan is added"
+    EXTRA_CONFIG=$EXTRA_CONFIG'--with_vulkan '
+    shift
+    ;;
   *)
     # We could pass any unrecognized arguments through instead of just eating them
     echo "Warning: unrecognized argument '$1'"

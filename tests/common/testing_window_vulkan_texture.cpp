@@ -14,7 +14,9 @@ TestingWindow* TestingWindow::MakeVulkanTexture(const BackendParams&)
 #else
 
 #include "common/offscreen_render_target.hpp"
-#include "rive_vk_bootstrap/rive_vk_bootstrap.hpp"
+#include "rive_vk_bootstrap/vulkan_device.hpp"
+#include "rive_vk_bootstrap/vulkan_instance.hpp"
+#include "rive_vk_bootstrap/vulkan_headless_frame_synchronizer.hpp"
 #include "rive/renderer/rive_renderer.hpp"
 #include "rive/renderer/vulkan/render_context_vulkan_impl.hpp"
 #include "rive/renderer/vulkan/render_target_vulkan.hpp"
@@ -27,94 +29,32 @@ public:
     TestingWindowVulkanTexture(const BackendParams& backendParams) :
         m_backendParams(backendParams)
     {
-        rive_vkb::load_vulkan();
+        using namespace rive_vkb;
 
-        int minorVersionRequested = m_backendParams.core ? 0 : 3;
-        bool disableValidationLayers = m_backendParams.disableValidationLayers;
-        bool disableDebugCallbacks = m_backendParams.disableDebugCallbacks;
-
-        while (true)
-        {
-            vkb::InstanceBuilder instanceBuilder;
-            instanceBuilder.set_app_name("rive_tools")
-                .set_engine_name("Rive Renderer")
-                .set_headless(true)
-                .require_api_version(1, m_backendParams.core ? 0 : 3, 0)
-                .set_minimum_instance_version(1, 0, 0);
-#ifdef DEBUG
-            instanceBuilder.enable_validation_layers(!disableValidationLayers);
-            if (!disableDebugCallbacks)
-            {
-                instanceBuilder.set_debug_callback(
-                    rive_vkb::default_debug_callback);
-            }
+        m_instance = std::make_unique<VulkanInstance>(VulkanInstance::Options{
+            .appName = "Rive Unit Tests",
+            .idealAPIVersion =
+                m_backendParams.core ? VK_API_VERSION_1_0 : VK_API_VERSION_1_3,
+#ifndef NDEBUG
+            .wantValidationLayers = !m_backendParams.disableValidationLayers,
+            .wantDebugCallbacks = !m_backendParams.disableDebugCallbacks,
 #endif
-            auto instanceResult = instanceBuilder.build();
-            if (!instanceResult)
-            {
-                auto error = static_cast<vkb::InstanceError>(
-                    instanceResult.error().value());
+        });
 
-                if (error ==
-                        vkb::InstanceError::vulkan_version_1_1_unavailable &&
-                    minorVersionRequested != 0)
-                {
-                    // There's a bug in VkBootstrap (due to not properly
-                    // handling Vulkan 1.0 not having the
-                    // vkEnumerateInstanceVersion function) where it can give a
-                    // vulkan_version_1_1_unavailable error even though we've
-                    // specified a minimum of 1.0. If we get that error,
-                    // request 1.0 directly and try again.
-                    fprintf(stderr, "Falling back on Vulkan 1.0.\n");
-                    minorVersionRequested = 0;
-                    continue;
-                }
+        m_device = std::make_unique<VulkanDevice>(
+            *m_instance,
+            VulkanDevice::Options{
+                .coreFeaturesOnly = m_backendParams.core,
+                .gpuNameFilter = m_backendParams.gpuNameFilter.c_str(),
+                .headless = true,
+            });
 
-#ifdef DEBUG
-                if (!disableValidationLayers &&
-                    error == vkb::InstanceError::requested_layers_not_present)
-                {
-                    fprintf(stderr,
-                            "WARNING: Validation layers not found. Attempting "
-                            "to create a Vulkan context again without "
-                            "validation layers.\n");
-                    disableValidationLayers = true;
-                    continue;
-                }
-
-                if (!disableDebugCallbacks &&
-                    error == vkb::InstanceError::failed_create_debug_messenger)
-                {
-                    fprintf(stderr,
-                            "WARNING: Debug callbacks not supported. "
-                            "Attempting to create a Vulkan context again "
-                            "without debug callbacks.");
-                    disableDebugCallbacks = true;
-                    continue;
-                }
-#endif
-                fprintf(stderr,
-                        "ERROR: %s: Failed to build Vulkan instance.",
-                        instanceResult.error().message().c_str());
-                abort();
-            }
-
-            m_instance = *instanceResult;
-            break;
-        }
-
-        VulkanFeatures vulkanFeatures;
-        std::tie(m_device, vulkanFeatures) = rive_vkb::select_device(
-            m_instance,
-            m_backendParams.core ? rive_vkb::FeatureSet::coreOnly
-                                 : rive_vkb::FeatureSet::allAvailable,
-            m_backendParams.gpuNameFilter.c_str());
         m_renderContext = RenderContextVulkanImpl::MakeContext(
-            m_instance,
-            m_device.physical_device,
-            m_device,
-            vulkanFeatures,
-            m_instance.fp_vkGetInstanceProcAddr,
+            m_instance->vkInstance(),
+            m_device->vkPhysicalDevice(),
+            m_device->vkDevice(),
+            m_device->vulkanFeatures(),
+            m_instance->getVkGetInstanceProcAddrPtr(),
             {
                 .forceAtomicMode = backendParams.atomic,
                 .shaderCompilationMode =
@@ -124,15 +64,12 @@ public:
 
     ~TestingWindowVulkanTexture()
     {
-        // Destroy the swapchain first because it synchronizes for in-flight
-        // command buffers.
-        m_swapchain = nullptr;
+        // Destroy the offscreen frame syncrhonizer  first because it
+        // synchronizes for in-flight command buffers.
+        m_frameSynchronizer = nullptr;
 
         m_renderContext.reset();
         m_renderTarget.reset();
-
-        vkb::destroy_device(m_device);
-        vkb::destroy_instance(m_instance);
     }
 
     rive::Factory* factory() override { return m_renderContext.get(); }
@@ -156,32 +93,41 @@ public:
     std::unique_ptr<rive::Renderer> beginFrame(
         const FrameOptions& options) override
     {
-        if (m_swapchain == nullptr || m_swapchain->width() != m_width ||
-            m_swapchain->height() != m_height)
+        if (m_frameSynchronizer == nullptr ||
+            m_frameSynchronizer->width() != m_width ||
+            m_frameSynchronizer->height() != m_height)
         {
-            VkFormat swapchainFormat =
+            VkFormat imageFormat =
                 m_backendParams.srgb   ? VK_FORMAT_R8G8B8A8_SRGB
                 : m_backendParams.core ? VK_FORMAT_R8G8B8A8_UNORM
                                        : VK_FORMAT_B8G8R8A8_UNORM;
             // Don't use VK_IMAGE_USAGE_INPUT_ATTACHMENT_BIT so we can test our
             // codepath that makes us work without it.
-            VkImageUsageFlags additionalUsageFlags =
-                VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+            VkImageUsageFlags usageFlags = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT |
+                                           VK_IMAGE_USAGE_TRANSFER_SRC_BIT |
+                                           VK_IMAGE_USAGE_TRANSFER_DST_BIT;
             uint64_t currentFrameNumber =
-                m_swapchain != nullptr ? m_swapchain->currentFrameNumber() : 0;
-            m_swapchain =
-                std::make_unique<rive_vkb::Swapchain>(m_device,
-                                                      ref_rcp(vk()),
-                                                      m_width,
-                                                      m_height,
-                                                      swapchainFormat,
-                                                      additionalUsageFlags,
-                                                      currentFrameNumber);
-            m_renderTarget =
-                impl()->makeRenderTarget(m_width,
-                                         m_height,
-                                         m_swapchain->imageFormat(),
-                                         m_swapchain->imageUsageFlags());
+                m_frameSynchronizer != nullptr
+                    ? m_frameSynchronizer->currentFrameNumber()
+                    : 0;
+
+            m_frameSynchronizer =
+                std::make_unique<rive_vkb::VulkanHeadlessFrameSynchronizer>(
+                    *m_instance,
+                    *m_device,
+                    ref_rcp(vk()),
+                    rive_vkb::VulkanHeadlessFrameSynchronizer::Options{
+                        .width = m_width,
+                        .height = m_height,
+                        .imageFormat = imageFormat,
+                        .imageUsageFlags = usageFlags,
+                        .initialFrameNumber = currentFrameNumber,
+                    });
+            m_renderTarget = impl()->makeRenderTarget(
+                m_width,
+                m_height,
+                m_frameSynchronizer->imageFormat(),
+                m_frameSynchronizer->imageUsageFlags());
         }
 
         rive::gpu::RenderContext::FrameDescriptor frameDescriptor = {
@@ -204,30 +150,42 @@ public:
 
     void flushPLSContext(RenderTarget* offscreenRenderTarget) final
     {
-        const rive_vkb::SwapchainImage* swapchainImage =
-            m_swapchain->currentImage();
-        if (swapchainImage == nullptr)
+        if (!m_frameSynchronizer->isFrameStarted())
         {
-            swapchainImage = m_swapchain->acquireNextImage();
-            m_renderTarget->setTargetImageView(swapchainImage->imageView,
-                                               swapchainImage->image,
-                                               swapchainImage->imageLastAccess);
+            m_frameSynchronizer->beginFrame();
+
+            m_renderTarget->setTargetImageView(
+                m_frameSynchronizer->vkImageView(),
+                m_frameSynchronizer->vkImage(),
+                m_frameSynchronizer->lastAccess());
         }
 
         m_renderContext->flush({
             .renderTarget = offscreenRenderTarget != nullptr
                                 ? offscreenRenderTarget
                                 : m_renderTarget.get(),
-            .externalCommandBuffer = swapchainImage->commandBuffer,
-            .currentFrameNumber = swapchainImage->currentFrameNumber,
-            .safeFrameNumber = swapchainImage->safeFrameNumber,
+            .externalCommandBuffer =
+                m_frameSynchronizer->currentCommandBuffer(),
+            .currentFrameNumber = m_frameSynchronizer->currentFrameNumber(),
+            .safeFrameNumber = m_frameSynchronizer->safeFrameNumber(),
         });
     }
 
     void endFrame(std::vector<uint8_t>* pixelData) override
     {
         flushPLSContext(nullptr);
-        m_swapchain->submit(m_renderTarget->targetLastAccess(), pixelData);
+        auto lastAccess = m_renderTarget->targetLastAccess();
+        if (pixelData != nullptr)
+        {
+            m_frameSynchronizer->queueImageCopy(&lastAccess);
+        }
+
+        m_frameSynchronizer->endFrame(lastAccess);
+
+        if (pixelData != nullptr)
+        {
+            m_frameSynchronizer->getPixelsFromLastImageCopy(pixelData);
+        }
     }
 
 private:
@@ -239,10 +197,11 @@ private:
     VulkanContext* vk() const { return impl()->vulkanContext(); }
 
     const BackendParams m_backendParams;
-    vkb::Instance m_instance;
-    vkb::Device m_device;
+    std::unique_ptr<rive_vkb::VulkanInstance> m_instance;
+    std::unique_ptr<rive_vkb::VulkanDevice> m_device;
     std::unique_ptr<RenderContext> m_renderContext;
-    std::unique_ptr<rive_vkb::Swapchain> m_swapchain;
+    std::unique_ptr<rive_vkb::VulkanHeadlessFrameSynchronizer>
+        m_frameSynchronizer;
     rcp<RenderTargetVulkanImpl> m_renderTarget;
 };
 }; // namespace rive::gpu
