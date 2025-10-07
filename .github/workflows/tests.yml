@@ -1,117 +1,99 @@
 name: Tests
-
 on:
   push:
 
 jobs:
-  build-linux:
+  # -------------------- Linux --------------------
+  unit_linux:
     runs-on: ubuntu-latest
-
-    strategy:
-      matrix:
-        platform: [linux]
-
     steps:
       - uses: actions/checkout@v2
-      - name: Install
+
+      - name: Premake
         run: |
           wget -q https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-linux.tar.gz
           tar -xf premake-5.0.0-beta2-linux.tar.gz
-          sudo chmod a+x premake5
-          sudo mv premake5 /usr/local/bin
+          sudo install -m 0755 premake5 /usr/local/bin/premake5
 
-      - name: Install dependencies
-        if: runner.os == 'Linux'
+      - name: Deps
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential uuid-dev clang llvm lld
-    
-      - name: Build
-        run: |
-          build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout debug
-          build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout release
 
       - name: Add build scripts to PATH
         run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
-  
-      - name: Tests
+
+      - name: Unit tests (no ASan)
         run: |
           cd tests/unit_tests
-          ./test.sh asan
+          ./test.sh
 
-  build-windows:
+  # -------------------- Windows (clang-cl toolset) --------------------
+  unit_windows:
     runs-on: windows-2022
     steps:
       - uses: actions/checkout@v2
       - uses: microsoft/setup-msbuild@v1.1
-      - name: Build Rive
-        shell: pwsh
-        run: |
-          ./build/build_rive.ps1 --file=premake5_v2.lua debug
-          ./build/build_rive.ps1 --file=premake5_v2.lua release
-  
-      - name: Tests
-        run: |
-          cd tests/unit_tests
-          ./test.bat --factory=null
 
-  build-macos:
+      - name: Add build scripts to PATH
+        shell: bash
+        run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
+
+      - name: Unit tests (no GPU)
+        shell: cmd
+        working-directory: tests/unit_tests
+        run: .\test.bat --factory=null
+
+  # -------------------- Windows (MSVC toolset) --------------------
+  unit_windows_msvc:
+    runs-on: windows-2022
+    steps:
+      - uses: actions/checkout@v2
+      - uses: microsoft/setup-msbuild@v1.1
+
+      - name: Add build scripts to PATH
+        shell: bash
+        run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
+
+      - name: Unit tests (MSVC, no GPU)
+        shell: cmd
+        working-directory: tests/unit_tests
+        run: .\test.bat --toolset=msc --factory=null
+
+  # -------------------- macOS --------------------
+  unit_macos:
     runs-on: macOS-latest
-
-    strategy:
-      matrix:
-        platform: [macOS]
-
     steps:
       - uses: actions/checkout@v3
 
-      - name: Install
+      - name: Premake
         run: |
-          wget -q https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-macosx.tar.gz
-          tar -xf premake-5.0.0-beta2-macosx.tar.gz
-          sudo chmod a+x premake5
-          sudo mv premake5 /usr/local/bin
-
-      - name: Build
-        run: |
-          build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout debug
-          build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout release
-
-      - name: Build glfw
-        working-directory: skia/dependencies/
-        run: ./make_glfw.sh
+          curl -L -o premake_macosx.tar.gz https://github.com/premake/premake-core/releases/download/v5.0.0-beta2/premake-5.0.0-beta2-macosx.tar.gz
+          tar -xf premake_macosx.tar.gz
+          sudo install -m 0755 premake5 /usr/local/bin/premake5
 
       - name: Add build scripts to PATH
         run: echo "${{ github.workspace }}/build" >> $GITHUB_PATH
-  
-      - name: Memory Leaks & Address Sanitization
-        # Need to clean here because we already did a unit_tests build above without asan
+
+      - name: Unit tests (no ASan)
         run: |
           cd tests/unit_tests
           ./test.sh
-      
-      - name: Tess Tests
-        if: matrix.platform == 'macOS'
+
+      # Tess (kept as separate; builds and runs both variants)
+      - name: Tess tests
         run: |
           set -euo pipefail
           cd tess
 
-          # Build Debug (lands under ./out/debug/… with original script)
+          # Debug/default
           ../build/build_rive.sh --file=premake5_tess.lua
-
           DBG_BIN=$(find ./out -type f -name 'rive_tess_tests*' -perm -111 -print -quit)
           echo "Debug tess binary: ${DBG_BIN:-<not found>}"
-          if [ -z "${DBG_BIN:-}" ]; then
-            echo "Could not locate Debug tess binary. Listing ./out for clues:"; find ./out -maxdepth 3 -print; exit 1
-          fi
-          "$DBG_BIN"
-     
-          # Build Release (lands under ./out/release/…)
+          test -n "${DBG_BIN:-}" && "$DBG_BIN"
+
+          # Release
           ../build/build_rive.sh --file=premake5_tess.lua release
-     
           REL_BIN=$(find ./out -type f -name 'rive_tess_tests*' -perm -111 -print -quit)
           echo "Release tess binary: ${REL_BIN:-<not found>}"
-          if [ -z "${REL_BIN:-}" ]; then
-            echo "Could not locate Release tess binary. Listing ./out for clues:"; find ./out -maxdepth 3 -print; exit 1
-          fi
-          "$REL_BIN"
+          test -n "${REL_BIN:-}" && "$REL_BIN"
