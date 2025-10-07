@@ -91,7 +91,19 @@ jobs:
       - name: Tess Tests
         if: matrix.platform == 'macOS'
         run: |
-          echo Testing for ${{matrix.platform}}
-             cd tess
-            ../build/build_rive.sh --file=premake5_tess.lua
-            ../out/default/rive_tess_tests
+          set -e
+          cd tess
+      
+          # Debug/default
+          ../build/build_rive.sh --file=premake5_tess.lua
+          DBG_BIN=$(find ../out -maxdepth 3 -type f -name 'rive_tess_tests*' | head -n 1)
+          echo "Debug tess binary: $DBG_BIN"
+          test -x "$DBG_BIN" || chmod +x "$DBG_BIN"
+          "$DBG_BIN"
+      
+          # Release
+          ../build/build_rive.sh --file=premake5_tess.lua release
+          REL_BIN=$(find ../out -maxdepth 3 -type f -name 'rive_tess_tests*' | head -n 1)
+          echo "Release tess binary: $REL_BIN"
+          test -x "$REL_BIN" || chmod +x "$REL_BIN"
+          "$REL_BIN"
