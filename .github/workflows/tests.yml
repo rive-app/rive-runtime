@@ -20,6 +20,11 @@ jobs:
           sudo chmod a+x premake5
           sudo mv premake5 /usr/local/bin
 
+      - name: Install dependencies (Linux)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential uuid-dev
+    
       - name: Build
         run: |
           build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout debug
