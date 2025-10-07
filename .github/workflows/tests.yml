@@ -92,5 +92,7 @@ jobs:
         if: matrix.platform == 'macOS'
         run: |
           echo Testing for ${{matrix.platform}}
-          cd tess/build/macosx
-          ./build_tess.sh test
+             cd tess
+            ../build/build_rive.sh --file=premake5_tess.lua debug
+            ../build/build_rive.sh --file=premake5_tess.lua release
+            ../out/debug/rive_tess_tests
