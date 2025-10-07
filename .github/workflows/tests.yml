@@ -22,9 +22,8 @@ jobs:
 
       - name: Build
         run: |
-          ./build.sh clean
-          ./build.sh
-          ./build.sh release
+          build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout debug
+          build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout release
 
       - name: Tests
         run: |
@@ -59,8 +58,8 @@ jobs:
 
       - name: Build
         run: |
-          ./build.sh
-          ./build.sh release
+          build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout debug
+          build/build_rive.sh --file=premake5_v2.lua --with_rive_audio=system --with_rive_text --with_rive_layout release
 
       - name: Build glfw
         working-directory: skia/dependencies/
