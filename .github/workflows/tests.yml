@@ -91,19 +91,25 @@ jobs:
       - name: Tess Tests
         if: matrix.platform == 'macOS'
         run: |
-          set -e
+          set -euo pipefail
           cd tess
-      
-          # Debug/default
+
+          # ---- Debug/default ----
           ../build/build_rive.sh --file=premake5_tess.lua
-          DBG_BIN=$(find ../out -maxdepth 3 -type f -name 'rive_tess_tests*' | head -n 1)
+          MK=../out/default/rive_tess_tests.make
+          TARGETDIR=$(sed -n 's/^TARGETDIR := *//p' "$MK")
+          TARGET=$(sed -n 's/^TARGET := *//p' "$MK")
+          DBG_BIN="$TARGETDIR/$TARGET"
           echo "Debug tess binary: $DBG_BIN"
           test -x "$DBG_BIN" || chmod +x "$DBG_BIN"
           "$DBG_BIN"
       
-          # Release
+          # ---- Release ----
           ../build/build_rive.sh --file=premake5_tess.lua release
-          REL_BIN=$(find ../out -maxdepth 3 -type f -name 'rive_tess_tests*' | head -n 1)
+          MK=../out/release/rive_tess_tests.make
+          TARGETDIR=$(sed -n 's/^TARGETDIR := *//p' "$MK")
+          TARGET=$(sed -n 's/^TARGET := *//p' "$MK")
+          REL_BIN="$TARGETDIR/$TARGET"
           echo "Release tess binary: $REL_BIN"
           test -x "$REL_BIN" || chmod +x "$REL_BIN"
           "$REL_BIN"
