@@ -249,6 +249,16 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
         nameFilter = nullptr;
     }
 
+    auto desiredDeviceType = VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU;
+    if (nameFilter != nullptr &&
+        (strcmp(nameFilter, "integrated") == 0 || strcmp(nameFilter, "i") == 0))
+    {
+        // "i" and "integrated" are special-case nameFilters that mean "use the
+        // integrated GPU".
+        desiredDeviceType = VK_PHYSICAL_DEVICE_TYPE_INTEGRATED_GPU;
+        nameFilter = nullptr;
+    }
+
     std::vector<VkPhysicalDevice> physicalDevices;
     {
         DEFINE_AND_LOAD_INSTANCE_FUNC(vkEnumeratePhysicalDevices, instance);
@@ -344,9 +354,9 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
     }
     else
     {
-        // Without a filter we are going to search for any device, but do a
-        // first pass looking for discrete devices only.
-        for (auto onlyAcceptDiscrete : {true, false})
+        // Without a nameFilter we are going to search for any device, but do a
+        // first pass looking for the desired type of devices only.
+        for (auto onlyAcceptDesiredType : {true, false})
         {
             for (const auto& device : physicalDevices)
             {
@@ -361,8 +371,8 @@ VulkanDevice::FindDeviceResult VulkanDevice::findCompatiblePhysicalDevice(
                     continue;
                 }
 
-                if (!onlyAcceptDiscrete ||
-                    props.deviceType == VK_PHYSICAL_DEVICE_TYPE_DISCRETE_GPU)
+                if (!onlyAcceptDesiredType ||
+                    props.deviceType == desiredDeviceType)
                 {
                     return {
                         .physicalDevice = device,

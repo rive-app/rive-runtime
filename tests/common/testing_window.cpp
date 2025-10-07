@@ -12,6 +12,23 @@
 #include <windows.h>
 #endif
 
+#ifdef _WIN32
+extern "C"
+{
+    // https://stackoverflow.com/questions/68469954/how-to-choose-specific-gpu-when-create-opengl-context:
+    //
+    //   OpenGL, or rather the Win32 GDI integration of it, doesn't offer means
+    //   to explicitly select the desired device. However the drivers of Nvidia
+    //   and AMD offer a workaround to have programs select, that they prefer to
+    //   execute on the discrete GPU rather than the CPU integrated one.
+    //
+    // These also appear to select the discrete "Arc" GPU on an Intel system,
+    // and to influence the GPU selection on D3D11.
+    __declspec(dllexport) uint32_t NvOptimusEnablement = 1;
+    __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+#endif
+
 // Call TestingWindow::Destroy if you want to delete the window singleton
 TestingWindow* s_TestingWindow = nullptr;
 
@@ -239,10 +256,26 @@ TestingWindow* TestingWindow::Init(Backend backend,
                                    Visibility visibility,
                                    void* platformWindow)
 {
-    if (backend == Backend::rhi)
-        assert(s_TestingWindow);
-    else
-        assert(!s_TestingWindow);
+    assert((backend == Backend::rhi) == (s_TestingWindow != nullptr));
+
+#ifdef _WIN32
+    // Set our backdoor GPU selection variables in case the API doesn't
+    // allow us to select explicitly.
+    const char* nameFilter = backendParams.gpuNameFilter.c_str();
+    if (const char* gpuFromEnv = getenv("RIVE_GPU"); gpuFromEnv != nullptr)
+    {
+        // Override the program's GPU filter with one from the environment if
+        // it's set.
+        nameFilter = gpuFromEnv;
+    }
+    // "i" and "integrated" are special-case gpuNameFilters that mean "use
+    // the integrated GPU".
+    bool wantIntegratedGPU = static_cast<uint32_t>(
+        strcmp(nameFilter, "integrated") == 0 || strcmp(nameFilter, "i") == 0);
+    NvOptimusEnablement = !wantIntegratedGPU;
+    AmdPowerXpressRequestHighPerformance = !wantIntegratedGPU;
+#endif
+
     switch (backend)
     {
         case Backend::gl:

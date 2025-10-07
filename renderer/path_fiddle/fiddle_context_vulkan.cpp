@@ -59,6 +59,7 @@ public:
             *m_instance,
             VulkanDevice::Options{
                 .coreFeaturesOnly = options.coreFeaturesOnly,
+                .gpuNameFilter = options.gpuNameFilter,
             });
 
         m_renderContext = RenderContextVulkanImpl::MakeContext(

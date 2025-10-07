@@ -43,6 +43,24 @@ constexpr static char kSwiftShaderICD[] = "dependencies/SwiftShader/build/"
                                           "Linux"
 #endif
                                           "/vk_swiftshader_icd.json";
+
+#ifdef _WIN32
+extern "C"
+{
+    // https://stackoverflow.com/questions/68469954/how-to-choose-specific-gpu-when-create-opengl-context:
+    //
+    //   OpenGL, or rather the Win32 GDI integration of it, doesn't offer means
+    //   to explicitly select the desired device. However the drivers of Nvidia
+    //   and AMD offer a workaround to have programs select, that they prefer to
+    //   execute on the discrete GPU rather than the CPU integrated one.
+    //
+    // These also appear to select the discrete "Arc" GPU on an Intel system,
+    // and to influence the GPU selection on D3D11.
+    __declspec(dllexport) uint32_t NvOptimusEnablement = 1;
+    __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 1;
+}
+#endif
+
 static FiddleContextOptions options;
 static GLFWwindow* window = nullptr;
 static int msaa = 0;
@@ -612,9 +630,13 @@ int main(int argc, const char** argv)
         {
             options.enableVulkanValidationLayers = true;
         }
-        else if (!strcmp(argv[i], "--gpu") || !strcmp(argv[i], "-G"))
+        else if (!strcmp(argv[i], "--gpu") || !strcmp(argv[i], "-g"))
         {
             options.gpuNameFilter = argv[++i];
+        }
+        else if (!strcmp(argv[i], "--integrated") || !strcmp(argv[i], "-i"))
+        {
+            options.gpuNameFilter = "integrated";
         }
         else if (!strncmp(argv[i], "--", 2))
         {
@@ -626,6 +648,21 @@ int main(int argc, const char** argv)
             rivName = argv[i];
         }
     }
+
+#ifdef _WIN32
+    // Set our backdoor GPU selection variables in case the API doesn't allow us
+    // to select explicitly.
+    if (options.gpuNameFilter != nullptr)
+    {
+        // "i" and "integrated" are special-case gpuNameFilters that mean "use
+        // the integrated GPU".
+        bool wantIntegratedGPU = static_cast<uint32_t>(
+            strcmp(options.gpuNameFilter, "integrated") == 0 ||
+            strcmp(options.gpuNameFilter, "i") == 0);
+        NvOptimusEnablement = !wantIntegratedGPU;
+        AmdPowerXpressRequestHighPerformance = !wantIntegratedGPU;
+    }
+#endif
 
     glfwSetErrorCallback(glfw_error_callback);
 
